@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34902.65
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dino Engine", "Dino Engine\Dino Engine.csproj", "{6BE5B8A8-8EA1-4DEF-A660-50FF56C010A3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dino Defenders", "Dino Defenders\Dino Defenders.csproj", "{9DC73F17-4990-4528-8664-E577ADBBA3E8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6BE5B8A8-8EA1-4DEF-A660-50FF56C010A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6BE5B8A8-8EA1-4DEF-A660-50FF56C010A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6BE5B8A8-8EA1-4DEF-A660-50FF56C010A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6BE5B8A8-8EA1-4DEF-A660-50FF56C010A3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9DC73F17-4990-4528-8664-E577ADBBA3E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9DC73F17-4990-4528-8664-E577ADBBA3E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9DC73F17-4990-4528-8664-E577ADBBA3E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9DC73F17-4990-4528-8664-E577ADBBA3E8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {60A455C1-68AC-4438-84FD-1615D35521EE}
+	EndGlobalSection
+EndGlobal
