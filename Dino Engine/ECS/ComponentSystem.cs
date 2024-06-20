@@ -2,26 +2,23 @@
 {
     public class ComponentSystem
     {
-        private List<Component> memberComponents = new List<Component>();
+        private List<Entity> _memberEntities = new List<Entity>();
+        public List<Entity> MemberEntities { get => _memberEntities;}
 
         public ComponentSystem()
         {
 
         }
-        public virtual void AddMember(Component member)
+
+        public virtual void AddMember(Entity member)
         {
-            memberComponents.Add(member);
+            MemberEntities.Add(member);
             member.AddSubscribedSystem(this);
         }
-        public virtual void RemoveMember(Component member)
+        public virtual void RemoveMember(Entity member)
         {
-            memberComponents.Remove(member);
+            MemberEntities.Remove(member);
             member.RemoveSubscribedSystem(this);
-        }
-
-        public List<Component> getMembers()
-        {
-            return memberComponents;
         }
         public virtual void Update() { }
     }

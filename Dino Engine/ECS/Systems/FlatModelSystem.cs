@@ -10,25 +10,24 @@ namespace Dino_Engine.ECS
 
         public Dictionary<glModel, List<Entity>> Models { get => _models; set => _models = value; }
 
-        public override void AddMember(Component member)
+        public override void AddMember(Entity member)
         {
-            glModel glModel = member.Owner.getComponent<FlatModelComponent>().GLModel;
+            glModel glModel = member.getComponent<FlatModelComponent>().GLModel;
             if (_models.ContainsKey(glModel)) {
-                _models[glModel].Add(member.Owner);
+                _models[glModel].Add(member);
             } else
             {
                 _models.Add(glModel, new List<Entity>());
-                _models[glModel].Add(member.Owner);
+                _models[glModel].Add(member);
             }
             member.AddSubscribedSystem(this);
         }
 
-        public override void RemoveMember(Component member)
+        public override void RemoveMember(Entity member)
         {
-            FlatModelComponent model = (FlatModelComponent)member;
-            glModel glmodel = model.Owner.getComponent<FlatModelComponent>().GLModel;
+            glModel glmodel = member.getComponent<FlatModelComponent>().GLModel;
 
-            _models[glmodel].Remove(member.Owner);
+            _models[glmodel].Remove(member);
 
             if (_models[glmodel].Count == 0)
             {

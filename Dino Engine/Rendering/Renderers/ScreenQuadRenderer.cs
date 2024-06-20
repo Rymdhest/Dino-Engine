@@ -48,7 +48,7 @@ namespace Dino_Engine.Rendering.Renderers
             GL.BindVertexArray(_quadModel.getVAOID());
             GL.EnableVertexAttribArray(0);
 
-            GL.ClearColor(0f, 0f, 1f, 1f);
+            GL.ClearColor(0f, 0f, 0f, 1f);
             if (clearColor)GL.Clear(ClearBufferMask.ColorBufferBit);
             
 
@@ -63,6 +63,13 @@ namespace Dino_Engine.Rendering.Renderers
             GL.DrawElements(PrimitiveType.Triangles, _quadModel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
 
             GL.BindVertexArray(0);
+        }
+        public void clearBothBuffers()
+        {
+            GetNextFrameBuffer().ClearColorDepth();
+            StepToggle();
+            GetNextFrameBuffer().ClearColorDepth();
+            StepToggle();
         }
 
         public void RenderToNextFrameBuffer()

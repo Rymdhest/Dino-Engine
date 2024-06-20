@@ -7,6 +7,7 @@ using Dino_Engine.Util;
 using Dino_Engine.Modelling;
 using Dino_Engine.Core;
 using static OpenTK.Graphics.OpenGL.GL;
+using Dino_Engine.ECS.Components;
 
 
 namespace Dino_Engine.Rendering
@@ -32,6 +33,7 @@ namespace Dino_Engine.Rendering
         }
         public void render(ECSEngine eCSEngine, ScreenQuadRenderer screenQuadRenderer, FrameBuffer gBuffer)
         {
+            screenQuadRenderer.GetLastFrameBuffer().bind();
             prepareFrame();
 
             DirectionalLightPass(eCSEngine, screenQuadRenderer, gBuffer);
@@ -58,18 +60,20 @@ namespace Dino_Engine.Rendering
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(3));
 
-            foreach (DirectionalLightComponent directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().getMembers())
+
+            foreach (Entity entity in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {
-                Vector3 lightDirection = directionalLight.Direction;
-                Vector4 sunDirectionViewSpace = new Vector4(lightDirection.X, lightDirection.Y, lightDirection.Z, 1.0f) * Matrix4.Transpose(Matrix4.Invert(viewMatrix));
+                Vector3 lightDirection = entity.getComponent<DirectionComponent>().Direction;
+                Vector3 lightColour = entity.getComponent<ColourComponent>().Colour.ToVector3();
+                Vector4 sunDirectionViewSpace = new Vector4(lightDirection, 1.0f) * Matrix4.Transpose(Matrix4.Invert(viewMatrix));
                 _directionalLightShader.loadUniformVector3f("LightDirectionViewSpace", sunDirectionViewSpace.Xyz);
 
-                _directionalLightShader.loadUniformVector3f("lightColour", directionalLight.Colour.ToVector3());
-                _directionalLightShader.loadUniformFloat("ambientFactor", 1.0f);
+                _directionalLightShader.loadUniformVector3f("lightColour", lightColour);
+                _directionalLightShader.loadUniformFloat("ambientFactor", 0.3f);
                 _directionalLightShader.loadUniformInt("numberOfCascades", 0);
                 _directionalLightShader.loadUniformVector2f("resolution", Engine.WindowHandler.Size);
 
-                screenQuadRenderer.RenderToNextFrameBuffer();
+                screenQuadRenderer.Render(clearColor : false, blend : true);
             }
         }
         public override void Update()

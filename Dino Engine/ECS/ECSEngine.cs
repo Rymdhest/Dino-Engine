@@ -1,4 +1,5 @@
-﻿using Dino_Engine.Modelling;
+﻿using Dino_Engine.ECS.Components;
+using Dino_Engine.Modelling;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -36,6 +37,7 @@ namespace Dino_Engine.ECS
             box.addComponent(new TransformationComponent(new Vector3(3, 0, -7f), new Vector3(0), new Vector3(1)));
             glModel boxModel = glLoader.loadToVAO(MeshGenerator.generateBox(new Vector3(-0.5f), new Vector3(0.5f)));
             box.addComponent(new FlatModelComponent(boxModel));
+            AddEnityToSystem<FlatModelSystem>(box);
 
             Entity groundPlane = new Entity();
             groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0, 0f), new Vector3(0), new Vector3(1)));
@@ -44,6 +46,7 @@ namespace Dino_Engine.ECS
             rawGRroud.setColour(new Vector3(0.7f));
             glModel groundModel = glLoader.loadToVAO(rawGRroud);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
+            AddEnityToSystem<FlatModelSystem>(groundPlane);
 
             Entity cylinder = new Entity();
             cylinder.addComponent(new TransformationComponent(new Vector3(-3, 0, -5f), new Vector3(0), new Vector3(1)));
@@ -57,18 +60,28 @@ namespace Dino_Engine.ECS
             new Vector3(trunkRadius, trunkHeight, trunkRadius*0.7f)};
             RawModel trunk = MeshGenerator.generateCylinder(trunkLayers, 7, trunkColor);
             cylinder.addComponent(new FlatModelComponent(glLoader.loadToVAO(trunk)));
+            AddEnityToSystem<FlatModelSystem>(cylinder);
 
             Entity sun = new Entity();
             Vector3 direction = new Vector3(-1f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 1f, 0.4f);
-            sun.addComponent(new DirectionalLightComponent(direction, colour));
+            Colour colour = new Colour(1f, 1f, 1f, 3.4f);
+            sun.addComponent(new ColourComponent(colour));
+            sun.addComponent(new DirectionComponent(direction));
+            AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity();
             Vector3 skyDirection = new Vector3(0f, 1f, 0.0f);
-            Colour skyColour = new Colour(0.7f, 0.7f, 1f, 1f);
-            sky.addComponent(new DirectionalLightComponent(skyDirection, skyColour));
-        }
+            Colour skyColour = new Colour(0.7f, 0.7f, 1f, 0.3f);
+            sky.addComponent(new ColourComponent(skyColour));
+            sky.addComponent(new DirectionComponent(skyDirection));
+            AddEnityToSystem<DirectionalLightSystem>(sky);
 
+        }
+        public bool AddEnityToSystem<T>(Entity entity) where T : ComponentSystem
+        {
+            getSystem<T>().AddMember(entity);
+            return true;
+        }
 
         public void update()
         {

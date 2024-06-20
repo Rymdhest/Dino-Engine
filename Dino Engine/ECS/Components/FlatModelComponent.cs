@@ -19,12 +19,6 @@ namespace Dino_Engine.ECS
             _glModel = model;
             _isCleanGLModel = cleanGLModel;
         }
-
-        public override void Initialize()
-        {
-            Engine.Instance.ECSEngine.getSystem<FlatModelSystem>().AddMember(this);
-        }
-
         public override void CleanUp()
         {
             base.CleanUp();

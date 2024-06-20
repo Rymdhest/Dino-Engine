@@ -82,7 +82,7 @@ namespace Dino_Engine.Rendering
             PostProcessPass();
 
             _simpleShader.bind();
-            _screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastFrameBuffer().getRenderAttachment(0));
+            _screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
             //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.getRenderAttachment(0));
 
             FinishFrame();
@@ -100,7 +100,7 @@ namespace Dino_Engine.Rendering
 
         private void PrepareFrame()
         {
-
+            _screenQuadRenderer.clearBothBuffers();
         }
 
 
