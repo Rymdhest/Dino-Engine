@@ -63,8 +63,8 @@ void main(void){
 	vec3 normal = texture(gNormal, textureCoords).xyz;
 	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
 	
-	//float sunFactor = 1f-calcShadow(position);
-	float sunFactor = 1f;
+	float sunFactor = 1f-calcShadow(position);
+	//float sunFactor = 1f;
 
 	float ambientOcclusion = texture(gAlbedo, textureCoords).a;
 	float roughness = clamp(texture(gMaterials, textureCoords).r, 0.05f, 1f);

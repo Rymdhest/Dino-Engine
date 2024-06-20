@@ -29,17 +29,25 @@ namespace Dino_Engine.ECS
 
         public void Init()
         {
-            Camera = new Entity();
+            Camera = new Entity("Camera");
             Camera.addComponent(new TransformationComponent(new Vector3(0, 2f, 0f), new Vector3(0), new Vector3(1)));
             Camera.addComponent(new ProjectionComponent(MathF.PI / 2.5f));
 
-            Entity box = new Entity();
+            Entity box = new Entity("Box");
             box.addComponent(new TransformationComponent(new Vector3(3, 0, -7f), new Vector3(0), new Vector3(1)));
             glModel boxModel = glLoader.loadToVAO(MeshGenerator.generateBox(new Vector3(-0.5f), new Vector3(0.5f)));
             box.addComponent(new FlatModelComponent(boxModel));
             AddEnityToSystem<FlatModelSystem>(box);
 
-            Entity groundPlane = new Entity();
+            Entity box2 = new Entity("Box2");
+            box2.addComponent(new TransformationComponent(new Vector3(1, 3, -4f), new Vector3(0), new Vector3(1)));
+            RawModel box2Rawmodel = MeshGenerator.generateBox(new Vector3(-0.5f), new Vector3(0.5f));
+            box2Rawmodel.setColour(new Vector3(0.2f, 0.8f, 0.2f));
+            glModel boxModel2 = glLoader.loadToVAO(box2Rawmodel);
+            box2.addComponent(new FlatModelComponent(boxModel2));
+            AddEnityToSystem<FlatModelSystem>(box2);
+
+            Entity groundPlane = new Entity("Ground");
             groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0, 0f), new Vector3(0), new Vector3(1)));
             float size = 25f;
             RawModel rawGRroud = MeshGenerator.generateBox(new Vector3(-size, -1, -size), new Vector3(size, 0, size));
@@ -48,8 +56,8 @@ namespace Dino_Engine.ECS
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
 
-            Entity cylinder = new Entity();
-            cylinder.addComponent(new TransformationComponent(new Vector3(-3, 0, -5f), new Vector3(0), new Vector3(1)));
+            Entity tree = new Entity("Tree");
+            tree.addComponent(new TransformationComponent(new Vector3(-3, 0, -5f), new Vector3(0), new Vector3(1)));
             float trunkRadius = 0.6f;
             float trunkHeight = 3.4f;
             Vector3 trunkColor = new Vector3(0.55f, 0.39f, 0.18f);
@@ -59,22 +67,27 @@ namespace Dino_Engine.ECS
             new Vector3(trunkRadius, trunkHeight*0.66f, trunkRadius*0.8f),
             new Vector3(trunkRadius, trunkHeight, trunkRadius*0.7f)};
             RawModel trunk = MeshGenerator.generateCylinder(trunkLayers, 7, trunkColor);
-            cylinder.addComponent(new FlatModelComponent(glLoader.loadToVAO(trunk)));
-            AddEnityToSystem<FlatModelSystem>(cylinder);
+            tree.addComponent(new FlatModelComponent(glLoader.loadToVAO(trunk)));
+            AddEnityToSystem<FlatModelSystem>(tree);
 
-            Entity sun = new Entity();
+            Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-1f, 2f, 0.9f);
             Colour colour = new Colour(1f, 1f, 1f, 3.4f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
+            sun.addComponent(new AmbientLightComponent(0.1f));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024), 2, 50));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
-            Entity sky = new Entity();
+            Entity sky = new Entity("Sky");
             Vector3 skyDirection = new Vector3(0f, 1f, 0.0f);
-            Colour skyColour = new Colour(0.7f, 0.7f, 1f, 0.3f);
+            Colour skyColour = new Colour(0.2f, 0.2f, 1f, 0.4f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
+            sky.addComponent(new AmbientLightComponent(0.2f));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024), 1, 50));
             AddEnityToSystem<DirectionalLightSystem>(sky);
+
 
         }
         public bool AddEnityToSystem<T>(Entity entity) where T : ComponentSystem

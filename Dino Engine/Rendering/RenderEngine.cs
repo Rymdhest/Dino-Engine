@@ -16,6 +16,7 @@ namespace Dino_Engine.Rendering
         private ScreenQuadRenderer _screenQuadRenderer;
         private FlatGeogemetryRenderer _flatGeogemetryRenderer;
         private LightRenderer _lightRenderer;
+        private ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
 
         private ShaderProgram _simpleShader;
         public RenderEngine()
@@ -29,12 +30,12 @@ namespace Dino_Engine.Rendering
             _simpleShader.unBind();
         }
 
-
         public void InitRenderers()
         {
             _screenQuadRenderer = new ScreenQuadRenderer();
             _flatGeogemetryRenderer = new FlatGeogemetryRenderer();
             _lightRenderer = new LightRenderer();
+            _shadowCascadeMapRenderer = new ShadowCascadeMapRenderer();
         }
 
         private void InitGBuffer()
@@ -78,7 +79,7 @@ namespace Dino_Engine.Rendering
             PrepareFrame();
 
             GeometryPass(eCSEngine);
-            _lightRenderer.render(eCSEngine, _screenQuadRenderer, _gBuffer);
+            LightPass(eCSEngine);
             PostProcessPass();
 
             _simpleShader.bind();
@@ -87,10 +88,20 @@ namespace Dino_Engine.Rendering
 
             FinishFrame();
         }
+
+        private void LightPass(ECSEngine eCSEngine)
+        {
+            _shadowCascadeMapRenderer.render(eCSEngine);
+            _lightRenderer.render(eCSEngine, _screenQuadRenderer, _gBuffer);
+        }
+
         private void GeometryPass(ECSEngine eCSEngine)
         {
             _gBuffer.bind();
             _flatGeogemetryRenderer.render(eCSEngine.getSystem<FlatModelSystem>(), eCSEngine.Camera);
+
+            _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
+            _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);
         }
 
         private void PostProcessPass()

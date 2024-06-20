@@ -6,34 +6,44 @@ namespace Dino_Engine.ECS
 {
     internal class FlatModelSystem : ComponentSystem
     {
-        private Dictionary<glModel, List<Entity>> _models = new Dictionary<glModel, List<Entity>>();
+        private Dictionary<glModel, List<Entity>> _modelsDictionary = new Dictionary<glModel, List<Entity>>();
 
-        public Dictionary<glModel, List<Entity>> Models { get => _models; set => _models = value; }
+        public Dictionary<glModel, List<Entity>> ModelsDictionary { get => _modelsDictionary; set => _modelsDictionary = value; }
+
+        public FlatModelSystem() : base()
+        {
+            addRequiredComponent<TransformationComponent>();
+            addRequiredComponent<FlatModelComponent>();
+        } 
 
         public override void AddMember(Entity member)
         {
+            base.AddMember(member);
             glModel glModel = member.getComponent<FlatModelComponent>().GLModel;
-            if (_models.ContainsKey(glModel)) {
-                _models[glModel].Add(member);
+            if (_modelsDictionary.ContainsKey(glModel)) {
+                _modelsDictionary[glModel].Add(member);
             } else
             {
-                _models.Add(glModel, new List<Entity>());
-                _models[glModel].Add(member);
+                _modelsDictionary.Add(glModel, new List<Entity>());
+                _modelsDictionary[glModel].Add(member);
             }
-            member.AddSubscribedSystem(this);
         }
 
         public override void RemoveMember(Entity member)
         {
+            base.RemoveMember(member);
+
             glModel glmodel = member.getComponent<FlatModelComponent>().GLModel;
+            _modelsDictionary[glmodel].Remove(member);
 
-            _models[glmodel].Remove(member);
-
-            if (_models[glmodel].Count == 0)
+            if (_modelsDictionary[glmodel].Count == 0)
             {
-                _models.Remove(glmodel);
+                _modelsDictionary.Remove(glmodel);
             }
-            member.RemoveSubscribedSystem(this);
+        }
+
+        internal override void UpdateEntity(Entity entity)
+        {
         }
     }
 }

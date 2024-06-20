@@ -32,7 +32,7 @@ namespace Dino_Engine.Rendering
             prepareFrame(viewMatrix, projectionMatrix);
             flatShader.bind();
 
-            foreach (KeyValuePair<glModel, List<Entity>> glmodels in flatShadeEntities.Models) {
+            foreach (KeyValuePair<glModel, List<Entity>> glmodels in flatShadeEntities.ModelsDictionary) {
                 glModel glmodel = glmodels.Key;
 
                 GL.BindVertexArray(glmodel.getVAOID());

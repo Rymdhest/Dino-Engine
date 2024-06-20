@@ -62,7 +62,7 @@ namespace Dino_Engine.Rendering
         public void ClearColorDepth()
         {
             bind();
-            GL.ClearColor(0f, 0f, 1f, 1f);
+            GL.ClearColor(0f, 0f, 0f, 1f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         }
         public void bind()

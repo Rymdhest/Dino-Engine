@@ -1,0 +1,79 @@
+﻿using Dino_Engine.Rendering;
+using OpenTK.Mathematics;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Dino_Engine.ECS.Components
+{
+    internal class CascadingShadowComponent : Component
+    {
+
+        public class ShadowCascade
+        {
+            private Matrix4 cascadeProjectionMatrix;
+            private FrameBuffer cascadeFrameBuffer;
+            private float projectionSize;
+            private float polygonOffset;
+            public ShadowCascade(Vector2i resolution, float projectionSize, float polygonOffset = 4f)
+            {
+                this.projectionSize = projectionSize;
+                this.polygonOffset = polygonOffset;
+                FrameBufferSettings settings = new FrameBufferSettings(resolution);
+                DepthAttachmentSettings depthAttachmentSettings = new DepthAttachmentSettings();
+                depthAttachmentSettings.isTexture = true;
+                depthAttachmentSettings.isShadowDepthTexture = true;
+                settings.depthAttachmentSettings = depthAttachmentSettings;
+                cascadeFrameBuffer = new FrameBuffer(settings);
+
+                cascadeProjectionMatrix = Matrix4.CreateOrthographic(projectionSize, projectionSize, -projectionSize, projectionSize);
+            }
+
+            public float getPolygonOffset()
+            {
+                return polygonOffset;
+            }
+
+            public Vector2i getResolution()
+            {
+                return cascadeFrameBuffer.getResolution();
+            }
+
+            public int getDepthTexture()
+            {
+                return cascadeFrameBuffer.getDepthAttachment();
+            }
+
+            public Matrix4 getProjectionMatrix()
+            {
+                return cascadeProjectionMatrix;
+            }
+
+            public void bindFrameBuffer()
+            {
+                cascadeFrameBuffer.bind();
+            }
+            public float getProjectionSize()
+            {
+                return projectionSize;
+            }
+        }
+
+
+        private List<ShadowCascade> cascades = new List<ShadowCascade>();
+        Matrix4 _lightViewMatrix = Matrix4.Identity;
+        internal List<ShadowCascade> Cascades { get => cascades;}
+        public Matrix4 LightViewMatrix { get => _lightViewMatrix; set => _lightViewMatrix = value; }
+
+        public CascadingShadowComponent(Vector2i resolution, int numCascades, float size)
+        {
+            for (int i = 0; i<numCascades; i++)
+            {
+                Cascades.Add(new ShadowCascade(resolution, size));
+                size /= 2.0f;
+            }
+        }
+    }
+}
