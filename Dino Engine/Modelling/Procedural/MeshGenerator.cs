@@ -73,7 +73,7 @@ namespace Dino_Engine.Modelling
                         6,5,7, 7,5,4};  //bot
 
             RawModel rawModel = new RawModel(positions, colours, indices);
-            rawModel.setEmission(150f);
+            //rawModel.setEmission(0f);
             return rawModel;
         }
     }

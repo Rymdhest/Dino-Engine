@@ -15,6 +15,7 @@ namespace Dino_Engine.Rendering
 
         private ScreenQuadRenderer _screenQuadRenderer;
         private FlatGeogemetryRenderer _flatGeogemetryRenderer;
+        private LightRenderer _lightRenderer;
 
         private ShaderProgram _simpleShader;
         public RenderEngine()
@@ -33,6 +34,7 @@ namespace Dino_Engine.Rendering
         {
             _screenQuadRenderer = new ScreenQuadRenderer();
             _flatGeogemetryRenderer = new FlatGeogemetryRenderer();
+            _lightRenderer = new LightRenderer();
         }
 
         private void InitGBuffer()
@@ -76,11 +78,12 @@ namespace Dino_Engine.Rendering
             PrepareFrame();
 
             GeometryPass(eCSEngine);
-            LightingPass();
+            _lightRenderer.render(eCSEngine, _screenQuadRenderer, _gBuffer);
             PostProcessPass();
 
             _simpleShader.bind();
-            _screenQuadRenderer.RenderTextureToScreen(_gBuffer.getRenderAttachment(0));
+            _screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastFrameBuffer().getRenderAttachment(0));
+            //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.getRenderAttachment(0));
 
             FinishFrame();
         }
@@ -88,10 +91,6 @@ namespace Dino_Engine.Rendering
         {
             _gBuffer.bind();
             _flatGeogemetryRenderer.render(eCSEngine.getSystem<FlatModelSystem>(), eCSEngine.Camera);
-        }
-        private void LightingPass()
-        {
-
         }
 
         private void PostProcessPass()
@@ -103,6 +102,8 @@ namespace Dino_Engine.Rendering
         {
 
         }
+
+
 
         private void FinishFrame()
         {

@@ -44,7 +44,7 @@ namespace Dino_Engine.Rendering
                     Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
                     Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;
                     flatShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
-                    flatShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * projectionMatrix);
+                    flatShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix* projectionMatrix);
 
                     GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
                 }

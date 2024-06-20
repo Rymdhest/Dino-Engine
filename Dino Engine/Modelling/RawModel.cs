@@ -76,6 +76,16 @@ namespace Dino_Engine.Modelling
                 materials[i + 2] = setTo;
             }
         }
+        public void setColour(Vector3 setTo)
+        {
+            for (int i = 0; i < colors.Length; i += 3)
+            {
+                colors[i + 0] = setTo.X;
+                colors[i + 1] = setTo.Y;
+                colors[i + 2] = setTo.Z;
+            }
+        }
+
         public void flatRandomness(float amount)
         {
             flatRandomness(new Vector3(amount));

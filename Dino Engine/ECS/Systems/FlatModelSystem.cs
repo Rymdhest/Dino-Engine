@@ -36,6 +36,5 @@ namespace Dino_Engine.ECS
             }
             member.RemoveSubscribedSystem(this);
         }
-
     }
 }

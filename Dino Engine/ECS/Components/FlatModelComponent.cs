@@ -34,5 +34,9 @@ namespace Dino_Engine.ECS
             }
             
         }
+
+        public override void Update()
+        {
+            base.Update();    }
     }
 }

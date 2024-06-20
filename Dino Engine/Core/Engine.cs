@@ -72,6 +72,7 @@ namespace Dino_Engine.Core
         private void Update()
         {
             _deltaFrameTimeTracker.update();
+            _ECSEngine.update();
             _renderEngine.Update();
         }
 
