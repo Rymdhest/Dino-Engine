@@ -4,7 +4,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.Util
 {
-    public class Colour
+    public struct Colour
     {
         private float _red;
         private float _green;
@@ -12,6 +12,22 @@ namespace Dino_Engine.Util
         private float _alpha= 1f;
         private float _intensity = 1f;
         public Colour(Vector3 colour) : this(colour.X, colour.Y, colour.Z) {}
+
+        public Colour(int red, int green, int blue)
+        {
+            _red = red/255f;
+            _green = green/255f;
+            _blue = blue/255f;
+        }
+
+        public Colour(int red, int green, int blue, float intensity)
+        {
+            _red = red / 255f;
+            _green = green / 255f;
+            _blue = blue / 255f;
+            _intensity = intensity;
+        }
+
         public Colour(float red, float green, float blue)
         {
             _red = red;

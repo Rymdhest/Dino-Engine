@@ -1,6 +1,6 @@
 ﻿using OpenTK.Graphics.OpenGL;
 
-namespace Dino_Engine.Modelling;
+namespace Dino_Engine.Modelling.Model;
 
 internal class glModel
 {
@@ -29,7 +29,7 @@ internal class glModel
     public void cleanUp()
     {
         GL.DeleteVertexArray(vaoID);
-        for (int i = 0; i<VBOS.Length; i++)
+        for (int i = 0; i < VBOS.Length; i++)
         {
             GL.DeleteBuffer(VBOS[i]);
         }

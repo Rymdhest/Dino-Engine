@@ -63,19 +63,20 @@ namespace Dino_Engine.ECS
         }
         public virtual void CleanUp()
         {
-            foreach (Component component in components.Values)
-            {
-                component.CleanUp();
-            }
-            components.Clear();
-
+            Console.WriteLine($"cleaning up entity: {Name}");
             for (int i = SubscribedSystems.Count - 1; i >= 0; i--)
             {
                 SubscribedSystems[i].RemoveMember(this);
             }
             SubscribedSystems.Clear();
 
-            Engine.Instance.ECSEngine.Entities.Remove(this);
+            foreach (Component component in components.Values)
+            {
+                component.CleanUp();
+            }
+            components.Clear();
+
+
         }
         public Boolean hasComponent(Type type)
         {

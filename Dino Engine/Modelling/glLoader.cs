@@ -1,12 +1,13 @@
-﻿using OpenTK.Graphics.OpenGL;
+﻿using Dino_Engine.Modelling.Model;
+using OpenTK.Graphics.OpenGL;
 
 namespace Dino_Engine.Modelling;
 
 internal class glLoader
 {
-    public static glModel loadToVAO(RawModel rawModel)
+    public static glModel loadToVAO(Mesh mesh)
     {
-        return loadToVAO(rawModel.positions, rawModel.colors, rawModel.materials, rawModel.indices);
+        return loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursArray(), mesh.getAllMaterialsArray(), mesh.getAllIndicesArray());
     }
     public static glModel loadToVAO(float[] positions, float[] colors, float[] materials, int[] indices)
     {

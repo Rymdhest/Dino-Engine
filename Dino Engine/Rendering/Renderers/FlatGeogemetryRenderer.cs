@@ -4,7 +4,7 @@ using OpenTK.Windowing.Common;
 using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.ECS;
 using Dino_Engine.Util;
-using Dino_Engine.Modelling;
+using Dino_Engine.Modelling.Model;
 
 namespace Dino_Engine.Rendering
 {

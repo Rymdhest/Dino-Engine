@@ -31,6 +31,11 @@ namespace Dino_Engine.ECS.Components
                 cascadeProjectionMatrix = Matrix4.CreateOrthographic(projectionSize, projectionSize, -projectionSize, projectionSize);
             }
 
+            public void CleanUp()
+            {
+                cascadeFrameBuffer.cleanUp();
+            }
+
             public float getPolygonOffset()
             {
                 return polygonOffset;
@@ -62,9 +67,9 @@ namespace Dino_Engine.ECS.Components
         }
 
 
-        private List<ShadowCascade> cascades = new List<ShadowCascade>();
+        private List<ShadowCascade> _cascades = new List<ShadowCascade>();
         Matrix4 _lightViewMatrix = Matrix4.Identity;
-        internal List<ShadowCascade> Cascades { get => cascades;}
+        internal List<ShadowCascade> Cascades { get => _cascades;}
         public Matrix4 LightViewMatrix { get => _lightViewMatrix; set => _lightViewMatrix = value; }
 
         public CascadingShadowComponent(Vector2i resolution, int numCascades, float size)
@@ -72,7 +77,16 @@ namespace Dino_Engine.ECS.Components
             for (int i = 0; i<numCascades; i++)
             {
                 Cascades.Add(new ShadowCascade(resolution, size));
-                size /= 2.0f;
+                size /= 3.0f;
+            }
+            _cascades.Sort((p1, p2) => p1.getProjectionSize().CompareTo(p2.getProjectionSize()));
+        }
+
+        public override void CleanUp()
+        {
+            foreach(ShadowCascade cascade in Cascades)
+            {
+                cascade.CleanUp();
             }
         }
     }

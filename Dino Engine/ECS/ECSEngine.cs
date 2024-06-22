@@ -1,5 +1,8 @@
-﻿using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.Core;
+using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling;
+using Dino_Engine.Modelling.Model;
+using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -14,12 +17,14 @@ namespace Dino_Engine.ECS
         private Dictionary<Type, ComponentSystem> _systems = new Dictionary<Type, ComponentSystem>();
         public Dictionary<Type, ComponentSystem> Systems { get => _systems; }
 
-        public Entity Camera { get; set; }
+        private Entity _camera = null;
+        public Entity Camera { get => _camera; }
         public List<Entity> Entities { get => _entities;}
 
         public ECSEngine() {
             AddSystem<FlatModelSystem>();
             AddSystem<DirectionalLightSystem>();
+
         }
 
         private void AddSystem<T>() where T : ComponentSystem, new()
@@ -27,31 +32,38 @@ namespace Dino_Engine.ECS
             _systems.Add(typeof(T), new T());
         }
 
-        public void Init()
+        public void InitEntities()
         {
-            Camera = new Entity("Camera");
-            Camera.addComponent(new TransformationComponent(new Vector3(0, 2f, 0f), new Vector3(0), new Vector3(1)));
-            Camera.addComponent(new ProjectionComponent(MathF.PI / 2.5f));
+            if (_camera == null)
+            {
+                _camera = new Entity("Camera");
+                Camera.addComponent(new TransformationComponent(new Vector3(0, 2f, 0f), new Vector3(0), new Vector3(1)));
+                Camera.addComponent(new ProjectionComponent(MathF.PI / 2.5f));
+            }
 
             Entity box = new Entity("Box");
             box.addComponent(new TransformationComponent(new Vector3(3, 0, -7f), new Vector3(0), new Vector3(1)));
-            glModel boxModel = glLoader.loadToVAO(MeshGenerator.generateBox(new Vector3(-0.5f), new Vector3(0.5f)));
+            glModel boxModel = glLoader.loadToVAO(MeshGenerator.generateBox(new Vector3(-0.5f), new Vector3(0.5f), Material.SAND));
             box.addComponent(new FlatModelComponent(boxModel));
             AddEnityToSystem<FlatModelSystem>(box);
 
             Entity box2 = new Entity("Box2");
             box2.addComponent(new TransformationComponent(new Vector3(1, 3, -4f), new Vector3(0), new Vector3(1)));
-            RawModel box2Rawmodel = MeshGenerator.generateBox(new Vector3(-0.5f), new Vector3(0.5f));
-            box2Rawmodel.setColour(new Vector3(0.2f, 0.8f, 0.2f));
-            glModel boxModel2 = glLoader.loadToVAO(box2Rawmodel);
+            glModel boxModel2 = glLoader.loadToVAO(MeshGenerator.generateBox(new Vector3(-0.5f), new Vector3(0.5f), Material.METAL));
             box2.addComponent(new FlatModelComponent(boxModel2));
             AddEnityToSystem<FlatModelSystem>(box2);
+
+            Entity rock = new Entity("rock");
+            rock.addComponent(new TransformationComponent(new Vector3(-1, 1, -8f), new Vector3(0), new Vector3(1)));
+            Mesh box2Rawmodel = IcoSphereGenerator.CreateIcosphere(1, Material.ROCK);
+            glModel rockModel = glLoader.loadToVAO(box2Rawmodel);
+            rock.addComponent(new FlatModelComponent(rockModel));
+            AddEnityToSystem<FlatModelSystem>(rock);
 
             Entity groundPlane = new Entity("Ground");
             groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0, 0f), new Vector3(0), new Vector3(1)));
             float size = 25f;
-            RawModel rawGRroud = MeshGenerator.generateBox(new Vector3(-size, -1, -size), new Vector3(size, 0, size));
-            rawGRroud.setColour(new Vector3(0.7f));
+            Mesh rawGRroud = MeshGenerator.generateBox(new Vector3(-size, -1, -size), new Vector3(size, 0, size), Material.LEAF);
             glModel groundModel = glLoader.loadToVAO(rawGRroud);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
@@ -60,19 +72,18 @@ namespace Dino_Engine.ECS
             tree.addComponent(new TransformationComponent(new Vector3(-3, 0, -5f), new Vector3(0), new Vector3(1)));
             float trunkRadius = 0.6f;
             float trunkHeight = 3.4f;
-            Vector3 trunkColor = new Vector3(0.55f, 0.39f, 0.18f);
             List<Vector3> trunkLayers = new List<Vector3>() {
             new Vector3(trunkRadius, 0f, trunkRadius*2f),
             new Vector3(trunkRadius, trunkHeight*0.33f, trunkRadius*0.9f),
             new Vector3(trunkRadius, trunkHeight*0.66f, trunkRadius*0.8f),
             new Vector3(trunkRadius, trunkHeight, trunkRadius*0.7f)};
-            RawModel trunk = MeshGenerator.generateCylinder(trunkLayers, 7, trunkColor);
+            Mesh trunk = MeshGenerator.generateCylinder(trunkLayers, 7, Material.WOOD);
             tree.addComponent(new FlatModelComponent(glLoader.loadToVAO(trunk)));
             AddEnityToSystem<FlatModelSystem>(tree);
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-1f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 1f, 3.4f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 6.4f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.1f));
@@ -80,7 +91,7 @@ namespace Dino_Engine.ECS
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
-            Vector3 skyDirection = new Vector3(0f, 1f, 0.0f);
+            Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
             Colour skyColour = new Colour(0.2f, 0.2f, 1f, 0.4f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
@@ -96,8 +107,98 @@ namespace Dino_Engine.ECS
             return true;
         }
 
+        private void HandleInput()
+        {
+            float delta = Engine.Delta;
+            Transformation transformation = Camera.getComponent<TransformationComponent>().Transformation;
+            WindowHandler windowHandler = Engine.WindowHandler;
+
+            float moveAmount = 20f * delta;
+            float turnAmount = 2.5f * delta;
+            float mouseTurnAmount = 0.001f;
+
+            if (windowHandler.IsKeyDown(Keys.LeftShift))
+            {
+                moveAmount *= 10f;
+            }
+
+            if (windowHandler.IsMouseButtonDown(MouseButton.Left))
+            {
+                transformation.addRotation(new Vector3(0f, mouseTurnAmount * windowHandler.MouseState.Delta.X, 0f));
+                transformation.addRotation(new Vector3(mouseTurnAmount * windowHandler.MouseState.Delta.Y, 0, 0f));
+                windowHandler.setMouseGrabbed(true);
+                if (windowHandler.IsKeyDown(Keys.A))
+                {
+                    transformation.move(new Vector3(-moveAmount, 0f, 0f));
+                }
+                if (windowHandler.IsKeyDown(Keys.D))
+                {
+                    transformation.move(new Vector3(moveAmount, 0f, 0f));
+                }
+            }
+            else
+            {
+                windowHandler.setMouseGrabbed(false);
+                if (windowHandler.IsKeyDown(Keys.A))
+                {
+                    transformation.addRotation(new Vector3(0f, -turnAmount, 0f));
+                }
+                if (windowHandler.IsKeyDown(Keys.D))
+                {
+                    transformation.addRotation(new Vector3(0f, turnAmount, 0f));
+                }
+            }
+
+
+            if (windowHandler.IsKeyDown(Keys.W))
+            {
+                transformation.move(new Vector3(0f, 0f, -moveAmount));
+            }
+            if (windowHandler.IsKeyDown(Keys.S))
+            {
+                transformation.move(new Vector3(0f, 0f, moveAmount));
+            }
+            if (windowHandler.IsKeyDown(Keys.Q))
+            {
+                transformation.translate(new Vector3(0f, -moveAmount, 0f));
+            }
+            if (windowHandler.IsKeyDown(Keys.E))
+            {
+                transformation.translate(new Vector3(0f, moveAmount, 0f));
+            }
+            if (windowHandler.IsKeyDown(Keys.R))
+            {
+                transformation.addRotation(new Vector3(-turnAmount, 0f, 0f));
+            }
+            if (windowHandler.IsKeyDown(Keys.F))
+            {
+                transformation.addRotation(new Vector3(turnAmount, 0f, 0f));
+            }
+
+            if (windowHandler.IsKeyPressed(Keys.F1))
+            {
+                ClearAllEntitiesExcept(Camera);
+                InitEntities();
+            }
+        }
+
+        private void ClearAllEntitiesExcept(params Entity[] exceptions)
+        {
+            Console.WriteLine(""+exceptions.Length);
+            foreach(Entity entity in _entities)
+            {
+                if (!exceptions.Contains(entity))
+                {
+                    entity.CleanUp();
+                }
+            }
+            _entities.Clear();
+            _entities.AddRange(exceptions);
+        }
+
         public void update()
         {
+            HandleInput();
             foreach (Entity entity in Entities)
             {
                 entity.updateComponents();

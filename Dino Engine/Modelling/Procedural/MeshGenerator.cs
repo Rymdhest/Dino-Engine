@@ -3,17 +3,17 @@ using OpenTK.Mathematics;
 using System.Reflection.Emit;
 using System;
 using System.Drawing;
+using Dino_Engine.Modelling.Model;
 
 namespace Dino_Engine.Modelling
 {
     internal class MeshGenerator
     {
 
-        public static RawModel generateCylinder(List<Vector3> rings, int polygonsPerRing, Vector3 color)
+        public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material)
         {
             float PI = MathF.PI;
             List<Vector3> positions = new List<Vector3>();
-            List<Vector3> colors = new List<Vector3>();
             List<int> indices = new List<int>();
 
             for (int ring = 0; ring < rings.Count; ring++)
@@ -26,7 +26,6 @@ namespace Dino_Engine.Modelling
                     Vector3 p1 = new Vector3(x1, y1, z1);
 
                     positions.Add(p1);
-                    colors.Add(color);
 
                     if (ring < rings.Count - 1)
                     {
@@ -40,10 +39,10 @@ namespace Dino_Engine.Modelling
                     }
                 }
             }
-            return new RawModel(positions, colors, indices);
+            return new Mesh(positions, indices, material);
         }
 
-        public static RawModel generateBox(Vector3 min, Vector3 max)
+        public static Mesh generateBox(Vector3 min, Vector3 max, Material material)
         {
             float[] positions = {
                 min.X, max.Y, max.Z,
@@ -56,15 +55,6 @@ namespace Dino_Engine.Modelling
                 max.X, min.Y, min.Z,
                 min.X, min.Y, min.Z};
 
-            float[] colours = new float[positions.Length];
-
-            for (int i = 0; i < colours.Length; i += 3)
-            {
-                colours[i] = 1.0f;
-                colours[i + 1] = 0.2f;
-                colours[i + 2] = 0.2f;
-            }
-
             int[] indices = {0,1,3, 3,1,2, //top
                         0,4,1, 1,4,5,  //front
                         1,5,6, 2,1,6,  // right
@@ -72,8 +62,7 @@ namespace Dino_Engine.Modelling
                         3,7,4, 0,3,4,  //left
                         6,5,7, 7,5,4};  //bot
 
-            RawModel rawModel = new RawModel(positions, colours, indices);
-            //rawModel.setEmission(0f);
+            Mesh rawModel = new Mesh(positions, indices, material);
             return rawModel;
         }
     }

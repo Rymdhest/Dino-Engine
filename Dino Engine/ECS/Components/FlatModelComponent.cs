@@ -2,7 +2,7 @@
 
 
 using Dino_Engine.Core;
-using Dino_Engine.Modelling;
+using Dino_Engine.Modelling.Model;
 
 namespace Dino_Engine.ECS
 {

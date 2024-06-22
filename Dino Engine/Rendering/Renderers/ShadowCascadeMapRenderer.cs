@@ -1,5 +1,4 @@
 ﻿using Dino_Engine.ECS;
-using Dino_Engine.Modelling;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -10,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Dino_Engine.ECS.Components;
+using Dino_Engine.Modelling.Model;
 
 namespace Dino_Engine.Rendering.Renderers
 {

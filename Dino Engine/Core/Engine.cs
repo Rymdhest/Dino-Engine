@@ -31,7 +31,7 @@ namespace Dino_Engine.Core
             _renderEngine = new RenderEngine();
             _renderEngine.InitRenderers();
             _ECSEngine = new ECSEngine();
-            _ECSEngine.Init();
+            _ECSEngine.InitEntities();
             _windowHandler.UpdateFrame += delegate (FrameEventArgs eventArgs)
             {
                 Update();
