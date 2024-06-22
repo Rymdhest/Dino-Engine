@@ -82,21 +82,21 @@ namespace Dino_Engine.ECS
             AddEnityToSystem<FlatModelSystem>(tree);
 
             Entity sun = new Entity("Sun");
-            Vector3 direction = new Vector3(-1f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 6.4f);
+            Vector3 direction = new Vector3(-2f, 2f, 0.9f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 12.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.1f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024), 2, 50));
+            sun.addComponent(new AmbientLightComponent(0.2f));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024), 2, 70));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
             Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
-            Colour skyColour = new Colour(0.2f, 0.2f, 1f, 0.4f);
+            Colour skyColour = new Colour(143, 167, 178, 1.0f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.2f));
-            sky.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024), 1, 50));
+            sky.addComponent(new AmbientLightComponent(0.9f));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512), 1, 70));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
 

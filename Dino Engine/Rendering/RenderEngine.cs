@@ -1,9 +1,13 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS;
 using Dino_Engine.Rendering.Renderers;
+using Dino_Engine.Rendering.Renderers.Geometry;
+using Dino_Engine.Rendering.Renderers.Lighting;
+using Dino_Engine.Rendering.Renderers.PostProcessing;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
 using System;
+using System.Diagnostics.Tracing;
 
 namespace Dino_Engine.Rendering
 {
@@ -17,6 +21,7 @@ namespace Dino_Engine.Rendering
         private FlatGeogemetryRenderer _flatGeogemetryRenderer;
         private LightRenderer _lightRenderer;
         private ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
+        private ToneMapRenderer _toneMapRenderer;
 
         private ShaderProgram _simpleShader;
         public RenderEngine()
@@ -36,6 +41,7 @@ namespace Dino_Engine.Rendering
             _flatGeogemetryRenderer = new FlatGeogemetryRenderer();
             _lightRenderer = new LightRenderer();
             _shadowCascadeMapRenderer = new ShadowCascadeMapRenderer();
+            _toneMapRenderer = new ToneMapRenderer();
         }
 
         private void InitGBuffer()
@@ -106,7 +112,7 @@ namespace Dino_Engine.Rendering
 
         private void PostProcessPass()
         {
-
+            _toneMapRenderer.Render(_screenQuadRenderer);
         }
 
         private void PrepareFrame()
@@ -130,6 +136,16 @@ namespace Dino_Engine.Rendering
             {
                 renderer.OnResize(eventArgs);
             }
+        }
+
+        public void CleanUp()
+        {
+            foreach (Renderer renderer in _renderers)
+            {
+                renderer.CleanUp();
+            }
+            _gBuffer.cleanUp();
+            _simpleShader.cleanUp();
         }
 
         public List<Renderer> Renderers { get => _renderers; }

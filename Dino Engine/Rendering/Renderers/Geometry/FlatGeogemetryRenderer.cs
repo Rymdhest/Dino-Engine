@@ -6,7 +6,7 @@ using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using Dino_Engine.Modelling.Model;
 
-namespace Dino_Engine.Rendering
+namespace Dino_Engine.Rendering.Renderers.Geometry
 {
     internal class FlatGeogemetryRenderer : Renderer
     {
@@ -32,7 +32,8 @@ namespace Dino_Engine.Rendering
             prepareFrame(viewMatrix, projectionMatrix);
             flatShader.bind();
 
-            foreach (KeyValuePair<glModel, List<Entity>> glmodels in flatShadeEntities.ModelsDictionary) {
+            foreach (KeyValuePair<glModel, List<Entity>> glmodels in flatShadeEntities.ModelsDictionary)
+            {
                 glModel glmodel = glmodels.Key;
 
                 GL.BindVertexArray(glmodel.getVAOID());
@@ -44,7 +45,7 @@ namespace Dino_Engine.Rendering
                     Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
                     Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;
                     flatShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
-                    flatShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix* projectionMatrix);
+                    flatShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * projectionMatrix);
 
                     GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
                 }
@@ -65,6 +66,10 @@ namespace Dino_Engine.Rendering
             GL.DisableVertexAttribArray(1);
             GL.DisableVertexAttribArray(2);
             GL.DisableVertexAttribArray(3);
+        }
+        public override void CleanUp()
+        {
+            flatShader.cleanUp();
         }
     }
 }

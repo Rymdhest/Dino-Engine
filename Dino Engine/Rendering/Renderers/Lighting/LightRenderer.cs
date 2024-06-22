@@ -1,17 +1,15 @@
 ﻿using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
-using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.ECS;
 using Dino_Engine.Util;
-using Dino_Engine.Modelling;
 using Dino_Engine.Core;
 using static OpenTK.Graphics.OpenGL.GL;
 using Dino_Engine.ECS.Components;
 using static Dino_Engine.ECS.Components.CascadingShadowComponent;
 
 
-namespace Dino_Engine.Rendering
+namespace Dino_Engine.Rendering.Renderers.Lighting
 {
     internal class LightRenderer : Renderer
     {
@@ -29,9 +27,9 @@ namespace Dino_Engine.Rendering
         }
         private void prepareFrame()
         {
-            GL.Enable(EnableCap.Blend);
-            GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
-            GL.BlendEquation(BlendEquationMode.FuncAdd);
+            Enable(EnableCap.Blend);
+            BlendFunc(BlendingFactor.One, BlendingFactor.One);
+            BlendEquation(BlendEquationMode.FuncAdd);
         }
         public void render(ECSEngine eCSEngine, ScreenQuadRenderer screenQuadRenderer, FrameBuffer gBuffer)
         {
@@ -53,14 +51,14 @@ namespace Dino_Engine.Rendering
             Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
             _directionalLightShader.bind();
 
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(0));
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(1));
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(2));
-            GL.ActiveTexture(TextureUnit.Texture3);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(3));
+            ActiveTexture(TextureUnit.Texture0);
+            BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(0));
+            ActiveTexture(TextureUnit.Texture1);
+            BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(1));
+            ActiveTexture(TextureUnit.Texture2);
+            BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(2));
+            ActiveTexture(TextureUnit.Texture3);
+            BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(3));
 
 
             foreach (Entity entity in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
@@ -69,11 +67,11 @@ namespace Dino_Engine.Rendering
                 Vector3 lightColour = entity.getComponent<ColourComponent>().Colour.ToVector3();
                 float ambientFactor = AmbientLightComponent.DEFAULT;
 
-                if (entity.TryGetComponent<AmbientLightComponent>(out AmbientLightComponent? ambientLightComponent))
+                if (entity.TryGetComponent(out AmbientLightComponent? ambientLightComponent))
                 {
                     ambientFactor = ambientLightComponent.AmbientFactor;
                 }
-                if (entity.TryGetComponent<CascadingShadowComponent>(out CascadingShadowComponent shadow))
+                if (entity.TryGetComponent(out CascadingShadowComponent shadow))
                 {
                     for (int i = 0; i < shadow.Cascades.Count; i++)
                     {
@@ -82,8 +80,8 @@ namespace Dino_Engine.Rendering
                         _directionalLightShader.loadUniformInt("shadowMaps[" + i + "]", cascadesTextureIndexStart + i);
 
                         _directionalLightShader.loadUniformFloat("cascadeProjectionSizes[" + i + "]", cascade.getProjectionSize());
-                        GL.ActiveTexture(TextureUnit.Texture4 + i);
-                        GL.BindTexture(TextureTarget.Texture2D, cascade.getDepthTexture());
+                        ActiveTexture(TextureUnit.Texture4 + i);
+                        BindTexture(TextureTarget.Texture2D, cascade.getDepthTexture());
                         _directionalLightShader.loadUniformVector2f("shadowMapResolutions[" + i + "]", cascade.getResolution());
 
 
@@ -91,7 +89,8 @@ namespace Dino_Engine.Rendering
                         _directionalLightShader.loadUniformMatrix4f("sunSpaceMatrices[" + i + "]", shadowMatrix);
                         _directionalLightShader.loadUniformInt("numberOfCascades", shadow.Cascades.Count);
                     }
-                } else
+                }
+                else
                 {
                     _directionalLightShader.loadUniformInt("numberOfCascades", 0);
                 }
@@ -105,7 +104,7 @@ namespace Dino_Engine.Rendering
                 _directionalLightShader.loadUniformFloat("ambientFactor", ambientFactor);
                 _directionalLightShader.loadUniformVector2f("resolution", Engine.WindowHandler.Size);
 
-                screenQuadRenderer.Render(clearColor : false, blend : true);
+                screenQuadRenderer.Render(clearColor: false, blend: true);
             }
         }
         public override void Update()
@@ -116,11 +115,16 @@ namespace Dino_Engine.Rendering
         }
         private void finishFrame()
         {
-            GL.BindVertexArray(0);
-            GL.DisableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(1);
-            GL.DisableVertexAttribArray(2);
-            GL.DisableVertexAttribArray(3);
+            BindVertexArray(0);
+            DisableVertexAttribArray(0);
+            DisableVertexAttribArray(1);
+            DisableVertexAttribArray(2);
+            DisableVertexAttribArray(3);
+        }
+
+        public override void CleanUp()
+        {
+            _directionalLightShader.cleanUp();
         }
     }
 }

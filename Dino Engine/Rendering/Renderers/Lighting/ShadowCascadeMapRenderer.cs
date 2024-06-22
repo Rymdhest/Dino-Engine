@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Model;
 
-namespace Dino_Engine.Rendering.Renderers
+namespace Dino_Engine.Rendering.Renderers.Lighting
 {
     internal class ShadowCascadeMapRenderer : Renderer
     {
@@ -34,7 +34,7 @@ namespace Dino_Engine.Rendering.Renderers
             _shadowShader.bind();
             foreach (Entity directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {
-                if (directionalLight.TryGetComponent<CascadingShadowComponent>(out CascadingShadowComponent shadow))
+                if (directionalLight.TryGetComponent(out CascadingShadowComponent shadow))
                 {
                     Vector3 lightDirection = directionalLight.getComponent<DirectionComponent>().Direction;
                     foreach (CascadingShadowComponent.ShadowCascade cascade in shadow.Cascades)
@@ -73,6 +73,10 @@ namespace Dino_Engine.Rendering.Renderers
 
         public override void Update()
         {
+        }
+        public override void CleanUp()
+        {
+            _shadowShader.cleanUp();
         }
 
     }

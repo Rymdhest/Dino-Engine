@@ -16,5 +16,6 @@ namespace Dino_Engine.Rendering.Renderers
         }
         public abstract void OnResize(ResizeEventArgs eventArgs);
         public abstract void Update();
+        public abstract void CleanUp();
     }
 }

@@ -121,5 +121,11 @@ namespace Dino_Engine.Rendering.Renderers
         {
 
         }
+        public override void CleanUp()
+        {
+            _buffer1.cleanUp();
+            _buffer2.cleanUp();
+            _quadModel.cleanUp();
+        }
     }
 }
