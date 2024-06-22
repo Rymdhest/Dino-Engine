@@ -21,8 +21,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             FXAAShader.loadUniformVector2f("win_size", Engine.WindowHandler.Size);
             FXAAShader.loadUniformFloat("reduceMin", 128.0f);
-            FXAAShader.loadUniformFloat("reduceMul", 4.0f);
-            FXAAShader.loadUniformFloat("spanMax", 16.0f);
+            FXAAShader.loadUniformFloat("reduceMul", 8.0f);
+            FXAAShader.loadUniformFloat("spanMax", 38.0f);
 
 
             //renderer.RenderToNextFrameBuffer();

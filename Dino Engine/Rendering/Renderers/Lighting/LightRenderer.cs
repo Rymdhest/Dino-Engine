@@ -14,7 +14,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     internal class LightRenderer : Renderer
     {
         private ShaderProgram _directionalLightShader = new ShaderProgram("Simple_Vertex", "Directional_Light_Fragment");
-        private readonly int cascadesTextureIndexStart = 4;
 
         public LightRenderer()
         {
@@ -25,21 +24,20 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _directionalLightShader.loadUniformInt("gMaterials", 3);
             _directionalLightShader.unBind();
         }
-        private void prepareFrame()
+        private void prepareFrame(ScreenQuadRenderer screenQuadRenderer)
         {
+            screenQuadRenderer.GetLastFrameBuffer().bind();
             Enable(EnableCap.Blend);
             BlendFunc(BlendingFactor.One, BlendingFactor.One);
             BlendEquation(BlendEquationMode.FuncAdd);
+            screenQuadRenderer.clearBothBuffers();
+
         }
         public void render(ECSEngine eCSEngine, ScreenQuadRenderer screenQuadRenderer, FrameBuffer gBuffer)
         {
-            screenQuadRenderer.GetLastFrameBuffer().bind();
-            prepareFrame();
-
+            prepareFrame(screenQuadRenderer);
             DirectionalLightPass(eCSEngine, screenQuadRenderer, gBuffer);
             PointLightPass(eCSEngine);
-
-
             finishFrame();
         }
         private void PointLightPass(ECSEngine eCSEngine)
@@ -77,7 +75,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                     {
 
                         ShadowCascade cascade = shadow.Cascades[i];
-                        _directionalLightShader.loadUniformInt("shadowMaps[" + i + "]", cascadesTextureIndexStart + i);
+                        _directionalLightShader.loadUniformInt("shadowMaps[" + i + "]", ShadowCascadeMapRenderer.CASCADETEXTURESINDEXSTART + i);
 
                         _directionalLightShader.loadUniformFloat("cascadeProjectionSizes[" + i + "]", cascade.getProjectionSize());
                         ActiveTexture(TextureUnit.Texture4 + i);

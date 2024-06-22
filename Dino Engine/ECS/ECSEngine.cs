@@ -55,7 +55,7 @@ namespace Dino_Engine.ECS
 
             Entity rock = new Entity("rock");
             rock.addComponent(new TransformationComponent(new Vector3(-1, 1, -8f), new Vector3(0), new Vector3(1)));
-            Mesh box2Rawmodel = IcoSphereGenerator.CreateIcosphere(1, Material.ROCK);
+            Mesh box2Rawmodel = IcoSphereGenerator.CreateIcosphere(7, Material.ROCK);
             glModel rockModel = glLoader.loadToVAO(box2Rawmodel);
             rock.addComponent(new FlatModelComponent(rockModel));
             AddEnityToSystem<FlatModelSystem>(rock);
@@ -83,19 +83,19 @@ namespace Dino_Engine.ECS
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-2f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 12.0f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 22.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.2f));
+            sun.addComponent(new AmbientLightComponent(0.9f));
             sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024), 2, 70));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
             Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
-            Colour skyColour = new Colour(143, 167, 178, 1.0f);
+            Colour skyColour = new Colour(143, 167, 178, 5.0f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.9f));
+            sky.addComponent(new AmbientLightComponent(0.5f));
             sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512), 1, 70));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 

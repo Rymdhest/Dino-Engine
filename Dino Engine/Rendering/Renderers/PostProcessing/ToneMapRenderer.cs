@@ -20,12 +20,12 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             HDRMapShader.loadUniformVector2f("resolution", Engine.WindowHandler.Size);
 
-            HDRMapShader.loadUniformFloat("exposure", 0.5f);
+            HDRMapShader.loadUniformFloat("exposure", 0.3f);
             HDRMapShader.loadUniformFloat("gamma", 2.2f);
             HDRMapShader.loadUniformFloat("saturation", 1.0f);
             HDRMapShader.loadUniformFloat("brightness", 1.0f);
             HDRMapShader.loadUniformFloat("contrast", 1.0f);
-            HDRMapShader.loadUniformFloat("dithering", 0.0f);
+            HDRMapShader.loadUniformFloat("dithering", 0.5f);
 
             //renderer.RenderToNextFrameBuffer();
             renderer.RenderTextureToNextFrameBuffer(renderer.GetLastOutputTexture());

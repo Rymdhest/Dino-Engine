@@ -23,6 +23,7 @@ namespace Dino_Engine.Rendering
         private ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
         private ToneMapRenderer _toneMapRenderer;
         private FXAARenderer _fXAARenderer;
+        private SSAORenderer _sSAORenderer;
 
         private ShaderProgram _simpleShader;
         public RenderEngine()
@@ -44,6 +45,7 @@ namespace Dino_Engine.Rendering
             _shadowCascadeMapRenderer = new ShadowCascadeMapRenderer();
             _toneMapRenderer = new ToneMapRenderer();
             _fXAARenderer = new FXAARenderer();
+            _sSAORenderer = new SSAORenderer();
         }
 
         private void InitGBuffer()
@@ -99,6 +101,7 @@ namespace Dino_Engine.Rendering
 
         private void LightPass(ECSEngine eCSEngine)
         {
+            _sSAORenderer.Render(_screenQuadRenderer,_gBuffer, eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix);
             _shadowCascadeMapRenderer.render(eCSEngine);
             _lightRenderer.render(eCSEngine, _screenQuadRenderer, _gBuffer);
         }
