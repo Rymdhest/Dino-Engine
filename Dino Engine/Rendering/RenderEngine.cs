@@ -22,6 +22,7 @@ namespace Dino_Engine.Rendering
         private LightRenderer _lightRenderer;
         private ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
         private ToneMapRenderer _toneMapRenderer;
+        private FXAARenderer _fXAARenderer;
 
         private ShaderProgram _simpleShader;
         public RenderEngine()
@@ -42,6 +43,7 @@ namespace Dino_Engine.Rendering
             _lightRenderer = new LightRenderer();
             _shadowCascadeMapRenderer = new ShadowCascadeMapRenderer();
             _toneMapRenderer = new ToneMapRenderer();
+            _fXAARenderer = new FXAARenderer();
         }
 
         private void InitGBuffer()
@@ -113,6 +115,7 @@ namespace Dino_Engine.Rendering
         private void PostProcessPass()
         {
             _toneMapRenderer.Render(_screenQuadRenderer);
+            _fXAARenderer.Render(_screenQuadRenderer);
         }
 
         private void PrepareFrame()
