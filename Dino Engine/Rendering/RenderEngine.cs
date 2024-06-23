@@ -3,6 +3,7 @@ using Dino_Engine.ECS;
 using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
+using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
@@ -26,6 +27,7 @@ namespace Dino_Engine.Rendering
         private FXAARenderer _fXAARenderer;
         private SSAORenderer _sSAORenderer;
         private BloomRenderer _bloomRenderer;
+        private SkyRenderer _skyRenderer;
 
         private ShaderProgram _simpleShader;
         public RenderEngine()
@@ -50,11 +52,12 @@ namespace Dino_Engine.Rendering
             _fXAARenderer = new FXAARenderer();
             _sSAORenderer = new SSAORenderer();
             _bloomRenderer = new BloomRenderer();
+            _skyRenderer = new SkyRenderer();
         }
 
         private void InitGBuffer()
         {
-            FrameBufferSettings gBufferSettings = new FrameBufferSettings(Engine.WindowHandler.Size);
+            FrameBufferSettings gBufferSettings = new FrameBufferSettings(Engine.Resolution);
             DrawBufferSettings gAlbedo = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
             gAlbedo.formatInternal = PixelInternalFormat.Rgba16f;
             gAlbedo.pixelType = PixelType.Float;
@@ -94,6 +97,7 @@ namespace Dino_Engine.Rendering
 
             GeometryPass(eCSEngine);
             LightPass(eCSEngine);
+            PostGeometryPass(eCSEngine);
             PostProcessPass();
 
             _simpleShader.bind();
@@ -110,7 +114,10 @@ namespace Dino_Engine.Rendering
             _directionalLightRenderer.render(eCSEngine, _screenQuadRenderer, _gBuffer);
             _pointLightRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
         }
-
+        private void PostGeometryPass(ECSEngine eCSEngine)
+        {
+            _skyRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
+        }
         private void GeometryPass(ECSEngine eCSEngine)
         {
             _gBuffer.bind();

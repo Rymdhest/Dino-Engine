@@ -95,7 +95,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
                 _directionalLightShader.loadUniformVector3f("lightColour", lightColour);
                 _directionalLightShader.loadUniformFloat("ambientFactor", ambientFactor);
-                _directionalLightShader.loadUniformVector2f("resolution", Engine.WindowHandler.Size);
+                _directionalLightShader.loadUniformVector2f("resolution", Engine.Resolution);
 
                 screenQuadRenderer.Render(clearColor: false, blend: true);
             }

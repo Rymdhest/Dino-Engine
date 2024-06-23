@@ -19,6 +19,7 @@ namespace Dino_Engine.Core
         public static int FramesLastSecond { get => _instance._deltaFrameTimeTracker.FramesLastSecond; }
         public static Engine? Instance { get => _instance; }
         public static WindowHandler WindowHandler { get => _instance._windowHandler; }
+        public static Vector2i Resolution { get => _instance._windowHandler.ClientSize; }
         public static RenderEngine RenderEngine { get => _instance._renderEngine; }
         public ECSEngine ECSEngine { get => _ECSEngine; }
 

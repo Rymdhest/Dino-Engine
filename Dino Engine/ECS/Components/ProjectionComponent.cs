@@ -17,7 +17,7 @@ namespace Dino_Engine.ECS
 
         public ProjectionComponent(float fieldOfView) {
             _fieldOfView = fieldOfView;
-            updateProjectionMatrix(Engine.WindowHandler.Size);
+            updateProjectionMatrix(Engine.Resolution);
         }
         private void updateProjectionMatrix(Vector2i resolution)
         {

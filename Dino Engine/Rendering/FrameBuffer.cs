@@ -48,7 +48,7 @@ namespace Dino_Engine.Rendering
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, frameBufferID);
             GL.DrawBuffer(DrawBufferMode.Back);
-            GL.BlitFramebuffer(0, 0, settings.resolution.X, settings.resolution.Y, 0, 0, Engine.WindowHandler.ClientSize.X, Engine.WindowHandler.ClientSize.Y, ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
+            GL.BlitFramebuffer(0, 0, settings.resolution.X, settings.resolution.Y, 0, 0, Engine.Resolution.X, Engine.Resolution.Y, ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear);
             unbind();
         }
 

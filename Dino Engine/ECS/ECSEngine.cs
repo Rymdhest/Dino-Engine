@@ -78,6 +78,7 @@ namespace Dino_Engine.ECS
             groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0, 0f), new Vector3(0), new Vector3(1)));
             float size = 25f;
             Mesh rawGRroud = MeshGenerator.generateBox(new Vector3(-size, -1, -size), new Vector3(size, 0, size), Material.LEAF);
+            rawGRroud.setRoughness(0.6f);
             glModel groundModel = glLoader.loadToVAO(rawGRroud);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);

@@ -60,7 +60,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         public void Render(ScreenQuadRenderer renderer, FrameBuffer gBuffer, Matrix4 projectionMatrix)
         {
-            Vector2i resolution = Engine.WindowHandler.ClientSize;
+            Vector2i resolution = Engine.Resolution;
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
             ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);

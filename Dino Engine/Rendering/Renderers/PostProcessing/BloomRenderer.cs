@@ -28,7 +28,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             upsamplingShader.loadUniformInt("srcTexture", 0);
             upsamplingShader.unBind();
 
-            Vector2i resolution = Engine.WindowHandler.Size;
+            Vector2i resolution = Engine.Resolution;
 
             for (int i = 0; i < downSamples; i++)
             {

@@ -52,7 +52,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             pointLightShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
             pointLightShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
-            pointLightShader.loadUniformVector2f("resolution", Engine.WindowHandler.ClientSize);
+            pointLightShader.loadUniformVector2f("resolution", Engine.Resolution);
 
             foreach (Entity entity in eCSEngine.getSystem<PointLightSystem>().MemberEntities)
             {

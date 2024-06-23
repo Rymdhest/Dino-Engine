@@ -18,7 +18,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             HDRMapShader.bind();
 
-            HDRMapShader.loadUniformVector2f("resolution", Engine.WindowHandler.Size);
+            HDRMapShader.loadUniformVector2f("resolution", Engine.Resolution);
 
             HDRMapShader.loadUniformFloat("exposure", 0.3f);
             HDRMapShader.loadUniformFloat("gamma", 2.2f);

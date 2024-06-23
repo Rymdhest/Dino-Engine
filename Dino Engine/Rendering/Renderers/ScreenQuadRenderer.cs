@@ -19,7 +19,7 @@ namespace Dino_Engine.Rendering.Renderers
             int[] indices = { 0, 1, 2, 3, 0, 2 };
             _quadModel = glLoader.loadToVAO(positions, indices, 2);
 
-            FrameBufferSettings frameBufferSettings= new FrameBufferSettings(Engine.WindowHandler.ClientSize);
+            FrameBufferSettings frameBufferSettings= new FrameBufferSettings(Engine.Resolution);
             frameBufferSettings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment0));
             DepthAttachmentSettings depthSettings = new DepthAttachmentSettings();
             depthSettings.isTexture = true;
