@@ -8,6 +8,7 @@ using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using System;
 
 namespace Dino_Engine.ECS
 {
@@ -191,6 +192,13 @@ namespace Dino_Engine.ECS
             {
                 ClearAllEntitiesExcept(Camera);
                 InitEntities();
+            }
+            if (windowHandler.IsKeyPressed(Keys.F5))
+            {
+                foreach (Entity entity in _entities)
+                {
+                    Console.WriteLine(entity.GetFullInformationString());
+                }
             }
         }
 

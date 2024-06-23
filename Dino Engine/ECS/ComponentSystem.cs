@@ -60,6 +60,10 @@ namespace Dino_Engine.ECS
                 UpdateEntity(entity);
             }
         }
+        public override string ToString()
+        {
+            return $"{GetType().Name}({MemberEntities.Count})";
+        }
     }
 
 }

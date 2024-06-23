@@ -65,5 +65,10 @@ namespace Dino_Engine.Util
         {
             return new Vector4(Red * Intensity, Green * Intensity, Blue * Intensity, Alpha);
         }
+
+        public override string ToString()
+        {
+            return $"Red: {_red} Green: {_green} Blue: {_blue} Alpha: {_alpha} Intesity: {_intensity}";
+        }
     }
 }

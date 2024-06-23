@@ -1,6 +1,8 @@
 ﻿
 using Dino_Engine.Core;
 using OpenTK.Windowing.Common;
+using System.ComponentModel;
+using System.Text;
 
 namespace Dino_Engine.ECS
 {
@@ -109,6 +111,36 @@ namespace Dino_Engine.ECS
             {
                 component.OnResize(eventArgs);
             }
+        }
+
+        public string GetFullInformationString()
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine($"Entity____________{Name}____________");
+
+            if (SubscribedSystems.Count > 0)
+            {
+                stringBuilder.AppendLine("\tSubscribed Systems:");
+                foreach (ComponentSystem system in SubscribedSystems)
+                {
+                    stringBuilder.AppendLine($"\t\t{system}");
+                }
+                stringBuilder.AppendLine("\t************\n");
+            }
+
+
+            if (components.Count > 0)
+            {
+                stringBuilder.AppendLine("\tComponents:");
+                foreach (Component component in components.Values)
+                {
+                    stringBuilder.AppendLine(component.getInformationString("\t\t"));
+                }
+                stringBuilder.AppendLine("\t************\n");
+            }
+
+
+            return stringBuilder.ToString();
         }
 
         public override string ToString()

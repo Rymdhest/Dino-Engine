@@ -26,6 +26,11 @@ public class glModel
         return vertexCount;
     }
 
+    public override string ToString()
+    {
+        return $"VAO ID: {vaoID}";
+    }
+
     public void cleanUp()
     {
         GL.DeleteVertexArray(vaoID);

@@ -48,5 +48,10 @@ namespace Dino_Engine.Util
             return moveVector.Xyz;
         }
 
+        public override string ToString()
+        {
+            return $"Position: {position}\nRotation: {rotation}\nScale: {scale}";
+        }
+
     }
 }

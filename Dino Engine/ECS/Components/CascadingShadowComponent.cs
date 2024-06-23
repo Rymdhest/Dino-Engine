@@ -64,6 +64,14 @@ namespace Dino_Engine.ECS.Components
             {
                 return projectionSize;
             }
+            public override string ToString()
+            {
+                return $"Projection Matrix:\n" +
+                    $"{cascadeProjectionMatrix}\n"+
+                    $"Framebuffer: {cascadeFrameBuffer}\n" +
+                    $"Size: {projectionSize}\n" +
+                    $"Polygon Offset: {polygonOffset}";
+            }
         }
 
 

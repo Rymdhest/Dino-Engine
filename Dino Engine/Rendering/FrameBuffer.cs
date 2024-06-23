@@ -166,5 +166,10 @@ namespace Dino_Engine.Rendering
         {
             return settings.resolution;
         }
+
+        public override string ToString()
+        {
+            return $"Framebuffer ID: {frameBufferID}";
+        }
     }
 }

@@ -10,11 +10,11 @@ namespace Dino_Engine.ECS.Components
     internal class DirectionComponent : Component
     {
         private Vector3 _direction;
-        public Vector3 Direction { get => _direction; set => _direction = value; }
+        public Vector3 Direction { get => _direction; set => _direction = value.Normalized(); }
 
         public DirectionComponent(Vector3 direction)
         {
-            _direction = direction;
+            Direction = direction;
         }
 
     }
