@@ -20,6 +20,7 @@ namespace Dino_Engine.Core
 
         public void onResize(ResizeEventArgs eventArgs)
         {
+            refreshViewport();
         }
         public void setMouseGrabbed(bool setTo)
         {

@@ -76,25 +76,30 @@ namespace Dino_Engine.ECS
 
             Entity groundPlane = new Entity("Ground");
             groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0, 0f), new Vector3(0), new Vector3(1)));
-            float size = 25f;
+            float size = 125f;
             Mesh rawGRroud = MeshGenerator.generateBox(new Vector3(-size, -1, -size), new Vector3(size, 0, size), Material.LEAF);
             rawGRroud.setRoughness(0.6f);
             glModel groundModel = glLoader.loadToVAO(rawGRroud);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
 
-            Entity tree = new Entity("Tree");
-            tree.addComponent(new TransformationComponent(new Vector3(-3, 0, -5f), new Vector3(0), new Vector3(1)));
-            float trunkRadius = 0.6f;
-            float trunkHeight = 3.4f;
-            List<Vector3> trunkLayers = new List<Vector3>() {
-            new Vector3(trunkRadius, 0f, trunkRadius*2f),
-            new Vector3(trunkRadius, trunkHeight*0.33f, trunkRadius*0.9f),
-            new Vector3(trunkRadius, trunkHeight*0.66f, trunkRadius*0.8f),
-            new Vector3(trunkRadius, trunkHeight, trunkRadius*0.7f)};
-            Mesh trunk = MeshGenerator.generateCylinder(trunkLayers, 7, Material.WOOD);
-            tree.addComponent(new FlatModelComponent(glLoader.loadToVAO(trunk)));
-            AddEnityToSystem<FlatModelSystem>(tree);
+
+
+            for (int i = 0; i<200; i++)
+            {
+                Entity tree = new Entity("Tree");
+                tree.addComponent(new TransformationComponent(new Vector3(MyMath.rngMinusPlus(size), 0, MyMath.rngMinusPlus(size)), new Vector3(0), new Vector3(1)));
+                float trunkRadius = 0.6f;
+                float trunkHeight = 20.4f+ MyMath.rngMinusPlus(10);
+                List<Vector3> trunkLayers = new List<Vector3>() {
+                new Vector3(trunkRadius, 0f, trunkRadius*2f),
+                new Vector3(trunkRadius, trunkHeight*0.33f, trunkRadius*0.9f),
+                new Vector3(trunkRadius, trunkHeight*0.66f, trunkRadius*0.8f),
+                new Vector3(trunkRadius, trunkHeight, trunkRadius*0.7f)};
+                Mesh trunk = MeshGenerator.generateCylinder(trunkLayers, 7, Material.WOOD);
+                tree.addComponent(new FlatModelComponent(glLoader.loadToVAO(trunk)));
+                AddEnityToSystem<FlatModelSystem>(tree);
+            }
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-2f, 2f, 0.9f);
@@ -102,7 +107,7 @@ namespace Dino_Engine.ECS
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.0f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024), 2, 70));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 3, 500));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
@@ -111,7 +116,7 @@ namespace Dino_Engine.ECS
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
             sky.addComponent(new AmbientLightComponent(0.8f));
-            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512), 1, 70));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512), 1, 200));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
         }
@@ -242,12 +247,11 @@ namespace Dino_Engine.ECS
             }
         }
 
-
         public  void OnResize(ResizeEventArgs eventArgs)
         {
             foreach (Entity entity in Entities)
             {
-                entity.updateComponents();
+                entity.OnResize(eventArgs);
             }
         }
     }

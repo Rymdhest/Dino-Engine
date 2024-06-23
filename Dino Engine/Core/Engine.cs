@@ -81,6 +81,7 @@ namespace Dino_Engine.Core
         {
             _windowHandler.onResize(eventArgs);
             _renderEngine.OnResize(eventArgs);
+            _ECSEngine.OnResize(eventArgs);
         }
     }
 }

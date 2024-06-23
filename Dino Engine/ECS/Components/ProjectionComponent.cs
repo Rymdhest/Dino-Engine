@@ -21,6 +21,7 @@ namespace Dino_Engine.ECS
         }
         private void updateProjectionMatrix(Vector2i resolution)
         {
+
             float aspect = (float)resolution.X / (float)resolution.Y;
             float y_scale = (float)((1f / Math.Tan((_fieldOfView / 2f))));
             float x_scale = y_scale / aspect;
@@ -32,7 +33,8 @@ namespace Dino_Engine.ECS
             _projectionMatrix.M33 = -((_far + _near) / frustum_length);
             _projectionMatrix.M34 = -1f;
             _projectionMatrix.M43 = -((2 * _near * _far) / frustum_length);
-            //projectionMatrix = Matrix4.CreatePerspectiveFieldOfView(fieldOfView, aspect, near, far);
+
+            //_projectionMatrix = Matrix4.CreatePerspectiveFieldOfView(_fieldOfView, aspect, _near, _far);
         }
 
         public override void OnResize(ResizeEventArgs eventArgs)

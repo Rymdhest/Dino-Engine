@@ -17,7 +17,7 @@ namespace Dino_Engine.ECS.Components
             private FrameBuffer cascadeFrameBuffer;
             private float projectionSize;
             private float polygonOffset;
-            public ShadowCascade(Vector2i resolution, float projectionSize, float polygonOffset = 4f)
+            public ShadowCascade(Vector2i resolution, float projectionSize, float polygonOffset = 7f)
             {
                 this.projectionSize = projectionSize;
                 this.polygonOffset = polygonOffset;

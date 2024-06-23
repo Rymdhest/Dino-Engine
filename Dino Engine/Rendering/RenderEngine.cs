@@ -28,6 +28,7 @@ namespace Dino_Engine.Rendering
         private SSAORenderer _sSAORenderer;
         private BloomRenderer _bloomRenderer;
         private SkyRenderer _skyRenderer;
+        private FogRenderer _fogRenderer;
 
         private ShaderProgram _simpleShader;
         public RenderEngine()
@@ -53,6 +54,7 @@ namespace Dino_Engine.Rendering
             _sSAORenderer = new SSAORenderer();
             _bloomRenderer = new BloomRenderer();
             _skyRenderer = new SkyRenderer();
+            _fogRenderer = new FogRenderer();
         }
 
         private void InitGBuffer()
@@ -98,7 +100,7 @@ namespace Dino_Engine.Rendering
             GeometryPass(eCSEngine);
             LightPass(eCSEngine);
             PostGeometryPass(eCSEngine);
-            PostProcessPass();
+            PostProcessPass(eCSEngine);
 
             _simpleShader.bind();
             _screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
@@ -126,10 +128,11 @@ namespace Dino_Engine.Rendering
             _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);
         }
 
-        private void PostProcessPass()
+        private void PostProcessPass(ECSEngine eCSEngine)
         {
             _bloomRenderer.Render(_screenQuadRenderer, _gBuffer);
             _toneMapRenderer.Render(_screenQuadRenderer);
+            _fogRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
             _fXAARenderer.Render(_screenQuadRenderer);
         }
 
