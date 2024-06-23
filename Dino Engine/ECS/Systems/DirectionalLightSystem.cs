@@ -33,7 +33,7 @@ namespace Dino_Engine.ECS
         }
 
 
-        private Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 center)
+        private static Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 center)
         {
             direction.Normalize();
             center *= -1f;

@@ -11,11 +11,11 @@ using static Dino_Engine.ECS.Components.CascadingShadowComponent;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
-    internal class LightRenderer : Renderer
+    internal class DirectionalLightRenderer : Renderer
     {
         private ShaderProgram _directionalLightShader = new ShaderProgram("Simple_Vertex", "Directional_Light_Fragment");
 
-        public LightRenderer()
+        public DirectionalLightRenderer()
         {
             _directionalLightShader.bind();
             _directionalLightShader.loadUniformInt("gAlbedo", 0);
@@ -27,22 +27,17 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private void prepareFrame(ScreenQuadRenderer screenQuadRenderer)
         {
             screenQuadRenderer.GetLastFrameBuffer().bind();
+            GL.Clear(ClearBufferMask.ColorBufferBit);
             Enable(EnableCap.Blend);
             BlendFunc(BlendingFactor.One, BlendingFactor.One);
             BlendEquation(BlendEquationMode.FuncAdd);
-            screenQuadRenderer.clearBothBuffers();
 
         }
         public void render(ECSEngine eCSEngine, ScreenQuadRenderer screenQuadRenderer, FrameBuffer gBuffer)
         {
             prepareFrame(screenQuadRenderer);
             DirectionalLightPass(eCSEngine, screenQuadRenderer, gBuffer);
-            PointLightPass(eCSEngine);
             finishFrame();
-        }
-        private void PointLightPass(ECSEngine eCSEngine)
-        {
-
         }
         private void DirectionalLightPass(ECSEngine eCSEngine, ScreenQuadRenderer screenQuadRenderer, FrameBuffer gBuffer)
         {
@@ -95,8 +90,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
 
 
-                Vector4 sunDirectionViewSpace = new Vector4(lightDirection, 1.0f) * Matrix4.Transpose(Matrix4.Invert(viewMatrix));
-                _directionalLightShader.loadUniformVector3f("LightDirectionViewSpace", sunDirectionViewSpace.Xyz);
+                Vector4 lightDirectionViewSpace = new Vector4(lightDirection, 1.0f) * Matrix4.Transpose(Matrix4.Invert(viewMatrix));
+                _directionalLightShader.loadUniformVector3f("LightDirectionViewSpace", lightDirectionViewSpace.Xyz);
 
                 _directionalLightShader.loadUniformVector3f("lightColour", lightColour);
                 _directionalLightShader.loadUniformFloat("ambientFactor", ambientFactor);

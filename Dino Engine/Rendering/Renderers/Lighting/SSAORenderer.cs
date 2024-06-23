@@ -60,14 +60,14 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         public void Render(ScreenQuadRenderer renderer, FrameBuffer gBuffer, Matrix4 projectionMatrix)
         {
-            Vector2i resolution = Engine.WindowHandler.Size;
+            Vector2i resolution = Engine.WindowHandler.ClientSize;
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
             ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
             ambientOcclusionShader.loadUniformFloat("radius", 1.1f);
-            ambientOcclusionShader.loadUniformFloat("strength", 1.5f);
+            ambientOcclusionShader.loadUniformFloat("strength", 2.0f);
             ambientOcclusionShader.loadUniformFloat("bias", 0.001f);
 
             GL.ActiveTexture(TextureUnit.Texture0);

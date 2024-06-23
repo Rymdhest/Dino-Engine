@@ -2,7 +2,7 @@
 
 namespace Dino_Engine.Modelling.Model;
 
-internal class glModel
+public class glModel
 {
     private int vaoID;
     private int[] VBOS;

@@ -1,5 +1,6 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
+using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
@@ -24,7 +25,7 @@ namespace Dino_Engine.ECS
         public ECSEngine() {
             AddSystem<FlatModelSystem>();
             AddSystem<DirectionalLightSystem>();
-
+            AddSystem<PointLightSystem>();
         }
 
         private void AddSystem<T>() where T : ComponentSystem, new()
@@ -55,10 +56,22 @@ namespace Dino_Engine.ECS
 
             Entity rock = new Entity("rock");
             rock.addComponent(new TransformationComponent(new Vector3(-1, 1, -8f), new Vector3(0), new Vector3(1)));
-            Mesh box2Rawmodel = IcoSphereGenerator.CreateIcosphere(7, Material.ROCK);
+            Mesh box2Rawmodel = IcoSphereGenerator.CreateIcosphere(3, Material.ROCK);
             glModel rockModel = glLoader.loadToVAO(box2Rawmodel);
             rock.addComponent(new FlatModelComponent(rockModel));
             AddEnityToSystem<FlatModelSystem>(rock);
+
+            Entity glow = new Entity("glow");
+            glow.addComponent(new TransformationComponent(new Vector3(6, 2, -3f), new Vector3(0), new Vector3(0.2f)));
+            Mesh glowRawmodel = IcoSphereGenerator.CreateIcosphere(1, Material.WOOD);
+            glowRawmodel.setColour(new Colour(1f, 0.2f, 0.2f, 10f));
+            glowRawmodel.setEmission(1f);
+            glModel glowModel = glLoader.loadToVAO(glowRawmodel);
+            glow.addComponent(new FlatModelComponent(glowModel));
+            glow.addComponent(new AttunuationComponent(0.01f, 0.01f, 0.01f));
+            glow.addComponent(new ColourComponent(new Colour(1f, 0.2f, 0.2f, 1f)));
+            AddEnityToSystem<FlatModelSystem>(glow);
+            AddEnityToSystem<PointLightSystem>(glow);
 
             Entity groundPlane = new Entity("Ground");
             groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0, 0f), new Vector3(0), new Vector3(1)));
@@ -83,22 +96,21 @@ namespace Dino_Engine.ECS
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-2f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 22.0f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 20.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.9f));
+            sun.addComponent(new AmbientLightComponent(0.0f));
             sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024), 2, 70));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
             Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
-            Colour skyColour = new Colour(143, 167, 178, 5.0f);
+            Colour skyColour = new Colour(143, 167, 178, 1.5f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.5f));
+            sky.addComponent(new AmbientLightComponent(0.8f));
             sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512), 1, 70));
             AddEnityToSystem<DirectionalLightSystem>(sky);
-
 
         }
         public bool AddEnityToSystem<T>(Entity entity) where T : ComponentSystem
@@ -122,7 +134,7 @@ namespace Dino_Engine.ECS
                 moveAmount *= 10f;
             }
 
-            if (windowHandler.IsMouseButtonDown(MouseButton.Left))
+            if (windowHandler.IsMouseButtonDown(MouseButton.Right))
             {
                 transformation.addRotation(new Vector3(0f, mouseTurnAmount * windowHandler.MouseState.Delta.X, 0f));
                 transformation.addRotation(new Vector3(mouseTurnAmount * windowHandler.MouseState.Delta.Y, 0, 0f));
