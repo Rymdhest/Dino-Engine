@@ -3,12 +3,14 @@ using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
 using Dino_Engine.ECS;
 using Dino_Engine.Util;
+using Dino_Engine.Core;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class FogRenderer : Renderer
     {
         private ShaderProgram fogShader = new ShaderProgram("Simple_Vertex", "Fog_Fragment");
+        private float time = 0;
         public FogRenderer()
         {
             fogShader.bind();
@@ -25,14 +27,14 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             fogShader.bind();
 
-            fogShader.loadUniformFloat("fogDensity", 0.02f);
-            fogShader.loadUniformFloat("heightFallOff", 0.005f);
-            fogShader.loadUniformVector3f("fogColor", new Vector3(1f));
+            fogShader.loadUniformFloat("fogDensity", 0.18f);
+            fogShader.loadUniformFloat("heightFallOff", 0.0175f);
+            fogShader.loadUniformVector3f("fogColor", new Vector3(0.9f, 0.9f, 1.0f));
 
             fogShader.loadUniformVector3f("cameraPosWorldSpace", cameraPos);
             fogShader.loadUniformMatrix4f("inverseViewMatrix", inverseView);
+            fogShader.loadUniformFloat("time", time);
 
-            //renderer.RenderToNextFrameBuffer();
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
@@ -54,6 +56,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         public override void Update()
         {
+            time += Engine.Delta;
         }
     }
 }
