@@ -89,11 +89,11 @@ namespace Dino_Engine.Rendering.Renderers
         }
         public int GetLastOutputTexture()
         {
-            return GetLastFrameBuffer().getRenderAttachment(0);
+            return GetLastFrameBuffer().GetAttachment(0);
         }
         public int GetNextOutputTexture()
         {
-            return GetNextFrameBuffer().getRenderAttachment(0);
+            return GetNextFrameBuffer().GetAttachment(0);
         }
         public FrameBuffer GetNextFrameBuffer()
         {

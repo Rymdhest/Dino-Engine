@@ -3,7 +3,6 @@ using Dino_Engine.ECS;
 using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
-using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
@@ -29,6 +28,8 @@ namespace Dino_Engine.Rendering
         private BloomRenderer _bloomRenderer;
         private SkyRenderer _skyRenderer;
         private FogRenderer _fogRenderer;
+        private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
+        private GaussianBlurRenderer _gaussianBlurRenderer;
 
         private ShaderProgram _simpleShader;
         public RenderEngine()
@@ -55,6 +56,8 @@ namespace Dino_Engine.Rendering
             _bloomRenderer = new BloomRenderer();
             _skyRenderer = new SkyRenderer();
             _fogRenderer = new FogRenderer();
+            _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
+            _gaussianBlurRenderer = new GaussianBlurRenderer();
         }
 
         private void InitGBuffer()
@@ -103,8 +106,10 @@ namespace Dino_Engine.Rendering
             PostProcessPass(eCSEngine);
 
             _simpleShader.bind();
+
             _screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
-            //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.getRenderAttachment(0));
+
+            //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(3));
 
             FinishFrame();
         }
@@ -131,8 +136,9 @@ namespace Dino_Engine.Rendering
         private void PostProcessPass(ECSEngine eCSEngine)
         {
             _bloomRenderer.Render(_screenQuadRenderer, _gBuffer);
-            _toneMapRenderer.Render(_screenQuadRenderer);
             _fogRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
+            _screenSpaceReflectionRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer, _gaussianBlurRenderer);
+            _toneMapRenderer.Render(_screenQuadRenderer);
             _fXAARenderer.Render(_screenQuadRenderer);
         }
 

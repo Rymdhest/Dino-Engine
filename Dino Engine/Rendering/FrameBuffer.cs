@@ -134,7 +134,7 @@ namespace Dino_Engine.Rendering
             }
             return attachment;
         }
-        public int getRenderAttachment(int attachmentNumber)
+        public int GetAttachment(int attachmentNumber)
         {
             return renderAttachments[attachmentNumber];
         }

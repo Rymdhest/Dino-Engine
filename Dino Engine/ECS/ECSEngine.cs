@@ -4,6 +4,7 @@ using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -58,6 +59,7 @@ namespace Dino_Engine.ECS
             Entity rock = new Entity("rock");
             rock.addComponent(new TransformationComponent(new Vector3(-1, 1, -8f), new Vector3(0), new Vector3(1)));
             Mesh box2Rawmodel = IcoSphereGenerator.CreateIcosphere(3, Material.ROCK);
+            box2Rawmodel.setMetalicness(0.05f);
             glModel rockModel = glLoader.loadToVAO(box2Rawmodel);
             rock.addComponent(new FlatModelComponent(rockModel));
             AddEnityToSystem<FlatModelSystem>(rock);
@@ -78,7 +80,8 @@ namespace Dino_Engine.ECS
             groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0, 0f), new Vector3(0), new Vector3(1)));
             float size = 125f;
             Mesh rawGRroud = MeshGenerator.generateBox(new Vector3(-size, -1, -size), new Vector3(size, 0, size), Material.LEAF);
-            rawGRroud.setRoughness(0.6f);
+            rawGRroud.setRoughness(0.5f);
+            rawGRroud.setMetalicness(0.2f);
             glModel groundModel = glLoader.loadToVAO(rawGRroud);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
@@ -103,7 +106,7 @@ namespace Dino_Engine.ECS
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-2f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 20.0f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 15.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.0f));
@@ -112,11 +115,11 @@ namespace Dino_Engine.ECS
 
             Entity sky = new Entity("Sky");
             Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
-            Colour skyColour = new Colour(143, 167, 178, 1.5f);
+            Colour skyColour = SkyRenderer.SkyColour;
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.8f));
-            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512), 1, 200));
+            sky.addComponent(new AmbientLightComponent(0.9f));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512)*2, 1, 100));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
         }

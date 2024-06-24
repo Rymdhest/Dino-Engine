@@ -5,7 +5,7 @@ namespace Dino_Engine.Rendering
     {
         public PixelInternalFormat formatInternal = PixelInternalFormat.Rgba16f;
         public PixelFormat formatExternal = PixelFormat.Rgba;
-        public PixelType pixelType = PixelType.UnsignedByte;
+        public PixelType pixelType = PixelType.Float;
         public FramebufferAttachment colorAttachment;
         public TextureMinFilter minFilterType = TextureMinFilter.Linear;
         public TextureMagFilter magFilterType = TextureMagFilter.Linear;

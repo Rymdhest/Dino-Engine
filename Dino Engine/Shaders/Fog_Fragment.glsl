@@ -9,6 +9,7 @@ uniform float fogDensity;
 uniform float heightFallOff;
 uniform vec3 fogColor;
 uniform float time;
+uniform float noiseFactor;
 
 uniform mat4 inverseViewMatrix;
 
@@ -86,6 +87,6 @@ void main() {
     vec3 worldPosition = (vec4(viewPosition, 1.0)*inverseViewMatrix).xyz;
 
     float noiseValue = noise( vec4(worldPosition.xyz*0.3, time*0.99f));
-	out_Color.rgb = applyVolumetricFog(baseColor, length(viewPosition), cameraPosWorldSpace,normalize(worldPosition-cameraPosWorldSpace), fogDensity, heightFallOff-heightFallOff*noiseValue*0.45f);
+	out_Color.rgb = applyVolumetricFog(baseColor, length(viewPosition), cameraPosWorldSpace,normalize(worldPosition-cameraPosWorldSpace), fogDensity, heightFallOff-heightFallOff*noiseValue*noiseFactor);
     
 }

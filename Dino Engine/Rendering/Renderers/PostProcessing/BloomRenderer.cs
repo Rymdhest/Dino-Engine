@@ -55,7 +55,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(3));
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
             renderer.RenderToNextFrameBuffer();
 
             downsamplingShader.bind();
@@ -68,7 +68,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                 downsamplingShader.loadUniformVector2f("srcResolution", sampleFramebuffers[i].getResolution());
                 downsamplingShader.loadUniformInt("mipLevel", i);
                 renderer.Render(clearColor: true);
-                GL.BindTexture(TextureTarget.Texture2D, sampleFramebuffers[i].getRenderAttachment(0));
+                GL.BindTexture(TextureTarget.Texture2D, sampleFramebuffers[i].GetAttachment(0));
             }
             //
             //renderer.GetLastFrameBuffer().resolveToScreen();
@@ -85,7 +85,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                 FrameBuffer next = sampleFramebuffers[i-1];
 
                 GL.ActiveTexture(TextureUnit.Texture0);
-                GL.BindTexture(TextureTarget.Texture2D, current.getRenderAttachment(0));
+                GL.BindTexture(TextureTarget.Texture2D, current.GetAttachment(0));
 
                 next.bind();
 

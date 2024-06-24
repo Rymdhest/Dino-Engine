@@ -45,13 +45,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _directionalLightShader.bind();
 
             ActiveTexture(TextureUnit.Texture0);
-            BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(0));
+            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
             ActiveTexture(TextureUnit.Texture1);
-            BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(1));
+            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
             ActiveTexture(TextureUnit.Texture2);
-            BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(2));
+            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
             ActiveTexture(TextureUnit.Texture3);
-            BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(3));
+            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
 
 
             foreach (Entity entity in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)

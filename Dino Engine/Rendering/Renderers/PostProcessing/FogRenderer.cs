@@ -27,9 +27,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             fogShader.bind();
 
-            fogShader.loadUniformFloat("fogDensity", 0.18f);
-            fogShader.loadUniformFloat("heightFallOff", 0.0175f);
-            fogShader.loadUniformVector3f("fogColor", new Vector3(0.9f, 0.9f, 1.0f));
+            fogShader.loadUniformFloat("fogDensity", 0.399218f);
+            fogShader.loadUniformFloat("heightFallOff", 0.004075f);
+            fogShader.loadUniformFloat("noiseFactor", 0.5f);
+            fogShader.loadUniformVector3f("fogColor", SkyRenderer.SkyColour.ToVector3());
 
             fogShader.loadUniformVector3f("cameraPosWorldSpace", cameraPos);
             fogShader.loadUniformMatrix4f("inverseViewMatrix", inverseView);
@@ -38,7 +39,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getRenderAttachment(2));
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
             renderer.RenderToNextFrameBuffer();
 
             fogShader.unBind();

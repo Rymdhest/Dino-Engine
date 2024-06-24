@@ -57,7 +57,12 @@ namespace Dino_Engine.Rendering
                 GL.Uniform1(uniforms[variableName + "[" + i + "]"], values[i]);
             }
         }
-
+        public void loadUniformBool(string variableName, bool value)
+        {
+            float floatValue = 0f;
+            if (value) floatValue = 1.0f;
+            GL.Uniform1(uniforms[variableName], floatValue);
+        }
 
         public void loadUniformFloat(string variableName, float value)
         {

@@ -5,11 +5,14 @@ using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using Dino_Engine.Core;
 
-namespace Dino_Engine.Rendering.Renderers.PosGeometry
+namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class SkyRenderer : Renderer
     {
         private ShaderProgram skyShader = new ShaderProgram("Simple_Vertex", "sky_Fragment");
+
+        public static Colour SkyColour = new Colour(0.2f, 0.5f, 0.99f, 3.0f);
+        public static Colour HorizonColour = new Colour(0.9f, 0.5f, 0.39f, 35.0f);
 
         public SkyRenderer()
         {
@@ -38,10 +41,9 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             skyShader.loadUniformVector2f("screenResolution", Engine.Resolution);
             //Vector4 sunDirectionViewSpace = new Vector4(sunDirection.X, sunDirection.Y, sunDirection.Z, 1.0f) * Matrix4.Transpose(Matrix4.Invert(viewMatrix));
 
-            skyShader.loadUniformVector3f("skyColor", new Colour(0.2f, 0.5f, 0.99f, 12.0f).ToVector3());
-            skyShader.loadUniformVector3f("horizonColor", new Colour(0.9f, 0.5f, 0.39f, 5.0f).ToVector3());
+            skyShader.loadUniformVector3f("skyColor", SkyColour.ToVector3());
 
-            skyShader.loadUniformVector3f("horizonColor", new Colour(0.9f, 0.9f, 0.9f, 35.0f).ToVector3());
+            skyShader.loadUniformVector3f("horizonColor", HorizonColour.ToVector3());
 
             renderer.GetLastFrameBuffer().bind();
 
