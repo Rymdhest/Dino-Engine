@@ -45,7 +45,7 @@ void main(void){
     vec3 L = normalize(lightPositionViewSpace - position);
     vec3 H = normalize(V + L);
     float distance = length(lightPositionViewSpace - position.xyz);
-	float attenuationFactor = 1.0 / (attenuation.x + attenuation.y * distance+ attenuation.z * distance * distance)-1f;
+	float attenuationFactor = clamp(1.0 / (attenuation.x + attenuation.y * distance+ attenuation.z * distance * distance)-1f, 0f, 999f);
     vec3 radiance     = lightColor*attenuationFactor;        
         
     // cook-torrance brdf

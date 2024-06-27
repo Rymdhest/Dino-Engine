@@ -21,7 +21,7 @@ namespace Dino_Engine.Modelling
                 for (int detail = 0; detail < polygonsPerRing; detail++)
                 {
                     float x1 = MathF.Sin(2f * PI * ((float)detail / polygonsPerRing)) * rings[ring].X;
-                    float z1 = MathF.Cos(2f * PI * ((float)detail / polygonsPerRing)) * rings[ring].Z;
+                    float z1 = MathF.Cos( 2f * PI * ((float)detail / polygonsPerRing)) * rings[ring].Z;
                     float y1 = rings[ring].Y;
                     Vector3 p1 = new Vector3(x1, y1, z1);
 
@@ -41,7 +41,10 @@ namespace Dino_Engine.Modelling
             }
             return new Mesh(positions, indices, material);
         }
-
+        public static Mesh generateBox(Material material)
+        {
+            return generateBox(new Vector3(-0.5f), new Vector3(0.5f), material);
+        }
         public static Mesh generateBox(Vector3 min, Vector3 max, Material material)
         {
             float[] positions = {
@@ -61,6 +64,51 @@ namespace Dino_Engine.Modelling
                         6,7,2, 3,2,7,  //back
                         3,7,4, 0,3,4,  //left
                         6,5,7, 7,5,4};  //bot
+
+            Mesh rawModel = new Mesh(positions, indices, material);
+            return rawModel;
+        }
+
+        public static Mesh ExtrudedPlane(Vector3 extrusionSize, Material material, Material innerMaterial)
+        {
+            float scaleFactor = 1f / MathF.Sqrt(2f);
+
+            float outerRadius = scaleFactor;
+            Vector2 innerRadius = extrusionSize.Xy*scaleFactor;
+            float innerDepth = extrusionSize.Z;
+            List<Vector3> trunkLayers = new List<Vector3>() {
+                //new Vector3(outerRadius, 0f, outerRadius),
+                new Vector3(outerRadius, 0, outerRadius),
+                new Vector3(innerRadius.X, 0, innerRadius.Y),
+                new Vector3(innerRadius.X, innerDepth, innerRadius.Y) };
+            Mesh mesh = MeshGenerator.generateCylinder(trunkLayers, 4, material);
+
+            Mesh inner = generatePlane(innerMaterial);
+            inner.scale(extrusionSize);
+            inner.translate(new Vector3(0f, 0f, -extrusionSize.Z));
+            inner.rotate(new Vector3(MathF.PI, 0f, 0f));
+
+
+            mesh.rotate(new Vector3(MathF.PI / 2f, MathF.PI / 4f, 0f));
+
+            mesh += inner;
+
+            return mesh;
+        }
+        public static Mesh generatePlane(Material material)
+        {
+            return generatePlane(new Vector2(1f), material);
+        }
+            public static Mesh generatePlane(Vector2 size, Material material)
+        {
+            Vector2 r = size * 0.5f;
+            float[] positions = {
+                -r.X, -r.Y, 0,
+                -r.X, r.Y, 0,
+                r.X, r.Y, 0,
+                r.X, -r.Y, 0};
+
+            int[] indices = { 0, 1, 2, 3, 0, 2 };
 
             Mesh rawModel = new Mesh(positions, indices, material);
             return rawModel;

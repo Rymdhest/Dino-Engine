@@ -4,7 +4,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.Util
 {
-    public class Transformation
+    public struct Transformation
     {
         public Vector3 position;
         public Vector3 rotation;

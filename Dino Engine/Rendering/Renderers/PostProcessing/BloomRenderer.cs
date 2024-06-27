@@ -18,6 +18,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             bloomFilterShader.bind();
             bloomFilterShader.loadUniformInt("shadedInput", 0);
             bloomFilterShader.loadUniformInt("gMaterials", 1);
+            bloomFilterShader.loadUniformInt("gAlbedo", 2);
             bloomFilterShader.unBind();
 
             downsamplingShader.bind();
@@ -51,11 +52,13 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         public void Render(ScreenQuadRenderer renderer, FrameBuffer gBuffer)
         {
             bloomFilterShader.bind();
-            bloomFilterShader.loadUniformFloat("bloomStrength", 0.001f);
+            bloomFilterShader.loadUniformFloat("bloomStrength", 0.03f);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
+            GL.ActiveTexture(TextureUnit.Texture2);
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
             renderer.RenderToNextFrameBuffer();
 
             downsamplingShader.bind();

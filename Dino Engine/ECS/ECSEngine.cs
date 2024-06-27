@@ -4,6 +4,7 @@ using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.Modelling.Procedural.Urban;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
@@ -41,7 +42,7 @@ namespace Dino_Engine.ECS
             {
                 _camera = new Entity("Camera");
                 Camera.addComponent(new TransformationComponent(new Vector3(0, 2f, 0f), new Vector3(0), new Vector3(1)));
-                Camera.addComponent(new ProjectionComponent(MathF.PI / 2.5f));
+                Camera.addComponent(new ProjectionComponent(MathF.PI / 3.5f));
             }
 
             Entity box = new Entity("Box");
@@ -64,31 +65,34 @@ namespace Dino_Engine.ECS
             rock.addComponent(new FlatModelComponent(rockModel));
             AddEnityToSystem<FlatModelSystem>(rock);
 
-            Entity glow = new Entity("glow");
-            glow.addComponent(new TransformationComponent(new Vector3(6, 2, -3f), new Vector3(0), new Vector3(0.2f)));
-            Mesh glowRawmodel = IcoSphereGenerator.CreateIcosphere(1, Material.WOOD);
-            glowRawmodel.setColour(new Colour(1f, 0.2f, 0.2f, 10f));
-            glowRawmodel.setEmission(1f);
-            glModel glowModel = glLoader.loadToVAO(glowRawmodel);
-            glow.addComponent(new FlatModelComponent(glowModel));
-            glow.addComponent(new AttunuationComponent(0.01f, 0.01f, 0.01f));
-            glow.addComponent(new ColourComponent(new Colour(1f, 0.2f, 0.2f, 1f)));
-            AddEnityToSystem<FlatModelSystem>(glow);
-            AddEnityToSystem<PointLightSystem>(glow);
+
+            for (int i = 0; i < 10; i++)
+            {
+                Entity glow = new Entity("glow");
+                glow.addComponent(new TransformationComponent(new Vector3(0, 2, 20+10*i), new Vector3(0), new Vector3(0.2f)));
+                Mesh glowRawmodel = IcoSphereGenerator.CreateIcosphere(1, Material.WOOD);
+                glowRawmodel.setColour(new Colour(1f, 0.2f, 0.2f, 1f));
+                glowRawmodel.setEmission(100f);
+                glModel glowModel = glLoader.loadToVAO(glowRawmodel);
+                glow.addComponent(new FlatModelComponent(glowModel));
+                glow.addComponent(new AttunuationComponent(0.01f, 0.01f, 0.01f));
+                glow.addComponent(new ColourComponent(new Colour(1f, 0.2f, 0.2f, 30f)));
+                AddEnityToSystem<FlatModelSystem>(glow);
+                AddEnityToSystem<PointLightSystem>(glow);
+            }
+
 
             Entity groundPlane = new Entity("Ground");
             groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0, 0f), new Vector3(0), new Vector3(1)));
             float size = 125f;
             Mesh rawGRroud = MeshGenerator.generateBox(new Vector3(-size, -1, -size), new Vector3(size, 0, size), Material.LEAF);
-            rawGRroud.setRoughness(0.5f);
-            rawGRroud.setMetalicness(0.2f);
+            rawGRroud.setRoughness(0.3f);
+            rawGRroud.setMetalicness(0.15f);
             glModel groundModel = glLoader.loadToVAO(rawGRroud);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
 
-
-
-            for (int i = 0; i<200; i++)
+            for (int i = 0; i<0; i++)
             {
                 Entity tree = new Entity("Tree");
                 tree.addComponent(new TransformationComponent(new Vector3(MyMath.rngMinusPlus(size), 0, MyMath.rngMinusPlus(size)), new Vector3(0), new Vector3(1)));
@@ -111,16 +115,41 @@ namespace Dino_Engine.ECS
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.0f));
             sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 3, 500));
-            AddEnityToSystem<DirectionalLightSystem>(sun);
+            //AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
             Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
             Colour skyColour = SkyRenderer.SkyColour;
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.9f));
+            sky.addComponent(new AmbientLightComponent(0.4f));
             sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512)*2, 1, 100));
             AddEnityToSystem<DirectionalLightSystem>(sky);
+
+            glModel houseModel = ModelGenerator.GenerateHouse();
+            for (int x = 0; x < 2; x++)
+            {
+                for (int z = 0; z < 2; z++)
+                {
+                    Entity house = new Entity("House");
+                    house.addComponent(new TransformationComponent(new Vector3(45+55*x, 0, 45+55f * z), new Vector3(0,MyMath.rand.Next(8)*MathF.PI/4,0), new Vector3(4)));
+                    house.addComponent(new FlatModelComponent(houseModel));
+                    AddEnityToSystem<FlatModelSystem>(house);
+                }
+            }
+
+            StreetGenerator streetGenerator = new StreetGenerator();
+
+            glModel streetModel = streetGenerator.GenerateStreet(30, out float streetLength);
+            for (int i = 0; i < 4; i++)
+            {
+                Entity street = new Entity("street");
+                Vector3 position = (new Vector4(0, 1, streetGenerator.TotalWidth*0.5f, 1f)*MyMath.createRotationMatrix(new Vector3(0f, i * (MathF.PI / 2f), 0f))).Xyz;
+                Transformation transformation = new Transformation(position, new Vector3(0f, i * (MathF.PI / 2f), 0f), new Vector3(1));
+                street.addComponent(new TransformationComponent(transformation));
+                street.addComponent(new FlatModelComponent(streetModel));
+                AddEnityToSystem<FlatModelSystem>(street);
+            }
 
         }
         public bool AddEnityToSystem<T>(Entity entity) where T : ComponentSystem
@@ -132,7 +161,8 @@ namespace Dino_Engine.ECS
         private void HandleInput()
         {
             float delta = Engine.Delta;
-            Transformation transformation = Camera.getComponent<TransformationComponent>().Transformation;
+            var transformationComponent = Camera.getComponent<TransformationComponent>();
+            Transformation transformation = transformationComponent.Transformation;
             WindowHandler windowHandler = Engine.WindowHandler;
 
             float moveAmount = 20f * delta;
@@ -209,6 +239,8 @@ namespace Dino_Engine.ECS
                     Console.WriteLine(entity.GetFullInformationString());
                 }
             }
+
+            transformationComponent.Transformation = transformation;
         }
 
         private void ClearAllEntitiesExcept(params Entity[] exceptions)

@@ -15,6 +15,7 @@ namespace Dino_Engine.Core
         private float _delta = 0f;
         private int _framesLastSecond = 0;
         private int _framesCurrentSecond = 0;
+        private float _totalTime = 0f;
         public float Delta { get => _delta; }
         public int FramesLastSecond { get => _framesLastSecond; }
 
@@ -40,6 +41,7 @@ namespace Dino_Engine.Core
 
             }
             _framesCurrentSecond++;
+            _totalTime += _delta;
         }
     }
 }

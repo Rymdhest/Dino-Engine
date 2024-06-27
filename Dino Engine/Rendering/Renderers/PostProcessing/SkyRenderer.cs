@@ -11,8 +11,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
     {
         private ShaderProgram skyShader = new ShaderProgram("Simple_Vertex", "sky_Fragment");
 
-        public static Colour SkyColour = new Colour(0.2f, 0.5f, 0.99f, 3.0f);
-        public static Colour HorizonColour = new Colour(0.9f, 0.5f, 0.39f, 35.0f);
+        public static Colour SkyColour = new Colour(0.2f, 0.5f, 0.99f, 1.0f);
+        public static Colour HorizonColour = new Colour(0.9f, 0.5f, 0.39f, 1.0f);
 
         public SkyRenderer()
         {
@@ -70,6 +70,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         public override void Update()
         {
+
         }
     }
 }

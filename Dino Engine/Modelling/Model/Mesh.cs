@@ -1,8 +1,9 @@
 ﻿using Dino_Engine.Util;
 using OpenTK.Mathematics;
+using System.Transactions;
 namespace Dino_Engine.Modelling.Model
 {
-    public class Mesh
+    public struct Mesh
     {
         public List<Face> faces;
         public List<Vertex> vertices;
@@ -62,8 +63,35 @@ namespace Dino_Engine.Modelling.Model
                 C.faces.Add(face);
                 faces.Add(face);
             }
-            calculateAllNormals();
+            //calculateAllNormals();
         }
+        private Mesh(float[] positions, int[] indices, Material[] materials)
+        {
+            vertices = new List<Vertex>();
+            faces = new List<Face>();
+
+            for (int i = 0; i < positions.Length / 3; i++)
+            {
+                Vertex v = new Vertex(new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]), i);
+                //v.UV = new Vector2(uvs[i * 2], uvs[i * 2 + 1]);
+                //v.colour = new Colour(colours[i*3], colours[i * 3+1], colours[i * 3+2]);
+                v.material = materials[i];
+                vertices.Add(v);
+            }
+            for (int i = 0; i < indices.Length / 3; i++)
+            {
+                Vertex A = vertices[indices[i * 3]];
+                Vertex B = vertices[indices[i * 3 + 1]];
+                Vertex C = vertices[indices[i * 3 + 2]];
+                Face face = new Face(A, B, C);
+                A.faces.Add(face);
+                B.faces.Add(face);
+                C.faces.Add(face);
+                faces.Add(face);
+            }
+            //calculateAllNormals();
+        }
+
 
         public void calculateAllNormals()
         {
@@ -79,31 +107,39 @@ namespace Dino_Engine.Modelling.Model
 
         public void setRoughness(float setTo)
         {
-            foreach (Vertex vertex in vertices)
+            for (int i = 0; i < vertices.Count; i++)
             {
+                Vertex vertex = vertices[i];
                 vertex.material.roughness = setTo;
+                vertices[i] = vertex;
             }
         }
         public void setEmission(float setTo)
         {
-            foreach (Vertex vertex in vertices)
+            for (int i = 0; i < vertices.Count; i++)
             {
+                Vertex vertex = vertices[i];
                 vertex.material.emission = setTo;
+                vertices[i] = vertex;
             }
         }
         public void setMetalicness(float setTo)
         {
-            foreach (Vertex vertex in vertices)
+            for (int i = 0; i < vertices.Count; i++)
             {
+                Vertex vertex = vertices[i];
                 vertex.material.metalicness = setTo;
+                vertices[i] = vertex;
             }
         }
 
         public void setColour(Colour setTo)
         {
-            foreach (Vertex vertex in vertices)
+            for (int i = 0; i < vertices.Count; i++)
             {
+                Vertex vertex = vertices[i];
                 vertex.material.Colour = setTo;
+                vertices[i] = vertex;
             }
         }
 
@@ -159,6 +195,17 @@ namespace Dino_Engine.Modelling.Model
             return materialsArray;
         }
 
+        public Material[] getAllMaterialsTypeArray()
+        {
+            Material[] materialsArray = new Material[vertices.Count];
+
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                materialsArray[i] = vertices[i].material;
+            }
+            return materialsArray;
+        }
+
         public float[] getAllColoursArray()
         {
             float[] coloursArray = new float[vertices.Count * 3];
@@ -202,5 +249,78 @@ namespace Dino_Engine.Modelling.Model
         {
 
         }
+
+        public void translate(Vector3 translation)
+        {
+            Transform(new Transformation(translation, new Vector3(0f), new Vector3(1f)));
+        }
+        public Mesh translated(Vector3 translation)
+        {
+            return Transformed(new Transformation(translation, new Vector3(0f), new Vector3(1f)));
+        }
+        public void rotate(Vector3 rotation)
+        {
+            Transform(new Transformation(new Vector3(0), rotation, new Vector3(1f)));
+        }
+        public Mesh rotated(Vector3 rotation)
+        {
+            return Transformed(new Transformation(new Vector3(0), rotation, new Vector3(1f)));
+        }
+        public void scale(Vector3 scale)
+        {
+            Transform(new Transformation(new Vector3(0), new Vector3(0), scale));
+        }
+        public Mesh scaled(Vector3 scale)
+        {
+            return Transformed(new Transformation(new Vector3(0), new Vector3(0), scale));
+        }
+        public void Transform(Transformation transformation)
+        {
+            var transformationMatrix = MyMath.createTransformationMatrix(transformation);
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                Vertex vertex = vertices[i];
+                vertex.position = (new Vector4(vertices[i].position, 1.0f)* transformationMatrix).Xyz;
+                vertices[i] = vertex;
+            }
+        }
+        public Mesh Transformed(Transformation transformation)
+        {
+            var transformationMatrix = MyMath.createTransformationMatrix(transformation);
+            float[] newPositions = new float[vertices.Count*3];
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                Vector3 newPosition = (new Vector4(vertices[i].position, 1.0f)*transformationMatrix).Xyz;
+                newPositions[i * 3+0] = newPosition.X;
+                newPositions[i * 3+1] = newPosition.Y;
+                newPositions[i * 3+2] = newPosition.Z;
+            }
+            return new Mesh(newPositions, getAllIndicesArray(), getAllMaterialsTypeArray());
+        }
+
+
+        public static Mesh Add(Mesh a, Mesh b)
+        {
+            List<float> positions = new List<float>();
+            positions.AddRange(a.getAllPositionsArray());
+            int offset = positions.Count/3;
+            positions.AddRange(b.getAllPositionsArray());
+
+            List<int> indices = new List<int>();
+            indices.AddRange(a.getAllIndicesArray());
+            int[] secondIndices = b.getAllIndicesArray();
+            for (int i = 0; i < secondIndices.Length ; i++)
+            {
+                secondIndices[i] += offset;
+            }
+            indices.AddRange(secondIndices);
+
+            List<Material> materials = new List<Material>();
+            materials.AddRange(a.getAllMaterialsTypeArray());
+            materials.AddRange(b.getAllMaterialsTypeArray());
+
+            return new Mesh(positions.ToArray(), indices.ToArray(), materials.ToArray());
+        }
+        public static Mesh operator +(Mesh a, Mesh b)  => Mesh.Add(a, b);
     }
 }

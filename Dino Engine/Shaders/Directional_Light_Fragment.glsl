@@ -71,7 +71,7 @@ void main(void){
 	float emission = texture(gMaterials, textureCoords).g;
 	float metallic = texture(gMaterials, textureCoords).b;
 
-	vec3 totalAmbient = vec3(ambientFactor*ambientOcclusion*albedo);
+	vec3 totalAmbient = vec3(ambientFactor*ambientOcclusion*albedo*lightColour);
 
 	vec3 viewDir = normalize(-position);
 
