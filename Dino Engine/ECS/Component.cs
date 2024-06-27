@@ -66,7 +66,7 @@ namespace Dino_Engine.ECS
                     string[] lines = valueString.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     foreach (string line in lines)
                     {
-                        stringBuilder.AppendLine($"{linePrefix}\t\t{line}");
+                        stringBuilder.AppendLine($"{linePrefix}\t{line}");
                     }
                 }
             }

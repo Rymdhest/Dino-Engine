@@ -52,8 +52,9 @@ namespace Dino_Engine.Modelling.Procedural
             Mesh roof = MeshGenerator.ExtrudedPlane(new Vector3(0.92f, 0.92f, -0.1f), wallMaterial, Material.ROCK);
             roof.rotate(new Vector3(-MathF.PI/2f, 0f, 0f));
             roof.scale(new Vector3(numWindows, 1f, numWindows));
-            roof += MeshGenerator.generateBox(wallMaterial);
-
+            Mesh roofBox = MeshGenerator.generateBox(wallMaterial);
+            roofBox.translate(new Vector3(2f, 0f, 2f));
+            roof += roofBox;
             roof.translate(new Vector3(0f, floorheight * numStories, 0f));
 
             house += roof;

@@ -58,32 +58,6 @@ namespace Dino_Engine.ECS
             box2.addComponent(new FlatModelComponent(boxModel2));
             AddEnityToSystem<FlatModelSystem>(box2);
 
-            Entity rock = new Entity("rock");
-            rock.addComponent(new TransformationComponent(new Vector3(-1, 1, -8f), new Vector3(0), new Vector3(1)));
-            Mesh box2Rawmodel = IcoSphereGenerator.CreateIcosphere(3, Material.ROCK);
-            box2Rawmodel.setMetalicness(0.05f);
-            glModel rockModel = glLoader.loadToVAO(box2Rawmodel);
-            rock.addComponent(new FlatModelComponent(rockModel));
-            AddEnityToSystem<FlatModelSystem>(rock);
-
-
-            for (int i = 0; i < 11; i++)
-            {
-                Entity glow = new Entity("glow");
-                Vector3 rotation = new Vector3(0, 0, 0.31415f * i*0.5f);
-                glow.addComponent(new TransformationComponent(new Vector3(0, 26.5f-2.5f*i, 20+10*i), rotation, new Vector3(0.2f)));
-                Mesh glowRawmodel = IcoSphereGenerator.CreateIcosphere(1, Material.WOOD);
-                glowRawmodel.setColour(new Colour(1f, 0.2f, 0.2f, 1f));
-                glowRawmodel.setEmission(100f);
-                glModel glowModel = glLoader.loadToVAO(glowRawmodel);
-                glow.addComponent(new FlatModelComponent(glowModel));
-                glow.addComponent(new AttunuationComponent(0.001f, 0.001f, 0.001f));
-                glow.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 2f)));
-                glow.addComponent(new DirectionComponent((new Vector4(0f, -1.0f, 0.0f, 1.0f)*MyMath.createRotationMatrix(rotation)).Xyz));
-                AddEnityToSystem<FlatModelSystem>(glow);
-                AddEnityToSystem<SpotLightSystem>(glow);
-                //AddEnityToSystem<PointLightSystem>(glow);
-            }
 
 
             Entity groundPlane = new Entity("Ground");
@@ -95,6 +69,28 @@ namespace Dino_Engine.ECS
             glModel groundModel = glLoader.loadToVAO(rawGRroud);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
+
+
+            for (int i = 0; i < 11; i++)
+            {
+                Entity glow = new Entity("glow"+i);
+                Vector3 rotation = new Vector3(0, 0, 0.31415f * i*0.5f);
+                glow.addComponent(new TransformationComponent(new Vector3(0, 26.5f-2.5f*i, 20+10*i), rotation, new Vector3(0.2f)));
+                Mesh glowRawmodel = IcoSphereGenerator.CreateIcosphere(1, Material.WOOD);
+                glowRawmodel.setColour(new Colour(1f, 0.8f, 0.8f, 40f));
+                glowRawmodel.setEmission(100f);
+                glModel glowModel = glLoader.loadToVAO(glowRawmodel);
+                glow.addComponent(new FlatModelComponent(glowModel));
+                glow.addComponent(new AttunuationComponent(0.001f, 0.001f, 0.001f));
+                glow.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 40f)));
+                glow.addComponent(new ChildComponent(groundPlane));
+                AddEnityToSystem<FlatModelSystem>(glow);
+                AddEnityToSystem<SpotLightSystem>(glow);
+                //AddEnityToSystem<PointLightSystem>(glow);
+            }
+
+
+
 
             for (int i = 0; i<0; i++)
             {
@@ -119,7 +115,7 @@ namespace Dino_Engine.ECS
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.1f));
             sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 3, 500));
-            //AddEnityToSystem<DirectionalLightSystem>(sun);
+            AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
             Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
@@ -136,9 +132,18 @@ namespace Dino_Engine.ECS
                 for (int z = 0; z < 2; z++)
                 {
                     Entity house = new Entity("House");
-                    house.addComponent(new TransformationComponent(new Vector3(45+55*x, 0, 45+55f * z), new Vector3(0,MyMath.rand.Next(8)*MathF.PI/4,0), new Vector3(4)));
+                    house.addComponent(new TransformationComponent(new Vector3(45+55*x, 0, 45+55f * z), new Vector3(0,MyMath.rand.Next(8)*MathF.PI/4,1f), new Vector3(5f)));
                     house.addComponent(new FlatModelComponent(houseModel));
                     AddEnityToSystem<FlatModelSystem>(house);
+
+                    Entity rock = new Entity("rock");
+                    rock.addComponent(new TransformationComponent(new Vector3(-2, 18, -2f), new Vector3(0), new Vector3(1)));
+                    Mesh box2Rawmodel = MeshGenerator.generateBox(Material.ROCK);
+                    box2Rawmodel.setMetalicness(0.05f);
+                    glModel rockModel = glLoader.loadToVAO(box2Rawmodel);
+                    rock.addComponent(new FlatModelComponent(rockModel));
+                    rock.addComponent(new ChildComponent(house));
+                    AddEnityToSystem<FlatModelSystem>(rock);
                 }
             }
 

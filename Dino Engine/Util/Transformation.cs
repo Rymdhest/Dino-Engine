@@ -1,6 +1,8 @@
 ﻿
 
+using Dino_Engine.Modelling.Model;
 using OpenTK.Mathematics;
+using System.Runtime.CompilerServices;
 
 namespace Dino_Engine.Util
 {
@@ -47,6 +49,15 @@ namespace Dino_Engine.Util
             moveVector.Normalize();
             return moveVector.Xyz;
         }
+
+        public static Transformation Multiply(Transformation a, Transformation b)
+        {
+            Vector3 position = (new Vector4(a.position, 1.0f)*MyMath.createTransformationMatrix(b)).Xyz;
+            Vector3 rotation = a.rotation + b.rotation;
+            Vector3 scale = a.scale * b.scale;
+            return new Transformation(position, rotation, scale);
+        }
+        public static Transformation operator *(Transformation a, Transformation b) => Transformation.Multiply(a, b);
 
         public override string ToString()
         {
