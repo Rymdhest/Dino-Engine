@@ -30,6 +30,7 @@ namespace Dino_Engine.Rendering
         private FogRenderer _fogRenderer;
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
+        private SpotLightRenderer _spotLightRenderer;
 
         private ShaderProgram _simpleShader;
         public RenderEngine()
@@ -58,6 +59,7 @@ namespace Dino_Engine.Rendering
             _fogRenderer = new FogRenderer();
             _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
             _gaussianBlurRenderer = new GaussianBlurRenderer();
+            _spotLightRenderer = new SpotLightRenderer();
         }
 
         private void InitGBuffer()
@@ -120,6 +122,7 @@ namespace Dino_Engine.Rendering
             _shadowCascadeMapRenderer.render(eCSEngine);
             _directionalLightRenderer.render(eCSEngine, _screenQuadRenderer, _gBuffer);
             _pointLightRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
+            _spotLightRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
         }
         private void PostGeometryPass(ECSEngine eCSEngine)
         {

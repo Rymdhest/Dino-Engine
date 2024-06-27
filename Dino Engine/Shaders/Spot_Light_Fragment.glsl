@@ -7,9 +7,10 @@ uniform sampler2D gAlbedo;
 uniform sampler2D gMaterials;
 
 uniform vec3 lightPositionViewSpace;
+uniform vec3 lightDirectionViewSpace;
 uniform vec3 lightColor;
 uniform vec3 attenuation;
-
+uniform float softness;
 uniform vec2 resolution;
 
 
@@ -32,6 +33,17 @@ void main(void){
 	float emission = texture(gMaterials, textureCoords).g;
 	float metallic = texture(gMaterials, textureCoords).b;
     
+    vec3 lightDir = normalize(lightPositionViewSpace - position);  
+    float theta = dot(lightDir, normalize(-lightDirectionViewSpace));
+    float cutoff = 3.1415f/4f;
+    if (theta < cutoff) 
+    {       
+      discard;
+    }
+    
+    float epsilon = softness*cutoff;
+    float intensity = smoothstep(0f, 1f, clamp((theta - cutoff) / epsilon, 0.0f, 1.0f));  
+
 	vec3 viewDir = normalize(-position);
 
 	vec3 F0 = vec3(0.04); 
@@ -66,6 +78,7 @@ void main(void){
 
 	//vec3 ambient = vec3(0.03) * albedo * ambientOcclusion;
     vec3 color =  Lo*ambientOcclusion;
+    color *= intensity;
 
 	//color = color / (color + vec3(1.0));
     //color = pow(color, vec3(1.0/2.2));  

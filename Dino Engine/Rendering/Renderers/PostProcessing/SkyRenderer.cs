@@ -70,7 +70,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         public override void Update()
         {
-
-        }
+            SkyColour = new Colour(0.2f, 0.5f, 0.99f, 4.0f);
+            HorizonColour = new Colour(0.9f, 0.5f, 0.39f, 10.0f);
+    }
     }
 }

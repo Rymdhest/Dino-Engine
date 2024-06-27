@@ -8,8 +8,9 @@ namespace Dino_Engine.Modelling.Procedural
     public class ModelGenerator
     {
         public static readonly glModel UNIT_SPHERE = glLoader.loadToVAO(IcoSphereGenerator.CreateIcosphere(1, Material.ROCK));
+        public static readonly glModel UNIT_CONE = glLoader.loadToVAO(MeshGenerator.GenerateCone(Material.ROCK));
 
-            public static glModel GenerateHouse()
+        public static glModel GenerateHouse()
         {
             Material wallMaterial = new Material(new Colour(38, 30, 38, 1.0f), 0f, 0.5f, 0.0f);
             Material windowGlow = new Material(new Colour(235, 193, 106, 1.0f), 0.0f, 0.2f, 40.0f);

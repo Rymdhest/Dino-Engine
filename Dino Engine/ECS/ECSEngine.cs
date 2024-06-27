@@ -28,6 +28,7 @@ namespace Dino_Engine.ECS
         public ECSEngine() {
             AddSystem<FlatModelSystem>();
             AddSystem<DirectionalLightSystem>();
+            AddSystem<SpotLightSystem>();
             AddSystem<PointLightSystem>();
         }
 
@@ -66,19 +67,22 @@ namespace Dino_Engine.ECS
             AddEnityToSystem<FlatModelSystem>(rock);
 
 
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 11; i++)
             {
                 Entity glow = new Entity("glow");
-                glow.addComponent(new TransformationComponent(new Vector3(0, 2, 20+10*i), new Vector3(0), new Vector3(0.2f)));
+                Vector3 rotation = new Vector3(0, 0, 0.31415f * i*0.5f);
+                glow.addComponent(new TransformationComponent(new Vector3(0, 26.5f-2.5f*i, 20+10*i), rotation, new Vector3(0.2f)));
                 Mesh glowRawmodel = IcoSphereGenerator.CreateIcosphere(1, Material.WOOD);
                 glowRawmodel.setColour(new Colour(1f, 0.2f, 0.2f, 1f));
                 glowRawmodel.setEmission(100f);
                 glModel glowModel = glLoader.loadToVAO(glowRawmodel);
                 glow.addComponent(new FlatModelComponent(glowModel));
-                glow.addComponent(new AttunuationComponent(0.01f, 0.01f, 0.01f));
-                glow.addComponent(new ColourComponent(new Colour(1f, 0.2f, 0.2f, 30f)));
+                glow.addComponent(new AttunuationComponent(0.001f, 0.001f, 0.001f));
+                glow.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 2f)));
+                glow.addComponent(new DirectionComponent((new Vector4(0f, -1.0f, 0.0f, 1.0f)*MyMath.createRotationMatrix(rotation)).Xyz));
                 AddEnityToSystem<FlatModelSystem>(glow);
-                AddEnityToSystem<PointLightSystem>(glow);
+                AddEnityToSystem<SpotLightSystem>(glow);
+                //AddEnityToSystem<PointLightSystem>(glow);
             }
 
 
@@ -110,10 +114,10 @@ namespace Dino_Engine.ECS
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-2f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 15.0f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 25.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.0f));
+            sun.addComponent(new AmbientLightComponent(0.1f));
             sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 3, 500));
             //AddEnityToSystem<DirectionalLightSystem>(sun);
 

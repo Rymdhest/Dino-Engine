@@ -6,25 +6,24 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
 using static OpenTK.Graphics.OpenGL.GL;
-using static Dino_Engine.ECS.Components.CascadingShadowComponent;
 using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
-    internal class PointLightRenderer : Renderer
+    internal class SpotLightRenderer : Renderer
     {
 
-        private ShaderProgram pointLightShader = new ShaderProgram("Point_Light_Vertex", "Point_Light_Fragment");
-        public PointLightRenderer()
+        private ShaderProgram _spotLightShader = new ShaderProgram("Point_Light_Vertex", "Spot_Light_Fragment");
+        public SpotLightRenderer()
         {
-            pointLightShader.bind();
-            pointLightShader.loadUniformInt("gAlbedo", 0);
-            pointLightShader.loadUniformInt("gNormal", 1);
-            pointLightShader.loadUniformInt("gPosition", 2);
-            pointLightShader.loadUniformInt("gMaterials", 3);
-            pointLightShader.unBind();
+            _spotLightShader.bind();
+            _spotLightShader.loadUniformInt("gAlbedo", 0);
+            _spotLightShader.loadUniformInt("gNormal", 1);
+            _spotLightShader.loadUniformInt("gPosition", 2);
+            _spotLightShader.loadUniformInt("gMaterials", 3);
+            _spotLightShader.unBind();
         }
 
         public void Render(ECSEngine eCSEngine, ScreenQuadRenderer renderer, FrameBuffer gBuffer)
@@ -32,7 +31,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             prepareFrame();
             Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
-            pointLightShader.bind();
+            _spotLightShader.bind();
             ActiveTexture(TextureUnit.Texture0);
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
             ActiveTexture(TextureUnit.Texture1);
@@ -44,34 +43,43 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             renderer.GetLastFrameBuffer().bind();
 
-            glModel model = ModelGenerator.UNIT_SPHERE;
-            GL.BindVertexArray(model.getVAOID());
+            //GL.DepthFunc(DepthFunction.Less);
+            //GL.CullFace(CullFaceMode.Back);
+
+            glModel cone = ModelGenerator.UNIT_CONE;
+            GL.BindVertexArray(cone.getVAOID());
             GL.EnableVertexAttribArray(0);
             GL.EnableVertexAttribArray(1);
             GL.EnableVertexAttribArray(2);
 
-            pointLightShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
-            pointLightShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
-            pointLightShader.loadUniformVector2f("resolution", Engine.Resolution);
+            _spotLightShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
+            _spotLightShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
+            _spotLightShader.loadUniformVector2f("resolution", Engine.Resolution);
 
-            foreach (Entity entity in eCSEngine.getSystem<PointLightSystem>().MemberEntities)
+            foreach (Entity entity in eCSEngine.getSystem<SpotLightSystem>().MemberEntities)
             {
 
                 Vector3 position = entity.getComponent<TransformationComponent>().Transformation.position;
+                Vector3 rotation = entity.getComponent<TransformationComponent>().Transformation.rotation;
+                // hard coded to match the cone model
+                Vector3 direction = (new Vector4(0f, -1.0f, 0.0f, 1.0f) * MyMath.createRotationMatrix(rotation)).Xyz;
                 float attunuationRadius = entity.getComponent<AttunuationComponent>().AttunuationRadius;
-                Matrix4 transformationMatrix = MyMath.createTransformationMatrix(position, attunuationRadius);
-                pointLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
+                Matrix4 transformationMatrix = MyMath.createTransformationMatrix(position, rotation, attunuationRadius);
+                _spotLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
 
                 Vector3 lightColour = entity.getComponent<ColourComponent>().Colour.ToVector3();
                 Vector3 attenuation = entity.getComponent<AttunuationComponent>().Attunuation;
 
                 Vector4 lightPositionViewSpace = new Vector4(position, 1.0f) * viewMatrix;
-                pointLightShader.loadUniformVector3f("lightPositionViewSpace", lightPositionViewSpace.Xyz);
+                Vector4 lightDirectionViewSpace = new Vector4(direction, 1.0f) * Matrix4.Transpose(Matrix4.Invert(viewMatrix));
+                _spotLightShader.loadUniformVector3f("lightPositionViewSpace", lightPositionViewSpace.Xyz);
+                _spotLightShader.loadUniformVector3f("lightDirectionViewSpace", lightDirectionViewSpace.Xyz);
 
-                pointLightShader.loadUniformVector3f("lightColor", lightColour);
-                pointLightShader.loadUniformVector3f("attenuation", attenuation);
+                _spotLightShader.loadUniformVector3f("lightColor", lightColour);
+                _spotLightShader.loadUniformVector3f("attenuation", attenuation);
+                _spotLightShader.loadUniformFloat("softness", 0.1f);
 
-                GL.DrawElements(PrimitiveType.Triangles, model.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+                GL.DrawElements(PrimitiveType.Triangles, cone.getVertexCount(), DrawElementsType.UnsignedInt, 0);
             }
 
             finishFrame();
@@ -106,13 +114,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             DisableVertexAttribArray(3);
 
             GL.DepthFunc(DepthFunction.Less);
-            pointLightShader.unBind();
+            _spotLightShader.unBind();
             GL.CullFace(CullFaceMode.Back);
         }
 
         public override void CleanUp()
         {
-            pointLightShader.cleanUp();
+            _spotLightShader.cleanUp();
         }
 
         public override void OnResize(ResizeEventArgs eventArgs)
