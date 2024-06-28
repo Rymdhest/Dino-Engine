@@ -2,6 +2,7 @@
 
 
 using Dino_Engine.Core;
+using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 
 namespace Dino_Engine.ECS
@@ -13,7 +14,11 @@ namespace Dino_Engine.ECS
         private bool _isCleanGLModel;
 
         public glModel GLModel { get => _glModel; set => _glModel = value; }
-
+        public FlatModelComponent(Mesh model, bool cleanGLModel = true)
+        {
+            _glModel = glLoader.loadToVAO(model);
+            _isCleanGLModel = cleanGLModel;
+        }
         public FlatModelComponent(glModel model, bool cleanGLModel = true)
         {
             _glModel = model;

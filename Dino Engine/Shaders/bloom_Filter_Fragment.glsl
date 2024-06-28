@@ -16,5 +16,5 @@ void main(void){
 
 	float luminance = dot(diffuse, vec3(0.2126, 0.7152, 0.0722));
 	vec3 globalBloom = diffuse*luminance*bloomStrength;
-	out_Colour.rgb = (globalBloom+albedo*emission)*bloomStrength;
+	out_Colour.rgb = (globalBloom+albedo*emission);
 }

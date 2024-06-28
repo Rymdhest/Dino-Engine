@@ -4,6 +4,7 @@ using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.Modelling.Procedural.Nature;
 using Dino_Engine.Modelling.Procedural.Urban;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Util;
@@ -11,6 +12,7 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System;
+using System.IO;
 
 namespace Dino_Engine.ECS
 {
@@ -46,75 +48,41 @@ namespace Dino_Engine.ECS
                 Camera.addComponent(new ProjectionComponent(MathF.PI / 3.5f));
             }
 
-            Entity box = new Entity("Box");
-            box.addComponent(new TransformationComponent(new Vector3(3, 0, -7f), new Vector3(0), new Vector3(1)));
-            glModel boxModel = glLoader.loadToVAO(MeshGenerator.generateBox(new Vector3(-0.5f), new Vector3(0.5f), Material.SAND));
-            box.addComponent(new FlatModelComponent(boxModel));
-            AddEnityToSystem<FlatModelSystem>(box);
-
-            Entity box2 = new Entity("Box2");
-            box2.addComponent(new TransformationComponent(new Vector3(1, 3, -4f), new Vector3(0), new Vector3(1)));
-            glModel boxModel2 = glLoader.loadToVAO(MeshGenerator.generateBox(new Vector3(-0.5f), new Vector3(0.5f), Material.METAL));
-            box2.addComponent(new FlatModelComponent(boxModel2));
-            AddEnityToSystem<FlatModelSystem>(box2);
-
+            TreeGenerator treeGenerator = new TreeGenerator();
 
 
             Entity groundPlane = new Entity("Ground");
-            groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0, 0f), new Vector3(0), new Vector3(1)));
-            float size = 125f;
+            groundPlane.addComponent(new TransformationComponent(new Vector3(0, -0.05f, 0f), new Vector3(0), new Vector3(1)));
+            float size = 350f;
             Mesh rawGRroud = MeshGenerator.generateBox(new Vector3(-size, -1, -size), new Vector3(size, 0, size), Material.LEAF);
-            rawGRroud.setRoughness(0.3f);
+            rawGRroud.setRoughness(0.7f);
             rawGRroud.setMetalicness(0.15f);
             glModel groundModel = glLoader.loadToVAO(rawGRroud);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
 
-
-            for (int i = 0; i < 11; i++)
-            {
-                Entity glow = new Entity("glow"+i);
-                Vector3 rotation = new Vector3(0, 0, 0.31415f * i*0.5f);
-                glow.addComponent(new TransformationComponent(new Vector3(0, 26.5f-2.5f*i, 20+10*i), rotation, new Vector3(0.2f)));
-                Mesh glowRawmodel = IcoSphereGenerator.CreateIcosphere(1, Material.WOOD);
-                glowRawmodel.setColour(new Colour(1f, 0.8f, 0.8f, 40f));
-                glowRawmodel.setEmission(100f);
-                glModel glowModel = glLoader.loadToVAO(glowRawmodel);
-                glow.addComponent(new FlatModelComponent(glowModel));
-                glow.addComponent(new AttunuationComponent(0.001f, 0.001f, 0.001f));
-                glow.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 40f)));
-                glow.addComponent(new ChildComponent(groundPlane));
-                AddEnityToSystem<FlatModelSystem>(glow);
-                AddEnityToSystem<SpotLightSystem>(glow);
-                //AddEnityToSystem<PointLightSystem>(glow);
-            }
-
-
-
-
-            for (int i = 0; i<0; i++)
+            for (int i = 0; i<200; i++)
             {
                 Entity tree = new Entity("Tree");
-                tree.addComponent(new TransformationComponent(new Vector3(MyMath.rngMinusPlus(size), 0, MyMath.rngMinusPlus(size)), new Vector3(0), new Vector3(1)));
-                float trunkRadius = 0.6f;
-                float trunkHeight = 20.4f+ MyMath.rngMinusPlus(10);
-                List<Vector3> trunkLayers = new List<Vector3>() {
-                new Vector3(trunkRadius, 0f, trunkRadius*2f),
-                new Vector3(trunkRadius, trunkHeight*0.33f, trunkRadius*0.9f),
-                new Vector3(trunkRadius, trunkHeight*0.66f, trunkRadius*0.8f),
-                new Vector3(trunkRadius, trunkHeight, trunkRadius*0.7f)};
-                Mesh trunk = MeshGenerator.generateCylinder(trunkLayers, 7, Material.WOOD);
-                tree.addComponent(new FlatModelComponent(glLoader.loadToVAO(trunk)));
+                tree.addComponent(new TransformationComponent(new Vector3(-MyMath.rng(size-30f)-30f, 0, MyMath.rng(size-30f)+30f), new Vector3(0), new Vector3(15f)+MyMath.rng3DMinusPlus(8f)));
+                tree.addComponent(new FlatModelComponent(treeGenerator.GenerateFractalTree(1)));
                 AddEnityToSystem<FlatModelSystem>(tree);
+
+                Entity rock = new Entity("rock");
+                rock.addComponent(new TransformationComponent(new Vector3(-MyMath.rng(size - 30f) - 30f, 0, MyMath.rng(size - 30f) + 30f), new Vector3(0), new Vector3(2f) + MyMath.rng3DMinusPlus(1.5f)));
+                Mesh rockMesh = IcoSphereGenerator.CreateIcosphere(1+MyMath.rand.Next(1), Material.ROCK);
+                rockMesh.FlatRandomness(0.2f);
+                rock.addComponent(new FlatModelComponent(rockMesh));
+                AddEnityToSystem<FlatModelSystem>(rock);
             }
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-2f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 25.0f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 20.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.1f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 3, 500));
+            sun.addComponent(new AmbientLightComponent(0.01f));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 4, 1000));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
@@ -122,17 +90,18 @@ namespace Dino_Engine.ECS
             Colour skyColour = SkyRenderer.SkyColour;
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.4f));
-            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512)*2, 1, 100));
+            sky.addComponent(new AmbientLightComponent(0.8f));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512)*2, 4, 1000));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
             glModel houseModel = ModelGenerator.GenerateHouse();
-            for (int x = 0; x < 2; x++)
+
+                for (int x = 0; x < 2; x++)
             {
                 for (int z = 0; z < 2; z++)
                 {
                     Entity house = new Entity("House");
-                    house.addComponent(new TransformationComponent(new Vector3(45+55*x, 0, 45+55f * z), new Vector3(0,MyMath.rand.Next(8)*MathF.PI/4,1f), new Vector3(5f)));
+                    house.addComponent(new TransformationComponent(new Vector3(45+55*x, 0, 45+55f * z), new Vector3(0,MyMath.rand.Next(8)*MathF.PI/4,0f), new Vector3(2f)));
                     house.addComponent(new FlatModelComponent(houseModel));
                     AddEnityToSystem<FlatModelSystem>(house);
 
@@ -149,16 +118,61 @@ namespace Dino_Engine.ECS
 
             StreetGenerator streetGenerator = new StreetGenerator();
 
-            glModel streetModel = streetGenerator.GenerateStreet(30, out float streetLength);
+            Entity crossRoad = new Entity("crossroad");
+            crossRoad.addComponent(new TransformationComponent(new Transformation()));
+            crossRoad.addComponent(new FlatModelComponent(streetGenerator.GenerateCrossRoad()));
+            AddEnityToSystem<FlatModelSystem>(crossRoad);
+
+            for (int i = 0; i <8; i++)
+            {
+                Entity roadCone = new Entity("roadCone");
+                roadCone.addComponent(new TransformationComponent(new Transformation(new Vector3(2*i, 0f, 15f), new Vector3(0f, MathF.PI * 2f * MyMath.rng(), 0f), new Vector3(2))));
+                roadCone.addComponent(new FlatModelComponent(UrbanPropGenerator.GenerateStreetCone()));
+                AddEnityToSystem<FlatModelSystem>(roadCone);
+            }
+
+
+
+
+            Mesh streetModel = streetGenerator.GenerateStreet(30, out float streetLength);
             for (int i = 0; i < 4; i++)
             {
                 Entity street = new Entity("street");
-                Vector3 position = (new Vector4(0, 1, streetGenerator.TotalWidth*0.5f, 1f)*MyMath.createRotationMatrix(new Vector3(0f, i * (MathF.PI / 2f), 0f))).Xyz;
+                Vector3 position = (new Vector4(0, 0f, streetGenerator.TotalWidth*0.5f, 1f)*MyMath.createRotationMatrix(new Vector3(0f, i * (MathF.PI / 2f), 0f))).Xyz;
                 Transformation transformation = new Transformation(position, new Vector3(0f, i * (MathF.PI / 2f), 0f), new Vector3(1));
                 street.addComponent(new TransformationComponent(transformation));
                 street.addComponent(new FlatModelComponent(streetModel));
                 AddEnityToSystem<FlatModelSystem>(street);
             }
+
+
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    Entity streetLight = new Entity("Street Light" + i);
+                    streetLight.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 50 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(1f, 1f, 1f)));
+                    streetLight.addComponent(new FlatModelComponent(UrbanPropGenerator.GenerateStreetLight(out Vector3 lightPosition)));
+                    AddEnityToSystem<FlatModelSystem>(streetLight);
+
+                    Entity glow = new Entity("Street Light" + i + " glow");
+                    glow.addComponent(new TransformationComponent(lightPosition, new Vector3(0f), new Vector3(1f)));
+                    glow.addComponent(new AttunuationComponent(0.001f, 0.001f, 0.001f));
+                    glow.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 20f)));
+                    glow.addComponent(new ChildComponent(streetLight));
+                    AddEnityToSystem<SpotLightSystem>(glow);
+
+
+                    Entity streetTree = new Entity("Street tree" + i);
+                    streetTree.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(15f)));
+                    streetTree.addComponent(new FlatModelComponent(treeGenerator.GenerateFractalTree(1)));
+                    AddEnityToSystem<FlatModelSystem>(streetTree);
+                }
+            }
+
+
+
 
         }
         public bool AddEnityToSystem<T>(Entity entity) where T : ComponentSystem

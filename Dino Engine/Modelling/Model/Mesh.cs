@@ -250,6 +250,20 @@ namespace Dino_Engine.Modelling.Model
 
         }
 
+        public void FlatRandomness(float amount)
+        {
+            FlatRandomness(new Vector3(amount));
+        }
+        public void FlatRandomness(Vector3 amount)
+        {
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                Vertex vertex = vertices[i];
+                vertex.position += amount*MyMath.rng3DMinusPlus();
+                vertices[i] = vertex;
+            }
+        }
+
         public void translate(Vector3 translation)
         {
             Transform(new Transformation(translation, new Vector3(0f), new Vector3(1f)));
@@ -280,7 +294,7 @@ namespace Dino_Engine.Modelling.Model
             for (int i = 0; i < vertices.Count; i++)
             {
                 Vertex vertex = vertices[i];
-                vertex.position = (new Vector4(vertices[i].position, 1.0f)* transformationMatrix).Xyz;
+                vertex.position = (new Vector4(vertex.position, 1.0f)* transformationMatrix).Xyz;
                 vertices[i] = vertex;
             }
         }

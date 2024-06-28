@@ -24,8 +24,16 @@ namespace Dino_Engine.Modelling
             mesh.rotate(new Vector3(MathF.PI, 0f, 0f));
             return mesh;
         }
-
-        public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material)
+        public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, Material material)
+        {
+            List<Vector3> rings = new List<Vector3> ();
+            for (int i = 0; i<rings2.Count; i++)
+            {
+                rings.Add(new Vector3(rings2[i].X, rings2[i].Y, rings2[i].X));
+            }
+            return generateCylinder(rings, polygonsPerRing, material);
+        }
+            public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material)
         {
             float PI = MathF.PI;
             List<Vector3> positions = new List<Vector3>();

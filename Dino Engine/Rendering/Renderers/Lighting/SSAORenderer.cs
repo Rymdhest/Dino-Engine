@@ -66,9 +66,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", 0.7f);
-            ambientOcclusionShader.loadUniformFloat("strength", 2.0f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.001f);
+            ambientOcclusionShader.loadUniformFloat("radius", 0.3f);
+            ambientOcclusionShader.loadUniformFloat("strength", 0.7f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.01f);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, noiseTexture);

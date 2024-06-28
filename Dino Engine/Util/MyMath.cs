@@ -26,9 +26,9 @@ namespace Dino_Engine.Util
         {
             return (rand.NextSingle() * 2f - 1f)* scale;
         }
-        public static float rng()
+        public static float rng(float scale = 1.0f)
         {
-            return rand.NextSingle();
+            return rand.NextSingle()*scale;
         }
   
         public static Vector3 reflect(Vector3 vector, Vector3 normal)
