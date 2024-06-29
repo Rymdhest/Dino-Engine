@@ -18,8 +18,12 @@ namespace Dino_Engine.Modelling.Model
         }
         public void calcFaceNormal()
         {
-            faceNormal = Vector3.Cross((B.position - A.position), (C.position - A.position));
-            faceNormal.Normalize();
+            faceNormal = Face.CalcFaceNormal(A.position, B.position, C.position);
+        }
+
+        public static Vector3 CalcFaceNormal(Vector3 a, Vector3 b, Vector3 c)
+        {
+            return Vector3.Cross((b - a), (c - a)).Normalized();
         }
     }
 }

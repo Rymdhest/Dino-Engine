@@ -17,6 +17,19 @@ namespace Dino_Engine.Modelling.Model
             this.faces = faces;
             this.vertices = vertices;
         }
+        public Mesh(List<Vector3> positions, List<int> indices, List<Material> materials)
+        {
+            float[] positionsArray = new float[positions.Count * 3];
+
+            for (int i = 0; i < positions.Count; i++)
+            {
+                positionsArray[i * 3 + 0] = positions[i].X;
+                positionsArray[i * 3 + 1] = positions[i].Y;
+                positionsArray[i * 3 + 2] = positions[i].Z;
+            }
+
+            Init(positionsArray, indices.ToArray(), materials.ToArray());
+        }
         public Mesh(List<Vector3> positions, List<int> indices, Material material)
         {
             float[] positionsArray = new float[positions.Count*3];
@@ -65,7 +78,7 @@ namespace Dino_Engine.Modelling.Model
             }
             //calculateAllNormals();
         }
-        private Mesh(float[] positions, int[] indices, Material[] materials)
+        private void Init(float[] positions, int[] indices, Material[] materials)
         {
             vertices = new List<Vertex>();
             faces = new List<Face>();
@@ -90,6 +103,10 @@ namespace Dino_Engine.Modelling.Model
                 faces.Add(face);
             }
             //calculateAllNormals();
+        }
+        private Mesh(float[] positions, int[] indices, Material[] materials)
+        {
+            Init(positions, indices, materials);
         }
 
 

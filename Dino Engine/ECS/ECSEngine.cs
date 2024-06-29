@@ -61,7 +61,7 @@ namespace Dino_Engine.ECS
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
 
-            for (int i = 0; i<200; i++)
+            for (int i = 0; i<300; i++)
             {
                 Entity tree = new Entity("Tree");
                 tree.addComponent(new TransformationComponent(new Vector3(-MyMath.rng(size-30f)-30f, 0, MyMath.rng(size-30f)+30f), new Vector3(0), new Vector3(15f)+MyMath.rng3DMinusPlus(8f)));
@@ -82,7 +82,7 @@ namespace Dino_Engine.ECS
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.01f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 4, 1000));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 4, 800));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
@@ -91,7 +91,7 @@ namespace Dino_Engine.ECS
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
             sky.addComponent(new AmbientLightComponent(0.8f));
-            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512)*2, 4, 1000));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512)*2, 4, 800));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
             glModel houseModel = ModelGenerator.GenerateHouse();
@@ -122,6 +122,38 @@ namespace Dino_Engine.ECS
             crossRoad.addComponent(new TransformationComponent(new Transformation()));
             crossRoad.addComponent(new FlatModelComponent(streetGenerator.GenerateCrossRoad()));
             AddEnityToSystem<FlatModelSystem>(crossRoad);
+
+            int nr = 0;
+            for (int i = 2; i < 20; i++)
+            {
+                for (int j = 0; j < streetGenerator.lanes ; j++)
+                {
+                    Entity car = new Entity("car "+nr);
+                    float x = streetGenerator.laneWdith * j+streetGenerator.laneWdith*(0.5f+MyMath.rngMinusPlus(0.15f));
+                    float z = 13f * i+MyMath.rngMinusPlus(4f);
+                    car.addComponent(new TransformationComponent(new Transformation(new Vector3(x, 0f, z), new Vector3(0f, MyMath.rngMinusPlus(0.03f), 0f), new Vector3(1.7f+MyMath.rngMinusPlus(0.2f)))));
+                    car.addComponent(new FlatModelComponent(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight)));
+                    AddEnityToSystem<FlatModelSystem>(car);
+
+                    Entity carLightLeft = new Entity("car light left");
+                    carLightLeft.addComponent(new TransformationComponent(leftLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
+                    carLightLeft.addComponent(new AttunuationComponent(0.001f, 0.01f, 0.001f));
+                    carLightLeft.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 3f)));
+                    carLightLeft.addComponent(new ChildComponent(car));
+                    AddEnityToSystem<SpotLightSystem>(carLightLeft);
+
+                    Entity carLightRight = new Entity("car light right");
+                    carLightRight.addComponent(new TransformationComponent(rightLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
+                    carLightRight.addComponent(new AttunuationComponent(0.001f, 0.01f, 0.001f));
+                    carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 3f)));
+                    carLightRight.addComponent(new ChildComponent(car));
+                    AddEnityToSystem<SpotLightSystem>(carLightRight);
+                    nr++;
+                }
+            }
+
+
+
 
             for (int i = 0; i <8; i++)
             {
