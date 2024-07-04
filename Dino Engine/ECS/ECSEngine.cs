@@ -5,6 +5,7 @@ using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Modelling.Procedural.Nature;
+using Dino_Engine.Modelling.Procedural.Terrain;
 using Dino_Engine.Modelling.Procedural.Urban;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Util;
@@ -13,6 +14,7 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System;
 using System.IO;
+using Util.Noise;
 
 namespace Dino_Engine.ECS
 {
@@ -51,38 +53,25 @@ namespace Dino_Engine.ECS
             TreeGenerator treeGenerator = new TreeGenerator();
 
 
-            Entity groundPlane = new Entity("Ground");
-            groundPlane.addComponent(new TransformationComponent(new Vector3(0, -0.05f, 0f), new Vector3(0), new Vector3(1)));
-            float size = 350f;
-            Mesh rawGRroud = MeshGenerator.generateBox(new Vector3(-size, -1, -size), new Vector3(size, 0, size), Material.LEAF);
-            rawGRroud.setRoughness(0.7f);
-            rawGRroud.setMetalicness(0.15f);
-            glModel groundModel = glLoader.loadToVAO(rawGRroud);
+            Entity groundPlane = new Entity("Terrain");
+            groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0.0f, 0f), new Vector3(0), new Vector3(5f)));
+
+            TerrainGridGenerator terrainGridGenerator = new TerrainGridGenerator();
+            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGridGenerator.generateChunk(new Vector2i(500, 500)));
+            rawGround.setRoughness(0.55f);
+            glModel groundModel = glLoader.loadToVAO(rawGround);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
 
-            for (int i = 0; i<300; i++)
-            {
-                Entity tree = new Entity("Tree");
-                tree.addComponent(new TransformationComponent(new Vector3(-MyMath.rng(size-30f)-30f, 0, MyMath.rng(size-30f)+30f), new Vector3(0), new Vector3(15f)+MyMath.rng3DMinusPlus(8f)));
-                tree.addComponent(new FlatModelComponent(treeGenerator.GenerateFractalTree(1)));
-                AddEnityToSystem<FlatModelSystem>(tree);
 
-                Entity rock = new Entity("rock");
-                rock.addComponent(new TransformationComponent(new Vector3(-MyMath.rng(size - 30f) - 30f, 0, MyMath.rng(size - 30f) + 30f), new Vector3(0), new Vector3(2f) + MyMath.rng3DMinusPlus(1.5f)));
-                Mesh rockMesh = IcoSphereGenerator.CreateIcosphere(1+MyMath.rand.Next(1), Material.ROCK);
-                rockMesh.FlatRandomness(0.2f);
-                rock.addComponent(new FlatModelComponent(rockMesh));
-                AddEnityToSystem<FlatModelSystem>(rock);
-            }
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-2f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 20.0f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 30.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.01f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 4, 800));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 4, 4000));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
@@ -90,8 +79,8 @@ namespace Dino_Engine.ECS
             Colour skyColour = SkyRenderer.SkyColour;
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.8f));
-            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512)*2, 4, 800));
+            sky.addComponent(new AmbientLightComponent(0.7f));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512)*2, 4, 4000));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
             glModel houseModel = ModelGenerator.GenerateHouse();
@@ -124,7 +113,7 @@ namespace Dino_Engine.ECS
             AddEnityToSystem<FlatModelSystem>(crossRoad);
 
             int nr = 0;
-            for (int i = 2; i < 20; i++)
+            for (int i = 2; i < 1; i++)
             {
                 for (int j = 0; j < streetGenerator.lanes ; j++)
                 {
@@ -138,14 +127,14 @@ namespace Dino_Engine.ECS
                     Entity carLightLeft = new Entity("car light left");
                     carLightLeft.addComponent(new TransformationComponent(leftLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
                     carLightLeft.addComponent(new AttunuationComponent(0.001f, 0.01f, 0.001f));
-                    carLightLeft.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 3f)));
+                    carLightLeft.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
                     carLightLeft.addComponent(new ChildComponent(car));
                     AddEnityToSystem<SpotLightSystem>(carLightLeft);
 
                     Entity carLightRight = new Entity("car light right");
                     carLightRight.addComponent(new TransformationComponent(rightLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
                     carLightRight.addComponent(new AttunuationComponent(0.001f, 0.01f, 0.001f));
-                    carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 3f)));
+                    carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
                     carLightRight.addComponent(new ChildComponent(car));
                     AddEnityToSystem<SpotLightSystem>(carLightRight);
                     nr++;

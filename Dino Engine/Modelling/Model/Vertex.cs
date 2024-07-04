@@ -3,7 +3,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling.Model
 {
-    public struct Vertex
+    public class Vertex
     {
         public Vector3 position;
         public Vector3 normal;

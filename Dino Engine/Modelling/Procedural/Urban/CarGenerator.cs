@@ -28,6 +28,9 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
             float windowSize = 0.8f;
             float windowDepth = 0.03f;
+            float wheelRadius = 0.25f;
+            float wheelWidth = 0.2f;
+            float botWheelIndent = 0.35f;
 
             int topStart = 5;
 
@@ -36,13 +39,13 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 new Vector3(w*0.9f, 0.1f, 0.0f*l),
                 new Vector3(w, 0, 0.22f*l),
                 new Vector3(w, 0.2f, 0.26f*l),
-                new Vector3(w, 0.22f, 0.3f*l),
+                new Vector3(w, botWheelIndent, 0.3f*l),
                 new Vector3(w, 0.2f, 0.34f*l),
                 new Vector3(w*0.95f, 0, 0.38f*l),
                 new Vector3(w*0.95f, 0, 0.6f*l),
                 new Vector3(w*0.95f, 0, 0.82f*l),
                 new Vector3(w, 0.2f, 0.86f*l),
-                new Vector3(w, 0.22f, 0.9f*l),
+                new Vector3(w, botWheelIndent, 0.9f*l),
                 new Vector3(w, 0.2f, 0.94f*l),
                 new Vector3(w, 0, 0.98f*l),
                 new Vector3(w*0.8f, 0.1f, 1.1f*l)
@@ -109,6 +112,19 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             Vector3 p16 = botShape[0];
             Mesh front = MeshGenerator.ExtrudedPlane(new MeshGenerator.Quad(p13, p14, p15, p16), -windowDepth, 0.5f, carMaterial, detailMaterial);
 
+            List<Vector2> wheelLayers = new List<Vector2>() {
+                new Vector2(wheelRadius, 0),
+                new Vector2(wheelRadius, wheelWidth),
+                new Vector2(0, wheelWidth) };
+            Mesh wheel = MeshGenerator.generateCylinder(wheelLayers, 14, rubberMaterial);
+            wheel.rotate(new Vector3(0f, 0f, -MathF.PI/2f));
+            car += wheel.translated(botShape[3] + new Vector3(-wheelWidth * 0.95f, -wheelRadius * 1.0f, 0f));
+            car += wheel.translated(botShape[9] + new Vector3(-wheelWidth * 0.95f, -wheelRadius * 1.0f, 0f));
+            wheel.rotate(new Vector3(0f, 0f, MathF.PI));
+            car += wheel.translated(botShape[3]*new Vector3(-1f, 1f, 1f) + new Vector3(wheelWidth * 0.95f, -wheelRadius * 1.0f, 0f));
+            car += wheel.translated(botShape[9] * new Vector3(-1f, 1f, 1f) + new Vector3(wheelWidth * 0.95f, -wheelRadius * 1.0f, 0f));
+
+
             Mesh rearLights = (IcoSphereGenerator.CreateIcosphere(1, redLightMaterial)).scaled(new Vector3(0.1f));
             rearLights.translate(new Vector3(0f, p11.Y+(p10.Y-p11.Y)*0.5f, p9.Z-0.05f));
             car += rearLights.translated(new Vector3(p9.X * 0.75f, 0, 0));
@@ -130,6 +146,8 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             car += backWindow;
             car += rear;
             car += front;
+
+            car.translate(new Vector3(0f, wheelRadius*2.0f- botWheelIndent, 0f));
 
             return car;
         }
