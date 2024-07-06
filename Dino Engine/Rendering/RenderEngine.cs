@@ -111,7 +111,7 @@ namespace Dino_Engine.Rendering
 
             _screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
 
-            //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(3));
+            //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(1));
 
             FinishFrame();
         }
@@ -139,7 +139,7 @@ namespace Dino_Engine.Rendering
         private void PostProcessPass(ECSEngine eCSEngine)
         {
             _bloomRenderer.Render(_screenQuadRenderer, _gBuffer);
-            //_fogRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
+            _fogRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
             _screenSpaceReflectionRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer, _gaussianBlurRenderer);
             _toneMapRenderer.Render(_screenQuadRenderer);
             _fXAARenderer.Render(_screenQuadRenderer);

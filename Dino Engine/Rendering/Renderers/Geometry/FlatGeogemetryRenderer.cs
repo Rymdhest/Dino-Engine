@@ -10,7 +10,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 {
     internal class FlatGeogemetryRenderer : Renderer
     {
-        private ShaderProgram flatShader = new ShaderProgram("Flat_Shade_Vertex", "Flat_Shade_Fragment", "Flat_Shade_Geometry");
+        private ShaderProgram flatShader = new ShaderProgram("Geometry_Vertex", "Flat_Shade_Fragment");
 
         public FlatGeogemetryRenderer()
         {
@@ -40,12 +40,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 GL.EnableVertexAttribArray(0);
                 GL.EnableVertexAttribArray(1);
                 GL.EnableVertexAttribArray(2);
+                GL.EnableVertexAttribArray(3);
                 foreach (Entity entity in glmodels.Value)
                 {
                     Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
                     Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;
                     flatShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
                     flatShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * projectionMatrix);
+                    flatShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
 
                     GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
                 }

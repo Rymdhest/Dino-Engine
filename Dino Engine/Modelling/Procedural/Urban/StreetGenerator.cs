@@ -150,9 +150,8 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 new Vector2(r*0.94f, h*0.053f),
                 new Vector2(r*0.94f, h*0.24f),
                 new Vector2(r*0.64f, h*0.255f),
-                new Vector2(r*0.64f, h*0.99f),
-                new Vector2(0, h) };
-            Mesh pole = MeshGenerator.generateCylinder(layers, 7, poleMaterial);
+                new Vector2(r*0.64f, h*1.0f) };
+            Mesh pole = MeshGenerator.generateCylinder(layers, 7, poleMaterial, true);
             mesh += pole;
 
 
@@ -160,9 +159,8 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
             List<Vector2> layers2 = new List<Vector2>() {
                 new Vector2(r*0.6f, 0),
-                new Vector2(r*0.6f, h2),
-                new Vector2(0, h2) };
-            pole = MeshGenerator.generateCylinder(layers2, 7, poleMaterial);
+                new Vector2(r*0.6f, h2)};
+            pole = MeshGenerator.generateCylinder(layers2, 7, poleMaterial, true);
 
             transformation *= new Transformation(new Vector3(0f, h - r * 1.5f, 0f), new Vector3(0, 0f, angle), new Vector3(1f));
             pole.Transform(transformation);

@@ -30,6 +30,7 @@ namespace Dino_Engine.Modelling.Model
             {
                 normal += face.faceNormal;
             }
+            if (faces.Count == 0) Console.WriteLine("Warning 0 faces in a vertex");
             normal /= faces.Count;
             normal.Normalize();
 

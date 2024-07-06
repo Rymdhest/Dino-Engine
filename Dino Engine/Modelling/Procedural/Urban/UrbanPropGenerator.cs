@@ -11,22 +11,20 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             Material materialWhite = new Material(new Colour(235, 235, 235, 1.0f), 0.0f, 0.2f, 0.0f);
             Material materialOrange = new Material(new Colour(198, 76, 39, 1.0f), 0.0f, 0.2f, 0.0f);
             Material baseMAterial = new Material(new Colour(10, 10, 10, 1.0f), 0.0f, 0.9f, 0.0f);
-            Mesh mesh = new Mesh();
+
             float baseHeight = 0.1f;
             int numLayers = 5;
-            for (int layer = 0; layer< numLayers; layer++)
-            {
-                float heightFactor = layer*(1f / numLayers);
-                float heightNext = (layer+1)*(1f / numLayers);
-                Material material = materialOrange;
-                if (layer % 2 == 1) material = materialWhite;
 
-                List<Vector2> layers = new List<Vector2>() {
-                new Vector2(1f-heightFactor, heightFactor),
-                new Vector2(1f-heightNext, heightNext)};
-                Mesh part = MeshGenerator.generateCylinder(layers, 8, material);
-                mesh += part;
+            List<Vector2> layers = new List<Vector2>();
+            for (int layer = 0; layer < numLayers; layer++)
+            {
+                float heightFactor = layer*(1f / (numLayers));
+
+                layers.Add(new Vector2(1f - heightFactor+0.0001f, heightFactor));
             }
+
+            Material material = materialOrange;
+            Mesh mesh = MeshGenerator.generateCylinder(layers, 8, material, true);
             mesh.scale(new Vector3(0.3f, 1f, 0.3f));
             mesh.translate(new Vector3(0.0f, baseHeight*0.5f, 0.0f));
 
@@ -34,6 +32,8 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             basePart.scale(new Vector3(0.68f, baseHeight, 0.68f));
             basePart.translate(new Vector3(0, baseHeight*0.2f, 0));
             mesh += basePart;
+            mesh.calculateAllNormals();
+            mesh.makeFlat(false, true);
             return mesh;
         }
             public static glModel GenerateStreetLight(out Vector3 lightPosition)
@@ -52,9 +52,8 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 new Vector2(r*0.94f, h*0.053f),
                 new Vector2(r*0.94f, h*0.24f),
                 new Vector2(r*0.64f, h*0.255f),
-                new Vector2(r*0.64f, h*0.99f),
-                new Vector2(0, h) };
-            Mesh pole = MeshGenerator.generateCylinder(layers, 7, poleMaterial);
+                new Vector2(r*0.64f, h*1.0f) };
+            Mesh pole = MeshGenerator.generateCylinder(layers, 7, poleMaterial, true);
             mesh += pole;
 
             float h2 = h * 0.35f;

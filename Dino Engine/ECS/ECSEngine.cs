@@ -9,12 +9,15 @@ using Dino_Engine.Modelling.Procedural.Terrain;
 using Dino_Engine.Modelling.Procedural.Urban;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Util;
+using Dino_Engine.Util.Noise;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System;
 using System.IO;
 using Util.Noise;
+using Dino_Engine.Modelling;
+using static OpenTK.Graphics.OpenGL.GL;
 
 namespace Dino_Engine.ECS
 {
@@ -49,43 +52,66 @@ namespace Dino_Engine.ECS
                 Camera.addComponent(new TransformationComponent(new Vector3(0, 2f, 0f), new Vector3(0), new Vector3(1)));
                 Camera.addComponent(new ProjectionComponent(MathF.PI / 3.5f));
             }
-
+            
             TreeGenerator treeGenerator = new TreeGenerator();
 
-
             Entity groundPlane = new Entity("Terrain");
-            groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0.0f, 0f), new Vector3(0), new Vector3(5f)));
+            groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0.0f, 0f), new Vector3(0), new Vector3(1f)));
 
             TerrainGridGenerator terrainGridGenerator = new TerrainGridGenerator();
-            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGridGenerator.generateChunk(new Vector2i(500, 500)));
-            rawGround.setRoughness(0.55f);
+            Grid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(200, 200));
+            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGrid);
             glModel groundModel = glLoader.loadToVAO(rawGround);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
 
+            OpenSimplexNoise noise = new OpenSimplexNoise();
+
+            Grid spawnGrid = new Grid(terrainGrid.Resolution);
+
+            for (int z = 0; z < spawnGrid.Resolution.Y; z++)
+            {
+                for (int x = 0; x < spawnGrid.Resolution.X; x++)
+                {
+                    float value = noise.Evaluate(x * 0.1f, z * 0.1f) / 2f + 0.5f;
+                    value *= 0.9f;
+                    value += 0.1f;
+
+                    float height = terrainGrid.Values[x, z];
+                    value += height / 45f;
+
+                    spawnGrid.Values[x, z] = MyMath.clamp01( value* value);
+
+                }
+            }
 
 
-            Entity sun = new Entity("Sun");
-            Vector3 direction = new Vector3(-2f, 2f, 0.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 30.0f);
-            sun.addComponent(new ColourComponent(colour));
-            sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.01f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024)*2, 4, 4000));
-            AddEnityToSystem<DirectionalLightSystem>(sun);
+            PoissonDiskSampling poissonDiskSampling = new PoissonDiskSampling(spawnGrid, 30f);
+            
 
-            Entity sky = new Entity("Sky");
-            Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
-            Colour skyColour = SkyRenderer.SkyColour;
-            sky.addComponent(new ColourComponent(skyColour));
-            sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.7f));
-            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512)*2, 4, 4000));
-            AddEnityToSystem<DirectionalLightSystem>(sky);
+
+            List<Vector2> spawnPoints = poissonDiskSampling.GeneratePoints();
+            Console.WriteLine($"{spawnPoints.Count} trees");
+            Mesh mesh = treeGenerator.GenerateFractalTree(1);
+            mesh.scale(new Vector3(4f));
+            foreach (Vector2 spawn in spawnPoints)
+            {
+                Entity tree = new Entity("tree");
+                float y = terrainGrid.BilinearInterpolate(spawn);
+                if (y < 0) continue;
+                if (y > 45) continue;
+                tree.addComponent(new TransformationComponent(new Vector3(spawn.X, y-0.1f, spawn.Y), new Vector3(0, MyMath.rng(MathF.PI*2f), 0f), new Vector3(0.5f+MyMath.rng(0.5f))));
+                tree.addComponent(new FlatModelComponent(mesh));
+                AddEnityToSystem<FlatModelSystem>(tree);
+            }
+
+
+
+
 
             glModel houseModel = ModelGenerator.GenerateHouse();
 
-                for (int x = 0; x < 2; x++)
+            for (int x = 0; x < 2; x++)
             {
                 for (int z = 0; z < 2; z++)
                 {
@@ -96,7 +122,7 @@ namespace Dino_Engine.ECS
 
                     Entity rock = new Entity("rock");
                     rock.addComponent(new TransformationComponent(new Vector3(-2, 18, -2f), new Vector3(0), new Vector3(1)));
-                    Mesh box2Rawmodel = MeshGenerator.generateBox(Material.ROCK);
+                    Mesh box2Rawmodel = MeshGenerator.generateBox(Modelling.Model.Material.ROCK);
                     box2Rawmodel.setMetalicness(0.05f);
                     glModel rockModel = glLoader.loadToVAO(box2Rawmodel);
                     rock.addComponent(new FlatModelComponent(rockModel));
@@ -113,7 +139,7 @@ namespace Dino_Engine.ECS
             AddEnityToSystem<FlatModelSystem>(crossRoad);
 
             int nr = 0;
-            for (int i = 2; i < 1; i++)
+            for (int i = 2; i < 4; i++)
             {
                 for (int j = 0; j < streetGenerator.lanes ; j++)
                 {
@@ -144,13 +170,7 @@ namespace Dino_Engine.ECS
 
 
 
-            for (int i = 0; i <8; i++)
-            {
-                Entity roadCone = new Entity("roadCone");
-                roadCone.addComponent(new TransformationComponent(new Transformation(new Vector3(2*i, 0f, 15f), new Vector3(0f, MathF.PI * 2f * MyMath.rng(), 0f), new Vector3(2))));
-                roadCone.addComponent(new FlatModelComponent(UrbanPropGenerator.GenerateStreetCone()));
-                AddEnityToSystem<FlatModelSystem>(roadCone);
-            }
+
 
 
 
@@ -191,8 +211,32 @@ namespace Dino_Engine.ECS
                     AddEnityToSystem<FlatModelSystem>(streetTree);
                 }
             }
+            
+            for (int i = 0; i < 8; i++)
+            {
+                Entity roadCone = new Entity("roadCone");
+                roadCone.addComponent(new TransformationComponent(new Transformation(new Vector3(2 * i, 0f, 15f), new Vector3(0f, MathF.PI * 2f * MyMath.rng(), 0f), new Vector3(2))));
+                roadCone.addComponent(new FlatModelComponent(UrbanPropGenerator.GenerateStreetCone()));
+                AddEnityToSystem<FlatModelSystem>(roadCone);
+            }
 
+            Entity sun = new Entity("Sun");
+            Vector3 direction = new Vector3(-2f, 2f, 0.9f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 20.0f);
+            sun.addComponent(new ColourComponent(colour));
+            sun.addComponent(new DirectionComponent(direction));
+            sun.addComponent(new AmbientLightComponent(0.01f));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 2, 4, 4000));
+            AddEnityToSystem<DirectionalLightSystem>(sun);
 
+            Entity sky = new Entity("Sky");
+            Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
+            Colour skyColour = SkyRenderer.SkyColour;
+            sky.addComponent(new ColourComponent(skyColour));
+            sky.addComponent(new DirectionComponent(skyDirection));
+            sky.addComponent(new AmbientLightComponent(0.9f));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 2, 4, 4000));
+            AddEnityToSystem<DirectionalLightSystem>(sky);
 
 
         }

@@ -11,10 +11,10 @@ namespace Dino_Engine.Modelling.Model
 
         public Face(Vertex A, Vertex B, Vertex C)
         {
-            this.A = A;
-            this.B = B;
-            this.C = C;
-            calcFaceNormal();
+            this.A = A ?? throw new ArgumentNullException(nameof(A));
+            this.B = B ?? throw new ArgumentNullException(nameof(B));
+            this.C = C ?? throw new ArgumentNullException(nameof(C));
+            //calcFaceNormal();
         }
         public void calcFaceNormal()
         {
@@ -23,7 +23,16 @@ namespace Dino_Engine.Modelling.Model
 
         public static Vector3 CalcFaceNormal(Vector3 a, Vector3 b, Vector3 c)
         {
-            return Vector3.Cross((b - a), (c - a)).Normalized();
+            Vector3 edge1 = b - a;
+            Vector3 edge2 = c - a;
+            Vector3 normal = Vector3.Cross(edge1, edge2);
+
+            // Verbose logging
+
+
+            normal = normal.Normalized();
+
+            return normal;
         }
     }
 }

@@ -13,12 +13,11 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
     public class TerrainGridGenerator
     {
 
-        public float _mountainCoverage = 0.5f;
-        public float _frequenzy = 0.005f;
-        public float _amplitude = 80f;
-        public int _octaves = 8;
+        public float _mountainCoverage = 0.2f;
+        public float _frequenzy = 0.007f;
+        public int _octaves = 9;
 
-        private OpenSimplexNoise noise = new OpenSimplexNoise(4499954);
+        private OpenSimplexNoise noise = new OpenSimplexNoise();
 
         public Grid generateChunk(Vector2i resolution)
         {
@@ -31,6 +30,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     grid.Values[x, z] = getHeightAt(new Vector2(x, z));
                 }
             }
+
             return grid;
         }
 
@@ -40,11 +40,11 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             float z = position.Y;
             float y = 0f;
             float frequency = _frequenzy;
-            float amplitude = _amplitude;
+            float amplitude = 1f;
             float totalAmplitude = 0f;
 
-            float mountainFactor = MyMath.clamp01( noise.Evaluate(position.X*0.01f, position.Y*0.01f)/2f+0.5f);
-            mountainFactor = MathF.Pow(mountainFactor, 1.6f);
+            float mountainFactor = MyMath.clamp01( noise.Evaluate(position.X*0.006f, position.Y*0.006f)/2f+0.5f);
+            mountainFactor = MathF.Pow(mountainFactor, 2.8f);
             for (int i = 0; i < _octaves; i++)
             {
                 y +=( 1f-MathF.Abs( noise.Evaluate(x * frequency, z * frequency))) * amplitude;
@@ -54,9 +54,10 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             }
             y /= totalAmplitude;
             y *= mountainFactor;
-            y -= 0.1f;
 
-            y *= 150f;
+            y *= 200f;
+            y -= 5f;
+            if (y < 0f) y *= 0.1f;
 
             return y;
         }

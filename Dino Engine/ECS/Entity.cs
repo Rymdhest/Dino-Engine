@@ -65,7 +65,6 @@ namespace Dino_Engine.ECS
         }
         public virtual void CleanUp()
         {
-            Console.WriteLine($"cleaning up entity: {Name}");
             for (int i = SubscribedSystems.Count - 1; i >= 0; i--)
             {
                 SubscribedSystems[i].RemoveMember(this);

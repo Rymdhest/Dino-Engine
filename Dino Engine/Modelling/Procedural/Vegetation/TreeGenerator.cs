@@ -44,7 +44,6 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
         public Mesh GenerateFractalTree(int depth)
         {
-
             Mesh tree = GenerateTree();
 
             if (depth > 0)

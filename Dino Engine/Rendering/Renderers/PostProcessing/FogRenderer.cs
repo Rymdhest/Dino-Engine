@@ -27,9 +27,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             fogShader.bind();
 
-            fogShader.loadUniformFloat("fogDensity", 0.399218f);
-            fogShader.loadUniformFloat("heightFallOff", 0.004075f);
-            fogShader.loadUniformFloat("noiseFactor", 0.5f);
+            fogShader.loadUniformFloat("fogDensity", 0.0017f);
+            fogShader.loadUniformFloat("heightFallOff", 1000.04075f);
+            fogShader.loadUniformFloat("noiseFactor", 30.09f);
             fogShader.loadUniformVector3f("fogColor", SkyRenderer.SkyColour.ToVector3());
 
             fogShader.loadUniformVector3f("cameraPosWorldSpace", cameraPos);

@@ -7,7 +7,8 @@ internal class glLoader
 {
     public static glModel loadToVAO(Mesh mesh)
     {
-        return loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursArray(), mesh.getAllMaterialsArray(), mesh.getAllIndicesArray());
+        if (!mesh.finishedNormals) mesh.calculateAllNormals();
+        return loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursArray(), mesh.getAllMaterialsArray(),mesh.getAllNormalsArray(), mesh.getAllIndicesArray());
     }
     public static glModel loadToVAO(float[] positions, float[] colors, float[] materials, int[] indices)
     {

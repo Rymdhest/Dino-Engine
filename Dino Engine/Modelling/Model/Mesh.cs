@@ -7,6 +7,7 @@ namespace Dino_Engine.Modelling.Model
     {
         public List<Face> faces;
         public List<Vertex> vertices;
+        public bool finishedNormals = false;
         public Mesh()
         {
             vertices = new List<Vertex>();
@@ -108,7 +109,58 @@ namespace Dino_Engine.Modelling.Model
         {
             Init(positions, indices, materials);
         }
+        public void makeFlat(bool flatNormal, bool flatMaterial, bool flatUV = false)
+        {
+            vertices.Clear();
+            int i = 0;
+            foreach (Face face in faces)
+            {
+                Vertex vertexA = new Vertex(face.A.position, i++);
+                vertexA.faces.Add(face);
+                vertexA.UV = face.A.UV;
 
+
+                Vertex vertexB = new Vertex(face.B.position, i++);
+                vertexB.faces.Add(face);
+                vertexB.UV = face.B.UV;
+
+                Vertex vertexC = new Vertex(face.C.position, i++);
+                vertexC.faces.Add(face);
+                vertexC.UV = face.C.UV;
+
+                if (flatMaterial)
+                {
+                    vertexA.material = face.A.material;
+                    vertexB.material = face.A.material;
+                    vertexC.material = face.A.material;
+                } else
+                {
+                    vertexA.material = face.A.material;
+                    vertexB.material = face.B.material;
+                    vertexC.material = face.C.material;
+                }
+
+                if (flatNormal)
+                {
+                    vertexA.normal = face.faceNormal;
+                    vertexB.normal = face.faceNormal;
+                    vertexC.normal = face.faceNormal;
+                }
+                else
+                {
+                    vertexA.normal = face.A.normal;
+                    vertexB.normal = face.B.normal;
+                    vertexC.normal = face.C.normal;
+                }
+                face.A = vertexA;
+                face.B = vertexB;
+                face.C = vertexC;
+
+                vertices.Add(vertexA);
+                vertices.Add(vertexB);
+                vertices.Add(vertexC);
+            }
+        }
 
         public void calculateAllNormals()
         {
@@ -120,6 +172,7 @@ namespace Dino_Engine.Modelling.Model
             {
                 vertex.calculateNormal();
             }
+            finishedNormals = true;
         }
 
         public void setRoughness(float setTo)
@@ -350,7 +403,10 @@ namespace Dino_Engine.Modelling.Model
             materials.AddRange(a.getAllMaterialsTypeArray());
             materials.AddRange(b.getAllMaterialsTypeArray());
 
-            return new Mesh(positions.ToArray(), indices.ToArray(), materials.ToArray());
+            Mesh mesh =new Mesh(positions.ToArray(), indices.ToArray(), materials.ToArray());
+            if (a.finishedNormals && b.finishedNormals) mesh.finishedNormals = true;
+
+            return mesh;
         }
         public static Mesh operator +(Mesh a, Mesh b)  => Mesh.Add(a, b);
     }

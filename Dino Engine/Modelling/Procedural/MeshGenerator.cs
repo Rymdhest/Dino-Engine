@@ -5,6 +5,7 @@ using System;
 using System.Drawing;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Util;
+using System.Net.NetworkInformation;
 
 namespace Dino_Engine.Modelling
 {
@@ -25,16 +26,16 @@ namespace Dino_Engine.Modelling
             mesh.rotate(new Vector3(MathF.PI, 0f, 0f));
             return mesh;
         }
-        public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, Material material)
+        public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, Material material, bool sealTop = false)
         {
             List<Vector3> rings = new List<Vector3> ();
             for (int i = 0; i<rings2.Count; i++)
             {
                 rings.Add(new Vector3(rings2[i].X, rings2[i].Y, rings2[i].X));
             }
-            return generateCylinder(rings, polygonsPerRing, material);
+            return generateCylinder(rings, polygonsPerRing, material, sealTop);
         }
-            public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material)
+            public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material, bool sealTop = false)
         {
             float PI = MathF.PI;
             List<Vector3> positions = new List<Vector3>();
@@ -61,6 +62,26 @@ namespace Dino_Engine.Modelling
                         indices.Add((ring + 0) * polygonsPerRing + (detail + 1) % polygonsPerRing);
                         indices.Add((ring + 1) * polygonsPerRing + (detail + 1) % polygonsPerRing);
                     }
+                }
+            }
+            if (sealTop)
+            {
+                int ring = rings.Count - 1;
+                float x1 = 0;
+                float z1 = 0;
+                float y1 = rings[ring].Y;
+                Vector3 p1 = new Vector3(x1, y1, z1);
+
+                positions.Add(p1);
+                int i = positions.Count - 1;
+                for (int detail = 0; detail < polygonsPerRing; detail++)
+                {
+
+
+                    indices.Add(i);
+                    indices.Add((ring) * polygonsPerRing + (detail + 0) % polygonsPerRing);
+                    indices.Add((ring) * polygonsPerRing + (detail + 1) % polygonsPerRing);
+                    
                 }
             }
             return new Mesh(positions, indices, material);
@@ -193,6 +214,8 @@ namespace Dino_Engine.Modelling
                         6,5,7, 7,5,4};  //bot
 
             Mesh rawModel = new Mesh(positions, indices, material);
+
+            rawModel.makeFlat(true, true);
             return rawModel;
         }
 
@@ -390,8 +413,9 @@ namespace Dino_Engine.Modelling
             indices.Add(2);
             indices.Add(1);
             Mesh inner = new Mesh(positions, indices, innerMaterial);
-
-            return outer+inner;
+            outer += inner;
+            outer.makeFlat(true, true);
+            return outer;
         }
 
         public static void ExtrudedPlane(Material material, Material innerMaterial)
@@ -421,7 +445,7 @@ namespace Dino_Engine.Modelling
             mesh.rotate(new Vector3(MathF.PI / 2f, MathF.PI / 4f, 0f));
 
             mesh += inner;
-
+            mesh.makeFlat(true, true);
             return mesh;
         }
         public static Mesh generatePlane(Material material)
