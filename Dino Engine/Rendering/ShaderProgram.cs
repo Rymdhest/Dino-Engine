@@ -5,7 +5,7 @@ using System.Xml.Linq;
 
 namespace Dino_Engine.Rendering
 {
-    internal class ShaderProgram
+    public class ShaderProgram
     {
         private int programID;
         private int vertexShaderID;

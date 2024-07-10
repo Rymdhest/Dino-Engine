@@ -1,4 +1,6 @@
-﻿using Dino_Engine.Util.Data_Structures;
+﻿using Dino_Engine.Debug;
+using Dino_Engine.Rendering;
+using Dino_Engine.Util.Data_Structures;
 using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
@@ -10,7 +12,7 @@ namespace Dino_Engine.Util.Noise
         private Grid noiseMap;
         private float minDist;
         private int k = 30; // Maximum number of attempts before rejection
-        private int retryLimit = 10000; // Global retry limit to prevent infinite loop
+        private int retryLimit = 50000; // Global retry limit to prevent infinite loop
         private QuadTree quadtree;
 
         public PoissonDiskSampling(Grid noiseMap, float minDist)

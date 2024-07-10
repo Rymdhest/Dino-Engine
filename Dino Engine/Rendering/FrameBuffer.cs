@@ -4,7 +4,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.Rendering
 {
-    internal class FrameBuffer
+    public class FrameBuffer
     {
         private int frameBufferID;
         private int depthAttachment = -1;

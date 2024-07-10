@@ -1,11 +1,6 @@
 ﻿using Dino_Engine.Modelling.Model;
 using OpenTK.Mathematics;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using OpenTK.Graphics.OpenGL;
 
 namespace Dino_Engine.Util
 {
@@ -15,6 +10,8 @@ namespace Dino_Engine.Util
         private Vector2i _resolution;
         public float[,] Values { get => _grid; set => _grid = value; }
         public Vector2i Resolution { get => _resolution;}
+
+        private int texture = -1;
 
         public Grid(Vector2i resolution)
         {
@@ -49,6 +46,45 @@ namespace Dino_Engine.Util
             float interpolatedHeight = interpolatedHeight1 * (1 - t_y) + interpolatedHeight2 * t_y;
 
             return interpolatedHeight;
+        }
+
+        public int GenerateTexture()
+        {
+            
+            var pixels = new float[4 * Resolution.X * Resolution.Y];
+            for (int y = 0; y < Resolution.Y; y++)
+            {
+                for (int x = 0; x < Resolution.X; x++)
+                {
+                    int i = y * Resolution.Y + x;
+                    pixels[i * 4 + 0] = Values[x, y];
+                    pixels[i * 4 +1] = Values[x, y];
+                    pixels[i * 4 + 2] = Values[x, y];
+                    pixels[i * 4 + 3] = 1f;
+                }
+            }
+            int texture = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, Resolution.X, Resolution.Y, 0, PixelFormat.Rgba, PixelType.Float, pixels);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (float)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (float)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (float)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (float)TextureWrapMode.ClampToEdge);
+
+            return texture;
+        }
+
+        public int GetTexture()
+        {
+            if (texture == -1)
+            {
+                texture = GenerateTexture();
+            }
+            return texture;
+        }
+        public void cleanUp()
+        {
+            GL.DeleteTexture(texture);
         }
     }
 }

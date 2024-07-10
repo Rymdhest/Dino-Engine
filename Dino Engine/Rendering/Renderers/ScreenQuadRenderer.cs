@@ -8,7 +8,7 @@ using Dino_Engine.Modelling.Model;
 
 namespace Dino_Engine.Rendering.Renderers
 {
-    internal class ScreenQuadRenderer : Renderer
+    public class ScreenQuadRenderer : Renderer
     {
         private FrameBuffer _buffer1;
         private FrameBuffer _buffer2;

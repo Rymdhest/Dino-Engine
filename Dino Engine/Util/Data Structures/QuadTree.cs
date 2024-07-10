@@ -1,4 +1,7 @@
-﻿using OpenTK.Mathematics;
+﻿using Dino_Engine.Core;
+using Dino_Engine.Debug;
+using Dino_Engine.Rendering;
+using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
 
@@ -11,7 +14,7 @@ namespace Dino_Engine.Util.Data_Structures
         private readonly List<Vector2> points;
         private QuadTree[] children;
 
-        public QuadTree(float minX, float minY, float maxX, float maxY, int maxCapacity = 4)
+        public QuadTree(float minX, float minY, float maxX, float maxY, int maxCapacity = 1)
         {
             this.minX = minX;
             this.minY = minY;
@@ -20,6 +23,14 @@ namespace Dino_Engine.Util.Data_Structures
             this.maxCapacity = maxCapacity;
             points = new List<Vector2>();
             children = null;
+
+            
+            RenderEngine._debugRenderer.lines.Add(new Line(new Vector2(minX, minY), new Vector2(minX, maxY), 1f));
+            RenderEngine._debugRenderer.lines.Add(new Line(new Vector2(minX, maxY), new Vector2(maxX, maxY), 1f));
+            RenderEngine._debugRenderer.lines.Add(new Line(new Vector2(maxX, maxY), new Vector2(maxX, minY), 1f));
+            RenderEngine._debugRenderer.lines.Add(new Line(new Vector2(maxX, minY), new Vector2(minX, minY), 1f));
+
+            
         }
 
         public bool Insert(Vector2 point)
@@ -58,6 +69,26 @@ namespace Dino_Engine.Util.Data_Structures
                     return true;
             }
 
+            return false;
+        }
+
+        public bool isPointInside(float x, float y, float range)
+        {
+
+            if (!IntersectsRange(x, y, range)) return false;
+
+            foreach (var point in points)
+            {
+                if (Vector2.Distance(point, new Vector2(x, y)) <= range)
+                    return true;
+            }
+            if (children != null)
+            {
+                foreach (var child in children)
+                {
+                    if (child.isPointInside(x, y, range)) return true;
+                }
+            }
             return false;
         }
 

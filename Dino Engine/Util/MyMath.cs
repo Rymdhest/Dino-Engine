@@ -125,5 +125,45 @@ namespace Dino_Engine.Util
             float l3 = 1.0f - l1 - l2;
             return l1 * p1.Y + l2 * p2.Y + l3 * p3.Y;
         }
+
+        public static float AngleBetween(Vector2 p1, Vector2 p2)
+        {
+            return MathF.Atan2(p2.Y - p1.Y, p2.X - p1.X);
+        }
+
+        public static Vector3 BilinearInterpolateNormal(Vector3[,] grid, float x, float y)
+        {
+            int x1 = (int)Math.Floor(x);
+            int x2 = x1 + 1;
+            int y1 = (int)Math.Floor(y);
+            int y2 = y1 + 1;
+
+            float t_x = x - x1;
+            float t_y = y - y1;
+
+            // Ensure the indices are within the bounds of the grid
+            x1 = Math.Clamp(x1, 0, grid.GetLength(0) - 1);
+            x2 = Math.Clamp(x2, 0, grid.GetLength(0) - 1);
+            y1 = Math.Clamp(y1, 0, grid.GetLength(1) - 1);
+            y2 = Math.Clamp(y2, 0, grid.GetLength(1) - 1);
+
+            // Get the normals from the Vector3 points
+            Vector3 Q11 = grid[x1, y1];
+            Vector3 Q12 = grid[x2, y1];
+            Vector3 Q21 = grid[x1, y2];
+            Vector3 Q22 = grid[x2, y2];
+
+            // Interpolate along the x-axis (bottom and top rows)
+            Vector3 R1 = Vector3.Lerp(Q11, Q12, t_x);
+            Vector3 R2 = Vector3.Lerp(Q21, Q22, t_x);
+
+            // Interpolate along the y-axis (left and right columns)
+            Vector3 interpolatedNormal = Vector3.Lerp(R1, R2, t_y);
+
+            // Normalize the resulting normal to ensure it is a unit vector
+            interpolatedNormal = Vector3.Normalize(interpolatedNormal);
+
+            return interpolatedNormal;
+        }
     }
 }

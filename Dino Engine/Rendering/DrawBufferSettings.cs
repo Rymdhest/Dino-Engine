@@ -1,7 +1,7 @@
 ﻿using OpenTK.Graphics.OpenGL;
 namespace Dino_Engine.Rendering
 {
-    internal class DrawBufferSettings
+    public class DrawBufferSettings
     {
         public PixelInternalFormat formatInternal = PixelInternalFormat.Rgba16f;
         public PixelFormat formatExternal = PixelFormat.Rgba;

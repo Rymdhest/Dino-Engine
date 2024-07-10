@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.Rendering
 {
-    internal class DepthAttachmentSettings
+    public class DepthAttachmentSettings
     {
         public Boolean isTexture = false;
         public Boolean isShadowDepthTexture = false;

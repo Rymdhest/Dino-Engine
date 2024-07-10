@@ -3,7 +3,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.Rendering
 {
-    internal class FrameBufferSettings
+    public class FrameBufferSettings
     {
         public DepthAttachmentSettings? depthAttachmentSettings = null;
         public List<DrawBufferSettings> drawBuffers= new List<DrawBufferSettings>();

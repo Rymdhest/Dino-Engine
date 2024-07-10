@@ -13,11 +13,10 @@ using Dino_Engine.Util.Noise;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using System;
-using System.IO;
 using Util.Noise;
-using Dino_Engine.Modelling;
-using static OpenTK.Graphics.OpenGL.GL;
+using Dino_Engine.Rendering;
+using Dino_Engine.Debug;
+using System.Diagnostics;
 
 namespace Dino_Engine.ECS
 {
@@ -46,21 +45,58 @@ namespace Dino_Engine.ECS
 
         public void InitEntities()
         {
+            Stopwatch timer = new Stopwatch();
+
             if (_camera == null)
             {
                 _camera = new Entity("Camera");
                 Camera.addComponent(new TransformationComponent(new Vector3(0, 2f, 0f), new Vector3(0), new Vector3(1)));
                 Camera.addComponent(new ProjectionComponent(MathF.PI / 3.5f));
             }
-            
+
+            RenderEngine._debugRenderer.circles.Clear();
+            RenderEngine._debugRenderer.rings.Clear();
+            RenderEngine._debugRenderer.lines.Clear();
+
             TreeGenerator treeGenerator = new TreeGenerator();
 
             Entity groundPlane = new Entity("Terrain");
-            groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0.0f, 0f), new Vector3(0), new Vector3(1f)));
+            groundPlane.addComponent(new TransformationComponent(new Vector3(-300, -50.0f, -300f), new Vector3(0), new Vector3(1f)));
 
             TerrainGridGenerator terrainGridGenerator = new TerrainGridGenerator();
-            Grid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(200, 200));
-            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGrid);
+
+            timer.Restart();
+            Grid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(500, 500));
+            timer.Stop();
+            Console.WriteLine($"generated terrain chunk in {timer.ElapsedMilliseconds} MS");
+            timer.Restart();
+            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGrid, out Vector3[,] terrainNormals);
+            timer.Stop();
+            Console.WriteLine($"generated terrain mesh in {timer.ElapsedMilliseconds} MS");
+
+            timer.Restart();
+            Grid terrainSteepnessMap = new Grid(terrainGrid.Resolution);
+            for (int z = 0; z < terrainSteepnessMap.Resolution.Y; z++)
+            {
+                for (int x = 0; x < terrainSteepnessMap.Resolution.X; x++)
+                {
+                    float value = Vector3.Dot(new Vector3(0f, 1f, 0f), terrainNormals[x, z]);
+
+
+                    terrainSteepnessMap.Values[x, z] =MyMath.clamp01(MathF.Pow(value, 9.5f));
+
+                    /*
+                    Mesh boxModel = MeshGenerator.generateBox(new Modelling.Model.Material(new Colour(1f-terrainSteepnessMap.Values[x, z],  terrainSteepnessMap.Values[x, z], 0f), 0f, 1f, 0f));
+                    Entity box = new Entity("box");
+                    box.addComponent(new TransformationComponent(new Vector3(x, 40+ terrainSteepnessMap.Values[x, z]*10f, z), new Vector3(0,0, 0f), new Vector3(0.5f)));
+                    box.addComponent(new FlatModelComponent(boxModel));
+                    AddEnityToSystem<FlatModelSystem>(box);
+                    */
+                }
+            }
+            timer.Stop();
+            Console.WriteLine($"generated terrain steepness map {timer.ElapsedMilliseconds} MS");
+
             glModel groundModel = glLoader.loadToVAO(rawGround);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
             AddEnityToSystem<FlatModelSystem>(groundPlane);
@@ -73,7 +109,7 @@ namespace Dino_Engine.ECS
             {
                 for (int x = 0; x < spawnGrid.Resolution.X; x++)
                 {
-                    float value = noise.Evaluate(x * 0.1f, z * 0.1f) / 2f + 0.5f;
+                    float value = noise.Evaluate(x * 0.05f, z * 0.05f) / 2f + 0.5f;
                     value *= 0.9f;
                     value += 0.1f;
 
@@ -81,31 +117,35 @@ namespace Dino_Engine.ECS
                     value += height / 45f;
 
                     spawnGrid.Values[x, z] = MyMath.clamp01( value* value);
-
                 }
             }
+            DebugRenderer.texture = terrainSteepnessMap.GenerateTexture();
+            //DebugRenderer.texture = spawnGrid.GenerateTexture();
 
+            //PoissonDiskSampling poissonDiskSampling = new PoissonDiskSampling(terrainSteepnessMap, 300f);
 
-            PoissonDiskSampling poissonDiskSampling = new PoissonDiskSampling(spawnGrid, 30f);
-            
+            BetterNoiseSampling betterNoiseSampling = new BetterNoiseSampling(terrainGrid.Resolution);
 
-
-            List<Vector2> spawnPoints = poissonDiskSampling.GeneratePoints();
-            Console.WriteLine($"{spawnPoints.Count} trees");
+            timer.Restart();
+            //List<Vector2> spawnPoints = poissonDiskSampling.GeneratePoints();
+            List<Vector2> spawnPoints = betterNoiseSampling.GeneratePoints(terrainSteepnessMap);
+            timer.Stop();
+            Console.WriteLine($"generated {spawnPoints.Count} trees in {timer.ElapsedMilliseconds} MS");
             Mesh mesh = treeGenerator.GenerateFractalTree(1);
             mesh.scale(new Vector3(4f));
             foreach (Vector2 spawn in spawnPoints)
             {
                 Entity tree = new Entity("tree");
                 float y = terrainGrid.BilinearInterpolate(spawn);
-                if (y < 0) continue;
-                if (y > 45) continue;
+                //if (y < 0) continue;
+                //if (y > 45) continue;
                 tree.addComponent(new TransformationComponent(new Vector3(spawn.X, y-0.1f, spawn.Y), new Vector3(0, MyMath.rng(MathF.PI*2f), 0f), new Vector3(0.5f+MyMath.rng(0.5f))));
                 tree.addComponent(new FlatModelComponent(mesh));
                 AddEnityToSystem<FlatModelSystem>(tree);
+                tree.addComponent(new ChildComponent(groundPlane));
+
+                RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
             }
-
-
 
 
 
@@ -139,7 +179,7 @@ namespace Dino_Engine.ECS
             AddEnityToSystem<FlatModelSystem>(crossRoad);
 
             int nr = 0;
-            for (int i = 2; i < 4; i++)
+            for (int i = 2; i < 13; i++)
             {
                 for (int j = 0; j < streetGenerator.lanes ; j++)
                 {

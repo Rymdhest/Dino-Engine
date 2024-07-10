@@ -2,13 +2,14 @@
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
+using System.Diagnostics;
 
 namespace Dino_Engine.Modelling.Procedural.Terrain
 {
     public class TerrainMeshGenerator
     {
 
-        public static Mesh GridToMesh(Grid grid)
+        public static Mesh GridToMesh(Grid grid, out Vector3[,] normals)
         {
             Material material = Material.LEAF;
             List<Vector3> positions = new List<Vector3>();
@@ -50,7 +51,11 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                 }
             }
             Mesh mesh = new Mesh(positions, indices, material);
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
             mesh.calculateAllNormals();
+            stopwatch.Stop();
+            Console.WriteLine($"\tgenerated terrain normals in {stopwatch.ElapsedMilliseconds} MS");
             //mesh.translate(new Vector3(-grid.Resolution.X/2f, 0f, -grid.Resolution.Y/2f));
 
             foreach(Vertex vertex in mesh.vertices)
@@ -60,11 +65,6 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     vertex.material = Material.SAND;
                 }
 
-                if (Vector3.Dot( vertex.normal, new Vector3(0f, 1f, 0f)) < 0.7f)
-                {
-                    vertex.material = Material.ROCK;
-                    vertex.material.roughness = 0.5f;
-                }
 
                 if (vertex.position.Y < 0)
                 {
@@ -78,8 +78,32 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     vertex.material.Colour = new Colour(200, 200, 210);
                     vertex.material.roughness = 0.15f;
                 }
+
+                if (Vector3.Dot(vertex.normal, new Vector3(0f, 1f, 0f)) < 0.7f)
+                {
+                    vertex.material = Material.ROCK;
+                    vertex.material.roughness = 0.5f;
+                }
+
             }
+
+            normals = new Vector3[grid.Resolution.X,grid.Resolution.Y];
+            for (int z = 0; z < grid.Resolution.Y; z++)
+            {
+                for (int x = 0; x < grid.Resolution.X; x++)
+                {
+                    int i = z * grid.Resolution.X + x;
+                    Vector3 normal = mesh.vertices[i].normal;
+                    normals[x, z] = normal;
+                }
+            }
+
+            stopwatch.Restart();
+
             mesh.makeFlat(flatNormal: true, flatMaterial: false);
+
+            stopwatch.Stop();
+            Console.WriteLine($"\tmade terrain flat in {stopwatch.ElapsedMilliseconds} MS");
 
             return mesh;
         }

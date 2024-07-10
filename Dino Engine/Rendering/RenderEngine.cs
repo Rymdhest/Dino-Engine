@@ -1,4 +1,5 @@
 ﻿using Dino_Engine.Core;
+using Dino_Engine.Debug;
 using Dino_Engine.ECS;
 using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.Rendering.Renderers.Geometry;
@@ -6,6 +7,7 @@ using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using System;
 using System.Diagnostics.Tracing;
 
@@ -31,7 +33,8 @@ namespace Dino_Engine.Rendering
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
         private SpotLightRenderer _spotLightRenderer;
-
+        public static DebugRenderer _debugRenderer = new DebugRenderer();
+        public bool debugView = false;
         private ShaderProgram _simpleShader;
         public RenderEngine()
         {
@@ -97,21 +100,36 @@ namespace Dino_Engine.Rendering
             {
                 renderer.Update();
             }
+
+            if (Engine.WindowHandler.IsKeyPressed(Keys.F8))
+            {
+                if (debugView) debugView = false;
+                else debugView = true;
+            }
         }
         public void Render(ECSEngine eCSEngine)
         {
+
             PrepareFrame();
 
-            GeometryPass(eCSEngine);
-            LightPass(eCSEngine);
-            PostGeometryPass(eCSEngine);
-            PostProcessPass(eCSEngine);
+            if (debugView)
+            {
+                _debugRenderer.render(_screenQuadRenderer);
+            } else
+            {
 
-            _simpleShader.bind();
+                GeometryPass(eCSEngine);
+                LightPass(eCSEngine);
+                PostGeometryPass(eCSEngine);
+                PostProcessPass(eCSEngine);
 
-            _screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
+                _simpleShader.bind();
 
-            //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(1));
+                _screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
+
+                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(0));
+            }
+
 
             FinishFrame();
         }
