@@ -11,7 +11,7 @@ namespace Dino_Engine.ECS
 {
     public class DirectionalLightSystem : ComponentSystem
     {
-        public DirectionalLightSystem() : base()
+        public DirectionalLightSystem()
         {
             addRequiredComponent<DirectionComponent>();
             addRequiredComponent<ColourComponent>();

@@ -93,11 +93,11 @@ namespace Dino_Engine.Util
         {
             return clamp(number, 0.0f, 1.0f);
         }
-        public static float lerp(float amount, float left, float right)
+        public static float lerp(float left, float right, float amount)
         {
             return (1.0f - amount) * left + amount * right;
         }
-        public static Vector3 lerp(float amount, Vector3 left, Vector3 right)
+        public static Vector3 lerp(Vector3 left, Vector3 right, float amount)
         {
             return (1.0f - amount) * left + amount * right;
         }

@@ -8,11 +8,11 @@ using Dino_Engine.Modelling.Model;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
-    internal class FlatGeogemetryRenderer : Renderer
+    internal class GeogemetryRenderer : Renderer
     {
         private ShaderProgram flatShader = new ShaderProgram("Geometry_Vertex", "Flat_Shade_Fragment");
 
-        public FlatGeogemetryRenderer()
+        public GeogemetryRenderer()
         {
         }
         private void prepareFrame(Matrix4 viewMatrix, Matrix4 projectionMatrix)
@@ -25,7 +25,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         }
-        public void render(FlatModelSystem flatShadeEntities, Entity camera)
+        public void render(ModelRenderSystem flatShadeEntities, Entity camera)
         {
             Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;

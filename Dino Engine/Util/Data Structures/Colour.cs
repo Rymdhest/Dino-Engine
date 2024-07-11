@@ -70,5 +70,15 @@ namespace Dino_Engine.Util
         {
             return $"Red: {_red} Green: {_green} Blue: {_blue} Alpha: {_alpha} Intesity: {_intensity}";
         }
+        public static Colour mix(Colour left, Colour right, float mix)
+        {
+            float r = MyMath.lerp(left.Red, right.Red, mix);
+            float g = MyMath.lerp(left.Green, right.Green, mix);
+            float b = MyMath.lerp(left.Blue, right.Blue, mix);
+            float i = MyMath.lerp(left.Intensity, right.Intensity, mix);
+            float a = MyMath.lerp(left.Alpha, right.Alpha, mix);
+
+            return new Colour(r, g, b, i, a);
+        }
     }
 }

@@ -34,11 +34,15 @@ namespace Dino_Engine.ECS
         public ECSEngine()
         {
             AddSystem<AllEntitySystem>();
-            AddSystem<FlatModelSystem>();
+            AddSystem<ModelRenderSystem>();
             AddSystem<DirectionalLightSystem>();
             AddSystem<SpotLightSystem>();
             AddSystem<PointLightSystem>();
             AddSystem<SelfDestroySystem>();
+            AddSystem<GravitySystem>();
+            AddSystem<VelocitySystem>();
+            AddSystem<ParticleEmitterSystem>();
+            AddSystem<ParticleSystem>();
         }
 
         private void AddSystem<T>() where T : ComponentSystem, new()
@@ -102,7 +106,7 @@ namespace Dino_Engine.ECS
 
             glModel groundModel = glLoader.loadToVAO(rawGround);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
-            AddEnityToSystem<FlatModelSystem>(groundPlane);
+            AddEnityToSystem<ModelRenderSystem>(groundPlane);
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
 
@@ -146,10 +150,9 @@ namespace Dino_Engine.ECS
                 if (y > 45) continue;
                 tree.addComponent(new TransformationComponent(new Vector3(spawn.X, y-0.1f, spawn.Y), new Vector3(0, MyMath.rng(MathF.PI*2f), 0f), new Vector3(0.5f+MyMath.rng(0.5f))));
                 tree.addComponent(new FlatModelComponent(mesh));
-                AddEnityToSystem<FlatModelSystem>(tree);
+                AddEnityToSystem<ModelRenderSystem>(tree);
                 tree.addComponent(new ChildComponent(groundPlane));
                 tree.addComponent(new SelfDestroyComponent(1+MyMath.rng(2f)));
-                AddEnityToSystem<SelfDestroySystem>(tree);
                 RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
             }
             
@@ -169,7 +172,7 @@ namespace Dino_Engine.ECS
 
                 rock.addComponent(new TransformationComponent(position, MyMath.rng3D(MathF.PI*2f), scale));
                 rock.addComponent(new FlatModelComponent(rockMesh));
-                AddEnityToSystem<FlatModelSystem>(rock);
+                AddEnityToSystem<ModelRenderSystem>(rock);
                 rock.addComponent(new ChildComponent(groundPlane));
 
                 RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
@@ -185,7 +188,7 @@ namespace Dino_Engine.ECS
                     Entity house = new Entity("House");
                     house.addComponent(new TransformationComponent(new Vector3(45+55*x, 0, 45+55f * z), new Vector3(0,MyMath.rand.Next(8)*MathF.PI/4,0f), new Vector3(2f)));
                     house.addComponent(new FlatModelComponent(houseModel));
-                    AddEnityToSystem<FlatModelSystem>(house);
+                    AddEnityToSystem<ModelRenderSystem>(house);
 
                     Entity rock = new Entity("rock");
                     rock.addComponent(new TransformationComponent(new Vector3(-2, 18, -2f), new Vector3(0), new Vector3(1)));
@@ -194,7 +197,7 @@ namespace Dino_Engine.ECS
                     glModel rockModel = glLoader.loadToVAO(box2Rawmodel);
                     rock.addComponent(new FlatModelComponent(rockModel));
                     rock.addComponent(new ChildComponent(house));
-                    AddEnityToSystem<FlatModelSystem>(rock);
+                    AddEnityToSystem<ModelRenderSystem>(rock);
                 }
             }
 
@@ -203,7 +206,7 @@ namespace Dino_Engine.ECS
             Entity crossRoad = new Entity("crossroad");
             crossRoad.addComponent(new TransformationComponent(new Transformation()));
             crossRoad.addComponent(new FlatModelComponent(streetGenerator.GenerateCrossRoad()));
-            AddEnityToSystem<FlatModelSystem>(crossRoad);
+            AddEnityToSystem<ModelRenderSystem>(crossRoad);
 
             int nr = 0;
             for (int i = 2; i < 13; i++)
@@ -215,7 +218,7 @@ namespace Dino_Engine.ECS
                     float z = 13f * i+MyMath.rngMinusPlus(4f);
                     car.addComponent(new TransformationComponent(new Transformation(new Vector3(x, 0f, z), new Vector3(0f, MyMath.rngMinusPlus(0.03f), 0f), new Vector3(1.7f+MyMath.rngMinusPlus(0.2f)))));
                     car.addComponent(new FlatModelComponent(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight)));
-                    AddEnityToSystem<FlatModelSystem>(car);
+                    AddEnityToSystem<ModelRenderSystem>(car);
 
                     Entity carLightLeft = new Entity("car light left");
                     carLightLeft.addComponent(new TransformationComponent(leftLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
@@ -250,7 +253,7 @@ namespace Dino_Engine.ECS
                 Transformation transformation = new Transformation(position, new Vector3(0f, i * (MathF.PI / 2f), 0f), new Vector3(1));
                 street.addComponent(new TransformationComponent(transformation));
                 street.addComponent(new FlatModelComponent(streetModel));
-                AddEnityToSystem<FlatModelSystem>(street);
+                AddEnityToSystem<ModelRenderSystem>(street);
             }
 
 
@@ -262,7 +265,7 @@ namespace Dino_Engine.ECS
                     Entity streetLight = new Entity("Street Light" + i);
                     streetLight.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 50 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(1f, 1f, 1f)));
                     streetLight.addComponent(new FlatModelComponent(UrbanPropGenerator.GenerateStreetLight(out Vector3 lightPosition)));
-                    AddEnityToSystem<FlatModelSystem>(streetLight);
+                    AddEnityToSystem<ModelRenderSystem>(streetLight);
 
                     Entity glow = new Entity("Street Light" + i + " glow");
                     glow.addComponent(new TransformationComponent(lightPosition, new Vector3(0f), new Vector3(1f)));
@@ -275,16 +278,27 @@ namespace Dino_Engine.ECS
                     Entity streetTree = new Entity("Street tree" + i);
                     streetTree.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(15f)));
                     streetTree.addComponent(new FlatModelComponent(treeGenerator.GenerateFractalTree(1)));
-                    AddEnityToSystem<FlatModelSystem>(streetTree);
+                    AddEnityToSystem<ModelRenderSystem>(streetTree);
                 }
             }
             
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 1; i++)
             {
                 Entity roadCone = new Entity("roadCone");
                 roadCone.addComponent(new TransformationComponent(new Transformation(new Vector3(2 * i, 0f, 15f), new Vector3(0f, MathF.PI * 2f * MyMath.rng(), 0f), new Vector3(2))));
                 roadCone.addComponent(new FlatModelComponent(UrbanPropGenerator.GenerateStreetCone()));
-                AddEnityToSystem<FlatModelSystem>(roadCone);
+                AddEnityToSystem<ModelRenderSystem>(roadCone);
+
+
+                Entity emitter = new Entity("Particle Emitter");
+                emitter.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 2f, 0f), new Vector3(0f, 0f, 0f), new Vector3(1))));
+                //emitter.addComponent(new ChildComponent(roadCone));
+                var emitterComponent = new ParticleEmitterComponent();
+                emitterComponent.particleSpeed = 10f;
+                emitter.addComponent(emitterComponent);
+                emitter.addComponent(new DirectionComponent(new Vector3(0f, 1f, 0f)));
+
+                AddEnityToSystem<ParticleEmitterSystem>(emitter);
             }
 
             Entity sun = new Entity("Sun");

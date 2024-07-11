@@ -2,13 +2,13 @@
 
 namespace Dino_Engine.ECS
 {
-    internal class FlatModelSystem : ComponentSystem
+    internal class ModelRenderSystem : ComponentSystem
     {
         private Dictionary<glModel, List<Entity>> _modelsDictionary = new Dictionary<glModel, List<Entity>>();
 
         public Dictionary<glModel, List<Entity>> ModelsDictionary { get => _modelsDictionary; set => _modelsDictionary = value; }
 
-        public FlatModelSystem() : base()
+        public ModelRenderSystem() : base()
         {
             addRequiredComponent<TransformationComponent>();
             addRequiredComponent<FlatModelComponent>();

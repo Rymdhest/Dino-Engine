@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Dino_Engine.Core;
+using Dino_Engine.ECS.Systems;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,6 +16,11 @@ namespace Dino_Engine.ECS.Components
         {
             initialSeconds = seconds;
             secondsRemaining = seconds;
+        }
+
+        public float getRemainingRatio()
+        {
+            return secondsRemaining/initialSeconds;
         }
     }
 }

@@ -4,6 +4,7 @@ using Dino_Engine.ECS;
 using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
+using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
@@ -20,7 +21,7 @@ namespace Dino_Engine.Rendering
         private FrameBuffer _gBuffer;
 
         private ScreenQuadRenderer _screenQuadRenderer;
-        private FlatGeogemetryRenderer _flatGeogemetryRenderer;
+        private GeogemetryRenderer _flatGeogemetryRenderer;
         private DirectionalLightRenderer _directionalLightRenderer;
         private PointLightRenderer _pointLightRenderer;
         private ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
@@ -33,6 +34,7 @@ namespace Dino_Engine.Rendering
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
         private SpotLightRenderer _spotLightRenderer;
+        private ParticleRenderer _particleRenderer;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
         public bool debugView = false;
         private ShaderProgram _simpleShader;
@@ -50,7 +52,7 @@ namespace Dino_Engine.Rendering
         public void InitRenderers()
         {
             _screenQuadRenderer = new ScreenQuadRenderer();
-            _flatGeogemetryRenderer = new FlatGeogemetryRenderer();
+            _flatGeogemetryRenderer = new GeogemetryRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
             _pointLightRenderer = new PointLightRenderer();
             _shadowCascadeMapRenderer = new ShadowCascadeMapRenderer();
@@ -63,6 +65,7 @@ namespace Dino_Engine.Rendering
             _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
             _gaussianBlurRenderer = new GaussianBlurRenderer();
             _spotLightRenderer = new SpotLightRenderer();
+            _particleRenderer = new ParticleRenderer();
         }
 
         private void InitGBuffer()
@@ -144,12 +147,14 @@ namespace Dino_Engine.Rendering
         }
         private void PostGeometryPass(ECSEngine eCSEngine)
         {
+            _screenSpaceReflectionRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer, _gaussianBlurRenderer);
             _skyRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
+            _particleRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
         }
         private void GeometryPass(ECSEngine eCSEngine)
         {
             _gBuffer.bind();
-            _flatGeogemetryRenderer.render(eCSEngine.getSystem<FlatModelSystem>(), eCSEngine.Camera);
+            _flatGeogemetryRenderer.render(eCSEngine.getSystem<ModelRenderSystem>(), eCSEngine.Camera);
             _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
             _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);
         }
@@ -158,7 +163,6 @@ namespace Dino_Engine.Rendering
         {
             _bloomRenderer.Render(_screenQuadRenderer, _gBuffer);
             _fogRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
-            _screenSpaceReflectionRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer, _gaussianBlurRenderer);
             _toneMapRenderer.Render(_screenQuadRenderer);
             _fXAARenderer.Render(_screenQuadRenderer);
         }

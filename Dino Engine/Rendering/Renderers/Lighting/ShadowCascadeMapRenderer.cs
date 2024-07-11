@@ -45,7 +45,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                         GL.Clear(ClearBufferMask.DepthBufferBit);
                         GL.PolygonOffset(cascade.getPolygonOffset(), 1f);
 
-                        foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<FlatModelSystem>().ModelsDictionary)
+                        foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<ModelRenderSystem>().ModelsDictionary)
                         {
                             glModel glmodel = glmodels.Key;
                             GL.BindVertexArray(glmodel.getVAOID());
