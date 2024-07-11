@@ -55,9 +55,9 @@ namespace Dino_Engine.ECS
         }
         public void Update()
         {
-            foreach(Entity entity in MemberEntities)
+            for (int i = MemberEntities.Count - 1; i >= 0; i--)
             {
-                UpdateEntity(entity);
+                UpdateEntity(MemberEntities[i]);
             }
         }
         public override string ToString()

@@ -1,5 +1,6 @@
 ﻿
 using Dino_Engine.Core;
+using Dino_Engine.ECS.Systems;
 using OpenTK.Windowing.Common;
 using System.ComponentModel;
 using System.Text;
@@ -21,7 +22,8 @@ namespace Dino_Engine.ECS
         {
             components= new Dictionary<Type, Component>();
             _name = name;
-            Engine.Instance.ECSEngine.Entities.Add(this);
+
+            Engine.Instance.ECSEngine.AddEnityToSystem<AllEntitySystem>(this);
 
         }
         public bool TryGetComponent<T>(out T? outComponent) where T : Component

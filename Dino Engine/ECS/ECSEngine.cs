@@ -17,25 +17,28 @@ using Util.Noise;
 using Dino_Engine.Rendering;
 using Dino_Engine.Debug;
 using System.Diagnostics;
+using System.Security.Cryptography;
 
 namespace Dino_Engine.ECS
 {
     public class ECSEngine
     {
 
-        private List<Entity> _entities = new List<Entity>();
         private Dictionary<Type, ComponentSystem> _systems = new Dictionary<Type, ComponentSystem>();
         public Dictionary<Type, ComponentSystem> Systems { get => _systems; }
 
         private Entity _camera = null;
         public Entity Camera { get => _camera; }
-        public List<Entity> Entities { get => _entities;}
+        public List<Entity> Entities { get => getSystem<AllEntitySystem>().MemberEntities;}
 
-        public ECSEngine() {
+        public ECSEngine()
+        {
+            AddSystem<AllEntitySystem>();
             AddSystem<FlatModelSystem>();
             AddSystem<DirectionalLightSystem>();
             AddSystem<SpotLightSystem>();
             AddSystem<PointLightSystem>();
+            AddSystem<SelfDestroySystem>();
         }
 
         private void AddSystem<T>() where T : ComponentSystem, new()
@@ -66,7 +69,7 @@ namespace Dino_Engine.ECS
             TerrainGridGenerator terrainGridGenerator = new TerrainGridGenerator();
 
             timer.Restart();
-            Grid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(500, 500));
+            Grid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(300, 300));
             timer.Stop();
             Console.WriteLine($"generated terrain chunk in {timer.ElapsedMilliseconds} MS");
             timer.Restart();
@@ -83,7 +86,7 @@ namespace Dino_Engine.ECS
                     float value = Vector3.Dot(new Vector3(0f, 1f, 0f), terrainNormals[x, z]);
 
 
-                    terrainSteepnessMap.Values[x, z] =MyMath.clamp01(MathF.Pow(value, 9.5f));
+                    terrainSteepnessMap.Values[x, z] =MyMath.clamp01(MathF.Pow(value, 1.5f));
 
                     /*
                     Mesh boxModel = MeshGenerator.generateBox(new Modelling.Model.Material(new Colour(1f-terrainSteepnessMap.Values[x, z],  terrainSteepnessMap.Values[x, z], 0f), 0f, 1f, 0f));
@@ -109,12 +112,12 @@ namespace Dino_Engine.ECS
             {
                 for (int x = 0; x < spawnGrid.Resolution.X; x++)
                 {
-                    float value = noise.Evaluate(x * 0.05f, z * 0.05f) / 2f + 0.5f;
+                    float value = noise.Evaluate(x * 0.01f, z * 0.01f) / 2f + 0.5f;
                     value *= 0.9f;
                     value += 0.1f;
 
                     float height = terrainGrid.Values[x, z];
-                    value += height / 45f;
+                    value += height / 85f;
 
                     spawnGrid.Values[x, z] = MyMath.clamp01( value* value);
                 }
@@ -128,25 +131,49 @@ namespace Dino_Engine.ECS
 
             timer.Restart();
             //List<Vector2> spawnPoints = poissonDiskSampling.GeneratePoints();
-            List<Vector2> spawnPoints = betterNoiseSampling.GeneratePoints(terrainSteepnessMap);
+            List<Vector2> spawnPoints = betterNoiseSampling.GeneratePoints(spawnGrid);
             timer.Stop();
             Console.WriteLine($"generated {spawnPoints.Count} trees in {timer.ElapsedMilliseconds} MS");
             Mesh mesh = treeGenerator.GenerateFractalTree(1);
-            mesh.scale(new Vector3(4f));
+            mesh.makeFlat(true, true);
+            mesh.scale(new Vector3(8f));
+            
             foreach (Vector2 spawn in spawnPoints)
             {
                 Entity tree = new Entity("tree");
                 float y = terrainGrid.BilinearInterpolate(spawn);
-                //if (y < 0) continue;
-                //if (y > 45) continue;
+                if (y < 0) continue;
+                if (y > 45) continue;
                 tree.addComponent(new TransformationComponent(new Vector3(spawn.X, y-0.1f, spawn.Y), new Vector3(0, MyMath.rng(MathF.PI*2f), 0f), new Vector3(0.5f+MyMath.rng(0.5f))));
                 tree.addComponent(new FlatModelComponent(mesh));
                 AddEnityToSystem<FlatModelSystem>(tree);
                 tree.addComponent(new ChildComponent(groundPlane));
+                tree.addComponent(new SelfDestroyComponent(1+MyMath.rng(2f)));
+                AddEnityToSystem<SelfDestroySystem>(tree);
+                RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
+            }
+            
+            Mesh rockMesh = IcoSphereGenerator.CreateIcosphere(2, Material.ROCK);
+            rockMesh.FlatRandomness(0.1f);
+            rockMesh.makeFlat(true, true);
+            spawnPoints = betterNoiseSampling.GeneratePoints(terrainSteepnessMap);
+            foreach (Vector2 spawn in spawnPoints)
+            {
+                Entity rock = new Entity("rock");
+                float y = terrainGrid.BilinearInterpolate(spawn);
+                //if (y < 0) continue;
+                //if (y > 45) continue;
+                Vector3 position = new Vector3(spawn.X, y - 0.1f, spawn.Y);
+                Vector3 scale = new Vector3(new Vector3(0.5f) + MyMath.rng3D(2.0f));
+                scale += new Vector3(1f-terrainSteepnessMap.BilinearInterpolate(position.Xz))*1f;
+
+                rock.addComponent(new TransformationComponent(position, MyMath.rng3D(MathF.PI*2f), scale));
+                rock.addComponent(new FlatModelComponent(rockMesh));
+                AddEnityToSystem<FlatModelSystem>(rock);
+                rock.addComponent(new ChildComponent(groundPlane));
 
                 RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
             }
-
 
 
             glModel houseModel = ModelGenerator.GenerateHouse();
@@ -362,7 +389,7 @@ namespace Dino_Engine.ECS
             }
             if (windowHandler.IsKeyPressed(Keys.F5))
             {
-                foreach (Entity entity in _entities)
+                foreach (Entity entity in Entities)
                 {
                     Console.WriteLine(entity.GetFullInformationString());
                 }
@@ -373,16 +400,15 @@ namespace Dino_Engine.ECS
 
         private void ClearAllEntitiesExcept(params Entity[] exceptions)
         {
-            Console.WriteLine(""+exceptions.Length);
-            foreach(Entity entity in _entities)
+            var entities = Entities;
+            for (int i = entities.Count - 1; i >= 0; i--)
             {
+                Entity entity = entities[i];
                 if (!exceptions.Contains(entity))
                 {
                     entity.CleanUp();
                 }
             }
-            _entities.Clear();
-            _entities.AddRange(exceptions);
         }
 
         public void update()
