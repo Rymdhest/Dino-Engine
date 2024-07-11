@@ -9,8 +9,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class ScreenSpaceReflectionRenderer : Renderer
     {
-        private ShaderProgram ScreenSpaceReflectionShader = new ShaderProgram("Simple_Vertex", "Screen_Reflection_Fragment");
-        private ShaderProgram combineReflectionShader = new ShaderProgram("Simple_Vertex", "Combine_Reflection_Fragment");
+        private ShaderProgram ScreenSpaceReflectionShader = new ShaderProgram("Simple.vert", "Screen_Reflection.frag");
+        private ShaderProgram combineReflectionShader = new ShaderProgram("Simple.vert", "Combine_Reflection.frag");
         private FrameBuffer _reflectionFramebuffer;
         private int _downscalingFactor = 2;
 

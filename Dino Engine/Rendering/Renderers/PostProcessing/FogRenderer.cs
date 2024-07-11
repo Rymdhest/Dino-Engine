@@ -9,7 +9,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class FogRenderer : Renderer
     {
-        private ShaderProgram fogShader = new ShaderProgram("Simple_Vertex", "Fog_Fragment");
+        private ShaderProgram fogShader = new ShaderProgram("Simple.vert", "Fog.frag");
         private float time = 0;
         public FogRenderer()
         {

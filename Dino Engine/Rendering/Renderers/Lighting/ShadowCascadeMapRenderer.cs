@@ -16,7 +16,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     internal class ShadowCascadeMapRenderer : Renderer
     {
 
-        private ShaderProgram _shadowShader = new ShaderProgram("Shadow_Vertex", "Shadow_Fragment");
+        private ShaderProgram _shadowShader = new ShaderProgram("Shadow.vert", "Shadow.frag");
 
         public const int CASCADETEXTURESINDEXSTART = 4;
 

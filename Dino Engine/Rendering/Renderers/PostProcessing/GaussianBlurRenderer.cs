@@ -9,7 +9,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class GaussianBlurRenderer : Renderer
     {
-        private ShaderProgram _gaussianBlurShader = new ShaderProgram("Gaussian_Blur_Vertex", "Gaussian_Blur_Fragment");
+        private ShaderProgram _gaussianBlurShader = new ShaderProgram("Gaussian_Blur.vert", "Gaussian_Blur.frag");
         private FrameBuffer _verticalFramebuffer;
         private FrameBuffer _horizontalFramebuffer;
         private int _downscalingFactor = 2;

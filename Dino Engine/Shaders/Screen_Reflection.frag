@@ -86,7 +86,7 @@ void main(){
 	normal.y += random(textureCoords+2)*rougness;
 	normal.z += random(textureCoords+3)*rougness;
 	if (metallic < 0.0001) {
-		//discard;
+		discard;
 		out_Colour = texture(shadedColor, textureCoords);
 	} else {
 		vec3 reflectionDirection = normalize(reflect(position, normalize(normal)));

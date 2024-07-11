@@ -42,7 +42,7 @@ namespace Dino_Engine.Rendering
         {
             InitGBuffer();
 
-            _simpleShader = new ShaderProgram("Simple_Vertex", "Simple_Fragment");
+            _simpleShader = new ShaderProgram("Simple.vert", "Simple.frag");
 
             _simpleShader.bind();
             _simpleShader.loadUniformInt("blitTexture", 0);

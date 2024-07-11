@@ -9,7 +9,7 @@ namespace Dino_Engine.ECS.Components
 {
     public class ParticleEmitterComponent : Component
     {
-        public float particlesPerSecond = 1000f;
+        public float particlesPerSecond = 10f;
         public float particleSpeed = 10f;
         public float particleDuration = 5f;
         public float particleSizeStart = 1f;

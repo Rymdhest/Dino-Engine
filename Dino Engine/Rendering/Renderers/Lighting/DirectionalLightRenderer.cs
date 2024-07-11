@@ -13,7 +13,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 {
     internal class DirectionalLightRenderer : Renderer
     {
-        private ShaderProgram _directionalLightShader = new ShaderProgram("Simple_Vertex", "Directional_Light_Fragment");
+        private ShaderProgram _directionalLightShader = new ShaderProgram("Simple.vert", "Directional_Light.frag");
 
         public DirectionalLightRenderer()
         {

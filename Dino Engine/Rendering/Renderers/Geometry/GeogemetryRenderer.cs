@@ -10,7 +10,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 {
     internal class GeogemetryRenderer : Renderer
     {
-        private ShaderProgram flatShader = new ShaderProgram("Geometry_Vertex", "Flat_Shade_Fragment");
+        private ShaderProgram flatShader = new ShaderProgram("Geometry.vert", "Flat_Shade.frag");
 
         public GeogemetryRenderer()
         {

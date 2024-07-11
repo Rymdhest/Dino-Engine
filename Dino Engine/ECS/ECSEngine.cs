@@ -217,7 +217,7 @@ namespace Dino_Engine.ECS
                     float x = streetGenerator.laneWdith * j+streetGenerator.laneWdith*(0.5f+MyMath.rngMinusPlus(0.15f));
                     float z = 13f * i+MyMath.rngMinusPlus(4f);
                     car.addComponent(new TransformationComponent(new Transformation(new Vector3(x, 0f, z), new Vector3(0f, MyMath.rngMinusPlus(0.03f), 0f), new Vector3(1.7f+MyMath.rngMinusPlus(0.2f)))));
-                    car.addComponent(new FlatModelComponent(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight)));
+                    car.addComponent(new FlatModelComponent(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight, out Vector3 exhaustPos)));
                     AddEnityToSystem<ModelRenderSystem>(car);
 
                     Entity carLightLeft = new Entity("car light left");
@@ -233,6 +233,24 @@ namespace Dino_Engine.ECS
                     carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
                     carLightRight.addComponent(new ChildComponent(car));
                     AddEnityToSystem<SpotLightSystem>(carLightRight);
+
+                    Entity emitter = new Entity("car exhaust Particle Emitter");
+                    emitter.addComponent(new TransformationComponent(new Transformation(exhaustPos, new Vector3(0f, 0f, 0f), new Vector3(1))));
+                    //emitter.addComponent(new ChildComponent(roadCone));
+                    var emitterComponent = new ParticleEmitterComponent();
+                    emitterComponent.particleSpeed = 0.2f;
+                    emitterComponent.particlesPerSecond = 20f;
+                    emitterComponent.particleSizeStart = 0.25f;
+                    emitterComponent.particleWeight = -0.25f;
+                    emitterComponent.particleSpeed = 6f;
+                    emitterComponent.particleDuration = 1.4f;
+                    emitterComponent.particleDirectionError = 0.3f;
+                    emitterComponent.particlePositionError = 0.1f;
+                    emitter.addComponent(emitterComponent);
+                    emitter.addComponent(new DirectionComponent(new Vector3(0f, 0f, 1f)));
+                    emitter.addComponent(new ChildComponent(car));
+                    AddEnityToSystem<ParticleEmitterSystem>(emitter);
+
                     nr++;
                 }
             }
@@ -282,23 +300,13 @@ namespace Dino_Engine.ECS
                 }
             }
             
-            for (int i = 0; i < 1; i++)
+            for (int i = 0; i < 8; i++)
             {
                 Entity roadCone = new Entity("roadCone");
                 roadCone.addComponent(new TransformationComponent(new Transformation(new Vector3(2 * i, 0f, 15f), new Vector3(0f, MathF.PI * 2f * MyMath.rng(), 0f), new Vector3(2))));
                 roadCone.addComponent(new FlatModelComponent(UrbanPropGenerator.GenerateStreetCone()));
                 AddEnityToSystem<ModelRenderSystem>(roadCone);
 
-
-                Entity emitter = new Entity("Particle Emitter");
-                emitter.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 2f, 0f), new Vector3(0f, 0f, 0f), new Vector3(1))));
-                //emitter.addComponent(new ChildComponent(roadCone));
-                var emitterComponent = new ParticleEmitterComponent();
-                emitterComponent.particleSpeed = 10f;
-                emitter.addComponent(emitterComponent);
-                emitter.addComponent(new DirectionComponent(new Vector3(0f, 1f, 0f)));
-
-                AddEnityToSystem<ParticleEmitterSystem>(emitter);
             }
 
             Entity sun = new Entity("Sun");

@@ -9,8 +9,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 {
     internal class SSAORenderer : Renderer
     {
-        private ShaderProgram ambientOcclusionShader = new ShaderProgram("Simple_Vertex", "AmbientOcclusion_Fragment");
-        private ShaderProgram ambientOcclusionBlurShader = new ShaderProgram("Simple_Vertex", "AmbientOcclusion_Blur_Fragment");
+        private ShaderProgram ambientOcclusionShader = new ShaderProgram("Simple.vert", "AmbientOcclusion.frag");
+        private ShaderProgram ambientOcclusionBlurShader = new ShaderProgram("Simple.vert", "AmbientOcclusion_Blur.frag");
 
         public int noiseScale = 4;
         private const int kernelSize = 32;

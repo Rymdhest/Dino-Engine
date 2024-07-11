@@ -16,7 +16,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     internal class PointLightRenderer : Renderer
     {
 
-        private ShaderProgram pointLightShader = new ShaderProgram("Point_Light_Vertex", "Point_Light_Fragment");
+        private ShaderProgram pointLightShader = new ShaderProgram("Point_Light.vert", "Point_Light.frag");
         public PointLightRenderer()
         {
             pointLightShader.bind();

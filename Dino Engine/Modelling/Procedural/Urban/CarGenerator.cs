@@ -1,5 +1,6 @@
 ﻿using Dino_Engine.Modelling.Model;
 using Dino_Engine.Util;
+using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
@@ -11,7 +12,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 {
     internal class CarGenerator
     {
-        public static Mesh GenerateCar(out Vector3 leftLightPos, out Vector3 rightLightPos)
+        public static Mesh GenerateCar(out Vector3 leftLightPos, out Vector3 rightLightPos, out Vector3 exhaustPos)
         {
             Vector3 rngColor = MyMath.rng3D();
 
@@ -31,6 +32,9 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             float wheelRadius = 0.25f;
             float wheelWidth = 0.2f;
             float botWheelIndent = 0.35f;
+
+            float exhaustLength = 0.1f;
+            float exhaustRadius = 0.05f;
 
             int topStart = 5;
 
@@ -147,8 +151,22 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             car += rear;
             car += front;
 
-            car.translate(new Vector3(0f, wheelRadius*2.0f- botWheelIndent, 0f));
 
+            exhaustPos = p12+ new Vector3(-p12.X * 0.5f, 0f, 0f);
+            List<Vector2> exhaustLayers = new List<Vector2>() {
+                new Vector2(exhaustRadius, 0),
+                new Vector2(exhaustRadius, exhaustLength)};
+            Mesh exhaust = MeshGenerator.generateCylinder(exhaustLayers, 8, detailMaterial, true);
+            
+            exhaust.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
+            exhaust.translate(exhaustPos);
+            exhaust.makeFlat(true, true);
+
+            car += exhaust;
+
+            car.translate(new Vector3(0f, wheelRadius * 2.0f - botWheelIndent, 0f));
+            exhaustPos += (new Vector3(0f, wheelRadius * 2.0f - botWheelIndent, 0f));
+            
             return car;
         }
     }

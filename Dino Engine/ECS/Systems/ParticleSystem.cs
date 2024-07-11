@@ -25,8 +25,9 @@ namespace Dino_Engine.ECS.Systems
         {
             float mix = 1f- entity.getComponent<SelfDestroyComponent>().getRemainingRatio();
 
-            Colour particleColourStart = new Colour(100, 40, 10, 0.3f, .03f);
-            Colour particleColourEnd = new Colour(45, 45, 45, 0.01f, 0.0f);
+            //Colour particleColourStart = new Colour(100, 40, 10, 0.3f, .03f);
+            Colour particleColourStart = new Colour(45, 45, 45, 0.01f, 1.0f);
+            Colour particleColourEnd = new Colour(0, 0, 0, 0.01f, 0.0f);
 
             Colour color = Colour.mix(particleColourStart, particleColourEnd, mix);
             entity.getComponent<ColourComponent>().Colour = color;

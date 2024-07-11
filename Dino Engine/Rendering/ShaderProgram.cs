@@ -130,7 +130,7 @@ namespace Dino_Engine.Rendering
 
         private int loadShader(string name, ShaderType type)
         {
-            string fullPath = _shaderFolderPath+"/" + name+".glsl";
+            string fullPath = _shaderFolderPath+"/" + name;
             int shaderID = GL.CreateShader(type);
 
             string fileString = "";
@@ -157,7 +157,7 @@ namespace Dino_Engine.Rendering
 
         private void extractAllUniformsToDictionary(string fileName)
         {
-            string fullPath = _shaderFolderPath + "/" + fileName + ".glsl";
+            string fullPath = _shaderFolderPath + "/" + fileName;
             try
             {
                 foreach (string line in File.ReadLines(fullPath))
@@ -177,12 +177,12 @@ namespace Dino_Engine.Rendering
                                 variableName = variableWords[0];
                                 for (int i = 0; i < arraySize; i++)
                                 {
-                                    loadUniform(variableName + "[" + i + "]", fileName);
+                                    loadUniform(variableName + "[" + i + "]");
                                 }
                             }
                             else
                             {
-                                loadUniform(variableName, fileName);
+                                loadUniform(variableName);
                             }
 
 
@@ -196,7 +196,7 @@ namespace Dino_Engine.Rendering
             }
 
         }
-        private void loadUniform(string variableName, string fileName)
+        private void loadUniform(string variableName)
         {
             if (!uniforms.ContainsKey(variableName))
             {

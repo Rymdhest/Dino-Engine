@@ -8,9 +8,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class BloomRenderer : Renderer
     {
-        private ShaderProgram downsamplingShader = new ShaderProgram("Simple_Vertex", "Downsampling_Fragment");
-        private ShaderProgram upsamplingShader = new ShaderProgram("Simple_Vertex", "Upsampling_Fragment");
-        private ShaderProgram bloomFilterShader = new ShaderProgram("Simple_Vertex", "bloom_Filter_Fragment");
+        private ShaderProgram downsamplingShader = new ShaderProgram("Simple.vert", "Downsampling.frag");
+        private ShaderProgram upsamplingShader = new ShaderProgram("Simple.vert", "Upsampling.frag");
+        private ShaderProgram bloomFilterShader = new ShaderProgram("Simple.vert", "bloom_Filter.frag");
         private const int downSamples = 9;
         public FrameBuffer[] sampleFramebuffers = new FrameBuffer[downSamples];
         internal BloomRenderer()

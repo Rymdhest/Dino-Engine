@@ -15,7 +15,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     internal class SpotLightRenderer : Renderer
     {
 
-        private ShaderProgram _spotLightShader = new ShaderProgram("Point_Light_Vertex", "Spot_Light_Fragment");
+        private ShaderProgram _spotLightShader = new ShaderProgram("Point_Light.vert", "Spot_Light.frag");
         public SpotLightRenderer()
         {
             _spotLightShader.bind();

@@ -5,7 +5,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class ToneMapRenderer : Renderer
     {
-        private ShaderProgram HDRMapShader = new ShaderProgram("Simple_Vertex", "HDR_Mapper_Fragment");
+        private ShaderProgram HDRMapShader = new ShaderProgram("Simple.vert", "HDR_Mapper.frag");
 
         public ToneMapRenderer()
         {

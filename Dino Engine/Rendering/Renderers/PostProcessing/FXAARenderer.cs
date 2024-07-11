@@ -5,7 +5,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class FXAARenderer : Renderer
     {
-        private ShaderProgram FXAAShader = new ShaderProgram("Simple_Vertex", "FXAA_Fragment");
+        private ShaderProgram FXAAShader = new ShaderProgram("Simple.vert", "FXAA.frag");
 
         public FXAARenderer()
         {

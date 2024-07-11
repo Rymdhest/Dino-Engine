@@ -9,7 +9,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class SkyRenderer : Renderer
     {
-        private ShaderProgram skyShader = new ShaderProgram("Simple_Vertex", "sky_Fragment");
+        private ShaderProgram skyShader = new ShaderProgram("Simple.vert", "sky.frag");
 
         public static Colour SkyColour = new Colour(0.2f, 0.5f, 0.99f, 1.0f);
         public static Colour HorizonColour = new Colour(0.9f, 0.5f, 0.39f, 1.0f);

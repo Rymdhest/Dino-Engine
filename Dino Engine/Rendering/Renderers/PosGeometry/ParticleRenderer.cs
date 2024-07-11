@@ -14,7 +14,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
     public class ParticleRenderer : Renderer
     {
 
-        private ShaderProgram flatShader = new ShaderProgram("Particle_Vertex", "Particle_Fragment");
+        private ShaderProgram flatShader = new ShaderProgram("Particle.vert", "Particle.frag");
 
 
         public void Render(ECSEngine eCSEngine, ScreenQuadRenderer renderer, FrameBuffer gBuffer)
