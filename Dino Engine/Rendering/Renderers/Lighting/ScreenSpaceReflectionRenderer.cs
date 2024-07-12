@@ -4,8 +4,10 @@ using OpenTK.Graphics.OpenGL;
 using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using Dino_Engine.Core;
+using Dino_Engine.Rendering.Renderers.PostProcessing;
+using Dino_Engine.Rendering.Renderers.PosGeometry;
 
-namespace Dino_Engine.Rendering.Renderers.PostProcessing
+namespace Dino_Engine.Rendering.Renderers.Lighting
 {
     internal class ScreenSpaceReflectionRenderer : Renderer
     {
@@ -29,7 +31,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             combineReflectionShader.loadUniformInt("gMaterials", 2);
             combineReflectionShader.unBind();
 
-            FrameBufferSettings settings = new FrameBufferSettings(Engine.Resolution/_downscalingFactor);
+            FrameBufferSettings settings = new FrameBufferSettings(Engine.Resolution / _downscalingFactor);
             DrawBufferSettings drawSettings = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
             drawSettings.formatInternal = PixelInternalFormat.Rgba16f;
             drawSettings.pixelType = PixelType.Float;
@@ -68,7 +70,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
 
- 
+
 
             ScreenSpaceReflectionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             ScreenSpaceReflectionShader.loadUniformVector3f("skyColor", SkyRenderer.SkyColour.ToVector3());
@@ -107,7 +109,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         public override void OnResize(ResizeEventArgs eventArgs)
         {
-            _reflectionFramebuffer.resize(eventArgs.Size/_downscalingFactor);
+            _reflectionFramebuffer.resize(eventArgs.Size / _downscalingFactor);
         }
 
         public override void Update()

@@ -5,7 +5,7 @@ using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using Dino_Engine.Core;
 
-namespace Dino_Engine.Rendering.Renderers.PostProcessing
+namespace Dino_Engine.Rendering.Renderers.PosGeometry
 {
     internal class SkyRenderer : Renderer
     {

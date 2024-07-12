@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL;
 using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using Dino_Engine.Core;
+using Dino_Engine.Rendering.Renderers.PosGeometry;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {

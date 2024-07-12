@@ -1,5 +1,6 @@
 ﻿using Dino_Engine.Modelling.Model;
 using Dino_Engine.Util;
+using Dino_Engine.Util.Data_Structures.Grids;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using System.Diagnostics;
@@ -9,7 +10,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
     public class TerrainMeshGenerator
     {
 
-        public static Mesh GridToMesh(Grid grid, out Vector3[,] normals)
+        public static Mesh GridToMesh(Grid<float> grid, out Vector3Grid normals)
         {
             Material material = Material.LEAF;
             List<Vector3> positions = new List<Vector3>();
@@ -86,14 +87,14 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
             }
 
-            normals = new Vector3[grid.Resolution.X,grid.Resolution.Y];
+            normals = new Vector3Grid(grid.Resolution);
             for (int z = 0; z < grid.Resolution.Y; z++)
             {
                 for (int x = 0; x < grid.Resolution.X; x++)
                 {
                     int i = z * grid.Resolution.X + x;
                     Vector3 normal = mesh.vertices[i].normal;
-                    normals[x, z] = normal;
+                    normals.Values[x, z] = normal;
                 }
             }
 

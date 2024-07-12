@@ -7,19 +7,19 @@ using Dino_Engine.Modelling.Model;
 
 namespace Dino_Engine.ECS
 {
-    internal class FlatModelComponent : Component
+    internal class ModelComponent : Component
     {
 
         private glModel _glModel;
         private bool _isCleanGLModel;
 
         public glModel GLModel { get => _glModel; set => _glModel = value; }
-        public FlatModelComponent(Mesh model, bool cleanGLModel = true)
+        public ModelComponent(Mesh model, bool cleanGLModel = true)
         {
             _glModel = glLoader.loadToVAO(model);
             _isCleanGLModel = cleanGLModel;
         }
-        public FlatModelComponent(glModel model, bool cleanGLModel = true)
+        public ModelComponent(glModel model, bool cleanGLModel = true)
         {
             _glModel = model;
             _isCleanGLModel = cleanGLModel;

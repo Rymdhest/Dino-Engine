@@ -1,4 +1,5 @@
 ﻿using Dino_Engine.Util.Data_Structures;
+using Dino_Engine.Util.Data_Structures.Grids;
 using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
@@ -23,7 +24,7 @@ namespace Dino_Engine.Util.Noise
         }
 
 
-        public List<Vector2> GeneratePoints(Grid noiseMap)
+        public List<Vector2> GeneratePoints(FloatGrid noiseMap)
         {
 
             List<Vector3> candidates = new List<Vector3>();

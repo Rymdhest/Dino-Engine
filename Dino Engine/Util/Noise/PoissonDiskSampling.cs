@@ -9,13 +9,13 @@ namespace Dino_Engine.Util.Noise
 {
     public class PoissonDiskSampling
     {
-        private Grid noiseMap;
+        private Grid<float> noiseMap;
         private float minDist;
         private int k = 30; // Maximum number of attempts before rejection
         private int retryLimit = 50000; // Global retry limit to prevent infinite loop
         private QuadTree quadtree;
 
-        public PoissonDiskSampling(Grid noiseMap, float minDist)
+        public PoissonDiskSampling(Grid<float> noiseMap, float minDist)
         {
             this.noiseMap = noiseMap;
             this.minDist = minDist;

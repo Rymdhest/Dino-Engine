@@ -7,7 +7,6 @@ using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Modelling.Procedural.Nature;
 using Dino_Engine.Modelling.Procedural.Terrain;
 using Dino_Engine.Modelling.Procedural.Urban;
-using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Util;
 using Dino_Engine.Util.Noise;
 using OpenTK.Mathematics;
@@ -18,6 +17,8 @@ using Dino_Engine.Rendering;
 using Dino_Engine.Debug;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using Dino_Engine.Rendering.Renderers.PosGeometry;
+using Dino_Engine.Util.Data_Structures.Grids;
 
 namespace Dino_Engine.ECS
 {
@@ -43,6 +44,7 @@ namespace Dino_Engine.ECS
             AddSystem<VelocitySystem>();
             AddSystem<ParticleEmitterSystem>();
             AddSystem<ParticleSystem>();
+            AddSystem<TerrainSystem>();
         }
 
         private void AddSystem<T>() where T : ComponentSystem, new()
@@ -68,38 +70,33 @@ namespace Dino_Engine.ECS
             TreeGenerator treeGenerator = new TreeGenerator();
 
             Entity groundPlane = new Entity("Terrain");
-            groundPlane.addComponent(new TransformationComponent(new Vector3(-300, -50.0f, -300f), new Vector3(0), new Vector3(1f)));
+            groundPlane.addComponent(new TransformationComponent(new Vector3(-100, -30.0f, -100), new Vector3(0), new Vector3(1f)));
 
             TerrainGridGenerator terrainGridGenerator = new TerrainGridGenerator();
 
             TaskTracker terrainGridTracker = Engine.PerformanceMonitor.startTask("terrain grid", true);
-            Grid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(300, 300));
+            FloatGrid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(200, 200));
+
             Engine.PerformanceMonitor.finishTask(terrainGridTracker, true);
 
             TaskTracker terrainMeshTracker = Engine.PerformanceMonitor.startTask("terrain mesh", true);
-            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGrid, out Vector3[,] terrainNormals);
+            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGrid, out Vector3Grid terrainNormals);
             Engine.PerformanceMonitor.finishTask(terrainMeshTracker, true);
 
 
-            TaskTracker steepnessTracker = Engine.PerformanceMonitor.startTask("terrain steepness map", true);
-            Grid terrainSteepnessMap = new Grid(terrainGrid.Resolution);
-            for (int z = 0; z < terrainSteepnessMap.Resolution.Y; z++)
-            {
-                for (int x = 0; x < terrainSteepnessMap.Resolution.X; x++)
-                {
-                    float value = Vector3.Dot(new Vector3(0f, 1f, 0f), terrainNormals[x, z]);
-                    terrainSteepnessMap.Values[x, z] =MyMath.clamp01(MathF.Pow(value, 1.5f));
-                }
-            }
-            Engine.PerformanceMonitor.finishTask(steepnessTracker, true);
+
 
             glModel groundModel = glLoader.loadToVAO(rawGround);
-            groundPlane.addComponent(new FlatModelComponent(groundModel));
+            groundPlane.addComponent(new ModelComponent(groundModel));
+            groundPlane.addComponent(new TerrainMapsComponent(terrainGrid, terrainNormals));
             AddEnityToSystem<ModelRenderSystem>(groundPlane);
+            AddEnityToSystem<TerrainSystem>(groundPlane);
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
 
-            Grid spawnGrid = new Grid(terrainGrid.Resolution);
+            FloatGrid spawnGrid = new FloatGrid(terrainGrid.Resolution);
+
+            FloatGrid terrainSteepnessMap = groundPlane.getComponent<TerrainMapsComponent>().steepnessMap;
 
             for (int z = 0; z < spawnGrid.Resolution.Y; z++)
             {
@@ -115,7 +112,7 @@ namespace Dino_Engine.ECS
                     spawnGrid.Values[x, z] = MyMath.clamp01( value* value);
                 }
             }
-            DebugRenderer.texture = terrainSteepnessMap.GenerateTexture();
+            DebugRenderer.texture = terrainSteepnessMap.GetTexture();
             //DebugRenderer.texture = spawnGrid.GenerateTexture();
 
             //PoissonDiskSampling poissonDiskSampling = new PoissonDiskSampling(terrainSteepnessMap, 300f);
@@ -139,7 +136,7 @@ namespace Dino_Engine.ECS
                 if (y < 0) continue;
                 if (y > 45) continue;
                 tree.addComponent(new TransformationComponent(new Vector3(spawn.X, y-0.1f, spawn.Y), new Vector3(0, MyMath.rng(MathF.PI*2f), 0f), new Vector3(0.5f+MyMath.rng(0.5f))));
-                tree.addComponent(new FlatModelComponent(mesh));
+                tree.addComponent(new ModelComponent(mesh));
                 AddEnityToSystem<ModelRenderSystem>(tree);
                 tree.addComponent(new ChildComponent(groundPlane));
                 tree.addComponent(new SelfDestroyComponent(1+MyMath.rng(2f)));
@@ -161,7 +158,7 @@ namespace Dino_Engine.ECS
                 scale += new Vector3(1f-terrainSteepnessMap.BilinearInterpolate(position.Xz))*1f;
 
                 rock.addComponent(new TransformationComponent(position, MyMath.rng3D(MathF.PI*2f), scale));
-                rock.addComponent(new FlatModelComponent(rockMesh));
+                rock.addComponent(new ModelComponent(rockMesh));
                 AddEnityToSystem<ModelRenderSystem>(rock);
                 rock.addComponent(new ChildComponent(groundPlane));
 
@@ -178,7 +175,7 @@ namespace Dino_Engine.ECS
                 {
                     Entity house = new Entity("House");
                     house.addComponent(new TransformationComponent(new Vector3(45+55*x, 0, 45+55f * z), new Vector3(0,MyMath.rand.Next(8)*MathF.PI/4,0f), new Vector3(2f)));
-                    house.addComponent(new FlatModelComponent(houseModel));
+                    house.addComponent(new ModelComponent(houseModel));
                     AddEnityToSystem<ModelRenderSystem>(house);
 
                     Entity rock = new Entity("rock");
@@ -186,7 +183,7 @@ namespace Dino_Engine.ECS
                     Mesh box2Rawmodel = MeshGenerator.generateBox(Modelling.Model.Material.ROCK);
                     box2Rawmodel.setMetalicness(0.05f);
                     glModel rockModel = glLoader.loadToVAO(box2Rawmodel);
-                    rock.addComponent(new FlatModelComponent(rockModel));
+                    rock.addComponent(new ModelComponent(rockModel));
                     rock.addComponent(new ChildComponent(house));
                     AddEnityToSystem<ModelRenderSystem>(rock);
                 }
@@ -196,7 +193,7 @@ namespace Dino_Engine.ECS
 
             Entity crossRoad = new Entity("crossroad");
             crossRoad.addComponent(new TransformationComponent(new Transformation()));
-            crossRoad.addComponent(new FlatModelComponent(streetGenerator.GenerateCrossRoad()));
+            crossRoad.addComponent(new ModelComponent(streetGenerator.GenerateCrossRoad()));
             AddEnityToSystem<ModelRenderSystem>(crossRoad);
 
             int nr = 0;
@@ -208,7 +205,7 @@ namespace Dino_Engine.ECS
                     float x = streetGenerator.laneWdith * j+streetGenerator.laneWdith*(0.5f+MyMath.rngMinusPlus(0.15f));
                     float z = 13f * i+MyMath.rngMinusPlus(4f);
                     car.addComponent(new TransformationComponent(new Transformation(new Vector3(x, 0f, z), new Vector3(0f, MyMath.rngMinusPlus(0.03f), 0f), new Vector3(1.7f+MyMath.rngMinusPlus(0.2f)))));
-                    car.addComponent(new FlatModelComponent(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight, out Vector3 exhaustPos)));
+                    car.addComponent(new ModelComponent(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight, out Vector3 exhaustPos)));
                     AddEnityToSystem<ModelRenderSystem>(car);
 
                     Entity carLightLeft = new Entity("car light left");
@@ -223,7 +220,7 @@ namespace Dino_Engine.ECS
                     carLightRight.addComponent(new AttunuationComponent(0.001f, 0.01f, 0.001f));
                     carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
                     carLightRight.addComponent(new ChildComponent(car));
-                    AddEnityToSystem<PointLightSystem>(carLightRight);
+                    AddEnityToSystem<SpotLightSystem>(carLightRight);
 
                     Entity emitter = new Entity("car exhaust Particle Emitter");
                     emitter.addComponent(new TransformationComponent(new Transformation(exhaustPos, new Vector3(0f, 0f, 0f), new Vector3(1))));
@@ -261,7 +258,7 @@ namespace Dino_Engine.ECS
                 Vector3 position = (new Vector4(0, 0f, streetGenerator.TotalWidth*0.5f, 1f)*MyMath.createRotationMatrix(new Vector3(0f, i * (MathF.PI / 2f), 0f))).Xyz;
                 Transformation transformation = new Transformation(position, new Vector3(0f, i * (MathF.PI / 2f), 0f), new Vector3(1));
                 street.addComponent(new TransformationComponent(transformation));
-                street.addComponent(new FlatModelComponent(streetModel));
+                street.addComponent(new ModelComponent(streetModel));
                 AddEnityToSystem<ModelRenderSystem>(street);
             }
 
@@ -273,7 +270,7 @@ namespace Dino_Engine.ECS
                 {
                     Entity streetLight = new Entity("Street Light" + i);
                     streetLight.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 50 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(1f, 1f, 1f)));
-                    streetLight.addComponent(new FlatModelComponent(UrbanPropGenerator.GenerateStreetLight(out Vector3 lightPosition)));
+                    streetLight.addComponent(new ModelComponent(UrbanPropGenerator.GenerateStreetLight(out Vector3 lightPosition)));
                     AddEnityToSystem<ModelRenderSystem>(streetLight);
 
                     Entity glow = new Entity("Street Light" + i + " glow");
@@ -286,7 +283,7 @@ namespace Dino_Engine.ECS
 
                     Entity streetTree = new Entity("Street tree" + i);
                     streetTree.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(15f)));
-                    streetTree.addComponent(new FlatModelComponent(treeGenerator.GenerateFractalTree(1)));
+                    streetTree.addComponent(new ModelComponent(treeGenerator.GenerateFractalTree(1)));
                     AddEnityToSystem<ModelRenderSystem>(streetTree);
                 }
             }
@@ -295,7 +292,7 @@ namespace Dino_Engine.ECS
             {
                 Entity roadCone = new Entity("roadCone");
                 roadCone.addComponent(new TransformationComponent(new Transformation(new Vector3(2 * i, 0f, 15f), new Vector3(0f, MathF.PI * 2f * MyMath.rng(), 0f), new Vector3(2))));
-                roadCone.addComponent(new FlatModelComponent(UrbanPropGenerator.GenerateStreetCone()));
+                roadCone.addComponent(new ModelComponent(UrbanPropGenerator.GenerateStreetCone()));
                 AddEnityToSystem<ModelRenderSystem>(roadCone);
 
             }

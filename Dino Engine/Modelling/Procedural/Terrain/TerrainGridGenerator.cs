@@ -1,4 +1,5 @@
 ﻿using Dino_Engine.Util;
+using Dino_Engine.Util.Data_Structures.Grids;
 using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
@@ -19,9 +20,9 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
         private OpenSimplexNoise noise = new OpenSimplexNoise();
 
-        public Grid generateChunk(Vector2i resolution)
+        public FloatGrid generateChunk(Vector2i resolution)
         {
-            Grid grid = new Grid(resolution);
+            FloatGrid grid = new FloatGrid(resolution);
 
             for (int z = 0; z < grid.Resolution.Y; z++)
             {

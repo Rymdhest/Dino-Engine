@@ -11,13 +11,13 @@ namespace Dino_Engine.ECS
         public ModelRenderSystem() : base()
         {
             addRequiredComponent<TransformationComponent>();
-            addRequiredComponent<FlatModelComponent>();
+            addRequiredComponent<ModelComponent>();
         } 
 
         public override void AddMember(Entity member)
         {
             base.AddMember(member);
-            glModel glModel = member.getComponent<FlatModelComponent>().GLModel;
+            glModel glModel = member.getComponent<ModelComponent>().GLModel;
             if (_modelsDictionary.ContainsKey(glModel)) {
                 _modelsDictionary[glModel].Add(member);
             } else
@@ -31,7 +31,7 @@ namespace Dino_Engine.ECS
         {
             base.RemoveMember(member);
 
-            glModel glmodel = member.getComponent<FlatModelComponent>().GLModel;
+            glModel glmodel = member.getComponent<ModelComponent>().GLModel;
             _modelsDictionary[glmodel].Remove(member);
 
             if (_modelsDictionary[glmodel].Count == 0)

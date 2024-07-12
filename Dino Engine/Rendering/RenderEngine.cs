@@ -21,7 +21,7 @@ namespace Dino_Engine.Rendering
         private FrameBuffer _gBuffer;
 
         private ScreenQuadRenderer _screenQuadRenderer;
-        private GeogemetryRenderer _flatGeogemetryRenderer;
+        private ModelRenderer _modelRenderer;
         private DirectionalLightRenderer _directionalLightRenderer;
         private PointLightRenderer _pointLightRenderer;
         private ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
@@ -35,6 +35,7 @@ namespace Dino_Engine.Rendering
         private GaussianBlurRenderer _gaussianBlurRenderer;
         private SpotLightRenderer _spotLightRenderer;
         private ParticleRenderer _particleRenderer;
+        private GrassRenderer _grassRenderer;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
         public bool debugView = false;
@@ -59,7 +60,7 @@ namespace Dino_Engine.Rendering
         public void InitRenderers()
         {
             _screenQuadRenderer = new ScreenQuadRenderer();
-            _flatGeogemetryRenderer = new GeogemetryRenderer();
+            _modelRenderer = new ModelRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
             _pointLightRenderer = new PointLightRenderer();
             _shadowCascadeMapRenderer = new ShadowCascadeMapRenderer();
@@ -74,6 +75,7 @@ namespace Dino_Engine.Rendering
             _spotLightRenderer = new SpotLightRenderer();
             _particleRenderer = new ParticleRenderer();
             _depthOfFieldRenderer = new DepthOfFieldRenderer();
+            _grassRenderer = new GrassRenderer();
         }
 
         private void InitGBuffer()
@@ -140,13 +142,23 @@ namespace Dino_Engine.Rendering
 
                 //_screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
 
-                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(1));
+                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(2));
             }
 
 
             FinishFrame();
         }
 
+
+
+        private void GeometryPass(ECSEngine eCSEngine)
+        {
+            _modelRenderer.RenderPass(eCSEngine, this);
+            _grassRenderer.RenderPass(eCSEngine, this);
+
+            _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
+            _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);
+        }
         private void LightPass(ECSEngine eCSEngine)
         {
             _sSAORenderer.RenderPass(eCSEngine, this);
@@ -158,21 +170,14 @@ namespace Dino_Engine.Rendering
             _directionalLightRenderer.RenderPass(eCSEngine, this);
             _pointLightRenderer.RenderPass(eCSEngine, this);
             _spotLightRenderer.RenderPass(eCSEngine, this);
+
+            _screenSpaceReflectionRenderer.RenderPass(eCSEngine, this);
         }
         private void PostGeometryPass(ECSEngine eCSEngine)
         {
-            _screenSpaceReflectionRenderer.RenderPass(eCSEngine, this);
             _skyRenderer.RenderPass(eCSEngine, this);
             _particleRenderer.RenderPass(eCSEngine, this);
         }
-        private void GeometryPass(ECSEngine eCSEngine)
-        {
-            _flatGeogemetryRenderer.RenderPass(eCSEngine, this);
-
-            _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
-            _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);
-        }
-
         private void PostProcessPass(ECSEngine eCSEngine)
         {
             _bloomRenderer.RenderPass(eCSEngine, this);

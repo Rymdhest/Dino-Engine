@@ -1,31 +1,22 @@
-﻿using Dino_Engine.Modelling.Model;
-using OpenTK.Mathematics;
+﻿using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL;
 
-namespace Dino_Engine.Util
+namespace Dino_Engine.Util.Data_Structures.Grids
 {
-    public class Grid
+    public class Vector4Grid : Grid<Vector4>
     {
-        private float[,] _grid;
-        private Vector2i _resolution;
-        public float[,] Values { get => _grid; set => _grid = value; }
-        public Vector2i Resolution { get => _resolution;}
-
-        private int texture = -1;
-
-        public Grid(Vector2i resolution)
+        public Vector4Grid(Vector2i resolution) : base(resolution)
         {
-            _grid = new float[resolution.X, resolution.Y];
-           _resolution = resolution;
         }
-        public float BilinearInterpolate(Vector2 p)
+
+        public override Vector4 BilinearInterpolate(Vector2 p)
         {
             int x1 = (int)Math.Floor(p.X);
             int x2 = x1 + 1;
             int y1 = (int)Math.Floor(p.Y);
             int y2 = y1 + 1;
 
-            x1 = Math.Clamp(x1, 0, Resolution.X-1);
+            x1 = Math.Clamp(x1, 0, Resolution.X - 1);
             x2 = Math.Clamp(x2, 0, Resolution.X - 1);
             y1 = Math.Clamp(y1, 0, Resolution.Y - 1);
             y2 = Math.Clamp(y2, 0, Resolution.Y - 1);
@@ -33,34 +24,34 @@ namespace Dino_Engine.Util
             float t_x = p.X - x1;
             float t_y = p.Y - y1;
 
-            float heightQ11 = _grid[x1, y1];
-            float heightQ12 = _grid[x2, y1];
-            float heightQ21 = _grid[x1, y2];
-            float heightQ22 = _grid[x2, y2];
+            Vector4 heightQ11 = Values[x1, y1];
+            Vector4 heightQ12 = Values[x2, y1];
+            Vector4 heightQ21 = Values[x1, y2];
+            Vector4 heightQ22 = Values[x2, y2];
 
             // Interpolate along the x-axis (bottom and top rows)
-            float interpolatedHeight1 = heightQ11 * (1 - t_x) + heightQ12 * t_x;
-            float interpolatedHeight2 = heightQ21 * (1 - t_x) + heightQ22 * t_x;
+            Vector4 interpolatedHeight1 = heightQ11 * (1 - t_x) + heightQ12 * t_x;
+            Vector4 interpolatedHeight2 = heightQ21 * (1 - t_x) + heightQ22 * t_x;
 
             // Interpolate along the y-axis (left and right columns)
-            float interpolatedHeight = interpolatedHeight1 * (1 - t_y) + interpolatedHeight2 * t_y;
+            Vector4 interpolatedHeight = interpolatedHeight1 * (1 - t_y) + interpolatedHeight2 * t_y;
 
             return interpolatedHeight;
         }
 
-        public int GenerateTexture()
+        protected override int GenerateTexture()
         {
-            
+
             var pixels = new float[4 * Resolution.X * Resolution.Y];
             for (int y = 0; y < Resolution.Y; y++)
             {
                 for (int x = 0; x < Resolution.X; x++)
                 {
                     int i = y * Resolution.Y + x;
-                    pixels[i * 4 + 0] = Values[x, y];
-                    pixels[i * 4 +1] = Values[x, y];
-                    pixels[i * 4 + 2] = Values[x, y];
-                    pixels[i * 4 + 3] = 1f;
+                    pixels[i * 4 + 0] = Values[x, y].X;
+                    pixels[i * 4 + 1] = Values[x, y].Y;
+                    pixels[i * 4 + 2] = Values[x, y].Z;
+                    pixels[i * 4 + 3] = Values[x, y].W;
                 }
             }
             int texture = GL.GenTexture();
@@ -72,19 +63,6 @@ namespace Dino_Engine.Util
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (float)TextureWrapMode.ClampToEdge);
 
             return texture;
-        }
-
-        public int GetTexture()
-        {
-            if (texture == -1)
-            {
-                texture = GenerateTexture();
-            }
-            return texture;
-        }
-        public void cleanUp()
-        {
-            GL.DeleteTexture(texture);
         }
     }
 }

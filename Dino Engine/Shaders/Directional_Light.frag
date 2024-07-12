@@ -112,7 +112,7 @@ void main(void){
     //color = pow(color, vec3(1.0/2.2));  
 	//lighting = applyFog(lighting, -position.z, -viewDir);
 	out_Colour = vec4(color, 1.0);
-	//out_Colour =  vec4(positionSunSpace.xyz, 1.0f);
+	//out_Colour =  vec4(vec3(sunFactor), 1.0f);
 	//out_Colour =  vec4(vec3(emission), 1.0f);
 	
 	
