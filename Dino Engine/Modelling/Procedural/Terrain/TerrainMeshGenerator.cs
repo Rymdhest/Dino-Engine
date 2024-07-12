@@ -55,7 +55,6 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             stopwatch.Start();
             mesh.calculateAllNormals();
             stopwatch.Stop();
-            Console.WriteLine($"\tgenerated terrain normals in {stopwatch.ElapsedMilliseconds} MS");
             //mesh.translate(new Vector3(-grid.Resolution.X/2f, 0f, -grid.Resolution.Y/2f));
 
             foreach(Vertex vertex in mesh.vertices)
@@ -100,10 +99,9 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
             stopwatch.Restart();
 
-            mesh.makeFlat(flatNormal: true, flatMaterial: false);
+            mesh.makeFlat(flatNormal: true, flatMaterial: true);
 
             stopwatch.Stop();
-            Console.WriteLine($"\tmade terrain flat in {stopwatch.ElapsedMilliseconds} MS");
 
             return mesh;
         }

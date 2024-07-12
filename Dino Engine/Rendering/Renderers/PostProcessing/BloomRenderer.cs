@@ -3,6 +3,7 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
 using System.Net.Mail;
+using Dino_Engine.ECS;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
@@ -49,8 +50,19 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             }
         }
 
-        public void Render(ScreenQuadRenderer renderer, FrameBuffer gBuffer)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            FrameBuffer gBuffer = renderEngine.GBuffer;
+            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+
             bloomFilterShader.bind();
             bloomFilterShader.loadUniformFloat("bloomStrength", 0.002f);
             GL.ActiveTexture(TextureUnit.Texture0);
@@ -137,5 +149,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         public override void Update()
         {
         }
+
+
     }
 }

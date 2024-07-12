@@ -24,16 +24,27 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         {
 
         }
-
-        public void render(ECSEngine eCSEngine)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
             GL.DepthMask(true);
             GL.Enable(EnableCap.DepthTest);
             GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.Blend);
             GL.Enable(EnableCap.PolygonOffsetFill);
-
             _shadowShader.bind();
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+
+            GL.Disable(EnableCap.PolygonOffsetFill);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+
             foreach (Entity directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {
                 if (directionalLight.TryGetComponent(out CascadingShadowComponent shadow))
@@ -61,12 +72,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                     }
                 }
             }
-
-
-            GL.Disable(EnableCap.PolygonOffsetFill);
-            GL.Enable(EnableCap.CullFace);
-            GL.CullFace(CullFaceMode.Back);
-            _shadowShader.unBind();
         }
 
         public override void OnResize(ResizeEventArgs eventArgs)
@@ -80,6 +85,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         {
             _shadowShader.cleanUp();
         }
+
 
     }
 }

@@ -24,25 +24,15 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _directionalLightShader.loadUniformInt("gMaterials", 3);
             _directionalLightShader.unBind();
         }
-        private void prepareFrame(ScreenQuadRenderer screenQuadRenderer)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            screenQuadRenderer.GetLastFrameBuffer().bind();
-            GL.Clear(ClearBufferMask.ColorBufferBit);
+            FrameBuffer gBuffer = renderEngine.GBuffer;
+
+            _directionalLightShader.bind();
+
             Enable(EnableCap.Blend);
             BlendFunc(BlendingFactor.One, BlendingFactor.One);
             BlendEquation(BlendEquationMode.FuncAdd);
-
-        }
-        public void render(ECSEngine eCSEngine, ScreenQuadRenderer screenQuadRenderer, FrameBuffer gBuffer)
-        {
-            prepareFrame(screenQuadRenderer);
-            DirectionalLightPass(eCSEngine, screenQuadRenderer, gBuffer);
-            finishFrame();
-        }
-        private void DirectionalLightPass(ECSEngine eCSEngine, ScreenQuadRenderer screenQuadRenderer, FrameBuffer gBuffer)
-        {
-            Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
-            _directionalLightShader.bind();
 
             ActiveTexture(TextureUnit.Texture0);
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
@@ -52,6 +42,15 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
             ActiveTexture(TextureUnit.Texture3);
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
+        }
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
 
 
             foreach (Entity entity in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
@@ -97,7 +96,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 _directionalLightShader.loadUniformFloat("ambientFactor", ambientFactor);
                 _directionalLightShader.loadUniformVector2f("resolution", Engine.Resolution);
 
-                screenQuadRenderer.Render(clearColor: false, blend: true);
+                renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
             }
         }
         public override void Update()
@@ -106,14 +105,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public override void OnResize(ResizeEventArgs eventArgs)
         {
         }
-        private void finishFrame()
-        {
-            BindVertexArray(0);
-            DisableVertexAttribArray(0);
-            DisableVertexAttribArray(1);
-            DisableVertexAttribArray(2);
-            DisableVertexAttribArray(3);
-        }
+
 
         public override void CleanUp()
         {

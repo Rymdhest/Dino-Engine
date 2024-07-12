@@ -4,10 +4,11 @@ using System.Collections.Generic;
 using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL;
 using Dino_Engine.Core;
+using Dino_Engine.ECS;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
-    internal class GaussianBlurRenderer : Renderer
+    public class GaussianBlurRenderer : Renderer
     {
         private ShaderProgram _gaussianBlurShader = new ShaderProgram("Gaussian_Blur.vert", "Gaussian_Blur.frag");
         private FrameBuffer _verticalFramebuffer;
@@ -96,6 +97,21 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         public override void Update()
         {
+        }
+
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            throw new NotImplementedException();
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            throw new NotImplementedException();
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            throw new NotImplementedException();
         }
     }
 }

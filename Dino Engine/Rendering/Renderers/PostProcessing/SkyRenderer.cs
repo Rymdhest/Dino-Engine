@@ -18,22 +18,32 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
 
         }
-
-        public void Render(ECSEngine eCSEngine, ScreenQuadRenderer renderer, FrameBuffer gBuffer)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            //renderer.getNextFrameBuffer().blitDepthBufferFrom(gBuffer);
-            //renderer.getLastFrameBuffer().blitDepthBufferFrom(gBuffer);
-            /*
-            skyShader.cleanUp();
-            skyShader = new ShaderProgram("Simple_Vertex", "sky_Fragment");
-            */
+            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+            skyShader.bind();
+            renderer.GetLastFrameBuffer().bind();
+            GL.DepthFunc(DepthFunction.Lequal);
 
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
+
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            GL.DepthFunc(DepthFunction.Less);
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+
+            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
             Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
             Vector3 viewPosition = eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.position;
 
 
-            skyShader.bind();
             skyShader.loadUniformVector3f("viewPositionWorld", viewPosition);
             skyShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
             skyShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
@@ -45,18 +55,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             skyShader.loadUniformVector3f("horizonColor", HorizonColour.ToVector3());
 
-            renderer.GetLastFrameBuffer().bind();
-
-            GL.DepthFunc(DepthFunction.Lequal);
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
 
             //GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             renderer.Render(depthTest: true, depthMask: false, blend: false, clearColor: false);
-            //renderer.stepToggle();
-            skyShader.unBind();
 
-            GL.DepthFunc(DepthFunction.Less);
         }
 
         public override void CleanUp()
@@ -72,5 +74,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
 
         }
+
+
     }
 }

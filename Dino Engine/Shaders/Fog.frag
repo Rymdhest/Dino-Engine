@@ -24,7 +24,7 @@ vec3 applyVolumetricFog( in vec3  col,  // color of pixel
                in vec3  ro,   // camera position
                in vec3  rd,// camera to point vector
                in float b,//density
-               in float a)  //height something
+               in float a)  //height decay
 {
 
     float fogAmount = (a/b) * exp(-ro.y*b) * (1.0-exp(-t*rd.y*b))/rd.y;
@@ -37,6 +37,16 @@ vec3 applySimpleFog( in vec3  col, float depth)
     return mix(col, fogColor, fogAmount);
 }
 
+vec3 applySimpleFog2( in vec3  col, float depth, float height)
+{
+    if (height < 0f) height = 0f;
+    float heightFactor = exp(heightFallOff*heightFallOff*height *-height);
+
+    float distanceFactor  = 1f -exp(-fogDensity *fogDensity*depth*depth);
+
+    float fogFactor =clamp( (heightFactor*distanceFactor), 0f, 1f);
+    return mix(col, fogColor, fogFactor);
+}
 
 float rand(in vec4 p) {
 	return fract(sin(p.x*1234. + p.y*2345. + p.z*3456. + p.w*4567.) * 5678.);
@@ -86,8 +96,8 @@ void main() {
 
     vec3 worldPosition = (vec4(viewPosition, 1.0)*inverseViewMatrix).xyz;
 
-    float noiseValue = noise( vec4(worldPosition.xyz*0.3, time*0.99f));
-	//out_Color.rgb = applyVolumetricFog(baseColor, length(viewPosition), cameraPosWorldSpace,normalize(worldPosition-cameraPosWorldSpace), fogDensity, heightFallOff-heightFallOff*noiseValue*noiseFactor);
-    out_Color.rgb = applySimpleFog(baseColor,depth -noiseValue*noiseFactor);
+    float noiseValue = noise( vec4(worldPosition.xyz*0.03, time*0.49f));
+	//out_Color.rgb = applyVolumetricFog(baseColor, length(viewPosition), cameraPosWorldSpace,normalize(worldPosition-cameraPosWorldSpace), fogDensity, heightFallOff);
+    out_Color.rgb = applySimpleFog2(baseColor,depth-noiseValue*depth*noiseFactor, worldPosition.y);
  
 }

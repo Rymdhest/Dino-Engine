@@ -5,6 +5,7 @@ using Dino_Engine.Modelling;
 using Dino_Engine.Core;
 using System;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.ECS;
 
 namespace Dino_Engine.Rendering.Renderers
 {
@@ -126,6 +127,21 @@ namespace Dino_Engine.Rendering.Renderers
             _buffer1.cleanUp();
             _buffer2.cleanUp();
             _quadModel.cleanUp();
+        }
+
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            throw new NotImplementedException();
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            throw new NotImplementedException();
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            throw new NotImplementedException();
         }
     }
 }

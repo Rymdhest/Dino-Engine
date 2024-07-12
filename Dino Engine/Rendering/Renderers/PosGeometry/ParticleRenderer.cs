@@ -17,14 +17,13 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private ShaderProgram flatShader = new ShaderProgram("Particle.vert", "Particle.frag");
 
 
-        public void Render(ECSEngine eCSEngine, ScreenQuadRenderer renderer, FrameBuffer gBuffer)
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            prepareFrame();
             Entity camera = eCSEngine.Camera;
             glModel glmodel = ModelGenerator.UNIT_SPHERE;
             Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
             Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
-            renderer.GetLastFrameBuffer();
+            renderEngine.ScreenQuadRenderer.GetLastFrameBuffer().bind();
             flatShader.bind();
             GL.BindVertexArray(glmodel.getVAOID());
             GL.EnableVertexAttribArray(0);
@@ -43,7 +42,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             }
         }
 
-        private void prepareFrame()
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
             GL.DepthMask(false);
             GL.Enable(EnableCap.DepthTest);
@@ -51,9 +50,12 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             GL.CullFace(CullFaceMode.Back);
             GL.Enable(EnableCap.Blend);
 
-            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            //GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);
             GL.BlendEquation(BlendEquationMode.FuncAdd);
+        }
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
         }
 
         public override void CleanUp()
@@ -68,5 +70,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         public override void Update()
         {
         }
+
+
     }
 }

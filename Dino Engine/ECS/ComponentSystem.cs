@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using Dino_Engine.Core;
+using System.Reflection;
 
 namespace Dino_Engine.ECS
 {
@@ -55,10 +56,12 @@ namespace Dino_Engine.ECS
         }
         public void Update()
         {
+            Engine.PerformanceMonitor.startTask(this.GetType().Name);
             for (int i = MemberEntities.Count - 1; i >= 0; i--)
             {
                 UpdateEntity(MemberEntities[i]);
             }
+            Engine.PerformanceMonitor.finishTask(this.GetType().Name);
         }
         public override string ToString()
         {

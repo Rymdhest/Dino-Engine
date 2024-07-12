@@ -27,28 +27,14 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             pointLightShader.unBind();
         }
 
-        public void Render(ECSEngine eCSEngine, ScreenQuadRenderer renderer, FrameBuffer gBuffer)
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            prepareFrame();
             Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
-            pointLightShader.bind();
-            ActiveTexture(TextureUnit.Texture0);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
-            ActiveTexture(TextureUnit.Texture1);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
-            ActiveTexture(TextureUnit.Texture2);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
-            ActiveTexture(TextureUnit.Texture3);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
-
-            renderer.GetLastFrameBuffer().bind();
 
             glModel model = ModelGenerator.UNIT_SPHERE;
             GL.BindVertexArray(model.getVAOID());
-            GL.EnableVertexAttribArray(0);
-            GL.EnableVertexAttribArray(1);
-            GL.EnableVertexAttribArray(2);
+            EnableVertexAttribArray(0);
 
             pointLightShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
             pointLightShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
@@ -74,16 +60,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 GL.DrawElements(PrimitiveType.Triangles, model.getVertexCount(), DrawElementsType.UnsignedInt, 0);
             }
 
-            finishFrame();
         }
-        private void prepareFrame()
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            EnableVertexAttribArray(0);
-            EnableVertexAttribArray(1);
-            EnableVertexAttribArray(2);
-            EnableVertexAttribArray(3);
+            FrameBuffer gBuffer = renderEngine.GBuffer;
+            pointLightShader.bind();
 
-           //GL.Disable(EnableCap.CullFace);
            GL.Enable(EnableCap.CullFace);
            GL.CullFace(CullFaceMode.Front);
 
@@ -95,18 +77,22 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.Enable(EnableCap.DepthTest);
             GL.DepthMask(false);
 
+            ActiveTexture(TextureUnit.Texture0);
+            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
+            ActiveTexture(TextureUnit.Texture1);
+            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
+            ActiveTexture(TextureUnit.Texture2);
+            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
+            ActiveTexture(TextureUnit.Texture3);
+            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
         }
 
-        private void finishFrame()
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
             BindVertexArray(0);
             DisableVertexAttribArray(0);
-            DisableVertexAttribArray(1);
-            DisableVertexAttribArray(2);
-            DisableVertexAttribArray(3);
 
             GL.DepthFunc(DepthFunction.Less);
-            pointLightShader.unBind();
             GL.CullFace(CullFaceMode.Back);
         }
 

@@ -1,4 +1,5 @@
 ﻿using Dino_Engine.Core;
+using Dino_Engine.ECS;
 using OpenTK.Windowing.Common;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
@@ -14,10 +15,20 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             FXAAShader.unBind();
         }
 
-        public void Render(ScreenQuadRenderer renderer)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            FXAAShader.bind();
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
 
-            FXAAShader.bind();
+            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+
 
             FXAAShader.loadUniformVector2f("win_size", Engine.Resolution);
             FXAAShader.loadUniformFloat("reduceMin", 128.0f);
@@ -42,5 +53,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             FXAAShader.cleanUp();
         }
+
     }
 }

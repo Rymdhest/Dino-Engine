@@ -35,9 +35,16 @@ namespace Dino_Engine.Rendering
         private GaussianBlurRenderer _gaussianBlurRenderer;
         private SpotLightRenderer _spotLightRenderer;
         private ParticleRenderer _particleRenderer;
+        private DepthOfFieldRenderer _depthOfFieldRenderer;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
         public bool debugView = false;
         private ShaderProgram _simpleShader;
+
+
+        public GaussianBlurRenderer GaussianBlurRenderer { get => _gaussianBlurRenderer;  }
+        public FrameBuffer GBuffer { get => _gBuffer; }
+        public ScreenQuadRenderer ScreenQuadRenderer { get => _screenQuadRenderer; }
+
         public RenderEngine()
         {
             InitGBuffer();
@@ -66,6 +73,7 @@ namespace Dino_Engine.Rendering
             _gaussianBlurRenderer = new GaussianBlurRenderer();
             _spotLightRenderer = new SpotLightRenderer();
             _particleRenderer = new ParticleRenderer();
+            _depthOfFieldRenderer = new DepthOfFieldRenderer();
         }
 
         private void InitGBuffer()
@@ -128,9 +136,11 @@ namespace Dino_Engine.Rendering
 
                 _simpleShader.bind();
 
-                _screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
+                _screenQuadRenderer.GetLastFrameBuffer().resolveToScreen();
 
-                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(0));
+                //_screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
+
+                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(1));
             }
 
 
@@ -139,39 +149,43 @@ namespace Dino_Engine.Rendering
 
         private void LightPass(ECSEngine eCSEngine)
         {
-            _sSAORenderer.Render(_screenQuadRenderer,_gBuffer, eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix);
-            _shadowCascadeMapRenderer.render(eCSEngine);
-            _directionalLightRenderer.render(eCSEngine, _screenQuadRenderer, _gBuffer);
-            _pointLightRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
-            _spotLightRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
+            _sSAORenderer.RenderPass(eCSEngine, this);
+            _shadowCascadeMapRenderer.RenderPass(eCSEngine, this);
+
+            ScreenQuadRenderer.GetLastFrameBuffer().bind();
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+
+            _directionalLightRenderer.RenderPass(eCSEngine, this);
+            _pointLightRenderer.RenderPass(eCSEngine, this);
+            _spotLightRenderer.RenderPass(eCSEngine, this);
         }
         private void PostGeometryPass(ECSEngine eCSEngine)
         {
-            _screenSpaceReflectionRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer, _gaussianBlurRenderer);
-            _skyRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
-            _particleRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
+            _screenSpaceReflectionRenderer.RenderPass(eCSEngine, this);
+            _skyRenderer.RenderPass(eCSEngine, this);
+            _particleRenderer.RenderPass(eCSEngine, this);
         }
         private void GeometryPass(ECSEngine eCSEngine)
         {
-            _gBuffer.bind();
-            _flatGeogemetryRenderer.render(eCSEngine.getSystem<ModelRenderSystem>(), eCSEngine.Camera);
+            _flatGeogemetryRenderer.RenderPass(eCSEngine, this);
+
             _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
             _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);
         }
 
         private void PostProcessPass(ECSEngine eCSEngine)
         {
-            _bloomRenderer.Render(_screenQuadRenderer, _gBuffer);
-            _fogRenderer.Render(eCSEngine, _screenQuadRenderer, _gBuffer);
-            _toneMapRenderer.Render(_screenQuadRenderer);
-            _fXAARenderer.Render(_screenQuadRenderer);
+            _bloomRenderer.RenderPass(eCSEngine, this);
+            _fogRenderer.RenderPass(eCSEngine, this);
+            _toneMapRenderer.RenderPass(eCSEngine, this);
+            //_depthOfFieldRenderer.RenderPass(eCSEngine, this);
+            _fXAARenderer.RenderPass(eCSEngine, this);
         }
 
         private void PrepareFrame()
         {
             _screenQuadRenderer.clearBothBuffers();
         }
-
 
 
         private void FinishFrame()

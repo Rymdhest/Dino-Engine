@@ -19,17 +19,28 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             fogShader.unBind();
         }
 
-        public void Render(ECSEngine eCSEngine ,ScreenQuadRenderer renderer, FrameBuffer gBuffer)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
+            fogShader.bind();
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+            FrameBuffer gBuffer = renderEngine.GBuffer;
+
             Vector3 cameraPos = eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.position;
             Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 inverseView = Matrix4.Invert(viewMatrix);
 
-            fogShader.bind();
 
-            fogShader.loadUniformFloat("fogDensity", 0.0017f);
-            fogShader.loadUniformFloat("heightFallOff", 1000.04075f);
-            fogShader.loadUniformFloat("noiseFactor", 30.09f);
+            fogShader.loadUniformFloat("fogDensity", 0.00637f);
+            fogShader.loadUniformFloat("heightFallOff", 0.00675f);
+            fogShader.loadUniformFloat("noiseFactor", 0.9f);
             fogShader.loadUniformVector3f("fogColor", SkyRenderer.SkyColour.ToVector3());
 
             fogShader.loadUniformVector3f("cameraPosWorldSpace", cameraPos);
@@ -42,7 +53,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
             renderer.RenderToNextFrameBuffer();
 
-            fogShader.unBind();
         }
 
 
@@ -59,5 +69,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             time += Engine.Delta;
         }
+
+
     }
 }

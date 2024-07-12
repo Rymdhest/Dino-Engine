@@ -39,9 +39,21 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             settings.drawBuffers.Add(drawSettings);
             _reflectionFramebuffer = new FrameBuffer(settings);
         }
-
-        public void Render(ECSEngine eCSEngine, ScreenQuadRenderer renderer, FrameBuffer gBuffer, GaussianBlurRenderer gaussianBlurRenderer)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+
+            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+            FrameBuffer gBuffer = renderEngine.GBuffer;
+            GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
+
             Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
 
             ScreenSpaceReflectionShader.bind();
@@ -102,5 +114,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
 
         }
+
+
     }
 }

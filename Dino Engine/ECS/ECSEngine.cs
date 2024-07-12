@@ -52,7 +52,7 @@ namespace Dino_Engine.ECS
 
         public void InitEntities()
         {
-            Stopwatch timer = new Stopwatch();
+            Engine.PerformanceMonitor.clear();
 
             if (_camera == null)
             {
@@ -72,37 +72,26 @@ namespace Dino_Engine.ECS
 
             TerrainGridGenerator terrainGridGenerator = new TerrainGridGenerator();
 
-            timer.Restart();
+            TaskTracker terrainGridTracker = Engine.PerformanceMonitor.startTask("terrain grid", true);
             Grid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(300, 300));
-            timer.Stop();
-            Console.WriteLine($"generated terrain chunk in {timer.ElapsedMilliseconds} MS");
-            timer.Restart();
-            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGrid, out Vector3[,] terrainNormals);
-            timer.Stop();
-            Console.WriteLine($"generated terrain mesh in {timer.ElapsedMilliseconds} MS");
+            Engine.PerformanceMonitor.finishTask(terrainGridTracker, true);
 
-            timer.Restart();
+            TaskTracker terrainMeshTracker = Engine.PerformanceMonitor.startTask("terrain mesh", true);
+            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGrid, out Vector3[,] terrainNormals);
+            Engine.PerformanceMonitor.finishTask(terrainMeshTracker, true);
+
+
+            TaskTracker steepnessTracker = Engine.PerformanceMonitor.startTask("terrain steepness map", true);
             Grid terrainSteepnessMap = new Grid(terrainGrid.Resolution);
             for (int z = 0; z < terrainSteepnessMap.Resolution.Y; z++)
             {
                 for (int x = 0; x < terrainSteepnessMap.Resolution.X; x++)
                 {
                     float value = Vector3.Dot(new Vector3(0f, 1f, 0f), terrainNormals[x, z]);
-
-
                     terrainSteepnessMap.Values[x, z] =MyMath.clamp01(MathF.Pow(value, 1.5f));
-
-                    /*
-                    Mesh boxModel = MeshGenerator.generateBox(new Modelling.Model.Material(new Colour(1f-terrainSteepnessMap.Values[x, z],  terrainSteepnessMap.Values[x, z], 0f), 0f, 1f, 0f));
-                    Entity box = new Entity("box");
-                    box.addComponent(new TransformationComponent(new Vector3(x, 40+ terrainSteepnessMap.Values[x, z]*10f, z), new Vector3(0,0, 0f), new Vector3(0.5f)));
-                    box.addComponent(new FlatModelComponent(boxModel));
-                    AddEnityToSystem<FlatModelSystem>(box);
-                    */
                 }
             }
-            timer.Stop();
-            Console.WriteLine($"generated terrain steepness map {timer.ElapsedMilliseconds} MS");
+            Engine.PerformanceMonitor.finishTask(steepnessTracker, true);
 
             glModel groundModel = glLoader.loadToVAO(rawGround);
             groundPlane.addComponent(new FlatModelComponent(groundModel));
@@ -133,15 +122,16 @@ namespace Dino_Engine.ECS
 
             BetterNoiseSampling betterNoiseSampling = new BetterNoiseSampling(terrainGrid.Resolution);
 
-            timer.Restart();
+            TaskTracker noiseTracker = Engine.PerformanceMonitor.startTask("noise sampling", true);
             //List<Vector2> spawnPoints = poissonDiskSampling.GeneratePoints();
             List<Vector2> spawnPoints = betterNoiseSampling.GeneratePoints(spawnGrid);
-            timer.Stop();
-            Console.WriteLine($"generated {spawnPoints.Count} trees in {timer.ElapsedMilliseconds} MS");
+            Engine.PerformanceMonitor.finishTask(noiseTracker, true);
+
             Mesh mesh = treeGenerator.GenerateFractalTree(1);
             mesh.makeFlat(true, true);
             mesh.scale(new Vector3(8f));
-            
+
+            TaskTracker placingTracker = Engine.PerformanceMonitor.startTask("placing trees and rocks", true);
             foreach (Vector2 spawn in spawnPoints)
             {
                 Entity tree = new Entity("tree");
@@ -177,6 +167,7 @@ namespace Dino_Engine.ECS
 
                 RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
             }
+            Engine.PerformanceMonitor.finishTask(placingTracker, true);
 
 
             glModel houseModel = ModelGenerator.GenerateHouse();
@@ -232,7 +223,7 @@ namespace Dino_Engine.ECS
                     carLightRight.addComponent(new AttunuationComponent(0.001f, 0.01f, 0.001f));
                     carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
                     carLightRight.addComponent(new ChildComponent(car));
-                    AddEnityToSystem<SpotLightSystem>(carLightRight);
+                    AddEnityToSystem<PointLightSystem>(carLightRight);
 
                     Entity emitter = new Entity("car exhaust Particle Emitter");
                     emitter.addComponent(new TransformationComponent(new Transformation(exhaustPos, new Vector3(0f, 0f, 0f), new Vector3(1))));
@@ -327,7 +318,8 @@ namespace Dino_Engine.ECS
             sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 2, 4, 4000));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
-
+            Engine.PerformanceMonitor.StatusReportDump();
+            Engine.PerformanceMonitor.clear();
         }
         public bool AddEnityToSystem<T>(Entity entity) where T : ComponentSystem
         {
@@ -415,6 +407,11 @@ namespace Dino_Engine.ECS
                 {
                     Console.WriteLine(entity.GetFullInformationString());
                 }
+            }
+
+            if (windowHandler.IsKeyPressed(Keys.F12))
+            {
+                Engine.PerformanceMonitor.StatusReportDump();
             }
 
             transformationComponent.Transformation = transformation;

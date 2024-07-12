@@ -15,8 +15,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         public GeogemetryRenderer()
         {
         }
-        private void prepareFrame(Matrix4 viewMatrix, Matrix4 projectionMatrix)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
+            renderEngine.GBuffer.bind();
             GL.DepthMask(true);
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
@@ -24,23 +25,24 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-        }
-        public void render(ModelRenderSystem flatShadeEntities, Entity camera)
-        {
-            Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
-            Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
-            prepareFrame(viewMatrix, projectionMatrix);
             flatShader.bind();
 
-            foreach (KeyValuePair<glModel, List<Entity>> glmodels in flatShadeEntities.ModelsDictionary)
+        }
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            Entity camera = eCSEngine.Camera;
+            Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
+            Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
+
+            foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<ModelRenderSystem>().ModelsDictionary)
             {
                 glModel glmodel = glmodels.Key;
 
-                GL.BindVertexArray(glmodel.getVAOID());
                 GL.EnableVertexAttribArray(0);
                 GL.EnableVertexAttribArray(1);
                 GL.EnableVertexAttribArray(2);
                 GL.EnableVertexAttribArray(3);
+                GL.BindVertexArray(glmodel.getVAOID());
                 foreach (Entity entity in glmodels.Value)
                 {
                     Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
@@ -52,8 +54,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                     GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
                 }
             }
-            flatShader.unBind();
-            finishFrame();
         }
         public override void Update()
         {
@@ -61,7 +61,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         public override void OnResize(ResizeEventArgs eventArgs)
         {
         }
-        private void finishFrame()
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
             GL.BindVertexArray(0);
             GL.DisableVertexAttribArray(0);

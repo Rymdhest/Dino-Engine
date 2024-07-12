@@ -1,4 +1,5 @@
 ﻿using Dino_Engine.Core;
+using Dino_Engine.ECS;
 using OpenTK.Windowing.Common;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
@@ -13,10 +14,18 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             HDRMapShader.loadUniformInt("HDRcolorTexture", 0);
             HDRMapShader.unBind();
         }
-
-        public void Render(ScreenQuadRenderer renderer)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
             HDRMapShader.bind();
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
 
             HDRMapShader.loadUniformVector2f("resolution", Engine.Resolution);
 
@@ -44,5 +53,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             HDRMapShader.cleanUp();
         }
+
+
     }
 }

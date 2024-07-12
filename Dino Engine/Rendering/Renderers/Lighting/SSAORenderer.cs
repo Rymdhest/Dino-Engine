@@ -4,6 +4,7 @@ using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
 using System.Net.Mail;
 using Dino_Engine.Core;
+using Dino_Engine.ECS;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -57,10 +58,20 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (float)TextureWrapMode.Repeat);
 
         }
-
-        public void Render(ScreenQuadRenderer renderer, FrameBuffer gBuffer, Matrix4 projectionMatrix)
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+        }
+
+        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+            FrameBuffer gBuffer = renderEngine.GBuffer;
+            Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
             Vector2i resolution = Engine.Resolution;
+
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
             ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
@@ -77,21 +88,21 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ActiveTexture(TextureUnit.Texture2);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
 
-            renderer.RenderToNextFrameBuffer();
+            renderEngine.ScreenQuadRenderer.RenderToNextFrameBuffer();
 
             ambientOcclusionShader.unBind();
 
 
             ambientOcclusionBlurShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine.ScreenQuadRenderer.GetLastOutputTexture());
 
             gBuffer.bind();
             GL.ColorMask(0, false, false, false, true);
             GL.ColorMask(1, false, false, false, false);
             GL.ColorMask(2, false, false, false, false);
             GL.ColorMask(3, false, false, false, false);
-            renderer.Render();
+            renderEngine.ScreenQuadRenderer.Render();
             GL.ColorMask(0, true, true, true, true);
             GL.ColorMask(1, true, true, true, true);
             GL.ColorMask(2, true, true, true, true);
@@ -113,5 +124,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public override void Update()
         {
         }
+
+
     }
 }
