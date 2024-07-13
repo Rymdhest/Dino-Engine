@@ -150,7 +150,7 @@ namespace Dino_Defenders
         {
 
             TreeGenerator treeGenerator = new TreeGenerator(); Entity groundPlane = new Entity("Terrain");
-            groundPlane.addComponent(new TransformationComponent(new Vector3(0, 0.0f, 0), new Vector3(0), new Vector3(1f)));
+            groundPlane.addComponent(new TransformationComponent(new Vector3(100, 0.0f, -100), new Vector3(0), new Vector3(1f)));
 
             TerrainGridGenerator terrainGridGenerator = new TerrainGridGenerator();
 
@@ -241,9 +241,10 @@ namespace Dino_Defenders
 
                 rock.addComponent(new TransformationComponent(position, MyMath.rng3D(MathF.PI * 2f), scale));
                 rock.addComponent(new ModelComponent(rockMesh));
-                eCSEngine.AddEnityToSystem<ModelRenderSystem>(rock);
                 rock.addComponent(new ChildComponent(groundPlane));
-
+                rock.addComponent(new CollisionComponent(new SphereHitbox(scale.X)));
+                eCSEngine.AddEnityToSystem<ModelRenderSystem>(rock);
+                eCSEngine.AddEnityToSystem<CollidableSystem>(rock);
                 RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
             }
             Engine.PerformanceMonitor.finishTask(placingTracker, true);

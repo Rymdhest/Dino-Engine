@@ -11,7 +11,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
     {
         private ShaderProgram skyShader = new ShaderProgram("Simple.vert", "sky.frag");
 
-        public static Colour SkyColour = new Colour(0.2f, 0.5f, 0.99f, 1.0f);
+        public static Colour SkyColour = new Colour(0.21f, 0.43f, 0.99f, 8.0f);
         public static Colour HorizonColour = new Colour(0.9f, 0.5f, 0.39f, 1.0f);
 
         public SkyRenderer()
@@ -72,7 +72,6 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
         public override void Update()
         {
-
         }
 
 

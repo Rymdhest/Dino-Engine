@@ -33,5 +33,10 @@ namespace Dino_Engine.Util
         {
             GL.DeleteTexture(texture);
         }
+        public bool Contains(Vector2 point)
+        {
+            if (point.X >= 0f && point.Y >= 0f && point.X < Resolution.X-1f && point.Y < Resolution.Y-1f) return true;
+            else return false;
+        }
     }
 }

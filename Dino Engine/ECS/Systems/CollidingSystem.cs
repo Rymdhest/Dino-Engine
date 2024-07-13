@@ -5,6 +5,7 @@ using Dino_Engine.Util;
 using Dino_Engine.Util.Data_Structures.Grids;
 using System;
 using OpenTK.Mathematics;
+using System.Text;
 
 namespace Dino_Engine.ECS.Systems
 {
@@ -20,9 +21,14 @@ namespace Dino_Engine.ECS.Systems
         {
             foreach(Entity other in Engine.Instance.ECSEngine.getSystem<CollidableSystem>().MemberEntities)
             {
-                if (TryCollide(entity, other, out Vector3 collisionPosition, out Vector3 collisionNormal))
+                if (entity != other)
                 {
-                    entity.getComponent<CollisionEventComponent>().onCollision(other, collisionPosition, collisionNormal);
+                    if (TryCollide(entity, other, out Vector3 collisionPosition, out Vector3 collisionNormal))
+                    {
+
+                        entity.getComponent<CollisionEventComponent>().onCollision(other, collisionPosition, collisionNormal);
+                        return;
+                    }
                 }
             }
 
@@ -36,25 +42,51 @@ namespace Dino_Engine.ECS.Systems
             if (entityType == typeof(SphereHitbox) && otherType == typeof(TerrainHitBox))
             {
                 return TrySphereTerrainCollision(entity, other, out collisionPosition, out collisionNormal);
-            } else
+            }
+            else if (entityType == typeof(SphereHitbox) && otherType == typeof(SphereHitbox))
+            {
+                return TrySphereSphereCollision(entity, other, out collisionPosition, out collisionNormal);
+            }
+            else
             {
                 throw new Exception($"Tried perform collision case that is not implemented ({entityType.Name} + {otherType.Name})");
             }
         }
-
-        private bool TrySphereTerrainCollision(Entity sphere, Entity terrain, out Vector3 collisionPosition, out Vector3 collisionNormal)
+        private bool TrySphereSphereCollision(Entity sphereA, Entity sphereB, out Vector3 collisionPosition, out Vector3 collisionNormal)
         {
             collisionPosition = Vector3.Zero;
             collisionNormal = Vector3.Zero;
 
-            // Get sphere radius
+            float sphereARadius = ((SphereHitbox)sphereA.getComponent<CollisionComponent>().HitBox).Radius;
+            float sphereBRadius = ((SphereHitbox)sphereB.getComponent<CollisionComponent>().HitBox).Radius;
+
+
+            Vector3 sphereAPosition = sphereA.getComponent<TransformationComponent>().Transformation.position;
+            Vector3 sphereBPosition = sphereB.getComponent<TransformationComponent>().Transformation.position;
+
+            float dist = Vector3.Distance(sphereAPosition, sphereBPosition);
+            float minDist = sphereARadius + sphereBRadius;
+            if (dist <= minDist)
+            {
+                collisionNormal = Vector3.Normalize(sphereAPosition - sphereBPosition);
+                collisionPosition = sphereAPosition + collisionNormal * (sphereARadius - (minDist - dist) / 2);
+
+                return true;
+            }
+            return false;
+        }
+            private bool TrySphereTerrainCollision(Entity sphere, Entity terrain, out Vector3 collisionPosition, out Vector3 collisionNormal)
+        {
+            collisionPosition = Vector3.Zero;
+            collisionNormal = Vector3.Zero;
+
             float sphereRadius = ((SphereHitbox)sphere.getComponent<CollisionComponent>().HitBox).Radius;
 
             // Transfer sphere to terrain space
             Transformation terrainTransform = terrain.getComponent<TransformationComponent>().Transformation;
             Transformation sphereTransform = sphere.getComponent<TransformationComponent>().Transformation;
+            sphereTransform.translate(-terrainTransform.position);
 
-            // Get height map and normal map
             FloatGrid heightMap = terrain.getComponent<TerrainMapsComponent>().heightMap;
             Vector3Grid normalMap = terrain.getComponent<TerrainMapsComponent>().normalMap;
 
@@ -74,26 +106,22 @@ namespace Dino_Engine.ECS.Systems
 
             foreach (Vector3 samplePoint in samplePoints)
             {
-                // Get the terrain height at the sample point's XZ plane
+                if (!heightMap.Contains(samplePoint.Xz))
+                {
+                    continue;
+                }
                 float terrainHeight = heightMap.BilinearInterpolate(samplePoint.Xz);
 
-                // Calculate the vertical distance from the sample point to the terrain height
                 float distanceToTerrain = samplePoint.Y - terrainHeight;
 
-                // Check if the sphere intersects with the terrain at this sample point
                 if (distanceToTerrain <= 0)
                 {
-                    // Calculate the collision position and normal
-                    collisionPosition = samplePoint;
+                    collisionPosition = samplePoint+terrainTransform.position;
                     collisionNormal = normalMap.BilinearInterpolate(samplePoint.Xz);
-
-                    // Normalize the normal vector
                     collisionNormal.Normalize();
-
                     return true;
                 }
             }
-
             return false;
         }
 

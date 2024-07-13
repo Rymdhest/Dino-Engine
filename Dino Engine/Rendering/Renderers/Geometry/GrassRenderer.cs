@@ -69,7 +69,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
             time += Engine.Delta;
-            float spacing = .8f;
+            float spacing = .6f;
 
             _grassShader.bind();
             GL.BindVertexArray(grassBlade.getVAOID());
