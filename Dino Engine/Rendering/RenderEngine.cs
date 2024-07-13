@@ -22,6 +22,7 @@ namespace Dino_Engine.Rendering
 
         private ScreenQuadRenderer _screenQuadRenderer;
         private ModelRenderer _modelRenderer;
+        private InstancedModelRenderer _instancedModelRenderer;
         private DirectionalLightRenderer _directionalLightRenderer;
         private PointLightRenderer _pointLightRenderer;
         private ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
@@ -61,6 +62,7 @@ namespace Dino_Engine.Rendering
         {
             _screenQuadRenderer = new ScreenQuadRenderer();
             _modelRenderer = new ModelRenderer();
+            _instancedModelRenderer = new InstancedModelRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
             _pointLightRenderer = new PointLightRenderer();
             _shadowCascadeMapRenderer = new ShadowCascadeMapRenderer();
@@ -153,7 +155,13 @@ namespace Dino_Engine.Rendering
 
         private void GeometryPass(ECSEngine eCSEngine)
         {
+            GBuffer.bind();
+            GL.DepthMask(true);
+            GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
             _modelRenderer.RenderPass(eCSEngine, this);
+            _instancedModelRenderer.RenderPass(eCSEngine, this);
             _grassRenderer.RenderPass(eCSEngine, this);
 
             _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
@@ -162,7 +170,7 @@ namespace Dino_Engine.Rendering
         private void LightPass(ECSEngine eCSEngine)
         {
             _sSAORenderer.RenderPass(eCSEngine, this);
-            _shadowCascadeMapRenderer.RenderPass(eCSEngine, this);
+            //_shadowCascadeMapRenderer.RenderPass(eCSEngine, this);
 
             ScreenQuadRenderer.GetLastFrameBuffer().bind();
             GL.Clear(ClearBufferMask.ColorBufferBit);
@@ -181,7 +189,7 @@ namespace Dino_Engine.Rendering
         private void PostProcessPass(ECSEngine eCSEngine)
         {
             _bloomRenderer.RenderPass(eCSEngine, this);
-            _fogRenderer.RenderPass(eCSEngine, this);
+            //_fogRenderer.RenderPass(eCSEngine, this);
             _toneMapRenderer.RenderPass(eCSEngine, this);
             //_depthOfFieldRenderer.RenderPass(eCSEngine, this);
             _fXAARenderer.RenderPass(eCSEngine, this);

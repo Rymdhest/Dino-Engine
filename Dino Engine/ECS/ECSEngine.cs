@@ -36,6 +36,7 @@ namespace Dino_Engine.ECS
         {
             AddSystem<AllEntitySystem>();
             AddSystem<ModelRenderSystem>();
+            AddSystem<InstancedModelSystem>();
             AddSystem<DirectionalLightSystem>();
             AddSystem<SpotLightSystem>();
             AddSystem<PointLightSystem>();

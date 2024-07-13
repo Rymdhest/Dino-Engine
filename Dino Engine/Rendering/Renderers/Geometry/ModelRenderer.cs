@@ -17,14 +17,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            renderEngine.GBuffer.bind();
-            GL.DepthMask(true);
+
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
-            GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             _modelShader.bind();
 
         }
@@ -37,7 +34,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<ModelRenderSystem>().ModelsDictionary)
             {
                 glModel glmodel = glmodels.Key;
-
 
                 GL.BindVertexArray(glmodel.getVAOID());
                 GL.EnableVertexAttribArray(0);

@@ -19,6 +19,7 @@ using Util.Noise;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Dino_Engine.Physics;
+using System;
 
 namespace Dino_Defenders
 {
@@ -155,7 +156,7 @@ namespace Dino_Defenders
             TerrainGridGenerator terrainGridGenerator = new TerrainGridGenerator();
 
             TaskTracker terrainGridTracker = Engine.PerformanceMonitor.startTask("terrain grid", true);
-            FloatGrid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(200, 200));
+            FloatGrid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(1000, 1000));
 
             Engine.PerformanceMonitor.finishTask(terrainGridTracker, true);
 
@@ -190,7 +191,6 @@ namespace Dino_Defenders
 
                     float height = terrainGrid.Values[x, z];
                     value += height / 85f;
-
                     spawnGrid.Values[x, z] = MyMath.clamp01(value * value);
                 }
             }
@@ -209,8 +209,9 @@ namespace Dino_Defenders
             Mesh mesh = treeGenerator.GenerateFractalTree(1);
             mesh.makeFlat(true, true);
             mesh.scale(new Vector3(8f));
-
+            glModel treeModel = glLoader.loadToVAO(mesh);
             TaskTracker placingTracker = Engine.PerformanceMonitor.startTask("placing trees and rocks", true);
+            int i = 0;
             foreach (Vector2 spawn in spawnPoints)
             {
                 Entity tree = new Entity("tree");
@@ -218,17 +219,46 @@ namespace Dino_Defenders
                 if (y < 0) continue;
                 if (y > 45) continue;
                 tree.addComponent(new TransformationComponent(new Vector3(spawn.X, y - 0.1f, spawn.Y), new Vector3(0, MyMath.rng(MathF.PI * 2f), 0f), new Vector3(0.5f + MyMath.rng(0.5f))));
-                tree.addComponent(new ModelComponent(mesh));
-                eCSEngine.AddEnityToSystem<ModelRenderSystem>(tree);
+                tree.addComponent(new ModelComponent(treeModel));
+                eCSEngine.AddEnityToSystem<InstancedModelSystem>(tree);
                 tree.addComponent(new ChildComponent(groundPlane));
                 tree.addComponent(new SelfDestroyComponent(1 + MyMath.rng(2f)));
                 RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
+                i++;
             }
+            Console.WriteLine(i+" trees");
 
             Mesh rockMesh = IcoSphereGenerator.CreateIcosphere(2, Material.ROCK);
             rockMesh.FlatRandomness(0.1f);
             rockMesh.makeFlat(true, true);
+            glModel rockModel = glLoader.loadToVAO(rockMesh);
             spawnPoints = betterNoiseSampling.GeneratePoints(terrainSteepnessMap);
+
+            /*
+            Mesh rockMesh2 = new Mesh();
+            foreach (Vector2 spawn in spawnPoints)
+            {
+
+                float y = terrainGrid.BilinearInterpolate(spawn);
+                Vector3 position = new Vector3(spawn.X, y - 0.1f, spawn.Y);
+                Vector3 scale = new Vector3(new Vector3(0.5f) + MyMath.rng3D(2.0f));
+                scale += new Vector3(1f - terrainSteepnessMap.BilinearInterpolate(position.Xz)) * 1f;
+                Transformation transformation = new Transformation(position, MyMath.rng3D(MathF.PI * 2f), scale);
+
+                rockMesh2 += rockMesh.Transformed(transformation);
+
+                RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
+            }
+            Entity rock = new Entity("rock");
+            //if (y < 0) continue;
+            //if (y > 45) continue;
+
+            rock.addComponent(new TransformationComponent(new Transformation()));
+            rock.addComponent(new ModelComponent(rockMesh2));
+            rock.addComponent(new ChildComponent(groundPlane));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(rock);
+            */
+            
             foreach (Vector2 spawn in spawnPoints)
             {
                 Entity rock = new Entity("rock");
@@ -240,13 +270,14 @@ namespace Dino_Defenders
                 scale += new Vector3(1f - terrainSteepnessMap.BilinearInterpolate(position.Xz)) * 1f;
 
                 rock.addComponent(new TransformationComponent(position, MyMath.rng3D(MathF.PI * 2f), scale));
-                rock.addComponent(new ModelComponent(rockMesh));
+                rock.addComponent(new ModelComponent(rockModel));
                 rock.addComponent(new ChildComponent(groundPlane));
                 rock.addComponent(new CollisionComponent(new SphereHitbox(scale.X)));
-                eCSEngine.AddEnityToSystem<ModelRenderSystem>(rock);
+                eCSEngine.AddEnityToSystem<InstancedModelSystem>(rock);
                 eCSEngine.AddEnityToSystem<CollidableSystem>(rock);
                 RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
             }
+            
             Engine.PerformanceMonitor.finishTask(placingTracker, true);
         }
 
