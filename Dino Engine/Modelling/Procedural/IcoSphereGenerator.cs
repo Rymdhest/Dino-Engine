@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.Modelling.Procedural
 {
-    internal class IcoSphereGenerator
+    public class IcoSphereGenerator
     {
         public static Mesh CreateIcosphere(int order, Material material)
         {

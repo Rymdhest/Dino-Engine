@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Systems
 {
-    internal class GravitySystem : ComponentSystem
+    public class GravitySystem : ComponentSystem
     {
         public float gravityConstant = 10f;
         public GravitySystem()

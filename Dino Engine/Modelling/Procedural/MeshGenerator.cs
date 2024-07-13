@@ -9,7 +9,7 @@ using System.Net.NetworkInformation;
 
 namespace Dino_Engine.Modelling
 {
-    internal class MeshGenerator
+    public class MeshGenerator
     {
 
 

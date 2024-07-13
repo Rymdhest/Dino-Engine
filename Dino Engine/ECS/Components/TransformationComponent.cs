@@ -6,7 +6,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS
 {
-    internal class TransformationComponent : Component
+    public class TransformationComponent : Component
     {
         private Transformation _transformation;
         public Transformation Transformation { get => getParentedWorldTransformation(); set => _transformation = value; }
@@ -29,6 +29,11 @@ namespace Dino_Engine.ECS
             {
                 return _transformation;
             }
+        }
+
+        public void SetLocalTransformation(Vector3 pos)
+        {
+            _transformation.position = pos;
         }
     }
 }

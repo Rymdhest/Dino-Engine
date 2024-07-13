@@ -2,7 +2,7 @@
 
 namespace Dino_Engine.ECS
 {
-    internal class ModelRenderSystem : ComponentSystem
+    public class ModelRenderSystem : ComponentSystem
     {
         private Dictionary<glModel, List<Entity>> _modelsDictionary = new Dictionary<glModel, List<Entity>>();
 

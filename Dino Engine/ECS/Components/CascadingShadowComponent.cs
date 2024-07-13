@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Components
 {
-    internal class CascadingShadowComponent : Component
+    public class CascadingShadowComponent : Component
     {
 
         public class ShadowCascade

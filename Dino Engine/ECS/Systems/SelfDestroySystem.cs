@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Systems
 {
-    internal class SelfDestroySystem : ComponentSystem
+    public class SelfDestroySystem : ComponentSystem
     {
         public SelfDestroySystem()
         {

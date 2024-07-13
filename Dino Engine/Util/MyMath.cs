@@ -2,7 +2,7 @@
 
 namespace Dino_Engine.Util
 {
-    internal class MyMath
+    public class MyMath
     {
         public static Random rand = new Random();
 

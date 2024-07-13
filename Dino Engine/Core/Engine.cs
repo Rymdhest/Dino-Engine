@@ -17,6 +17,7 @@ namespace Dino_Engine.Core
         private PerformanceMonitor _performanceMonitor;
         private static Engine? _instance;
         private ECSEngine _ECSEngine;
+        private Game game;
         public static float Delta { get => _instance._deltaFrameTimeTracker.Delta; }
         public static int FramesLastSecond { get => _instance._deltaFrameTimeTracker.FramesLastSecond; }
         public static Engine? Instance { get => _instance; }
@@ -81,6 +82,7 @@ namespace Dino_Engine.Core
             _deltaFrameTimeTracker.update();
             _ECSEngine.update();
             _renderEngine.Update();
+            game.update();
         }
 
         public void OnResize(ResizeEventArgs eventArgs)
@@ -88,6 +90,11 @@ namespace Dino_Engine.Core
             _windowHandler.onResize(eventArgs);
             _renderEngine.OnResize(eventArgs);
             _ECSEngine.OnResize(eventArgs);
+        }
+
+        public void SetGame(Game game)
+        {
+            this.game = game;
         }
     }
 }

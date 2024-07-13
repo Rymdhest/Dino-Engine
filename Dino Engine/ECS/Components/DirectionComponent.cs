@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Components
 {
-    internal class DirectionComponent : Component
+    public class DirectionComponent : Component
     {
         private Vector3 _direction;
         public Vector3 Direction { get => _direction; set => _direction = value.Normalized(); }

@@ -3,7 +3,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace Dino_Engine.Modelling;
 
-internal class glLoader
+public class glLoader
 {
     public static glModel loadToVAO(Mesh mesh)
     {

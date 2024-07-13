@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Components
 {
-    internal class GridComponent : Component
+    public class GridComponent : Component
     {
     }
 }

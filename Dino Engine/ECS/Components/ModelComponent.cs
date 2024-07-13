@@ -7,7 +7,7 @@ using Dino_Engine.Modelling.Model;
 
 namespace Dino_Engine.ECS
 {
-    internal class ModelComponent : Component
+    public class ModelComponent : Component
     {
 
         private glModel _glModel;

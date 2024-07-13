@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Components
 {
-    internal class ChildComponent : Component
+    public class ChildComponent : Component
     {
         public Entity _parent;
         public ChildComponent(Entity parent)

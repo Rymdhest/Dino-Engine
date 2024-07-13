@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.Modelling.Procedural.Urban
 {
-    internal class CarGenerator
+    public class CarGenerator
     {
         public static Mesh GenerateCar(out Vector3 leftLightPos, out Vector3 rightLightPos, out Vector3 exhaustPos)
         {

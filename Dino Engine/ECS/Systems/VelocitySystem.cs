@@ -11,7 +11,7 @@ using System.Transactions;
 
 namespace Dino_Engine.ECS.Systems
 {
-    internal class VelocitySystem : ComponentSystem
+    public class VelocitySystem : ComponentSystem
     {
 
         public VelocitySystem()

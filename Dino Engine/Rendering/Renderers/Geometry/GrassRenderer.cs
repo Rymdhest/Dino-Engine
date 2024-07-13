@@ -29,17 +29,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShader.loadUniformInt("terrainNormalMap", 2);
             _grassShader.loadUniformInt("windMap", 3);
             _grassShader.unBind();
+
+            generateBladeModel();
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
-        {
-        }
-
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        private void generateBladeModel()
         {
             Material topMaterial = Material.LEAF;
             Material botMaterial = Material.LEAF;
-            botMaterial.Colour.Intensity = 0.8f;
+            botMaterial.Colour.Intensity = 0.5f;
 
             if (grassBlade != null) grassBlade.cleanUp();
             float radius = .16f;
@@ -50,13 +48,22 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 new Vector2(radius*0.3f, bladeHeight)};
             Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 3, Material.LEAF, true);
 
-            foreach(Vertex vertex in bladeMesh.vertices)
+            foreach (Vertex vertex in bladeMesh.vertices)
             {
-                vertex.material.Colour = Colour.mix(botMaterial.Colour, topMaterial.Colour, vertex.position.Y/ bladeHeight);
+                vertex.material.Colour = Colour.mix(botMaterial.Colour, topMaterial.Colour, vertex.position.Y / bladeHeight);
             }
 
             bladeMesh.makeFlat(true, false);
             grassBlade = glLoader.loadToVAO(bladeMesh);
+        }
+
+        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+        }
+
+        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        {
+
         }
 
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)

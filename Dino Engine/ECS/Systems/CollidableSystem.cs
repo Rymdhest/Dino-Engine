@@ -7,15 +7,14 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Systems
 {
-    public class TerrainSystem : ComponentSystem
+    public class CollidableSystem : ComponentSystem
     {
-        public TerrainSystem()
+
+        public CollidableSystem()
         {
             addRequiredComponent<TransformationComponent>();
-            addRequiredComponent<ModelComponent>();
-            addRequiredComponent<TerrainMapsComponent>();
+            addRequiredComponent<CollisionComponent>();
         }
-
         internal override void UpdateEntity(Entity entity)
         {
 

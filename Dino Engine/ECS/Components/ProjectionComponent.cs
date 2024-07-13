@@ -6,7 +6,7 @@ using OpenTK.Windowing.Common;
 
 namespace Dino_Engine.ECS
 {
-    internal class ProjectionComponent : Component
+    public class ProjectionComponent : Component
     {
         private float _fieldOfView;
         private Matrix4 _projectionMatrix = Matrix4.Identity;

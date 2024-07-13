@@ -10,7 +10,7 @@ using Util.Noise;
 
 namespace Dino_Engine.ECS.Components
 {
-    internal class TerrainMapsComponent : Component
+    public class TerrainMapsComponent : Component
     {
 
         public FloatGrid heightMap;

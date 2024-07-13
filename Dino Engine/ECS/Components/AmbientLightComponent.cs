@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Components
 {
-    internal class AmbientLightComponent : Component
+    public class AmbientLightComponent : Component
     {
         float _ambientFactor;
         public const float DEFAULT = 0.0f;

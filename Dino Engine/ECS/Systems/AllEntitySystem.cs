@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Systems
 {
-    internal class AllEntitySystem : ComponentSystem
+    public class AllEntitySystem : ComponentSystem
     {
 
         public AllEntitySystem()

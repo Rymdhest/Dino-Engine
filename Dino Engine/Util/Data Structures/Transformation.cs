@@ -62,6 +62,11 @@ namespace Dino_Engine.Util
             return new Transformation(position, rotation, scale);
         }
 
+        public void SetPosition(Vector3 setTo)
+        {
+            position = setTo;
+        }
+
         public static Vector3 ApplyTransformationToVector3(Vector3 a, Transformation b)
         {
             return (new Vector4(a, 1.0f) * MyMath.createTransformationMatrix(b)).Xyz;
