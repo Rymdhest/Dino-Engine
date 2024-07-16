@@ -37,6 +37,7 @@ namespace Dino_Engine.Rendering
         private SpotLightRenderer _spotLightRenderer;
         private ParticleRenderer _particleRenderer;
         private GrassRenderer _grassRenderer;
+        private SunRenderer _sunRenderer;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
         public bool debugView = false;
@@ -78,6 +79,7 @@ namespace Dino_Engine.Rendering
             _particleRenderer = new ParticleRenderer();
             _depthOfFieldRenderer = new DepthOfFieldRenderer();
             _grassRenderer = new GrassRenderer();
+            _sunRenderer = new SunRenderer();
         }
 
         private void InitGBuffer()
@@ -111,6 +113,11 @@ namespace Dino_Engine.Rendering
 
         public void Update()
         {
+            if (Engine.WindowHandler.IsKeyPressed(Keys.T))
+            {
+                _grassRenderer.blast(ScreenQuadRenderer);
+            }
+            _grassRenderer.StepSimulation(ScreenQuadRenderer);
             foreach (Renderer renderer in _renderers)
             {
                 renderer.Update();
@@ -145,6 +152,8 @@ namespace Dino_Engine.Rendering
                 //_screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
 
                 //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(2));
+                //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
+                //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));
             }
 
 
@@ -170,7 +179,7 @@ namespace Dino_Engine.Rendering
         private void LightPass(ECSEngine eCSEngine)
         {
             _sSAORenderer.RenderPass(eCSEngine, this);
-            //_shadowCascadeMapRenderer.RenderPass(eCSEngine, this);
+            _shadowCascadeMapRenderer.RenderPass(eCSEngine, this);
 
             ScreenQuadRenderer.GetLastFrameBuffer().bind();
             GL.Clear(ClearBufferMask.ColorBufferBit);
@@ -188,8 +197,9 @@ namespace Dino_Engine.Rendering
         }
         private void PostProcessPass(ECSEngine eCSEngine)
         {
+            //_sunRenderer.RenderPass(eCSEngine, this);
             _bloomRenderer.RenderPass(eCSEngine, this);
-            //_fogRenderer.RenderPass(eCSEngine, this);
+            _fogRenderer.RenderPass(eCSEngine, this);
             _toneMapRenderer.RenderPass(eCSEngine, this);
             //_depthOfFieldRenderer.RenderPass(eCSEngine, this);
             _fXAARenderer.RenderPass(eCSEngine, this);

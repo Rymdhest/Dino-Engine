@@ -41,13 +41,12 @@ namespace Dino_Engine.Util.Data_Structures.Grids
 
         protected override int GenerateTexture()
         {
-
             var pixels = new float[1 * Resolution.X * Resolution.Y];
             for (int y = 0; y < Resolution.Y; y++)
             {
                 for (int x = 0; x < Resolution.X; x++)
                 {
-                    int i = y * Resolution.Y + x;
+                    int i = y * Resolution.X + x;
                     pixels[i * 1 + 0] = Values[x, y];
                 }
             }

@@ -28,24 +28,28 @@ namespace Dino_Engine.ECS.Components
                 for (int x = 0; x < steepnessMap.Resolution.X; x++)
                 {
                     float value = Vector3.Dot(new Vector3(0f, 1f, 0f), normalMap.Values[x, z]);
-                    steepnessMap.Values[x, z] = MyMath.clamp01(MathF.Pow(value, 1.5f));
+                    steepnessMap.Values[x, z] = MyMath.clamp01(MathF.Pow(value, 4.0f));
                 }
             }
 
             OpenSimplexNoise grassNoise = new OpenSimplexNoise();
 
             grassMap = new FloatGrid(heightMap.Resolution);
+            float min = 0.1f;
             for (int z = 0; z < grassMap.Resolution.Y; z++)
             {
                 for (int x = 0; x < grassMap.Resolution.X; x++)
                 {
-                    float noise = grassNoise.Evaluate(x * 0.1f, z * 0.1f)*0.5f+0.5f;
-                    noise = noise * 0.9f + 0.1f;
+                    float noise = grassNoise.FBM01(x, z, 0.4f, 2);
+                    noise *= 0.5f+0.5f*grassNoise.FBM01(x, z, 0.1f, 3);
+                    noise = noise * (1f- min) + min;
 
                     float value = noise * steepnessMap.Values[x, z];
-                    if (heightMap.Values[x, z] < 0.1f) value = 0f;
+                    if (heightMap.Values[x, z] < 5.1f) value = 0f;
 
-                    grassMap.Values[x, z] = MyMath.clamp01(MathF.Pow(value, 1.0f));
+                    grassMap.Values[x, z] = MyMath.clamp01(value);
+
+
                 }
             }
         }

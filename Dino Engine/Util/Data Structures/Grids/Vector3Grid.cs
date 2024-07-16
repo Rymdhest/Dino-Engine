@@ -47,7 +47,7 @@ namespace Dino_Engine.Util.Data_Structures.Grids
             {
                 for (int x = 0; x < Resolution.X; x++)
                 {
-                    int i = y * Resolution.Y + x;
+                    int i = y * Resolution.X + x;
                     pixels[i * 3 + 0] = Values[x, y].X;
                     pixels[i * 3 + 1] = Values[x, y].Y;
                     pixels[i * 3 + 2] = Values[x, y].Z;

@@ -221,8 +221,25 @@ namespace Util.Noise
                 source[r] = source[i];
             }
         }
-
-        public float Evaluate(double x, double y)
+        public float FBM01(double x, double y, float startFrequenzy, int octaves)
+        {
+            float value = FBM(x, y, startFrequenzy, octaves);
+            return value*0.5f + 0.5f;
+        }
+        public float FBM(double x, double y, float startFrequenzy, int octaves)
+        {
+            float value = 0f;
+            float amplitude = 1f;
+            float frequenzy = startFrequenzy;
+            for (int i = 0; i<octaves; i++)
+            {
+                value += Evaluate(x* frequenzy, y * frequenzy) *amplitude;
+                frequenzy *= 2f;
+                amplitude *= 0.5f;
+            }
+            return value;
+        }
+            public float Evaluate(double x, double y)
         {
             var stretchOffset = (x + y) * STRETCH_2D;
             var xs = x + stretchOffset;

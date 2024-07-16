@@ -14,7 +14,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private ShaderProgram ambientOcclusionBlurShader = new ShaderProgram("Simple.vert", "AmbientOcclusion_Blur.frag");
 
         public int noiseScale = 4;
-        private const int kernelSize = 32;
+        private const int kernelSize = 16;
         private Vector3[] kernelSamples;
         private int noiseTexture;
 
@@ -78,8 +78,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
             ambientOcclusionShader.loadUniformFloat("radius", 0.3f);
-            ambientOcclusionShader.loadUniformFloat("strength", 0.7f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.01f);
+            ambientOcclusionShader.loadUniformFloat("strength", 0.95f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.02f);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, noiseTexture);

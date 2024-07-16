@@ -17,6 +17,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     {
 
         private ShaderProgram _shadowShader = new ShaderProgram("Shadow.vert", "Shadow.frag");
+        private ShaderProgram _InstancedShadowShader = new ShaderProgram("Shadow_Instanced.vert", "Shadow.frag");
 
         public const int CASCADETEXTURESINDEXSTART = 4;
 
@@ -31,7 +32,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.Blend);
             GL.Enable(EnableCap.PolygonOffsetFill);
-            _shadowShader.bind();
         }
 
         internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
@@ -40,11 +40,18 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.Disable(EnableCap.PolygonOffsetFill);
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
+
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(4);
+            GL.DisableVertexAttribArray(5);
+            GL.DisableVertexAttribArray(6);
+            GL.DisableVertexAttribArray(7);
         }
 
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
 
+            _shadowShader.bind();
             foreach (Entity directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {
                 if (directionalLight.TryGetComponent(out CascadingShadowComponent shadow))
@@ -72,6 +79,41 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                     }
                 }
             }
+            
+            _InstancedShadowShader.bind();
+            foreach (Entity directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
+            {
+                if (directionalLight.TryGetComponent(out CascadingShadowComponent shadow))
+                {
+                    _InstancedShadowShader.loadUniformMatrix4f("viewMatrix", shadow.LightViewMatrix);
+                    Vector3 lightDirection = directionalLight.getComponent<DirectionComponent>().Direction;
+                    foreach (CascadingShadowComponent.ShadowCascade cascade in shadow.Cascades)
+                    {
+                        _InstancedShadowShader.loadUniformMatrix4f("projectionMatrix", cascade.getProjectionMatrix());
+
+                        cascade.bindFrameBuffer();
+                        //GL.Clear(ClearBufferMask.DepthBufferBit);
+                        GL.PolygonOffset(cascade.getPolygonOffset(), 1f);
+
+                        foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<InstancedModelSystem>().ModelsDictionary)
+                        {
+                            glModel glmodel = glmodels.Key;
+                            GL.BindVertexArray(glmodel.getVAOID());
+                            GL.EnableVertexAttribArray(0);
+                            GL.EnableVertexAttribArray(4);
+                            GL.EnableVertexAttribArray(5);
+                            GL.EnableVertexAttribArray(6);
+                            GL.EnableVertexAttribArray(7);
+
+
+
+                            GL.DrawElementsInstanced(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0, glmodels.Value.Count);
+                        }
+                    }
+
+                }
+            }
+            
         }
 
         public override void OnResize(ResizeEventArgs eventArgs)

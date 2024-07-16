@@ -6,8 +6,8 @@ uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D texNoise;
 
-uniform vec3 samples[32];
-int kernelSize = 32;
+uniform vec3 samples[16];
+int kernelSize = 16;
 
 uniform float radius;
 uniform float strength;

@@ -10,11 +10,12 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
     public class TerrainMeshGenerator
     {
 
-        public static Mesh GridToMesh(Grid<float> grid, out Vector3Grid normals)
+        public static Mesh GridToMesh(Grid<float> grid, Vector2 worldSize, out Vector3Grid normals)
         {
-            Material material = Material.LEAF;
+            Material material = new Material(new Colour(116, 146, 37, 0.75f), 0f, 0.7f, 0f);
             List<Vector3> positions = new List<Vector3>();
             List<int> indices = new List<int>();
+            Vector3 cellSizeWorld = new Vector3((worldSize.X) / (grid.Resolution.X-1f), 1f, (worldSize.Y) / (grid.Resolution.Y-1f));
 
 
             for (int z = 0; z<grid.Resolution.Y; z++)
@@ -22,7 +23,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                 for (int x = 0; x < grid.Resolution.X; x++)
                 {
                     float y = grid.Values[x, z];
-                    positions.Add(new Vector3(x, y, z));
+                    positions.Add(new Vector3(x, y, z)* cellSizeWorld);
                 }
             }
 
@@ -30,10 +31,10 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             {
                 for (int x = 0; x < grid.Resolution.X-1; x++)
                 {
-                    Vector3 p1 = new Vector3(x, grid.Values[x, z], z);
-                    Vector3 p2 = new Vector3(x, grid.Values[x, z+1], z+1);
-                    Vector3 p3 = new Vector3(x+1, grid.Values[x+1, z+1], z+1);
-                    Vector3 p4 = new Vector3(x+1, grid.Values[x+1, z], z);
+                    Vector3 p1 = new Vector3(x, grid.Values[x, z], z)* cellSizeWorld;
+                    Vector3 p2 = new Vector3(x, grid.Values[x, z+1], z+1)* cellSizeWorld;
+                    Vector3 p3 = new Vector3(x+1, grid.Values[x+1, z+1], z+1)* cellSizeWorld;
+                    Vector3 p4 = new Vector3(x+1, grid.Values[x+1, z], z)* cellSizeWorld;
 
                     Vector3 p5 = (p1+ p2+p3+p4)/4f;
                     positions.Add(p5);
@@ -98,11 +99,14 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                 }
             }
 
-            stopwatch.Restart();
+            foreach (Vertex vertex in mesh.vertices)
+            {
 
-            mesh.makeFlat(flatNormal: true, flatMaterial: true);
+                //vertex.material.Colour = new Colour(MyMath.rng3D());
+            }
 
-            stopwatch.Stop();
+            //mesh.makeFlat(flatNormal: true, flatMaterial: true);
+
 
             return mesh;
         }

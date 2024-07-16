@@ -20,6 +20,7 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Dino_Engine.Physics;
 using System;
+using System.Reflection.Emit;
 
 namespace Dino_Defenders
 {
@@ -140,45 +141,50 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<CollidingSystem>(bigBall);
         }
 
+
+
         private void SpawnWorld(ECSEngine eCSEngine)
         {
             eCSEngine.ClearAllEntitiesExcept(eCSEngine.Camera);
             eCSEngine.InitEntities();
             spawnTerrain(eCSEngine);
-            //spawnCity(eCSEngine);
+            spawnCity(eCSEngine);
         }
             private void spawnTerrain(ECSEngine eCSEngine)
         {
-
-            TreeGenerator treeGenerator = new TreeGenerator(); Entity groundPlane = new Entity("Terrain");
-            groundPlane.addComponent(new TransformationComponent(new Vector3(100, 0.0f, -100), new Vector3(0), new Vector3(1f)));
-
-            TerrainGridGenerator terrainGridGenerator = new TerrainGridGenerator();
-
-            TaskTracker terrainGridTracker = Engine.PerformanceMonitor.startTask("terrain grid", true);
-            FloatGrid terrainGrid = terrainGridGenerator.generateChunk(new Vector2i(1000, 1000));
-
-            Engine.PerformanceMonitor.finishTask(terrainGridTracker, true);
-
-            TaskTracker terrainMeshTracker = Engine.PerformanceMonitor.startTask("terrain mesh", true);
-            Mesh rawGround = TerrainMeshGenerator.GridToMesh(terrainGrid, out Vector3Grid terrainNormals);
-            Engine.PerformanceMonitor.finishTask(terrainMeshTracker, true);
+            TerrainGenerator generator = new TerrainGenerator();
 
 
 
+            Entity test = new Entity("test");
+            test.addComponent(new TransformationComponent(new Vector3(1, 12f, 0), new Vector3(0), new Vector3(0.2f)));
+            test.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, Material.ROCK)));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(test);
 
-            glModel groundModel = glLoader.loadToVAO(rawGround);
-            groundPlane.addComponent(new ModelComponent(groundModel));
-            groundPlane.addComponent(new TerrainMapsComponent(terrainGrid, terrainNormals));
-            groundPlane.addComponent(new CollisionComponent(new TerrainHitBox(new Vector3(0), new Vector3(terrainGrid.Resolution.X, 100, terrainGrid.Resolution.Y))));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(groundPlane);
-            eCSEngine.AddEnityToSystem<TerrainSystem>(groundPlane);
-            eCSEngine.AddEnityToSystem<CollidableSystem>(groundPlane);
+            Entity test2 = new Entity("test");
+            test2.addComponent(new TransformationComponent(new Vector3(5, 12f, 0), new Vector3(0), new Vector3(0.2f)));
+            test2.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, Material.ROCK)));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(test2);
 
+            /*
+            int r = 1;
+            Vector2 chunkSize = new Vector2(50, 50);
+            for (int x = -r; x <= r; x++)
+            {
+                for (int z = -r; z <= r; z++)
+                {
+                    float quality = 1.0f;
+                    if (x == 0 && z == 0) quality = 0.5f;
+
+                    generator.generateTerrainChunkEntity(new Vector2(chunkSize.X*x, chunkSize.Y*z), chunkSize, quality);
+                }
+            }
+            */
+
+            /*
+            TreeGenerator treeGenerator = new TreeGenerator();
             OpenSimplexNoise noise = new OpenSimplexNoise();
-
             FloatGrid spawnGrid = new FloatGrid(terrainGrid.Resolution);
-
             FloatGrid terrainSteepnessMap = groundPlane.getComponent<TerrainMapsComponent>().steepnessMap;
 
             for (int z = 0; z < spawnGrid.Resolution.Y; z++)
@@ -194,6 +200,8 @@ namespace Dino_Defenders
                     spawnGrid.Values[x, z] = MyMath.clamp01(value * value);
                 }
             }
+            */
+            /*
             DebugRenderer.texture = terrainSteepnessMap.GetTexture();
             //DebugRenderer.texture = spawnGrid.GenerateTexture();
 
@@ -201,16 +209,14 @@ namespace Dino_Defenders
 
             BetterNoiseSampling betterNoiseSampling = new BetterNoiseSampling(terrainGrid.Resolution);
 
-            TaskTracker noiseTracker = Engine.PerformanceMonitor.startTask("noise sampling", true);
             //List<Vector2> spawnPoints = poissonDiskSampling.GeneratePoints();
             List<Vector2> spawnPoints = betterNoiseSampling.GeneratePoints(spawnGrid);
-            Engine.PerformanceMonitor.finishTask(noiseTracker, true);
-
-            Mesh mesh = treeGenerator.GenerateFractalTree(1);
+            */
+            /*
+            Mesh mesh = treeGenerator.GenerateFractalTree(2);
             mesh.makeFlat(true, true);
             mesh.scale(new Vector3(8f));
             glModel treeModel = glLoader.loadToVAO(mesh);
-            TaskTracker placingTracker = Engine.PerformanceMonitor.startTask("placing trees and rocks", true);
             int i = 0;
             foreach (Vector2 spawn in spawnPoints)
             {
@@ -233,6 +239,7 @@ namespace Dino_Defenders
             rockMesh.makeFlat(true, true);
             glModel rockModel = glLoader.loadToVAO(rockMesh);
             spawnPoints = betterNoiseSampling.GeneratePoints(terrainSteepnessMap);
+            */
 
             /*
             Mesh rockMesh2 = new Mesh();
@@ -258,7 +265,9 @@ namespace Dino_Defenders
             rock.addComponent(new ChildComponent(groundPlane));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(rock);
             */
-            
+
+
+            /*
             foreach (Vector2 spawn in spawnPoints)
             {
                 Entity rock = new Entity("rock");
@@ -277,8 +286,7 @@ namespace Dino_Defenders
                 eCSEngine.AddEnityToSystem<CollidableSystem>(rock);
                 RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 1f));
             }
-            
-            Engine.PerformanceMonitor.finishTask(placingTracker, true);
+            */
         }
 
         private void spawnCity(ECSEngine eCSEngine)
@@ -298,6 +306,10 @@ namespace Dino_Defenders
             }
 
             StreetGenerator streetGenerator = new StreetGenerator();
+            TerrainGenerator terrainGenerator = new TerrainGenerator();
+
+            Vector2 terrainSize = new Vector2(150, 250f);
+            terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
 
             Entity crossRoad = new Entity("crossroad");
             crossRoad.addComponent(new TransformationComponent(new Transformation()));

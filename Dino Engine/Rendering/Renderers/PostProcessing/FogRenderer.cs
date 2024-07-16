@@ -39,8 +39,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             Matrix4 inverseView = Matrix4.Invert(viewMatrix);
 
 
-            fogShader.loadUniformFloat("fogDensity", 0.00637f);
-            fogShader.loadUniformFloat("heightFallOff", 0.00675f);
+            fogShader.loadUniformFloat("fogDensity", 0.00337f);
+            fogShader.loadUniformFloat("heightFallOff", 0.032f);
             fogShader.loadUniformFloat("noiseFactor", 0.9f);
             fogShader.loadUniformVector3f("fogColor", SkyRenderer.SkyColour.ToVector3());
 

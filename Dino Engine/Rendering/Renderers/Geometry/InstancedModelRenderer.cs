@@ -21,6 +21,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private static readonly int INSTANCE_DATA_LENGTH = 16;
         private int pointer = 0;
         private List<int> vbos = new List<int>();
+        private bool reAllocate = true;
+
         public InstancedModelRenderer()
         {
         }
@@ -36,11 +38,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            foreach (int vbo in vbos)
+            if (reAllocate)
             {
-                GL.DeleteBuffer(vbo);
+                foreach (int vbo in vbos)
+                {
+                    GL.DeleteBuffer(vbo);
+                }
             }
 
+            
             Entity camera = eCSEngine.Camera;
             Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
@@ -52,21 +58,25 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             {
                 pointer = 0;
                 glModel glmodel = glmodels.Key;
-
-                float[] vboData = new float[glmodels.Value.Count * INSTANCE_DATA_LENGTH];
-                foreach (Entity entity in glmodels.Value)
+                if (reAllocate)
                 {
-                    Matrix4 modelMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
-                    storeMatrixData(modelMatrix, vboData);
+                    //Console.WriteLine("allocating");
+                    float[] vboData = new float[glmodels.Value.Count * INSTANCE_DATA_LENGTH];
+                    foreach (Entity entity in glmodels.Value)
+                    {
+                        Matrix4 modelMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
+                        storeMatrixData(modelMatrix, vboData);
+                    }
+
+                    GL.BindVertexArray(glmodel.getVAOID());
+                    int vbo = createVbo(INSTANCE_DATA_LENGTH * glmodels.Value.Count, vboData);
+                    vbos.Add(vbo);
+                    addInstancedAttribute(glmodel.getVAOID(), vbo, 4, 4, INSTANCE_DATA_LENGTH, 0);
+                    addInstancedAttribute(glmodel.getVAOID(), vbo, 5, 4, INSTANCE_DATA_LENGTH, 4);
+                    addInstancedAttribute(glmodel.getVAOID(), vbo, 6, 4, INSTANCE_DATA_LENGTH, 8);
+                    addInstancedAttribute(glmodel.getVAOID(), vbo, 7, 4, INSTANCE_DATA_LENGTH, 12);
                 }
 
-                GL.BindVertexArray(glmodel.getVAOID());
-                int vbo = createVbo(INSTANCE_DATA_LENGTH * glmodels.Value.Count, vboData);
-                vbos.Add(vbo);
-                addInstancedAttribute(glmodel.getVAOID(), vbo, 4, 4, INSTANCE_DATA_LENGTH, 0);
-                addInstancedAttribute(glmodel.getVAOID(), vbo, 5, 4, INSTANCE_DATA_LENGTH, 4);
-                addInstancedAttribute(glmodel.getVAOID(), vbo, 6, 4, INSTANCE_DATA_LENGTH, 8);
-                addInstancedAttribute(glmodel.getVAOID(), vbo, 7, 4, INSTANCE_DATA_LENGTH, 12);
 
                 GL.BindVertexArray(glmodel.getVAOID());
                 GL.EnableVertexAttribArray(0);
@@ -83,6 +93,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
                 GL.DrawElementsInstanced(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0, glmodels.Value.Count);
             }
+            reAllocate = true;
         }
 
         private void storeMatrixData(Matrix4 matrix, float[] vboData)
@@ -132,7 +143,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             int vbo = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, floatCount * 4, data, BufferUsageHint.StreamDraw);
+            GL.BufferData(BufferTarget.ArrayBuffer, floatCount * 4, data, BufferUsageHint.StaticDraw);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             return vbo;
         }

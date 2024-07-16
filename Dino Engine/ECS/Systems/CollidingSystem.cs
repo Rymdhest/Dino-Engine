@@ -80,18 +80,23 @@ namespace Dino_Engine.ECS.Systems
             collisionPosition = Vector3.Zero;
             collisionNormal = Vector3.Zero;
 
-            float sphereRadius = ((SphereHitbox)sphere.getComponent<CollisionComponent>().HitBox).Radius;
+            FloatGrid heightMap = terrain.getComponent<TerrainMapsComponent>().heightMap;
+            Vector3Grid normalMap = terrain.getComponent<TerrainMapsComponent>().normalMap;
+
+            Vector3 scaleToGridSpace = ((TerrainHitBox)(terrain.getComponent<CollisionComponent>().HitBox))._max;
+            scaleToGridSpace.Y = 1f;
+            scaleToGridSpace.Xz =  heightMap.Resolution/ scaleToGridSpace.Xz;
+            float sphereRadius = ((SphereHitbox)sphere.getComponent<CollisionComponent>().HitBox).Radius* scaleToGridSpace.X;
 
             // Transfer sphere to terrain space
             Transformation terrainTransform = terrain.getComponent<TransformationComponent>().Transformation;
             Transformation sphereTransform = sphere.getComponent<TransformationComponent>().Transformation;
             sphereTransform.translate(-terrainTransform.position);
 
-            FloatGrid heightMap = terrain.getComponent<TerrainMapsComponent>().heightMap;
-            Vector3Grid normalMap = terrain.getComponent<TerrainMapsComponent>().normalMap;
 
             // Sample points around the sphere's bottom hemisphere
-            Vector3 sphereCenter = sphereTransform.position;
+            Vector3 sphereCenter = sphereTransform.position ;
+            sphereCenter.Xz = sphereCenter.Xz * scaleToGridSpace.X;
             Vector3[] samplePoints = {
                 sphereCenter,
                 sphereCenter + new Vector3(sphereRadius, 0, 0),
@@ -116,7 +121,7 @@ namespace Dino_Engine.ECS.Systems
 
                 if (distanceToTerrain <= 0)
                 {
-                    collisionPosition = samplePoint+terrainTransform.position;
+                    collisionPosition = samplePoint/scaleToGridSpace+terrainTransform.position;
                     collisionNormal = normalMap.BilinearInterpolate(samplePoint.Xz);
                     collisionNormal.Normalize();
                     return true;

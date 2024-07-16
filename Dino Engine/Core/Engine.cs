@@ -4,6 +4,7 @@ using Dino_Engine.Rendering;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Dino_Engine.Core
 {
@@ -62,7 +63,7 @@ namespace Dino_Engine.Core
             nws.Title = settings._gameTitle;
             nws.ClientSize = settings._resolution;
             nws.Location = new Vector2i(0, 0);
-            gws.UpdateFrequency = 2000;
+            gws.UpdateFrequency = 20;
             return new WindowHandler(gws, nws);
         }
 
