@@ -86,7 +86,8 @@ namespace Dino_Engine.ECS.Systems
             Vector3 scaleToGridSpace = ((TerrainHitBox)(terrain.getComponent<CollisionComponent>().HitBox))._max;
             scaleToGridSpace.Y = 1f;
             scaleToGridSpace.Xz =  heightMap.Resolution/ scaleToGridSpace.Xz;
-            float sphereRadius = ((SphereHitbox)sphere.getComponent<CollisionComponent>().HitBox).Radius* scaleToGridSpace.X;
+            Vector2 sphereRadiusGridSpace = ((SphereHitbox)sphere.getComponent<CollisionComponent>().HitBox).Radius* scaleToGridSpace.Xz;
+            float sphereRadiusWorldSpace = ((SphereHitbox)sphere.getComponent<CollisionComponent>().HitBox).Radius;
 
             // Transfer sphere to terrain space
             Transformation terrainTransform = terrain.getComponent<TransformationComponent>().Transformation;
@@ -96,20 +97,20 @@ namespace Dino_Engine.ECS.Systems
 
             // Sample points around the sphere's bottom hemisphere
             Vector3 sphereCenter = sphereTransform.position ;
-            sphereCenter.Xz = sphereCenter.Xz * scaleToGridSpace.X;
-            float radiusOversqrt2 = sphereRadius/MathF.Sqrt(2);
-            float radiusOver2 = radiusOversqrt2 - ( sphereRadius / 2f);
+            sphereCenter.Xz = sphereCenter.Xz * scaleToGridSpace.Xz;
+            Vector2 radiusOversqrt2 = sphereRadiusGridSpace/MathF.Sqrt(2);
+            float radiusOver2 = sphereRadiusWorldSpace / MathF.Sqrt(2) - (sphereRadiusWorldSpace / 2f);
 
             Vector3[] samplePoints = {
-                sphereCenter + new Vector3(0, -sphereRadius, 0),
-                sphereCenter + new Vector3(sphereRadius, -radiusOver2, 0),
-                sphereCenter + new Vector3(-sphereRadius, -radiusOver2, 0),
-                sphereCenter + new Vector3(0, -radiusOver2, sphereRadius),
-                sphereCenter + new Vector3(0, -radiusOver2, -sphereRadius),
-                sphereCenter + new Vector3(radiusOversqrt2, -radiusOver2, radiusOversqrt2),
-                sphereCenter + new Vector3(radiusOversqrt2, -radiusOver2, -radiusOversqrt2),
-                sphereCenter + new Vector3(-radiusOversqrt2, -radiusOver2, radiusOversqrt2),
-                sphereCenter + new Vector3(-radiusOversqrt2, -radiusOver2, -radiusOversqrt2)
+                sphereCenter + new Vector3(0, -sphereRadiusWorldSpace, 0),
+                sphereCenter + new Vector3(sphereRadiusGridSpace.X, -radiusOver2, 0),
+                sphereCenter + new Vector3(-sphereRadiusGridSpace.X, -radiusOver2, 0),
+                sphereCenter + new Vector3(0, -radiusOver2, sphereRadiusGridSpace.Y),
+                sphereCenter + new Vector3(0, -radiusOver2, -sphereRadiusGridSpace.Y),
+                sphereCenter + new Vector3(radiusOversqrt2.X, -radiusOver2, radiusOversqrt2.Y),
+                sphereCenter + new Vector3(radiusOversqrt2.X, -radiusOver2, -radiusOversqrt2.Y),
+                sphereCenter + new Vector3(-radiusOversqrt2.X, -radiusOver2, radiusOversqrt2.Y),
+                sphereCenter + new Vector3(-radiusOversqrt2.X, -radiusOver2, -radiusOversqrt2.Y)
             };
 
             float closestDistance = 999999f;

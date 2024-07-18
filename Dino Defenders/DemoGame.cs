@@ -41,7 +41,7 @@ namespace Dino_Defenders
             if (Engine.WindowHandler.IsKeyPressed(Keys.B))
             {
                 float size = 1.8f;
-                float speed = 50f;
+                float speed = 55f;
                 Colour colour = new Colour(255, 255, 255, 4.0f);
                 Material bigBallMaterial = new Material(colour, 0f, 0.5f, 2f);
                 Entity bigBall = new Entity("Big Ball");
@@ -89,7 +89,7 @@ namespace Dino_Defenders
 
                     Entity grassDisplaceEntity = new Entity("Grass Displace");
                     grassDisplaceEntity.addComponent(new TransformationComponent(collisionPoint, new Vector3(0), new Vector3(1)));
-                    grassDisplaceEntity.addComponent(new GrassBlastComponent(3f, 100f, 2f));
+                    grassDisplaceEntity.addComponent(new GrassBlastComponent(5f, 5f, 20f));
                     eCSEngine.AddEnityToSystem<GrassBlastSystem>(grassDisplaceEntity);
 
                 });
@@ -322,7 +322,7 @@ namespace Dino_Defenders
             StreetGenerator streetGenerator = new StreetGenerator();
             TerrainGenerator terrainGenerator = new TerrainGenerator();
 
-            Vector2 terrainSize = new Vector2(100, 100f);
+            Vector2 terrainSize = new Vector2(200, 200f);
             terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
 
             Entity crossRoad = new Entity("crossroad");

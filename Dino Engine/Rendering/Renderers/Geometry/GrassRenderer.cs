@@ -42,7 +42,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             generateBladeModel();
 
-            FrameBufferSettings frameBufferSettings = new FrameBufferSettings(new Vector2i(500,500));
+            FrameBufferSettings frameBufferSettings = new FrameBufferSettings(new Vector2i(600,600));
             frameBufferSettings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment0));
             _buffer1 = new FrameBuffer(frameBufferSettings);
             _buffer2 = new FrameBuffer(frameBufferSettings);
@@ -140,7 +140,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GetNextFrameBuffer().bind();
             _grassSimulationShader.bind();
             _grassSimulationShader.loadUniformFloat("delta", Engine.Delta);
-            _grassSimulationShader.loadUniformFloat("regenTime",20.8f);
+            _grassSimulationShader.loadUniformFloat("regenTime",13.8f);
             _grassSimulationShader.loadUniformFloat("time", time);
             _grassSimulationShader.loadUniformVector2f("grassFieldSize", new Vector2(100f, 100f));
             GL.ActiveTexture(TextureUnit.Texture0);
@@ -159,7 +159,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             if (grassBlade != null) grassBlade.cleanUp();
             float radius = .12f;
-            bladeHeight =4.6f;
+            bladeHeight =6.6f;
             List<Vector3> bladeLayers = new List<Vector3>() {
                 new Vector3(radius, 0, radius*0.3f),
                 new Vector3(radius*0.6f, bladeHeight*0.4f, radius*0.2f),
@@ -185,7 +185,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             if (grassBlade != null) grassBlade.cleanUp();
             float radius = .12f;
-            bladeHeight = 3.6f;
+            bladeHeight = 6.6f;
             List<Vector2> bladeLayers = new List<Vector2>() {
                 new Vector2(radius, 0),
                 new Vector2(radius*0.6f, bladeHeight*0.4f),
@@ -217,7 +217,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             renderEngine.GBuffer.bind();
             generateBladeModel();
             time += Engine.Delta;
-            float spacing =.25f;
+            float spacing =.3f;
 
             _grassShader.bind();
             GL.BindVertexArray(grassBlade.getVAOID());
