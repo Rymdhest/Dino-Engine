@@ -56,8 +56,13 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             skyShader.loadUniformVector3f("horizonColor", HorizonColour.ToVector3());
 
 
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
             //GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            renderer.Render(depthTest: true, depthMask: false, blend: false, clearColor: false);
+
+            renderer.Render(depthTest: true, depthMask: false, blend: true, clearColor: false);
+            //renderer.StepToggle();
 
         }
 

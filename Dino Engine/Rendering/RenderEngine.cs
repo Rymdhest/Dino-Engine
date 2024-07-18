@@ -115,7 +115,6 @@ namespace Dino_Engine.Rendering
         {
             if (Engine.WindowHandler.IsKeyPressed(Keys.T))
             {
-                _grassRenderer.blast(ScreenQuadRenderer);
             }
             _grassRenderer.StepSimulation(ScreenQuadRenderer);
             foreach (Renderer renderer in _renderers)
@@ -197,7 +196,7 @@ namespace Dino_Engine.Rendering
         }
         private void PostProcessPass(ECSEngine eCSEngine)
         {
-            //_sunRenderer.RenderPass(eCSEngine, this);
+            _sunRenderer.RenderPass(eCSEngine, this);
             _bloomRenderer.RenderPass(eCSEngine, this);
             _fogRenderer.RenderPass(eCSEngine, this);
             _toneMapRenderer.RenderPass(eCSEngine, this);

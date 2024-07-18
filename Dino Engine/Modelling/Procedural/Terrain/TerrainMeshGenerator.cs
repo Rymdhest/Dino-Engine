@@ -70,7 +70,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                 if (vertex.position.Y < 0)
                 {
                     vertex.material.Colour = new Colour(32, 32, 210);
-                    vertex.material.roughness = 0.2f;
+                    vertex.material.roughness = 0.1f;
                     vertex.material.metalicness = 0.75f;
                 }
 

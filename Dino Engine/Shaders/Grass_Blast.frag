@@ -7,12 +7,13 @@ uniform float delta;
 uniform float test;
 uniform vec2 center;
 uniform float radius;
+uniform vec2 grassPatchSize;
 uniform float power;
 uniform float exponent;
 
 void main(void){
-	float dist = clamp( distance(center, textureCoords)/radius, 0f, 1f);
-	float bend = pow(1f-dist, exponent);
-	vec2 direction =normalize(textureCoords-center);
+	float dist = distance(center, textureCoords*grassPatchSize);
+	float bend = clamp((radius-dist)/radius, 0f, 1f);
+	vec2 direction =normalize(textureCoords-center/grassPatchSize);
 	out_Colour.xy = direction*bend*power;
 }

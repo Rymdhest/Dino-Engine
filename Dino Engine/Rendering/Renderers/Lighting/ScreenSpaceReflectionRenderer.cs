@@ -14,7 +14,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private ShaderProgram ScreenSpaceReflectionShader = new ShaderProgram("Simple.vert", "Screen_Reflection.frag");
         private ShaderProgram combineReflectionShader = new ShaderProgram("Simple.vert", "Combine_Reflection.frag");
         private FrameBuffer _reflectionFramebuffer;
-        private int _downscalingFactor = 2;
+        private int _downscalingFactor = 1;
 
         public ScreenSpaceReflectionRenderer()
         {
@@ -80,7 +80,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ScreenSpaceReflectionShader.loadUniformFloat("distanceBias", 0.00002f);
             ScreenSpaceReflectionShader.loadUniformBool("isBinarySearchEnabled", true);
             ScreenSpaceReflectionShader.loadUniformBool("debugDraw", false);
-            ScreenSpaceReflectionShader.loadUniformFloat("stepExponent", 1.3f);
+            ScreenSpaceReflectionShader.loadUniformFloat("stepExponent", 1.2f);
 
             renderer.Render();
             ScreenSpaceReflectionShader.unBind();

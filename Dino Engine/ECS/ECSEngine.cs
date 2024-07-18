@@ -48,6 +48,7 @@ namespace Dino_Engine.ECS
             AddSystem<CollidableSystem>();
             AddSystem<CollidingSystem>();
             AddSystem<VelocitySystem>();
+            AddSystem<GrassDisplaceSystem>();
         }
 
         private void AddSystem<T>() where T : ComponentSystem, new()

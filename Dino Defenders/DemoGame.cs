@@ -85,6 +85,13 @@ namespace Dino_Defenders
                     eCSEngine.AddEnityToSystem<ParticleEmitterSystem>(emitter);
                     eCSEngine.AddEnityToSystem<SelfDestroySystem>(emitter);
 
+
+
+                    Entity grassDisplaceEntity = new Entity("Grass Displace");
+                    grassDisplaceEntity.addComponent(new TransformationComponent(collisionPoint, new Vector3(0), new Vector3(1)));
+                    grassDisplaceEntity.addComponent(new GrassDisplaceComponent(6f, 100f, 2f));
+                    eCSEngine.AddEnityToSystem<GrassDisplaceSystem>(grassDisplaceEntity);
+
                 });
                 bigBall.addComponent(collisionComponent);
 
@@ -108,37 +115,42 @@ namespace Dino_Defenders
             Vector3 col = MyMath.rng3D().Normalized();
             Colour colour = new Colour(col.X, col.Y, col.Z, 5.0f);
             Material bigBallMaterial = new Material(colour, 0f, 0.5f, 1f);
-            Entity bigBall = new Entity("Big Ball");
-            bigBall.addComponent(new TransformationComponent(position, new Vector3(0f), new Vector3(size)));
-            bigBall.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, bigBallMaterial)));
-            bigBall.addComponent(new VelocityComponent(speed * MyMath.rng3DMinusPlus().Normalized()));
-            bigBall.addComponent(new MassComponent(1.0f));
-            bigBall.addComponent(new SelfDestroyComponent(5f+MyMath.rng(2f)));
-            bigBall.addComponent(new ColourComponent(colour));
-            bigBall.addComponent(new AttunuationComponent(0.01f, 0.01f, 0.01f));
-            bigBall.addComponent(new CollisionComponent(new SphereHitbox(size)));
+            Entity smallBall = new Entity("Big Ball");
+            smallBall.addComponent(new TransformationComponent(position, new Vector3(0f), new Vector3(size)));
+            smallBall.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, bigBallMaterial)));
+            smallBall.addComponent(new VelocityComponent(speed * MyMath.rng3DMinusPlus().Normalized()));
+            smallBall.addComponent(new MassComponent(1.0f));
+            smallBall.addComponent(new SelfDestroyComponent(5f+MyMath.rng(2f)));
+            smallBall.addComponent(new ColourComponent(colour));
+            smallBall.addComponent(new AttunuationComponent(0.01f, 0.01f, 0.01f));
+            smallBall.addComponent(new CollisionComponent(new SphereHitbox(size)));
 
             CollisionEventComponent collisionComponent = new CollisionEventComponent((collider, collisionPoint, collisionNormal) =>
             {
-                float sphereRadius = ((SphereHitbox)bigBall.getComponent<CollisionComponent>().HitBox).Radius;
+                float sphereRadius = ((SphereHitbox)smallBall.getComponent<CollisionComponent>().HitBox).Radius;
 
                 Vector3 newPosition = collisionPoint + collisionNormal * sphereRadius;
-                Vector3 newVelocity = MyMath.reflect(bigBall.getComponent<VelocityComponent>().velocity, collisionNormal);
+                Vector3 newVelocity = MyMath.reflect(smallBall.getComponent<VelocityComponent>().velocity, collisionNormal);
 
-                bigBall.getComponent<TransformationComponent>().SetLocalTransformation(newPosition);
-                bigBall.getComponent<VelocityComponent>().velocity = newVelocity * 0.5f;
+                smallBall.getComponent<TransformationComponent>().SetLocalTransformation(newPosition);
+                smallBall.getComponent<VelocityComponent>().velocity = newVelocity * 0.5f;
+
+                Entity grassDisplaceEntity = new Entity("Grass Displace");
+                grassDisplaceEntity.addComponent(new TransformationComponent(collisionPoint, new Vector3(0), new Vector3(1)));
+                grassDisplaceEntity.addComponent(new GrassDisplaceComponent(2f, 10f, 2f));
+                eCSEngine.AddEnityToSystem<GrassDisplaceSystem>(grassDisplaceEntity);
 
             });
-            bigBall.addComponent(collisionComponent);
+            smallBall.addComponent(collisionComponent);
 
 
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(bigBall);
-            eCSEngine.AddEnityToSystem<VelocitySystem>(bigBall);
-            eCSEngine.AddEnityToSystem<GravitySystem>(bigBall);
-            eCSEngine.AddEnityToSystem<SelfDestroySystem>(bigBall);
-            eCSEngine.AddEnityToSystem<PointLightSystem>(bigBall);
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(smallBall);
+            eCSEngine.AddEnityToSystem<VelocitySystem>(smallBall);
+            eCSEngine.AddEnityToSystem<GravitySystem>(smallBall);
+            eCSEngine.AddEnityToSystem<SelfDestroySystem>(smallBall);
+            eCSEngine.AddEnityToSystem<PointLightSystem>(smallBall);
 
-            eCSEngine.AddEnityToSystem<CollidingSystem>(bigBall);
+            eCSEngine.AddEnityToSystem<CollidingSystem>(smallBall);
         }
 
 
@@ -154,17 +166,6 @@ namespace Dino_Defenders
         {
             TerrainGenerator generator = new TerrainGenerator();
 
-
-
-            Entity test = new Entity("test");
-            test.addComponent(new TransformationComponent(new Vector3(1, 12f, 0), new Vector3(0), new Vector3(0.2f)));
-            test.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, Material.ROCK)));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(test);
-
-            Entity test2 = new Entity("test");
-            test2.addComponent(new TransformationComponent(new Vector3(5, 12f, 0), new Vector3(0), new Vector3(0.2f)));
-            test2.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, Material.ROCK)));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(test2);
 
             /*
             int r = 1;
@@ -308,7 +309,7 @@ namespace Dino_Defenders
             StreetGenerator streetGenerator = new StreetGenerator();
             TerrainGenerator terrainGenerator = new TerrainGenerator();
 
-            Vector2 terrainSize = new Vector2(150, 250f);
+            Vector2 terrainSize = new Vector2(300, 60f);
             terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
 
             Entity crossRoad = new Entity("crossroad");
