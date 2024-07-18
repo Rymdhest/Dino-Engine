@@ -41,14 +41,15 @@ namespace Dino_Engine.ECS
             AddSystem<SpotLightSystem>();
             AddSystem<PointLightSystem>();
             AddSystem<SelfDestroySystem>();
-            AddSystem<GravitySystem>();
             AddSystem<ParticleEmitterSystem>();
             AddSystem<ParticleSystem>();
             AddSystem<TerrainSystem>();
+            AddSystem<VelocitySystem>();
+            AddSystem<GravitySystem>();
             AddSystem<CollidableSystem>();
             AddSystem<CollidingSystem>();
-            AddSystem<VelocitySystem>();
-            AddSystem<GrassDisplaceSystem>();
+            AddSystem<GrassBlastSystem>();
+            AddSystem<GrassInteractSystem>();
         }
 
         private void AddSystem<T>() where T : ComponentSystem, new()
@@ -73,8 +74,8 @@ namespace Dino_Engine.ECS
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-1f, 2f, 3.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 25.0f);
-            colour = new Colour(1f, 0.7f, 0.65f, 25.0f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 5.0f);
+            colour = new Colour(1f, 0.7f, 0.65f, 5.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.01f));

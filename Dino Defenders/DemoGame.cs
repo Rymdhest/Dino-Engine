@@ -40,10 +40,10 @@ namespace Dino_Defenders
             }
             if (Engine.WindowHandler.IsKeyPressed(Keys.B))
             {
-                float size = 0.8f;
-                float speed = 65f;
-                Colour colour = new Colour(255, 255, 255, 1.0f);
-                Material bigBallMaterial = new Material(colour, 0f, 0.5f, 10f);
+                float size = 1.8f;
+                float speed = 50f;
+                Colour colour = new Colour(255, 255, 255, 4.0f);
+                Material bigBallMaterial = new Material(colour, 0f, 0.5f, 2f);
                 Entity bigBall = new Entity("Big Ball");
                 bigBall.addComponent(new TransformationComponent(new Transformation(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.position, new Vector3(0f), new Vector3(size))));
                 bigBall.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, bigBallMaterial)));
@@ -63,7 +63,7 @@ namespace Dino_Defenders
 
                     bigBall.CleanUp();
 
-                    for (int i = 0; i< 20; i++)
+                    for (int i = 0; i< 10; i++)
                     {
                         smallSmallRandomBall(newPosition);
                     }
@@ -89,8 +89,8 @@ namespace Dino_Defenders
 
                     Entity grassDisplaceEntity = new Entity("Grass Displace");
                     grassDisplaceEntity.addComponent(new TransformationComponent(collisionPoint, new Vector3(0), new Vector3(1)));
-                    grassDisplaceEntity.addComponent(new GrassDisplaceComponent(6f, 100f, 2f));
-                    eCSEngine.AddEnityToSystem<GrassDisplaceSystem>(grassDisplaceEntity);
+                    grassDisplaceEntity.addComponent(new GrassBlastComponent(3f, 100f, 2f));
+                    eCSEngine.AddEnityToSystem<GrassBlastSystem>(grassDisplaceEntity);
 
                 });
                 bigBall.addComponent(collisionComponent);
@@ -101,7 +101,7 @@ namespace Dino_Defenders
                 eCSEngine.AddEnityToSystem<GravitySystem>(bigBall);
                 eCSEngine.AddEnityToSystem<SelfDestroySystem>(bigBall);
                 eCSEngine.AddEnityToSystem<PointLightSystem>(bigBall);
-
+                eCSEngine.AddEnityToSystem<GrassInteractSystem>(bigBall);
                 eCSEngine.AddEnityToSystem<CollidingSystem>(bigBall);
 
             }
@@ -110,46 +110,59 @@ namespace Dino_Defenders
         private void smallSmallRandomBall(Vector3 position)
         {
             ECSEngine eCSEngine = Engine.ECSEngine;
-            float size = 0.2f;
-            float speed = 25f;
-            Vector3 col = MyMath.rng3D().Normalized();
-            Colour colour = new Colour(col.X, col.Y, col.Z, 5.0f);
+            float size = 0.5f+MyMath.rng()*0.7f;
+            float speed = 15f;
+            Vector3 col = MyMath.rng3D(0.5f)+new Vector3(0.5f);
+            Colour colour = new Colour(col.X, col.Y, col.Z, 1.0f);
             Material bigBallMaterial = new Material(colour, 0f, 0.5f, 1f);
-            Entity smallBall = new Entity("Big Ball");
+            Entity smallBall = new Entity("Small Ball");
             smallBall.addComponent(new TransformationComponent(position, new Vector3(0f), new Vector3(size)));
             smallBall.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, bigBallMaterial)));
             smallBall.addComponent(new VelocityComponent(speed * MyMath.rng3DMinusPlus().Normalized()));
             smallBall.addComponent(new MassComponent(1.0f));
-            smallBall.addComponent(new SelfDestroyComponent(5f+MyMath.rng(2f)));
+            smallBall.addComponent(new SelfDestroyComponent(7f+MyMath.rng(3f)));
             smallBall.addComponent(new ColourComponent(colour));
             smallBall.addComponent(new AttunuationComponent(0.01f, 0.01f, 0.01f));
             smallBall.addComponent(new CollisionComponent(new SphereHitbox(size)));
 
             CollisionEventComponent collisionComponent = new CollisionEventComponent((collider, collisionPoint, collisionNormal) =>
             {
+                //reverse movement
+                Vector3 velocity = smallBall.getComponent<VelocityComponent>().velocity;
+                Transformation transf = smallBall.getComponent<TransformationComponent>().Transformation;
+                transf.translate(-velocity * Engine.Delta);
+                smallBall.getComponent<TransformationComponent>().Transformation = transf;
+
+
+                float movementRemaining = velocity.Length*Engine.Delta;
                 float sphereRadius = ((SphereHitbox)smallBall.getComponent<CollisionComponent>().HitBox).Radius;
+                float distanceToCollision = Vector3.Distance(transf.position, collisionPoint)-sphereRadius;
+                float movement = MathF.Min(movementRemaining, distanceToCollision);
+                transf.translate(movement*(collisionPoint-transf.position).Normalized());
+                movementRemaining -= movement;
 
-                Vector3 newPosition = collisionPoint + collisionNormal * sphereRadius;
-                Vector3 newVelocity = MyMath.reflect(smallBall.getComponent<VelocityComponent>().velocity, collisionNormal);
 
-                smallBall.getComponent<TransformationComponent>().SetLocalTransformation(newPosition);
-                smallBall.getComponent<VelocityComponent>().velocity = newVelocity * 0.5f;
+                if (movementRemaining > 0.000001f)
+                {
+                    Vector3 newVelocity = MyMath.reflect(smallBall.getComponent<VelocityComponent>().velocity, collisionNormal) * 0.55f;
+                    smallBall.getComponent<VelocityComponent>().velocity = newVelocity;
+                    smallBall.getComponent<TransformationComponent>().SetLocalTransformation(transf.position + movementRemaining*newVelocity.Normalized());
+                } else
+                {
+                    smallBall.getComponent<TransformationComponent>().SetLocalTransformation(new Vector3(transf.position.X, collisionPoint.Y+sphereRadius, transf.position.Z));
+                    //smallBall.getComponent<TransformationComponent>().SetLocalTransformation(transf.position);
+                }
 
-                Entity grassDisplaceEntity = new Entity("Grass Displace");
-                grassDisplaceEntity.addComponent(new TransformationComponent(collisionPoint, new Vector3(0), new Vector3(1)));
-                grassDisplaceEntity.addComponent(new GrassDisplaceComponent(2f, 10f, 2f));
-                eCSEngine.AddEnityToSystem<GrassDisplaceSystem>(grassDisplaceEntity);
+
 
             });
             smallBall.addComponent(collisionComponent);
-
-
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(smallBall);
             eCSEngine.AddEnityToSystem<VelocitySystem>(smallBall);
             eCSEngine.AddEnityToSystem<GravitySystem>(smallBall);
             eCSEngine.AddEnityToSystem<SelfDestroySystem>(smallBall);
             eCSEngine.AddEnityToSystem<PointLightSystem>(smallBall);
-
+            eCSEngine.AddEnityToSystem<GrassInteractSystem>(smallBall);
             eCSEngine.AddEnityToSystem<CollidingSystem>(smallBall);
         }
 
@@ -309,7 +322,7 @@ namespace Dino_Defenders
             StreetGenerator streetGenerator = new StreetGenerator();
             TerrainGenerator terrainGenerator = new TerrainGenerator();
 
-            Vector2 terrainSize = new Vector2(300, 60f);
+            Vector2 terrainSize = new Vector2(100, 100f);
             terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
 
             Entity crossRoad = new Entity("crossroad");

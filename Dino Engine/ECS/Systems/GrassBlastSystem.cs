@@ -7,12 +7,12 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.Systems
 {
-    public class GrassDisplaceSystem : ComponentSystem
+    public class GrassBlastSystem : ComponentSystem
     {
         internal override void UpdateEntity(Entity entity)
         {
             addRequiredComponent<TransformationComponent>();
-            addRequiredComponent<GrassDisplaceComponent>();
+            addRequiredComponent<GrassBlastComponent>();
         }
     }
 }

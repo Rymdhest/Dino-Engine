@@ -97,17 +97,24 @@ namespace Dino_Engine.ECS.Systems
             // Sample points around the sphere's bottom hemisphere
             Vector3 sphereCenter = sphereTransform.position ;
             sphereCenter.Xz = sphereCenter.Xz * scaleToGridSpace.X;
+            float radiusOversqrt2 = sphereRadius/MathF.Sqrt(2);
+            float radiusOver2 = radiusOversqrt2 - ( sphereRadius / 2f);
+
             Vector3[] samplePoints = {
-                sphereCenter,
-                sphereCenter + new Vector3(sphereRadius, 0, 0),
-                sphereCenter + new Vector3(-sphereRadius, 0, 0),
-                sphereCenter + new Vector3(0, 0, sphereRadius),
-                sphereCenter + new Vector3(0, 0, -sphereRadius),
-                sphereCenter + new Vector3(sphereRadius / MathF.Sqrt(2), 0, sphereRadius / MathF.Sqrt(2)),
-                sphereCenter + new Vector3(sphereRadius / MathF.Sqrt(2), 0, -sphereRadius / MathF.Sqrt(2)),
-                sphereCenter + new Vector3(-sphereRadius / MathF.Sqrt(2), 0, sphereRadius / MathF.Sqrt(2)),
-                sphereCenter + new Vector3(-sphereRadius / MathF.Sqrt(2), 0, -sphereRadius / MathF.Sqrt(2))
+                sphereCenter + new Vector3(0, -sphereRadius, 0),
+                sphereCenter + new Vector3(sphereRadius, -radiusOver2, 0),
+                sphereCenter + new Vector3(-sphereRadius, -radiusOver2, 0),
+                sphereCenter + new Vector3(0, -radiusOver2, sphereRadius),
+                sphereCenter + new Vector3(0, -radiusOver2, -sphereRadius),
+                sphereCenter + new Vector3(radiusOversqrt2, -radiusOver2, radiusOversqrt2),
+                sphereCenter + new Vector3(radiusOversqrt2, -radiusOver2, -radiusOversqrt2),
+                sphereCenter + new Vector3(-radiusOversqrt2, -radiusOver2, radiusOversqrt2),
+                sphereCenter + new Vector3(-radiusOversqrt2, -radiusOver2, -radiusOversqrt2)
             };
+
+            float closestDistance = 999999f;
+            Vector3 closestSample = new Vector3(0f);
+            bool found = false;
 
             foreach (Vector3 samplePoint in samplePoints)
             {
@@ -121,12 +128,25 @@ namespace Dino_Engine.ECS.Systems
 
                 if (distanceToTerrain <= 0)
                 {
-                    collisionPosition = samplePoint/scaleToGridSpace+terrainTransform.position;
-                    collisionNormal = normalMap.BilinearInterpolate(samplePoint.Xz);
-                    collisionNormal.Normalize();
-                    return true;
+                    if (distanceToTerrain < closestDistance)
+                    {
+                        found = true;
+                        closestSample = samplePoint;
+                        closestDistance = distanceToTerrain;
+                        closestSample.Y = terrainHeight;
+                    }
+
                 }
             }
+            if (found)
+            {
+                collisionPosition = closestSample / scaleToGridSpace + terrainTransform.position;
+                collisionNormal = normalMap.BilinearInterpolate(closestSample.Xz);
+                collisionNormal.Normalize();
+                return true;
+            }
+
+
             return false;
         }
 

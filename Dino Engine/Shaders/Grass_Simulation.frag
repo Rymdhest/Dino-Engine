@@ -6,14 +6,18 @@ uniform sampler2D lastTexture;
 uniform float delta;
 uniform float regenTime;
 uniform float time;
+uniform vec2 grassFieldSize;
 
 vec2 calcWind(vec2 uv) {
 	float x = 0f;
-	x += 0.05f*(sin(uv.x*71.77f+time));
-	x += 0.02317f*(sin(uv.x*109.124f+time*2.412));
-	x += 0.01239973f*(sin(uv.x*187.567f+time*7.328995));
+
+	vec2 worldPos = uv*grassFieldSize;
+
+	x += 0.08f*(sin(worldPos.x*4.77f+time));
+	x += 0.05317f*(sin(worldPos.x*1.124f+time*2.412));
+	x += 0.0239973f*(sin(worldPos.x*0.2567f+time*7.328995));
 	float y =0f;
-	return vec2(x, y);
+	return vec2(x, y)*delta;
 }
 
 void main(void){
