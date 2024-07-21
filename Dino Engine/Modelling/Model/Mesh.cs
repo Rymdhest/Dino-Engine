@@ -1,144 +1,71 @@
 ﻿using Dino_Engine.Util;
 using OpenTK.Mathematics;
+using System.Drawing;
+using System.Linq;
 using System.Transactions;
 namespace Dino_Engine.Modelling.Model
 {
     public struct Mesh
     {
         public List<Face> faces;
-        public List<Vertex> vertices;
+        public List<MeshVertex> meshVertices;
         public bool finishedNormals = false;
+        public static bool scaleUV = false;
         public Mesh()
         {
-            vertices = new List<Vertex>();
+            meshVertices = new List<MeshVertex>();
             faces = new List<Face>();
         }
-        public Mesh(List<Face> faces, List<Vertex> vertices, Material material)
+        public Mesh(List<Face> faces, List<MeshVertex> vertices)
         {
             this.faces = faces;
-            this.vertices = vertices;
+            this.meshVertices = vertices;
         }
-        public Mesh(List<Vector3> positions, List<int> indices, List<Material> materials)
+        public Mesh(List<Vertex> vertices, List<int> indices)
         {
-            float[] positionsArray = new float[positions.Count * 3];
-
-            for (int i = 0; i < positions.Count; i++)
-            {
-                positionsArray[i * 3 + 0] = positions[i].X;
-                positionsArray[i * 3 + 1] = positions[i].Y;
-                positionsArray[i * 3 + 2] = positions[i].Z;
-            }
-
-            Init(positionsArray, indices.ToArray(), materials.ToArray());
-        }
-        public Mesh(List<Vector3> positions, List<int> indices, Material material)
-        {
-            float[] positionsArray = new float[positions.Count*3];
-
-            for (int i = 0; i <positions.Count; i++)
-            {
-                positionsArray[i * 3 + 0] = positions[i].X;
-                positionsArray[i * 3 + 1] = positions[i].Y;
-                positionsArray[i * 3 + 2] = positions[i].Z;
-            }
-
-            Init(positionsArray, indices.ToArray(), material);
-        }
-        public Mesh(List<float> positions, List<int> indices, Material material)
-        {
-            Init(positions.ToArray(), indices.ToArray(), material);
-        }
-        public Mesh(float[] positions, int[] indices, Material material)
-        {
-            Init(positions, indices, material);
+            Init(vertices, indices);
         }
 
-        private void Init(float[] positions, int[] indices, Material material)
+        private void Init(List<Vertex> vertices, List<int> indices)
         {
-            vertices = new List<Vertex>();
+            meshVertices = new List<MeshVertex>();
             faces = new List<Face>();
 
-            for (int i = 0; i < positions.Length / 3; i++)
+            for (int i = 0; i < vertices.Count; i++)
             {
-                Vertex v = new Vertex(new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]), i);
-                //v.UV = new Vector2(uvs[i * 2], uvs[i * 2 + 1]);
-                //v.colour = new Colour(colours[i*3], colours[i * 3+1], colours[i * 3+2]);
-                v.material = material;
-                vertices.Add(v);
+                meshVertices.Add(new MeshVertex(vertices[i], i));
             }
-            for (int i = 0; i < indices.Length / 3; i++)
+            for (int i = 0; i < indices.Count / 3; i++)
             {
-                Vertex A = vertices[indices[i * 3]];
-                Vertex B = vertices[indices[i * 3 + 1]];
-                Vertex C = vertices[indices[i * 3 + 2]];
+                MeshVertex A = meshVertices[indices[i * 3]];
+                MeshVertex B = meshVertices[indices[i * 3 + 1]];
+                MeshVertex C = meshVertices[indices[i * 3 + 2]];
                 Face face = new Face(A, B, C);
                 A.faces.Add(face);
                 B.faces.Add(face);
                 C.faces.Add(face);
                 faces.Add(face);
             }
-            //calculateAllNormals();
-        }
-        private void Init(float[] positions, int[] indices, Material[] materials)
-        {
-            vertices = new List<Vertex>();
-            faces = new List<Face>();
-
-            for (int i = 0; i < positions.Length / 3; i++)
-            {
-                Vertex v = new Vertex(new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]), i);
-                //v.UV = new Vector2(uvs[i * 2], uvs[i * 2 + 1]);
-                //v.colour = new Colour(colours[i*3], colours[i * 3+1], colours[i * 3+2]);
-                v.material = materials[i];
-                vertices.Add(v);
-            }
-            for (int i = 0; i < indices.Length / 3; i++)
-            {
-                Vertex A = vertices[indices[i * 3]];
-                Vertex B = vertices[indices[i * 3 + 1]];
-                Vertex C = vertices[indices[i * 3 + 2]];
-                Face face = new Face(A, B, C);
-                A.faces.Add(face);
-                B.faces.Add(face);
-                C.faces.Add(face);
-                faces.Add(face);
-            }
-            //calculateAllNormals();
-        }
-        private Mesh(float[] positions, int[] indices, Material[] materials)
-        {
-            Init(positions, indices, materials);
+            calculateAllNormals();
         }
         public void makeFlat(bool flatNormal, bool flatMaterial, bool flatUV = false)
         {
-            vertices.Clear();
+            meshVertices.Clear();
             int i = 0;
             foreach (Face face in faces)
             {
-                Vertex vertexA = new Vertex(face.A.position, i++);
+                MeshVertex vertexA = new MeshVertex(face.A, i++);
                 vertexA.faces.Add(face);
                 vertexA.UV = face.A.UV;
 
 
-                Vertex vertexB = new Vertex(face.B.position, i++);
+                MeshVertex vertexB = new MeshVertex(face.B,  i++);
                 vertexB.faces.Add(face);
                 vertexB.UV = face.B.UV;
 
-                Vertex vertexC = new Vertex(face.C.position, i++);
+                MeshVertex vertexC = new MeshVertex(face.C, i++);
                 vertexC.faces.Add(face);
                 vertexC.UV = face.C.UV;
-
-                if (flatMaterial)
-                {
-                    vertexA.material = face.A.material;
-                    vertexB.material = face.A.material;
-                    vertexC.material = face.A.material;
-                } else
-                {
-                    vertexA.material = face.A.material;
-                    vertexB.material = face.B.material;
-                    vertexC.material = face.C.material;
-                }
 
                 if (flatNormal)
                 {
@@ -156,9 +83,9 @@ namespace Dino_Engine.Modelling.Model
                 face.B = vertexB;
                 face.C = vertexC;
 
-                vertices.Add(vertexA);
-                vertices.Add(vertexB);
-                vertices.Add(vertexC);
+                meshVertices.Add(vertexA);
+                meshVertices.Add(vertexB);
+                meshVertices.Add(vertexC);
             }
         }
 
@@ -168,121 +95,78 @@ namespace Dino_Engine.Modelling.Model
             {
                 face.calcFaceNormal();
             }
-            foreach (Vertex vertex in vertices)
+            foreach (MeshVertex vertex in meshVertices)
             {
-                vertex.calculateNormal();
+                vertex.calculateNormalAndTangent();
             }
             finishedNormals = true;
         }
 
-        public void setRoughness(float setTo)
-        {
-            for (int i = 0; i < vertices.Count; i++)
-            {
-                Vertex vertex = vertices[i];
-                vertex.material.roughness = setTo;
-                vertices[i] = vertex;
-            }
-        }
-        public void setEmission(float setTo)
-        {
-            for (int i = 0; i < vertices.Count; i++)
-            {
-                Vertex vertex = vertices[i];
-                vertex.material.emission = setTo;
-                vertices[i] = vertex;
-            }
-        }
-        public void setMetalicness(float setTo)
-        {
-            for (int i = 0; i < vertices.Count; i++)
-            {
-                Vertex vertex = vertices[i];
-                vertex.material.metalicness = setTo;
-                vertices[i] = vertex;
-            }
-        }
-
         public void setColour(Colour setTo)
         {
-            for (int i = 0; i < vertices.Count; i++)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                Vertex vertex = vertices[i];
+                MeshVertex vertex = meshVertices[i];
                 vertex.material.Colour = setTo;
-                vertices[i] = vertex;
+                meshVertices[i] = vertex;
             }
         }
 
         public float[] getAllPositionsArray()
         {
-            float[] positionsArray = new float[vertices.Count * 3];
+            float[] positionsArray = new float[meshVertices.Count * 3];
 
-            for (int i = 0; i < vertices.Count; i++)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                positionsArray[3 * i + 0] = vertices[i].position.X;
-                positionsArray[3 * i + 1] = vertices[i].position.Y;
-                positionsArray[3 * i + 2] = vertices[i].position.Z;
+                positionsArray[3 * i + 0] = meshVertices[i].position.X;
+                positionsArray[3 * i + 1] = meshVertices[i].position.Y;
+                positionsArray[3 * i + 2] = meshVertices[i].position.Z;
             }
             return positionsArray;
         }
 
         public float[] getAllNormalsArray()
         {
-            float[] normalsArray = new float[vertices.Count * 3];
+            float[] normalsArray = new float[meshVertices.Count * 3];
 
-            for (int i = 0; i < vertices.Count; i++)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                normalsArray[3 * i + 0] = vertices[i].normal.X;
-                normalsArray[3 * i + 1] = vertices[i].normal.Y;
-                normalsArray[3 * i + 2] = vertices[i].normal.Z;
+                normalsArray[3 * i + 0] = meshVertices[i].normal.X;
+                normalsArray[3 * i + 1] = meshVertices[i].normal.Y;
+                normalsArray[3 * i + 2] = meshVertices[i].normal.Z;
             }
             return normalsArray;
         }
 
         public float[] getAllTangentsArray()
         {
-            float[] tangentsArray = new float[vertices.Count * 3];
+            float[] tangentsArray = new float[meshVertices.Count * 3];
 
-            for (int i = 0; i < vertices.Count; i++)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                tangentsArray[3 * i + 0] = vertices[i].tangent.X;
-                tangentsArray[3 * i + 1] = vertices[i].tangent.Y;
-                tangentsArray[3 * i + 2] = vertices[i].tangent.Z;
+                tangentsArray[3 * i + 0] = meshVertices[i].tangent.X;
+                tangentsArray[3 * i + 1] = meshVertices[i].tangent.Y;
+                tangentsArray[3 * i + 2] = meshVertices[i].tangent.Z;
             }
             return tangentsArray;
         }
-
-        public float[] getAllMaterialsArray()
+        public Material[] getAllMaterialArray()
         {
-            float[] materialsArray = new float[vertices.Count * 3];
+            Material[] materialsArray = new Material[meshVertices.Count];
 
-            for (int i = 0; i < vertices.Count; i++)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                materialsArray[3 * i + 0] = vertices[i].material.roughness;
-                materialsArray[3 * i + 1] = vertices[i].material.emission;
-                materialsArray[3 * i + 2] = vertices[i].material.metalicness;
+                materialsArray[i] = meshVertices[i].material;
             }
             return materialsArray;
         }
-
-        public Material[] getAllMaterialsTypeArray()
+        public float[] getAllColoursFloatArray()
         {
-            Material[] materialsArray = new Material[vertices.Count];
+            float[] coloursArray = new float[meshVertices.Count * 3];
 
-            for (int i = 0; i < vertices.Count; i++)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                materialsArray[i] = vertices[i].material;
-            }
-            return materialsArray;
-        }
-
-        public float[] getAllColoursArray()
-        {
-            float[] coloursArray = new float[vertices.Count * 3];
-
-            for (int i = 0; i < vertices.Count; i++)
-            {
-                Vector3 colour = vertices[i].material.Colour.ToVector3();
+                Vector3 colour = meshVertices[i].material.Colour.ToVector3();
                 coloursArray[3 * i + 0] = colour.X;
                 coloursArray[3 * i + 1] = colour.Y;
                 coloursArray[3 * i + 2] = colour.Z;
@@ -292,14 +176,25 @@ namespace Dino_Engine.Modelling.Model
 
         public float[] getAllUVsArray()
         {
-            float[] UVsArray = new float[vertices.Count * 2];
+            float[] UVsArray = new float[meshVertices.Count * 2];
 
-            for (int i = 0; i < vertices.Count; i++)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                UVsArray[2 * i + 0] = vertices[i].UV.X;
-                UVsArray[2 * i + 1] = vertices[i].UV.Y;
+                UVsArray[2 * i + 0] = meshVertices[i].UV.X;
+                UVsArray[2 * i + 1] = meshVertices[i].UV.Y;
             }
             return UVsArray;
+        }
+
+        public float[] getAllMaterialIndicesArray()
+        {
+            float[] array = new float[meshVertices.Count];
+
+            for (int i = 0; i < meshVertices.Count; i++)
+            {
+                array[i] = meshVertices[i].material.materialIndex;
+            }
+            return array;
         }
 
         public int[] getAllIndicesArray()
@@ -315,6 +210,18 @@ namespace Dino_Engine.Modelling.Model
             }
             return indicesArray;
         }
+
+        private Vertex[] getAllVerticesArray()
+        {
+            Vertex[] verticesArray = new Vertex[meshVertices.Count];
+
+            for (int i = 0; i < meshVertices.Count; i++)
+            {
+                verticesArray[i] = new Vertex(meshVertices[i].position, meshVertices[i].UV, meshVertices[i].material);
+            }
+            return verticesArray;
+        }
+
         public void cleanUp()
         {
 
@@ -326,11 +233,11 @@ namespace Dino_Engine.Modelling.Model
         }
         public void FlatRandomness(Vector3 amount)
         {
-            for (int i = 0; i < vertices.Count; i++)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                Vertex vertex = vertices[i];
+                MeshVertex vertex = meshVertices[i];
                 vertex.position += amount*MyMath.rng3DMinusPlus();
-                vertices[i] = vertex;
+                meshVertices[i] = vertex;
             }
         }
 
@@ -361,34 +268,36 @@ namespace Dino_Engine.Modelling.Model
         public void Transform(Transformation transformation)
         {
             var transformationMatrix = MyMath.createTransformationMatrix(transformation);
-            for (int i = 0; i < vertices.Count; i++)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                Vertex vertex = vertices[i];
+                MeshVertex vertex = meshVertices[i];
                 vertex.position = (new Vector4(vertex.position, 1.0f)* transformationMatrix).Xyz;
-                vertices[i] = vertex;
+                if (scaleUV) meshVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
+                meshVertices[i] = vertex;
             }
+            calculateAllNormals();
         }
         public Mesh Transformed(Transformation transformation)
         {
             var transformationMatrix = MyMath.createTransformationMatrix(transformation);
-            float[] newPositions = new float[vertices.Count*3];
-            for (int i = 0; i < vertices.Count; i++)
+            Vertex[] newVertices = getAllVerticesArray();
+            for (int i = 0; i < meshVertices.Count; i++)
             {
-                Vector3 newPosition = (new Vector4(vertices[i].position, 1.0f)*transformationMatrix).Xyz;
-                newPositions[i * 3+0] = newPosition.X;
-                newPositions[i * 3+1] = newPosition.Y;
-                newPositions[i * 3+2] = newPosition.Z;
+                Vector3 newPosition = (new Vector4(newVertices[i].position, 1.0f)*transformationMatrix).Xyz;
+                newVertices[i].position = newPosition;
+                if (scaleUV) newVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
             }
-            return new Mesh(newPositions, getAllIndicesArray(), getAllMaterialsTypeArray());
+            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<int>());
         }
 
 
         public static Mesh Add(Mesh a, Mesh b)
         {
-            List<float> positions = new List<float>();
-            positions.AddRange(a.getAllPositionsArray());
-            int offset = positions.Count/3;
-            positions.AddRange(b.getAllPositionsArray());
+            List<Vertex> vertices= new List<Vertex>();
+            vertices.AddRange(a.getAllVerticesArray());
+            int offset = vertices.Count;
+            vertices.AddRange(b.getAllVerticesArray());
+
 
             List<int> indices = new List<int>();
             indices.AddRange(a.getAllIndicesArray());
@@ -399,11 +308,7 @@ namespace Dino_Engine.Modelling.Model
             }
             indices.AddRange(secondIndices);
 
-            List<Material> materials = new List<Material>();
-            materials.AddRange(a.getAllMaterialsTypeArray());
-            materials.AddRange(b.getAllMaterialsTypeArray());
-
-            Mesh mesh =new Mesh(positions.ToArray(), indices.ToArray(), materials.ToArray());
+            Mesh mesh =new Mesh(vertices, indices);
             if (a.finishedNormals && b.finishedNormals) mesh.finishedNormals = true;
 
             return mesh;

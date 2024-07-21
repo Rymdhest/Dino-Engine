@@ -8,9 +8,9 @@ public class glLoader
     public static glModel loadToVAO(Mesh mesh)
     {
         if (!mesh.finishedNormals) mesh.calculateAllNormals();
-        return loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursArray(), mesh.getAllMaterialsArray(),mesh.getAllNormalsArray(), mesh.getAllIndicesArray());
+        return loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursFloatArray(), mesh.getAllNormalsArray(),mesh.getAllTangentsArray(), mesh.getAllUVsArray(), mesh.getAllMaterialIndicesArray(), mesh.getAllIndicesArray());
     }
-    public static glModel loadToVAO(float[] positions, float[] colors, float[] materials, int[] indices)
+    public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, int[] indices)
     {
         int vaoID = createVAO();
         int[] VBOS = new int[4];
@@ -18,21 +18,23 @@ public class glLoader
 
         VBOS[0] = storeDataInAttributeList(0, 3, positions);
         VBOS[1] = storeDataInAttributeList(1, 3, colors);
-        VBOS[2] = storeDataInAttributeList(2, 3, materials);
+        VBOS[2] = storeDataInAttributeList(2, 3, normals);
         unbindVAO();
         return new glModel(vaoID, VBOS, indices.Length);
     }
 
-    public static glModel loadToVAO(float[] positions, float[] colors, float[] materials, float[] normals, int[] indices)
+    public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, float[] tangents, float[] uvs, float[] materialIndices, int[] indices)
     {
         int vaoID = createVAO();
-        int[] VBOS = new int[5];
-        VBOS[4] = bindIndicesBuffer(indices);
+        int[] VBOS = new int[7];
+        VBOS[6] = bindIndicesBuffer(indices);
 
         VBOS[0] = storeDataInAttributeList(0, 3, positions);
         VBOS[1] = storeDataInAttributeList(1, 3, colors);
-        VBOS[2] = storeDataInAttributeList(2, 3, materials);
-        VBOS[3] = storeDataInAttributeList(3, 3, normals);
+        VBOS[2] = storeDataInAttributeList(2, 3, normals);
+        VBOS[3] = storeDataInAttributeList(3, 3, tangents);
+        VBOS[4] = storeDataInAttributeList(4, 2, uvs);
+        VBOS[5] = storeDataInAttributeList(5, 1, materialIndices);
         unbindVAO();
         return new glModel(vaoID, VBOS, indices.Length);
     }

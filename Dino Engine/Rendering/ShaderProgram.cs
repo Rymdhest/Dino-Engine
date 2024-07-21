@@ -1,4 +1,5 @@
 ﻿
+using Dino_Engine.Core;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using System.Xml.Linq;
@@ -18,6 +19,9 @@ namespace Dino_Engine.Rendering
             vertexShaderID = loadShader(vertexFile, ShaderType.VertexShader);
             fragmentShaderID = loadShader(fragmentFile, ShaderType.FragmentShader);
             programID = GL.CreateProgram();
+
+            Console.WriteLine($"loading program {programID} from {vertexFile} and {fragmentFile}");
+
             GL.AttachShader(programID, vertexShaderID);
             GL.AttachShader(programID, fragmentShaderID);
             GL.LinkProgram(programID);
@@ -26,6 +30,8 @@ namespace Dino_Engine.Rendering
             uniforms = new Dictionary<string, int>();
             extractAllUniformsToDictionary(vertexFile);
             extractAllUniformsToDictionary(fragmentFile);
+
+
 
         }
         public ShaderProgram(string vertexFile, string fragmentFile, string geometryFile)
@@ -133,6 +139,7 @@ namespace Dino_Engine.Rendering
             string fullPath = _shaderFolderPath+"/" + name;
             int shaderID = GL.CreateShader(type);
 
+
             string fileString = "";
             try
             {
@@ -151,6 +158,7 @@ namespace Dino_Engine.Rendering
                 string infoLog = GL.GetShaderInfoLog(shaderID);
                 Console.WriteLine($"Could not compile shader ({name}).\n\n{infoLog}");
             }
+
 
             return shaderID;
         }

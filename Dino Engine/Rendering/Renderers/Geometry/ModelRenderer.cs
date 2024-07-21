@@ -14,6 +14,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public ModelRenderer()
         {
+            _modelShader.bind();
+            _modelShader.loadUniformInt("albedoMap", 0);
+            _modelShader.loadUniformInt("normalMap", 1);
+            _modelShader.loadUniformInt("materialMap", 2);
+            _modelShader.unBind();
         }
         internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
@@ -24,6 +29,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();
 
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine.textureGenerator._albedoBuffer.GetAttachment(0));
+            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine.textureGenerator._normalBuffer.GetAttachment(0));
+            GL.ActiveTexture(TextureUnit.Texture2);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine.textureGenerator._poopertiesBuffer.GetAttachment(0));
         }
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
@@ -40,6 +51,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 GL.EnableVertexAttribArray(1);
                 GL.EnableVertexAttribArray(2);
                 GL.EnableVertexAttribArray(3);
+                GL.EnableVertexAttribArray(4);
+                GL.EnableVertexAttribArray(5);
                 foreach (Entity entity in glmodels.Value)
                 {
                     Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
@@ -64,6 +77,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.DisableVertexAttribArray(1);
             GL.DisableVertexAttribArray(2);
             GL.DisableVertexAttribArray(3);
+            GL.DisableVertexAttribArray(4);
+            GL.DisableVertexAttribArray(5);
             GL.BindVertexArray(0);
         }
         public override void CleanUp()

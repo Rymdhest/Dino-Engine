@@ -8,8 +8,8 @@ namespace Dino_Engine.Modelling.Procedural.Nature
     public class TreeGenerator
     {
 
-        public Material trunkMaterial = new Material(new Colour(107, 84, 61), 0f, 0.9f, 0f);
-        public Material leafMaterial = new Material(new Colour(195, 231, 73), 0f, 0.5f, 0f);
+        public Material trunkMaterial = new Material(new Colour(107, 84, 61), 1);
+        public Material leafMaterial = new Material(new Colour(195, 231, 73), 1);
 
         public Mesh GenerateTree()
         {
@@ -24,7 +24,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 new Vector2(r*0.9f, h*0.33f),
                 new Vector2(r*0.8f, h*0.66f),
                 new Vector2(r*0.7f, h) };
-            Mesh stem = MeshGenerator.generateCylinder(layers, 9, trunkMaterial);
+            Mesh stem = MeshGenerator.generateCylinder(layers, 10, trunkMaterial);
             stem.FlatRandomness(new Vector3(0.01f, 0.05f, 0.01f));
 
             tree += stem;

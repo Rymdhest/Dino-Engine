@@ -6,6 +6,7 @@ using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
+using Dino_Engine.Textures;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
@@ -43,6 +44,7 @@ namespace Dino_Engine.Rendering
         public bool debugView = false;
         private ShaderProgram _simpleShader;
 
+        public TextureGenerator textureGenerator = new TextureGenerator();
 
         public GaussianBlurRenderer GaussianBlurRenderer { get => _gaussianBlurRenderer;  }
         public FrameBuffer GBuffer { get => _gBuffer; }
@@ -80,6 +82,8 @@ namespace Dino_Engine.Rendering
             _depthOfFieldRenderer = new DepthOfFieldRenderer();
             _grassRenderer = new GrassRenderer();
             _sunRenderer = new SunRenderer();
+
+            textureGenerator.createTexture();
         }
 
         private void InitGBuffer()
@@ -150,9 +154,11 @@ namespace Dino_Engine.Rendering
 
                 //_screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
 
-                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(2));
+                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(0));
                 //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
                 //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));
+
+
             }
 
 

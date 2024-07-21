@@ -16,12 +16,12 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         {
             Vector3 rngColor = MyMath.rng3D();
 
-            Material carMaterial = new Material(new Colour(rngColor), 0.1f, 0.3f, 0.0f);
-            Material windowMaterial = new Material(new Colour(25, 36, 89, 1.0f), 1.0f, 0.2f, 0.0f);
-            Material detailMaterial = new Material(new Colour(110, 110, 110, 1.0f), 0.0f, 0.9f, 0.0f);
-            Material rubberMaterial = new Material(new Colour(10, 10, 10, 1.0f), 0.0f, 0.9f, 0.0f);
-            Material redLightMaterial = new Material(new Colour(230, 25, 25, 1.0f), 0.0f, 0.9f, 15.0f);
-            Material frontLightMaterial = new Material(new Colour(230, 230, 230, 1.0f), 0.0f, 0.9f, 3.0f);
+            Material carMaterial = new Material(new Colour(rngColor), 1);
+            Material windowMaterial = new Material(new Colour(25, 36, 89, 1.0f), 1);
+            Material detailMaterial = new Material(new Colour(110, 110, 110, 1.0f), 1);
+            Material rubberMaterial = new Material(new Colour(10, 10, 10, 1.0f), 1);
+            Material redLightMaterial = new Material(new Colour(230, 25, 25, 1.0f), 1);
+            Material frontLightMaterial = new Material(new Colour(230, 230, 230, 1.0f), 1);
 
             float w = 1.0f;
             float h = 1.0f;
@@ -58,7 +58,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             List<Vector3> middleShape = new List<Vector3>()
             {
                 new Vector3(w*0.95f, h*0.4f, botShape[0].Z),
-                new Vector3(w, h*0.43f, botShape[1].Z),
+                new Vector3(w*0.976f, h*0.43f, botShape[1].Z),
                 new Vector3(w, h*0.45f, botShape[2].Z),
                 new Vector3(w, h*0.5f, botShape[3].Z),
                 new Vector3(w, h*0.5f, botShape[4].Z),
@@ -86,9 +86,9 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
             Mesh botHalf = MeshGenerator.generateShape(botShape, middleShape,carMaterial, true);
             Mesh topHalf = MeshGenerator.generateExtrudedShape(middleShape.Slice(topStart-1, topShape.Count), topShape, carMaterial, windowMaterial, -windowDepth, windowSize, true);
-            Mesh fronTop = MeshGenerator.generateShape(middleShape.Slice(0, topStart), carMaterial);
-            Mesh roof = MeshGenerator.generateShape(topShape, carMaterial);
-            Mesh backTop = MeshGenerator.generateShape(middleShape.Slice(backStart, middleShape.Count- backStart), carMaterial);
+            Mesh fronTop = MeshGenerator.generateShape(middleShape.Slice(0, topStart), carMaterial, UVTop: true);
+            Mesh roof = MeshGenerator.generateShape(topShape, carMaterial, UVTop:true);
+            Mesh backTop = MeshGenerator.generateShape(middleShape.Slice(backStart, middleShape.Count- backStart), carMaterial, UVTop:true);
 
             Vector3 p1 = middleShape[topStart-1];
             Vector3 p2 = middleShape[topStart-1] * new Vector3(-1f, 1f, 1f);
@@ -118,9 +118,8 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
             List<Vector2> wheelLayers = new List<Vector2>() {
                 new Vector2(wheelRadius, 0),
-                new Vector2(wheelRadius, wheelWidth),
-                new Vector2(0, wheelWidth) };
-            Mesh wheel = MeshGenerator.generateCylinder(wheelLayers, 14, rubberMaterial);
+                new Vector2(wheelRadius, wheelWidth) };
+            Mesh wheel = MeshGenerator.generateCylinder(wheelLayers, 14, rubberMaterial, true);
             wheel.rotate(new Vector3(0f, 0f, -MathF.PI/2f));
             car += wheel.translated(botShape[3] + new Vector3(-wheelWidth * 0.95f, -wheelRadius * 1.0f, 0f));
             car += wheel.translated(botShape[9] + new Vector3(-wheelWidth * 0.95f, -wheelRadius * 1.0f, 0f));

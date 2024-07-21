@@ -84,11 +84,11 @@ namespace Dino_Engine.ECS
 
             Entity sky = new Entity("Sky");
             Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
-            Colour skyColour = new Colour(SkyRenderer.SkyColour.Red, SkyRenderer.SkyColour.Green, SkyRenderer.SkyColour.Blue, 1.5f);
+            Colour skyColour = new Colour(SkyRenderer.SkyColour.Red, SkyRenderer.SkyColour.Green, SkyRenderer.SkyColour.Blue, 2.5f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.9f));
-            //sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 2, 4, 800));
+            sky.addComponent(new AmbientLightComponent(0.8f));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 1, 2, 800));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
             Engine.PerformanceMonitor.StatusReportDump();

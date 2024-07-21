@@ -37,7 +37,8 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             Entity terrainEntity = new Entity("Terrain");
 
             FloatGrid terrainGrid = generateChunk(worldPos, worldSize, resolution);
-            Mesh groundMesh = TerrainMeshGenerator.GridToMesh(terrainGrid, worldSize, out Vector3Grid terrainNormals);
+            Material grass = new Material(new Colour(116, 146, 37, 0.75f), 1);
+            Mesh groundMesh = TerrainMeshGenerator.GridToMesh(terrainGrid, worldSize, grass,  out Vector3Grid terrainNormals);
             glModel groundModel = glLoader.loadToVAO(groundMesh);
 
             terrainEntity.addComponent(new TransformationComponent(new Vector3(worldPos.X, 0f, worldPos.Y), new Vector3(0), new Vector3(1f)));

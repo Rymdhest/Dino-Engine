@@ -8,12 +8,12 @@ namespace Dino_Engine.Modelling.Procedural.Urban
     {
         public static Mesh GenerateStreetCone()
         {
-            Material materialWhite = new Material(new Colour(235, 235, 235, 1.0f), 0.0f, 0.2f, 0.0f);
-            Material materialOrange = new Material(new Colour(198, 76, 39, 1.0f), 0.0f, 0.2f, 0.0f);
-            Material baseMAterial = new Material(new Colour(10, 10, 10, 1.0f), 0.0f, 0.9f, 0.0f);
+            Material materialWhite = new Material(new Colour(235, 235, 235), 1);
+            Material materialOrange = new Material(new Colour(198, 76, 39), 1);
+            Material baseMAterial = new Material(new Colour(10, 10, 10), 1);
 
             float baseHeight = 0.1f;
-            int numLayers = 5;
+            int numLayers = 3;
 
             List<Vector2> layers = new List<Vector2>();
             for (int layer = 0; layer < numLayers; layer++)
@@ -32,14 +32,14 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             basePart.scale(new Vector3(0.68f, baseHeight, 0.68f));
             basePart.translate(new Vector3(0, baseHeight*0.2f, 0));
             mesh += basePart;
-            mesh.calculateAllNormals();
-            mesh.makeFlat(false, true);
+            //mesh.calculateAllNormals();
+            //mesh.makeFlat(false, true);
             return mesh;
         }
             public static glModel GenerateStreetLight(out Vector3 lightPosition)
         {
-            Material poleMaterial = new Material(new Colour(122, 122, 122, 1.0f), 0.0f, 0.8f, 0.0f);
-            Material glowMaterial = new Material(new Colour(235, 193, 106, 1.0f), 0.0f, 0.2f, 10.0f);
+            Material poleMaterial = new Material(new Colour(122, 122, 122), 1);
+            Material glowMaterial = new Material(new Colour(235, 193, 106), 1);
 
             float r = 0.5f;
             float angle = MathF.PI / 2.6f;
@@ -53,14 +53,14 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 new Vector2(r*0.94f, h*0.24f),
                 new Vector2(r*0.64f, h*0.255f),
                 new Vector2(r*0.64f, h*1.0f) };
-            Mesh pole = MeshGenerator.generateCylinder(layers, 7, poleMaterial, true);
+            Mesh pole = MeshGenerator.generateCylinder(layers, 8, poleMaterial, true);
             mesh += pole;
 
             float h2 = h * 0.35f;
             layers = new List<Vector2>() {
                 new Vector2(r*0.6f, 0),
                 new Vector2(r*0.5f, h2) };
-            Mesh pole2 = MeshGenerator.generateCylinder(layers, 7, poleMaterial);
+            Mesh pole2 = MeshGenerator.generateCylinder(layers, 8, poleMaterial);
             transformation *= new Transformation(new Vector3(0f, h - r * 1.5f, 0f), new Vector3(0, 0f, -angle), new Vector3(1f));
             //Console.WriteLine(transformation+"\n");
             pole2.Transform(transformation);

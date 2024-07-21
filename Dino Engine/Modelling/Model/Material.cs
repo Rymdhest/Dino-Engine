@@ -10,23 +10,15 @@ namespace Dino_Engine.Modelling.Model
 
     public struct Material
     {
-        public static readonly Material WOOD = new Material(new Colour(107, 84, 61), 0f, 0.9f, 0f);
-        public static readonly Material LEAF = new Material(new Colour(195, 231, 73), 0f, 0.5f, 0f);
-        public static readonly Material SAND = new Material(new Colour(208, 177, 154), 0f, 0.9f, 0f);
-        public static readonly Material ROCK = new Material(new Colour(124, 116, 126), 0f, 0.1f, 0f);
-        public static readonly Material METAL = new Material(new Colour(198, 186, 179), 0.9f, 0.1f, 0f);
+        public static Material ROCK = new Material(new Colour(55, 55, 55), 1);
 
         public Colour Colour;
-        public float metalicness;
-        public float roughness;
-        public float emission;
+        public int materialIndex;
 
-        public Material(Colour colour, float metalicness, float roughness, float emission)
+        public Material(Colour colour, int materialIndex)
         {
             this.Colour = colour;
-            this.metalicness = metalicness;
-            this.roughness = roughness;
-            this.emission = emission;
+            this.materialIndex = materialIndex;
         }
     }
 }

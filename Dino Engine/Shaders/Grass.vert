@@ -2,8 +2,7 @@
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
-layout(location=2) in vec3 materials;
-layout(location=3) in vec3 normal;
+layout(location=2) in vec3 normal;
 
 out vec3 fragColor;
 out vec3 positionViewSpace_pass;
@@ -201,7 +200,7 @@ void main() {
 	gl_Position =  vec4(VertexPositionGridSpace, 1.0)*modelViewProjectionMatrix;
 	positionViewSpace_pass =  (vec4(VertexPositionGridSpace, 1.0)*modelViewMatrix).xyz;
 	fragColor = color+color*vec3(hash23(gridPosition.xz))*colourError*2f-colourError*color;
-	fragMaterials = materials;
+	fragMaterials = vec3(0.5f, 0.0f, 0f);
 	
 	vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
 	vec3 terrainNormal = texture(terrainNormalMap, textureCoordsVertex).xyz;

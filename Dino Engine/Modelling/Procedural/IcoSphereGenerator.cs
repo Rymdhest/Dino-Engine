@@ -1,9 +1,5 @@
 ﻿using Dino_Engine.Modelling.Model;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling.Procedural
 {
@@ -14,6 +10,8 @@ namespace Dino_Engine.Modelling.Procedural
             // set up a 20-triangle icosahedron
             float f = (1 + (float)Math.Sqrt(5)) / 2;
             int T = (int)Math.Pow(4, order);
+
+            Vertex[] vertices = new Vertex[10 * T + 2];
 
             float[] positions = new float[(10 * T + 2) * 3];
             float[] uvs = new float[(10 * T + 2) * 2];
@@ -95,7 +93,15 @@ namespace Dino_Engine.Modelling.Procedural
                 uvs[i / 3 * 2 + 1] = v;
             }
 
-            return new Mesh(positions, indices, material);
+            for (int i = 0; i<vertices.Length; i++)
+            {
+                Material vertexMaterial = material;
+                Vector2 uv = new Vector2(uvs[i*2], uvs[i*2+1]);
+                Vector3 position = new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i*3+2]);
+                vertices[i] = new Vertex(position, uv, vertexMaterial);
+            }
+
+            return new Mesh(vertices.ToList<Vertex>(), indices.ToList<int>());
         }
     }
 }

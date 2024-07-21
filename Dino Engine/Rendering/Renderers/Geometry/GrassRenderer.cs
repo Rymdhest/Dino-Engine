@@ -151,7 +151,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         private void generateBladeModel2()
         {
-            Material grassMaterial = new Material(new Colour(116, 146, 37), 0f, 0.65f, 0f);
+            Material grassMaterial = new Material(new Colour(116, 146, 37), 1);
             Material topMaterial = grassMaterial;
             Material botMaterial = grassMaterial;
             topMaterial.Colour.Intensity = 1.0f;
@@ -167,7 +167,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 new Vector3(radius*0.15f, bladeHeight, radius*0.05f)};
             Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 4, grassMaterial, true);
 
-            foreach (Vertex vertex in bladeMesh.vertices)
+            foreach (MeshVertex vertex in bladeMesh.meshVertices)
             {
                 vertex.material.Colour = Colour.mix(botMaterial.Colour, topMaterial.Colour, vertex.position.Y / bladeHeight);
             }
@@ -177,7 +177,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         private void generateBladeModel()
         {
-            Material grassMaterial = new Material(new Colour(116, 146, 37), 0f, 0.65f, 0f);
+            Material grassMaterial = new Material(new Colour(116, 146, 37), 1);
             Material topMaterial = grassMaterial;
             Material botMaterial = grassMaterial;
             topMaterial.Colour.Intensity = 1.0f;
@@ -185,19 +185,19 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             if (grassBlade != null) grassBlade.cleanUp();
             float radius = .12f;
-            bladeHeight = 6.6f;
+            bladeHeight = 2.6f;
             List<Vector2> bladeLayers = new List<Vector2>() {
                 new Vector2(radius, 0),
                 new Vector2(radius*0.6f, bladeHeight*0.4f),
                 new Vector2(radius*0.4f, bladeHeight*0.75f),
                 new Vector2(radius*0.15f, bladeHeight)};
             Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 2, grassMaterial, true);
-
-            foreach (Vertex vertex in bladeMesh.vertices)
+            /*
+            foreach (MeshVertex vertex in bladeMesh.vertices)
             {
                 vertex.material.Colour = Colour.mix(botMaterial.Colour, topMaterial.Colour, vertex.position.Y / bladeHeight);
             }
-
+            */
             bladeMesh.makeFlat(true, false);
             grassBlade = glLoader.loadToVAO(bladeMesh);
         }
@@ -217,7 +217,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             renderEngine.GBuffer.bind();
             generateBladeModel();
             time += Engine.Delta;
-            float spacing =.3f;
+            float spacing =.88f;
 
             _grassShader.bind();
             GL.BindVertexArray(grassBlade.getVAOID());

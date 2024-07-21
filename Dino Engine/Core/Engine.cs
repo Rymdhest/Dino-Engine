@@ -1,10 +1,12 @@
 ﻿using Dino_Engine.Debug;
 using Dino_Engine.ECS;
 using Dino_Engine.Rendering;
+using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using System.Runtime.InteropServices;
 
 namespace Dino_Engine.Core
 {
@@ -27,6 +29,9 @@ namespace Dino_Engine.Core
         public static RenderEngine RenderEngine { get => _instance._renderEngine; }
         public static PerformanceMonitor PerformanceMonitor { get => _instance._performanceMonitor; }
         public ECSEngine ECSEngine { get => _ECSEngine; }
+
+        private static DebugProc debugProcCallback = DebugCallback; // Declare the delegate as a static field
+
 
         public Engine(EngineLaunchSettings settings)
         {
@@ -51,7 +56,14 @@ namespace Dino_Engine.Core
             {
                 OnResize(eventArgs);
             };
+            GL.Enable(EnableCap.DebugOutput);
+            //GL.DebugMessageCallback(debugProcCallback, IntPtr.Zero); // Assign the delegate
 
+        }
+        private static void DebugCallback(DebugSource source, DebugType type, int id, DebugSeverity severity, int length, IntPtr message, IntPtr userParam)
+        {
+            string messageString = Marshal.PtrToStringAnsi(message, length);
+            Console.WriteLine($"GL DEBUG: {messageString}");
         }
 
         private WindowHandler InitWindow(EngineLaunchSettings settings)
@@ -59,6 +71,7 @@ namespace Dino_Engine.Core
             GameWindowSettings gws = GameWindowSettings.Default;
             NativeWindowSettings nws = NativeWindowSettings.Default;
             nws.API = ContextAPI.OpenGL;
+            
             nws.AutoLoadBindings = true;
             nws.Title = settings._gameTitle;
             nws.ClientSize = settings._resolution;
