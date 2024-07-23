@@ -134,6 +134,31 @@ namespace Dino_Engine.Rendering
             }
             return attachment;
         }
+
+        public int exportAttachmentAsTexture(ReadBufferMode attachment)
+        {
+
+            int texture = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, settings.resolution.X, settings.resolution.Y, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            Engine.CheckGLError("Framebuffer export attachment TexImage2D");
+            //GL.TexStorage2D(TextureTarget2d.Texture2D, 0, SizedInternalFormat.Rgba16f, settings.resolution.X, settings.resolution.Y);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, frameBufferID);
+            GL.ReadBuffer(attachment);
+            Engine.CheckGLError("Framebuffer export attachment ReadBuffer");
+            GL.CopyTexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, 0, 0, settings.resolution.X, settings.resolution.Y, 0);
+            //GL.CopyTextureSubImage2D(texture, 0, 0, 0, 0, 0, settings.resolution.X, settings.resolution.Y);
+            Engine.CheckGLError("Framebuffer export attachment CopyTextureSubImage2D");
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0);
+
+            return texture;
+        }
+
         public int GetAttachment(int attachmentNumber)
         {
             return renderAttachments[attachmentNumber];

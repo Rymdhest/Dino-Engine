@@ -332,7 +332,8 @@ namespace Dino_Defenders
 
 
             Vector2 terrainSize = new Vector2(100, 100f);
-            terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 2.0f);
+            //terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
+            terrainGenerator.generateTerrainChunkEntity(new Vector2(0, 0), terrainSize, 0.1f);
 
             Entity crossRoad = new Entity("crossroad");
             crossRoad.addComponent(new TransformationComponent(new Transformation()));

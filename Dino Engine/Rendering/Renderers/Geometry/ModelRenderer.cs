@@ -5,6 +5,7 @@ using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Core;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -15,9 +16,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         public ModelRenderer()
         {
             _modelShader.bind();
-            _modelShader.loadUniformInt("albedoMap", 0);
-            _modelShader.loadUniformInt("normalMap", 1);
-            _modelShader.loadUniformInt("materialMap", 2);
+            _modelShader.loadUniformInt("albedoMapTextureArray", 0);
+            _modelShader.loadUniformInt("normalMapTextureArray", 1);
+            _modelShader.loadUniformInt("materialMapTextureArray", 2);
             _modelShader.unBind();
         }
         internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
@@ -29,16 +30,19 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();
 
+            _modelShader.loadUniformFloat("parallaxDepth", 0.05f);
+            _modelShader.loadUniformFloat("parallaxLayers", 20f);
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderEngine.textureGenerator._albedoBuffer.GetAttachment(0));
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
             GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, renderEngine.textureGenerator._normalBuffer.GetAttachment(0));
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalTextureArray);
             GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2D, renderEngine.textureGenerator._poopertiesBuffer.GetAttachment(0));
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialTextureArray);
         }
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
             Entity camera = eCSEngine.Camera;
+            _modelShader.loadUniformVector3f("viewPos", camera.getComponent<TransformationComponent>().Transformation.position);
             Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
 
@@ -57,6 +61,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 {
                     Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
                     Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;
+                    _modelShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
                     _modelShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
                     _modelShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * projectionMatrix);
                     _modelShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));

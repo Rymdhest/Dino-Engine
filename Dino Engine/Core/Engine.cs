@@ -7,6 +7,7 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Runtime.InteropServices;
+using ErrorCode = OpenTK.Graphics.OpenGL.ErrorCode;
 
 namespace Dino_Engine.Core
 {
@@ -109,6 +110,15 @@ namespace Dino_Engine.Core
         public void SetGame(Game game)
         {
             this.game = game;
+        }
+
+        public static void CheckGLError(string stage)
+        {
+            ErrorCode error = GL.GetError();
+            if (error != ErrorCode.NoError)
+            {
+                Console.WriteLine($"{stage}: {error}");
+            }
         }
     }
 }

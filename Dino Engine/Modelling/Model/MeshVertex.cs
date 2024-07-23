@@ -18,6 +18,7 @@ namespace Dino_Engine.Modelling.Model
             this.index = index;
             normal = new Vector3(0.0f, 1.0f, 0.0f);
             tangent = new Vector3(1.0f, 0.0f, 0.0f);
+            bitanget = new Vector3(0.0f, 0.0f, 1.0f);
         }
 
         public void calculateNormalAndTangent()
@@ -56,7 +57,8 @@ namespace Dino_Engine.Modelling.Model
             bitanget.Normalize();
 
 
-            bitanget = Vector3.Cross(tangent, normal).Normalized();
+            //bitanget = Vector3.Cross(tangent, normal).Normalized();
+            //bitanget = new Vector3(0.0f, 0.0f, 1.0f);
         }
 
         public Vector2 GetTagentSpaceScaledUV(Vector3 scale)

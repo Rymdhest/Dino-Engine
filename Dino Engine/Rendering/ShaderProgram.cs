@@ -20,7 +20,7 @@ namespace Dino_Engine.Rendering
             fragmentShaderID = loadShader(fragmentFile, ShaderType.FragmentShader);
             programID = GL.CreateProgram();
 
-            Console.WriteLine($"loading program {programID} from {vertexFile} and {fragmentFile}");
+            //Console.WriteLine($"loading program {programID} from {vertexFile} and {fragmentFile}");
 
             GL.AttachShader(programID, vertexShaderID);
             GL.AttachShader(programID, fragmentShaderID);

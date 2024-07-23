@@ -2,6 +2,7 @@
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using System.Drawing;
+using static OpenTK.Graphics.OpenGL.GL;
 
 namespace Dino_Engine.Modelling.Procedural.Urban
 {
@@ -86,7 +87,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 mesh += trafficLight;
             }
 
-
+            mesh.scaleUVs(new Vector2(0.1f));
 
             return mesh;
         }
@@ -140,6 +141,9 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             street += sidewalk.translated(new Vector3(-sideWalkOffset, 0f, 0f));
 
             Mesh.scaleUV = false;
+
+            street.scaleUVs(new Vector2(0.1f));
+
             return street;
 
         }

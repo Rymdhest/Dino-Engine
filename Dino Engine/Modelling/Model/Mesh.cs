@@ -265,6 +265,17 @@ namespace Dino_Engine.Modelling.Model
         {
             return Transformed(new Transformation(new Vector3(0), new Vector3(0), scale));
         }
+
+        public void scaleUVs(Vector2 scale)
+        {
+            for (int i = 0; i < meshVertices.Count; i++)
+            {
+                MeshVertex vertex = meshVertices[i];
+                vertex.UV *= scale;
+                meshVertices[i] = vertex;
+            }
+        }
+
         public void Transform(Transformation transformation)
         {
             var transformationMatrix = MyMath.createTransformationMatrix(transformation);

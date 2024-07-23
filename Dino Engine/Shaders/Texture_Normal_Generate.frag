@@ -16,8 +16,11 @@ void main(void)
     float dx = (heightR - heightL);
     float dy = (heightU - heightD);
 
-    normal.xyz = vec3(-dx, -dy, 1.0);
+    normal.xyz = vec3(-dx, -dy, 0.1);
     normal.y *= -1f;
     normal.xyz = normalize(normal.xyz);
+
+    normal.rgb = normal.rgb*0.5f+0.5f;
+
     
 }

@@ -78,7 +78,7 @@ namespace Dino_Engine.ECS
             colour = new Colour(1f, 0.7f, 0.65f, 15.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.01f));
+            sun.addComponent(new AmbientLightComponent(0.2f));
             sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 2, 4, 800));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 

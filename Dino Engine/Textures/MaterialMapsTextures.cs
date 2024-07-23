@@ -8,15 +8,14 @@ namespace Dino_Engine.Textures
 {
     public class MaterialMapsTextures
     {
-        public int albedo;
-        public int normal;
-        public int properties;
 
-        public MaterialMapsTextures(int albedo, int normal, int properties)
+        public int[] textures = new int[3];
+
+        public MaterialMapsTextures(int albedo, int normal, int materials)
         {
-            this.albedo = albedo;
-            this.normal = normal;
-            this.properties = properties;
+            textures[0] = albedo;
+            textures[1] = normal;
+            textures[2] = materials;
         }
     }
 }

@@ -83,7 +83,7 @@ namespace Dino_Engine.Rendering
             _grassRenderer = new GrassRenderer();
             _sunRenderer = new SunRenderer();
 
-            textureGenerator.createTexture();
+            textureGenerator.GenerateAllTextures();
         }
 
         private void InitGBuffer()
@@ -154,11 +154,14 @@ namespace Dino_Engine.Rendering
 
                 //_screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
 
-                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(0));
+                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(1));
                 //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
                 //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));
 
 
+                //_screenQuadRenderer.RenderTextureToScreen(textureGenerator.preparedTextures[0].textures[0]);
+                //_screenQuadRenderer.RenderTextureToScreen(textureGenerator._albedoBuffer.GetAttachment(0));
+                //Console.WriteLine(textureGenerator.preparedTextures[0].textures[0]);
             }
 
 
