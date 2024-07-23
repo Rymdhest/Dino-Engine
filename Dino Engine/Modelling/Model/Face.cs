@@ -58,7 +58,7 @@ namespace Dino_Engine.Modelling.Model
             faceBitanget = (-dv1 * duv2.X + dv2 * duv1.X) * f;
 
             // Orthogonalize the tangent with the normal
-            //tangent = (tangent - v0.normal * Vector3.Dot(v0.normal, tangent)).Normalized();
+            //faceTangent = (faceTangent - v0.normal * Vector3.Dot(v0.normal, faceTangent)).Normalized();
 
         }
     }

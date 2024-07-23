@@ -172,7 +172,7 @@ namespace Dino_Defenders
         {
             eCSEngine.ClearAllEntitiesExcept(eCSEngine.Camera);
             eCSEngine.InitEntities();
-            spawnTerrain(eCSEngine);
+            //spawnTerrain(eCSEngine);
             spawnCity(eCSEngine);
         }
             private void spawnTerrain(ECSEngine eCSEngine)
@@ -180,8 +180,8 @@ namespace Dino_Defenders
             TerrainGenerator generator = new TerrainGenerator();
 
 
-            /*
-            int r = 1;
+            
+            int r = 3;
             Vector2 chunkSize = new Vector2(50, 50);
             for (int x = -r; x <= r; x++)
             {
@@ -193,7 +193,7 @@ namespace Dino_Defenders
                     generator.generateTerrainChunkEntity(new Vector2(chunkSize.X*x, chunkSize.Y*z), chunkSize, quality);
                 }
             }
-            */
+            
 
             /*
             TreeGenerator treeGenerator = new TreeGenerator();
@@ -315,7 +315,7 @@ namespace Dino_Defenders
                 for (int z = 0; z < 2; z++)
                 {
                     Entity house = new Entity("House");
-                    house.addComponent(new TransformationComponent(new Vector3(45 + 55 * x, 0, 45 + 55f * z), new Vector3(0, MyMath.rand.Next(8) * MathF.PI / 4, 0f), new Vector3(2f)));
+                    house.addComponent(new TransformationComponent(new Vector3(45 + 55 * x, 0, 45 + 55f * z), new Vector3(0, MyMath.rand.Next(8) * MathF.PI / 4, 0f), new Vector3(1f)));
                     house.addComponent(new ModelComponent(houseModel));
                     eCSEngine.AddEnityToSystem<ModelRenderSystem>(house);
                 }
@@ -331,9 +331,8 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(houseGround);
 
 
-            Vector2 terrainSize = new Vector2(100, 100f);
-            //terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
-            terrainGenerator.generateTerrainChunkEntity(new Vector2(0, 0), terrainSize, 0.1f);
+            Vector2 terrainSize = new Vector2(150, 150f);
+            terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
 
             Entity crossRoad = new Entity("crossroad");
             crossRoad.addComponent(new TransformationComponent(new Transformation()));

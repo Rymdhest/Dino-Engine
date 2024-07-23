@@ -27,6 +27,7 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
     // depth of current layer
     float currentLayerDepth = 0.0;
     // the amount to shift the texture coordinates per layer (from vector P)
+    //vec2 P = viewDir.xy/-viewDir.z * parallaxDepth; 
     vec2 P = viewDir.xy * parallaxDepth; 
     vec2 deltaTexCoords = P / parallaxLayers;
   
@@ -59,14 +60,13 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 
 void main() {
 
-	vec3 viewDir   = normalize(viewPos - worldPos);
-	viewDir = viewDir*TBN2;
+	vec3 viewDir   = normalize(TangentViewPos - TangentFragPos);
     vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir);
     //if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
 
 	gAlbedo = texture(albedoMapTextureArray,vec3(parallaxedCoords, textureIndex));
 	gAlbedo *= vec4(fragColor, 1.0f);
-
+    //gAlbedo.rgb = TangentViewPos;
 	vec3 normalTangentSpace = texture(normalMapTextureArray, vec3(parallaxedCoords, textureIndex)).xyz;
 	normalTangentSpace.xyz = normalTangentSpace.xyz*2f-1f;
 	gNormal.xyz = (vec4(normalTangentSpace, 1f)*TBN).xyz;

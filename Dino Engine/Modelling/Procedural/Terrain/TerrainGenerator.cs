@@ -23,7 +23,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
         public float _mountainCoverage = 0.2f;
         public float _frequenzy = 0.007f;
-        public int _octaves = 9;
+        public int _octaves = 15;
         public float yScale = 200f;
 
         private OpenSimplexNoise noise = new OpenSimplexNoise();
@@ -37,7 +37,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             Entity terrainEntity = new Entity("Terrain");
 
             FloatGrid terrainGrid = generateChunk(worldPos, worldSize, resolution);
-            Material grass = new Material(new Colour(116, 146, 37, 0.75f), 1);
+            Material grass = new Material(new Colour(116, 96, 37, 0.75f), 1);
             Mesh groundMesh = TerrainMeshGenerator.GridToMesh(terrainGrid, worldSize, grass,  out Vector3Grid terrainNormals);
             glModel groundModel = glLoader.loadToVAO(groundMesh);
 

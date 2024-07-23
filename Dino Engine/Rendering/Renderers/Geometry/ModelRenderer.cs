@@ -28,10 +28,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
-            _modelShader.bind();
+            _modelShader.bind();  
 
-            _modelShader.loadUniformFloat("parallaxDepth", 0.05f);
-            _modelShader.loadUniformFloat("parallaxLayers", 20f);
+            _modelShader.loadUniformFloat("parallaxDepth", 0.015f);
+            _modelShader.loadUniformFloat("parallaxLayers", 40f);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
             GL.ActiveTexture(TextureUnit.Texture1);

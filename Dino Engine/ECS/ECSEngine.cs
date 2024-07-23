@@ -89,7 +89,7 @@ namespace Dino_Engine.ECS
             sky.addComponent(new DirectionComponent(skyDirection));
             sky.addComponent(new AmbientLightComponent(0.8f));
             sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 1, 2, 800));
-            AddEnityToSystem<DirectionalLightSystem>(sky);
+            //AddEnityToSystem<DirectionalLightSystem>(sky);
 
             Engine.PerformanceMonitor.StatusReportDump();
             Engine.PerformanceMonitor.clear();

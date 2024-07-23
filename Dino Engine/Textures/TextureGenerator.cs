@@ -152,10 +152,10 @@ namespace Dino_Engine.Textures
             _textureGeneratorShader.bind();
 
 
-            _textureGeneratorShader.loadUniformInt("octaves",5);
+            _textureGeneratorShader.loadUniformInt("octaves",25);
             _textureGeneratorShader.loadUniformFloat("seed", 0.1f);
             _textureGeneratorShader.loadUniformBool("rigged", true);
-            _textureGeneratorShader.loadUniformVector2f("startFrequenzy", new Vector2(20.0f, 20.0f));
+            _textureGeneratorShader.loadUniformVector2f("startFrequenzy", new Vector2(60.0f, 60.0f));
 
             renderer.Render();
 

@@ -80,7 +80,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             }
 
             //mesh.makeFlat(flatNormal: true, flatMaterial: true);
-            mesh.scaleUVs(new Vector2(0.02f));
+            mesh.scaleUVs(new Vector2(0.05f));
 
             return mesh;
         }

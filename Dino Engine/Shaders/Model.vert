@@ -39,15 +39,21 @@ void main() {
 		0f,		0f,		0f,		1f
 	);
 	
-    vec3 N   = normalize((vec4(normal, 1.0f)*(modelMatrix)).xyz);
-    vec3 T   = normalize((vec4(tangent, 1.0f)*(modelMatrix)).xyz);
+    vec3 N   = normalize((vec4(normal, 1.0f)*((modelMatrix))).xyz);
+    vec3 T   = normalize((vec4(tangent, 1.0f)*((modelMatrix))).xyz);
+	N = vec3(0f, 1f, 0f);
+	T= vec3 (1f, 0f, 0f);
 	T = normalize(T - dot(T, N) * N);
-    vec3 B   = cross(N, T);
-    TBN2 = transpose(mat3(T, B, N));
-
+    vec3 B   = normalize(cross(N, T));
+    TBN2 = mat3(
+		T.x, B.x, N.x,
+		T.y, B.y, N.y,
+		T.z, B.z, N.z
+	);
+	//TBN2 = transpose(TBN2);
 	worldPos = (vec4(position, 1.0)*((modelMatrix))).xyz;
-    TangentViewPos  = TBN2*vec3((viewPos)).xyz;
-    TangentFragPos  = TBN2*vec3((position)).xyz;
+    TangentViewPos  = (vec4(viewPos, 1.0f)*inverse(modelMatrix)).xyz*TBN2;
+    TangentFragPos  = (vec4(position, 1.0f)).xyz*TBN2;
 
 	
 	TBN = TBN*normalModelViewMatrix;
