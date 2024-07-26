@@ -9,7 +9,7 @@ namespace Dino_Engine.Modelling.Model
     {
         public Vector3 normal;
         public Vector3 tangent;
-        public Vector3 bitanget;
+        public Vector3 bitangent;
         public List<Face> faces;
         public int index;
         public MeshVertex(Vertex vertex, int index) : base(vertex.position, vertex.UV, vertex.material)
@@ -18,66 +18,72 @@ namespace Dino_Engine.Modelling.Model
             this.index = index;
             normal = new Vector3(0.0f, 1.0f, 0.0f);
             tangent = new Vector3(1.0f, 0.0f, 0.0f);
-            bitanget = new Vector3(0.0f, 0.0f, 1.0f);
+            bitangent = new Vector3(0.0f, 0.0f, 1.0f);
         }
 
         public void calculateNormalAndTangent()
         {
-            normal.X = 0;
-            normal.Y = 0;
-            normal.Z = 0;
+            // Step 1: Initialize vectors
+            normal = new Vector3(0, 0, 0);
+            tangent = new Vector3(0, 0, 0);
+            bitangent = new Vector3(0, 0, 0);
+
+            // Step 2: Accumulate face normals, tangents, and bitangents
             foreach (Face face in faces)
             {
                 normal += face.faceNormal;
+                tangent += face.faceTangent;
+                bitangent += face.faceBitanget;
             }
-            if (faces.Count == 0) Console.WriteLine("Warning 0 faces in a vertex");
+
+            // Step 3: Check if there are any faces
+            if (faces.Count == 0)
+            {
+                Console.WriteLine("Warning: 0 faces in a vertex");
+                return;
+            }
+
+            // Step 4: Calculate the average vectors
             normal /= faces.Count;
+            tangent /= faces.Count;
+            bitangent /= faces.Count;
+
+            // Step 5: Normalize the normal vector
             normal.Normalize();
 
-            tangent.X = 0;
-            tangent.Y = 0;
-            tangent.Z = 0;
-            foreach (Face face in faces)
+            // Step 6: Orthogonalize and normalize the tangent vector
+            tangent = Vector3.Normalize(tangent - normal * Vector3.Dot(normal, tangent));
+
+            // Step 7: Orthogonalize and normalize the bitangent vector
+            bitangent = Vector3.Cross(tangent, normal);
+            bitangent.Normalize();
+
+            // Optional Step: Ensure handedness (for DirectX or OpenGL consistency)
+            // If your coordinate system is right-handed, you can use the following:
+            if (Vector3.Dot(Vector3.Cross(normal, tangent), bitangent) < 0.0f)
             {
-                tangent += face.faceTangent;
+                //bitangent = -bitangent;
             }
-            if (faces.Count == 0) Console.WriteLine("Warning 0 faces in a vertex");
-            tangent /= faces.Count;
-            tangent.Normalize();
-
-            bitanget.X = 0;
-            bitanget.Y = 0;
-            bitanget.Z = 0;
-            foreach (Face face in faces)
-            {
-                bitanget += face.faceBitanget;
-            }
-            if (faces.Count == 0) Console.WriteLine("Warning 0 faces in a vertex");
-            bitanget /= faces.Count;
-            bitanget.Normalize();
-
-
-            //bitanget = Vector3.Cross(tangent, normal).Normalized();
-            //bitanget = new Vector3(0.0f, 0.0f, 1.0f);
         }
 
         public Vector2 GetTagentSpaceScaledUV(Vector3 scale)
         {
-            
+            calculateNormalAndTangent();
             Matrix3 TBM = new Matrix3(
-                tangent.X, bitanget.X, normal.X,
-                tangent.Y, bitanget.Y, normal.Y,
-                tangent.Z, bitanget.Z, normal.Z);
-            
-            Matrix3 TBM2 = new Matrix3(
-                tangent.X, tangent.Y, tangent.Z,
-                bitanget.X, bitanget.Y, bitanget.Z,
-                normal.X, normal.Y, normal.Z);
+                tangent.X, bitangent.X, normal.X,
+                tangent.Y, bitangent.Y, normal.Y,
+                tangent.Z, bitangent.Z, normal.Z);
 
+            //TBM = Matrix3.Transpose(TBM);
+            //TBM = Matrix3.Invert(TBM);
             Vector3 scaleTangentSpace = TBM* scale;
 
+            Vector2 scaledUVs = UV * scaleTangentSpace.Xy; ;
 
-            return UV*scaleTangentSpace.Xy;
+            if (scaledUVs.X < 0) scaledUVs.X *= -1f;
+            if (scaledUVs.Y < 0) scaledUVs.Y *= -1f;
+
+            return scaledUVs;
 
 
         }

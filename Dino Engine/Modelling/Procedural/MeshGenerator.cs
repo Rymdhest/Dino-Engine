@@ -26,7 +26,7 @@ namespace Dino_Engine.Modelling
             mesh.rotate(new Vector3(MathF.PI, 0f, 0f));
             return mesh;
         }
-        public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, Material material, bool sealTop = false)
+        public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, Material material, float sealTop = float.NaN)
         {
             List<Vector3> rings = new List<Vector3> ();
             for (int i = 0; i<rings2.Count; i++)
@@ -48,7 +48,7 @@ namespace Dino_Engine.Modelling
             }
         }
 
-        public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material, bool sealTop = false)
+        public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material, float sealTop = float.NaN)
         {
             float PI = MathF.PI;
             List<Vertex> vertices = new List<Vertex>();
@@ -94,12 +94,12 @@ namespace Dino_Engine.Modelling
                 }
             }
 
-            if (sealTop)
+            if (sealTop != float.NaN)
             {
                 int ring = rings.Count - 1;
                 float x = 0;
                 float z = 0;
-                float y = rings[ring].Y+0.1f;
+                float y = rings[ring].Y+sealTop;
                 Vector3 center = new Vector3(x, y, z);
 
                 vertices.Add(new Vertex(center, new Vector2(0.0f, 0.0f), material));

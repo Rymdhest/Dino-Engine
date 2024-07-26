@@ -9,7 +9,7 @@ out vec3 positionViewSpace_pass;
 out vec3 fragMaterials;
 out vec3 fragNormal;
 out float valid;
-
+out float tipFactor;
 uniform mat4 modelMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat4 modelViewProjectionMatrix;
@@ -144,7 +144,7 @@ mat3 calcRotMatrixFromBendMap(vec2 textureCoords, float tipFactor) {
 
 void main() {
 	valid = 1.0f;
-	float tipFactor = position.y/bladeHeight;
+	tipFactor = position.y/bladeHeight;
 	vec3 gridPosition = vec3((floor(gl_InstanceID/(bladesPerAxis.y))), 0f, mod(float(gl_InstanceID),bladesPerAxis.y))*spacing;
 
 	

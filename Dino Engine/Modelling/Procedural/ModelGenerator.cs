@@ -13,9 +13,9 @@ namespace Dino_Engine.Modelling.Procedural
 
         public static glModel GenerateHouse()
         {
-            Material wallMaterial = new Material(new Colour(38, 30, 38, 1.0f), 1);
-            Material windowGlow = new Material(new Colour(235, 193, 106, 1.5f),1);
-            Material windowNormal = new Material(new Colour(15, 15, 25, 1.0f), 1);
+            Material wallMaterial = new Material(new Colour(38, 30, 38, 1.0f), Engine.RenderEngine.textureGenerator.grainIndex);
+            Material windowGlow = new Material(new Colour(235, 193, 106, 1.0f), Engine.RenderEngine.textureGenerator.flatGlowIndex);
+            Material windowNormal = new Material(new Colour(15, 15, 25, 1.0f), Engine.RenderEngine.textureGenerator.grainIndex);
             Mesh house = new Mesh();
             int numWindows = 8;
             int numStories = 6;

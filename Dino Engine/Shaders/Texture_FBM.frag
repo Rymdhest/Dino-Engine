@@ -1,11 +1,29 @@
 #version 330
 in vec2 textureCoords;
-layout (location = 0) out vec4 properties;
+layout (location = 0) out vec4 albedo_out;
+layout (location = 1) out vec4 materials_out;
+
+
+uniform vec4 albedo;
+uniform vec3 materials;
 
 uniform vec2 startFrequenzy;
 uniform int octaves;
 uniform bool rigged;
+uniform bool invert;
 uniform float seed;
+uniform float exponent;
+uniform float amplitudePerOctave;
+uniform float frequenzyPerOctave;
+uniform float heightFactor;
+
+uniform bool scaleOutputToHeight;
+uniform bool writeToHeight;
+uniform bool depthCheck;
+uniform int blendMode;
+
+uniform sampler2D previousMaterialTexture;
+uniform sampler2D previousAlbedoTexture;
 
 float noise3D(vec3 p)
 {
@@ -115,24 +133,63 @@ float fbm(vec2 p)
 			perlin = amplitude*(simplex3D(vec3(frequenzy*p, seed))*0.5f+0.5f);
 		}
 
-		perlin = pow(perlin, 1.0f);
+		perlin = pow(perlin, exponent);
 		value  += perlin;
-		totalAmplitude += amplitude;
+		totalAmplitude += pow(amplitude, exponent);
 
-		amplitude *= 0.5f;
-		frequenzy *= 2.0f;
+		amplitude *= amplitudePerOctave;
+		frequenzy *= frequenzyPerOctave;
 	}
 	value /= totalAmplitude;
+
+	if (invert) value = 1f-value;
 
 	return value;
 }
 
 void main(void)
 {
-    float height = fbm(textureCoords);
-    float roughness = 0.45f;
-    float metalic = 0.0f;
-    float glow = 0.0f;
-    properties = vec4(roughness, glow, metalic, height);
+    float height = heightFactor*fbm(textureCoords);
 
+    float roughness = materials.r;
+    float glow = materials.g;
+    float metalic =materials.b;
+
+	vec4 newMaterial = vec4(roughness, glow, metalic, height);
+	vec4 newAlbedo = albedo;
+	if (scaleOutputToHeight) {
+		newAlbedo *= height;
+		newMaterial.rgb *= height;
+	}
+
+	vec4 previousAlbedo = texture(previousAlbedoTexture, textureCoords);
+	vec4 previousMaterial = texture(previousMaterialTexture, textureCoords);
+
+	if (depthCheck) {
+		if (previousMaterial.a > newMaterial.a) {
+			albedo_out = previousAlbedo;
+			materials_out = previousMaterial;
+			return;
+		}
+	}
+
+ // additive
+	if (blendMode == 0) { 
+		albedo_out = newAlbedo + previousAlbedo;
+		materials_out = newMaterial + previousMaterial;
+
+// multiplicative
+	} else if (blendMode == 1) { 
+		albedo_out = newAlbedo * previousAlbedo;
+		materials_out = newMaterial * previousMaterial;
+
+// override
+	} else if (blendMode ==2 ){ 
+		albedo_out = newAlbedo;
+		materials_out = newMaterial;
+	}
+
+	if (!writeToHeight) {
+		materials_out.a = previousMaterial.a;
+	}
 }

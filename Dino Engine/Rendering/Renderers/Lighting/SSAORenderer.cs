@@ -77,9 +77,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", 0.3f);
-            ambientOcclusionShader.loadUniformFloat("strength", 0.95f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.006f);
+            ambientOcclusionShader.loadUniformFloat("radius", 1.2f);
+            ambientOcclusionShader.loadUniformFloat("strength", 0.6f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.002f);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, noiseTexture);
@@ -98,8 +98,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.BindTexture(TextureTarget.Texture2D, renderEngine.ScreenQuadRenderer.GetLastOutputTexture());
 
             gBuffer.bind();
-            GL.ColorMask(0, false, false, false, true);
-            GL.ColorMask(1, false, false, false, false);
+            GL.ColorMask(0, false, false, false, false);
+            GL.ColorMask(1, false, false, false, true);
             GL.ColorMask(2, false, false, false, false);
             GL.ColorMask(3, false, false, false, false);
             renderEngine.ScreenQuadRenderer.Render();

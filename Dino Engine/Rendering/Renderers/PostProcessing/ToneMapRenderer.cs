@@ -29,10 +29,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             HDRMapShader.loadUniformVector2f("resolution", Engine.Resolution);
 
-            HDRMapShader.loadUniformFloat("exposure", .47f);
+            HDRMapShader.loadUniformFloat("exposure", 0.97f);
             HDRMapShader.loadUniformFloat("gamma", 2.2f);
-            HDRMapShader.loadUniformFloat("saturation", 1.1f);
-            HDRMapShader.loadUniformFloat("brightness", 1.1f);
+            HDRMapShader.loadUniformFloat("saturation", 1.0f);
+            HDRMapShader.loadUniformFloat("brightness", 1.0f);
             HDRMapShader.loadUniformFloat("contrast", 1.0f);
             HDRMapShader.loadUniformFloat("dithering", 0.5f);
 

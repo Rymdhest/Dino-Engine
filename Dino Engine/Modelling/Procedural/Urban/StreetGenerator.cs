@@ -1,4 +1,5 @@
-﻿using Dino_Engine.Modelling.Model;
+﻿using Dino_Engine.Core;
+using Dino_Engine.Modelling.Model;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using System.Drawing;
@@ -15,10 +16,10 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         public float sideWalkHeight =0.4f;
         public float sideWalkWidth = 9f;
 
-        public Material streetMaterial = new Material(new Colour(25, 25, 27, 1.0f), 1);
-        public Material lineMaterial = new Material(new Colour(233, 233, 233, 1.0f), 1);
-        public Material lineMaterialCenter = new Material(new Colour(247, 219, 36, 1.0f), 1);
-        public Material sideWalkMaterial = new Material(new Colour(95, 95, 95, 1.0f), 1);
+        public Material streetMaterial = new Material(new Colour(25, 25, 27, 1.0f), Engine.RenderEngine.textureGenerator.grainIndex);
+        public Material lineMaterial = new Material(new Colour(233, 233, 233, 1.0f), Engine.RenderEngine.textureGenerator.grainIndex);
+        public Material lineMaterialCenter = new Material(new Colour(247, 219, 36, 1.0f), Engine.RenderEngine.textureGenerator.grainIndex);
+        public Material sideWalkMaterial = new Material(new Colour(95, 95, 95, 1.0f), Engine.RenderEngine.textureGenerator.grainIndex);
 
         public float TotalWidth{ get => lanes * laneWdith * 2 - lineWidth * 1.0f + sideWalkWidth * 2f; }
 
@@ -168,7 +169,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 new Vector2(r*0.94f, h*0.24f),
                 new Vector2(r*0.64f, h*0.255f),
                 new Vector2(r*0.64f, h*1.0f) };
-            Mesh pole = MeshGenerator.generateCylinder(layers, 8, poleMaterial, true);
+            Mesh pole = MeshGenerator.generateCylinder(layers, 8, poleMaterial, 0);
             mesh += pole;
 
 
@@ -177,7 +178,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             List<Vector2> layers2 = new List<Vector2>() {
                 new Vector2(r*0.6f, 0.0f),
                 new Vector2(r*0.6f, h2)};
-            pole = MeshGenerator.generateCylinder(layers2, 8, poleMaterial, true);
+            pole = MeshGenerator.generateCylinder(layers2, 8, poleMaterial, 0);
 
             transformation *= new Transformation(new Vector3(0f, h - r * 1.5f, 0f), new Vector3(0, 0f, angle), new Vector3(1f));
             pole.Transform(transformation);

@@ -4,13 +4,11 @@ in vec2 fragUV;
 in vec3 positionViewSpace_pass;
 in vec3 TangentViewPos;
 in vec3 TangentFragPos;
-in mat4 TBN;
-in mat3 TBN2;
+in mat3 normalTBN;
 in float textureIndex;
 uniform float parallaxDepth;
 uniform float parallaxLayers;
 uniform vec3 viewPos;
-in vec3 worldPos;
 uniform sampler2DArray albedoMapTextureArray;
 uniform sampler2DArray normalMapTextureArray;
 uniform sampler2DArray materialMapTextureArray;
@@ -66,13 +64,13 @@ void main() {
 
 	gAlbedo = texture(albedoMapTextureArray,vec3(parallaxedCoords, textureIndex));
 	gAlbedo *= vec4(fragColor, 1.0f);
-    //gAlbedo.rgb = TangentViewPos;
-	vec3 normalTangentSpace = texture(normalMapTextureArray, vec3(parallaxedCoords, textureIndex)).xyz;
+    //gAlbedo.rgb = vec3((fragUV), 0f);
+	vec4 normalTangentSpace = texture(normalMapTextureArray, vec3(parallaxedCoords, textureIndex));
 	normalTangentSpace.xyz = normalTangentSpace.xyz*2f-1f;
-	gNormal.xyz = (vec4(normalTangentSpace, 1f)*TBN).xyz;
+	gNormal.xyz = normalTangentSpace.xyz*normalTBN;
 	gPosition = vec4(positionViewSpace_pass, 0.0f);
 
-	//gNormal.xyz = normalTangentSpace;
+	gNormal.a = normalTangentSpace.a;
 
 	gMaterials = texture(materialMapTextureArray, vec3(parallaxedCoords, textureIndex)).rgba;
 }

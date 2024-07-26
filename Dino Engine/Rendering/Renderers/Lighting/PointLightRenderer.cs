@@ -45,7 +45,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
                 Vector3 position = entity.getComponent<TransformationComponent>().Transformation.position;
                 float attunuationRadius = entity.getComponent<AttunuationComponent>().AttunuationRadius;
-                Matrix4 transformationMatrix = MyMath.createTransformationMatrix(position, attunuationRadius);
+                Matrix4 transformationMatrix = MyMath.createTransformationMatrix(position, attunuationRadius*1.1f);
                 pointLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
 
                 Vector3 lightColour = entity.getComponent<ColourComponent>().Colour.ToVector3();

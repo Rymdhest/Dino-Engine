@@ -41,7 +41,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _sunFilterShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
             _sunFilterShader.loadUniformVector2f("screenResolution", Engine.Resolution);
             _sunFilterShader.loadUniformVector3f("sunColour", new Colour(1f, 0.7f, 0.65f, 25.0f).ToVector3());
-            _sunFilterShader.loadUniformVector3f("sunDirection",  (new Vector3(-1f, 2f, 3.9f)).Normalized());
+            _sunFilterShader.loadUniformVector3f("sunDirection",  (new Vector3(-1f, 1.5f, 3.9f)).Normalized());
             _sunFilterShader.loadUniformFloat("exponent", 2.0f);
 
             renderer.GetNextFrameBuffer().bind();
@@ -52,8 +52,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _sunRayShader.loadUniformFloat("Density", 0.2f);
             _sunRayShader.loadUniformFloat("Weight", 0.1f);
             _sunRayShader.loadUniformFloat("Exposure", 0.2f);
-            _sunRayShader.loadUniformFloat("Decay", 0.9f);
-            _sunRayShader.loadUniformFloat("Decay", 1.0f);
+            _sunRayShader.loadUniformFloat("Decay", 0.95f);
             _sunRayShader.loadUniformFloat("illuminationDecay", 1.2f);
             _sunRayShader.loadUniformInt("samples", 40);
 

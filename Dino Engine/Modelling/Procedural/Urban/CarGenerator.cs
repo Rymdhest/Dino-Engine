@@ -119,7 +119,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             List<Vector2> wheelLayers = new List<Vector2>() {
                 new Vector2(wheelRadius, 0),
                 new Vector2(wheelRadius, wheelWidth) };
-            Mesh wheel = MeshGenerator.generateCylinder(wheelLayers, 14, rubberMaterial, true);
+            Mesh wheel = MeshGenerator.generateCylinder(wheelLayers, 14, rubberMaterial, 0);
             wheel.rotate(new Vector3(0f, 0f, -MathF.PI/2f));
             car += wheel.translated(botShape[3] + new Vector3(-wheelWidth * 0.95f, -wheelRadius * 1.0f, 0f));
             car += wheel.translated(botShape[9] + new Vector3(-wheelWidth * 0.95f, -wheelRadius * 1.0f, 0f));
@@ -155,7 +155,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             List<Vector2> exhaustLayers = new List<Vector2>() {
                 new Vector2(exhaustRadius, 0),
                 new Vector2(exhaustRadius, exhaustLength)};
-            Mesh exhaust = MeshGenerator.generateCylinder(exhaustLayers, 8, detailMaterial, true);
+            Mesh exhaust = MeshGenerator.generateCylinder(exhaustLayers, 8, detailMaterial, 0);
             
             exhaust.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
             exhaust.translate(exhaustPos);

@@ -13,13 +13,15 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private ShaderProgram _gaussianBlurShader = new ShaderProgram("Gaussian_Blur.vert", "Gaussian_Blur.frag");
         private FrameBuffer _verticalFramebuffer;
         private FrameBuffer _horizontalFramebuffer;
-        private int _downscalingFactor = 2;
+        private int _downscalingFactor;
 
-        public GaussianBlurRenderer()
+        public GaussianBlurRenderer(int downscalingFactor = 2)
         {
             _gaussianBlurShader.bind();
             _gaussianBlurShader.loadUniformInt("originalTexture", 0);
             _gaussianBlurShader.unBind();
+
+            _downscalingFactor = downscalingFactor;
 
             FrameBufferSettings settings = new FrameBufferSettings(Engine.Resolution / _downscalingFactor);
             DrawBufferSettings drawSettings = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
@@ -34,7 +36,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _horizontalFramebuffer = new FrameBuffer(settings);
         }
 
-        public void Render(FrameBuffer sourceBuffer, int blurRadius, ScreenQuadRenderer renderer)
+        public void Render(FrameBuffer sourceBuffer, int blurRadius, ScreenQuadRenderer renderer, int attachment = 0)
         {
             float[] weights = new float[blurRadius*2+1];
 
@@ -65,7 +67,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _gaussianBlurShader.loadUniformVector2f("blurAxis", new Vector2(1f, 0f));
             _gaussianBlurShader.loadUniformFloatArray("weights", weights);
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, sourceBuffer.GetAttachment(0));
+            GL.BindTexture(TextureTarget.Texture2D, sourceBuffer.GetAttachment(attachment));
             renderer.Render();
 
             _horizontalFramebuffer.bind();

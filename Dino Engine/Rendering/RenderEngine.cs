@@ -148,16 +148,17 @@ namespace Dino_Engine.Rendering
                 PostGeometryPass(eCSEngine);
                 PostProcessPass(eCSEngine);
 
-                _simpleShader.bind();
 
+                //_debugRenderer.RenderNormals(eCSEngine, ScreenQuadRenderer);
+
+                _simpleShader.bind();
                 _screenQuadRenderer.GetLastFrameBuffer().resolveToScreen();
 
                 //_screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
 
-                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(1));
+                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(0));
                 //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
                 //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));
-
 
                 //_screenQuadRenderer.RenderTextureToScreen(textureGenerator.preparedTextures[0].textures[0]);
                 //_screenQuadRenderer.RenderTextureToScreen(textureGenerator._albedoBuffer.GetAttachment(0));
@@ -179,7 +180,7 @@ namespace Dino_Engine.Rendering
 
             _modelRenderer.RenderPass(eCSEngine, this);
             _instancedModelRenderer.RenderPass(eCSEngine, this);
-            _grassRenderer.RenderPass(eCSEngine, this);
+            //_grassRenderer.RenderPass(eCSEngine, this);
 
             _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
             _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);

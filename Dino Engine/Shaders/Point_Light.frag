@@ -27,7 +27,7 @@ void main(void){
 	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
 	
 
-	float ambientOcclusion = texture(gAlbedo, textureCoords).a;
+	float ambientOcclusion = texture(gNormal, textureCoords).a;
 	float roughness = texture(gMaterials, textureCoords).r;
 	float emission = texture(gMaterials, textureCoords).g;
 	float metallic = texture(gMaterials, textureCoords).b;
@@ -65,7 +65,7 @@ void main(void){
     Lo += (kD * albedo / PI + specular) * radiance * NdotL; 
 
 	//vec3 ambient = vec3(0.03) * albedo * ambientOcclusion;
-    vec3 color =  Lo*ambientOcclusion;
+    vec3 color =  Lo*0.95f+ambientOcclusion*albedo*0.01f*radiance;
 
 	//color = color / (color + vec3(1.0));
     //color = pow(color, vec3(1.0/2.2));  

@@ -24,7 +24,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             }
 
             Material material = materialOrange;
-            Mesh mesh = MeshGenerator.generateCylinder(layers, 8, material, true);
+            Mesh mesh = MeshGenerator.generateCylinder(layers, 8, material, 0);
             mesh.scale(new Vector3(0.3f, 1f, 0.3f));
             mesh.translate(new Vector3(0.0f, baseHeight*0.5f, 0.0f));
 
@@ -53,7 +53,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 new Vector2(r*0.94f, h*0.24f),
                 new Vector2(r*0.64f, h*0.255f),
                 new Vector2(r*0.64f, h*1.0f) };
-            Mesh pole = MeshGenerator.generateCylinder(layers, 8, poleMaterial, true);
+            Mesh pole = MeshGenerator.generateCylinder(layers, 8, poleMaterial, 0);
             mesh += pole;
 
             float h2 = h * 0.35f;

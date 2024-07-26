@@ -27,6 +27,14 @@ namespace Dino_Engine.Util
             _blue = blue / 255f;
             _intensity = intensity;
         }
+        public Colour(int red, int green, int blue, float intensity, float alpha)
+        {
+            _red = red / 255f;
+            _green = green / 255f;
+            _blue = blue / 255f;
+            _alpha = alpha;
+            _intensity = intensity;
+        }
         public Colour(float red, float green, float blue)
         {
             _red = red;

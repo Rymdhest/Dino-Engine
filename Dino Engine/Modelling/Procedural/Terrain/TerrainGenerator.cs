@@ -26,9 +26,17 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public int _octaves = 15;
         public float yScale = 200f;
 
-        private OpenSimplexNoise noise = new OpenSimplexNoise();
+        private OpenSimplexNoise noise;
 
-        public void generateTerrainChunkEntity(Vector2 worldPos, Vector2 worldSize, float quadsPerMeter)
+        public TerrainGenerator()
+        {
+            noise = new OpenSimplexNoise();
+        }
+        public TerrainGenerator(long seed)
+        {
+            noise = new OpenSimplexNoise(seed);
+        }
+        public Entity generateTerrainChunkEntity(Vector2 worldPos, Vector2 worldSize, float quadsPerMeter)
         {
 
             Vector2i resolution = new Vector2i((int)(worldSize.X * quadsPerMeter)+1, (int)(worldSize.Y*quadsPerMeter)+1);
@@ -37,7 +45,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             Entity terrainEntity = new Entity("Terrain");
 
             FloatGrid terrainGrid = generateChunk(worldPos, worldSize, resolution);
-            Material grass = new Material(new Colour(116, 96, 37, 0.75f), 1);
+            Material grass = Material.ROCK;
             Mesh groundMesh = TerrainMeshGenerator.GridToMesh(terrainGrid, worldSize, grass,  out Vector3Grid terrainNormals);
             glModel groundModel = glLoader.loadToVAO(groundMesh);
 
@@ -49,6 +57,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             eCSEngine.AddEnityToSystem<TerrainSystem>(terrainEntity);
             eCSEngine.AddEnityToSystem<CollidableSystem>(terrainEntity);
 
+            return terrainEntity;
         }
 
         public FloatGrid generateChunk(Vector2 positionWorld, Vector2 sizeWorld, Vector2i resolution)

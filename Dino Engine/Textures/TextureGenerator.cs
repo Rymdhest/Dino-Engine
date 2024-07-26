@@ -1,6 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Rendering;
 using Dino_Engine.Rendering.Renderers;
+using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using System;
@@ -14,91 +15,38 @@ namespace Dino_Engine.Textures
 {
     public class TextureGenerator
     {
-        private ShaderProgram _textureGeneratorShader = new ShaderProgram("Simple.vert", "Texture_Generate.frag");
-        private ShaderProgram _textureNormalShader = new ShaderProgram("Simple.vert", "Texture_Normal_Generate.frag");
-        private ShaderProgram _textureColorShader = new ShaderProgram("Simple.vert", "Texture_Color_Generate.frag");
 
-        public FrameBuffer _albedoBuffer;
-        public FrameBuffer _normalBuffer;
-        public FrameBuffer _materialBuffer;
         private Vector2i textureResolution = new Vector2i(512, 512);
+
         public int megaAlbedoTextureArray;
         public int megaNormalTextureArray;
         public int megaMaterialTextureArray;
 
         public int grainIndex;
         public int sandIndex;
+        public int flatIndex;
+        public int flatGlowIndex;
 
-
+        private ProceduralTextureRenderer proceduralTextureRenderer;
 
         public List<MaterialMapsTextures> preparedTextures = new List<MaterialMapsTextures>();
 
         public TextureGenerator()
         {
-            FrameBufferSettings ablebdoBufferSettings = new FrameBufferSettings(textureResolution);
-            DrawBufferSettings albedoAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            albedoAttachment.formatInternal = PixelInternalFormat.Rgba;
-            albedoAttachment.pixelType = PixelType.UnsignedByte;
-            albedoAttachment.formatExternal = PixelFormat.Rgba;
-            //albedoAttachment.minFilterType = TextureMinFilter.LinearMipmapLinear;
-            albedoAttachment.wrapMode = TextureWrapMode.Repeat;
-            ablebdoBufferSettings.drawBuffers.Add(albedoAttachment);
-            _albedoBuffer = new FrameBuffer(ablebdoBufferSettings);
-
-            FrameBufferSettings normalBufferSettings = new FrameBufferSettings(textureResolution);
-            DrawBufferSettings normalAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            normalAttachment.formatInternal = PixelInternalFormat.Rgba;
-            normalAttachment.pixelType = PixelType.UnsignedByte;
-            normalAttachment.wrapMode = TextureWrapMode.Repeat;
-            normalAttachment.formatExternal = PixelFormat.Rgba;
-            //normalAttachment.minFilterType = TextureMinFilter.LinearMipmapLinear;
-            normalBufferSettings.drawBuffers.Add(normalAttachment);
-            _normalBuffer = new FrameBuffer(normalBufferSettings);
-
-            FrameBufferSettings propertiesBufferSettings = new FrameBufferSettings(textureResolution);
-            DrawBufferSettings roughnessMetalicHeightAmbientAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            roughnessMetalicHeightAmbientAttachment.formatInternal = PixelInternalFormat.Rgba;
-            roughnessMetalicHeightAmbientAttachment.pixelType = PixelType.UnsignedByte;
-            roughnessMetalicHeightAmbientAttachment.formatExternal = PixelFormat.Rgba;
-            roughnessMetalicHeightAmbientAttachment.wrapMode = TextureWrapMode.Repeat;
-            roughnessMetalicHeightAmbientAttachment.minFilterType = TextureMinFilter.Linear;
-            propertiesBufferSettings.drawBuffers.Add(roughnessMetalicHeightAmbientAttachment);
-            _materialBuffer = new FrameBuffer(propertiesBufferSettings);
-
-
-            _textureNormalShader.bind();
-            _textureNormalShader.loadUniformInt("heightMap", 0);
-            _textureNormalShader.loadUniformVector2f("texelSize",new Vector2(1f)/textureResolution);
-            _textureNormalShader.unBind();
-
-            _textureColorShader.bind();
-            _textureColorShader.loadUniformInt("heightMap", 0);
-            _textureColorShader.unBind();
-
+            proceduralTextureRenderer = new ProceduralTextureRenderer(textureResolution);
         }
 
         public void GenerateAllTextures()
         {
             grainIndex = createGrainTexture();
-            grainIndex = createGrainTexture();
+            flatIndex = createFlatTexture();
+            flatGlowIndex = createFlatGlowTexture();
             loadAllTexturesToArray();
         }
 
-        private int DumpCurrentFramebuffersIntoTextures()
+        private int FinishTexture()
         {
-            ScreenQuadRenderer renderer = Engine.RenderEngine.ScreenQuadRenderer;
-            _normalBuffer.bind();
-            _textureNormalShader.bind();
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, _materialBuffer.GetAttachment(0));
-            renderer.Render();
-
-            int albedoTexture = _albedoBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
-            int normalTexture = _normalBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
-            int materialTexture = _materialBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
-
-            preparedTextures.Add(new MaterialMapsTextures(albedoTexture, normalTexture, materialTexture));
-
+            preparedTextures.Add(proceduralTextureRenderer.Export());
             return preparedTextures.Count-1;
         }
 
@@ -141,40 +89,96 @@ namespace Dino_Engine.Textures
             megaAlbedoTextureArray = loadTypeOfTextureToArray(0);
             megaNormalTextureArray = loadTypeOfTextureToArray(1);
             megaMaterialTextureArray = loadTypeOfTextureToArray(2);
+
+            foreach (MaterialMapsTextures materialTextures in preparedTextures)
+            {
+                materialTextures.CleanUp();
+            }
         }
 
+        private int createFlatGlowTexture()
+        {
+            proceduralTextureRenderer.heightFactor = 0.06f;
+            proceduralTextureRenderer.colour = new Colour(255, 255, 255, 1f, 1f);
+            proceduralTextureRenderer.rougness = 0.7f;
+            proceduralTextureRenderer.emission = 1.0f;
+            proceduralTextureRenderer.startFrequenzy = new Vector2(10.0f, 10.0f);
+            proceduralTextureRenderer.Tap();
+            return FinishTexture();
+        }
+
+        private int createFlatTexture()
+        {
+            proceduralTextureRenderer.heightFactor = 1.0f;
+            proceduralTextureRenderer.colour = new Colour(255, 255, 255, 1f, 1f);
+            proceduralTextureRenderer.rougness = 0.6f;
+            proceduralTextureRenderer.metlaic = 0.0f;
+            proceduralTextureRenderer.startFrequenzy = new Vector2(10.0f, 10.0f);
+            proceduralTextureRenderer.Tap();
+            return FinishTexture();
+        }
 
         private int createGrainTexture()
         {
-            
-            ScreenQuadRenderer renderer = Engine.RenderEngine.ScreenQuadRenderer;
-            _materialBuffer.bind();
-            _textureGeneratorShader.bind();
+
+            proceduralTextureRenderer.octaves = 14;
+            proceduralTextureRenderer.seed = 1.6f;
+            proceduralTextureRenderer.exponent = 1.2f;
+            proceduralTextureRenderer.amplitudePerOctave = 0.5f;
+            proceduralTextureRenderer.heightFactor = 0.4f;
+            proceduralTextureRenderer.colour = new Colour(155, 120, 100, 1f, 1f);
+            proceduralTextureRenderer.rougness = 0.7f;
+            proceduralTextureRenderer.rigged = true;
+            proceduralTextureRenderer.invert = false;
+            proceduralTextureRenderer.startFrequenzy = new Vector2(50.0f, 50.0f);
+            proceduralTextureRenderer.Tap();
+
+            proceduralTextureRenderer.startFrequenzy = new Vector2(25.0f, 25.0f);
+            proceduralTextureRenderer.colour = new Colour(70, 70, 70, 1f, 1f);
+            proceduralTextureRenderer.depthCheck = true;
+            proceduralTextureRenderer.blendMode = ProceduralTextureRenderer.BlendMode.overriding;
+            proceduralTextureRenderer.seed = 7.6f;
+            proceduralTextureRenderer.Tap();
+
+            proceduralTextureRenderer.octaves = 5;
+            proceduralTextureRenderer.seed = 3.1f;
+            proceduralTextureRenderer.exponent = 1.2f;
+            proceduralTextureRenderer.amplitudePerOctave = 0.35f;
+            proceduralTextureRenderer.heightFactor = 1.0f;
+            proceduralTextureRenderer.colour = new Colour(155, 155, 155, 1f, 1f);
+            proceduralTextureRenderer.rougness = 0.32f;
+            proceduralTextureRenderer.metlaic = 0.0f;
+            proceduralTextureRenderer.rigged = true;
+            proceduralTextureRenderer.invert = false;
+            proceduralTextureRenderer.depthCheck = true;
+            proceduralTextureRenderer.startFrequenzy = new Vector2(10.0f, 10.0f);
+            proceduralTextureRenderer.Tap();
+
+            proceduralTextureRenderer.octaves = 15;
+            proceduralTextureRenderer.seed = 13.1f;
+            proceduralTextureRenderer.exponent = 1.0f;
+            proceduralTextureRenderer.amplitudePerOctave = 0.55f;
+            proceduralTextureRenderer.heightFactor = 1.0f;
+            proceduralTextureRenderer.colour = new Colour(255, 0, 0, 1f, 1f);
+            proceduralTextureRenderer.rougness = 0.7f;
+            proceduralTextureRenderer.metlaic = 0.0f;
+            proceduralTextureRenderer.rigged = false;
+            proceduralTextureRenderer.invert = false;
+            proceduralTextureRenderer.depthCheck = true;
+            proceduralTextureRenderer.scaleOutputToHeight = true;
+            proceduralTextureRenderer.writeToHeight = true;
+            proceduralTextureRenderer.startFrequenzy = new Vector2(15.0f, 15.0f);
+            //proceduralTextureRenderer.Tap();
 
 
-            _textureGeneratorShader.loadUniformInt("octaves",25);
-            _textureGeneratorShader.loadUniformFloat("seed", 0.1f);
-            _textureGeneratorShader.loadUniformBool("rigged", true);
-            _textureGeneratorShader.loadUniformVector2f("startFrequenzy", new Vector2(60.0f, 60.0f));
-
-            renderer.Render();
-
-
-            _albedoBuffer.bind();
-            _textureColorShader.bind();
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, _materialBuffer.GetAttachment(0));
-            renderer.Render();
-
-            return DumpCurrentFramebuffersIntoTextures();
+            proceduralTextureRenderer.normalFlatness = 0.15f;
+            return FinishTexture();
         }
         public void CleanUp()
         {
-            _textureGeneratorShader.cleanUp();
-            _textureNormalShader.cleanUp();
-            _albedoBuffer.cleanUp();
-            _normalBuffer.cleanUp();
-            _materialBuffer.cleanUp();
+            GL.DeleteTexture(megaAlbedoTextureArray);
+            GL.DeleteTexture(megaMaterialTextureArray);
+            GL.DeleteTexture(megaNormalTextureArray);
         }
     }
 }

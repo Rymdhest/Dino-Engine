@@ -10,12 +10,10 @@ layout(location=5) in float materialIndex;
 out vec3 fragColor;
 out vec3 positionViewSpace_pass;
 out vec2 fragUV;
-out mat4 TBN;
-out mat3 TBN2;
+out mat3 normalTBN;
 
 out vec3 TangentViewPos;
 out vec3 TangentFragPos;
-out vec3 worldPos;
 
 out float textureIndex;
 
@@ -30,33 +28,18 @@ void main() {
 	positionViewSpace_pass =  (vec4(position, 1.0)*modelViewMatrix).xyz;
 	fragUV = uv;
 	textureIndex = materialIndex;
-	vec3 bitangent = normalize(cross(normal, tangent));
-
-	TBN = mat4(
-		tangent.x, bitangent.x, normal.x, 0f,
-		tangent.y, bitangent.y, normal.y, 0f,
-		tangent.z, bitangent.z, normal.z, 0f,
-		0f,		0f,		0f,		1f
-	);
 	
-    vec3 N   = normalize((vec4(normal, 1.0f)*((modelMatrix))).xyz);
-    vec3 T   = normalize((vec4(tangent, 1.0f)*((modelMatrix))).xyz);
-	N = vec3(0f, 1f, 0f);
-	T= vec3 (1f, 0f, 0f);
-	T = normalize(T - dot(T, N) * N);
-    vec3 B   = normalize(cross(N, T));
-    TBN2 = mat3(
-		T.x, B.x, N.x,
-		T.y, B.y, N.y,
-		T.z, B.z, N.z
-	);
-	//TBN2 = transpose(TBN2);
-	worldPos = (vec4(position, 1.0)*((modelMatrix))).xyz;
-    TangentViewPos  = (vec4(viewPos, 1.0f)*inverse(modelMatrix)).xyz*TBN2;
-    TangentFragPos  = (vec4(position, 1.0f)).xyz*TBN2;
+	vec3 N = normal;
+	vec3 T = tangent;
+    vec3 B = normalize( cross(T, N));
 
-	
-	TBN = TBN*normalModelViewMatrix;
+
+    mat3 TBN =  mat3(T, B, N);
+
+    TangentFragPos = position * (TBN);
+    TangentViewPos = (vec4(viewPos, 1.0)*inverse(modelMatrix)).xyz*(TBN);
+
+	normalTBN = transpose(mat3(T, normalize( cross(N, T)), N))*(mat3(normalModelViewMatrix));
 
 	fragColor = color;
 }

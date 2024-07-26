@@ -24,5 +24,5 @@ void main()
  
 	float final = result / float(blurSize * blurSize);
     
-    gDiffuse.a = final;
+    gNormal.a = final;
 }

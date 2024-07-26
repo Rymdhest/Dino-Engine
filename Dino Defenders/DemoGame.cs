@@ -21,6 +21,8 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 using Dino_Engine.Physics;
 using System;
 using System.Reflection.Emit;
+using Dino_Engine.Modelling.Procedural.Indoor;
+using System.Runtime.ConstrainedExecution;
 
 namespace Dino_Defenders
 {
@@ -36,6 +38,9 @@ namespace Dino_Defenders
             ECSEngine eCSEngine = Engine.ECSEngine;
             if (Engine.WindowHandler.IsKeyPressed(Keys.F1))
             {
+                Engine.RenderEngine.textureGenerator.CleanUp();
+                Engine.RenderEngine.textureGenerator = new Dino_Engine.Textures.TextureGenerator();
+                Engine.RenderEngine.textureGenerator.GenerateAllTextures();
                 SpawnWorld(eCSEngine);
             }
             if (Engine.WindowHandler.IsKeyPressed(Keys.B))
@@ -174,6 +179,7 @@ namespace Dino_Defenders
             eCSEngine.InitEntities();
             //spawnTerrain(eCSEngine);
             spawnCity(eCSEngine);
+            //spawnIndoorScene(eCSEngine);
         }
             private void spawnTerrain(ECSEngine eCSEngine)
         {
@@ -302,7 +308,116 @@ namespace Dino_Defenders
             }
             */
         }
+        private void spawnIndoorScene(ECSEngine eCSEngine)
+        {
+            Vector3 roomSize = new Vector3(20, 20, 50);
+            float wallThickness = 0.05f;
+            Entity house = new Entity("house");
+            house.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
+            Mesh houseMesh = new Mesh();
+            Material wood = new Material(new Colour(115, 115, 95, 1), Engine.RenderEngine.textureGenerator.flatIndex);
+            Material floor = new Material(new Colour(155, 135, 111, 1), Engine.RenderEngine.textureGenerator.grainIndex);
+            Mesh plane = MeshGenerator.generateBox(wood);
+            Mesh floorMesh = MeshGenerator.generateBox(floor);
+            Mesh.scaleUV = true;
+            floorMesh.scale(new Vector3(1f, 1f, wallThickness));
+            floorMesh.translate(new Vector3(0f, 0f, 0.5f));
+            Mesh.scaleUV = false;
+            plane.scale(new Vector3(1f, 1f, wallThickness));
+            plane.translate(new Vector3(0f, 0f, 0.5f));
+            houseMesh += floorMesh.rotated(new Vector3(MathF.PI / 2f, 0f, 0f));
+            houseMesh += plane.rotated(new Vector3(-MathF.PI / 2f, 0f, 0f));
+            houseMesh += plane.rotated(new Vector3(0f, 0, 0f)).scaled(new Vector3(1f, 0.3f, 1f)).translated(new Vector3(0f, -0.7f/2f, 0f));
+            houseMesh += plane.rotated(new Vector3(0f, 0, 0f)).scaled(new Vector3(1f, 0.3f, 1f)).translated(new Vector3(0f, 0.7f / 2f, 0f));
+            houseMesh += plane.rotated(new Vector3(0f, MathF.PI / 2f, 0f));
+            houseMesh += plane.rotated(new Vector3(0f, 2f*MathF.PI / 2f, 0f));
+            houseMesh += plane.rotated(new Vector3(0f, 3f*MathF.PI / 2f, 0f));
+            houseMesh.translate(new Vector3(0f, .5f- wallThickness / 2f, 0f));
 
+            Mesh.scaleUV = true;
+            houseMesh.scale(roomSize);
+            Mesh.scaleUV = false;
+            house.addComponent(new ModelComponent(houseMesh)); ;
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(house);
+
+
+            TerrainGenerator terrainGenerator = new TerrainGenerator(104);
+            Vector2 terrainSize = new Vector2(140, 100f);
+            Entity terrain = terrainGenerator.generateTerrainChunkEntity(new Vector2(0, 0f), terrainSize, 1.0f);
+            terrain.getComponent<TransformationComponent>().SetLocalTransformation(new Vector3(-terrainSize.X/2f, -50, 50f));
+
+
+            Entity roundTable = new Entity("roundTable");
+            roundTable.addComponent(new TransformationComponent(new Transformation(new Vector3(-7, 0, -21), new Vector3(0, 0, 0f), new Vector3(1))));
+            roundTable.addComponent(new ModelComponent(FurnitureGenerator.GenerateRoundTable(out float roundTableSurfaceHeight))); ;
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(roundTable);
+
+            Entity candle2 = new Entity("candle");
+            candle2.addComponent(new TransformationComponent(new Transformation(new Vector3(0.2f, roundTableSurfaceHeight, -0.2f), new Vector3(0f, 0f, 0f), new Vector3(1))));
+            candle2.addComponent(new ModelComponent(FurnitureGenerator.GenerateCandle(out Vector3 candleLightPosition2)));
+            candle2.addComponent(new ChildComponent(roundTable));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(candle2);
+
+            Entity candlePointLight2 = new Entity("candlePointLight2");
+            candlePointLight2.addComponent(new TransformationComponent(new Transformation(candleLightPosition2, new Vector3(0), new Vector3(1))));
+            candlePointLight2.addComponent(new ChildComponent(candle2));
+            candlePointLight2.addComponent(new AttunuationComponent(0.004f, 0.004f, 0.004f));
+            candlePointLight2.addComponent(new ColourComponent(new Colour(1f, 0.7f, 0.5f, 0.2f)));
+            eCSEngine.AddEnityToSystem<PointLightSystem>(candlePointLight2);
+
+            Entity table = new Entity("table");
+            table.addComponent(new TransformationComponent(new Transformation(new Vector3(6.4f, 0, 12), new Vector3(0, 0, 0f), new Vector3(1))));
+            table.addComponent(new ModelComponent(FurnitureGenerator.GenerateTable(out float tableSurfaceHeight))); ;
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(table);
+
+            Entity chair = new Entity("chair");
+            chair.addComponent(new TransformationComponent(new Transformation(new Vector3(3, 0, 12), new Vector3(0, -MathF.PI/2f, 0f), new Vector3(1))));
+            chair.addComponent(new ModelComponent(FurnitureGenerator.GenerateChair())); ;
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(chair);
+
+            Entity lamp = new Entity("lamp");
+            lamp.addComponent(new TransformationComponent(new Transformation(new Vector3(0.8f, tableSurfaceHeight, 3), new Vector3(0f, 0f, 0f), new Vector3(1))));
+            lamp.addComponent(new ModelComponent(FurnitureGenerator.GenerateLamp(out Vector3 lightPosition, out Vector3 lightDirection)));
+            lamp.addComponent(new ChildComponent(table));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(lamp);
+
+            Entity candle = new Entity("candle");
+            candle.addComponent(new TransformationComponent(new Transformation(new Vector3(1.2f, tableSurfaceHeight, -3), new Vector3(0f, 0f, 0f), new Vector3(1))));
+            candle.addComponent(new ModelComponent(FurnitureGenerator.GenerateCandle(out Vector3 candleLightPosition)));
+            candle.addComponent(new ChildComponent(table));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(candle);
+
+            Entity candlePointLight = new Entity("candlePointLight");
+            candlePointLight.addComponent(new TransformationComponent(new Transformation(candleLightPosition, new Vector3(0), new Vector3(1))));
+            candlePointLight.addComponent(new ChildComponent(candle));
+            candlePointLight.addComponent(new AttunuationComponent(0.004f, 0.004f, 0.004f));
+            candlePointLight.addComponent(new ColourComponent(new Colour(1f, 0.3f, 0.1f, 0.7f)));
+            eCSEngine.AddEnityToSystem<PointLightSystem>(candlePointLight);
+
+            Entity spotLight = new Entity("spotLight");
+            spotLight.addComponent(new TransformationComponent(new Transformation(lightPosition, lightDirection, new Vector3(1))));
+            spotLight.addComponent(new ChildComponent(lamp));
+            spotLight.addComponent(new AttunuationComponent(0.006f, 0.006f, 0.006f));
+            spotLight.addComponent(new ColourComponent(new Colour(1f, 0.7f, 0.5f, 1f)));
+            eCSEngine.AddEnityToSystem<SpotLightSystem>(spotLight);
+
+            Entity pointLight = new Entity("pointLight");
+            pointLight.addComponent(new TransformationComponent(new Transformation(lightPosition, lightDirection, new Vector3(1))));
+            pointLight.addComponent(new ChildComponent(lamp));
+            pointLight.addComponent(new AttunuationComponent(0.006f, 0.006f, 0.006f));
+            pointLight.addComponent(new ColourComponent(new Colour(1f, 0.3f, 0.5f, 0.3f)));
+            eCSEngine.AddEnityToSystem<PointLightSystem>(pointLight);
+
+            Entity ceilingLight = new Entity("ceilingLight");
+            ceilingLight.addComponent(new TransformationComponent(new Transformation(new Vector3(0, roomSize.Y-wallThickness*roomSize.Y*2, 0), new Vector3(0), new Vector3(1))));
+            ceilingLight.addComponent(new ModelComponent(MeshGenerator.generateBox(Material.GLOW)));
+            ceilingLight.addComponent(new AttunuationComponent(0.0008f, 0.0008f, 0.0008f));
+            ceilingLight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
+            //eCSEngine.AddEnityToSystem<PointLightSystem>(ceilingLight);
+            eCSEngine.AddEnityToSystem<SpotLightSystem>(ceilingLight);
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(ceilingLight);
+
+        }
         private void spawnCity(ECSEngine eCSEngine)
         {
             glModel houseModel = ModelGenerator.GenerateHouse();
@@ -321,12 +436,14 @@ namespace Dino_Defenders
                 }
             }
             Entity houseGround = new Entity("House Ground");
-            houseGround.addComponent(new TransformationComponent(new Transformation(new Vector3(streetGenerator.TotalWidth/2f+50f, 0, streetGenerator.TotalWidth/2f+50f), new Vector3(0), new Vector3(1))));
-            Mesh houseGroundMesh = MeshGenerator.generatePlane(Material.ROCK);
-            houseGroundMesh.rotate(new Vector3(MathF.PI/2f, 0f, 0f));
-            Mesh.scaleUV = true;
-            houseGroundMesh.scale(new Vector3(100f, 1f, 100f));
+            houseGround.addComponent(new TransformationComponent(new Transformation(new Vector3(-streetGenerator.TotalWidth/2f-50f, 0, -streetGenerator.TotalWidth/2f-50f), new Vector3(0,-MathF.PI/2f,0), new Vector3(1))));
+            Mesh houseGroundMesh = MeshGenerator.generateBox(Material.ROCK);
+            //Mesh.scaleUV = true;
+            houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
             Mesh.scaleUV = false;
+            houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
+            houseGroundMesh.rotate(new Vector3(0f, MathF.PI/2f, 0f));
+            //Mesh.scaleUV = true;
             houseGround.addComponent(new ModelComponent(houseGroundMesh)); ;
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(houseGround);
 

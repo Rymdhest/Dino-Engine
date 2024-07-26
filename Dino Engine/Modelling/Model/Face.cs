@@ -60,6 +60,8 @@ namespace Dino_Engine.Modelling.Model
             // Orthogonalize the tangent with the normal
             //faceTangent = (faceTangent - v0.normal * Vector3.Dot(v0.normal, faceTangent)).Normalized();
 
+
+
         }
     }
 }

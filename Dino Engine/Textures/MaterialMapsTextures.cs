@@ -1,4 +1,5 @@
-﻿using System;
+﻿using OpenTK.Graphics.OpenGL;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,6 +17,13 @@ namespace Dino_Engine.Textures
             textures[0] = albedo;
             textures[1] = normal;
             textures[2] = materials;
+        }
+
+        public void CleanUp()
+        {
+            GL.DeleteTexture(textures[0]);
+            GL.DeleteTexture(textures[1]);
+            GL.DeleteTexture(textures[2]);
         }
     }
 }

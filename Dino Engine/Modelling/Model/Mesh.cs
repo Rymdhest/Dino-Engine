@@ -91,6 +91,12 @@ namespace Dino_Engine.Modelling.Model
 
         public void calculateAllNormals()
         {
+            foreach (MeshVertex vertex in meshVertices)
+            {
+                vertex.normal = new Vector3(0);
+                vertex.tangent = new Vector3(0);
+                vertex.bitangent = new Vector3(0);
+            }
             foreach (Face face in faces)
             {
                 face.calcFaceNormal();

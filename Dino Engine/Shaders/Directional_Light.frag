@@ -66,7 +66,7 @@ void main(void){
 	float sunFactor = 1f-calcShadow(position);
 	//float sunFactor = 1f;
 
-	float ambientOcclusion = texture(gAlbedo, textureCoords).a;
+	float ambientOcclusion = texture(gNormal, textureCoords).a;
 	float roughness = clamp(texture(gMaterials, textureCoords).r, 0.0f, 1f);
 	float emission = texture(gMaterials, textureCoords).g;
 	float metallic = texture(gMaterials, textureCoords).b;
