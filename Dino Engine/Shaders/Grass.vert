@@ -74,21 +74,21 @@ vec3 hash23(vec2 p) {
 
 mat3 rotXMatrix(float a) {
 	return mat3(
-	1, 0f, 0,
-	0f, cos(a), -sin(a),
-	0f,sin(a),cos(a));
+	1, 0, 0,
+	0, cos(a), -sin(a),
+	0,sin(a),cos(a));
 }
 mat3 rotYMatrix(float a) {
 	return mat3(
-	cos(a), 0f, sin(a),
-	0f, 1f, 0f,
-	-sin(a),0f,cos(a));
+	cos(a), 0, sin(a),
+	0, 1, 0,
+	-sin(a),0,cos(a));
 }
 mat3 rotZMatrix(float a) {
 	return mat3(
 	cos(a), -sin(a), 0,
 	sin(a), cos(a), 0,
-	0f,0,1f);
+	0,0,1);
 }
 
 mat3 createRotationMatrix(vec3 axis, float angle) {
@@ -108,13 +108,13 @@ mat3 createRotationMatrix(vec3 axis, float angle) {
 
 vec3 calcLocalCellPosition(vec2 gridPosition) {
 	vec2 offset = hash22(gridPosition)*spacing;
-	return vec3(offset.x, 0f, offset.y);
+	return vec3(offset.x, 0, offset.y);
 }
 
 float calcHeightFactor(vec2 textureCoords) {
 	float heightFactor = texture(grassMap, textureCoords).r;
 	//apply error
-	heightFactor *= 1f+ hash21(textureCoords)*heightError*2f-heightError;
+	heightFactor *= 1+ hash21(textureCoords)*heightError*2-heightError;
 	if (heightFactor < cutOffThreshold) valid = 0.0f;
 	return heightFactor;
 }
@@ -127,7 +127,7 @@ void addBendFromMap() {
 mat3 calcRotMatrixFromBendMap(vec2 textureCoords, float tipFactor) {
 	vec2 bendMapValue = texture(bendMap, textureCoords).xy;
 	vec3 initialDirection = vec3(0.0, 1.0, 0.0); // Initial direction (pointing up)
-	vec3 targetDirection = normalize(vec3(bendMapValue.x*tipFactor, 1f, bendMapValue.y*tipFactor)); // Your defined target vector
+	vec3 targetDirection = normalize(vec3(bendMapValue.x*tipFactor, 1, bendMapValue.y*tipFactor)); // Your defined target vector
 	vec3 rotationAxis = normalize(cross(initialDirection, targetDirection));
 	float dotProduct = dot(initialDirection, targetDirection);
 	float angle = acos(dotProduct);
@@ -145,7 +145,7 @@ mat3 calcRotMatrixFromBendMap(vec2 textureCoords, float tipFactor) {
 void main() {
 	valid = 1.0f;
 	tipFactor = position.y/bladeHeight;
-	vec3 gridPosition = vec3((floor(gl_InstanceID/(bladesPerAxis.y))), 0f, mod(float(gl_InstanceID),bladesPerAxis.y))*spacing;
+	vec3 gridPosition = vec3((floor(gl_InstanceID/(bladesPerAxis.y))), 0, mod(float(gl_InstanceID),bladesPerAxis.y))*spacing;
 
 	
 	/*
@@ -177,7 +177,7 @@ void main() {
 	
 	float rotX = (hash21(gridPosition.xz))*PI*tipFactor*bendyness;
 	float rotZ = (hash21(gridPosition.xz))*PI*tipFactor*bendyness;
-	float rotY = hash21(gridPosition.xz)*PI*2f;
+	float rotY = hash21(gridPosition.xz)*PI*2;
 	mat3 localRotMatrix = rotZMatrix(rotZ)*rotXMatrix(rotX)*rotYMatrix(rotY);
 	vec3 VertexPositionLocal = position;
 
@@ -199,8 +199,8 @@ void main() {
 
 	gl_Position =  vec4(VertexPositionGridSpace, 1.0)*modelViewProjectionMatrix;
 	positionViewSpace_pass =  (vec4(VertexPositionGridSpace, 1.0)*modelViewMatrix).xyz;
-	fragColor = color+color*vec3(hash23(gridPosition.xz))*colourError*2f-colourError*color;
-	fragMaterials = vec3(0.8f, 0.0f, 0f);
+	fragColor = color+color*vec3(hash23(gridPosition.xz))*colourError*2-colourError*color;
+	fragMaterials = vec3(0.8f, 0.0f, 0);
 	
 	vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
 	vec3 terrainNormal = texture(terrainNormalMap, textureCoordsVertex).xyz;

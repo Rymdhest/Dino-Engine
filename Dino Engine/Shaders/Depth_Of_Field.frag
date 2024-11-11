@@ -17,7 +17,7 @@ void main(void){
 	float depth = -texture(positionTexture, textureCoords).z;
 
 
-	float bluryness = clamp(abs(depth-focusDistance)*range, 0f, 1f);
+	float bluryness = clamp(abs(depth-focusDistance)*range, 0, 1);
 
 	out_Colour.rgb = mix(sharp, blur, bluryness);
 }

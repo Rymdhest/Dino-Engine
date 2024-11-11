@@ -120,12 +120,12 @@ float simplex3D(vec3 p)
 float fbm(vec2 p)
 {
 	float value = 0;
-	float totalAmplitude = 0f;
-	float amplitude = 1f;
+	float totalAmplitude = 0;
+	float amplitude = 1;
 	vec2 frequenzy = startFrequenzy;
 	for (int i = 0 ; i < octaves ; i++) {
 
-		float perlin = 0f;
+		float perlin = 0;
 		if (rigged) {
 			perlin =abs( amplitude*simplex3D(vec3(frequenzy*p, seed)));
 		}
@@ -142,7 +142,7 @@ float fbm(vec2 p)
 	}
 	value /= totalAmplitude;
 
-	if (invert) value = 1f-value;
+	if (invert) value = 1-value;
 
 	return value;
 }

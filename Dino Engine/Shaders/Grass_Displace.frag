@@ -14,7 +14,7 @@ uniform float exponent;
 void main(void){
 
 	float dist = distance(center, textureCoords*grassPatchSize);
-	float bend = clamp((radius-dist)/radius, 0f, 1f);
+	float bend = clamp((radius-dist)/radius, 0, 1);
 	vec2 direction =normalize(textureCoords-center/grassPatchSize);
 	vec2 newBend =  direction*bend*power;
 	float currentBend = length(texture(lastTexture, textureCoords).xy);

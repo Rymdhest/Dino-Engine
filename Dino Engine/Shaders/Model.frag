@@ -30,14 +30,14 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
     vec2 deltaTexCoords = P / parallaxLayers;
   
     vec2  currentTexCoords     = texCoords;
-    float currentDepthMapValue =1f-texture(materialMapTextureArray, vec3(currentTexCoords, textureIndex)).a;
+    float currentDepthMapValue =1-texture(materialMapTextureArray, vec3(currentTexCoords, textureIndex)).a;
   
     while(currentLayerDepth < currentDepthMapValue)
     {
         // shift texture coordinates along direction of P
         currentTexCoords -= deltaTexCoords;
         // get depthmap value at current texture coordinates
-        currentDepthMapValue = 1f-texture(materialMapTextureArray, vec3(currentTexCoords, textureIndex)).a;
+        currentDepthMapValue = 1-texture(materialMapTextureArray, vec3(currentTexCoords, textureIndex)).a;
         // get depth of next layer
         currentLayerDepth += layerDepth;  
     }
@@ -47,7 +47,7 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 
     // get depth after and before collision for linear interpolation
     float afterDepth  = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth =(1f-texture(materialMapTextureArray, vec3(prevTexCoords, textureIndex)).a) - currentLayerDepth + layerDepth;
+    float beforeDepth =(1-texture(materialMapTextureArray, vec3(prevTexCoords, textureIndex)).a) - currentLayerDepth + layerDepth;
  
     // interpolation of texture coordinates
     float weight = afterDepth / (afterDepth - beforeDepth);
@@ -66,7 +66,7 @@ void main() {
 	gAlbedo *= vec4(fragColor, 1.0f);
     //gAlbedo.rgb = vec3((fragUV), 0f);
 	vec4 normalTangentSpace = texture(normalMapTextureArray, vec3(parallaxedCoords, textureIndex));
-	normalTangentSpace.xyz = normalTangentSpace.xyz*2f-1f;
+	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;
 	gNormal.xyz = normalTangentSpace.xyz*normalTBN;
 	gPosition = vec4(positionViewSpace_pass, 0.0f);
 
