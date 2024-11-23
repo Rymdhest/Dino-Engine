@@ -28,23 +28,23 @@ vec3 applyVolumetricFog( in vec3  col,  // color of pixel
 {
 
     float fogAmount = (a/b) * exp(-ro.y*b) * (1.0-exp(-t*rd.y*b))/rd.y;
-    return mix( col, fogColor, clamp(fogAmount, 0f, 1f) );
+    return mix( col, fogColor, clamp(fogAmount, 0, 1) );
 }
 
 vec3 applySimpleFog( in vec3  col, float depth)
 {
-    float fogAmount = 1f -exp(-fogDensity *fogDensity*depth*depth);
+    float fogAmount = 1 -exp(-fogDensity *fogDensity*depth*depth);
     return mix(col, fogColor, fogAmount);
 }
 
 vec3 applySimpleFog2( in vec3  col, float depth, float height)
 {
-    if (height < 0f) height = 0f;
+    if (height < 0) height = 0;
     float heightFactor = exp(heightFallOff*heightFallOff*height *-height);
 
-    float distanceFactor  = 1f -exp(-fogDensity *fogDensity*depth*depth);
+    float distanceFactor  = 1 -exp(-fogDensity *fogDensity*depth*depth);
 
-    float fogFactor =clamp( (heightFactor*distanceFactor), 0f, 1f);
+    float fogFactor =clamp( (heightFactor*distanceFactor), 0, 1);
     return mix(col, fogColor, fogFactor);
 }
 

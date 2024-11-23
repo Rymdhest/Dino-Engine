@@ -135,50 +135,19 @@ float noise(vec2 pos, vec2 scale, float phase, float seed)
 
 float perlinNoise(vec2 pos, vec2 scale, mat2 transform, float seed)
 {
-    // based on Modifications to Classic Perlin Noise by Brian Sharpe: https://archive.is/cJtlS
-    pos *= scale;
-    vec4 i = floor(pos).xyxy + vec2(0.0, 1.0).xxyy;
-    vec4 f = (pos.xyxy - i.xyxy) - vec2(0.0, 1.0).xxyy;
-    i = mod(i, scale.xyxy) + seed;
+	float value = 0;
+	float totalAmplitude = 0;
+	float amplitude = 1;
+	vec2 frequenzy = startFrequenzy;
+	for (int i = 0 ; i < octaves ; i++) {
 
-    // grid gradients
-    vec4 gradientX, gradientY;
-    multiHash2D(i, gradientX, gradientY);
-    gradientX -= 0.49999;
-    gradientY -= 0.49999;
-
-    // transform gradients
-    vec4 mt = vec4(transform);
-    vec4 rg = vec4(gradientX.x, gradientY.x, gradientX.y, gradientY.y);
-    rg = rg.xxzz * mt.xyxy + rg.yyww * mt.zwzw;
-    gradientX.xy = rg.xz;
-    gradientY.xy = rg.yw;
-
-    rg = vec4(gradientX.z, gradientY.z, gradientX.w, gradientY.w);
-    rg = rg.xxzz * mt.xyxy + rg.yyww * mt.zwzw;
-    gradientX.zw = rg.xz;
-    gradientY.zw = rg.yw;
-
-    // perlin surflet
-    vec4 gradients = inversesqrt(gradientX * gradientX + gradientY * gradientY) * (gradientX * f.xzxz + gradientY * f.yyww);
-    // normalize: 1.0 / 0.75^3
-    gradients *= 2.3703703703703703703703703703704;
-    f = f * f;
-    f = f.xzxz + f.yyww;
-    vec4 xSq = 1.0 - min(vec4(1.0), f); 
-    return dot(xSq * xSq * xSq, gradients);
-}
-
-// 2D Perlin noise with gradients rotation.
-// @param scale Number of tiles, must be  integer for tileable results, range: [2, inf]
-// @param rotation Rotation for the noise gradients, useful to animate flow, range: [0, PI]
-// @param seed Seed to randomize result, range: [0, inf], default: 0.0
-// @return Value of the noise, range: [-1, 1]
-float perlinNoise(vec2 pos, vec2 scale, float rotation, float seed) 
-{
-    vec2 sinCos = vec2(sin(rotation), cos(rotation));
-    return perlinNoise(pos, scale, mat2(sinCos.y, sinCos.x, sinCos.x, sinCos.y), seed);
-}
+		float perlin = 0;
+		if (rigged) {
+			perlin =abs( amplitude*simplex3D(vec3(frequenzy*p, seed)));
+		}
+		else {
+			perlin = amplitude*(simplex3D(vec3(frequenzy*p, seed))*0.5f+0.5f);
+		}
 
 float fbmPerlin(vec2 pos, vec2 scale, int octaves, float shift, float axialShift, float gain, float lacunarity, uint mode, float factor, float offset, float octaveFactor, float seed) 
 {
@@ -188,44 +157,14 @@ float fbmPerlin(vec2 pos, vec2 scale, int octaves, float shift, float axialShift
     float n = 1.0;
     vec2 p = fract(pos) * frequency;
 
-    float value = 0.0;
-    for (int i = 0; i < octaves; i++) 
-    {
-        float pn = perlinNoise(p / frequency, frequency, angle, seed) + offset;
-        if (mode == 0u)
-        {
-            n *= abs(pn);
-        }
-        else if (mode == 1u)
-        {
-            n = abs(pn);
-        }
-        else if (mode == 2u)
-        {
-            n = pn;
-        }
-        else if (mode == 3u)
-        {
-            n *= pn;
-        }
-        else if (mode == 4u)
-        {
-            n = pn * 0.5 + 0.5;
-        }
-        else
-        {
-            n *= pn * 0.5 + 0.5;
-        }
-        
-        n = pow(n < 0.0 ? 0.0 : n, factor);
-        value += amplitude * n;
-        
-        p = p * lacunarity + shift;
-        frequency *= lacunarity;
-        amplitude = pow(amplitude * gain, octaveFactor);
-        angle += axialShift;
-    }
-    return value;
+		amplitude *= amplitudePerOctave;
+		frequenzy *= frequenzyPerOctave;
+	}
+	value /= totalAmplitude;
+
+	if (invert) value = 1-value;
+
+	return value;
 }
 
 void main(void)

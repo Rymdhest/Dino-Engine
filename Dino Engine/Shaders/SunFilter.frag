@@ -26,22 +26,22 @@ void main(void)
     vec2 screenPos = ndcPos.xy * 0.5 + 0.5;
     
     //adapt for aspect ratio
-	screenPos = ((screenPos*2f)-1f);
+	screenPos = ((screenPos*2)-1);
 	screenPos = (screenPos*screenResolution)/screenResolution.y;
 
-	vec2 uv = ((textureCoords*2f)-1f);
+	vec2 uv = ((textureCoords*2)-1);
 	uv = (uv*screenResolution)/screenResolution.y;
 
-	vec3 viewDir = normalize((projectionMatrix*viewMatrix*vec4(uv, -1f, 1.0f)).xyz);
+	vec3 viewDir = normalize((projectionMatrix*viewMatrix*vec4(uv, -1, 1.0f)).xyz);
     float dist = distance(uv, screenPos);
-    float sunAmount = 1f/(dist*exponent);
-    sunAmount = clamp(sunAmount, 0f, 999f);
+    float sunAmount = 1/(dist*exponent);
+    sunAmount = clamp(sunAmount, 0, 999);
 
-    vec3 viewDirWorldSpace =normalize((viewMatrix*vec4(0f, 0f, -1f, 1.0f)).xyz);
+    vec3 viewDirWorldSpace =normalize((viewMatrix*vec4(0, 0, -1, 1.0f)).xyz);
     
     if (dot(viewDirWorldSpace, sunDirection) < 0.0) {
-        sunAmount = 0f;
+        sunAmount = 0;
     }
-    out_Colour = vec4(sunColour*sunAmount, 1f);
+    out_Colour = vec4(sunColour*sunAmount, 1);
 
 }

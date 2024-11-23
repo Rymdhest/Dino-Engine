@@ -35,14 +35,14 @@ void main(void){
     
     vec3 lightDir = normalize(lightPositionViewSpace - position);  
     float theta = dot(lightDir, normalize(-lightDirectionViewSpace));
-    float cutoff = 3.1415f/4f;
+    float cutoff = 3.1415f/4;
     if (theta < cutoff) 
     {       
       discard;
     }
     
     float epsilon = softness*cutoff;
-    float intensity = smoothstep(0f, 1f, clamp((theta - cutoff) / epsilon, 0.0f, 1.0f));  
+    float intensity = smoothstep(0, 1, clamp((theta - cutoff) / epsilon, 0.0f, 1.0f));  
 
 	vec3 viewDir = normalize(-position);
 
@@ -56,7 +56,7 @@ void main(void){
     vec3 L = normalize(lightPositionViewSpace - position);
     vec3 H = normalize(V + L);
     float distance = length(lightPositionViewSpace - position.xyz);
-	float attenuationFactor = clamp(1.0 / (attenuation.x + attenuation.y * distance+ attenuation.z * distance * distance)-1f, 0f, 999f);
+	float attenuationFactor = clamp(1.0 / (attenuation.x + attenuation.y * distance+ attenuation.z * distance * distance)-1, 0, 999);
     vec3 radiance     = lightColor*attenuationFactor;        
         
     // cook-torrance brdf

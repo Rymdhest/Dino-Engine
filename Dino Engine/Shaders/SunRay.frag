@@ -30,10 +30,10 @@ void main(void)
     // Convert NDC to screen space coordinates (0 to 1)
     vec2 screenPos = ndcPos.xy * 0.5 + 0.5;
     
-	screenPos = ((screenPos*2f)-1f);
+	screenPos = ((screenPos*2)-1);
 	screenPos = (screenPos*screenResolution)/screenResolution.y;
 
-	vec2 uv = ((textureCoords*2f)-1f);
+	vec2 uv = ((textureCoords*2)-1);
 	uv = (uv*screenResolution)/screenResolution.y;
 
   vec2 texCoords = textureCoords;
@@ -67,6 +67,6 @@ void main(void)
   // Output final color with a further scale control factor.
      vec3 godray = color * Exposure;
 
-    out_Colour = vec4(godray/samples, 1f);
+    out_Colour = vec4(godray/samples, 1);
 
 }

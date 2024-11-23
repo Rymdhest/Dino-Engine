@@ -177,42 +177,15 @@ namespace Dino_Defenders
         {
             eCSEngine.ClearAllEntitiesExcept(eCSEngine.Camera);
             eCSEngine.InitEntities();
-            //spawnTerrain(eCSEngine);
-            spawnCity(eCSEngine);
-            spawnIndoorScene(eCSEngine);
-
-
-            TreeGenerator treeGenerator = new TreeGenerator();
-            OpenSimplexNoise noise = new OpenSimplexNoise();
-            FloatGrid spawnGrid = new FloatGrid(new Vector2i(512, 512));
-
-            for (int z = 0; z < spawnGrid.Resolution.Y; z++)
-            {
-                for (int x = 0; x < spawnGrid.Resolution.X; x++)
-                {
-                    float value = noise.Evaluate(x * 0.008f, z * 0.008f)*1.0f+0.5f;
-                    spawnGrid.Values[x, z] = MyMath.clamp01(MathF.Pow(value, 1.0f));
-
-                }
-            }
-            DebugRenderer.texture = spawnGrid.GetTexture();
-
-
-            BetterNoiseSampling betterNoiseSampling = new BetterNoiseSampling(spawnGrid.Resolution);
-            List<Vector2> spawnPoints = betterNoiseSampling.GeneratePoints(spawnGrid);
-            foreach (Vector2 spawn in spawnPoints)
-            {
-                RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 2f));
-            }
+            spawnTerrain(eCSEngine);
+            //spawnCity(eCSEngine);
+            //spawnIndoorScene(eCSEngine);
         }
-            private void spawnTerrain(ECSEngine eCSEngine)
+        private void spawnTerrain(ECSEngine eCSEngine)
         {
             TerrainGenerator generator = new TerrainGenerator();
-
-
-            
-            int r = 3;
-            Vector2 chunkSize = new Vector2(50, 50);
+            int r = 0;
+            Vector2 chunkSize = new Vector2(200, 200);
             for (int x = -r; x <= r; x++)
             {
                 for (int z = -r; z <= r; z++)
@@ -316,7 +289,7 @@ namespace Dino_Defenders
             Vector3 roomSize = new Vector3(20, 20, 50);
             float wallThickness = 0.05f;
             Entity house = new Entity("house");
-            house.addComponent(new TransformationComponent(new Transformation(new Vector3(50, 0, -80), new Vector3(0,MathF.PI*0.5f,0), new Vector3(1))));
+            house.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
             Mesh houseMesh = new Mesh();
             Material wood = new Material(new Colour(115, 115, 95, 1), Engine.RenderEngine.textureGenerator.flatIndex);
             Material floor = new Material(new Colour(155, 135, 111, 1), Engine.RenderEngine.textureGenerator.grainIndex);
@@ -456,7 +429,7 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(houseGround);
 
 
-            Vector2 terrainSize = new Vector2(150, 150f);
+            Vector2 terrainSize = new Vector2(200, 200f);
             terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
 
             Entity crossRoad = new Entity("crossroad");

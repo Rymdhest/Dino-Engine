@@ -18,7 +18,7 @@ void main(void)
     float dy = (heightU - heightD);
 
     normal.xyz = vec3(-dx, -dy, normalFlatness);
-    normal.y *= -1f;
+    normal.y *= -1;
     normal.xyz = normalize(normal.xyz);
 
     normal.rgb = normal.rgb*0.5f+0.5f;
