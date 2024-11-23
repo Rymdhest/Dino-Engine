@@ -179,7 +179,31 @@ namespace Dino_Defenders
             eCSEngine.InitEntities();
             //spawnTerrain(eCSEngine);
             spawnCity(eCSEngine);
-            //spawnIndoorScene(eCSEngine);
+            spawnIndoorScene(eCSEngine);
+
+
+            TreeGenerator treeGenerator = new TreeGenerator();
+            OpenSimplexNoise noise = new OpenSimplexNoise();
+            FloatGrid spawnGrid = new FloatGrid(new Vector2i(512, 512));
+
+            for (int z = 0; z < spawnGrid.Resolution.Y; z++)
+            {
+                for (int x = 0; x < spawnGrid.Resolution.X; x++)
+                {
+                    float value = noise.Evaluate(x * 0.008f, z * 0.008f)*1.0f+0.5f;
+                    spawnGrid.Values[x, z] = MyMath.clamp01(MathF.Pow(value, 1.0f));
+
+                }
+            }
+            DebugRenderer.texture = spawnGrid.GetTexture();
+
+
+            BetterNoiseSampling betterNoiseSampling = new BetterNoiseSampling(spawnGrid.Resolution);
+            List<Vector2> spawnPoints = betterNoiseSampling.GeneratePoints(spawnGrid);
+            foreach (Vector2 spawn in spawnPoints)
+            {
+                RenderEngine._debugRenderer.circles.Add(new Circle(spawn, 2f));
+            }
         }
             private void spawnTerrain(ECSEngine eCSEngine)
         {
@@ -200,27 +224,6 @@ namespace Dino_Defenders
                 }
             }
             
-
-            /*
-            TreeGenerator treeGenerator = new TreeGenerator();
-            OpenSimplexNoise noise = new OpenSimplexNoise();
-            FloatGrid spawnGrid = new FloatGrid(terrainGrid.Resolution);
-            FloatGrid terrainSteepnessMap = groundPlane.getComponent<TerrainMapsComponent>().steepnessMap;
-
-            for (int z = 0; z < spawnGrid.Resolution.Y; z++)
-            {
-                for (int x = 0; x < spawnGrid.Resolution.X; x++)
-                {
-                    float value = noise.Evaluate(x * 0.01f, z * 0.01f) / 2f + 0.5f;
-                    value *= 0.9f;
-                    value += 0.1f;
-
-                    float height = terrainGrid.Values[x, z];
-                    value += height / 85f;
-                    spawnGrid.Values[x, z] = MyMath.clamp01(value * value);
-                }
-            }
-            */
             /*
             DebugRenderer.texture = terrainSteepnessMap.GetTexture();
             //DebugRenderer.texture = spawnGrid.GenerateTexture();
@@ -313,7 +316,7 @@ namespace Dino_Defenders
             Vector3 roomSize = new Vector3(20, 20, 50);
             float wallThickness = 0.05f;
             Entity house = new Entity("house");
-            house.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
+            house.addComponent(new TransformationComponent(new Transformation(new Vector3(50, 0, -80), new Vector3(0,MathF.PI*0.5f,0), new Vector3(1))));
             Mesh houseMesh = new Mesh();
             Material wood = new Material(new Colour(115, 115, 95, 1), Engine.RenderEngine.textureGenerator.flatIndex);
             Material floor = new Material(new Colour(155, 135, 111, 1), Engine.RenderEngine.textureGenerator.grainIndex);
@@ -342,13 +345,15 @@ namespace Dino_Defenders
 
 
             TerrainGenerator terrainGenerator = new TerrainGenerator(104);
-            Vector2 terrainSize = new Vector2(140, 100f);
+            Vector2 terrainSize = new Vector2(100, 140f);
             Entity terrain = terrainGenerator.generateTerrainChunkEntity(new Vector2(0, 0f), terrainSize, 1.0f);
-            terrain.getComponent<TransformationComponent>().SetLocalTransformation(new Vector3(-terrainSize.X/2f, -50, 50f));
+            terrain.getComponent<TransformationComponent>().SetLocalTransformation(new Vector3(-terrainSize.X/2f, -40, 20f));
+            terrain.addComponent(new ChildComponent(house));
 
 
             Entity roundTable = new Entity("roundTable");
             roundTable.addComponent(new TransformationComponent(new Transformation(new Vector3(-7, 0, -21), new Vector3(0, 0, 0f), new Vector3(1))));
+            roundTable.addComponent(new ChildComponent(house));
             roundTable.addComponent(new ModelComponent(FurnitureGenerator.GenerateRoundTable(out float roundTableSurfaceHeight))); ;
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(roundTable);
 
@@ -367,11 +372,13 @@ namespace Dino_Defenders
 
             Entity table = new Entity("table");
             table.addComponent(new TransformationComponent(new Transformation(new Vector3(6.4f, 0, 12), new Vector3(0, 0, 0f), new Vector3(1))));
-            table.addComponent(new ModelComponent(FurnitureGenerator.GenerateTable(out float tableSurfaceHeight))); ;
+            table.addComponent(new ModelComponent(FurnitureGenerator.GenerateTable(out float tableSurfaceHeight)));
+            table.addComponent(new ChildComponent(house));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(table);
 
             Entity chair = new Entity("chair");
-            chair.addComponent(new TransformationComponent(new Transformation(new Vector3(3, 0, 12), new Vector3(0, -MathF.PI/2f, 0f), new Vector3(1))));
+            chair.addComponent(new TransformationComponent(new Transformation(new Vector3(-3, 0, 0), new Vector3(0, -MathF.PI/2f, 0f), new Vector3(1))));
+            chair.addComponent(new ChildComponent(table));
             chair.addComponent(new ModelComponent(FurnitureGenerator.GenerateChair())); ;
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(chair);
 
@@ -413,6 +420,7 @@ namespace Dino_Defenders
             ceilingLight.addComponent(new ModelComponent(MeshGenerator.generateBox(Material.GLOW)));
             ceilingLight.addComponent(new AttunuationComponent(0.0008f, 0.0008f, 0.0008f));
             ceilingLight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
+            ceilingLight.addComponent(new ChildComponent(house));
             //eCSEngine.AddEnityToSystem<PointLightSystem>(ceilingLight);
             eCSEngine.AddEnityToSystem<SpotLightSystem>(ceilingLight);
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(ceilingLight);

@@ -16,7 +16,7 @@ namespace Dino_Engine.Textures
     public class TextureGenerator
     {
 
-        private Vector2i textureResolution = new Vector2i(512, 512);
+        private Vector2i textureResolution = new Vector2i(512, 512)*2;
 
         public int megaAlbedoTextureArray;
         public int megaNormalTextureArray;
@@ -120,31 +120,32 @@ namespace Dino_Engine.Textures
 
         private int createGrainTexture()
         {
-
+            
             proceduralTextureRenderer.octaves = 14;
-            proceduralTextureRenderer.seed = 1.6f;
+            proceduralTextureRenderer.seed = 1.0f;
             proceduralTextureRenderer.exponent = 1.2f;
             proceduralTextureRenderer.amplitudePerOctave = 0.5f;
-            proceduralTextureRenderer.heightFactor = 0.4f;
+            proceduralTextureRenderer.heightFactor = 0.9f;
             proceduralTextureRenderer.colour = new Colour(155, 120, 100, 1f, 1f);
-            proceduralTextureRenderer.rougness = 0.7f;
+            proceduralTextureRenderer.rougness = 0.8f;
             proceduralTextureRenderer.rigged = true;
             proceduralTextureRenderer.invert = false;
             proceduralTextureRenderer.startFrequenzy = new Vector2(50.0f, 50.0f);
             proceduralTextureRenderer.Tap();
 
-            proceduralTextureRenderer.startFrequenzy = new Vector2(25.0f, 25.0f);
+            proceduralTextureRenderer.startFrequenzy = new Vector2(22.0f, 22.0f);
             proceduralTextureRenderer.colour = new Colour(70, 70, 70, 1f, 1f);
             proceduralTextureRenderer.depthCheck = true;
+            proceduralTextureRenderer.rigged = true;
             proceduralTextureRenderer.blendMode = ProceduralTextureRenderer.BlendMode.overriding;
-            proceduralTextureRenderer.seed = 7.6f;
+            proceduralTextureRenderer.seed = 100.0f;
             proceduralTextureRenderer.Tap();
 
-            proceduralTextureRenderer.octaves = 5;
-            proceduralTextureRenderer.seed = 3.1f;
-            proceduralTextureRenderer.exponent = 1.2f;
+            proceduralTextureRenderer.octaves = 3;
+            proceduralTextureRenderer.seed = 100f;
+            proceduralTextureRenderer.exponent = 1.7f;
             proceduralTextureRenderer.amplitudePerOctave = 0.35f;
-            proceduralTextureRenderer.heightFactor = 1.0f;
+            proceduralTextureRenderer.heightFactor = 0.9f;
             proceduralTextureRenderer.colour = new Colour(155, 155, 155, 1f, 1f);
             proceduralTextureRenderer.rougness = 0.32f;
             proceduralTextureRenderer.metlaic = 0.0f;
@@ -155,8 +156,8 @@ namespace Dino_Engine.Textures
             proceduralTextureRenderer.Tap();
 
             proceduralTextureRenderer.octaves = 15;
-            proceduralTextureRenderer.seed = 13.1f;
-            proceduralTextureRenderer.exponent = 1.0f;
+            proceduralTextureRenderer.seed = 1.0f;
+            proceduralTextureRenderer.exponent = 2.0f;
             proceduralTextureRenderer.amplitudePerOctave = 0.55f;
             proceduralTextureRenderer.heightFactor = 1.0f;
             proceduralTextureRenderer.colour = new Colour(255, 0, 0, 1f, 1f);
@@ -169,9 +170,9 @@ namespace Dino_Engine.Textures
             proceduralTextureRenderer.writeToHeight = true;
             proceduralTextureRenderer.startFrequenzy = new Vector2(15.0f, 15.0f);
             //proceduralTextureRenderer.Tap();
+            
 
-
-            proceduralTextureRenderer.normalFlatness = 0.15f;
+            proceduralTextureRenderer.normalFlatness = 0.1f;
             return FinishTexture();
         }
         public void CleanUp()

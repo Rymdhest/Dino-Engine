@@ -59,7 +59,7 @@ namespace Dino_Engine.Debug
             GL.CullFace(CullFaceMode.Back);
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+            GL.ClearColor(1.0f, 1.0f, 1.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         }
 
@@ -70,12 +70,13 @@ namespace Dino_Engine.Debug
 
             _simpleShader.bind();
 
-            GL.Viewport(0, 0, 500, 500);
+            GL.Viewport(0, 0, 512, 512);
             screenQuadRenderer.RenderTextureToScreen(texture);
             Engine.WindowHandler.refreshViewport();
 
             //renderLines();
-            renderRings();
+            //renderRings();
+            GL.Enable(EnableCap.Blend);
             rendercircles();
 
             finishFrame();

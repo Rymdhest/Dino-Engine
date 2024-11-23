@@ -59,7 +59,7 @@ namespace Dino_Engine.Util.Noise
             //return _minRadius + value01 * (100f - _minRadius);
             //return _minRadius + MathF.Pow(value01, 4f)*300f;
             //Console.WriteLine(MathF.Pow(_minRadius + value01, 8f));
-            return _minRadius+MathF.Pow(1f+value01, 7f);
+            return _minRadius+MathF.Pow(1f+value01+0.391f, 4.0190124839f);
         }
 
         private bool IsValid(Vector2 candidate, float minDist)

@@ -1,6 +1,8 @@
 ﻿
 
+using Dino_Engine.Core;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 namespace Dino_Engine.Modelling.Procedural.Nature
@@ -8,8 +10,8 @@ namespace Dino_Engine.Modelling.Procedural.Nature
     public class TreeGenerator
     {
 
-        public Material trunkMaterial = new Material(new Colour(107, 84, 61), 1);
-        public Material leafMaterial = new Material(new Colour(195, 231, 73), 1);
+        public Material trunkMaterial = new Material(new Colour(107, 84, 61), Engine.RenderEngine.textureGenerator.grainIndex);
+        public Material leafMaterial = new Material(new Colour(195, 231, 73), Engine.RenderEngine.textureGenerator.grainIndex);
 
         public Mesh GenerateTree()
         {
@@ -29,15 +31,15 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             tree += stem;
 
-            Mesh top = IcoSphereGenerator.CreateIcosphere(1, leafMaterial);
-            top.FlatRandomness(0.15f);
+            Mesh top = IcoSphereGenerator.CreateIcosphere(3, leafMaterial);
+            top.FlatRandomness(0.0f);
             top.scale(new Vector3(topRadius, topRadius*1.5f, topRadius));
             top.translate(new Vector3(0f, h+ topRadius * 0.75f, 0f));
 
 
             tree += top;
 
-            top.FlatRandomness(0.05f);
+            top.FlatRandomness(0.0f);
 
             return tree;
         }

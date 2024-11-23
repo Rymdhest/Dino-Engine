@@ -16,6 +16,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             List<int> indices = new List<int>();
             Vector3 cellSizeWorld = new Vector3((worldSize.X) / (grid.Resolution.X-1f), 1f, (worldSize.Y) / (grid.Resolution.Y-1f));
 
+            float uvScale = 0.1f;
 
             for (int z = 0; z<grid.Resolution.Y; z++)
             {
@@ -23,7 +24,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                 {
                     float y = grid.Values[x, z];
                     Vector3 position = new Vector3(x, y, z) * cellSizeWorld;
-                    vertices.Add(new Vertex(position, new Vector2(position.X, position.Z), material));
+                    vertices.Add(new Vertex(position, new Vector2(position.X, position.Z)* uvScale, material));
                 }
             }
 
@@ -37,7 +38,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     Vector3 p4 = new Vector3(x+1, grid.Values[x+1, z], z)* cellSizeWorld;
 
                     Vector3 p5 = (p1+ p2+p3+p4)/4f;
-                    vertices.Add(new Vertex(p5, new Vector2(p5.X, p5.Z), material));
+                    vertices.Add(new Vertex(p5, new Vector2(p5.X, p5.Z)* uvScale, material));
 
                     int i1= z*grid.Resolution.X+x;
                     int i2 = (z+1) * grid.Resolution.X + x;
@@ -80,7 +81,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             }
 
             //mesh.makeFlat(flatNormal: true, flatMaterial: true);
-            mesh.scaleUVs(new Vector2(0.05f));
+            //mesh.scaleUVs(new Vector2(0.05f));
 
             return mesh;
         }

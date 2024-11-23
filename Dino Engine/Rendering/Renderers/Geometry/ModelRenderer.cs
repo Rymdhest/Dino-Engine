@@ -30,7 +30,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();  
 
-            _modelShader.loadUniformFloat("parallaxDepth", 0.075f);
+            _modelShader.loadUniformFloat("parallaxDepth", 0.06f);
             _modelShader.loadUniformFloat("parallaxLayers", 40f);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);

@@ -93,7 +93,7 @@ namespace Dino_Engine.ECS
             sky.addComponent(new DirectionComponent(skyDirection));
             sky.addComponent(new AmbientLightComponent(0.5f));
             sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 1, 1, 720));
-            //AddEnityToSystem<DirectionalLightSystem>(sky);
+            AddEnityToSystem<DirectionalLightSystem>(sky);
 
             Engine.PerformanceMonitor.StatusReportDump();
             Engine.PerformanceMonitor.clear();
@@ -118,6 +118,10 @@ namespace Dino_Engine.ECS
             if (windowHandler.IsKeyDown(Keys.LeftShift))
             {
                 moveAmount *= 10f;
+            }
+            if (windowHandler.IsKeyDown(Keys.LeftControl))
+            {
+                moveAmount *= 0.1f;
             }
 
             if (windowHandler.IsMouseButtonDown(MouseButton.Right))

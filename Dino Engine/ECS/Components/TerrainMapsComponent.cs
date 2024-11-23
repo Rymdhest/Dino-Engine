@@ -45,7 +45,7 @@ namespace Dino_Engine.ECS.Components
                     noise = noise * (1f- min) + min;
 
                     float value = noise * steepnessMap.Values[x, z];
-                    //if (heightMap.Values[x, z] < 5.1f) value = 0f;
+                    if (heightMap.Values[x, z] < 5.1f) value = 0f;
 
                     grassMap.Values[x, z] = MyMath.clamp01(value);
 

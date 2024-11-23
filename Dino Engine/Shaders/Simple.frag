@@ -6,5 +6,5 @@ layout (location = 0) out vec4 out_Colour;
 uniform sampler2D blitTexture;
 
 void main(void){
-	out_Colour =  texture(blitTexture, textureCoords);
+	out_Colour.rgb = vec3(1.0- texture(blitTexture, textureCoords).r);
 }

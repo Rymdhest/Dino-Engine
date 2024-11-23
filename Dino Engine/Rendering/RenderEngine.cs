@@ -180,7 +180,7 @@ namespace Dino_Engine.Rendering
 
             _modelRenderer.RenderPass(eCSEngine, this);
             _instancedModelRenderer.RenderPass(eCSEngine, this);
-            //_grassRenderer.RenderPass(eCSEngine, this);
+            _grassRenderer.RenderPass(eCSEngine, this);
 
             _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
             _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);
