@@ -20,7 +20,6 @@ namespace Dino_Engine.Textures
 
         private ShaderProgram _textureFBMShader = new ShaderProgram("Simple.vert", "Texture_FBM.frag");
         private ShaderProgram _textureNormalShader = new ShaderProgram("Simple.vert", "Texture_Normal_Generate.frag");
-        private ShaderProgram _textureSeamlessShader = new ShaderProgram("Simple.vert", "Texture_Seamless_Generate.frag");
 
         public FrameBuffer _normalBuffer;
         public FrameBuffer _materialBuffer1;
@@ -86,17 +85,10 @@ namespace Dino_Engine.Textures
             _materialBuffer1 = new FrameBuffer(materialSettings);
             _materialBuffer2 = new FrameBuffer(materialSettings);
 
-
             _textureNormalShader.bind();
             _textureNormalShader.loadUniformInt("heightMap", 0);
             _textureNormalShader.loadUniformVector2f("texelSize", new Vector2(1f) / textureResolution);
             _textureNormalShader.unBind();
-
-
-            _textureSeamlessShader.bind();
-            _textureSeamlessShader.loadUniformInt("inputTexture1", 0);
-            _textureSeamlessShader.loadUniformInt("inputTexture2", 1);
-            _textureSeamlessShader.unBind();
 
             _textureFBMShader.bind();
             _textureFBMShader.loadUniformInt("previousAlbedoTexture", 0);
@@ -138,29 +130,11 @@ namespace Dino_Engine.Textures
             StepToggle();
         }
 
-        public void makeSeamless()
-        {
-            ScreenQuadRenderer renderer = Engine.RenderEngine.ScreenQuadRenderer;
-
-            GetNextFrameBuffer().bind();
-            _textureSeamlessShader.bind();
-            _textureSeamlessShader.loadUniformFloat("borderBlendRadius", 50.0f);
-            _textureSeamlessShader.loadUniformVector2f("texSize",textureResolution);
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(0));
-
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(1));
-
-            renderer.Render();
-            StepToggle();
-        }
 
 
 
         public MaterialMapsTextures Export()
         {
-            //makeSeamless();
             ScreenQuadRenderer renderer = Engine.RenderEngine.ScreenQuadRenderer;
             _normalBuffer.bind();
             _textureNormalShader.bind();
@@ -207,7 +181,6 @@ namespace Dino_Engine.Textures
         {
             _textureFBMShader.cleanUp();
             _textureNormalShader.cleanUp();
-            _textureSeamlessShader.cleanUp();
 
             _normalBuffer.cleanUp();
             _materialBuffer1.cleanUp();

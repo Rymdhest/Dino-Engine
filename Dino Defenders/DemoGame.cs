@@ -178,7 +178,7 @@ namespace Dino_Defenders
             eCSEngine.ClearAllEntitiesExcept(eCSEngine.Camera);
             eCSEngine.InitEntities();
             spawnTerrain(eCSEngine);
-            //spawnCity(eCSEngine);
+            spawnCity(eCSEngine);
             //spawnIndoorScene(eCSEngine);
         }
         private void spawnTerrain(ECSEngine eCSEngine)

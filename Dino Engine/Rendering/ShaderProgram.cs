@@ -13,32 +13,34 @@ namespace Dino_Engine.Rendering
         private int fragmentShaderID;
         private int geometryShaderID;
         private static string _shaderFolderPath = "../../../../Dino Engine/Shaders/";
-        private Dictionary<string, int> uniforms;
+        private Dictionary<string, int> uniforms = new Dictionary<string, int>();
         public ShaderProgram(string vertexFile, string fragmentFile)
         {
-            vertexShaderID = loadShader(vertexFile, ShaderType.VertexShader);
-            fragmentShaderID = loadShader(fragmentFile, ShaderType.FragmentShader);
-            programID = GL.CreateProgram();
+            string vertexString = PreProccessShaderFromFile(vertexFile);
+            vertexShaderID = CreateShader(vertexString, ShaderType.VertexShader);
 
-            //Console.WriteLine($"loading program {programID} from {vertexFile} and {fragmentFile}");
+            string fragmentString = PreProccessShaderFromFile(fragmentFile);
+            fragmentShaderID = CreateShader(fragmentString, ShaderType.FragmentShader);
+            programID = GL.CreateProgram();
 
             GL.AttachShader(programID, vertexShaderID);
             GL.AttachShader(programID, fragmentShaderID);
             GL.LinkProgram(programID);
             GL.ValidateProgram(programID);
 
-            uniforms = new Dictionary<string, int>();
-            extractAllUniformsToDictionary(vertexFile);
-            extractAllUniformsToDictionary(fragmentFile);
-
-
-
+            LoadAllUniformsFromShaderString(vertexString);
+            LoadAllUniformsFromShaderString(fragmentString);
         }
         public ShaderProgram(string vertexFile, string fragmentFile, string geometryFile)
         {
-            vertexShaderID = loadShader(vertexFile, ShaderType.VertexShader);
-            fragmentShaderID = loadShader(fragmentFile, ShaderType.FragmentShader);
-            geometryShaderID = loadShader(geometryFile, ShaderType.GeometryShader);
+            string vertexString = PreProccessShaderFromFile(vertexFile);
+            vertexShaderID = CreateShader(vertexString, ShaderType.VertexShader);
+
+            string fragmentString = PreProccessShaderFromFile(fragmentFile);
+            fragmentShaderID = CreateShader(fragmentString, ShaderType.FragmentShader);
+
+            string geometryString = PreProccessShaderFromFile(geometryFile);
+            geometryShaderID = CreateShader(geometryString, ShaderType.GeometryShader);
             programID = GL.CreateProgram();
             GL.AttachShader(programID, vertexShaderID);
             GL.AttachShader(programID, fragmentShaderID);
@@ -46,11 +48,9 @@ namespace Dino_Engine.Rendering
             GL.LinkProgram(programID);
             GL.ValidateProgram(programID);
 
-            uniforms = new Dictionary<string, int>();
-            extractAllUniformsToDictionary(vertexFile);
-            extractAllUniformsToDictionary(fragmentFile);
-            extractAllUniformsToDictionary(geometryFile);
-
+            LoadAllUniformsFromShaderString(vertexString);
+            LoadAllUniformsFromShaderString(fragmentString);
+            LoadAllUniformsFromShaderString(geometryString);
         }
         public void loadUniformInt(string variableName, int value)
         {
@@ -134,74 +134,76 @@ namespace Dino_Engine.Rendering
             }
         }
 
-        private int loadShader(string name, ShaderType type)
+        private int CreateShader(string shaderString, ShaderType type)
         {
-            string fullPath = _shaderFolderPath+"/" + name;
             int shaderID = GL.CreateShader(type);
 
-
-            string fileString = "";
-            try
-            {
-                fileString = File.ReadAllText(fullPath);
-            } catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                return -1;
-            }
-
-            GL.ShaderSource(shaderID, fileString);
+            GL.ShaderSource(shaderID, shaderString);
             GL.CompileShader(shaderID);
 
             GL.GetShader(shaderID, ShaderParameter.CompileStatus, out var code);
             if (code != (int)All.True){
                 string infoLog = GL.GetShaderInfoLog(shaderID);
-                Console.WriteLine($"Could not compile shader ({name}).\n\n{infoLog}");
+                Console.WriteLine($"Could not compile shader.\n\n{infoLog}");
             }
 
 
             return shaderID;
         }
 
-        private void extractAllUniformsToDictionary(string fileName)
+        private void LoadAllUniformsFromShaderString(string shaderString)
         {
-            string fullPath = _shaderFolderPath + "/" + fileName;
-            try
+            using (var reader = new StringReader(shaderString))
             {
-                foreach (string line in File.ReadLines(fullPath))
+                string? line;
+                while ((line = reader.ReadLine()) != null)
                 {
-                    string[] words = line.Split(" ");
-                    if (words.Length == 3)
+                    var trimmedLine = line.Trim();
+                    if (trimmedLine.StartsWith("uniform"))
                     {
-                        if (words[0] == "uniform")
+                        string[] words = line.Split(" ");
+                        string variableName = words[2].Remove(words[2].Length - 1, 1);
+                        if (variableName.Last<char>() == ']')
                         {
-                            string variableName = words[2].Remove(words[2].Length - 1, 1);
-                            if (variableName.Last<char>() == ']')
+                            string[] variableWords = variableName.Split("[");
+                            string arraySizeString = variableWords[1];
+                            arraySizeString = arraySizeString.Remove(arraySizeString.Length - 1, 1);
+                            int arraySize = int.Parse(arraySizeString);
+                            variableName = variableWords[0];
+                            for (int i = 0; i < arraySize; i++)
                             {
-                                string[] variableWords = variableName.Split("[");
-                                string arraySizeString = variableWords[1];
-                                arraySizeString = arraySizeString.Remove(arraySizeString.Length - 1, 1);
-                                int arraySize = int.Parse(arraySizeString);
-                                variableName = variableWords[0];
-                                for (int i = 0; i < arraySize; i++)
-                                {
-                                    loadUniform(variableName + "[" + i + "]");
-                                }
+                                loadUniform(variableName + "[" + i + "]");
                             }
-                            else
-                            {
-                                loadUniform(variableName);
-                            }
-
-
+                        }
+                        else
+                        {
+                            loadUniform(variableName);
                         }
                     }
                 }
             }
-            catch (Exception e)
+        }
+
+        private string PreProccessShaderFromFile(string fileName)
+        {
+            string fullPath = _shaderFolderPath + "/" + fileName;
+            var processedShader = new System.Text.StringBuilder();
+
+            foreach (string line in File.ReadLines(fullPath))
             {
-                return;
+                var trimmedLine = line.Trim();
+                if (trimmedLine.StartsWith("#include"))
+                {
+
+                    string[] words = trimmedLine.Split(" ");
+                    processedShader.AppendLine(PreProccessShaderFromFile(words[1]));
+                }
+                else
+                {
+                    processedShader.AppendLine(line);
+                }
             }
+            return processedShader.ToString();
 
         }
         private void loadUniform(string variableName)
@@ -211,7 +213,7 @@ namespace Dino_Engine.Rendering
                 int location = GL.GetUniformLocation(programID, variableName);
                 if (location == -1)
                 {
-                    //Console.WriteLine("Something went wrong getting uniform for " + variableName + " in " + fileName + " maybe the variable is not used in shader?");
+                    Console.WriteLine("Something went wrong getting uniform for " + variableName + " in maybe the variable is not used in shader?");
                 }
                 
                 uniforms.Add(variableName, location);

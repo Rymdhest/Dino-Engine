@@ -217,7 +217,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             renderEngine.GBuffer.bind();
             generateBladeModel2();
             time += Engine.Delta;
-            float spacing =.15f;
+            float spacing =.35f;
 
             _grassShader.bind();
             GL.BindVertexArray(grassBlade.getVAOID());
