@@ -19,7 +19,7 @@ namespace Dino_Engine.Textures
         }
 
         private ShaderProgram _textureFBMShader = new ShaderProgram("Simple.vert", "Texture_FBM.frag");
-        private ShaderProgram _textureNormalShader = new ShaderProgram("Simple.vert", "Texture_Normal_Generate.frag");
+        private ShaderProgram _textureNormalShader = new ShaderProgram("Simple.vert", "procedural/Texture_Normal_Generate.frag");
 
         public FrameBuffer _normalBuffer;
         public FrameBuffer _materialBuffer1;
