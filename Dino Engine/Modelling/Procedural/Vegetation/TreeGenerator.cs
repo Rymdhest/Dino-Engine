@@ -10,8 +10,8 @@ namespace Dino_Engine.Modelling.Procedural.Nature
     public class TreeGenerator
     {
 
-        public Material trunkMaterial = new Material(new Colour(107, 84, 61), Engine.RenderEngine.textureGenerator.grainIndex);
-        public Material leafMaterial = new Material(new Colour(195, 231, 73), Engine.RenderEngine.textureGenerator.flatIndex);
+        public Material trunkMaterial = new Material(new Colour(107, 84, 61), Engine.RenderEngine.textureGenerator.grain);
+        public Material leafMaterial = new Material(new Colour(195, 231, 73), Engine.RenderEngine.textureGenerator.flat);
 
         public Mesh GenerateTree()
         {

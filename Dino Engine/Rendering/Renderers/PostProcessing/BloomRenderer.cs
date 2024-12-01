@@ -64,7 +64,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
 
             bloomFilterShader.bind();
-            bloomFilterShader.loadUniformFloat("bloomStrength", 0.002f);
+            bloomFilterShader.loadUniformFloat("bloomStrength", 0.005f);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);

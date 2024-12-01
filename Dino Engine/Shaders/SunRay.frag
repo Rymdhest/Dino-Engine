@@ -31,10 +31,10 @@ void main(void)
     vec2 screenPos = ndcPos.xy * 0.5 + 0.5;
     
 	screenPos = ((screenPos*2)-1);
-	screenPos = (screenPos*screenResolution)/screenResolution.y;
+	screenPos = (screenPos*screenResolution)/screenResolution.xy;
 
 	vec2 uv = ((textureCoords*2)-1);
-	uv = (uv*screenResolution)/screenResolution.y;
+	uv = (uv*screenResolution)/screenResolution.xy;
 
   vec2 texCoords = textureCoords;
   // Calculate vector from pixel to light source in screen space.

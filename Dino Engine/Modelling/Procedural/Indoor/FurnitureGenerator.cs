@@ -18,7 +18,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             float legHeight = 4f;
             Vector2 tableSize = new Vector2(6, 10);
 
-            Material wood = new Material(new Colour(36, 26, 9, 1), Engine.RenderEngine.textureGenerator.grainIndex);
+            Material wood = new Material(new Colour(36, 26, 9, 1), Engine.RenderEngine.textureGenerator.grain);
             Mesh box = MeshGenerator.generateBox(wood);
 
             Mesh table = new Mesh();
@@ -45,7 +45,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             float legHeight = 4f;
             float radius = 1.7f;
 
-            Material wood = new Material(new Colour(36, 26, 9, 1), Engine.RenderEngine.textureGenerator.flatIndex);
+            Material wood = new Material(new Colour(36, 26, 9, 1), Engine.RenderEngine.textureGenerator.flat);
             Mesh box = MeshGenerator.generateBox(wood);
 
             Mesh table = new Mesh();
@@ -75,8 +75,8 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
         public static Mesh GenerateLamp(out Vector3 lightPosition, out Vector3 lightDirection)
         {
-            Material wood = new Material(new Colour(115, 115, 95, 1), Engine.RenderEngine.textureGenerator.flatIndex);
-            Material glowMaterial = new Material(new Colour(55, 25, 20, 3), Engine.RenderEngine.textureGenerator.flatGlowIndex);
+            Material wood = new Material(new Colour(115, 115, 95, 1), Engine.RenderEngine.textureGenerator.flat);
+            Material glowMaterial = new Material(new Colour(55, 25, 20, 3), Engine.RenderEngine.textureGenerator.flatGlow);
 
             Mesh lamp = new Mesh();
 
@@ -133,9 +133,9 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
         public static Mesh GenerateCandle(out Vector3 lightPosition)
         {
-            Material wood = new Material(new Colour(124, 87, 66, 1), Engine.RenderEngine.textureGenerator.flatIndex);
-            Material candleMaterial = new Material(new Colour(255, 255, 255, 1), Engine.RenderEngine.textureGenerator.flatIndex);
-            Material glowMaterial = new Material(new Colour(255, 247, 209, 1), Engine.RenderEngine.textureGenerator.flatGlowIndex);
+            Material wood = new Material(new Colour(124, 87, 66, 1), Engine.RenderEngine.textureGenerator.flat);
+            Material candleMaterial = new Material(new Colour(255, 255, 255, 1), Engine.RenderEngine.textureGenerator.flat);
+            Material glowMaterial = new Material(new Colour(255, 247, 209, 1), Engine.RenderEngine.textureGenerator.flatGlow);
 
             float waxStickHeight = 1f+MyMath.rng(1.7f);
 
@@ -191,7 +191,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             Vector2 chairSize = new Vector2(3, 3);
 
-            Material wood = new Material(new Colour(36, 26, 9, 1), Engine.RenderEngine.textureGenerator.flatIndex);
+            Material wood = new Material(new Colour(36, 26, 9, 1), Engine.RenderEngine.textureGenerator.flat);
             Mesh box = MeshGenerator.generateBox(wood);
 
             Mesh chair = new Mesh();

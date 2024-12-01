@@ -1,31 +1,23 @@
-﻿using Dino_Engine.Rendering;
+﻿using Dino_Engine.Core;
+using Dino_Engine.Rendering;
+using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
+using System.Reflection.Emit;
+using static Dino_Engine.Textures.MaterialLayersManipulator;
 
 namespace Dino_Engine.Textures
 {
-    internal class MaterialLayer
+    public class MaterialLayer
     {
-        private FrameBuffer _normalBuffer;
         private FrameBuffer _materialBuffer1;
         private FrameBuffer _materialBuffer2;
         private bool _toggle = true;
-        private Vector2i _resolution;
+        public static ProceduralTextureRenderer procTextGen;
+        public static MaterialLayersManipulator MaterialLayersCombiner;
 
-        public Vector2i Resolution { get => _resolution; set => _resolution = value; }
-
-        public MaterialLayer(Vector2i resolution)
+        public MaterialLayer(bool bind = true)
         {
-            Resolution = resolution;
-
-            DrawBufferSettings normalAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            normalAttachment.formatInternal = PixelInternalFormat.Rgba;
-            normalAttachment.pixelType = PixelType.UnsignedByte;
-            normalAttachment.wrapMode = TextureWrapMode.Repeat;
-            normalAttachment.formatExternal = PixelFormat.Rgba;
-            FrameBufferSettings normalBufferSettings = new FrameBufferSettings(Resolution);
-            normalBufferSettings.drawBuffers.Add(normalAttachment);
-            _normalBuffer = new FrameBuffer(normalBufferSettings);
 
             DrawBufferSettings albedoAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
             albedoAttachment.formatInternal = PixelInternalFormat.Rgba;
@@ -35,24 +27,100 @@ namespace Dino_Engine.Textures
             albedoAttachment.minFilterType = TextureMinFilter.Linear;
 
             DrawBufferSettings materialAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment1);
-            materialAttachment.formatInternal = PixelInternalFormat.Rgba;
+            materialAttachment.formatInternal = PixelInternalFormat.Rgba16f;
             materialAttachment.pixelType = PixelType.UnsignedByte;
             materialAttachment.formatExternal = PixelFormat.Rgba;
             materialAttachment.wrapMode = TextureWrapMode.Repeat;
             materialAttachment.minFilterType = TextureMinFilter.Linear;
 
-            FrameBufferSettings materialSettings = new FrameBufferSettings(Resolution);
+            FrameBufferSettings materialSettings = new FrameBufferSettings(TextureGenerator.TEXTURE_RESOLUTION);
             materialSettings.drawBuffers.Add(albedoAttachment);
             materialSettings.drawBuffers.Add(materialAttachment);
 
             _materialBuffer1 = new FrameBuffer(materialSettings);
             _materialBuffer2 = new FrameBuffer(materialSettings);
+
+            TextureGenerator.MaterialLayerHandler.addLayer(this);
+
+            if (bind) GetNextFrameBuffer().bind();
         }
+
+        public MaterialLayer tap()
+        {
+            GetNextFrameBuffer().bind();
+            Engine.RenderEngine.ScreenQuadRenderer.Render();
+            StepToggle();
+            return this;
+        }
+
+        public MaterialLayer setToDebugColour()
+        {
+
+            var materialBase = procTextGen.CreateMaterial(new Colour(0.0f, 0.0f, 0.0f), new Vector3(0.35f, 0f, 0.0f), height: 0.5f);
+            var materialMiddle = procTextGen.CreateMaterial(new Colour(1.0f, 1.0f, 1.0f), new Vector3(0.35f, 0f, 0.0f), height: 0.5f);
+            var materialTop = procTextGen.CreateMaterial(new Colour(0.0f, 0.0f, 1.0f), new Vector3(0.35f, 0f, 0.0f), height: 0.9f);
+            var materialBot = procTextGen.CreateMaterial(new Colour(1.0f, 0.0f, 0.0f), new Vector3(0.35f, 0f, 0.0f), height: 0.1f);
+            TextureGenerator.MaterialLayersCombiner.combine(this, materialBase, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Override, smoothness: 0.0f);
+            TextureGenerator.MaterialLayersCombiner.combine(this, materialMiddle, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Smoothstep, smoothness: 0.02f);
+            TextureGenerator.MaterialLayersCombiner.combine(this, materialTop, FilterMode.Lesser, heightOperation: Operation.Nothing, materialOperation: Operation.Override, smoothness: 0.0f);
+            TextureGenerator.MaterialLayersCombiner.combine(this, materialBot, FilterMode.Greater, heightOperation: Operation.Nothing, materialOperation: Operation.Override, smoothness: 0.0f);
+            return this;
+        }
+        public MaterialLayer setMaterial(Colour colour, Vector3 material)
+        {
+            var newMaterialLayer = procTextGen.CreateMaterial(colour, material);
+            MaterialLayersCombiner.combine(this, newMaterialLayer, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Override);
+            newMaterialLayer.destroy();
+            return this;
+        }
+        public MaterialLayer addHeight(float amount)
+        {
+            var flatHeight = procTextGen.CreateFlatHeight(height: amount);
+            MaterialLayersCombiner.combine(this, flatHeight, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight:-1.0f);
+            flatHeight.destroy();
+            return this;
+        }
+        public MaterialLayer scaleHeight(float factor)
+        {
+            var flatHeight = procTextGen.CreateFlatHeight(height: factor);
+            MaterialLayersCombiner.combine(this, flatHeight, FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Nothing, weight: -1.0f);
+            flatHeight.destroy();
+            return this;
+        }
+
+        public MaterialLayer invertHeight()
+        {
+            var flatHeight1 = procTextGen.CreateFlatHeight(height: 1.0f);
+            MaterialLayersCombiner.combine(flatHeight1, this, FilterMode.Everywhere, heightOperation: Operation.Subtract, materialOperation: Operation.Override);
+            MaterialLayersCombiner.combine(this, flatHeight1, FilterMode.Everywhere, heightOperation: Operation.Override, materialOperation: Operation.Override);
+            flatHeight1.destroy();
+            return this;
+        }
+
+        public MaterialLayer mix(MaterialLayer readLayer, FilterMode filterMode, Operation materialOperation = Operation.SameAsOther, Operation heightOperation = Operation.SameAsOther, float weight = 0.5f, float smoothness = 0f)
+        {
+            var combined = MaterialLayersCombiner.combine(this, readLayer, filterMode: filterMode, heightOperation: heightOperation, materialOperation: materialOperation, weight: weight, smoothness:smoothness);
+
+            return combined;
+        }
+        public MaterialLayer Paste(MaterialLayer readLayer, FilterMode filterMode = FilterMode.Everywhere, Operation materialOperation = Operation.Override, Operation heightOperation = Operation.Add, float weight = 0.5f, float smoothness = 0f)
+        {
+            var combined = MaterialLayersCombiner.combine(this, readLayer, filterMode: filterMode, heightOperation: heightOperation, materialOperation: materialOperation, weight: weight, smoothness: smoothness);
+
+            return combined;
+        }
+
         public void CleanUp()
         {
-            _normalBuffer.cleanUp();
             _materialBuffer1.cleanUp();
             _materialBuffer2.cleanUp();
+        }
+
+        public void destroy()
+        {
+
+            TextureGenerator.MaterialLayerHandler.removeLayer(this);
+            CleanUp();
         }
 
         public FrameBuffer GetNextFrameBuffer()

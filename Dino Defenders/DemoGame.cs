@@ -291,8 +291,8 @@ namespace Dino_Defenders
             Entity house = new Entity("house");
             house.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
             Mesh houseMesh = new Mesh();
-            Material wood = new Material(new Colour(115, 115, 95, 1), Engine.RenderEngine.textureGenerator.flatIndex);
-            Material floor = new Material(new Colour(155, 135, 111, 1), Engine.RenderEngine.textureGenerator.grainIndex);
+            Material wood = new Material(new Colour(115, 115, 95, 1), Engine.RenderEngine.textureGenerator.flat);
+            Material floor = new Material(new Colour(155, 135, 111, 1), Engine.RenderEngine.textureGenerator.grain);
             Mesh plane = MeshGenerator.generateBox(wood);
             Mesh floorMesh = MeshGenerator.generateBox(floor);
             Mesh.scaleUV = true;

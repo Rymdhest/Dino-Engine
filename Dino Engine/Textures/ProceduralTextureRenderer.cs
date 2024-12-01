@@ -6,201 +6,166 @@ using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using System;
+using System.Reflection.Emit;
 
 namespace Dino_Engine.Textures
 {
     public class ProceduralTextureRenderer
     {
-        public enum BlendMode
-        {
-            adding,
-            multiplying,
-            overriding,
-        }
+
+        private Random rand = new Random();
 
         private ShaderProgram _textureFBMShader = new ShaderProgram("Simple.vert", "Texture_FBM.frag");
-        private ShaderProgram _textureNormalShader = new ShaderProgram("Simple.vert", "procedural/Texture_Normal_Generate.frag");
+        private ShaderProgram _textureTileweaveShader = new ShaderProgram("Simple.vert", "Texture_Tileweave.frag");
+        private ShaderProgram _textureVoronoiShader = new ShaderProgram("Simple.vert", "Texture_Voronoi.frag");
+        private ShaderProgram _textureVoronoiCracksShader = new ShaderProgram("Simple.vert", "Texture_Voronoi_Cracks.frag");
+        private ShaderProgram _textureCellularShader = new ShaderProgram("Simple.vert", "Texture_Cellular.frag");
+        private ShaderProgram _textureFlatShader = new ShaderProgram("Simple.vert", "Texture_Flat.frag");
+        private ShaderProgram _textureBricksShader = new ShaderProgram("Simple.vert", "Texture_Bricks.frag");
 
-        public FrameBuffer _normalBuffer;
-        public FrameBuffer _materialBuffer1;
-        public FrameBuffer _materialBuffer2;
-
-        private bool _toggle = true;
-
-
-        public float heightFactor;
-        public int octaves;
-        public float seed;
-        public float exponent;
-        public float amplitudePerOctave;
-        public float frequenzyPerOctave;
-        public float normalFlatness;
-        public float rougness;
-        public float emission;
-        public float metlaic;
-        public Colour colour;
-        public bool rigged;
-        public bool invert;
-        public bool depthCheck;
-        public bool writeToHeight;
-        public bool scaleOutputToHeight;
-        public Vector2 startFrequenzy;
-        public BlendMode blendMode;
-
-
-        private Vector2i textureResolution;
-
-        public ProceduralTextureRenderer(Vector2i textureResolution)
+        private static readonly Colour defaultColour = new Colour(255, 255, 255);
+        private Vector4 defaultmaterial = new Vector4(0.5f, 0f, 0f, 1.0f);
+        public enum Metric
         {
-            this.textureResolution = textureResolution;
-
-            DrawBufferSettings normalAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            normalAttachment.formatInternal = PixelInternalFormat.Rgba;
-            normalAttachment.pixelType = PixelType.UnsignedByte;
-            normalAttachment.wrapMode = TextureWrapMode.Repeat;
-            normalAttachment.formatExternal = PixelFormat.Rgba;
-            FrameBufferSettings normalBufferSettings = new FrameBufferSettings(textureResolution);
-            normalBufferSettings.drawBuffers.Add(normalAttachment);
-            _normalBuffer = new FrameBuffer(normalBufferSettings);
-
-            DrawBufferSettings albedoAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            albedoAttachment.formatInternal = PixelInternalFormat.Rgba;
-            albedoAttachment.pixelType = PixelType.UnsignedByte;
-            albedoAttachment.formatExternal = PixelFormat.Rgba;
-            albedoAttachment.wrapMode = TextureWrapMode.Repeat;
-            albedoAttachment.minFilterType = TextureMinFilter.Linear;
-
-            DrawBufferSettings materialAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment1);
-            materialAttachment.formatInternal = PixelInternalFormat.Rgba;
-            materialAttachment.pixelType = PixelType.UnsignedByte;
-            materialAttachment.formatExternal = PixelFormat.Rgba;
-            materialAttachment.wrapMode = TextureWrapMode.Repeat;
-            materialAttachment.minFilterType = TextureMinFilter.Linear;
-
-            FrameBufferSettings materialSettings = new FrameBufferSettings(textureResolution);
-            materialSettings.drawBuffers.Add(albedoAttachment);
-            materialSettings.drawBuffers.Add(materialAttachment);
-
-
-            _materialBuffer1 = new FrameBuffer(materialSettings);
-            _materialBuffer2 = new FrameBuffer(materialSettings);
-
-            _textureNormalShader.bind();
-            _textureNormalShader.loadUniformInt("heightMap", 0);
-            _textureNormalShader.loadUniformVector2f("texelSize", new Vector2(1f) / textureResolution);
-            _textureNormalShader.unBind();
-
-            _textureFBMShader.bind();
-            _textureFBMShader.loadUniformInt("previousAlbedoTexture", 0);
-            _textureFBMShader.loadUniformInt("previousMaterialTexture", 1);
-            _textureFBMShader.unBind();
-
-            ResetUniforms();
+            SquaredEuclidean,
+            manhattam,   
+            Chebyshev,
+            Triangular
+        }
+        public enum ReturnMode
+        {
+            Height,
+            ID
         }
 
-
-        public void Tap()
+        public ProceduralTextureRenderer()
         {
-            ScreenQuadRenderer renderer = Engine.RenderEngine.ScreenQuadRenderer;
-            GetNextFrameBuffer().bind();
+        }
+        public MaterialLayer CreateFlatHeight(float height)
+        {
+            var layer = new MaterialLayer(bind: true);
+            _textureFlatShader.bind();
+            _textureFlatShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureFlatShader.loadUniformVector4f("material", defaultmaterial);
+            _textureFlatShader.loadUniformFloat("height", height);
+            return layer.tap();
+        }
+        public MaterialLayer CreateMaterial(Colour colour, Vector3 material, float height = 1.0f)
+        {
+            var layer = new MaterialLayer(bind: true);
+            _textureFlatShader.bind();
+            _textureFlatShader.loadUniformVector4f("albedo", colour.ToVector4());
+            _textureFlatShader.loadUniformVector4f("material", new Vector4(material.X, material.Y, material.Z, 1.0f));
+            _textureFlatShader.loadUniformFloat("height", height);
+            return layer.tap();
+        }
+
+        public MaterialLayer Flat(float height)
+        {
+            var layer = new MaterialLayer(bind: true);
+            _textureFlatShader.bind();
+            _textureFlatShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureFlatShader.loadUniformVector4f("material", defaultmaterial);
+            _textureFlatShader.loadUniformFloat("height", height);
+            return layer.tap();
+        }
+        public MaterialLayer Createbricks(Vector2 numBricks, float spacing = 0.01f, float smoothness = 0.0f, ReturnMode returnMode = ReturnMode.Height)
+        {
+            var layer = new MaterialLayer(bind: true);
+            _textureBricksShader.bind();
+            _textureBricksShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureBricksShader.loadUniformVector4f("material", defaultmaterial);
+            _textureBricksShader.loadUniformVector2f("numBricks", numBricks);
+            _textureBricksShader.loadUniformFloat("spacing", spacing);
+            _textureBricksShader.loadUniformFloat("smoothness", smoothness);
+            _textureBricksShader.loadUniformInt("returnMode", (int)returnMode);
+            return layer.tap();
+        }
+
+        public MaterialLayer Cellular(Vector2 scale, Metric metric = Metric.SquaredEuclidean, float jitter = 0.5f, float phase = 0.5f, bool rigged = false, float seed = -1.0f)
+        {
+            var layer = new MaterialLayer(bind: true);
+            if (seed < 0) seed = rand.NextSingle() * 100000.0f;
+            _textureCellularShader.bind();
+            _textureCellularShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureCellularShader.loadUniformVector4f("material", defaultmaterial);
+            _textureCellularShader.loadUniformVector2f("scale", scale);
+            _textureCellularShader.loadUniformFloat("jitter", jitter);
+            _textureCellularShader.loadUniformFloat("phase", phase);
+            _textureCellularShader.loadUniformFloat("seed", 1111f);
+            _textureCellularShader.loadUniformInt("metric", (int)metric);
+            _textureCellularShader.loadUniformBool("rigged", rigged);
+            return layer.tap();
+        }
+
+        public MaterialLayer VoronoiCracks(Vector2 scale, ReturnMode returnMode = ReturnMode.Height, float jitter = 0.5f, float width = 0.1f, float smoothness = 0.1f, float warp = 0.1f, float warpScale = 0.1f, bool warpSmudge = false, float smudgePhase = 0.1f, float seed = -1.0f)
+        {
+            var layer = new MaterialLayer(bind: true);
+            if (seed < 0) seed = rand.NextSingle() * 100000.0f;
+            _textureVoronoiCracksShader.bind();
+            _textureVoronoiCracksShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureVoronoiCracksShader.loadUniformVector4f("material", defaultmaterial);
+            _textureVoronoiCracksShader.loadUniformVector2f("scale", scale);
+            _textureVoronoiCracksShader.loadUniformFloat("jitter", jitter);
+            _textureVoronoiCracksShader.loadUniformFloat("width", width);
+            _textureVoronoiCracksShader.loadUniformFloat("smoothness", smoothness);
+            _textureVoronoiCracksShader.loadUniformFloat("warp", warp);
+            _textureVoronoiCracksShader.loadUniformFloat("warpScale", warpScale);
+            _textureVoronoiCracksShader.loadUniformFloat("smudgePhase", smudgePhase);
+            _textureVoronoiCracksShader.loadUniformBool("warpSmudge", warpSmudge);
+            _textureVoronoiCracksShader.loadUniformFloat("seed", 100f);
+            _textureVoronoiCracksShader.loadUniformInt("returnMode", (int)returnMode);
+            return layer.tap();
+        }
+
+        public MaterialLayer Voronoi(Vector2 scale, ReturnMode returnMode = ReturnMode.Height, float jitter = 0.5f, float phase = 0.5f, float seed = -1.0f)
+        {
+            var layer = new MaterialLayer(bind: true);
+            if (seed < 0) seed = rand.NextSingle() * 100000.0f;
+            _textureVoronoiShader.bind();
+            _textureVoronoiShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureVoronoiShader.loadUniformVector4f("material", defaultmaterial);
+            _textureVoronoiShader.loadUniformVector2f("scale", scale);
+            _textureVoronoiShader.loadUniformFloat("jitter", jitter);
+            _textureVoronoiShader.loadUniformFloat("phase", phase);
+            _textureVoronoiShader.loadUniformFloat("seed", 100f);
+            _textureVoronoiShader.loadUniformInt("returnMode", (int)returnMode);
+            return layer.tap();
+        }
+
+        public MaterialLayer TileWeave(Vector2 scale, int count = 3, float width = 0.5f, float smoothness = 0.6f)
+        {
+            var layer = new MaterialLayer(bind: true);
+            _textureTileweaveShader.bind();
+            _textureTileweaveShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureTileweaveShader.loadUniformVector4f("material", defaultmaterial);
+            _textureTileweaveShader.loadUniformVector2f("scale", scale);
+            _textureTileweaveShader.loadUniformInt("count", count);
+            _textureTileweaveShader.loadUniformFloat("width", width);
+            _textureTileweaveShader.loadUniformFloat("smoothness", smoothness);
+            return layer.tap();
+        }
+
+        public MaterialLayer PerlinFBM(Vector2 frequenzy, int octaves = 10,bool rigged = false, int frequenzyPerOctave = 2, float amplitudePerOctave = 0.5f, float exponent = 1f ,float seed = -1)
+        {
+            var layer = new MaterialLayer(bind: true);
+            if (seed < 0) seed = rand.NextSingle()*100000.0f;
             _textureFBMShader.bind();
-
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(0));
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(1));
-
             _textureFBMShader.loadUniformInt("octaves", octaves);
             _textureFBMShader.loadUniformFloat("seed", seed);
             _textureFBMShader.loadUniformFloat("exponent", exponent);
             _textureFBMShader.loadUniformFloat("amplitudePerOctave", amplitudePerOctave);
-            _textureFBMShader.loadUniformFloat("frequenzyPerOctave", frequenzyPerOctave);
-            _textureFBMShader.loadUniformFloat("heightFactor", heightFactor);
-            _textureFBMShader.loadUniformVector4f("albedo", colour.ToVector4());
-            _textureFBMShader.loadUniformVector3f("materials", new Vector3(rougness, emission, metlaic));
+            _textureFBMShader.loadUniformInt("frequenzyPerOctave", frequenzyPerOctave);
+            _textureFBMShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureFBMShader.loadUniformVector4f("material", defaultmaterial);
             _textureFBMShader.loadUniformBool("rigged", rigged);
-            _textureFBMShader.loadUniformBool("invert", invert);
-            _textureFBMShader.loadUniformBool("depthCheck", depthCheck);
-            _textureFBMShader.loadUniformBool("writeToHeight", writeToHeight);
-            _textureFBMShader.loadUniformBool("scaleOutputToHeight", scaleOutputToHeight);
-            _textureFBMShader.loadUniformInt("blendMode", ((int)blendMode));
-            _textureFBMShader.loadUniformVector2f("startFrequenzy", startFrequenzy);
-
-            renderer.Render();
-            StepToggle();
-        }
-
-
-
-
-        public MaterialMapsTextures Export()
-        {
-            ScreenQuadRenderer renderer = Engine.RenderEngine.ScreenQuadRenderer;
-            _normalBuffer.bind();
-            _textureNormalShader.bind();
-
-            _textureNormalShader.loadUniformFloat("normalFlatness", normalFlatness);
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(1));
-            renderer.Render();
-
-            int albedoTexture = GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
-            int normalTexture = _normalBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
-            int materialTexture = GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment1);
-
-            ResetUniforms();
-            _materialBuffer1.ClearColorDepth();
-            _materialBuffer2.ClearColorDepth();
-
-            return new MaterialMapsTextures(albedoTexture, normalTexture, materialTexture);
-        }
-
-        public void ResetUniforms()
-        {
-            heightFactor = 1f;
-            octaves = 1;
-            seed = 1f;
-            exponent = 1f;
-            amplitudePerOctave = 0.5f;
-            frequenzyPerOctave = 2.0f;
-            normalFlatness = 1.0f;
-            rougness = 0.5f;
-            emission = 0f;
-            metlaic = 0f;
-            colour = new Colour(255, 255, 255, 1f, 1f);
-            rigged = false;
-            invert = false;
-            depthCheck = false;
-            startFrequenzy = new Vector2(1f, 1f);
-            blendMode = BlendMode.overriding;
-            writeToHeight = true;
-            scaleOutputToHeight = false;
+            _textureFBMShader.loadUniformVector2f("startFrequenzy", frequenzy);
+            return layer.tap();
         }
 
         public void CleanUp()
         {
             _textureFBMShader.cleanUp();
-            _textureNormalShader.cleanUp();
-
-            _normalBuffer.cleanUp();
-            _materialBuffer1.cleanUp();
-            _materialBuffer2.cleanUp();
-        }
-
-        public FrameBuffer GetNextFrameBuffer()
-        {
-            if (_toggle) return _materialBuffer1;
-            else return _materialBuffer2;
-        }
-        public FrameBuffer GetLastFrameBuffer()
-        {
-            if (_toggle) return _materialBuffer2;
-            else return _materialBuffer1;
-        }
-        public void StepToggle()
-        {
-            if (_toggle == true) _toggle = false;
-            else _toggle = true;
         }
     }
 }

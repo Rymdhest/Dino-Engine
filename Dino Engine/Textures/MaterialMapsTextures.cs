@@ -1,4 +1,5 @@
 ﻿using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +12,6 @@ namespace Dino_Engine.Textures
     {
 
         public int[] textures = new int[3];
-
         public MaterialMapsTextures(int albedo, int normal, int materials)
         {
             textures[0] = albedo;

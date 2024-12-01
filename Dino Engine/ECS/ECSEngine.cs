@@ -82,7 +82,7 @@ namespace Dino_Engine.ECS
             //colour = new Colour(0.1f, 0.2f, 1.0f, 35.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.01f));
+            sun.addComponent(new AmbientLightComponent(0.05f));
             sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 2, 2, 720));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
@@ -91,7 +91,7 @@ namespace Dino_Engine.ECS
             Colour skyColour = new Colour(SkyRenderer.SkyColour.Red, SkyRenderer.SkyColour.Green, SkyRenderer.SkyColour.Blue, 2.5f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.5f));
+            sky.addComponent(new AmbientLightComponent(0.8f));
             //sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 1, 1, 720));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 

@@ -151,11 +151,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         private void generateBladeModel2()
         {
-            Material grassMaterial = new Material(new Colour(76, 96, 23), 1);
+            Material grassMaterial = new Material(new Colour(25, 20, 10), 1);
             Material topMaterial = grassMaterial;
             Material botMaterial = grassMaterial;
             topMaterial.Colour.Intensity = 1.0f;
-            botMaterial.Colour.Intensity = 0.4f;
+            botMaterial.Colour.Intensity = 0.2f;
 
             if (grassBlade != null) grassBlade.cleanUp();
             float radius = .12f;
@@ -217,7 +217,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             renderEngine.GBuffer.bind();
             generateBladeModel2();
             time += Engine.Delta;
-            float spacing =.735f;
+            float spacing =.925f;
 
             _grassShader.bind();
             GL.BindVertexArray(grassBlade.getVAOID());
