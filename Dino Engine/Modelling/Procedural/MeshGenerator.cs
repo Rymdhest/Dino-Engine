@@ -68,12 +68,13 @@ namespace Dino_Engine.Modelling
                     Vector3 p = new Vector3(x, y, z);
 
                     // Calculate UV coordinates
-                    float uvX = MapToZeroOneZero((float)detail / (polygonsPerRing+odd));
-                    float uvY = y;
-
+                    float uvX = ((float)(detail) / (polygonsPerRing));
+                    float uvY = ((float)ring / (rings.Count) * 1.0f);
+                    material.Colour.Red = (float)(detail) / (polygonsPerRing);
                     vertices.Add(new Vertex(p, new Vector2(uvX, uvY), material));
 
                     // Add indices to form the quads between rings
+                    
                     if (ring < rings.Count - 1)
                     {
                         int current = ring * polygonsPerRing + detail;
@@ -91,6 +92,7 @@ namespace Dino_Engine.Modelling
                         indices.Add(above);
                         indices.Add(aboveNext);
                     }
+                    
                 }
             }
 

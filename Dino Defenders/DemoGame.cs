@@ -178,10 +178,38 @@ namespace Dino_Defenders
             eCSEngine.ClearAllEntitiesExcept(eCSEngine.Camera);
             eCSEngine.InitEntities();
             //spawnTerrain(eCSEngine);
-            spawnCity(eCSEngine);
+            //spawnCity(eCSEngine);
+            spawnTestScene(eCSEngine);
             //spawnIndoorScene(eCSEngine);
         }
-        private void spawnTerrain(ECSEngine eCSEngine)
+
+        private void spawnTestScene(ECSEngine eCSEngine)
+        {
+            float floorSize = 100f;
+            Entity floorEntity = new Entity("floor");
+            Mesh floorMesh = MeshGenerator.generatePlane(new Material(new Colour(0.27f, 0.27f, 0.3f), Engine.RenderEngine.textureGenerator.metalFloor));
+            floorMesh.rotate(new Vector3(MathF.PI/2, 0f, 0f));
+            floorMesh.scaleUVs(new Vector2(4f, 4f));
+            floorMesh.scale(new Vector3(floorSize, 1f, floorSize));
+            floorEntity.addComponent(new ModelComponent(floorMesh));
+            floorEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(floorEntity);
+
+
+            float poleHeight = 1f;
+            Entity poleEntity = new Entity("pole");
+            List<Vector2> layers = new List<Vector2>() {
+                new Vector2(5.0f, 0),
+                new Vector2(5.0f, 5.0f),
+                new Vector2(5.0f, 15.0f)};
+            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 38, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.brick), sealTop:0.1f);
+            poleEntity.addComponent(new ModelComponent(poleMesh));
+            poleEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(poleEntity);
+
+        }
+
+            private void spawnTerrain(ECSEngine eCSEngine)
         {
             TerrainGenerator generator = new TerrainGenerator();
             int r = 0;
@@ -313,7 +341,7 @@ namespace Dino_Defenders
             Mesh.scaleUV = true;
             houseMesh.scale(roomSize);
             Mesh.scaleUV = false;
-            house.addComponent(new ModelComponent(houseMesh)); ;
+            house.addComponent(new ModelComponent(houseMesh));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(house);
 
 

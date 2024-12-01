@@ -77,8 +77,8 @@ namespace Dino_Engine.ECS
 
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-1f, 1.5f, 3.9f);
-            Colour colour = new Colour(1f, 1f, 0.95f, 5.0f);
-            colour = new Colour(1f, 0.7f, 0.6f, 25.0f);
+            Colour colour = new Colour(1f, 1f, 0.95f, 35.0f);
+            colour = new Colour(1f, 0.7f, 0.6f, 35.0f);
             //colour = new Colour(0.1f, 0.2f, 1.0f, 35.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));

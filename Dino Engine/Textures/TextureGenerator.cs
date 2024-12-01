@@ -82,7 +82,7 @@ namespace Dino_Engine.Textures
             flatGlow = createFlatGlowTexture();
             sandDunes = createSandDunesTexture();
             test = createCobbleTexture();
-
+            metalFloor = createMetalFloorTexture();
             brick = brickTexture();
 
             loadAllTexturesToArray();
