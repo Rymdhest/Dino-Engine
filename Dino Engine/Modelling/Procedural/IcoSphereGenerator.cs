@@ -98,7 +98,7 @@ namespace Dino_Engine.Modelling.Procedural
                 Material vertexMaterial = material;
                 Vector2 uv = new Vector2(uvs[i*2], uvs[i*2+1]);
                 Vector3 position = new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i*3+2]);
-                vertices[i] = new Vertex(position, uv, vertexMaterial);
+                vertices[i] = new Vertex(position, vertexMaterial, uv);
             }
 
             return new Mesh(vertices.ToList<Vertex>(), indices.ToList<int>());

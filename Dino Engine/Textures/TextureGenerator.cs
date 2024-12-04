@@ -82,13 +82,14 @@ namespace Dino_Engine.Textures
             flatGlow = createFlatGlowTexture();
             sandDunes = createSandDunesTexture();
             test = createCobbleTexture();
+            bark = createBark();
             metalFloor = createMetalFloorTexture();
             brick = brickTexture();
 
             loadAllTexturesToArray();
         }
 
-        private FrameBuffer generateNormalFrameBuffer(FrameBuffer materialBuffer)
+        private FrameBuffer generateNormalFrameBuffer(FrameBuffer materialBuffer, float normalFlatness)
         {
             DrawBufferSettings normalAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
             normalAttachment.formatInternal = PixelInternalFormat.Rgba;
@@ -101,7 +102,7 @@ namespace Dino_Engine.Textures
 
             _textureNormalShader.bind();
             normalBuffer.bind(); 
-            _textureNormalShader.loadUniformFloat("normalFlatness", 100f*(1f/TEXTURE_RESOLUTION.X));
+            _textureNormalShader.loadUniformFloat("normalFlatness", normalFlatness * (1f/TEXTURE_RESOLUTION.X));
             _textureNormalShader.loadUniformVector2f("texelSize", new Vector2(1f)/TEXTURE_RESOLUTION);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, materialBuffer.GetAttachment(1));
@@ -111,9 +112,9 @@ namespace Dino_Engine.Textures
         }
 
 
-        private int FinishTexture(MaterialLayer layer)
+        private int FinishTexture(MaterialLayer layer, float normalFlatness = 100.0f, float parallaxDepth = 0.06f)
         {
-            FrameBuffer normalBuffer = generateNormalFrameBuffer(layer.GetLastFrameBuffer());
+            FrameBuffer normalBuffer = generateNormalFrameBuffer(layer.GetLastFrameBuffer(), normalFlatness);
 
             int albedoTexture = layer.GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
             int materialTexture = layer.GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment1);
@@ -122,6 +123,8 @@ namespace Dino_Engine.Textures
             normalBuffer.cleanUp();
 
             preparedTextures.Add(new MaterialMapsTextures(albedoTexture, normalTexture, materialTexture));
+
+            MaterialLayerHandler.cleanUp();
 
             return preparedTextures.Count-1;
         }
@@ -134,9 +137,8 @@ namespace Dino_Engine.Textures
 
             // Allocate storage for the texture array with the correct number of slices
 
-            int maxDimension = Math.Min(TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y);
+            int maxDimension = Math.Max(TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y);
             int mips = (int)Math.Floor(Math.Log(maxDimension, 2)) + 1;
-            Console.WriteLine(mips);
 
             GL.TexStorage3D(TextureTarget3d.Texture2DArray, mips, SizedInternalFormat.Rgba8, TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y, preparedTextures.Count);
             Engine.CheckGLError("After TexStorage3D");
@@ -229,6 +231,28 @@ namespace Dino_Engine.Textures
             MaterialLayersCombiner.combine(background, procTextGen.CreateFlatHeight(0.3f), FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight: -0.2f);
             MaterialLayersCombiner.combine(stones, background, FilterMode.Greater, heightOperation: Operation.Smoothstep, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.1f);
             return FinishTexture(stones);
+        }
+        private int createBark()
+        {
+            var bark = procTextGen.PerlinFBM(new Vector2(20f, 5f), octaves: 10, amplitudePerOctave:0.6f);
+            var noise = procTextGen.PerlinFBM(new Vector2(32f, 32f), octaves: 10, amplitudePerOctave: 0.6f);
+            var barkCracks = procTextGen.VoronoiCracks(new Vector2(40f, 35f), width:0.015f, smoothness:0.02f, jitter:1f);
+            var wavy = procTextGen.PerlinFBM(new Vector2(16, 2), octaves: 1, amplitudePerOctave: 0.6f, rigged:true);
+            bark.setMaterial(new Colour(90, 73, 60), new Vector3(0.95f, 0f, 0f));
+            noise.setMaterial(new Colour(32, 33, 23), new Vector3(0.95f, 0f, 0f));
+            barkCracks.setMaterial(new Colour(255, 255, 255), new Vector3(0.95f, 0f, 0f));
+            wavy.setMaterial(new Colour(50, 60, 45), new Vector3(0.35f, 0f, 0f));
+
+            MaterialLayersCombiner.combine(barkCracks, noise.scaleHeight(0.2f), FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Override, weight: -0.1f, smoothness: 0.1f);
+
+            MaterialLayersCombiner.combine(bark, barkCracks, FilterMode.Lesser, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.1f, smoothness: 0.9f);
+
+            MaterialLayersCombiner.combine(bark, wavy.invertHeight(), FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Smoothstep, weight: 0.7f, smoothness: 0.9f);
+            MaterialLayersCombiner.combine(bark, noise.scaleHeight(2.0f), FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Smoothstep, weight: 0.4f, smoothness: 0.8f);
+
+            bark.addHeight(-0.05f);
+            bark.scaleHeight(4.0f);
+            return FinishTexture(bark, normalFlatness:100.0f);
         }
 
         private int brickTexture()

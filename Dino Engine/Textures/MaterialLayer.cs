@@ -20,7 +20,7 @@ namespace Dino_Engine.Textures
         {
 
             DrawBufferSettings albedoAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            albedoAttachment.formatInternal = PixelInternalFormat.Rgba;
+            albedoAttachment.formatInternal = PixelInternalFormat.Rgba8;
             albedoAttachment.pixelType = PixelType.UnsignedByte;
             albedoAttachment.formatExternal = PixelFormat.Rgba;
             albedoAttachment.wrapMode = TextureWrapMode.Repeat;

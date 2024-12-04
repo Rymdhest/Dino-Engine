@@ -45,7 +45,7 @@ namespace Dino_Defenders
             }
             if (Engine.WindowHandler.IsKeyPressed(Keys.B))
             {
-                float size = 1.8f;
+                float size = 0.8f;
                 float speed = 55f;
                 Colour colour = new Colour(255, 255, 255, 4.0f);
                 Material bigBallMaterial = new Material(colour, 1);
@@ -189,20 +189,68 @@ namespace Dino_Defenders
             Entity floorEntity = new Entity("floor");
             Mesh floorMesh = MeshGenerator.generatePlane(new Material(new Colour(0.27f, 0.27f, 0.3f), Engine.RenderEngine.textureGenerator.metalFloor));
             floorMesh.rotate(new Vector3(MathF.PI/2, 0f, 0f));
-            floorMesh.scaleUVs(new Vector2(4f, 4f));
+            floorMesh.scaleUVs(new Vector2(33f, 33f));
             floorMesh.scale(new Vector3(floorSize, 1f, floorSize));
             floorEntity.addComponent(new ModelComponent(floorMesh));
             floorEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(floorEntity);
 
+            Entity cubeEntity = new Entity("Cube");
+            Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark));
+            cubeEntity.addComponent(new ModelComponent(cubeMesh));
+            cubeEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(5, 0.5f, 0), new Vector3(0), new Vector3(1))));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity);
+
 
             float poleHeight = 1f;
             Entity poleEntity = new Entity("pole");
             List<Vector2> layers = new List<Vector2>() {
-                new Vector2(5.0f, 0),
-                new Vector2(5.0f, 5.0f),
-                new Vector2(5.0f, 15.0f)};
-            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 38, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.brick), sealTop:0.1f);
+                new Vector2(10.0f, 0),
+                new Vector2(7.0f, 20.0f),
+                new Vector2(5.0f, 30.0f),
+                new Vector2(1.0f, 50.0f)};
+            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark), sealTop:0.1f);
+
+            foreach(MeshVertex meshVertex in poleMesh.meshVertices)
+            {
+                float angle = MathF.Atan2(meshVertex.position.X, meshVertex.position.Z)*12.0f;
+                meshVertex.position += new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle))*0.1f;
+
+                if (meshVertex.position.Y < 1f)
+                {
+                    meshVertex.material.Colour = new Colour(125, 165, 85);
+                    float valueX = MathF.Pow((MathF.Sin(angle)), 1.0f);
+                    float valueZ = MathF.Pow((MathF.Cos(angle)), 1.0f);
+                    meshVertex.position += ( new Vector3(valueX, 0f, valueZ) * .05f);
+                }
+            }
+            //poleMesh.FlatRandomness(new Vector3(.05f, 0f, .05f));
+
+            int twigs = 10;
+            for (int i = 0; i < twigs; i++)
+            {
+                float height = 50f + MyMath.rng(250f);
+
+
+                float twigHeight =10+60*( 1f-height / 300f);
+                float twigWidth = 0.6f + 2.0f * (1f - height / 300f);
+                List<Vector2> twigLayer = new List<Vector2>() {
+                new Vector2(twigWidth, 0),
+                new Vector2(twigWidth/2f, twigHeight*0.5f),
+                new Vector2(twigWidth/3f, twigHeight)};
+                Mesh twig = MeshGenerator.generateCylinder(twigLayer, 5, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark), sealTop: 0.1f);
+
+                twig.rotate(new Vector3(MathF.PI *0.3f+MyMath.rng(0.2f), 0, 0));
+                twig.rotate(new Vector3(0, i*(1.0f/ twigs)*2f*MathF.PI, 0));
+                twig.translate(new Vector3(0f, height, 0f));
+                twig.FlatRandomness(new Vector3(0.3f, 0.3f, 0.3f));
+
+                poleMesh += twig;
+            }
+
+            
+            
+
             poleEntity.addComponent(new ModelComponent(poleMesh));
             poleEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(poleEntity);
@@ -543,7 +591,7 @@ namespace Dino_Defenders
 
 
                     Entity streetTree = new Entity("Street tree" + i);
-                    streetTree.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(15f)));
+                    streetTree.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(1f)));
                     streetTree.addComponent(new ModelComponent(treeGenerator.GenerateFractalTree(1)));
                     eCSEngine.AddEnityToSystem<ModelRenderSystem>(streetTree);
                 }

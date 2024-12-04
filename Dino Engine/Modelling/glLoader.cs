@@ -8,7 +8,16 @@ public class glLoader
     public static glModel loadToVAO(Mesh mesh)
     {
         if (!mesh.finishedNormals) mesh.calculateAllNormals();
-        return loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursFloatArray(), mesh.getAllNormalsArray(),mesh.getAllTangentsArray(), mesh.getAllUVsArray(), mesh.getAllMaterialIndicesArray(), mesh.getAllIndicesArray());
+        if (!mesh.finishedBaking) mesh.bakeUVs();
+
+        vIndex[] vindices = mesh.getAllIndicesArray();
+        int[] indices = new int[vindices.Length];
+        for (int i = 0; i<vindices.Length; i++)
+        {
+            indices[i] = vindices[i].index;
+        }
+
+        return loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursFloatArray(), mesh.getAllNormalsArray(),mesh.getAllTangentsArray(), mesh.getAllUVsArray(), mesh.getAllMaterialIndicesArray(), indices);
     }
     public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, int[] indices)
     {

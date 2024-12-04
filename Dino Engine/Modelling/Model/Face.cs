@@ -8,15 +8,24 @@ namespace Dino_Engine.Modelling.Model
         public MeshVertex B;
         public MeshVertex C;
 
+        public int uvIndexA;
+        public int uvIndexB;
+        public int uvIndexC;
+
         public Vector3 faceNormal;
         public Vector3 faceTangent;
         public Vector3 faceBitanget;
 
-        public Face(MeshVertex A, MeshVertex B, MeshVertex C)
+        public Face(MeshVertex A, MeshVertex B, MeshVertex C, int uvIndexA, int uvIndexB, int uvIndexC)
         {
             this.A = A ?? throw new ArgumentNullException(nameof(A));
             this.B = B ?? throw new ArgumentNullException(nameof(B));
             this.C = C ?? throw new ArgumentNullException(nameof(C));
+
+            this.uvIndexA = uvIndexA;
+            this.uvIndexB = uvIndexB;
+            this.uvIndexC = uvIndexC;
+
             //calcFaceNormal();
         }
         public void calcFaceNormal()
@@ -43,8 +52,8 @@ namespace Dino_Engine.Modelling.Model
             Vector3 dv1 = v1.position - v0.position;
             Vector3 dv2 = v2.position - v0.position;
 
-            Vector2 duv1 = v1.UV - v0.UV;
-            Vector2 duv2 = v2.UV - v0.UV;
+            Vector2 duv1 = v1.UVs[0] - v0.UVs[0];
+            Vector2 duv2 = v2.UVs[0] - v0.UVs[0];
 
             float f = 1.0f / (duv1.X * duv2.Y - duv1.Y * duv2.X);
 

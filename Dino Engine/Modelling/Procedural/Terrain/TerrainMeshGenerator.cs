@@ -24,7 +24,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                 {
                     float y = grid.Values[x, z];
                     Vector3 position = new Vector3(x, y, z) * cellSizeWorld;
-                    vertices.Add(new Vertex(position, new Vector2(position.X, position.Z)* uvScale, material));
+                    vertices.Add(new Vertex(position, material, new Vector2(position.X, position.Z)* uvScale));
                 }
             }
 
@@ -38,7 +38,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     Vector3 p4 = new Vector3(x+1, grid.Values[x+1, z], z)* cellSizeWorld;
 
                     Vector3 p5 = (p1+ p2+p3+p4)/4f;
-                    vertices.Add(new Vertex(p5, new Vector2(p5.X, p5.Z)* uvScale, material));
+                    vertices.Add(new Vertex(p5, material, new Vector2(p5.X, p5.Z)* uvScale));
 
                     int i1= z*grid.Resolution.X+x;
                     int i2 = (z+1) * grid.Resolution.X + x;

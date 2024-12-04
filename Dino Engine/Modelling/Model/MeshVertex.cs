@@ -11,8 +11,8 @@ namespace Dino_Engine.Modelling.Model
         public Vector3 tangent;
         public Vector3 bitangent;
         public List<Face> faces;
-        public int index;
-        public MeshVertex(Vertex vertex, int index) : base(vertex.position, vertex.UV, vertex.material)
+        public vIndex index;
+        public MeshVertex(Vertex vertex, vIndex index) : base(vertex.position, vertex.material, vertex.UVs)
         {
             faces = new List<Face>();
             this.index = index;
@@ -66,6 +66,7 @@ namespace Dino_Engine.Modelling.Model
             }
         }
 
+        /*
         public Vector2 GetTagentSpaceScaledUV(Vector3 scale)
         {
             calculateNormalAndTangent();
@@ -84,9 +85,7 @@ namespace Dino_Engine.Modelling.Model
             if (scaledUVs.Y < 0) scaledUVs.Y *= -1f;
 
             return scaledUVs;
-
-
         }
-
+        */
     }
 }

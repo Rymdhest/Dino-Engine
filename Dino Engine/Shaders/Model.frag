@@ -64,7 +64,7 @@ void main() {
 
 	gAlbedo = texture(albedoMapTextureArray,vec3(parallaxedCoords, textureIndex));
 	gAlbedo *= vec4(fragColor, 1.0f);
-    //gAlbedo.rgb = vec3((fragUV), 0f);
+    //gAlbedo.rgb = vec3((parallaxedCoords), 0f);
 	vec4 normalTangentSpace = texture(normalMapTextureArray, vec3(parallaxedCoords, textureIndex));
 	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;
 	gNormal.xyz = normalTangentSpace.xyz*normalTBN;

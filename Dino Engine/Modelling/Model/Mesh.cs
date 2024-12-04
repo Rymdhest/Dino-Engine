@@ -10,6 +10,7 @@ namespace Dino_Engine.Modelling.Model
         public List<Face> faces;
         public List<MeshVertex> meshVertices;
         public bool finishedNormals = false;
+        public bool finishedBaking = false;
         public static bool scaleUV = false;
         public Mesh()
         {
@@ -23,30 +24,84 @@ namespace Dino_Engine.Modelling.Model
         }
         public Mesh(List<Vertex> vertices, List<int> indices)
         {
+            List<vIndex> vIndices = new List<vIndex>();
+            for (int i = 0; i<indices.Count; i++)
+            {
+                vIndices.Add(new vIndex(indices[i]));
+            }
+            Init(vertices, vIndices);
+        }
+        public Mesh(List<Vertex> vertices, List<vIndex> indices)
+        {
             Init(vertices, indices);
         }
+        public void bakeUVs()
+        {
+            foreach(Face face in faces)
+            {
+                if (face.uvIndexA > 0)
+                {
+                    MeshVertex oldVertex = face.A;
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.material, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
+                    newVertex.normal = oldVertex.normal;
+                    newVertex.tangent = oldVertex.tangent;
+                    newVertex.bitangent = oldVertex.bitangent;
+                    face.A = newVertex;
+                    meshVertices.Add(newVertex);
+                }
 
-        private void Init(List<Vertex> vertices, List<int> indices)
+                if (face.uvIndexB > 0)
+                {
+                    MeshVertex oldVertex = face.B;
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.material, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
+                    newVertex.normal = oldVertex.normal;
+                    newVertex.tangent = oldVertex.tangent;
+                    newVertex.bitangent = oldVertex.bitangent;
+                    face.B = newVertex;
+                    meshVertices.Add(newVertex);
+                }
+
+                if (face.uvIndexC > 0)
+                {
+                    MeshVertex oldVertex = face.C;
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.material, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
+                    newVertex.normal = oldVertex.normal;
+                    newVertex.tangent = oldVertex.tangent;
+                    newVertex.bitangent = oldVertex.bitangent;
+                    face.C = newVertex;
+                    meshVertices.Add(newVertex);
+                }
+            }
+
+            finishedBaking = true;
+        }
+
+        private void Init(List<Vertex> vertices, List<vIndex> indices)
         {
             meshVertices = new List<MeshVertex>();
             faces = new List<Face>();
 
             for (int i = 0; i < vertices.Count; i++)
             {
-                meshVertices.Add(new MeshVertex(vertices[i], i));
+                meshVertices.Add(new MeshVertex(vertices[i], new vIndex(i)));
             }
             for (int i = 0; i < indices.Count / 3; i++)
             {
-                MeshVertex A = meshVertices[indices[i * 3]];
-                MeshVertex B = meshVertices[indices[i * 3 + 1]];
-                MeshVertex C = meshVertices[indices[i * 3 + 2]];
-                Face face = new Face(A, B, C);
+                MeshVertex A = meshVertices[indices[i * 3].index];
+                MeshVertex B = meshVertices[indices[i * 3 + 1].index];
+                MeshVertex C = meshVertices[indices[i * 3 + 2].index];
+
+                int uvIndexA = indices[i * 3 + 0].uvVariant;
+                int uvIndexB = indices[i * 3 + 1].uvVariant;
+                int uvIndexC = indices[i * 3 + 2].uvVariant;
+
+                Face face = new Face(A, B, C, uvIndexA, uvIndexB, uvIndexC);
                 A.faces.Add(face);
                 B.faces.Add(face);
                 C.faces.Add(face);
                 faces.Add(face);
             }
-            calculateAllNormals();
+            //calculateAllNormals();
         }
         public void makeFlat(bool flatNormal, bool flatMaterial, bool flatUV = false)
         {
@@ -54,18 +109,18 @@ namespace Dino_Engine.Modelling.Model
             int i = 0;
             foreach (Face face in faces)
             {
-                MeshVertex vertexA = new MeshVertex(face.A, i++);
+                MeshVertex vertexA = new MeshVertex(face.A, new vIndex(i++)); // probably wrong logic...
                 vertexA.faces.Add(face);
-                vertexA.UV = face.A.UV;
+                vertexA.UVs = face.A.UVs;
 
 
-                MeshVertex vertexB = new MeshVertex(face.B,  i++);
+                MeshVertex vertexB = new MeshVertex(face.B, new vIndex(i++));
                 vertexB.faces.Add(face);
-                vertexB.UV = face.B.UV;
+                vertexB.UVs = face.B.UVs;
 
-                MeshVertex vertexC = new MeshVertex(face.C, i++);
+                MeshVertex vertexC = new MeshVertex(face.C, new vIndex(i++));
                 vertexC.faces.Add(face);
-                vertexC.UV = face.C.UV;
+                vertexC.UVs = face.C.UVs;
 
                 if (flatNormal)
                 {
@@ -186,8 +241,8 @@ namespace Dino_Engine.Modelling.Model
 
             for (int i = 0; i < meshVertices.Count; i++)
             {
-                UVsArray[2 * i + 0] = meshVertices[i].UV.X;
-                UVsArray[2 * i + 1] = meshVertices[i].UV.Y;
+                UVsArray[2 * i + 0] = meshVertices[i].UVs[0].X;
+                UVsArray[2 * i + 1] = meshVertices[i].UVs[0].Y;
             }
             return UVsArray;
         }
@@ -203,16 +258,16 @@ namespace Dino_Engine.Modelling.Model
             return array;
         }
 
-        public int[] getAllIndicesArray()
+        public vIndex[] getAllIndicesArray()
         {
             int indicesCount = faces.Count * 3;
-            int[] indicesArray = new int[indicesCount];
+            vIndex[] indicesArray = new vIndex[indicesCount];
 
             for (int i = 0; i < faces.Count; i++)
             {
-                indicesArray[3 * i + 0] = faces[i].A.index;
-                indicesArray[3 * i + 1] = faces[i].B.index;
-                indicesArray[3 * i + 2] = faces[i].C.index;
+                indicesArray[3 * i + 0] = new vIndex(faces[i].A.index.index, faces[i].uvIndexA);
+                indicesArray[3 * i + 1] = new vIndex(faces[i].B.index.index, faces[i].uvIndexB);
+                indicesArray[3 * i + 2] = new vIndex(faces[i].C.index.index, faces[i].uvIndexC);
             }
             return indicesArray;
         }
@@ -223,7 +278,7 @@ namespace Dino_Engine.Modelling.Model
 
             for (int i = 0; i < meshVertices.Count; i++)
             {
-                verticesArray[i] = new Vertex(meshVertices[i].position, meshVertices[i].UV, meshVertices[i].material);
+                verticesArray[i] = new Vertex(meshVertices[i].position, meshVertices[i].material, meshVertices[i].UVs);
             }
             return verticesArray;
         }
@@ -277,7 +332,10 @@ namespace Dino_Engine.Modelling.Model
             for (int i = 0; i < meshVertices.Count; i++)
             {
                 MeshVertex vertex = meshVertices[i];
-                vertex.UV *= scale;
+                for(int j = 0; j<vertex.UVs.Length; j++)
+                {
+                    vertex.UVs[j] *= scale;
+                }
                 meshVertices[i] = vertex;
             }
         }
@@ -289,7 +347,7 @@ namespace Dino_Engine.Modelling.Model
             {
                 MeshVertex vertex = meshVertices[i];
                 vertex.position = (new Vector4(vertex.position, 1.0f)* transformationMatrix).Xyz;
-                if (scaleUV) meshVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
+                //if (scaleUV) meshVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
                 meshVertices[i] = vertex;
             }
             calculateAllNormals();
@@ -297,14 +355,15 @@ namespace Dino_Engine.Modelling.Model
         public Mesh Transformed(Transformation transformation)
         {
             var transformationMatrix = MyMath.createTransformationMatrix(transformation);
-            Vertex[] newVertices = getAllVerticesArray();
-            for (int i = 0; i < meshVertices.Count; i++)
+            Vertex[] oldVertices = getAllVerticesArray();
+            Vertex[] newVertices = new Vertex[oldVertices.Length];
+            for (int i = 0; i < oldVertices.Length; i++)
             {
-                Vector3 newPosition = (new Vector4(newVertices[i].position, 1.0f)*transformationMatrix).Xyz;
-                newVertices[i].position = newPosition;
-                if (scaleUV) newVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
+                Vector3 newPosition = (new Vector4(oldVertices[i].position, 1.0f)*transformationMatrix).Xyz;
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].material, oldVertices[i].UVs); // TODO  potential uses same UVs
+                //if (scaleUV) newVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
             }
-            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<int>());
+            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>());
         }
 
 
@@ -316,12 +375,12 @@ namespace Dino_Engine.Modelling.Model
             vertices.AddRange(b.getAllVerticesArray());
 
 
-            List<int> indices = new List<int>();
+            List<vIndex> indices = new List<vIndex>();
             indices.AddRange(a.getAllIndicesArray());
-            int[] secondIndices = b.getAllIndicesArray();
+            vIndex[] secondIndices = b.getAllIndicesArray();
             for (int i = 0; i < secondIndices.Length ; i++)
             {
-                secondIndices[i] += offset;
+                secondIndices[i].index += offset;
             }
             indices.AddRange(secondIndices);
 

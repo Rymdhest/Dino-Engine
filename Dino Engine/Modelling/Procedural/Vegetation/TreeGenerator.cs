@@ -1,6 +1,7 @@
 ﻿
 
 using Dino_Engine.Core;
+using Dino_Engine.ECS;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
@@ -46,28 +47,29 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
         public Mesh GenerateFractalTree(int depth)
         {
-            Mesh tree = GenerateTree();
+            List<Vector2> layers = new List<Vector2>() {
+                new Vector2(1.0f, 0),
+                new Vector2(1.0f, 10.0f),
+                new Vector2(1.0f, 40.0f),
+                new Vector2(1.0f, 80.0f)};
+            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark), sealTop: 0.1f);
 
-            if (depth > 0)
+            foreach (MeshVertex meshVertex in poleMesh.meshVertices)
             {
-                int branches = 2+MyMath.rand.Next(4);
+                float angle = MathF.Atan2(meshVertex.position.X, meshVertex.position.Z) * 12.0f;
+                meshVertex.position += new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle)) * 0.01f;
 
-                for (int i = 0; i < branches; i++)
+                if (meshVertex.position.Y < 1f)
                 {
-                    float angle = MathF.PI / (6.5f + MyMath.rngMinusPlus());
-
-                    Mesh branch = GenerateFractalTree(--depth);
-                    branch.scale(new Vector3(0.3f, 0.45f, 0.3f));
-                    branch.rotate(new Vector3(angle, 0, 0f));
-                    branch.rotate(new Vector3(0f, ((MathF.PI * 2f) / branches) * i + MyMath.rngMinusPlus(0.5f), 0f));
-                    branch.translate(new Vector3(0f, 0.4f + (MyMath.rngMinusPlus(0.1f) + i * (1f / branches) * 0.4f), 0f));
-
-                    tree += branch;
+                    meshVertex.material.Colour = new Colour(125, 165, 85);
+                    float valueX = MathF.Pow((MathF.Sin(angle)), 1.0f);
+                    float valueZ = MathF.Pow((MathF.Cos(angle)), 1.0f);
+                    meshVertex.position += (new Vector3(valueX, 0f, valueZ) * .05f);
                 }
             }
-            tree.rotate(new Vector3(0f, MathF.PI * 2f* MyMath.rng(), 0f));
 
-            return tree;
+            poleMesh.FlatRandomness(new Vector3(.05f, 0f, .05f));
+            return poleMesh;
         }
     }
 }

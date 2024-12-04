@@ -1,21 +1,16 @@
 ﻿using OpenTK.Mathematics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Dino_Engine.Modelling.Model
 {
     public class Vertex
     {
         public Vector3 position;
-        public Vector2 UV;
+        public Vector2[] UVs;
         public Material material;
 
-        public Vertex(Vector3 position, Vector2 uV, Material material)        {
+        public Vertex(Vector3 position, Material material, params Vector2[] UVs)        {
             this.position = position;
-            this.UV = uV;
+            this.UVs = UVs;
             this.material = material;
         } 
     }
