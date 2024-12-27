@@ -17,7 +17,7 @@ layout (location = 3) out vec4 gMaterials;
 void main() {
 	if (valid < 0.5f) discard;
 	gAlbedo = vec4(fragColor, 1.0);
-	gNormal = vec4(normalize(fragNormal), 0.3f+tipFactor*0.7f);
+	gNormal = vec4(normalize(fragNormal), 0.5f+tipFactor*0.5f);
 	gPosition = vec4(positionViewSpace_pass, 0.0f);
 	gMaterials = vec4(fragMaterials, 0.0f);
 }

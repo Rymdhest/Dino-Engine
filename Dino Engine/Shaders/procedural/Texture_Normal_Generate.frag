@@ -20,8 +20,8 @@ void main(void)
     normal.xyz = vec3(-dx, -dy, normalFlatness);
     normal.y *= -1;
     normal.xyz = normalize(normal.xyz);
-
     normal.rgb = normal.rgb*0.5f+0.5f;
+
 
     normal.a = 0.2f+height*0.8f;
     

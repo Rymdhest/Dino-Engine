@@ -60,6 +60,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         }
         internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.Zero);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
         }
 
         internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
@@ -77,8 +79,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", 1.2f);
-            ambientOcclusionShader.loadUniformFloat("strength", 0.6f);
+            ambientOcclusionShader.loadUniformFloat("radius", 0.1f);
+            ambientOcclusionShader.loadUniformFloat("strength", 1.6f);
             ambientOcclusionShader.loadUniformFloat("bias", 0.002f);
 
             GL.ActiveTexture(TextureUnit.Texture0);
@@ -98,11 +100,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.BindTexture(TextureTarget.Texture2D, renderEngine.ScreenQuadRenderer.GetLastOutputTexture());
 
             gBuffer.bind();
+
+
             GL.ColorMask(0, false, false, false, false);
             GL.ColorMask(1, false, false, false, true);
             GL.ColorMask(2, false, false, false, false);
             GL.ColorMask(3, false, false, false, false);
-            renderEngine.ScreenQuadRenderer.Render();
+            renderEngine.ScreenQuadRenderer.Render(blend:true);
             GL.ColorMask(0, true, true, true, true);
             GL.ColorMask(1, true, true, true, true);
             GL.ColorMask(2, true, true, true, true);

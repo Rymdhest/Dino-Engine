@@ -1,4 +1,5 @@
-﻿using Dino_Engine.Util;
+﻿using Dino_Engine.Physics;
+using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using System.Drawing;
 using System.Linq;
@@ -35,6 +36,24 @@ namespace Dino_Engine.Modelling.Model
         {
             Init(vertices, indices);
         }
+
+        public AABB createAABB()
+        {
+            Vector3 min = new Vector3(float.MaxValue);
+            Vector3 max = new Vector3(float.MinValue);
+            for (int i = 0; i<meshVertices.Count; i++)
+            {
+                if (meshVertices[i].position.X < min.X) min.X = meshVertices[i].position.X;
+                if (meshVertices[i].position.Y < min.Y) min.Y = meshVertices[i].position.Y;
+                if (meshVertices[i].position.Z < min.Z) min.Z = meshVertices[i].position.Z;
+
+                if (meshVertices[i].position.X > max.X) max.X = meshVertices[i].position.X;
+                if (meshVertices[i].position.Y > max.Y) max.Y = meshVertices[i].position.Y;
+                if (meshVertices[i].position.Z > max.Z) max.Z = meshVertices[i].position.Z;
+            }
+            return new AABB(min, max);
+        }
+
         public void bakeUVs()
         {
             foreach(Face face in faces)
@@ -343,6 +362,8 @@ namespace Dino_Engine.Modelling.Model
         public void Transform(Transformation transformation)
         {
             var transformationMatrix = MyMath.createTransformationMatrix(transformation);
+
+
             for (int i = 0; i < meshVertices.Count; i++)
             {
                 MeshVertex vertex = meshVertices[i];

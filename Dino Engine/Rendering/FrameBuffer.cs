@@ -139,7 +139,9 @@ namespace Dino_Engine.Rendering
         {
 
             int texture = GL.GenTexture();
+            Engine.CheckGLError("Framebuffer generating");
             GL.BindTexture(TextureTarget.Texture2D, texture);
+            Engine.CheckGLError("Framebuffer binding texture");
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, settings.resolution.X, settings.resolution.Y, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             Engine.CheckGLError("Framebuffer export attachment TexImage2D");
             //GL.TexStorage2D(TextureTarget2d.Texture2D, 0, SizedInternalFormat.Rgba16f, settings.resolution.X, settings.resolution.Y);

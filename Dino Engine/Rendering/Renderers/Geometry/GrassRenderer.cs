@@ -155,7 +155,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             Material topMaterial = grassMaterial;
             Material botMaterial = grassMaterial;
             topMaterial.Colour.Intensity = 1.0f;
-            botMaterial.Colour.Intensity = 0.2f;
+            botMaterial.Colour.Intensity = 0.7f;
 
             if (grassBlade != null) grassBlade.cleanUp();
             float radius = .12f;

@@ -113,7 +113,7 @@ void main(void){
 	//lighting = applyFog(lighting, -position.z, -viewDir);
 	out_Colour = vec4(color, 1.0);
 	//out_Colour =  vec4(vec3(sunFactor), 1.0f);
-	//out_Colour =  vec4(vec3(emission), 1.0f);
+	//out_Colour =  vec4(vec3(ambientOcclusion), 1.0f);
 	
 	
 }

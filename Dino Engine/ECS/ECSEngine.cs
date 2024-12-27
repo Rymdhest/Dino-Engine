@@ -78,12 +78,12 @@ namespace Dino_Engine.ECS
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-1f, 1.5f, 3.9f);
             Colour colour = new Colour(1f, 1f, 0.95f, 35.0f);
-            colour = new Colour(1f, 0.7f, 0.6f, 35.0f);
+            colour = new Colour(1f, 0.7f, 0.6f, 40.0f);
             //colour = new Colour(0.1f, 0.2f, 1.0f, 35.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.05f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 2, 2, 720));
+            sun.addComponent(new AmbientLightComponent(0.03f));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 2, 4, 720));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
@@ -91,7 +91,7 @@ namespace Dino_Engine.ECS
             Colour skyColour = new Colour(SkyRenderer.SkyColour.Red, SkyRenderer.SkyColour.Green, SkyRenderer.SkyColour.Blue, 2.5f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.8f));
+            sky.addComponent(new AmbientLightComponent(0.6f));
             //sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 1, 1, 720));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 

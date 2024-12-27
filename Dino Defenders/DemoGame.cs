@@ -23,6 +23,7 @@ using System;
 using System.Reflection.Emit;
 using Dino_Engine.Modelling.Procedural.Indoor;
 using System.Runtime.ConstrainedExecution;
+using System.Drawing;
 
 namespace Dino_Defenders
 {
@@ -138,7 +139,6 @@ namespace Dino_Defenders
                 transf.translate(-velocity * Engine.Delta);
                 smallBall.getComponent<TransformationComponent>().Transformation = transf;
 
-
                 float movementRemaining = velocity.Length*Engine.Delta;
                 float sphereRadius = ((SphereHitbox)smallBall.getComponent<CollisionComponent>().HitBox).Radius;
                 float distanceToCollision = Vector3.Distance(transf.position, collisionPoint)-sphereRadius;
@@ -188,45 +188,106 @@ namespace Dino_Defenders
             float floorSize = 100f;
             Entity floorEntity = new Entity("floor");
             Mesh floorMesh = MeshGenerator.generatePlane(new Material(new Colour(0.27f, 0.27f, 0.3f), Engine.RenderEngine.textureGenerator.metalFloor));
-            floorMesh.rotate(new Vector3(MathF.PI/2, 0f, 0f));
+            floorMesh.rotate(new Vector3(-MathF.PI/2, 0f, 0f));
             floorMesh.scaleUVs(new Vector2(33f, 33f));
             floorMesh.scale(new Vector3(floorSize, 1f, floorSize));
             floorEntity.addComponent(new ModelComponent(floorMesh));
             floorEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(floorEntity);
-
+            
             Entity cubeEntity = new Entity("Cube");
-            Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark));
+            Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.leaf));
             cubeEntity.addComponent(new ModelComponent(cubeMesh));
             cubeEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(5, 0.5f, 0), new Vector3(0), new Vector3(1))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity);
 
 
+            Entity cubeEntity2 = new Entity("Cube2");
+            Mesh cubeMesh2 = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.leafBranch));
+            cubeEntity2.addComponent(new ModelComponent(cubeMesh2));
+            cubeEntity2.addComponent(new TransformationComponent(new Transformation(new Vector3(5, 5.5f, 3), new Vector3(0), new Vector3(10))));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity2);
+
+            Entity cubeEntity3 = new Entity("Cube3");
+            Mesh cubeMesh3 = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.treeBranch));
+            cubeEntity3.addComponent(new ModelComponent(cubeMesh3));
+            cubeEntity3.addComponent(new TransformationComponent(new Transformation(new Vector3(20, 5.5f, 3), new Vector3(0), new Vector3(10))));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity3);
+
+            Entity ballEntity = new Entity("Ball");
+            Mesh ballMesh = IcoSphereGenerator.CreateIcosphere(2, Material.BARK);
+            ballEntity.addComponent(new ModelComponent(ballMesh));
+            ballEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(7, 0.5f, 0), new Vector3(0), new Vector3(0.5f))));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(ballEntity);
+
             float poleHeight = 1f;
             Entity poleEntity = new Entity("pole");
             List<Vector2> layers = new List<Vector2>() {
                 new Vector2(10.0f, 0),
-                new Vector2(7.0f, 20.0f),
-                new Vector2(5.0f, 30.0f),
-                new Vector2(1.0f, 50.0f)};
+                new Vector2(9.0f, 1.0f),
+                new Vector2(2.0f, 2.0f),
+                new Vector2(1.0f, 3.0f)};
             Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark), sealTop:0.1f);
 
             foreach(MeshVertex meshVertex in poleMesh.meshVertices)
             {
                 float angle = MathF.Atan2(meshVertex.position.X, meshVertex.position.Z)*12.0f;
-                meshVertex.position += new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle))*0.1f;
+                //meshVertex.position += new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle))*0.1f;
 
                 if (meshVertex.position.Y < 1f)
                 {
                     meshVertex.material.Colour = new Colour(125, 165, 85);
                     float valueX = MathF.Pow((MathF.Sin(angle)), 1.0f);
                     float valueZ = MathF.Pow((MathF.Cos(angle)), 1.0f);
-                    meshVertex.position += ( new Vector3(valueX, 0f, valueZ) * .05f);
+                    //eshVertex.position += ( new Vector3(valueX, 0f, valueZ) * .05f);
                 }
             }
             //poleMesh.FlatRandomness(new Vector3(.05f, 0f, .05f));
 
-            int twigs = 10;
+            var controlPoints = new List<Vector3>
+            {
+                new Vector3(0, 0, 0),
+                new Vector3(0, 2, 0),
+                new Vector3(2, 4, 0),
+                new Vector3(3, 6, 0),
+                new Vector3(3, 8, 0)
+            };
+            controlPoints = new List<Vector3>
+            {
+                new Vector3(0, 0, 0),
+                new Vector3(0, 5, 0),
+                new Vector3(2.5f, 5, 0),
+                new Vector3(5, 5, 0),
+                new Vector3(5, 0, 0)
+            };
+            controlPoints.Clear();
+
+            int n = 10;
+            float[] sinFBM = FBMmisc.sinFBM(5, 0.6f, n);
+            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.9f, n);
+            float r = 0.6f;
+            float h = 50f;
+            for (int i = 0; i<n;i++)
+            {   
+                float traversedRatio = i/(float)(n - 1);
+                float angle = MathF.PI * i * 0.2f;
+                float x = sinFBM[i] * r* traversedRatio;
+                float z = sinFBM2[i] * r* traversedRatio;
+                float y = traversedRatio *h;
+                controlPoints.Add(new Vector3(x, y, z));
+            }
+
+            CardinalSpline3D spline = new CardinalSpline3D(controlPoints,0.0f);
+
+            Curve3D curve = spline.GenerateCurve(3);
+            curve.LERPWidth(2f, 0.1f);
+            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 8, Material.BARK, textureRepeats:1, flatStart: true);
+            Entity entity2 = new Entity("cylinder test");
+            entity2.addComponent(new ModelComponent(cylinderMesh));
+            entity2.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 5), new Vector3(0), new Vector3(1.0f))));
+            eCSEngine.AddEnityToSystem<ModelRenderSystem>(entity2);
+
+            int twigs = 1;
             for (int i = 0; i < twigs; i++)
             {
                 float height = 50f + MyMath.rng(250f);
@@ -250,14 +311,14 @@ namespace Dino_Defenders
 
             
             
-
+            /*
             poleEntity.addComponent(new ModelComponent(poleMesh));
             poleEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(poleEntity);
-
+            */
         }
 
-            private void spawnTerrain(ECSEngine eCSEngine)
+        private void spawnTerrain(ECSEngine eCSEngine)
         {
             TerrainGenerator generator = new TerrainGenerator();
             int r = 0;

@@ -19,6 +19,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _modelShader.loadUniformInt("albedoMapTextureArray", 0);
             _modelShader.loadUniformInt("normalMapTextureArray", 1);
             _modelShader.loadUniformInt("materialMapTextureArray", 2);
+
+            _modelShader.loadUniformInt("albedoMapModelTextureArray", 3);
+            _modelShader.loadUniformInt("normalMapModelTextureArray", 4);
+            _modelShader.loadUniformInt("materialMapModelTextureArray", 5);
             _modelShader.unBind();
         }
         internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
@@ -30,14 +34,24 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();  
 
-            _modelShader.loadUniformFloat("parallaxDepth", 0.06f);
+            _modelShader.loadUniformFloat("parallaxDepth", 0.05f);
             _modelShader.loadUniformFloat("parallaxLayers", 40f);
+
+            _modelShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
+
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalTextureArray);
             GL.ActiveTexture(TextureUnit.Texture2);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialTextureArray);
+
+            GL.ActiveTexture(TextureUnit.Texture3);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture4);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture5);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
         }
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {

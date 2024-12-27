@@ -1,11 +1,7 @@
 ﻿
 using OpenTK.Mathematics;
-using System.Reflection.Emit;
-using System;
-using System.Drawing;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Util;
-using System.Net.NetworkInformation;
 
 namespace Dino_Engine.Modelling
 {
@@ -28,24 +24,149 @@ namespace Dino_Engine.Modelling
         }
         public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, Material material, float sealTop = float.NaN)
         {
-            List<Vector3> rings = new List<Vector3> ();
-            for (int i = 0; i<rings2.Count; i++)
+            List<Vector3> rings = new List<Vector3>();
+            for (int i = 0; i < rings2.Count; i++)
             {
                 rings.Add(new Vector3(rings2[i].X, rings2[i].Y, rings2[i].X));
             }
             return generateCylinder(rings, polygonsPerRing, material, sealTop);
         }
 
-        public static float MapToZeroOneZero(float x)
+        public static Mesh generateTube(Curve3D curve, int polygonsPerRing, Material material, float sealTop = float.NaN, int textureRepeats = 1, bool flatStart = true)
         {
-            if (x <= 0.5f)
+            List<Vertex> vertices = new List<Vertex>();
+            List<vIndex> indices = new List<vIndex>();
+            Vector3[] previousPoints = new Vector3[polygonsPerRing];
+            List<CurvePoint> rings = curve.curvePoints;
+
+            float[] uvYs = new float[polygonsPerRing];
+            for (int i = 0; i< uvYs.Length; i++)
             {
-                return 2 * x;
+                uvYs[i] = 0f;
             }
-            else
+
+
+            // Initialize the first frame (tangent, normal, bitangent)
+            Vector3 tangent = Vector3.Normalize(rings[1].pos - rings[0].pos); // First tangent
+            Vector3 normal = Vector3.Cross(tangent, Vector3.UnitY);   // Arbitrary initial normal
+            if (normal.Length < 0.001f) normal = Vector3.Cross(tangent, Vector3.UnitX); // Safe fallback
+            normal = Vector3.Normalize(normal);
+
+            Vector3 bitangent = Vector3.Cross(tangent, normal); // Initial bitangent
+
+            for (int ring = 0; ring < curve.curvePoints.Count; ring++)
             {
-                return 2 * (1 - x);
+                // Update tangent for the current ring
+                Vector3 newTangent = ring == rings.Count - 1
+                    ? Vector3.Normalize(rings[ring].pos - rings[ring - 1].pos) // Use backward difference for the last point
+                    : Vector3.Normalize(rings[ring + 1].pos - rings[ring].pos); // Forward difference otherwise
+                if (flatStart && ring == 0) newTangent = Vector3.UnitY;
+                // Compute rotation quaternion to align the old tangent with the new tangent
+                if (Vector3.Dot(tangent, newTangent) < 0.9999f) // Only rotate if tangents are not nearly the same
+                {
+                    Vector3 axis = Vector3.Cross(tangent, newTangent);
+                    axis = Vector3.Normalize(axis);
+                    float angle = MathF.Acos(Vector3.Dot(tangent, newTangent));
+
+                    Quaternion rotation = Quaternion.FromAxisAngle(axis, angle);
+
+                    // Rotate normal and bitangent
+                    normal = Vector3.Transform(normal, rotation);
+                    bitangent = Vector3.Transform(bitangent, rotation);
+                }
+
+                tangent = newTangent; // Update tangent for next iteration
+
+                // Generate vertices for this ring
+                for (int detail = 0; detail < polygonsPerRing; detail++)
+                {
+
+
+                    // Angle around the ring
+                    float theta = MathF.Tau * (detail / (float)polygonsPerRing);
+
+                    // Compute offset using normal and bitangent
+                    Vector3 offset = normal * MathF.Cos(theta) * rings[ring].width + bitangent * MathF.Sin(theta) * rings[ring].width;
+                    Vector3 p = rings[ring].pos + offset;
+
+                    // UV Coordinates
+                    float uvX = (detail / (float)polygonsPerRing) * textureRepeats;
+
+                    if (ring > 0)
+                    {
+                        uvYs[detail] += textureRepeats * Vector3.Distance(previousPoints[detail], p) / (MathF.Tau * rings[ring].width);
+                    }
+
+
+                    if (detail == 0)
+                    {
+                        float uvX2 = ((float)(polygonsPerRing) / (polygonsPerRing)) * textureRepeats;
+                        vertices.Add(new Vertex(p, material, new Vector2(uvX, uvYs[detail]), new Vector2(uvX2, uvYs[detail])));
+                    }
+                    else
+                    {
+                        vertices.Add(new Vertex(p, material, new Vector2(uvX, uvYs[detail])));
+                    }
+
+                    // Add indices to form quads
+                    if (ring < rings.Count - 1)
+                    {
+                        int current = ring * polygonsPerRing + detail;
+                        int next = ring * polygonsPerRing + (detail + 1) % polygonsPerRing;
+                        int above = (ring + 1) * polygonsPerRing + detail;
+                        int aboveNext = (ring + 1) * polygonsPerRing + (detail + 1) % polygonsPerRing;
+
+                        if (detail == polygonsPerRing - 1)
+                        {
+                            // First triangle
+                            indices.Add(new vIndex(next, 1));
+                            indices.Add(new vIndex(above, 0));
+                            indices.Add(new vIndex(current, 0));
+
+                            // Second triangle
+                            indices.Add(new vIndex(aboveNext, 1));
+                            indices.Add(new vIndex(above, 0));
+                            indices.Add(new vIndex(next, 1));
+                        }
+                        else
+                        {
+                            // First triangle
+                            indices.Add(new vIndex(next, 0));
+                            indices.Add(new vIndex(above, 0));
+                            indices.Add(new vIndex(current, 0));
+
+                            // Second triangle
+                            indices.Add(new vIndex(aboveNext, 0));
+                            indices.Add(new vIndex(above, 0));
+                            indices.Add(new vIndex(next, 0));
+                        }
+                    }
+                    previousPoints[detail] = p;
+                }
             }
+
+            // Optional: Seal the top of the cylinder
+            if (!float.IsNaN(sealTop))
+            {
+                int ring = rings.Count - 1;
+                float y = rings[ring].pos.Y + sealTop;
+                Vector3 center = new Vector3(0, y, 0); // Center of the top cap
+
+                vertices.Add(new Vertex(center, material, new Vector2(0.5f, 0.5f)));
+                int centerIndex = vertices.Count - 1;
+
+                for (int detail = 0; detail < polygonsPerRing; detail++)
+                {
+                    int current = ring * polygonsPerRing + detail;
+                    int next = ring * polygonsPerRing + (detail + 1) % polygonsPerRing;
+
+                    indices.Add(new vIndex(current));
+                    indices.Add(new vIndex(next));
+                    indices.Add(new vIndex(centerIndex));
+                }
+            }
+
+            return new Mesh(vertices, indices);
         }
 
         public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material, float sealTop = float.NaN)
@@ -61,7 +182,8 @@ namespace Dino_Engine.Modelling
             for (int ring = 0; ring < rings.Count; ring++)
             {
                 float y = rings[ring].Y;
-                uvY += (y / (MathF.PI * 2 * new Vector2(rings[ring].X, rings[ring].Z).Length) * textureRepeats);
+                uvY = (y / (MathF.PI * 2 * new Vector2(rings[ring].X, rings[ring].Z).Length) * textureRepeats);
+                uvY = y * 0.01f;
                 for (int detail = 0; detail < polygonsPerRing; detail++)
                 {
                     // Calculate the angle for this vertex
@@ -72,18 +194,19 @@ namespace Dino_Engine.Modelling
                     Vector3 p = new Vector3(x, y, z);
 
                     // Calculate UV coordinates
-                    float uvX = ((float)(detail) / (polygonsPerRing))* textureRepeats;
+                    float uvX = ((float)(detail) / (polygonsPerRing)) * textureRepeats;
                     if (detail == 0)
                     {
-                        float uvX2 = ((float)(polygonsPerRing) / (polygonsPerRing))* textureRepeats;
+                        float uvX2 = ((float)(polygonsPerRing) / (polygonsPerRing)) * textureRepeats;
                         vertices.Add(new Vertex(p, material, new Vector2(uvX, uvY), new Vector2(uvX2, uvY)));
-                    } else
+                    }
+                    else
                     {
                         vertices.Add(new Vertex(p, material, new Vector2(uvX, uvY)));
                     }
 
                     // Add indices to form the quads between rings
-                    
+
                     if (ring < rings.Count - 1)
                     {
                         int current = ring * polygonsPerRing + detail;
@@ -91,7 +214,8 @@ namespace Dino_Engine.Modelling
                         int above = (ring + 1) * polygonsPerRing + detail;
                         int aboveNext = (ring + 1) * polygonsPerRing + (detail + 1) % polygonsPerRing;
 
-                        if (detail == polygonsPerRing-1) {
+                        if (detail == polygonsPerRing - 1)
+                        {
                             // First triangle
                             indices.Add(new vIndex(current, 0));
                             indices.Add(new vIndex(above, 0));
@@ -101,7 +225,8 @@ namespace Dino_Engine.Modelling
                             indices.Add(new vIndex(next, 1));
                             indices.Add(new vIndex(above, 0));
                             indices.Add(new vIndex(aboveNext, 1));
-                        } else
+                        }
+                        else
                         {
                             // First triangle
                             indices.Add(new vIndex(current, 0));
@@ -116,7 +241,7 @@ namespace Dino_Engine.Modelling
 
 
                     }
-                    
+
                 }
             }
 
@@ -125,7 +250,7 @@ namespace Dino_Engine.Modelling
                 int ring = rings.Count - 1;
                 float x = 0;
                 float z = 0;
-                float y = rings[ring].Y+sealTop;
+                float y = rings[ring].Y + sealTop;
                 Vector3 center = new Vector3(x, y, z);
 
                 vertices.Add(new Vertex(center, material, new Vector2(0.0f, 0.0f)));
@@ -136,15 +261,15 @@ namespace Dino_Engine.Modelling
                     int current = ring * polygonsPerRing + detail;
 
                     Vector3 p1 = vertices[current].position;
-                    vertices.Add(new Vertex(p1, material, new Vector2(p1.X, p1.Z)*0.5f));
+                    vertices.Add(new Vertex(p1, material, new Vector2(p1.X, p1.Z) * 0.5f));
 
                     indices.Add(new vIndex(++indexOffset));
                     indices.Add(new vIndex(centerIndex));
 
 
-                    if (detail >= polygonsPerRing-1 ) indexOffset = centerIndex;
+                    if (detail >= polygonsPerRing - 1) indexOffset = centerIndex;
 
-                    indices.Add(new vIndex(indexOffset +1));
+                    indices.Add(new vIndex(indexOffset + 1));
                 }
             }
             return new Mesh(vertices, indices);
@@ -160,7 +285,7 @@ namespace Dino_Engine.Modelling
             {
                 side2.Add(new Vector3(-1f * shape[i].X, shape[i].Y, shape[i].Z));
             }
-            return generateShape(shape, side2, material, UVTop:UVTop);
+            return generateShape(shape, side2, material, UVTop: UVTop);
         }
 
         public static Mesh generateExtrudedShape(List<Vector3> botShape, List<Vector3> topShape, Material material, Material innerMateria, float depth, float size, bool mirror = false)
@@ -180,7 +305,7 @@ namespace Dino_Engine.Modelling
                 Vector3 p3 = postions[i + 1 + topOffset];
                 Vector3 p4 = postions[i + topOffset];
                 Quad quad = new Quad(p1, p2, p3, p4);
-                mesh += ExtrudedPlane(quad, depth,size, material, innerMateria);
+                mesh += ExtrudedPlane(quad, depth, size, material, innerMateria);
             }
 
             if (mirror)
@@ -219,14 +344,14 @@ namespace Dino_Engine.Modelling
 
 
             int topOffset = botShape.Count;
-            for (int i = 0; i <botShape.Count-1; i++)
+            for (int i = 0; i < botShape.Count - 1; i++)
             {
                 indices.Add(i);
-                indices.Add(i+topOffset);
+                indices.Add(i + topOffset);
                 indices.Add(i + 1);
 
-                indices.Add(i+topOffset);
-                indices.Add(i+1+topOffset);
+                indices.Add(i + topOffset);
+                indices.Add(i + 1 + topOffset);
                 indices.Add(i + 1);
             }
 
@@ -253,8 +378,8 @@ namespace Dino_Engine.Modelling
                 }
             }
             Vertex[] vertices = new Vertex[postions.Count];
-            for (int i = 0; i<postions.Count; i++)
-            {   
+            for (int i = 0; i < postions.Count; i++)
+            {
                 if (UVTop) vertices[i] = new Vertex(postions[i], material, new Vector2(-postions[i].X, postions[i].Z));
                 else vertices[i] = new Vertex(postions[i], material, new Vector2(-postions[i].Z, postions[i].Y));
 
@@ -267,11 +392,11 @@ namespace Dino_Engine.Modelling
         public static Mesh generateBox(Vector3 min, Vector3 max, Material material)
         {
             Mesh plane = generatePlane(material);
-            plane.translate(new Vector3(0f, 0f, -0.5f));
+            plane.translate(new Vector3(0f, 0f, 0.5f));
             Mesh box = new Mesh();
 
             box += plane.rotated(new Vector3(0f, 0f, 0f));
-            box += plane.rotated(new Vector3(0f, MathF.PI/2f, 0f));
+            box += plane.rotated(new Vector3(0f, MathF.PI / 2f, 0f));
             box += plane.rotated(new Vector3(0f, MathF.PI, 0f));
             box += plane.rotated(new Vector3(0f, -MathF.PI / 2f, 0f));
             box += plane.rotated(new Vector3(MathF.PI / 2f, 0f, 0f));
@@ -279,7 +404,7 @@ namespace Dino_Engine.Modelling
 
             return box;
         }
- 
+
         public struct Quad()
         {
             public Vector3 p1;
@@ -365,7 +490,7 @@ namespace Dino_Engine.Modelling
             }
         }
 
-        public static Mesh ExtrudedPlane(Quad startQuad, float extrudeDepth, float extrudeScale,Material material, Material innerMaterial)
+        public static Mesh ExtrudedPlane(Quad startQuad, float extrudeDepth, float extrudeScale, Material material, Material innerMaterial)
         {
             Vector3 extrudeDirection = startQuad.GetNormal();
 
@@ -377,11 +502,11 @@ namespace Dino_Engine.Modelling
             innerQuad.translate(center);
 
             Quad extrudedQuad = innerQuad;
-            extrudedQuad.translate(extrudeDirection* extrudeDepth);
+            extrudedQuad.translate(extrudeDirection * extrudeDepth);
 
             List<int> indices = new List<int>();
             List<Vector3> positions = new List<Vector3>();
-            positions.AddRange(startQuad.ToList()); 
+            positions.AddRange(startQuad.ToList());
             positions.AddRange(innerQuad.ToList());
             positions.AddRange(extrudedQuad.ToList());
 
@@ -423,7 +548,7 @@ namespace Dino_Engine.Modelling
 
             // into
             int i = 4;
-            indices.Add(0+i);
+            indices.Add(0 + i);
             indices.Add(4 + i);
             indices.Add(1 + i);
 
@@ -461,7 +586,7 @@ namespace Dino_Engine.Modelling
             List<Vertex> verticesInner = new List<Vertex>();
             foreach (Vector3 position in positions)
             {
-                verticesInner.Add(new Vertex( position, material, new Vector2(position.X, position.Y)));
+                verticesInner.Add(new Vertex(position, material, new Vector2(position.X, position.Y)));
             }
             Mesh outer = new Mesh(verticesInner, indices);
 
@@ -492,23 +617,45 @@ namespace Dino_Engine.Modelling
 
         public static Mesh generatePlane(Material material)
         {
-            return generatePlane(new Vector2(1f), material);
+            return generatePlane(new Vector2(1f), new Vector2i(1, 1), material);
         }
-            public static Mesh generatePlane(Vector2 size, Material material)
+        public static Mesh generatePlane(Vector2 size, Vector2i resolution, Material material, bool centerOrigin = true)
         {
-            Vector2 r = size * 0.5f;
-            List<Vertex> vertices =
-            [
-                new Vertex(new Vector3(-r.X, -r.Y, 0), material, new Vector2(0, 0)),
-                new Vertex(new Vector3(-r.X, r.Y, 0),material, new Vector2(0, 1f)),
-                new Vertex(new Vector3(r.X, r.Y, 0),material, new Vector2(1f, 1f)),
-                new Vertex(new Vector3(r.X, -r.Y, 0),material, new Vector2(1f, 0)),
-            ];
+            int numverticesX = resolution.X + 1;
+            int numverticesY = resolution.Y + 1;
+
+            List<Vertex> vertices = new List<Vertex>(numverticesX *numverticesY);
+            for (int y = 0; y< numverticesY; y++)
+            {
+                for (int x = 0; x < numverticesX; x++)
+                {
+                    float xRatio = x / (float)resolution.X;
+                    float yRatio = y / (float)resolution.Y;
+                    vertices.Add( new Vertex(new Vector3(xRatio*size.X, yRatio*size.Y, 0), material, new Vector2(xRatio, yRatio)));
+                }
+            }
+
+            List<int> indices = new List<int>(6*resolution.X*resolution.Y);
+            for (int y = 0; y < resolution.Y; y++)
+            {
+                for (int x = 0; x < resolution.X; x++)
+                {
+                    indices.Add(y * numverticesX + x);
+                    indices.Add(y * numverticesX + (x+1));
+                    indices.Add((y + 1) * numverticesX + x);
+
+                    indices.Add(y * numverticesX + (x + 1));
+                    indices.Add((y+1) * numverticesX + (x + 1));
+                    indices.Add((y + 1) * numverticesX + x);
+                }
+            }
+            Mesh rawModel = new Mesh(vertices, indices);
+            if (centerOrigin)
+            {
+                rawModel.translate(new Vector3(-size.X/2f, -size.Y/2f, 0f));
+            }
 
 
-            int[] indices = { 0, 1, 2, 3, 0, 2 };
-
-            Mesh rawModel = new Mesh(vertices, indices.ToList<int>());
             return rawModel;
         }
     }

@@ -76,13 +76,48 @@ namespace Dino_Engine.Util
         }
         public static Matrix4 createRotationMatrix(Vector3 rotation)
         {
-
             Matrix4 matrix = Matrix4.Identity;
             matrix = matrix * Matrix4.CreateRotationZ(rotation.Z);
             matrix = matrix * Matrix4.CreateRotationY(rotation.Y);
             matrix = matrix * Matrix4.CreateRotationX(rotation.X);
             return matrix;
         }
+
+        public static Matrix4 CreateRotationAxis(Vector3 axis, float theta)
+        {
+            // Normalize the axis vector
+            axis = Vector3.Normalize(axis);
+
+            float x = axis.X;
+            float y = axis.Y;
+            float z = axis.Z;
+
+            // Precompute trigonometric values
+            float cosTheta = MathF.Cos(theta);
+            float sinTheta = MathF.Sin(theta);
+            float oneMinusCosTheta = 1 - cosTheta;
+
+            // Compute the rotation matrix components
+            return new Matrix4(
+                cosTheta + x * x * oneMinusCosTheta,
+                x * y * oneMinusCosTheta - z * sinTheta,
+                x * z * oneMinusCosTheta + y * sinTheta,
+                0,
+
+                y * x * oneMinusCosTheta + z * sinTheta,
+                cosTheta + y * y * oneMinusCosTheta,
+                y * z * oneMinusCosTheta - x * sinTheta,
+                0,
+
+                z * x * oneMinusCosTheta - y * sinTheta,
+                z * y * oneMinusCosTheta + x * sinTheta,
+                cosTheta + z * z * oneMinusCosTheta,
+                0,
+
+                0, 0, 0, 1
+            );
+        }
+
         public static float clamp(float number, float min, float max)
         {
             if (number < min) return min;

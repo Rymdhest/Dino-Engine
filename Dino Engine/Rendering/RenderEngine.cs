@@ -154,13 +154,14 @@ namespace Dino_Engine.Rendering
                 _simpleShader.bind();
                 _screenQuadRenderer.GetLastFrameBuffer().resolveToScreen();
 
-                //_screenQuadRenderer.RenderTextureToScreen(_screenQuadRenderer.GetLastOutputTexture());
+                //_screenQuadRenderer.RenderTextureToScreen(TextureGenerator.testTexture.textures[0]);
 
-                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(0));
+                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(1));
+                //_gBuffer.resolveToScreen();
                 //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
                 //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));
 
-                //_screenQuadRenderer.RenderTextureToScreen(textureGenerator.preparedTextures[0].textures[0]);
+                //_screenQuadRenderer.RenderTextureToScreen(textureGenerator.testing.textures[0]);
                 //_screenQuadRenderer.RenderTextureToScreen(textureGenerator._albedoBuffer.GetAttachment(0));
                 //Console.WriteLine(textureGenerator.preparedTextures[0].textures[0]);
             }

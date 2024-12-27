@@ -11,8 +11,9 @@ namespace Dino_Engine.Modelling.Model
 
     public struct Material
     {
-        public static Material ROCK = new Material(new Colour(55, 55, 55), Engine.RenderEngine.textureGenerator.test);
-        public static Material GLOW = new Material(new Colour(55, 55, 55), Engine.RenderEngine.textureGenerator.flatGlow);
+        public static Material ROCK = new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.test);
+        public static Material GLOW = new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.flatGlow);
+        public static Material BARK = new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark);
 
         public Colour Colour;
         public int materialIndex;

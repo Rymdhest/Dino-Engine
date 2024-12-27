@@ -1,4 +1,5 @@
 ﻿using Dino_Engine.Modelling.Model;
+using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
@@ -16,8 +17,8 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         {
             Vector3 rngColor = MyMath.rng3D();
 
-            Material carMaterial = new Material(new Colour(rngColor), 0);
-            Material windowMaterial = new Material(new Colour(25, 36, 89, 1.0f), 0);
+            Material carMaterial = new Material(new Colour(rngColor), 8);
+            Material windowMaterial = new Material(new Colour(25, 36, 89, 1.0f), 3);
             Material detailMaterial = new Material(new Colour(110, 110, 110, 1.0f), 0);
             Material rubberMaterial = new Material(new Colour(10, 10, 10, 1.0f), 0);
             Material redLightMaterial = new Material(new Colour(230, 25, 25, 1.0f), 0);
