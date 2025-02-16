@@ -22,7 +22,7 @@ uniform vec2 shadowMapResolutions[5];
 uniform float cascadeProjectionSizes[5];
 
 
-int softLayers = 3;
+int softLayers = 1;
 
 const float PI = 3.14159265359;
 float DistributionGGX(vec3 N, vec3 H, float roughness);
@@ -40,7 +40,7 @@ float calcShadow(vec3 positionViewSpace) {
 		}
 	}
 	if (cascadeToUse == -1) return 0;
-	vec2 pixelSize = 1/resolution;
+	vec2 pixelSize = 1.0/resolution;
 	vec4 positionSunSpace = (vec4(positionViewSpace, 1.0))*sunSpaceMatrices[cascadeToUse];
 	positionSunSpace = positionSunSpace * vec4(0.5) + vec4(0.5);
 
@@ -48,7 +48,7 @@ float calcShadow(vec3 positionViewSpace) {
 	float totalWeight =0;
 	for (int x = -softLayers ; x <= softLayers ; x++) {
 		for (int y = -softLayers ; y <= softLayers ; y++) {
-			shadowFactor += 1-texture(shadowMaps[cascadeToUse], positionSunSpace.xyz+vec3(x*pixelSize.x, y*pixelSize.y, 0));
+			shadowFactor += 1.0-texture(shadowMaps[cascadeToUse], positionSunSpace.xyz+vec3(x*pixelSize.x, y*pixelSize.y, 0));
 			totalWeight += 1;
 		}
 	}
@@ -63,8 +63,8 @@ void main(void){
 	vec3 normal = texture(gNormal, textureCoords).xyz;
 	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
 	
-	float sunFactor = 1-calcShadow(position);
-	//float sunFactor = 1f;
+	float sunFactor = clamp(1.0-calcShadow(position), 0.0, 1.0);
+	//sunFactor = 0.5-calcShadow(position);
 
 	float ambientOcclusion = texture(gNormal, textureCoords).a;
 	float roughness = clamp(texture(gMaterials, textureCoords).r, 0.0f, 1);
@@ -106,7 +106,7 @@ void main(void){
 	//vec3 ambient = vec3(0.03) * albedo * ambientOcclusion;
     vec3 color = totalAmbient + Lo*sunFactor;
 
-	color = mix(color, albedo , clamp(emission, 0, 1));
+	color += albedo*emission*500.0;
 
 	//color = color / (color + vec3(1.0));
     //color = pow(color, vec3(1.0/2.2));  

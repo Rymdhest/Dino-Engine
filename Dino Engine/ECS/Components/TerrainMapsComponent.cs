@@ -35,17 +35,17 @@ namespace Dino_Engine.ECS.Components
             OpenSimplexNoise grassNoise = new OpenSimplexNoise();
 
             grassMap = new FloatGrid(heightMap.Resolution);
-            float min = 0.1f;
+            float min = 0.03f;
             for (int z = 0; z < grassMap.Resolution.Y; z++)
             {
                 for (int x = 0; x < grassMap.Resolution.X; x++)
                 {
-                    float noise = grassNoise.FBM01(x, z, 0.4f, 2);
-                    noise *= 0.5f+0.5f*grassNoise.FBM01(x, z, 0.1f, 3);
+                    float noise = grassNoise.FBM01(x, z, 0.4f, 3);
+                    noise *= 0.01f+0.99f*grassNoise.FBM01(x, z, 0.1f, 3);
                     noise = noise * (1f- min) + min;
 
                     float value = noise * steepnessMap.Values[x, z];
-                    if (heightMap.Values[x, z] < 5.1f) value = 0f;
+                    if (heightMap.Values[x, z] < -5.1f) value = 0f;
 
                     grassMap.Values[x, z] = MyMath.clamp01(value);
 

@@ -28,6 +28,7 @@ layout (location = 2) out vec4 gPosition;
 layout (location = 3) out vec4 gMaterials;  
 
 #include textureUtil.glsl
+#include procedural/fastHash.glsl
 
 vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 { 
@@ -42,14 +43,14 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
     vec2 deltaTexCoords = P / parallaxLayers;
   
     vec2  currentTexCoords     = texCoords;
-    float currentDepthMapValue =lookupMaterial(currentTexCoords, textureIndex).a;
+    float currentDepthMapValue =1.0-lookupMaterial(currentTexCoords, textureIndex).a;
   
     while(currentLayerDepth < currentDepthMapValue)
     {
         // shift texture coordinates along direction of P
         currentTexCoords -= deltaTexCoords;
         // get depthmap value at current texture coordinates
-        currentDepthMapValue = lookupMaterial(currentTexCoords, textureIndex).a;
+        currentDepthMapValue = 1.0-lookupMaterial(currentTexCoords, textureIndex).a;
         // get depth of next layer
         currentLayerDepth += layerDepth;  
     }
@@ -59,7 +60,7 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 
     // get depth after and before collision for linear interpolation
     float afterDepth  = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth =(lookupMaterial(prevTexCoords, textureIndex).a) - currentLayerDepth + layerDepth;
+    float beforeDepth =(1.0-lookupMaterial(prevTexCoords, textureIndex).a) - currentLayerDepth + layerDepth;
  
     // interpolation of texture coordinates
     float weight = afterDepth / (afterDepth - beforeDepth);
@@ -70,13 +71,16 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 
 void main() {
 
-	vec3 viewDir   = normalize(TangentViewPos - TangentFragPos);
-    vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir);
+	vec3 viewDir   = normalize((TangentViewPos - TangentFragPos));
+    //vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir);
+    vec2 parallaxedCoords = fragUV;
     //if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
 
 	gAlbedo = lookupAlbedo(parallaxedCoords, textureIndex);
 	gAlbedo.rgb *= fragColor;
 
+
+    //gAlbedo.rgb = vec3(hash13(gl_PrimitiveID));
     if (gAlbedo.a < 0.5f) discard;
 
 

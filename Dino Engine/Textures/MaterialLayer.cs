@@ -27,7 +27,7 @@ namespace Dino_Engine.Textures
             albedoAttachment.minFilterType = TextureMinFilter.Linear;
 
             DrawBufferSettings materialAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment1);
-            materialAttachment.formatInternal = PixelInternalFormat.Rgba8;
+            materialAttachment.formatInternal = PixelInternalFormat.Rgba16;
             materialAttachment.pixelType = PixelType.UnsignedByte;
             materialAttachment.formatExternal = PixelFormat.Rgba;
             materialAttachment.wrapMode = TextureWrapMode.Repeat;

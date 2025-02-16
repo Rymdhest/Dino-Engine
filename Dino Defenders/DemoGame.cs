@@ -24,6 +24,8 @@ using System.Reflection.Emit;
 using Dino_Engine.Modelling.Procedural.Indoor;
 using System.Runtime.ConstrainedExecution;
 using System.Drawing;
+using Dino_Engine.Textures;
+using System.Reflection;
 
 namespace Dino_Defenders
 {
@@ -177,9 +179,9 @@ namespace Dino_Defenders
         {
             eCSEngine.ClearAllEntitiesExcept(eCSEngine.Camera);
             eCSEngine.InitEntities();
-            //spawnTerrain(eCSEngine);
+            spawnTerrain(eCSEngine);
             //spawnCity(eCSEngine);
-            spawnTestScene(eCSEngine);
+            //spawnTestScene(eCSEngine);
             //spawnIndoorScene(eCSEngine);
         }
 
@@ -187,18 +189,18 @@ namespace Dino_Defenders
         {
             float floorSize = 100f;
             Entity floorEntity = new Entity("floor");
-            Mesh floorMesh = MeshGenerator.generatePlane(new Material(new Colour(0.27f, 0.27f, 0.3f), Engine.RenderEngine.textureGenerator.metalFloor));
+            Mesh floorMesh = MeshGenerator.generatePlane(new Material(new Colour(1.0f, 1.0f, 1.0f), Engine.RenderEngine.textureGenerator.bark));
             floorMesh.rotate(new Vector3(-MathF.PI/2, 0f, 0f));
-            floorMesh.scaleUVs(new Vector2(33f, 33f));
+            floorMesh.scaleUVs(new Vector2(8f, 8f));
             floorMesh.scale(new Vector3(floorSize, 1f, floorSize));
             floorEntity.addComponent(new ModelComponent(floorMesh));
             floorEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(floorEntity);
             
             Entity cubeEntity = new Entity("Cube");
-            Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.leaf));
+            Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.rock));
             cubeEntity.addComponent(new ModelComponent(cubeMesh));
-            cubeEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(5, 0.5f, 0), new Vector3(0), new Vector3(1))));
+            cubeEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(-10, 5.5f, 0), new Vector3(0), new Vector3(10))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity);
 
 
@@ -217,7 +219,7 @@ namespace Dino_Defenders
             Entity ballEntity = new Entity("Ball");
             Mesh ballMesh = IcoSphereGenerator.CreateIcosphere(2, Material.BARK);
             ballEntity.addComponent(new ModelComponent(ballMesh));
-            ballEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(7, 0.5f, 0), new Vector3(0), new Vector3(0.5f))));
+            ballEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(7, 0.5f, 20), new Vector3(0), new Vector3(0.5f))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(ballEntity);
 
             float poleHeight = 1f;
@@ -258,14 +260,14 @@ namespace Dino_Defenders
                 new Vector3(0, 5, 0),
                 new Vector3(2.5f, 5, 0),
                 new Vector3(5, 5, 0),
-                new Vector3(5, 0, 0)
+                new Vector3(5, 0, 10)
             };
             controlPoints.Clear();
 
             int n = 10;
-            float[] sinFBM = FBMmisc.sinFBM(5, 0.6f, n);
-            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.9f, n);
-            float r = 0.6f;
+            float[] sinFBM = FBMmisc.sinFBM(5, 0.13f, n);
+            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.2f, n);
+            float r = 2.0f;
             float h = 50f;
             for (int i = 0; i<n;i++)
             {   
@@ -279,37 +281,69 @@ namespace Dino_Defenders
 
             CardinalSpline3D spline = new CardinalSpline3D(controlPoints,0.0f);
 
-            Curve3D curve = spline.GenerateCurve(3);
-            curve.LERPWidth(2f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 8, Material.BARK, textureRepeats:1, flatStart: true);
-            Entity entity2 = new Entity("cylinder test");
-            entity2.addComponent(new ModelComponent(cylinderMesh));
-            entity2.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 5), new Vector3(0), new Vector3(1.0f))));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(entity2);
 
-            int twigs = 1;
-            for (int i = 0; i < twigs; i++)
+
+            Curve3D curve = spline.GenerateCurve(1);
+            curve.LERPWidth(1.3f, 0.1f);
+            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 5, Material.BARK, textureRepeats:1, flatStart: true);
+
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2,2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY:false);
+            for (int i = 0; i <branch.meshVertices.Count; i++)
             {
-                float height = 50f + MyMath.rng(250f);
+                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f))*0.05f;
+                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Y, 2.0f)) * 0.015f;
+            }
+            branch.translate(new Vector3(0f, -2f, 0.0f));
+            branch.rotate(new Vector3(-MathF.PI/1.45f, 0f, 0f));
 
 
-                float twigHeight =10+60*( 1f-height / 300f);
-                float twigWidth = 0.6f + 2.0f * (1f - height / 300f);
-                List<Vector2> twigLayer = new List<Vector2>() {
-                new Vector2(twigWidth, 0),
-                new Vector2(twigWidth/2f, twigHeight*0.5f),
-                new Vector2(twigWidth/3f, twigHeight)};
-                Mesh twig = MeshGenerator.generateCylinder(twigLayer, 5, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark), sealTop: 0.1f);
+            Mesh branch2 = cylinderMesh.scaled(new Vector3(1.0f, 1f, 1.0f));
+            int nTwigs = 16;
+            for (int i = 0; i < nTwigs; i++)
+            {
+                float t = 0.5f + 0.5f * (float)i / (nTwigs - 1);
+                CurvePoint curvePoint = curve.getPointAt(t);
+                var newBranch = branch.scaled(new Vector3(0.6f - t * 0.4f));
+                Vector3 col = MyMath.rng3D(0.3f);
+                newBranch.setColour(new Colour(new Vector3(1f) - col));
+                newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
+                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
+                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+                newBranch.rotate(new Vector3(0f, i * MathF.Tau / 5f, 0f));
+                newBranch.rotate(curvePoint.rotation);
+                newBranch.translate(curvePoint.pos);
+                branch2 += newBranch;
+            }
+            //branch = cylinderMesh;
 
-                twig.rotate(new Vector3(MathF.PI *0.3f+MyMath.rng(0.2f), 0, 0));
-                twig.rotate(new Vector3(0, i*(1.0f/ twigs)*2f*MathF.PI, 0));
-                twig.translate(new Vector3(0f, height, 0f));
-                twig.FlatRandomness(new Vector3(0.3f, 0.3f, 0.3f));
-
-                poleMesh += twig;
+            //branch = MeshGenerator.generateBox(Material.ROCK);
+            //branch.scale(new Vector3(0.3f, 0.3f, 5f));
+            //branch.translate(new Vector3(0f, 0f, -2.5f));
+            int nBranches = 24;
+            for (int i = 0; i < nBranches; i++)
+            {
+                float t = 0.3f+0.7f*(float)i/(nBranches - 1);
+                CurvePoint curvePoint = curve.getPointAt(t);
+                var newBranch = branch2.scaled(new Vector3(0.5f- t*0.4f));
+                newBranch.rotate(new Vector3(.6f+t*0.2f, 0f, 0f));
+                newBranch.translate(new Vector3(0f, -curvePoint.width/2f, 0f));
+                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+                newBranch.rotate(new Vector3(0f, i*MathF.Tau/5f+MyMath.rngMinusPlus(0.35f), 0f));
+                //newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
+                newBranch.rotate(curvePoint.rotation);
+                newBranch.translate(curvePoint.pos);
+                cylinderMesh += newBranch;
             }
 
-            
+            var _glModel = glLoader.loadToVAO(cylinderMesh);
+            for (int i = 0; i<2; i++)
+            {
+                Entity entity2 = new Entity("tree test "+i);
+                entity2.addComponent(new ModelComponent(_glModel));
+                entity2.addComponent(new TransformationComponent(new Transformation(new Vector3(MyMath.rngMinusPlus(50), 0, MyMath.rngMinusPlus(50)), new Vector3(0, MyMath.rng(MathF.Tau), 0f), new Vector3(1.0f+ MyMath.rngMinusPlus(0.3f)))));
+                eCSEngine.AddEnityToSystem<ModelRenderSystem>(entity2);
+            }
+
             
             /*
             poleEntity.addComponent(new ModelComponent(poleMesh));
@@ -321,11 +355,11 @@ namespace Dino_Defenders
         private void spawnTerrain(ECSEngine eCSEngine)
         {
             TerrainGenerator generator = new TerrainGenerator();
-            int r = 0;
-            Vector2 chunkSize = new Vector2(200, 200);
-            for (int x = -r; x <= r; x++)
+            int terrainR = 0;
+            Vector2 chunkSize = new Vector2(250, 250);
+            for (int x = -terrainR; x <= terrainR; x++)
             {
-                for (int z = -r; z <= r; z++)
+                for (int z = -terrainR; z <= terrainR; z++)
                 {
                     float quality = 1.0f;
                     if (x == 0 && z == 0) quality = 0.5f;
@@ -333,7 +367,162 @@ namespace Dino_Defenders
                     generator.generateTerrainChunkEntity(new Vector2(chunkSize.X*x, chunkSize.Y*z), chunkSize, quality);
                 }
             }
-            
+
+            float poleHeight = 1f;
+            Entity poleEntity = new Entity("pole");
+            List<Vector2> layers = new List<Vector2>() {
+                new Vector2(10.0f, 0),
+                new Vector2(9.0f, 1.0f),
+                new Vector2(2.0f, 2.0f),
+                new Vector2(1.0f, 3.0f)};
+            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark), sealTop: 0.1f);
+
+            foreach (MeshVertex meshVertex in poleMesh.meshVertices)
+            {
+                float angle = MathF.Atan2(meshVertex.position.X, meshVertex.position.Z) * 12.0f;
+                //meshVertex.position += new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle))*0.1f;
+
+                if (meshVertex.position.Y < 1f)
+                {
+                    meshVertex.material.Colour = new Colour(125, 165, 85);
+                    float valueX = MathF.Pow((MathF.Sin(angle)), 1.0f);
+                    float valueZ = MathF.Pow((MathF.Cos(angle)), 1.0f);
+                    //eshVertex.position += ( new Vector3(valueX, 0f, valueZ) * .05f);
+                }
+            }
+            //poleMesh.FlatRandomness(new Vector3(.05f, 0f, .05f));
+
+            var controlPoints = new List<Vector3>
+            {
+                new Vector3(0, 0, 0),
+                new Vector3(0, 2, 0),
+                new Vector3(2, 4, 0),
+                new Vector3(3, 6, 0),
+                new Vector3(3, 8, 0)
+            };
+            controlPoints = new List<Vector3>
+            {
+                new Vector3(0, 0, 0),
+                new Vector3(0, 5, 0),
+                new Vector3(2.5f, 5, 0),
+                new Vector3(5, 5, 0),
+                new Vector3(5, 0, 10)
+            };
+            controlPoints.Clear();
+
+            int n = 10;
+            float[] sinFBM = FBMmisc.sinFBM(5, 0.13f, n);
+            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.2f, n);
+            float r = 2.0f;
+            float h = 100f;
+            for (int i = 0; i < n; i++)
+            {
+                float traversedRatio = i / (float)(n - 1);
+                float angle = MathF.PI * i * 0.2f;
+                float x = sinFBM[i] * r * traversedRatio;
+                float z = sinFBM2[i] * r * traversedRatio;
+                float y = traversedRatio * h;
+                controlPoints.Add(new Vector3(x, y, z));
+            }
+
+            CardinalSpline3D spline = new CardinalSpline3D(controlPoints, 0.0f);
+
+
+
+            Curve3D curve = spline.GenerateCurve(1);
+            curve.LERPWidth(1.3f, 0.1f);
+            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 5, Material.BARK, textureRepeats: 1, flatStart: true);
+
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY: false);
+            for (int i = 0; i < branch.meshVertices.Count; i++)
+            {
+                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f)) * 0.05f;
+                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Y, 2.0f)) * 0.015f;
+            }
+            branch.translate(new Vector3(0f, -2f, 0.0f));
+            branch.rotate(new Vector3(-MathF.PI / 1.45f, 0f, 0f));
+
+
+            Mesh branch2 = cylinderMesh.scaled(new Vector3(1.0f, 1f, 1.0f));
+            int nTwigs = 16;
+            for (int i = 0; i < nTwigs; i++)
+            {
+                float t = 0.5f + 0.5f * (float)i / (nTwigs - 1);
+                CurvePoint curvePoint = curve.getPointAt(t);
+                var newBranch = branch.scaled(new Vector3(0.6f - t * 0.4f));
+                Vector3 col = MyMath.rng3D(0.3f);
+                newBranch.setColour(new Colour(new Vector3(1f) - col));
+                newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
+                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
+                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+                newBranch.rotate(new Vector3(0f, i * MathF.Tau / 5f, 0f));
+                newBranch.rotate(curvePoint.rotation);
+                newBranch.translate(curvePoint.pos);
+                branch2 += newBranch;
+            }
+            //branch = cylinderMesh;
+
+            //branch = MeshGenerator.generateBox(Material.ROCK);
+            //branch.scale(new Vector3(0.3f, 0.3f, 5f));
+            //branch.translate(new Vector3(0f, 0f, -2.5f));
+            int nBranches = 24;
+            for (int i = 0; i < nBranches; i++)
+            {
+                float t = 0.3f + 0.7f * (float)i / (nBranches - 1);
+                CurvePoint curvePoint = curve.getPointAt(t);
+                var newBranch = branch2.scaled(new Vector3(0.5f - t * 0.4f));
+                newBranch.rotate(new Vector3(.6f + t * 0.2f, 0f, 0f));
+                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
+                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+                newBranch.rotate(new Vector3(0f, i * MathF.Tau / 5f + MyMath.rngMinusPlus(0.35f), 0f));
+                //newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
+                newBranch.rotate(curvePoint.rotation);
+                newBranch.translate(curvePoint.pos);
+                cylinderMesh += newBranch;
+            }
+
+            var _glModel = glLoader.loadToVAO(cylinderMesh);
+            for (int i = 0; i < 100; i++)
+            {
+                Entity entity2 = new Entity("tree test " + i);
+                entity2.addComponent(new ModelComponent(_glModel));
+
+                Vector2 xz = MyMath.rng2D(chunkSize.X);
+                float y = generator.getHeightAt(xz);
+
+                entity2.addComponent(new TransformationComponent(new Transformation(new Vector3(xz.X, y, xz.Y), new Vector3(0, MyMath.rng(MathF.Tau), 0f), new Vector3(0.3f + MyMath.rngMinusPlus(0.2f)))));
+                eCSEngine.AddEnityToSystem<ModelRenderSystem>(entity2);
+            }
+
+
+            var rockMesh = IcoSphereGenerator.CreateIcosphere(2, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.rock));
+            rockMesh.rotate(new Vector3(-MathF.PI/2f, 0f, 0f));
+
+            OpenSimplexNoise noise = new OpenSimplexNoise();
+
+            for (int i = 0; i<rockMesh.meshVertices.Count; i++)
+            {
+                Vector3 oldPos = rockMesh.meshVertices[i].position;
+                float noiseValue = noise.FBM(oldPos.X, oldPos.Y, oldPos.Z, 1.5f, 4);
+                Vector3 newPos = oldPos+oldPos*noiseValue*0.45f;
+                rockMesh.meshVertices[i].position = newPos;
+            }
+
+            rockMesh.FlatRandomness(0.004f);
+            rockMesh.makeFlat(flatMaterial: true, flatNormal:true);
+            var rockModel = glLoader.loadToVAO(rockMesh);
+            for (int i = 0; i < 130; i++)
+            {
+                Entity entity = new Entity("rock test " + i);
+                entity.addComponent(new ModelComponent(rockModel));
+
+                Vector2 xz = MyMath.rng2D(chunkSize.X);
+                float y = generator.getHeightAt(xz);
+
+                entity.addComponent(new TransformationComponent(new Transformation(new Vector3(xz.X, y, xz.Y), new Vector3(0, MyMath.rng(MathF.Tau), 0f), new Vector3(0.7f) + MyMath.rng3D(3.0f))));
+                eCSEngine.AddEnityToSystem<ModelRenderSystem>(entity);
+            }
+
             /*
             DebugRenderer.texture = terrainSteepnessMap.GetTexture();
             //DebugRenderer.texture = spawnGrid.GenerateTexture();
@@ -566,7 +755,7 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(houseGround);
 
 
-            Vector2 terrainSize = new Vector2(200, 200f);
+            Vector2 terrainSize = new Vector2(100, 100f);
             terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
 
             Entity crossRoad = new Entity("crossroad");

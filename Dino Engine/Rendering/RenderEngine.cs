@@ -23,6 +23,7 @@ namespace Dino_Engine.Rendering
 
         private ScreenQuadRenderer _screenQuadRenderer;
         private ModelRenderer _modelRenderer;
+        private TerrainRenderer _terrainRenderer;
         private InstancedModelRenderer _instancedModelRenderer;
         private DirectionalLightRenderer _directionalLightRenderer;
         private PointLightRenderer _pointLightRenderer;
@@ -65,6 +66,7 @@ namespace Dino_Engine.Rendering
         {
             _screenQuadRenderer = new ScreenQuadRenderer();
             _modelRenderer = new ModelRenderer();
+            _terrainRenderer = new TerrainRenderer();
             _instancedModelRenderer = new InstancedModelRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
             _pointLightRenderer = new PointLightRenderer();
@@ -156,7 +158,7 @@ namespace Dino_Engine.Rendering
 
                 //_screenQuadRenderer.RenderTextureToScreen(TextureGenerator.testTexture.textures[0]);
 
-                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(1));
+                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(0));
                 //_gBuffer.resolveToScreen();
                 //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
                 //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));
@@ -180,8 +182,9 @@ namespace Dino_Engine.Rendering
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             _modelRenderer.RenderPass(eCSEngine, this);
+            _terrainRenderer.RenderPass(eCSEngine, this);
             _instancedModelRenderer.RenderPass(eCSEngine, this);
-            _grassRenderer.RenderPass(eCSEngine, this);
+            //_grassRenderer.RenderPass(eCSEngine, this);
 
             _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
             _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);

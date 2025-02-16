@@ -1,4 +1,5 @@
-﻿using Dino_Engine.Physics;
+﻿using Dino_Engine.Debug;
+using Dino_Engine.Physics;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using System.Drawing;
@@ -337,6 +338,31 @@ namespace Dino_Engine.Modelling.Model
         {
             return Transformed(new Transformation(new Vector3(0), rotation, new Vector3(1f)));
         }
+
+        public Mesh rotated(Quaternion rotation)
+        {
+            Vertex[] oldVertices = getAllVerticesArray();
+            Vertex[] newVertices = new Vertex[oldVertices.Length];
+            for (int i = 0; i < oldVertices.Length; i++)
+            {
+                Vector3 newPosition = Vector3.Transform(oldVertices[i].position, rotation);
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].material, oldVertices[i].UVs); // TODO  potential uses same UVs
+            }
+            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>());
+        }
+
+        public void rotate(Quaternion rotation)
+        {
+            for (int i = 0; i < meshVertices.Count; i++)
+            {
+                MeshVertex vertex = meshVertices[i];
+                vertex.position = Vector3.Transform(vertex.position, rotation);
+                //if (scaleUV) meshVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
+                meshVertices[i] = vertex;
+            }
+            calculateAllNormals();
+        }
+
         public void scale(Vector3 scale)
         {
             Transform(new Transformation(new Vector3(0), new Vector3(0), scale));

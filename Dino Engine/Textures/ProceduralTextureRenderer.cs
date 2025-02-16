@@ -92,7 +92,7 @@ namespace Dino_Engine.Textures
             _textureCellularShader.loadUniformVector2f("scale", scale);
             _textureCellularShader.loadUniformFloat("jitter", jitter);
             _textureCellularShader.loadUniformFloat("phase", phase);
-            _textureCellularShader.loadUniformFloat("seed", 1111f);
+            _textureCellularShader.loadUniformFloat("seed", seed);
             _textureCellularShader.loadUniformInt("metric", (int)metric);
             _textureCellularShader.loadUniformBool("rigged", rigged);
             return layer.tap();
@@ -113,7 +113,7 @@ namespace Dino_Engine.Textures
             _textureVoronoiCracksShader.loadUniformFloat("warpScale", warpScale);
             _textureVoronoiCracksShader.loadUniformFloat("smudgePhase", smudgePhase);
             _textureVoronoiCracksShader.loadUniformBool("warpSmudge", warpSmudge);
-            _textureVoronoiCracksShader.loadUniformFloat("seed", 100f);
+            _textureVoronoiCracksShader.loadUniformFloat("seed", seed);
             _textureVoronoiCracksShader.loadUniformInt("returnMode", (int)returnMode);
             return layer.tap();
         }
@@ -128,7 +128,7 @@ namespace Dino_Engine.Textures
             _textureVoronoiShader.loadUniformVector2f("scale", scale);
             _textureVoronoiShader.loadUniformFloat("jitter", jitter);
             _textureVoronoiShader.loadUniformFloat("phase", phase);
-            _textureVoronoiShader.loadUniformFloat("seed", 100f);
+            _textureVoronoiShader.loadUniformFloat("seed", seed);
             _textureVoronoiShader.loadUniformInt("returnMode", (int)returnMode);
             return layer.tap();
         }

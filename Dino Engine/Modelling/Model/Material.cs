@@ -23,5 +23,11 @@ namespace Dino_Engine.Modelling.Model
             this.Colour = colour;
             this.materialIndex = materialIndex;
         }
+
+        public Material( int materialIndex)
+        {
+            this.Colour = new Colour(255, 255, 255);
+            this.materialIndex = materialIndex;
+        }
     }
 }

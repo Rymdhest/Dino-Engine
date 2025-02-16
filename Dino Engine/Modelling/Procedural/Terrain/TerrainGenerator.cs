@@ -21,10 +21,10 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
     public class TerrainGenerator
     {
 
-        public float _mountainCoverage = 0.2f;
-        public float _frequenzy = 0.007f;
-        public int _octaves = 15;
-        public float yScale = 200f;
+        public float _mountainCoverage = 0.1f;
+        public float _frequenzy = 0.01f;
+        public int _octaves = 10;
+        public float yScale = 160f;
 
         private OpenSimplexNoise noise;
 
@@ -45,7 +45,8 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             Entity terrainEntity = new Entity("Terrain");
 
             FloatGrid terrainGrid = generateChunk(worldPos, worldSize, resolution);
-            Material grass = Material.ROCK;
+            Material grass = new Material(new Colour(255, 255, 255),Engine.RenderEngine.textureGenerator.grain);
+            grass = new Material(new Colour(105, 55, 55), Engine.RenderEngine.textureGenerator.grain);
             Mesh groundMesh = TerrainMeshGenerator.GridToMesh(terrainGrid, worldSize, grass,  out Vector3Grid terrainNormals);
             glModel groundModel = glLoader.loadToVAO(groundMesh);
 
@@ -53,7 +54,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             terrainEntity.addComponent(new ModelComponent(groundModel));
             terrainEntity.addComponent(new TerrainMapsComponent(terrainGrid, terrainNormals));
             terrainEntity.addComponent(new CollisionComponent(new TerrainHitBox(new Vector3(0), new Vector3(worldSize.X, yScale, worldSize.Y))));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(terrainEntity);
+            eCSEngine.AddEnityToSystem<TerrainRenderSystem>(terrainEntity);
             eCSEngine.AddEnityToSystem<TerrainSystem>(terrainEntity);
             eCSEngine.AddEnityToSystem<CollidableSystem>(terrainEntity);
 
@@ -107,7 +108,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
             y *= yScale;
             y -= 5f;
-            if (y < 0f) y *= 0.1f;
+            if (y < 0f) y *= 0.5f;
 
             return y;
         }

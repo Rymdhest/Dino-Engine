@@ -24,7 +24,6 @@ public class CardinalSpline3D
             throw new ArgumentOutOfRangeException(nameof(segmentIndex), "Invalid segment index.");
         }
 
-        // Get the four points for the Cardinal Spline formula
         Vector3 p0 = controlPoints[Math.Max(segmentIndex - 1, 0)];
         Vector3 p1 = controlPoints[segmentIndex];
         Vector3 p2 = controlPoints[Math.Min(segmentIndex + 1, controlPoints.Count - 1)];
@@ -33,7 +32,6 @@ public class CardinalSpline3D
         float t2 = t * t;
         float t3 = t2 * t;
 
-        // Cardinal spline blending functions
         float s = (1 - scale) / 2;
 
         float b0 = -s * t3 + 2 * s * t2 - s * t;
@@ -41,8 +39,45 @@ public class CardinalSpline3D
         float b2 = (s - 2) * t3 + (3 - 2 * s) * t2 + s * t;
         float b3 = s * t3 - s * t2;
 
-        // Calculate the interpolated point
         return b0 * p0 + b1 * p1 + b2 * p2 + b3 * p3;
+    }
+
+    public Vector3 GetPosition(float t)
+    {
+        if (t < 0f || t > 1f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(t), "t must be between 0 and 1.");
+        }
+
+        int totalSegments = controlPoints.Count - 1;
+        float scaledT = t * totalSegments;
+        int segmentIndex = (int)scaledT;
+        float localT = scaledT - segmentIndex;
+
+        return Interpolate(localT, segmentIndex);
+    }
+
+    public (Vector3 position, Vector3 normal) GetPositionAndNormal(float t, float normalOffset = 0.001f)
+    {
+        Vector3 position = GetPosition(t);
+
+        // Compute a tangent by finite difference
+        float offsetT = Math.Clamp(t + normalOffset, 0f, 1f);
+        Vector3 offsetPosition = GetPosition(offsetT);
+        Vector3 tangent = (offsetPosition - position).Normalized();
+
+        // Generate a consistent frame using quaternions
+        // Choose an arbitrary reference vector
+        Vector3 up = new Vector3(0, 1, 0);
+
+        // Ensure the tangent is not parallel to the up vector
+        if (Vector3.Cross(tangent, up).LengthSquared < 1e-6)
+        {
+            up = new Vector3(1, 0, 0); // Alternate reference
+        }
+
+        Vector3 normal = Vector3.Cross(tangent, up).Normalized();
+        return (position, normal);
     }
 
     public Curve3D GenerateCurve(int segmentsPerSegment)
@@ -63,7 +98,6 @@ public class CardinalSpline3D
             }
         }
 
-        // Add the last control point to complete the curve
         result.Add(controlPoints[^1]);
 
         return new Curve3D(result);

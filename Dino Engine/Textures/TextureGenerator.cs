@@ -102,14 +102,16 @@ namespace Dino_Engine.Textures
             flat = createFlatTexture();
             flatGlow = createFlatGlowTexture();
             sandDunes = createSandDunesTexture();
-            test = createCobbleTexture();
+            cobble = createCobbleTexture();
             bark = createBark();
             metalFloor = createMetalFloorTexture();
             brick = brickTexture();
-            
-            addAllPreparedTexturesToTexArray(true);
+            crackedLava = createCrackedLAva();
+            rock = createRock();
 
-            Material leafMaterial = new Material(new Colour(100, 200, 90), flatGlow);
+            addAllPreparedTexturesToTexArray(true);
+           
+            Material leafMaterial = new Material(new Colour(190, 70, 15), sand);
 
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(0.15f, 1f), new Vector2i(50, 50), leafMaterial);
 
@@ -122,66 +124,93 @@ namespace Dino_Engine.Textures
                 //leafMesh.meshVertices[i].position.Z = MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 15f) * 0.000005f;
             }
 
+           
+
+           leafMesh.rotate(new Vector3(0, 0f, 0f));
+           preparedTextures.Add(textureStudio.GenerateTextureFromMesh(leafMesh, fullStretch: true));
+           
+          leaf = preparedTextures.Count - 1 + loadedMaterialTextures;
+          addAllPreparedTexturesToTexArray(false);
+            
+        Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(15f, 15f), new Vector2i(1, 1), new Material(new Colour(150, 161,87), leaf));
+        branchMesh.rotate(new Vector3(0, 0f, MathF.PI/2f));
+        branchMesh.translate(new Vector3(-15f/2f, 0f, 0f));
+        branchMesh += branchMesh.translated(new Vector3(15f, 0f, 0f));
+        var controlPoints = new List<Vector3>();
+        int n = 10;
+        float[] sinFBM = FBMmisc.sinFBM(5, 0.6f, n);
+        float[] sinFBM2 = FBMmisc.sinFBM(5, 0.9f, n);
+        float r =1.3f;
+        float h = 50f;
+        for (int i = 0; i < n; i++)
+        {
+            float traversedRatio = i / (float)(n - 1);
+            float angle = MathF.PI * i * 0.4f;
+            float x = sinFBM[i] * r * traversedRatio;
+            float z = sinFBM2[i] * r * traversedRatio;
+            float y = traversedRatio * h;
+            controlPoints.Add(new Vector3(x, y, z));
+        }
+        CardinalSpline3D spline = new CardinalSpline3D(controlPoints, 0.0f);
+
+        Curve3D curve = spline.GenerateCurve(3);
+        curve.LERPWidth(1f, 0.1f);
+        Mesh mesh = MeshGenerator.generateTube(curve, 8, Material.BARK, textureRepeats: 1, flatStart: true);
+
+        int leavesPerSide = 3;
+        for (int i = 0; i< leavesPerSide; i++)
+        {
+            float t = 0.1f + 0.9f * (float)i / (leavesPerSide - 1);
+            CurvePoint curvePoint = curve.getPointAt(t);
+            var newBranch = branchMesh.scaled(new Vector3(10.1f - t * 0.56f));
+            Vector3 col = MyMath.rng3D(0.1f);
+            newBranch.setColour(new Colour(new Vector3(1f)-col));
+            newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
+            //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
+            //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+            //newBranch.rotate(new Vector3(0f, i * 1.14f, 0f));
+            newBranch.rotate(curvePoint.rotation);
+            newBranch.translate(curvePoint.pos);
+            mesh += newBranch;
+        }
+        preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
+        leafBranch = preparedTextures.Count-1+ loadedMaterialTextures+loadedModelTextures;
+        addAllPreparedTexturesToTexArray(false);
 
 
-            leafMesh.rotate(new Vector3(0, 0f, 0f));
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(leafMesh, fullStretch: false));
-            leaf = preparedTextures.Count - 1 + loadedMaterialTextures;
-            addAllPreparedTexturesToTexArray(false);
+        Mesh treeBranchMesh = MeshGenerator.generatePlane(new Vector2(15f, 15f), new Vector2i(1, 1), new Material(new Colour(255, 255, 255), leafBranch));
+        treeBranchMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
+        treeBranchMesh.translate(new Vector3(-15f / 2f, 0f, 2f));
+        treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, MathF.PI / 1f));
+        Mesh mesh2 = MeshGenerator.generateTube(curve, 8, Material.BARK, textureRepeats: 1, flatStart: true);
 
-            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(15f, 15f), new Vector2i(1, 1), new Material(new Colour(150, 161,87), leaf));
-            branchMesh.rotate(new Vector3(0, 0f, MathF.PI/2f));
+        int branchesPerSide = 16;
+        for (int i = 0; i < branchesPerSide; i++)
+        {
+            float t = 0.1f + 0.9f * (float)i / (branchesPerSide - 1);
+            CurvePoint curvePoint = curve.getPointAt(t);
+            var newBranch = treeBranchMesh.scaled(new Vector3(1.5f - t * 1.06f));
+            Vector3 col = MyMath.rng3D(0.1f);
+            newBranch.setColour(new Colour(new Vector3(1f) - col));
+            newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
+            //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
+            //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+            //newBranch.rotate(new Vector3(i * 0.14f,0f, 0f));
+            newBranch.rotate(curvePoint.rotation);
+            newBranch.translate(curvePoint.pos);
+            mesh2 += newBranch;
+        }
+        preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
+        treeBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+        addAllPreparedTexturesToTexArray(false);
 
-
-            var controlPoints = new List<Vector3>();
-            int n = 10;
-            float[] sinFBM = FBMmisc.sinFBM(5, 0.6f, n);
-            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.9f, n);
-            float r = 0.6f;
-            float h = 50f;
-            for (int i = 0; i < n; i++)
-            {
-                float traversedRatio = i / (float)(n - 1);
-                float angle = MathF.PI * i * 0.2f;
-                float x = sinFBM[i] * r * traversedRatio;
-                float z = sinFBM2[i] * r * traversedRatio;
-                float y = traversedRatio * h;
-                controlPoints.Add(new Vector3(x, y, z));
-            }
-            CardinalSpline3D spline = new CardinalSpline3D(controlPoints, 0.0f);
-
-            Curve3D curve = spline.GenerateCurve(3);
-            curve.LERPWidth(2f, 0.1f);
-            Mesh mesh = MeshGenerator.generateTube(curve, 8, Material.BARK, textureRepeats: 1, flatStart: true);
-            for (int i = 0; i<10; i++)
-            {
-                mesh += branchMesh.translated(new Vector3(-7.5f, i*5.0f, 0f));
-                mesh += branchMesh.translated(new Vector3(7.5f, i*5.0f, 0f));
-            }
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
-            leafBranch = preparedTextures.Count-1+ loadedMaterialTextures+loadedModelTextures;
-            addAllPreparedTexturesToTexArray(false);
-
-
-            Mesh treeBranchMesh = MeshGenerator.generatePlane(new Vector2(7f, 7f), new Vector2i(1, 1), new Material(new Colour(255, 255, 255), leafBranch));
-            treeBranchMesh.rotate(new Vector3(0, 0f, -MathF.PI / 2f));
-            Mesh mesh2 = new Mesh();
-            for (int i = 0; i < 10; i++)
-            {
-                treeBranchMesh.rotate(new Vector3(0, 0f, -MathF.PI / 1f));
-                mesh2 += treeBranchMesh.translated(new Vector3(-3.5f, i * 5.0f, 0f));
-                treeBranchMesh.rotate(new Vector3(0, 0f, -MathF.PI / 1f));
-                mesh2 += treeBranchMesh.translated(new Vector3(3.5f, i * 5.0f, 0f));
-            }
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
-            treeBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
-            addAllPreparedTexturesToTexArray(false);
+        
         }
 
         private FrameBuffer generateNormalFrameBuffer(FrameBuffer materialBuffer, float normalFlatness)
         {
             DrawBufferSettings normalAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            normalAttachment.formatInternal = PixelInternalFormat.Rgba;
+            normalAttachment.formatInternal = PixelInternalFormat.Rgba8;
             normalAttachment.pixelType = PixelType.UnsignedByte;
             normalAttachment.wrapMode = TextureWrapMode.Repeat;     
             normalAttachment.formatExternal = PixelFormat.Rgba;
@@ -201,7 +230,7 @@ namespace Dino_Engine.Textures
         }
 
 
-        private int FinishTexture(MaterialLayer layer, float normalFlatness = 100.0f, float parallaxDepth = 0.06f)
+        private int FinishTexture(MaterialLayer layer, float normalFlatness = 300.0f, float parallaxDepth = 0.06f)
         {
             FrameBuffer normalBuffer = generateNormalFrameBuffer(layer.GetLastFrameBuffer(), normalFlatness);
 
@@ -231,26 +260,17 @@ namespace Dino_Engine.Textures
 
             int maxDimension = Math.Max(TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y);
             int mips = (int)Math.Floor(Math.Log(maxDimension, 2)) + 1;
-
+            //if (type == 2) mips = 1;
+            //if (type == 1) mips = 1;
+            //if (type == 0) mips = 1;
             GL.TexStorage3D(TextureTarget3d.Texture2DArray, mips, SizedInternalFormat.Rgba8, TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y, preparedTextures.Count+loadedTextures);
 
-
-            if (loadedTextures > 0)
-            {
-                for (int i = 0; i < loadedTextures; i++)
-                {
-                    GL.CopyImageSubData(oldArray, ImageTarget.Texture2DArray, 0, 0, 0, i, textureArray, ImageTarget.Texture2DArray, 0, 0, 0, i, TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y, 1);
-                }
-            }
-
-
-            /*
             if (loadedTextures > 0)
             {
                 GL.CopyImageSubData(oldArray, ImageTarget.Texture2DArray, 0, 0, 0, 0, textureArray, ImageTarget.Texture2DArray, 0, 0, 0, 0, TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y, loadedTextures);
                 GL.DeleteTexture(oldArray);
             }
-            */
+            
             Engine.CheckGLError("After TexStorage3D");
 
             for (int i = 0; i < preparedTextures.Count; i++)
@@ -316,18 +336,42 @@ namespace Dino_Engine.Textures
 
         private int createFlatGlowTexture()
         {
-            return createGrainTexture();
+            return FinishTexture(procTextGen.CreateMaterial(new Colour(255, 255, 255), new Vector3(1f, 0.1f, 0f)));
         }
 
         private int createFlatTexture()
         {
-            return createMetalFloorTexture();
+            return FinishTexture(procTextGen.CreateMaterial(new Colour(255, 255, 255), new Vector3(1f, 0.0f, 0f)));
         }
         private int createCrackedDesert()
         {
-            var voronoi = procTextGen.VoronoiCracks(new Vector2(4f, 4f), jitter: 1.0f, warpSmudge: false, warp: 0.2f, warpScale: 0.2f, width: 0.04f, smudgePhase: 1.0f, smoothness: 0.1f);
+            var voronoi = procTextGen.Voronoi(new Vector2(4f, 4f), jitter: 1.0f);
             return FinishTexture(voronoi);
         }
+
+        private int createRock()
+        {
+            var levelsBig = procTextGen.Voronoi(new Vector2(117f, 117f), jitter: 1.0f, returnMode:ReturnMode.ID);
+            levelsBig.setMaterial(new Colour(75, 55, 55), new Vector3(0.99f, 0f, 0f));
+            var levelsSmall = procTextGen.Voronoi(new Vector2(24f, 24f), jitter: 1.0f, returnMode: ReturnMode.ID);
+            var combined = MaterialLayersCombiner.combine(levelsBig, levelsSmall, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation:Operation.Add, weight:0.7f);
+
+            var cellular = procTextGen.Cellular(new Vector2(117f, 117f), jitter:1.0f, metric:Metric.SquaredEuclidean).invertHeight();
+            cellular.setMaterial(new Colour(55, 85, 25), new Vector3(0.4f, 0f, 0f));
+
+            var combined2 = MaterialLayersCombiner.combine(combined, cellular, FilterMode.Everywhere, materialOperation: Operation.Mix, heightOperation: Operation.Add, weight: 0.2f);
+
+            var cracks = procTextGen.VoronoiCracks(new Vector2(19f, 19f), jitter: 1.0f, width: 0.055f, smoothness: 0.5f).setMaterial(new Colour(120, 117, 116), new Vector3(0.45f, 0f, 0f));
+
+            MaterialLayersCombiner.combine(combined2, cracks, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Scale, weight: 0.2f);
+
+            var noise = procTextGen.PerlinFBM(new Vector2(44f, 44f), octaves: 10, amplitudePerOctave: 0.6f);
+
+            MaterialLayersCombiner.combine(combined2, noise, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Add, weight: 0.7f);
+
+            return FinishTexture(combined2, normalFlatness:250.0f);
+        }
+
         private int createCobbleTexture()
         {
             float stoneSize = 7;
@@ -366,27 +410,54 @@ namespace Dino_Engine.Textures
             MaterialLayersCombiner.combine(stones, background, FilterMode.Greater, heightOperation: Operation.Smoothstep, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.1f);
             return FinishTexture(stones);
         }
+
+        private int createCrackedLAva()
+        {
+            var lava = procTextGen.PerlinFBM(new Vector2(14f, 14f), octaves: 10, amplitudePerOctave: 0.9f);
+            lava.setMaterial(new Colour(0, 0, 0), new Vector3(0.95f, 0f, 0f));
+            lava.mix(procTextGen.CreateMaterial(new Colour(255, 35, 13), new Vector3(1f, 0.18f, 0f), height: 1.0f), FilterMode.Everywhere, Operation.Mix);
+
+            var cracks = procTextGen.VoronoiCracks(new Vector2(14f, 14f), width: 0.06f, smoothness: 0.5f, jitter: 1f);
+
+            var cracks2 = procTextGen.VoronoiCracks(new Vector2(58f, 58f), width: 0.08f, smoothness: 0.5f, jitter: 1f);
+            cracks2.mix(procTextGen.PerlinFBM(new Vector2(6f, 6f), octaves: 1, amplitudePerOctave: 0.9f), FilterMode.Greater, Operation.Override, weight: 0.9f);
+            cracks2.setMaterial(new Colour(10, 10, 10), new Vector3(0.55f, 0f, 0f));
+
+            cracks.setMaterial(new Colour(60, 50, 50), new Vector3(0.55f, 0f, 0f));
+            var noise = procTextGen.PerlinFBM(new Vector2(20f, 20f), octaves: 8, amplitudePerOctave: 0.6f, rigged:false);
+            //noise.invertHeight();
+            cracks.mix(cracks2, FilterMode.Everywhere, Operation.Scale,  weight:0.35f);
+
+            MaterialLayersCombiner.combine(cracks, noise.scaleHeight(1.0f), FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Nothing, weight: 0.5f, smoothness: 0.8f);
+
+            lava.mix(procTextGen.CreateMaterial(new Colour(200, 6, 1), new Vector3(1f, 0.0f, 0f), height: 1.0f), FilterMode.Everywhere, Operation.Mix);
+
+            var crackedLava = MaterialLayersCombiner.combine(cracks, lava.scaleHeight(0.14f), FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.5f);
+
+            return FinishTexture(crackedLava, normalFlatness: 100.0f);
+        }
+
         private int createBark()
         {
-            var bark = procTextGen.PerlinFBM(new Vector2(20f, 5f), octaves: 10, amplitudePerOctave:0.6f);
+            var bark = procTextGen.PerlinFBM(new Vector2(20f, 5f), octaves: 10, amplitudePerOctave: 0.6f);
             var noise = procTextGen.PerlinFBM(new Vector2(32f, 32f), octaves: 10, amplitudePerOctave: 0.6f);
-            var barkCracks = procTextGen.VoronoiCracks(new Vector2(40f, 35f), width:0.015f, smoothness:0.02f, jitter:1f);
-            var wavy = procTextGen.PerlinFBM(new Vector2(16, 2), octaves: 1, amplitudePerOctave: 0.6f, rigged:true);
-            bark.setMaterial(new Colour(90, 73, 60), new Vector3(0.95f, 0f, 0f));
-            noise.setMaterial(new Colour(32, 33, 23), new Vector3(0.95f, 0f, 0f));
-            barkCracks.setMaterial(new Colour(255, 255, 255), new Vector3(0.95f, 0f, 0f));
-            wavy.setMaterial(new Colour(50, 60, 45), new Vector3(0.35f, 0f, 0f));
+            var barkCracks = procTextGen.VoronoiCracks(new Vector2(40f, 35f), width: 0.015f, smoothness: 0.02f, jitter: 1f);
+            var wavy = procTextGen.PerlinFBM(new Vector2(1, 16), octaves: 1, amplitudePerOctave: 0.6f, rigged: true);
+            bark.setMaterial(new Colour(190, 173, 160), new Vector3(0.95f, 0.0f, 0f));
+            noise.setMaterial(new Colour(2, 3, 2), new Vector3(0.95f, 0f, 0f));
+            barkCracks.setMaterial(new Colour(5, 5, 5), new Vector3(0.95f, 0f, 0f));
+            wavy.setMaterial(new Colour(10, 7, 9), new Vector3(0.35f, 0f, 0f));
 
             MaterialLayersCombiner.combine(barkCracks, noise.scaleHeight(0.2f), FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Override, weight: -0.1f, smoothness: 0.1f);
 
             MaterialLayersCombiner.combine(bark, barkCracks, FilterMode.Lesser, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.1f, smoothness: 0.9f);
 
-            MaterialLayersCombiner.combine(bark, wavy.invertHeight(), FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Smoothstep, weight: 0.7f, smoothness: 0.9f);
+            MaterialLayersCombiner.combine(bark, wavy.invertHeight(), FilterMode.Greater, heightOperation: Operation.Scale, materialOperation: Operation.Override, weight: 0.7f, smoothness: 0.9f);
             MaterialLayersCombiner.combine(bark, noise.scaleHeight(2.0f), FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Smoothstep, weight: 0.4f, smoothness: 0.8f);
 
             bark.addHeight(-0.05f);
             bark.scaleHeight(4.0f);
-            return FinishTexture(bark, normalFlatness:100.0f);
+            return FinishTexture(bark, normalFlatness: 100.0f);
         }
 
         private int brickTexture()
@@ -419,8 +490,19 @@ namespace Dino_Engine.Textures
         }
         private int createSandDunesTexture()
         {
-            var sandDunes = procTextGen.PerlinFBM(new Vector2(8f, 28f), octaves: 1, amplitudePerOctave: 0.47f, rigged: true);
-            return FinishTexture(sandDunes);
+            var sandDunes = procTextGen.PerlinFBM(new Vector2(4f, 6f), octaves: 3, amplitudePerOctave: 0.17f, rigged: true);
+            var noise = procTextGen.PerlinFBM(new Vector2(4f, 4f), octaves: 10, amplitudePerOctave: 0.8f);
+            var noiseLarge = procTextGen.PerlinFBM(new Vector2(22f, 22f), octaves: 2, amplitudePerOctave: 0.5f);
+            sandDunes.setMaterial(new Colour(200, 170, 100), new Vector3(0.35f, 0f, 0f));
+            noiseLarge.setMaterial(new Colour(200, 175, 120), new Vector3(0.8f, 0f, 0f));
+            noise.setMaterial(new Colour(165, 140, 85), new Vector3(0.98f, 0f, 0f));
+
+            MaterialLayersCombiner.combine(sandDunes, noise, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Mix, weight: 0.2f, smoothness: 0.9f);
+
+            MaterialLayersCombiner.combine(noise, noiseLarge.scaleHeight(1f), FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Mix, weight: 0.5f, smoothness: 0.9f);
+            MaterialLayersCombiner.combine(sandDunes, noise, FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.9f);
+
+            return FinishTexture(sandDunes, normalFlatness:80);
         }
 
         public void CleanUp()

@@ -11,6 +11,7 @@ out vec3 fragColor;
 out vec3 positionViewSpace_pass;
 out vec2 fragUV;
 out mat3 normalTBN;
+out vec3 worldNormal;
 
 out vec3 TangentViewPos;
 out vec3 TangentFragPos;
@@ -28,6 +29,7 @@ void main() {
 	positionViewSpace_pass =  (vec4(position, 1.0)*modelViewMatrix).xyz;
 	fragUV = uv;
 	textureIndex = materialIndex;
+	worldNormal = normal;
 	
 	vec3 N = normal;
 	vec3 T = tangent;

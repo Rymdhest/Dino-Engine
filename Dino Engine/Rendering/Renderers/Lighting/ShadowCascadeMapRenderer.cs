@@ -104,6 +104,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                             glModel glmodel = glmodels.Key;
                             GL.BindVertexArray(glmodel.getVAOID());
                             GL.EnableVertexAttribArray(0);
+                            GL.EnableVertexAttribArray(4);
+                            GL.EnableVertexAttribArray(5);
                             foreach (Entity entity in glmodels.Value)
                             {
                                 Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
@@ -112,6 +114,23 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                                 GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
                             }
                         }
+
+                        foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<TerrainRenderSystem>().ModelsDictionary)
+                        {
+                            glModel glmodel = glmodels.Key;
+                            GL.BindVertexArray(glmodel.getVAOID());
+                            GL.EnableVertexAttribArray(0);
+                            GL.EnableVertexAttribArray(4);
+                            GL.EnableVertexAttribArray(5);
+                            foreach (Entity entity in glmodels.Value)
+                            {
+                                Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
+                                _shadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.LightViewMatrix * cascade.getProjectionMatrix());
+
+                                GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+                            }
+                        }
+
                     }
                 }
             }

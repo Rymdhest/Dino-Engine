@@ -16,7 +16,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             List<int> indices = new List<int>();
             Vector3 cellSizeWorld = new Vector3((worldSize.X) / (grid.Resolution.X-1f), 1f, (worldSize.Y) / (grid.Resolution.Y-1f));
 
-            float uvScale = 0.1f;
+            float uvScale = 0.08f;
 
             for (int z = 0; z<grid.Resolution.Y; z++)
             {

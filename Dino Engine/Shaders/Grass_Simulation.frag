@@ -13,9 +13,9 @@ vec2 calcWind(vec2 uv) {
 
 	vec2 worldPos = uv*grassFieldSize;
 
-	x += 0.08f*(sin(worldPos.x*4.77f+time));
-	x += 0.05317f*(sin(worldPos.x*1.124f+time*2.412));
-	x += 0.0239973f*(sin(worldPos.x*0.2567f+time*7.328995));
+	x += 0.08f*(sin(worldPos.x*0.77f+time));
+	x += 0.05317f*(sin(worldPos.x*0.124f+time*2.412));
+	x += 0.0239973f*(sin(worldPos.x*0.02567f+time*7.328995));
 	float y =0;
 	return vec2(x, y)*delta;
 }

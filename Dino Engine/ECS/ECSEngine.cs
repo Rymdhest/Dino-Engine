@@ -36,6 +36,7 @@ namespace Dino_Engine.ECS
         {
             AddSystem<AllEntitySystem>();
             AddSystem<ModelRenderSystem>();
+            AddSystem<TerrainRenderSystem>();
             AddSystem<InstancedModelSystem>();
             AddSystem<DirectionalLightSystem>();
             AddSystem<SpotLightSystem>();
@@ -78,21 +79,21 @@ namespace Dino_Engine.ECS
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-1f, 1.5f, 3.9f);
             Colour colour = new Colour(1f, 1f, 0.95f, 35.0f);
-            colour = new Colour(1f, 0.7f, 0.6f, 40.0f);
+            colour = new Colour(1.0f, 0.9f, 0.8f, 20.0f);
             //colour = new Colour(0.1f, 0.2f, 1.0f, 35.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
-            sun.addComponent(new AmbientLightComponent(0.03f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 2, 4, 720));
+            sun.addComponent(new AmbientLightComponent(0.01f));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 4, 4, 720));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
-            Vector3 skyDirection = new Vector3(0.02f, 1f, 0.02f);
-            Colour skyColour = new Colour(SkyRenderer.SkyColour.Red, SkyRenderer.SkyColour.Green, SkyRenderer.SkyColour.Blue, 2.5f);
+            Vector3 skyDirection = new Vector3(0.0f, 1f, 0.0f);
+            Colour skyColour = new Colour(SkyRenderer.SkyColour.Red, SkyRenderer.SkyColour.Green, SkyRenderer.SkyColour.Blue, 1.5f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.6f));
-            //sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 1, 1, 720));
+            sky.addComponent(new AmbientLightComponent(0.4f));
+            //sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 1, 3, 720));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
             Engine.PerformanceMonitor.StatusReportDump();

@@ -44,38 +44,9 @@ namespace Dino_Engine.Modelling
             {
                 uvYs[i] = 0f;
             }
-
-
-            // Initialize the first frame (tangent, normal, bitangent)
-            Vector3 tangent = Vector3.Normalize(rings[1].pos - rings[0].pos); // First tangent
-            Vector3 normal = Vector3.Cross(tangent, Vector3.UnitY);   // Arbitrary initial normal
-            if (normal.Length < 0.001f) normal = Vector3.Cross(tangent, Vector3.UnitX); // Safe fallback
-            normal = Vector3.Normalize(normal);
-
-            Vector3 bitangent = Vector3.Cross(tangent, normal); // Initial bitangent
-
             for (int ring = 0; ring < curve.curvePoints.Count; ring++)
             {
-                // Update tangent for the current ring
-                Vector3 newTangent = ring == rings.Count - 1
-                    ? Vector3.Normalize(rings[ring].pos - rings[ring - 1].pos) // Use backward difference for the last point
-                    : Vector3.Normalize(rings[ring + 1].pos - rings[ring].pos); // Forward difference otherwise
-                if (flatStart && ring == 0) newTangent = Vector3.UnitY;
-                // Compute rotation quaternion to align the old tangent with the new tangent
-                if (Vector3.Dot(tangent, newTangent) < 0.9999f) // Only rotate if tangents are not nearly the same
-                {
-                    Vector3 axis = Vector3.Cross(tangent, newTangent);
-                    axis = Vector3.Normalize(axis);
-                    float angle = MathF.Acos(Vector3.Dot(tangent, newTangent));
 
-                    Quaternion rotation = Quaternion.FromAxisAngle(axis, angle);
-
-                    // Rotate normal and bitangent
-                    normal = Vector3.Transform(normal, rotation);
-                    bitangent = Vector3.Transform(bitangent, rotation);
-                }
-
-                tangent = newTangent; // Update tangent for next iteration
 
                 // Generate vertices for this ring
                 for (int detail = 0; detail < polygonsPerRing; detail++)
@@ -86,7 +57,7 @@ namespace Dino_Engine.Modelling
                     float theta = MathF.Tau * (detail / (float)polygonsPerRing);
 
                     // Compute offset using normal and bitangent
-                    Vector3 offset = normal * MathF.Cos(theta) * rings[ring].width + bitangent * MathF.Sin(theta) * rings[ring].width;
+                    Vector3 offset = rings[ring].normal * MathF.Cos(theta) * rings[ring].width + rings[ring].biTangent * MathF.Sin(theta) * rings[ring].width;
                     Vector3 p = rings[ring].pos + offset;
 
                     // UV Coordinates
@@ -619,7 +590,7 @@ namespace Dino_Engine.Modelling
         {
             return generatePlane(new Vector2(1f), new Vector2i(1, 1), material);
         }
-        public static Mesh generatePlane(Vector2 size, Vector2i resolution, Material material, bool centerOrigin = true)
+        public static Mesh generatePlane(Vector2 size, Vector2i resolution, Material material, bool centerX = true, bool centerY = true)
         {
             int numverticesX = resolution.X + 1;
             int numverticesY = resolution.Y + 1;
@@ -631,7 +602,7 @@ namespace Dino_Engine.Modelling
                 {
                     float xRatio = x / (float)resolution.X;
                     float yRatio = y / (float)resolution.Y;
-                    vertices.Add( new Vertex(new Vector3(xRatio*size.X, yRatio*size.Y, 0), material, new Vector2(xRatio, yRatio)));
+                    vertices.Add( new Vertex(new Vector3(xRatio*size.X, yRatio*size.Y, 0), material, new Vector2(1-xRatio, yRatio)));
                 }
             }
 
@@ -650,11 +621,14 @@ namespace Dino_Engine.Modelling
                 }
             }
             Mesh rawModel = new Mesh(vertices, indices);
-            if (centerOrigin)
+            if (centerX)
             {
-                rawModel.translate(new Vector3(-size.X/2f, -size.Y/2f, 0f));
+                rawModel.translate(new Vector3(-size.X/2f, 0f, 0f));
             }
-
+            if (centerY)
+            {
+                rawModel.translate(new Vector3(0f, -size.Y / 2f, 0f));
+            }
 
             return rawModel;
         }

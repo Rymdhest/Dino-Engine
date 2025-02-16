@@ -30,10 +30,8 @@ void main() {
 	vec4 normalTangentSpace = lookupNorma(fragUV, textureIndex);
 	normalTangentSpace.xyz =  (normalTangentSpace.xyz*2.0)-1.0;
 	gNormal.xyz = normalTangentSpace.xyz*normalTBN;
-	//gNormal.y *= -1.0;
 	gNormal.xyz = (gNormal.xyz+1.0)/2.0;
 
-	//gNormal.x = 1.0-gNormal.x;
 
 	gNormal.a = normalTangentSpace.a;
 

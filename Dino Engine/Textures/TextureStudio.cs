@@ -121,6 +121,9 @@ namespace Dino_Engine.Textures
             GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaMaterialModelTextureArray);
 
             GL.DrawElements(PrimitiveType.Triangles, model.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+            _textureStudioShader.unBind();
+            framBuffer.unbind();
+            GL.BindVertexArray(0);
             model.cleanUp();
 
             int albedo = framBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
