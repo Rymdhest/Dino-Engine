@@ -97,8 +97,8 @@ namespace Dino_Engine.Rendering
             gBufferSettings.drawBuffers.Add(gAlbedo);
 
             DrawBufferSettings gNormal = new DrawBufferSettings(FramebufferAttachment.ColorAttachment1);
-            gNormal.formatInternal = PixelInternalFormat.Rgba16f;
-            gNormal.pixelType = PixelType.Float;
+            gNormal.formatInternal = PixelInternalFormat.Rgba;
+            gNormal.pixelType = PixelType.UnsignedByte;
             gBufferSettings.drawBuffers.Add(gNormal);
 
             DrawBufferSettings gPosition = new DrawBufferSettings(FramebufferAttachment.ColorAttachment2);
@@ -107,7 +107,7 @@ namespace Dino_Engine.Rendering
             gBufferSettings.drawBuffers.Add(gPosition);
 
             DrawBufferSettings gMaterials = new DrawBufferSettings(FramebufferAttachment.ColorAttachment3);
-            gMaterials.formatInternal = PixelInternalFormat.Rgba16f;
+            gMaterials.formatInternal = PixelInternalFormat.Rgba;
             gMaterials.pixelType = PixelType.UnsignedByte;
             gBufferSettings.drawBuffers.Add(gMaterials);
 
@@ -201,7 +201,7 @@ namespace Dino_Engine.Rendering
             _pointLightRenderer.RenderPass(eCSEngine, this);
             _spotLightRenderer.RenderPass(eCSEngine, this);
 
-            _screenSpaceReflectionRenderer.RenderPass(eCSEngine, this);
+            //_screenSpaceReflectionRenderer.RenderPass(eCSEngine, this);
         }
         private void PostGeometryPass(ECSEngine eCSEngine)
         {
@@ -212,7 +212,7 @@ namespace Dino_Engine.Rendering
         {
             _sunRenderer.RenderPass(eCSEngine, this);
             _bloomRenderer.RenderPass(eCSEngine, this);
-            _fogRenderer.RenderPass(eCSEngine, this);
+            //_fogRenderer.RenderPass(eCSEngine, this);
             _toneMapRenderer.RenderPass(eCSEngine, this);
             //_depthOfFieldRenderer.RenderPass(eCSEngine, this);
             _fXAARenderer.RenderPass(eCSEngine, this);

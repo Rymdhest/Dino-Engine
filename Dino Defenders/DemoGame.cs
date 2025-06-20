@@ -179,26 +179,22 @@ namespace Dino_Defenders
         {
             eCSEngine.ClearAllEntitiesExcept(eCSEngine.Camera);
             eCSEngine.InitEntities();
-            spawnTerrain(eCSEngine);
+            //spawnTerrain(eCSEngine);
             //spawnCity(eCSEngine);
-            //spawnTestScene(eCSEngine);
+            spawnTestScene(eCSEngine);
             //spawnIndoorScene(eCSEngine);
         }
 
         private void spawnTestScene(ECSEngine eCSEngine)
         {
-            float floorSize = 100f;
-            Entity floorEntity = new Entity("floor");
-            Mesh floorMesh = MeshGenerator.generatePlane(new Material(new Colour(1.0f, 1.0f, 1.0f), Engine.RenderEngine.textureGenerator.bark));
-            floorMesh.rotate(new Vector3(-MathF.PI/2, 0f, 0f));
-            floorMesh.scaleUVs(new Vector2(8f, 8f));
-            floorMesh.scale(new Vector3(floorSize, 1f, floorSize));
-            floorEntity.addComponent(new ModelComponent(floorMesh));
-            floorEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(floorEntity);
-            
+
+            Vector2 terrainSize = new Vector2(200, 200);
+            TerrainGenerator generator = new TerrainGenerator();
+            generator.generateTerrainChunkEntity(-terrainSize/2.0f, terrainSize, 1.0f);
+
             Entity cubeEntity = new Entity("Cube");
-            Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.rock));
+            //Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.rock));
+            Mesh cubeMesh = TreeGenerator.GenerateLeaf();
             cubeEntity.addComponent(new ModelComponent(cubeMesh));
             cubeEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(-10, 5.5f, 0), new Vector3(0), new Vector3(10))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity);
@@ -264,9 +260,9 @@ namespace Dino_Defenders
             };
             controlPoints.Clear();
 
-            int n = 10;
-            float[] sinFBM = FBMmisc.sinFBM(5, 0.13f, n);
-            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.2f, n);
+            int n = 100;
+            float[] sinFBM = FBMmisc.sinFBM(5, 0.23f, n);
+            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.15f, n);
             float r = 2.0f;
             float h = 50f;
             for (int i = 0; i<n;i++)
@@ -285,7 +281,7 @@ namespace Dino_Defenders
 
             Curve3D curve = spline.GenerateCurve(1);
             curve.LERPWidth(1.3f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 5, Material.BARK, textureRepeats:1, flatStart: true);
+            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 11, Material.BARK, textureRepeats:1, flatStart: true);
 
             Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2,2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY:false);
             for (int i = 0; i <branch.meshVertices.Count; i++)
@@ -298,7 +294,7 @@ namespace Dino_Defenders
 
 
             Mesh branch2 = cylinderMesh.scaled(new Vector3(1.0f, 1f, 1.0f));
-            int nTwigs = 16;
+            int nTwigs = 40;
             for (int i = 0; i < nTwigs; i++)
             {
                 float t = 0.5f + 0.5f * (float)i / (nTwigs - 1);
@@ -309,7 +305,8 @@ namespace Dino_Defenders
                 newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
                 newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
-                newBranch.rotate(new Vector3(0f, i * MathF.Tau / 5f, 0f));
+                //newBranch.rotate(new Vector3(0f, i * MathF.Tau / 3f, 0f));
+                newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
                 newBranch.rotate(curvePoint.rotation);
                 newBranch.translate(curvePoint.pos);
                 branch2 += newBranch;
@@ -319,7 +316,7 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 24;
+            int nBranches = 15;
             for (int i = 0; i < nBranches; i++)
             {
                 float t = 0.3f+0.7f*(float)i/(nBranches - 1);
@@ -328,7 +325,7 @@ namespace Dino_Defenders
                 newBranch.rotate(new Vector3(.6f+t*0.2f, 0f, 0f));
                 newBranch.translate(new Vector3(0f, -curvePoint.width/2f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
-                newBranch.rotate(new Vector3(0f, i*MathF.Tau/5f+MyMath.rngMinusPlus(0.35f), 0f));
+                newBranch.rotate(new Vector3(0f, i*MathF.Tau/3f+MyMath.rngMinusPlus(MathF.Tau / 6f), 0f));
                 //newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
                 newBranch.rotate(curvePoint.rotation);
                 newBranch.translate(curvePoint.pos);
@@ -336,11 +333,14 @@ namespace Dino_Defenders
             }
 
             var _glModel = glLoader.loadToVAO(cylinderMesh);
-            for (int i = 0; i<2; i++)
+            for (int i = 0; i<50; i++)
             {
                 Entity entity2 = new Entity("tree test "+i);
+                Vector2 xz = MyMath.rng2D(terrainSize.X);
+                xz -= terrainSize/2.0f;
+                float y = generator.getHeightAt(xz);
                 entity2.addComponent(new ModelComponent(_glModel));
-                entity2.addComponent(new TransformationComponent(new Transformation(new Vector3(MyMath.rngMinusPlus(50), 0, MyMath.rngMinusPlus(50)), new Vector3(0, MyMath.rng(MathF.Tau), 0f), new Vector3(1.0f+ MyMath.rngMinusPlus(0.3f)))));
+                entity2.addComponent(new TransformationComponent(new Transformation(new Vector3(xz.X, y, xz.Y), new Vector3(0, MyMath.rng(MathF.Tau), 0f), new Vector3(1.0f+ MyMath.rngMinusPlus(0.3f)))));
                 eCSEngine.AddEnityToSystem<ModelRenderSystem>(entity2);
             }
 

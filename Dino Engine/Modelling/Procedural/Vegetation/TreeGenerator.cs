@@ -3,6 +3,7 @@
 using Dino_Engine.Core;
 using Dino_Engine.ECS;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Rendering;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
@@ -13,6 +14,31 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
         public Material trunkMaterial = new Material(new Colour(107, 84, 61), Engine.RenderEngine.textureGenerator.grain);
         public Material leafMaterial = new Material(new Colour(195, 231, 73), Engine.RenderEngine.textureGenerator.flat);
+
+
+        public static Mesh GenerateLeaf()
+        {
+            Material leafMaterial = new Material(new Colour(100, 170, 15), Engine.RenderEngine.textureGenerator.bark);
+
+            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(0.15f, 1f), new Vector2i(50, 50), leafMaterial);
+
+            for (int i = 0; i < leafMesh.meshVertices.Count; i++)
+            {
+                leafMesh.meshVertices[i].position.X *= 2f + MathF.Sin((leafMesh.meshVertices[i].position.Y + 0.25f) * MathF.Tau * 1.0f) * 0.99f;
+                //leafMesh.meshVertices[i].position.X += MathF.Sin(leafMesh.meshVertices[i].position.Y * MathF.Tau * 10f) * 0.005f;
+
+                leafMesh.meshVertices[i].position.Z += MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 20f) * 0.005f;
+
+
+                //leafMesh.meshVertices[i].position.Z = MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 15f) * 0.000005f;
+            }
+
+
+
+            leafMesh.rotate(new Vector3(0, 0f, 0f));
+
+            return leafMesh;
+        }
 
         public Mesh GenerateTree()
         {

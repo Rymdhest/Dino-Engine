@@ -168,7 +168,7 @@ void main() {
 	gl_Position =  vec4(VertexPositionGridSpace, 1.0)*modelViewProjectionMatrix;
 	positionViewSpace_pass =  (vec4(VertexPositionGridSpace, 1.0)*modelViewMatrix).xyz;
 	fragColor = color+color*vec3(hash23(gridPosition.xz))*colourError*2-colourError*color;
-	fragMaterials = vec3(0.8f, 0.0f, 0);
+	fragMaterials = vec3(0.95f, 0.0f, 0.0);
 	
 	vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
 	vec3 terrainNormal = texture(terrainNormalMap, textureCoordsVertex).xyz;

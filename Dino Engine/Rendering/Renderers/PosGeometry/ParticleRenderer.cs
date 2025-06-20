@@ -49,6 +49,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Enable(EnableCap.Blend);
+            GL.Disable(EnableCap.Blend);
 
             //GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);

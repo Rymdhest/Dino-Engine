@@ -31,31 +31,38 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3 fresnelSchlick(float cosTheta, vec3 F0);
 
 float calcShadow(vec3 positionViewSpace) {
-	
-	int cascadeToUse = -1;
-	for (int i = 0 ; i< numberOfCascades ; i++) {
-		if (length(positionViewSpace)*2 < cascadeProjectionSizes[i]) {
-			cascadeToUse = i;
-			break;
-		}
-	}
-	if (cascadeToUse == -1) return 0;
-	vec2 pixelSize = 1.0/resolution;
-	vec4 positionSunSpace = (vec4(positionViewSpace, 1.0))*sunSpaceMatrices[cascadeToUse];
-	positionSunSpace = positionSunSpace * vec4(0.5) + vec4(0.5);
+	float maxShadow = 0.0;
 
-	float shadowFactor = 0;
-	float totalWeight =0;
-	for (int x = -softLayers ; x <= softLayers ; x++) {
-		for (int y = -softLayers ; y <= softLayers ; y++) {
-			shadowFactor += 1.0-texture(shadowMaps[cascadeToUse], positionSunSpace.xyz+vec3(x*pixelSize.x, y*pixelSize.y, 0));
-			totalWeight += 1;
+	vec2 pixelSize = 1.0 / resolution;
+
+	for (int i = 0; i < numberOfCascades; i++) {
+		if (length(positionViewSpace) * 2.0 < cascadeProjectionSizes[i]) {
+			vec4 positionSunSpace = vec4(positionViewSpace, 1.0) * sunSpaceMatrices[i];
+			positionSunSpace = positionSunSpace * 0.5 + 0.5;
+
+			// Discard if outside texture bounds
+			if (any(lessThan(positionSunSpace.xyz, vec3(0.0))) ||
+			    any(greaterThan(positionSunSpace.xyz, vec3(1.0)))) {
+				continue;
+			}
+
+			float shadowFactor = 0.0;
+			float totalWeight = 0.0;
+			for (int x = -softLayers; x <= softLayers; x++) {
+				for (int y = -softLayers; y <= softLayers; y++) {
+					vec3 offset = vec3(x * pixelSize.x, y * pixelSize.y, 0);
+					float depth = texture(shadowMaps[i], positionSunSpace.xyz + offset);
+					shadowFactor += 1.0 - depth;
+					totalWeight += 1.0;
+				}
+			}
+			shadowFactor /= totalWeight;
+
+			maxShadow = max(maxShadow, shadowFactor);
 		}
 	}
-	
-	shadowFactor /= totalWeight;
-	//out_Colour =  vec4(vec3(clamp((-shadowDepth+positionSunSpace.z)*8f, 0f, 1f)), 1.0f);
-	return shadowFactor;
+
+	return maxShadow;
 }
 
 void main(void){

@@ -46,7 +46,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
             FloatGrid terrainGrid = generateChunk(worldPos, worldSize, resolution);
             Material grass = new Material(new Colour(255, 255, 255),Engine.RenderEngine.textureGenerator.grain);
-            grass = new Material(new Colour(105, 55, 55), Engine.RenderEngine.textureGenerator.grain);
+            grass = new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.grain);
             Mesh groundMesh = TerrainMeshGenerator.GridToMesh(terrainGrid, worldSize, grass,  out Vector3Grid terrainNormals);
             glModel groundModel = glLoader.loadToVAO(groundMesh);
 

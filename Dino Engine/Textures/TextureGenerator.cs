@@ -111,23 +111,8 @@ namespace Dino_Engine.Textures
 
             addAllPreparedTexturesToTexArray(true);
            
-            Material leafMaterial = new Material(new Colour(190, 70, 15), sand);
-
-            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(0.15f, 1f), new Vector2i(50, 50), leafMaterial);
-
-            for (int i = 0; i<leafMesh.meshVertices.Count; i++)
-            {
-                leafMesh.meshVertices[i].position.X *= 1f + MathF.Sin((leafMesh.meshVertices[i].position.Y+0.25f) * MathF.Tau *1.0f) * 0.99f;
-                leafMesh.meshVertices[i].position.X += MathF.Sin(leafMesh.meshVertices[i].position.Y * MathF.Tau * 10f) * 0.005f;
-
-
-                //leafMesh.meshVertices[i].position.Z = MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 15f) * 0.000005f;
-            }
-
            
-
-           leafMesh.rotate(new Vector3(0, 0f, 0f));
-           preparedTextures.Add(textureStudio.GenerateTextureFromMesh(leafMesh, fullStretch: true));
+           preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(), fullStretch: true));
            
           leaf = preparedTextures.Count - 1 + loadedMaterialTextures;
           addAllPreparedTexturesToTexArray(false);
@@ -336,7 +321,7 @@ namespace Dino_Engine.Textures
 
         private int createFlatGlowTexture()
         {
-            return FinishTexture(procTextGen.CreateMaterial(new Colour(255, 255, 255), new Vector3(1f, 0.1f, 0f)));
+            return FinishTexture(procTextGen.CreateMaterial(new Colour(255, 255, 255), new Vector3(1f, 0.02f, 0f)));
         }
 
         private int createFlatTexture()
@@ -490,12 +475,12 @@ namespace Dino_Engine.Textures
         }
         private int createSandDunesTexture()
         {
-            var sandDunes = procTextGen.PerlinFBM(new Vector2(4f, 6f), octaves: 3, amplitudePerOctave: 0.17f, rigged: true);
-            var noise = procTextGen.PerlinFBM(new Vector2(4f, 4f), octaves: 10, amplitudePerOctave: 0.8f);
+            var sandDunes = procTextGen.PerlinFBM(new Vector2(3f, 7f), octaves: 1, amplitudePerOctave: 0.17f, rigged: true);
+            var noise = procTextGen.PerlinFBM(new Vector2(2f, 2f), octaves: 10, amplitudePerOctave: 0.8f);
             var noiseLarge = procTextGen.PerlinFBM(new Vector2(22f, 22f), octaves: 2, amplitudePerOctave: 0.5f);
             sandDunes.setMaterial(new Colour(200, 170, 100), new Vector3(0.35f, 0f, 0f));
-            noiseLarge.setMaterial(new Colour(200, 175, 120), new Vector3(0.8f, 0f, 0f));
-            noise.setMaterial(new Colour(165, 140, 85), new Vector3(0.98f, 0f, 0f));
+            noiseLarge.setMaterial(new Colour(100, 75, 80), new Vector3(0.8f, 0f, 0f));
+            noise.setMaterial(new Colour(220, 190, 120), new Vector3(0.98f, 0f, 0f));
 
             MaterialLayersCombiner.combine(sandDunes, noise, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Mix, weight: 0.2f, smoothness: 0.9f);
 
