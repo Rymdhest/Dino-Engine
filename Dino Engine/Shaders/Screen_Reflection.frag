@@ -1,16 +1,20 @@
 #version 330
+#include gBufferUtil.glsl
 
 layout (location = 0) out vec4 out_Colour;
 
 in vec2 textureCoords;
 
-uniform sampler2D gPosition;
+uniform sampler2D gDepth;
 uniform sampler2D gNormal;
 uniform sampler2D gMaterials;
 uniform sampler2D shadedColor;
 
 uniform vec3 skyColor;
 uniform mat4 projectionMatrix;
+
+uniform mat4 invProjection;
+uniform vec2 resolution;
 
 uniform float rayStep;
 uniform int iterationCount;
@@ -40,7 +44,7 @@ vec3 SSR(vec3 position, vec3 reflection) {
 
 	for (; i < iterationCount; i++) {
 		screenPosition = generateProjectedPosition(marchingPosition);
-		depthFromScreen = -(texture(gPosition, screenPosition).z);
+		depthFromScreen = -ReconstructViewSpacePosition(screenPosition*resolution, texture(gDepth, screenPosition).r, invProjection, resolution).z;
 		delta = abs(marchingPosition.z) - depthFromScreen;
 		if (abs(delta) < distanceBias) {
 			vec3 color = vec3(1);
@@ -61,7 +65,7 @@ vec3 SSR(vec3 position, vec3 reflection) {
 			marchingPosition = marchingPosition - step * sign(delta);
 			
 			screenPosition = generateProjectedPosition(marchingPosition);
-			depthFromScreen = -(texture(gPosition, screenPosition).z);
+			depthFromScreen = -ReconstructViewSpacePosition(screenPosition*resolution, texture(gDepth, screenPosition).r, invProjection, resolution).z;
 			delta = -(marchingPosition.z) - depthFromScreen;
 			
 			if (abs(delta) < distanceBias) {
@@ -77,7 +81,7 @@ vec3 SSR(vec3 position, vec3 reflection) {
 }
 
 void main(){
-	vec3 position = texture(gPosition, textureCoords).xyz;
+	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjection, resolution);
 	vec3 normal =  texture(gNormal, textureCoords).xyz;
 	float rougness = texture(gMaterials, textureCoords).r*0.5f;
 	float metallic = texture(gMaterials, textureCoords).b;

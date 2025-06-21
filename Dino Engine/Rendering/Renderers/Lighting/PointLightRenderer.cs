@@ -22,8 +22,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             pointLightShader.bind();
             pointLightShader.loadUniformInt("gAlbedo", 0);
             pointLightShader.loadUniformInt("gNormal", 1);
-            pointLightShader.loadUniformInt("gPosition", 2);
-            pointLightShader.loadUniformInt("gMaterials", 3);
+            pointLightShader.loadUniformInt("gMaterials", 2);
+            pointLightShader.loadUniformInt("gDepth", 3);
             pointLightShader.unBind();
         }
 
@@ -38,6 +38,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             pointLightShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
             pointLightShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
+            pointLightShader.loadUniformMatrix4f("invProjection", Matrix4.Invert( projectionMatrix));
             pointLightShader.loadUniformVector2f("resolution", Engine.Resolution);
 
             foreach (Entity entity in eCSEngine.getSystem<PointLightSystem>().MemberEntities)
@@ -84,7 +85,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ActiveTexture(TextureUnit.Texture2);
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
             ActiveTexture(TextureUnit.Texture3);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
+            BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
         }
 
         internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)

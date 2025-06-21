@@ -84,7 +84,7 @@ namespace Dino_Engine.ECS
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.015f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 4, 2, 1000));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 4, 1, 1000));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");

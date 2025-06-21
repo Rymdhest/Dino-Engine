@@ -14,15 +14,15 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private ShaderProgram ScreenSpaceReflectionShader = new ShaderProgram("Simple.vert", "Screen_Reflection.frag");
         private ShaderProgram combineReflectionShader = new ShaderProgram("Simple.vert", "Combine_Reflection.frag");
         private FrameBuffer _reflectionFramebuffer;
-        private int _downscalingFactor = 1;
+        private int _downscalingFactor = 2;
 
         public ScreenSpaceReflectionRenderer()
         {
             ScreenSpaceReflectionShader.bind();
             ScreenSpaceReflectionShader.loadUniformInt("shadedColor", 0);
             ScreenSpaceReflectionShader.loadUniformInt("gNormal", 1);
-            ScreenSpaceReflectionShader.loadUniformInt("gPosition", 2);
-            ScreenSpaceReflectionShader.loadUniformInt("gMaterials", 3);
+            ScreenSpaceReflectionShader.loadUniformInt("gMaterials", 2);
+            ScreenSpaceReflectionShader.loadUniformInt("gDepth", 3);
             ScreenSpaceReflectionShader.unBind();
 
             combineReflectionShader.bind();
@@ -33,7 +33,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             FrameBufferSettings settings = new FrameBufferSettings(Engine.Resolution / _downscalingFactor);
             DrawBufferSettings drawSettings = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            drawSettings.formatInternal = PixelInternalFormat.Rgba16f;
+            drawSettings.formatInternal = PixelInternalFormat.Rgba16f; // need to be HDR for lighting
             drawSettings.pixelType = PixelType.Float;
             drawSettings.wrapMode = TextureWrapMode.ClampToEdge;
             drawSettings.minFilterType = TextureMinFilter.Linear;
@@ -68,13 +68,15 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ActiveTexture(TextureUnit.Texture2);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
             GL.ActiveTexture(TextureUnit.Texture3);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
 
 
             ScreenSpaceReflectionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
+            ScreenSpaceReflectionShader.loadUniformMatrix4f("invProjection", Matrix4.Invert(projectionMatrix));
+            ScreenSpaceReflectionShader.loadUniformVector2f("resolution", _reflectionFramebuffer.getResolution());
             ScreenSpaceReflectionShader.loadUniformVector3f("skyColor", SkyRenderer.SkyColour.ToVector3());
-            ScreenSpaceReflectionShader.loadUniformFloat("rayStep", 3.3f);
+            ScreenSpaceReflectionShader.loadUniformFloat("rayStep", 2.3f);
             ScreenSpaceReflectionShader.loadUniformInt("iterationCount", 25);
             ScreenSpaceReflectionShader.loadUniformInt("binaryIterationCount", 40);
             ScreenSpaceReflectionShader.loadUniformFloat("distanceBias", 0.00002f);
@@ -95,7 +97,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gaussianBlurRenderer.GetLastResultTexture());
             GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
 
             renderer.RenderToNextFrameBuffer();
         }

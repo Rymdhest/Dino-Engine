@@ -1,4 +1,6 @@
-﻿using System;
+﻿
+using OpenTK.Graphics.OpenGL;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,8 +10,9 @@ namespace Dino_Engine.Rendering
 {
     public class DepthAttachmentSettings
     {
-        public Boolean isTexture = false;
-        public Boolean isShadowDepthTexture = false;
+        public bool isTexture = false;
+        public bool isShadowDepthTexture = false;
+        public PixelInternalFormat precision = PixelInternalFormat.DepthComponent16;
         public DepthAttachmentSettings() {
         }
     }

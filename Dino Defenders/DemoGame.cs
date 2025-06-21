@@ -656,7 +656,7 @@ namespace Dino_Defenders
             roundTable.addComponent(new ModelComponent(FurnitureGenerator.GenerateRoundTable(out float roundTableSurfaceHeight))); ;
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(roundTable);
 
-            Entity candle2 = new Entity("candle");
+            Entity candle2 = new Entity("candle2");
             candle2.addComponent(new TransformationComponent(new Transformation(new Vector3(0.2f, roundTableSurfaceHeight, -0.2f), new Vector3(0f, 0f, 0f), new Vector3(1))));
             candle2.addComponent(new ModelComponent(FurnitureGenerator.GenerateCandle(out Vector3 candleLightPosition2)));
             candle2.addComponent(new ChildComponent(roundTable));
@@ -707,12 +707,6 @@ namespace Dino_Defenders
             spotLight.addComponent(new ColourComponent(new Colour(1f, 0.7f, 0.5f, 1f)));
             eCSEngine.AddEnityToSystem<SpotLightSystem>(spotLight);
 
-            Entity pointLight = new Entity("pointLight");
-            pointLight.addComponent(new TransformationComponent(new Transformation(lightPosition, lightDirection, new Vector3(1))));
-            pointLight.addComponent(new ChildComponent(lamp));
-            pointLight.addComponent(new AttunuationComponent(0.006f, 0.006f, 0.006f));
-            pointLight.addComponent(new ColourComponent(new Colour(1f, 0.3f, 0.5f, 0.3f)));
-            eCSEngine.AddEnityToSystem<PointLightSystem>(pointLight);
 
             Entity ceilingLight = new Entity("ceilingLight");
             ceilingLight.addComponent(new TransformationComponent(new Transformation(new Vector3(0, roomSize.Y-wallThickness*roomSize.Y*2, 0), new Vector3(0), new Vector3(1))));
@@ -720,7 +714,6 @@ namespace Dino_Defenders
             ceilingLight.addComponent(new AttunuationComponent(0.0008f, 0.0008f, 0.0008f));
             ceilingLight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
             ceilingLight.addComponent(new ChildComponent(house));
-            //eCSEngine.AddEnityToSystem<PointLightSystem>(ceilingLight);
             eCSEngine.AddEnityToSystem<SpotLightSystem>(ceilingLight);
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(ceilingLight);
 
@@ -764,7 +757,7 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(crossRoad);
 
             int nr = 0;
-            for (int i = 2; i < 13; i++)
+            for (int i = 2; i < 0; i++)
             {
                 for (int j = 0; j < streetGenerator.lanes; j++)
                 {

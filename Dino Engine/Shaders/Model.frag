@@ -3,7 +3,6 @@
 
 in vec3 fragColor;
 in vec2 fragUV;
-in vec3 positionViewSpace_pass;
 in vec3 TangentViewPos;
 in vec3 TangentFragPos;
 in mat3 normalTBN;
@@ -24,8 +23,7 @@ uniform sampler2DArray materialMapModelTextureArray;
 
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gNormal;
-layout (location = 2) out vec4 gPosition;
-layout (location = 3) out vec4 gMaterials;  
+layout (location = 2) out vec4 gMaterials;  
 
 #include textureUtil.glsl
 #include procedural/fastHash.glsl
@@ -88,7 +86,6 @@ void main() {
 	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex);
 	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;
 	gNormal.xyz = normalTangentSpace.xyz*normalTBN;
-	gPosition = vec4(positionViewSpace_pass, 0.0f);
 
 	gNormal.a = normalTangentSpace.a;
 

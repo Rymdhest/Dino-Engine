@@ -99,14 +99,14 @@ namespace Dino_Engine.Rendering
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, renderSettings.colorAttachment, TextureTarget.Texture2D, attachment, 0);
             return attachment;
         }
-            private int createDepthAttachment(DepthAttachmentSettings depthSettings, Vector2i resolution)
+        private int createDepthAttachment(DepthAttachmentSettings depthSettings, Vector2i resolution)
         {
             int attachment;
             if (depthSettings.isTexture)
             {
                 attachment = GL.GenTexture();
                 GL.BindTexture(TextureTarget.Texture2D, attachment);
-                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent32, resolution.X, resolution.Y, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+                GL.TexImage2D(TextureTarget.Texture2D, 0, depthSettings.precision, resolution.X, resolution.Y, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (float)TextureMagFilter.Linear);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (float)TextureMinFilter.Linear);
                 GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (float)TextureWrapMode.ClampToBorder);
@@ -128,7 +128,7 @@ namespace Dino_Engine.Rendering
             {
                 attachment = GL.GenRenderbuffer();
                 GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, attachment);
-                GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.DepthComponent32, resolution.X, resolution.Y);
+                GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.DepthComponent16, resolution.X, resolution.Y);
                 GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, RenderbufferTarget.Renderbuffer, attachment);
 
             }

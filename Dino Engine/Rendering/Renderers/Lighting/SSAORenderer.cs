@@ -27,7 +27,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformInt("texNoise", 0);
             ambientOcclusionShader.loadUniformInt("gNormal", 1);
-            ambientOcclusionShader.loadUniformInt("gPosition", 2);
+            ambientOcclusionShader.loadUniformInt("gDepth", 3);
             ambientOcclusionShader.unBind();
 
             kernelSamples = new Vector3[kernelSize];
@@ -79,16 +79,19 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", 0.1f);
-            ambientOcclusionShader.loadUniformFloat("strength", 0.8f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.15f);
+            ambientOcclusionShader.loadUniformFloat("radius", 0.025f);
+            ambientOcclusionShader.loadUniformFloat("strength", 1.0f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.01f);
+
+            ambientOcclusionShader.loadUniformVector2f("resolution", resolution);
+            ambientOcclusionShader.loadUniformMatrix4f("invProjection", Matrix4.Invert(projectionMatrix));
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, noiseTexture);
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
+            GL.ActiveTexture(TextureUnit.Texture3);
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
             renderEngine.ScreenQuadRenderer.RenderToNextFrameBuffer();
 
@@ -105,12 +108,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ColorMask(0, false, false, false, false);
             GL.ColorMask(1, false, false, false, true);
             GL.ColorMask(2, false, false, false, false);
-            GL.ColorMask(3, false, false, false, false);
+            //GL.ColorMask(3, false, false, false, false);
             renderEngine.ScreenQuadRenderer.Render(blend:true);
             GL.ColorMask(0, true, true, true, true);
             GL.ColorMask(1, true, true, true, true);
             GL.ColorMask(2, true, true, true, true);
-            GL.ColorMask(3, true, true, true, true);
+            ///GL.ColorMask(3, true, true, true, true);
             ambientOcclusionBlurShader.unBind();
         }
 

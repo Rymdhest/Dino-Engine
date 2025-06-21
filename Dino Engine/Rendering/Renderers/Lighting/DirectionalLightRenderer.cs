@@ -20,8 +20,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _directionalLightShader.bind();
             _directionalLightShader.loadUniformInt("gAlbedo", 0);
             _directionalLightShader.loadUniformInt("gNormal", 1);
-            _directionalLightShader.loadUniformInt("gPosition", 2);
-            _directionalLightShader.loadUniformInt("gMaterials", 3);
+            _directionalLightShader.loadUniformInt("gMaterials", 2);
+            _directionalLightShader.loadUniformInt("gDepth", 3);
             _directionalLightShader.unBind();
         }
         internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
@@ -36,12 +36,15 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             ActiveTexture(TextureUnit.Texture0);
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
+
             ActiveTexture(TextureUnit.Texture1);
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
+
             ActiveTexture(TextureUnit.Texture2);
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
+
             ActiveTexture(TextureUnit.Texture3);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
+            BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
         }
         internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
@@ -51,7 +54,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
             Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
-
+            Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
 
             foreach (Entity entity in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {
@@ -95,6 +98,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 _directionalLightShader.loadUniformVector3f("lightColour", lightColour);
                 _directionalLightShader.loadUniformFloat("ambientFactor", ambientFactor);
                 _directionalLightShader.loadUniformVector2f("resolution", Engine.Resolution);
+                _directionalLightShader.loadUniformMatrix4f("invProjection", Matrix4.Invert(projectionMatrix));
 
                 renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
             }

@@ -30,7 +30,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
-            GL.Disable(EnableCap.CullFace);
+            //GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();  

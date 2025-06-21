@@ -7,7 +7,6 @@ layout(location=1) in vec3 color;
 layout(location=2) in vec3 normal;
 
 out vec3 fragColor;
-out vec3 positionViewSpace_pass;
 out vec3 fragMaterials;
 out vec3 fragNormal;
 out float valid;
@@ -166,7 +165,6 @@ void main() {
 
 
 	gl_Position =  vec4(VertexPositionGridSpace, 1.0)*modelViewProjectionMatrix;
-	positionViewSpace_pass =  (vec4(VertexPositionGridSpace, 1.0)*modelViewMatrix).xyz;
 	fragColor = color+color*vec3(hash23(gridPosition.xz))*colourError*2-colourError*color;
 	fragMaterials = vec3(0.95f, 0.0f, 0.0);
 	

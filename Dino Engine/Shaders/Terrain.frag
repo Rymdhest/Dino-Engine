@@ -29,8 +29,7 @@ uniform sampler2DArray materialMapModelTextureArray;
 
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gNormal;
-layout (location = 2) out vec4 gPosition;
-layout (location = 3) out vec4 gMaterials;  
+layout (location = 2) out vec4 gMaterials;  
 
 #include textureUtil.glsl
 #include procedural/fastHash.glsl
@@ -71,7 +70,6 @@ vec2 ParallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, float textureIndex)
 void main() {
 
 	vec3 viewDir   = normalize((TangentViewPos - TangentFragPos)*vec3(1.0, 1.0, 1.0));
-    //vec2 parallaxedCoords = fragUV;
     
 
 
@@ -101,7 +99,6 @@ void main() {
 	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex);
 	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;
 	gNormal.xyz = normalTangentSpace.xyz*normalTBN;
-	gPosition = vec4(positionViewSpace_pass, 0.0f);
 
 	gNormal.a = normalTangentSpace.a;
 

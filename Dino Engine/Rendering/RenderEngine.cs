@@ -92,22 +92,17 @@ namespace Dino_Engine.Rendering
         {
             FrameBufferSettings gBufferSettings = new FrameBufferSettings(Engine.Resolution);
             DrawBufferSettings gAlbedo = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
-            gAlbedo.formatInternal = PixelInternalFormat.Rgba16f;
-            gAlbedo.pixelType = PixelType.Float;
+            gAlbedo.formatInternal = PixelInternalFormat.Rgba8;
+            gAlbedo.pixelType = PixelType.UnsignedByte;
             gBufferSettings.drawBuffers.Add(gAlbedo);
 
             DrawBufferSettings gNormal = new DrawBufferSettings(FramebufferAttachment.ColorAttachment1);
-            gNormal.formatInternal = PixelInternalFormat.Rgba;
-            gNormal.pixelType = PixelType.UnsignedByte;
+            gNormal.formatInternal = PixelInternalFormat.Rgba16f;
+            gNormal.pixelType = PixelType.Float;
             gBufferSettings.drawBuffers.Add(gNormal);
 
-            DrawBufferSettings gPosition = new DrawBufferSettings(FramebufferAttachment.ColorAttachment2);
-            gPosition.formatInternal = PixelInternalFormat.Rgba16f;
-            gPosition.pixelType = PixelType.Float;
-            gBufferSettings.drawBuffers.Add(gPosition);
-
-            DrawBufferSettings gMaterials = new DrawBufferSettings(FramebufferAttachment.ColorAttachment3);
-            gMaterials.formatInternal = PixelInternalFormat.Rgba;
+            DrawBufferSettings gMaterials = new DrawBufferSettings(FramebufferAttachment.ColorAttachment2);
+            gMaterials.formatInternal = PixelInternalFormat.Rgba8;
             gMaterials.pixelType = PixelType.UnsignedByte;
             gBufferSettings.drawBuffers.Add(gMaterials);
 
@@ -201,7 +196,7 @@ namespace Dino_Engine.Rendering
             _pointLightRenderer.RenderPass(eCSEngine, this);
             _spotLightRenderer.RenderPass(eCSEngine, this);
 
-            //_screenSpaceReflectionRenderer.RenderPass(eCSEngine, this);
+            _screenSpaceReflectionRenderer.RenderPass(eCSEngine, this);
         }
         private void PostGeometryPass(ECSEngine eCSEngine)
         {

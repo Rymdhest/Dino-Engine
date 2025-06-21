@@ -16,11 +16,10 @@ void main(void)
     float height = texture(heightMap, textureCoords).a;
     float dx = (heightR - heightL);
     float dy = (heightU - heightD);
-
-    normal.xyz = vec3(-dx, -dy, normalFlatness);
-    normal.y *= -1;
-    normal.xyz = normalize(normal.xyz);
-    normal.rgb = normal.rgb*0.5f+0.5f;
+    vec3 normalTemp = vec3(-dx, -dy, normalFlatness);
+    normalTemp.y *= -1;
+    normalTemp = normalize(normalTemp);
+    normal.rgb = normalTemp*0.5f+0.5f;
 
 
     normal.a = 0.2f+height*0.8f;

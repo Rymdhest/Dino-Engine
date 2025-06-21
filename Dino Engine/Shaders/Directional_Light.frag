@@ -1,9 +1,10 @@
 #version 330
 
+#include gBufferUtil.glsl
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
-uniform sampler2D gPosition;
+uniform sampler2D gDepth;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedo;
 uniform sampler2D gMaterials;
@@ -21,6 +22,7 @@ uniform sampler2DShadow shadowMaps[5];
 uniform vec2 shadowMapResolutions[5];
 uniform float cascadeProjectionSizes[5];
 
+uniform mat4 invProjection;
 
 int softLayers = 1;
 
@@ -66,7 +68,7 @@ float calcShadow(vec3 positionViewSpace) {
 }
 
 void main(void){
-	vec3 position = texture(gPosition, textureCoords).xyz;
+	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjection, resolution);
 	vec3 normal = texture(gNormal, textureCoords).xyz;
 	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
 	

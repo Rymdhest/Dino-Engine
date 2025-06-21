@@ -34,7 +34,7 @@ namespace Dino_Engine.Textures
         public int loadedModelTextures = 0;
         public int loadedMaterialTextures = 0;
 
-        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(1024, 1024)*1;
+        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(1024, 1024)/2;
 
 
         public int flat;
@@ -65,6 +65,7 @@ namespace Dino_Engine.Textures
         public int copper;
         public int crystal;
         public int rustyMetal;
+        public int mirror;
 
         public int leaf;
         public int leafBranch;
@@ -108,6 +109,7 @@ namespace Dino_Engine.Textures
             brick = brickTexture();
             crackedLava = createCrackedLAva();
             rock = createRock();
+            mirror = createMirrorTexture();
 
             addAllPreparedTexturesToTexArray(true);
            
@@ -321,7 +323,11 @@ namespace Dino_Engine.Textures
 
         private int createFlatGlowTexture()
         {
-            return FinishTexture(procTextGen.CreateMaterial(new Colour(255, 255, 255), new Vector3(1f, 0.02f, 0f)));
+            return FinishTexture(procTextGen.CreateMaterial(new Colour(255, 255, 255), new Vector3(1f, 1.0f, 0f)));
+        }
+        private int createMirrorTexture()
+        {
+            return FinishTexture(procTextGen.CreateMaterial(new Colour(55, 255, 255), new Vector3(0.3f, 0.0f, 1.0f)));
         }
 
         private int createFlatTexture()
@@ -478,9 +484,9 @@ namespace Dino_Engine.Textures
             var sandDunes = procTextGen.PerlinFBM(new Vector2(3f, 7f), octaves: 1, amplitudePerOctave: 0.17f, rigged: true);
             var noise = procTextGen.PerlinFBM(new Vector2(2f, 2f), octaves: 10, amplitudePerOctave: 0.8f);
             var noiseLarge = procTextGen.PerlinFBM(new Vector2(22f, 22f), octaves: 2, amplitudePerOctave: 0.5f);
-            sandDunes.setMaterial(new Colour(200, 170, 100), new Vector3(0.35f, 0f, 0f));
-            noiseLarge.setMaterial(new Colour(100, 75, 80), new Vector3(0.8f, 0f, 0f));
-            noise.setMaterial(new Colour(220, 190, 120), new Vector3(0.98f, 0f, 0f));
+            sandDunes.setMaterial(new Colour(200, 170, 100), new Vector3(0.35f, 0f, 1f));
+            noiseLarge.setMaterial(new Colour(100, 75, 80), new Vector3(0.8f, 0f, 1f));
+            noise.setMaterial(new Colour(220, 190, 120), new Vector3(0.98f, 0f, 1f));
 
             MaterialLayersCombiner.combine(sandDunes, noise, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Mix, weight: 0.2f, smoothness: 0.9f);
 

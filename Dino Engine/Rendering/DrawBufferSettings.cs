@@ -3,9 +3,9 @@ namespace Dino_Engine.Rendering
 {
     public class DrawBufferSettings
     {
-        public PixelInternalFormat formatInternal = PixelInternalFormat.Rgba16f;
+        public PixelInternalFormat formatInternal = PixelInternalFormat.Rgba8;
         public PixelFormat formatExternal = PixelFormat.Rgba;
-        public PixelType pixelType = PixelType.Float;
+        public PixelType pixelType = PixelType.UnsignedByte;
         public FramebufferAttachment colorAttachment;
         public TextureMinFilter minFilterType = TextureMinFilter.Linear;
         public TextureMagFilter magFilterType = TextureMagFilter.Linear;

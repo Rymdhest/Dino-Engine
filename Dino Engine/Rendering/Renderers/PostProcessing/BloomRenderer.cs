@@ -68,7 +68,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(3));
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
             GL.ActiveTexture(TextureUnit.Texture2);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
             renderer.RenderToNextFrameBuffer();

@@ -1,7 +1,10 @@
 #version 330
+
+#include gBufferUtil.glsl
+
 layout (location = 0) out vec4 out_Colour;
 
-uniform sampler2D gPosition;
+uniform sampler2D gDepth;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedo;
 uniform sampler2D gMaterials;
@@ -11,6 +14,7 @@ uniform vec3 lightColor;
 uniform vec3 attenuation;
 
 uniform vec2 resolution;
+uniform mat4 invProjection;
 
 
 const float PI = 3.14159265359;
@@ -22,7 +26,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0);
 
 void main(void){
     vec2 textureCoords = gl_FragCoord.xy / resolution;
-	vec3 position = texture(gPosition, textureCoords).xyz;
+	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjection, resolution);
 	vec3 normal = texture(gNormal, textureCoords).xyz;
 	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
 	

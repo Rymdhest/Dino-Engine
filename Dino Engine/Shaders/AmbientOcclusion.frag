@@ -1,8 +1,11 @@
 #version 330
+
+#include gBufferUtil.glsl
+
 out vec3 FragColor;
 in vec2 textureCoords;
 
-uniform sampler2D gPosition;
+uniform sampler2D gDepth;
 uniform sampler2D gNormal;
 uniform sampler2D texNoise;
 
@@ -13,6 +16,10 @@ uniform float radius;
 uniform float strength;
 uniform float bias;
 
+
+uniform mat4 invProjection;
+uniform vec2 resolution;
+
 const float noiseSize = 4.0;
 uniform vec2 noiseScale;
 
@@ -22,15 +29,15 @@ uniform mat4 projectionMatrix;
 void main()
 {
     // Get input for SSAO algorithm
-    vec3 fragPos = texture(gPosition, textureCoords).xyz;
+    vec3 fragPos = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjection, resolution);
     vec3 normal = texture(gNormal, textureCoords).rgb;
 	//normal = normalize(normal);
    vec3 randomVec = texture(texNoise, textureCoords*noiseScale).xyz;
    //vec3 randomVec = vec3(1.0, 1.0, 0.0);
     //randomVec = vec3(1, 1, 0);
-   float depthScaledRadius = radius+clamp(-fragPos.z*0.1f, 0, 200000);
-   float depthScaledStrength = strength+clamp(-fragPos.z*0.01f, 0, 8);
-   float depthScaledBias = bias + bias*-fragPos.z*0.75f;
+   float depthScaledRadius = radius*-fragPos.z;
+   float depthScaledStrength = strength;
+   float depthScaledBias = bias*-fragPos.z;
     // Create TBN change-of-basis matrix: from tangent-space to view-space
     vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
     vec3 bitangent = cross(normal, tangent);
@@ -38,7 +45,7 @@ void main()
     // Iterate over the sample kernel and calculate occlusion factor
     float occlusion = 0.0;
     for(int i = 0; i < kernelSize; ++i)
-    {
+    {   
         // get sample position
         vec3 sample = TBN * samples[i]; // From tangent to view-space
         sample = fragPos + sample * depthScaledRadius; 
@@ -50,11 +57,10 @@ void main()
         offset.xyz = offset.xyz * 0.5 + 0.5; // transform to range 0.0 - 1.0
         
         // get sample depth
-        float sampleDepth =texture(gPosition, offset.xy).z; // Get depth value of kernel sample
+        float sampleDepth =ReconstructViewSpacePosition(offset.xy * resolution, texture(gDepth, offset.xy).r, invProjection, resolution).z;
         
         // range check & accumulate
         float rangeCheck = smoothstep(0.0, 1.0, depthScaledRadius / abs(fragPos.z - sampleDepth ));
-	  //float rangeCheck = abs(fragPos.z - sampleDepth) < radius ? 1.0 : 0.0;
         
         occlusion += (sampleDepth >= sample.z + depthScaledBias ? 1.0 : 0.0)*rangeCheck;
     }
