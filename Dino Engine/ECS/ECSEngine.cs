@@ -79,21 +79,21 @@ namespace Dino_Engine.ECS
             Entity sun = new Entity("Sun");
             Vector3 direction = new Vector3(-1f, 1.5f, 3.9f);
             Colour colour = new Colour(1f, 1f, 0.95f, 25.0f);
-            colour = new Colour(1.0f, 0.9f, 0.9f, 15.0f);
-            //colour = new Colour(0.1f, 0.2f, 1.0f, 35.0f);
+            colour = new Colour(1.0f, 1.0f, 1.0f, 25.0f);
+            //colour = new Colour(0.1f, 0.2f, 1.0f 35.0f);
             sun.addComponent(new ColourComponent(colour));
             sun.addComponent(new DirectionComponent(direction));
             sun.addComponent(new AmbientLightComponent(0.015f));
-            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 4, 1, 1000));
+            sun.addComponent(new CascadingShadowComponent(new Vector2i(1024, 1024) * 3, 4, 1000));
             AddEnityToSystem<DirectionalLightSystem>(sun);
 
             Entity sky = new Entity("Sky");
             Vector3 skyDirection = new Vector3(0.0f, 1f, 0.0f);
-            Colour skyColour = new Colour(SkyRenderer.SkyColour.Red, SkyRenderer.SkyColour.Green, SkyRenderer.SkyColour.Blue, .90f);
+            Colour skyColour = new Colour(SkyRenderer.SkyColour.Red, SkyRenderer.SkyColour.Green, SkyRenderer.SkyColour.Blue, .80f);
             sky.addComponent(new ColourComponent(skyColour));
             sky.addComponent(new DirectionComponent(skyDirection));
-            sky.addComponent(new AmbientLightComponent(0.9f));
-            //sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 1, 3, 720));
+            sky.addComponent(new AmbientLightComponent(0.6f));
+            sky.addComponent(new CascadingShadowComponent(new Vector2i(512, 512) * 1, 3, 720));
             AddEnityToSystem<DirectionalLightSystem>(sky);
 
             Engine.PerformanceMonitor.StatusReportDump();

@@ -21,8 +21,8 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             Material windowMaterial = new Material(new Colour(25, 36, 89, 1.0f), 3);
             Material detailMaterial = new Material(new Colour(110, 110, 110, 1.0f), 0);
             Material rubberMaterial = new Material(new Colour(10, 10, 10, 1.0f), 0);
-            Material redLightMaterial = new Material(new Colour(230, 25, 25, 1.0f), 0);
-            Material frontLightMaterial = new Material(new Colour(230, 230, 230, 1.0f), 0);
+            Material redLightMaterial = new Material(new Colour(230, 25, 25, 1.0f), Material.GLOW.materialIndex);
+            Material frontLightMaterial = new Material(new Colour(230, 230, 230, 1.0f), Material.GLOW.materialIndex);
 
             float w = 1.0f;
             float h = 1.0f;

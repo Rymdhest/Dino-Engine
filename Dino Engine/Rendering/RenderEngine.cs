@@ -8,6 +8,7 @@ using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Textures;
 using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System;
@@ -20,6 +21,8 @@ namespace Dino_Engine.Rendering
         private List<Renderer> _renderers = new List<Renderer>();
         
         private FrameBuffer _gBuffer;
+
+        private DualBuffer _dualBufferFull;
 
         private ScreenQuadRenderer _screenQuadRenderer;
         private ModelRenderer _modelRenderer;
@@ -45,6 +48,8 @@ namespace Dino_Engine.Rendering
         public bool debugView = false;
         private ShaderProgram _simpleShader;
 
+        public DualBuffer lastUsedBuffer;
+
         public TextureGenerator textureGenerator = new TextureGenerator();
 
         public GaussianBlurRenderer GaussianBlurRenderer { get => _gaussianBlurRenderer;  }
@@ -62,9 +67,21 @@ namespace Dino_Engine.Rendering
             _simpleShader.unBind();
         }
 
-        public void InitRenderers()
+        public void InitRenderers(Vector2i resolution)
         {
             _screenQuadRenderer = new ScreenQuadRenderer();
+
+            FrameBufferSettings frameBufferSettings = new FrameBufferSettings(resolution);
+            DrawBufferSettings drawBufferSettings = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
+            drawBufferSettings.pixelType = PixelType.Float;
+            drawBufferSettings.formatInternal = PixelInternalFormat.Rgba16f;
+            frameBufferSettings.drawBuffers.Add(drawBufferSettings);
+            DepthAttachmentSettings depthSettings = new DepthAttachmentSettings();
+            depthSettings.isTexture = true;
+            frameBufferSettings.depthAttachmentSettings = depthSettings;
+            _dualBufferFull = new DualBuffer(frameBufferSettings);
+            lastUsedBuffer = _dualBufferFull;
+
             _modelRenderer = new ModelRenderer();
             _terrainRenderer = new TerrainRenderer();
             _instancedModelRenderer = new InstancedModelRenderer();
@@ -136,7 +153,7 @@ namespace Dino_Engine.Rendering
 
             if (debugView)
             {
-                _debugRenderer.render(_screenQuadRenderer);
+                _debugRenderer.render(_dualBufferFull);
             } else
             {
 
@@ -146,14 +163,14 @@ namespace Dino_Engine.Rendering
                 PostProcessPass(eCSEngine);
 
 
-                //_debugRenderer.RenderNormals(eCSEngine, ScreenQuadRenderer);
+                //_debugRenderer.RenderNormals(eCSEngine, _dualBufferFull);
 
                 _simpleShader.bind();
-                _screenQuadRenderer.GetLastFrameBuffer().resolveToScreen();
+                lastUsedBuffer.GetLastFrameBuffer().resolveToScreen();
 
                 //_screenQuadRenderer.RenderTextureToScreen(TextureGenerator.testTexture.textures[0]);
 
-                //_screenQuadRenderer.RenderTextureToScreen(_gBuffer.GetAttachment(0));
+                //_dualBufferFull.RenderTextureToScreen(_gBuffer.GetAttachment(0));
                 //_gBuffer.resolveToScreen();
                 //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
                 //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));
@@ -181,22 +198,21 @@ namespace Dino_Engine.Rendering
             _instancedModelRenderer.RenderPass(eCSEngine, this);
             //_grassRenderer.RenderPass(eCSEngine, this);
 
-            _screenQuadRenderer.GetNextFrameBuffer().blitDepthBufferFrom(_gBuffer);
-            _screenQuadRenderer.GetLastFrameBuffer().blitDepthBufferFrom(_gBuffer);
+            _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);
         }
         private void LightPass(ECSEngine eCSEngine)
         {
             _sSAORenderer.RenderPass(eCSEngine, this);
             _shadowCascadeMapRenderer.RenderPass(eCSEngine, this);
 
-            ScreenQuadRenderer.GetLastFrameBuffer().bind();
+            _dualBufferFull.GetLastFrameBuffer().bind();
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
             _directionalLightRenderer.RenderPass(eCSEngine, this);
             _pointLightRenderer.RenderPass(eCSEngine, this);
             _spotLightRenderer.RenderPass(eCSEngine, this);
-
             _screenSpaceReflectionRenderer.RenderPass(eCSEngine, this);
+
         }
         private void PostGeometryPass(ECSEngine eCSEngine)
         {
@@ -208,14 +224,15 @@ namespace Dino_Engine.Rendering
             _sunRenderer.RenderPass(eCSEngine, this);
             _bloomRenderer.RenderPass(eCSEngine, this);
             //_fogRenderer.RenderPass(eCSEngine, this);
+            //_fXAARenderer.RenderPass(eCSEngine, this);
             _toneMapRenderer.RenderPass(eCSEngine, this);
-            //_depthOfFieldRenderer.RenderPass(eCSEngine, this);
             _fXAARenderer.RenderPass(eCSEngine, this);
+            //_depthOfFieldRenderer.RenderPass(eCSEngine, this);
         }
 
         private void PrepareFrame()
         {
-            _screenQuadRenderer.clearBothBuffers();
+            _dualBufferFull.clearBothBuffers();
         }
 
 
@@ -228,6 +245,7 @@ namespace Dino_Engine.Rendering
 
         public void OnResize(ResizeEventArgs eventArgs)
         {
+            _dualBufferFull.OnResize(eventArgs);
             _gBuffer.resize(eventArgs.Size);
             foreach(Renderer renderer in _renderers)
             {

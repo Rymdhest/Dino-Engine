@@ -52,17 +52,18 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
 
+            DualBuffer buffer = renderEngine.lastUsedBuffer;
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
             FrameBuffer gBuffer = renderEngine.GBuffer;
             GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
-
+            Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
 
             ScreenSpaceReflectionShader.bind();
             _reflectionFramebuffer.bind();
 
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
             GL.ActiveTexture(TextureUnit.Texture2);
@@ -74,32 +75,33 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             ScreenSpaceReflectionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             ScreenSpaceReflectionShader.loadUniformMatrix4f("invProjection", Matrix4.Invert(projectionMatrix));
+            ScreenSpaceReflectionShader.loadUniformMatrix4f("invView", Matrix4.Invert(viewMatrix));
             ScreenSpaceReflectionShader.loadUniformVector2f("resolution", _reflectionFramebuffer.getResolution());
             ScreenSpaceReflectionShader.loadUniformVector3f("skyColor", SkyRenderer.SkyColour.ToVector3());
-            ScreenSpaceReflectionShader.loadUniformFloat("rayStep", 2.3f);
-            ScreenSpaceReflectionShader.loadUniformInt("iterationCount", 25);
-            ScreenSpaceReflectionShader.loadUniformInt("binaryIterationCount", 40);
+            ScreenSpaceReflectionShader.loadUniformFloat("rayStep", 1.05f);
+            ScreenSpaceReflectionShader.loadUniformInt("iterationCount", 20);
+            ScreenSpaceReflectionShader.loadUniformInt("binaryIterationCount", 30);
             ScreenSpaceReflectionShader.loadUniformFloat("distanceBias", 0.00002f);
             ScreenSpaceReflectionShader.loadUniformBool("isBinarySearchEnabled", true);
             ScreenSpaceReflectionShader.loadUniformBool("debugDraw", false);
-            ScreenSpaceReflectionShader.loadUniformFloat("stepExponent", 1.2f);
+            ScreenSpaceReflectionShader.loadUniformFloat("stepExponent", 1.15f);
 
             renderer.Render();
             ScreenSpaceReflectionShader.unBind();
 
 
-            gaussianBlurRenderer.Render(_reflectionFramebuffer, 5, renderer);
+            gaussianBlurRenderer.Render(_reflectionFramebuffer, 8, renderer);
 
             combineReflectionShader.bind();
 
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gaussianBlurRenderer.GetLastResultTexture());
             GL.ActiveTexture(TextureUnit.Texture2);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
 
-            renderer.RenderToNextFrameBuffer();
+            buffer.RenderToNextFrameBuffer();
         }
 
         public override void CleanUp()

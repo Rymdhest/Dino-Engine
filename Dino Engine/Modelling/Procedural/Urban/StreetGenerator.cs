@@ -1,5 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Rendering;
+using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using System.Drawing;
@@ -15,8 +17,9 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         public float laneWdith = 5f;
         public float sideWalkHeight =0.4f;
         public float sideWalkWidth = 9f;
+        public float streetTextureScale = 0.5f;
 
-        public Material streetMaterial = new Material(new Colour(25, 25, 27, 1.0f), Engine.RenderEngine.textureGenerator.test);
+        public Material streetMaterial = new Material(new Colour(25, 25, 27, 1.0f), Engine.RenderEngine.textureGenerator.grain);
         public Material lineMaterial = new Material(new Colour(233, 233, 233, 1.0f), Engine.RenderEngine.textureGenerator.grain);
         public Material lineMaterialCenter = new Material(new Colour(247, 219, 36, 1.0f), Engine.RenderEngine.textureGenerator.grain);
         public Material sideWalkMaterial = new Material(new Colour(95, 95, 95, 1.0f), Engine.RenderEngine.textureGenerator.grain);
@@ -39,16 +42,16 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
 
 
+ 
 
             for (int sideIndex = 0; sideIndex<4; sideIndex++)
             {
                 Mesh side = new Mesh();
-                Mesh corner = MeshGenerator.generateBox(sideWalkMaterial);
-                corner.scale(new Vector3(sideWalkWidth, sideWalkWidth, sideWalkHeight));
-                corner.translate(new Vector3(TotalWidth * 0.5f - sideWalkWidth * 0.5f, TotalWidth*0.5f-sideWalkWidth*0.5f, -sideWalkHeight*0.5f));
+                Mesh corner = MeshGenerator.generateBox(sideWalkMaterial, sideWalkWidth, sideWalkWidth, sideWalkHeight);
+
+                //corner = corner.scaled(new Vector3(sideWalkWidth, sideWalkWidth, sideWalkHeight));
+                corner.translate(new Vector3(TotalWidth * 0.5f - sideWalkWidth * 0.5f, TotalWidth*0.5f-sideWalkWidth*0.5f, sideWalkHeight*0.5f));
                 side += corner;
-
-
 
                 for (int i = 0; i < totalCrossLines; i++)
                 {
@@ -70,13 +73,14 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 side += gapFill.translated(new Vector3(0, TotalWidth * 0.5f - gapSize * 0.5f, 0));
                 side += gapFill.translated(new Vector3(0, TotalWidth * 0.5f + gapSize * 0.5f - sideWalkWidth, 0));
 
-                side.rotate(new Vector3(0f, 0f, MathF.PI*0.5f* sideIndex));
+                side.rotate(new Vector3(0f, 0f, -MathF.PI*0.5f* sideIndex));
                 mesh += side;
 
             }
 
 
-            mesh.rotate(new Vector3(MathF.PI/2f, 0f, 0f));
+            mesh.rotate(new Vector3(-MathF.PI/2f, 0f, 0f));
+            mesh.ProjectUVsWorldSpaceCube(streetTextureScale);
             Mesh.scaleUV = false;
 
 
@@ -88,7 +92,6 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 mesh += trafficLight;
             }
 
-            mesh.scaleUVs(new Vector2(0.1f));
 
             return mesh;
         }
@@ -102,11 +105,11 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             Mesh street = new Mesh();
 
             Mesh unitPlaneStreet = MeshGenerator.generatePlane(streetMaterial);
-            unitPlaneStreet.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
+            unitPlaneStreet.rotate(new Vector3(-MathF.PI / 2f, 0f, 0f));
             Mesh unitPlaneLine = MeshGenerator.generatePlane(lineMaterial);
-            unitPlaneLine.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
+            unitPlaneLine.rotate(new Vector3(-MathF.PI / 2f, 0f, 0f));
 
-            street += MeshGenerator.generatePlane(lineMaterialCenter).rotated(new Vector3(MathF.PI / 2f, 0f, 0f)).scaled(new Vector3(lineWidth, 1f, totalLength)).translated(new Vector3(0f, 0f, totalLength * 0.5f));
+            street += MeshGenerator.generatePlane(lineMaterialCenter).rotated(new Vector3(-MathF.PI / 2f, 0f, 0f)).scaled(new Vector3(lineWidth, 1f, totalLength)).translated(new Vector3(0f, 0f, totalLength * 0.5f));
 
             Mesh segment = new Mesh();
 
@@ -143,7 +146,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
             Mesh.scaleUV = false;
 
-            street.scaleUVs(new Vector2(0.1f));
+            street.ProjectUVsWorldSpaceCube(streetTextureScale);
 
             return street;
 
@@ -151,11 +154,14 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
         public Mesh GenerateTrafficLight()
         {
-            Material poleMaterial = new Material(new Colour(122, 122, 122, 1.0f), 1);
-            Material blackMaterial = new Material(new Colour(20, 20, 20, 1.0f), 1);
-            Material redMaterial = new Material(new Colour(235, 15, 15, 1.0f), 1);
-            Material greenMaterial = new Material(new Colour(15, 235, 15, 1.0f), 1);
-            Material yellowMaterial = new Material(new Colour(235, 235, 15, 1.0f), 1);
+            int glowID = Engine.RenderEngine.textureGenerator.flatGlow;
+            int flatID = Engine.RenderEngine.textureGenerator.flat;
+            int grainID = Engine.RenderEngine.textureGenerator.grain;
+            Material poleMaterial = new Material(new Colour(122, 122, 122, 1.0f), grainID);
+            Material blackMaterial = new Material(new Colour(20, 20, 20, 1.0f), flatID);
+            Material redMaterial = new Material(new Colour(235, 15, 15, 1.0f), flatID);
+            Material greenMaterial = new Material(new Colour(15, 235, 15, 1.0f), Engine.RenderEngine.textureGenerator.flatGlow);
+            Material yellowMaterial = new Material(new Colour(235, 235, 15, 1.0f), flatID);
 
             float r = 0.5f;
             float angle = MathF.PI / 2f;

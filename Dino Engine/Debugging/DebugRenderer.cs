@@ -63,7 +63,7 @@ namespace Dino_Engine.Debug
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         }
 
-        public void render(ScreenQuadRenderer screenQuadRenderer)
+        public void render(DualBuffer buffer)
         {
 
             prepareFrame();
@@ -71,18 +71,18 @@ namespace Dino_Engine.Debug
             _simpleShader.bind();
 
             GL.Viewport(0, 0, 512, 512);
-            screenQuadRenderer.RenderTextureToScreen(texture);
+            buffer.RenderTextureToScreen(texture);
             Engine.WindowHandler.refreshViewport();
 
-            //renderLines();
-            //renderRings();
+            renderLines();
+            renderRings();
             GL.Enable(EnableCap.Blend);
             rendercircles();
 
             finishFrame();
         }
 
-        public void RenderNormals(ECSEngine eCSEngine, ScreenQuadRenderer renderer)
+        public void RenderNormals(ECSEngine eCSEngine, DualBuffer renderer)
         {
             _normalsShader.bind();
             renderer.GetLastFrameBuffer().bind();

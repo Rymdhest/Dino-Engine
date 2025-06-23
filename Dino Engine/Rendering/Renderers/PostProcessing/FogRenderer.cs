@@ -31,7 +31,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+            DualBuffer buffer = renderEngine.lastUsedBuffer;
             FrameBuffer gBuffer = renderEngine.GBuffer;
 
             Vector3 cameraPos = eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.position;
@@ -49,10 +49,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             fogShader.loadUniformFloat("time", time);
 
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
-            renderer.RenderToNextFrameBuffer();
+            buffer.RenderToNextFrameBuffer();
 
         }
 

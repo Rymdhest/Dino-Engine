@@ -25,11 +25,11 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+            DualBuffer buffer = renderEngine.lastUsedBuffer;
 
             HDRMapShader.loadUniformVector2f("resolution", Engine.Resolution);
 
-            HDRMapShader.loadUniformFloat("exposure", 1.15f);
+            HDRMapShader.loadUniformFloat("exposure", 1.0515f);
             HDRMapShader.loadUniformFloat("gamma", 2.2f);
             HDRMapShader.loadUniformFloat("saturation", 1.0f);
             HDRMapShader.loadUniformFloat("brightness", 1.0f);
@@ -37,7 +37,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             HDRMapShader.loadUniformFloat("dithering", 0.5f);
 
             //renderer.RenderToNextFrameBuffer();
-            renderer.RenderTextureToNextFrameBuffer(renderer.GetLastOutputTexture());
+            buffer.RenderTextureToNextFrameBuffer(buffer.GetLastOutputTexture());
 
             HDRMapShader.unBind();
         }

@@ -30,6 +30,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             _sunFilterShader.bind();
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+            DualBuffer buffer = renderEngine.lastUsedBuffer;
             FrameBuffer gBuffer = renderEngine.GBuffer;
 
             Vector3 cameraPos = eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.position;
@@ -44,17 +45,17 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _sunFilterShader.loadUniformVector3f("sunDirection",  (new Vector3(-1f, 1.5f, 3.9f)).Normalized());
             _sunFilterShader.loadUniformFloat("exponent", 2.0f);
 
-            renderer.GetNextFrameBuffer().bind();
-            renderer.Render(depthTest:true, depthMask:false, clearColor:true);
+            buffer.GetNextFrameBuffer().bind();
+            renderer.Render(depthTest:true, clearColor:true);
 
 
             _sunRayShader.bind();
-            _sunRayShader.loadUniformFloat("Density", 0.04f);
-            _sunRayShader.loadUniformFloat("Weight", 0.15f);
+            _sunRayShader.loadUniformFloat("Density", 0.2f);
+            _sunRayShader.loadUniformFloat("Weight", 0.25f);
             _sunRayShader.loadUniformFloat("Exposure", 0.2f);
-            _sunRayShader.loadUniformFloat("Decay", .95f);
-            _sunRayShader.loadUniformFloat("illuminationDecay", 0.9f);
-            _sunRayShader.loadUniformInt("samples", 10);
+            _sunRayShader.loadUniformFloat("Decay", .9f);
+            _sunRayShader.loadUniformFloat("illuminationDecay", 0.95f);
+            _sunRayShader.loadUniformInt("samples", 30);
 
             _sunRayShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             _sunRayShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
@@ -67,9 +68,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.BlendEquation(BlendEquationMode.FuncAdd);
 
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetNextFrameBuffer().GetAttachment(0));
-            renderer.GetLastFrameBuffer().bind();
-            renderer.Render(depthTest: false, depthMask: false, clearColor: false, blend:true);
+            GL.BindTexture(TextureTarget.Texture2D, buffer.GetNextFrameBuffer().GetAttachment(0));
+            buffer.GetLastFrameBuffer().bind();
+
+            renderer.Render(depthTest: false, clearColor: false, blend:true);
             //renderer.StepToggle();
         }
 

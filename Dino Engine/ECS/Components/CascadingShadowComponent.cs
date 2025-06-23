@@ -17,10 +17,10 @@ namespace Dino_Engine.ECS.Components
             private FrameBuffer cascadeFrameBuffer;
             private float projectionSize;
             private float polygonOffset;
-            public ShadowCascade(Vector2i resolution, float projectionSize, float polygonOffset = 7f)
+            public ShadowCascade(Vector2i resolution, float projectionSize, float polygonOffset = 4f)
             {
                 this.projectionSize = projectionSize;
-                this.polygonOffset = polygonOffset;
+                this.polygonOffset = 1.5f;
                 FrameBufferSettings settings = new FrameBufferSettings(resolution);
                 DepthAttachmentSettings depthAttachmentSettings = new DepthAttachmentSettings();
                 depthAttachmentSettings.isTexture = true;

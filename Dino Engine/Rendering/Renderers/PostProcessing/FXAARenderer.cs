@@ -27,7 +27,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
 
-            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+            DualBuffer buffer = renderEngine.lastUsedBuffer;
 
 
             FXAAShader.loadUniformVector2f("win_size", Engine.Resolution);
@@ -37,7 +37,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
 
             //renderer.RenderToNextFrameBuffer();
-            renderer.RenderTextureToNextFrameBuffer(renderer.GetLastOutputTexture());
+            buffer.RenderTextureToNextFrameBuffer(buffer.GetLastOutputTexture());
 
             FXAAShader.unBind();
         }

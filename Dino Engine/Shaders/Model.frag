@@ -70,8 +70,8 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 void main() {
 
 	vec3 viewDir   = normalize((TangentViewPos - TangentFragPos));
-    //vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir);
-    vec2 parallaxedCoords = fragUV;
+    vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir);
+    //vec2 parallaxedCoords = fragUV;
     //if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
 
 	gAlbedo = lookupAlbedo(parallaxedCoords, textureIndex);
@@ -82,7 +82,7 @@ void main() {
     if (gAlbedo.a < 0.5f) discard;
 
 
-    //gAlbedo.rgb = vec3((fragUV), 0f);
+    //gAlbedo.rgb = vec3(fract(fragUV), 0f);
 	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex);
 	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;
 	gNormal.xyz = normalTangentSpace.xyz*normalTBN;

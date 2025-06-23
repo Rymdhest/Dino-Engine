@@ -245,9 +245,9 @@ namespace Dino_Engine.Modelling
             }
             return new Mesh(vertices, indices);
         }
-        public static Mesh generateBox(Material material)
+        public static Mesh generateBox(Material material,   float sizeX = 1.0f, float sizeY = 1.0f, float sizeZ = 1.0f)
         {
-            return generateBox(new Vector3(-0.5f), new Vector3(0.5f), material);
+            return generateBox(new Vector3(-sizeX, -sizeY, -sizeZ), new Vector3(sizeX, sizeY, sizeZ), material);
         }
         public static Mesh generateShape(List<Vector3> shape, Material material, bool UVTop = false)
         {
@@ -372,7 +372,7 @@ namespace Dino_Engine.Modelling
             box += plane.rotated(new Vector3(0f, -MathF.PI / 2f, 0f));
             box += plane.rotated(new Vector3(MathF.PI / 2f, 0f, 0f));
             box += plane.rotated(new Vector3(-MathF.PI / 2f, 0f, 0f));
-
+            box.scale(max);
             return box;
         }
 
@@ -585,7 +585,10 @@ namespace Dino_Engine.Modelling
             outer.makeFlat(true, true);
             return outer;
         }
-
+        public static Mesh generatePlane(Material material, Vector2 size)
+        {
+            return generatePlane(size, new Vector2i(1, 1), material);
+        }
         public static Mesh generatePlane(Material material)
         {
             return generatePlane(new Vector2(1f), new Vector2i(1, 1), material);

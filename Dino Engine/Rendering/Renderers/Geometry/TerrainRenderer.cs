@@ -30,7 +30,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
-            GL.Disable(EnableCap.CullFace);
+            //GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();
@@ -66,7 +66,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 glModel glmodel = glmodels.Key;
 
 
-                _modelShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.mirror);
+                _modelShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.sandDunes);
                 _modelShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.rock);
 
                 GL.BindVertexArray(glmodel.getVAOID());

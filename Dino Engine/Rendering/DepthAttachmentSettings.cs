@@ -12,7 +12,7 @@ namespace Dino_Engine.Rendering
     {
         public bool isTexture = false;
         public bool isShadowDepthTexture = false;
-        public PixelInternalFormat precision = PixelInternalFormat.DepthComponent16;
+        public PixelInternalFormat precision = PixelInternalFormat.DepthComponent32;
         public DepthAttachmentSettings() {
         }
     }

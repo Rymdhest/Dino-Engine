@@ -29,19 +29,19 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+            DualBuffer buffer = renderEngine.lastUsedBuffer;
             FrameBuffer gBuffer = renderEngine.GBuffer;
             GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
 
-            gaussianBlurRenderer.Render(renderer.GetLastFrameBuffer(), 6, renderer);
+            gaussianBlurRenderer.Render(buffer.GetLastFrameBuffer(), 6, renderEngine.ScreenQuadRenderer);
 
             _depthOfFieldShader.bind();
-            _depthOfFieldShader.loadUniformFloat("range", .0007f);
+            _depthOfFieldShader.loadUniformFloat("range", 0.007f);
             _depthOfFieldShader.loadUniformFloat("focusDistance", 0.0f);
 
 
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
 
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gaussianBlurRenderer.GetLastResultTexture());
@@ -50,7 +50,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
 
 
-            renderer.RenderToNextFrameBuffer();
+            buffer.RenderToNextFrameBuffer();
 
             _depthOfFieldShader.unBind();
         }

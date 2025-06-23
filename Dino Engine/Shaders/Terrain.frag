@@ -39,7 +39,7 @@ vec2 ParallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, float textureIndex)
     // Adjust layer count based on view angle (optional enhancement)
     float numLayers = mix(parallaxLayers, parallaxLayers * 2.0, 1.0 - abs(dot(vec3(0.0, 0.0, 1.0), viewDir)));
     float layerDepth = 1.0 / numLayers;
-    vec2 P = viewDir.xy / max(viewDir.z, 0.05) * parallaxDepth;
+    vec2 P = viewDir.xy / max(viewDir.z, 1.0) * parallaxDepth;
     vec2  deltaTexCoords = P / numLayers;
 
     // Initialize

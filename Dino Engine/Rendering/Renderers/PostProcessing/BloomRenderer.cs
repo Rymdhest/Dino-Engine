@@ -61,21 +61,23 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
             FrameBuffer gBuffer = renderEngine.GBuffer;
+            DualBuffer buffer = renderEngine.lastUsedBuffer;
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
 
             bloomFilterShader.bind();
-            bloomFilterShader.loadUniformFloat("bloomStrength", 0.005f);
+            bloomFilterShader.loadUniformFloat("bloomStrength", 0.01f);
+            bloomFilterShader.loadUniformFloat("emissionStrength", 10.0f);
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
             GL.ActiveTexture(TextureUnit.Texture2);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
-            renderer.RenderToNextFrameBuffer();
+            buffer.RenderToNextFrameBuffer();
 
             downsamplingShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
 
             for (int i = 0; i < downSamples; i++)
             {
@@ -109,7 +111,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                 if (i == 1)
                 {
                     //renderer.GetLastFrameBuffer().bind();
-                    renderer.GetNextFrameBuffer().bind();
+                    buffer.GetNextFrameBuffer().bind();
                     renderer.Render(blend: true, clearColor: false);
                 }
                 else
@@ -118,7 +120,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                 }
 
             }
-            renderer.StepToggle();
+            buffer.StepToggle();
 
             Engine.WindowHandler.refreshViewport();
 

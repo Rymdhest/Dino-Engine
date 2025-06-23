@@ -385,6 +385,50 @@ namespace Dino_Engine.Modelling.Model
             }
         }
 
+        public void ProjectUVsWorldSpaceCube(float scale)
+        {
+            //calculateAllNormals();
+            Console.WriteLine("Verts: "+meshVertices.Count);
+            Console.WriteLine("faces: " + faces.Count);
+            foreach (var vertex in meshVertices)
+            {
+                //Vector3 normal = vertex.faces[0].faceNormal;
+                Vector3 normal = vertex.normal;
+                Vector3 pos = vertex.position;
+                // Determine the dominant axis of the normal
+                Vector3 absNormal = new Vector3(Math.Abs(normal.X), Math.Abs(normal.Y), Math.Abs(normal.Z));
+                Vector2 uv;
+
+                if (absNormal.X >= absNormal.Y && absNormal.X >= absNormal.Z)
+                {
+                    // Project onto YZ plane (X-dominant face, left/right)
+                    if (normal.X >0) uv = new Vector2(pos.Y, pos.Z);
+                    else uv = new Vector2(-pos.Y, -pos.Z);
+                }
+                else if (absNormal.Y >= absNormal.X && absNormal.Y >= absNormal.Z)
+                {
+                    // Project onto XZ plane (Y-dominant face, top/bottom)
+                    if (normal.Y < 0) uv = new Vector2(pos.X, pos.Z);
+                    else uv = new Vector2(-pos.X, -pos.Z);
+                }
+                else
+                {
+                    // Project onto XY plane (Z-dominant face, front/back)
+                    if (normal.Z > 0) uv = new Vector2(pos.X, pos.Y);
+                    else uv = new Vector2(-pos.X, -pos.Y);
+                }
+                uv *= scale;
+                for (int i = 0; i< vertex.UVs.Length; i++)
+                {
+                    vertex.UVs[i] = uv;
+                }
+            }
+            foreach (var vertex in meshVertices) {
+                Console.WriteLine("UV: " + vertex.UVs[0].ToString() +" | " +" pos: "+vertex.position.ToString());
+            }
+            calculateAllNormals();
+        }
+
         public void Transform(Transformation transformation)
         {
             var transformationMatrix = MyMath.createTransformationMatrix(transformation);
@@ -407,7 +451,12 @@ namespace Dino_Engine.Modelling.Model
             for (int i = 0; i < oldVertices.Length; i++)
             {
                 Vector3 newPosition = (new Vector4(oldVertices[i].position, 1.0f)*transformationMatrix).Xyz;
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].material, oldVertices[i].UVs); // TODO  potential uses same UVs
+                Vector2[] newUVs = new Vector2[oldVertices[i].UVs.Length];
+                for (int j = 0; j < oldVertices[i].UVs.Length; j++)
+                {
+                    newUVs[j] = new Vector2( oldVertices[i].UVs[j].X, oldVertices[i].UVs[j].Y);
+                }
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].material, newUVs); // TODO  potential uses same UVs
                 //if (scaleUV) newVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
             }
             return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>());
@@ -433,7 +482,7 @@ namespace Dino_Engine.Modelling.Model
 
             Mesh mesh =new Mesh(vertices, indices);
             if (a.finishedNormals && b.finishedNormals) mesh.finishedNormals = true;
-
+            mesh.calculateAllNormals(); 
             return mesh;
         }
         public static Mesh operator +(Mesh a, Mesh b)  => Mesh.Add(a, b);

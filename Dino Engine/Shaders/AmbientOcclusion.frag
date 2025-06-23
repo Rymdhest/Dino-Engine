@@ -37,7 +37,7 @@ void main()
     //randomVec = vec3(1, 1, 0);
    float depthScaledRadius = radius*-fragPos.z;
    float depthScaledStrength = strength;
-   float depthScaledBias = bias*-fragPos.z;
+   float depthScaledBias = bias;
     // Create TBN change-of-basis matrix: from tangent-space to view-space
     vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
     vec3 bitangent = cross(normal, tangent);

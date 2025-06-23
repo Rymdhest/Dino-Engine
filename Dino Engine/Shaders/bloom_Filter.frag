@@ -7,6 +7,7 @@ uniform sampler2D shadedInput;
 uniform sampler2D gMaterials;
 uniform sampler2D gAlbedo;
 uniform float bloomStrength;
+uniform float emissionStrength;
 
 void main(void){
 
@@ -16,5 +17,5 @@ void main(void){
 
 	float luminance = dot(diffuse, vec3(0.2126, 0.7152, 0.0722));
 	vec3 globalBloom = diffuse*luminance*bloomStrength;
-	out_Colour.rgb = (globalBloom+albedo*emission);
+	out_Colour.rgb = (globalBloom+albedo*emission*emissionStrength);
 }

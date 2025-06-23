@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL;
 using System.Net.Mail;
 using Dino_Engine.Core;
 using Dino_Engine.ECS;
+using Dino_Engine.Rendering.Renderers.PostProcessing;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -73,15 +74,16 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             FrameBuffer gBuffer = renderEngine.GBuffer;
             Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
             Vector2i resolution = Engine.Resolution;
+            GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
 
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
             ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", 0.025f);
-            ambientOcclusionShader.loadUniformFloat("strength", 1.0f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.01f);
+            ambientOcclusionShader.loadUniformFloat("radius", 0.05f);
+            ambientOcclusionShader.loadUniformFloat("strength", 4.5f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.1f);
 
             ambientOcclusionShader.loadUniformVector2f("resolution", resolution);
             ambientOcclusionShader.loadUniformMatrix4f("invProjection", Matrix4.Invert(projectionMatrix));
@@ -93,14 +95,18 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
-            renderEngine.ScreenQuadRenderer.RenderToNextFrameBuffer();
+            renderEngine.lastUsedBuffer.RenderToNextFrameBuffer();
 
             ambientOcclusionShader.unBind();
 
 
+            gaussianBlurRenderer.Render(renderEngine.lastUsedBuffer.GetLastFrameBuffer(), 10, renderEngine.ScreenQuadRenderer, 0);
+
             ambientOcclusionBlurShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderEngine.ScreenQuadRenderer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, gaussianBlurRenderer.GetLastResultTexture());
+
+
 
             gBuffer.bind();
 

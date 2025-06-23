@@ -39,7 +39,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             public static glModel GenerateStreetLight(out Vector3 lightPosition)
         {
             Material poleMaterial = new Material(new Colour(122, 122, 122), 1);
-            Material glowMaterial = new Material(new Colour(235, 193, 106), 1);
+            Material glowMaterial = new Material(new Colour(235, 193, 106), Material.GLOW.materialIndex);
 
             float r = 0.5f;
             float angle = MathF.PI / 2.6f;

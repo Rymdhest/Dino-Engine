@@ -42,7 +42,7 @@ namespace Dino_Engine.Core
             _deltaFrameTimeTracker = new DeltaFrameTimeTracker();
             _performanceMonitor = new PerformanceMonitor();
             _renderEngine = new RenderEngine();
-            _renderEngine.InitRenderers();  
+            _renderEngine.InitRenderers(settings._resolution);  
             _ECSEngine = new ECSEngine();
             _ECSEngine.InitEntities();
             _windowHandler.UpdateFrame += delegate (FrameEventArgs eventArgs)
@@ -77,7 +77,7 @@ namespace Dino_Engine.Core
             nws.Title = settings._gameTitle;
             nws.ClientSize = settings._resolution;
             nws.Location = new Vector2i(0, 0);
-            gws.UpdateFrequency = 3000;
+            gws.UpdateFrequency = 40;
             return new WindowHandler(gws, nws);
         }
 

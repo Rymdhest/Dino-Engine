@@ -23,7 +23,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             glModel glmodel = ModelGenerator.UNIT_SPHERE;
             Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
             Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
-            renderEngine.ScreenQuadRenderer.GetLastFrameBuffer().bind();
+            renderEngine.lastUsedBuffer.GetLastFrameBuffer().bind();
             flatShader.bind();
             GL.BindVertexArray(glmodel.getVAOID());
             GL.EnableVertexAttribArray(0);

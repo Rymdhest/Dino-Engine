@@ -1,5 +1,6 @@
 #version 330
 #include gBufferUtil.glsl
+#include procedural/hash.glsl
 
 layout (location = 0) out vec4 out_Colour;
 
@@ -15,6 +16,7 @@ uniform mat4 projectionMatrix;
 
 uniform mat4 invProjection;
 uniform vec2 resolution;
+uniform mat4 invView;
 
 uniform float rayStep;
 uniform int iterationCount;
@@ -24,9 +26,6 @@ uniform bool isBinarySearchEnabled;
 uniform bool debugDraw;
 uniform float stepExponent;
 
-float random (vec2 uv) {
-	return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453123)-0.5f; //simple random function
-}
 
 vec2 generateProjectedPosition(vec3 pos){
 	vec4 samplePosition =  vec4(pos, 1.f) * projectionMatrix;
@@ -70,8 +69,7 @@ vec3 SSR(vec3 position, vec3 reflection) {
 			
 			if (abs(delta) < distanceBias) {
                 vec3 color = vec3(1);
-                if(debugDraw)
-                    color = vec3( 0.5+ sign(delta)/2,0.3,0.5- sign(delta)/2);
+                if(debugDraw) color = vec3( 0.5+ sign(delta)/2,0.3,0.5- sign(delta)/2);
 				return texture(shadedColor, screenPosition).xyz * color;
 			}
 		}
@@ -86,9 +84,10 @@ void main(){
 	float rougness = texture(gMaterials, textureCoords).r*0.5f;
 	float metallic = texture(gMaterials, textureCoords).b;
 	vec3 modelColor = texture(shadedColor, textureCoords).rgb;
-	normal.x += random(textureCoords+vec2(1.6345f, 0.343f))*rougness;
-	normal.y += random(textureCoords+2)*rougness;
-	normal.z += random(textureCoords+3)*rougness;
+	vec3 positionWorld = ReconstructWorldSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjection, invView, resolution);
+	vec3 hash = (vec3(((positionWorld))));
+	hash = (hash*2.0)-1.0;
+	//normal += hash*rougness;
 	if (metallic < 0.0001) {
 		discard;
 		out_Colour = texture(shadedColor, textureCoords);

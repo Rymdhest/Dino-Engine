@@ -20,13 +20,13 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         }
         internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
+            DualBuffer buffer = renderEngine.lastUsedBuffer;
             skyShader.bind();
-            renderer.GetLastFrameBuffer().bind();
+            buffer.GetLastFrameBuffer().bind();
             GL.DepthFunc(DepthFunction.Lequal);
 
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
 
         }
 
@@ -61,7 +61,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             GL.BlendEquation(BlendEquationMode.FuncAdd);
             //GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
-            renderer.Render(depthTest: true, depthMask: false, blend: true, clearColor: false);
+            renderer.Render(depthTest: true, blend: true, clearColor: false);
             //renderer.StepToggle();
 
         }

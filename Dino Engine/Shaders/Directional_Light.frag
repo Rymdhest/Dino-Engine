@@ -24,7 +24,7 @@ uniform float cascadeProjectionSizes[5];
 
 uniform mat4 invProjection;
 
-int softLayers = 1;
+int softLayers = 3;
 
 const float PI = 3.14159265359;
 float DistributionGGX(vec3 N, vec3 H, float roughness);
@@ -77,9 +77,7 @@ void main(void){
 
 	float ambientOcclusion = texture(gNormal, textureCoords).a;
 	float roughness = clamp(texture(gMaterials, textureCoords).r, 0.0f, 1);
-	float emission = texture(gMaterials, textureCoords).g;
 	float metallic = texture(gMaterials, textureCoords).b;
-
 	vec3 totalAmbient = vec3(ambientFactor*ambientOcclusion*albedo*lightColour);
 
 	vec3 viewDir = normalize(-position);
@@ -115,7 +113,6 @@ void main(void){
 	//vec3 ambient = vec3(0.03) * albedo * ambientOcclusion;
     vec3 color = totalAmbient + Lo*sunFactor;
 
-	color += albedo*emission*500.0;
 
 	//color = color / (color + vec3(1.0));
     //color = pow(color, vec3(1.0/2.2));  

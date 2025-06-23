@@ -51,7 +51,7 @@ namespace Dino_Defenders
                 float size = 0.8f;
                 float speed = 55f;
                 Colour colour = new Colour(255, 255, 255, 4.0f);
-                Material bigBallMaterial = new Material(colour, 1);
+                Material bigBallMaterial = new Material(colour, Material.GLOW.materialIndex);
                 Entity bigBall = new Entity("Big Ball");
                 bigBall.addComponent(new TransformationComponent(new Transformation(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.position, new Vector3(0f), new Vector3(size))));
                 bigBall.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, bigBallMaterial)));
@@ -122,7 +122,7 @@ namespace Dino_Defenders
             float speed = 15f;
             Vector3 col = MyMath.rng3D(0.5f)+new Vector3(0.5f);
             Colour colour = new Colour(col.X, col.Y, col.Z, 1.0f);
-            Material bigBallMaterial = new Material(colour, 1);
+            Material bigBallMaterial = new Material(colour, Material.GLOW.materialIndex);
             Entity smallBall = new Entity("Small Ball");
             smallBall.addComponent(new TransformationComponent(position, new Vector3(0f), new Vector3(size)));
             smallBall.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, bigBallMaterial)));
@@ -180,8 +180,8 @@ namespace Dino_Defenders
             eCSEngine.ClearAllEntitiesExcept(eCSEngine.Camera);
             eCSEngine.InitEntities();
             //spawnTerrain(eCSEngine);
-            //spawnCity(eCSEngine);
-            spawnTestScene(eCSEngine);
+            spawnCity(eCSEngine);
+            //spawnTestScene(eCSEngine);
             //spawnIndoorScene(eCSEngine);
         }
 
@@ -190,7 +190,7 @@ namespace Dino_Defenders
 
             Vector2 terrainSize = new Vector2(200, 200);
             TerrainGenerator generator = new TerrainGenerator();
-            generator.generateTerrainChunkEntity(-terrainSize/2.0f, terrainSize, 1.0f);
+            generator.generateTerrainChunkEntity(-terrainSize/2.0f, terrainSize, 0.1f);
 
             Entity cubeEntity = new Entity("Cube");
             //Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.rock));
@@ -356,13 +356,13 @@ namespace Dino_Defenders
         {
             TerrainGenerator generator = new TerrainGenerator();
             int terrainR = 0;
-            Vector2 chunkSize = new Vector2(250, 250);
+            Vector2 chunkSize = new Vector2(250, 255);
             for (int x = -terrainR; x <= terrainR; x++)
             {
                 for (int z = -terrainR; z <= terrainR; z++)
                 {
-                    float quality = 1.0f;
-                    if (x == 0 && z == 0) quality = 0.5f;
+                    float quality = 0.10f;
+                    if (x == 0 && z == 0) quality = 1.01f;
 
                     generator.generateTerrainChunkEntity(new Vector2(chunkSize.X*x, chunkSize.Y*z), chunkSize, quality);
                 }
@@ -725,9 +725,9 @@ namespace Dino_Defenders
             StreetGenerator streetGenerator = new StreetGenerator();
             TerrainGenerator terrainGenerator = new TerrainGenerator();
 
-            for (int x = 0; x < 2; x++)
+            for (int x = 0; x < 0; x++)
             {
-                for (int z = 0; z < 2; z++)
+                for (int z = 0; z < 0; z++)
                 {
                     Entity house = new Entity("House");
                     house.addComponent(new TransformationComponent(new Vector3(45 + 55 * x, 0, 45 + 55f * z), new Vector3(0, MyMath.rand.Next(8) * MathF.PI / 4, 0f), new Vector3(1f)));
@@ -739,10 +739,11 @@ namespace Dino_Defenders
             houseGround.addComponent(new TransformationComponent(new Transformation(new Vector3(-streetGenerator.TotalWidth/2f-50f, 0, -streetGenerator.TotalWidth/2f-50f), new Vector3(0,-MathF.PI/2f,0), new Vector3(1))));
             Mesh houseGroundMesh = MeshGenerator.generateBox(Material.ROCK);
             //Mesh.scaleUV = true;
+            //houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
+            Mesh.scaleUV = true;
             houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
-            Mesh.scaleUV = false;
-            houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
-            houseGroundMesh.rotate(new Vector3(0f, MathF.PI/2f, 0f));
+            houseGroundMesh.rotate(new Vector3(0f, -MathF.PI/2f, 0f));
+            houseGroundMesh.scaleUVs(new Vector2(1.0f, 1.0f));
             //Mesh.scaleUV = true;
             houseGround.addComponent(new ModelComponent(houseGroundMesh)); ;
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(houseGround);
@@ -757,7 +758,7 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(crossRoad);
 
             int nr = 0;
-            for (int i = 2; i < 0; i++)
+            for (int i = 2; i < 17; i++)
             {
                 for (int j = 0; j < streetGenerator.lanes; j++)
                 {
@@ -771,14 +772,14 @@ namespace Dino_Defenders
                     Entity carLightLeft = new Entity("car light left");
                     carLightLeft.addComponent(new TransformationComponent(leftLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
                     carLightLeft.addComponent(new AttunuationComponent(0.0005f, 0.0005f, 0.0005f));
-                    carLightLeft.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
+                    carLightLeft.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 0.3f)));
                     carLightLeft.addComponent(new ChildComponent(car));
                     eCSEngine.AddEnityToSystem<SpotLightSystem>(carLightLeft);
 
                     Entity carLightRight = new Entity("car light right");
                     carLightRight.addComponent(new TransformationComponent(rightLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
                     carLightRight.addComponent(new AttunuationComponent(0.0005f, 0.0005f, 0.0005f));
-                    carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 1f)));
+                    carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 0.3f)));
                     carLightRight.addComponent(new ChildComponent(car));
                     eCSEngine.AddEnityToSystem<SpotLightSystem>(carLightRight);
 
