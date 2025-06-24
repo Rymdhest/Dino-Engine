@@ -28,8 +28,8 @@ namespace Dino_Engine.Rendering
             GL.LinkProgram(programID);
             GL.ValidateProgram(programID);
 
-            LoadAllUniformsFromShaderString(vertexString);
-            LoadAllUniformsFromShaderString(fragmentString);
+            LoadAllUniformsFromShaderString(vertexString, vertexFile);
+            LoadAllUniformsFromShaderString(fragmentString, fragmentFile);
         }
         public ShaderProgram(string vertexFile, string fragmentFile, string geometryFile)
         {
@@ -48,9 +48,9 @@ namespace Dino_Engine.Rendering
             GL.LinkProgram(programID);
             GL.ValidateProgram(programID);
 
-            LoadAllUniformsFromShaderString(vertexString);
-            LoadAllUniformsFromShaderString(fragmentString);
-            LoadAllUniformsFromShaderString(geometryString);
+            LoadAllUniformsFromShaderString(vertexString, vertexFile);
+            LoadAllUniformsFromShaderString(fragmentString, fragmentFile);
+            LoadAllUniformsFromShaderString(geometryString, geometryFile);
         }
         public void loadUniformInt(string variableName, int value)
         {
@@ -151,7 +151,7 @@ namespace Dino_Engine.Rendering
             return shaderID;
         }
 
-        private void LoadAllUniformsFromShaderString(string shaderString)
+        private void LoadAllUniformsFromShaderString(string shaderString, string fileNameDebugPrint)
         {
             using (var reader = new StringReader(shaderString))
             {
@@ -172,12 +172,12 @@ namespace Dino_Engine.Rendering
                             variableName = variableWords[0];
                             for (int i = 0; i < arraySize; i++)
                             {
-                                loadUniform(variableName + "[" + i + "]");
+                                loadUniform(variableName + "[" + i + "]", fileNameDebugPrint);
                             }
                         }
                         else
                         {
-                            loadUniform(variableName);
+                            loadUniform(variableName, fileNameDebugPrint);
                         }
                     }
                 }
@@ -206,14 +206,14 @@ namespace Dino_Engine.Rendering
             return processedShader.ToString();
 
         }
-        private void loadUniform(string variableName)
+        private void loadUniform(string variableName, string fileNameDebugPrint)
         {
             if (!uniforms.ContainsKey(variableName))
             {
                 int location = GL.GetUniformLocation(programID, variableName);
                 if (location == -1)
                 {
-                    Console.WriteLine("Something went wrong getting uniform for " + variableName + " in maybe the variable is not used in shader?");
+                    Console.WriteLine("Something went wrong getting uniform for " + variableName + " in "+fileNameDebugPrint+ " maybe the variable is not used in shader?");
                 }
                 
                 uniforms.Add(variableName, location);

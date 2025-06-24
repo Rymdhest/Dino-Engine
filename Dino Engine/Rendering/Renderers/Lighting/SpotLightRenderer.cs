@@ -64,7 +64,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
                 _spotLightShader.loadUniformVector3f("lightColor", lightColour);
                 _spotLightShader.loadUniformVector3f("attenuation", attenuation);
-                _spotLightShader.loadUniformFloat("softness", 0.1f);
+                _spotLightShader.loadUniformFloat("softness", 0.3f);
 
                 GL.DrawElements(PrimitiveType.Triangles, cone.getVertexCount(), DrawElementsType.UnsignedInt, 0);
             }

@@ -5,7 +5,6 @@ layout (location = 0) out vec4 out_Colour;
 
 uniform vec2 resolution;
 uniform sampler2D HDRcolorTexture;
-uniform float radius;
 
 uniform float exposure;
 uniform float gamma;

@@ -25,22 +25,14 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         {
             _shadowShader.bind();
             _shadowShader.loadUniformInt("albedoMapTextureArray", 0);
-            _shadowShader.loadUniformInt("normalMapTextureArray", 1);
-            _shadowShader.loadUniformInt("materialMapTextureArray", 2);
 
             _shadowShader.loadUniformInt("albedoMapModelTextureArray", 3);
-            _shadowShader.loadUniformInt("normalMapModelTextureArray", 4);
-            _shadowShader.loadUniformInt("materialMapModelTextureArray", 5);
             _shadowShader.unBind();
 
             _InstancedShadowShader.bind();
             _InstancedShadowShader.loadUniformInt("albedoMapTextureArray", 0);
-            _InstancedShadowShader.loadUniformInt("normalMapTextureArray", 1);
-            _InstancedShadowShader.loadUniformInt("materialMapTextureArray", 2);
 
             _InstancedShadowShader.loadUniformInt("albedoMapModelTextureArray", 3);
-            _InstancedShadowShader.loadUniformInt("normalMapModelTextureArray", 4);
-            _InstancedShadowShader.loadUniformInt("materialMapModelTextureArray", 5);
             _InstancedShadowShader.unBind();
         }
         internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
@@ -76,17 +68,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialTextureArray);
 
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture4);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture5);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
 
             foreach (Entity directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {
@@ -141,17 +125,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialTextureArray);
 
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture4);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture5);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
 
             foreach (Entity directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {

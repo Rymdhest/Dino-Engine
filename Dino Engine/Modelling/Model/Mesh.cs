@@ -67,6 +67,7 @@ namespace Dino_Engine.Modelling.Model
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
                     face.A = newVertex;
+                    face.uvIndexA = 0;
                     meshVertices.Add(newVertex);
                 }
 
@@ -78,6 +79,7 @@ namespace Dino_Engine.Modelling.Model
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
                     face.B = newVertex;
+                    face.uvIndexB = 0;
                     meshVertices.Add(newVertex);
                 }
 
@@ -89,6 +91,7 @@ namespace Dino_Engine.Modelling.Model
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
                     face.C = newVertex;
+                    face.uvIndexC = 0;
                     meshVertices.Add(newVertex);
                 }
             }
@@ -388,8 +391,6 @@ namespace Dino_Engine.Modelling.Model
         public void ProjectUVsWorldSpaceCube(float scale)
         {
             //calculateAllNormals();
-            Console.WriteLine("Verts: "+meshVertices.Count);
-            Console.WriteLine("faces: " + faces.Count);
             foreach (var vertex in meshVertices)
             {
                 //Vector3 normal = vertex.faces[0].faceNormal;
@@ -422,9 +423,6 @@ namespace Dino_Engine.Modelling.Model
                 {
                     vertex.UVs[i] = uv;
                 }
-            }
-            foreach (var vertex in meshVertices) {
-                Console.WriteLine("UV: " + vertex.UVs[0].ToString() +" | " +" pos: "+vertex.position.ToString());
             }
             calculateAllNormals();
         }

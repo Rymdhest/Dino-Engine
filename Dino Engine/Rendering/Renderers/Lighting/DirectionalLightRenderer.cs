@@ -77,7 +77,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                         _directionalLightShader.loadUniformFloat("cascadeProjectionSizes[" + i + "]", cascade.getProjectionSize());
                         ActiveTexture(TextureUnit.Texture4 + i);
                         BindTexture(TextureTarget.Texture2D, cascade.getDepthTexture());
-                        _directionalLightShader.loadUniformVector2f("shadowMapResolutions[" + i + "]", cascade.getResolution());
+                        //_directionalLightShader.loadUniformVector2f("shadowMapResolutions[" + i + "]", cascade.getResolution());
 
 
                         Matrix4 shadowMatrix = Matrix4.Invert(viewMatrix) * shadow.LightViewMatrix * cascade.getProjectionMatrix();

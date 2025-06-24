@@ -7,6 +7,7 @@ using Dino_Engine.Rendering;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
+using System.Reflection.Emit;
 namespace Dino_Engine.Modelling.Procedural.Nature
 {
     public class TreeGenerator
@@ -42,33 +43,97 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
         public Mesh GenerateTree()
         {
-            Mesh tree = new Mesh();
+            var controlPoints = new List<Vector3>
+            {
+                new Vector3(0, 0, 0),
+                new Vector3(0, 2, 0),
+                new Vector3(2, 4, 0),
+                new Vector3(3, 6, 0),
+                new Vector3(3, 8, 0)
+            };
+            controlPoints = new List<Vector3>
+            {
+                new Vector3(0, 0, 0),
+                new Vector3(0, 5, 0),
+                new Vector3(2.5f, 5, 0),
+                new Vector3(5, 5, 0),
+                new Vector3(5, 0, 10)
+            };
+            controlPoints.Clear();
 
-            float r = 1f/15;
-            float h = 1f;
-            float topRadius = 1f/4f;
+            int n = 100;
+            float[] sinFBM = FBMmisc.sinFBM(5, 0.23f, n);
+            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.15f, n);
+            float r = 2.0f;
+            float h = 50f;
+            for (int i = 0; i < n; i++)
+            {
+                float traversedRatio = i / (float)(n - 1);
+                float angle = MathF.PI * i * 0.2f;
+                float x = sinFBM[i] * r * traversedRatio;
+                float z = sinFBM2[i] * r * traversedRatio;
+                float y = traversedRatio * h;
+                controlPoints.Add(new Vector3(x, y, z));
+            }
 
-            List<Vector2> layers = new List<Vector2>() {
-                new Vector2(r, 0),
-                new Vector2(r*0.9f, h*0.33f),
-                new Vector2(r*0.8f, h*0.66f),
-                new Vector2(r*0.7f, h) };
-            Mesh stem = MeshGenerator.generateCylinder(layers, 10, trunkMaterial);
-            stem.FlatRandomness(new Vector3(0.01f, 0.05f, 0.01f));
-
-            tree += stem;
-
-            Mesh top = IcoSphereGenerator.CreateIcosphere(3, leafMaterial);
-            top.FlatRandomness(0.0f);
-            top.scale(new Vector3(topRadius, topRadius*1.5f, topRadius));
-            top.translate(new Vector3(0f, h+ topRadius * 0.75f, 0f));
+            CardinalSpline3D spline = new CardinalSpline3D(controlPoints, 0.0f);
 
 
-            tree += top;
 
-            top.FlatRandomness(0.0f);
+            Curve3D curve = spline.GenerateCurve(1);
+            curve.LERPWidth(1.3f, 0.1f);
+            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 11, Material.BARK, textureRepeats: 1, flatStart: true);
 
-            return tree;
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY: false);
+            for (int i = 0; i < branch.meshVertices.Count; i++)
+            {
+                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f)) * 0.05f;
+                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Y, 2.0f)) * 0.015f;
+            }
+            branch.translate(new Vector3(0f, -2f, 0.0f));
+            branch.rotate(new Vector3(-MathF.PI / 1.45f, 0f, 0f));
+
+
+            Mesh branch2 = cylinderMesh.scaled(new Vector3(1.0f, 1f, 1.0f));
+            int nTwigs = 40;
+            for (int i = 0; i < nTwigs; i++)
+            {
+                float t = 0.5f + 0.5f * (float)i / (nTwigs - 1);
+                CurvePoint curvePoint = curve.getPointAt(t);
+                var newBranch = branch.scaled(new Vector3(0.6f - t * 0.4f));
+                Vector3 col = MyMath.rng3D(0.3f);
+                newBranch.setColour(new Colour(new Vector3(1f) - col));
+                newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
+                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
+                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+                //newBranch.rotate(new Vector3(0f, i * MathF.Tau / 3f, 0f));
+                newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
+                newBranch.rotate(curvePoint.rotation);
+                newBranch.translate(curvePoint.pos);
+                branch2 += newBranch;
+            }
+            //branch = cylinderMesh;
+
+            //branch = MeshGenerator.generateBox(Material.ROCK);
+            //branch.scale(new Vector3(0.3f, 0.3f, 5f));
+            //branch.translate(new Vector3(0f, 0f, -2.5f));
+            int nBranches = 15;
+            for (int i = 0; i < nBranches; i++)
+            {
+                float t = 0.3f + 0.7f * (float)i / (nBranches - 1);
+                CurvePoint curvePoint = curve.getPointAt(t);
+                var newBranch = branch2.scaled(new Vector3(0.5f - t * 0.4f));
+                newBranch.rotate(new Vector3(.6f + t * 0.2f, 0f, 0f));
+                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
+                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+                newBranch.rotate(new Vector3(0f, i * MathF.Tau / 3f + MyMath.rngMinusPlus(MathF.Tau / 6f), 0f));
+                //newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
+                newBranch.rotate(curvePoint.rotation);
+                newBranch.translate(curvePoint.pos);
+                cylinderMesh += newBranch;
+            }
+
+            return cylinderMesh;
         }
 
         public Mesh GenerateFractalTree(int depth)

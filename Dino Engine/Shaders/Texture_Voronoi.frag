@@ -1,11 +1,6 @@
 #version 330
 
-#include procedural/interpolate.glsl
-#include procedural/hash.glsl
-#include procedural/multiHash.glsl
-#include procedural/noise.glsl
-#include procedural/gradientNoise.glsl
-#include procedural/voronoi.glsl
+
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 albedo_out;
@@ -19,6 +14,13 @@ uniform float seed;
 uniform float jitter;
 uniform float phase;
 uniform int returnMode;
+
+#include procedural/interpolate.glsl
+#include procedural/hash.glsl
+#include procedural/multiHash.glsl
+#include procedural/noise.glsl
+#include procedural/gradientNoise.glsl
+#include procedural/voronoi.glsl
 
 void main(void)
 {   

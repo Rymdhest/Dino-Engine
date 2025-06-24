@@ -816,6 +816,7 @@ namespace Dino_Defenders
             }
 
 
+            Mesh tree = treeGenerator.GenerateTree();
 
             for (int side = -1; side <= 1; side += 2)
             {
@@ -835,12 +836,11 @@ namespace Dino_Defenders
 
 
                     Entity streetTree = new Entity("Street tree" + i);
-                    streetTree.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(1f)));
-                    streetTree.addComponent(new ModelComponent(treeGenerator.GenerateFractalTree(1)));
+                    streetTree.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i), new Vector3(0f, MyMath.rng()*MathF.Tau, 0f), new Vector3(1f)+MyMath.rng3DMinusPlus(0.25f)));
+                    streetTree.addComponent(new ModelComponent(tree));
                     eCSEngine.AddEnityToSystem<ModelRenderSystem>(streetTree);
                 }
             }
-
             for (int i = 0; i < 8; i++)
             {
                 Entity roadCone = new Entity("roadCone");
