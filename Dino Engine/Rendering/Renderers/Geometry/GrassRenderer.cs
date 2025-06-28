@@ -5,11 +5,11 @@ using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
-using Dino_Engine.ECS.Systems;
-using Dino_Engine.ECS.Components;
 using Dino_Engine.Core;
 using Dino_Engine.Physics;
 using Dino_Engine.Util.Data_Structures.Grids;
+using Dino_Engine.ECS.ComponentsOLD;
+using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -64,8 +64,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
             GL.BlendEquation(BlendEquationMode.FuncAdd);
 
-            List<Entity> blasts = Engine.Instance.ECSEngine.getSystem<GrassBlastSystem>().MemberEntities;
-            List<Entity> terrains = Engine.Instance.ECSEngine.getSystem<TerrainSystem>().MemberEntities;
+            List<EntityOLD> blasts = Engine.Instance.ECSEngine.getSystem<GrassBlastSystem>().MemberEntities;
+            List<EntityOLD> terrains = Engine.Instance.ECSEngine.getSystem<TerrainSystem>().MemberEntities;
 
             for (int i = blasts.Count - 1; i >= 0; i--)
             {
@@ -73,7 +73,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 Vector2 blastCenterWorldSpace = blasts[i].getComponent<TransformationComponent>().Transformation.position.Xz;
                 _grassBlastShader.loadUniformFloat("power", blastComponent.power);
                 _grassBlastShader.loadUniformFloat("exponent", blastComponent.exponent);
-                foreach (Entity terrain in terrains)
+                foreach (EntityOLD terrain in terrains)
                 {
                     Vector2 terrainPositionWorldSpace = terrain.getComponent<TransformationComponent>().Transformation.position.Xz;
                     Vector2 terrainSizeWorld = ((TerrainHitBox)terrain.getComponent<CollisionComponent>().HitBox)._max.Xz;
@@ -91,8 +91,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             _grassDisplaceShader.bind();
 
-            List<Entity> displacements = Engine.Instance.ECSEngine.getSystem<GrassInteractSystem>().MemberEntities;
-            List<Entity> terrains = Engine.Instance.ECSEngine.getSystem<TerrainSystem>().MemberEntities;
+            List<EntityOLD> displacements = Engine.Instance.ECSEngine.getSystem<GrassInteractSystem>().MemberEntities;
+            List<EntityOLD> terrains = Engine.Instance.ECSEngine.getSystem<TerrainSystem>().MemberEntities;
 
 
             for (int i = displacements.Count - 1; i >= 0; i--)
@@ -101,7 +101,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 Vector3 blastCenterWorldSpace = displacements[i].getComponent<TransformationComponent>().Transformation.position;
                 float radius = ((SphereHitbox)displacements[i].getComponent<CollisionComponent>().HitBox).Radius*1.0f;
                 _grassDisplaceShader.loadUniformFloat("exponent", 1f);
-                foreach (Entity terrain in terrains)
+                foreach (EntityOLD terrain in terrains)
                 {
 
                     GL.ActiveTexture(TextureUnit.Texture0);
@@ -227,7 +227,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(3);
             Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
-            foreach (Entity terrain in eCSEngine.getSystem<TerrainSystem>().MemberEntities)
+            foreach (EntityOLD terrain in eCSEngine.getSystem<TerrainSystem>().MemberEntities)
             {
 
                 Vector2 grassFieldSizeWorld = ((TerrainHitBox)(terrain.getComponent<CollisionComponent>().HitBox))._max.Xz;

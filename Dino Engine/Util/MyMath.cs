@@ -43,7 +43,7 @@ namespace Dino_Engine.Util
         }
         public static Matrix4 createTransformationMatrix(Vector3 position)
         {
-            return createTransformationMatrix(position, new Vector3(0), new Vector3(0));
+            return createTransformationMatrix(position, new Vector3(0), new Vector3(1));
         }
         public static Matrix4 createTransformationMatrix(Vector3 position, float scale)
         {

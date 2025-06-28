@@ -6,6 +6,7 @@ using Dino_Engine.Util;
 using Dino_Engine.Core;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
+using Dino_Engine.ECS.ComponentsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {

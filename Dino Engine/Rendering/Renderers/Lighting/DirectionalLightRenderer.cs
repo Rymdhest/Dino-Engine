@@ -5,8 +5,9 @@ using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using Dino_Engine.Core;
 using static OpenTK.Graphics.OpenGL.GL;
-using Dino_Engine.ECS.Components;
-using static Dino_Engine.ECS.Components.CascadingShadowComponent;
+using static Dino_Engine.ECS.ComponentsOLD.CascadingShadowComponent;
+using Dino_Engine.ECS.ComponentsOLD;
+using Dino_Engine.ECS.SystemsOLD;
 
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
@@ -56,7 +57,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
 
-            foreach (Entity entity in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
+            foreach (EntityOLD entity in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {
                 Vector3 lightDirection = entity.getComponent<DirectionComponent>().Direction;
                 Vector3 lightColour = entity.getComponent<ColourComponent>().Colour.ToVector3();

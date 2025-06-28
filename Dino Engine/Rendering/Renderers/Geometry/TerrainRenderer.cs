@@ -6,6 +6,8 @@ using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Core;
+using Dino_Engine.ECS.ComponentsOLD;
+using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -56,12 +58,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
         {
-            Entity camera = eCSEngine.Camera;
+            EntityOLD camera = eCSEngine.Camera;
             _modelShader.loadUniformVector3f("viewPos", camera.getComponent<TransformationComponent>().Transformation.position);
             Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
 
-            foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<TerrainRenderSystem>().ModelsDictionary)
+            foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<TerrainRenderSystem>().ModelsDictionary)
             {
                 glModel glmodel = glmodels.Key;
 
@@ -76,7 +78,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 GL.EnableVertexAttribArray(3);
                 GL.EnableVertexAttribArray(4);
                 GL.EnableVertexAttribArray(5);
-                foreach (Entity entity in glmodels.Value)
+                foreach (EntityOLD entity in glmodels.Value)
                 {
                     Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
                     Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;

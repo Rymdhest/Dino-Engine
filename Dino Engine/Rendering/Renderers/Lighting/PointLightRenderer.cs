@@ -1,15 +1,15 @@
 ﻿using Dino_Engine.Core;
-using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
 using static OpenTK.Graphics.OpenGL.GL;
-using static Dino_Engine.ECS.Components.CascadingShadowComponent;
-using Dino_Engine.ECS.Systems;
+using static Dino_Engine.ECS.ComponentsOLD.CascadingShadowComponent;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.ECS.ComponentsOLD;
+using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -41,7 +41,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             pointLightShader.loadUniformMatrix4f("invProjection", Matrix4.Invert( projectionMatrix));
             pointLightShader.loadUniformVector2f("resolution", Engine.Resolution);
 
-            foreach (Entity entity in eCSEngine.getSystem<PointLightSystem>().MemberEntities)
+            foreach (EntityOLD entity in eCSEngine.getSystem<PointLightSystem>().MemberEntities)
             {
 
                 Vector3 position = entity.getComponent<TransformationComponent>().Transformation.position;

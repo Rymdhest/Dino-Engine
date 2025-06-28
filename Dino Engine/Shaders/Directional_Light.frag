@@ -86,7 +86,7 @@ void main(void){
 	//color = color / (color + vec3(1.0));
     //color = pow(color, vec3(1.0/2.2));  
 	//lighting = applyFog(lighting, -position.z, -viewDir);
-	out_Colour = vec4(color, 1.0);
+	out_Colour = vec4(color, 0.0);
 	//out_Colour =  vec4(vec3(sunFactor), 1.0f);
 	//out_Colour =  vec4(vec3(ambientOcclusion), 1.0f);
 	

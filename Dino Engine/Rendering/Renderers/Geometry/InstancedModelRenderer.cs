@@ -11,6 +11,8 @@ using System.Reflection;
 using Dino_Engine.Modelling;
 using static Dino_Engine.Modelling.MeshGenerator;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using Dino_Engine.ECS.ComponentsOLD;
+using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -47,14 +49,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             }
 
             
-            Entity camera = eCSEngine.Camera;
+            EntityOLD camera = eCSEngine.Camera;
             Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
 
             _instancedModelShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
             _instancedModelShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
 
-            foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<InstancedModelSystem>().ModelsDictionary)
+            foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<InstancedModelSystem>().ModelsDictionary)
             {
                 pointer = 0;
                 glModel glmodel = glmodels.Key;
@@ -62,7 +64,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 {
                     //Console.WriteLine("allocating");
                     float[] vboData = new float[glmodels.Value.Count * INSTANCE_DATA_LENGTH];
-                    foreach (Entity entity in glmodels.Value)
+                    foreach (EntityOLD entity in glmodels.Value)
                     {
                         Matrix4 modelMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
                         storeMatrixData(modelMatrix, vboData);

@@ -1,11 +1,15 @@
 ﻿using Dino_Engine.Debug;
 using Dino_Engine.ECS;
+using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Rendering;
+using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using System.Diagnostics;
+using System.Net.Security;
 using System.Runtime.InteropServices;
 using ErrorCode = OpenTK.Graphics.OpenGL.ErrorCode;
 
@@ -33,6 +37,10 @@ namespace Dino_Engine.Core
 
         private static DebugProc debugProcCallback = DebugCallback; // Declare the delegate as a static field
 
+        private ECSWorld world;
+        private Entity e1;
+        private double TEST_totalElapsed;
+        private int TEST_count;
 
         public Engine(EngineLaunchSettings settings)
         {
@@ -45,6 +53,38 @@ namespace Dino_Engine.Core
             _renderEngine.InitRenderers(settings._resolution);  
             _ECSEngine = new ECSEngine();
             _ECSEngine.InitEntities();
+
+
+
+
+            //ComponentTypeRegistry.Register<Position>();
+            //ComponentTypeRegistry.Register<Velocity>();
+            ComponentTypeRegistry.AutoRegisterAllComponents();
+
+            world = new();
+
+            world.RegisterSystem(new MovementSystem());
+            world.RegisterSystem(new ParticleSystem());
+
+            e1 = world.CreateEntity(
+                new Position { X = 1, Y = 2, Z = 3 },
+                new Velocity { X = 0.1f, Y = 0.2f, Z = 0.3f },
+                new LocalToWorldMatrixComponent{ }
+            );
+
+            float scale = 0.01f;
+            for (int i = 0; i <10; i++)
+            {
+
+                world.CreateEntity(
+                new Position { X = MyMath.rngMinusPlus(scale), Y = MyMath.rngMinusPlus(scale), Z = MyMath.rngMinusPlus(scale) },
+                new Velocity { X = MyMath.rngMinusPlus(scale), Y = MyMath.rngMinusPlus(scale), Z = MyMath.rngMinusPlus(scale) },
+                new LocalToWorldMatrixComponent { }
+            );
+            }
+
+
+
             _windowHandler.UpdateFrame += delegate (FrameEventArgs eventArgs)
             {
                 Update();
@@ -95,9 +135,41 @@ namespace Dino_Engine.Core
         {
             PerformanceMonitor.startTask("Total");
             _deltaFrameTimeTracker.update();
+
+            Stopwatch sw = Stopwatch.StartNew();
             _ECSEngine.update();
+            sw.Stop();
+            /*
+            TEST_totalElapsed += sw.Elapsed.TotalMilliseconds;
+            TEST_count++;
+            if (TEST_count >= 100)
+            {
+                Console.WriteLine($"Total: "+TEST_totalElapsed/TEST_count+" ms");
+                Console.WriteLine(ECSEngine.Entities.Count);
+                TEST_count = 0;
+                TEST_totalElapsed = 0;
+            }
+            */
             _renderEngine.Update();
             game.update();
+
+
+
+            Stopwatch sw2 = Stopwatch.StartNew();
+            world.Update();
+            sw2.Stop();
+            TEST_totalElapsed += sw2.Elapsed.TotalMilliseconds;
+            TEST_count++;
+            if (TEST_count >= 100)
+            {
+                Console.WriteLine($"Total: " + TEST_totalElapsed / TEST_count + " ms");
+                Console.WriteLine(ECSEngine.Entities.Count);
+                TEST_count = 0;
+                TEST_totalElapsed = 0;
+                Position pos = world.GetComponent<Position>(e1);
+                Console.WriteLine($"Entity {e1.Id} position: ({pos.X}, {pos.Y}, {pos.Z})");
+            }
+
         }
 
         public void OnResize(ResizeEventArgs eventArgs)

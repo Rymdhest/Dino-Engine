@@ -40,7 +40,7 @@ namespace Dino_Engine.Rendering
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
         private SpotLightRenderer _spotLightRenderer;
-        private ParticleRenderer _particleRenderer;
+        public ParticleRenderer _particleRenderer;
         private GrassRenderer _grassRenderer;
         private SunRenderer _sunRenderer;
         private DepthOfFieldRenderer _depthOfFieldRenderer;

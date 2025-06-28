@@ -12,6 +12,8 @@ using System.Threading.Tasks;
 using Dino_Engine.Util;
 using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.ECS;
+using Dino_Engine.ECS.ComponentsOLD;
+using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Debug
 {
@@ -89,14 +91,14 @@ namespace Dino_Engine.Debug
             //renderer.GetLastFrameBuffer().ClearColorDepth();
             GL.Enable(EnableCap.DepthTest);
             GL.Disable(EnableCap.Blend);
-            Entity camera = eCSEngine.Camera;
+            EntityOLD camera = eCSEngine.Camera;
             Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
             _normalsShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
             _normalsShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             _normalsShader.loadUniformFloat("lineLength", 0.6f);
 
-            foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<ModelRenderSystem>().ModelsDictionary)
+            foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<ModelRenderSystem>().ModelsDictionary)
             {
                 glModel glmodel = glmodels.Key;
 
@@ -104,7 +106,7 @@ namespace Dino_Engine.Debug
                 GL.EnableVertexAttribArray(0);
                 GL.EnableVertexAttribArray(2);
                 GL.EnableVertexAttribArray(3);
-                foreach (Entity entity in glmodels.Value)
+                foreach (EntityOLD entity in glmodels.Value)
                 {
                     Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
                     _normalsShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);

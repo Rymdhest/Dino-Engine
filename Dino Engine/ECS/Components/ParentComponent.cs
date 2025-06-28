@@ -1,22 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Dino_Engine.ECS.ECS_Architecture;
 
 namespace Dino_Engine.ECS.Components
 {
-    public class ParentComponent : Component
+    public struct ParentComponent : IComponent
     {
-        public List<Entity> children = new List<Entity>();
-        public ParentComponent()
-        {
-
-        }
-
-        public virtual void CleanUp()
-        {
-            children.Clear();
-        }
+        public Entity parent;
     }
 }

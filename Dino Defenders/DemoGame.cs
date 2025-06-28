@@ -1,7 +1,5 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS;
-using Dino_Engine.ECS.Components;
-using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Nature;
 using Dino_Engine.Modelling.Procedural.Urban;
@@ -26,6 +24,8 @@ using System.Runtime.ConstrainedExecution;
 using System.Drawing;
 using Dino_Engine.Textures;
 using System.Reflection;
+using Dino_Engine.ECS.ComponentsOLD;
+using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Defenders
 {
@@ -52,7 +52,7 @@ namespace Dino_Defenders
                 float speed = 55f;
                 Colour colour = new Colour(255, 255, 255, 4.0f);
                 Material bigBallMaterial = new Material(colour, Material.GLOW.materialIndex);
-                Entity bigBall = new Entity("Big Ball");
+                EntityOLD bigBall = new EntityOLD("Big Ball");
                 bigBall.addComponent(new TransformationComponent(new Transformation(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.position, new Vector3(0f), new Vector3(size))));
                 bigBall.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, bigBallMaterial)));
                 bigBall.addComponent(new VelocityComponent(speed*eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.createForwardVector()));
@@ -75,7 +75,7 @@ namespace Dino_Defenders
                     {
                         smallSmallRandomBall(newPosition);
                     }
-                    Entity emitter = new Entity("Ball Particle Emitter");
+                    EntityOLD emitter = new EntityOLD("Ball Particle Emitter");
                     emitter.addComponent(new TransformationComponent(new Transformation(newPosition, new Vector3(0f, 0f, 0f), new Vector3(1))));
                     //emitter.addComponent(new ChildComponent(roadCone));
                     var emitterComponent = new ParticleEmitterComponent();
@@ -95,7 +95,7 @@ namespace Dino_Defenders
 
 
 
-                    Entity grassDisplaceEntity = new Entity("Grass Displace");
+                    EntityOLD grassDisplaceEntity = new EntityOLD("Grass Displace");
                     grassDisplaceEntity.addComponent(new TransformationComponent(collisionPoint, new Vector3(0), new Vector3(1)));
                     grassDisplaceEntity.addComponent(new GrassBlastComponent(5f, 5f, 20f));
                     eCSEngine.AddEnityToSystem<GrassBlastSystem>(grassDisplaceEntity);
@@ -123,7 +123,7 @@ namespace Dino_Defenders
             Vector3 col = MyMath.rng3D(0.5f)+new Vector3(0.5f);
             Colour colour = new Colour(col.X, col.Y, col.Z, 1.0f);
             Material bigBallMaterial = new Material(colour, Material.GLOW.materialIndex);
-            Entity smallBall = new Entity("Small Ball");
+            EntityOLD smallBall = new EntityOLD("Small Ball");
             smallBall.addComponent(new TransformationComponent(position, new Vector3(0f), new Vector3(size)));
             smallBall.addComponent(new ModelComponent(IcoSphereGenerator.CreateIcosphere(1, bigBallMaterial)));
             smallBall.addComponent(new VelocityComponent(speed * MyMath.rng3DMinusPlus().Normalized()));
@@ -192,7 +192,7 @@ namespace Dino_Defenders
             TerrainGenerator generator = new TerrainGenerator();
             generator.generateTerrainChunkEntity(-terrainSize/2.0f, terrainSize, 0.1f);
 
-            Entity cubeEntity = new Entity("Cube");
+            EntityOLD cubeEntity = new EntityOLD("Cube");
             //Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.rock));
             Mesh cubeMesh = TreeGenerator.GenerateLeaf();
             cubeEntity.addComponent(new ModelComponent(cubeMesh));
@@ -200,26 +200,26 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity);
 
 
-            Entity cubeEntity2 = new Entity("Cube2");
+            EntityOLD cubeEntity2 = new EntityOLD("Cube2");
             Mesh cubeMesh2 = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.leafBranch));
             cubeEntity2.addComponent(new ModelComponent(cubeMesh2));
             cubeEntity2.addComponent(new TransformationComponent(new Transformation(new Vector3(5, 5.5f, 3), new Vector3(0), new Vector3(10))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity2);
 
-            Entity cubeEntity3 = new Entity("Cube3");
+            EntityOLD cubeEntity3 = new EntityOLD("Cube3");
             Mesh cubeMesh3 = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.treeBranch));
             cubeEntity3.addComponent(new ModelComponent(cubeMesh3));
             cubeEntity3.addComponent(new TransformationComponent(new Transformation(new Vector3(20, 5.5f, 3), new Vector3(0), new Vector3(10))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity3);
 
-            Entity ballEntity = new Entity("Ball");
+            EntityOLD ballEntity = new EntityOLD("Ball");
             Mesh ballMesh = IcoSphereGenerator.CreateIcosphere(2, Material.BARK);
             ballEntity.addComponent(new ModelComponent(ballMesh));
             ballEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(7, 0.5f, 20), new Vector3(0), new Vector3(0.5f))));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(ballEntity);
 
             float poleHeight = 1f;
-            Entity poleEntity = new Entity("pole");
+            EntityOLD poleEntity = new EntityOLD("pole");
             List<Vector2> layers = new List<Vector2>() {
                 new Vector2(10.0f, 0),
                 new Vector2(9.0f, 1.0f),
@@ -335,7 +335,7 @@ namespace Dino_Defenders
             var _glModel = glLoader.loadToVAO(cylinderMesh);
             for (int i = 0; i<50; i++)
             {
-                Entity entity2 = new Entity("tree test "+i);
+                EntityOLD entity2 = new EntityOLD("tree test "+i);
                 Vector2 xz = MyMath.rng2D(terrainSize.X);
                 xz -= terrainSize/2.0f;
                 float y = generator.getHeightAt(xz);
@@ -369,7 +369,7 @@ namespace Dino_Defenders
             }
 
             float poleHeight = 1f;
-            Entity poleEntity = new Entity("pole");
+            EntityOLD poleEntity = new EntityOLD("pole");
             List<Vector2> layers = new List<Vector2>() {
                 new Vector2(10.0f, 0),
                 new Vector2(9.0f, 1.0f),
@@ -484,7 +484,7 @@ namespace Dino_Defenders
             var _glModel = glLoader.loadToVAO(cylinderMesh);
             for (int i = 0; i < 100; i++)
             {
-                Entity entity2 = new Entity("tree test " + i);
+                EntityOLD entity2 = new EntityOLD("tree test " + i);
                 entity2.addComponent(new ModelComponent(_glModel));
 
                 Vector2 xz = MyMath.rng2D(chunkSize.X);
@@ -513,7 +513,7 @@ namespace Dino_Defenders
             var rockModel = glLoader.loadToVAO(rockMesh);
             for (int i = 0; i < 130; i++)
             {
-                Entity entity = new Entity("rock test " + i);
+                EntityOLD entity = new EntityOLD("rock test " + i);
                 entity.addComponent(new ModelComponent(rockModel));
 
                 Vector2 xz = MyMath.rng2D(chunkSize.X);
@@ -614,7 +614,7 @@ namespace Dino_Defenders
         {
             Vector3 roomSize = new Vector3(20, 20, 50);
             float wallThickness = 0.05f;
-            Entity house = new Entity("house");
+            EntityOLD house = new EntityOLD("house");
             house.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
             Mesh houseMesh = new Mesh();
             Material wood = new Material(new Colour(115, 115, 95, 1), Engine.RenderEngine.textureGenerator.flat);
@@ -645,62 +645,62 @@ namespace Dino_Defenders
 
             TerrainGenerator terrainGenerator = new TerrainGenerator(104);
             Vector2 terrainSize = new Vector2(100, 140f);
-            Entity terrain = terrainGenerator.generateTerrainChunkEntity(new Vector2(0, 0f), terrainSize, 1.0f);
+            EntityOLD terrain = terrainGenerator.generateTerrainChunkEntity(new Vector2(0, 0f), terrainSize, 1.0f);
             terrain.getComponent<TransformationComponent>().SetLocalTransformation(new Vector3(-terrainSize.X/2f, -40, 20f));
             terrain.addComponent(new ChildComponent(house));
 
 
-            Entity roundTable = new Entity("roundTable");
+            EntityOLD roundTable = new EntityOLD("roundTable");
             roundTable.addComponent(new TransformationComponent(new Transformation(new Vector3(-7, 0, -21), new Vector3(0, 0, 0f), new Vector3(1))));
             roundTable.addComponent(new ChildComponent(house));
             roundTable.addComponent(new ModelComponent(FurnitureGenerator.GenerateRoundTable(out float roundTableSurfaceHeight))); ;
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(roundTable);
 
-            Entity candle2 = new Entity("candle2");
+            EntityOLD candle2 = new EntityOLD("candle2");
             candle2.addComponent(new TransformationComponent(new Transformation(new Vector3(0.2f, roundTableSurfaceHeight, -0.2f), new Vector3(0f, 0f, 0f), new Vector3(1))));
             candle2.addComponent(new ModelComponent(FurnitureGenerator.GenerateCandle(out Vector3 candleLightPosition2)));
             candle2.addComponent(new ChildComponent(roundTable));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(candle2);
 
-            Entity candlePointLight2 = new Entity("candlePointLight2");
+            EntityOLD candlePointLight2 = new EntityOLD("candlePointLight2");
             candlePointLight2.addComponent(new TransformationComponent(new Transformation(candleLightPosition2, new Vector3(0), new Vector3(1))));
             candlePointLight2.addComponent(new ChildComponent(candle2));
             candlePointLight2.addComponent(new AttunuationComponent(0.004f, 0.004f, 0.004f));
             candlePointLight2.addComponent(new ColourComponent(new Colour(1f, 0.7f, 0.5f, 0.2f)));
             eCSEngine.AddEnityToSystem<PointLightSystem>(candlePointLight2);
 
-            Entity table = new Entity("table");
+            EntityOLD table = new EntityOLD("table");
             table.addComponent(new TransformationComponent(new Transformation(new Vector3(6.4f, 0, 12), new Vector3(0, 0, 0f), new Vector3(1))));
             table.addComponent(new ModelComponent(FurnitureGenerator.GenerateTable(out float tableSurfaceHeight)));
             table.addComponent(new ChildComponent(house));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(table);
 
-            Entity chair = new Entity("chair");
+            EntityOLD chair = new EntityOLD("chair");
             chair.addComponent(new TransformationComponent(new Transformation(new Vector3(-3, 0, 0), new Vector3(0, -MathF.PI/2f, 0f), new Vector3(1))));
             chair.addComponent(new ChildComponent(table));
             chair.addComponent(new ModelComponent(FurnitureGenerator.GenerateChair())); ;
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(chair);
 
-            Entity lamp = new Entity("lamp");
+            EntityOLD lamp = new EntityOLD("lamp");
             lamp.addComponent(new TransformationComponent(new Transformation(new Vector3(0.8f, tableSurfaceHeight, 3), new Vector3(0f, 0f, 0f), new Vector3(1))));
             lamp.addComponent(new ModelComponent(FurnitureGenerator.GenerateLamp(out Vector3 lightPosition, out Vector3 lightDirection)));
             lamp.addComponent(new ChildComponent(table));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(lamp);
 
-            Entity candle = new Entity("candle");
+            EntityOLD candle = new EntityOLD("candle");
             candle.addComponent(new TransformationComponent(new Transformation(new Vector3(1.2f, tableSurfaceHeight, -3), new Vector3(0f, 0f, 0f), new Vector3(1))));
             candle.addComponent(new ModelComponent(FurnitureGenerator.GenerateCandle(out Vector3 candleLightPosition)));
             candle.addComponent(new ChildComponent(table));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(candle);
 
-            Entity candlePointLight = new Entity("candlePointLight");
+            EntityOLD candlePointLight = new EntityOLD("candlePointLight");
             candlePointLight.addComponent(new TransformationComponent(new Transformation(candleLightPosition, new Vector3(0), new Vector3(1))));
             candlePointLight.addComponent(new ChildComponent(candle));
             candlePointLight.addComponent(new AttunuationComponent(0.004f, 0.004f, 0.004f));
             candlePointLight.addComponent(new ColourComponent(new Colour(1f, 0.3f, 0.1f, 0.7f)));
             eCSEngine.AddEnityToSystem<PointLightSystem>(candlePointLight);
 
-            Entity spotLight = new Entity("spotLight");
+            EntityOLD spotLight = new EntityOLD("spotLight");
             spotLight.addComponent(new TransformationComponent(new Transformation(lightPosition, lightDirection, new Vector3(1))));
             spotLight.addComponent(new ChildComponent(lamp));
             spotLight.addComponent(new AttunuationComponent(0.006f, 0.006f, 0.006f));
@@ -708,7 +708,7 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<SpotLightSystem>(spotLight);
 
 
-            Entity ceilingLight = new Entity("ceilingLight");
+            EntityOLD ceilingLight = new EntityOLD("ceilingLight");
             ceilingLight.addComponent(new TransformationComponent(new Transformation(new Vector3(0, roomSize.Y-wallThickness*roomSize.Y*2, 0), new Vector3(0), new Vector3(1))));
             ceilingLight.addComponent(new ModelComponent(MeshGenerator.generateBox(Material.GLOW)));
             ceilingLight.addComponent(new AttunuationComponent(0.0008f, 0.0008f, 0.0008f));
@@ -729,13 +729,13 @@ namespace Dino_Defenders
             {
                 for (int z = 0; z < 0; z++)
                 {
-                    Entity house = new Entity("House");
+                    EntityOLD house = new EntityOLD("House");
                     house.addComponent(new TransformationComponent(new Vector3(45 + 55 * x, 0, 45 + 55f * z), new Vector3(0, MyMath.rand.Next(8) * MathF.PI / 4, 0f), new Vector3(1f)));
                     house.addComponent(new ModelComponent(houseModel));
                     eCSEngine.AddEnityToSystem<ModelRenderSystem>(house);
                 }
             }
-            Entity houseGround = new Entity("House Ground");
+            EntityOLD houseGround = new EntityOLD("House Ground");
             houseGround.addComponent(new TransformationComponent(new Transformation(new Vector3(-streetGenerator.TotalWidth/2f-50f, 0, -streetGenerator.TotalWidth/2f-50f), new Vector3(0,-MathF.PI/2f,0), new Vector3(1))));
             Mesh houseGroundMesh = MeshGenerator.generateBox(Material.ROCK);
             //Mesh.scaleUV = true;
@@ -752,7 +752,7 @@ namespace Dino_Defenders
             Vector2 terrainSize = new Vector2(100, 100f);
             terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
 
-            Entity crossRoad = new Entity("crossroad");
+            EntityOLD crossRoad = new EntityOLD("crossroad");
             crossRoad.addComponent(new TransformationComponent(new Transformation()));
             crossRoad.addComponent(new ModelComponent(streetGenerator.GenerateCrossRoad()));
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(crossRoad);
@@ -762,33 +762,32 @@ namespace Dino_Defenders
             {
                 for (int j = 0; j < streetGenerator.lanes; j++)
                 {
-                    Entity car = new Entity("car " + nr);
+                    EntityOLD car = new EntityOLD("car " + nr);
                     float x = streetGenerator.laneWdith * j + streetGenerator.laneWdith * (0.5f + MyMath.rngMinusPlus(0.15f));
                     float z = 13f * i + MyMath.rngMinusPlus(4f);
                     car.addComponent(new TransformationComponent(new Transformation(new Vector3(x, 0f, z), new Vector3(0f, MyMath.rngMinusPlus(0.03f), 0f), new Vector3(1.7f + MyMath.rngMinusPlus(0.2f)))));
                     car.addComponent(new ModelComponent(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight, out Vector3 exhaustPos)));
                     eCSEngine.AddEnityToSystem<ModelRenderSystem>(car);
 
-                    Entity carLightLeft = new Entity("car light left");
+                    EntityOLD carLightLeft = new EntityOLD("car light left");
                     carLightLeft.addComponent(new TransformationComponent(leftLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
                     carLightLeft.addComponent(new AttunuationComponent(0.0005f, 0.0005f, 0.0005f));
                     carLightLeft.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 0.3f)));
                     carLightLeft.addComponent(new ChildComponent(car));
                     eCSEngine.AddEnityToSystem<SpotLightSystem>(carLightLeft);
 
-                    Entity carLightRight = new Entity("car light right");
+                    EntityOLD carLightRight = new EntityOLD("car light right");
                     carLightRight.addComponent(new TransformationComponent(rightLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
                     carLightRight.addComponent(new AttunuationComponent(0.0005f, 0.0005f, 0.0005f));
                     carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 0.3f)));
                     carLightRight.addComponent(new ChildComponent(car));
                     eCSEngine.AddEnityToSystem<SpotLightSystem>(carLightRight);
 
-                    Entity emitter = new Entity("car exhaust Particle Emitter");
+                    EntityOLD emitter = new EntityOLD("car exhaust Particle Emitter");
                     emitter.addComponent(new TransformationComponent(new Transformation(exhaustPos, new Vector3(0f, 0f, 0f), new Vector3(1))));
-                    //emitter.addComponent(new ChildComponent(roadCone));
                     var emitterComponent = new ParticleEmitterComponent();
                     emitterComponent.particleSpeed = 0.2f;
-                    emitterComponent.particlesPerSecond = 20f;
+                    emitterComponent.particlesPerSecond = 1f;
                     emitterComponent.particleSizeStart = 0.25f;
                     emitterComponent.particleWeight = -0.25f;
                     emitterComponent.particleSpeed = 6f;
@@ -807,7 +806,7 @@ namespace Dino_Defenders
             Mesh streetModel = streetGenerator.GenerateStreet(30, out float streetLength);
             for (int i = 0; i < 4; i++)
             {
-                Entity street = new Entity("street");
+                EntityOLD street = new EntityOLD("street");
                 Vector3 position = (new Vector4(0, 0f, streetGenerator.TotalWidth * 0.5f, 1f) * MyMath.createRotationMatrix(new Vector3(0f, i * (MathF.PI / 2f), 0f))).Xyz;
                 Transformation transformation = new Transformation(position, new Vector3(0f, i * (MathF.PI / 2f), 0f), new Vector3(1));
                 street.addComponent(new TransformationComponent(transformation));
@@ -822,12 +821,12 @@ namespace Dino_Defenders
             {
                 for (int i = 0; i < 10; i++)
                 {
-                    Entity streetLight = new Entity("Street Light" + i);
+                    EntityOLD streetLight = new EntityOLD("Street Light" + i);
                     streetLight.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 50 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(1f, 1f, 1f)));
                     streetLight.addComponent(new ModelComponent(UrbanPropGenerator.GenerateStreetLight(out Vector3 lightPosition)));
                     eCSEngine.AddEnityToSystem<ModelRenderSystem>(streetLight);
 
-                    Entity glow = new Entity("Street Light" + i + " glow");
+                    EntityOLD glow = new EntityOLD("Street Light" + i + " glow");
                     glow.addComponent(new TransformationComponent(lightPosition, new Vector3(0f), new Vector3(1f)));
                     glow.addComponent(new AttunuationComponent(0.001f, 0.001f, 0.001f));
                     glow.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 20f)));
@@ -835,7 +834,7 @@ namespace Dino_Defenders
                     eCSEngine.AddEnityToSystem<SpotLightSystem>(glow);
 
 
-                    Entity streetTree = new Entity("Street tree" + i);
+                    EntityOLD streetTree = new EntityOLD("Street tree" + i);
                     streetTree.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i), new Vector3(0f, MyMath.rng()*MathF.Tau, 0f), new Vector3(1f)+MyMath.rng3DMinusPlus(0.25f)));
                     streetTree.addComponent(new ModelComponent(tree));
                     eCSEngine.AddEnityToSystem<ModelRenderSystem>(streetTree);
@@ -843,7 +842,7 @@ namespace Dino_Defenders
             }
             for (int i = 0; i < 8; i++)
             {
-                Entity roadCone = new Entity("roadCone");
+                EntityOLD roadCone = new EntityOLD("roadCone");
                 roadCone.addComponent(new TransformationComponent(new Transformation(new Vector3(2 * i, 0f, 15f), new Vector3(0f, MathF.PI * 2f * MyMath.rng(), 0f), new Vector3(2))));
                 roadCone.addComponent(new ModelComponent(UrbanPropGenerator.GenerateStreetCone()));
                 eCSEngine.AddEnityToSystem<ModelRenderSystem>(roadCone);

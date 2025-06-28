@@ -1,14 +1,14 @@
 ﻿using Dino_Engine.Core;
-using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
 using static OpenTK.Graphics.OpenGL.GL;
-using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.ECS.ComponentsOLD;
+using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -43,7 +43,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _spotLightShader.loadUniformMatrix4f("invProjection", Matrix4.Invert(projectionMatrix));
             _spotLightShader.loadUniformVector2f("resolution", Engine.Resolution);
 
-            foreach (Entity entity in eCSEngine.getSystem<SpotLightSystem>().MemberEntities)
+            foreach (EntityOLD entity in eCSEngine.getSystem<SpotLightSystem>().MemberEntities)
             {
 
                 Vector3 position = entity.getComponent<TransformationComponent>().Transformation.position;

@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using OpenTK.Graphics.OpenGL;
 using Dino_Engine.Core;
+using Dino_Engine.ECS.ComponentsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {

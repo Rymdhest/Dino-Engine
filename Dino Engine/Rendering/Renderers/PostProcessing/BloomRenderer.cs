@@ -95,6 +95,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
             GL.BlendEquation(BlendEquationMode.FuncAdd);
+            //GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            //GL.BlendFuncSeparate(BlendingFactorSrc.One, BlendingFactorDest.One, BlendingFactorSrc.One, BlendingFactorDest.One);
+            //GL.BlendEquation(BlendEquationMode.FuncAdd);
 
             for (int i = downSamples-1 ; i > 0; i--)
             {

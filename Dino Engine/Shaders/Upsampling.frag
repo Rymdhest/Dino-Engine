@@ -5,7 +5,7 @@ uniform vec2 srcResolution;
 in vec2 textureCoords;
 layout (location = 0)
 
-out vec3 upsample;
+out vec4 upsample;
 
 void main()
 {
@@ -36,8 +36,10 @@ void main()
     //  1   | 1 2 1 |
     // -- * | 2 4 2 |
     // 16   | 1 2 1 |
-    upsample = e*4.0;
-    upsample += (b+d+f+h)*2.0;
-    upsample += (a+c+g+i);
-    upsample *= 1.0 / 16.0;
+    upsample.rgb = e*4.0;
+    upsample.rgb += (b+d+f+h)*2.0;
+    upsample.rgb += (a+c+g+i);
+    upsample.rgb *= 1.0 / 16.0;
+
+    upsample.a = 1.0;
 }

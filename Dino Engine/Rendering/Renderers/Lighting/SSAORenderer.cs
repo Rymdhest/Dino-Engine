@@ -6,6 +6,7 @@ using System.Net.Mail;
 using Dino_Engine.Core;
 using Dino_Engine.ECS;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
+using Dino_Engine.ECS.ComponentsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -81,9 +82,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", 0.05f);
-            ambientOcclusionShader.loadUniformFloat("strength", 4.5f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.1f);
+            ambientOcclusionShader.loadUniformFloat("radius", 0.1f);
+            ambientOcclusionShader.loadUniformFloat("strength", 1.5f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.15f);
 
             ambientOcclusionShader.loadUniformVector2f("resolution", resolution);
             ambientOcclusionShader.loadUniformMatrix4f("invProjection", Matrix4.Invert(projectionMatrix));

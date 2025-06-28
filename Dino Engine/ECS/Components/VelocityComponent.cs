@@ -1,19 +1,10 @@
-﻿using OpenTK.Mathematics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Dino_Engine.ECS.ECS_Architecture;
+using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Components
 {
-    public class VelocityComponent : Component
+    public struct VelocityComponent : IComponent
     {
         public Vector3 velocity;
-
-        public VelocityComponent(Vector3 velocity)
-        {
-            this.velocity = velocity;
-        }
     }
 }

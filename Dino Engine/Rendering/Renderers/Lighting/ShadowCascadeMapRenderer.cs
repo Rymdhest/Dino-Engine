@@ -8,8 +8,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.ECS.ComponentsOLD;
+using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -72,7 +73,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
 
-            foreach (Entity directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
+            foreach (EntityOLD directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {
                 if (directionalLight.TryGetComponent(out CascadingShadowComponent shadow))
                 {
@@ -83,14 +84,14 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                         GL.Clear(ClearBufferMask.DepthBufferBit);
                         GL.PolygonOffset(cascade.getPolygonOffset(), 1f);
 
-                        foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<ModelRenderSystem>().ModelsDictionary)
+                        foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<ModelRenderSystem>().ModelsDictionary)
                         {
                             glModel glmodel = glmodels.Key;
                             GL.BindVertexArray(glmodel.getVAOID());
                             GL.EnableVertexAttribArray(0);
                             GL.EnableVertexAttribArray(4);
                             GL.EnableVertexAttribArray(5);
-                            foreach (Entity entity in glmodels.Value)
+                            foreach (EntityOLD entity in glmodels.Value)
                             {
                                 Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
                                 _shadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.LightViewMatrix * cascade.getProjectionMatrix());
@@ -99,14 +100,14 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                             }
                         }
 
-                        foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<TerrainRenderSystem>().ModelsDictionary)
+                        foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<TerrainRenderSystem>().ModelsDictionary)
                         {
                             glModel glmodel = glmodels.Key;
                             GL.BindVertexArray(glmodel.getVAOID());
                             GL.EnableVertexAttribArray(0);
                             GL.EnableVertexAttribArray(4);
                             GL.EnableVertexAttribArray(5);
-                            foreach (Entity entity in glmodels.Value)
+                            foreach (EntityOLD entity in glmodels.Value)
                             {
                                 Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
                                 _shadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.LightViewMatrix * cascade.getProjectionMatrix());
@@ -129,7 +130,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
 
-            foreach (Entity directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
+            foreach (EntityOLD directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
             {
                 if (directionalLight.TryGetComponent(out CascadingShadowComponent shadow))
                 {
@@ -143,7 +144,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                         //GL.Clear(ClearBufferMask.DepthBufferBit);
                         GL.PolygonOffset(cascade.getPolygonOffset(), 1f);
 
-                        foreach (KeyValuePair<glModel, List<Entity>> glmodels in eCSEngine.getSystem<InstancedModelSystem>().ModelsDictionary)
+                        foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<InstancedModelSystem>().ModelsDictionary)
                         {
                             glModel glmodel = glmodels.Key;
                             GL.BindVertexArray(glmodel.getVAOID());

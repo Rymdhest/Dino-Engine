@@ -1,7 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS;
 using Dino_Engine.ECS.Components;
-using Dino_Engine.ECS.Systems;
+using Dino_Engine.ECS.SystemsOLD;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Nature;
 using Dino_Engine.Physics;
@@ -36,13 +36,13 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         {
             noise = new OpenSimplexNoise(seed);
         }
-        public Entity generateTerrainChunkEntity(Vector2 worldPos, Vector2 worldSize, float quadsPerMeter)
+        public EntityOLD generateTerrainChunkEntity(Vector2 worldPos, Vector2 worldSize, float quadsPerMeter)
         {
 
             Vector2i resolution = new Vector2i((int)(worldSize.X * quadsPerMeter)+1, (int)(worldSize.Y*quadsPerMeter)+1);
             ECSEngine eCSEngine = Engine.Instance.ECSEngine;
 
-            Entity terrainEntity = new Entity("Terrain");
+            EntityOLD terrainEntity = new EntityOLD("Terrain");
 
             FloatGrid terrainGrid = generateChunk(worldPos, worldSize, resolution);
             Material grass = new Material(new Colour(255, 255, 255),Engine.RenderEngine.textureGenerator.grain);
