@@ -47,6 +47,17 @@ namespace Dino_Engine.ECS.ECS_Architecture
             bitBlocks[block] |= 1UL << offset;
         }
 
+        public IEnumerable<int> GetSetBits()
+        {
+            for (int block = 0; block < bitBlocks.Length; block++)
+            {
+                ulong bits = bitBlocks[block];
+                for (int bit = 0; bit < 64; bit++)
+                    if ((bits & (1UL << bit)) != 0)
+                        yield return block * 64 + bit;
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public BitMask WithBit(int bit)
         {
@@ -92,7 +103,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
         {
             int block = bit / 64;
             int offset = bit % 64;
-            if (block >= bitBlocks.Length) return false;
+            //if (block >= bitBlocks.Length) return false;
             return (bitBlocks[block] & (1UL << offset)) != 0;
         }
 

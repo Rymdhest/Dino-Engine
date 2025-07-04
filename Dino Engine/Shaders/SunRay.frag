@@ -67,6 +67,6 @@ void main(void)
   // Output final color with a further scale control factor.
      vec3 godray = color * Exposure;
 
-    out_Colour = vec4(godray/samples, 1);
+    out_Colour = vec4(godray/samples, 0);
 
 }

@@ -10,14 +10,14 @@ namespace Dino_Engine.ECS.ECS_Architecture
     public static class ComponentTypeRegistry
     {
         private static Dictionary<Type, int> typeToId = new();
-        public static List<Type> idToType = new();
-        private static readonly List<Func<IComponentArray>> arrayFactories = new();
+        private static Dictionary<int, Type> idToType = new();
+
         public static int Count => idToType.Count;
 
-        public static int Register<T>() where T : struct, IComponent =>
+        private static int Register<T>() where T : struct, IComponent =>
             Register(typeof(T));
 
-        public static int Register(Type type)
+        private static int Register(Type type)
         {
             if (!typeof(IComponent).IsAssignableFrom(type) || !type.IsValueType)
                 throw new ArgumentException("Only struct types implementing IComponent can be registered.");
@@ -26,38 +26,24 @@ namespace Dino_Engine.ECS.ECS_Architecture
             {
                 id = idToType.Count;
                 typeToId[type] = id;
-                idToType.Add(type);
+                idToType[id] = type;
             }
-            arrayFactories.Add(() =>
-            {
-                var arrayType = typeof(ComponentArray<>).MakeGenericType(type);
-                return (IComponentArray)Activator.CreateInstance(arrayType)!;
-            });
             return id;
         }
 
         public static void AutoRegisterAllComponents()
         {
-            var componentTypes = AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a => a.GetTypes())
-                .Where(t =>
-                    t.IsValueType &&
-                    !t.IsAbstract &&
-                    typeof(IComponent).IsAssignableFrom(t));
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
-            // Find the correct generic Register<T>() method
-            var registerMethod = typeof(ComponentTypeRegistry)
-                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .Single(m =>
-                    m.Name == nameof(Register) &&
-                    m.IsGenericMethodDefinition &&
-                    m.GetGenericArguments().Length == 1
-                );
-
-            foreach (var type in componentTypes)
+            foreach (var assembly in assemblies)
             {
-                var genericMethod = registerMethod.MakeGenericMethod(type);
-                genericMethod.Invoke(null, null);
+                foreach (var type in assembly.GetTypes())
+                {
+                    if (!type.IsValueType || !typeof(IComponent).IsAssignableFrom(type))
+                        continue;
+
+                    Register(type); // registers it
+                }
             }
         }
 
@@ -66,11 +52,11 @@ namespace Dino_Engine.ECS.ECS_Architecture
             return typeToId[typeof(T)];
         }
 
-        public static IComponentArray CreateArray(int id) => arrayFactories[id]();
-        public static int GetId(Type t)
+        public static Type GetType(int id) => idToType[id];
+        public static int GetId(Type type)
         {
-            if (!typeToId.TryGetValue(t, out int id))
-                throw new ArgumentException($"Component type not registered: {t.FullName}");
+            if (!typeToId.TryGetValue(type, out int id))
+                throw new ArgumentException($"Component type not registered: {type.FullName}");
             return id;
         }
     }

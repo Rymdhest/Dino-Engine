@@ -5,6 +5,11 @@ namespace Dino_Engine.ECS.Components
 {
     public struct LocalToWorldMatrixComponent : IComponent
     {
-        public Matrix4 ModelToWorldMatrix;
+        public Matrix4 value;
+
+        public LocalToWorldMatrixComponent()
+        {
+            value = Matrix4.Identity;
+        }
     }
 }

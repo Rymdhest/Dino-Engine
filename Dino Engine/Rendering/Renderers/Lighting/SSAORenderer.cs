@@ -2,11 +2,8 @@
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
-using System.Net.Mail;
 using Dino_Engine.Core;
-using Dino_Engine.ECS;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
-using Dino_Engine.ECS.ComponentsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -60,26 +57,25 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (float)TextureWrapMode.Repeat);
 
         }
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.Zero);
             GL.BlendEquation(BlendEquationMode.FuncAdd);
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
             FrameBuffer gBuffer = renderEngine.GBuffer;
-            Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
             Vector2i resolution = Engine.Resolution;
             GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
 
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
-            ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
+            ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
             ambientOcclusionShader.loadUniformFloat("radius", 0.1f);
@@ -87,7 +83,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformFloat("bias", 0.15f);
 
             ambientOcclusionShader.loadUniformVector2f("resolution", resolution);
-            ambientOcclusionShader.loadUniformMatrix4f("invProjection", Matrix4.Invert(projectionMatrix));
+            ambientOcclusionShader.loadUniformMatrix4f("invProjection", renderEngine.context.invProjectionMatrix);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, noiseTexture);

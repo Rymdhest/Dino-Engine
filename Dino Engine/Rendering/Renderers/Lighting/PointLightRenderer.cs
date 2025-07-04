@@ -1,19 +1,25 @@
 ﻿using Dino_Engine.Core;
-using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
 using static OpenTK.Graphics.OpenGL.GL;
-using static Dino_Engine.ECS.ComponentsOLD.CascadingShadowComponent;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
-using Dino_Engine.ECS.ComponentsOLD;
-using Dino_Engine.ECS.SystemsOLD;
+using System.Reflection;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
-    internal class PointLightRenderer : Renderer
+    public struct PointlightRenderCommand : IRenderCommand
+    {
+        public Vector3 colour;
+        public Vector3 attenuation;
+        public float attenuationRadius;
+        public Vector3 positionWorld;
+        public float ambient;
+    }
+
+    public class PointLightRenderer : CommandDrivenRenderer<PointlightRenderCommand>
     {
 
         private ShaderProgram pointLightShader = new ShaderProgram("Point_Light.vert", "Point_Light.frag");
@@ -27,42 +33,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             pointLightShader.unBind();
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
-        {
-            Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
-            Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
-
-            glModel model = ModelGenerator.UNIT_SPHERE;
-            GL.BindVertexArray(model.getVAOID());
-            EnableVertexAttribArray(0);
-
-            pointLightShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
-            pointLightShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
-            pointLightShader.loadUniformMatrix4f("invProjection", Matrix4.Invert( projectionMatrix));
-            pointLightShader.loadUniformVector2f("resolution", Engine.Resolution);
-
-            foreach (EntityOLD entity in eCSEngine.getSystem<PointLightSystem>().MemberEntities)
-            {
-
-                Vector3 position = entity.getComponent<TransformationComponent>().Transformation.position;
-                float attunuationRadius = entity.getComponent<AttunuationComponent>().AttunuationRadius;
-                Matrix4 transformationMatrix = MyMath.createTransformationMatrix(position, attunuationRadius*1.1f);
-                pointLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
-
-                Vector3 lightColour = entity.getComponent<ColourComponent>().Colour.ToVector3();
-                Vector3 attenuation = entity.getComponent<AttunuationComponent>().Attunuation;
-
-                Vector4 lightPositionViewSpace = new Vector4(position, 1.0f) * viewMatrix;
-                pointLightShader.loadUniformVector3f("lightPositionViewSpace", lightPositionViewSpace.Xyz);
-
-                pointLightShader.loadUniformVector3f("lightColor", lightColour);
-                pointLightShader.loadUniformVector3f("attenuation", attenuation);
-
-                GL.DrawElements(PrimitiveType.Triangles, model.getVertexCount(), DrawElementsType.UnsignedInt, 0);
-            }
-
-        }
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
             FrameBuffer gBuffer = renderEngine.GBuffer;
             pointLightShader.bind();
@@ -86,9 +57,21 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
             ActiveTexture(TextureUnit.Texture3);
             BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
+
+            Matrix4 viewMatrix = renderEngine.context.viewMatrix;
+            Matrix4 projectionMatrix = renderEngine.context.projectionMatrix;
+
+            glModel model = ModelGenerator.UNIT_SPHERE;
+            GL.BindVertexArray(model.getVAOID());
+            EnableVertexAttribArray(0);
+
+            pointLightShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
+            pointLightShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
+            pointLightShader.loadUniformMatrix4f("invProjection", renderEngine.context.invProjectionMatrix);
+            pointLightShader.loadUniformVector2f("resolution", Engine.Resolution);
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
             BindVertexArray(0);
             DisableVertexAttribArray(0);
@@ -102,12 +85,24 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             pointLightShader.cleanUp();
         }
 
-        public override void OnResize(ResizeEventArgs eventArgs)
+        public override void PerformCommand(PointlightRenderCommand command, RenderEngine renderEngine)
         {
-        }
+            Vector3 position = command.positionWorld;
+            float attunuationRadius = command.attenuationRadius;
+            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(position, attunuationRadius * 1.1f);
+            pointLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
 
-        public override void Update()
-        {
+            Vector3 lightColour = command.colour;
+            Vector3 attenuation = command.attenuation;
+
+            Vector4 lightPositionViewSpace = new Vector4(position, 1.0f) * renderEngine.context.viewMatrix;
+            pointLightShader.loadUniformVector3f("lightPositionViewSpace", lightPositionViewSpace.Xyz);
+
+            pointLightShader.loadUniformVector3f("lightColor", lightColour);
+            pointLightShader.loadUniformVector3f("attenuation", attenuation);
+            pointLightShader.loadUniformFloat("lightAmbient", command.ambient);
+
+            GL.DrawElements(PrimitiveType.Triangles, ModelGenerator.UNIT_SPHERE.getVertexCount(), DrawElementsType.UnsignedInt, 0);
         }
     }
 }

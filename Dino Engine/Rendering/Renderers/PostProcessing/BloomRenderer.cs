@@ -50,15 +50,15 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             }
         }
 
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
             FrameBuffer gBuffer = renderEngine.GBuffer;
             DualBuffer buffer = renderEngine.lastUsedBuffer;
@@ -150,11 +150,5 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                 sampleFramebuffers[i].resize(resolution);
             }
         }
-
-        public override void Update()
-        {
-        }
-
-
     }
 }

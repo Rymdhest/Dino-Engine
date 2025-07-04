@@ -1,18 +1,6 @@
 ﻿using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
-using Dino_Engine.Rendering.Renderers;
-using Dino_Engine.ECS;
-using Dino_Engine.Util;
-using Dino_Engine.Modelling.Model;
-using Dino_Engine.Debug;
-using System.Numerics;
-using System.Reflection;
-using Dino_Engine.Modelling;
-using static Dino_Engine.Modelling.MeshGenerator;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-using Dino_Engine.ECS.ComponentsOLD;
-using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -28,7 +16,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         public InstancedModelRenderer()
         {
         }
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
             GL.DepthMask(true);
             GL.Enable(EnableCap.DepthTest);
@@ -38,8 +26,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelShader.bind();
 
         }
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
+            /*
             if (reAllocate)
             {
                 foreach (int vbo in vbos)
@@ -96,6 +85,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 GL.DrawElementsInstanced(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0, glmodels.Value.Count);
             }
             reAllocate = true;
+            */
         }
 
         private void storeMatrixData(Matrix4 matrix, float[] vboData)
@@ -124,7 +114,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         public override void OnResize(ResizeEventArgs eventArgs)
         {
         }
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);

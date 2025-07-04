@@ -19,15 +19,15 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _depthOfFieldShader.unBind();
         }
 
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
             DualBuffer buffer = renderEngine.lastUsedBuffer;
             FrameBuffer gBuffer = renderEngine.GBuffer;
@@ -59,17 +59,5 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             _depthOfFieldShader.cleanUp();
         }
-
-        public override void OnResize(ResizeEventArgs eventArgs)
-        {
-        }
-
-        public override void Update()
-        {
-        }
-
-
-
-
     }
 }

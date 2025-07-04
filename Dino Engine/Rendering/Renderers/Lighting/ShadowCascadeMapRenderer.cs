@@ -1,20 +1,46 @@
-﻿using Dino_Engine.ECS;
-using Dino_Engine.Util;
+﻿
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Dino_Engine.Modelling.Model;
-using Dino_Engine.ECS.ComponentsOLD;
-using Dino_Engine.ECS.SystemsOLD;
+using Dino_Engine.Rendering.Renderers.Geometry;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
-    internal class ShadowCascadeMapRenderer : Renderer
+    public struct ShadowCascade
+    {
+        public Matrix4 lightViewMatrix;
+        public Matrix4 cascadeProjectionMatrix;
+        public FrameBuffer cascadeFrameBuffer;
+        public float projectionSize;
+        public float polygonOffset;
+        public ShadowCascade(Vector2i resolution, float projectionSize, float polygonOffset)
+        {
+            this.projectionSize = projectionSize;
+            this.polygonOffset = polygonOffset;
+            FrameBufferSettings settings = new FrameBufferSettings(resolution);
+            DepthAttachmentSettings depthAttachmentSettings = new DepthAttachmentSettings();
+            depthAttachmentSettings.isTexture = true;
+            depthAttachmentSettings.isShadowDepthTexture = true;
+            settings.depthAttachmentSettings = depthAttachmentSettings;
+            cascadeFrameBuffer = new FrameBuffer(settings);
+            lightViewMatrix = Matrix4.Identity;
+            cascadeProjectionMatrix = Matrix4.CreateOrthographic(projectionSize, projectionSize, -projectionSize, projectionSize);
+        }
+    }
+
+    public struct ShadowCascadeCommand : IRenderCommand
+    {
+        public ModelRenderCommand[] modelCommands;
+        public ShadowCascade cascade;
+    }
+
+    public struct DirectionalShadowRenderCommand : IRenderCommand
+    {
+        public ShadowCascadeCommand[] Cascades;
+    }
+
+    public class ShadowCascadeMapRenderer : CommandDrivenRenderer<DirectionalShadowRenderCommand>
     {
 
         private ShaderProgram _shadowShader = new ShaderProgram("Shadow.vert", "Shadow.frag");
@@ -36,7 +62,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _InstancedShadowShader.loadUniformInt("albedoMapModelTextureArray", 3);
             _InstancedShadowShader.unBind();
         }
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+
+        internal override void Prepare(RenderEngine renderEngine)
         {
             GL.DepthMask(true);
             GL.Enable(EnableCap.DepthTest);
@@ -44,24 +71,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.Disable(EnableCap.Blend);
             GL.Enable(EnableCap.PolygonOffsetFill);
             GL.CullFace(CullFaceMode.Front);
-        }
-
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
-        {
-
-            GL.Disable(EnableCap.PolygonOffsetFill);
-            GL.Enable(EnableCap.CullFace);
-            GL.CullFace(CullFaceMode.Back);
-
-            GL.DisableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(4);
-            GL.DisableVertexAttribArray(5);
-            GL.DisableVertexAttribArray(6);
-            GL.DisableVertexAttribArray(7);
-        }
-
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
-        {
 
             _shadowShader.bind();
 
@@ -72,111 +81,50 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
-
-            foreach (EntityOLD directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
-            {
-                if (directionalLight.TryGetComponent(out CascadingShadowComponent shadow))
-                {
-                    Vector3 lightDirection = directionalLight.getComponent<DirectionComponent>().Direction;
-                    foreach (CascadingShadowComponent.ShadowCascade cascade in shadow.Cascades)
-                    {
-                        cascade.bindFrameBuffer();
-                        GL.Clear(ClearBufferMask.DepthBufferBit);
-                        GL.PolygonOffset(cascade.getPolygonOffset(), 1f);
-
-                        foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<ModelRenderSystem>().ModelsDictionary)
-                        {
-                            glModel glmodel = glmodels.Key;
-                            GL.BindVertexArray(glmodel.getVAOID());
-                            GL.EnableVertexAttribArray(0);
-                            GL.EnableVertexAttribArray(4);
-                            GL.EnableVertexAttribArray(5);
-                            foreach (EntityOLD entity in glmodels.Value)
-                            {
-                                Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
-                                _shadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.LightViewMatrix * cascade.getProjectionMatrix());
-
-                                GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
-                            }
-                        }
-
-                        foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<TerrainRenderSystem>().ModelsDictionary)
-                        {
-                            glModel glmodel = glmodels.Key;
-                            GL.BindVertexArray(glmodel.getVAOID());
-                            GL.EnableVertexAttribArray(0);
-                            GL.EnableVertexAttribArray(4);
-                            GL.EnableVertexAttribArray(5);
-                            foreach (EntityOLD entity in glmodels.Value)
-                            {
-                                Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
-                                _shadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.LightViewMatrix * cascade.getProjectionMatrix());
-
-                                GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
-                            }
-                        }
-
-                    }
-                }
-            }
-            
-            _InstancedShadowShader.bind();
-
-            _InstancedShadowShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
-
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
-
-            GL.ActiveTexture(TextureUnit.Texture3);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
-
-            foreach (EntityOLD directionalLight in eCSEngine.getSystem<DirectionalLightSystem>().MemberEntities)
-            {
-                if (directionalLight.TryGetComponent(out CascadingShadowComponent shadow))
-                {
-                    _InstancedShadowShader.loadUniformMatrix4f("viewMatrix", shadow.LightViewMatrix);
-                    Vector3 lightDirection = directionalLight.getComponent<DirectionComponent>().Direction;
-                    foreach (CascadingShadowComponent.ShadowCascade cascade in shadow.Cascades)
-                    {
-                        _InstancedShadowShader.loadUniformMatrix4f("projectionMatrix", cascade.getProjectionMatrix());
-
-                        cascade.bindFrameBuffer();
-                        //GL.Clear(ClearBufferMask.DepthBufferBit);
-                        GL.PolygonOffset(cascade.getPolygonOffset(), 1f);
-
-                        foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<InstancedModelSystem>().ModelsDictionary)
-                        {
-                            glModel glmodel = glmodels.Key;
-                            GL.BindVertexArray(glmodel.getVAOID());
-                            GL.EnableVertexAttribArray(0);
-                            GL.EnableVertexAttribArray(4);
-                            GL.EnableVertexAttribArray(5);
-                            GL.EnableVertexAttribArray(6);
-                            GL.EnableVertexAttribArray(7);
-
-
-
-                            GL.DrawElementsInstanced(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0, glmodels.Value.Count);
-                        }
-                    }
-
-                }
-            }
-            
         }
 
-        public override void OnResize(ResizeEventArgs eventArgs)
+        internal override void Finish(RenderEngine renderEngine)
         {
-        }
+            GL.Disable(EnableCap.PolygonOffsetFill);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
 
-        public override void Update()
-        {
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(4);
+            GL.DisableVertexAttribArray(5);
+            GL.DisableVertexAttribArray(6);
+            GL.DisableVertexAttribArray(7);
         }
         public override void CleanUp()
         {
             _shadowShader.cleanUp();
         }
 
+        public override void PerformCommand(DirectionalShadowRenderCommand command, RenderEngine renderEngine)
+        {
 
+            foreach (ShadowCascadeCommand cascadeCommand in command.Cascades)
+            {
+                var cascade = cascadeCommand.cascade;
+                cascade.cascadeFrameBuffer.bind();
+                GL.Clear(ClearBufferMask.DepthBufferBit);
+                GL.PolygonOffset(cascade.polygonOffset, cascade.polygonOffset * 10.1f);
+                //GL.PolygonOffset(4f, 1f);
+
+                foreach (ModelRenderCommand modelCommand in cascadeCommand.modelCommands)
+                {
+                    glModel glmodel = modelCommand.model;
+                    GL.BindVertexArray(glmodel.getVAOID());
+                    GL.EnableVertexAttribArray(0);
+                    GL.EnableVertexAttribArray(4);
+                    GL.EnableVertexAttribArray(5);
+
+                    Matrix4 transformationMatrix = modelCommand.localToWorldMatrix;
+                    _shadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * cascade.lightViewMatrix * cascade.cascadeProjectionMatrix);
+
+                    GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+                }
+            }
+        }
     }
 }

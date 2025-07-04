@@ -97,21 +97,17 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _horizontalFramebuffer.resize(eventArgs.Size / _downscalingFactor);
         }
 
-        public override void Update()
-        {
-        }
-
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
             throw new NotImplementedException();
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
             throw new NotImplementedException();
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
             throw new NotImplementedException();
         }

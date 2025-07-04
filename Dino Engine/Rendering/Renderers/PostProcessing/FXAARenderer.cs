@@ -15,16 +15,16 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             FXAAShader.unBind();
         }
 
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
             FXAAShader.bind();
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
 
             DualBuffer buffer = renderEngine.lastUsedBuffer;
@@ -40,14 +40,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             buffer.RenderTextureToNextFrameBuffer(buffer.GetLastOutputTexture());
 
             FXAAShader.unBind();
-        }
-
-        public override void OnResize(ResizeEventArgs eventArgs)
-        {
-        }
-
-        public override void Update()
-        {
         }
         public override void CleanUp()
         {

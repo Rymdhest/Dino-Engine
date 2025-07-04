@@ -4,16 +4,6 @@ using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering;
 using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Dino_Engine.Util;
-using Dino_Engine.Rendering.Renderers;
-using Dino_Engine.ECS;
-using Dino_Engine.ECS.ComponentsOLD;
-using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Debug
 {
@@ -84,14 +74,14 @@ namespace Dino_Engine.Debug
             finishFrame();
         }
 
-        public void RenderNormals(ECSEngine eCSEngine, DualBuffer renderer)
+        public void RenderNormals(DualBuffer renderer)
         {
+            /*
             _normalsShader.bind();
             renderer.GetLastFrameBuffer().bind();
             //renderer.GetLastFrameBuffer().ClearColorDepth();
             GL.Enable(EnableCap.DepthTest);
             GL.Disable(EnableCap.Blend);
-            EntityOLD camera = eCSEngine.Camera;
             Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
             Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
             _normalsShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
@@ -120,7 +110,7 @@ namespace Dino_Engine.Debug
             GL.DisableVertexAttribArray(3);
             GL.DisableVertexAttribArray(4);
             GL.DisableVertexAttribArray(5);
-
+            */
         }
 
         private void renderRings()

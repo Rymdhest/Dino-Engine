@@ -34,7 +34,7 @@ namespace Dino_Engine.Rendering.Renderers
             if (blend) GL.Enable(EnableCap.Blend);
             else GL.Disable(EnableCap.Blend);
 
-            RenderPass(null,null);
+            RenderPass(null);
         }
 
         public override void OnResize(ResizeEventArgs eventArgs)
@@ -50,18 +50,18 @@ namespace Dino_Engine.Rendering.Renderers
             _quadModel.cleanUp();
         }
 
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
             GL.BindVertexArray(_quadModel.getVAOID());
             GL.EnableVertexAttribArray(0);
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
             GL.BindVertexArray(0);
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
             GL.DrawElements(PrimitiveType.Triangles, _quadModel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
         }

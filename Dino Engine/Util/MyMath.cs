@@ -30,7 +30,27 @@ namespace Dino_Engine.Util
         {
             return rand.NextSingle()*scale;
         }
-  
+        public static Quaternion FromToRotation(Vector3 from, Vector3 to)
+        {
+            from = Vector3.Normalize(from);
+            to = Vector3.Normalize(to);
+
+            float dot = Vector3.Dot(from, to);
+
+            if (dot >= 1.0f - 1e-6f) return Quaternion.Identity;
+            if (dot <= -1.0f + 1e-6f)
+            {
+                Vector3 orthogonal = Vector3.Cross(Vector3.UnitX, from);
+                if (orthogonal.LengthSquared < 1e-6f)
+                    orthogonal = Vector3.Cross(Vector3.UnitY, from);
+                return Quaternion.FromAxisAngle(orthogonal.Normalized(), MathF.PI);
+            }
+
+            Vector3 axis = Vector3.Cross(from, to);
+            float angle = MathF.Acos(dot);
+            return Quaternion.FromAxisAngle(axis.Normalized(), angle);
+        }
+
         public static Vector3 reflect(Vector3 vector, Vector3 normal)
         {
             return vector-(2f * Vector3.Dot(normal, vector)*normal);
@@ -62,16 +82,32 @@ namespace Dino_Engine.Util
             matrix = matrix * Matrix4.CreateTranslation(position);
             return matrix;
         }
+        public static Matrix4 createTransformationMatrix(Vector3 position, Quaternion rotation, Vector3 scale)
+        {
+
+            Matrix4 matrix = Matrix4.Identity;
+            matrix = matrix * Matrix4.CreateScale(scale);
+            matrix = matrix * Matrix4.CreateFromQuaternion(rotation);
+            matrix = matrix * Matrix4.CreateTranslation(position);
+            return matrix;
+        }
         public static Matrix4 createViewMatrix(Transformation transformation)
         {
             return createViewMatrix(transformation.position, transformation.rotation);
         }
         public static Matrix4 createViewMatrix(Vector3 position, Vector3 rotation)
         {
-
             Matrix4 matrix = Matrix4.Identity;
             matrix = matrix * Matrix4.CreateTranslation(-position);
             matrix = matrix * createRotationMatrix(rotation);
+            return matrix;
+        }
+
+        public static Matrix4 createViewMatrix(Vector3 position, Quaternion rotation)
+        {
+            Matrix4 matrix = Matrix4.Identity;
+            matrix = matrix * Matrix4.CreateTranslation(-position);
+            matrix = matrix * Matrix4.CreateFromQuaternion(rotation);
             return matrix;
         }
         public static Matrix4 createRotationMatrix(Vector3 rotation)

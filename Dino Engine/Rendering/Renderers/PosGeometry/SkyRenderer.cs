@@ -1,10 +1,7 @@
 ﻿using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
-using OpenTK.Mathematics;
-using Dino_Engine.ECS;
 using Dino_Engine.Util;
 using Dino_Engine.Core;
-using Dino_Engine.ECS.ComponentsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.PosGeometry
 {
@@ -19,7 +16,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         {
 
         }
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
             DualBuffer buffer = renderEngine.lastUsedBuffer;
             skyShader.bind();
@@ -31,23 +28,20 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
             GL.DepthFunc(DepthFunction.Less);
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
 
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
-            Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
-            Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
-            Vector3 viewPosition = eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.position;
 
 
-            skyShader.loadUniformVector3f("viewPositionWorld", viewPosition);
-            skyShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
-            skyShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
+            skyShader.loadUniformVector3f("viewPositionWorld", renderEngine.context.viewPos);
+            skyShader.loadUniformMatrix4f("viewMatrix", renderEngine.context.viewMatrix);
+            skyShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
 
             skyShader.loadUniformVector2f("screenResolution", Engine.Resolution);
             //Vector4 sunDirectionViewSpace = new Vector4(sunDirection.X, sunDirection.Y, sunDirection.Z, 1.0f) * Matrix4.Transpose(Matrix4.Invert(viewMatrix));
@@ -71,15 +65,5 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         {
             skyShader.cleanUp();
         }
-
-        public override void OnResize(ResizeEventArgs eventArgs)
-        {
-        }
-
-        public override void Update()
-        {
-        }
-
-
     }
 }

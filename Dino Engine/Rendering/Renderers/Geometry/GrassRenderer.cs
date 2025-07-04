@@ -8,8 +8,6 @@ using OpenTK.Graphics.OpenGL;
 using Dino_Engine.Core;
 using Dino_Engine.Physics;
 using Dino_Engine.Util.Data_Structures.Grids;
-using Dino_Engine.ECS.ComponentsOLD;
-using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -58,6 +56,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public void blast(ScreenQuadRenderer renderer)
         {
+            /*
             GetLastFrameBuffer().bind();
             _grassBlastShader.bind();
             GL.Enable(EnableCap.Blend);
@@ -85,10 +84,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 }
                 blasts[i].CleanUp();
             }
+            */
         }
 
         public void displace(ScreenQuadRenderer renderer)
         {
+            /*
             _grassDisplaceShader.bind();
 
             List<EntityOLD> displacements = Engine.Instance.ECSEngine.getSystem<GrassInteractSystem>().MemberEntities;
@@ -130,6 +131,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                     StepToggle();
                 }
             }
+            */
         }
 
         public void StepSimulation(ScreenQuadRenderer renderer)
@@ -202,17 +204,18 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             grassBlade = glLoader.loadToVAO(bladeMesh);
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
         }
 
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
 
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
+            /*
             //StepSimulation(renderEngine.ScreenQuadRenderer);
             renderEngine.GBuffer.bind();
             generateBladeModel2();
@@ -275,6 +278,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 GL.DrawElementsInstanced(PrimitiveType.Triangles, grassBlade.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero,(int)(bladesPerAxis.X*bladesPerAxis.Y));
 
             }
+            */
 
         }
         public override void CleanUp()

@@ -1,5 +1,6 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS;
+using Dino_Engine.ECS.ECS_Architecture;
 using OpenTK.Windowing.Common;
 using System;
 using System.Collections.Generic;
@@ -15,19 +16,19 @@ namespace Dino_Engine.Rendering.Renderers
         {
             Engine.RenderEngine.Renderers.Add(this);
         }
-        public void RenderPass(ECSEngine eCSEngine, RenderEngine renderEngine)
+        public void RenderPass(RenderEngine renderEngine)
         {
             Engine.PerformanceMonitor.startTask(this.GetType().Name);
-            Prepare(eCSEngine, renderEngine);
-            Render(eCSEngine, renderEngine);
-            Finish(eCSEngine, renderEngine);
+            Prepare(renderEngine);
+            Render(renderEngine);
+            Finish(renderEngine);
             Engine.PerformanceMonitor.finishTask(this.GetType().Name);
         }
-        internal abstract void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine);
-        internal abstract void Finish(ECSEngine eCSEngine, RenderEngine renderEngine);
-        internal abstract void Render(ECSEngine eCSEngine, RenderEngine renderEngine);
-        public abstract void OnResize(ResizeEventArgs eventArgs);
-        public abstract void Update();
+        internal abstract void Prepare(RenderEngine renderEngine);
+        internal abstract void Finish(RenderEngine renderEngine);
+        internal abstract void Render(RenderEngine renderEngine);
+        public virtual void OnResize(ResizeEventArgs eventArgs) { }
+        public virtual void Update() { }
         public abstract void CleanUp();
     }
 }

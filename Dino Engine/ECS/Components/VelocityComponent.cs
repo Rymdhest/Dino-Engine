@@ -5,6 +5,13 @@ namespace Dino_Engine.ECS.Components
 {
     public struct VelocityComponent : IComponent
     {
-        public Vector3 velocity;
+        public Vector3 value;
+
+        public VelocityComponent(Vector3 velocity)
+        {
+            value = velocity;
+        }
     }
+
+    
 }

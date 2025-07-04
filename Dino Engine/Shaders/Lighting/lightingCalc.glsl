@@ -74,7 +74,7 @@ vec3 getLightPBR(vec3 albedo, vec3 normal, float roughness, float metallic, vec3
     Lo += (kD * albedo / 3.14159265359 + specular) * radiance * NdotL;
 
     vec3 totalAmbient = vec3(albedo * lightColour)* attenuation* ambient;
-    vec3 color = totalAmbient + Lo * lightFactor;
+    vec3 color = totalAmbient + Lo * lightFactor*(1.0- ambient);
 
     return color;
 }

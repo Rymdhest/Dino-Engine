@@ -1,6 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Debug;
 using Dino_Engine.ECS;
+using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
@@ -16,8 +17,19 @@ using System.Diagnostics.Tracing;
 
 namespace Dino_Engine.Rendering
 {
+    public struct RenderContext
+    {
+        public Matrix4 viewMatrix;
+        public Matrix4 invViewMatrix;
+        public Matrix4 projectionMatrix;
+        public Matrix4 invProjectionMatrix;
+        public Vector3 viewPos;
+    }
+
     public class RenderEngine
     {
+        public RenderContext context = new RenderContext();
+
         private List<Renderer> _renderers = new List<Renderer>();
         
         private FrameBuffer _gBuffer;
@@ -25,12 +37,12 @@ namespace Dino_Engine.Rendering
         private DualBuffer _dualBufferFull;
 
         private ScreenQuadRenderer _screenQuadRenderer;
-        private ModelRenderer _modelRenderer;
+        public ModelRenderer _modelRenderer;
         private TerrainRenderer _terrainRenderer;
         private InstancedModelRenderer _instancedModelRenderer;
-        private DirectionalLightRenderer _directionalLightRenderer;
-        private PointLightRenderer _pointLightRenderer;
-        private ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
+        public DirectionalLightRenderer _directionalLightRenderer;
+        public PointLightRenderer _pointLightRenderer;
+        public ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
         private ToneMapRenderer _toneMapRenderer;
         private FXAARenderer _fXAARenderer;
         private SSAORenderer _sSAORenderer;
@@ -39,10 +51,10 @@ namespace Dino_Engine.Rendering
         private FogRenderer _fogRenderer;
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
-        private SpotLightRenderer _spotLightRenderer;
+        public SpotLightRenderer _spotLightRenderer;
         public ParticleRenderer _particleRenderer;
         private GrassRenderer _grassRenderer;
-        private SunRenderer _sunRenderer;
+        public SunRenderer _sunRenderer;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
         public bool debugView = false;
@@ -146,7 +158,7 @@ namespace Dino_Engine.Rendering
                 else debugView = true;
             }
         }
-        public void Render(ECSEngine eCSEngine)
+        public void Render()
         {
 
             PrepareFrame();
@@ -157,10 +169,10 @@ namespace Dino_Engine.Rendering
             } else
             {
 
-                GeometryPass(eCSEngine);
-                LightPass(eCSEngine);
-                PostGeometryPass(eCSEngine);
-                PostProcessPass(eCSEngine);
+                GeometryPass();
+                LightPass();
+                PostGeometryPass();
+                PostProcessPass();
 
 
                 //_debugRenderer.RenderNormals(eCSEngine, _dualBufferFull);
@@ -186,47 +198,47 @@ namespace Dino_Engine.Rendering
 
 
 
-        private void GeometryPass(ECSEngine eCSEngine)
+        private void GeometryPass()
         {
             GBuffer.bind();
             GL.DepthMask(true);
             GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            _modelRenderer.RenderPass(eCSEngine, this);
-            _terrainRenderer.RenderPass(eCSEngine, this);
-            _instancedModelRenderer.RenderPass(eCSEngine, this);
+            _modelRenderer.RenderPass(this);
+            _terrainRenderer.RenderPass(this);
+            _instancedModelRenderer.RenderPass(this);
             //_grassRenderer.RenderPass(eCSEngine, this);
 
             _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);
         }
-        private void LightPass(ECSEngine eCSEngine)
+        private void LightPass()
         {
-            _sSAORenderer.RenderPass(eCSEngine, this);
-            _shadowCascadeMapRenderer.RenderPass(eCSEngine, this);
+            _sSAORenderer.RenderPass(this);
+            _shadowCascadeMapRenderer.RenderPass(this);
 
             _dualBufferFull.GetLastFrameBuffer().bind();
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
-            _directionalLightRenderer.RenderPass(eCSEngine, this);
-            _pointLightRenderer.RenderPass(eCSEngine, this);
-            _spotLightRenderer.RenderPass(eCSEngine, this);
-            _screenSpaceReflectionRenderer.RenderPass(eCSEngine, this);
+            _directionalLightRenderer.RenderPass(this);
+            _pointLightRenderer.RenderPass(this);
+            _spotLightRenderer.RenderPass(this);
+            _screenSpaceReflectionRenderer.RenderPass(this);
 
         }
-        private void PostGeometryPass(ECSEngine eCSEngine)
+        private void PostGeometryPass()
         {
-            _skyRenderer.RenderPass(eCSEngine, this);
-            _particleRenderer.RenderPass(eCSEngine, this);
+            _skyRenderer.RenderPass(this);
+            _particleRenderer.RenderPass(this);
         }
-        private void PostProcessPass(ECSEngine eCSEngine)
+        private void PostProcessPass()
         {
-            _sunRenderer.RenderPass(eCSEngine, this);
-            _bloomRenderer.RenderPass(eCSEngine, this);
+            _sunRenderer.RenderPass(this);
+            _bloomRenderer.RenderPass(this);
             //_fogRenderer.RenderPass(eCSEngine, this);
             //_fXAARenderer.RenderPass(eCSEngine, this);
-            _toneMapRenderer.RenderPass(eCSEngine, this);
-            _fXAARenderer.RenderPass(eCSEngine, this);
+            _fXAARenderer.RenderPass(this); // before or after tone mapping????????????
+            _toneMapRenderer.RenderPass(this);
             //_depthOfFieldRenderer.RenderPass(eCSEngine, this);
         }
 

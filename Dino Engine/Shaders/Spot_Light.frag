@@ -15,17 +15,18 @@ uniform vec3 lightDirectionViewSpace;
 uniform vec3 lightColor;
 uniform vec3 attenuation;
 uniform float softness;
+uniform float lightAmbient;
+uniform float cutoffCosine;
 
 uniform vec2 resolution;
 uniform mat4 invProjection;
 
-float calcSoftEdge(vec3 lightDir, vec3 lightDirectionViewSpace)
+float calcSoftEdge(vec3 lightDir, vec3 lightDirectionViewSpace, float cutoff)
 {
     float theta = dot(lightDir, normalize(-lightDirectionViewSpace));
-    float cutoff = 3.14159265359f/4.0;
     if (theta < cutoff) discard;
-    float epsilon = softness*cutoff;
-    float intensity = smoothstep(0, 1, clamp((theta - cutoff) / epsilon, 0.0f, 1.0f));  
+    float epsilon = softness * (1.0 - cutoff); 
+    float intensity = smoothstep(0, 1, clamp((theta - cutoff) / epsilon, 0.0f, 1.0f));
 	return intensity;
 }
 
@@ -45,9 +46,9 @@ void main(void){
 	float attenuationFactor = calcAttunuation(lightPositionViewSpace, position, attenuation);
 
     
-    vec3 color = getLightPBR(albedo, normal, roughness, metallic, lightColor, attenuationFactor, 0.0*ambient, viewDir, lightDir, 1.0);
+    vec3 color = getLightPBR(albedo, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, 1.0);
 
-	float intensity = calcSoftEdge(lightDir, lightDirectionViewSpace);
+	float intensity = calcSoftEdge(lightDir, lightDirectionViewSpace, cutoffCosine);
 
     color *= intensity;
 
@@ -55,7 +56,7 @@ void main(void){
     //color = pow(color, vec3(1.0/2.2));  
 	//lighting = applyFog(lighting, -position.z, -viewDir);
 	out_Colour = vec4(color, 0.0);
-	//out_Colour =  vec4(1f, 0f, 10f, 1.0f);
+	//out_Colour =  vec4(1f, 0f, 0f, 1.0f);
 	//out_Colour =  vec4(positionSunSpace.xyz, 1.0f);
 	//out_Colour =  vec4(vec3(emission), 1.0f);
 

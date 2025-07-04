@@ -13,7 +13,7 @@ uniform sampler2D gMaterials;
 uniform vec3 lightPositionViewSpace;
 uniform vec3 lightColor;
 uniform vec3 attenuation;
-
+uniform float lightAmbient;
 uniform vec2 resolution;
 uniform mat4 invProjection;
 
@@ -33,7 +33,7 @@ void main(void){
     vec3 lightDir = normalize(lightPositionViewSpace - position);  
 	float attenuationFactor = calcAttunuation(lightPositionViewSpace, position, attenuation);
 
-    vec3 color = getLightPBR(albedo, normal, roughness, metallic, lightColor, attenuationFactor, 0.0*ambient, viewDir, lightDir, 1.0);
+    vec3 color = getLightPBR(albedo, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, 1.0);
 
 	//color = color / (color + vec3(1.0));
     //color = pow(color, vec3(1.0/2.2));  

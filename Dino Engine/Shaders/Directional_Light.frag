@@ -25,7 +25,7 @@ uniform float cascadeProjectionSizes[5];
 
 uniform mat4 invProjection;
 
-int softLayers = 3;
+uniform int pcfRadius;
 
 float DistributionGGX(vec3 N, vec3 H, float roughness);
 float GeometrySchlickGGX(float NdotV, float roughness);
@@ -50,8 +50,8 @@ float calcShadow(vec3 positionViewSpace) {
 
 			float shadowFactor = 0.0;
 			float totalWeight = 0.0;
-			for (int x = -softLayers; x <= softLayers; x++) {
-				for (int y = -softLayers; y <= softLayers; y++) {
+			for (int x = -pcfRadius; x <= pcfRadius; x++) {
+				for (int y = -pcfRadius; y <= pcfRadius; y++) {
 					vec3 offset = vec3(x * pixelSize.x, y * pixelSize.y, 0);
 					float depth = texture(shadowMaps[i], positionSunSpace.xyz + offset);
 					shadowFactor += 1.0 - depth;

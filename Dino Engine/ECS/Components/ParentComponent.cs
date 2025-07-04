@@ -5,5 +5,10 @@ namespace Dino_Engine.ECS.Components
     public struct ParentComponent : IComponent
     {
         public Entity parent;
+
+        public ParentComponent(Entity parent)
+        {
+            this.parent = parent;
+        }
     }
 }

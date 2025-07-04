@@ -16,9 +16,9 @@ namespace Dino_Engine.Modelling
             List<Vector3> trunkLayers = new List<Vector3>() {
                 //new Vector3(outerRadius, 0f, outerRadius),
                 new Vector3(0, 0, 0),
-                new Vector3(1, 1, 1),
+                new Vector3(0.5f, 1, 0.5f),
                 new Vector3(0, 1, 0) };
-            Mesh mesh = MeshGenerator.generateCylinder(trunkLayers, 12, material);
+            Mesh mesh = MeshGenerator.generateCylinder(trunkLayers, 7, material);
             mesh.rotate(new Vector3(MathF.PI, 0f, 0f));
             return mesh;
         }

@@ -1,20 +1,17 @@
-﻿using Dino_Engine.ECS;
-using Dino_Engine.Rendering.Renderers.PosGeometry;
-using Dino_Engine.Util;
-using OpenTK.Mathematics;
+﻿using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using OpenTK.Graphics.OpenGL;
 using Dino_Engine.Core;
-using Dino_Engine.ECS.ComponentsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
-    public class SunRenderer : Renderer
+    public struct CelestialBodyRenderCommand : IRenderCommand
+    {
+        public Vector3 colour;
+        public Vector3 direction;
+    }
+
+    public class SunRenderer : CommandDrivenRenderer<CelestialBodyRenderCommand>
     {
 
         private ShaderProgram _sunRayShader = new ShaderProgram("Simple.vert", "SunRay.frag");
@@ -27,27 +24,38 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _sunRayShader.loadUniformInt("sunTexture", 0);
             _sunRayShader.unBind();
         }
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+
+
+        public override void CleanUp()
         {
-            _sunFilterShader.bind();
+            _sunRayShader.cleanUp();
+            _sunFilterShader.cleanUp();
+        }
+
+        internal override void Finish(RenderEngine renderEngine)
+        {
+            GL.DepthFunc(DepthFunction.Less);
+        }
+
+        internal override void Prepare(RenderEngine renderEngine)
+        {
+            GL.DepthFunc(DepthFunction.Lequal);
+        }
+
+        public override void PerformCommand(CelestialBodyRenderCommand command, RenderEngine renderEngine)
+        {
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
             DualBuffer buffer = renderEngine.lastUsedBuffer;
-            FrameBuffer gBuffer = renderEngine.GBuffer;
-
-            Vector3 cameraPos = eCSEngine.Camera.getComponent<TransformationComponent>().Transformation.position;
-            Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
-            Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
-            Matrix4 inverseView = Matrix4.Invert(viewMatrix);
-
-            _sunFilterShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
-            _sunFilterShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
+            _sunFilterShader.bind();
+            _sunFilterShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
+            _sunFilterShader.loadUniformMatrix4f("viewMatrix", renderEngine.context.viewMatrix);
             _sunFilterShader.loadUniformVector2f("screenResolution", Engine.Resolution);
-            _sunFilterShader.loadUniformVector3f("sunColour", new Colour(1f, 0.7f, 0.65f, 25.0f).ToVector3());
-            _sunFilterShader.loadUniformVector3f("sunDirection",  (new Vector3(-1f, 1.5f, 3.9f)).Normalized());
+            _sunFilterShader.loadUniformVector3f("sunColour", command.colour);
+            _sunFilterShader.loadUniformVector3f("sunDirection", -command.direction);
             _sunFilterShader.loadUniformFloat("exponent", 2.0f);
 
             buffer.GetNextFrameBuffer().bind();
-            renderer.Render(depthTest:true, clearColor:true);
+            renderer.Render(depthTest: true, clearColor: true);
 
 
             _sunRayShader.bind();
@@ -58,10 +66,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _sunRayShader.loadUniformFloat("illuminationDecay", 0.95f);
             _sunRayShader.loadUniformInt("samples", 30);
 
-            _sunRayShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
-            _sunRayShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
+            _sunRayShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
+            _sunRayShader.loadUniformMatrix4f("viewMatrix", renderEngine.context.viewMatrix);
             _sunRayShader.loadUniformVector2f("screenResolution", Engine.Resolution);
-            _sunRayShader.loadUniformVector3f("sunDirection", (new Vector3(-1f, 2f, 3.9f)).Normalized());
+            _sunRayShader.loadUniformVector3f("sunDirection", -command.direction);
 
 
             GL.Enable(EnableCap.Blend);
@@ -72,34 +80,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.BindTexture(TextureTarget.Texture2D, buffer.GetNextFrameBuffer().GetAttachment(0));
             buffer.GetLastFrameBuffer().bind();
 
-            renderer.Render(depthTest: false, clearColor: false, blend:true);
-            //renderer.StepToggle();
+            renderer.Render(depthTest: false, clearColor: false, blend: true);
         }
-
-        public override void CleanUp()
-        {
-            _sunRayShader.cleanUp();
-            _sunFilterShader.cleanUp();
-        }
-
-        public override void OnResize(ResizeEventArgs eventArgs)
-        {
-        }
-
-        public override void Update()
-        {
-        }
-
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
-        {
-            GL.DepthFunc(DepthFunction.Less);
-        }
-
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
-        {
-            GL.DepthFunc(DepthFunction.Lequal);
-        }
-
-
     }
 }

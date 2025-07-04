@@ -2,6 +2,7 @@
 using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
+using OpenTK.Windowing.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,59 +27,31 @@ namespace Dino_Engine.ECS.ECS_Architecture
             WithMask = withMask;
             WithoutMask = BitMask.Empty;
         }
+        protected abstract void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime);
+        protected virtual void ResizeEntity(EntityView entity, ECSWorld world, ResizeEventArgs args) { }
 
-        public abstract void Update(ECSWorld world, float deltaTime);
-    }
-
-    public class MovementSystem : SystemBase
-    {
-
-        public MovementSystem() : base(new BitMask(typeof(Position), typeof(Velocity))) { }
-
-        public override void Update(ECSWorld world)
+        public void Update(ECSWorld world, float deltaTime)
         {
-            foreach (var arch in world.Query(WithMask, WithoutMask))
+            foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
             {
-                var posArray = (ComponentArray<Position>)arch.ComponentArrays[ComponentTypeRegistry.GetId<Position>()];
-                var velArray = (ComponentArray<Velocity>)arch.ComponentArrays[ComponentTypeRegistry.GetId<Velocity>()];
+                var accessor = new ComponentAccessor(archetype);
 
-                for (int i = 0; i < arch.Entities.Count ; i++)
+                foreach (var entity in accessor)
                 {
-                    Position pos = posArray.Get(i);
-                    Velocity vel = velArray.Get(i);
-
-                    float delta = Engine.Delta;
-                    pos.X += vel.X * delta;
-                    pos.Y += vel.Y * delta;
-                    pos.Z += vel.Z * delta;
-
-                    posArray.Set(i, pos);
+                    UpdateEntity(entity, world, deltaTime);
                 }
             }
         }
-    }
 
-    public class ParticleSystem : SystemBase
-    {
-
-        public ParticleSystem() : base(new BitMask(typeof(Position), typeof(LocalToWorldMatrixComponent))) { }
-
-        public override void Update(ECSWorld world)
+        public void OnResize(ECSWorld world, ResizeEventArgs args)
         {
-            foreach (var arch in world.Query(WithMask, WithoutMask))
+            foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
             {
-                var posArray = (ComponentArray<Position>)arch.ComponentArrays[ComponentTypeRegistry.GetId<Position>()];
-                var matrixArray = (ComponentArray<LocalToWorldMatrixComponent>)arch.ComponentArrays[ComponentTypeRegistry.GetId<LocalToWorldMatrixComponent>()];
+                var accessor = new ComponentAccessor(archetype);
 
-                for (int i = 0; i < arch.Entities.Count; i++)
+                foreach (var entity in accessor)
                 {
-                    Position pos = posArray.Get(i);
-                    LocalToWorldMatrixComponent mat = matrixArray.Get(i);
-                    mat.LocalToWorldMatrix = MyMath.createTransformationMatrix(new Vector3(pos.X, pos.Y, pos.Z));
-                    matrixArray.Set(i, mat);
-                    ParticleRenderCommand command = new ParticleRenderCommand();
-                    command.localToWorldMatrix = mat.LocalToWorldMatrix;
-                    Engine.RenderEngine._particleRenderer.SubmitCommand(command);
+                    ResizeEntity(entity, world, args);
                 }
             }
         }

@@ -15,23 +15,13 @@ namespace Dino_Engine.ECS.Systems
             : base(new BitMask(typeof(PositionComponent), typeof(VelocityComponent)))
         {
         }
-        public override void Update(ECSWorld world, float deltaTime)
+        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
-            foreach (var arch in world.Query(WithMask, WithoutMask))
-            {
-                var posArray = (ComponentArray<PositionComponent>)arch.ComponentArrays[ComponentTypeRegistry.GetId<PositionComponent>()];
-                var velArray = (ComponentArray<VelocityComponent>)arch.ComponentArrays[ComponentTypeRegistry.GetId<VelocityComponent>()];
+            var pos = entity.Get<PositionComponent>();
+            var vel = entity.Get<VelocityComponent>();
 
-                for (int i = 0; i < arch.Entities.Count; i++)
-                {
-                    var pos = posArray.Get(i);
-                    var vel = velArray.Get(i);
-
-                    pos.position += vel.velocity * deltaTime;
-
-                    posArray.Set(i, pos);
-                }
-            }
+            pos.value += vel.value * deltaTime;
+            entity.Set(pos);
         }
     }
 }

@@ -1,19 +1,10 @@
 ﻿using Dino_Engine.Core;
-using Dino_Engine.ECS;
-using Dino_Engine.ECS.Components;
-using Dino_Engine.ECS.SystemsOLD;
+using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Model;
-using Dino_Engine.Modelling.Procedural.Nature;
 using Dino_Engine.Physics;
 using Dino_Engine.Util;
 using Dino_Engine.Util.Data_Structures.Grids;
 using OpenTK.Mathematics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
 using Util.Noise;
 
 namespace Dino_Engine.Modelling.Procedural.Terrain
@@ -36,9 +27,9 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         {
             noise = new OpenSimplexNoise(seed);
         }
-        public EntityOLD generateTerrainChunkEntity(Vector2 worldPos, Vector2 worldSize, float quadsPerMeter)
+        public Entity? generateTerrainChunkEntity(Vector2 worldPos, Vector2 worldSize, float quadsPerMeter)
         {
-
+            /*
             Vector2i resolution = new Vector2i((int)(worldSize.X * quadsPerMeter)+1, (int)(worldSize.Y*quadsPerMeter)+1);
             ECSEngine eCSEngine = Engine.Instance.ECSEngine;
 
@@ -59,6 +50,8 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             eCSEngine.AddEnityToSystem<CollidableSystem>(terrainEntity);
 
             return terrainEntity;
+            */
+            return null;
         }
 
         public FloatGrid generateChunk(Vector2 positionWorld, Vector2 sizeWorld, Vector2i resolution)

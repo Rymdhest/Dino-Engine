@@ -1,12 +1,8 @@
 ﻿using OpenTK.Windowing.Common;
-using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL;
-using Dino_Engine.ECS;
-using Dino_Engine.Util;
 using Dino_Engine.Core;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
-using Dino_Engine.ECS.ComponentsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -42,23 +38,21 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             settings.drawBuffers.Add(drawSettings);
             _reflectionFramebuffer = new FrameBuffer(settings);
         }
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
 
             DualBuffer buffer = renderEngine.lastUsedBuffer;
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
             FrameBuffer gBuffer = renderEngine.GBuffer;
             GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
-            Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
-            Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
 
             ScreenSpaceReflectionShader.bind();
             _reflectionFramebuffer.bind();
@@ -72,11 +66,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
-
-
-            ScreenSpaceReflectionShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
-            ScreenSpaceReflectionShader.loadUniformMatrix4f("invProjection", Matrix4.Invert(projectionMatrix));
-            ScreenSpaceReflectionShader.loadUniformMatrix4f("invView", Matrix4.Invert(viewMatrix));
+            ScreenSpaceReflectionShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
+            ScreenSpaceReflectionShader.loadUniformMatrix4f("invProjection", renderEngine.context.invProjectionMatrix);
+            ScreenSpaceReflectionShader.loadUniformMatrix4f("invView", renderEngine.context.invViewMatrix);
             ScreenSpaceReflectionShader.loadUniformVector2f("resolution", _reflectionFramebuffer.getResolution());
             ScreenSpaceReflectionShader.loadUniformVector3f("skyColor", SkyRenderer.SkyColour.ToVector3());
             ScreenSpaceReflectionShader.loadUniformFloat("rayStep", 1.05f);
@@ -116,12 +108,5 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         {
             _reflectionFramebuffer.resize(eventArgs.Size / _downscalingFactor);
         }
-
-        public override void Update()
-        {
-
-        }
-
-
     }
 }

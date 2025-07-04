@@ -1,17 +1,16 @@
 ﻿using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
-using Dino_Engine.Rendering.Renderers;
-using Dino_Engine.ECS;
-using Dino_Engine.Util;
 using Dino_Engine.Modelling.Model;
-using Dino_Engine.Core;
-using Dino_Engine.ECS.ComponentsOLD;
-using Dino_Engine.ECS.SystemsOLD;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
-    internal class ModelRenderer : Renderer
+    public struct ModelRenderCommand : IRenderCommand
+    {
+        public Matrix4 localToWorldMatrix;
+        public glModel model;
+    }
+    public class ModelRenderer : CommandDrivenRenderer<ModelRenderCommand>
     {
         private ShaderProgram _modelShader = new ShaderProgram("Model.vert", "Model.frag");
 
@@ -27,12 +26,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _modelShader.loadUniformInt("materialMapModelTextureArray", 5);
             _modelShader.unBind();
         }
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+
+        internal override void Prepare(RenderEngine renderEngine)
         {
 
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
-            //GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();  
@@ -55,45 +54,32 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
             GL.ActiveTexture(TextureUnit.Texture5);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
-        }
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
-        {
-            EntityOLD camera = eCSEngine.Camera;
-            _modelShader.loadUniformVector3f("viewPos", camera.getComponent<TransformationComponent>().Transformation.position);
-            Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
-            Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
 
-            foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<ModelRenderSystem>().ModelsDictionary)
-            {
-                glModel glmodel = glmodels.Key;
+            _modelShader.loadUniformVector3f("viewPos", renderEngine.context.viewPos);
+        }
 
-                GL.BindVertexArray(glmodel.getVAOID());
-                GL.EnableVertexAttribArray(0);
-                GL.EnableVertexAttribArray(1);
-                GL.EnableVertexAttribArray(2);
-                GL.EnableVertexAttribArray(3);
-                GL.EnableVertexAttribArray(4);
-                GL.EnableVertexAttribArray(5);
-                foreach (EntityOLD entity in glmodels.Value)
-                {
-                    Matrix4 transformationMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
-                    Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;
-                    _modelShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
-                    _modelShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
-                    _modelShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * projectionMatrix);
-                    _modelShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
+        public override void PerformCommand(ModelRenderCommand command, RenderEngine renderEngine)
+        {
+            glModel glmodel = command.model;
 
-                    GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
-                }
-            }
+            GL.BindVertexArray(glmodel.getVAOID());
+            GL.EnableVertexAttribArray(0);
+            GL.EnableVertexAttribArray(1);
+            GL.EnableVertexAttribArray(2);
+            GL.EnableVertexAttribArray(3);
+            GL.EnableVertexAttribArray(4);
+            GL.EnableVertexAttribArray(5);
+
+            Matrix4 transformationMatrix = command.localToWorldMatrix;
+            Matrix4 modelViewMatrix = transformationMatrix * renderEngine.context.viewMatrix;
+            _modelShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
+            _modelShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
+            _modelShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * renderEngine.context.projectionMatrix);
+            _modelShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
+
+            GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
         }
-        public override void Update()
-        {
-        }
-        public override void OnResize(ResizeEventArgs eventArgs)
-        {
-        }
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);
@@ -107,5 +93,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             _modelShader.cleanUp();
         }
+
+
     }
 }

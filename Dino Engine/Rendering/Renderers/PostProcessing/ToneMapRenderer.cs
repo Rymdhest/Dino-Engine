@@ -14,16 +14,16 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             HDRMapShader.loadUniformInt("HDRcolorTexture", 0);
             HDRMapShader.unBind();
         }
-        internal override void Prepare(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Prepare(RenderEngine renderEngine)
         {
             HDRMapShader.bind();
         }
 
-        internal override void Finish(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Finish(RenderEngine renderEngine)
         {
         }
 
-        internal override void Render(ECSEngine eCSEngine, RenderEngine renderEngine)
+        internal override void Render(RenderEngine renderEngine)
         {
             DualBuffer buffer = renderEngine.lastUsedBuffer;
 
@@ -34,7 +34,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             HDRMapShader.loadUniformFloat("saturation", 1.0f);
             HDRMapShader.loadUniformFloat("brightness", 1.0f);
             HDRMapShader.loadUniformFloat("contrast", 1.0f);
-            HDRMapShader.loadUniformFloat("dithering", 0.5f);
+            HDRMapShader.loadUniformFloat("dithering", 0.4f);
 
             //renderer.RenderToNextFrameBuffer();
             buffer.RenderTextureToNextFrameBuffer(buffer.GetLastOutputTexture());
@@ -42,13 +42,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             HDRMapShader.unBind();
         }
 
-        public override void OnResize(ResizeEventArgs eventArgs)
-        {
-        }
-
-        public override void Update()
-        {
-        }
         public override void CleanUp()
         {
             HDRMapShader.cleanUp();

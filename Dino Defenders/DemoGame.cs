@@ -24,8 +24,9 @@ using System.Runtime.ConstrainedExecution;
 using System.Drawing;
 using Dino_Engine.Textures;
 using System.Reflection;
-using Dino_Engine.ECS.ComponentsOLD;
-using Dino_Engine.ECS.SystemsOLD;
+using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.ECS.Components;
+using Dino_Engine.Rendering.Renderers.PostProcessing;
 
 namespace Dino_Defenders
 {
@@ -34,18 +35,18 @@ namespace Dino_Defenders
 
         public DemoGame(Engine engine) : base(engine)
         {
-            SpawnWorld(Engine.ECSEngine);
+            SpawnWorld();
         }
         public override void update()
         {
-            ECSEngine eCSEngine = Engine.ECSEngine;
             if (Engine.WindowHandler.IsKeyPressed(Keys.F1))
             {
                 Engine.RenderEngine.textureGenerator.CleanUp();
                 Engine.RenderEngine.textureGenerator = new Dino_Engine.Textures.TextureGenerator();
                 Engine.RenderEngine.textureGenerator.GenerateAllTextures();
-                SpawnWorld(eCSEngine);
+                SpawnWorld();
             }
+            /*
             if (Engine.WindowHandler.IsKeyPressed(Keys.B))
             {
                 float size = 0.8f;
@@ -113,8 +114,9 @@ namespace Dino_Defenders
                 eCSEngine.AddEnityToSystem<CollidingSystem>(bigBall);
 
             }
+            */
         }
-
+        /*
         private void smallSmallRandomBall(Vector3 position)
         {
             ECSEngine eCSEngine = Engine.ECSEngine;
@@ -172,19 +174,52 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<GrassInteractSystem>(smallBall);
             eCSEngine.AddEnityToSystem<CollidingSystem>(smallBall);
         }
+        */
 
 
-
-        private void SpawnWorld(ECSEngine eCSEngine)
+        private void SpawnWorld()
         {
-            eCSEngine.ClearAllEntitiesExcept(eCSEngine.Camera);
-            eCSEngine.InitEntities();
-            //spawnTerrain(eCSEngine);
-            spawnCity(eCSEngine);
+            ECSWorld world = Engine.world;
+
+            world.ClearAllEntitiesExcept(world.QueryEntities(new BitMask(typeof(MainCameraComponent)), BitMask.Empty).ToArray());
+
+            
+            world.CreateEntity("Sun",
+                new DirectionalLightTag(),
+                new DirectionNormalizedComponent(new Vector3(-10f, -1.5f, 5.9f)),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20.0f)),
+                new AmbientLightComponent(0.015f),
+                new CelestialBodyComponent(),
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 4, 600)
+            );
+            
+            for (int i = 0; i<2; i++)
+            {
+                world.CreateEntity("Moon",
+                    //new DirectionalLightTag(),
+                    new DirectionNormalizedComponent(new Vector3(MyMath.rngMinusPlus(), -MyMath.rng()*0.0f, MyMath.rngMinusPlus())),
+                    new CelestialBodyComponent(),
+                    //new AmbientLightComponent(0.01f),
+                    new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 1.5f))
+                );
+            }
+
+
+
+            world.CreateEntity("Sky",
+                new DirectionalLightTag(),
+                new DirectionNormalizedComponent(new Vector3(0f, -1.0f, 0.0f)),
+                new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 0.5f)),
+                new CelestialBodyComponent(),
+                new AmbientLightComponent(0.5f)
+            );
+
+            //spawnTerrain(Engine.world);
+            spawnCity(Engine.world);
             //spawnTestScene(eCSEngine);
             //spawnIndoorScene(eCSEngine);
         }
-
+        /*
         private void spawnTestScene(ECSEngine eCSEngine)
         {
 
@@ -345,14 +380,12 @@ namespace Dino_Defenders
             }
 
             
-            /*
-            poleEntity.addComponent(new ModelComponent(poleMesh));
-            poleEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(0, 0, 0), new Vector3(0), new Vector3(1))));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(poleEntity);
-            */
         }
+       
+    */
 
-        private void spawnTerrain(ECSEngine eCSEngine)
+        
+        private void spawnTerrain(ECSWorld world)
         {
             TerrainGenerator generator = new TerrainGenerator();
             int terrainR = 0;
@@ -368,8 +401,6 @@ namespace Dino_Defenders
                 }
             }
 
-            float poleHeight = 1f;
-            EntityOLD poleEntity = new EntityOLD("pole");
             List<Vector2> layers = new List<Vector2>() {
                 new Vector2(10.0f, 0),
                 new Vector2(9.0f, 1.0f),
@@ -482,16 +513,13 @@ namespace Dino_Defenders
             }
 
             var _glModel = glLoader.loadToVAO(cylinderMesh);
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 115; i++)
             {
-                EntityOLD entity2 = new EntityOLD("tree test " + i);
-                entity2.addComponent(new ModelComponent(_glModel));
+                var model = new ModelComponent(_glModel);
 
                 Vector2 xz = MyMath.rng2D(chunkSize.X);
                 float y = generator.getHeightAt(xz);
-
-                entity2.addComponent(new TransformationComponent(new Transformation(new Vector3(xz.X, y, xz.Y), new Vector3(0, MyMath.rng(MathF.Tau), 0f), new Vector3(0.3f + MyMath.rngMinusPlus(0.2f)))));
-                eCSEngine.AddEnityToSystem<ModelRenderSystem>(entity2);
+                world.CreateEntity(model, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new PositionComponent(new Vector3(xz.X, y, xz.Y)), new RotationComponent(new Quaternion(0, MyMath.rng(MathF.Tau), 0f)), new ScaleComponent(new Vector3(0.3f + MyMath.rngMinusPlus(0.2f))));
             }
 
 
@@ -511,16 +539,14 @@ namespace Dino_Defenders
             rockMesh.FlatRandomness(0.004f);
             rockMesh.makeFlat(flatMaterial: true, flatNormal:true);
             var rockModel = glLoader.loadToVAO(rockMesh);
-            for (int i = 0; i < 130; i++)
+            for (int i = 0; i < 100; i++)
             {
-                EntityOLD entity = new EntityOLD("rock test " + i);
-                entity.addComponent(new ModelComponent(rockModel));
+                var model = new ModelComponent(rockModel);
 
                 Vector2 xz = MyMath.rng2D(chunkSize.X);
                 float y = generator.getHeightAt(xz);
 
-                entity.addComponent(new TransformationComponent(new Transformation(new Vector3(xz.X, y, xz.Y), new Vector3(0, MyMath.rng(MathF.Tau), 0f), new Vector3(0.7f) + MyMath.rng3D(3.0f))));
-                eCSEngine.AddEnityToSystem<ModelRenderSystem>(entity);
+                world.CreateEntity(model, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new PositionComponent(new Vector3(xz.X, y, xz.Y)), new RotationComponent(new Quaternion(0, MyMath.rng(MathF.Tau), 0f)), new ScaleComponent(new Vector3(0.7f) + MyMath.rng3D(3.0f)));
             }
 
             /*
@@ -610,6 +636,8 @@ namespace Dino_Defenders
             }
             */
         }
+
+        /*
         private void spawnIndoorScene(ECSEngine eCSEngine)
         {
             Vector3 roomSize = new Vector3(20, 20, 50);
@@ -718,7 +746,10 @@ namespace Dino_Defenders
             eCSEngine.AddEnityToSystem<ModelRenderSystem>(ceilingLight);
 
         }
-        private void spawnCity(ECSEngine eCSEngine)
+        */
+
+        
+        private void spawnCity(ECSWorld world)
         {
             glModel houseModel = ModelGenerator.GenerateHouse();
             TreeGenerator treeGenerator = new TreeGenerator();
@@ -729,14 +760,12 @@ namespace Dino_Defenders
             {
                 for (int z = 0; z < 0; z++)
                 {
-                    EntityOLD house = new EntityOLD("House");
-                    house.addComponent(new TransformationComponent(new Vector3(45 + 55 * x, 0, 45 + 55f * z), new Vector3(0, MyMath.rand.Next(8) * MathF.PI / 4, 0f), new Vector3(1f)));
-                    house.addComponent(new ModelComponent(houseModel));
-                    eCSEngine.AddEnityToSystem<ModelRenderSystem>(house);
+                    var position = new PositionComponent(new Vector3(45 + 55 * x, 0, 45 + 55f * z));
+                    var scale = new ScaleComponent(new Vector3(1f));
+                    var rotation = new RotationComponent(new Quaternion(1f, 1f, 1f));
+                    world.CreateEntity(position, scale, rotation, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new ModelComponent(houseModel));
                 }
             }
-            EntityOLD houseGround = new EntityOLD("House Ground");
-            houseGround.addComponent(new TransformationComponent(new Transformation(new Vector3(-streetGenerator.TotalWidth/2f-50f, 0, -streetGenerator.TotalWidth/2f-50f), new Vector3(0,-MathF.PI/2f,0), new Vector3(1))));
             Mesh houseGroundMesh = MeshGenerator.generateBox(Material.ROCK);
             //Mesh.scaleUV = true;
             //houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
@@ -745,111 +774,153 @@ namespace Dino_Defenders
             houseGroundMesh.rotate(new Vector3(0f, -MathF.PI/2f, 0f));
             houseGroundMesh.scaleUVs(new Vector2(1.0f, 1.0f));
             //Mesh.scaleUV = true;
-            houseGround.addComponent(new ModelComponent(houseGroundMesh)); ;
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(houseGround);
+
+            world.CreateEntity(
+                new PositionComponent(new Vector3(-streetGenerator.TotalWidth / 2f - 50f, 0, -streetGenerator.TotalWidth / 2f - 50f)),
+                new RotationComponent(new Vector3(0, -MathF.PI / 2f, 0)),
+                new ScaleComponent(new Vector3(1)),
+                new ModelComponent(glLoader.loadToVAO(houseGroundMesh)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
 
 
             Vector2 terrainSize = new Vector2(100, 100f);
             terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
 
-            EntityOLD crossRoad = new EntityOLD("crossroad");
-            crossRoad.addComponent(new TransformationComponent(new Transformation()));
-            crossRoad.addComponent(new ModelComponent(streetGenerator.GenerateCrossRoad()));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(crossRoad);
+
+            world.CreateEntity(
+                new PositionComponent(new Vector3(0)),
+                new RotationComponent(new Vector3(0)),
+                new ScaleComponent(new Vector3(1)),
+                new ModelComponent(glLoader.loadToVAO(streetGenerator.GenerateCrossRoad())),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
 
             int nr = 0;
             for (int i = 2; i < 17; i++)
             {
                 for (int j = 0; j < streetGenerator.lanes; j++)
                 {
-                    EntityOLD car = new EntityOLD("car " + nr);
                     float x = streetGenerator.laneWdith * j + streetGenerator.laneWdith * (0.5f + MyMath.rngMinusPlus(0.15f));
                     float z = 13f * i + MyMath.rngMinusPlus(4f);
-                    car.addComponent(new TransformationComponent(new Transformation(new Vector3(x, 0f, z), new Vector3(0f, MyMath.rngMinusPlus(0.03f), 0f), new Vector3(1.7f + MyMath.rngMinusPlus(0.2f)))));
-                    car.addComponent(new ModelComponent(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight, out Vector3 exhaustPos)));
-                    eCSEngine.AddEnityToSystem<ModelRenderSystem>(car);
+                    var carModel = glLoader.loadToVAO(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight, out Vector3 exhaustPos));
+                    Entity car = world.CreateEntity(
+                        new PositionComponent(new Vector3(x, 0f, z)),
+                        new RotationComponent(new Vector3(0f, MyMath.rngMinusPlus(0.03f), 0f)),
+                        new ScaleComponent(new Vector3(1.7f + MyMath.rngMinusPlus(0.2f))),
+                        new ModelComponent(carModel),
+                        new ModelRenderTag(),
+                        new LocalToWorldMatrixComponent()
+                    );
 
-                    EntityOLD carLightLeft = new EntityOLD("car light left");
-                    carLightLeft.addComponent(new TransformationComponent(leftLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
-                    carLightLeft.addComponent(new AttunuationComponent(0.0005f, 0.0005f, 0.0005f));
-                    carLightLeft.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 0.3f)));
-                    carLightLeft.addComponent(new ChildComponent(car));
-                    eCSEngine.AddEnityToSystem<SpotLightSystem>(carLightLeft);
-
-                    EntityOLD carLightRight = new EntityOLD("car light right");
-                    carLightRight.addComponent(new TransformationComponent(rightLight, new Vector3(MathF.PI / 2.2f, 0f, 0), new Vector3(1f)));
-                    carLightRight.addComponent(new AttunuationComponent(0.0005f, 0.0005f, 0.0005f));
-                    carLightRight.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 0.3f)));
-                    carLightRight.addComponent(new ChildComponent(car));
-                    eCSEngine.AddEnityToSystem<SpotLightSystem>(carLightRight);
-
-                    EntityOLD emitter = new EntityOLD("car exhaust Particle Emitter");
-                    emitter.addComponent(new TransformationComponent(new Transformation(exhaustPos, new Vector3(0f, 0f, 0f), new Vector3(1))));
+                    for (int carLight = 0; carLight <2; carLight++)
+                    {
+                        Vector3 carLightPos = leftLight;
+                        if (carLight == 1) carLightPos = rightLight;
+                        world.CreateEntity(
+                            new PositionComponent(carLightPos),
+                            new DirectionNormalizedComponent(new Vector3(0f, -0.3f, -1f)),
+                            new AttunuationComponent(0.001f, 0.001f, 0.001f),
+                            new ColorComponent(new Colour(1f, 0.8f, 0.6f, 0.3f)),
+                            new LocalToWorldMatrixComponent(),
+                            new ParentComponent(car),
+                            new LocalToWorldMatrixComponent(),
+                            new SpotLightComponent(0.3f, MathF.PI/ 2.0f)
+                        );
+                    }
+                    
                     var emitterComponent = new ParticleEmitterComponent();
                     emitterComponent.particleSpeed = 0.2f;
-                    emitterComponent.particlesPerSecond = 1f;
+                    emitterComponent.particlesPerSecond = 10f;
                     emitterComponent.particleSizeStart = 0.25f;
                     emitterComponent.particleWeight = -0.25f;
                     emitterComponent.particleSpeed = 6f;
                     emitterComponent.particleDuration = 1.4f;
                     emitterComponent.particleDirectionError = 0.3f;
                     emitterComponent.particlePositionError = 0.1f;
-                    emitter.addComponent(emitterComponent);
-                    emitter.addComponent(new DirectionComponent(new Vector3(0f, 0f, 1f)));
-                    emitter.addComponent(new ChildComponent(car));
-                    eCSEngine.AddEnityToSystem<ParticleEmitterSystem>(emitter);
+                    world.CreateEntity(
+                        new PositionComponent( exhaustPos),
+                        new DirectionNormalizedComponent(new Vector3(0f, 0f, 1f)),
+                        emitterComponent,
+                        new LocalToWorldMatrixComponent(),
+                        new ParentComponent(car),
+                        new LocalToWorldMatrixComponent()
+                    );
 
                     nr++;
                 }
             }
 
             Mesh streetModel = streetGenerator.GenerateStreet(30, out float streetLength);
+            var glStreetModel = glLoader.loadToVAO(streetModel);
             for (int i = 0; i < 4; i++)
             {
-                EntityOLD street = new EntityOLD("street");
                 Vector3 position = (new Vector4(0, 0f, streetGenerator.TotalWidth * 0.5f, 1f) * MyMath.createRotationMatrix(new Vector3(0f, i * (MathF.PI / 2f), 0f))).Xyz;
-                Transformation transformation = new Transformation(position, new Vector3(0f, i * (MathF.PI / 2f), 0f), new Vector3(1));
-                street.addComponent(new TransformationComponent(transformation));
-                street.addComponent(new ModelComponent(streetModel));
-                eCSEngine.AddEnityToSystem<ModelRenderSystem>(street);
+                world.CreateEntity(
+                    new PositionComponent(position),
+                    new RotationComponent(new Vector3(0f, i * (MathF.PI / 2f), 0f)),
+                    new ScaleComponent(new Vector3(1)),
+                    new ModelComponent(glStreetModel),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
             }
 
 
-            Mesh tree = treeGenerator.GenerateTree();
-
+            var tree = glLoader.loadToVAO(treeGenerator.GenerateTree());
+            var streeLight = UrbanPropGenerator.GenerateStreetLight(out Vector3 lightPosition);
             for (int side = -1; side <= 1; side += 2)
             {
                 for (int i = 0; i < 10; i++)
                 {
-                    EntityOLD streetLight = new EntityOLD("Street Light" + i);
-                    streetLight.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 50 + 30 * i), new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f), new Vector3(1f, 1f, 1f)));
-                    streetLight.addComponent(new ModelComponent(UrbanPropGenerator.GenerateStreetLight(out Vector3 lightPosition)));
-                    eCSEngine.AddEnityToSystem<ModelRenderSystem>(streetLight);
+                    var streetLightPos = new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 50 + 30 * i);
+                    var streeLightEntity = world.CreateEntity(
+                        new PositionComponent(streetLightPos),
+                        new RotationComponent(new Vector3(0f, MathF.PI / 2f + MathF.PI / 2f * side, 0f)),
+                        new ScaleComponent(new Vector3(1f, 1f, 1f)),
+                        new ModelComponent(streeLight),
+                        new ModelRenderTag(),
+                        new LocalToWorldMatrixComponent()
+                    );
 
-                    EntityOLD glow = new EntityOLD("Street Light" + i + " glow");
-                    glow.addComponent(new TransformationComponent(lightPosition, new Vector3(0f), new Vector3(1f)));
-                    glow.addComponent(new AttunuationComponent(0.001f, 0.001f, 0.001f));
-                    glow.addComponent(new ColourComponent(new Colour(1f, 0.8f, 0.6f, 20f)));
-                    glow.addComponent(new ChildComponent(streetLight));
-                    eCSEngine.AddEnityToSystem<SpotLightSystem>(glow);
+                    world.CreateEntity(
+                        new PositionComponent(lightPosition),
+                        new DirectionNormalizedComponent(new Vector3(0f, -1f, 0f)),
+                        new AttunuationComponent(0.001f, 0.001f, 0.001f),
+                        new ColorComponent(new Colour(1f, 0.8f, 0.6f, 20f)),
+                        new LocalToWorldMatrixComponent(),
+                        new ParentComponent(streeLightEntity),
+                        new LocalToWorldMatrixComponent(),
+                        new SpotLightComponent(0.3f, MathF.PI*0.4f)
+                    );
 
-
-                    EntityOLD streetTree = new EntityOLD("Street tree" + i);
-                    streetTree.addComponent(new TransformationComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i), new Vector3(0f, MyMath.rng()*MathF.Tau, 0f), new Vector3(1f)+MyMath.rng3DMinusPlus(0.25f)));
-                    streetTree.addComponent(new ModelComponent(tree));
-                    eCSEngine.AddEnityToSystem<ModelRenderSystem>(streetTree);
+                    world.CreateEntity(
+                        new PositionComponent(new Vector3((streetGenerator.TotalWidth - streetGenerator.sideWalkWidth * 1.7f) * 0.5f * side, 0f, 35 + 30 * i)),
+                        new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
+                        new ScaleComponent(new Vector3(1f) + MyMath.rng3DMinusPlus(0.25f)),
+                        new ModelComponent(tree),
+                        new ModelRenderTag(),
+                        new LocalToWorldMatrixComponent()
+                    );
                 }
             }
+            var roadConeModel = glLoader.loadToVAO(UrbanPropGenerator.GenerateStreetCone());
             for (int i = 0; i < 8; i++)
             {
-                EntityOLD roadCone = new EntityOLD("roadCone");
-                roadCone.addComponent(new TransformationComponent(new Transformation(new Vector3(2 * i, 0f, 15f), new Vector3(0f, MathF.PI * 2f * MyMath.rng(), 0f), new Vector3(2))));
-                roadCone.addComponent(new ModelComponent(UrbanPropGenerator.GenerateStreetCone()));
-                eCSEngine.AddEnityToSystem<ModelRenderSystem>(roadCone);
+                world.CreateEntity(
+                    new PositionComponent(new Vector3(2 * i, 0f, 15f)),
+                    new RotationComponent(new Vector3(0f, MathF.PI * 2f * MyMath.rng(), 0f)),
+                    new ScaleComponent(new Vector3(2)),
+                    new ModelComponent(roadConeModel),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
 
             }
         }
 
-
+        
     }
 }
