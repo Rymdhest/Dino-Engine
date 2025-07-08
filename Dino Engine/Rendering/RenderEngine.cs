@@ -38,7 +38,7 @@ namespace Dino_Engine.Rendering
 
         private ScreenQuadRenderer _screenQuadRenderer;
         public ModelRenderer _modelRenderer;
-        private TerrainRenderer _terrainRenderer;
+        public TerrainRenderer _terrainRenderer;
         private InstancedModelRenderer _instancedModelRenderer;
         public DirectionalLightRenderer _directionalLightRenderer;
         public PointLightRenderer _pointLightRenderer;
@@ -93,6 +93,7 @@ namespace Dino_Engine.Rendering
             frameBufferSettings.depthAttachmentSettings = depthSettings;
             _dualBufferFull = new DualBuffer(frameBufferSettings);
             lastUsedBuffer = _dualBufferFull;
+            textureGenerator.GenerateAllTextures();
 
             _modelRenderer = new ModelRenderer();
             _terrainRenderer = new TerrainRenderer();
@@ -114,7 +115,6 @@ namespace Dino_Engine.Rendering
             _grassRenderer = new GrassRenderer();
             _sunRenderer = new SunRenderer();
 
-            textureGenerator.GenerateAllTextures();
         }
 
         private void InitGBuffer()
@@ -182,7 +182,7 @@ namespace Dino_Engine.Rendering
 
                 //_screenQuadRenderer.RenderTextureToScreen(TextureGenerator.testTexture.textures[0]);
 
-                //_dualBufferFull.RenderTextureToScreen(_gBuffer.GetAttachment(0));
+                //_dualBufferFull.RenderTextureToScreen(_gBuffer.GetAttachment(1));
                 //_gBuffer.resolveToScreen();
                 //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
                 //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));

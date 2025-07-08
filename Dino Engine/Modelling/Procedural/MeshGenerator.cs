@@ -363,15 +363,15 @@ namespace Dino_Engine.Modelling
         public static Mesh generateBox(Vector3 min, Vector3 max, Material material)
         {
             Mesh plane = generatePlane(material);
-            plane.translate(new Vector3(0f, 0f, 0.5f));
+            plane.translate(new Vector3(0f, 0.5f, 0.0f));
             Mesh box = new Mesh();
 
             box += plane.rotated(new Vector3(0f, 0f, 0f));
-            box += plane.rotated(new Vector3(0f, MathF.PI / 2f, 0f));
-            box += plane.rotated(new Vector3(0f, MathF.PI, 0f));
-            box += plane.rotated(new Vector3(0f, -MathF.PI / 2f, 0f));
             box += plane.rotated(new Vector3(MathF.PI / 2f, 0f, 0f));
+            box += plane.rotated(new Vector3(MathF.PI, 0f, 0f));
             box += plane.rotated(new Vector3(-MathF.PI / 2f, 0f, 0f));
+            box += plane.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
+            box += plane.rotated(new Vector3(0f, 0f, -MathF.PI / 2f));
             box.scale(max);
             return box;
         }
@@ -599,13 +599,13 @@ namespace Dino_Engine.Modelling
             int numverticesY = resolution.Y + 1;
 
             List<Vertex> vertices = new List<Vertex>(numverticesX *numverticesY);
-            for (int y = 0; y< numverticesY; y++)
+            for (int z = 0; z< numverticesY; z++)
             {
                 for (int x = 0; x < numverticesX; x++)
                 {
-                    float xRatio = x / (float)resolution.X;
-                    float yRatio = y / (float)resolution.Y;
-                    vertices.Add( new Vertex(new Vector3(xRatio*size.X, yRatio*size.Y, 0), material, new Vector2(1-xRatio, yRatio)));
+                    float xRatio = x / ((float)resolution.X);
+                    float zRatio = z / ((float)resolution.Y);
+                    vertices.Add( new Vertex(new Vector3(xRatio*size.X, 0,  zRatio * size.Y), material, new Vector2(xRatio, zRatio)));
                 }
             }
 
@@ -615,12 +615,12 @@ namespace Dino_Engine.Modelling
                 for (int x = 0; x < resolution.X; x++)
                 {
                     indices.Add(y * numverticesX + x);
-                    indices.Add(y * numverticesX + (x+1));
                     indices.Add((y + 1) * numverticesX + x);
+                    indices.Add(y * numverticesX + (x+1));
 
                     indices.Add(y * numverticesX + (x + 1));
-                    indices.Add((y+1) * numverticesX + (x + 1));
                     indices.Add((y + 1) * numverticesX + x);
+                    indices.Add((y+1) * numverticesX + (x + 1));
                 }
             }
             Mesh rawModel = new Mesh(vertices, indices);
@@ -630,7 +630,7 @@ namespace Dino_Engine.Modelling
             }
             if (centerY)
             {
-                rawModel.translate(new Vector3(0f, -size.Y / 2f, 0f));
+                rawModel.translate(new Vector3(0f, 0, -size.Y / 2f));
             }
 
             return rawModel;

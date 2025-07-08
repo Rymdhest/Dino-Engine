@@ -1,5 +1,4 @@
 ﻿using Dino_Engine.Core;
-using Dino_Engine.ECS;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Nature;
 using Dino_Engine.Modelling.Procedural.Urban;
@@ -7,26 +6,15 @@ using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using Dino_Engine.Modelling;
-using Dino_Engine.Debug;
 using Dino_Engine.Modelling.Procedural.Terrain;
-using Dino_Engine.Rendering;
 using Dino_Engine.Util.Data_Structures.Grids;
-using Dino_Engine.Util.Noise;
-using Dino_Engine;
 using Util.Noise;
-using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using Dino_Engine.Physics;
-using System;
-using System.Reflection.Emit;
-using Dino_Engine.Modelling.Procedural.Indoor;
-using System.Runtime.ConstrainedExecution;
-using System.Drawing;
-using Dino_Engine.Textures;
-using System.Reflection;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.ECS.Components;
-using Dino_Engine.Rendering.Renderers.PostProcessing;
+using Dino_Engine.Rendering.Renderers.Geometry;
+using Dino_Engine.Util.Data_Structures;
+using System.Xml.Linq;
 
 namespace Dino_Defenders
 {
@@ -183,12 +171,14 @@ namespace Dino_Defenders
 
             world.ClearAllEntitiesExcept(world.QueryEntities(new BitMask(typeof(MainCameraComponent)), BitMask.Empty).ToArray());
 
-            
+            world.RegisterSingleton<TerrainQuadTreeComponent>(world.CreateEntity(new TerrainQuadTreeComponent(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
+            world.RegisterSingleton<TerrainGeneratorComponent>(world.CreateEntity(new TerrainGeneratorComponent(new TerrainGenerator())));
+            world.ApplyDeferredCommands();
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -1.5f, 5.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20.0f)),
-                new AmbientLightComponent(0.015f),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 5.0f)),
+                new AmbientLightComponent(0.0015f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 4, 600)
             );
@@ -214,8 +204,7 @@ namespace Dino_Defenders
                 new AmbientLightComponent(0.5f)
             );
 
-            //spawnTerrain(Engine.world);
-            spawnCity(Engine.world);
+            //spawnCity(Engine.world);
             //spawnTestScene(eCSEngine);
             //spawnIndoorScene(eCSEngine);
         }
@@ -384,8 +373,8 @@ namespace Dino_Defenders
        
     */
 
-        
-        private void spawnTerrain(ECSWorld world)
+
+            private void spawnTerrain(ECSWorld world)
         {
             TerrainGenerator generator = new TerrainGenerator();
             int terrainR = 0;

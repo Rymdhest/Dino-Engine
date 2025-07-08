@@ -10,10 +10,18 @@ namespace Dino_Engine.ECS.ECS_Architecture
     {
         public uint Id;
 
+        public static readonly Entity Invalid = new Entity(0);
+
         public Entity(uint Id)
         {
             this.Id  = Id;
         }
+
+        public bool IsValid()
+        {
+            return Id > 0;
+        }
+
         public override string ToString() => $"Entity({Id})";
     }
 }

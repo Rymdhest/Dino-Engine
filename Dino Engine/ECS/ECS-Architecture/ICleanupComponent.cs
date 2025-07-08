@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.ECS.ECS_Architecture
 {
-    public interface IComponent
+    public interface ICleanupComponent
     {
-        public virtual void Cleanup() {}
+        public abstract void Cleanup();
     }
 }

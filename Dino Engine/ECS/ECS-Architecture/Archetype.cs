@@ -56,8 +56,14 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
         public void RemoveEntityAt(int index)
         {
-            int last = entities.Count - 1;
+            foreach (var kv in ComponentArrays)
+            {
+                dynamic compArray = kv.Value;
+                IComponent component = compArray[index];
+                if (component is ICleanupComponent) component.Cleanup();
+            }
 
+            int last = entities.Count - 1;
             if (index != last)
             {
                 // Move the last entity into the removed spot

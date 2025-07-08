@@ -120,7 +120,8 @@ namespace Dino_Engine.Textures
           addAllPreparedTexturesToTexArray(false);
             
         Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(15f, 15f), new Vector2i(1, 1), new Material(new Colour(150, 161,87), leaf));
-        branchMesh.rotate(new Vector3(0, 0f, MathF.PI/2f));
+            branchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
+            branchMesh.rotate(new Vector3(0, 0f, MathF.PI/2f));
         branchMesh.translate(new Vector3(-15f/2f, 0f, 0f));
         branchMesh += branchMesh.translated(new Vector3(15f, 0f, 0f));
         var controlPoints = new List<Vector3>();
@@ -166,7 +167,8 @@ namespace Dino_Engine.Textures
 
 
         Mesh treeBranchMesh = MeshGenerator.generatePlane(new Vector2(15f, 15f), new Vector2i(1, 1), new Material(new Colour(255, 255, 255), leafBranch));
-        treeBranchMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
+            treeBranchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
+            treeBranchMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
         treeBranchMesh.translate(new Vector3(-15f / 2f, 0f, 2f));
         treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, MathF.PI / 1f));
         Mesh mesh2 = MeshGenerator.generateTube(curve, 8, Material.BARK, textureRepeats: 1, flatStart: true);
@@ -281,10 +283,8 @@ namespace Dino_Engine.Textures
                 GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToBorder);
             }
 
-
             Engine.CheckGLError("After TexParameter");
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
-
 
             // Unbind the texture array
             GL.BindTexture(TextureTarget.Texture2DArray, 0);
@@ -467,7 +467,7 @@ namespace Dino_Engine.Textures
 
             MaterialLayersCombiner.combine(bricks, background, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Smoothstep, weight: 0.3f, smoothness: 0.9f);
 
-            return FinishTexture(bricks);
+            return FinishTexture(bricks, normalFlatness: 100);
         }
 
         private int createMetalFloorTexture()

@@ -17,7 +17,7 @@ void main(void)
     float dx = (heightR - heightL);
     float dy = (heightU - heightD);
     vec3 normalTemp = vec3(-dx, -dy, normalFlatness);
-    normalTemp.y *= -1;
+    //normalTemp.y *= -1;
     normalTemp = normalize(normalTemp);
     normal.rgb = normalTemp*0.5f+0.5f;
 

@@ -47,10 +47,10 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             for (int sideIndex = 0; sideIndex<4; sideIndex++)
             {
                 Mesh side = new Mesh();
-                Mesh corner = MeshGenerator.generateBox(sideWalkMaterial, sideWalkWidth, sideWalkWidth, sideWalkHeight);
+                Mesh corner = MeshGenerator.generateBox(sideWalkMaterial, sideWalkWidth, sideWalkHeight, sideWalkWidth);
 
                 //corner = corner.scaled(new Vector3(sideWalkWidth, sideWalkWidth, sideWalkHeight));
-                corner.translate(new Vector3(TotalWidth * 0.5f - sideWalkWidth * 0.5f, TotalWidth*0.5f-sideWalkWidth*0.5f, sideWalkHeight*0.5f));
+                corner.translate(new Vector3(TotalWidth * 0.5f - sideWalkWidth * 0.5f, sideWalkHeight * 0.5f, TotalWidth*0.5f-sideWalkWidth*0.5f));
                 side += corner;
 
                 for (int i = 0; i < totalCrossLines; i++)
@@ -60,26 +60,25 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
                     float crossSectionWidth = roadTotalWidth / totalCrossLines;
                     Mesh crossWalkPart = MeshGenerator.generatePlane(material);
-                    crossWalkPart.scale(new Vector3(crossSectionWidth, sideWalkWidth* crossingSizeFactor, 1f));
-                    crossWalkPart.translate(new Vector3(i * crossSectionWidth+crossSectionWidth*0.5f-roadTotalWidth*0.5f, TotalWidth * 0.5f - sideWalkWidth * 0.5f, 0));
+                    crossWalkPart.scale(new Vector3(crossSectionWidth, 1f, sideWalkWidth * crossingSizeFactor));
+                    crossWalkPart.translate(new Vector3(i * crossSectionWidth+crossSectionWidth*0.5f-roadTotalWidth*0.5f, 0f, TotalWidth * 0.5f - sideWalkWidth * 0.5f));
 
 
                     side += crossWalkPart;
                 }
                 Mesh gapFill = MeshGenerator.generatePlane(streetMaterial);
                 float gapSize = sideWalkWidth * (1f - crossingSizeFactor) * 0.5f;
-                gapFill.scale(new Vector3(roadTotalWidth, gapSize, 1f));
+                gapFill.scale(new Vector3(roadTotalWidth, 1f, gapSize));
 
-                side += gapFill.translated(new Vector3(0, TotalWidth * 0.5f - gapSize * 0.5f, 0));
-                side += gapFill.translated(new Vector3(0, TotalWidth * 0.5f + gapSize * 0.5f - sideWalkWidth, 0));
+                side += gapFill.translated(new Vector3(0, 0f, TotalWidth * 0.5f - gapSize * 0.5f));
+                side += gapFill.translated(new Vector3(0, 0f, TotalWidth * 0.5f + gapSize * 0.5f - sideWalkWidth));
 
-                side.rotate(new Vector3(0f, 0f, -MathF.PI*0.5f* sideIndex));
+                side.rotate(new Vector3(0f, -MathF.PI*0.5f* sideIndex, 0f));
                 mesh += side;
 
             }
 
 
-            mesh.rotate(new Vector3(-MathF.PI/2f, 0f, 0f));
             mesh.ProjectUVsWorldSpaceCube(streetTextureScale);
             Mesh.scaleUV = false;
 
@@ -105,11 +104,9 @@ namespace Dino_Engine.Modelling.Procedural.Urban
             Mesh street = new Mesh();
 
             Mesh unitPlaneStreet = MeshGenerator.generatePlane(streetMaterial);
-            unitPlaneStreet.rotate(new Vector3(-MathF.PI / 2f, 0f, 0f));
             Mesh unitPlaneLine = MeshGenerator.generatePlane(lineMaterial);
-            unitPlaneLine.rotate(new Vector3(-MathF.PI / 2f, 0f, 0f));
 
-            street += MeshGenerator.generatePlane(lineMaterialCenter).rotated(new Vector3(-MathF.PI / 2f, 0f, 0f)).scaled(new Vector3(lineWidth, 1f, totalLength)).translated(new Vector3(0f, 0f, totalLength * 0.5f));
+            street += MeshGenerator.generatePlane(lineMaterialCenter).scaled(new Vector3(lineWidth, 1f, totalLength)).translated(new Vector3(0f, 0f, totalLength * 0.5f));
 
             Mesh segment = new Mesh();
 

@@ -6,6 +6,12 @@ namespace Dino_Engine.ECS.Components
     {
         public float Yaw;
         public float Pitch;
+
+        public PositionRotationInputControlComponent(float yaw, float pitch)
+        {
+            Yaw = yaw;
+            Pitch = pitch;
+        }
     }
 
 

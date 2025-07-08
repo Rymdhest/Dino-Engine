@@ -22,6 +22,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             Material leafMaterial = new Material(new Colour(100, 170, 15), Engine.RenderEngine.textureGenerator.bark);
 
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(0.15f, 1f), new Vector2i(50, 50), leafMaterial);
+            leafMesh.rotate(new Vector3(MathF.PI/2f, 0f, 0f));
 
             for (int i = 0; i < leafMesh.meshVertices.Count; i++)
             {

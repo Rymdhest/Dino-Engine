@@ -23,7 +23,7 @@ namespace Dino_Engine.ECS.Systems
         }
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
-            Engine.RenderEngine.context.viewPos = entity.Get<PositionComponent>().value;
+            Engine.RenderEngine.context.viewPos = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
             Engine.RenderEngine.context.viewMatrix = entity.Get<ViewMatrixComponent>().value;
             Engine.RenderEngine.context.invViewMatrix = Matrix4.Invert(Engine.RenderEngine.context.viewMatrix);
             Engine.RenderEngine.context.projectionMatrix = entity.Get<PerspectiveProjectionComponent>().ProjectionMatrix;

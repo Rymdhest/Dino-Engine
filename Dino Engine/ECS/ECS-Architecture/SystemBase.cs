@@ -30,7 +30,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
         protected abstract void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime);
         protected virtual void ResizeEntity(EntityView entity, ECSWorld world, ResizeEventArgs args) { }
 
-        public void Update(ECSWorld world, float deltaTime)
+        public virtual void Update(ECSWorld world, float deltaTime)
         {
             foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
             {

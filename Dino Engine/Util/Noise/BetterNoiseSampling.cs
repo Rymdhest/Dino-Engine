@@ -13,14 +13,14 @@ namespace Dino_Engine.Util.Noise
     {
 
         private float _minRadius;
-        private QuadTree _quadTree;
+        private BucketQuadTree _quadTree;
         private Vector2 _size;
 
         public BetterNoiseSampling(Vector2 size)
         {
             _minRadius = 1f;
             _size = size;
-            _quadTree = new QuadTree(0, 0, size.X, size.Y);
+            _quadTree = new BucketQuadTree(0, 0, size.X, size.Y);
         }
 
 

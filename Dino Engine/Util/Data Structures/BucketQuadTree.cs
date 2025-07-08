@@ -7,14 +7,14 @@ using System.Collections.Generic;
 
 namespace Dino_Engine.Util.Data_Structures
 {
-    internal class QuadTree
+    internal class BucketQuadTree
     {
         private readonly int maxCapacity;
         private readonly float minX, minY, maxX, maxY;
         private readonly List<Vector2> points;
-        private QuadTree[] children;
+        private BucketQuadTree[] children;
 
-        public QuadTree(float minX, float minY, float maxX, float maxY, int maxCapacity = 1)
+        public BucketQuadTree(float minX, float minY, float maxX, float maxY, int maxCapacity = 1)
         {
             this.minX = minX;
             this.minY = minY;
@@ -133,11 +133,11 @@ namespace Dino_Engine.Util.Data_Structures
             float midX = (minX + maxX) / 2;
             float midY = (minY + maxY) / 2;
 
-            children = new QuadTree[4];
-            children[0] = new QuadTree(minX, minY, midX, midY, maxCapacity);
-            children[1] = new QuadTree(midX, minY, maxX, midY, maxCapacity);
-            children[2] = new QuadTree(minX, midY, midX, maxY, maxCapacity);
-            children[3] = new QuadTree(midX, midY, maxX, maxY, maxCapacity);
+            children = new BucketQuadTree[4];
+            children[0] = new BucketQuadTree(minX, minY, midX, midY, maxCapacity);
+            children[1] = new BucketQuadTree(midX, minY, maxX, midY, maxCapacity);
+            children[2] = new BucketQuadTree(minX, midY, midX, maxY, maxCapacity);
+            children[3] = new BucketQuadTree(midX, midY, maxX, maxY, maxCapacity);
 
         }
     }

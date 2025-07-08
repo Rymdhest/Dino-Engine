@@ -13,13 +13,13 @@ namespace Dino_Engine.Util.Noise
         private float minDist;
         private int k = 30; // Maximum number of attempts before rejection
         private int retryLimit = 50000; // Global retry limit to prevent infinite loop
-        private QuadTree quadtree;
+        private BucketQuadTree quadtree;
 
         public PoissonDiskSampling(Grid<float> noiseMap, float minDist)
         {
             this.noiseMap = noiseMap;
             this.minDist = minDist;
-            quadtree = new QuadTree(0, 0, noiseMap.Resolution.X, noiseMap.Resolution.Y);
+            quadtree = new BucketQuadTree(0, 0, noiseMap.Resolution.X, noiseMap.Resolution.Y);
         }
 
         public List<Vector2> GeneratePoints()

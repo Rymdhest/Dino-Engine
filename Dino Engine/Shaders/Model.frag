@@ -80,8 +80,7 @@ void main() {
 
     //gAlbedo.rgb = vec3(hash13(gl_PrimitiveID));
     if (gAlbedo.a < 0.5f) discard;
-
-
+    
     //gAlbedo.rgb = vec3(fract(fragUV), 0f);
 	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex);
 	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;

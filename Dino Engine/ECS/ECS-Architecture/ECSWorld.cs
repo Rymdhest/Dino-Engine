@@ -2,6 +2,7 @@
 using Dino_Engine.ECS.Components;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
+using System.Runtime.CompilerServices;
 
 namespace Dino_Engine.ECS.ECS_Architecture
 {
@@ -12,12 +13,14 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
         private Dictionary<BitMask, Archetype> archetypes = new();
         private Dictionary<uint, (Archetype archetype, int index)> entityLocations = new();
+        private Dictionary<Type, Entity> SingletonToEntity = new();
 
         public Entity Camera;
 
         public int Count => entityLocations.Count;
         public ECSWorld()
         {
+            /*  OLD PARTICLE TEST SETUP
             Camera = CreateEntity("Camera",
                 new PositionComponent(0, 40f, 200f),
                 new RotationComponent(0.5f, 0, 0),
@@ -26,6 +29,17 @@ namespace Dino_Engine.ECS.ECS_Architecture
                 new PositionRotationInputControlComponent(),
                 new ViewMatrixComponent(),
                 new PerspectiveProjectionComponent(MathF.PI / 3.5f, Engine.Resolution, 0.1f, 1000f));
+            */
+
+
+            Camera = CreateEntity("Camera",
+                new PositionComponent(0, 240f, 0f),
+                new RotationComponent(.26f, 2.35f, 0.0f),
+                new MainCameraComponent(),
+                new LocalToWorldMatrixComponent(),
+                new PositionRotationInputControlComponent(),
+                new ViewMatrixComponent(),
+                new PerspectiveProjectionComponent(MathF.PI / 3.5f, Engine.Resolution, 0.1f, 1000f));;
         }
 
         public void Update(float deltaTime)
@@ -63,7 +77,19 @@ namespace Dino_Engine.ECS.ECS_Architecture
             ApplyDeferredCommands();
         }
 
-        private void ApplyDeferredCommands()
+        public Entity GetSingleton<T>()
+        {
+            if (!SingletonToEntity.TryGetValue(typeof(T), out Entity entity))
+                throw new Exception($"Singleton of type {typeof(T).Name} not registered!");
+            return entity;
+        }
+
+        public void RegisterSingleton<T>(Entity entity)
+        {
+            SingletonToEntity[typeof(T)] = entity;
+        }
+
+        public void ApplyDeferredCommands()
         {
             foreach (var cmd in deferredCommands.createEntityCommands)
                 CreateEntityDirect(cmd.Entity, cmd.Components);
@@ -153,6 +179,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
                 entityLocations[lastEntity.Id] = (archetype, index);
 
             entityLocations.Remove(entity.Id);
+            IDManager.Release(entity.Id);
         }
 
         public T GetComponent<T>(Entity entity) where T : struct, IComponent

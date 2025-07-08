@@ -4,7 +4,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Components
 {
-    public struct DirectionalCascadingShadowComponent : IComponent
+    public struct DirectionalCascadingShadowComponent : IComponent, ICleanupComponent
     {
         public ShadowCascade[] cascades;
         public DirectionalCascadingShadowComponent(Vector2i resolution, int numCascades, float size)
@@ -20,6 +20,14 @@ namespace Dino_Engine.ECS.Components
             cascadesTemp.Sort((p1, p2) => p1.projectionSize.CompareTo(p2.projectionSize));
 
             cascades = cascadesTemp.ToArray();
+        }
+
+        public void Cleanup()
+        {
+            foreach (var cascade in cascades)
+            {
+                cascade.cascadeFrameBuffer.cleanUp();
+            }
         }
     }
 }

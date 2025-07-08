@@ -12,7 +12,7 @@ namespace Dino_Engine.Rendering.Renderers
 {
     public abstract class CommandDrivenRenderer<T> : Renderer
     {
-        private List<T> commands = new List<T>();
+        protected List<T> commands = new List<T>();
 
         public CommandDrivenRenderer() : base()
         {
