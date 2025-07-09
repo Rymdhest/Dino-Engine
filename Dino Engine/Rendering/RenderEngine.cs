@@ -1,7 +1,5 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Debug;
-using Dino_Engine.ECS;
-using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
@@ -13,22 +11,37 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System;
-using System.Diagnostics.Tracing;
+using System.Runtime.InteropServices;
 
 namespace Dino_Engine.Rendering
 {
-    public struct RenderContext
+    public struct ShaderGlobals
     {
         public Matrix4 viewMatrix;
         public Matrix4 invViewMatrix;
         public Matrix4 projectionMatrix;
         public Matrix4 invProjectionMatrix;
         public Vector3 viewPos;
+        public float time;
+        public Vector2 resolution;
+    }
+    public struct ShaderGlobals2
+    {
+        public Matrix4 projectionMatrix;
+        public Matrix4 viewMatrix;
+        public Matrix4 invProjectionMatrix;
+        public Matrix4 invViewMatrix;
+        public Vector3 viewPosWorld;
+        public Vector2 resolution;
+        public float time;
+        public float delta;
+        public int worldSeed;
     }
 
     public class RenderEngine
     {
-        public RenderContext context = new RenderContext();
+        public ShaderGlobals context = new ShaderGlobals();
+        private ShaderGlobals2 globals = new ShaderGlobals2();
 
         private List<Renderer> _renderers = new List<Renderer>();
         
@@ -62,6 +75,8 @@ namespace Dino_Engine.Rendering
 
         public DualBuffer lastUsedBuffer;
 
+        private int globalsUBO;
+
         public TextureGenerator textureGenerator = new TextureGenerator();
 
         public GaussianBlurRenderer GaussianBlurRenderer { get => _gaussianBlurRenderer;  }
@@ -77,6 +92,13 @@ namespace Dino_Engine.Rendering
             _simpleShader.bind();
             _simpleShader.loadUniformInt("blitTexture", 0);
             _simpleShader.unBind();
+
+            Console.WriteLine("MARShal. " + Marshal.SizeOf<ShaderGlobals2>());
+
+            globalsUBO = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.UniformBuffer, globalsUBO);
+            GL.BufferData(BufferTarget.UniformBuffer, Marshal.SizeOf<ShaderGlobals2>() , IntPtr.Zero, BufferUsageHint.DynamicDraw);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, globalsUBO);
         }
 
         public void InitRenderers(Vector2i resolution)
@@ -245,6 +267,19 @@ namespace Dino_Engine.Rendering
         private void PrepareFrame()
         {
             _dualBufferFull.clearBothBuffers();
+
+            globals.projectionMatrix = Matrix4.Transpose( context.projectionMatrix);
+            globals.viewMatrix = Matrix4.Transpose(context.viewMatrix);
+            globals.invProjectionMatrix = Matrix4.Transpose(context.invProjectionMatrix);
+            globals.invViewMatrix = Matrix4.Transpose(context.invViewMatrix);
+            globals.viewPosWorld = context.viewPos;
+            globals.resolution = Engine.Resolution;
+            globals.time = 1f;
+            globals.delta = Engine.Delta;
+            globals.worldSeed = 1;
+
+            GL.BindBuffer(BufferTarget.UniformBuffer, globalsUBO);
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, Marshal.SizeOf<ShaderGlobals2>() ,ref globals);
         }
 
 
@@ -273,6 +308,8 @@ namespace Dino_Engine.Rendering
             }
             _gBuffer.cleanUp();
             _simpleShader.cleanUp();
+
+            GL.DeleteBuffer(globalsUBO);
         }
 
         public List<Renderer> Renderers { get => _renderers; }

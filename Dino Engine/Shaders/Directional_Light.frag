@@ -1,7 +1,8 @@
-#version 330
+#version 420
 
 #include gBufferUtil.glsl
 #include Lighting/lightingCalc.glsl
+#include Globals.glsl
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
@@ -9,21 +10,19 @@ uniform sampler2D gDepth;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedo;
 uniform sampler2D gMaterials;
-
+uniform mat4 invProjection;
 uniform int numberOfCascades;
 
 
 uniform vec3 LightDirectionViewSpace;
 uniform vec3 lightColour;
 uniform float ambientFactor;
-uniform vec2 resolution;
 
 uniform mat4 sunSpaceMatrices[5];
 uniform sampler2DShadow shadowMaps[5];
 //uniform vec2 shadowMapResolutions[5];
 uniform float cascadeProjectionSizes[5];
 
-uniform mat4 invProjection;
 
 uniform int pcfRadius;
 

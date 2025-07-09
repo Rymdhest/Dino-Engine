@@ -125,8 +125,8 @@ void main() {
 	fragColor = baseColor+baseColor*vec3(hash23(bladeWorldSeed))*colourError*2-colourError*baseColor;
 	
 	//vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
-	//vec3 rotatedNormal = inverse(transpose(localRotMatrix))*normal.xyz;
-	vec3 rotatedNormal = localRotMatrix*normal.xyz;
+	vec3 rotatedNormal = transpose(inverse(localRotMatrix))*normal.xyz;
+	//vec3 rotatedNormal = localRotMatrix*normal.xyz;
 	vec3 terrainNormal = heightMapData.xyz;
 	vec3 adjustedNormal = normalize(rotatedNormal+terrainNormal*groundNormalStrength);
 	fragNormal = (transpose(invViewMatrix)*vec4(adjustedNormal, 1.0f)).xyz;

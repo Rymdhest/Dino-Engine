@@ -82,13 +82,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             }
 
-            Vector4 lightDirectionViewSpace = new Vector4(-command.direction, 1.0f) * Matrix4.Transpose(renderEngine.context.invViewMatrix);
+            Vector4 lightDirectionViewSpace = new Vector4(-command.direction, 1.0f)* Matrix4.Transpose(renderEngine.context.invViewMatrix);
             _directionalLightShader.loadUniformVector3f("LightDirectionViewSpace", lightDirectionViewSpace.Xyz);
 
             _directionalLightShader.loadUniformVector3f("lightColour", command.colour);
             _directionalLightShader.loadUniformFloat("ambientFactor", command.ambient);
-            _directionalLightShader.loadUniformVector2f("resolution", Engine.Resolution);
-            _directionalLightShader.loadUniformMatrix4f("invProjection", renderEngine.context.invProjectionMatrix);
+
+            _directionalLightShader.loadUniformMatrix4f("invProjection", Engine.RenderEngine.context.invProjectionMatrix);
 
             renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
         }
