@@ -137,11 +137,11 @@ void main() {
     }
 
     if (gAlbedo.a < 0.5f) discard;
-	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex);
+	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex).xyzw;
+    gNormal.a = normalTangentSpace.a;
 	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;
 	gNormal.xyz = normalize( normalTBN*normalTangentSpace.xyz);
 
-	gNormal.a = normalTangentSpace.a;
 
 	gMaterials = lookupMaterial(parallaxedCoords, textureIndex).rgba;
     

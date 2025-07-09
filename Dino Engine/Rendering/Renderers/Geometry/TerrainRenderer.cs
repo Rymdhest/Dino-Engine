@@ -96,6 +96,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         }   
 
+        public int GetNormalHeightTextureArray()
+        {
+            return normalHeightTextureArray;
+        }
+
         public void freeChunk(int chunk)
         {
             normalHeightTextureArrayAllocator.Release((ushort)chunk);
@@ -148,9 +153,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _terrainShader.bind();
             
-            _terrainShader.loadUniformFloat("parallaxDepth", 0.09515f);
+            _terrainShader.loadUniformFloat("parallaxDepth", 0.05f);
             _terrainShader.loadUniformFloat("parallaxLayers", 64);
-            _terrainShader.loadUniformFloat("textureTileSize", 50.0f);
+            _terrainShader.loadUniformFloat("textureTileSize", 10.0f);
             
             _terrainShader.loadUniformBool("DEBUG_VIEW", false);
             _terrainShader.loadUniformBool("TEST", true);
@@ -216,7 +221,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         internal override void Finish(RenderEngine renderEngine)
         {
-
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);
             GL.DisableVertexAttribArray(2);

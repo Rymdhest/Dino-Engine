@@ -15,7 +15,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _depthOfFieldShader.bind();
             _depthOfFieldShader.loadUniformInt("colorTexture", 0);
             _depthOfFieldShader.loadUniformInt("blurTexture", 1);
-            _depthOfFieldShader.loadUniformInt("positionTexture", 2);
+            _depthOfFieldShader.loadUniformInt("gDepth", 2);
             _depthOfFieldShader.unBind();
         }
 
@@ -33,11 +33,14 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             FrameBuffer gBuffer = renderEngine.GBuffer;
             GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
 
-            gaussianBlurRenderer.Render(buffer.GetLastFrameBuffer(), 6, renderEngine.ScreenQuadRenderer);
+            gaussianBlurRenderer.Render(buffer.GetLastFrameBuffer(), 5, renderEngine.ScreenQuadRenderer);
 
             _depthOfFieldShader.bind();
-            _depthOfFieldShader.loadUniformFloat("range", 0.007f);
+            _depthOfFieldShader.loadUniformFloat("range", 0.0003f);
             _depthOfFieldShader.loadUniformFloat("focusDistance", 0.0f);
+
+            _depthOfFieldShader.loadUniformVector2f("resolution", Engine.Resolution);
+            _depthOfFieldShader.loadUniformMatrix4f("inverseProjection", Engine.RenderEngine.context.invProjectionMatrix);
 
 
             GL.ActiveTexture(TextureUnit.Texture0);
@@ -47,7 +50,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.BindTexture(TextureTarget.Texture2D, gaussianBlurRenderer.GetLastResultTexture());
 
             GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
 
             buffer.RenderToNextFrameBuffer();

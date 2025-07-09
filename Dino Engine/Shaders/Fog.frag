@@ -1,9 +1,10 @@
 #version 330
 
+#include gBufferUtil.glsl
 in vec2 textureCoords;
 
 uniform sampler2D shadedColourTexture;
-uniform sampler2D gPosition;
+uniform sampler2D gDepth;
 
 uniform float fogDensity;
 uniform float heightFallOff;
@@ -11,7 +12,9 @@ uniform vec3 fogColor;
 uniform float time;
 uniform float noiseFactor;
 
+uniform vec2 resolution;
 uniform mat4 inverseViewMatrix;
+uniform mat4 inverseProjection;
 
 uniform vec3 cameraPosWorldSpace;
 
@@ -33,7 +36,7 @@ vec3 applyVolumetricFog( in vec3  col,  // color of pixel
 
 vec3 applySimpleFog( in vec3  col, float depth)
 {
-    float fogAmount = 1 -exp(-fogDensity *fogDensity*depth*depth);
+    float fogAmount = 1 -exp(-fogDensity*fogDensity*depth);
     return mix(col, fogColor, fogAmount);
 }
 
@@ -89,15 +92,14 @@ float noise(in vec4 p) {
 
 
 void main() {
-	float depth = texture(gPosition, textureCoords).z;
-	vec3 viewPosition = texture(gPosition, textureCoords).xyz;
+	vec3 viewPosition = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, inverseProjection, resolution);
 	vec3 baseColor = texture(shadedColourTexture, textureCoords).rgb;
 
 
     vec3 worldPosition = (vec4(viewPosition, 1.0)*inverseViewMatrix).xyz;
 
-    float noiseValue = noise( vec4(worldPosition.xyz*0.03, time*0.49f));
-	//out_Color.rgb = applyVolumetricFog(baseColor, length(viewPosition), cameraPosWorldSpace,normalize(worldPosition-cameraPosWorldSpace), fogDensity, heightFallOff);
-    out_Color.rgb = applySimpleFog2(baseColor,depth-noiseValue*depth*noiseFactor, worldPosition.y);
+    float noiseValue = noise( vec4(worldPosition.xyz*0.02, time*0.29f));
+	out_Color.rgb = applyVolumetricFog(baseColor, length(viewPosition), cameraPosWorldSpace,normalize(worldPosition-cameraPosWorldSpace), fogDensity+fogDensity*noiseValue*noiseFactor, heightFallOff);
+    out_Color.rgb = applySimpleFog(out_Color.rgb, -viewPosition.z);
  
 }

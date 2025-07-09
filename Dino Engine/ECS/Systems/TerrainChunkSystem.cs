@@ -21,7 +21,6 @@ namespace Dino_Engine.ECS.Systems
             QuadTreeNode quadtree = world.GetComponent<TerrainQuadTreeComponent>( world.GetSingleton<TerrainQuadTreeComponent>()).QuadTree;
             TerrainGenerator generator = world.GetComponent<TerrainGeneratorComponent>(world.GetSingleton<TerrainGeneratorComponent>()).Generator;
             Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
-            //cameraPos = new Vector3(0f);
             UpdateNodeLODRecursive(quadtree, cameraPos, world, generator);
         }
 
@@ -140,7 +139,7 @@ namespace Dino_Engine.ECS.Systems
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
-
+            throw new NotImplementedException();
         }
     }
 }

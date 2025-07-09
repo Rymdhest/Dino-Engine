@@ -14,7 +14,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
         public float _mountainCoverage = 0.1f;
         public float _frequenzy = 0.01f;
-        public int _octaves = 4;
+        public int _octaves = 8;
         public float yScale = 700f;
 
         private OpenSimplexNoise noise;

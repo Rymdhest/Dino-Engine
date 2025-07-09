@@ -53,7 +53,7 @@ namespace Dino_Engine.Rendering
         private GaussianBlurRenderer _gaussianBlurRenderer;
         public SpotLightRenderer _spotLightRenderer;
         public ParticleRenderer _particleRenderer;
-        private GrassRenderer _grassRenderer;
+        public GrassRenderer _grassRenderer;
         public SunRenderer _sunRenderer;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
@@ -146,7 +146,7 @@ namespace Dino_Engine.Rendering
             if (Engine.WindowHandler.IsKeyPressed(Keys.T))
             {
             }
-            _grassRenderer.StepSimulation(ScreenQuadRenderer);
+            //_grassRenderer.StepSimulation(ScreenQuadRenderer);
             foreach (Renderer renderer in _renderers)
             {
                 renderer.Update();
@@ -207,8 +207,8 @@ namespace Dino_Engine.Rendering
 
             _modelRenderer.RenderPass(this);
             _terrainRenderer.RenderPass(this);
-            _instancedModelRenderer.RenderPass(this);
-            //_grassRenderer.RenderPass(eCSEngine, this);
+            //_instancedModelRenderer.RenderPass(this);
+            _grassRenderer.RenderPass(this);
 
             _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);
         }
@@ -233,13 +233,13 @@ namespace Dino_Engine.Rendering
         }
         private void PostProcessPass()
         {
+            _fogRenderer.RenderPass(this);
             _sunRenderer.RenderPass(this);
             _bloomRenderer.RenderPass(this);
-            //_fogRenderer.RenderPass(eCSEngine, this);
             //_fXAARenderer.RenderPass(eCSEngine, this);
+            _depthOfFieldRenderer.RenderPass(this);
             _fXAARenderer.RenderPass(this); // before or after tone mapping????????????
             _toneMapRenderer.RenderPass(this);
-            //_depthOfFieldRenderer.RenderPass(eCSEngine, this);
         }
 
         private void PrepareFrame()

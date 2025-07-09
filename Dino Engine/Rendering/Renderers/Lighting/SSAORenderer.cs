@@ -10,7 +10,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     internal class SSAORenderer : Renderer
     {
         private ShaderProgram ambientOcclusionShader = new ShaderProgram("Simple.vert", "AmbientOcclusion.frag");
-        private ShaderProgram ambientOcclusionBlurShader = new ShaderProgram("Simple.vert", "AmbientOcclusion_Blur.frag");
+        private ShaderProgram ambientOcclusionPassthroughShader = new ShaderProgram("Simple.vert", "AmbientOcclusion_Passthrough.frag");
+        private ShaderProgram ambientOcclusionCombineShader = new ShaderProgram("Simple.vert", "Combine_SSAO.frag");
 
         public int noiseScale = 4;
         private const int kernelSize = 16;
@@ -19,9 +20,14 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         internal SSAORenderer()
         {
-            ambientOcclusionBlurShader.bind();
-            ambientOcclusionBlurShader.loadUniformInt("ssaoInput", 0);
-            ambientOcclusionBlurShader.unBind();
+            ambientOcclusionCombineShader.bind();
+            ambientOcclusionCombineShader.loadUniformInt("gNormal", 0);
+            ambientOcclusionCombineShader.loadUniformInt("SSAO", 1);
+            ambientOcclusionCombineShader.unBind();
+
+            ambientOcclusionPassthroughShader.bind();
+            ambientOcclusionPassthroughShader.loadUniformInt("ssaoInput", 0);
+            ambientOcclusionPassthroughShader.unBind();
 
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformInt("texNoise", 0);
@@ -59,8 +65,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         }
         internal override void Prepare(RenderEngine renderEngine)
         {
-            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.Zero);
-            GL.BlendEquation(BlendEquationMode.FuncAdd);
+
         }
 
         internal override void Finish(RenderEngine renderEngine)
@@ -91,38 +96,37 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
-
             renderEngine.lastUsedBuffer.RenderToNextFrameBuffer();
-
             ambientOcclusionShader.unBind();
-
 
             gaussianBlurRenderer.Render(renderEngine.lastUsedBuffer.GetLastFrameBuffer(), 10, renderEngine.ScreenQuadRenderer, 0);
 
-            ambientOcclusionBlurShader.bind();
+            ambientOcclusionCombineShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
+            GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gaussianBlurRenderer.GetLastResultTexture());
+            renderEngine.lastUsedBuffer.RenderToNextFrameBuffer();
 
 
+            ambientOcclusionPassthroughShader.bind();
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine.lastUsedBuffer.GetLastOutputTexture());
 
             gBuffer.bind();
-
-
             GL.ColorMask(0, false, false, false, false);
             GL.ColorMask(1, false, false, false, true);
             GL.ColorMask(2, false, false, false, false);
-            //GL.ColorMask(3, false, false, false, false);
-            renderEngine.ScreenQuadRenderer.Render(blend:true);
+            renderEngine.ScreenQuadRenderer.Render();
             GL.ColorMask(0, true, true, true, true);
             GL.ColorMask(1, true, true, true, true);
             GL.ColorMask(2, true, true, true, true);
-            ///GL.ColorMask(3, true, true, true, true);
-            ambientOcclusionBlurShader.unBind();
+            ambientOcclusionPassthroughShader.unBind();
         }
 
         public override void CleanUp()
         {
-            ambientOcclusionBlurShader.cleanUp();
+            ambientOcclusionPassthroughShader.cleanUp();
             ambientOcclusionShader.cleanUp();
             GL.DeleteTexture(noiseTexture);
         }

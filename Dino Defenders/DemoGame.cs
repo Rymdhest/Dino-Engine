@@ -177,13 +177,13 @@ namespace Dino_Defenders
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -1.5f, 5.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 5.0f)),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 10.0f)),
                 new AmbientLightComponent(0.0015f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 4, 600)
             );
             
-            for (int i = 0; i<2; i++)
+            for (int i = 0; i<0; i++)
             {
                 world.CreateEntity("Moon",
                     //new DirectionalLightTag(),
@@ -199,7 +199,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0f, -1.0f, 0.0f)),
-                new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 0.5f)),
+                new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 2.5f)),
                 new CelestialBodyComponent(),
                 new AmbientLightComponent(0.5f)
             );

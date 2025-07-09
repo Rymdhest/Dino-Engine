@@ -13,7 +13,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             fogShader.bind();
             fogShader.loadUniformInt("shadedColourTexture", 0);
-            fogShader.loadUniformInt("gPosition", 1);
+            fogShader.loadUniformInt("gDepth", 1);
             fogShader.unBind();
         }
 
@@ -32,19 +32,23 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             FrameBuffer gBuffer = renderEngine.GBuffer;
 
 
-            fogShader.loadUniformFloat("fogDensity", 0.0009137f);
-            fogShader.loadUniformFloat("heightFallOff", 0.032f);
+            fogShader.loadUniformFloat("fogDensity", 0.0001f);
+            fogShader.loadUniformFloat("heightFallOff", 0.0012f);
             fogShader.loadUniformFloat("noiseFactor", 0.9f);
             fogShader.loadUniformVector3f("fogColor", SkyRenderer.SkyColour.ToVector3());
 
+            
+
             fogShader.loadUniformVector3f("cameraPosWorldSpace", renderEngine.context.viewPos);
             fogShader.loadUniformMatrix4f("inverseViewMatrix", renderEngine.context.invViewMatrix);
+            fogShader.loadUniformMatrix4f("inverseProjection", renderEngine.context.invProjectionMatrix);
+            fogShader.loadUniformVector2f("resolution", Engine.Resolution);
             fogShader.loadUniformFloat("time", time);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
+            GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
             buffer.RenderToNextFrameBuffer();
 
         }

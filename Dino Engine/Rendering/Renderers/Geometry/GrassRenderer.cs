@@ -11,7 +11,13 @@ using Dino_Engine.Util.Data_Structures.Grids;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
-    internal class GrassRenderer : Renderer
+    public struct GrassChunkRenderCommand : IRenderCommand
+    {
+        public Vector2 chunkPos;
+        public float size;
+        public float arrayID;
+    }
+    public class GrassRenderer : CommandDrivenRenderer<GrassChunkRenderCommand>
     {
 
         private ShaderProgram _grassShader = new ShaderProgram("Grass.vert", "Grass.frag");
@@ -27,15 +33,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private glModel grassBlade;
         private float bladeHeight;
 
+        public static readonly int MAX_GRASS_CHUNKS = 1024;
         private float time = 0f;
+        private int chunkUBO;
 
-        public GrassRenderer()
+        public GrassRenderer()  
         {
             _grassShader.bind();
-            _grassShader.loadUniformInt("heightMap", 0);
-            _grassShader.loadUniformInt("grassMap", 1);
-            _grassShader.loadUniformInt("terrainNormalMap", 2);
-            _grassShader.loadUniformInt("bendMap", 3);
+            _grassShader.loadUniformInt("heightmaps", 0);
             _grassShader.unBind();
 
             generateBladeModel();
@@ -52,6 +57,150 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassDisplaceShader.bind();
             _grassDisplaceShader.loadUniformInt("lastTexture", 0);
             _grassDisplaceShader.unBind();
+
+            chunkUBO = GL.GenBuffer();
+            int uboSize = MAX_GRASS_CHUNKS * (4 * 4); // vec4 = 16 bytes, no padding
+            GL.BindBuffer(BufferTarget.UniformBuffer, chunkUBO);
+            GL.BufferData(BufferTarget.UniformBuffer, uboSize, IntPtr.Zero, BufferUsageHint.DynamicDraw);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 5, chunkUBO);
+        }
+
+
+
+        public void StepSimulation(ScreenQuadRenderer renderer)
+        {
+            displace(renderer);
+            blast(renderer);
+
+            GetNextFrameBuffer().bind();
+            _grassSimulationShader.bind();
+            _grassSimulationShader.loadUniformFloat("delta", Engine.Delta);
+            _grassSimulationShader.loadUniformFloat("regenTime",13.8f);
+            _grassSimulationShader.loadUniformFloat("time", time);
+            _grassSimulationShader.loadUniformVector2f("grassFieldSize", new Vector2(100f, 100f));
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(0));
+            renderer.Render();
+
+            StepToggle();
+        }
+        private void generateBladeModel()
+        {
+            Material grassMaterial = new Material(new Colour(0,0,0), 1); //Throwaway
+
+            if (grassBlade != null) grassBlade.cleanUp();
+            float radius = 0.09f;
+            bladeHeight = 2f;
+            List<Vector2> bladeLayers = new List<Vector2>() {
+                new Vector2(radius, 0),
+                new Vector2(radius*0.6f, bladeHeight*0.4f),
+                new Vector2(radius*0.4f, bladeHeight*0.75f),
+                new Vector2(radius*0.25f, bladeHeight*1.0f)};
+            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 3, grassMaterial, sealTop: 0.0f);
+
+
+
+            //bladeMesh.makeFlat(false, false);
+            grassBlade = glLoader.loadToVAO(bladeMesh);
+        }
+        internal override void Prepare(RenderEngine renderEngine)
+        {
+
+            GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+            GL.Disable(EnableCap.Blend);
+
+            int bladesPerAxis = 20;
+            int bladesPerChunk = (int)Math.Pow(bladesPerAxis, 2);
+            generateBladeModel();
+            //StepSimulation(renderEngine.ScreenQuadRenderer);
+            renderEngine.GBuffer.bind();
+            time += Engine.Delta;
+
+            _grassShader.bind();
+
+
+            Vector4[] chunkData = new Vector4[MAX_GRASS_CHUNKS];
+            for (int i = 0; i < commands.Count; i++)
+            {
+                var command = commands[i];
+                chunkData[i] = new Vector4(command.chunkPos.X, command.chunkPos.Y, command.size, command.arrayID);
+            }
+            GL.BindBuffer(BufferTarget.UniformBuffer, chunkUBO);
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, Vector4.SizeInBytes * MAX_GRASS_CHUNKS, chunkData);
+
+            GL.BindVertexArray(grassBlade.getVAOID());
+            GL.EnableVertexAttribArray(0);
+            GL.EnableVertexAttribArray(2);
+
+            GL.DisableVertexAttribArray(1);
+            GL.DisableVertexAttribArray(3);
+            GL.DisableVertexAttribArray(4);
+            GL.DisableVertexAttribArray(5);
+
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetNormalHeightTextureArray());
+
+
+            _grassShader.loadUniformMatrix4f("viewMatrix", Matrix4.Transpose( Engine.RenderEngine.context.viewMatrix));
+            _grassShader.loadUniformMatrix4f("projectionMatrix", Matrix4.Transpose(Engine.RenderEngine.context.projectionMatrix));
+            _grassShader.loadUniformMatrix4f("invViewMatrix", Matrix4.Transpose(Engine.RenderEngine.context.invViewMatrix));
+
+            _grassShader.loadUniformFloat("swayAmount", 0.0f);
+            _grassShader.loadUniformFloat("time", time);
+            _grassShader.loadUniformFloat("bladeHeight", bladeHeight);
+            _grassShader.loadUniformFloat("bendyness", .1f);
+            _grassShader.loadUniformFloat("heightError", 0.25f);
+            _grassShader.loadUniformFloat("radiusError", 0.35f);
+            _grassShader.loadUniformFloat("cutOffThreshold", 0.1f);
+            _grassShader.loadUniformFloat("groundNormalStrength", 2.3f);
+            _grassShader.loadUniformFloat("colourError", 0.15f);
+            _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.8f);
+            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.3f);
+            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.67f, 0f, 0f, 0f));
+            _grassShader.loadUniformVector3f("baseColor", new Colour(50, 75, 10).ToVector3());
+            _grassShader.loadUniformInt("bladesPerChunk", bladesPerChunk);
+            _grassShader.loadUniformInt("bladesPerAxis", bladesPerAxis);
+            _grassShader.loadUniformFloat("textureMapOffset", 1f / TerrainRenderer.CHUNK_RESOLUTION);
+            
+            GL.DrawElementsInstanced(PrimitiveType.Triangles, grassBlade.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero, bladesPerChunk*commands.Count);
+
+        }
+        internal override void Finish(RenderEngine renderEngine)
+        {
+        }
+
+
+        public override void CleanUp()
+        {
+            _grassShader.cleanUp();
+            GL.DeleteBuffer(chunkUBO);
+        }
+
+        public override void OnResize(ResizeEventArgs eventArgs)
+        {
+        }
+
+        public FrameBuffer GetNextFrameBuffer()
+        {
+            if (_toggle) return _buffer1;
+            else return _buffer2;
+        }
+        public FrameBuffer GetLastFrameBuffer()
+        {
+            if (_toggle) return _buffer2;
+            else return _buffer1;
+        }
+        public void StepToggle()
+        {
+            if (_toggle == true) _toggle = false;
+            else _toggle = true;
+        }
+
+        public override void PerformCommand(GrassChunkRenderCommand command, RenderEngine renderEngine)
+        {
         }
 
         public void blast(ScreenQuadRenderer renderer)
@@ -132,181 +281,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 }
             }
             */
-        }
-
-        public void StepSimulation(ScreenQuadRenderer renderer)
-        {
-            displace(renderer);
-            blast(renderer);
-
-            GetNextFrameBuffer().bind();
-            _grassSimulationShader.bind();
-            _grassSimulationShader.loadUniformFloat("delta", Engine.Delta);
-            _grassSimulationShader.loadUniformFloat("regenTime",13.8f);
-            _grassSimulationShader.loadUniformFloat("time", time);
-            _grassSimulationShader.loadUniformVector2f("grassFieldSize", new Vector2(100f, 100f));
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(0));
-            renderer.Render();
-
-            StepToggle();
-        }
-        private void generateBladeModel2()
-        {
-            Material grassMaterial = new Material(new Colour(50, 75, 10), 1);
-            Material topMaterial = grassMaterial;
-            Material botMaterial = grassMaterial;
-            topMaterial.Colour.Intensity = 1.0f;
-            botMaterial.Colour.Intensity = 0.3f;
-
-            if (grassBlade != null) grassBlade.cleanUp();
-            float radius = .07215f;
-            bladeHeight =2.6f;
-            List<Vector3> bladeLayers = new List<Vector3>() {
-                new Vector3(radius, 0, radius*0.3f),
-                new Vector3(radius*0.6f, bladeHeight*0.4f, radius*0.2f),
-                new Vector3(radius*0.4f, bladeHeight*0.75f, radius*0.1f),
-                new Vector3(radius*0.15f, bladeHeight, radius*0.05f)};
-            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 4, grassMaterial);
-
-            foreach (MeshVertex vertex in bladeMesh.meshVertices)
-            {
-                vertex.material.Colour = Colour.mix(botMaterial.Colour, topMaterial.Colour, vertex.position.Y / bladeHeight);
-            }
-
-            bladeMesh.makeFlat(true, false);
-            grassBlade = glLoader.loadToVAO(bladeMesh);
-        }
-        private void generateBladeModel()
-        {
-            Material grassMaterial = new Material(new Colour(76, 96, 23), 1);
-            Material topMaterial = grassMaterial;
-            Material botMaterial = grassMaterial;
-            topMaterial.Colour.Intensity = 1.0f;
-            botMaterial.Colour.Intensity = 0.4f;
-
-            if (grassBlade != null) grassBlade.cleanUp();
-            float radius = .12f;
-            bladeHeight = 4.6f;
-            List<Vector2> bladeLayers = new List<Vector2>() {
-                new Vector2(radius, 0),
-                new Vector2(radius*0.6f, bladeHeight*0.4f),
-                new Vector2(radius*0.4f, bladeHeight*0.75f),
-                new Vector2(radius*0.15f, bladeHeight)};
-            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 2, grassMaterial);
-
-            foreach (MeshVertex vertex in bladeMesh.meshVertices)
-            {
-                vertex.material.Colour = Colour.mix(botMaterial.Colour, topMaterial.Colour, vertex.position.Y / bladeHeight);
-            }
-
-            bladeMesh.makeFlat(true, false);
-            grassBlade = glLoader.loadToVAO(bladeMesh);
-        }
-
-        internal override void Finish(RenderEngine renderEngine)
-        {
-        }
-
-        internal override void Prepare(RenderEngine renderEngine)
-        {
-
-        }
-
-        internal override void Render(RenderEngine renderEngine)
-        {
-            /*
-            //StepSimulation(renderEngine.ScreenQuadRenderer);
-            renderEngine.GBuffer.bind();
-            generateBladeModel2();
-            time += Engine.Delta;
-            float spacing =0.2525f;
-
-            _grassShader.bind();
-            GL.BindVertexArray(grassBlade.getVAOID());
-            GL.EnableVertexAttribArray(0);
-            GL.EnableVertexAttribArray(1);
-            GL.EnableVertexAttribArray(2);
-            GL.EnableVertexAttribArray(3);
-            Matrix4 viewMatrix = MyMath.createViewMatrix(eCSEngine.Camera.getComponent<TransformationComponent>().Transformation);
-            Matrix4 projectionMatrix = eCSEngine.Camera.getComponent<ProjectionComponent>().ProjectionMatrix;
-            foreach (EntityOLD terrain in eCSEngine.getSystem<TerrainSystem>().MemberEntities)
-            {
-
-                Vector2 grassFieldSizeWorld = ((TerrainHitBox)(terrain.getComponent<CollisionComponent>().HitBox))._max.Xz;
-                Vector2 resolution = terrain.getComponent<TerrainMapsComponent>().heightMap.Resolution;
-                Vector2 bladesPerAxis = grassFieldSizeWorld / spacing;
-                Vector2 quadsPerMeter = (resolution - new Vector2(1f)) / grassFieldSizeWorld;
-
-                GL.ActiveTexture(TextureUnit.Texture0);
-                GL.BindTexture(TextureTarget.Texture2D, terrain.getComponent<TerrainMapsComponent>().heightMap.GetTexture());
-
-                GL.ActiveTexture(TextureUnit.Texture1);
-                GL.BindTexture(TextureTarget.Texture2D, terrain.getComponent<TerrainMapsComponent>().grassMap.GetTexture());
-
-                GL.ActiveTexture(TextureUnit.Texture2);
-                GL.BindTexture(TextureTarget.Texture2D, terrain.getComponent<TerrainMapsComponent>().normalMap.GetTexture());
-
-                GL.ActiveTexture(TextureUnit.Texture3);
-                GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(0));
-
-                Matrix4 transformationMatrix = MyMath.createTransformationMatrix(terrain.getComponent<TransformationComponent>().Transformation);
-                Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;
-                _grassShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
-                _grassShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
-                _grassShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * projectionMatrix);
-                _grassShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
-
-                
-
-                // super weird not sure why this works...
-                _grassShader.loadUniformVector2f("offsetTest", new Vector2(1f)/ (quadsPerMeter*2f));
-                _grassShader.loadUniformVector2f("offsetTest2", new Vector2(1f) / (quadsPerMeter));
-
-                _grassShader.loadUniformFloat("swayAmount", 0.0f);
-                _grassShader.loadUniformFloat("time", time);
-                _grassShader.loadUniformFloat("bladeHeight", bladeHeight);
-                _grassShader.loadUniformFloat("bendyness", 0.1f);
-                _grassShader.loadUniformFloat("heightError", 0.45f);
-                _grassShader.loadUniformFloat("cutOffThreshold", 0.1f);
-                _grassShader.loadUniformFloat("groundNormalStrength", 4.0f);
-                _grassShader.loadUniformFloat("colourError", 0.315f);
-                _grassShader.loadUniformVector2f("bladesPerAxis", bladesPerAxis);
-                _grassShader.loadUniformVector2f("grassFieldSizeWorld", grassFieldSizeWorld);
-                _grassShader.loadUniformFloat("spacing", spacing);
-
-                GL.DrawElementsInstanced(PrimitiveType.Triangles, grassBlade.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero,(int)(bladesPerAxis.X*bladesPerAxis.Y));
-
-            }
-            */
-
-        }
-        public override void CleanUp()
-        {
-            _grassShader.cleanUp();
-        }
-
-        public override void OnResize(ResizeEventArgs eventArgs)
-        {
-        }
-
-        public override void Update()
-        {
-        }
-        public FrameBuffer GetNextFrameBuffer()
-        {
-            if (_toggle) return _buffer1;
-            else return _buffer2;
-        }
-        public FrameBuffer GetLastFrameBuffer()
-        {
-            if (_toggle) return _buffer2;
-            else return _buffer1;
-        }
-        public void StepToggle()
-        {
-            if (_toggle == true) _toggle = false;
-            else _toggle = true;
         }
     }
 }

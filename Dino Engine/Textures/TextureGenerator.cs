@@ -100,6 +100,7 @@ namespace Dino_Engine.Textures
         {
             
             grain = createGrainTexture();
+            grass = createGrassTexture();
             flat = createFlatTexture();
             flatGlow = createFlatGlowTexture();
             sandDunes = createSandDunesTexture();
@@ -475,7 +476,12 @@ namespace Dino_Engine.Textures
             MaterialLayer tileWweaves = procTextGen.TileWeave(new Vector2(16f, 16f), count: 3, smoothness: 0.9f, width: 0.5f);
             return FinishTexture(tileWweaves);
         }
-
+        private int createGrassTexture()
+        {
+            MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
+            roughLayer.setMaterial(new Colour(50, 75, 10), new Vector3(0.65f, 0f, 0.0f));
+            return FinishTexture(roughLayer);
+        }
         private int createGrainTexture()
         {
             MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
