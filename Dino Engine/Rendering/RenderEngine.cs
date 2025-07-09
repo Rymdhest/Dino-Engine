@@ -32,8 +32,8 @@ namespace Dino_Engine.Rendering
         public Matrix4 invProjectionMatrix;
         public Matrix4 invViewMatrix;
         public Vector3 viewPosWorld;
-        public Vector2 resolution;
         public float time;
+        public Vector2 resolution;
         public float delta;
         public int worldSeed;
     }
@@ -273,8 +273,8 @@ namespace Dino_Engine.Rendering
             globals.invProjectionMatrix = Matrix4.Transpose(context.invProjectionMatrix);
             globals.invViewMatrix = Matrix4.Transpose(context.invViewMatrix);
             globals.viewPosWorld = context.viewPos;
-            globals.resolution = Engine.Resolution;
             globals.time = 1f;
+            globals.resolution =Engine.Resolution;
             globals.delta = Engine.Delta;
             globals.worldSeed = 1;
 

@@ -10,7 +10,6 @@ uniform sampler2D gDepth;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedo;
 uniform sampler2D gMaterials;
-uniform mat4 invProjection;
 uniform int numberOfCascades;
 
 
@@ -67,7 +66,7 @@ float calcShadow(vec3 positionViewSpace) {
 }
 
 void main(void){
-	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjection, resolution);
+	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolution);
 	vec4 normalBuffer = texture(gNormal, textureCoords).xyzw;
 	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
 	vec3 materialBuffer = texture(gMaterials, textureCoords).rgb;

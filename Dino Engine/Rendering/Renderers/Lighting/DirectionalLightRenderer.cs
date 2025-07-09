@@ -88,7 +88,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _directionalLightShader.loadUniformVector3f("lightColour", command.colour);
             _directionalLightShader.loadUniformFloat("ambientFactor", command.ambient);
 
-            _directionalLightShader.loadUniformMatrix4f("invProjection", Engine.RenderEngine.context.invProjectionMatrix);
+            //_directionalLightShader.loadUniformMatrix4f("invProjection", Engine.RenderEngine.context.invProjectionMatrix);
+            //_directionalLightShader.loadUniformVector2f("resolution2", Engine.Resolution);
 
             renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
         }

@@ -4,8 +4,8 @@ layout(std140, binding = 0) uniform GlobalData{
     mat4 invProjectionMatrix;
     mat4 invViewMatrix;
     vec3 viewPosWorld;
-    vec2 resolution;
     float time;
+    vec2 resolution;
     float delta;
     int worldSeed;
 };
