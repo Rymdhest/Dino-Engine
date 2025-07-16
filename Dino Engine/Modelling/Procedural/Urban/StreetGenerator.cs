@@ -19,7 +19,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         public float sideWalkWidth = 9f;
         public float streetTextureScale = 0.5f;
 
-        public Material streetMaterial = new Material(new Colour(25, 25, 27, 1.0f), Engine.RenderEngine.textureGenerator.grain);
+        public Material streetMaterial = new Material(new Colour(25, 25, 27, 1.0f), Engine.RenderEngine.textureGenerator.brick);
         public Material lineMaterial = new Material(new Colour(233, 233, 233, 1.0f), Engine.RenderEngine.textureGenerator.grain);
         public Material lineMaterialCenter = new Material(new Colour(247, 219, 36, 1.0f), Engine.RenderEngine.textureGenerator.grain);
         public Material sideWalkMaterial = new Material(new Colour(95, 95, 95, 1.0f), Engine.RenderEngine.textureGenerator.grain);

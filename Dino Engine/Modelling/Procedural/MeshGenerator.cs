@@ -65,7 +65,7 @@ namespace Dino_Engine.Modelling
 
                     if (ring > 0)
                     {
-                        uvYs[detail] += textureRepeats * Vector3.Distance(previousPoints[detail], p) / (MathF.Tau * rings[ring].width);
+                        uvYs[detail] -= textureRepeats * Vector3.Distance(previousPoints[detail], p) / (MathF.Tau * rings[ring].width);
                     }
 
 

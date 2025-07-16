@@ -29,6 +29,10 @@ namespace Dino_Engine.ECS.Systems
             GrassChunkRenderCommand command = new GrassChunkRenderCommand();
             command.chunkPos = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation().Xz;
             command.size = entity.Get<ScaleComponent>().value.X;
+
+            Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
+            if (Vector2.Distance(cameraPos.Xz, command.chunkPos+new Vector2(command.size*0.5f)) >= 9) return;
+
             command.arrayID = entity.Get<TerrainChunkComponent>().normalHeightTextureArrayID;
             Engine.RenderEngine._grassRenderer.SubmitCommand(command);
         }

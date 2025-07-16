@@ -18,16 +18,19 @@ namespace Dino_Engine.ECS.Systems
 
         public override void Update(ECSWorld world, float deltaTime)
         {
-            QuadTreeNode quadtree = world.GetComponent<TerrainQuadTreeComponent>( world.GetSingleton<TerrainQuadTreeComponent>()).QuadTree;
+            var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>( world.GetSingleton<TerrainQuadTreeComponent>());
             TerrainGenerator generator = world.GetComponent<TerrainGeneratorComponent>(world.GetSingleton<TerrainGeneratorComponent>()).Generator;
             Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
-            UpdateNodeLODRecursive(quadtree, cameraPos, world, generator);
+            UpdateNodeLODRecursive(quadtreeComponent.QuadTree, cameraPos, world, generator, quadtreeComponent.rootSize);
         }
 
-        private void UpdateNodeLODRecursive(QuadTreeNode node, Vector3 cameraPos, ECSWorld world, TerrainGenerator generator)
+        private void UpdateNodeLODRecursive(QuadTreeNode node, Vector3 cameraPos, ECSWorld world, TerrainGenerator generator, float rootSize)
         {
             float distance = Vector2.Distance(cameraPos.Xz, node.GetCenter());
-            int desiredLOD = ComputeDesiredLOD(distance, node, 3f, 7, 30f);
+            float lodFactor = 3.14f;
+            int maxDepth = 20;
+            float minSize = 5f;
+            int desiredLOD = ComputeDesiredLOD(distance, node, lodFactor, maxDepth, minSize, rootSize);
 
             if (desiredLOD > node.Depth)
             {
@@ -35,7 +38,7 @@ namespace Dino_Engine.ECS.Systems
                     node.Subdivide();
 
                 foreach (var child in node.Children)
-                    UpdateNodeLODRecursive(child, cameraPos, world, generator);
+                    UpdateNodeLODRecursive(child, cameraPos, world, generator, rootSize);
 
                 // Since we split, this node is no longer a leaf → remove its chunk entity if valid
                 if (node.ChunkEntity.IsValid())
@@ -63,7 +66,7 @@ namespace Dino_Engine.ECS.Systems
                 if (node.Children != null)
                 {
                     foreach (var child in node.Children)
-                        UpdateNodeLODRecursive(child, cameraPos, world, generator);
+                        UpdateNodeLODRecursive(child, cameraPos, world, generator, rootSize);
 
                     // If still has chunk entity (since node has children, it shouldn’t), remove it
                     if (node.ChunkEntity.IsValid())
@@ -80,11 +83,11 @@ namespace Dino_Engine.ECS.Systems
                 }
             }
         }
-        private int ComputeDesiredLOD(float distance, QuadTreeNode node, float lodFactor, int maxDepth, float minSize)
+        private int ComputeDesiredLOD(float distance, QuadTreeNode node, float lodFactor, int maxDepth, float minSize, float rootSize)
         {
             // Early out if node too small → deepest LOD reached
             if (node.Size <= minSize)
-                return maxDepth;
+                return node.Depth;
 
             // Compute desired depth directly based on distance and quadtree parameters
             int desiredDepth = 0;
@@ -94,7 +97,7 @@ namespace Dino_Engine.ECS.Systems
             for (int d = 0; d <= maxDepth; d++)
             {
                 // Approximate node size at this depth: root size / 2^depth
-                float sizeAtDepth = 1000f / (1 << d);
+                float sizeAtDepth = rootSize / (1 << d);
 
                 float threshold = sizeAtDepth * lodFactor;
 

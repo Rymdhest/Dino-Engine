@@ -7,10 +7,11 @@ namespace Dino_Engine.ECS.Components
     public struct TerrainQuadTreeComponent : IComponent
     {
         public QuadTreeNode QuadTree;
-
+        public float rootSize;
         public TerrainQuadTreeComponent(QuadTreeNode quadTree)
         {
             this.QuadTree = quadTree;
+            this.rootSize = QuadTree.Size;
         }
     }
 }

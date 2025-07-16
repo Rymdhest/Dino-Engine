@@ -22,24 +22,30 @@ uniform mat4 modelMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat4 modelViewProjectionMatrix;
 uniform mat4 normalModelViewMatrix;
+uniform mat4 invViewMatrix;
 
 void main() {
 	gl_Position =  vec4(position, 1.0)*modelViewProjectionMatrix;
+	vec3 worldPos = (vec4(position, 1.0)*modelMatrix).xyz;
 	fragUV = uv;
 	textureIndex = materialIndex;
 	worldNormal = normal;
 	
-	vec3 N = normal;
 	vec3 T = tangent;
+	vec3 N = normal;
     vec3 B = normalize( cross(T, N));
-
-
     mat3 TBN =  mat3(T, B, N);
 
-    TangentFragPos = position * (TBN);
-    TangentViewPos = (vec4(viewPos, 1.0)*inverse(modelMatrix)).xyz*(TBN);
 
-	normalTBN = transpose(mat3(T, normalize( cross(N, T)), N))*(mat3(normalModelViewMatrix));
-
+    TangentFragPos = position*TBN;
+    TangentViewPos = (vec4(viewPos, 1.0)*(inverse(modelMatrix))).xyz*TBN;
+	normalTBN = mat3(normalModelViewMatrix)*TBN;
+	/*
+	TangentFragPos = TBN*(gl_Position.xyz);
+	TangentViewPos = TBN*(viewPos);
+	normalTBN = mat3(transpose(invViewMatrix))* mat3(T, normalize(cross(T, N)), N);
+	*/
 	fragColor = color;
 }
+
+

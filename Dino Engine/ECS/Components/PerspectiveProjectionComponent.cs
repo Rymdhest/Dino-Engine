@@ -35,6 +35,9 @@ namespace Dino_Engine.ECS.Components
             ProjectionMatrix.M33 = -((Far + Near) / frustum_length);
             ProjectionMatrix.M34 = -1f;
             ProjectionMatrix.M43 = -(2 * Near * Far / frustum_length);
+            ProjectionMatrix.M44 = 0f;
+
+            //ProjectionMatrix = Matrix4.CreatePerspectiveFieldOfView(FieldOfView, AspectRatio, Near, Far);
         }
     }
 }

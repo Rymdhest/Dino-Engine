@@ -255,11 +255,11 @@ namespace Dino_Engine.Rendering
         }
         private void PostProcessPass()
         {
+            _depthOfFieldRenderer.RenderPass(this);
             _fogRenderer.RenderPass(this);
             _sunRenderer.RenderPass(this);
             _bloomRenderer.RenderPass(this);
             //_fXAARenderer.RenderPass(eCSEngine, this);
-            _depthOfFieldRenderer.RenderPass(this);
             _fXAARenderer.RenderPass(this); // before or after tone mapping????????????
             _toneMapRenderer.RenderPass(this);
         }

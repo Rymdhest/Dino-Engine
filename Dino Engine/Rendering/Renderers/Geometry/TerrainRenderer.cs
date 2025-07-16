@@ -155,12 +155,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             
             _terrainShader.loadUniformFloat("parallaxDepth", 0.05f);
             _terrainShader.loadUniformFloat("parallaxLayers", 64);
-            _terrainShader.loadUniformFloat("textureTileSize", 10.0f);
+            _terrainShader.loadUniformFloat("textureTileSize", 5.0f);
             
             _terrainShader.loadUniformBool("DEBUG_VIEW", false);
-            _terrainShader.loadUniformBool("TEST", true);
-            _terrainShader.loadUniformBool("TEST_FRAG", true);
-            _terrainShader.loadUniformFloat("TEST_CLamp", 0.01f);
             _terrainShader.loadUniformFloat("textureMapOffset", (1.0f/(CHUNK_RESOLUTION)));
             _terrainShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
@@ -191,7 +188,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
 
             _terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.grass);
-            _terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.sandDunes);
+            _terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.brick);
 
             GL.BindVertexArray(baseChunkModel.getVAOID());
             GL.DisableVertexAttribArray(1);

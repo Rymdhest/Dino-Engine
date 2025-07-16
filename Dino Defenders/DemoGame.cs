@@ -178,7 +178,7 @@ namespace Dino_Defenders
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -1.5f, 5.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 10.0f)),
-                new AmbientLightComponent(0.0015f),
+                new AmbientLightComponent(0.015f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 4, 600)
             );
@@ -199,12 +199,12 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0f, -1.0f, 0.0f)),
-                new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 2.5f)),
+                new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 5.5f)),
                 new CelestialBodyComponent(),
-                new AmbientLightComponent(0.5f)
+                new AmbientLightComponent(0.8f)
             );
 
-            //spawnCity(Engine.world);
+            spawnCity(Engine.world);
             //spawnTestScene(eCSEngine);
             //spawnIndoorScene(eCSEngine);
         }
@@ -755,7 +755,7 @@ namespace Dino_Defenders
                     world.CreateEntity(position, scale, rotation, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new ModelComponent(houseModel));
                 }
             }
-            Mesh houseGroundMesh = MeshGenerator.generateBox(Material.ROCK);
+            Mesh houseGroundMesh = MeshGenerator.generateBox(new Material(Engine.RenderEngine.textureGenerator.brick));
             //Mesh.scaleUV = true;
             //houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
             Mesh.scaleUV = true;

@@ -2,6 +2,14 @@
 
 #include procedural/fasthash.glsl
 
+#include procedural/interpolate.glsl
+#include procedural/hash.glsl
+#include procedural/multiHash.glsl
+#include procedural/noise.glsl
+#include procedural/gradientNoise.glsl
+
+#include procedural/voronoi.glsl
+
 layout(location=0) in vec3 position;
 layout(location=2) in vec3 normal;
 
@@ -38,6 +46,7 @@ uniform float textureMapOffset;
 
 
 uniform sampler2DArray heightmaps;
+uniform sampler2D grassNoise;
 
 #define PI 3.1415926538
 
@@ -100,12 +109,25 @@ void main() {
 	vec2 gridPosition = vec2((floor(bladeIndex/bladesPerAxis)), mod(float(bladeIndex),bladesPerAxis))*spacing;
 	vec2 bladePositionChunkSpace = gridPosition+vec2(hash23(gridPosition))*spacing;
 	vec4 heightMapData;
-	vec3 VertexPositionLocal = position;
-
+	if (tipFactor < 0.001f) {
+		heightMapData = readHeightmap((position.xz+bladePositionChunkSpace)/chunkSize ,int(heightMapIndex));
+	} else {
+		heightMapData = readHeightmap(bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
+	}
+	vec3 bladePositionWorld = vec3(chunkOrigin.x, 0, chunkOrigin.y)+vec3(bladePositionChunkSpace.x, 0, bladePositionChunkSpace.y)+vec3(0, heightMapData.w, 0);
+	vec3 terrainNormal = heightMapData.xyz;
+	float steepness = 1.0-dot(vec3(0.0, 1.0, 0.0), terrainNormal);
+	if (steepness > 0.4) valid = 0.0;
 	
+	vec3 VertexPositionLocal = position;
 	vec2 bladeWorldSeed = chunkOrigin+gridPosition;
 
-	VertexPositionLocal.y *= 1.0+hash11(bladeIndex)*2.0*heightError-heightError;
+	float voronoiNoiseFactor = texture(grassNoise, bladePositionWorld.xz*0.01).w;
+	float heightErrorFactor = 1.0+hash11(bladeIndex)*2.0*heightError-heightError;
+	float heightFactor = voronoiNoiseFactor*heightErrorFactor*(1.0-steepness);
+	if (heightFactor < cutOffThreshold) valid = 0.0;
+
+	VertexPositionLocal.y *= heightFactor;
 	VertexPositionLocal.xz *= 1.0+hash21(bladeWorldSeed)*2.0*radiusError-radiusError;
 
 	float rotX = (hash21(bladeWorldSeed))*PI*tipFactor*bendyness;
@@ -114,22 +136,19 @@ void main() {
 	mat3 localRotMatrix = rotYMatrix(rotY)*rotXMatrix(rotX)*rotZMatrix(rotZ);
 	
 	VertexPositionLocal = localRotMatrix*VertexPositionLocal;
+	float windX = tipFactor*sin(time+bladePositionWorld.z*0.2f)*0.45*cos(time*2.371+bladePositionWorld.z*0.2f)*swayAmount*heightFactor;
+	float windZ = tipFactor*sin(time*3.0+bladePositionWorld.x)*swayAmount*0.3f*heightFactor;
+	VertexPositionLocal = VertexPositionLocal*rotXMatrix(windX)*rotZMatrix(windZ);
 
-	if (tipFactor < 0.001f) {
-		heightMapData = readHeightmap((position.xz+bladePositionChunkSpace)/chunkSize ,int(heightMapIndex));
-	} else {
-		heightMapData = readHeightmap(bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
-	}
-	vec3 bladePositionWorld = VertexPositionLocal+vec3(chunkOrigin.x, 0, chunkOrigin.y)+vec3(bladePositionChunkSpace.x, 0, bladePositionChunkSpace.y)+vec3(0, heightMapData.w, 0);
+	
+	vec3 vertexPositionWorld = VertexPositionLocal+bladePositionWorld;
 
 	fragColor = baseColor+baseColor*vec3(hash23(bladeWorldSeed))*colourError*2-colourError*baseColor;
-	
 	//vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
 	vec3 rotatedNormal = transpose(inverse(localRotMatrix))*normal.xyz;
 	//vec3 rotatedNormal = localRotMatrix*normal.xyz;
-	vec3 terrainNormal = heightMapData.xyz;
 	vec3 adjustedNormal = normalize(rotatedNormal+terrainNormal*groundNormalStrength);
 	fragNormal = (transpose(invViewMatrix)*vec4(adjustedNormal, 1.0f)).xyz;
 	
-	gl_Position =  projectionMatrix*viewMatrix*vec4(bladePositionWorld, 1.0);
+	gl_Position =  projectionMatrix*viewMatrix*vec4(vertexPositionWorld, 1.0);
 }

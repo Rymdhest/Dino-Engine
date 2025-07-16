@@ -72,10 +72,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             Matrix4 transformationMatrix = command.localToWorldMatrix;
             Matrix4 modelViewMatrix = transformationMatrix * renderEngine.context.viewMatrix;
+            _modelShader.loadUniformMatrix4f("invViewMatrix",Matrix4.Transpose( renderEngine.context.invViewMatrix));
             _modelShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
             _modelShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
             _modelShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * renderEngine.context.projectionMatrix);
-            _modelShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
+            _modelShader.loadUniformMatrix4f("normalModelViewMatrix", (Matrix4.Invert(modelViewMatrix)));
 
             GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
         }

@@ -13,7 +13,6 @@ out vec3 TangentViewPos;
 out vec3 TangentFragPos;
 out vec3 COLOR_TEST;
 
-uniform bool TEST;
 
 uniform vec3 viewPos;
 uniform mat4 invViewMatrix;
@@ -42,13 +41,12 @@ void main() {
 	vec3 N = worldNormal;
 	vec3 T = reconstructTangent(position.xz);
 	T = normalize(T - dot(T, N) * N); // Gram-Schmidt
-	if (TEST) T = vec3(1.0, 0, 0);
 	vec3 B = normalize(cross(T, N));
 	mat3 TBN = mat3(T, B, N);
 
 	TangentFragPos = TBN*(worldPos);
 	TangentViewPos = TBN*(viewPos);
-	normalTBN = mat3(transpose(invViewMatrix))*mat3(T, normalize(cross(T, N)), N);
+	normalTBN = mat3(transpose(invViewMatrix))*TBN;
 
 	gl_Position =  projectionViewMatrix*vec4(worldPos,  1.0);
 

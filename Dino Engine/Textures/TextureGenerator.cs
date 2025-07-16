@@ -435,10 +435,10 @@ namespace Dino_Engine.Textures
         {
             var bark = procTextGen.PerlinFBM(new Vector2(20f, 5f), octaves: 10, amplitudePerOctave: 0.6f);
             var noise = procTextGen.PerlinFBM(new Vector2(32f, 32f), octaves: 10, amplitudePerOctave: 0.6f);
-            var barkCracks = procTextGen.VoronoiCracks(new Vector2(40f, 35f), width: 0.015f, smoothness: 0.02f, jitter: 1f);
+            var barkCracks = procTextGen.VoronoiCracks(new Vector2(15f, 15f), width: 0.025f, smoothness: 0.02f, jitter: 1f);
             var wavy = procTextGen.PerlinFBM(new Vector2(1, 16), octaves: 1, amplitudePerOctave: 0.6f, rigged: true);
-            bark.setMaterial(new Colour(190, 173, 160), new Vector3(0.95f, 0.0f, 0f));
-            noise.setMaterial(new Colour(2, 3, 2), new Vector3(0.95f, 0f, 0f));
+            bark.setMaterial(new Colour(70, 30, 15), new Vector3(0.95f, 0.0f, 0f));
+            noise.setMaterial(new Colour(30, 20, 5), new Vector3(0.55f, 0f, 0f));
             barkCracks.setMaterial(new Colour(5, 5, 5), new Vector3(0.95f, 0f, 0f));
             wavy.setMaterial(new Colour(10, 7, 9), new Vector3(0.35f, 0f, 0f));
 
