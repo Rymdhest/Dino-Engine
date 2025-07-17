@@ -64,11 +64,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             glModel model = ModelGenerator.UNIT_SPHERE;
             GL.BindVertexArray(model.getVAOID());
             EnableVertexAttribArray(0);
-
-            pointLightShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
-            pointLightShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
-            pointLightShader.loadUniformMatrix4f("invProjection", renderEngine.context.invProjectionMatrix);
-            pointLightShader.loadUniformVector2f("resolution", Engine.Resolution);
         }
 
         internal override void Finish(RenderEngine renderEngine)
@@ -90,7 +85,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             Vector3 position = command.positionWorld;
             float attunuationRadius = command.attenuationRadius;
             Matrix4 transformationMatrix = MyMath.createTransformationMatrix(position, attunuationRadius * 1.1f);
-            pointLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
+            pointLightShader.loadUniformMatrix4f("TransformationMatrix", Matrix4.Transpose(transformationMatrix));
 
             Vector3 lightColour = command.colour;
             Vector3 attenuation = command.attenuation;

@@ -1,18 +1,15 @@
-#version 330
+#version 420
+#include globals.glsl
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
 
 uniform vec3 skyColor;
 uniform vec3 horizonColor;
-uniform vec3 viewPositionWorld;
-uniform vec2 screenResolution;
-uniform mat4 viewMatrix;
-uniform mat4 projectionMatrix;
 void main(void){
 
 	vec2 uv = ((textureCoords*2)-1);
-	uv = (uv*screenResolution)/screenResolution.y;
+	uv = (uv*resolution)/resolution.y;
 
 	float horizonSize = 0.9f;
 

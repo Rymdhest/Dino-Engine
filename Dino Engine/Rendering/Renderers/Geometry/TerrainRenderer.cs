@@ -201,8 +201,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(5);
 
             Matrix4 projectionViewMatrix = renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix;
-            _terrainShader.loadUniformMatrix4f("invViewMatrix", Matrix4.Transpose(renderEngine.context.invViewMatrix));
-            _terrainShader.loadUniformMatrix4f("projectionViewMatrix", Matrix4.Transpose(projectionViewMatrix));
+            _terrainShader.loadUniformMatrix4f("invViewMatrix", renderEngine.context.invViewMatrix);
+            _terrainShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);
             //_terrainShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(MyMath.createTransformationMatrix(command.chunkPos, Quaternion.Identity, new Vector3(command.size.X)) * viewMatrix)));
 
 

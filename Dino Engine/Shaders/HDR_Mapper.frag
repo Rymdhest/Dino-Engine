@@ -1,9 +1,8 @@
-#version 330
-
+#version 420
+#include globals.glsl
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
 
-uniform vec2 resolution;
 uniform sampler2D HDRcolorTexture;
 
 uniform float exposure;

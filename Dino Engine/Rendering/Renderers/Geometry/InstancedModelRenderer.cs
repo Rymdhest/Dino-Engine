@@ -37,14 +37,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 }
             }
 
-            
-            EntityOLD camera = eCSEngine.Camera;
-            Matrix4 viewMatrix = MyMath.createViewMatrix(camera.getComponent<TransformationComponent>().Transformation);
-            Matrix4 projectionMatrix = camera.getComponent<ProjectionComponent>().ProjectionMatrix;
-
-            _instancedModelShader.loadUniformMatrix4f("viewMatrix", viewMatrix);
-            _instancedModelShader.loadUniformMatrix4f("projectionMatrix", projectionMatrix);
-
             foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<InstancedModelSystem>().ModelsDictionary)
             {
                 pointer = 0;

@@ -38,7 +38,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private int grassNoiseTexture;
 
         public static readonly int MAX_GRASS_CHUNKS = 1024;
-        private float time = 0f;
         private int chunkUBO;
 
         public GrassRenderer()  
@@ -105,9 +104,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GetNextFrameBuffer().bind();
             _grassSimulationShader.bind();
-            _grassSimulationShader.loadUniformFloat("delta", Engine.Delta);
             _grassSimulationShader.loadUniformFloat("regenTime",13.8f);
-            _grassSimulationShader.loadUniformFloat("time", time);
             _grassSimulationShader.loadUniformVector2f("grassFieldSize", new Vector2(100f, 100f));
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(0));
@@ -146,7 +143,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             generateBladeModel();
             //StepSimulation(renderEngine.ScreenQuadRenderer);
             renderEngine.GBuffer.bind();
-            time += Engine.Delta;
 
             _grassShader.bind();
 
@@ -177,12 +173,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2D, grassNoiseTexture);
 
 
-            _grassShader.loadUniformMatrix4f("viewMatrix", Matrix4.Transpose( Engine.RenderEngine.context.viewMatrix));
-            _grassShader.loadUniformMatrix4f("projectionMatrix", Matrix4.Transpose(Engine.RenderEngine.context.projectionMatrix));
-            _grassShader.loadUniformMatrix4f("invViewMatrix", Matrix4.Transpose(Engine.RenderEngine.context.invViewMatrix));
-
             _grassShader.loadUniformFloat("swayAmount", 1.30f);
-            _grassShader.loadUniformFloat("time", time);
             _grassShader.loadUniformFloat("bladeHeight", bladeHeight);
             _grassShader.loadUniformFloat("bendyness", .10f);
             _grassShader.loadUniformFloat("heightError", 0.25f);

@@ -1,14 +1,7 @@
 #version 420
 
 #include procedural/fasthash.glsl
-
-#include procedural/interpolate.glsl
-#include procedural/hash.glsl
-#include procedural/multiHash.glsl
-#include procedural/noise.glsl
-#include procedural/gradientNoise.glsl
-
-#include procedural/voronoi.glsl
+#include globals.glsl
 
 layout(location=0) in vec3 position;
 layout(location=2) in vec3 normal;
@@ -23,13 +16,9 @@ out vec3 fragNormal;
 out float valid;
 out float tipFactor;
 
-uniform mat4 viewMatrix;
-uniform mat4 invViewMatrix;
-uniform mat4 projectionMatrix;
 
 
 uniform float swayAmount;
-uniform float time;
 uniform float bladeHeight;
 uniform float bendyness;
 uniform float heightError;

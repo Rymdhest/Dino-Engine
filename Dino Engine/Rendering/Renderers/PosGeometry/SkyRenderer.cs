@@ -38,12 +38,6 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
 
-
-            skyShader.loadUniformVector3f("viewPositionWorld", renderEngine.context.viewPos);
-            skyShader.loadUniformMatrix4f("viewMatrix", renderEngine.context.viewMatrix);
-            skyShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
-
-            skyShader.loadUniformVector2f("screenResolution", Engine.Resolution);
             //Vector4 sunDirectionViewSpace = new Vector4(sunDirection.X, sunDirection.Y, sunDirection.Z, 1.0f) * Matrix4.Transpose(Matrix4.Invert(viewMatrix));
 
             skyShader.loadUniformVector3f("skyColor", SkyColour.ToVector3());

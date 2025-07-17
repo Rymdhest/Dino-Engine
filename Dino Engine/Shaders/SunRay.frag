@@ -1,12 +1,9 @@
-#version 330
-
+#version 420
+#include globals.glsl
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
 
-uniform vec2 screenResolution;
-uniform mat4 viewMatrix;
-uniform mat4 projectionMatrix;
 uniform float Density;
 uniform float Weight;
 uniform float Exposure;
@@ -22,7 +19,7 @@ void main(void)
 {
     float illuminationDecay2 = illuminationDecay;
     // Transform the sun direction into clip space
-    vec4 clipSpacePos =vec4(sunDirection, 0.0)* viewMatrix * projectionMatrix;
+    vec4 clipSpacePos =projectionMatrix* viewMatrix *vec4(sunDirection, 0.0);
     
     // Normalize to NDC (Normalized Device Coordinates)
     vec3 ndcPos = clipSpacePos.xyz / clipSpacePos.w;
@@ -31,12 +28,11 @@ void main(void)
     vec2 screenPos = ndcPos.xy * 0.5 + 0.5;
     
 	screenPos = ((screenPos*2)-1);
-	screenPos = (screenPos*screenResolution)/screenResolution.xy;
+	screenPos = (screenPos*resolution)/resolution.xy;
 
 	vec2 uv = ((textureCoords*2)-1);
-	uv = (uv*screenResolution)/screenResolution.xy;
+	uv = (uv*resolution)/resolution.xy;
 
-  vec2 texCoords = textureCoords;
   // Calculate vector from pixel to light source in screen space.
   vec2 deltaTexCoord = (uv - screenPos.xy);
 
@@ -44,15 +40,16 @@ void main(void)
   deltaTexCoord *= 1.0f / samples * Density;
 
   // Store initial sample.
-  vec3 color = texture(sunTexture, texCoords).rgb;
+  vec2 sameCoords = textureCoords;
+  vec3 color = texture(sunTexture, sameCoords).rgb;
 
   // Evaluate summation from Equation 3 NUM_SAMPLES iterations.
   for (int i = 0; i < samples; i++) {
     // Step sample location along ray.
-    texCoords -= deltaTexCoord;
+    sameCoords -= deltaTexCoord;
 
     // Retrieve sample at new location.
-    vec3 sampleCol = texture(sunTexture, texCoords).rgb;
+    vec3 sampleCol = texture(sunTexture, sameCoords).rgb;
 
     // Apply sample attenuation scale/decay factors.
     sampleCol *= illuminationDecay2 * Weight;

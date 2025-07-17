@@ -64,11 +64,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             GL.BindVertexArray(ModelGenerator.UNIT_CONE.getVAOID());
             EnableVertexAttribArray(0);
-
-            _spotLightShader.loadUniformMatrix4f("viewMatrix", renderEngine.context.viewMatrix);
-            _spotLightShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
-            _spotLightShader.loadUniformMatrix4f("invProjection", renderEngine.context.invProjectionMatrix);
-            _spotLightShader.loadUniformVector2f("resolution", Engine.Resolution);
         }
 
         internal override void Finish(RenderEngine renderEngine)
@@ -100,7 +95,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             float radiusScale = MathF.Tan(command.halfAngleRad) / MathF.Tan(halfAngleModel);
             Vector3 scale = new Vector3(radiusScale * attunuationRadius, attunuationRadius, radiusScale * attunuationRadius);
             Matrix4 transformationMatrix = MyMath.createTransformationMatrix(worldPos, rotationToDesired, scale * 1.05f);
-            _spotLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
+            _spotLightShader.loadUniformMatrix4f("TransformationMatrix", Matrix4.Transpose(transformationMatrix));
 
             Vector4 lightPositionViewSpace = ((new Vector4(worldPos, 1.0f))) * renderEngine.context.viewMatrix;
             Vector4 lightDirectionViewSpace = new Vector4(direction, 1.0f) * Matrix4.Transpose(renderEngine.context.invViewMatrix);

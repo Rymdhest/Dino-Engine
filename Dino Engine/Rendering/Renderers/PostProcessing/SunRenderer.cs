@@ -47,9 +47,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
             DualBuffer buffer = renderEngine.lastUsedBuffer;
             _sunFilterShader.bind();
-            _sunFilterShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
-            _sunFilterShader.loadUniformMatrix4f("viewMatrix", renderEngine.context.viewMatrix);
-            _sunFilterShader.loadUniformVector2f("screenResolution", Engine.Resolution);
             _sunFilterShader.loadUniformVector3f("sunColour", command.colour);
             _sunFilterShader.loadUniformVector3f("sunDirection", -command.direction);
             _sunFilterShader.loadUniformFloat("exponent", 2.0f);
@@ -65,10 +62,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _sunRayShader.loadUniformFloat("Decay", .9f);
             _sunRayShader.loadUniformFloat("illuminationDecay", 0.95f);
             _sunRayShader.loadUniformInt("samples", 30);
-
-            _sunRayShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
-            _sunRayShader.loadUniformMatrix4f("viewMatrix", renderEngine.context.viewMatrix);
-            _sunRayShader.loadUniformVector2f("screenResolution", Engine.Resolution);
             _sunRayShader.loadUniformVector3f("sunDirection", -command.direction);
 
 

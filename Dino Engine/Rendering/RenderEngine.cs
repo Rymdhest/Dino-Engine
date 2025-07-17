@@ -267,10 +267,10 @@ namespace Dino_Engine.Rendering
         {
             _dualBufferFull.clearBothBuffers();
 
-            globals.projectionMatrix = Matrix4.Transpose( context.projectionMatrix);
-            globals.viewMatrix = Matrix4.Transpose(context.viewMatrix);
-            globals.invProjectionMatrix = Matrix4.Transpose(context.invProjectionMatrix);
-            globals.invViewMatrix = Matrix4.Transpose(context.invViewMatrix);
+            globals.projectionMatrix = context.projectionMatrix;
+            globals.viewMatrix = context.viewMatrix;
+            globals.invProjectionMatrix = context.invProjectionMatrix;
+            globals.invViewMatrix = context.invViewMatrix;
             globals.viewPosWorld = context.viewPos;
             globals.time = Engine.Time;
             globals.resolution =Engine.Resolution;

@@ -1,5 +1,6 @@
-#version 330
+#version 420
 
+#include globals.glsl
 #include gBufferUtil.glsl
 #include Lighting/lightingCalc.glsl
 
@@ -18,9 +19,6 @@ uniform float softness;
 uniform float lightAmbient;
 uniform float cutoffCosine;
 
-uniform vec2 resolution;
-uniform mat4 invProjection;
-
 float calcSoftEdge(vec3 lightDir, vec3 lightDirectionViewSpace, float cutoff)
 {
     float theta = dot(lightDir, normalize(-lightDirectionViewSpace));
@@ -32,7 +30,7 @@ float calcSoftEdge(vec3 lightDir, vec3 lightDirectionViewSpace, float cutoff)
 
 void main(void){
     vec2 textureCoords = gl_FragCoord.xy / resolution;
-	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjection, resolution);
+	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolution);
 	vec4 normalBuffer = texture(gNormal, textureCoords).xyzw;
 	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
 	vec3 materialBuffer = texture(gMaterials, textureCoords).rgb;

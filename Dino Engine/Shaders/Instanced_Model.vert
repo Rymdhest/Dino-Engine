@@ -1,4 +1,5 @@
-#version 330
+#version 420
+#include globals.glsl
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
@@ -11,8 +12,6 @@ out vec3 positionViewSpace_pass;
 out vec3 fragMaterials;
 out vec3 fragNormal;
 
-uniform mat4 viewMatrix;
-uniform mat4 projectionMatrix;
 
 void main() {
 	mat4 transformationMatrix = transpose(modelMatrix);

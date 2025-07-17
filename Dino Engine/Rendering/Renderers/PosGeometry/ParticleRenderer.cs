@@ -50,9 +50,9 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         {
             Matrix4 transformationMatrix = command.localToWorldMatrix;
 
-            Matrix4 modelViewMatrix = transformationMatrix * renderEngine.context.viewMatrix;
+            Matrix4 MVPMatrix = transformationMatrix * renderEngine.context.viewMatrix* renderEngine.context.projectionMatrix;
 
-            flatShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * renderEngine.context.projectionMatrix);
+            flatShader.loadUniformMatrix4f("modelViewProjectionMatrix", MVPMatrix);
 
             flatShader.loadUniformVector4f("color", command.color.ToVector4());
 

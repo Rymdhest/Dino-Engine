@@ -10,7 +10,7 @@ out float textureIndex;
 out vec2 fragUV;
 
 void main(void){
-	gl_Position = vec4(position, 1.0)*modelViewProjectionMatrix;
+	gl_Position = modelViewProjectionMatrix*vec4(position, 1.0);
 	fragUV = uv;
 	textureIndex = materialIndex;
 }

@@ -44,8 +44,8 @@ void main() {
 	vec3 B = normalize(cross(T, N));
 	mat3 TBN = mat3(T, B, N);
 
-	TangentFragPos = TBN*(worldPos);
-	TangentViewPos = TBN*(viewPos);
+	TangentFragPos = (worldPos)*TBN;
+	TangentViewPos = (viewPos)*TBN;
 	normalTBN = mat3(transpose(invViewMatrix))*TBN;
 
 	gl_Position =  projectionViewMatrix*vec4(worldPos,  1.0);

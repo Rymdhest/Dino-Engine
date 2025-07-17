@@ -91,7 +91,7 @@ void main() {
 	vec3 baseColor = texture(shadedColourTexture, textureCoords).rgb;
 
 
-    vec3 worldPosition = (vec4(fragPosViewspace, 1.0)*invViewMatrix).xyz;
+    vec3 worldPosition = (invViewMatrix*vec4(fragPosViewspace, 1.0)).xyz;
 
     float noiseValue = noise( vec4(worldPosition.xyz*0.02, time*0.29f));
 	out_Color.rgb = applyVolumetricFog(baseColor, length(fragPosViewspace), viewPosWorld,normalize(worldPosition-viewPosWorld), fogDensity+fogDensity*noiseValue*noiseFactor, heightFallOff);

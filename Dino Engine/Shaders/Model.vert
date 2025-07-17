@@ -1,4 +1,6 @@
-#version 330
+#version 420
+
+#include globals.glsl
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
@@ -17,16 +19,12 @@ out vec3 TangentFragPos;
 
 out float textureIndex;
 
-uniform vec3 viewPos;
 uniform mat4 modelMatrix;
-uniform mat4 modelViewMatrix;
-uniform mat4 modelViewProjectionMatrix;
 uniform mat4 normalModelViewMatrix;
-uniform mat4 invViewMatrix;
 
 void main() {
-	gl_Position =  vec4(position, 1.0)*modelViewProjectionMatrix;
-	vec3 worldPos = (vec4(position, 1.0)*modelMatrix).xyz;
+	gl_Position =  projectionMatrix*viewMatrix*modelMatrix*vec4(position, 1.0);
+	vec3 worldPos = (modelMatrix*vec4(position, 1.0)).xyz;
 	fragUV = uv;
 	textureIndex = materialIndex;
 	worldNormal = normal;
@@ -38,7 +36,7 @@ void main() {
 
 
     TangentFragPos = position*TBN;
-    TangentViewPos = (vec4(viewPos, 1.0)*(inverse(modelMatrix))).xyz*TBN;
+    TangentViewPos = (inverse(modelMatrix)*vec4(viewPosWorld, 1.0)).xyz*TBN;
 	normalTBN = mat3(normalModelViewMatrix)*TBN;
 	/*
 	TangentFragPos = TBN*(gl_Position.xyz);

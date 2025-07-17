@@ -1,4 +1,4 @@
-#version 330
+#version 420
 
 
 in vec3 fragColor;
@@ -11,7 +11,6 @@ in float textureIndex;
 uniform int numberOfMaterials;
 uniform float parallaxDepth;
 uniform float parallaxLayers;
-uniform vec3 viewPos;
 
 uniform sampler2DArray albedoMapTextureArray;
 uniform sampler2DArray normalMapTextureArray;

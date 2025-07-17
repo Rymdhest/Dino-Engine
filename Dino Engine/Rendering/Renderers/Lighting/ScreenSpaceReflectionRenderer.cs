@@ -66,24 +66,21 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
-            ScreenSpaceReflectionShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
-            ScreenSpaceReflectionShader.loadUniformMatrix4f("invProjection", renderEngine.context.invProjectionMatrix);
-            ScreenSpaceReflectionShader.loadUniformMatrix4f("invView", renderEngine.context.invViewMatrix);
-            ScreenSpaceReflectionShader.loadUniformVector2f("resolution", _reflectionFramebuffer.getResolution());
+            ScreenSpaceReflectionShader.loadUniformVector2f("resolutionSSR", _reflectionFramebuffer.getResolution());
             ScreenSpaceReflectionShader.loadUniformVector3f("skyColor", SkyRenderer.SkyColour.ToVector3());
-            ScreenSpaceReflectionShader.loadUniformFloat("rayStep", 1.05f);
-            ScreenSpaceReflectionShader.loadUniformInt("iterationCount", 20);
-            ScreenSpaceReflectionShader.loadUniformInt("binaryIterationCount", 30);
-            ScreenSpaceReflectionShader.loadUniformFloat("distanceBias", 0.00002f);
+            ScreenSpaceReflectionShader.loadUniformFloat("rayStep", 0.10f);
+            ScreenSpaceReflectionShader.loadUniformInt("iterationCount", 40);
+            ScreenSpaceReflectionShader.loadUniformInt("binaryIterationCount", 50);
+            ScreenSpaceReflectionShader.loadUniformFloat("distanceBias", 0.001f);
             ScreenSpaceReflectionShader.loadUniformBool("isBinarySearchEnabled", true);
             ScreenSpaceReflectionShader.loadUniformBool("debugDraw", false);
-            ScreenSpaceReflectionShader.loadUniformFloat("stepExponent", 1.15f);
+            ScreenSpaceReflectionShader.loadUniformFloat("stepExponent", 1.2f);
 
             renderer.Render();
             ScreenSpaceReflectionShader.unBind();
 
 
-            gaussianBlurRenderer.Render(_reflectionFramebuffer, 8, renderer);
+            gaussianBlurRenderer.Render(_reflectionFramebuffer, 6, renderer);
 
             combineReflectionShader.bind();
 

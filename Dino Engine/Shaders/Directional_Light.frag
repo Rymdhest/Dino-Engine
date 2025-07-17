@@ -33,7 +33,7 @@ float calcShadow(vec3 positionViewSpace) {
 
 	for (int i = 0; i < numberOfCascades; i++) {
 		if (length(positionViewSpace) * 2.0 < cascadeProjectionSizes[i]) {
-			vec4 positionSunSpace = vec4(positionViewSpace, 1.0) * sunSpaceMatrices[i];
+			vec4 positionSunSpace = sunSpaceMatrices[i] * vec4(positionViewSpace, 1.0);
 			positionSunSpace = positionSunSpace * 0.5 + 0.5;
 
 			// Discard if outside texture bounds

@@ -29,9 +29,9 @@ void main() {
 	gAlbedo *= vec4(fragColor, 1.0);
 	vec4 normalTangentSpace = lookupNorma(fragUV, textureIndex);
 	normalTangentSpace.xyz =  (normalTangentSpace.xyz*2.0)-1.0;
-	gNormal.xyz = normalTangentSpace.xyz*normalTBN;
-	gNormal.xyz = (gNormal.xyz+1.0)/2.0;
-
+	normalTangentSpace.xyz = (normalTangentSpace.xyz+1.0)/2.0;
+	gNormal.xyz = normalize(normalTBN*normalTangentSpace.xyz);
+	if (!gl_FrontFacing) gNormal.xyz *= -1.0;
 
 	gNormal.a = normalTangentSpace.a;
 

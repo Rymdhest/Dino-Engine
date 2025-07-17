@@ -124,7 +124,7 @@ namespace Dino_Engine.Rendering
 
         public void loadUniformMatrix4f(string variableName, Matrix4 value)
         {
-            GL.UniformMatrix4(uniforms[variableName],true, ref value);
+            GL.UniformMatrix4(uniforms[variableName],false, ref value);
         }
         public void loadUniformMatrix4fArray(string variableName, Matrix4[] values)
         {

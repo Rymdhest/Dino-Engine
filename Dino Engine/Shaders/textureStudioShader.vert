@@ -19,16 +19,16 @@ uniform mat4 modelViewProjectionMatrix;
 uniform mat4 normalModelViewMatrix;
 
 void main() {
-	gl_Position =  vec4(position, 1.0)*modelViewProjectionMatrix;
-	positionViewSpace_pass =  (vec4(position, 1.0)*modelViewMatrix).xyz;
+	gl_Position =  modelViewProjectionMatrix*vec4(position, 1.0);
+	positionViewSpace_pass =  (modelViewMatrix*vec4(position, 1.0)).xyz;
 	fragUV = uv;
 	textureIndex = materialIndex;
 	
 	vec3 N = normal;
 	vec3 T = tangent;
-
     vec3 B = normalize( cross(T, N));
-	normalTBN = transpose(mat3(T, normalize( cross(N, T)), N))*(mat3(normalModelViewMatrix));
+	mat3 TBN = mat3(T, normalize( cross(N, T)), N);
+	normalTBN = mat3(normalModelViewMatrix)*TBN;
 
 	fragColor = color;
 }

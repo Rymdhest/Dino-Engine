@@ -329,6 +329,7 @@ namespace Dino_Engine.Textures
         private int createMirrorTexture()
         {
             MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(1f, 1f), octaves: 1, amplitudePerOctave: 0.8f);
+            roughLayer.scaleHeight(0.0f);
             roughLayer.setMaterial(new Colour(255, 255, 255), new Vector3(0.4f, 0f, 0.6f));
             return FinishTexture(roughLayer);
         }

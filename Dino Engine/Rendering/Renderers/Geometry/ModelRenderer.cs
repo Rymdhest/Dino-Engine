@@ -55,7 +55,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.ActiveTexture(TextureUnit.Texture5);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
 
-            _modelShader.loadUniformVector3f("viewPos", renderEngine.context.viewPos);
         }
 
         public override void PerformCommand(ModelRenderCommand command, RenderEngine renderEngine)
@@ -71,12 +70,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(5);
 
             Matrix4 transformationMatrix = command.localToWorldMatrix;
-            Matrix4 modelViewMatrix = transformationMatrix * renderEngine.context.viewMatrix;
-            _modelShader.loadUniformMatrix4f("invViewMatrix",Matrix4.Transpose( renderEngine.context.invViewMatrix));
+            Matrix4 modelViewMatrix = transformationMatrix*renderEngine.context.viewMatrix;
             _modelShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
-            _modelShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
-            _modelShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * renderEngine.context.projectionMatrix);
-            _modelShader.loadUniformMatrix4f("normalModelViewMatrix", (Matrix4.Invert(modelViewMatrix)));
+            _modelShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
 
             GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
         }
