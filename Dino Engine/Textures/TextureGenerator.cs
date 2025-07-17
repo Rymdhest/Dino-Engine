@@ -144,7 +144,7 @@ namespace Dino_Engine.Textures
 
         Curve3D curve = spline.GenerateCurve(3);
         curve.LERPWidth(1f, 0.1f);
-        Mesh mesh = MeshGenerator.generateTube(curve, 8, Material.BARK, textureRepeats: 1, flatStart: true);
+        Mesh mesh = MeshGenerator.generateCurvedTube(curve, 8, Material.BARK, textureRepeats: 1, flatStart: true);
 
         int leavesPerSide = 3;
         for (int i = 0; i< leavesPerSide; i++)
@@ -172,7 +172,7 @@ namespace Dino_Engine.Textures
             treeBranchMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
         treeBranchMesh.translate(new Vector3(-15f / 2f, 0f, 2f));
         treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, MathF.PI / 1f));
-        Mesh mesh2 = MeshGenerator.generateTube(curve, 8, Material.BARK, textureRepeats: 1, flatStart: true);
+        Mesh mesh2 = MeshGenerator.generateCurvedTube(curve, 8, Material.BARK, textureRepeats: 1, flatStart: true);
 
         int branchesPerSide = 16;
         for (int i = 0; i < branchesPerSide; i++)
@@ -437,7 +437,7 @@ namespace Dino_Engine.Textures
             var noise = procTextGen.PerlinFBM(new Vector2(32f, 32f), octaves: 10, amplitudePerOctave: 0.6f);
             var barkCracks = procTextGen.VoronoiCracks(new Vector2(15f, 15f), width: 0.025f, smoothness: 0.02f, jitter: 1f);
             var wavy = procTextGen.PerlinFBM(new Vector2(1, 16), octaves: 1, amplitudePerOctave: 0.6f, rigged: true);
-            bark.setMaterial(new Colour(70, 30, 15), new Vector3(0.95f, 0.0f, 0f));
+            bark.setMaterial(new Colour(140, 60, 25), new Vector3(0.95f, 0.0f, 0f));
             noise.setMaterial(new Colour(30, 20, 5), new Vector3(0.55f, 0f, 0f));
             barkCracks.setMaterial(new Colour(5, 5, 5), new Vector3(0.95f, 0f, 0f));
             wavy.setMaterial(new Colour(10, 7, 9), new Vector3(0.35f, 0f, 0f));

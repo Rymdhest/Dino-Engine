@@ -25,10 +25,6 @@ uniform float cascadeProjectionSizes[5];
 
 uniform int pcfRadius;
 
-float DistributionGGX(vec3 N, vec3 H, float roughness);
-float GeometrySchlickGGX(float NdotV, float roughness);
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
-vec3 fresnelSchlick(float cosTheta, vec3 F0);
 
 float calcShadow(vec3 positionViewSpace) {
 	float maxShadow = 0.0;

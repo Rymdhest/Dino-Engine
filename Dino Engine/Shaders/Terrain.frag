@@ -53,9 +53,7 @@ void main() {
 	gAlbedo = lookupAlbedo(parallaxedCoords, textureIndex);
     
     //if(parallaxedCoords.x > 10.0 || parallaxedCoords.y > 10.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
-    vec3 fragColor = vec3(1.0 , 1.0, 1.0);
 
-	gAlbedo.rgb *= fragColor;
     if (DEBUG_VIEW) {
         gAlbedo.rgb = vec3(hash13(gl_PrimitiveID));
         gAlbedo.rgb *= COLOR_TEST;

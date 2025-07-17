@@ -177,8 +177,8 @@ namespace Dino_Defenders
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -1.5f, 5.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 10.0f)),
-                new AmbientLightComponent(0.015f),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20.0f)),
+                new AmbientLightComponent(0.03f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 4, 600)
             );
@@ -199,7 +199,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0f, -1.0f, 0.0f)),
-                new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 5.5f)),
+                new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 6.0f)),
                 new CelestialBodyComponent(),
                 new AmbientLightComponent(0.8f)
             );
@@ -451,7 +451,7 @@ namespace Dino_Defenders
 
             Curve3D curve = spline.GenerateCurve(1);
             curve.LERPWidth(1.3f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 5, Material.BARK, textureRepeats: 1, flatStart: true);
+            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 5, Material.BARK, textureRepeats: 1, flatStart: true);
 
             Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY: false);
             for (int i = 0; i < branch.meshVertices.Count; i++)

@@ -32,7 +32,7 @@ namespace Dino_Engine.Modelling
             return generateCylinder(rings, polygonsPerRing, material, sealTop);
         }
 
-        public static Mesh generateTube(Curve3D curve, int polygonsPerRing, Material material, float sealTop = float.NaN, int textureRepeats = 1, bool flatStart = true)
+        public static Mesh generateCurvedTube(Curve3D curve, int polygonsPerRing, Material material, float sealTop = float.NaN, int textureRepeats = 1, bool flatStart = true)
         {
             List<Vertex> vertices = new List<Vertex>();
             List<vIndex> indices = new List<vIndex>();
@@ -144,7 +144,6 @@ namespace Dino_Engine.Modelling
         {
             int textureRepeats = 1;
 
-            float PI = MathF.PI;
             List<Vertex> vertices = new List<Vertex>();
             List<vIndex> indices = new List<vIndex>();
             float odd = 1;
@@ -153,12 +152,12 @@ namespace Dino_Engine.Modelling
             for (int ring = 0; ring < rings.Count; ring++)
             {
                 float y = rings[ring].Y;
-                uvY = (y / (MathF.PI * 2 * new Vector2(rings[ring].X, rings[ring].Z).Length) * textureRepeats);
-                uvY = y * 0.01f;
+                uvY = (y / (MathF.Tau * new Vector2(rings[0].X, rings[0].Z).Length) * textureRepeats);
+                //uvY = y;
                 for (int detail = 0; detail < polygonsPerRing; detail++)
                 {
                     // Calculate the angle for this vertex
-                    float theta = 2f * PI * ((float)detail / polygonsPerRing);
+                    float theta = MathF.Tau * ((float)detail / polygonsPerRing);
 
                     float x = MathF.Cos(theta) * rings[ring].X;
                     float z = MathF.Sin(theta) * rings[ring].Z;

@@ -29,8 +29,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             DualBuffer buffer = renderEngine.lastUsedBuffer;
 
-
-            FXAAShader.loadUniformVector2f("win_size", Engine.Resolution);
             FXAAShader.loadUniformFloat("reduceMin", 128.0f);
             FXAAShader.loadUniformFloat("reduceMul", 16.0f);
             FXAAShader.loadUniformFloat("spanMax", 4.0f);

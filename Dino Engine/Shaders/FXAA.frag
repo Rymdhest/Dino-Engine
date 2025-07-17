@@ -1,7 +1,8 @@
-#version 330
+#version 420
+
+#include globals.glsl
 
 uniform sampler2D l_tex;
-uniform vec2 win_size;
 
 //layout( location = 0 ) out vec4 def_e; //the manipulated color output
 out vec4 out_Colour;
@@ -69,6 +70,6 @@ vec4 fxaa(sampler2D tex, vec2 fragCoord, vec2 resolution) {
 }
 
 void main () {
-	out_Colour.rgb = fxaa(l_tex,gl_FragCoord.st,win_size).rgb;
+	out_Colour.rgb = fxaa(l_tex,gl_FragCoord.st,resolution).rgb;
 	out_Colour.a = 1.0f;
 }

@@ -26,9 +26,8 @@ namespace Dino_Engine.Core
         private static Engine? _instance;
         private Game game;
 
-        private float totalTime = 0;
         public static float Delta { get => _instance._deltaFrameTimeTracker.Delta; }
-        public static float Time { get => _instance.totalTime; }
+        public static float Time { get => _instance._deltaFrameTimeTracker.TotalTime; }
         public static int FramesLastSecond { get => _instance._deltaFrameTimeTracker.FramesLastSecond; }
         public static Engine? Instance { get => _instance; }
         public static WindowHandler WindowHandler { get => _instance._windowHandler; }
@@ -112,7 +111,6 @@ namespace Dino_Engine.Core
         {
             PerformanceMonitor.startTask("Total");
             _deltaFrameTimeTracker.update();
-            totalTime += Delta;
 
             Stopwatch sw = Stopwatch.StartNew();
             sw.Stop();

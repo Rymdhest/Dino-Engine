@@ -1,4 +1,5 @@
-﻿using Dino_Engine.Modelling.Model;
+﻿using Dino_Engine.Core;
+using Dino_Engine.Modelling.Model;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 
@@ -38,7 +39,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         }
             public static glModel GenerateStreetLight(out Vector3 lightPosition)
         {
-            Material poleMaterial = new Material(new Colour(122, 122, 122), 1);
+            Material poleMaterial = new Material(new Colour(122, 122, 122), Engine.RenderEngine.textureGenerator.brick);
             Material glowMaterial = new Material(new Colour(235, 193, 106), Material.GLOW.materialIndex);
 
             float r = 0.5f;

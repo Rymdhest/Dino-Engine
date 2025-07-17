@@ -259,7 +259,6 @@ namespace Dino_Engine.Rendering
             _fogRenderer.RenderPass(this);
             _sunRenderer.RenderPass(this);
             _bloomRenderer.RenderPass(this);
-            //_fXAARenderer.RenderPass(eCSEngine, this);
             _fXAARenderer.RenderPass(this); // before or after tone mapping????????????
             _toneMapRenderer.RenderPass(this);
         }
@@ -273,7 +272,7 @@ namespace Dino_Engine.Rendering
             globals.invProjectionMatrix = Matrix4.Transpose(context.invProjectionMatrix);
             globals.invViewMatrix = Matrix4.Transpose(context.invViewMatrix);
             globals.viewPosWorld = context.viewPos;
-            globals.time = 1f;
+            globals.time = Engine.Time;
             globals.resolution =Engine.Resolution;
             globals.delta = Engine.Delta;
             globals.worldSeed = 1;

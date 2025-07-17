@@ -39,9 +39,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _depthOfFieldShader.loadUniformFloat("range", 0.0003f);
             _depthOfFieldShader.loadUniformFloat("focusDistance", 0.0f);
 
-            _depthOfFieldShader.loadUniformVector2f("resolution", Engine.Resolution);
-            _depthOfFieldShader.loadUniformMatrix4f("inverseProjection", Engine.RenderEngine.context.invProjectionMatrix);
-
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());

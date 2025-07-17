@@ -80,15 +80,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
-            ambientOcclusionShader.loadUniformMatrix4f("projectionMatrix", renderEngine.context.projectionMatrix);
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", 0.1f);
-            ambientOcclusionShader.loadUniformFloat("strength", 1.5f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.15f);
+            ambientOcclusionShader.loadUniformFloat("radius", .1f);
+            ambientOcclusionShader.loadUniformFloat("strength", 3.0f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.005f);
 
-            ambientOcclusionShader.loadUniformVector2f("resolution", resolution);
-            ambientOcclusionShader.loadUniformMatrix4f("invProjection", renderEngine.context.invProjectionMatrix);
+            ambientOcclusionShader.loadUniformVector2f("resolutionSSAO", resolution);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, noiseTexture);
@@ -99,7 +97,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             renderEngine.lastUsedBuffer.RenderToNextFrameBuffer();
             ambientOcclusionShader.unBind();
 
-            gaussianBlurRenderer.Render(renderEngine.lastUsedBuffer.GetLastFrameBuffer(), 10, renderEngine.ScreenQuadRenderer, 0);
+            gaussianBlurRenderer.Render(renderEngine.lastUsedBuffer.GetLastFrameBuffer(), 3, renderEngine.ScreenQuadRenderer, 0);
 
             ambientOcclusionCombineShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);

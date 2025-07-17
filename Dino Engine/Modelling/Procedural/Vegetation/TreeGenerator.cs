@@ -83,7 +83,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             Curve3D curve = spline.GenerateCurve(1);
             curve.LERPWidth(1.3f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 11, new Material(Material.BARK.materialIndex), textureRepeats: 1, flatStart: true);
+            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 11, new Material(Material.BARK.materialIndex), textureRepeats: 1, flatStart: true);
 
             Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY: false);
             for (int i = 0; i < branch.meshVertices.Count; i++)

@@ -17,6 +17,7 @@ namespace Dino_Engine.Core
         private int _framesCurrentSecond = 0;
         private float _totalTime = 0f;
         public float Delta { get => _delta; }
+        public float TotalTime { get => _totalTime; }
         public int FramesLastSecond { get => _framesLastSecond; }
 
         public DeltaFrameTimeTracker()
