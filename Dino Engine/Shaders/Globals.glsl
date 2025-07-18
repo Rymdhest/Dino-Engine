@@ -8,4 +8,6 @@ layout(std140, binding = 0) uniform GlobalData{
     vec2 resolution;
     float delta;
     int worldSeed;
+    vec3 skyColour;
+    float EMPTY;
 };

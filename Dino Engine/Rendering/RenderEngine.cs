@@ -24,6 +24,7 @@ namespace Dino_Engine.Rendering
         public Vector3 viewPos;
         public float time;
         public Vector2 resolution;
+        public Vector3 skyColour;
     }
     public struct ShaderGlobals2
     {
@@ -36,6 +37,8 @@ namespace Dino_Engine.Rendering
         public Vector2 resolution;
         public float delta;
         public int worldSeed;
+        public Vector3 skyColour;
+        public float EMPTY;
     }
 
     public class RenderEngine
@@ -276,6 +279,7 @@ namespace Dino_Engine.Rendering
             globals.resolution =Engine.Resolution;
             globals.delta = Engine.Delta;
             globals.worldSeed = 1;
+            globals.skyColour = context.skyColour;
 
             GL.BindBuffer(BufferTarget.UniformBuffer, globalsUBO);
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, Marshal.SizeOf<ShaderGlobals2>() ,ref globals);

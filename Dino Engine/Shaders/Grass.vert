@@ -15,7 +15,7 @@ out vec3 fragColor;
 out vec3 fragNormal;
 out float valid;
 out float tipFactor;
-
+out vec3 terrainNormal;
 
 
 uniform float swayAmount;
@@ -25,7 +25,6 @@ uniform float heightError;
 uniform float radiusError;
 uniform float cutOffThreshold;
 uniform float colourError;
-uniform float groundNormalStrength;
 uniform vec3 baseColor;
 
 uniform int bladesPerChunk;
@@ -96,7 +95,7 @@ void main() {
     float heightMapIndex = chunkDataVector.w;
 	float spacing = chunkSize/bladesPerAxis;
 	vec2 gridPosition = vec2((floor(bladeIndex/bladesPerAxis)), mod(float(bladeIndex),bladesPerAxis))*spacing;
-	vec2 bladePositionChunkSpace = gridPosition+vec2(hash23(gridPosition))*spacing;
+	vec2 bladePositionChunkSpace = gridPosition+vec2(hash23(gridPosition*10))*spacing;
 	vec4 heightMapData;
 	if (tipFactor < 0.001f) {
 		heightMapData = readHeightmap((position.xz+bladePositionChunkSpace)/chunkSize ,int(heightMapIndex));
@@ -104,7 +103,7 @@ void main() {
 		heightMapData = readHeightmap(bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
 	}
 	vec3 bladePositionWorld = vec3(chunkOrigin.x, 0, chunkOrigin.y)+vec3(bladePositionChunkSpace.x, 0, bladePositionChunkSpace.y)+vec3(0, heightMapData.w, 0);
-	vec3 terrainNormal = heightMapData.xyz;
+	terrainNormal = heightMapData.xyz;
 	float steepness = 1.0-dot(vec3(0.0, 1.0, 0.0), terrainNormal);
 	if (steepness > 0.4) valid = 0.0;
 	
@@ -136,8 +135,8 @@ void main() {
 	//vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
 	vec3 rotatedNormal = transpose(inverse(localRotMatrix))*normal.xyz;
 	//vec3 rotatedNormal = localRotMatrix*normal.xyz;
-	vec3 adjustedNormal = normalize(rotatedNormal+terrainNormal*groundNormalStrength);
+	vec3 adjustedNormal = normalize(rotatedNormal);
 	fragNormal = (transpose(invViewMatrix)*vec4(adjustedNormal, 1.0f)).xyz;
-	
+	terrainNormal =  (transpose(invViewMatrix)*vec4(terrainNormal, 1.0f)).xyz;
 	gl_Position =  projectionMatrix*viewMatrix*vec4(vertexPositionWorld, 1.0);
 }

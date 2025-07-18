@@ -403,20 +403,20 @@ namespace Dino_Engine.Modelling.Model
                 if (absNormal.X >= absNormal.Y && absNormal.X >= absNormal.Z)
                 {
                     // Project onto YZ plane (X-dominant face, left/right)
-                    if (normal.X >0) uv = new Vector2(pos.Y, pos.Z);
-                    else uv = new Vector2(-pos.Y, -pos.Z);
+                    if (normal.X >0) uv = new Vector2(pos.Y, -pos.Z);
+                    else uv = new Vector2(pos.Y, pos.Z);
                 }
                 else if (absNormal.Y >= absNormal.X && absNormal.Y >= absNormal.Z)
                 {
                     // Project onto XZ plane (Y-dominant face, top/bottom)
-                    if (normal.Y < 0) uv = new Vector2(pos.X, pos.Z);
-                    else uv = new Vector2(-pos.X, -pos.Z);
+                    if (normal.Y > 0) uv = new Vector2(pos.X, pos.Z);
+                    else uv = new Vector2(pos.X, -pos.Z);
                 }
                 else
                 {
                     // Project onto XY plane (Z-dominant face, front/back)
-                    if (normal.Z > 0) uv = new Vector2(pos.X, pos.Y);
-                    else uv = new Vector2(-pos.X, -pos.Y);
+                    if (normal.Z > 0) uv = new Vector2(pos.X, -pos.Y);
+                    else uv = new Vector2(pos.X, pos.Y);
                 }
                 uv *= scale;
                 for (int i = 0; i< vertex.UVs.Length; i++)

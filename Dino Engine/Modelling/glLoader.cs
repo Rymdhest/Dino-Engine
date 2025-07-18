@@ -54,7 +54,7 @@ public class glLoader
         VBOS[2] = bindIndicesBuffer(indices);
 
         VBOS[0] = storeDataInAttributeList(0, 3, positions);
-        VBOS[1] = storeDataInAttributeList(1, 3, normals);
+        VBOS[1] = storeDataInAttributeList(2, 3, normals);
         unbindVAO();
         return new glModel(vaoID, VBOS, indices.Length);
     }

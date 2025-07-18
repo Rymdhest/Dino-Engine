@@ -85,7 +85,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             Vector3 position = command.positionWorld;
             float attunuationRadius = command.attenuationRadius;
             Matrix4 transformationMatrix = MyMath.createTransformationMatrix(position, attunuationRadius * 1.1f);
-            pointLightShader.loadUniformMatrix4f("TransformationMatrix", Matrix4.Transpose(transformationMatrix));
+            pointLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
 
             Vector3 lightColour = command.colour;
             Vector3 attenuation = command.attenuation;

@@ -67,7 +67,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
             ScreenSpaceReflectionShader.loadUniformVector2f("resolutionSSR", _reflectionFramebuffer.getResolution());
-            ScreenSpaceReflectionShader.loadUniformVector3f("skyColor", SkyRenderer.SkyColour.ToVector3());
             ScreenSpaceReflectionShader.loadUniformFloat("rayStep", 0.10f);
             ScreenSpaceReflectionShader.loadUniformInt("iterationCount", 40);
             ScreenSpaceReflectionShader.loadUniformInt("binaryIterationCount", 50);

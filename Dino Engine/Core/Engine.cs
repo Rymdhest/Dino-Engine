@@ -88,12 +88,13 @@ namespace Dino_Engine.Core
             GameWindowSettings gws = GameWindowSettings.Default;
             NativeWindowSettings nws = NativeWindowSettings.Default;
             nws.API = ContextAPI.OpenGL;
+            nws.APIVersion = new Version(4,2);
             
             nws.AutoLoadBindings = true;
             nws.Title = settings._gameTitle;
             nws.ClientSize = settings._resolution;
             nws.Location = new Vector2i(0, 0);
-            gws.UpdateFrequency = 3000;
+            gws.UpdateFrequency = 30;
             return new WindowHandler(gws, nws);
         }
 

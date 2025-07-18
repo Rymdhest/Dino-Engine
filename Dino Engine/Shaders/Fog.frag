@@ -10,7 +10,6 @@ uniform sampler2D gDepth;
 
 uniform float fogDensity;
 uniform float heightFallOff;
-uniform vec3 fogColor;
 uniform float noiseFactor;
 
 
@@ -26,13 +25,13 @@ vec3 applyVolumetricFog( in vec3  col,  // color of pixel
 {
 
     float fogAmount = (a/b) * exp(-ro.y*b) * (1.0-exp(-t*rd.y*b))/rd.y;
-    return mix( col, fogColor, clamp(fogAmount, 0, 1) );
+    return mix( col, skyColour, clamp(fogAmount, 0, 1) );
 }
 
 vec3 applySimpleFog( in vec3  col, float depth)
 {
     float fogAmount = 1 -exp(-fogDensity*fogDensity*depth);
-    return mix(col, fogColor, fogAmount);
+    return mix(col, skyColour, fogAmount);
 }
 
 vec3 applySimpleFog2( in vec3  col, float depth, float height)
@@ -43,7 +42,7 @@ vec3 applySimpleFog2( in vec3  col, float depth, float height)
     float distanceFactor  = 1 -exp(-fogDensity *fogDensity*depth*depth);
 
     float fogFactor =clamp( (heightFactor*distanceFactor), 0, 1);
-    return mix(col, fogColor, fogFactor);
+    return mix(col, skyColour, fogFactor);
 }
 
 float rand(in vec4 p) {

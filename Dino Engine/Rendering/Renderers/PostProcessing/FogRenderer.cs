@@ -35,7 +35,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             fogShader.loadUniformFloat("fogDensity", 0.035f);
             fogShader.loadUniformFloat("heightFallOff", 0.0002f);
             fogShader.loadUniformFloat("noiseFactor", 0.9f);
-            fogShader.loadUniformVector3f("fogColor", SkyRenderer.SkyColour.ToVector3());
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());

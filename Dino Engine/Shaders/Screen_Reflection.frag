@@ -12,7 +12,6 @@ uniform sampler2D gNormal;
 uniform sampler2D gMaterials;
 uniform sampler2D shadedColor;
 
-uniform vec3 skyColor;
 uniform vec2 resolutionSSR;
 uniform float rayStep;
 uniform int iterationCount;
@@ -92,8 +91,8 @@ void main(){
 		out_Colour = vec4(SSR(position, normalize(reflectionDirection)), 1.f);
 		if (out_Colour.xyz == vec3(0.f)){
 			float up = max(dot(vec3(0.0f, 1.0f, 0.0f), normalize(normal)), 0.0f);
-			out_Colour.rgb = mix(modelColor, skyColor, up);
-			out_Colour.rgb = skyColor;
+			out_Colour.rgb = mix(modelColor, skyColour, up);
+			out_Colour.rgb = skyColour;
 		}
 	}
 }

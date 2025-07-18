@@ -199,8 +199,8 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0f, -1.0f, 0.0f)),
-                new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 6.0f)),
-                new CelestialBodyComponent(),
+                new ColorComponent(new Colour(86, 155, 255, 2.0f)),
+                new SkyTag(),
                 new AmbientLightComponent(0.8f)
             );
 
@@ -762,6 +762,7 @@ namespace Dino_Defenders
             houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
             houseGroundMesh.rotate(new Vector3(0f, -MathF.PI/2f, 0f));
             houseGroundMesh.scaleUVs(new Vector2(1.0f, 1.0f));
+            houseGroundMesh.ProjectUVsWorldSpaceCube(0.1f);
             //Mesh.scaleUV = true;
 
             world.CreateEntity(

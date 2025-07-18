@@ -95,7 +95,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             float radiusScale = MathF.Tan(command.halfAngleRad) / MathF.Tan(halfAngleModel);
             Vector3 scale = new Vector3(radiusScale * attunuationRadius, attunuationRadius, radiusScale * attunuationRadius);
             Matrix4 transformationMatrix = MyMath.createTransformationMatrix(worldPos, rotationToDesired, scale * 1.05f);
-            _spotLightShader.loadUniformMatrix4f("TransformationMatrix", Matrix4.Transpose(transformationMatrix));
+            _spotLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
 
             Vector4 lightPositionViewSpace = ((new Vector4(worldPos, 1.0f))) * renderEngine.context.viewMatrix;
             Vector4 lightDirectionViewSpace = new Vector4(direction, 1.0f) * Matrix4.Transpose(renderEngine.context.invViewMatrix);

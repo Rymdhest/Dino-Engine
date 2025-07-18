@@ -57,10 +57,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             _sunRayShader.bind();
             _sunRayShader.loadUniformFloat("Density", 0.2f);
-            _sunRayShader.loadUniformFloat("Weight", 0.25f);
-            _sunRayShader.loadUniformFloat("Exposure", 0.2f);
+            _sunRayShader.loadUniformFloat("Weight", 0.35f);
+            _sunRayShader.loadUniformFloat("Exposure", 0.3f);
             _sunRayShader.loadUniformFloat("Decay", .9f);
-            _sunRayShader.loadUniformFloat("illuminationDecay", 0.95f);
+            _sunRayShader.loadUniformFloat("illuminationDecay", 0.9f);
             _sunRayShader.loadUniformInt("samples", 30);
             _sunRayShader.loadUniformVector3f("sunDirection", -command.direction);
 

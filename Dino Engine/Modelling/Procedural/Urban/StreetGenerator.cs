@@ -17,12 +17,12 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         public float laneWdith = 5f;
         public float sideWalkHeight =0.4f;
         public float sideWalkWidth = 9f;
-        public float streetTextureScale = 0.5f;
+        public float streetTextureScale = 0.1f;
 
-        public Material streetMaterial = new Material(new Colour(25, 25, 27, 1.0f), Engine.RenderEngine.textureGenerator.brick);
+        public Material streetMaterial = new Material(new Colour(125, 125, 127, 1.0f), Engine.RenderEngine.textureGenerator.brick);
         public Material lineMaterial = new Material(new Colour(233, 233, 233, 1.0f), Engine.RenderEngine.textureGenerator.grain);
         public Material lineMaterialCenter = new Material(new Colour(247, 219, 36, 1.0f), Engine.RenderEngine.textureGenerator.grain);
-        public Material sideWalkMaterial = new Material(new Colour(95, 95, 95, 1.0f), Engine.RenderEngine.textureGenerator.grain);
+        public Material sideWalkMaterial = new Material(new Colour(95, 95, 95, 1.0f), Engine.RenderEngine.textureGenerator.cobble);
 
         public float TotalWidth{ get => lanes * laneWdith * 2 - lineWidth * 1.0f + sideWalkWidth * 2f; }
 
