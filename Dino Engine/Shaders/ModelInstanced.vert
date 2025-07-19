@@ -8,23 +8,21 @@ layout(location=2) in vec3 normal;
 layout(location=3) in vec3 tangent;
 layout(location=4) in vec2 uv;
 layout(location=5) in float materialIndex;
+layout(location=6) in mat4 modelMatrix;
 
 out vec3 fragColor;
 out vec2 fragUV;
 out mat3 normalTBN;
 out vec3 worldNormal;
-
 out vec3 TangentViewPos;
 out vec3 TangentFragPos;
-
 out float textureIndex;
 
-uniform mat4 modelMatrix;
-uniform mat4 normalModelViewMatrix;
 
 void main() {
-	gl_Position =  projectionMatrix*viewMatrix*modelMatrix*vec4(position, 1.0);
-
+	mat4 modelView = viewMatrix*modelMatrix;
+	gl_Position =  projectionMatrix*modelView*vec4(position, 1.0);
+	mat4 normalModelViewMatrix = transpose(inverse(modelView));
 	fragUV = uv;
 	textureIndex = materialIndex;
 	worldNormal = normal;

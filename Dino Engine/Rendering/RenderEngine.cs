@@ -55,7 +55,7 @@ namespace Dino_Engine.Rendering
         private ScreenQuadRenderer _screenQuadRenderer;
         public ModelRenderer _modelRenderer;
         public TerrainRenderer _terrainRenderer;
-        private InstancedModelRenderer _instancedModelRenderer;
+        public InstancedModelRenderer _instancedModelRenderer;
         public DirectionalLightRenderer _directionalLightRenderer;
         public PointLightRenderer _pointLightRenderer;
         public ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
@@ -232,6 +232,7 @@ namespace Dino_Engine.Rendering
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             _modelRenderer.RenderPass(this);
+            _instancedModelRenderer.RenderPass(this);
             _terrainRenderer.RenderPass(this);
             //_instancedModelRenderer.RenderPass(this);
             _grassRenderer.RenderPass(this);

@@ -1,111 +1,112 @@
 ﻿using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
+using Dino_Engine.Modelling.Model;
+using System.Runtime.InteropServices;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
-    internal class InstancedModelRenderer : Renderer
+    public struct InstancedModelRenderCommand : IRenderCommand
     {
-        private ShaderProgram _instancedModelShader = new ShaderProgram("Instanced_Model.vert", "Model.frag");
-        private static readonly int Matrix4SizeInBytes = 4 * 4 * sizeof(float);
-        private static readonly int INSTANCE_DATA_LENGTH = 16;
-        private int pointer = 0;
-        private List<int> vbos = new List<int>();
-        private bool reAllocate = true;
+        public Matrix4[] localToWorldMatrix;
+        public glModel model;
+    }
+    public class InstancedModelRenderer : CommandDrivenRenderer<InstancedModelRenderCommand>
+    {
+        private ShaderProgram _modelShader = new ShaderProgram("ModelInstanced.vert", "Model.frag");
+        private int _instanceVBO;
 
         public InstancedModelRenderer()
         {
+            _modelShader.bind();
+            _modelShader.loadUniformInt("albedoMapTextureArray", 0);
+            _modelShader.loadUniformInt("normalMapTextureArray", 1);
+            _modelShader.loadUniformInt("materialMapTextureArray", 2);
+
+            _modelShader.loadUniformInt("albedoMapModelTextureArray", 3);
+            _modelShader.loadUniformInt("normalMapModelTextureArray", 4);
+            _modelShader.loadUniformInt("materialMapModelTextureArray", 5);
+            _modelShader.unBind();
         }
+
         internal override void Prepare(RenderEngine renderEngine)
         {
-            GL.DepthMask(true);
+
             GL.Enable(EnableCap.DepthTest);
-            GL.Enable(EnableCap.CullFace);
+            //GL.Enable(EnableCap.CullFace);
+            GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
-            _instancedModelShader.bind();
+            _modelShader.bind();
 
+            _modelShader.loadUniformFloat("parallaxDepth", 0.05f);
+            _modelShader.loadUniformFloat("parallaxLayers", 30f);
+
+            _modelShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture2);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialTextureArray);
+
+            GL.ActiveTexture(TextureUnit.Texture3);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture4);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture5);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
+
+
+            _instanceVBO = GL.GenBuffer();
         }
-        internal override void Render(RenderEngine renderEngine)
+
+        public override void PerformCommand(InstancedModelRenderCommand command, RenderEngine renderEngine)
         {
-            /*
-            if (reAllocate)
+            glModel glmodel = command.model;
+            int instanceCount = command.localToWorldMatrix.Length;
+            int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
+
+            // Upload per-instance matrices
+            GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
+            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, command.localToWorldMatrix, BufferUsageHint.DynamicDraw);
+
+
+            GL.BindVertexArray(glmodel.getVAOID());
+            GL.EnableVertexAttribArray(0);
+            GL.EnableVertexAttribArray(1);
+            GL.EnableVertexAttribArray(2);
+            GL.EnableVertexAttribArray(3);
+            GL.EnableVertexAttribArray(4);
+            GL.EnableVertexAttribArray(5);
+
+            GL.EnableVertexAttribArray(6);
+            GL.EnableVertexAttribArray(7);
+            GL.EnableVertexAttribArray(8);
+            GL.EnableVertexAttribArray(9);
+
+            // Set up instanced attributes 6-9 (one-time per VAO, could live in glModel)
+            GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
+            int vec4Size = Vector4.SizeInBytes;
+            for (int i = 0; i < 4; i++)
             {
-                foreach (int vbo in vbos)
-                {
-                    GL.DeleteBuffer(vbo);
-                }
+                int attribLocation = 6 + i;
+                GL.EnableVertexAttribArray(attribLocation);
+                GL.VertexAttribPointer(attribLocation, 4, VertexAttribPointerType.Float, false, sizeof(float) * 16, i * vec4Size);
+                GL.VertexAttribDivisor(attribLocation, 1);
             }
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 
-            foreach (KeyValuePair<glModel, List<EntityOLD>> glmodels in eCSEngine.getSystem<InstancedModelSystem>().ModelsDictionary)
-            {
-                pointer = 0;
-                glModel glmodel = glmodels.Key;
-                if (reAllocate)
-                {
-                    //Console.WriteLine("allocating");
-                    float[] vboData = new float[glmodels.Value.Count * INSTANCE_DATA_LENGTH];
-                    foreach (EntityOLD entity in glmodels.Value)
-                    {
-                        Matrix4 modelMatrix = MyMath.createTransformationMatrix(entity.getComponent<TransformationComponent>().Transformation);
-                        storeMatrixData(modelMatrix, vboData);
-                    }
-
-                    GL.BindVertexArray(glmodel.getVAOID());
-                    int vbo = createVbo(INSTANCE_DATA_LENGTH * glmodels.Value.Count, vboData);
-                    vbos.Add(vbo);
-                    addInstancedAttribute(glmodel.getVAOID(), vbo, 4, 4, INSTANCE_DATA_LENGTH, 0);
-                    addInstancedAttribute(glmodel.getVAOID(), vbo, 5, 4, INSTANCE_DATA_LENGTH, 4);
-                    addInstancedAttribute(glmodel.getVAOID(), vbo, 6, 4, INSTANCE_DATA_LENGTH, 8);
-                    addInstancedAttribute(glmodel.getVAOID(), vbo, 7, 4, INSTANCE_DATA_LENGTH, 12);
-                }
-
-
-                GL.BindVertexArray(glmodel.getVAOID());
-                GL.EnableVertexAttribArray(0);
-                GL.EnableVertexAttribArray(1);
-                GL.EnableVertexAttribArray(2);
-                GL.EnableVertexAttribArray(3);
-                GL.EnableVertexAttribArray(4);
-                GL.EnableVertexAttribArray(5);
-                GL.EnableVertexAttribArray(6);
-                GL.EnableVertexAttribArray(7);
-
-
-
-
-                GL.DrawElementsInstanced(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0, glmodels.Value.Count);
-            }
-            reAllocate = true;
-            */
+            // Draw all instances
+            GL.DrawElementsInstanced(
+                PrimitiveType.Triangles,
+                glmodel.getVertexCount(),
+                DrawElementsType.UnsignedInt,
+                IntPtr.Zero,
+                instanceCount);
         }
 
-        private void storeMatrixData(Matrix4 matrix, float[] vboData)
-        {
-            vboData[pointer++] = matrix.M11;
-            vboData[pointer++] = matrix.M12;
-            vboData[pointer++] = matrix.M13;
-            vboData[pointer++] = matrix.M14 ;
-            vboData[pointer++] = matrix.M21;
-            vboData[pointer++] = matrix.M22;
-            vboData[pointer++] = matrix.M23;
-            vboData[pointer++] = matrix.M24;
-            vboData[pointer++] = matrix.M31;
-            vboData[pointer++] = matrix.M32;
-            vboData[pointer++] = matrix.M33;
-            vboData[pointer++] = matrix.M34;
-            vboData[pointer++] = matrix.M41;
-            vboData[pointer++] = matrix.M42;
-            vboData[pointer++] = matrix.M43;
-            vboData[pointer++] = matrix.M44;
-        }
-
-        public override void Update()
-        {
-        }
-        public override void OnResize(ResizeEventArgs eventArgs)
-        {
-        }
         internal override void Finish(RenderEngine renderEngine)
         {
             GL.DisableVertexAttribArray(0);
@@ -116,31 +117,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.DisableVertexAttribArray(5);
             GL.DisableVertexAttribArray(6);
             GL.DisableVertexAttribArray(7);
+            GL.DisableVertexAttribArray(8);
+            GL.DisableVertexAttribArray(9);
             GL.BindVertexArray(0);
         }
         public override void CleanUp()
         {
-            _instancedModelShader.cleanUp();
+            _modelShader.cleanUp();
         }
 
-        public int createVbo(int floatCount, float[] data)
-        {
-            int vbo = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, floatCount * 4, data, BufferUsageHint.StaticDraw);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            return vbo;
-        }
 
-        public void addInstancedAttribute(int vao, int vbo, int attribute, int dataSize, int instancedDataLength, int offset)
-        {
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BindVertexArray(vao);
-            GL.VertexAttribPointer(attribute, dataSize, VertexAttribPointerType.Float, false, instancedDataLength * 4, offset * 4);
-            GL.VertexAttribDivisor(attribute, 1);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
-        }
     }
 }

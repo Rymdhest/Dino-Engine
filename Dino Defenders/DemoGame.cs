@@ -418,9 +418,10 @@ namespace Dino_Defenders
 
             Console.WriteLine("TREE HAS: "+cylinderMesh.faces.Count+" FACES");
 
-            float terrainSize = 1f;
+            float terrainSize = 100f;
             var _glModel = glLoader.loadToVAO(cylinderMesh);
-            for (int i = 0; i<1; i++)
+            var _glModel2 = ModelGenerator.UNIT_SPHERE;
+            for (int i = 0; i<100; i++)
             {
                 float height = 1f + MyMath.rng(0.9f);
                 float radius = 1f+MyMath.rngMinusPlus(0.3f);
@@ -429,7 +430,8 @@ namespace Dino_Defenders
                     new RotationComponent(new Vector3(0f, MyMath.rng()*MathF.Tau, 0f)),
                     new ScaleComponent(new Vector3(radius, height, radius)),
                     new ModelComponent(_glModel),
-                    new ModelRenderTag(),
+                    new modelInstancedRenderTag(),
+                    //new ModelRenderTag(),
                     new LocalToWorldMatrixComponent()
                 );
             }
