@@ -30,13 +30,12 @@ layout (location = 2) out vec4 gMaterials;
 void main() {
 
 	vec3 viewDir   = normalize((TangentViewPos - TangentFragPos));
-    vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir, textureIndex, parallaxDepth, parallaxLayers);
-    //vec2 parallaxedCoords = fragUV;
+    //vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir, textureIndex, parallaxDepth, parallaxLayers);
+    vec2 parallaxedCoords = fragUV;
     //if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
 
 	gAlbedo = lookupAlbedo(parallaxedCoords, textureIndex);
 	gAlbedo.rgb *= fragColor;
-
 
     //gAlbedo.rgb = vec3(hash13(gl_PrimitiveID));
     if (gAlbedo.a < 0.5f) discard;
@@ -46,6 +45,7 @@ void main() {
     gNormal.a = normalTangentSpace.a;
 	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;
 	gNormal.xyz = normalize(normalTBN*normalTangentSpace.xyz);
+    if (!gl_FrontFacing) gNormal *= -1.0;
 
 	gMaterials = lookupMaterial(parallaxedCoords, textureIndex).rgba;
 }

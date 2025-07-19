@@ -6,15 +6,20 @@ layout (location = 0) out vec4 out_Colour;
 
 void main(void){
 
-	vec2 uv = ((textureCoords*2)-1);
-	uv = (uv*resolution)/resolution.y;
+	vec2 ndc = textureCoords * 2.0 - 1.0;
+	vec4 clipPos = vec4(ndc, -1.0, 1.0);
 
-	vec3 viewDir = normalize((viewMatrix*vec4(uv, -1, 1.0f)).xyz);
-	vec3 upNormalViewSpace = vec3(0, 1, 0.0f);
+	vec4 viewPos = invProjectionMatrix * clipPos;
+	viewPos /= viewPos.w;
 
-	out_Colour.rgb = skyColor;
+	vec3 viewDirViewSpace = normalize(viewPos.xyz);
 
-	out_Colour.rgb *= 1-pow(max( dot( viewDir, upNormalViewSpace), 0.0 ), 1)*0.9f;
+	vec3 viewDirWorldSpace = normalize((invViewMatrix*vec4(viewDirViewSpace, 0.0)).xyz);
+	vec3 upNormalWorldSpace = vec3(0, 1, 0);
+
+	out_Colour.rgb = skyColour;
+
+	out_Colour.rgb *= 1-pow(max( dot( viewDirWorldSpace, upNormalWorldSpace), 0.0 ), 0.7)*0.9f;
 
 	
 	out_Colour.a = 1.0f;

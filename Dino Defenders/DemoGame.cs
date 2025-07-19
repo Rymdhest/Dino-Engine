@@ -15,6 +15,8 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Util.Data_Structures;
 using System.Xml.Linq;
+using System.Drawing;
+using Dino_Engine.Textures;
 
 namespace Dino_Defenders
 {
@@ -177,7 +179,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -1.5f, 5.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20.0f)),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 25.0f)),
                 new AmbientLightComponent(0.03f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 4, 600)
@@ -204,46 +206,85 @@ namespace Dino_Defenders
                 new AmbientLightComponent(0.8f)
             );
 
-            spawnCity(Engine.world);
-            //spawnTestScene(eCSEngine);
+            //spawnCity(Engine.world);
+            spawnTestScene(Engine.world);
             //spawnIndoorScene(eCSEngine);
         }
-        /*
-        private void spawnTestScene(ECSEngine eCSEngine)
+        
+        private void spawnTestScene(ECSWorld world)
         {
 
-            Vector2 terrainSize = new Vector2(200, 200);
-            TerrainGenerator generator = new TerrainGenerator();
-            generator.generateTerrainChunkEntity(-terrainSize/2.0f, terrainSize, 0.1f);
+            Mesh floorMesh = MeshGenerator.generatePlane(new Material(new Colour(55,55,55), Engine.RenderEngine.textureGenerator.metalFloor));
+            floorMesh.scaleUVs(new Vector2(20f));
+            world.CreateEntity("ground",
+                new PositionComponent(new Vector3(0, 0, 0)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(200f)),
+                new ModelComponent(glLoader.loadToVAO(floorMesh)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
 
-            EntityOLD cubeEntity = new EntityOLD("Cube");
-            //Mesh cubeMesh = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.rock));
-            Mesh cubeMesh = TreeGenerator.GenerateLeaf();
-            cubeEntity.addComponent(new ModelComponent(cubeMesh));
-            cubeEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(-10, 5.5f, 0), new Vector3(0), new Vector3(10))));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity);
+            world.CreateEntity("raw leaf mesh",
+                new PositionComponent(new Vector3(0, 5, -30)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(10f)),
+                new ModelComponent(glLoader.loadToVAO(TreeGenerator.GenerateLeaf())),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
+
+            world.CreateEntity("raw branch mesh",
+                new PositionComponent(new Vector3(20, 0, -30)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(0.5f)),
+                new ModelComponent(glLoader.loadToVAO(TextureGenerator.TEST_BRANCH_MESH)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
+
+            world.CreateEntity("raw tree branch mesh",
+                new PositionComponent(new Vector3(40, 0, -30)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(0.5f)),
+                new ModelComponent(glLoader.loadToVAO(TextureGenerator.TEST_TREE_BRANCh_MESH)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
 
 
-            EntityOLD cubeEntity2 = new EntityOLD("Cube2");
-            Mesh cubeMesh2 = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.leafBranch));
-            cubeEntity2.addComponent(new ModelComponent(cubeMesh2));
-            cubeEntity2.addComponent(new TransformationComponent(new Transformation(new Vector3(5, 5.5f, 3), new Vector3(0), new Vector3(10))));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity2);
+            Mesh cubeMeshLeaf = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.leaf));
+            world.CreateEntity("leaf texture cube",
+                new PositionComponent(new Vector3(0f, 5, -50)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(10f)),
+                new ModelComponent(glLoader.loadToVAO(cubeMeshLeaf)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
 
-            EntityOLD cubeEntity3 = new EntityOLD("Cube3");
-            Mesh cubeMesh3 = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.treeBranch));
-            cubeEntity3.addComponent(new ModelComponent(cubeMesh3));
-            cubeEntity3.addComponent(new TransformationComponent(new Transformation(new Vector3(20, 5.5f, 3), new Vector3(0), new Vector3(10))));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(cubeEntity3);
+            Mesh boxMeshLeaf = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.leafBranch));
+            world.CreateEntity("branch texture cube",
+                new PositionComponent(new Vector3(20f, 5, -50)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(10f)),
+                new ModelComponent(glLoader.loadToVAO(boxMeshLeaf)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
 
-            EntityOLD ballEntity = new EntityOLD("Ball");
-            Mesh ballMesh = IcoSphereGenerator.CreateIcosphere(2, Material.BARK);
-            ballEntity.addComponent(new ModelComponent(ballMesh));
-            ballEntity.addComponent(new TransformationComponent(new Transformation(new Vector3(7, 0.5f, 20), new Vector3(0), new Vector3(0.5f))));
-            eCSEngine.AddEnityToSystem<ModelRenderSystem>(ballEntity);
+            Mesh cubeMeshTree = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.treeBranch));
+            world.CreateEntity("tree texture cube",
+                new PositionComponent(new Vector3(40, 5, -50)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(10f)),
+                new ModelComponent(glLoader.loadToVAO(cubeMeshTree)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
+
 
             float poleHeight = 1f;
-            EntityOLD poleEntity = new EntityOLD("pole");
             List<Vector2> layers = new List<Vector2>() {
                 new Vector2(10.0f, 0),
                 new Vector2(9.0f, 1.0f),
@@ -284,8 +325,8 @@ namespace Dino_Defenders
             };
             controlPoints.Clear();
 
-            int n = 100;
-            float[] sinFBM = FBMmisc.sinFBM(5, 0.23f, n);
+            int n = 20;
+            float[] sinFBM = FBMmisc.sinFBM(4, 0.23f, n);
             float[] sinFBM2 = FBMmisc.sinFBM(5, 0.15f, n);
             float r = 2.0f;
             float h = 50f;
@@ -305,29 +346,48 @@ namespace Dino_Defenders
 
             Curve3D curve = spline.GenerateCurve(1);
             curve.LERPWidth(1.3f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateTube(curve, 11, Material.BARK, textureRepeats:1, flatStart: true);
+            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 7, Material.BARK, textureRepeats:1, flatStart: true);
 
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2,2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY:false);
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(20f, 20f), new Vector2i(2,2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY:false);
             for (int i = 0; i <branch.meshVertices.Count; i++)
             {
-                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f))*0.05f;
-                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Y, 2.0f)) * 0.015f;
+                branch.meshVertices[i].position.Y -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f))*0.02f;
+                branch.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Z, 2.0f)) * 0.04f;
             }
             branch.translate(new Vector3(0f, -2f, 0.0f));
             branch.rotate(new Vector3(-MathF.PI/1.45f, 0f, 0f));
+            r = 3.0f;
+            float[] sinFBM3 = FBMmisc.sinFBM(4, 1.93f, n);
+            float[] sinFBM4 = FBMmisc.sinFBM(5, 1.65f, n);
+            controlPoints.Clear();
+            n = 5;
+            for (int i = 0; i < n; i++)
+            {
+                float traversedRatio = i / (float)(n - 1);
+                float angle = MathF.PI * i * 0.2f;
+                float x = sinFBM3[i] * r * traversedRatio;
+                float z = sinFBM4[i] * r * traversedRatio;
+                float y = traversedRatio * h;
+                controlPoints.Add(new Vector3(x, y, z));
+            }
+
+            CardinalSpline3D spline2 = new CardinalSpline3D(controlPoints, 0.0f);
+            Curve3D curve2 = spline2.GenerateCurve(1);
+            curve2.LERPWidth(1.3f, 0.1f);
+            Mesh cylinderMesh2 = MeshGenerator.generateCurvedTube(curve2, 7, Material.BARK, textureRepeats: 1, flatStart: true);
 
 
-            Mesh branch2 = cylinderMesh.scaled(new Vector3(1.0f, 1f, 1.0f));
-            int nTwigs = 40;
+            Mesh branch2 = cylinderMesh2.scaled(new Vector3(1.0f, 1f, 1.0f));
+            int nTwigs = 20;
             for (int i = 0; i < nTwigs; i++)
             {
-                float t = 0.5f + 0.5f * (float)i / (nTwigs - 1);
-                CurvePoint curvePoint = curve.getPointAt(t);
-                var newBranch = branch.scaled(new Vector3(0.6f - t * 0.4f));
+                float t = 0.2f + 0.8f * (float)i / (nTwigs - 1);
+                CurvePoint curvePoint = curve2.getPointAt(t);
+                var newBranch = branch.scaled(new Vector3(1.0f - t * 0.8f));
+                newBranch.translate(new Vector3(0f, -curvePoint.width * 2f, 0f));
                 Vector3 col = MyMath.rng3D(0.3f);
                 newBranch.setColour(new Colour(new Vector3(1f) - col));
-                newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
-                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
+                newBranch.rotate(new Vector3(0.2f - t, 0f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
                 //newBranch.rotate(new Vector3(0f, i * MathF.Tau / 3f, 0f));
                 newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
@@ -340,7 +400,7 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 15;
+            int nBranches = 35;
             for (int i = 0; i < nBranches; i++)
             {
                 float t = 0.3f+0.7f*(float)i/(nBranches - 1);
@@ -356,39 +416,35 @@ namespace Dino_Defenders
                 cylinderMesh += newBranch;
             }
 
+            Console.WriteLine("TREE HAS: "+cylinderMesh.faces.Count+" FACES");
+
+            float terrainSize = 1f;
             var _glModel = glLoader.loadToVAO(cylinderMesh);
-            for (int i = 0; i<50; i++)
+            for (int i = 0; i<1; i++)
             {
-                EntityOLD entity2 = new EntityOLD("tree test "+i);
-                Vector2 xz = MyMath.rng2D(terrainSize.X);
-                xz -= terrainSize/2.0f;
-                float y = generator.getHeightAt(xz);
-                entity2.addComponent(new ModelComponent(_glModel));
-                entity2.addComponent(new TransformationComponent(new Transformation(new Vector3(xz.X, y, xz.Y), new Vector3(0, MyMath.rng(MathF.Tau), 0f), new Vector3(1.0f+ MyMath.rngMinusPlus(0.3f)))));
-                eCSEngine.AddEnityToSystem<ModelRenderSystem>(entity2);
+                float height = 1f + MyMath.rng(0.9f);
+                float radius = 1f+MyMath.rngMinusPlus(0.3f);
+                world.CreateEntity("tree test: "+i,
+                    new PositionComponent(new Vector3(-MyMath.rng(terrainSize), 0, -MyMath.rng(terrainSize))),
+                    new RotationComponent(new Vector3(0f, MyMath.rng()*MathF.Tau, 0f)),
+                    new ScaleComponent(new Vector3(radius, height, radius)),
+                    new ModelComponent(_glModel),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
             }
 
             
         }
        
-    */
+    
 
 
-            private void spawnTerrain(ECSWorld world)
+        private void spawnTerrain(ECSWorld world)
         {
             TerrainGenerator generator = new TerrainGenerator();
-            int terrainR = 0;
             Vector2 chunkSize = new Vector2(250, 255);
-            for (int x = -terrainR; x <= terrainR; x++)
-            {
-                for (int z = -terrainR; z <= terrainR; z++)
-                {
-                    float quality = 0.10f;
-                    if (x == 0 && z == 0) quality = 1.01f;
 
-                    generator.generateTerrainChunkEntity(new Vector2(chunkSize.X*x, chunkSize.Y*z), chunkSize, quality);
-                }
-            }
 
             List<Vector2> layers = new List<Vector2>() {
                 new Vector2(10.0f, 0),
@@ -773,11 +829,6 @@ namespace Dino_Defenders
                 new ModelRenderTag(),
                 new LocalToWorldMatrixComponent()
             );
-
-
-            Vector2 terrainSize = new Vector2(100, 100f);
-            terrainGenerator.generateTerrainChunkEntity(new Vector2(-terrainSize.X- streetGenerator.TotalWidth/2f, streetGenerator.TotalWidth/2f), terrainSize, 1.0f);
-
 
             world.CreateEntity(
                 new PositionComponent(new Vector3(0)),

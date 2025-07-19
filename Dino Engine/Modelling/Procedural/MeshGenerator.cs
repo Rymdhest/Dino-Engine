@@ -363,14 +363,15 @@ namespace Dino_Engine.Modelling
         {
             Mesh plane = generatePlane(material);
             plane.translate(new Vector3(0f, 0.5f, 0.0f));
+            plane.rotate(new Vector3(-MathF.PI / 2f, 0f, 0f));
             Mesh box = new Mesh();
 
             box += plane.rotated(new Vector3(0f, 0f, 0f));
-            box += plane.rotated(new Vector3(MathF.PI / 2f, 0f, 0f));
-            box += plane.rotated(new Vector3(MathF.PI, 0f, 0f));
-            box += plane.rotated(new Vector3(-MathF.PI / 2f, 0f, 0f));
-            box += plane.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
-            box += plane.rotated(new Vector3(0f, 0f, -MathF.PI / 2f));
+            box += plane.rotated(new Vector3(0, MathF.PI / 2f, 0f));
+            box += plane.rotated(new Vector3(0, MathF.PI, 0f));
+            box += plane.rotated(new Vector3(0, -MathF.PI / 2f, 0f));
+            box += plane.rotated(new Vector3(MathF.PI / 2f, 0f, 0));
+            box += plane.rotated(new Vector3(-MathF.PI / 2f, 0f, 0));
             box.scale(max);
             return box;
         }

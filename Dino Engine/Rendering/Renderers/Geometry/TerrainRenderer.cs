@@ -188,7 +188,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
 
             _terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.grass);
-            _terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.brick);
+            _terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.rock);
 
             GL.BindVertexArray(baseChunkModel.getVAOID());
             GL.DisableVertexAttribArray(1);

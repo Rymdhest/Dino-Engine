@@ -34,7 +34,7 @@ void main(void)
     float sunAmount = 1/(dist*exponent);
     sunAmount = clamp(sunAmount, 0, 999);
 
-    vec3 viewDirWorldSpace =normalize((viewMatrix*vec4(0, 0, -1, 0.0f)).xyz);
+    vec3 viewDirWorldSpace =normalize((vec4(0, 0, -1, 1.0f)*viewMatrix).xyz);
     
     if (dot(viewDirWorldSpace, sunDirection) < 0.0) {
         sunAmount = 0;

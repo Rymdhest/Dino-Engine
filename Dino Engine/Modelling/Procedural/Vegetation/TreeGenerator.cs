@@ -29,7 +29,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 leafMesh.meshVertices[i].position.X *= 2f + MathF.Sin((leafMesh.meshVertices[i].position.Y + 0.25f) * MathF.Tau * 1.0f) * 0.99f;
                 //leafMesh.meshVertices[i].position.X += MathF.Sin(leafMesh.meshVertices[i].position.Y * MathF.Tau * 10f) * 0.005f;
 
-                leafMesh.meshVertices[i].position.Z += MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 20f) * 0.005f;
+                leafMesh.meshVertices[i].position.Z += MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 20f) * 0.001f;
 
 
                 //leafMesh.meshVertices[i].position.Z = MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 15f) * 0.000005f;

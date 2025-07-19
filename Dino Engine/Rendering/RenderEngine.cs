@@ -208,6 +208,7 @@ namespace Dino_Engine.Rendering
                 //_screenQuadRenderer.RenderTextureToScreen(TextureGenerator.testTexture.textures[0]);
 
                 //_dualBufferFull.RenderTextureToScreen(_gBuffer.GetAttachment(1));
+                //_dualBufferFull.RenderTextureToScreen(_gBuffer.GetAttachment(0));
                 //_gBuffer.resolveToScreen();
                 //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
                 //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));

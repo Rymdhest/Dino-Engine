@@ -24,8 +24,10 @@ uniform float bendyness;
 uniform float heightError;
 uniform float radiusError;
 uniform float cutOffThreshold;
+uniform float cutOffRange;
 uniform float colourError;
 uniform vec3 baseColor;
+uniform float steepnessCutoffStrength;
 
 uniform int bladesPerChunk;
 uniform int bladesPerAxis;
@@ -105,33 +107,44 @@ void main() {
 	vec3 bladePositionWorld = vec3(chunkOrigin.x, 0, chunkOrigin.y)+vec3(bladePositionChunkSpace.x, 0, bladePositionChunkSpace.y)+vec3(0, heightMapData.w, 0);
 	terrainNormal = heightMapData.xyz;
 	float steepness = 1.0-dot(vec3(0.0, 1.0, 0.0), terrainNormal);
-	if (steepness > 0.4) valid = 0.0;
 	
 	vec3 VertexPositionLocal = position;
 	vec2 bladeWorldSeed = chunkOrigin+gridPosition;
-
+	bladeWorldSeed *= 10.0; // avoid hashing breaking with too small differences in values
+	float bladeRandomValue = hash21(bladeWorldSeed);
 	float voronoiNoiseFactor = texture(grassNoise, bladePositionWorld.xz*0.01).w;
 	float heightErrorFactor = 1.0+hash11(bladeIndex)*2.0*heightError-heightError;
 	float heightFactor = voronoiNoiseFactor*heightErrorFactor*(1.0-steepness);
-	if (heightFactor < cutOffThreshold) valid = 0.0;
+	float validFactor = (1.0-steepness*steepnessCutoffStrength)*heightFactor;
+	//if (validFactor < cutOffThreshold) {
+		float survivalChance = 1.0-((validFactor-cutOffThreshold)/cutOffRange);
+		if (bladeRandomValue < survivalChance) {
+			valid = 0.0;
+		}
+	//}
 
 	VertexPositionLocal.y *= heightFactor;
-	VertexPositionLocal.xz *= 1.0+hash21(bladeWorldSeed)*2.0*radiusError-radiusError;
+	VertexPositionLocal.xz *= 1.0+bladeRandomValue*2.0*radiusError-radiusError;
 
-	float rotX = (hash21(bladeWorldSeed))*PI*tipFactor*bendyness;
-	float rotZ = (hash21(bladeWorldSeed))*PI*tipFactor*bendyness;
-	float rotY = hash21(bladeWorldSeed)*PI*2;
+	float rotX = bladeRandomValue*PI*tipFactor*bendyness;
+	float rotZ = bladeRandomValue*PI*tipFactor*bendyness;
+	float rotY = bladeRandomValue*PI*2;
 	mat3 localRotMatrix = rotYMatrix(rotY)*rotXMatrix(rotX)*rotZMatrix(rotZ);
+
+	float adjustedSwayAmount = swayAmount+bladeRandomValue*0.0f;
+	float windX = tipFactor*adjustedSwayAmount*heightFactor*(sin(time*1.4+bladePositionWorld.z*0.7f)+cos(time*8.371+bladePositionWorld.z*1.8f)*0.06);
+	float windZ = tipFactor*sin(time*3.0+bladePositionWorld.x)*adjustedSwayAmount*0.3f*heightFactor;
 	
+	localRotMatrix = rotXMatrix(windX)*rotZMatrix(windZ)*localRotMatrix;
+
 	VertexPositionLocal = localRotMatrix*VertexPositionLocal;
-	float windX = tipFactor*sin(time+bladePositionWorld.z*0.2f)*0.45*cos(time*2.371+bladePositionWorld.z*0.2f)*swayAmount*heightFactor;
-	float windZ = tipFactor*sin(time*3.0+bladePositionWorld.x)*swayAmount*0.3f*heightFactor;
-	VertexPositionLocal = VertexPositionLocal*rotXMatrix(windX)*rotZMatrix(windZ);
+
+
 
 	
 	vec3 vertexPositionWorld = VertexPositionLocal+bladePositionWorld;
 
-	fragColor = baseColor+baseColor*vec3(hash23(bladeWorldSeed))*colourError*2-colourError*baseColor;
+	fragColor = baseColor+baseColor*hash23(bladeWorldSeed)*colourError*2-colourError*baseColor;
 	//vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
 	vec3 rotatedNormal = transpose(inverse(localRotMatrix))*normal.xyz;
 	//vec3 rotatedNormal = localRotMatrix*normal.xyz;

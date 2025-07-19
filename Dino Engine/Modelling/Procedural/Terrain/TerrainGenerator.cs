@@ -27,32 +27,6 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         {
             noise = new OpenSimplexNoise(seed);
         }
-        public Entity? generateTerrainChunkEntity(Vector2 worldPos, Vector2 worldSize, float quadsPerMeter)
-        {
-            /*
-            Vector2i resolution = new Vector2i((int)(worldSize.X * quadsPerMeter)+1, (int)(worldSize.Y*quadsPerMeter)+1);
-            ECSEngine eCSEngine = Engine.Instance.ECSEngine;
-
-            EntityOLD terrainEntity = new EntityOLD("Terrain");
-
-            FloatGrid terrainGrid = generateChunk(worldPos, worldSize, resolution);
-            Material grass = new Material(new Colour(255, 255, 255),Engine.RenderEngine.textureGenerator.grain);
-            grass = new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.grain);
-            Mesh groundMesh = TerrainMeshGenerator.GridToMesh(terrainGrid, worldSize, grass,  out Vector3Grid terrainNormals);
-            glModel groundModel = glLoader.loadToVAO(groundMesh);
-
-            terrainEntity.addComponent(new TransformationComponent(new Vector3(worldPos.X, 0f, worldPos.Y), new Vector3(0), new Vector3(1f)));
-            terrainEntity.addComponent(new ModelComponent(groundModel));
-            terrainEntity.addComponent(new TerrainMapsComponent(terrainGrid, terrainNormals));
-            terrainEntity.addComponent(new CollisionComponent(new TerrainHitBox(new Vector3(0), new Vector3(worldSize.X, yScale, worldSize.Y))));
-            eCSEngine.AddEnityToSystem<TerrainRenderSystem>(terrainEntity);
-            eCSEngine.AddEnityToSystem<TerrainSystem>(terrainEntity);
-            eCSEngine.AddEnityToSystem<CollidableSystem>(terrainEntity);
-
-            return terrainEntity;
-            */
-            return null;
-        }
 
         public Vector3Grid generateNormalGridFor(FloatGrid heightMap, Vector3 size, Vector2 worldOrigin)
         {

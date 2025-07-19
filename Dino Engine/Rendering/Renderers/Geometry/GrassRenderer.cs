@@ -117,8 +117,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             Material grassMaterial = new Material(new Colour(0,0,0), 1); //Throwaway
 
             if (grassBlade != null) grassBlade.cleanUp();
-            float radius = 0.02f;
-            bladeHeight = 0.7f;
+            float radius = 0.017f;
+            bladeHeight = 0.80f;
             List<Vector2> bladeLayers = new List<Vector2>() {
                 new Vector2(radius, 0),
                 new Vector2(radius*0.8f, bladeHeight*0.33f),
@@ -179,7 +179,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
-            GL.Disable(EnableCap.CullFace);
+            //GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
 
@@ -220,15 +220,17 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _grassShader.loadUniformFloat("swayAmount", 0.5f);
             _grassShader.loadUniformFloat("bladeHeight", bladeHeight);
-            _grassShader.loadUniformFloat("bendyness", .06f);
-            _grassShader.loadUniformFloat("heightError", 0.25f);
+            _grassShader.loadUniformFloat("bendyness", 0.05f);
+            _grassShader.loadUniformFloat("heightError", 0.35f);
             _grassShader.loadUniformFloat("radiusError", 0.35f);
-            _grassShader.loadUniformFloat("cutOffThreshold", 0.17f);
-            _grassShader.loadUniformFloat("groundNormalStrength", 2.5f);
+            _grassShader.loadUniformFloat("cutOffThreshold", 0.1f);
+            _grassShader.loadUniformFloat("cutOffRange", 0.7f);
+            _grassShader.loadUniformFloat("steepnessCutoffStrength", .5f);
+            _grassShader.loadUniformFloat("groundNormalStrength", 3.0f);
             _grassShader.loadUniformFloat("colourError", 0.2f);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.9f);
-            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.8f);
-            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.9f, 0f, 0f, 0f));
+            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.4f);
+            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.9f, 0f, 0.0f, 0f));
             _grassShader.loadUniformVector3f("baseColor", new Colour(50, 75, 10).ToVector3());
             _grassShader.loadUniformInt("bladesPerChunk", bladesPerChunk);
             _grassShader.loadUniformInt("bladesPerAxis", bladesPerAxis);

@@ -39,7 +39,7 @@ namespace Dino_Engine.Textures
             gBufferSettings.drawBuffers.Add(gMaterials);
 
             DepthAttachmentSettings depthSettings = new DepthAttachmentSettings();
-            depthSettings.isTexture = false;
+            depthSettings.isTexture = true;
             gBufferSettings.depthAttachmentSettings = depthSettings;
             framBuffer = new FrameBuffer(gBufferSettings);
 
@@ -89,15 +89,15 @@ namespace Dino_Engine.Textures
 
             if (fullStretch)
             {
-                projectionMatrix = Matrix4.CreateOrthographic(length.X, length.Y, 1f, -length.Z - 1f);
+                projectionMatrix = Matrix4.CreateOrthographic(length.X, length.Y, 0f,length.Z);
             }
             else
             {
                 float max = MathF.Max(length.Y, length.X);
-                projectionMatrix = Matrix4.CreateOrthographic(max, max, 1f, -length.Z - 1f);
+                projectionMatrix = Matrix4.CreateOrthographic(max, max, 0f,length.Z );
             }
             Matrix4 viewMatrix = MyMath.createViewMatrix(new Vector3(0f, 0f, 0f), new Vector3(0f, 0f, 0f));
-            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(-length.X / 2f - box._min.X, -length.Y / 2f - box._min.Y, -box._min.Z), new Vector3(0f), new Vector3(1f)));
+            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(-length.X / 2f - box._min.X, -length.Y / 2f - box._min.Y, box._min.Z), new Vector3(0f), new Vector3(1f)));
             //transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(0, 0, -11), new Vector3(0f), new Vector3(1f)));
 
             Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;

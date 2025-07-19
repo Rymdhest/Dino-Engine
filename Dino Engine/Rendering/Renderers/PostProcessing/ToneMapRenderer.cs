@@ -1,5 +1,6 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS;
+using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
@@ -34,7 +35,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             HDRMapShader.loadUniformFloat("contrast", 1.0f);
             HDRMapShader.loadUniformFloat("dithering", 0.4f);
 
-            //renderer.RenderToNextFrameBuffer();
             buffer.RenderTextureToNextFrameBuffer(buffer.GetLastOutputTexture());
 
             HDRMapShader.unBind();

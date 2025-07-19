@@ -44,7 +44,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
         internal override void Render(RenderEngine renderEngine)
         {
-            renderEngine.ScreenQuadRenderer.Render(depthTest: true, blend: true, clearColor: false);
+            renderEngine.ScreenQuadRenderer.Render(depthTest: true, blend: false, clearColor: false);
         }
     }
 }

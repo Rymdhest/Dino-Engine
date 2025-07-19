@@ -25,10 +25,9 @@ void main() {
 	textureIndex = materialIndex;
 	
 	vec3 N = normal;
-	vec3 T = tangent;
+	vec3 T = tangent;	
     vec3 B = normalize( cross(T, N));
-	mat3 TBN = mat3(T, normalize( cross(N, T)), N);
+	mat3 TBN = mat3(T, B, N);
 	normalTBN = mat3(normalModelViewMatrix)*TBN;
-
 	fragColor = color;
 }

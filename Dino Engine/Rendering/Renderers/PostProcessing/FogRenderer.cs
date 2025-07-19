@@ -20,10 +20,12 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         internal override void Prepare(RenderEngine renderEngine)
         {
             fogShader.bind();
+            GL.DepthFunc(DepthFunction.Greater);
         }
 
         internal override void Finish(RenderEngine renderEngine)
         {
+            GL.DepthFunc(DepthFunction.Less);
         }
 
         internal override void Render(RenderEngine renderEngine)
@@ -41,6 +43,11 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
             buffer.RenderToNextFrameBuffer();
+
+            buffer.GetNextFrameBuffer().bind();
+            renderEngine.ScreenQuadRenderer.Render(depthTest: true, blend: false, clearColor: false);
+            buffer.StepToggle();
+            Engine.RenderEngine.lastUsedBuffer = buffer;
 
         }
 

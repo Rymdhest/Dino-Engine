@@ -28,15 +28,18 @@ void main() {
 
 	gAlbedo *= vec4(fragColor, 1.0);
 	vec4 normalTangentSpace = lookupNorma(fragUV, textureIndex);
-	normalTangentSpace.xyz =  (normalTangentSpace.xyz*2.0)-1.0;
-	normalTangentSpace.xyz = (normalTangentSpace.xyz+1.0)/2.0;
-	gNormal.xyz = normalize(normalTBN*normalTangentSpace.xyz);
+	gNormal.xyz = normalize(normalTBN*(normalTangentSpace.xyz*2-1));
 	if (!gl_FrontFacing) gNormal.xyz *= -1.0;
+
+	gNormal.xyz = (gNormal.xyz*0.5)+0.5;
+
 
 	gNormal.a = normalTangentSpace.a;
 
+	float depth = -positionViewSpace_pass.z/maxDepth;
 	gMaterials = lookupMaterial(fragUV, textureIndex).rgba;
-	gMaterials.a *= (positionViewSpace_pass.z)/maxDepth;
+	gMaterials.a += 1.0-depth;
+	gMaterials.a *= 0.5;
 	//gMaterials.a = 1.0;
 
 	//gAlbedo.rgb = vec3(gMaterials.a);

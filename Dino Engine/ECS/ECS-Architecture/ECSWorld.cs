@@ -20,26 +20,14 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public int Count => entityLocations.Count;
         public ECSWorld()
         {
-            /*  OLD PARTICLE TEST SETUP
             Camera = CreateEntity("Camera",
-                new PositionComponent(0, 40f, 200f),
-                new RotationComponent(0.5f, 0, 0),
+                new PositionComponent(0, 10f, 0f),
+                new RotationComponent(0f, 0.0f, 0.0f),
                 new MainCameraComponent(),
                 new LocalToWorldMatrixComponent(),
                 new PositionRotationInputControlComponent(),
                 new ViewMatrixComponent(),
-                new PerspectiveProjectionComponent(MathF.PI / 3.5f, Engine.Resolution, 0.1f, 1000f));
-            */
-
-
-            Camera = CreateEntity("Camera",
-                new PositionComponent(0, 240f, 0f),
-                new RotationComponent(.26f, 2.35f, 0.0f),
-                new MainCameraComponent(),
-                new LocalToWorldMatrixComponent(),
-                new PositionRotationInputControlComponent(),
-                new ViewMatrixComponent(),
-                new PerspectiveProjectionComponent(MathF.PI / 3.5f, Engine.Resolution, 0.1f, 1000f));;
+                new PerspectiveProjectionComponent(MathF.PI / 2.6f, Engine.Resolution, 0.1f, 1000f));;
         }
 
         public void Update(float deltaTime)
