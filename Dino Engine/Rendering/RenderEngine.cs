@@ -6,6 +6,7 @@ using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Textures;
+using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -233,9 +234,23 @@ namespace Dino_Engine.Rendering
 
             _modelRenderer.RenderPass(this);
             _instancedModelRenderer.RenderPass(this);
+
+            int timerQuery;
+            GL.GenQueries(1, out timerQuery);
+            GL.BeginQuery(QueryTarget.TimeElapsed, timerQuery);
             _terrainRenderer.RenderPass(this);
-            //_instancedModelRenderer.RenderPass(this);
+            GL.EndQuery(QueryTarget.TimeElapsed);
+            int available;
+            do
+            {
+                GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResultAvailable, out available);
+            } while (available == 0);
+            long timeElapsed;
+            GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResult, out timeElapsed);
+            Console.WriteLine($"GPU time for draw: {timeElapsed / 1_000_000.0} ms");
+
             _grassRenderer.RenderPass(this);
+
 
             _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);
         }
@@ -272,6 +287,14 @@ namespace Dino_Engine.Rendering
         {
             _dualBufferFull.clearBothBuffers();
 
+            /*
+            Vector3 viewPos = new Vector3(500, 500, 500);
+            var viewMatrix = MyMath.createViewMatrix(viewPos, new Vector3(MathF.PI/2f, 0, 0));
+            context.viewMatrix = viewMatrix;
+            context.invViewMatrix = Matrix4.Invert(viewMatrix);
+            context.viewPos = viewPos;
+            */
+
             globals.projectionMatrix = context.projectionMatrix;
             globals.viewMatrix = context.viewMatrix;
             globals.invProjectionMatrix = context.invProjectionMatrix;
@@ -282,6 +305,10 @@ namespace Dino_Engine.Rendering
             globals.delta = Engine.Delta;
             globals.worldSeed = 1;
             globals.skyColour = context.skyColour;
+
+
+
+
 
             GL.BindBuffer(BufferTarget.UniformBuffer, globalsUBO);
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, Marshal.SizeOf<ShaderGlobals2>() ,ref globals);

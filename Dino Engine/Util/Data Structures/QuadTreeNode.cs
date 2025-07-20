@@ -1,31 +1,23 @@
 ﻿using Dino_Engine.ECS.ECS_Architecture;
 using OpenTK.Mathematics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-
 namespace Dino_Engine.Util.Data_Structures
 {
     public class QuadTreeNode
     {
         public Vector2 WorldPos;   // bottom-left of the node in world space
-        public Entity ChunkEntity;   // bottom-left of the node in world space
-        public float Size;         // world size of the node
-        public int Depth;          // depth in the quadtree
-        public QuadTreeNode[] Children; // null if leaf
+        public Entity ChunkEntity;   
+        public float Size;         
+        public int Depth;          
+        public QuadTreeNode[]? Children; // null if leaf
 
         public QuadTreeNode(Vector2 worldPos, float size, int depth)
         {
             WorldPos = worldPos;
             Size = size;
             Depth = depth;
-            Children = null;
+            Children = null;    
         }
 
-        // Splits this node into 4 children
         public void Subdivide()
         {
             float half = Size / 2f;

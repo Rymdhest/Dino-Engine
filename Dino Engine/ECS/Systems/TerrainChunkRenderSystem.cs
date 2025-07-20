@@ -4,6 +4,7 @@ using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
+using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Systems
 {
@@ -13,13 +14,73 @@ namespace Dino_Engine.ECS.Systems
             : base(new BitMask(typeof(TerrainChunkComponent), typeof(ScaleComponent), typeof(LocalToWorldMatrixComponent)))
         {
         }
+
+        public override void Update(ECSWorld world, float deltaTime)
+        {
+            var visibleChunks = new List<Entity>();
+
+            Matrix4 CameraViewMatrix = world.GetComponent<ViewMatrixComponent>(world.Camera).value;
+            Matrix4 CameraProjectionMatrix = world.GetComponent<PerspectiveProjectionComponent>(world.Camera).ProjectionMatrix;
+            var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
+            var viewProjectionMatrix = CameraViewMatrix * CameraProjectionMatrix;
+            TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent.QuadTree, new Util.Frustum(viewProjectionMatrix), visibleChunks);
+
+            var grassChunksLOD0 = new List<GrassChunkRenderData>();
+            var grassChunksLOD1 = new List<GrassChunkRenderData>();
+
+
+            var terrainChunksLOD0 = new List<TerrainChunkRenderData>();
+            var terrainChunksLOD1 = new List<TerrainChunkRenderData>();
+
+            foreach (Entity entity in visibleChunks)
+            {
+                Vector3 chunkPosition = world.GetComponent<LocalToWorldMatrixComponent>(entity).value.ExtractTranslation();
+                Vector3 chunkSize = world.GetComponent<ScaleComponent>(entity).value;
+                float arrayID = world.GetComponent<TerrainChunkComponent>(entity).normalHeightTextureArrayID;
+                Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
+                float distance = Vector2.Distance(cameraPos.Xz, chunkPosition.Xz + chunkSize.Xz * 0.5f);
+
+                TerrainChunkRenderData chunkCommand = new TerrainChunkRenderData();
+                chunkCommand.chunkPos = chunkPosition;
+                chunkCommand.size = chunkSize;
+                chunkCommand.arrayID = arrayID;
+
+                if (distance < 10)
+                {
+                    terrainChunksLOD0.Add(chunkCommand);
+                }
+                else 
+                {
+                    terrainChunksLOD1.Add(chunkCommand);
+                }
+
+
+
+                GrassChunkRenderData grassCommand = new GrassChunkRenderData();
+                grassCommand.chunkPos = chunkPosition.Xz;
+                grassCommand.size = chunkSize.X;
+                grassCommand.arrayID = arrayID;
+                if (distance < 6)
+                {
+                    grassChunksLOD0.Add(grassCommand);
+                }
+                else if (distance < 35)
+                {
+                    grassChunksLOD1.Add(grassCommand);
+                }
+            }
+
+            Engine.RenderEngine._grassRenderer.SubmitCommand(new GrassRenderCommand(grassChunksLOD0.ToArray(), 0));
+            Engine.RenderEngine._grassRenderer.SubmitCommand(new GrassRenderCommand(grassChunksLOD1.ToArray(), 1));
+
+            Engine.RenderEngine._terrainRenderer.SubmitCommand(new TerrainRenderCommand(terrainChunksLOD0.ToArray(), 0.07f));
+            Engine.RenderEngine._terrainRenderer.SubmitCommand(new TerrainRenderCommand(terrainChunksLOD1.ToArray(), 0.0f));
+        }
+
+
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
-            TerrainChunkRenderCommand command = new TerrainChunkRenderCommand();
-            command.chunkPos = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
-            command.size = entity.Get<ScaleComponent>().value;
-            command.arrayID = entity.Get<TerrainChunkComponent>().normalHeightTextureArrayID;
-            Engine.RenderEngine._terrainRenderer.SubmitCommand(command);
+
         }
     }
 }

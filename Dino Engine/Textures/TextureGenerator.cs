@@ -436,7 +436,7 @@ namespace Dino_Engine.Textures
 
             var crackedLava = MaterialLayersCombiner.combine(cracks, lava.scaleHeight(0.14f), FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.5f);
 
-            return FinishTexture(crackedLava, normalFlatness: 100.0f);
+            return FinishTexture(crackedLava, normalFlatness: 300.0f);
         }
 
         private int createBark()

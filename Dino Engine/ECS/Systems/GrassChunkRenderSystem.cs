@@ -26,15 +26,7 @@ namespace Dino_Engine.ECS.Systems
         */
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
-            GrassChunkRenderCommand command = new GrassChunkRenderCommand();
-            command.chunkPos = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation().Xz;
-            command.size = entity.Get<ScaleComponent>().value.X;
 
-            Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
-            if (Vector2.Distance(cameraPos.Xz, command.chunkPos+new Vector2(command.size*0.5f)) >= 49) return;
-
-            command.arrayID = entity.Get<TerrainChunkComponent>().normalHeightTextureArrayID;
-            Engine.RenderEngine._grassRenderer.SubmitCommand(command);
         }
     }
 }

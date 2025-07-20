@@ -13,12 +13,15 @@ namespace Dino_Engine.ECS.Systems
             : base(new BitMask(typeof(ModelRenderTag), typeof(ModelComponent), typeof(LocalToWorldMatrixComponent)))
         {
         }
+
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
+            
             ModelRenderCommand command = new ModelRenderCommand();
             command.localToWorldMatrix = entity.Get<LocalToWorldMatrixComponent>().value;
             command.model = entity.Get<ModelComponent>().model;
             Engine.RenderEngine._modelRenderer.SubmitCommand(command);
+            
         }
     }
 }

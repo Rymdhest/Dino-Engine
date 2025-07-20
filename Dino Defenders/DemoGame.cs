@@ -23,8 +23,10 @@ namespace Dino_Defenders
     internal class DemoGame : Game
     {
 
+        private TerrainGenerator terrainGenerator;
         public DemoGame(Engine engine) : base(engine)
         {
+            terrainGenerator = new TerrainGenerator();
             SpawnWorld();
         }
         public override void update()
@@ -174,7 +176,7 @@ namespace Dino_Defenders
             world.ClearAllEntitiesExcept(world.QueryEntities(new BitMask(typeof(MainCameraComponent)), BitMask.Empty).ToArray());
 
             world.RegisterSingleton<TerrainQuadTreeComponent>(world.CreateEntity(new TerrainQuadTreeComponent(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
-            world.RegisterSingleton<TerrainGeneratorComponent>(world.CreateEntity(new TerrainGeneratorComponent(new TerrainGenerator())));
+            world.RegisterSingleton<TerrainGeneratorComponent>(world.CreateEntity(new TerrainGeneratorComponent(terrainGenerator)));
             world.ApplyDeferredCommands();
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
@@ -348,11 +350,11 @@ namespace Dino_Defenders
             curve.LERPWidth(1.3f, 0.1f);
             Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 7, Material.BARK, textureRepeats:1, flatStart: true);
 
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(20f, 20f), new Vector2i(2,2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY:false);
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(35f, 35f), new Vector2i(2,2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY:false);
             for (int i = 0; i <branch.meshVertices.Count; i++)
             {
-                branch.meshVertices[i].position.Y -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f))*0.02f;
-                branch.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Z, 2.0f)) * 0.04f;
+                branch.meshVertices[i].position.Y -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f))*0.005f;
+                branch.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Z, 2.0f)) * 0.01f;
             }
             branch.translate(new Vector3(0f, -2f, 0.0f));
             branch.rotate(new Vector3(-MathF.PI/1.45f, 0f, 0f));
@@ -378,13 +380,13 @@ namespace Dino_Defenders
 
 
             Mesh branch2 = cylinderMesh2.scaled(new Vector3(1.0f, 1f, 1.0f));
-            int nTwigs = 20;
+            int nTwigs = 15;
             for (int i = 0; i < nTwigs; i++)
             {
                 float t = 0.2f + 0.8f * (float)i / (nTwigs - 1);
                 CurvePoint curvePoint = curve2.getPointAt(t);
                 var newBranch = branch.scaled(new Vector3(1.0f - t * 0.8f));
-                newBranch.translate(new Vector3(0f, -curvePoint.width * 2f, 0f));
+                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
                 Vector3 col = MyMath.rng3D(0.3f);
                 newBranch.setColour(new Colour(new Vector3(1f) - col));
                 newBranch.rotate(new Vector3(0.2f - t, 0f, 0f));
@@ -400,43 +402,67 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 35;
+            int nBranches = 25;
             for (int i = 0; i < nBranches; i++)
             {
-                float t = 0.3f+0.7f*(float)i/(nBranches - 1);
+                float t = 0.2f+0.8f*(float)i/(nBranches - 1);
                 CurvePoint curvePoint = curve.getPointAt(t);
                 var newBranch = branch2.scaled(new Vector3(0.5f- t*0.4f));
-                newBranch.rotate(new Vector3(.6f+t*0.2f, 0f, 0f));
+                newBranch.rotate(new Vector3(1.0f-t*0.6f, 0f, 0f));
                 newBranch.translate(new Vector3(0f, -curvePoint.width/2f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
-                newBranch.rotate(new Vector3(0f, i*MathF.Tau/3f+MyMath.rngMinusPlus(MathF.Tau / 6f), 0f));
+                newBranch.rotate(new Vector3(0f, i*MathF.Tau/5+MyMath.rng(MathF.Tau / 5), 0f));
                 //newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
                 newBranch.rotate(curvePoint.rotation);
                 newBranch.translate(curvePoint.pos);
                 cylinderMesh += newBranch;
             }
+            cylinderMesh.scale(new Vector3(0.2f));
 
             Console.WriteLine("TREE HAS: "+cylinderMesh.faces.Count+" FACES");
 
-            float terrainSize = 100f;
-            var _glModel = glLoader.loadToVAO(cylinderMesh);
-            var _glModel2 = ModelGenerator.UNIT_SPHERE;
-            for (int i = 0; i<100; i++)
+
+            float terrainSize = 200f;
+
+            glModel treeModel = glLoader.loadToVAO(cylinderMesh);
+            for (int i = 0; i<200; i++)
             {
+                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
                 float height = 1f + MyMath.rng(0.9f);
                 float radius = 1f+MyMath.rngMinusPlus(0.3f);
                 world.CreateEntity("tree test: "+i,
-                    new PositionComponent(new Vector3(-MyMath.rng(terrainSize), 0, -MyMath.rng(terrainSize))),
+                    new PositionComponent(treePos),
                     new RotationComponent(new Vector3(0f, MyMath.rng()*MathF.Tau, 0f)),
                     new ScaleComponent(new Vector3(radius, height, radius)),
-                    new ModelComponent(_glModel),
+                    new ModelComponent(treeModel),
                     new modelInstancedRenderTag(),
                     //new ModelRenderTag(),
                     new LocalToWorldMatrixComponent()
                 );
             }
 
-            
+
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(2, Material.ROCK);
+            RockMesh.FlatRandomness(0.15f);
+            glModel rockModel = glLoader.loadToVAO(RockMesh);
+            for (int i = 0; i < 200; i++)
+            {
+                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
+                float height = 0.4f + MyMath.rng(0.9f);
+                float radius = 0.4f + MyMath.rng(0.8f);
+                world.CreateEntity("tree test: " + i,
+                    new PositionComponent(treePos),
+                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
+                    new ScaleComponent(new Vector3(radius, height, radius)),
+                    new ModelComponent(rockModel),
+                    new modelInstancedRenderTag(),
+                    //new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
+            }
+
         }
        
     

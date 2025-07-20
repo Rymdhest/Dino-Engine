@@ -84,7 +84,7 @@ namespace Dino_Engine.Textures
             AABB box = mesh.createAABB();
 
 
-            Vector3 length = box._max - box._min;
+            Vector3 length = box.max - box.min;
             Matrix4 projectionMatrix;
 
             if (fullStretch)
@@ -97,7 +97,7 @@ namespace Dino_Engine.Textures
                 projectionMatrix = Matrix4.CreateOrthographic(max, max, 0f,length.Z );
             }
             Matrix4 viewMatrix = MyMath.createViewMatrix(new Vector3(0f, 0f, 0f), new Vector3(0f, 0f, 0f));
-            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(-length.X / 2f - box._min.X, -length.Y / 2f - box._min.Y, box._min.Z), new Vector3(0f), new Vector3(1f)));
+            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(-length.X / 2f - box.min.X, -length.Y / 2f - box.min.Y, box.min.Z), new Vector3(0f), new Vector3(1f)));
             //transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(0, 0, -11), new Vector3(0f), new Vector3(1f)));
 
             Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;

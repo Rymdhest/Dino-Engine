@@ -37,9 +37,12 @@ void main() {
 	vec3 viewDir = normalize(TangentViewPos - TangentFragPos);
     float steepness = dot(vec3(0.0, 1.0, 0.0), worldNormal);
 
-    vec2 parallaxedCoordsGround = ParallaxMapping(fragUV,  viewDir, groundID, parallaxDepth, parallaxLayers);
-    vec2 parallaxedCoordsRock = ParallaxMapping(fragUV,  viewDir, rockID, parallaxDepth, parallaxLayers);
-
+    vec2 parallaxedCoordsGround = fragUV;
+    vec2 parallaxedCoordsRock = fragUV;
+    if (parallaxDepth > 0.001) {
+        parallaxedCoordsGround = ParallaxMapping(fragUV,  viewDir, groundID, parallaxDepth, parallaxLayers);
+        parallaxedCoordsRock = ParallaxMapping(fragUV,  viewDir, rockID, parallaxDepth, parallaxLayers);
+    }
 
     float rockWeight = lookupMaterial(parallaxedCoordsRock, rockID).a*((1.0-steepness)*1.0);
     float groundWeight = lookupMaterial(parallaxedCoordsGround, groundID).a*(steepness*1.0);

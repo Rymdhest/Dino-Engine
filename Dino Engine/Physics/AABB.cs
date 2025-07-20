@@ -10,12 +10,12 @@ namespace Dino_Engine.Physics
 {
     public class AABB : HitBox
     {
-        public Vector3 _min;
-        public Vector3 _max;
+        public Vector3 min;
+        public Vector3 max;
         public AABB (Vector3 min, Vector3 max)
         {
-            _min = min;
-            _max = max;
+            this.min = min;
+            this.max = max;
         }
     }
 }

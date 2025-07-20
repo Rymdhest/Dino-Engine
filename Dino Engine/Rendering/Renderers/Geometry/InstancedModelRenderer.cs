@@ -27,6 +27,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _modelShader.loadUniformInt("normalMapModelTextureArray", 4);
             _modelShader.loadUniformInt("materialMapModelTextureArray", 5);
             _modelShader.unBind();
+
+            _instanceVBO = GL.GenBuffer();
         }
 
         internal override void Prepare(RenderEngine renderEngine)
@@ -59,7 +61,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
 
 
-            _instanceVBO = GL.GenBuffer();
         }
 
         public override void PerformCommand(InstancedModelRenderCommand command, RenderEngine renderEngine)

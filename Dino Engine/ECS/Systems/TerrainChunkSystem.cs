@@ -3,6 +3,7 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Procedural.Terrain;
 using Dino_Engine.Rendering.Renderers.Geometry;
+using Dino_Engine.Util;
 using Dino_Engine.Util.Data_Structures;
 using OpenTK.Mathematics;
 using System.Xml.Linq;
@@ -22,6 +23,31 @@ namespace Dino_Engine.ECS.Systems
             TerrainGenerator generator = world.GetComponent<TerrainGeneratorComponent>(world.GetSingleton<TerrainGeneratorComponent>()).Generator;
             Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
             UpdateNodeLODRecursive(quadtreeComponent.QuadTree, cameraPos, world, generator, quadtreeComponent.rootSize);
+        }
+
+        public static void CollectVisibleChunks(QuadTreeNode node, Frustum frustum, List<Entity> visibleChunks)
+        {
+            float minHeight = -100;
+            float maxHeight = 700;
+            Vector3 min = new Vector3(node.WorldPos.X, minHeight, node.WorldPos.Y);
+            Vector3 max = new Vector3(node.WorldPos.X + node.Size, maxHeight, node.WorldPos.Y + node.Size);
+
+            var result = frustum.IntersectsAABB(new Physics.AABB(min, max));
+
+            if (result == IntersectionResult.Outside)
+                return;
+
+            if (result == IntersectionResult.Inside || node.Children == null)
+            {
+                if (node.ChunkEntity.IsValid())
+                    visibleChunks.Add((Entity)node.ChunkEntity);
+                return;
+            }
+
+            foreach (var child in node.Children)
+            {
+                CollectVisibleChunks(child, frustum, visibleChunks);
+            }
         }
 
         private void UpdateNodeLODRecursive(QuadTreeNode node, Vector3 cameraPos, ECSWorld world, TerrainGenerator generator, float rootSize)

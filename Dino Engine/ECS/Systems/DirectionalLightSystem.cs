@@ -21,7 +21,7 @@ namespace Dino_Engine.ECS.Systems
         {
             DirectionallightRenderCommand command = new DirectionallightRenderCommand();
 
-            float time = Engine.Time*0.1f;
+            float time = Engine.Time*0.0f;
             float x = MathF.Sin(time);
             float y = -0.5f;
             float z = MathF.Cos(time);

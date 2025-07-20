@@ -15,7 +15,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public float _mountainCoverage = 0.1f;
         public float _frequenzy = 0.01f;
         public int _octaves = 8;
-        public float yScale = 700f;
+        public float yScale = 500f;
 
         private OpenSimplexNoise noise;
 
@@ -81,7 +81,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             return normalGrid;
         }
 
-        public FloatGrid generateChunk(Vector2 positionWorld, Vector2 sizeWorld, Vector2i resolution)
+        public FloatGrid generateChunk(Vector2 chunkPositionWorld, Vector2 sizeWorld, Vector2i resolution)
         {
             FloatGrid grid = new FloatGrid(resolution);
             Vector2 cellSizeWorld = sizeWorld / (resolution-new Vector2(1));
@@ -90,15 +90,11 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             {
                 for (int x = 0; x < grid.Resolution.X; x++)
                 {
-                    grid.Values[x, z] = getHeightAt(positionWorld+new Vector2(x, z)* cellSizeWorld);
+                    Vector2 worldPos = chunkPositionWorld + new Vector2(x, z) * cellSizeWorld;
 
-                    //grid.Values[x, z] = 10f;
-                    /*
-                    grid.Values[x, z] = 2f*MathF.Sin(x*cellSizeWorld.X)+10f;
-                    grid.Values[x, z] = (x * cellSizeWorld.X);
-                    if (x == 3 && z == 3)   grid.Values[x, z] = 10;
-                    if (x == 3 && z == 1) grid.Values[x, z] = 20;
-                    */
+                    grid.Values[x, z] = getHeightAt(worldPos);
+
+                    
                 }
             }
 
@@ -117,9 +113,9 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             float mountainFactor = MyMath.clamp01( noise.Evaluate(position.X*0.006f, position.Y*0.006f)/2f+0.5f);
             mountainFactor = MathF.Pow(mountainFactor, 2.8f);
 
-            mountainFactor *= MathF.Pow(MyMath.clamp01(noise.Evaluate(position.X * 0.001f, position.Y * 0.001f) / 2f + 0.5f), 1.9f);
-            mountainFactor *= MathF.Pow(MyMath.clamp01(noise.Evaluate(position.X * 0.0001f, position.Y * 0.0001f) / 2f + 0.5f), 0.6f);
-            mountainFactor *= MathF.Pow(MyMath.clamp01(noise.Evaluate(position.X * 0.00007f, position.Y * 0.00007f) / 2f + 0.5f), 0.3f);
+            mountainFactor *= MathF.Pow(MyMath.clamp01(noise.Evaluate(position.X * 0.003f, position.Y * 0.003f) / 2f + 0.5f), 1.5f);
+            //mountainFactor *= MathF.Pow(MyMath.clamp01(noise.Evaluate(position.X * 0.0001f, position.Y * 0.0001f) / 2f + 0.5f), 0.6f);
+            //mountainFactor *= MathF.Pow(MyMath.clamp01(noise.Evaluate(position.X * 0.00007f, position.Y * 0.00007f) / 2f + 0.5f), 0.3f);
 
             for (int i = 0; i < _octaves; i++)
             {
@@ -134,6 +130,12 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             y *= yScale;
             y -= 5f;
             if (y < 0f) y *= 0.5f;
+
+
+
+            float smoothEdgeRange = 50f;
+            if (position.X < smoothEdgeRange) y *= MyMath.lerp(0, 1, position.X/ smoothEdgeRange);
+            if (position.Y < smoothEdgeRange) y *= MyMath.lerp(0, 1, position.Y/ smoothEdgeRange);
 
             return y;
         }

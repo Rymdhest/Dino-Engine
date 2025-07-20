@@ -10,25 +10,36 @@ using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Textures;
 using Dino_Engine.Util.Data_Structures.Grids;
 using System.Runtime.InteropServices;
+using System;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
-    public struct TerrainChunkRenderCommand : IRenderCommand
+    public struct TerrainChunkRenderData
     {
         public Vector3 chunkPos;
         public Vector3 size;
         public float arrayID;
     }
+    public struct TerrainRenderCommand : IRenderCommand
+    {
+        public TerrainChunkRenderData[] chunks;
+        public float parallaxDepth;
 
+        public TerrainRenderCommand(TerrainChunkRenderData[] chunks, float parallaxDepth)
+        {
+            this.chunks = chunks;
+            this.parallaxDepth = parallaxDepth;
+        }
+    }
 
-    public class TerrainRenderer : CommandDrivenRenderer<TerrainChunkRenderCommand>
+    public class TerrainRenderer : CommandDrivenRenderer<TerrainRenderCommand>
     {
         private ShaderProgram _terrainShader = new ShaderProgram("Terrain.vert", "Terrain.frag");
         private glModel baseChunkModel;
         private int normalHeightTextureArray;
         private IDAllocator<ushort> normalHeightTextureArrayAllocator = new();
-        private readonly int MAX_TERRAIN_CHUNKS = 512;
-        public static readonly int CHUNK_RESOLUTION = 32;
+        private readonly int MAX_TERRAIN_CHUNKS = 1024;
+        public static readonly int CHUNK_RESOLUTION = 64;
 
         private int instanceVBO;
 
@@ -63,7 +74,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindVertexArray(baseChunkModel.getVAOID());
             GL.BindBuffer(BufferTarget.ArrayBuffer, instanceVBO);
 
-            int stride = Marshal.SizeOf<TerrainChunkRenderCommand>();
+            int stride = Marshal.SizeOf<TerrainChunkRenderData>();
 
             // chunkPos at location 3
             GL.EnableVertexAttribArray(3);
@@ -94,7 +105,31 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int) TextureWrapMode.ClampToEdge);
             GL.BindTexture(TextureTarget.Texture2DArray, 0);
 
-        }   
+        }
+
+        public override void PerformCommand(TerrainRenderCommand command, RenderEngine renderEngine)
+        {
+            _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
+            _terrainShader.loadUniformFloat("parallaxLayers", 32);
+
+            int numberOfChunks = command.chunks.Length;
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, instanceVBO);
+            GL.BufferData(BufferTarget.ArrayBuffer,
+                numberOfChunks * Marshal.SizeOf<TerrainChunkRenderData>(),
+                command.chunks,
+                BufferUsageHint.DynamicDraw);
+
+
+            GL.BindVertexArray(baseChunkModel.getVAOID());
+            GL.DrawElementsInstanced(
+                PrimitiveType.Triangles,
+                baseChunkModel.getVertexCount(),
+                DrawElementsType.UnsignedInt,
+                IntPtr.Zero,
+                numberOfChunks
+            );
+        }
 
         public int GetNormalHeightTextureArray()
         {
@@ -145,16 +180,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             return id;
         }
 
-        internal override void Prepare(RenderEngine renderEngine)   
+        internal override void Prepare(RenderEngine renderEngine)
         {
+
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
             _terrainShader.bind();
             
-            _terrainShader.loadUniformFloat("parallaxDepth", 0.05f);
-            _terrainShader.loadUniformFloat("parallaxLayers", 64);
             _terrainShader.loadUniformFloat("textureTileSize", 5.0f);
             
             _terrainShader.loadUniformBool("DEBUG_VIEW", false);
@@ -180,15 +214,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShader.loadUniformVector3f("viewPos", renderEngine.context.viewPos);
 
-            GL.BindBuffer(BufferTarget.ArrayBuffer, instanceVBO);
-            GL.BufferData(BufferTarget.ArrayBuffer,
-                commands.Count * Marshal.SizeOf<TerrainChunkRenderCommand>(),
-                commands.ToArray(),
-                BufferUsageHint.DynamicDraw);
-
-
-            _terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.grass);
-            _terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.rock);
+            _terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.crackedLava);
+            _terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.sandDunes);
 
             GL.BindVertexArray(baseChunkModel.getVAOID());
             GL.DisableVertexAttribArray(1);
@@ -203,19 +230,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             Matrix4 projectionViewMatrix = renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix;
             _terrainShader.loadUniformMatrix4f("invViewMatrix", renderEngine.context.invViewMatrix);
             _terrainShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);
-            //_terrainShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(MyMath.createTransformationMatrix(command.chunkPos, Quaternion.Identity, new Vector3(command.size.X)) * viewMatrix)));
-
-
-            GL.BindVertexArray(baseChunkModel.getVAOID());
-            GL.DrawElementsInstanced(
-                PrimitiveType.Triangles,
-                baseChunkModel.getVertexCount(),
-                DrawElementsType.UnsignedInt,
-                IntPtr.Zero,
-                commands.Count
-            );
-
         }
+
         internal override void Finish(RenderEngine renderEngine)
         {
             GL.DisableVertexAttribArray(0);
@@ -229,12 +245,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         public override void CleanUp()
         {
             _terrainShader.cleanUp();
-        }
-
-        public override void PerformCommand(TerrainChunkRenderCommand command, RenderEngine renderEngine)
-        {
-
-            
         }
     }
 }
