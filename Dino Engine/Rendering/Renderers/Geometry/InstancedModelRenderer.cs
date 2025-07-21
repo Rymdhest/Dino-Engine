@@ -6,12 +6,8 @@ using System.Runtime.InteropServices;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
-    public struct InstancedModelRenderCommand : IRenderCommand
-    {
-        public Matrix4[] localToWorldMatrix;
-        public glModel model;
-    }
-    public class InstancedModelRenderer : CommandDrivenRenderer<InstancedModelRenderCommand>
+
+    public class InstancedModelRenderer : CommandDrivenRenderer<ModelRenderCommand>
     {
         private ShaderProgram _modelShader = new ShaderProgram("ModelInstanced.vert", "Model.frag");
         private int _instanceVBO;
@@ -63,15 +59,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         }
 
-        public override void PerformCommand(InstancedModelRenderCommand command, RenderEngine renderEngine)
+        public override void PerformCommand(ModelRenderCommand command, RenderEngine renderEngine)
         {
             glModel glmodel = command.model;
-            int instanceCount = command.localToWorldMatrix.Length;
+            int instanceCount = command.localToWorldMatrices.Length;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
 
             // Upload per-instance matrices
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
-            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, command.localToWorldMatrix, BufferUsageHint.DynamicDraw);
+            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, command.localToWorldMatrices, BufferUsageHint.DynamicDraw);
 
 
             GL.BindVertexArray(glmodel.getVAOID());
@@ -88,6 +84,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(9);
 
             // Set up instanced attributes 6-9 (one-time per VAO, could live in glModel)
+            
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             int vec4Size = Vector4.SizeInBytes;
             for (int i = 0; i < 4; i++)
@@ -97,8 +94,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 GL.VertexAttribPointer(attribLocation, 4, VertexAttribPointerType.Float, false, sizeof(float) * 16, i * vec4Size);
                 GL.VertexAttribDivisor(attribLocation, 1);
             }
+            
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-
+            
             // Draw all instances
             GL.DrawElementsInstanced(
                 PrimitiveType.Triangles,

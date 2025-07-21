@@ -119,10 +119,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                     GL.EnableVertexAttribArray(4);
                     GL.EnableVertexAttribArray(5);
 
-                    Matrix4 transformationMatrix = modelCommand.localToWorldMatrix;
-                    _shadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * cascade.lightViewMatrix * cascade.cascadeProjectionMatrix);
+                    for (int i = 0; i<modelCommand.localToWorldMatrices.Length; i++)
+                    {
+                        Matrix4 transformationMatrix = modelCommand.localToWorldMatrices[i];
+                        _shadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * cascade.lightViewMatrix * cascade.cascadeProjectionMatrix);
 
-                    GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+                        GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+                    } 
                 }
             }
         }

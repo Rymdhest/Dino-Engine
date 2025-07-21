@@ -232,13 +232,13 @@ namespace Dino_Engine.Rendering
             GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            _modelRenderer.RenderPass(this);
-            _instancedModelRenderer.RenderPass(this);
-
             int timerQuery;
             GL.GenQueries(1, out timerQuery);
             GL.BeginQuery(QueryTarget.TimeElapsed, timerQuery);
-            _terrainRenderer.RenderPass(this);
+
+            _modelRenderer.RenderPass(this);
+            _instancedModelRenderer.RenderPass(this);
+
             GL.EndQuery(QueryTarget.TimeElapsed);
             int available;
             do
@@ -249,6 +249,7 @@ namespace Dino_Engine.Rendering
             GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResult, out timeElapsed);
             Console.WriteLine($"GPU time for draw: {timeElapsed / 1_000_000.0} ms");
 
+            _terrainRenderer.RenderPass(this);
             _grassRenderer.RenderPass(this);
 
 

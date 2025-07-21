@@ -39,7 +39,11 @@ namespace Dino_Engine.ECS.Systems
             {
                 var LocalToWorldMatrix = world.GetComponent<LocalToWorldMatrixComponent>(shadowCasters[i]).value;
                 var glModel = world.GetComponent<ModelComponent>(shadowCasters[i]).model;
-                modelRenderCommands[i] = new ModelRenderCommand {localToWorldMatrix = LocalToWorldMatrix, model=glModel};
+
+                var ModelCommand = new ModelRenderCommand();
+                ModelCommand.model = glModel;
+                ModelCommand.localToWorldMatrices = [LocalToWorldMatrix];
+                modelRenderCommands[i] = ModelCommand;
             }
 
             for (int i = 0; i < shadow.cascades.Length; i++)

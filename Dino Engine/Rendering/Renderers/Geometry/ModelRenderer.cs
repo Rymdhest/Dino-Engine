@@ -7,7 +7,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 {
     public struct ModelRenderCommand : IRenderCommand
     {
-        public Matrix4 localToWorldMatrix;
+        public Matrix4[] localToWorldMatrices;
         public glModel model;
     }
     public class ModelRenderer : CommandDrivenRenderer<ModelRenderCommand>
@@ -70,12 +70,16 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(4);
             GL.EnableVertexAttribArray(5);
 
-            Matrix4 transformationMatrix = command.localToWorldMatrix;
-            Matrix4 modelViewMatrix = transformationMatrix*renderEngine.context.viewMatrix;
-            _modelShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
-            _modelShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
+            for (int i = 0; i<command.localToWorldMatrices.Length; i++)
+            {
+                Matrix4 transformationMatrix = command.localToWorldMatrices[i];
+                Matrix4 modelViewMatrix = transformationMatrix * renderEngine.context.viewMatrix;
+                _modelShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
+                _modelShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
 
-            GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+                GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+            }
+
         }
         internal override void Finish(RenderEngine renderEngine)
         {
