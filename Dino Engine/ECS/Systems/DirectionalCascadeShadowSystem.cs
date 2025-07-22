@@ -1,6 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
@@ -11,6 +12,7 @@ namespace Dino_Engine.ECS.Systems
 {
     public class DirectionalCascadeShadowSystem : SystemBase
     {
+        private int minCountForInstanced = 10;
         public DirectionalCascadeShadowSystem()
             : base(new BitMask(
                 typeof(DirectionalLightTag),
@@ -21,40 +23,77 @@ namespace Dino_Engine.ECS.Systems
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
             var direction = entity.Get<DirectionNormalizedComponent>().value;
-            var shadow = entity.Get<DirectionalCascadingShadowComponent>();
+            var shadowCascade = entity.Get<DirectionalCascadingShadowComponent>();
             var cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
-            for (int i = 0; i<shadow.cascades.Length; i++)
+            for (int i = 0; i<shadowCascade.cascades.Length; i++)
             {
-                shadow.cascades[i].lightViewMatrix = CreateLightViewMatrix(direction, cameraPos, shadow.cascades[i].projectionSize);
+                shadowCascade.cascades[i].lightViewMatrix = CreateLightViewMatrix(direction, cameraPos, shadowCascade.cascades[i].projectionSize);
+                shadowCascade.cascades[i].cascadeFrameBuffer.ClearDepth(); //// POTENTIALLY REALLY UGLY AND RENDER RELATED
             }
-            DirectionalShadowRenderCommand command = new DirectionalShadowRenderCommand();
-            command.Cascades = new ShadowCascadeCommand[shadow.cascades.Length];
+            entity.Set(shadowCascade);
 
-            var shadowCasters = world.QueryEntities(new BitMask(
+            var shadowCastingModels = world.QueryEntities(new BitMask(
                 typeof(ModelComponent),
                 typeof(ModelRenderTag),
                 typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
-            ModelRenderCommand[] modelRenderCommands = new ModelRenderCommand[shadowCasters.Count];
-            for (int i = 0; i <shadowCasters.Count; i++)
-            {
-                var LocalToWorldMatrix = world.GetComponent<LocalToWorldMatrixComponent>(shadowCasters[i]).value;
-                var glModel = world.GetComponent<ModelComponent>(shadowCasters[i]).model;
 
-                var ModelCommand = new ModelRenderCommand();
-                ModelCommand.model = glModel;
-                ModelCommand.localToWorldMatrices = [LocalToWorldMatrix];
-                modelRenderCommands[i] = ModelCommand;
+
+            for (int j = 0; j < shadowCascade.cascades.Length; j++)
+            {
+                Shadow cascade = shadowCascade.cascades[j];
+                Dictionary<glModel, List<Matrix4>> commands = new();
+                for (int i = 0; i < shadowCastingModels.Count; i++)
+                {
+                    var LocalToWorldMatrix = world.GetComponent<LocalToWorldMatrixComponent>(shadowCastingModels[i]).value;
+                    var glModel = world.GetComponent<ModelComponent>(shadowCastingModels[i]).model;
+
+                    if (!commands.ContainsKey(glModel)) commands[glModel] = new List<Matrix4>();
+                    commands[glModel].Add(LocalToWorldMatrix);
+                }
+                foreach (var command in commands)
+                {
+                    var ModelCommand = new ModelRenderCommand();
+                    ModelCommand.model = command.Key;
+                    ModelCommand.matrices = command.Value.ToArray();
+
+                    if (ModelCommand.matrices.Length > minCountForInstanced)
+                    {
+                        Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(ModelCommand, cascade);
+                    }
+                    else
+                    {
+                        Engine.RenderEngine._modelRenderer.SubmitShadowCommand(ModelCommand, cascade);
+                    }
+
+                    command.Value.Clear();
+
+                }
+                commands.Clear();
             }
 
-            for (int i = 0; i < shadow.cascades.Length; i++)
+
+
+
+            foreach (Shadow shadow in shadowCascade.cascades)
             {
-                command.Cascades[i].cascade = shadow.cascades[i];
-                command.Cascades[i].modelCommands = modelRenderCommands;
+                var visibleChunks = new List<Entity>();
+
+                var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
+                var viewProjectionMatrix = shadow.lightViewMatrix * shadow.cascadeProjectionMatrix;
+                TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent.QuadTree, new Util.Frustum(viewProjectionMatrix), visibleChunks);
+                var terrainChunksRenderData = new List<TerrainChunkRenderData>();
+                foreach (Entity chunkEntity in visibleChunks)
+                {
+                    TerrainChunkRenderData chunkCommand = new TerrainChunkRenderData();
+                    chunkCommand.chunkPos = world.GetComponent<LocalToWorldMatrixComponent>(chunkEntity).value.ExtractTranslation();
+                    chunkCommand.size = world.GetComponent<ScaleComponent>(chunkEntity).value;
+                    chunkCommand.arrayID = world.GetComponent<TerrainChunkComponent>(chunkEntity).normalHeightTextureArrayID;
+                    terrainChunksRenderData.Add(chunkCommand);
+                }
+
+                Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(terrainChunksRenderData.ToArray(), 0.0f), shadow);
             }
 
-            Engine.RenderEngine._shadowCascadeMapRenderer.SubmitCommand(command);
-
-            entity.Set(shadow);
         }
 
         private static Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 center, float size)

@@ -59,6 +59,12 @@ namespace Dino_Engine.Rendering
             GL.BlitFramebuffer(0, 0, other.settings.resolution.X, other.settings.resolution.Y, 0, 0, this.settings.resolution.X, this.settings.resolution.Y, ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
             unbind();
         }
+        public void ClearDepth()
+        {
+            GL.DepthMask(true);
+            bind();
+            GL.Clear(ClearBufferMask.DepthBufferBit);
+        }
         public void ClearColorDepth()
         {
             bind();

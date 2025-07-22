@@ -6,7 +6,7 @@ using Dino_Engine.Rendering.Renderers.PosGeometry;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
-    internal class ScreenSpaceReflectionRenderer : Renderer
+    internal class ScreenSpaceReflectionRenderer : RenderPassRenderer
     {
         private ShaderProgram ScreenSpaceReflectionShader = new ShaderProgram("Simple.vert", "Screen_Reflection.frag");
         private ShaderProgram combineReflectionShader = new ShaderProgram("Simple.vert", "Combine_Reflection.frag");

@@ -8,7 +8,7 @@ using Dino_Engine.ECS;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
-    public class GaussianBlurRenderer : Renderer
+    public class GaussianBlurRenderer : RenderPassRenderer
     {
         private ShaderProgram _gaussianBlurShader = new ShaderProgram("Gaussian_Blur.vert", "Gaussian_Blur.frag");
         private FrameBuffer _verticalFramebuffer;

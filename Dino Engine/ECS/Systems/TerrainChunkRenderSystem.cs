@@ -19,6 +19,7 @@ namespace Dino_Engine.ECS.Systems
         {
             var visibleChunks = new List<Entity>();
 
+            Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
             Matrix4 CameraViewMatrix = world.GetComponent<ViewMatrixComponent>(world.Camera).value;
             Matrix4 CameraProjectionMatrix = world.GetComponent<PerspectiveProjectionComponent>(world.Camera).ProjectionMatrix;
             var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
@@ -37,7 +38,6 @@ namespace Dino_Engine.ECS.Systems
                 Vector3 chunkPosition = world.GetComponent<LocalToWorldMatrixComponent>(entity).value.ExtractTranslation();
                 Vector3 chunkSize = world.GetComponent<ScaleComponent>(entity).value;
                 float arrayID = world.GetComponent<TerrainChunkComponent>(entity).normalHeightTextureArrayID;
-                Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
                 float distance = Vector2.Distance(cameraPos.Xz, chunkPosition.Xz + chunkSize.Xz * 0.5f);
 
                 TerrainChunkRenderData chunkCommand = new TerrainChunkRenderData();
@@ -73,8 +73,8 @@ namespace Dino_Engine.ECS.Systems
             Engine.RenderEngine._grassRenderer.SubmitCommand(new GrassRenderCommand(grassChunksLOD0.ToArray(), 0));
             Engine.RenderEngine._grassRenderer.SubmitCommand(new GrassRenderCommand(grassChunksLOD1.ToArray(), 1));
 
-            Engine.RenderEngine._terrainRenderer.SubmitCommand(new TerrainRenderCommand(terrainChunksLOD0.ToArray(), 0.07f));
-            Engine.RenderEngine._terrainRenderer.SubmitCommand(new TerrainRenderCommand(terrainChunksLOD1.ToArray(), 0.0f));
+            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD0.ToArray(), 0.07f));
+            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD1.ToArray(), 0.0f));
         }
 
 

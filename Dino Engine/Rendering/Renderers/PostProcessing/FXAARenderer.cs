@@ -4,7 +4,7 @@ using OpenTK.Windowing.Common;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
-    internal class FXAARenderer : Renderer
+    internal class FXAARenderer : RenderPassRenderer
     {
         private ShaderProgram FXAAShader = new ShaderProgram("Simple.vert", "FXAA.frag");
 

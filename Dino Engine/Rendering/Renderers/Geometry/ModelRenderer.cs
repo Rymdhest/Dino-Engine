@@ -2,17 +2,19 @@
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Rendering.Renderers.Lighting;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
     public struct ModelRenderCommand : IRenderCommand
     {
-        public Matrix4[] localToWorldMatrices;
+        public Matrix4[] matrices;
         public glModel model;
     }
-    public class ModelRenderer : CommandDrivenRenderer<ModelRenderCommand>
+    public class ModelRenderer : GeometryCommandDrivenRenderer<ModelRenderCommand>
     {
         private ShaderProgram _modelShader = new ShaderProgram("Model.vert", "Model.frag");
+        private ShaderProgram _modelShadowShader = new ShaderProgram("Model_Shadow.vert", "Shadow.frag");
 
         public ModelRenderer()
         {
@@ -25,17 +27,27 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _modelShader.loadUniformInt("normalMapModelTextureArray", 4);
             _modelShader.loadUniformInt("materialMapModelTextureArray", 5);
             _modelShader.unBind();
+
+            _modelShadowShader.bind();
+            _modelShadowShader.loadUniformInt("albedoMapTextureArray", 0);
+            _modelShadowShader.loadUniformInt("albedoMapModelTextureArray", 3);
+            _modelShadowShader.unBind();
         }
 
-        internal override void Prepare(RenderEngine renderEngine)
+        public override void CleanUp()
         {
+            _modelShadowShader.cleanUp();
+            _modelShader.cleanUp();
+        }
 
+        internal override void PrepareGeometry(RenderEngine renderEngine)
+        {
             GL.Enable(EnableCap.DepthTest);
             //GL.Enable(EnableCap.CullFace);
             GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
-            _modelShader.bind();  
+            _modelShader.bind();
 
             _modelShader.loadUniformFloat("parallaxDepth", 0.05f);
             _modelShader.loadUniformFloat("parallaxLayers", 30f);
@@ -55,10 +67,52 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
             GL.ActiveTexture(TextureUnit.Texture5);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
-
         }
 
-        public override void PerformCommand(ModelRenderCommand command, RenderEngine renderEngine)
+        internal override void FinishGeometry(RenderEngine renderEngine)
+        {
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(1);
+            GL.DisableVertexAttribArray(2);
+            GL.DisableVertexAttribArray(3);
+            GL.DisableVertexAttribArray(4);
+            GL.DisableVertexAttribArray(5);
+            GL.BindVertexArray(0);
+        }
+
+        internal override void PrepareShadow(RenderEngine renderEngine)
+        {
+            GL.DepthMask(true);
+            GL.Enable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.CullFace);
+            GL.Disable(EnableCap.Blend);
+            GL.Enable(EnableCap.PolygonOffsetFill);
+            GL.CullFace(CullFaceMode.Front);
+
+            _modelShadowShader.bind();
+            _modelShadowShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
+
+            GL.ActiveTexture(TextureUnit.Texture3);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
+        }
+
+        internal override void FinishShadow(RenderEngine renderEngine)
+        {
+            GL.Disable(EnableCap.PolygonOffsetFill);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(4);
+            GL.DisableVertexAttribArray(5);
+            GL.DisableVertexAttribArray(6);
+            GL.DisableVertexAttribArray(7);
+        }
+
+        internal override void PerformGeometryCommand(ModelRenderCommand command, RenderEngine renderEngine)
         {
             glModel glmodel = command.model;
 
@@ -70,32 +124,39 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(4);
             GL.EnableVertexAttribArray(5);
 
-            for (int i = 0; i<command.localToWorldMatrices.Length; i++)
+            for (int i = 0; i < command.matrices.Length; i++)
             {
-                Matrix4 transformationMatrix = command.localToWorldMatrices[i];
+                Matrix4 transformationMatrix = command.matrices[i];
                 Matrix4 modelViewMatrix = transformationMatrix * renderEngine.context.viewMatrix;
                 _modelShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
                 _modelShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
 
                 GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
             }
-
         }
-        internal override void Finish(RenderEngine renderEngine)
+
+        internal override void PerformShadowCommand(ModelRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
-            GL.DisableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(1);
-            GL.DisableVertexAttribArray(2);
-            GL.DisableVertexAttribArray(3);
-            GL.DisableVertexAttribArray(4);
-            GL.DisableVertexAttribArray(5);
-            GL.BindVertexArray(0);
-        }
-        public override void CleanUp()
-        {
-            _modelShader.cleanUp();
-        }
+            for (int i = 0; i < command.matrices.Length; i++)
+            {
+                shadow.cascadeFrameBuffer.bind();
+                //GL.Clear(ClearBufferMask.DepthBufferBit);
+                GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
+                //GL.PolygonOffset(4f, 1f);
 
+                glModel glmodel = command.model;
+                GL.BindVertexArray(glmodel.getVAOID());
+                GL.EnableVertexAttribArray(0);
+                GL.EnableVertexAttribArray(4);
+                GL.EnableVertexAttribArray(5);
+                GL.EnableVertexAttribArray(6);
 
+                Matrix4 transformationMatrix = command.matrices[i];
+                _modelShadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.lightViewMatrix * shadow.cascadeProjectionMatrix);
+
+                GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+
+            }
+        }
     }
 }

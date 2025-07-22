@@ -26,14 +26,14 @@ namespace Dino_Engine.ECS.Systems
             {
                 ModelRenderCommand command = new ModelRenderCommand();
                 command.model = cmd.Key;
-                command.localToWorldMatrices = cmd.Value.ToArray();
+                command.matrices = cmd.Value.ToArray();
 
-                if (command.localToWorldMatrices.Length > minCountForInstanced)
+                if (command.matrices.Length > minCountForInstanced)
                 {
-                    Engine.RenderEngine._instancedModelRenderer.SubmitCommand(command);
+                    Engine.RenderEngine._instancedModelRenderer.SubmitGeometryCommand(command);
                 } else
                 {
-                    Engine.RenderEngine._modelRenderer.SubmitCommand(command);
+                    Engine.RenderEngine._modelRenderer.SubmitGeometryCommand(command);
                 }
 
                 cmd.Value.Clear();

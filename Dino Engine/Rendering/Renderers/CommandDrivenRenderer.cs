@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.Rendering.Renderers
 {
-    public abstract class CommandDrivenRenderer<T> : Renderer
+    public abstract class CommandDrivenRenderer<T> : RenderPassRenderer
     {
         protected List<T> commands = new List<T>();
 

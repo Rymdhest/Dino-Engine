@@ -7,7 +7,7 @@ using Dino_Engine.Rendering.Renderers.PostProcessing;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
-    internal class SSAORenderer : Renderer
+    internal class SSAORenderer : RenderPassRenderer
     {
         private ShaderProgram ambientOcclusionShader = new ShaderProgram("Simple.vert", "AmbientOcclusion.frag");
         private ShaderProgram ambientOcclusionPassthroughShader = new ShaderProgram("Simple.vert", "AmbientOcclusion_Passthrough.frag");

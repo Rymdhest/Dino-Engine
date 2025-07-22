@@ -12,7 +12,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public Vector3 colour;
         public Vector3 direction;
         public float ambient;
-        public ShadowCascade[] cascades;
+        public Shadow[] cascades;
     }
 
     public class DirectionalLightRenderer : CommandDrivenRenderer<DirectionallightRenderCommand>
@@ -63,12 +63,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         public override void PerformCommand(DirectionallightRenderCommand command, RenderEngine renderEngine)
         {
+            int CASCADETEXTURESINDEXSTART = 4;
             _directionalLightShader.loadUniformInt("numberOfCascades", command.cascades.Length);
             for (int i = 0; i < command.cascades.Length; i++)
             {
 
-                ShadowCascade cascade = command.cascades[i];
-                _directionalLightShader.loadUniformInt("shadowMaps[" + i + "]", ShadowCascadeMapRenderer.CASCADETEXTURESINDEXSTART + i);
+                Shadow cascade = command.cascades[i];
+                _directionalLightShader.loadUniformInt("shadowMaps[" + i + "]", CASCADETEXTURESINDEXSTART + i);
 
                 _directionalLightShader.loadUniformFloat("cascadeProjectionSizes[" + i + "]", cascade.projectionSize);
                 ActiveTexture(TextureUnit.Texture4 + i);

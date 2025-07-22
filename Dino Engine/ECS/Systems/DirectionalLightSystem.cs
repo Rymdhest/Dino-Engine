@@ -21,13 +21,6 @@ namespace Dino_Engine.ECS.Systems
         {
             DirectionallightRenderCommand command = new DirectionallightRenderCommand();
 
-            float time = Engine.Time*0.0f;
-            float x = MathF.Sin(time);
-            float y = -0.5f;
-            float z = MathF.Cos(time);
-            Vector3 direction = new Vector3(x, y, z);
-            entity.Set(new DirectionNormalizedComponent(direction));
-
             command.colour = entity.Get<ColorComponent>().value.ToVector3();
             command.direction = entity.Get<DirectionNormalizedComponent>().value;
             command.ambient = entity.GetOptional(new AmbientLightComponent(0f)).value;
@@ -36,7 +29,7 @@ namespace Dino_Engine.ECS.Systems
                 command.cascades = entity.Get<DirectionalCascadingShadowComponent>().cascades;
             } else
             {
-                command.cascades = new ShadowCascade[0];
+                command.cascades = new Shadow[0];
             }
 
             Engine.RenderEngine._directionalLightRenderer.SubmitCommand(command);

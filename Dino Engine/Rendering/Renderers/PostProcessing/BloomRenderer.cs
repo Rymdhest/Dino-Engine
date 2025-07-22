@@ -7,7 +7,7 @@ using Dino_Engine.ECS;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
-    internal class BloomRenderer : Renderer
+    internal class BloomRenderer : RenderPassRenderer
     {
         private ShaderProgram downsamplingShader = new ShaderProgram("Simple.vert", "Downsampling.frag");
         private ShaderProgram upsamplingShader = new ShaderProgram("Simple.vert", "Upsampling.frag");

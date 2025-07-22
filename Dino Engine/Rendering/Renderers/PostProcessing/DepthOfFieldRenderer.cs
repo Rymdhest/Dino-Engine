@@ -5,7 +5,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
-    public class DepthOfFieldRenderer : Renderer
+    public class DepthOfFieldRenderer : RenderPassRenderer
     {
         private ShaderProgram _depthOfFieldShader = new ShaderProgram("Simple.vert", "Depth_Of_Field.frag");
 

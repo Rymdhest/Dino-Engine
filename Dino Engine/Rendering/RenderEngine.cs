@@ -47,7 +47,7 @@ namespace Dino_Engine.Rendering
         public ShaderGlobals context = new ShaderGlobals();
         private ShaderGlobals2 globals = new ShaderGlobals2();
 
-        private List<Renderer> _renderers = new List<Renderer>();
+        private List<baseRenderer> _renderers = new List<baseRenderer>();
         
         private FrameBuffer _gBuffer;
 
@@ -59,7 +59,6 @@ namespace Dino_Engine.Rendering
         public InstancedModelRenderer _instancedModelRenderer;
         public DirectionalLightRenderer _directionalLightRenderer;
         public PointLightRenderer _pointLightRenderer;
-        public ShadowCascadeMapRenderer _shadowCascadeMapRenderer;
         private ToneMapRenderer _toneMapRenderer;
         private FXAARenderer _fXAARenderer;
         private SSAORenderer _sSAORenderer;
@@ -126,7 +125,6 @@ namespace Dino_Engine.Rendering
             _instancedModelRenderer = new InstancedModelRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
             _pointLightRenderer = new PointLightRenderer();
-            _shadowCascadeMapRenderer = new ShadowCascadeMapRenderer();
             _toneMapRenderer = new ToneMapRenderer();
             _fXAARenderer = new FXAARenderer();
             _sSAORenderer = new SSAORenderer();
@@ -173,7 +171,7 @@ namespace Dino_Engine.Rendering
             {
             }
             //_grassRenderer.StepSimulation(ScreenQuadRenderer);
-            foreach (Renderer renderer in _renderers)
+            foreach (baseRenderer renderer in _renderers)
             {
                 renderer.Update();
             }
@@ -186,6 +184,9 @@ namespace Dino_Engine.Rendering
         }
         public void Render()
         {
+            int timerQuery;
+            GL.GenQueries(1, out timerQuery);
+            GL.BeginQuery(QueryTarget.TimeElapsed, timerQuery);
 
             PrepareFrame();
 
@@ -196,6 +197,7 @@ namespace Dino_Engine.Rendering
             {
 
                 GeometryPass();
+                ShadowPass();
                 LightPass();
                 PostGeometryPass();
                 PostProcessPass();
@@ -221,23 +223,6 @@ namespace Dino_Engine.Rendering
 
 
             FinishFrame();
-        }
-
-
-
-        private void GeometryPass()
-        {
-            GBuffer.bind();
-            GL.DepthMask(true);
-            GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
-            int timerQuery;
-            GL.GenQueries(1, out timerQuery);
-            GL.BeginQuery(QueryTarget.TimeElapsed, timerQuery);
-
-            _modelRenderer.RenderPass(this);
-            _instancedModelRenderer.RenderPass(this);
 
             GL.EndQuery(QueryTarget.TimeElapsed);
             int available;
@@ -248,8 +233,34 @@ namespace Dino_Engine.Rendering
             long timeElapsed;
             GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResult, out timeElapsed);
             Console.WriteLine($"GPU time for draw: {timeElapsed / 1_000_000.0} ms");
+        }
 
-            _terrainRenderer.RenderPass(this);
+        private void ShadowPass()
+        {
+
+            _terrainRenderer.ShadowRenderPass(this);
+
+
+
+            _modelRenderer.ShadowRenderPass(this);
+            _instancedModelRenderer.ShadowRenderPass(this);
+
+
+        }
+
+        private void GeometryPass()
+        {
+            GBuffer.bind();
+            GL.DepthMask(true);
+            GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            _modelRenderer.GeometryRenderPass(this);
+            _instancedModelRenderer.GeometryRenderPass(this);
+
+
+
+            _terrainRenderer.GeometryRenderPass(this);
             _grassRenderer.RenderPass(this);
 
 
@@ -258,7 +269,6 @@ namespace Dino_Engine.Rendering
         private void LightPass()
         {
             _sSAORenderer.RenderPass(this);
-            _shadowCascadeMapRenderer.RenderPass(this);
 
             _dualBufferFull.GetLastFrameBuffer().bind();
             GL.Clear(ClearBufferMask.ColorBufferBit);
@@ -327,7 +337,7 @@ namespace Dino_Engine.Rendering
         {
             _dualBufferFull.OnResize(eventArgs);
             _gBuffer.resize(eventArgs.Size);
-            foreach(Renderer renderer in _renderers)
+            foreach(baseRenderer renderer in _renderers)
             {
                 renderer.OnResize(eventArgs);
             }
@@ -335,7 +345,7 @@ namespace Dino_Engine.Rendering
 
         public void CleanUp()
         {
-            foreach (Renderer renderer in _renderers)
+            foreach (baseRenderer renderer in _renderers)
             {
                 renderer.CleanUp();
             }
@@ -345,6 +355,6 @@ namespace Dino_Engine.Rendering
             GL.DeleteBuffer(globalsUBO);
         }
 
-        public List<Renderer> Renderers { get => _renderers; }
+        public List<baseRenderer> Renderers { get => _renderers; }
     }
 }

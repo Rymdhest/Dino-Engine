@@ -11,6 +11,7 @@ using Dino_Engine.Textures;
 using Dino_Engine.Util.Data_Structures.Grids;
 using System.Runtime.InteropServices;
 using System;
+using Dino_Engine.Rendering.Renderers.Lighting;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -32,14 +33,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
     }
 
-    public class TerrainRenderer : CommandDrivenRenderer<TerrainRenderCommand>
+    public class TerrainRenderer : GeometryCommandDrivenRenderer<TerrainRenderCommand>
     {
         private ShaderProgram _terrainShader = new ShaderProgram("Terrain.vert", "Terrain.frag");
+        private ShaderProgram _terrainShadowShader = new ShaderProgram("Terrain_Shadow.vert", "Terrain_Shadow.frag");
         private glModel baseChunkModel;
         private int normalHeightTextureArray;
         private IDAllocator<ushort> normalHeightTextureArrayAllocator = new();
         private readonly int MAX_TERRAIN_CHUNKS = 1024;
-        public static readonly int CHUNK_RESOLUTION = 64;
+        public static readonly int CHUNK_RESOLUTION = 32;
 
         private int instanceVBO;
 
@@ -58,7 +60,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShader.unBind();
 
-            
+
+            _terrainShadowShader.bind();
+            _terrainShadowShader.loadUniformInt("normalHeightTextureArray", 6);
+            _terrainShadowShader.unBind();
+
+
             var mesh = MeshGenerator.generatePlane(size : new Vector2(1f, 1f), resolution : new Vector2i(CHUNK_RESOLUTION-1), material : Material.BARK, centerX : false, centerY : false);
             //var mesh = MeshGenerator.generateBox(Material.ROCK);
             vIndex[] vindices = mesh.getAllIndicesArray();
@@ -105,30 +112,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int) TextureWrapMode.ClampToEdge);
             GL.BindTexture(TextureTarget.Texture2DArray, 0);
 
-        }
-
-        public override void PerformCommand(TerrainRenderCommand command, RenderEngine renderEngine)
-        {
-            _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
-            _terrainShader.loadUniformFloat("parallaxLayers", 32);
-
-            int numberOfChunks = command.chunks.Length;
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, instanceVBO);
-            GL.BufferData(BufferTarget.ArrayBuffer,
-                numberOfChunks * Marshal.SizeOf<TerrainChunkRenderData>(),
-                command.chunks,
-                BufferUsageHint.DynamicDraw);
-
-
-            GL.BindVertexArray(baseChunkModel.getVAOID());
-            GL.DrawElementsInstanced(
-                PrimitiveType.Triangles,
-                baseChunkModel.getVertexCount(),
-                DrawElementsType.UnsignedInt,
-                IntPtr.Zero,
-                numberOfChunks
-            );
         }
 
         public int GetNormalHeightTextureArray()
@@ -180,19 +163,25 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             return id;
         }
 
-        internal override void Prepare(RenderEngine renderEngine)
-        {
 
+        public override void CleanUp()
+        {
+            _terrainShader.cleanUp();
+            _terrainShadowShader.cleanUp();
+        }
+
+        internal override void PrepareGeometry(RenderEngine renderEngine)
+        {
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
             _terrainShader.bind();
-            
+
             _terrainShader.loadUniformFloat("textureTileSize", 5.0f);
-            
+
             _terrainShader.loadUniformBool("DEBUG_VIEW", false);
-            _terrainShader.loadUniformFloat("textureMapOffset", (1.0f/(CHUNK_RESOLUTION)));
+            _terrainShader.loadUniformFloat("textureMapOffset", (1.0f / (CHUNK_RESOLUTION)));
             _terrainShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
             GL.ActiveTexture(TextureUnit.Texture0);
@@ -232,7 +221,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _terrainShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);
         }
 
-        internal override void Finish(RenderEngine renderEngine)
+        internal override void FinishGeometry(RenderEngine renderEngine)
         {
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);
@@ -242,9 +231,91 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.DisableVertexAttribArray(5);
             GL.BindVertexArray(0);
         }
-        public override void CleanUp()
+
+        internal override void PrepareShadow(RenderEngine renderEngine)
         {
-            _terrainShader.cleanUp();
+            GL.DepthMask(true);
+            GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.CullFace);
+            GL.Disable(EnableCap.Blend);
+            GL.Enable(EnableCap.PolygonOffsetFill);
+            GL.CullFace(CullFaceMode.Front);
+
+            _terrainShadowShader.bind();
+
+            _terrainShader.loadUniformFloat("textureMapOffset", (1.0f / (CHUNK_RESOLUTION)));
+
+            GL.ActiveTexture(TextureUnit.Texture6);
+            GL.BindTexture(TextureTarget.Texture2DArray, normalHeightTextureArray);
+
+            GL.BindVertexArray(baseChunkModel.getVAOID());
+            GL.EnableVertexAttribArray(0);
+            GL.EnableVertexAttribArray(3);
+            GL.EnableVertexAttribArray(4);
+            GL.EnableVertexAttribArray(5);
+        }
+
+        internal override void FinishShadow(RenderEngine renderEngine)
+        {
+            GL.Disable(EnableCap.PolygonOffsetFill);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(3);
+            GL.DisableVertexAttribArray(4);
+            GL.DisableVertexAttribArray(5);
+        }
+
+        internal override void PerformGeometryCommand(TerrainRenderCommand command, RenderEngine renderEngine)
+        {
+            _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
+            _terrainShader.loadUniformFloat("parallaxLayers", 32);
+
+            int numberOfChunks = command.chunks.Length;
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, instanceVBO);
+            GL.BufferData(BufferTarget.ArrayBuffer,
+                numberOfChunks * Marshal.SizeOf<TerrainChunkRenderData>(),
+                command.chunks,
+                BufferUsageHint.DynamicDraw);
+
+
+            GL.BindVertexArray(baseChunkModel.getVAOID());
+            GL.DrawElementsInstanced(
+                PrimitiveType.Triangles,
+                baseChunkModel.getVertexCount(),
+                DrawElementsType.UnsignedInt,
+                IntPtr.Zero,
+                numberOfChunks
+            );
+        }
+
+        internal override void PerformShadowCommand(TerrainRenderCommand command, Shadow shadow, RenderEngine renderEngine)
+        {
+            int numberOfChunks = command.chunks.Length;
+
+            shadow.cascadeFrameBuffer.bind();
+            GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
+
+            Matrix4 projectionViewMatrix = shadow.lightViewMatrix * shadow.cascadeProjectionMatrix;
+            _terrainShadowShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, instanceVBO);
+            GL.BufferData(BufferTarget.ArrayBuffer,
+                numberOfChunks * Marshal.SizeOf<TerrainChunkRenderData>(),
+                command.chunks,
+                BufferUsageHint.DynamicDraw);
+
+
+            GL.BindVertexArray(baseChunkModel.getVAOID());
+            GL.DrawElementsInstanced(
+                PrimitiveType.Triangles,
+                baseChunkModel.getVertexCount(),
+                DrawElementsType.UnsignedInt,
+                IntPtr.Zero,
+                numberOfChunks
+            );
         }
     }
 }

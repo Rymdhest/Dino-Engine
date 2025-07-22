@@ -7,7 +7,7 @@ using OpenTK.Mathematics;
 namespace Dino_Engine.Rendering.Renderers.PosGeometry
 {
 
-    public class SkyRenderer : Renderer
+    public class SkyRenderer : RenderPassRenderer
     {
         private ShaderProgram skyShader = new ShaderProgram("Simple.vert", "sky.frag");
 

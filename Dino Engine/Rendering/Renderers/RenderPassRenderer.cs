@@ -10,11 +10,10 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.Rendering.Renderers
 {
-    public abstract class Renderer
+    public abstract class RenderPassRenderer : baseRenderer
     {
-        public Renderer()
+        public RenderPassRenderer() : base()
         {
-            Engine.RenderEngine.Renderers.Add(this);
         }
         public void RenderPass(RenderEngine renderEngine)
         {
@@ -27,8 +26,5 @@ namespace Dino_Engine.Rendering.Renderers
         internal abstract void Prepare(RenderEngine renderEngine);
         internal abstract void Finish(RenderEngine renderEngine);
         internal abstract void Render(RenderEngine renderEngine);
-        public virtual void OnResize(ResizeEventArgs eventArgs) { }
-        public virtual void Update() { }
-        public abstract void CleanUp();
     }
 }

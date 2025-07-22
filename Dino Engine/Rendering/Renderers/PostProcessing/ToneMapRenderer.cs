@@ -5,7 +5,7 @@ using OpenTK.Windowing.Common;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
-    internal class ToneMapRenderer : Renderer
+    internal class ToneMapRenderer : RenderPassRenderer
     {
         private ShaderProgram HDRMapShader = new ShaderProgram("Simple.vert", "HDR_Mapper.frag");
 

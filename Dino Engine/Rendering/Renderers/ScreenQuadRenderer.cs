@@ -10,7 +10,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.Rendering.Renderers
 {
-    public class ScreenQuadRenderer : Renderer
+    public class ScreenQuadRenderer : RenderPassRenderer
     {
         glModel _quadModel;
         public ScreenQuadRenderer() {

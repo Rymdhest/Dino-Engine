@@ -5,7 +5,7 @@ using Dino_Engine.Rendering.Renderers.PosGeometry;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
-    internal class FogRenderer : Renderer
+    internal class FogRenderer : RenderPassRenderer
     {
         private ShaderProgram fogShader = new ShaderProgram("Simple.vert", "Fog.frag");
         private float time = 0;
