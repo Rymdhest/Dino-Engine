@@ -24,3 +24,11 @@ vec3 ReconstructWorldSpacePosition(vec2 fragCoord, float depth, mat4 invProjecti
     vec4 worldPos = invView * vec4(viewPos, 1.0);
     return worldPos.xyz;
 }
+
+vec3 compressNormal(vec3 normal) {
+    return normal*0.5f+0.5f;
+}
+
+vec3 unCompressNormal(vec3 normal) {
+    return normal * 2.0f - 1.0f;
+}

@@ -75,7 +75,7 @@ vec3 SSR(vec3 position, vec3 reflection) {
 
 void main(){
 	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolutionSSR);
-	vec3 normal =  texture(gNormal, textureCoords).xyz;
+	vec3 normal =  unCompressNormal(texture(gNormal, textureCoords).xyz);
 	float rougness = texture(gMaterials, textureCoords).r*0.5f;
 	float metallic = texture(gMaterials, textureCoords).b;
 	vec3 modelColor = texture(shadedColor, textureCoords).rgb;

@@ -26,6 +26,7 @@ layout (location = 2) out vec4 gMaterials;
 
 #include textureUtil.glsl
 #include procedural/fastHash.glsl
+#include gBufferUtil.glsl
 
 void main() {
 
@@ -43,8 +44,7 @@ void main() {
     //gAlbedo.rgb = vec3(fract(fragUV), 0f);
 	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex).xyzw;
     gNormal.a = normalTangentSpace.a;
-	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;
-	gNormal.xyz = normalize(normalTBN*normalTangentSpace.xyz);
+	gNormal.xyz = compressNormal(normalize(normalTBN*normalTangentSpace.xyz));
     if (!gl_FrontFacing) gNormal *= -1.0;
 
 	gMaterials = lookupMaterial(parallaxedCoords, textureIndex).rgba;

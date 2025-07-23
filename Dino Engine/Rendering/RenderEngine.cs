@@ -150,8 +150,8 @@ namespace Dino_Engine.Rendering
             gBufferSettings.drawBuffers.Add(gAlbedo);
 
             DrawBufferSettings gNormal = new DrawBufferSettings(FramebufferAttachment.ColorAttachment1);
-            gNormal.formatInternal = PixelInternalFormat.Rgba16f;
-            gNormal.pixelType = PixelType.Float;
+            gNormal.formatInternal = PixelInternalFormat.Rgba8;
+            gNormal.pixelType = PixelType.UnsignedByte;
             gBufferSettings.drawBuffers.Add(gNormal);
 
             DrawBufferSettings gMaterials = new DrawBufferSettings(FramebufferAttachment.ColorAttachment2);
@@ -258,8 +258,6 @@ namespace Dino_Engine.Rendering
 
             _modelRenderer.GeometryRenderPass(this);
             _instancedModelRenderer.GeometryRenderPass(this);
-
-
 
             _terrainRenderer.GeometryRenderPass(this);
             _grassRenderer.GeometryRenderPass(this);

@@ -23,7 +23,7 @@ void main(void){
 	vec4 normalBuffer = texture(gNormal, textureCoords).xyzw;
 	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
 	vec3 materialBuffer = texture(gMaterials, textureCoords).rgb;
-	vec3 normal = normalBuffer.xyz;
+	vec3 normal = unCompressNormal(normalBuffer.xyz);
 	float ambient = normalBuffer.w;
 	float roughness = materialBuffer.r;
 	float metallic = materialBuffer.b;

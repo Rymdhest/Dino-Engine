@@ -1,7 +1,6 @@
 #version 420
 
 #include gBufferUtil.glsl
-
 #include Globals.glsl
 
 out vec3 FragColor;
@@ -29,7 +28,7 @@ void main()
 {
     // Get input for SSAO algorithm
     vec3 fragPos = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolution);
-    vec3 normal = texture(gNormal, textureCoords).rgb;
+    vec3 normal = unCompressNormal(texture(gNormal, textureCoords).rgb);
 	//normal = normalize(normal);
    vec3 randomVec = texture(texNoise, textureCoords*noiseScale).xyz;
    //vec3 randomVec = vec3(1.0, 1.0, 0.0);

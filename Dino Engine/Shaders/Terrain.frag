@@ -30,6 +30,7 @@ layout (location = 1) out vec4 gNormal;
 layout (location = 2) out vec4 gMaterials;  
 
 #include textureUtil.glsl
+#include gBufferUtil.glsl
 #include procedural/fastHash.glsl
 
 
@@ -65,8 +66,7 @@ void main() {
     if (gAlbedo.a < 0.5f) discard;
 	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex).xyzw;
     gNormal.a = normalTangentSpace.a;
-	normalTangentSpace.xyz = normalTangentSpace.xyz*2-1;
-	gNormal.xyz = normalize( normalTBN*normalTangentSpace.xyz);
+	gNormal.xyz = compressNormal(normalize( normalTBN*normalTangentSpace.xyz));
 
 
 	gMaterials = lookupMaterial(parallaxedCoords, textureIndex).rgba;

@@ -22,12 +22,15 @@ vec4 lookupNorma(vec2 coords, float index) {
         isMaterial = false;
         index -= numberOfMaterials;
     }
+    vec4 normal;
     if (isMaterial) {
-        return texture(normalMapTextureArray, vec3(coords, index));
+        normal = texture(normalMapTextureArray, vec3(coords, index));
     }
     else {
-        return texture(normalMapModelTextureArray, vec3(coords, index));
+        normal = texture(normalMapModelTextureArray, vec3(coords, index));
     }
+    normal.xyz = normal.xyz * 2.0 - 1.0;
+    return normal;
 }
 
 vec4 lookupMaterial(vec2 coords, float index) {
