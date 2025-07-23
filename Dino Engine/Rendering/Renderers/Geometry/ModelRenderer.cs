@@ -137,9 +137,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(ModelRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
+            shadow.cascadeFrameBuffer.bind();
             for (int i = 0; i < command.matrices.Length; i++)
             {
-                shadow.cascadeFrameBuffer.bind();
                 //GL.Clear(ClearBufferMask.DepthBufferBit);
                 GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
                 //GL.PolygonOffset(4f, 1f);

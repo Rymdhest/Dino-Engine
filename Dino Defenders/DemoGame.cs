@@ -180,11 +180,11 @@ namespace Dino_Defenders
             world.ApplyDeferredCommands();
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
-                new DirectionNormalizedComponent(new Vector3(-1f, -6.5f, 5.9f)),
+                new DirectionNormalizedComponent(new Vector3(-1f, -2.5f, 5.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 25.0f)),
                 new AmbientLightComponent(0.03f),
                 new CelestialBodyComponent(),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 2, 1000)
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
             );
             
             for (int i = 0; i<0; i++)
@@ -425,7 +425,7 @@ namespace Dino_Defenders
             float terrainSize = 200f;
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
-            for (int i = 0; i<400; i++)
+            for (int i = 0; i<40; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
@@ -445,7 +445,7 @@ namespace Dino_Defenders
             Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(2, Material.ROCK);
             RockMesh.FlatRandomness(0.15f);
             glModel rockModel = glLoader.loadToVAO(RockMesh);
-            for (int i = 0; i < 200; i++)
+            for (int i = 0; i < 20; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);

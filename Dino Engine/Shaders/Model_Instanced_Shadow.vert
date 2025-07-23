@@ -8,11 +8,10 @@ layout(location=6) in mat4 modelMatrix;
 
 out float textureIndex;
 out vec2 fragUV;
-uniform mat4 projectionMatrix;
-uniform mat4 viewMatrix;
+uniform mat4 viewpPojectionMatrix;
 
 void main(void){
-	gl_Position = projectionMatrix * viewMatrix * modelMatrix*vec4(position, 1.0);
+	gl_Position = viewpPojectionMatrix * modelMatrix*vec4(position, 1.0);
 	fragUV = uv;
 	textureIndex = materialIndex;
 }

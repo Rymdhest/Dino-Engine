@@ -4,18 +4,13 @@
 #include globals.glsl
 
 layout(location=0) in vec3 position;
-layout(location=2) in vec3 normal;
 
 
 layout(std140, binding = 5) uniform ChunkDataBuffer {
     vec4 chunkData[1024]; 
 };
 
-out vec3 fragColor;
-out vec3 fragNormal;
 out float valid;
-out float tipFactor;
-out vec3 terrainNormal;
 
 
 uniform float swayAmount;
@@ -25,15 +20,13 @@ uniform float heightError;
 uniform float radiusError;
 uniform float cutOffThreshold;
 uniform float cutOffRange;
-uniform float colourError;
-uniform vec3 baseColor;
 uniform float steepnessCutoffStrength;
 
 uniform int bladesPerChunk;
 uniform int bladesPerAxis;
 
 uniform float textureMapOffset;
-
+uniform mat4 shadowViewProjectionMatrix;
 
 uniform sampler2DArray heightmaps;
 uniform sampler2D grassNoise;
@@ -86,11 +79,10 @@ vec4 readHeightmap(vec2 uv, int chunkID) {
 void main() {
 
 	valid = 1.0f;
-	tipFactor = position.y/bladeHeight;
+	float tipFactor = position.y/bladeHeight;
 	
     int chunkIndex = gl_InstanceID / bladesPerChunk;
     int bladeIndex = gl_InstanceID % bladesPerChunk;
-
 
     vec4 chunkDataVector = chunkData[chunkIndex];
     vec2 chunkOrigin = chunkDataVector.xy;
@@ -106,7 +98,7 @@ void main() {
 		heightMapData = readHeightmap(bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
 	}
 	vec3 bladePositionWorld = vec3(chunkOrigin.x, 0, chunkOrigin.y)+vec3(bladePositionChunkSpace.x, 0, bladePositionChunkSpace.y)+vec3(0, heightMapData.w, 0);
-	terrainNormal = heightMapData.xyz;
+	vec3 terrainNormal = heightMapData.xyz;
 	float steepness = 1.0-dot(vec3(0.0, 1.0, 0.0), terrainNormal);
 	
 	vec3 VertexPositionLocal = position;
@@ -145,12 +137,5 @@ void main() {
 	
 	vec3 vertexPositionWorld = VertexPositionLocal+bladePositionWorld;
 
-	fragColor = baseColor+baseColor*hash23(bladeWorldSeed)*colourError*2-colourError*baseColor;
-	//vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
-	vec3 rotatedNormal = transpose(inverse(localRotMatrix))*normal.xyz;
-	//vec3 rotatedNormal = localRotMatrix*normal.xyz;
-	vec3 adjustedNormal = normalize(rotatedNormal);
-	fragNormal = (transpose(invViewMatrix)*vec4(adjustedNormal, 1.0f)).xyz;
-	terrainNormal =  (transpose(invViewMatrix)*vec4(terrainNormal, 1.0f)).xyz;
-	gl_Position =  projectionMatrix*viewMatrix*vec4(vertexPositionWorld, 1.0);
+	gl_Position =  shadowViewProjectionMatrix*vec4(vertexPositionWorld, 1.0);
 }

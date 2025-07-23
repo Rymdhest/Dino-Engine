@@ -239,6 +239,7 @@ namespace Dino_Engine.Rendering
         {
 
             _terrainRenderer.ShadowRenderPass(this);
+            _grassRenderer.ShadowRenderPass(this);
 
 
 
@@ -261,7 +262,7 @@ namespace Dino_Engine.Rendering
 
 
             _terrainRenderer.GeometryRenderPass(this);
-            _grassRenderer.RenderPass(this);
+            _grassRenderer.GeometryRenderPass(this);
 
 
             _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);

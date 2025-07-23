@@ -487,7 +487,7 @@ namespace Dino_Engine.Textures
         private int createGrassTexture()
         {
             MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
-            roughLayer.setMaterial(new Colour(50, 75, 10), new Vector3(0.65f, 0f, 0.0f));
+            roughLayer.setMaterial(new Colour(40, 55, 10), new Vector3(0.65f, 0f, 0.0f));
             return FinishTexture(roughLayer);
         }
         private int createGrainTexture()

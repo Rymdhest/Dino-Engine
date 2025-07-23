@@ -32,12 +32,13 @@ namespace Dino_Engine.ECS.Systems
             }
             entity.Set(shadowCascade);
 
+
+
+            // MODELS
             var shadowCastingModels = world.QueryEntities(new BitMask(
                 typeof(ModelComponent),
                 typeof(ModelRenderTag),
                 typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
-
-
             for (int j = 0; j < shadowCascade.cascades.Length; j++)
             {
                 Shadow cascade = shadowCascade.cascades[j];
@@ -73,10 +74,13 @@ namespace Dino_Engine.ECS.Systems
 
 
 
-
+            // Terrain
             foreach (Shadow shadow in shadowCascade.cascades)
             {
                 var visibleChunks = new List<Entity>();
+
+                var grassChunksLOD0 = new List<GrassChunkRenderData>();
+                var grassChunksLOD1 = new List<GrassChunkRenderData>();
 
                 var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
                 var viewProjectionMatrix = shadow.lightViewMatrix * shadow.cascadeProjectionMatrix;
@@ -84,16 +88,43 @@ namespace Dino_Engine.ECS.Systems
                 var terrainChunksRenderData = new List<TerrainChunkRenderData>();
                 foreach (Entity chunkEntity in visibleChunks)
                 {
+                    Vector3 chunkPosition = world.GetComponent<LocalToWorldMatrixComponent>(chunkEntity).value.ExtractTranslation();
+                    Vector3 chunkSize = world.GetComponent<ScaleComponent>(chunkEntity).value;
+                    float arrayID = world.GetComponent<TerrainChunkComponent>(chunkEntity).normalHeightTextureArrayID;
                     TerrainChunkRenderData chunkCommand = new TerrainChunkRenderData();
-                    chunkCommand.chunkPos = world.GetComponent<LocalToWorldMatrixComponent>(chunkEntity).value.ExtractTranslation();
-                    chunkCommand.size = world.GetComponent<ScaleComponent>(chunkEntity).value;
-                    chunkCommand.arrayID = world.GetComponent<TerrainChunkComponent>(chunkEntity).normalHeightTextureArrayID;
+                    chunkCommand.chunkPos = chunkPosition;
+                    chunkCommand.size = chunkSize;
+                    chunkCommand.arrayID = arrayID;
                     terrainChunksRenderData.Add(chunkCommand);
+
+                    GrassChunkRenderData grassCommand = new GrassChunkRenderData();
+                    grassCommand.chunkPos = chunkPosition.Xz;
+                    grassCommand.size = chunkSize.X;
+                    grassCommand.arrayID = arrayID;
+
+                    float distance = Vector2.Distance(cameraPos.Xz, chunkPosition.Xz + chunkSize.Xz * 0.5f);
+
+                    if (distance < 0)
+                    {
+                        grassChunksLOD0.Add(grassCommand);
+                    }
+                    else if (distance < 20)
+                    {
+                        grassChunksLOD1.Add(grassCommand);
+                    }
                 }
+
+                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(grassChunksLOD0.ToArray(), 0), shadow);
+                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(grassChunksLOD1.ToArray(), 1), shadow);
+
 
                 Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(terrainChunksRenderData.ToArray(), 0.0f), shadow);
             }
 
+
+
+
+            // GRASS
         }
 
         private static Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 center, float size)

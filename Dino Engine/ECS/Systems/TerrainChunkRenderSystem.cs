@@ -60,7 +60,7 @@ namespace Dino_Engine.ECS.Systems
                 grassCommand.chunkPos = chunkPosition.Xz;
                 grassCommand.size = chunkSize.X;
                 grassCommand.arrayID = arrayID;
-                if (distance < 6)
+                if (distance < 5)
                 {
                     grassChunksLOD0.Add(grassCommand);
                 }
@@ -70,10 +70,10 @@ namespace Dino_Engine.ECS.Systems
                 }
             }
 
-            Engine.RenderEngine._grassRenderer.SubmitCommand(new GrassRenderCommand(grassChunksLOD0.ToArray(), 0));
-            Engine.RenderEngine._grassRenderer.SubmitCommand(new GrassRenderCommand(grassChunksLOD1.ToArray(), 1));
+            Engine.RenderEngine._grassRenderer.SubmitGeometryCommand(new GrassRenderCommand(grassChunksLOD0.ToArray(), 0));
+            Engine.RenderEngine._grassRenderer.SubmitGeometryCommand(new GrassRenderCommand(grassChunksLOD1.ToArray(), 1));
 
-            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD0.ToArray(), 0.07f));
+            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD0.ToArray(), 0.0f));
             Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD1.ToArray(), 0.0f));
         }
 

@@ -15,7 +15,7 @@ namespace Dino_Engine.ECS.Components
             for (int i = 0; i < numCascades; i++)
             {
                 cascadesTemp.Add(new Shadow(resolution, size, size * 0.001f+6f) );
-                size /= 3.0f;
+                size /= 6.0f;
             }
             cascadesTemp.Sort((p1, p2) => p1.projectionSize.CompareTo(p2.projectionSize));
 

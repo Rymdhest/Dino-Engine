@@ -179,8 +179,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             int instanceCount = command.matrices.Length;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
 
-            _instancedModelShadowShader.loadUniformMatrix4f("projectionMatrix", shadow.cascadeProjectionMatrix);
-            _instancedModelShadowShader.loadUniformMatrix4f("viewMatrix", shadow.lightViewMatrix);
+            _instancedModelShadowShader.loadUniformMatrix4f("viewpPojectionMatrix",shadow.lightViewMatrix* shadow.cascadeProjectionMatrix);
 
             // Upload per-instance matrices
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
