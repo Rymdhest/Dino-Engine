@@ -6,11 +6,11 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     public struct Shadow
     {
         public Matrix4 lightViewMatrix;
-        public Matrix4 cascadeProjectionMatrix;
-        public FrameBuffer cascadeFrameBuffer;
+        public Matrix4 shadowProjectionMatrix;
+        public FrameBuffer shadowFrameBuffer;
         public float projectionSize;
         public float polygonOffset;
-        public Shadow(Vector2i resolution, float projectionSize, float polygonOffset)
+        public Shadow(Vector2i resolution, Matrix4 lightProjectionMatrix, float projectionSize, float polygonOffset)
         {
             this.projectionSize = projectionSize;
             this.polygonOffset = polygonOffset;
@@ -19,9 +19,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             depthAttachmentSettings.isTexture = true;
             depthAttachmentSettings.isShadowDepthTexture = true;
             settings.depthAttachmentSettings = depthAttachmentSettings;
-            cascadeFrameBuffer = new FrameBuffer(settings);
+            shadowFrameBuffer = new FrameBuffer(settings);
             lightViewMatrix = Matrix4.Identity;
-            cascadeProjectionMatrix = Matrix4.CreateOrthographic(projectionSize, projectionSize, -projectionSize, projectionSize);
+            this.shadowProjectionMatrix = lightProjectionMatrix;
         }
     }
 }

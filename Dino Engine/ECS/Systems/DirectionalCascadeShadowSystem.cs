@@ -28,7 +28,7 @@ namespace Dino_Engine.ECS.Systems
             for (int i = 0; i<shadowCascade.cascades.Length; i++)
             {
                 shadowCascade.cascades[i].lightViewMatrix = CreateLightViewMatrix(direction, cameraPos, shadowCascade.cascades[i].projectionSize);
-                shadowCascade.cascades[i].cascadeFrameBuffer.ClearDepth(); //// POTENTIALLY REALLY UGLY AND RENDER RELATED
+                shadowCascade.cascades[i].shadowFrameBuffer.ClearDepth(); //// POTENTIALLY REALLY UGLY AND RENDER RELATED
             }
             entity.Set(shadowCascade);
 
@@ -79,11 +79,10 @@ namespace Dino_Engine.ECS.Systems
             {
                 var visibleChunks = new List<Entity>();
 
-                var grassChunksLOD0 = new List<GrassChunkRenderData>();
-                var grassChunksLOD1 = new List<GrassChunkRenderData>();
+                var grassChunks = new List<GrassChunkRenderData>();
 
                 var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
-                var viewProjectionMatrix = shadow.lightViewMatrix * shadow.cascadeProjectionMatrix;
+                var viewProjectionMatrix = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
                 TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent.QuadTree, new Util.Frustum(viewProjectionMatrix), visibleChunks);
                 var terrainChunksRenderData = new List<TerrainChunkRenderData>();
                 foreach (Entity chunkEntity in visibleChunks)
@@ -104,19 +103,14 @@ namespace Dino_Engine.ECS.Systems
 
                     float distance = Vector2.Distance(cameraPos.Xz, chunkPosition.Xz + chunkSize.Xz * 0.5f);
 
-                    if (distance < 0)
+                    if (distance < 35)
                     {
-                        grassChunksLOD0.Add(grassCommand);
-                    }
-                    else if (distance < 20)
-                    {
-                        grassChunksLOD1.Add(grassCommand);
+                        grassChunks.Add(grassCommand);
                     }
                 }
 
-                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(grassChunksLOD0.ToArray(), 0), shadow);
-                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(grassChunksLOD1.ToArray(), 1), shadow);
-
+                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(grassChunks.ToArray(), 0), shadow);
+  
 
                 Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(terrainChunksRenderData.ToArray(), 0.0f), shadow);
             }

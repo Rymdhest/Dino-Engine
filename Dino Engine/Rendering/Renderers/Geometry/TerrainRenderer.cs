@@ -203,7 +203,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShader.loadUniformVector3f("viewPos", renderEngine.context.viewPos);
 
-            _terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.grass);
+            _terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.soil);
             _terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.rock);
 
             GL.BindVertexArray(baseChunkModel.getVAOID());
@@ -295,10 +295,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             int numberOfChunks = command.chunks.Length;
 
-            shadow.cascadeFrameBuffer.bind();
+            shadow.shadowFrameBuffer.bind();
             GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
 
-            Matrix4 projectionViewMatrix = shadow.lightViewMatrix * shadow.cascadeProjectionMatrix;
+            Matrix4 projectionViewMatrix = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
             _terrainShadowShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, instanceVBO);

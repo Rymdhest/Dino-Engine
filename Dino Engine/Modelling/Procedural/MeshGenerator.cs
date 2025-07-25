@@ -11,15 +11,11 @@ namespace Dino_Engine.Modelling
 
         public static Mesh GenerateCone(Material material)
         {
-
-
             List<Vector3> trunkLayers = new List<Vector3>() {
                 //new Vector3(outerRadius, 0f, outerRadius),
-                new Vector3(0, 0, 0),
-                new Vector3(0.5f, 1, 0.5f),
-                new Vector3(0, 1, 0) };
-            Mesh mesh = MeshGenerator.generateCylinder(trunkLayers, 7, material);
-            mesh.rotate(new Vector3(MathF.PI, 0f, 0f));
+                new Vector3(0.5f, 0.0f, 0.5f) };
+            Mesh mesh = MeshGenerator.generateCylinder(trunkLayers, 7, material, sealTop:1.0f, sealBot:0.0f);
+            mesh.translate(new Vector3(0, -1.0f, 0f));
             return mesh;
         }
         public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, Material material, float sealTop = float.NaN)
@@ -140,7 +136,7 @@ namespace Dino_Engine.Modelling
             return new Mesh(vertices, indices);
         }
 
-        public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material, float sealTop = float.NaN)
+        public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material, float sealTop = float.NaN, float sealBot = float.NaN)
         {
             int textureRepeats = 1;
 
@@ -235,6 +231,34 @@ namespace Dino_Engine.Modelling
 
                     indices.Add(new vIndex(++indexOffset));
                     indices.Add(new vIndex(centerIndex));
+
+
+                    if (detail >= polygonsPerRing - 1) indexOffset = centerIndex;
+
+                    indices.Add(new vIndex(indexOffset + 1));
+                }
+            }
+
+            if (sealBot != float.NaN)
+            {
+                int ring = 0;
+                float x = 0;
+                float z = 0;
+                float y = rings[ring].Y + sealBot;
+                Vector3 center = new Vector3(x, y, z);
+
+                vertices.Add(new Vertex(center, material, new Vector2(0.0f, 0.0f)));
+                int centerIndex = vertices.Count - 1;
+                int indexOffset = centerIndex;
+                for (int detail = 0; detail < polygonsPerRing; detail++)
+                {
+                    int current = detail;
+
+                    Vector3 p1 = vertices[current].position;
+                    indices.Add(new vIndex(centerIndex));
+                    indices.Add(new vIndex(++indexOffset));
+                    vertices.Add(new Vertex(p1, material, new Vector2(p1.X, p1.Z) * 0.5f));
+
 
 
                     if (detail >= polygonsPerRing - 1) indexOffset = centerIndex;

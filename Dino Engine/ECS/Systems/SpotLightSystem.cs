@@ -13,7 +13,6 @@ namespace Dino_Engine.ECS.Systems
         public SpotLightSystem()
             : base(new BitMask(
                 typeof(SpotLightComponent),
-                typeof(PositionComponent),
                 typeof(LocalToWorldMatrixComponent),
                 typeof(AttunuationComponent),
                 typeof(ColorComponent),
@@ -36,6 +35,14 @@ namespace Dino_Engine.ECS.Systems
             command.cutoffCosine = entity.Get<SpotLightComponent>().CutoffCosine;
             command.ambient = entity.GetOptional(new AmbientLightComponent(0f)).value;
 
+            if (entity.Has<SpotlightShadowComponent>())
+            {
+                command.shadow = entity.Get<SpotlightShadowComponent>().shadow;
+            }
+            else
+            {
+                command.shadow = null;
+            }
 
             Engine.RenderEngine._spotLightRenderer.SubmitCommand(command);
         }

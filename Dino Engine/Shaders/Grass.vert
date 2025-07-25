@@ -16,7 +16,9 @@ out vec3 fragNormal;
 out float valid;
 out float tipFactor;
 out vec3 terrainNormal;
+out float depth;
 
+uniform bool isBillboard;
 
 uniform float swayAmount;
 uniform float bladeHeight;
@@ -111,7 +113,7 @@ void main() {
 	
 	vec3 VertexPositionLocal = position;
 	vec2 bladeWorldSeed = chunkOrigin+gridPosition;
-	bladeWorldSeed *= 10.0; // avoid hashing breaking with too small differences in values
+	bladeWorldSeed *= 1.0; // avoid hashing breaking with too small differences in values
 	float bladeRandomValue = hash21(bladeWorldSeed);
 	float voronoiNoiseFactor = texture(grassNoise, bladePositionWorld.xz*0.01).w;
 	float heightErrorFactor = 1.0+hash11(bladeIndex)*2.0*heightError-heightError;
@@ -127,10 +129,16 @@ void main() {
 	VertexPositionLocal.y *= heightFactor;
 	VertexPositionLocal.xz *= 1.0+bladeRandomValue*2.0*radiusError-radiusError;
 
-	float rotX = bladeRandomValue*PI*tipFactor*bendyness;
-	float rotZ = bladeRandomValue*PI*tipFactor*bendyness;
-	float rotY = bladeRandomValue*PI*2;
-	mat3 localRotMatrix = rotYMatrix(rotY)*rotXMatrix(rotX)*rotZMatrix(rotZ);
+	float rotX = (bladeRandomValue*2.0-1.0)*PI*tipFactor*bendyness;
+	float rotZ = (bladeRandomValue*2.0-1.0)*PI*tipFactor*bendyness;
+	float rotY;
+	if (isBillboard){
+		vec2 toCamera = normalize(viewPosWorld.xz - bladePositionWorld.xz);
+		rotY = atan(toCamera.y, toCamera.x)-PI/2;
+	} else {
+		rotY = bladeRandomValue*-PI*2;
+	}
+	mat3 localRotMatrix = rotZMatrix(rotZ)*rotXMatrix(rotX)*rotYMatrix(rotY);
 
 	float adjustedSwayAmount = swayAmount+bladeRandomValue*0.0f;
 	float windX = tipFactor*adjustedSwayAmount*heightFactor*(sin(time*1.4+bladePositionWorld.z*0.7f)+cos(time*8.371+bladePositionWorld.z*1.8f)*0.06);
@@ -140,7 +148,7 @@ void main() {
 
 	VertexPositionLocal = localRotMatrix*VertexPositionLocal;
 
-
+	
 
 	
 	vec3 vertexPositionWorld = VertexPositionLocal+bladePositionWorld;
@@ -150,7 +158,9 @@ void main() {
 	vec3 rotatedNormal = transpose(inverse(localRotMatrix))*normal.xyz;
 	//vec3 rotatedNormal = localRotMatrix*normal.xyz;
 	vec3 adjustedNormal = normalize(rotatedNormal);
-	fragNormal = (transpose(invViewMatrix)*vec4(adjustedNormal, 1.0f)).xyz;
+	fragNormal = (transpose(invViewMatrix)*vec4(adjustedNormal, 0.0f)).xyz;
 	terrainNormal =  (transpose(invViewMatrix)*vec4(terrainNormal, 1.0f)).xyz;
-	gl_Position =  projectionMatrix*viewMatrix*vec4(vertexPositionWorld, 1.0);
+	vec4 vertexPosView = viewMatrix*vec4(vertexPositionWorld, 1.0);
+	depth = -vertexPosView.z;
+	gl_Position =  projectionMatrix*vertexPosView;
 }

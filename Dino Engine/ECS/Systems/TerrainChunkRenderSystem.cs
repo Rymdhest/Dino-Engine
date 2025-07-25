@@ -64,7 +64,7 @@ namespace Dino_Engine.ECS.Systems
                 {
                     grassChunksLOD0.Add(grassCommand);
                 }
-                else if (distance < 35)
+                else if (distance < 55)
                 {
                     grassChunksLOD1.Add(grassCommand);
                 }
@@ -73,7 +73,7 @@ namespace Dino_Engine.ECS.Systems
             Engine.RenderEngine._grassRenderer.SubmitGeometryCommand(new GrassRenderCommand(grassChunksLOD0.ToArray(), 0));
             Engine.RenderEngine._grassRenderer.SubmitGeometryCommand(new GrassRenderCommand(grassChunksLOD1.ToArray(), 1));
 
-            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD0.ToArray(), 0.0f));
+            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD0.ToArray(), 0.05f));
             Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD1.ToArray(), 0.0f));
         }
 

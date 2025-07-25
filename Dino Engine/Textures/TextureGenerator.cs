@@ -44,6 +44,7 @@ namespace Dino_Engine.Textures
         public int test;
         public int grain;
         public int sand;
+        public int soil;
         public int mud;
         public int moss;
         public int clay;
@@ -114,6 +115,7 @@ namespace Dino_Engine.Textures
             crackedLava = createCrackedLAva();
             rock = createRock();
             mirror = createMirrorTexture();
+            soil = createSoilTexture();
 
             addAllPreparedTexturesToTexArray(true);
            
@@ -484,6 +486,30 @@ namespace Dino_Engine.Textures
             MaterialLayer tileWweaves = procTextGen.TileWeave(new Vector2(16f, 16f), count: 3, smoothness: 0.9f, width: 0.5f);
             return FinishTexture(tileWweaves);
         }
+
+        private int createSoilTexture()
+        {
+            MaterialLayer soilLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
+            soilLayer.setMaterial(new Colour(112, 62, 43), new Vector3(0.75f, 0f, 0.0f));
+
+            MaterialLayer grassLayer = procTextGen.PerlinFBM(new Vector2(52f, 52f), octaves: 8, amplitudePerOctave: 0.5f);
+            grassLayer.setMaterial(new Colour(40, 55, 10), new Vector3(0.65f, 0f, 0.0f));
+
+
+            MaterialLayer rockLayer = procTextGen.Voronoi(new Vector2(100f, 100f), jitter:1.0f);
+            MaterialLayersCombiner.combine(rockLayer, procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 2, amplitudePerOctave: 0.5f), FilterMode.Everywhere, Operation.Nothing, Operation.Scale, weight: 0.7f);
+            rockLayer.setMaterial(new Colour(112, 112, 112), new Vector3(0.95f, 0f, 0.0f));
+            rockLayer.scaleHeight(0.8f);
+            MaterialLayer hilly = procTextGen.PerlinFBM(new Vector2(15f, 15f), octaves: 3, amplitudePerOctave: 0.5f, rigged:true);
+            MaterialLayersCombiner.combine(grassLayer, hilly, FilterMode.Everywhere, Operation.Nothing, Operation.Mix, weight:0.5f);
+
+            MaterialLayersCombiner.combine(soilLayer, rockLayer, FilterMode.Greater, Operation.Override, Operation.Override, weight: 0.5f);
+
+            MaterialLayersCombiner.combine(grassLayer, soilLayer, FilterMode.Greater, Operation.Override, Operation.Override, weight: 0.5f);
+
+            return FinishTexture(grassLayer, normalFlatness:100);
+        }
+
         private int createGrassTexture()
         {
             MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);

@@ -169,7 +169,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(ModelRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
-            shadow.cascadeFrameBuffer.bind();
+            shadow.shadowFrameBuffer.bind();
             //GL.Clear(ClearBufferMask.DepthBufferBit);
             GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
             //GL.PolygonOffset(4f, 1f);
@@ -179,7 +179,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             int instanceCount = command.matrices.Length;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
 
-            _instancedModelShadowShader.loadUniformMatrix4f("viewpPojectionMatrix",shadow.lightViewMatrix* shadow.cascadeProjectionMatrix);
+            _instancedModelShadowShader.loadUniformMatrix4f("viewpPojectionMatrix",shadow.lightViewMatrix* shadow.shadowProjectionMatrix);
 
             // Upload per-instance matrices
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);

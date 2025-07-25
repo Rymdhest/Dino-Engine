@@ -6,6 +6,7 @@ in vec3 fragNormal;
 in float valid;
 in float tipFactor;
 in vec3 terrainNormal;
+in float depth;
 
 uniform vec4 grassMaterial;
 uniform float fakeAmbientOcclusionStrength;
@@ -26,7 +27,7 @@ void main() {
 	gAlbedo = vec4(color, 1.0);
 	gNormal = vec4(normalize(fragNormal), (1.0-fakeAmbientOcclusionStrength)+tipFactor*fakeAmbientOcclusionStrength);
 	if (!gl_FrontFacing) gNormal.xyz = -gNormal.xyz;
-	gNormal.xyz = compressNormal(normalize(gNormal.xyz + terrainNormal*groundNormalStrength));
+	gNormal.xyz = compressNormal(normalize(gNormal.xyz + terrainNormal*groundNormalStrength*depth*0.01f));
 
 	gMaterials = vec4(grassMaterial);
 }

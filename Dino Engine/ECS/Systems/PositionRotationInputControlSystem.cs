@@ -1,6 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Util;
@@ -21,10 +22,10 @@ namespace Dino_Engine.ECS.Systems
         }
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
-            float moveSpeed = 40.0f;
+            float moveSpeed = 7.0f;
             float turnSpeed = 0.001f;
             var windowhandler = Engine.WindowHandler;
-            if (windowhandler.IsKeyDown(Keys.LeftShift)) moveSpeed *= 7f;
+            if (windowhandler.IsKeyDown(Keys.LeftShift)) moveSpeed *= 10f;
             if (windowhandler.IsKeyDown(Keys.LeftControl)) moveSpeed *= 0.1f;
 
             if (windowhandler.IsMouseButtonDown(MouseButton.Right))
@@ -32,16 +33,19 @@ namespace Dino_Engine.ECS.Systems
                 windowhandler.setMouseGrabbed(true);
 
                 var pitchYaw = entity.Get<PositionRotationInputControlComponent>();
+                var Position = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
                 pitchYaw.Pitch -= windowhandler.MouseState.Delta.Y * turnSpeed;
                 pitchYaw.Yaw -= windowhandler.MouseState.Delta.X * turnSpeed;
                 pitchYaw.Pitch = Math.Clamp(pitchYaw.Pitch, -MathF.PI / 2f + 0.01f, MathF.PI / 2f - 0.01f);
+
 
                 Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitY, -pitchYaw.Yaw);
                 Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitX, -pitchYaw.Pitch);
                 Quaternion finalRotation = pitchRotation * yawRotation;
 
                 var rotation = entity.Get<RotationComponent>();
-                rotation.quaternion = finalRotation; 
+                rotation.quaternion = finalRotation;
+
                 entity.Set(pitchYaw);
                 entity.Set(rotation);
             } else
@@ -77,6 +81,39 @@ namespace Dino_Engine.ECS.Systems
                 entity.Set(position);
             }
 
+
+
+            if (windowhandler.IsKeyPressed(Keys.B))
+            {
+                float speed = 5f;
+                float mass = 0.05f;
+                float duration = 10.0f;
+                if (windowhandler.IsKeyDown(Keys.LeftControl))
+                {
+                    mass = 0f;
+                    speed = 0f;
+                    duration = 30f;
+                }
+                Vector3 forward = currentFinalRotation * -Vector3.UnitZ;
+                world.CreateEntity("Shooting ball",
+                    new VelocityComponent(forward * speed),
+                    new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation()+ forward*1f),
+                    new LocalToWorldMatrixComponent(),
+                    new AttunuationComponent(0.01f, 0.01f, 0.01f),
+                    new ScaleComponent(new Vector3(0.15f)),
+                    new ModelComponent(ModelGenerator.UNIT_SPHERE),
+                    new ModelRenderTag(),
+                    //new ParticleRenderTag(),
+                    //new PointLightTag(),
+                    //new RotationComponent(currentFinalRotation),
+                    new DirectionNormalizedComponent(forward),
+                    new SpotLightComponent(0.3f, MathF.PI/3f),
+                    new SpotlightShadowComponent(new Vector2i(512), MathF.PI / 3f),
+                    new MassComponent(mass),
+                    new ColorComponent(new Colour(1f, 0.6f, 0.5f, 10f)),
+                    new selfDestroyComponent(duration)
+                ); ;
+            }
         }
 
     }

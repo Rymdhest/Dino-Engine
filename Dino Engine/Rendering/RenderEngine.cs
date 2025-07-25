@@ -202,6 +202,15 @@ namespace Dino_Engine.Rendering
                 PostGeometryPass();
                 PostProcessPass();
 
+                GL.EndQuery(QueryTarget.TimeElapsed);
+                int available;
+                do
+                {
+                    GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResultAvailable, out available);
+                } while (available == 0);
+                long timeElapsed;
+                GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResult, out timeElapsed);
+                Console.WriteLine($"GPU time for draw: {timeElapsed / 1_000_000.0} ms");
 
                 //_debugRenderer.RenderNormals(eCSEngine, _dualBufferFull);
 
@@ -211,7 +220,7 @@ namespace Dino_Engine.Rendering
                 //_screenQuadRenderer.RenderTextureToScreen(TextureGenerator.testTexture.textures[0]);
 
                 //_dualBufferFull.RenderTextureToScreen(_gBuffer.GetAttachment(1));
-                //_dualBufferFull.RenderTextureToScreen(_gBuffer.GetAttachment(0));
+                //_dualBufferFull.RenderTextureToScreen(_gBuffer.GetAttachment(2));
                 //_gBuffer.resolveToScreen();
                 //_grassRenderer.GetLastFrameBuffer().resolveToScreen();
                 //_screenQuadRenderer.RenderTextureToScreen(_grassRenderer.GetLastFrameBuffer().GetAttachment(0));
@@ -224,15 +233,7 @@ namespace Dino_Engine.Rendering
 
             FinishFrame();
 
-            GL.EndQuery(QueryTarget.TimeElapsed);
-            int available;
-            do
-            {
-                GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResultAvailable, out available);
-            } while (available == 0);
-            long timeElapsed;
-            GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResult, out timeElapsed);
-            Console.WriteLine($"GPU time for draw: {timeElapsed / 1_000_000.0} ms");
+
         }
 
         private void ShadowPass()

@@ -27,7 +27,7 @@ uniform int bladesPerAxis;
 
 uniform float textureMapOffset;
 uniform mat4 shadowViewProjectionMatrix;
-
+uniform vec3 lightPosWorld;
 uniform sampler2DArray heightmaps;
 uniform sampler2D grassNoise;
 
@@ -103,7 +103,7 @@ void main() {
 	
 	vec3 VertexPositionLocal = position;
 	vec2 bladeWorldSeed = chunkOrigin+gridPosition;
-	bladeWorldSeed *= 10.0; // avoid hashing breaking with too small differences in values
+	bladeWorldSeed *= 1.0; // avoid hashing breaking with too small differences in values
 	float bladeRandomValue = hash21(bladeWorldSeed);
 	float voronoiNoiseFactor = texture(grassNoise, bladePositionWorld.xz*0.01).w;
 	float heightErrorFactor = 1.0+hash11(bladeIndex)*2.0*heightError-heightError;
@@ -119,10 +119,11 @@ void main() {
 	VertexPositionLocal.y *= heightFactor;
 	VertexPositionLocal.xz *= 1.0+bladeRandomValue*2.0*radiusError-radiusError;
 
-	float rotX = bladeRandomValue*PI*tipFactor*bendyness;
-	float rotZ = bladeRandomValue*PI*tipFactor*bendyness;
-	float rotY = bladeRandomValue*PI*2;
-	mat3 localRotMatrix = rotYMatrix(rotY)*rotXMatrix(rotX)*rotZMatrix(rotZ);
+	float rotX = (bladeRandomValue*2.0-1.0)*PI*tipFactor*bendyness;
+	float rotZ = (bladeRandomValue*2.0-1.0)*PI*tipFactor*bendyness;
+	vec2 toCamera = normalize(lightPosWorld.xz - bladePositionWorld.xz);
+	float rotY = atan(toCamera.y, toCamera.x)-PI/2;;
+	mat3 localRotMatrix = rotZMatrix(rotZ)*rotXMatrix(rotX)*rotYMatrix(rotY);
 
 	float adjustedSwayAmount = swayAmount+bladeRandomValue*0.0f;
 	float windX = tipFactor*adjustedSwayAmount*heightFactor*(sin(time*1.4+bladePositionWorld.z*0.7f)+cos(time*8.371+bladePositionWorld.z*1.8f)*0.06);

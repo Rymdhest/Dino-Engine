@@ -21,6 +21,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public float ambient;
         public float halfAngleRad;
         public float cutoffCosine;
+        public Shadow? shadow;
     }
     public class SpotLightRenderer : CommandDrivenRenderer<SpotlightRenderCommand>
     {
@@ -62,6 +63,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ActiveTexture(TextureUnit.Texture3);
             BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
+            _spotLightShader.loadUniformInt("pcfRadius", 1);
+
             GL.BindVertexArray(ModelGenerator.UNIT_CONE.getVAOID());
             EnableVertexAttribArray(0);
         }
@@ -81,6 +84,30 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         public override void PerformCommand(SpotlightRenderCommand command, RenderEngine renderEngine)
         {
+
+
+            if (command.shadow != null)
+            {
+                
+                Shadow shadow = command.shadow.Value;
+                _spotLightShader.loadUniformInt("shadowMap", 4);
+                _spotLightShader.loadUniformVector2f("shadowResolution", shadow.shadowFrameBuffer.getResolution());
+                _spotLightShader.loadUniformBool("isShadow", true);
+
+                ActiveTexture(TextureUnit.Texture4);
+                BindTexture(TextureTarget.Texture2D, shadow.shadowFrameBuffer.getDepthAttachment());
+
+
+                Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
+                _spotLightShader.loadUniformMatrix4f("lightSpaceMatrix", shadowMatrix);
+            } else
+            {
+                _spotLightShader.loadUniformBool("isShadow", false);
+            }
+
+
+
+
             float attunuationRadius = command.attenuationRadius;
             Vector3 worldPos = command.positionWorld;
 

@@ -73,11 +73,11 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
                 _directionalLightShader.loadUniformFloat("cascadeProjectionSizes[" + i + "]", cascade.projectionSize);
                 ActiveTexture(TextureUnit.Texture4 + i);
-                BindTexture(TextureTarget.Texture2D, cascade.cascadeFrameBuffer.getDepthAttachment());
-                //_directionalLightShader.loadUniformVector2f("shadowMapResolutions[" + i + "]", cascade.getResolution());
+                BindTexture(TextureTarget.Texture2D, cascade.shadowFrameBuffer.getDepthAttachment());
+                _directionalLightShader.loadUniformVector2f("shadowMapResolutions[" + i + "]", cascade.shadowFrameBuffer.getResolution());
 
 
-                Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * cascade.lightViewMatrix * cascade.cascadeProjectionMatrix;
+                Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * cascade.lightViewMatrix * cascade.shadowProjectionMatrix;
                 _directionalLightShader.loadUniformMatrix4f("sunSpaceMatrices[" + i + "]", shadowMatrix);
                 _directionalLightShader.loadUniformInt("numberOfCascades", command.cascades.Length);
 

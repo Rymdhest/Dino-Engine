@@ -180,12 +180,12 @@ namespace Dino_Defenders
             world.ApplyDeferredCommands();
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
-                new DirectionNormalizedComponent(new Vector3(-1f, -2.5f, 5.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 25.0f)),
+                new DirectionNormalizedComponent(new Vector3(-1f, -2.5f, -5.9f)),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 30.0f)),
                 new AmbientLightComponent(0.03f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
-            );
+            ) ;
             
             for (int i = 0; i<0; i++)
             {
@@ -203,12 +203,12 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0f, -1.0f, 0.0f)),
-                new ColorComponent(new Colour(86, 155, 255, 2.0f)),
+                new ColorComponent(new Colour(86, 155, 255, 1.1f)),
                 new SkyTag(),
                 new AmbientLightComponent(0.7f)
             );
 
-            //spawnCity(Engine.world);
+            spawnCity(Engine.world);
             spawnTestScene(Engine.world);
             //spawnIndoorScene(eCSEngine);
         }
@@ -893,7 +893,7 @@ namespace Dino_Defenders
                             new ColorComponent(new Colour(1f, 0.8f, 0.6f, 0.3f)),
                             new LocalToWorldMatrixComponent(),
                             new ParentComponent(car),
-                            new LocalToWorldMatrixComponent(),
+                            //new SpotlightShadowComponent(new Vector2i(256), MathF.PI / 2.0f),
                             new SpotLightComponent(0.3f, MathF.PI/ 2.0f)
                         );
                     }

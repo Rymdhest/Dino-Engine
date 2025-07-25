@@ -19,7 +19,7 @@ uniform float ambientFactor;
 
 uniform mat4 sunSpaceMatrices[5];
 uniform sampler2DShadow shadowMaps[5];
-//uniform vec2 shadowMapResolutions[5];
+uniform vec2 shadowMapResolutions[5];
 uniform float cascadeProjectionSizes[5];
 
 
@@ -29,9 +29,8 @@ uniform int pcfRadius;
 float calcShadow(vec3 positionViewSpace) {
 	float maxShadow = 0.0;
 
-	vec2 pixelSize = 1.0 / resolution;
-
 	for (int i = 0; i < numberOfCascades; i++) {
+		vec2 pixelSize = 1.0 / shadowMapResolutions[i];
 		if (length(positionViewSpace) * 2.0 < cascadeProjectionSizes[i]) {
 			vec4 positionSunSpace = sunSpaceMatrices[i] * vec4(positionViewSpace, 1.0);
 			positionSunSpace = positionSunSpace * 0.5 + 0.5;
@@ -53,7 +52,6 @@ float calcShadow(vec3 positionViewSpace) {
 				}
 			}
 			shadowFactor /= totalWeight;
-
 			maxShadow = max(maxShadow, shadowFactor);
 		}
 	}
@@ -70,6 +68,7 @@ void main(void){
 	float ambient = normalBuffer.w;
 	float roughness = materialBuffer.r;
 	float metallic = materialBuffer.b;
+
 	float sunFactor = clamp(1.0-calcShadow(position), 0.0, 1.0);
 	//sunFactor = 0.5-calcShadow(position);
 
@@ -81,7 +80,6 @@ void main(void){
     //color = pow(color, vec3(1.0/2.2));  
 	//lighting = applyFog(lighting, -position.z, -viewDir);
 	out_Colour = vec4(color, 0.0);
-	//out_Colour =  vec4(vec3(sunFactor), 1.0f);
 	//out_Colour =  vec4(vec3(ambientOcclusion), 1.0f);
 	
 	

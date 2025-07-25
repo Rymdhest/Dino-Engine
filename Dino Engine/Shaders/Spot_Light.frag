@@ -19,6 +19,35 @@ uniform float softness;
 uniform float lightAmbient;
 uniform float cutoffCosine;
 
+uniform mat4 lightSpaceMatrix;
+uniform int pcfRadius;
+uniform sampler2DShadow shadowMap;
+uniform bool isShadow;
+uniform vec2 shadowResolution;
+
+float calcShadow(vec3 positionViewSpace) {
+	vec2 pixelSize = 1.0 / shadowResolution; // move to CPU
+
+	// Project into light's clip space
+	vec4 positionLightSpace = lightSpaceMatrix * vec4(positionViewSpace, 1.0);
+	positionLightSpace /= positionLightSpace.w;         // Required for perspective projections
+	positionLightSpace = positionLightSpace * 0.5 + 0.5; // Transform from [-1,1] to [0,1]
+
+	float shadow = 0.0;
+	float totalWeight = 0.0;
+
+	for (int x = -pcfRadius; x <= pcfRadius; x++) {
+		for (int y = -pcfRadius; y <= pcfRadius; y++) {
+			vec3 offset = vec3(x * pixelSize.x, y * pixelSize.y, 0);
+			shadow += 1.0-texture(shadowMap, positionLightSpace.xyz + offset);
+			totalWeight += 1.0;
+		}
+	}
+
+	shadow /= totalWeight;
+	return shadow; // Convert to shadow amount: 0 = lit, 1 = full shadow
+}
+
 float calcSoftEdge(vec3 lightDir, vec3 lightDirectionViewSpace, float cutoff)
 {
     float theta = dot(lightDir, normalize(-lightDirectionViewSpace));
@@ -43,8 +72,12 @@ void main(void){
     vec3 lightDir = normalize(lightPositionViewSpace - position);
 	float attenuationFactor = calcAttunuation(lightPositionViewSpace, position, attenuation);
 
+
+	float lightFactor = 1.0;
+	if (isShadow) lightFactor = clamp(1.0-calcShadow(position), 0.0, 1.0);
+	 
     
-    vec3 color = getLightPBR(albedo, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, 1.0);
+    vec3 color = getLightPBR(albedo, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, lightFactor);
 
 	float intensity = calcSoftEdge(lightDir, lightDirectionViewSpace, cutoffCosine);
 

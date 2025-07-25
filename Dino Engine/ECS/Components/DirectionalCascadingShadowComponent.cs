@@ -14,7 +14,8 @@ namespace Dino_Engine.ECS.Components
             List<Shadow> cascadesTemp= new List<Shadow>();
             for (int i = 0; i < numCascades; i++)
             {
-                cascadesTemp.Add(new Shadow(resolution, size, size * 0.001f+6f) );
+                var projeciton = Matrix4.CreateOrthographic(size, size, -size, size);
+                cascadesTemp.Add(new Shadow(resolution, projeciton, size, size * 0.001f+6f) );
                 size /= 6.0f;
             }
             cascadesTemp.Sort((p1, p2) => p1.projectionSize.CompareTo(p2.projectionSize));
@@ -26,7 +27,7 @@ namespace Dino_Engine.ECS.Components
         {
             foreach (var cascade in cascades)
             {
-                cascade.cascadeFrameBuffer.cleanUp();
+                cascade.shadowFrameBuffer.cleanUp();
             }
         }
     }

@@ -43,8 +43,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PrepareGeometry(RenderEngine renderEngine)
         {
             GL.Enable(EnableCap.DepthTest);
-            //GL.Enable(EnableCap.CullFace);
-            GL.Disable(EnableCap.CullFace);
+            GL.Enable(EnableCap.CullFace);
+            //GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();
@@ -137,7 +137,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(ModelRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
-            shadow.cascadeFrameBuffer.bind();
+            shadow.shadowFrameBuffer.bind();
             for (int i = 0; i < command.matrices.Length; i++)
             {
                 //GL.Clear(ClearBufferMask.DepthBufferBit);
@@ -152,7 +152,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 GL.EnableVertexAttribArray(6);
 
                 Matrix4 transformationMatrix = command.matrices[i];
-                _modelShadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.lightViewMatrix * shadow.cascadeProjectionMatrix);
+                _modelShadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
 
                 GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
 
