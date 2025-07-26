@@ -13,7 +13,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private FrameBuffer _reflectionFramebuffer;
         private int _downscalingFactor = 2;
 
-        public ScreenSpaceReflectionRenderer()
+        public ScreenSpaceReflectionRenderer() : base("Screen Space Reflection")
         {
             ScreenSpaceReflectionShader.bind();
             ScreenSpaceReflectionShader.loadUniformInt("shadedColor", 0);

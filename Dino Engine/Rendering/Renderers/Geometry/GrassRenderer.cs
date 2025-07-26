@@ -61,7 +61,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         private int chunkUBO;
 
-        public GrassRenderer()  
+        public GrassRenderer() : base("Grass")
         {
             _grassShader.bind();
             _grassShader.loadUniformInt("heightmaps", 0);

@@ -75,8 +75,9 @@ namespace Dino_Engine.ECS.Systems
 
 
             // Terrain
-            foreach (Shadow shadow in shadowCascade.cascades)
+            for (int i = 0; i<shadowCascade.cascades.Length; i++)
             {
+                Shadow shadow = shadowCascade.cascades[i];
                 var visibleChunks = new List<Entity>();
 
                 var grassChunks = new List<GrassChunkRenderData>();
@@ -103,7 +104,7 @@ namespace Dino_Engine.ECS.Systems
 
                     float distance = Vector2.Distance(cameraPos.Xz, chunkPosition.Xz + chunkSize.Xz * 0.5f);
 
-                    if (distance < 35)
+                    if (distance < 35 && i <2)
                     {
                         grassChunks.Add(grassCommand);
                     }

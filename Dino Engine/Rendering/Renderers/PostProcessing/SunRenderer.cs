@@ -18,7 +18,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private ShaderProgram _sunFilterShader = new ShaderProgram("Simple.vert", "SunFilter.frag");
         private int downscale = 2;
 
-        public SunRenderer()
+        public SunRenderer() : base("Celestial Body")
         {
             _sunRayShader.bind();
             _sunRayShader.loadUniformInt("sunTexture", 0);

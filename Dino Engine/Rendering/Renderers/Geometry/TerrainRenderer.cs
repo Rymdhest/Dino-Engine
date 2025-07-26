@@ -45,7 +45,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         private int instanceVBO;
 
-        public TerrainRenderer()
+        public TerrainRenderer() : base("Terrain")
         {
             _terrainShader.bind();
             _terrainShader.loadUniformInt("albedoMapTextureArray", 0);

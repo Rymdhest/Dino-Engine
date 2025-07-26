@@ -13,7 +13,9 @@ namespace Dino_Engine.Rendering.Renderers
     public class ScreenQuadRenderer : RenderPassRenderer
     {
         glModel _quadModel;
-        public ScreenQuadRenderer() {
+        public ScreenQuadRenderer() : base("Full Screen Quad")
+        {
+            trackPerformance = false;
             float[] positions = { -1, 1, -1, -1, 1, -1, 1, 1 };
             int[] indices = { 0, 1, 2, 3, 0, 2 };
             _quadModel = glLoader.loadToVAO(positions, indices, 2);

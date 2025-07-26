@@ -23,7 +23,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     {
 
         private ShaderProgram pointLightShader = new ShaderProgram("Point_Light.vert", "Point_Light.frag");
-        public PointLightRenderer()
+        public PointLightRenderer() : base("Point Light")
         {
             pointLightShader.bind();
             pointLightShader.loadUniformInt("gAlbedo", 0);

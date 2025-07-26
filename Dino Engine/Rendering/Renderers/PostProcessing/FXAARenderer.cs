@@ -8,7 +8,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
     {
         private ShaderProgram FXAAShader = new ShaderProgram("Simple.vert", "FXAA.frag");
 
-        public FXAARenderer()
+        public FXAARenderer() : base("FXAA")
         {
             FXAAShader.bind();
             FXAAShader.loadUniformInt("l_tex", 0);

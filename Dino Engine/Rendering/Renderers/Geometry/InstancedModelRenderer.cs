@@ -14,7 +14,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private ShaderProgram _instancedModelShadowShader = new ShaderProgram("Model_Instanced_shadow.vert", "Shadow.frag");
         private int _instanceVBO;
 
-        public InstancedModelRenderer()
+        public InstancedModelRenderer() : base("Model Instanced")
         {
             _instancedModelShader.bind();
             _instancedModelShader.loadUniformInt("albedoMapTextureArray", 0);

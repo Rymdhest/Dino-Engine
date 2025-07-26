@@ -11,19 +11,20 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.Rendering.Renderers
 {
-    public abstract class GeometryCommandDrivenRenderer<T> : baseRenderer
+    public abstract class GeometryCommandDrivenRenderer<T> : BaseRenderer
     {
 
         protected List<T> geometryCommands = new List<T>();
         protected List<(T, Shadow)> shadowCommands = new List<(T, Shadow)>();
-        public GeometryCommandDrivenRenderer() : base()
+        public GeometryCommandDrivenRenderer(string name) : base(name)
         {
            
         }
 
         public void GeometryRenderPass(RenderEngine renderEngine)
         {
-            Engine.PerformanceMonitor.startTask(this.GetType().Name);
+            string taskName = Name + " Geometry";
+            if (trackPerformance) Engine.PerformanceMonitor.startTask(taskName);
             PrepareGeometry(renderEngine);
 
             foreach (var command in geometryCommands)
@@ -33,11 +34,12 @@ namespace Dino_Engine.Rendering.Renderers
             geometryCommands.Clear();
 
             FinishGeometry(renderEngine);
-            Engine.PerformanceMonitor.finishTask(this.GetType().Name);
+            if (trackPerformance) Engine.PerformanceMonitor.finishTask(taskName);
         }
         public void ShadowRenderPass(RenderEngine renderEngine)
         {
-            Engine.PerformanceMonitor.startTask(this.GetType().Name);
+            string taskName = Name + " Shadow";
+            if (trackPerformance) Engine.PerformanceMonitor.startTask(taskName);
             PrepareShadow(renderEngine);
 
             foreach (var command in shadowCommands)
@@ -47,7 +49,7 @@ namespace Dino_Engine.Rendering.Renderers
             shadowCommands.Clear();
 
             FinishShadow(renderEngine);
-            Engine.PerformanceMonitor.finishTask(this.GetType().Name);
+            if (trackPerformance) Engine.PerformanceMonitor.finishTask(taskName);
         }
 
         internal abstract void PrepareGeometry(RenderEngine renderEngine);

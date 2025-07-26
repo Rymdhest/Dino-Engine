@@ -11,7 +11,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
     {
         private ShaderProgram skyShader = new ShaderProgram("Simple.vert", "sky.frag");
 
-        public SkyRenderer()
+        public SkyRenderer() : base("sky")
         {
 
         }

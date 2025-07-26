@@ -14,7 +14,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private ShaderProgram bloomFilterShader = new ShaderProgram("Simple.vert", "bloom_Filter.frag");
         private const int downSamples = 9;
         public FrameBuffer[] sampleFramebuffers = new FrameBuffer[downSamples];
-        internal BloomRenderer()
+        internal BloomRenderer() : base("Bloom")
         {
             bloomFilterShader.bind();
             bloomFilterShader.loadUniformInt("shadedInput", 0);

@@ -900,7 +900,7 @@ namespace Dino_Defenders
                     
                     var emitterComponent = new ParticleEmitterComponent();
                     emitterComponent.particleSpeed = 0.2f;
-                    emitterComponent.particlesPerSecond = 10f;
+                    emitterComponent.particlesPerSecond = 0.1f;
                     emitterComponent.particleSizeStart = 0.25f;
                     emitterComponent.particleWeight = -0.25f;
                     emitterComponent.particleSpeed = 6f;

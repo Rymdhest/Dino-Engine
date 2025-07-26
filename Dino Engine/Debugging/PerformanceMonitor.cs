@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
 
 namespace Dino_Engine.Debug
 {
@@ -15,54 +11,69 @@ namespace Dino_Engine.Debug
 
         }
 
-        public TaskTracker startTask(string name, bool print = false)
+        public void startTask(string name)
         {
-            if (print)
-            {
-                Console.WriteLine($"Starting {name}");
-            }
+
 
             if (_taskTrackers.TryGetValue(name, out TaskTracker tracker))
             {
-                tracker.restart();
-                return tracker;
+                tracker.Start();
             } else
             {
                 TaskTracker newTracker = new TaskTracker(name);
                 _taskTrackers.Add(name, newTracker);
-                return newTracker;
+                newTracker.Start();
             }
         }
 
-        public void finishTask(TaskTracker tracker, bool print = false)
-        {
-            finishTask(tracker.Name, print);
-        }
-
-        public void finishTask(string name, bool print = false)
+        public void finishTask(string name)
         {
             if (_taskTrackers.TryGetValue(name, out TaskTracker tracker))
             {
-                tracker.finish(print);
+                tracker.Finish();
+            } else
+            {
+                throw new Exception("Trying to finish a performance task that does not excist");
             }
+        }
+
+        public void FinishFrame()
+        {
+            foreach (var kvp in _taskTrackers)
+            {
+                kvp.Value.FinishFrame();
+            }
+        }
+
+        public void FinishSecond()
+        {
+            foreach (var kvp in _taskTrackers)
+            {
+                kvp.Value.FinishSecond();
+            }
+            StatusReportDump();
         }
 
         public void StatusReportDump()
         {
             List<TaskTracker> tasks = _taskTrackers.Values.ToList();
 
-            tasks.Sort((a, b) => b.lastTime.CompareTo(a.lastTime));
+            tasks.Sort((a, b) => b.averageTimePerTaskLastSecond.CompareTo(a.averageTimePerTaskLastSecond));
 
-            Console.WriteLine("\nPERFORMANCE REPORT: \n");
+            Console.WriteLine("\nPERFORMANCE REPORT (GPU): \n");
+
+            double total = 0;
 
             foreach (TaskTracker task in tasks)
             {
-                double milliseconds = task.lastTime;
-                Console.WriteLine($" {milliseconds} MS : {task.Name}");
+                double milliseconds = task.averageTimePerTaskLastSecond / 1_000_000.0;
+                total += milliseconds;
+                Console.WriteLine($" {milliseconds.ToString("0.###")} MS : {task.Name}");
             }
+            Console.WriteLine($"TOTA : {total} MS");
         }
 
-        public void clear()
+        public void cleanUp()
         {
             _taskTrackers.Clear();
         }

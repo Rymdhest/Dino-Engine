@@ -15,8 +15,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private FrameBuffer _horizontalFramebuffer;
         private int _downscalingFactor;
 
-        public GaussianBlurRenderer(int downscalingFactor = 2)
+        public GaussianBlurRenderer(int downscalingFactor = 2) : base("Gaussian Blur")
         {
+            trackPerformance = false;
             _gaussianBlurShader.bind();
             _gaussianBlurShader.loadUniformInt("originalTexture", 0);
             _gaussianBlurShader.unBind();

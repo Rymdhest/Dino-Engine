@@ -47,7 +47,7 @@ namespace Dino_Engine.Rendering
         public ShaderGlobals context = new ShaderGlobals();
         private ShaderGlobals2 globals = new ShaderGlobals2();
 
-        private List<baseRenderer> _renderers = new List<baseRenderer>();
+        private List<BaseRenderer> _renderers = new List<BaseRenderer>();
         
         private FrameBuffer _gBuffer;
 
@@ -171,7 +171,7 @@ namespace Dino_Engine.Rendering
             {
             }
             //_grassRenderer.StepSimulation(ScreenQuadRenderer);
-            foreach (baseRenderer renderer in _renderers)
+            foreach (BaseRenderer renderer in _renderers)
             {
                 renderer.Update();
             }
@@ -184,9 +184,7 @@ namespace Dino_Engine.Rendering
         }
         public void Render()
         {
-            int timerQuery;
-            GL.GenQueries(1, out timerQuery);
-            GL.BeginQuery(QueryTarget.TimeElapsed, timerQuery);
+
 
             PrepareFrame();
 
@@ -202,15 +200,6 @@ namespace Dino_Engine.Rendering
                 PostGeometryPass();
                 PostProcessPass();
 
-                GL.EndQuery(QueryTarget.TimeElapsed);
-                int available;
-                do
-                {
-                    GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResultAvailable, out available);
-                } while (available == 0);
-                long timeElapsed;
-                GL.GetQueryObject(timerQuery, GetQueryObjectParam.QueryResult, out timeElapsed);
-                Console.WriteLine($"GPU time for draw: {timeElapsed / 1_000_000.0} ms");
 
                 //_debugRenderer.RenderNormals(eCSEngine, _dualBufferFull);
 
@@ -337,7 +326,7 @@ namespace Dino_Engine.Rendering
         {
             _dualBufferFull.OnResize(eventArgs);
             _gBuffer.resize(eventArgs.Size);
-            foreach(baseRenderer renderer in _renderers)
+            foreach(BaseRenderer renderer in _renderers)
             {
                 renderer.OnResize(eventArgs);
             }
@@ -345,7 +334,7 @@ namespace Dino_Engine.Rendering
 
         public void CleanUp()
         {
-            foreach (baseRenderer renderer in _renderers)
+            foreach (BaseRenderer renderer in _renderers)
             {
                 renderer.CleanUp();
             }
@@ -355,6 +344,6 @@ namespace Dino_Engine.Rendering
             GL.DeleteBuffer(globalsUBO);
         }
 
-        public List<baseRenderer> Renderers { get => _renderers; }
+        public List<BaseRenderer> Renderers { get => _renderers; }
     }
 }

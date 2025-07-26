@@ -34,6 +34,7 @@ namespace Dino_Engine.Core
 
             if (_secondStopWatch.Elapsed.TotalMilliseconds >= 1000.0)
             {
+                Engine.PerformanceMonitor.FinishSecond();
                 _framesLastSecond = _framesCurrentSecond;
                 _framesCurrentSecond = 0;
                _secondStopWatch.Restart();

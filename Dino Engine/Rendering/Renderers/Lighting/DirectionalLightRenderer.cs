@@ -19,7 +19,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     {
         private ShaderProgram _directionalLightShader = new ShaderProgram("Simple.vert", "Directional_Light.frag");
 
-        public DirectionalLightRenderer()
+        public DirectionalLightRenderer() : base("Directional Light")
         {
             _directionalLightShader.bind();
             _directionalLightShader.loadUniformInt("gAlbedo", 0);

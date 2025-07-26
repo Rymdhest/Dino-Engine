@@ -11,6 +11,7 @@ namespace Dino_Engine.ECS.Components
         {
             Attunuation = new Vector3(constant, linear, quadratic);
             AttunuationRadius = AttunuationComponent.CalculateAttunRadius(Attunuation);
+            Console.WriteLine(AttunuationRadius);
         }
 
         public static float CalculateAttunRadius(Vector3 attun)

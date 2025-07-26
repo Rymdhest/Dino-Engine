@@ -18,6 +18,10 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
         private ShaderProgram flatShader = new ShaderProgram("Particle.vert", "Particle.frag");
 
+        public ParticleRenderer() : base("Particles")
+        {
+        }
+
         internal override void Prepare(RenderEngine renderEngine)
         {
             GL.DepthMask(false);

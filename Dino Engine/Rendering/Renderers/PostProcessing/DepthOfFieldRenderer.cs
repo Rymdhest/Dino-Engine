@@ -10,7 +10,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private ShaderProgram _depthOfFieldShader = new ShaderProgram("Simple.vert", "Depth_Of_Field.frag");
 
 
-        public DepthOfFieldRenderer()
+        public DepthOfFieldRenderer() : base("Depth of Field")
         {
             _depthOfFieldShader.bind();
             _depthOfFieldShader.loadUniformInt("colorTexture", 0);

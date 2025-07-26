@@ -9,7 +9,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
     {
         private ShaderProgram fogShader = new ShaderProgram("Simple.vert", "Fog.frag");
         private float time = 0;
-        public FogRenderer()
+        public FogRenderer() : base("Fog")
         {
             fogShader.bind();
             fogShader.loadUniformInt("shadedColourTexture", 0);

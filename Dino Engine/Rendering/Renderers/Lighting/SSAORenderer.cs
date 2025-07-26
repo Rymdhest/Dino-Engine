@@ -18,7 +18,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private Vector3[] kernelSamples;
         private int noiseTexture;
 
-        internal SSAORenderer()
+        internal SSAORenderer() : base("SSAO")
         {
             ambientOcclusionCombineShader.bind();
             ambientOcclusionCombineShader.loadUniformInt("gNormal", 0);

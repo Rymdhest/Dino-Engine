@@ -35,11 +35,9 @@ namespace Dino_Engine.Core
         public static RenderEngine RenderEngine { get => _instance._renderEngine; }
         public static PerformanceMonitor PerformanceMonitor { get => _instance._performanceMonitor; }
 
-        private static DebugProc debugProcCallback = DebugCallback; // Declare the delegate as a static field
+        private static DebugProc debugProcCallback = DebugCallback;
 
         public ECSWorld world;
-        private double TEST_totalElapsed;
-        private int TEST_count;
 
         public Engine(EngineLaunchSettings settings)
         {
@@ -94,7 +92,7 @@ namespace Dino_Engine.Core
             nws.Title = settings._gameTitle;
             nws.ClientSize = settings._resolution;
             nws.Location = new Vector2i(0, 0);
-            gws.UpdateFrequency = 20;
+            gws.UpdateFrequency = 200;
             return new WindowHandler(gws, nws);
         }
 
@@ -106,15 +104,12 @@ namespace Dino_Engine.Core
         private void Render()
         {
             _renderEngine.Render();
-            PerformanceMonitor.finishTask("Total");
+            PerformanceMonitor.FinishFrame();
         }
         private void Update()
         {
-            PerformanceMonitor.startTask("Total");
             _deltaFrameTimeTracker.update();
 
-            Stopwatch sw = Stopwatch.StartNew();
-            sw.Stop();
             /*
             TEST_totalElapsed += sw.Elapsed.TotalMilliseconds;
             TEST_count++;
@@ -129,21 +124,7 @@ namespace Dino_Engine.Core
             _renderEngine.Update();
             game.update();
 
-
-
-            Stopwatch sw2 = Stopwatch.StartNew();
             world.Update(Engine.Delta);
-            sw2.Stop();
-            TEST_totalElapsed += sw2.Elapsed.TotalMilliseconds;
-            TEST_count++;
-            if (TEST_count >= 100)
-            {
-                Console.WriteLine($"Total: " + TEST_totalElapsed / TEST_count + " ms");
-                Console.WriteLine(world.Count);
-                TEST_count = 0;
-                TEST_totalElapsed = 0;
-                Console.WriteLine($"number of entities: {world.Count}");
-            }
 
         }
 

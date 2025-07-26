@@ -10,11 +10,16 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.Rendering.Renderers
 {
-    public abstract class baseRenderer
+    public abstract class BaseRenderer
     {
-        public baseRenderer()
+        public string Name { get; }
+        public bool trackPerformance;
+
+        public BaseRenderer(string name, bool trackPerformance = true)
         {
+            Name = name;
             Engine.RenderEngine.Renderers.Add(this);
+            this.trackPerformance = trackPerformance;
         }
         public virtual void OnResize(ResizeEventArgs eventArgs) { }
         public virtual void Update() { }

@@ -10,18 +10,18 @@ using System.Threading.Tasks;
 
 namespace Dino_Engine.Rendering.Renderers
 {
-    public abstract class RenderPassRenderer : baseRenderer
+    public abstract class RenderPassRenderer : BaseRenderer
     {
-        public RenderPassRenderer() : base()
+        public RenderPassRenderer(string name) : base(name)
         {
         }
         public void RenderPass(RenderEngine renderEngine)
         {
-            Engine.PerformanceMonitor.startTask(this.GetType().Name);
+            if (trackPerformance) Engine.PerformanceMonitor.startTask(Name);
             Prepare(renderEngine);
             Render(renderEngine);
             Finish(renderEngine);
-            Engine.PerformanceMonitor.finishTask(this.GetType().Name);
+            if (trackPerformance) Engine.PerformanceMonitor.finishTask(Name);
         }
         internal abstract void Prepare(RenderEngine renderEngine);
         internal abstract void Finish(RenderEngine renderEngine);

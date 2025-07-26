@@ -16,7 +16,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private ShaderProgram _modelShader = new ShaderProgram("Model.vert", "Model.frag");
         private ShaderProgram _modelShadowShader = new ShaderProgram("Model_Shadow.vert", "Shadow.frag");
 
-        public ModelRenderer()
+        public ModelRenderer() : base("Model")
         {
             _modelShader.bind();
             _modelShader.loadUniformInt("albedoMapTextureArray", 0);

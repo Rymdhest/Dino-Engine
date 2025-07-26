@@ -14,7 +14,7 @@ namespace Dino_Engine.Rendering.Renderers
     {
         protected List<T> commands = new List<T>();
 
-        public CommandDrivenRenderer() : base()
+        public CommandDrivenRenderer(string name) : base(name)
         {
            
         }

@@ -27,7 +27,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     {
 
         private ShaderProgram _spotLightShader = new ShaderProgram("Point_Light.vert", "Spot_Light.frag");
-        public SpotLightRenderer()
+        public SpotLightRenderer() : base("Spotlight")
         {
             _spotLightShader.bind();
             _spotLightShader.loadUniformInt("gAlbedo", 0);

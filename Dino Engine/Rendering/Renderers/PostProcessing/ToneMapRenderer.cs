@@ -9,7 +9,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
     {
         private ShaderProgram HDRMapShader = new ShaderProgram("Simple.vert", "HDR_Mapper.frag");
 
-        public ToneMapRenderer()
+        public ToneMapRenderer() : base("Tonemapping")
         {
             HDRMapShader.bind();
             HDRMapShader.loadUniformInt("HDRcolorTexture", 0);
