@@ -17,7 +17,7 @@ namespace Dino_Engine.ECS.Systems
         {
         }
 
-        public override void Update(ECSWorld world, float deltaTime)
+        internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
             var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>( world.GetSingleton<TerrainQuadTreeComponent>());
             TerrainGenerator generator = world.GetComponent<TerrainGeneratorComponent>(world.GetSingleton<TerrainGeneratorComponent>()).Generator;

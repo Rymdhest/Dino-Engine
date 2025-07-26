@@ -12,12 +12,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private ShaderProgram ambientOcclusionShader = new ShaderProgram("Simple.vert", "AmbientOcclusion.frag");
         private ShaderProgram ambientOcclusionPassthroughShader = new ShaderProgram("Simple.vert", "AmbientOcclusion_Passthrough.frag");
         private ShaderProgram ambientOcclusionCombineShader = new ShaderProgram("Simple.vert", "Combine_SSAO.frag");
-
+        private FrameBuffer _SSAOFramebuffer;
         public int noiseScale = 4;
         private const int kernelSize = 16;
         private Vector3[] kernelSamples;
         private int noiseTexture;
-
+        private int _downscalingFactor = 2;
         internal SSAORenderer() : base("SSAO")
         {
             ambientOcclusionCombineShader.bind();
@@ -62,10 +62,20 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (float)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (float)TextureWrapMode.Repeat);
 
+
+
+            FrameBufferSettings settings = new FrameBufferSettings(Engine.Resolution / _downscalingFactor);
+            DrawBufferSettings drawSettings = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
+            drawSettings.formatInternal = PixelInternalFormat.R8;
+            drawSettings.pixelType = PixelType.UnsignedByte;
+            drawSettings.wrapMode = TextureWrapMode.ClampToEdge;
+            drawSettings.minFilterType = TextureMinFilter.Linear;
+            drawSettings.magFilterType = TextureMagFilter.Linear;
+            settings.drawBuffers.Add(drawSettings);
+            _SSAOFramebuffer = new FrameBuffer(settings);
         }
         internal override void Prepare(RenderEngine renderEngine)
         {
-
         }
 
         internal override void Finish(RenderEngine renderEngine)
@@ -83,10 +93,10 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
             ambientOcclusionShader.loadUniformFloat("radius", .1f);
-            ambientOcclusionShader.loadUniformFloat("strength", 3.0f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.05f);
+            ambientOcclusionShader.loadUniformFloat("strength", 5.0f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.08f);
 
-            ambientOcclusionShader.loadUniformVector2f("resolutionSSAO", resolution);
+            ambientOcclusionShader.loadUniformVector2f("resolutionSSAO", _SSAOFramebuffer.getResolution());
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, noiseTexture);
@@ -94,10 +104,11 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
-            renderEngine.lastUsedBuffer.RenderToNextFrameBuffer();
+            _SSAOFramebuffer.bind();
+            Engine.RenderEngine.ScreenQuadRenderer.Render();
             ambientOcclusionShader.unBind();
 
-            gaussianBlurRenderer.Render(renderEngine.lastUsedBuffer.GetLastFrameBuffer(), 3, renderEngine.ScreenQuadRenderer, 0);
+            gaussianBlurRenderer.Render(_SSAOFramebuffer, 3, renderEngine.ScreenQuadRenderer, 0);
 
             ambientOcclusionCombineShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);
@@ -127,10 +138,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionPassthroughShader.cleanUp();
             ambientOcclusionShader.cleanUp();
             GL.DeleteTexture(noiseTexture);
+            _SSAOFramebuffer.cleanUp();
         }
 
         public override void OnResize(ResizeEventArgs eventArgs)
         {
+            _SSAOFramebuffer.resize(eventArgs.Size / _downscalingFactor);
         }
 
         public override void Update()

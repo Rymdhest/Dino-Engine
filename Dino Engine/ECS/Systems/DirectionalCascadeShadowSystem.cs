@@ -7,12 +7,14 @@ using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
+using System.Diagnostics;
 
 namespace Dino_Engine.ECS.Systems
 {
     public class DirectionalCascadeShadowSystem : SystemBase
     {
         private int minCountForInstanced = 10;
+
         public DirectionalCascadeShadowSystem()
             : base(new BitMask(
                 typeof(DirectionalLightTag),
@@ -115,9 +117,7 @@ namespace Dino_Engine.ECS.Systems
 
                 Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(terrainChunksRenderData.ToArray(), 0.0f), shadow);
             }
-
-
-
+            //Console.WriteLine(sw.ElapsedMilliseconds/(double)TEST_REMOVE_PLEASE);
 
             // GRASS
         }

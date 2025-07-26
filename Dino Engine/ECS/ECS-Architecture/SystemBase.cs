@@ -29,8 +29,13 @@ namespace Dino_Engine.ECS.ECS_Architecture
         }
         protected abstract void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime);
         protected virtual void ResizeEntity(EntityView entity, ECSWorld world, ResizeEventArgs args) { }
-
-        public virtual void Update(ECSWorld world, float deltaTime)
+        public void Update(ECSWorld world, float deltaTime)
+        {
+            Engine.PerformanceMonitor.startCPUTask(this.GetType().Name);
+            UpdateInternal(world, deltaTime);
+            Engine.PerformanceMonitor.finishCPUTask(this.GetType().Name);
+        }
+        internal virtual void UpdateInternal(ECSWorld world, float deltaTime)
         {
             foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
             {

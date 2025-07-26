@@ -15,7 +15,7 @@ namespace Dino_Engine.ECS.Systems
         {
         }
 
-        public override void Update(ECSWorld world, float deltaTime)
+        internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
             var visibleChunks = new List<Entity>();
 

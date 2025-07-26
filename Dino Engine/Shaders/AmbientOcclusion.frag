@@ -3,7 +3,7 @@
 #include gBufferUtil.glsl
 #include Globals.glsl
 
-out vec3 FragColor;
+out float FragColor;
 in vec2 textureCoords;
 
 uniform sampler2D gDepth;
@@ -27,7 +27,7 @@ uniform vec2 noiseScale;
 void main()
 {
     // Get input for SSAO algorithm
-    vec3 fragPos = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolution);
+    vec3 fragPos = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolutionSSAO);
     vec3 normal = unCompressNormal(texture(gNormal, textureCoords).rgb);
 	//normal = normalize(normal);
    vec3 randomVec = texture(texNoise, textureCoords*noiseScale).xyz;
@@ -55,7 +55,7 @@ void main()
         offset.xyz = offset.xyz * 0.5 + 0.5; // transform to range 0.0 - 1.0
         
         // get sample depth
-        float sampleDepth =ReconstructViewSpacePosition(offset.xy * resolutionSSAO, texture(gDepth, offset.xy).r, invProjectionMatrix, resolution).z;
+        float sampleDepth =ReconstructViewSpacePosition(offset.xy * resolutionSSAO, texture(gDepth, offset.xy).r, invProjectionMatrix, resolutionSSAO).z;
         
         // range check & accumulate
         float rangeCheck = smoothstep(0.0, 1.0, depthScaledRadius / abs(fragPos.z - sampleDepth ));
@@ -64,6 +64,6 @@ void main()
     }
     occlusion = 1.0 - (occlusion / kernelSize);
 
-    FragColor = vec3(pow (occlusion, depthScaledStrength));
+    FragColor = pow (occlusion, depthScaledStrength);
 
 }

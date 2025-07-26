@@ -11,7 +11,7 @@ uniform float Decay;
 uniform float illuminationDecay;
 uniform int samples;
 uniform vec3 sunDirection;
-
+uniform vec2 celestialRayResolution;
 uniform sampler2D sunTexture;
 
 
@@ -28,10 +28,10 @@ void main(void)
     vec2 screenPos = ndcPos.xy * 0.5 + 0.5;
     
 	screenPos = ((screenPos*2)-1);
-	screenPos = (screenPos*resolution)/resolution.xy;
+	screenPos = (screenPos*celestialRayResolution)/celestialRayResolution.xy;
 
 	vec2 uv = ((textureCoords*2)-1);
-	uv = (uv*resolution)/resolution.xy;
+	uv = (uv*celestialRayResolution)/celestialRayResolution.xy;
 
   // Calculate vector from pixel to light source in screen space.
   vec2 deltaTexCoord = (uv - screenPos.xy);

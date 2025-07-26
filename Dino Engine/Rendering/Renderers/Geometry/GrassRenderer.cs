@@ -367,7 +367,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, grassNoiseTexture);
 
-            _grassShader.loadUniformFloat("groundNormalStrength", 50.0f);
+            _grassShader.loadUniformFloat("groundNormalStrength", 30.0f);
             _grassShader.loadUniformFloat("colourError", 0.2f);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.8f);
             _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.4f);

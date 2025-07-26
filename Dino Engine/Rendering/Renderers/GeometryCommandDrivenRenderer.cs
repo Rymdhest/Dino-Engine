@@ -24,7 +24,8 @@ namespace Dino_Engine.Rendering.Renderers
         public void GeometryRenderPass(RenderEngine renderEngine)
         {
             string taskName = Name + " Geometry";
-            if (trackPerformance) Engine.PerformanceMonitor.startTask(taskName);
+            if (trackPerformance) Engine.PerformanceMonitor.startGPUTask(taskName);
+            if (trackPerformance) Engine.PerformanceMonitor.startCPUTask(taskName+" RENDER");
             PrepareGeometry(renderEngine);
 
             foreach (var command in geometryCommands)
@@ -34,12 +35,14 @@ namespace Dino_Engine.Rendering.Renderers
             geometryCommands.Clear();
 
             FinishGeometry(renderEngine);
-            if (trackPerformance) Engine.PerformanceMonitor.finishTask(taskName);
+            if (trackPerformance) Engine.PerformanceMonitor.finishGPUTask(taskName);
+            if (trackPerformance) Engine.PerformanceMonitor.finishCPUTask(taskName+" RENDER");
         }
         public void ShadowRenderPass(RenderEngine renderEngine)
         {
             string taskName = Name + " Shadow";
-            if (trackPerformance) Engine.PerformanceMonitor.startTask(taskName);
+            if (trackPerformance) Engine.PerformanceMonitor.startGPUTask(taskName);
+            if (trackPerformance) Engine.PerformanceMonitor.startCPUTask(taskName+" RENDER");
             PrepareShadow(renderEngine);
 
             foreach (var command in shadowCommands)
@@ -49,7 +52,8 @@ namespace Dino_Engine.Rendering.Renderers
             shadowCommands.Clear();
 
             FinishShadow(renderEngine);
-            if (trackPerformance) Engine.PerformanceMonitor.finishTask(taskName);
+            if (trackPerformance) Engine.PerformanceMonitor.finishGPUTask(taskName);
+            if (trackPerformance) Engine.PerformanceMonitor.finishCPUTask(taskName+" RENDER");
         }
 
         internal abstract void PrepareGeometry(RenderEngine renderEngine);

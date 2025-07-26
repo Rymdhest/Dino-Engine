@@ -17,11 +17,13 @@ namespace Dino_Engine.Rendering.Renderers
         }
         public void RenderPass(RenderEngine renderEngine)
         {
-            if (trackPerformance) Engine.PerformanceMonitor.startTask(Name);
+            if (trackPerformance) Engine.PerformanceMonitor.startGPUTask(Name);
+            if (trackPerformance) Engine.PerformanceMonitor.startCPUTask(Name+" RENDER");
             Prepare(renderEngine);
             Render(renderEngine);
             Finish(renderEngine);
-            if (trackPerformance) Engine.PerformanceMonitor.finishTask(Name);
+            if (trackPerformance) Engine.PerformanceMonitor.finishGPUTask(Name);
+            if (trackPerformance) Engine.PerformanceMonitor.finishCPUTask(Name+" RENDER");
         }
         internal abstract void Prepare(RenderEngine renderEngine);
         internal abstract void Finish(RenderEngine renderEngine);

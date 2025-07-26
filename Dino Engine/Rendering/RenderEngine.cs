@@ -70,7 +70,7 @@ namespace Dino_Engine.Rendering
         public SpotLightRenderer _spotLightRenderer;
         public ParticleRenderer _particleRenderer;
         public GrassRenderer _grassRenderer;
-        public SunRenderer _sunRenderer;
+        public CelestialBodyRenderer _sunRenderer;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
         public bool debugView = false;
@@ -137,7 +137,7 @@ namespace Dino_Engine.Rendering
             _particleRenderer = new ParticleRenderer();
             _depthOfFieldRenderer = new DepthOfFieldRenderer();
             _grassRenderer = new GrassRenderer();
-            _sunRenderer = new SunRenderer();
+            _sunRenderer = new CelestialBodyRenderer();
 
         }
 

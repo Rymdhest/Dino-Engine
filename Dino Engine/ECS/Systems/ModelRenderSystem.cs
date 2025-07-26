@@ -18,10 +18,17 @@ namespace Dino_Engine.ECS.Systems
         {
         }
 
-        public override void Update(ECSWorld world, float deltaTime)
+        internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
-            base.Update(world, deltaTime);
+            foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
+            {
+                var accessor = new ComponentAccessor(archetype);
 
+                foreach (var entity in accessor)
+                {
+                    UpdateEntity(entity, world, deltaTime);
+                }
+            }   
             foreach (var cmd in commands)
             {
                 ModelRenderCommand command = new ModelRenderCommand();

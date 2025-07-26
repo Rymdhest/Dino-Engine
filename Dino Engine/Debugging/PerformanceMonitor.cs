@@ -4,33 +4,54 @@ namespace Dino_Engine.Debug
 {
     public class PerformanceMonitor
     {
-        private Dictionary<string, TaskTracker> _taskTrackers = new Dictionary<string, TaskTracker>();
+        private Dictionary<string, TaskTracker> GPUTasks = new Dictionary<string, TaskTracker>();
+        private Dictionary<string, TaskTracker> CPUTasks = new Dictionary<string, TaskTracker>();
 
         public PerformanceMonitor()
         {
 
         }
-
-        public void startTask(string name)
+        public void startCPUTask(string name)
         {
-
-
-            if (_taskTrackers.TryGetValue(name, out TaskTracker tracker))
+            if (CPUTasks.TryGetValue(name, out TaskTracker task))
             {
-                tracker.Start();
-            } else
+                task.StartTask();
+            }
+            else
             {
-                TaskTracker newTracker = new TaskTracker(name);
-                _taskTrackers.Add(name, newTracker);
-                newTracker.Start();
+                CPUTask newTracker = new CPUTask(name);
+                CPUTasks.Add(name, newTracker);
+                newTracker.StartTask();
             }
         }
-
-        public void finishTask(string name)
+        public void startGPUTask(string name)
         {
-            if (_taskTrackers.TryGetValue(name, out TaskTracker tracker))
+            if (GPUTasks.TryGetValue(name, out TaskTracker task))
             {
-                tracker.Finish();
+                task.StartTask();
+            } else
+            {
+                GPUTask newTracker = new GPUTask(name);
+                GPUTasks.Add(name, newTracker);
+                newTracker.StartTask();
+            }
+        }
+        public void finishCPUTask(string name)
+        {
+            if (CPUTasks.TryGetValue(name, out TaskTracker task))
+            {
+                task.FinishTask();
+            }
+            else
+            {
+                throw new Exception("Trying to finish a performance task that does not excist");
+            }
+        }
+        public void finishGPUTask(string name)
+        {
+            if (GPUTasks.TryGetValue(name, out TaskTracker task))
+            {
+                task.FinishTask();
             } else
             {
                 throw new Exception("Trying to finish a performance task that does not excist");
@@ -39,7 +60,12 @@ namespace Dino_Engine.Debug
 
         public void FinishFrame()
         {
-            foreach (var kvp in _taskTrackers)
+            foreach (var kvp in GPUTasks)
+            {
+                kvp.Value.FinishFrame();
+            }
+
+            foreach (var kvp in CPUTasks)
             {
                 kvp.Value.FinishFrame();
             }
@@ -47,20 +73,23 @@ namespace Dino_Engine.Debug
 
         public void FinishSecond()
         {
-            foreach (var kvp in _taskTrackers)
+            foreach (var kvp in GPUTasks)
             {
                 kvp.Value.FinishSecond();
             }
-            StatusReportDump();
+            foreach (var kvp in CPUTasks)
+            {
+                kvp.Value.FinishSecond();
+            }
+            StatusReportDump(GPUTasks.Values.ToList<TaskTracker>());
+            //StatusReportDump(CPUTasks.Values.ToList<TaskTracker>());
         }
 
-        public void StatusReportDump()
+        public void StatusReportDump(List<TaskTracker> tasks)
         {
-            List<TaskTracker> tasks = _taskTrackers.Values.ToList();
-
             tasks.Sort((a, b) => b.averageTimePerTaskLastSecond.CompareTo(a.averageTimePerTaskLastSecond));
 
-            Console.WriteLine("\nPERFORMANCE REPORT (GPU): \n");
+            Console.WriteLine("\nPERFORMANCE REPORT: \n");
 
             double total = 0;
 
@@ -75,7 +104,8 @@ namespace Dino_Engine.Debug
 
         public void cleanUp()
         {
-            _taskTrackers.Clear();
+            GPUTasks.Clear();
+            CPUTasks.Clear();
         }
     }
 }

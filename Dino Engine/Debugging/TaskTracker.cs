@@ -2,19 +2,14 @@
 
 namespace Dino_Engine.Debug
 {
-    public class TaskTracker
+    public abstract class TaskTracker
     {
-        private const int QueryDelay = 4; // Delay by 4 frames
-        private const int BufferSize = 8; // Ring buffer size
 
         private string _name;
         public string Name => _name;
 
-        private int[] queries = new int[BufferSize];
-        private int currentFrameIndex = 0;
-
-        private long lastResolvedGpuTime = 0;
         private long timeSpentThisSecond = 0;
+        protected long timeSpentThisFrame = 0;
         private int framesThisSecond = 0;
 
         public long averageTimePerTaskLastSecond = 0;
@@ -22,35 +17,21 @@ namespace Dino_Engine.Debug
         public TaskTracker(string name)
         {
             _name = name;
-            for (int i = 0; i < BufferSize; i++)
-                GL.GenQueries(1, out queries[i]);
         }
 
-        public void Start()
+        public abstract void StartTask();
+
+        protected abstract long CalcTimeTimeFinishTask();
+        public void FinishTask()
         {
-            GL.BeginQuery(QueryTarget.TimeElapsed, queries[currentFrameIndex]);
+            timeSpentThisFrame += CalcTimeTimeFinishTask();
         }
 
-        public void Finish()
+        public virtual void FinishFrame()
         {
-            GL.EndQuery(QueryTarget.TimeElapsed);
-        }
-
-        public void FinishFrame()
-        {
-            int readIndex = (currentFrameIndex + BufferSize - QueryDelay) % BufferSize;
-
-            GL.GetQueryObject(queries[readIndex], GetQueryObjectParam.QueryResultAvailable, out int available);
-            if (available != 0)
-            {
-                GL.GetQueryObject(queries[readIndex], GetQueryObjectParam.QueryResult, out long timeElapsed);
-                lastResolvedGpuTime = timeElapsed;
-            }
-
-            timeSpentThisSecond += lastResolvedGpuTime;
+            timeSpentThisSecond += timeSpentThisFrame;
+            timeSpentThisFrame = 0;
             framesThisSecond++;
-
-            currentFrameIndex = (currentFrameIndex + 1) % BufferSize;
         }
 
         public void FinishSecond()
@@ -64,10 +45,6 @@ namespace Dino_Engine.Debug
             framesThisSecond = 0;
         }
 
-        public void Cleanup()
-        {
-            foreach (var q in queries)
-                GL.DeleteQuery(q);
-        }
+        public virtual void Cleanup() { }
     }
 }
