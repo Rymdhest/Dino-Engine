@@ -178,6 +178,25 @@ namespace Dino_Defenders
             world.RegisterSingleton<TerrainQuadTreeComponent>(world.CreateEntity(new TerrainQuadTreeComponent(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
             world.RegisterSingleton<TerrainGeneratorComponent>(world.CreateEntity(new TerrainGeneratorComponent(terrainGenerator)));
             world.ApplyDeferredCommands();
+
+            Mesh boxMesh = MeshGenerator.generateBox(new Material(Engine.RenderEngine.textureGenerator.brick));
+            Mesh.scaleUV = true;
+            boxMesh.scale(new Vector3(10f, 10f, 10f));
+            boxMesh.scaleUVs(new Vector2(1.0f, 1.0f));
+            boxMesh.ProjectUVsWorldSpaceCube(0.2f);
+            //Mesh.scaleUV = true;
+
+            float y = world.GetComponent<TerrainGeneratorComponent>(world.GetSingleton<TerrainGeneratorComponent>()).Generator.getHeightAt(new Vector2(100, 100));
+            y += 4;
+            world.CreateEntity(
+                new PositionComponent(new Vector3(100, y, 100)),
+                new RotationComponent(new Vector3(-MathF.PI / 2f,0f, 0)),
+                new ScaleComponent(new Vector3(1)),
+                new ModelComponent(glLoader.loadToVAO(boxMesh)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
+
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-1f, -2.5f, -5.9f)),
@@ -203,9 +222,9 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0f, -1.0f, 0.0f)),
-                new ColorComponent(new Colour(86, 155, 255, 1.1f)),
+                new ColorComponent(new Colour(86, 155, 255, 4.1f)),
                 new SkyTag(),
-                new AmbientLightComponent(0.7f)
+                new AmbientLightComponent(0.1f)
             );
 
             spawnCity(Engine.world);
@@ -221,7 +240,7 @@ namespace Dino_Defenders
             world.CreateEntity("ground",
                 new PositionComponent(new Vector3(0, 0, 0)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
-                new ScaleComponent(new Vector3(200f)),
+                new ScaleComponent(new Vector3(4f*2)),
                 new ModelComponent(glLoader.loadToVAO(floorMesh)),
                 new ModelRenderTag(),
                 new LocalToWorldMatrixComponent()

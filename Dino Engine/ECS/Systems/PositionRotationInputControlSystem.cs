@@ -94,6 +94,11 @@ namespace Dino_Engine.ECS.Systems
                     speed = 0f;
                     duration = 30f;
                 }
+
+                var colVector = MyMath.rng3D();
+                if (colVector.Length < 1.0) colVector.Normalize();
+                var col = new Colour(colVector);
+                col.Intensity = 10f;
                 Vector3 forward = currentFinalRotation * -Vector3.UnitZ;
                 world.CreateEntity("Shooting ball",
                     new VelocityComponent(forward * speed),
@@ -111,6 +116,7 @@ namespace Dino_Engine.ECS.Systems
                     new SpotlightShadowComponent(new Vector2i(512), MathF.PI / 3f),
                     new MassComponent(mass),
                     new ColorComponent(new Colour(1f, 0.6f, 0.5f, 10f)),
+                    //new ColorComponent(col),
                     new selfDestroyComponent(duration)
                 ); ;
             }

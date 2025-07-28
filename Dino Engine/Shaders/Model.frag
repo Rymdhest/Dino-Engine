@@ -31,8 +31,8 @@ layout (location = 2) out vec4 gMaterials;
 void main() {
 
 	vec3 viewDir   = normalize((TangentViewPos - TangentFragPos));
-    //vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir, textureIndex, parallaxDepth, parallaxLayers);
-    vec2 parallaxedCoords = fragUV;
+    vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir, textureIndex, parallaxDepth, parallaxLayers);
+    //vec2 parallaxedCoords = fragUV;
     //if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
 
 	gAlbedo = lookupAlbedo(parallaxedCoords, textureIndex);

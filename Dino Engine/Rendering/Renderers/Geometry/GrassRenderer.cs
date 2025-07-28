@@ -228,10 +228,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 60;
+            bladesPerAxis = 40;
 
             bladeHeight = 1.0f;
-            radiusBase = 0.035f;
+            radiusBase = 0.025f;
             radiusTop = radiusBase * 0.3f;
     }
 
@@ -367,7 +367,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, grassNoiseTexture);
 
-            _grassShader.loadUniformFloat("groundNormalStrength", 30.0f);
+            _grassShader.loadUniformFloat("groundNormalStrength", 8.0f);
             _grassShader.loadUniformFloat("colourError", 0.2f);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.8f);
             _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.4f);

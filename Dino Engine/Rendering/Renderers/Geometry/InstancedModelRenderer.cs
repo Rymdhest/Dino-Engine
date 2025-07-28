@@ -50,8 +50,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _instancedModelShader.bind();
 
-            _instancedModelShader.loadUniformFloat("parallaxDepth", 0.05f);
-            _instancedModelShader.loadUniformFloat("parallaxLayers", 30f);
+            _instancedModelShader.loadUniformFloat("parallaxDepth", 0.1f);
+            _instancedModelShader.loadUniformFloat("parallaxLayers", 20f);
 
             _instancedModelShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 

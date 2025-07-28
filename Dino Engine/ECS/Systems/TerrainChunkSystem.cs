@@ -53,9 +53,9 @@ namespace Dino_Engine.ECS.Systems
         private void UpdateNodeLODRecursive(QuadTreeNode node, Vector3 cameraPos, ECSWorld world, TerrainGenerator generator, float rootSize)
         {
             float distance = Vector2.Distance(cameraPos.Xz, node.GetCenter());
-            float lodFactor = 3.14f;
+            float lodFactor = 6.14f;
             int maxDepth = 20;
-            float minSize = 5f;
+            float minSize = 2f;
             int desiredLOD = ComputeDesiredLOD(distance, node, lodFactor, maxDepth, minSize, rootSize);
 
             if (desiredLOD > node.Depth)

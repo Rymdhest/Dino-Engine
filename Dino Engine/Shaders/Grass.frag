@@ -27,7 +27,8 @@ void main() {
 	gAlbedo = vec4(color, 1.0);
 	gNormal = vec4(normalize(fragNormal), (1.0-fakeAmbientOcclusionStrength)+tipFactor*fakeAmbientOcclusionStrength);
 	if (!gl_FrontFacing) gNormal.xyz = -gNormal.xyz;
-	gNormal.xyz = compressNormal(normalize(gNormal.xyz + terrainNormal*groundNormalStrength*depth*0.01f));
+	gNormal.xyz = compressNormal(normalize(gNormal.xyz +terrainNormal*1.5+terrainNormal*groundNormalStrength*depth*0.01f));
+	//gNormal.xyz = compressNormal(normalize(gNormal.xyz + terrainNormal*groundNormalStrength));
 
 	gMaterials = vec4(grassMaterial);
 }

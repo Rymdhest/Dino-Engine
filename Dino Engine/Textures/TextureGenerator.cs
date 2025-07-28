@@ -37,7 +37,7 @@ namespace Dino_Engine.Textures
         public int loadedModelTextures = 0;
         public int loadedMaterialTextures = 0;
 
-        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(1024, 1024)/1;
+        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(1024, 1024)*1;
 
 
         public int flat;
@@ -445,11 +445,11 @@ namespace Dino_Engine.Textures
         {
             var bark = procTextGen.PerlinFBM(new Vector2(20f, 5f), octaves: 10, amplitudePerOctave: 0.6f);
             var noise = procTextGen.PerlinFBM(new Vector2(32f, 32f), octaves: 10, amplitudePerOctave: 0.6f);
-            var barkCracks = procTextGen.VoronoiCracks(new Vector2(15f, 15f), width: 0.025f, smoothness: 0.02f, jitter: 1f);
+            var barkCracks = procTextGen.VoronoiCracks(new Vector2(15f, 5f), width: 0.025f, smoothness: 0.02f, jitter: 1f);
             var wavy = procTextGen.PerlinFBM(new Vector2(1, 16), octaves: 1, amplitudePerOctave: 0.6f, rigged: true);
             bark.setMaterial(new Colour(140, 60, 25), new Vector3(0.95f, 0.0f, 0f));
             noise.setMaterial(new Colour(30, 20, 5), new Vector3(0.55f, 0f, 0f));
-            barkCracks.setMaterial(new Colour(5, 5, 5), new Vector3(0.95f, 0f, 0f));
+            barkCracks.setMaterial(new Colour(130, 125, 125), new Vector3(0.95f, 0f, 0f));
             wavy.setMaterial(new Colour(10, 7, 9), new Vector3(0.35f, 0f, 0f));
 
             MaterialLayersCombiner.combine(barkCracks, noise.scaleHeight(0.2f), FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Override, weight: -0.1f, smoothness: 0.1f);
@@ -461,22 +461,31 @@ namespace Dino_Engine.Textures
 
             bark.addHeight(-0.05f);
             bark.scaleHeight(4.0f);
-            return FinishTexture(bark, normalFlatness: 100.0f);
+            return FinishTexture(bark, normalFlatness: 20.0f);
         }
 
         private int brickTexture()
         {
-            var bricks = procTextGen.Createbricks(new Vector2(7f, 16f), smoothness: 0.04f, spacing: 0.016f, returnMode: ReturnMode.Height);
-            var bricksID = procTextGen.Createbricks(new Vector2(7f, 16f), smoothness: 0.04f, spacing: 0.016f, returnMode: ReturnMode.ID);
-            bricks.setMaterial(new Colour(189, 110, 81), new Vector3(0.95f, 0f, 0f));
+            var bricks = procTextGen.Createbricks(new Vector2(8f, 16f), smoothness: 0.04f, spacing: 0.036f, returnMode: ReturnMode.Height);
+            var bricksID = procTextGen.Createbricks(new Vector2(8f, 16f), smoothness: 0.04f, spacing: 0.036f, returnMode: ReturnMode.ID);
+            bricks.setMaterial(new Colour(240, 40, 31), new Vector3(0.55f, 0f, 0.03f));
+            var bricks2 = procTextGen.Createbricks(new Vector2(8f, 15f), smoothness: 0.04f, spacing: 0.036f, returnMode: ReturnMode.Height);
+            bricks2.setMaterial(new Colour(255,115, 38), new Vector3(0.55f, 0f, 0.03f));
+
             var background = procTextGen.PerlinFBM(new Vector2(16f, 16f), octaves: 10, amplitudePerOctave: 0.8f, rigged: false);
             background.setMaterial(new Colour(163, 152, 138), new Vector3(0.98f, 0f, 0f));
-            MaterialLayersCombiner.combine(background, procTextGen.CreateFlatHeight(0.0f), FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight: -0.2f);
+            background.scaleHeight(0.4f);
+            //MaterialLayersCombiner.combine(background, procTextGen.CreateFlatHeight(0.0f), FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight: -0.2f);
 
+            MaterialLayersCombiner.combine(bricks, background, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight: 0.5f, smoothness: 0.9f);
             MaterialLayersCombiner.combine(bricks, bricksID, FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Nothing, weight: 0.2f, smoothness: 0.5f);
-            MaterialLayersCombiner.combine(bricks, background, FilterMode.Greater, heightOperation: Operation.Smoothstep, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.1f);
 
-            MaterialLayersCombiner.combine(bricks, background, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Smoothstep, weight: 0.3f, smoothness: 0.9f);
+            MaterialLayersCombiner.combine(bricks2, bricksID, FilterMode.Everywhere, heightOperation: Operation.Override, materialOperation: Operation.Nothing, weight: 0.5f, smoothness: 0.5f);
+            bricks2.scaleHeight(0.7f);
+            MaterialLayersCombiner.combine(bricks, bricks2, FilterMode.Greater, heightOperation: Operation.Nothing, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.1f);
+
+            MaterialLayersCombiner.combine(bricks, background, FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.1f);
+
 
             return FinishTexture(bricks, normalFlatness: 100);
         }
