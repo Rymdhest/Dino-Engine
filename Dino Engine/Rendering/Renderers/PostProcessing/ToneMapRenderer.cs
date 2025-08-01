@@ -28,7 +28,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             DualBuffer buffer = renderEngine.lastUsedBuffer;
 
-            HDRMapShader.loadUniformFloat("exposure", 0.50f);
+            HDRMapShader.loadUniformFloat("exposure", 1.0f);
             HDRMapShader.loadUniformFloat("gamma", 2.2f);
             HDRMapShader.loadUniformFloat("saturation", 1.0f);
             HDRMapShader.loadUniformFloat("brightness", 1.0f);

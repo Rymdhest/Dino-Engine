@@ -22,6 +22,7 @@ namespace Dino_Engine.Textures
         private ShaderProgram _textureCellularShader = new ShaderProgram("Simple.vert", "Texture_Cellular.frag");
         private ShaderProgram _textureFlatShader = new ShaderProgram("Simple.vert", "Texture_Flat.frag");
         private ShaderProgram _textureBricksShader = new ShaderProgram("Simple.vert", "Texture_Bricks.frag");
+        private ShaderProgram _textureSineShader = new ShaderProgram("Simple.vert", "Texture_Sine.frag");
 
         private static readonly Colour defaultColour = new Colour(255, 255, 255);
         private Vector4 defaultmaterial = new Vector4(0.5f, 0f, 0f, 1.0f);
@@ -79,6 +80,16 @@ namespace Dino_Engine.Textures
             _textureBricksShader.loadUniformFloat("spacing", spacing);
             _textureBricksShader.loadUniformFloat("smoothness", smoothness);
             _textureBricksShader.loadUniformInt("returnMode", (int)returnMode);
+            return layer.tap();
+        }
+
+        public MaterialLayer Sine(Vector2 frequenzy)
+        {
+            var layer = new MaterialLayer(bind: true);
+            _textureSineShader.bind();
+            _textureSineShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureSineShader.loadUniformVector4f("material", defaultmaterial);
+            _textureSineShader.loadUniformVector2f("frequenzy", frequenzy);
             return layer.tap();
         }
 

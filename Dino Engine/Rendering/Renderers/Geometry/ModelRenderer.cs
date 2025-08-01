@@ -43,14 +43,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PrepareGeometry(RenderEngine renderEngine)
         {
             GL.Enable(EnableCap.DepthTest);
-            GL.Enable(EnableCap.CullFace);
-            //GL.Disable(EnableCap.CullFace);
+            //GL.Enable(EnableCap.CullFace);
+            GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();
 
-            _modelShader.loadUniformFloat("parallaxDepth", 0.08f);
-            _modelShader.loadUniformFloat("parallaxLayers", 20f);
+            _modelShader.loadUniformFloat("parallaxDepth", 0.1f);
+            _modelShader.loadUniformFloat("parallaxLayers", 300f);
 
             _modelShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 

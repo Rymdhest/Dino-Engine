@@ -153,7 +153,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 new Vector2(MyMath.lerp(radiusBase, radiusTop, 0.33f), bladeHeight*0.33f),
                 new Vector2(MyMath.lerp(radiusBase, radiusTop, 0.66f), bladeHeight*0.66f),
                 new Vector2(radiusTop, bladeHeight)};
-            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 3, grassMaterial, sealTop: 0.0f);
+            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 3, grassMaterial, sealTop: 0.05f);
             //bladeMesh.scale(new Vector3(1f, 1f, 0.1f));
 
             //bladeMesh.makeFlat(true, false);
@@ -230,7 +230,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             bladesPerAxis = 40;
 
-            bladeHeight = 1.0f;
+            bladeHeight =1.0f;
             radiusBase = 0.025f;
             radiusTop = radiusBase * 0.3f;
     }
@@ -367,7 +367,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, grassNoiseTexture);
 
-            _grassShader.loadUniformFloat("groundNormalStrength", 8.0f);
+            _grassShader.loadUniformFloat("groundNormalStrength", 5.0f);
             _grassShader.loadUniformFloat("colourError", 0.2f);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.8f);
             _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.4f);
@@ -402,7 +402,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             ShaderProgram shader = _grassShadowShader;
             for (int i = 0; i <2; i++)
             {
-                shader.loadUniformFloat("swayAmount", 0.6f);
+                shader.loadUniformFloat("swayAmount", 0.4f);
                 shader.loadUniformFloat("bladeHeight", bladeHeight);
                 shader.loadUniformFloat("bendyness", 0.0f);
                 shader.loadUniformFloat("heightError", 0.35f);

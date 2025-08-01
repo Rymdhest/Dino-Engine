@@ -14,8 +14,9 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
         public float _mountainCoverage = 0.1f;
         public float _frequenzy = 0.01f;
-        public int _octaves = 8;
-        public float yScale = 500f;
+        public int _octaves = 13;
+        public float mountainScale = 500f;
+        public float noiseScale = 5f;
 
         private OpenSimplexNoise noise;
 
@@ -110,26 +111,64 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             float amplitude = 1f;
             float totalAmplitude = 0f;
 
-            float mountainFactor = MyMath.clamp01( noise.Evaluate(position.X*0.006f, position.Y*0.006f)/2f+0.5f);
-            mountainFactor = MathF.Pow(mountainFactor, 2.8f);
+            frequency = 0.05f;
+            noiseScale = 3f;
+            _octaves = 13;
+            mountainScale = 300f;
 
-            mountainFactor *= MathF.Pow(MyMath.clamp01(noise.Evaluate(position.X * 0.003f, position.Y * 0.003f) / 2f + 0.5f), 1.5f);
-            //mountainFactor *= MathF.Pow(MyMath.clamp01(noise.Evaluate(position.X * 0.0001f, position.Y * 0.0001f) / 2f + 0.5f), 0.6f);
-            //mountainFactor *= MathF.Pow(MyMath.clamp01(noise.Evaluate(position.X * 0.00007f, position.Y * 0.00007f) / 2f + 0.5f), 0.3f);
 
             for (int i = 0; i < _octaves; i++)
             {
-                y +=( 1f-MathF.Abs( noise.Evaluate(x * frequency, z * frequency))) * amplitude;
+                y += (noise.Evaluate(x * frequency, z * frequency)*0.5f+0.5f) * amplitude;
                 totalAmplitude += amplitude;
                 frequency *= 2f;
                 amplitude *= 0.5f;
             }
             y /= totalAmplitude;
-            y *= mountainFactor;
+            y *= noiseScale;
 
-            y *= yScale;
-            y -= 5f;
-            if (y < 0f) y *= 0.5f;
+
+            amplitude = 1f;
+            totalAmplitude = 0f;
+            frequency = 0.002f;
+            float exponent = 3.6f;
+            float yMountain = 0f;
+
+
+            for (int i = 0; i < 11; i++)
+            {
+                yMountain += MathF.Pow((1.0f - MathF.Abs(noise.Evaluate(x * frequency, z * frequency))), exponent) * amplitude;
+                totalAmplitude += amplitude;
+                frequency *= 2f;
+                amplitude *= 0.5f;
+                exponent *= 0.8f;
+            }
+            yMountain /= totalAmplitude;
+
+            amplitude = 1f;
+            totalAmplitude = 0f;
+            frequency = 0.005f;
+            exponent = 3.0f;
+            float mountainFactor = 0f;
+
+
+            for (int i = 0; i < 2; i++)
+            {
+                mountainFactor += MathF.Pow((noise.Evaluate(x * frequency, z * frequency)*0.5f+0.5f), exponent) * amplitude;
+                totalAmplitude += amplitude;
+                frequency *= 2f;
+                amplitude *= 0.5f;
+                exponent *= 0.8f;
+            }
+            mountainFactor /= totalAmplitude;
+
+            yMountain *= mountainFactor;
+            yMountain *= mountainScale;
+
+            y += yMountain;
+
+            //y -= 5f;
+            //if (y < 0f) y *= 0.2f;
 
 
 

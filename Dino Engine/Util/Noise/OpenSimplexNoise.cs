@@ -299,7 +299,7 @@ namespace Util.Noise
                 }
                 c = c.Next;
             }
-            return (float)(value * NORM_2D);
+            return Math.Clamp((float)(value * NORM_2D)/ 0.8659f, -1f, 1f);
         }
 
         public float Evaluate(float x, float y, float z)

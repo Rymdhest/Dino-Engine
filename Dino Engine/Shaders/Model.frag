@@ -44,8 +44,9 @@ void main() {
     //gAlbedo.rgb = vec3(fract(fragUV), 0f);
 	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex).xyzw;
     gNormal.a = normalTangentSpace.a;
-	gNormal.xyz = compressNormal(normalize(normalTBN*normalTangentSpace.xyz));
-    if (!gl_FrontFacing) gNormal *= -1.0;
+    vec3 normal = normalize(normalTBN*normalTangentSpace.xyz);
+    if (!gl_FrontFacing) normal *= -1.0;
+	gNormal.xyz = compressNormal(normal);
 
 	gMaterials = lookupMaterial(parallaxedCoords, textureIndex).rgba;
 }

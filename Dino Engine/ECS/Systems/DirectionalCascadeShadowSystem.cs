@@ -117,7 +117,6 @@ namespace Dino_Engine.ECS.Systems
 
                 Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(terrainChunksRenderData.ToArray(), 0.0f), shadow);
             }
-            //Console.WriteLine(sw.ElapsedMilliseconds/(double)TEST_REMOVE_PLEASE);
 
             // GRASS
         }

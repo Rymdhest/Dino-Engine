@@ -39,7 +39,7 @@ namespace Dino_Engine.Core
                 _framesCurrentSecond = 0;
                _secondStopWatch.Restart();
 
-                Console.WriteLine("FPS; "+FramesLastSecond);
+                //Console.WriteLine("FPS; "+FramesLastSecond);
 
             }
             _framesCurrentSecond++;

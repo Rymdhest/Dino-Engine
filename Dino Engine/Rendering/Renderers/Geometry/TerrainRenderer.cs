@@ -40,8 +40,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private glModel baseChunkModel;
         private int normalHeightTextureArray;
         private IDAllocator<ushort> normalHeightTextureArrayAllocator = new();
-        private readonly int MAX_TERRAIN_CHUNKS = 1024;
-        public static readonly int CHUNK_RESOLUTION = 32;
+        private readonly int MAX_TERRAIN_CHUNKS = 1024*2;
+        public static readonly int CHUNK_RESOLUTION = 16;
 
         private int instanceVBO;
 
@@ -205,6 +205,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.soil);
             _terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.rock);
+            //_terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.flat);
+            //_terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.flat);
 
             GL.BindVertexArray(baseChunkModel.getVAOID());
             GL.DisableVertexAttribArray(1);
@@ -270,7 +272,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PerformGeometryCommand(TerrainRenderCommand command, RenderEngine renderEngine)
         {
             _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
-            _terrainShader.loadUniformFloat("parallaxLayers", 15);
+            _terrainShader.loadUniformFloat("parallaxLayers", 25);
 
             int numberOfChunks = command.chunks.Length;
 
@@ -297,6 +299,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             shadow.shadowFrameBuffer.bind();
             GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
+            GL.PolygonOffset(1f, 0f);
 
             Matrix4 projectionViewMatrix = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
             _terrainShadowShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);

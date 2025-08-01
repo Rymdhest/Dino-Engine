@@ -34,6 +34,7 @@ namespace Dino_Engine.ECS.Systems
 
                 var pitchYaw = entity.Get<PositionRotationInputControlComponent>();
                 var Position = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
+                //Console.WriteLine(windowhandler.MouseState.Delta.X +" : "+deltaTime);
                 pitchYaw.Pitch -= windowhandler.MouseState.Delta.Y * turnSpeed;
                 pitchYaw.Yaw -= windowhandler.MouseState.Delta.X * turnSpeed;
                 pitchYaw.Pitch = Math.Clamp(pitchYaw.Pitch, -MathF.PI / 2f + 0.01f, MathF.PI / 2f - 0.01f);
@@ -100,11 +101,13 @@ namespace Dino_Engine.ECS.Systems
                 var col = new Colour(colVector);
                 col.Intensity = 10f;
                 Vector3 forward = currentFinalRotation * -Vector3.UnitZ;
+                float FoV = MathF.PI / 3.0f;
                 world.CreateEntity("Shooting ball",
                     new VelocityComponent(forward * speed),
                     new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation()+ forward*1f),
                     new LocalToWorldMatrixComponent(),
                     new AttunuationComponent(0.01f, 0.01f, 0.01f),
+                    new AmbientLightComponent(0.005f),
                     new ScaleComponent(new Vector3(0.15f)),
                     new ModelComponent(ModelGenerator.UNIT_SPHERE),
                     new ModelRenderTag(),
@@ -112,8 +115,8 @@ namespace Dino_Engine.ECS.Systems
                     //new PointLightTag(),
                     //new RotationComponent(currentFinalRotation),
                     new DirectionNormalizedComponent(forward),
-                    new SpotLightComponent(0.3f, MathF.PI/3f),
-                    new SpotlightShadowComponent(new Vector2i(512), MathF.PI / 3f),
+                    new SpotLightComponent(0.3f, FoV),
+                    new SpotlightShadowComponent(new Vector2i(512), FoV),
                     new MassComponent(mass),
                     new ColorComponent(new Colour(1f, 0.6f, 0.5f, 10f)),
                     //new ColorComponent(col),

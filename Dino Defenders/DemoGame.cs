@@ -173,6 +173,7 @@ namespace Dino_Defenders
         {
             ECSWorld world = Engine.world;
 
+            //terrainGenerator = new TerrainGenerator();
             world.ClearAllEntitiesExcept(world.QueryEntities(new BitMask(typeof(MainCameraComponent)), BitMask.Empty).ToArray());
 
             world.RegisterSingleton<TerrainQuadTreeComponent>(world.CreateEntity(new TerrainQuadTreeComponent(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
@@ -183,7 +184,7 @@ namespace Dino_Defenders
             Mesh.scaleUV = true;
             boxMesh.scale(new Vector3(10f, 10f, 10f));
             boxMesh.scaleUVs(new Vector2(1.0f, 1.0f));
-            boxMesh.ProjectUVsWorldSpaceCube(0.2f);
+            boxMesh.ProjectUVsWorldSpaceCube(0.5f);
             //Mesh.scaleUV = true;
 
             float y = world.GetComponent<TerrainGeneratorComponent>(world.GetSingleton<TerrainGeneratorComponent>()).Generator.getHeightAt(new Vector2(100, 100));
@@ -199,9 +200,9 @@ namespace Dino_Defenders
 
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
-                new DirectionNormalizedComponent(new Vector3(-1f, -2.5f, -5.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 30.0f)),
-                new AmbientLightComponent(0.03f),
+                new DirectionNormalizedComponent(new Vector3(-10f, -3.5f, -5.9f)),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20.0f)),
+                new AmbientLightComponent(0.0f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
             ) ;
@@ -209,11 +210,12 @@ namespace Dino_Defenders
             for (int i = 0; i<0; i++)
             {
                 world.CreateEntity("Moon",
-                    //new DirectionalLightTag(),
-                    new DirectionNormalizedComponent(new Vector3(MyMath.rngMinusPlus(), -MyMath.rng()*0.0f, MyMath.rngMinusPlus())),
+                    new DirectionalLightTag(),
+                    new DirectionNormalizedComponent(new Vector3(MyMath.rngMinusPlus(), -MyMath.rng()*1.0f, MyMath.rngMinusPlus())),
                     new CelestialBodyComponent(),
-                    //new AmbientLightComponent(0.01f),
-                    new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 1.5f))
+                    new AmbientLightComponent(0.02f),
+                    new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 2.0f))
+                    //new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
                 );
             }
 
@@ -221,10 +223,10 @@ namespace Dino_Defenders
 
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
-                new DirectionNormalizedComponent(new Vector3(0f, -1.0f, 0.0f)),
-                new ColorComponent(new Colour(86, 155, 255, 4.1f)),
+                new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
+                new ColorComponent(new Colour(86, 155, 255, 1.0f)),
                 new SkyTag(),
-                new AmbientLightComponent(0.1f)
+                new AmbientLightComponent(0.5f)
             );
 
             spawnCity(Engine.world);
@@ -905,16 +907,21 @@ namespace Dino_Defenders
                     {
                         Vector3 carLightPos = leftLight;
                         if (carLight == 1) carLightPos = rightLight;
-                        world.CreateEntity(
+                        float carLightFoV = MathF.PI / 2.0f;
+                        var spotLight = world.CreateEntity(
                             new PositionComponent(carLightPos),
                             new DirectionNormalizedComponent(new Vector3(0f, -0.3f, -1f)),
                             new AttunuationComponent(0.001f, 0.001f, 0.001f),
                             new ColorComponent(new Colour(1f, 0.8f, 0.6f, 0.3f)),
                             new LocalToWorldMatrixComponent(),
                             new ParentComponent(car),
-                            //new SpotlightShadowComponent(new Vector2i(256), MathF.PI / 2.0f),
-                            new SpotLightComponent(0.3f, MathF.PI/ 2.0f)
+                            new SpotLightComponent(0.3f, carLightFoV)
                         );
+                        if (i == 2)
+                        {
+                            //world.ApplyDeferredCommands();
+                            //world.AddComponentToEntity(spotLight, new SpotlightShadowComponent(new Vector2i(256), carLightFoV));
+                        }
                     }
                     
                     var emitterComponent = new ParticleEmitterComponent();
