@@ -43,7 +43,7 @@ float calcAttunuation(vec3 lightPos, vec3 position, vec3 attenuation)
 }
 
 // all done in view space
-vec3 getLightPBR(vec3 albedo, vec3 normal, float roughness, float metallic, vec3 lightColour, float attenuation, float ambient, vec3 viewDir, vec3 LightDir, float lightFactor)
+vec3 getLightPBROLD(vec3 albedo, vec3 normal, float roughness, float metallic, vec3 lightColour, float attenuation, float ambient, vec3 viewDir, vec3 LightDir, float lightFactor)
 {
     vec3 F0 = vec3(0.04);
     vec3 Lo = vec3(0.0);
@@ -76,5 +76,84 @@ vec3 getLightPBR(vec3 albedo, vec3 normal, float roughness, float metallic, vec3
     vec3 totalAmbient = vec3(albedo * lightColour)* attenuation* ambient;
     vec3 color = totalAmbient + Lo * lightFactor*(1.0- ambient);
 
-    return color;
+    float subSurfaceAmount = 0.35;
+
+    vec3 saturated = mix(vec3(dot(albedo, vec3(0.2126, 0.7152, 0.0722))), albedo, 1.4);
+    vec3 subColor = saturated*radiance*lightFactor;
+    
+    
+    float backLit = clamp(dot(-N, L), 0.0, 1.0);
+    float scatterProfile = pow(backLit, 2.0);
+
+    vec3 scatter = saturated;
+    vec3 subSurfaceScatterRadius = vec3 (1.0);
+    //subSurfaceScatterRadius *= scatter;
+    vec3 SubSurfaceScatter = exp(-3.0*abs(NdotL)/(subSurfaceScatterRadius+0.001));
+    return color*(1.0)+subColor*subSurfaceAmount*scatterProfile;
+}
+
+vec3 getLightPBR(
+    vec3 albedo,
+    vec3 normal,
+    float roughness,
+    float metallic,
+    vec3 lightColour,
+    float attenuation,
+    float ambient,
+    vec3 viewDir,
+    vec3 lightDir,
+    float lightFactor,
+    float lightFactorEntry,
+    float materialTransparancy,
+    float geometricDepth
+) {
+    vec3 F0 = vec3(0.04);
+    F0 = mix(F0, albedo, metallic);
+
+    vec3 N = normalize(normal);
+    vec3 V = normalize(viewDir);
+    vec3 L = normalize(lightDir);
+    vec3 H = normalize(V + L);
+
+    vec3 radiance = lightColour * attenuation;
+
+    // ----- PBR FRONT LIGHTING -----
+    float NDF = DistributionGGX(N, H, roughness);
+    float G   = GeometrySmith(N, V, L, roughness);
+    vec3  F   = fresnelSchlick(max(dot(H, V), 0.0), F0);
+
+    vec3 kS = F;
+    vec3 kD = (1.0 - kS) * (1.0 - metallic);
+
+    float NdotL = max(dot(N, L), 0.0);
+    vec3  specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 0.0001);
+
+    vec3 diffuse = kD * albedo / 3.14159265359;
+    vec3 LoFront = (diffuse + specular) * radiance * NdotL;
+
+    float thickness = 0.2;
+
+    // ----- BACK LIGHTING TRANSMISSION -----
+    float backLit = clamp(dot(-N, L), 0.0, 1.0);
+
+    // Boost saturation for transmitted light
+    vec3 avg = vec3(dot(albedo, vec3(0.2126, 0.7152, 0.0722)));
+    vec3 saturated = mix(avg, albedo, 1.4); // 1.0 = no boost
+
+    // Simple absorption through the leaf
+    float absorption = exp(-thickness * 4.0); // tweak 4.0 for strength
+
+    vec3 transmission = saturated * radiance * backLit * absorption;
+
+    // Sharpen the backlight falloff
+    float backBlend = pow(backLit, 1.0);
+
+    // ----- AMBIENT -----
+    vec3 totalAmbient = albedo * lightColour * attenuation * ambient;
+
+    // ----- COMBINE -----
+    // Blend between front PBR and back transmission based on light direction
+    vec3 litColor = mix(LoFront, transmission, backBlend * materialTransparancy);
+
+    return totalAmbient + litColor * (1.0 - ambient)*lightFactor;
 }

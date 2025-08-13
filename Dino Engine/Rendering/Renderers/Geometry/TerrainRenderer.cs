@@ -299,7 +299,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             shadow.shadowFrameBuffer.bind();
             GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
-            GL.PolygonOffset(1f, 0f);
+            //GL.PolygonOffset(-10f, 1f);
 
             Matrix4 projectionViewMatrix = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
             _terrainShadowShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);

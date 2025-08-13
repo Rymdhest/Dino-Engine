@@ -197,12 +197,12 @@ namespace Dino_Defenders
                 new ModelRenderTag(),
                 new LocalToWorldMatrixComponent()
             );
-
+            
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
-                new DirectionNormalizedComponent(new Vector3(-10f, -3.5f, -5.9f)),
+                new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20.0f)),
-                new AmbientLightComponent(0.0f),
+                new AmbientLightComponent(0.01f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
             ) ;
@@ -213,9 +213,9 @@ namespace Dino_Defenders
                     new DirectionalLightTag(),
                     new DirectionNormalizedComponent(new Vector3(MyMath.rngMinusPlus(), -MyMath.rng()*1.0f, MyMath.rngMinusPlus())),
                     new CelestialBodyComponent(),
-                    new AmbientLightComponent(0.02f),
-                    new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 2.0f))
-                    //new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
+                    new AmbientLightComponent(0.04f),
+                    new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 1.0f)),
+                    new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
                 );
             }
 
@@ -450,8 +450,8 @@ namespace Dino_Defenders
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float height = 1f + MyMath.rng(0.9f);
-                float radius = 1f+MyMath.rngMinusPlus(0.3f);
+                float height = 4f + MyMath.rng(0.9f);
+                float radius =2f+MyMath.rngMinusPlus(0.3f);
                 world.CreateEntity("tree test: "+i,
                     new PositionComponent(treePos),
                     new RotationComponent(new Vector3(0f, MyMath.rng()*MathF.Tau, 0f)),
@@ -463,10 +463,21 @@ namespace Dino_Defenders
             }
 
 
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(2, Material.ROCK);
-            RockMesh.FlatRandomness(0.15f);
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new Material(new Colour(55, 75, 55), Engine.RenderEngine.textureGenerator.grain));
+
+            OpenSimplexNoise noise = new OpenSimplexNoise();
+            for (int i = 0; i < RockMesh.meshVertices.Count; i++)
+            {
+                Vector3 oldPos = RockMesh.meshVertices[i].position;
+                float noiseValue = noise.FBM(oldPos.X, oldPos.Y, oldPos.Z, 1.5f, 4);
+                Vector3 newPos = oldPos + oldPos * noiseValue * 0.15f;
+                RockMesh.meshVertices[i].position = newPos;
+            }
+
+            RockMesh.FlatRandomness(0.0f);
+            //RockMesh.makeFlat(flatMaterial: true, flatNormal: true);
             glModel rockModel = glLoader.loadToVAO(RockMesh);
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 200; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
@@ -615,7 +626,7 @@ namespace Dino_Defenders
             }
 
 
-            var rockMesh = IcoSphereGenerator.CreateIcosphere(2, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.rock));
+            var rockMesh = IcoSphereGenerator.CreateIcosphere(2, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.crackedLava));
             rockMesh.rotate(new Vector3(-MathF.PI/2f, 0f, 0f));
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
@@ -624,14 +635,14 @@ namespace Dino_Defenders
             {
                 Vector3 oldPos = rockMesh.meshVertices[i].position;
                 float noiseValue = noise.FBM(oldPos.X, oldPos.Y, oldPos.Z, 1.5f, 4);
-                Vector3 newPos = oldPos+oldPos*noiseValue*0.45f;
+                Vector3 newPos = oldPos+oldPos*noiseValue*0.05f;
                 rockMesh.meshVertices[i].position = newPos;
             }
 
-            rockMesh.FlatRandomness(0.004f);
+            rockMesh.FlatRandomness(0.0f);
             rockMesh.makeFlat(flatMaterial: true, flatNormal:true);
             var rockModel = glLoader.loadToVAO(rockMesh);
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 1000; i++)
             {
                 var model = new ModelComponent(rockModel);
 

@@ -2,6 +2,8 @@
 #include globals.glsl
 
 in vec2 textureCoords;
+
+uniform float skyStrength;
 layout (location = 0) out vec4 out_Colour;
 
 void main(void){
@@ -17,7 +19,7 @@ void main(void){
 	vec3 viewDirWorldSpace = normalize((invViewMatrix*vec4(viewDirViewSpace, 0.0)).xyz);
 	vec3 upNormalWorldSpace = vec3(0, 1, 0);
 
-	out_Colour.rgb = skyColour;
+	out_Colour.rgb = skyColour*skyStrength;
 
 	out_Colour.rgb *= 1-pow(max( dot( viewDirWorldSpace, upNormalWorldSpace), 0.0 ), 0.7)*0.9f;
 

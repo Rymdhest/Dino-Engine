@@ -64,8 +64,19 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         public GrassRenderer() : base("Grass")
         {
             _grassShader.bind();
-            _grassShader.loadUniformInt("heightmaps", 0);
-            _grassShader.loadUniformInt("grassNoise", 1);
+
+
+            _grassShader.loadUniformInt("albedoMapTextureArray", 0);
+            _grassShader.loadUniformInt("normalMapTextureArray", 1);
+            _grassShader.loadUniformInt("materialMapTextureArray", 2);
+
+            _grassShader.loadUniformInt("albedoMapModelTextureArray", 3);
+            _grassShader.loadUniformInt("normalMapModelTextureArray", 4);
+            _grassShader.loadUniformInt("materialMapModelTextureArray", 5);
+
+            _grassShader.loadUniformInt("heightmaps", 6);
+            _grassShader.loadUniformInt("grassNoise", 7);
+
             _grassShader.unBind();
 
             _grassShadowShader.bind();
@@ -107,7 +118,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
 
 
-            var small = TextureGenerator.procTextGen.Voronoi(new Vector2(70f, 70f), jitter: 1.0f, phase: 1.0f, returnMode: ReturnMode.Height);
+            var small = TextureGenerator.procTextGen.Voronoi(new Vector2(170f, 170f), jitter: 1.0f, phase: 1.0f, returnMode: ReturnMode.Height);
             var big = TextureGenerator.procTextGen.PerlinFBM(new Vector2(17f, 17f), octaves: 4);
 
             small.scaleHeight(0.6f);
@@ -152,11 +163,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 new Vector2(radiusBase, 0),
                 new Vector2(MyMath.lerp(radiusBase, radiusTop, 0.33f), bladeHeight*0.33f),
                 new Vector2(MyMath.lerp(radiusBase, radiusTop, 0.66f), bladeHeight*0.66f),
-                new Vector2(radiusTop, bladeHeight)};
-            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 3, grassMaterial, sealTop: 0.05f);
-            //bladeMesh.scale(new Vector3(1f, 1f, 0.1f));
+                new Vector2(radiusTop, bladeHeight*0.95f),
+                new Vector2(0.0001f, bladeHeight)};
+            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 4, grassMaterial);
+            bladeMesh.scale(new Vector3(1f, 1f, 0.3f));
 
-            //bladeMesh.makeFlat(true, false);
+            bladeMesh.makeFlat(true, false);
             grassBladeLOD0 = glLoader.loadToVAO(bladeMesh);
         }
         
@@ -172,7 +184,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 radiusTop, bladeHeight, 0
             };
 
-            float roundness = 10.5f;
+            float roundness = 0.5f;
             Vector3 NL = Vector3.Normalize(new Vector3(-roundness, 0, 1));
             Vector3 NR = Vector3.Normalize(new Vector3(roundness, 0, 1));
 
@@ -204,7 +216,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 radiusTop, bladeHeight, 0
             };
 
-            float roundness = 1.5f;
+            float roundness = 0.5f;
             Vector3 NL = Vector3.Normalize(new Vector3(-roundness, 0, 1));
             Vector3 NR = Vector3.Normalize(new Vector3(roundness, 0, 1));
             Vector3 N = Vector3.Normalize(new Vector3(0, 0, 1));
@@ -231,8 +243,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             bladesPerAxis = 40;
 
             bladeHeight =1.0f;
-            radiusBase = 0.025f;
-            radiusTop = radiusBase * 0.3f;
+            radiusBase = 0.015f;
+            radiusTop = radiusBase * 0.4f;
     }
 
         public override void CleanUp()
@@ -361,18 +373,37 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _grassShader.bind();
 
-            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.ActiveTexture(TextureUnit.Texture6);
             GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetNormalHeightTextureArray());
 
-            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.ActiveTexture(TextureUnit.Texture7);
             GL.BindTexture(TextureTarget.Texture2D, grassNoiseTexture);
 
-            _grassShader.loadUniformFloat("groundNormalStrength", 5.0f);
-            _grassShader.loadUniformFloat("colourError", 0.2f);
-            _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.8f);
-            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.4f);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture2);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialTextureArray);
+
+            GL.ActiveTexture(TextureUnit.Texture3);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture4);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture5);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
+
+            _grassShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
+
+            _grassShader.loadUniformInt("textureIndex", Engine.RenderEngine.textureGenerator.flatGlow);
+            _grassShader.loadUniformFloat("groundNormalStrength", 7.5f);
+            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 1.2f);
+            _grassShader.loadUniformFloat("colourError", 0.1f);
+            _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.6f);
+            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.2f);
             _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.8f, 0f, 0.0f, 0f));
-            _grassShader.loadUniformVector3f("baseColor", new Colour(50, 75, 10).ToVector3());
+            _grassShader.loadUniformVector3f("baseColorAlive", new Colour(60, 80, 15).ToVector3());
+            _grassShader.loadUniformVector3f("baseColorDead", new Colour(186, 136, 49).ToVector3());
             //_grassShader.loadUniformVector3f("baseColor", new Colour(30, 11, 8).ToVector3());
         }
 
@@ -402,9 +433,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             ShaderProgram shader = _grassShadowShader;
             for (int i = 0; i <2; i++)
             {
-                shader.loadUniformFloat("swayAmount", 0.4f);
+                shader.loadUniformFloat("swayAmount", 0.3f);
                 shader.loadUniformFloat("bladeHeight", bladeHeight);
-                shader.loadUniformFloat("bendyness", 0.0f);
+                shader.loadUniformFloat("bendyness", 0.06f);
                 shader.loadUniformFloat("heightError", 0.35f);
                 shader.loadUniformFloat("radiusError", 0.35f);
                 shader.loadUniformFloat("cutOffThreshold", 0.1f);
@@ -455,9 +486,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindVertexArray(grassBlade.getVAOID());
             GL.EnableVertexAttribArray(0);
             GL.EnableVertexAttribArray(2);
+            GL.EnableVertexAttribArray(4);
             GL.DisableVertexAttribArray(1);
             GL.DisableVertexAttribArray(3);
-            GL.DisableVertexAttribArray(4);
             GL.DisableVertexAttribArray(5);
 
             GL.DrawElementsInstanced(PrimitiveType.Triangles, grassBlade.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero, bladesPerChunk * command.chunks.Length);

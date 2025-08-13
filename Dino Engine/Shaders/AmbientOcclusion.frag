@@ -55,7 +55,7 @@ void main()
         offset.xyz = offset.xyz * 0.5 + 0.5; // transform to range 0.0 - 1.0
         
         // get sample depth
-        float sampleDepth =ReconstructViewSpacePosition(offset.xy * resolutionSSAO, texture(gDepth, offset.xy).r, invProjectionMatrix, resolutionSSAO).z;
+        float sampleDepth =ReconstructViewSpacePosition(offset.xy * resolution, texture(gDepth, offset.xy).r, invProjectionMatrix, resolutionSSAO).z;
         
         // range check & accumulate
         float rangeCheck = smoothstep(0.0, 1.0, depthScaledRadius / abs(fragPos.z - sampleDepth ));

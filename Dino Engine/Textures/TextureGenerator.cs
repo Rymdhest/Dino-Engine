@@ -524,15 +524,15 @@ namespace Dino_Engine.Textures
         private int createSoilTexture()
         {
             MaterialLayer soilLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
-            soilLayer.setMaterial(new Colour(112, 62, 43), new Vector3(0.75f, 0f, 0.0f));
+            soilLayer.setMaterial(new Colour(186, 136, 49), new Vector3(0.75f, 0f, 0.0f));
 
             MaterialLayer grassLayer = procTextGen.PerlinFBM(new Vector2(52f, 52f), octaves: 8, amplitudePerOctave: 0.5f);
-            grassLayer.setMaterial(new Colour(40, 55, 10), new Vector3(0.65f, 0f, 0.0f));
+            grassLayer.setMaterial(new Colour(60, 80, 15), new Vector3(0.65f, 0f, 0.0f));
 
 
-            MaterialLayer rockLayer = procTextGen.Voronoi(new Vector2(100f, 100f), jitter:1.0f);
-            MaterialLayersCombiner.combine(rockLayer, procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 2, amplitudePerOctave: 0.5f), FilterMode.Everywhere, Operation.Nothing, Operation.Scale, weight: 0.7f);
-            rockLayer.setMaterial(new Colour(112, 112, 112), new Vector3(0.95f, 0f, 0.0f));
+            MaterialLayer rockLayer = procTextGen.Voronoi(new Vector2(200f, 200f), jitter:1.0f);
+            MaterialLayersCombiner.combine(rockLayer, procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 2, amplitudePerOctave: 0.5f), FilterMode.Everywhere, Operation.Nothing, Operation.Scale, weight: 0.2f);
+            rockLayer.setMaterial(new Colour(82, 82, 82), new Vector3(0.95f, 0f, 0.0f));
             rockLayer.scaleHeight(0.8f);
             MaterialLayer hilly = procTextGen.PerlinFBM(new Vector2(15f, 15f), octaves: 3, amplitudePerOctave: 0.5f, rigged:true);
             MaterialLayersCombiner.combine(grassLayer, hilly, FilterMode.Everywhere, Operation.Nothing, Operation.Mix, weight:0.5f);
@@ -547,7 +547,7 @@ namespace Dino_Engine.Textures
         private int createGrassTexture()
         {
             MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
-            roughLayer.setMaterial(new Colour(40, 55, 10), new Vector3(0.65f, 0f, 0.0f));
+            roughLayer.setMaterial(new Colour(60, 80, 15), new Vector3(0.65f, 0f, 0.0f));
             return FinishTexture(roughLayer);
         }
         private int createGrainTexture()

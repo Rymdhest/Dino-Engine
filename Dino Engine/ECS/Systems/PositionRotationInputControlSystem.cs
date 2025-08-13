@@ -107,7 +107,7 @@ namespace Dino_Engine.ECS.Systems
                     new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation()+ forward*1f),
                     new LocalToWorldMatrixComponent(),
                     new AttunuationComponent(0.01f, 0.01f, 0.01f),
-                    new AmbientLightComponent(0.005f),
+                    new AmbientLightComponent(0.001f),
                     new ScaleComponent(new Vector3(0.15f)),
                     new ModelComponent(ModelGenerator.UNIT_SPHERE),
                     new ModelRenderTag(),

@@ -21,7 +21,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             skyShader.bind();
             buffer.GetLastFrameBuffer().bind();
             GL.DepthFunc(DepthFunction.Lequal);
-
+            skyShader.loadUniformFloat("skyStrength", 5.0f);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
 

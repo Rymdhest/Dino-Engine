@@ -119,8 +119,9 @@ void main() {
 	VertexPositionLocal.y *= heightFactor;
 	VertexPositionLocal.xz *= 1.0+bladeRandomValue*2.0*radiusError-radiusError;
 
-	float rotX = (bladeRandomValue*2.0-1.0)*PI*tipFactor*bendyness;
-	float rotZ = (bladeRandomValue*2.0-1.0)*PI*tipFactor*bendyness;
+	vec2 bladeRandomValue2 = hash22(bladeWorldSeed);
+	float rotX = (bladeRandomValue2.x*2.0-1.0)*PI*2.0*tipFactor*bendyness;
+	float rotZ = (bladeRandomValue2.y*2.0-1.0)*PI*2.0*tipFactor*bendyness;
 	vec2 toCamera = normalize(lightPosWorld.xz - bladePositionWorld.xz);
 	float rotY = atan(toCamera.y, toCamera.x)-PI/2;;
 	mat3 localRotMatrix = rotZMatrix(rotZ)*rotXMatrix(rotX)*rotYMatrix(rotY);

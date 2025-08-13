@@ -5,6 +5,7 @@
 
 layout(location=0) in vec3 position;
 layout(location=2) in vec3 normal;
+layout(location=4) in vec2 uv;
 
 
 layout(std140, binding = 5) uniform ChunkDataBuffer {
@@ -17,6 +18,7 @@ out float valid;
 out float tipFactor;
 out vec3 terrainNormal;
 out float depth;
+out vec2 fragUV;
 
 uniform bool isBillboard;
 
@@ -28,7 +30,8 @@ uniform float radiusError;
 uniform float cutOffThreshold;
 uniform float cutOffRange;
 uniform float colourError;
-uniform vec3 baseColor;
+uniform vec3 baseColorAlive;
+uniform vec3 baseColorDead;
 uniform float steepnessCutoffStrength;
 
 uniform int bladesPerChunk;
@@ -128,9 +131,10 @@ void main() {
 
 	VertexPositionLocal.y *= heightFactor;
 	VertexPositionLocal.xz *= 1.0+bladeRandomValue*2.0*radiusError-radiusError;
-
-	float rotX = (bladeRandomValue*2.0-1.0)*PI*tipFactor*bendyness;
-	float rotZ = (bladeRandomValue*2.0-1.0)*PI*tipFactor*bendyness;
+	
+	vec2 bladeRandomValue2 = hash22(bladeWorldSeed);
+	float rotX = (bladeRandomValue2.x*2.0-1.0)*PI*2.0*tipFactor*bendyness;
+	float rotZ = (bladeRandomValue2.y*2.0-1.0)*PI*2.0*tipFactor*bendyness;
 	float rotY;
 	if (isBillboard){
 		vec2 toCamera = normalize(viewPosWorld.xz - bladePositionWorld.xz);
@@ -152,8 +156,8 @@ void main() {
 
 	
 	vec3 vertexPositionWorld = VertexPositionLocal+bladePositionWorld;
-
-	fragColor = baseColor+baseColor*hash23(bladeWorldSeed)*colourError*2-colourError*baseColor;
+	fragColor = mix(baseColorDead, baseColorAlive, clamp(0.0, 1.0, validFactor*4.0-0.5));
+	fragColor = fragColor+fragColor*hash23(bladeWorldSeed)*colourError*2-colourError*fragColor;
 	//vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
 	vec3 rotatedNormal = transpose(inverse(localRotMatrix))*normal.xyz;
 	//vec3 rotatedNormal = localRotMatrix*normal.xyz;
@@ -163,4 +167,6 @@ void main() {
 	vec4 vertexPosView = viewMatrix*vec4(vertexPositionWorld, 1.0);
 	depth = -vertexPosView.z;
 	gl_Position =  projectionMatrix*vertexPosView;
+	
+	fragUV = uv;
 }

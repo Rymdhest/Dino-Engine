@@ -70,5 +70,5 @@ void main() {
 
 
 	gMaterials = lookupMaterial(parallaxedCoords, textureIndex).rgba;
-    
+    gMaterials.a = 0.0;
 }

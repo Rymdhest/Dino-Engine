@@ -63,24 +63,19 @@ void main(void){
 	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolution);
 	vec4 normalBuffer = texture(gNormal, textureCoords).xyzw;
 	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
-	vec3 materialBuffer = texture(gMaterials, textureCoords).rgb;
+	vec4 materialBuffer = texture(gMaterials, textureCoords).rgba;
 	vec3 normal = unCompressNormal(normalBuffer.xyz);
 	float ambient = normalBuffer.w;
 	float roughness = materialBuffer.r;
 	float metallic = materialBuffer.b;
-
+	float materialTransparancy = materialBuffer.a;
+	float geometricDepth = 1.3;
+	float lightFactorEntry = 1.0;
 	float sunFactor = clamp(1.0-calcShadow(position), 0.0, 1.0);
-	//sunFactor = 0.5-calcShadow(position);
-
 	vec3 viewDir = normalize(-position);
 
-	vec3 color = getLightPBR(albedo, normal, roughness, metallic, lightColour, 1.0, ambientFactor*ambient, viewDir, LightDirectionViewSpace, sunFactor);
+	vec3 color = getLightPBR(albedo, normal, roughness, metallic, lightColour, 1.0, ambientFactor*ambient, viewDir, LightDirectionViewSpace, sunFactor, lightFactorEntry, materialTransparancy, geometricDepth);
 
-	//color = color / (color + vec3(1.0));
-    //color = pow(color, vec3(1.0/2.2));  
-	//lighting = applyFog(lighting, -position.z, -viewDir);
 	out_Colour = vec4(color, 0.0);
-	//out_Colour =  vec4(vec3(ambientOcclusion), 1.0f);
-	
 	
 }

@@ -93,8 +93,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
             ambientOcclusionShader.loadUniformFloat("radius", .1f);
-            ambientOcclusionShader.loadUniformFloat("strength", 5.0f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.08f);
+            ambientOcclusionShader.loadUniformFloat("strength", 2.0f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.06f);
 
             ambientOcclusionShader.loadUniformVector2f("resolutionSSAO", _SSAOFramebuffer.getResolution());
 
