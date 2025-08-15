@@ -34,21 +34,27 @@ void main() {
     vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir, textureIndex, parallaxDepth, parallaxLayers);
     //vec2 parallaxedCoords = fragUV;
     //if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
-
-	gAlbedo = lookupAlbedo(parallaxedCoords, textureIndex);
+    MaterialProps material = LookupAllMaterialProps(parallaxedCoords, textureIndex);
+	gAlbedo.rgb = material.albedo;
 	gAlbedo.rgb *= fragColor;
 
+
+    if (material.alphaBit == 0) discard;
+
+    gAlbedo.a = material.subSurface;
+
     //gAlbedo.rgb = vec3(hash13(gl_PrimitiveID));
-    if (gAlbedo.a < 0.5f) discard;
     
     //gAlbedo.rgb = vec3(fract(fragUV), 0f);
-	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex).xyzw;
-    gNormal.a = normalTangentSpace.a;
+	vec3 normalTangentSpace = material.normal;
+    gNormal.a = material.ambient;
     if (!gl_FrontFacing) normalTangentSpace.z *= -1.0;
     normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
     vec3 normal = normalize(normalTBN*normalTangentSpace.xyz);
 	gNormal.xyz = compressNormal(normal);
 
-	gMaterials = lookupMaterial(parallaxedCoords, textureIndex).rgba;
-    gMaterials.a = 0.0;
+	gMaterials.r = material.roughness;
+	gMaterials.g = material.emission;
+	gMaterials.b = material.metalic;
+    gMaterials.a = material.height;
 }

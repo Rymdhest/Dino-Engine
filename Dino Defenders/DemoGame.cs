@@ -180,7 +180,7 @@ namespace Dino_Defenders
             world.RegisterSingleton<TerrainGeneratorComponent>(world.CreateEntity(new TerrainGeneratorComponent(terrainGenerator)));
             world.ApplyDeferredCommands();
 
-            Mesh boxMesh = MeshGenerator.generateBox(new Material(Engine.RenderEngine.textureGenerator.brick));
+            Mesh boxMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.brick));
             Mesh.scaleUV = true;
             boxMesh.scale(new Vector3(10f, 10f, 10f));
             boxMesh.scaleUVs(new Vector2(1.0f, 1.0f));
@@ -201,7 +201,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20.0f)),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 10.0f)),
                 new AmbientLightComponent(0.01f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
@@ -236,8 +236,27 @@ namespace Dino_Defenders
         
         private void spawnTestScene(ECSWorld world)
         {
+            Mesh sphere = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.grass));
+            world.CreateEntity("sphere",
+                new PositionComponent(new Vector3(0, 5, 0)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(1f)),
+                new ModelComponent(glLoader.loadToVAO(sphere)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
 
-            Mesh floorMesh = MeshGenerator.generatePlane(new Material(new Colour(55,55,55), Engine.RenderEngine.textureGenerator.metalFloor));
+            Mesh cube = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.grass));
+            world.CreateEntity("sphere",
+                new PositionComponent(new Vector3(4, 5, 0)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(2f)),
+                new ModelComponent(glLoader.loadToVAO(cube)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
+
+            Mesh floorMesh = MeshGenerator.generatePlane(new VertexMaterial(TextureGenerator.metalFloor, new Colour(55,55,55)));
             floorMesh.scaleUVs(new Vector2(20f));
             world.CreateEntity("ground",
                 new PositionComponent(new Vector3(0, 0, 0)),
@@ -276,7 +295,7 @@ namespace Dino_Defenders
             );
 
 
-            Mesh cubeMeshLeaf = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.leaf));
+            Mesh cubeMeshLeaf = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.leaf));
             world.CreateEntity("leaf texture cube",
                 new PositionComponent(new Vector3(0f, 5, -50)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
@@ -286,7 +305,7 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent()
             );
 
-            Mesh boxMeshLeaf = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.leafBranch));
+            Mesh boxMeshLeaf = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.leafBranch));
             world.CreateEntity("branch texture cube",
                 new PositionComponent(new Vector3(20f, 5, -50)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
@@ -296,7 +315,7 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent()
             );
 
-            Mesh cubeMeshTree = MeshGenerator.generateBox(new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.treeBranch));
+            Mesh cubeMeshTree = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.treeBranch));
             world.CreateEntity("tree texture cube",
                 new PositionComponent(new Vector3(40, 5, -50)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
@@ -313,7 +332,7 @@ namespace Dino_Defenders
                 new Vector2(9.0f, 1.0f),
                 new Vector2(2.0f, 2.0f),
                 new Vector2(1.0f, 3.0f)};
-            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark), sealTop:0.1f);
+            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new VertexMaterial(TextureGenerator.bark), sealTop:0.1f);
 
             foreach(MeshVertex meshVertex in poleMesh.meshVertices)
             {
@@ -322,7 +341,7 @@ namespace Dino_Defenders
 
                 if (meshVertex.position.Y < 1f)
                 {
-                    meshVertex.material.Colour = new Colour(125, 165, 85);
+                    meshVertex.colour = new Colour(125, 165, 85);
                     float valueX = MathF.Pow((MathF.Sin(angle)), 1.0f);
                     float valueZ = MathF.Pow((MathF.Cos(angle)), 1.0f);
                     //eshVertex.position += ( new Vector3(valueX, 0f, valueZ) * .05f);
@@ -369,9 +388,9 @@ namespace Dino_Defenders
 
             Curve3D curve = spline.GenerateCurve(1);
             curve.LERPWidth(1.3f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 7, Material.BARK, textureRepeats:1, flatStart: true);
+            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 7, new VertexMaterial(TextureGenerator.bark), textureRepeats:1, flatStart: true);
 
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(35f, 35f), new Vector2i(2,2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY:false);
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(35f, 35f), new Vector2i(2,2), new VertexMaterial(TextureGenerator.treeBranch), centerY:false);
             for (int i = 0; i <branch.meshVertices.Count; i++)
             {
                 branch.meshVertices[i].position.Y -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f))*0.005f;
@@ -397,7 +416,7 @@ namespace Dino_Defenders
             CardinalSpline3D spline2 = new CardinalSpline3D(controlPoints, 0.0f);
             Curve3D curve2 = spline2.GenerateCurve(1);
             curve2.LERPWidth(1.3f, 0.1f);
-            Mesh cylinderMesh2 = MeshGenerator.generateCurvedTube(curve2, 7, Material.BARK, textureRepeats: 1, flatStart: true);
+            Mesh cylinderMesh2 = MeshGenerator.generateCurvedTube(curve2, 7, new VertexMaterial(TextureGenerator.bark), textureRepeats: 1, flatStart: true);
 
 
             Mesh branch2 = cylinderMesh2.scaled(new Vector3(1.0f, 1f, 1.0f));
@@ -463,7 +482,7 @@ namespace Dino_Defenders
             }
 
 
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new Material(new Colour(55, 75, 55), Engine.RenderEngine.textureGenerator.grain));
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.grain, new Colour(55, 75, 55)));
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
             for (int i = 0; i < RockMesh.meshVertices.Count; i++)
@@ -509,7 +528,7 @@ namespace Dino_Defenders
                 new Vector2(9.0f, 1.0f),
                 new Vector2(2.0f, 2.0f),
                 new Vector2(1.0f, 3.0f)};
-            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark), sealTop: 0.1f);
+            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new VertexMaterial(TextureGenerator.bark), sealTop: 0.1f);
 
             foreach (MeshVertex meshVertex in poleMesh.meshVertices)
             {
@@ -518,7 +537,7 @@ namespace Dino_Defenders
 
                 if (meshVertex.position.Y < 1f)
                 {
-                    meshVertex.material.Colour = new Colour(125, 165, 85);
+                    meshVertex.colour = new Colour(125, 165, 85);
                     float valueX = MathF.Pow((MathF.Sin(angle)), 1.0f);
                     float valueZ = MathF.Pow((MathF.Cos(angle)), 1.0f);
                     //eshVertex.position += ( new Vector3(valueX, 0f, valueZ) * .05f);
@@ -565,9 +584,9 @@ namespace Dino_Defenders
 
             Curve3D curve = spline.GenerateCurve(1);
             curve.LERPWidth(1.3f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 5, Material.BARK, textureRepeats: 1, flatStart: true);
+            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 5, new VertexMaterial(TextureGenerator.bark), textureRepeats: 1, flatStart: true);
 
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY: false);
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.treeBranch), centerY: false);
             for (int i = 0; i < branch.meshVertices.Count; i++)
             {
                 branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f)) * 0.05f;
@@ -626,7 +645,7 @@ namespace Dino_Defenders
             }
 
 
-            var rockMesh = IcoSphereGenerator.CreateIcosphere(2, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.crackedLava));
+            var rockMesh = IcoSphereGenerator.CreateIcosphere(2, new VertexMaterial(TextureGenerator.crackedLava));
             rockMesh.rotate(new Vector3(-MathF.PI/2f, 0f, 0f));
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
@@ -869,7 +888,7 @@ namespace Dino_Defenders
                     world.CreateEntity(position, scale, rotation, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new ModelComponent(houseModel));
                 }
             }
-            Mesh houseGroundMesh = MeshGenerator.generateBox(new Material(Engine.RenderEngine.textureGenerator.brick));
+            Mesh houseGroundMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.brick));
             //Mesh.scaleUV = true;
             //houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
             Mesh.scaleUV = true;

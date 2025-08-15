@@ -12,7 +12,7 @@ namespace Dino_Engine.Modelling.Model
         public Vector3 bitangent;
         public List<Face> faces;
         public vIndex index;
-        public MeshVertex(Vertex vertex, vIndex index) : base(vertex.position, vertex.material, vertex.UVs)
+        public MeshVertex(Vertex vertex, vIndex index) : base(vertex)
         {
             faces = new List<Face>();
             this.index = index;
@@ -40,6 +40,7 @@ namespace Dino_Engine.Modelling.Model
             if (faces.Count == 0)
             {
                 Console.WriteLine("Warning: 0 faces in a vertex");
+                //throw new Exception("Warning: 0 faces in a vertex");
                 return;
             }
 

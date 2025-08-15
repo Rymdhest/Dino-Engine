@@ -129,7 +129,7 @@ vec3 getLightPBR(
     vec3  specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 0.0001);
 
     vec3 diffuse = kD * albedo / 3.14159265359;
-    vec3 LoFront = (diffuse + specular) * radiance * NdotL;
+    vec3 LoFront = (diffuse + specular) * radiance * NdotL*lightFactor;
 
     float thickness = 0.2;
 
@@ -146,7 +146,7 @@ vec3 getLightPBR(
     vec3 transmission = saturated * radiance * backLit * absorption;
 
     // Sharpen the backlight falloff
-    float backBlend = pow(backLit, 1.0);
+    float backBlend = pow(backLit, 0.15);
 
     // ----- AMBIENT -----
     vec3 totalAmbient = albedo * lightColour * attenuation * ambient;
@@ -155,5 +155,5 @@ vec3 getLightPBR(
     // Blend between front PBR and back transmission based on light direction
     vec3 litColor = mix(LoFront, transmission, backBlend * materialTransparancy);
 
-    return totalAmbient + litColor * (1.0 - ambient)*lightFactor;
+    return totalAmbient + litColor * (1.0 - ambient);
 }

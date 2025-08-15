@@ -118,7 +118,7 @@ void main() {
 	vec2 bladeWorldSeed = chunkOrigin+gridPosition;
 	bladeWorldSeed *= 1.0; // avoid hashing breaking with too small differences in values
 	float bladeRandomValue = hash21(bladeWorldSeed);
-	float voronoiNoiseFactor = texture(grassNoise, bladePositionWorld.xz*0.01).w;
+	float voronoiNoiseFactor = texture(grassNoise, bladePositionWorld.xz*0.01).r;
 	float heightErrorFactor = 1.0+hash11(bladeIndex)*2.0*heightError-heightError;
 	float heightFactor = voronoiNoiseFactor*heightErrorFactor*(1.0-steepness);
 	float validFactor = (1.0-steepness*steepnessCutoffStrength)*heightFactor;

@@ -49,6 +49,44 @@ vec4 lookupMaterial(vec2 coords, float index) {
     }
 }
 
+struct MaterialProps {
+    vec3 albedo;
+    int alphaBit;
+    vec3 normal;
+    float ambient;
+    float roughness;
+    float emission;
+    float metalic;
+    float subSurface;
+    float height;
+};
+
+MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
+    vec4 albedoRead = lookupAlbedo(coords, index);
+    vec4 normalRead = lookupNorma(coords, index);
+    vec4 materialRead = lookupMaterial(coords, index);
+
+    int aInt = int(round(albedoRead.a * 255.0));
+    int alphaBit = aInt & 1;
+
+    int subSurface7 = aInt >> 1;
+    float subSurface = float(subSurface7) / 127.0;
+
+    MaterialProps props;
+
+    props.albedo = albedoRead.rgb;
+    props.alphaBit = alphaBit;
+    props.subSurface = subSurface;
+    props.normal = normalRead.xyz;
+    props.ambient = normalRead.a;
+    props.roughness = materialRead.r;
+    props.emission = materialRead.g;
+    props.metalic = materialRead.b;
+    props.height = materialRead.a;
+
+    return props;
+}
+
 vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir, float textureIndex,float parallaxDepth, float parallaxLayers)
 {
     // calculate the size of each layer

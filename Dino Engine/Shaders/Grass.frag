@@ -39,7 +39,6 @@ void main() {
 	if (valid < 0.5f) discard;
 
 	vec3 color = (fragColor-fakeColorAmbientOcclusionStrength*fragColor)+tipFactor*fragColor*fakeColorAmbientOcclusionStrength;
-
 	gAlbedo = vec4(color, 1.0);
 	gNormal = vec4(normalize(fragNormal), (1.0-fakeAmbientOcclusionStrength)+tipFactor*fakeAmbientOcclusionStrength);
 	if (!gl_FrontFacing) gNormal.xyz = -gNormal.xyz;
@@ -47,7 +46,6 @@ void main() {
 	//gNormal.xyz = compressNormal(normalize(gNormal.xyz + terrainNormal*groundNormalStrength));
 
 	gMaterials = vec4(grassMaterial);
-	gMaterials.a = 0.6;
 	
 	gAlbedo = gAlbedo*lookupAlbedo(fragUV, textureIndex);
 }

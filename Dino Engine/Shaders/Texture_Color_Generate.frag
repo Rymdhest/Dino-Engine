@@ -7,7 +7,7 @@ layout (location = 0) out vec4 color;
 
 void main(void)
 {
-	float height = texture(heightMap, textureCoords).a;
+	float height = texture(heightMap, textureCoords).r;
 	height = height*0.5f+0.5f;
 	color = vec4(height, height, height, 1.0f);
 }

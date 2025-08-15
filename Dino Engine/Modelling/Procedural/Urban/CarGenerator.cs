@@ -17,12 +17,12 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         {
             Vector3 rngColor = MyMath.rng3D();
 
-            Material carMaterial = new Material(new Colour(rngColor), 8);
-            Material windowMaterial = new Material(new Colour(25, 36, 89, 1.0f), 3);
-            Material detailMaterial = new Material(new Colour(110, 110, 110, 1.0f), 0);
-            Material rubberMaterial = new Material(new Colour(10, 10, 10, 1.0f), 0);
-            Material redLightMaterial = new Material(new Colour(230, 25, 25, 1.0f), Material.GLOW.materialIndex);
-            Material frontLightMaterial = new Material(new Colour(230, 230, 230, 1.0f), Material.GLOW.materialIndex);
+            VertexMaterial carMaterial = new VertexMaterial(TextureGenerator.flat, new Colour(rngColor));
+            VertexMaterial windowMaterial = new VertexMaterial(TextureGenerator.flat, new Colour(25, 36, 89, 1.0f));
+            VertexMaterial detailMaterial = new VertexMaterial(TextureGenerator.flat, new Colour(110, 110, 110, 1.0f));
+            VertexMaterial rubberMaterial = new VertexMaterial(TextureGenerator.flat, new Colour(10, 10, 10, 1.0f));
+            VertexMaterial redLightMaterial = new VertexMaterial(TextureGenerator.flatGlow, new Colour(230, 25, 25, 1.0f));
+            VertexMaterial frontLightMaterial = new VertexMaterial(TextureGenerator.flatGlow, new Colour(230, 230, 230, 1.0f));
 
             float w = 1.0f;
             float h = 1.0f;

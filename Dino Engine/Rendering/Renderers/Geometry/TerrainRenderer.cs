@@ -66,7 +66,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _terrainShadowShader.unBind();
 
 
-            var mesh = MeshGenerator.generatePlane(size : new Vector2(1f, 1f), resolution : new Vector2i(CHUNK_RESOLUTION-1), material : Material.BARK, centerX : false, centerY : false);
+            var mesh = MeshGenerator.generatePlane(size : new Vector2(1f, 1f), resolution : new Vector2i(CHUNK_RESOLUTION-1), material : new VertexMaterial(TextureGenerator.flat), centerX : false, centerY : false);
             //var mesh = MeshGenerator.generateBox(Material.ROCK);
             vIndex[] vindices = mesh.getAllIndicesArray();
             int[] indices = new int[vindices.Length];
@@ -203,8 +203,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShader.loadUniformVector3f("viewPos", renderEngine.context.viewPos);
 
-            _terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.soil);
-            _terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.rock);
+            _terrainShader.loadUniformFloat("groundID", TextureGenerator.soil);
+            _terrainShader.loadUniformFloat("rockID", TextureGenerator.rock);
             //_terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.flat);
             //_terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.flat);
 

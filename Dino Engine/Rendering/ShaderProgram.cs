@@ -144,7 +144,7 @@ namespace Dino_Engine.Rendering
             GL.GetShader(shaderID, ShaderParameter.CompileStatus, out var code);
             if (code != (int)All.True){
                 string infoLog = GL.GetShaderInfoLog(shaderID);
-                Console.WriteLine($"Could not compile shader.\n\n{infoLog}");
+                Console.WriteLine($"Could not compile shader {shaderString}.\n\n{infoLog}");
             }
 
 

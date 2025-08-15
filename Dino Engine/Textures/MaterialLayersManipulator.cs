@@ -40,9 +40,11 @@ namespace Dino_Engine.Textures
             _combineShader.bind();
             _combineShader.loadUniformInt("writeTextureAlbedo", 0);
             _combineShader.loadUniformInt("writeTextureMaterial", 1);
+            _combineShader.loadUniformInt("writeTextureHeight", 2);
 
-            _combineShader.loadUniformInt("readTextureAlbedo", 2);
-            _combineShader.loadUniformInt("readTextureMaterial", 3);
+            _combineShader.loadUniformInt("readTextureAlbedo", 3);
+            _combineShader.loadUniformInt("readTextureMaterial", 4);
+            _combineShader.loadUniformInt("readTextureHeight", 5);
         }
 
 
@@ -71,12 +73,16 @@ namespace Dino_Engine.Textures
             GL.BindTexture(TextureTarget.Texture2D, writeLayer.GetLastFrameBuffer().GetAttachment(0));
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, writeLayer.GetLastFrameBuffer().GetAttachment(1));
-
-
             GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2D, readLayer.GetLastFrameBuffer().GetAttachment(0));
+            GL.BindTexture(TextureTarget.Texture2D, writeLayer.GetLastFrameBuffer().GetAttachment(2));
+
+
             GL.ActiveTexture(TextureUnit.Texture3);
+            GL.BindTexture(TextureTarget.Texture2D, readLayer.GetLastFrameBuffer().GetAttachment(0));
+            GL.ActiveTexture(TextureUnit.Texture4);
             GL.BindTexture(TextureTarget.Texture2D, readLayer.GetLastFrameBuffer().GetAttachment(1));
+            GL.ActiveTexture(TextureUnit.Texture5);
+            GL.BindTexture(TextureTarget.Texture2D, readLayer.GetLastFrameBuffer().GetAttachment(2));
 
 
             writeLayer.tap();

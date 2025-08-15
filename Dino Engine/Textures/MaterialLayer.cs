@@ -1,4 +1,5 @@
 ﻿using Dino_Engine.Core;
+using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering;
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
@@ -33,9 +34,17 @@ namespace Dino_Engine.Textures
             materialAttachment.wrapMode = TextureWrapMode.Repeat;
             materialAttachment.minFilterType = TextureMinFilter.Linear;
 
+            DrawBufferSettings heightAttachment = new DrawBufferSettings(FramebufferAttachment.ColorAttachment2);
+            heightAttachment.formatInternal = PixelInternalFormat.R8;
+            heightAttachment.pixelType = PixelType.UnsignedByte;
+            heightAttachment.formatExternal = PixelFormat.Red;
+            heightAttachment.wrapMode = TextureWrapMode.Repeat;
+            heightAttachment.minFilterType = TextureMinFilter.Linear;
+
             FrameBufferSettings materialSettings = new FrameBufferSettings(TextureGenerator.TEXTURE_RESOLUTION);
             materialSettings.drawBuffers.Add(albedoAttachment);
             materialSettings.drawBuffers.Add(materialAttachment);
+            materialSettings.drawBuffers.Add(heightAttachment);
 
             _materialBuffer1 = new FrameBuffer(materialSettings);
             _materialBuffer2 = new FrameBuffer(materialSettings);
@@ -56,19 +65,19 @@ namespace Dino_Engine.Textures
         public MaterialLayer setToDebugColour()
         {
 
-            var materialBase = procTextGen.CreateMaterial(new Colour(0.0f, 0.0f, 0.0f), new Vector3(0.35f, 0f, 0.0f), height: 0.5f);
-            var materialMiddle = procTextGen.CreateMaterial(new Colour(1.0f, 1.0f, 1.0f), new Vector3(0.35f, 0f, 0.0f), height: 0.5f);
-            var materialTop = procTextGen.CreateMaterial(new Colour(0.0f, 0.0f, 1.0f), new Vector3(0.35f, 0f, 0.0f), height: 0.9f);
-            var materialBot = procTextGen.CreateMaterial(new Colour(1.0f, 0.0f, 0.0f), new Vector3(0.35f, 0f, 0.0f), height: 0.1f);
+            var materialBase = procTextGen.CreateMaterial(new Material(new Colour(0.0f, 0.0f, 0.0f), 0.35f, 0f, 0.0f, 0.0f), height: 0.5f);
+            var materialMiddle = procTextGen.CreateMaterial(new Material(new Colour(1.0f, 1.0f, 1.0f), 0.35f, 0f, 0.0f, 0.0f), height: 0.5f);
+            var materialTop = procTextGen.CreateMaterial(new Material(new Colour(0.0f, 0.0f, 1.0f), 0.35f, 0f, 0.0f, 0.0f), height: 0.9f);
+            var materialBot = procTextGen.CreateMaterial(new Material(new Colour(1.0f, 0.0f, 0.0f), 0.35f, 0f, 0.0f, 0.0f), height: 0.1f);
             TextureGenerator.MaterialLayersCombiner.combine(this, materialBase, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Override, smoothness: 0.0f);
             TextureGenerator.MaterialLayersCombiner.combine(this, materialMiddle, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Smoothstep, smoothness: 0.02f);
             TextureGenerator.MaterialLayersCombiner.combine(this, materialTop, FilterMode.Lesser, heightOperation: Operation.Nothing, materialOperation: Operation.Override, smoothness: 0.0f);
             TextureGenerator.MaterialLayersCombiner.combine(this, materialBot, FilterMode.Greater, heightOperation: Operation.Nothing, materialOperation: Operation.Override, smoothness: 0.0f);
             return this;
         }
-        public MaterialLayer setMaterial(Colour colour, Vector3 material)
+        public MaterialLayer setMaterial( Material material)
         {
-            var newMaterialLayer = procTextGen.CreateMaterial(colour, material);
+            var newMaterialLayer = procTextGen.CreateMaterial(material);
             MaterialLayersCombiner.combine(this, newMaterialLayer, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Override);
             newMaterialLayer.destroy();
             return this;

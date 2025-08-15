@@ -62,7 +62,7 @@ namespace Dino_Engine.Modelling.Model
                 if (face.uvIndexA > 0)
                 {
                     MeshVertex oldVertex = face.A;
-                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.material, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
                     newVertex.normal = oldVertex.normal;
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
@@ -74,7 +74,7 @@ namespace Dino_Engine.Modelling.Model
                 if (face.uvIndexB > 0)
                 {
                     MeshVertex oldVertex = face.B;
-                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.material, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
                     newVertex.normal = oldVertex.normal;
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
@@ -86,7 +86,7 @@ namespace Dino_Engine.Modelling.Model
                 if (face.uvIndexC > 0)
                 {
                     MeshVertex oldVertex = face.C;
-                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.material, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
                     newVertex.normal = oldVertex.normal;
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
@@ -191,7 +191,7 @@ namespace Dino_Engine.Modelling.Model
             for (int i = 0; i < meshVertices.Count; i++)
             {
                 MeshVertex vertex = meshVertices[i];
-                vertex.material.Colour = setTo;
+                vertex.colour = setTo;
                 meshVertices[i] = vertex;
             }
         }
@@ -234,23 +234,14 @@ namespace Dino_Engine.Modelling.Model
             }
             return tangentsArray;
         }
-        public Material[] getAllMaterialArray()
-        {
-            Material[] materialsArray = new Material[meshVertices.Count];
 
-            for (int i = 0; i < meshVertices.Count; i++)
-            {
-                materialsArray[i] = meshVertices[i].material;
-            }
-            return materialsArray;
-        }
         public float[] getAllColoursFloatArray()
         {
             float[] coloursArray = new float[meshVertices.Count * 3];
 
             for (int i = 0; i < meshVertices.Count; i++)
             {
-                Vector3 colour = meshVertices[i].material.Colour.ToVector3();
+                Vector3 colour = meshVertices[i].colour.ToVector3();
                 coloursArray[3 * i + 0] = colour.X;
                 coloursArray[3 * i + 1] = colour.Y;
                 coloursArray[3 * i + 2] = colour.Z;
@@ -276,7 +267,7 @@ namespace Dino_Engine.Modelling.Model
 
             for (int i = 0; i < meshVertices.Count; i++)
             {
-                array[i] = meshVertices[i].material.materialIndex;
+                array[i] = meshVertices[i].materialTextureIndex;
             }
             return array;
         }
@@ -301,7 +292,7 @@ namespace Dino_Engine.Modelling.Model
 
             for (int i = 0; i < meshVertices.Count; i++)
             {
-                verticesArray[i] = new Vertex(meshVertices[i].position, meshVertices[i].material, meshVertices[i].UVs);
+                verticesArray[i] = new Vertex(meshVertices[i]);
             }
             return verticesArray;
         }
@@ -349,7 +340,7 @@ namespace Dino_Engine.Modelling.Model
             for (int i = 0; i < oldVertices.Length; i++)
             {
                 Vector3 newPosition = Vector3.Transform(oldVertices[i].position, rotation);
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].material, oldVertices[i].UVs); // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].UVs); // TODO  potential uses same UVs
             }
             return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>());
         }
@@ -454,7 +445,7 @@ namespace Dino_Engine.Modelling.Model
                 {
                     newUVs[j] = new Vector2( oldVertices[i].UVs[j].X, oldVertices[i].UVs[j].Y);
                 }
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].material, newUVs); // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, newUVs); // TODO  potential uses same UVs
                 //if (scaleUV) newVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
             }
             return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>());

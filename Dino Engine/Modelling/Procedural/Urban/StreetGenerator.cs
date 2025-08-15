@@ -19,10 +19,10 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         public float sideWalkWidth = 9f;
         public float streetTextureScale = 0.1f;
 
-        public Material streetMaterial = new Material(new Colour(125, 125, 127, 1.0f), Engine.RenderEngine.textureGenerator.brick);
-        public Material lineMaterial = new Material(new Colour(233, 233, 233, 1.0f), Engine.RenderEngine.textureGenerator.grain);
-        public Material lineMaterialCenter = new Material(new Colour(247, 219, 36, 1.0f), Engine.RenderEngine.textureGenerator.grain);
-        public Material sideWalkMaterial = new Material(new Colour(95, 95, 95, 1.0f), Engine.RenderEngine.textureGenerator.cobble);
+        public VertexMaterial streetMaterial = new VertexMaterial(TextureGenerator.brick, new Colour(125, 125, 127, 1.0f));
+        public VertexMaterial lineMaterial = new VertexMaterial(TextureGenerator.grain, new Colour(233, 233, 233, 1.0f));
+        public VertexMaterial lineMaterialCenter = new VertexMaterial(TextureGenerator.grain, new Colour(247, 219, 36, 1.0f));
+        public VertexMaterial sideWalkMaterial = new VertexMaterial(TextureGenerator.cobble, new Colour(95, 95, 95, 1.0f));
 
         public float TotalWidth{ get => lanes * laneWdith * 2 - lineWidth * 1.0f + sideWalkWidth * 2f; }
 
@@ -55,7 +55,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
                 for (int i = 0; i < totalCrossLines; i++)
                 {
-                    Material material = streetMaterial;
+                    VertexMaterial material = streetMaterial;
                     if (i % 2 == 1) material = lineMaterial;
 
                     float crossSectionWidth = roadTotalWidth / totalCrossLines;
@@ -151,14 +151,14 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
         public Mesh GenerateTrafficLight()
         {
-            int glowID = Engine.RenderEngine.textureGenerator.flatGlow;
-            int flatID = Engine.RenderEngine.textureGenerator.flat;
-            int grainID = Engine.RenderEngine.textureGenerator.grain;
-            Material poleMaterial = new Material(new Colour(122, 122, 122, 1.0f), grainID);
-            Material blackMaterial = new Material(new Colour(20, 20, 20, 1.0f), flatID);
-            Material redMaterial = new Material(new Colour(235, 15, 15, 1.0f), flatID);
-            Material greenMaterial = new Material(new Colour(15, 235, 15, 1.0f), Engine.RenderEngine.textureGenerator.flatGlow);
-            Material yellowMaterial = new Material(new Colour(235, 235, 15, 1.0f), flatID);
+            int glowID = TextureGenerator.flatGlow;
+            int flatID = TextureGenerator.flat;
+            int grainID = TextureGenerator.grain;
+            VertexMaterial poleMaterial = new VertexMaterial(grainID, new Colour(122, 122, 122, 1.0f));
+            VertexMaterial blackMaterial = new VertexMaterial(flatID, new Colour(20, 20, 20, 1.0f));
+            VertexMaterial redMaterial = new VertexMaterial(flatID, new Colour(235, 15, 15, 1.0f));
+            VertexMaterial greenMaterial = new VertexMaterial(TextureGenerator.flatGlow, new Colour(15, 235, 15, 1.0f));
+            VertexMaterial yellowMaterial = new VertexMaterial(flatID, new Colour(235, 235, 15, 1.0f));
 
             float r = 0.5f;
             float angle = MathF.PI / 2f;

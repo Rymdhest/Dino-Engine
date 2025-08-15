@@ -49,9 +49,6 @@ namespace Dino_Engine.Core
             _renderEngine = new RenderEngine();
             _renderEngine.InitRenderers(settings._resolution);
 
-
-
-
             //ComponentTypeRegistry.Register<Position>();
             //ComponentTypeRegistry.Register<Velocity>();
             ComponentTypeRegistry.AutoRegisterAllComponents();
@@ -73,6 +70,8 @@ namespace Dino_Engine.Core
             };
             GL.Enable(EnableCap.DebugOutput);
             //GL.DebugMessageCallback(debugProcCallback, IntPtr.Zero); // Assign the delegate
+
+
 
         }
         private static void DebugCallback(DebugSource source, DebugType type, int id, DebugSeverity severity, int length, IntPtr message, IntPtr userParam)

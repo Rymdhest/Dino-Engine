@@ -5,7 +5,7 @@ namespace Dino_Engine.Modelling.Procedural
 {
     public class IcoSphereGenerator
     {
-        public static Mesh CreateIcosphere(int order, Material material)
+        public static Mesh CreateIcosphere(int order, VertexMaterial material)
         {
             // set up a 20-triangle icosahedron
             float f = (1 + (float)Math.Sqrt(5)) / 2;
@@ -95,10 +95,9 @@ namespace Dino_Engine.Modelling.Procedural
 
             for (int i = 0; i<vertices.Length; i++)
             {
-                Material vertexMaterial = material;
                 Vector2 uv = new Vector2(uvs[i*2], uvs[i*2+1]);
                 Vector3 position = new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i*3+2]);
-                vertices[i] = new Vertex(position, vertexMaterial, uv);
+                vertices[i] = new Vertex(position, material, uv);
             }
 
             return new Mesh(vertices.ToList<Vertex>(), indices.ToList<int>());

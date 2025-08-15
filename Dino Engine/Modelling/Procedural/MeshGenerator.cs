@@ -9,16 +9,16 @@ namespace Dino_Engine.Modelling
     {
 
 
-        public static Mesh GenerateCone(Material material)
+        public static Mesh GenerateCone(VertexMaterial material)
         {
             List<Vector3> trunkLayers = new List<Vector3>() {
                 //new Vector3(outerRadius, 0f, outerRadius),
                 new Vector3(0.5f, 0.0f, 0.5f) };
-            Mesh mesh = MeshGenerator.generateCylinder(trunkLayers, 7, material, sealTop:1.0f, sealBot:0.0f);
+            Mesh mesh = MeshGenerator.generateCylinder(trunkLayers, 7, material, sealTop:1.0f, sealBot:0.01f);
             mesh.translate(new Vector3(0, -1.0f, 0f));
             return mesh;
         }
-        public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, Material material, float sealTop = float.NaN)
+        public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, VertexMaterial material, float sealTop = float.NaN)
         {
             List<Vector3> rings = new List<Vector3>();
             for (int i = 0; i < rings2.Count; i++)
@@ -28,7 +28,7 @@ namespace Dino_Engine.Modelling
             return generateCylinder(rings, polygonsPerRing, material, sealTop);
         }
 
-        public static Mesh generateCurvedTube(Curve3D curve, int polygonsPerRing, Material material, float sealTop = float.NaN, int textureRepeats = 1, bool flatStart = true)
+        public static Mesh generateCurvedTube(Curve3D curve, int polygonsPerRing, VertexMaterial material, float sealTop = float.NaN, int textureRepeats = 1, bool flatStart = true)
         {
             List<Vertex> vertices = new List<Vertex>();
             List<vIndex> indices = new List<vIndex>();
@@ -136,7 +136,7 @@ namespace Dino_Engine.Modelling
             return new Mesh(vertices, indices);
         }
 
-        public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, Material material, float sealTop = float.NaN, float sealBot = float.NaN)
+        public static Mesh generateCylinder(List<Vector3> rings, int polygonsPerRing, VertexMaterial material, float sealTop = float.NaN, float sealBot = float.NaN)
         {
             int textureRepeats = 1;
 
@@ -268,11 +268,11 @@ namespace Dino_Engine.Modelling
             }
             return new Mesh(vertices, indices);
         }
-        public static Mesh generateBox(Material material,   float sizeX = 1.0f, float sizeY = 1.0f, float sizeZ = 1.0f)
+        public static Mesh generateBox(VertexMaterial material,   float sizeX = 1.0f, float sizeY = 1.0f, float sizeZ = 1.0f)
         {
             return generateBox(new Vector3(-sizeX, -sizeY, -sizeZ), new Vector3(sizeX, sizeY, sizeZ), material);
         }
-        public static Mesh generateShape(List<Vector3> shape, Material material, bool UVTop = false)
+        public static Mesh generateShape(List<Vector3> shape, VertexMaterial material, bool UVTop = false)
         {
             List<Vector3> side2 = new List<Vector3>();
             for (int i = 0; i < shape.Count; i++)
@@ -282,7 +282,7 @@ namespace Dino_Engine.Modelling
             return generateShape(shape, side2, material, UVTop: UVTop);
         }
 
-        public static Mesh generateExtrudedShape(List<Vector3> botShape, List<Vector3> topShape, Material material, Material innerMateria, float depth, float size, bool mirror = false)
+        public static Mesh generateExtrudedShape(List<Vector3> botShape, List<Vector3> topShape, VertexMaterial material, VertexMaterial innerMateria, float depth, float size, bool mirror = false)
         {
             List<Vector3> postions = new List<Vector3>();
             Mesh mesh = new Mesh();
@@ -327,7 +327,7 @@ namespace Dino_Engine.Modelling
             return mesh;
         }
 
-        public static Mesh generateShape(List<Vector3> botShape, List<Vector3> topShape, Material material, bool mirror = false, bool UVTop = false)
+        public static Mesh generateShape(List<Vector3> botShape, List<Vector3> topShape, VertexMaterial material, bool mirror = false, bool UVTop = false)
         {
             List<Vector3> postions = new List<Vector3>();
 
@@ -383,7 +383,7 @@ namespace Dino_Engine.Modelling
             return new Mesh(vertices.ToList<Vertex>(), indices);
         }
 
-        public static Mesh generateBox(Vector3 min, Vector3 max, Material material)
+        public static Mesh generateBox(Vector3 min, Vector3 max, VertexMaterial material)
         {
             Mesh plane = generatePlane(material);
             plane.translate(new Vector3(0f, 0.5f, 0.0f));
@@ -485,7 +485,7 @@ namespace Dino_Engine.Modelling
             }
         }
 
-        public static Mesh ExtrudedPlane(Quad startQuad, float extrudeDepth, float extrudeScale, Material material, Material innerMaterial)
+        public static Mesh ExtrudedPlane(Quad startQuad, float extrudeDepth, float extrudeScale, VertexMaterial material, VertexMaterial innerMaterial)
         {
             Vector3 extrudeDirection = startQuad.GetNormal();
 
@@ -609,15 +609,15 @@ namespace Dino_Engine.Modelling
             outer.makeFlat(true, true);
             return outer;
         }
-        public static Mesh generatePlane(Material material, Vector2 size)
+        public static Mesh generatePlane(VertexMaterial material, Vector2 size)
         {
             return generatePlane(size, new Vector2i(1, 1), material);
         }
-        public static Mesh generatePlane(Material material)
+        public static Mesh generatePlane(VertexMaterial material)
         {
             return generatePlane(new Vector2(1f), new Vector2i(1, 1), material);
         }
-        public static Mesh generatePlane(Vector2 size, Vector2i resolution, Material material, bool centerX = true, bool centerY = true)
+        public static Mesh generatePlane(Vector2 size, Vector2i resolution, VertexMaterial material, bool centerX = true, bool centerY = true)
         {
             int numverticesX = resolution.X + 1;
             int numverticesY = resolution.Y + 1;

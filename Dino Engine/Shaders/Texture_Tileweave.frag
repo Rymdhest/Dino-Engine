@@ -10,6 +10,7 @@
 in vec2 textureCoords;
 layout (location = 0) out vec4 albedo_out;
 layout (location = 1) out vec4 material_out;
+layout (location = 2) out float height_out;
 
 uniform vec2 scale;
 uniform int count;
@@ -27,6 +28,7 @@ void main(void)
     value = value*0.5+0.5;
 
     albedo_out = albedo;
-    material_out = vec4(material.xyz, (1.0-value)*material.w);
+    material_out = material;
+    height_out = 1.0-value;
 
 }

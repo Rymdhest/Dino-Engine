@@ -10,6 +10,7 @@
 in vec2 textureCoords;
 layout (location = 0) out vec4 albedo_out;
 layout (location = 1) out vec4 material_out;
+layout (location = 2) out float height_out;
 
 uniform vec4 albedo;
 uniform vec4 material;
@@ -39,6 +40,7 @@ void main(void)
     //float value = fbm(      textureCoords, startFrequenzy, octaves, shift, axialShift, gain, lacunarity, factor, seed);
 
     albedo_out = albedo;
-    material_out = vec4(material.xyz, value*material.w);
+    material_out = material;
+    height_out = value;
 
 }

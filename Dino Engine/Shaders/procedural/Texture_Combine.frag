@@ -5,12 +5,15 @@
 in vec2 textureCoords;
 layout (location = 0) out vec4 albedo_out;
 layout (location = 1) out vec4 material_out;
+layout (location = 2) out float height_out;
 
 uniform sampler2D writeTextureAlbedo;
 uniform sampler2D writeTextureMaterial;
+uniform sampler2D writeTextureHeight;
 
 uniform sampler2D readTextureAlbedo;
 uniform sampler2D readTextureMaterial;
+uniform sampler2D readTextureHeight;
 
 uniform int filterMode;
 
@@ -73,20 +76,22 @@ bool filterTest(float write, float read) {
 void main(void) {
     vec4 writeAlbedo = texture(writeTextureAlbedo, textureCoords);
     vec4 writeMaterials = texture(writeTextureMaterial, textureCoords);
+    float writeHeight = texture(writeTextureHeight, textureCoords).r;
 
     vec4 readAlbedo = texture(readTextureAlbedo, textureCoords);
     vec4 readMaterials = texture(readTextureMaterial, textureCoords);
+    float readHeight = texture(readTextureHeight, textureCoords).r;
 
-    float writeValue = writeMaterials.w;
-    float readValue = readMaterials.w;
+
     
-    if (!filterTest(writeValue, readValue)) {
+    if (!filterTest(writeHeight, readHeight)) {
         albedo_out = writeAlbedo;
         material_out = writeMaterials;
+        height_out = writeHeight;
         return;
     }
 
-    albedo_out.rgba = performVec4Operation(materialOperation, writeAlbedo.rgba, readAlbedo.rgba, writeValue, readValue);
-    material_out.rgb = performVec3Operation(materialOperation, writeMaterials.rgb, readMaterials.rgb, writeValue, readValue);
-    material_out.a = performFloatOperation(heightOperation, writeMaterials.w, readMaterials.w, writeValue, readValue);
+    albedo_out.rgba = performVec4Operation(materialOperation, writeAlbedo.rgba, readAlbedo.rgba, writeHeight, readHeight);
+    material_out.rgba = performVec4Operation(materialOperation, writeMaterials.rgba, readMaterials.rgba, writeHeight, readHeight);
+    height_out = performFloatOperation(heightOperation, writeHeight, readHeight, writeHeight, readHeight);
 }

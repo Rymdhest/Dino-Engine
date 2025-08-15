@@ -244,9 +244,9 @@ namespace Dino_Engine.Rendering
         {
             GBuffer.bind();
             GL.DepthMask(true);
-            GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
+            
             _modelRenderer.GeometryRenderPass(this);
             _instancedModelRenderer.GeometryRenderPass(this);
 

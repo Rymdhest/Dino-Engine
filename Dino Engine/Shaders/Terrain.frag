@@ -54,21 +54,28 @@ void main() {
         textureIndex = rockID;
         parallaxedCoords = parallaxedCoordsRock;
     }
-	gAlbedo = lookupAlbedo(parallaxedCoords, textureIndex);
-    
-    //if(parallaxedCoords.x > 10.0 || parallaxedCoords.y > 10.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
 
+    MaterialProps material = LookupAllMaterialProps(parallaxedCoords, textureIndex);
+	gAlbedo.rgb = material.albedo;
     if (DEBUG_VIEW) {
         gAlbedo.rgb = vec3(hash13(gl_PrimitiveID));
         gAlbedo.rgb *= COLOR_TEST;
     }
 
-    if (gAlbedo.a < 0.5f) discard;
-	vec4 normalTangentSpace = lookupNorma(parallaxedCoords, textureIndex).xyzw;
-    gNormal.a = normalTangentSpace.a;
-	gNormal.xyz = compressNormal(normalize( normalTBN*normalTangentSpace.xyz));
+    if (material.alphaBit == 0) discard;
 
+    gAlbedo.a = material.subSurface;
 
-	gMaterials = lookupMaterial(parallaxedCoords, textureIndex).rgba;
-    gMaterials.a = 0.0;
+	vec3 normalTangentSpace = material.normal;
+    gNormal.a = material.ambient;
+    if (!gl_FrontFacing) normalTangentSpace.z *= -1.0;
+    normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
+    vec3 normal = normalize(normalTBN*normalTangentSpace.xyz);
+	gNormal.xyz = compressNormal(normal);
+
+	gMaterials.r = material.roughness;
+	gMaterials.g = material.emission;
+	gMaterials.b = material.metalic;
+    gMaterials.a = material.height;
+    
 }

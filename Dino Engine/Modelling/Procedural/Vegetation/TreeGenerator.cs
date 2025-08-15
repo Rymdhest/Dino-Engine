@@ -13,13 +13,13 @@ namespace Dino_Engine.Modelling.Procedural.Nature
     public class TreeGenerator
     {
 
-        public Material trunkMaterial = new Material(new Colour(107, 84, 61), Engine.RenderEngine.textureGenerator.grain);
-        public Material leafMaterial = new Material(new Colour(195, 231, 73), Engine.RenderEngine.textureGenerator.flat);
+        public VertexMaterial trunkMaterial = new VertexMaterial(TextureGenerator.bark, new Colour(107, 84, 61));
+        public VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.flat, new Colour(195, 231, 73));
 
 
         public static Mesh GenerateLeaf()
         {
-            Material leafMaterial = new Material(new Colour(100, 170, 15), Engine.RenderEngine.textureGenerator.bark);
+            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.bark, new Colour(100, 170, 15));
 
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(0.15f, 1f), new Vector2i(50, 50), leafMaterial);
             leafMesh.rotate(new Vector3(MathF.PI/2f, 0f, 0f));
@@ -83,9 +83,9 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             Curve3D curve = spline.GenerateCurve(1);
             curve.LERPWidth(1.3f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 11, new Material(Material.BARK.materialIndex), textureRepeats: 1, flatStart: true);
+            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 11, trunkMaterial, textureRepeats: 1, flatStart: true);
 
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new Material(Engine.RenderEngine.textureGenerator.treeBranch), centerY: false);
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.treeBranch), centerY: false);
             for (int i = 0; i < branch.meshVertices.Count; i++)
             {
                 branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f)) * 0.05f;
@@ -144,7 +144,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 new Vector2(1.0f, 10.0f),
                 new Vector2(1.0f, 40.0f),
                 new Vector2(1.0f, 80.0f)};
-            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.bark), sealTop: 0.1f);
+            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, trunkMaterial, sealTop: 0.1f);
 
             foreach (MeshVertex meshVertex in poleMesh.meshVertices)
             {
@@ -153,7 +153,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
                 if (meshVertex.position.Y < 1f)
                 {
-                    meshVertex.material.Colour = new Colour(125, 165, 85);
+                    meshVertex.colour = new Colour(125, 165, 85);
                     float valueX = MathF.Pow((MathF.Sin(angle)), 1.0f);
                     float valueZ = MathF.Pow((MathF.Cos(angle)), 1.0f);
                     meshVertex.position += (new Vector3(valueX, 0f, valueZ) * .05f);

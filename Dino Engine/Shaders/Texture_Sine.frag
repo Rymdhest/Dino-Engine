@@ -11,6 +11,7 @@
 in vec2 textureCoords;
 layout (location = 0) out vec4 albedo_out;
 layout (location = 1) out vec4 material_out;
+layout (location = 2) out float height_out;
 
 uniform vec4 albedo;
 uniform vec4 material;
@@ -25,5 +26,5 @@ void main(void)
 	float x =cos(textureCoords.x*frequenzy.x*PI*2.0)*0.5+0.5;
 	float y =cos(textureCoords.y*frequenzy.y*PI*2.0)*0.5+0.5;
 
-	material_out.w = x*y;
+	height_out = x*y;
 }

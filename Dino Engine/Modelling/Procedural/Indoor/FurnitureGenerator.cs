@@ -18,8 +18,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             float legHeight = 4f;
             Vector2 tableSize = new Vector2(6, 10);
 
-            Material wood = new Material(new Colour(36, 26, 9, 1), Engine.RenderEngine.textureGenerator.grain);
-            Mesh box = MeshGenerator.generateBox(wood);
+            Mesh box = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.wood));
 
             Mesh table = new Mesh();
 
@@ -45,8 +44,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             float legHeight = 4f;
             float radius = 1.7f;
 
-            Material wood = new Material(new Colour(36, 26, 9, 1), Engine.RenderEngine.textureGenerator.flat);
-            Mesh box = MeshGenerator.generateBox(wood);
+            Mesh box = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.wood));
 
             Mesh table = new Mesh();
 
@@ -57,7 +55,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
                 new Vector2(r*0.95f, 0),
                 new Vector2(r, h*0.5f),
                 new Vector2(r*0.95f, h*1.0f) };
-            Mesh top = MeshGenerator.generateCylinder(layers, 16, wood, 0);
+            Mesh top = MeshGenerator.generateCylinder(layers, 16, new VertexMaterial(TextureGenerator.wood), 0);
             table += top.translated(new Vector3(0f, legHeight, 0f));
 
             Mesh leg = box.scaled(new Vector3(legThickness, legHeight, legThickness)).translated(new Vector3(0f, legHeight / 2f, 0f));
@@ -75,12 +73,12 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
         public static Mesh GenerateLamp(out Vector3 lightPosition, out Vector3 lightDirection)
         {
-            Material wood = new Material(new Colour(115, 115, 95, 1), Engine.RenderEngine.textureGenerator.flat);
-            Material glowMaterial = new Material(new Colour(55, 25, 20, 3), Engine.RenderEngine.textureGenerator.flatGlow);
+            Material wood = new Material(new Colour(115, 115, 95, 1), TextureGenerator.wood);
+            Material glowMaterial = new Material(new Colour(55, 25, 20, 3), TextureGenerator.flatGlow);
 
             Mesh lamp = new Mesh();
 
-            Mesh ball = IcoSphereGenerator.CreateIcosphere(2, wood).scaled(new Vector3(0.35f));
+            Mesh ball = IcoSphereGenerator.CreateIcosphere(2, new VertexMaterial( TextureGenerator.wood)).scaled(new Vector3(0.35f));
 
             Transformation transformation= new Transformation();
             float r = 1f;
@@ -89,7 +87,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
                 new Vector2(r, 0),
                 new Vector2(r*0.9f, h*0.85f),
                 new Vector2(r*0.84f, h*1.0f) };
-            Mesh pole = MeshGenerator.generateCylinder(layers, 16, wood, 0f);
+            Mesh pole = MeshGenerator.generateCylinder(layers, 16, new VertexMaterial(TextureGenerator.wood), 0f);
             lamp += pole;
             transformation = new Transformation(new Vector3(0f, h, 0f), new Vector3(MathF.PI / 8f, 0f, 0f), new Vector3(1)) * transformation;
 
@@ -98,7 +96,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             layers = new List<Vector2>() {
                 new Vector2(r, 0),
                 new Vector2(r, h*1.0f) };
-            pole = MeshGenerator.generateCylinder(layers, 16, wood);
+            pole = MeshGenerator.generateCylinder(layers, 16, new VertexMaterial( TextureGenerator.wood));
             lamp += pole.Transformed(transformation);
             transformation = new Transformation(new Vector3(0f, h, 0f), new Vector3(0f), new Vector3(1)) * transformation;
 
@@ -121,7 +119,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
                 new Vector2(r*0.91f, h*1.1f),
                 new Vector2(r*0.81f, h*1.0f),
                 new Vector2(r*0.05f, h*0.1f)};
-            pole = MeshGenerator.generateCylinder(layers, 16, glowMaterial);
+            pole = MeshGenerator.generateCylinder(layers, 16, new VertexMaterial(TextureGenerator.flatGlow));
             lamp += pole.Transformed(transformation);
 
             lightPosition = transformation.position;
@@ -133,9 +131,6 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
         public static Mesh GenerateCandle(out Vector3 lightPosition)
         {
-            Material wood = new Material(new Colour(124, 87, 66, 1), Engine.RenderEngine.textureGenerator.flat);
-            Material candleMaterial = new Material(new Colour(255, 255, 255, 1), Engine.RenderEngine.textureGenerator.flat);
-            Material glowMaterial = new Material(new Colour(255, 247, 209, 1), Engine.RenderEngine.textureGenerator.flatGlow);
 
             float waxStickHeight = 1f+MyMath.rng(1.7f);
 
@@ -156,7 +151,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
                 new Vector2(r*0.25f, h*1.84f),
                 new Vector2(r*0.21f, h*1.86f),
                 new Vector2(r*0.21f, h*1.0f)};
-            Mesh pole = MeshGenerator.generateCylinder(layers, 16, wood);
+            Mesh pole = MeshGenerator.generateCylinder(layers, 16, new VertexMaterial(TextureGenerator.wood));
             lamp += pole;
             transformation = new Transformation(new Vector3(0f, h, 0f), new Vector3(0, 0f, 0f), new Vector3(1)) * transformation;
 
@@ -170,11 +165,11 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
                 new Vector2(r*0.95f, h*1.01f),
                 new Vector2(r*0.65f, h*0.98f),
                 new Vector2(r*0.35f, h*0.99f) };
-            pole = MeshGenerator.generateCylinder(layers, 16, candleMaterial, 0.1f);
+            pole = MeshGenerator.generateCylinder(layers, 16, new VertexMaterial(TextureGenerator.wax), 0.1f);
             lamp += pole.Transformed(transformation);
             transformation = new Transformation(new Vector3(0f, h, 0f), new Vector3(0, 0f, 0f), new Vector3(1)) * transformation;
 
-            lamp += IcoSphereGenerator.CreateIcosphere(1, glowMaterial).scaled(new Vector3(0.1f, 0.33f, 0.1f)).Transformed(transformation);
+            lamp += IcoSphereGenerator.CreateIcosphere(1,new VertexMaterial( TextureGenerator.flatGlow)).scaled(new Vector3(0.1f, 0.33f, 0.1f)).Transformed(transformation);
 
             lightPosition = transformation.position;
             return lamp;
@@ -191,8 +186,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             Vector2 chairSize = new Vector2(3, 3);
 
-            Material wood = new Material(new Colour(36, 26, 9, 1), Engine.RenderEngine.textureGenerator.flat);
-            Mesh box = MeshGenerator.generateBox(wood);
+            Mesh box = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.wood));
 
             Mesh chair = new Mesh();
 

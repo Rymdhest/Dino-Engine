@@ -11,6 +11,7 @@ using Dino_Engine.Util.Data_Structures.Grids;
 using static Dino_Engine.Textures.ProceduralTextureRenderer;
 using Dino_Engine.Textures;
 using Dino_Engine.Rendering.Renderers.Lighting;
+using Dino_Engine.Modelling.Procedural;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -130,7 +131,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             var final = TextureGenerator.MaterialLayersCombiner.combine(small, big, MaterialLayersManipulator.FilterMode.Everywhere, MaterialLayersManipulator.Operation.Scale);
 
 
-            int texture = final.GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment1);
+            int texture = final.GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment2);
             TextureGenerator.MaterialLayerHandler.cleanUp();
 
             return texture;
@@ -156,7 +157,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         private void generateBladeModelLOD0()
         {
-            Material grassMaterial = new Material(new Colour(0,0,0), 1); //Throwaway
+            VertexMaterial grassMaterial = new VertexMaterial(TextureGenerator.brick); //Throwaway
 
             if (grassBladeLOD0 != null) grassBladeLOD0.cleanUp();
             List<Vector2> bladeLayers = new List<Vector2>() {
@@ -240,7 +241,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 40;
+            bladesPerAxis = 60;
 
             bladeHeight =1.0f;
             radiusBase = 0.015f;
@@ -395,15 +396,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _grassShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
-            _grassShader.loadUniformInt("textureIndex", Engine.RenderEngine.textureGenerator.flatGlow);
-            _grassShader.loadUniformFloat("groundNormalStrength", 7.5f);
-            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 1.2f);
+            _grassShader.loadUniformInt("textureIndex", TextureGenerator.grass);
+            _grassShader.loadUniformFloat("groundNormalStrength", 5.5f);
+            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 1.1f);
             _grassShader.loadUniformFloat("colourError", 0.1f);
-            _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.6f);
-            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.2f);
-            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.8f, 0f, 0.0f, 0f));
-            _grassShader.loadUniformVector3f("baseColorAlive", new Colour(60, 80, 15).ToVector3());
-            _grassShader.loadUniformVector3f("baseColorDead", new Colour(186, 136, 49).ToVector3());
+            _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.2f);
+            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.3f);
+            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.8f, 0f, 0.0f, 1f));
+            _grassShader.loadUniformVector3f("baseColorAlive", new Colour(180, 180, 115).ToVector3());
+            _grassShader.loadUniformVector3f("baseColorDead", new Colour(555, 454, 600).ToVector3());
             //_grassShader.loadUniformVector3f("baseColor", new Colour(30, 11, 8).ToVector3());
         }
 

@@ -11,6 +11,7 @@
 in vec2 textureCoords;
 layout (location = 0) out vec4 albedo_out;
 layout (location = 1) out vec4 material_out;
+layout (location = 2) out float height_out;
 
 uniform vec4 albedo;
 uniform vec4 material;
@@ -39,11 +40,12 @@ void main(void)
     vec2 value = cellularNoise(textureCoords, scale, jitter, phase, metricUint, seed);
 
     albedo_out = albedo;
+    material_out = material;
 
     if (rigged) {
-        material_out = vec4(material.xyz, value.y*material.w);
+        height_out = value.y;
     } else {
-        material_out = vec4(material.xyz, value.x*material.w);
+        height_out = value.x;
     }
 
 

@@ -1,5 +1,6 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using static Dino_Engine.Modelling.MeshGenerator;
@@ -8,14 +9,14 @@ namespace Dino_Engine.Modelling.Procedural
 {
     public class ModelGenerator
     {
-        public static readonly glModel UNIT_SPHERE = glLoader.loadToVAO(IcoSphereGenerator.CreateIcosphere(1, Material.ROCK));
-        public static readonly glModel UNIT_CONE = glLoader.loadToVAO(MeshGenerator.GenerateCone(Material.ROCK));
+        public static readonly glModel UNIT_SPHERE = glLoader.loadToVAO(IcoSphereGenerator.CreateIcosphere(1, new VertexMaterial(0)));
+        public static readonly glModel UNIT_CONE = glLoader.loadToVAO(MeshGenerator.GenerateCone(new VertexMaterial(0)));
 
         public static glModel GenerateHouse()
         {
-            Material wallMaterial = new Material(new Colour(38, 30, 38, 1.0f), Engine.RenderEngine.textureGenerator.grain);
-            Material windowGlow = new Material(new Colour(235, 193, 106, 1.0f), Engine.RenderEngine.textureGenerator.flatGlow);
-            Material windowNormal = new Material(new Colour(15, 15, 25, 1.0f), Engine.RenderEngine.textureGenerator.grain);
+            VertexMaterial wallMaterial =new VertexMaterial(TextureGenerator.brick);
+            VertexMaterial windowGlow = new VertexMaterial(TextureGenerator.flatGlow);
+            VertexMaterial windowNormal = new VertexMaterial(TextureGenerator.flat);
             Mesh house = new Mesh();
             int numWindows = 8;
             int numStories = 6;

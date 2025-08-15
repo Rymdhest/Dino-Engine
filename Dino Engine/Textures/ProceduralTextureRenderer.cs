@@ -25,13 +25,13 @@ namespace Dino_Engine.Textures
         private ShaderProgram _textureSineShader = new ShaderProgram("Simple.vert", "Texture_Sine.frag");
 
         private static readonly Colour defaultColour = new Colour(255, 255, 255);
-        private Vector4 defaultmaterial = new Vector4(0.5f, 0f, 0f, 1.0f);
+        private Vector4 defaultmaterial = new Vector4(0.5f, 0f, 0f, 0.0f);
         public enum Metric
         {
             SquaredEuclidean,
             manhattam,   
             Chebyshev,
-            Triangular
+            Triangular 
         }
         public enum ReturnMode
         {
@@ -51,12 +51,12 @@ namespace Dino_Engine.Textures
             _textureFlatShader.loadUniformFloat("height", height);
             return layer.tap();
         }
-        public MaterialLayer CreateMaterial(Colour colour, Vector3 material, float height = 1.0f)
+        public MaterialLayer CreateMaterial(Material material, float height = 1.0f)
         {
             var layer = new MaterialLayer(bind: true);
             _textureFlatShader.bind();
-            _textureFlatShader.loadUniformVector4f("albedo", colour.ToVector4());
-            _textureFlatShader.loadUniformVector4f("material", new Vector4(material.X, material.Y, material.Z, 1.0f));
+            _textureFlatShader.loadUniformVector4f("albedo", material.Colour.ToVector4());
+            _textureFlatShader.loadUniformVector4f("material", new Vector4(material.roughness, material.emission, material.metalic, material.subSurfaceTransparancy));
             _textureFlatShader.loadUniformFloat("height", height);
             return layer.tap();
         }

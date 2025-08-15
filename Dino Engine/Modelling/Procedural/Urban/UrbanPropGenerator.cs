@@ -1,5 +1,6 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 
@@ -9,9 +10,9 @@ namespace Dino_Engine.Modelling.Procedural.Urban
     {
         public static Mesh GenerateStreetCone()
         {
-            Material materialWhite = new Material(new Colour(235, 235, 235), 1);
-            Material materialOrange = new Material(new Colour(198, 76, 39), 1);
-            Material baseMAterial = new Material(new Colour(10, 10, 10), 1);
+            VertexMaterial materialWhite = new VertexMaterial(TextureGenerator.plastic, new Colour(235, 235, 235));
+            VertexMaterial materialOrange = new VertexMaterial(TextureGenerator.plastic, new Colour(198, 76, 39));
+            VertexMaterial baseMAterial = new VertexMaterial(TextureGenerator.plastic, new Colour(10, 10, 10));
 
             float baseHeight = 0.1f;
             int numLayers = 3;
@@ -24,7 +25,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
                 layers.Add(new Vector2(1f - heightFactor+0.0001f, heightFactor));
             }
 
-            Material material = materialOrange;
+            VertexMaterial material = materialOrange;
             Mesh mesh = MeshGenerator.generateCylinder(layers, 8, material, 0);
             mesh.scale(new Vector3(0.3f, 1f, 0.3f));
             mesh.translate(new Vector3(0.0f, baseHeight*0.5f, 0.0f));
@@ -39,8 +40,8 @@ namespace Dino_Engine.Modelling.Procedural.Urban
         }
             public static glModel GenerateStreetLight(out Vector3 lightPosition)
         {
-            Material poleMaterial = new Material(new Colour(122, 122, 122), Engine.RenderEngine.textureGenerator.brick);
-            Material glowMaterial = new Material(new Colour(235, 193, 106), Material.GLOW.materialIndex);
+            VertexMaterial poleMaterial = new VertexMaterial(TextureGenerator.brick, new Colour(122, 122, 122));
+            VertexMaterial glowMaterial = new VertexMaterial(TextureGenerator.flatGlow, new Colour(235, 193, 106));
 
             float r = 0.5f;
             float angle = MathF.PI / 2.6f;

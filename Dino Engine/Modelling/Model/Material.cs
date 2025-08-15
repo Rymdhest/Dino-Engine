@@ -11,23 +11,31 @@ namespace Dino_Engine.Modelling.Model
 
     public struct Material
     {
-        public static Material ROCK = new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.rock);
-        public static Material GLOW = new Material(new Colour(255, 255, 255), Engine.RenderEngine.textureGenerator.flatGlow);
-        public static Material BARK = new Material(new Colour(190, 120, 90), Engine.RenderEngine.textureGenerator.bark);
+        public static Material ROCK = new Material(new Colour(255, 255, 255), rougness:0.9f);
+        public static Material GLOW = new Material(new Colour(255, 255, 255), emission:1.0f);
+        public static Material BARK = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy:0.5f);
 
         public Colour Colour;
-        public int materialIndex;
+        public float roughness;
+        public float emission;
+        public float metalic;
+        public float subSurfaceTransparancy;
 
-        public Material(Colour colour, int materialIndex)
+        public Material(Colour colour, float rougness = 0.5f, float emission = 0.0f, float metalic = 0.0f, float subSurfaceTransparancy = 0.0f)
         {
             this.Colour = colour;
-            this.materialIndex = materialIndex;
+            this.roughness = rougness;
+            this.emission = emission;
+            this.metalic = metalic;
+            this.subSurfaceTransparancy = subSurfaceTransparancy;
         }
-
-        public Material( int materialIndex)
+        public Material(float rougness = 0.5f, float emission = 0.0f, float metalic = 0.0f, float subSurfaceTransparancy = 0.0f)
         {
             this.Colour = new Colour(255, 255, 255);
-            this.materialIndex = materialIndex;
+            this.roughness = rougness;
+            this.emission = emission;
+            this.metalic = metalic;
+            this.subSurfaceTransparancy = subSurfaceTransparancy;
         }
     }
 }
