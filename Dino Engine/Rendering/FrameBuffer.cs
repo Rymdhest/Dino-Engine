@@ -120,8 +120,14 @@ namespace Dino_Engine.Rendering
 
                 if (depthSettings.isShadowDepthTexture)
                 {
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (float)TextureCompareMode.CompareRefToTexture);
-                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareFunc, (float)DepthFunction.Lequal);
+                    // only for hardware shadows
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (float)TextureCompareMode.CompareRefToTexture);
+                    //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareFunc, (float)DepthFunction.Lequal);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (float)TextureMagFilter.Linear);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (float)TextureMinFilter.Linear);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (float)TextureWrapMode.ClampToEdge);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (float)TextureWrapMode.ClampToEdge);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (float)TextureCompareMode.None);
                 } else
                 {
                     GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (float)TextureCompareMode.None);

@@ -30,14 +30,15 @@ void main(void){
     float materialTransparancy = albedo.a;
 	
 	float lightFactor = 1.0;	
+	float sunFactorEntry = 1.0;
 	float geometricDepth = 1.3;
-	float lightFactorEntry = 1.0;
 
 	vec3 viewDir = normalize(-position);
     vec3 lightDir = normalize(lightPositionViewSpace - position);  
 	float attenuationFactor = calcAttunuation(lightPositionViewSpace, position, attenuation);
 
-    vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, lightFactor, lightFactorEntry, materialTransparancy, geometricDepth);
+
+    vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, lightFactor, sunFactorEntry, materialTransparancy, geometricDepth);
 
 	//color = color / (color + vec3(1.0));
     //color = pow(color, vec3(1.0/2.2));  

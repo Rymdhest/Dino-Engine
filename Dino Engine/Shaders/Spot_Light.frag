@@ -68,18 +68,18 @@ void main(void){
 	float roughness = materialBuffer.r;
 	float metallic = materialBuffer.b;
     float materialTransparancy = albedo.a;
-	float geometricDepth = 1.3;
-	float lightFactorEntry = 1.0;
+	float geometricDepth = 0.0;
 	vec3 viewDir = normalize(-position);
     vec3 lightDir = normalize(lightPositionViewSpace - position);
 	float attenuationFactor = calcAttunuation(lightPositionViewSpace, position, attenuation);
 
 
 	float lightFactor = 1.0;
+	float sunFactorEntry = 1.0;
 	if (isShadow) lightFactor = clamp(1.0-calcShadow(position), 0.0, 1.0);
 	 
     
-    vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, lightFactor, lightFactorEntry, materialTransparancy, geometricDepth);
+    vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, lightFactor,sunFactorEntry, materialTransparancy, geometricDepth);
 
 	float intensity = calcSoftEdge(lightDir, lightDirectionViewSpace, cutoffCosine);
 

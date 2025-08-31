@@ -241,9 +241,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 60;
+            bladesPerAxis = 50;
 
-            bladeHeight =1.0f;
+            bladeHeight =0.5f;
             radiusBase = 0.015f;
             radiusTop = radiusBase * 0.4f;
     }
@@ -397,7 +397,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
             _grassShader.loadUniformInt("textureIndex", TextureGenerator.grass);
-            _grassShader.loadUniformFloat("groundNormalStrength", 5.5f);
+            _grassShader.loadUniformFloat("groundNormalStrength", 2.5f);
             _grassShader.loadUniformFloat("groundNormalStrengthFlat", 1.1f);
             _grassShader.loadUniformFloat("colourError", 0.1f);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.2f);
@@ -499,6 +499,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PerformShadowCommand(GrassRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
             GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
+            GL.PolygonOffset(1, 1);
             shadow.shadowFrameBuffer.bind();
             int bladesPerChunk = (int)Math.Pow(bladesPerAxis, 2);
             _grassShadowShader.loadUniformInt("bladesPerChunk", bladesPerChunk);

@@ -24,11 +24,10 @@ layout (location = 2) out vec4 gMaterials;
 void main() {
 
 	gAlbedo = lookupAlbedo(fragUV, textureIndex);
-	int aInt = int(round(gAlbedo * 255.0));
+	int aInt = int(round(gAlbedo.a * 255.0));
 	int alphaBit = aInt & 1;
 
-	//if (alphaBit == 0) discard;
-	if (gAlbedo.a < 0.5) discard;
+	if (alphaBit == 0) discard;
 
 	gAlbedo.rgb *= fragColor;
 	vec4 normalTangentSpace = lookupNorma(fragUV, textureIndex);

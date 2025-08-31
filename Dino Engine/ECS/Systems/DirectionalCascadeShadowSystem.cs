@@ -106,7 +106,8 @@ namespace Dino_Engine.ECS.Systems
 
                     float distance = Vector2.Distance(cameraPos.Xz, chunkPosition.Xz + chunkSize.Xz * 0.5f);
 
-                    if (distance < 45 && i <2)
+                    int TEST_CASCADE_GRASS_LIMIT = 5;
+                    if (distance < 45 && i < TEST_CASCADE_GRASS_LIMIT)
                     {
                         grassChunks.Add(grassCommand);
                     }

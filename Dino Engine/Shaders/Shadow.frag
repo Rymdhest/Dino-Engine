@@ -17,7 +17,10 @@ uniform int numberOfMaterials;
 
 void main(void){
 	
-	float opacity = lookupAlbedo(fragUV, textureIndex).a;
+	float alpha = lookupAlbedo(fragUV, textureIndex).a;
 
-	if (opacity < 0.5) discard;
+	int aInt = int(round(alpha * 255.0));
+    int alphaBit = aInt & 1;
+
+	if (alphaBit == 0.0) discard;
 }

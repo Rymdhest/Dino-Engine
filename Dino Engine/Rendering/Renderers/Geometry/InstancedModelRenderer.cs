@@ -92,7 +92,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.Blend);
             GL.Enable(EnableCap.PolygonOffsetFill);
-            GL.CullFace(CullFaceMode.Front);
+            GL.CullFace(CullFaceMode.Back);
 
             _instancedModelShadowShader.bind();
             _instancedModelShadowShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);

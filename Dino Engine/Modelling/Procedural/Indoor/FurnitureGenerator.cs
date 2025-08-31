@@ -221,5 +221,23 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             return chair;
         }
+
+        public static Mesh GenerateCandle2()
+        {
+            float r = 0.2f;
+            float h = 1.0f;
+
+            var layers = new List<Vector2>() {
+                new Vector2(r*1.0f, h*0.0f),
+                new Vector2(r*1.0f, h*0.98f),
+                new Vector2(r*0.98f, h*1.0f),
+                new Vector2(r*0.9f, h*1.0f),
+                new Vector2(r*0.8f, h*1.0f),
+                new Vector2(r*0.8f, h*0.9f),
+                new Vector2(r*0.1f, h*0.9f) };
+            Mesh candle = MeshGenerator.generateCylinder(layers, 16, new VertexMaterial(TextureGenerator.wax));
+            candle.makeFlat(true, false);
+            return candle;
+        }
     }
 }

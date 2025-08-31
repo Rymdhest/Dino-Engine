@@ -17,6 +17,7 @@ using Dino_Engine.Util.Data_Structures;
 using System.Xml.Linq;
 using System.Drawing;
 using Dino_Engine.Textures;
+using Dino_Engine.Modelling.Procedural.Indoor;
 
 namespace Dino_Defenders
 {
@@ -201,10 +202,10 @@ namespace Dino_Defenders
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 10.0f)),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20f)),
                 new AmbientLightComponent(0.01f),
                 new CelestialBodyComponent(),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 100)
             ) ;
             
             for (int i = 0; i<0; i++)
@@ -215,7 +216,7 @@ namespace Dino_Defenders
                     new CelestialBodyComponent(),
                     new AmbientLightComponent(0.04f),
                     new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 1.0f)),
-                    new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1000)
+                    new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 1, 1000)
                 );
             }
 
@@ -224,7 +225,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
-                new ColorComponent(new Colour(86, 155, 255, 1.0f)),
+                new ColorComponent(new Colour(86, 155, 255, 0.5f)),
                 new SkyTag(),
                 new AmbientLightComponent(0.5f)
             );
@@ -236,9 +237,19 @@ namespace Dino_Defenders
         
         private void spawnTestScene(ECSWorld world)
         {
+            Mesh candle = FurnitureGenerator.GenerateCandle2();
+            world.CreateEntity("candle",
+                new PositionComponent(new Vector3(0, 0, -5)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(8f)),
+                new ModelComponent(glLoader.loadToVAO(candle)),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
+
             Mesh sphere = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.grass));
             world.CreateEntity("sphere",
-                new PositionComponent(new Vector3(0, 5, 0)),
+                new PositionComponent(new Vector3(20, 5, 0)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
                 new ScaleComponent(new Vector3(1f)),
                 new ModelComponent(glLoader.loadToVAO(sphere)),
@@ -247,8 +258,8 @@ namespace Dino_Defenders
             );
 
             Mesh cube = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.grass));
-            world.CreateEntity("sphere",
-                new PositionComponent(new Vector3(4, 5, 0)),
+            world.CreateEntity("cube",
+                new PositionComponent(new Vector3(24, 5, 0)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
                 new ScaleComponent(new Vector3(2f)),
                 new ModelComponent(glLoader.loadToVAO(cube)),
@@ -482,7 +493,7 @@ namespace Dino_Defenders
             }
 
 
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.grain, new Colour(55, 75, 55)));
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.grass, new Colour(255, 255, 255)));
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
             for (int i = 0; i < RockMesh.meshVertices.Count; i++)
@@ -493,16 +504,16 @@ namespace Dino_Defenders
                 RockMesh.meshVertices[i].position = newPos;
             }
 
-            RockMesh.FlatRandomness(0.0f);
+            RockMesh.FlatRandomness(0.045f);
             //RockMesh.makeFlat(flatMaterial: true, flatNormal: true);
             glModel rockModel = glLoader.loadToVAO(RockMesh);
             for (int i = 0; i < 200; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float height = 0.4f + MyMath.rng(0.9f);
-                float radius = 0.4f + MyMath.rng(0.8f);
-                world.CreateEntity("tree test: " + i,
+                float height = 2.4f + MyMath.rng(0.9f);
+                float radius = 2.4f + MyMath.rng(0.8f);
+                world.CreateEntity("rock test: " + i,
                     new PositionComponent(treePos),
                     new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
                     new ScaleComponent(new Vector3(radius, height, radius)),

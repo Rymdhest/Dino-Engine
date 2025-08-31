@@ -92,6 +92,29 @@ vec3 getLightPBROLD(vec3 albedo, vec3 normal, float roughness, float metallic, v
     return color*(1.0)+subColor*subSurfaceAmount*scatterProfile;
 }
 
+vec3 shiftHueFast(vec3 color, float hueShift) {
+    const mat3 rgb2yiq = mat3(
+         0.299,  0.587,  0.114,
+         0.595716, -0.274453, -0.321263,
+         0.211456, -0.522591,  0.311135
+    );
+    const mat3 yiq2rgb = mat3(
+         1.0,  0.9563,  0.6210,
+         1.0, -0.2721, -0.6474,
+         1.0, -1.1070,  1.7046
+    );
+
+    vec3 yiq = rgb2yiq * color;
+    float hue = atan(yiq.z, yiq.y); 
+    float chroma = sqrt(yiq.y * yiq.y + yiq.z * yiq.z);
+
+    hue += hueShift * 6.2831853; 
+    yiq.y = chroma * cos(hue);
+    yiq.z = chroma * sin(hue);
+
+    return clamp(yiq2rgb * yiq, 0.0, 1.0);
+}
+
 vec3 getLightPBR(
     vec3 albedo,
     vec3 normal,
@@ -129,31 +152,31 @@ vec3 getLightPBR(
     vec3  specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 0.0001);
 
     vec3 diffuse = kD * albedo / 3.14159265359;
-    vec3 LoFront = (diffuse + specular) * radiance * NdotL*lightFactor;
+    vec3 LoFront = (diffuse + specular) * radiance * NdotL;
 
-    float thickness = 0.2;
 
     // ----- BACK LIGHTING TRANSMISSION -----
-    float backLit = clamp(dot(-N, L), 0.0, 1.0);
-
+    float backLit = clamp(dot(V, normalize(-L+N*1.0)), -1.0, 1.0);
+    backLit = backLit * 0.5+0.5;
+    backLit = pow(backLit,2.0);
     // Boost saturation for transmitted light
     vec3 avg = vec3(dot(albedo, vec3(0.2126, 0.7152, 0.0722)));
-    vec3 saturated = mix(avg, albedo, 1.4); // 1.0 = no boost
-
+    vec3 saturated = mix(avg, albedo, 1.0); // 1.0 = no boost
+    saturated = shiftHueFast(saturated, 1.0);
     // Simple absorption through the leaf
-    float absorption = exp(-thickness * 4.0); // tweak 4.0 for strength
-
-    vec3 transmission = saturated * radiance * backLit * absorption;
-
+    float depthFactor = 1.0/(pow(geometricDepth*2.0, 3.0)+1.0);
+    vec3 transmission = saturated * radiance * backLit*depthFactor;
+    //transmission /= (pow(geometricDepth*2.0, 2.0)+1.0);
     // Sharpen the backlight falloff
-    float backBlend = pow(backLit, 0.15);
+    float backBlend = pow(backLit, 1.0);
 
     // ----- AMBIENT -----
     vec3 totalAmbient = albedo * lightColour * attenuation * ambient;
 
     // ----- COMBINE -----
     // Blend between front PBR and back transmission based on light direction
-    vec3 litColor = mix(LoFront, transmission, backBlend * materialTransparancy);
+    //vec3 litColor = LoFront*lightFactor+ transmission * materialTransparancy;
+    vec3 litColor = mix (LoFront*lightFactor, transmission*lightFactorEntry, materialTransparancy*backBlend);
 
     return totalAmbient + litColor * (1.0 - ambient);
 }

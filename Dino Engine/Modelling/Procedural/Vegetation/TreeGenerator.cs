@@ -19,7 +19,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
         public static Mesh GenerateLeaf()
         {
-            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.bark, new Colour(100, 170, 15));
+            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.grass, new Colour(100, 170, 15));
 
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(0.15f, 1f), new Vector2i(50, 50), leafMaterial);
             leafMesh.rotate(new Vector3(MathF.PI/2f, 0f, 0f));

@@ -50,7 +50,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _modelShader.bind();
 
             _modelShader.loadUniformFloat("parallaxDepth", 0.1f);
-            _modelShader.loadUniformFloat("parallaxLayers", 300f);
+            _modelShader.loadUniformFloat("parallaxLayers", 30f);
 
             _modelShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
@@ -87,6 +87,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.Blend);
             GL.Enable(EnableCap.PolygonOffsetFill);
+
             GL.CullFace(CullFaceMode.Front);
 
             _modelShadowShader.bind();
@@ -142,7 +143,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             {
                 //GL.Clear(ClearBufferMask.DepthBufferBit);
                 GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
-                //GL.PolygonOffset(4f, 1f);
+                //GL.PolygonOffset(1f, 1f);
 
                 glModel glmodel = command.model;
                 GL.BindVertexArray(glmodel.getVAOID());

@@ -3,6 +3,7 @@ using Dino_Engine.Core;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using System.Xml.Linq;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Dino_Engine.Rendering
 {
@@ -144,7 +145,12 @@ namespace Dino_Engine.Rendering
             GL.GetShader(shaderID, ShaderParameter.CompileStatus, out var code);
             if (code != (int)All.True){
                 string infoLog = GL.GetShaderInfoLog(shaderID);
-                Console.WriteLine($"Could not compile shader {shaderString}.\n\n{infoLog}");
+                string[] lines = shaderString.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    Console.WriteLine($"{i + 1}: {lines[i]}");
+                }
+                Console.WriteLine($"Could not compile shader.\n\n{infoLog}");
             }
 
 
