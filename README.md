@@ -11,7 +11,7 @@
 
 <img width="1907" height="1074" alt="engine 2" src="https://github.com/user-attachments/assets/4ccadb53-51c7-4a29-9544-47a7f78602a3" />
 
-This is a fully **procedural game engine** built from scratch in C# using OpenGL and OpenTK. The engine does **not use any external libraries** beyond OpenTK. Every asset, from textures and models to terrain and effects, is generated **procedurally at runtime**, making it a showcase of graphics programming and system design skills.
+This is a fully **procedural game engine** built from scratch in C# using OpenGL and OpenTK. The engine does **not use any external libraries** beyond OpenTK. Every asset, from textures and models to terrain and effects, is generated **procedurally at runtime**.
 
 ---
 
