@@ -41,8 +41,6 @@ This is a fully **procedural game engine** built from scratch in C# using OpenGL
 - **Procedural modeling** for all objects
 - **Procedural textures** for all textures
 - **Grass shader** lightweigth zero per instance data
-- **Water shader** with procedural waves and reflections
-- **Cloud and sky shaders** for dynamic environments
 
 ### Other Post-processing Effects
 - **FXAA anti-aliasing**
