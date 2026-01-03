@@ -11,6 +11,7 @@ namespace Dino_Engine.Modelling.Procedural
     {
         public static readonly glModel UNIT_SPHERE = glLoader.loadToVAO(IcoSphereGenerator.CreateIcosphere(1, new VertexMaterial(0)));
         public static readonly glModel UNIT_CONE = glLoader.loadToVAO(MeshGenerator.GenerateCone(new VertexMaterial(0)));
+        public static readonly glModel UNIT_BOX = glLoader.loadToVAO(MeshGenerator.generateBox(new VertexMaterial(0)));
 
         public static glModel GenerateHouse()
         {
