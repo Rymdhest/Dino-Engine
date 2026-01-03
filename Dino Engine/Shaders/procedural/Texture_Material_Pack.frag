@@ -18,14 +18,16 @@ void main(void)
     float height_in = texture(heightRead, textureCoords).r;
  
     int alphaMask = 1;
-    if (  albedo_in.a < alphaCutoff) alphaMask = 0;
-
+    if (albedo_in.a < alphaCutoff) {
+        alphaMask = 0;
+    }
     int subSurface7 = int(round(material_in.a * 127.0));
-    float packed = float( (subSurface7 << 1) | alphaMask) / 255.0;
+    float packedData = float( (subSurface7 << 1) | alphaMask) / 255.0;
+
 
  
     albedo_out.rgb = albedo_in.rgb;
-    albedo_out.a = packed;
+    albedo_out.a = packedData;
     material_out.rgb = material_in.rgb;
     material_out.a = height_in;
     height_out = height_in; // not needed...

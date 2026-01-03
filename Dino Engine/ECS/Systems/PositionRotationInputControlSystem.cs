@@ -104,7 +104,7 @@ namespace Dino_Engine.ECS.Systems
                 float FoV = MathF.PI / 3.0f;
                 world.CreateEntity("Shooting ball",
                     new VelocityComponent(forward * speed),
-                    new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation()+ forward*1f),
+                    new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation() + forward * 1f),
                     new LocalToWorldMatrixComponent(),
                     new AttunuationComponent(0.01f, 0.01f, 0.01f),
                     new AmbientLightComponent(0.001f),
@@ -121,7 +121,7 @@ namespace Dino_Engine.ECS.Systems
                     new ColorComponent(new Colour(1f, 0.6f, 0.5f, 10f)),
                     //new ColorComponent(col),
                     new selfDestroyComponent(duration)
-                ); ;
+                );
             }
         }
 

@@ -1,37 +1,51 @@
-Implemented Features:
+# Dino Engine
 
-Entity-Component-System
-Deferred shading
-Physically based rendering
-HDR tone-mapping
-Normal mapping
-Paralax mapping
-Procedural texturing
-Procedural modeling
-procedural terrain
-procedural everything
-Bloom (down/up-sampling)
-direectional light Cascade shadow mapping
-Point/spot light shadow mapping
-FXAA
-Particle Systems
-Screen Space Reflections
-Grass blade shader
-Light Rays
-Depth of Field
-Emissive materials
-Variable Poisson disk sampling
-SSAO
-Collision
-Screen spaced Global illumination
-animated height based fog
-sky shader
-GUI rendering
-A* pathfinding
-Shell texturing
-water shader
-cloud shader
-decals
+**Language:** C# | **Rendering:** OpenGL (via OpenTK) | **Status:** In active development  
+
+## Showcase
 
 
-# Dino Engine![x](https://github.com/user-attachments/assets/e3bcfaec-9bb2-432d-a4ca-aeec137aa83c)
+<img width="1907" height="1079" alt="engine grass" src="https://github.com/user-attachments/assets/4e0510b4-1bb6-4804-9bf7-9107c65fa2a1" />
+
+---
+
+<img width="1907" height="1074" alt="engine 2" src="https://github.com/user-attachments/assets/4ccadb53-51c7-4a29-9544-47a7f78602a3" />
+
+This is a fully **procedural game engine** built from scratch in C# using OpenGL and OpenTK. The engine does **not use any external libraries** beyond OpenTK. Every asset, from textures and models to terrain and effects, is generated **procedurally at runtime**.
+
+---
+
+## Key Features
+
+### Core Systems
+- **Entity-Component-System (ECS)** architecture for flexible and efficient scene management
+
+### Rendering
+- **Deferred shading pipeline**
+- **Physically Based Rendering (PBR)**
+- **Normal mapping**
+- **parallax mapping**
+- **Screen Space Ambient Occlusion**
+- **Screen Space Reflections**
+- **animated, height-based fog**
+
+### Lighting
+- **Directional lights** with **cascaded shadow mapping**
+- **Point and spot lights with shadow mapping**
+- **Light rays** for volumetric effects
+- **Geometric subsurface scattering**
+- **Emissive materials**
+
+### Procedural Content
+- **Procedural terrain** and landscape generation
+- **Procedural modeling** for all objects
+- **Procedural textures** for all textures
+- **Grass shader** lightweigth zero per instance data
+
+### Other Post-processing Effects
+- **FXAA anti-aliasing**
+- **Depth of Field**
+-  **bloom** (up/down-sampling)
+- **HDR tone-mapping**
+---
+
