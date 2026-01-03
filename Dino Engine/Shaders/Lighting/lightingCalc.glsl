@@ -158,7 +158,7 @@ vec3 getLightPBR(
     // ----- BACK LIGHTING TRANSMISSION -----
     float backLit = clamp(dot(V, normalize(-L+N*1.0)), -1.0, 1.0);
     backLit = backLit * 0.5+0.5;
-    backLit = pow(backLit,2.0);
+    backLit = pow(backLit,1.0);
     // Boost saturation for transmitted light
     vec3 avg = vec3(dot(albedo, vec3(0.2126, 0.7152, 0.0722)));
     vec3 saturated = mix(avg, albedo, 1.0); // 1.0 = no boost

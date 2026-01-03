@@ -91,6 +91,8 @@ namespace Dino_Engine.Core
             nws.Title = settings._gameTitle;
             nws.ClientSize = settings._resolution;
             nws.Location = new Vector2i(0, 0);
+            nws.WindowState = WindowState.Normal;
+            nws.WindowBorder = WindowBorder.Resizable;
             gws.UpdateFrequency = 240;
             return new WindowHandler(gws, nws);
         }
