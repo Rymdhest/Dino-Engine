@@ -5,7 +5,7 @@
 
 layout(location=0) in vec3 position;
 layout(location=2) in vec3 normal;
-layout(location=4) in vec2 uv;
+//layout(location=4) in vec2 uv;
 
 
 layout(std140, binding = 5) uniform ChunkDataBuffer {
@@ -164,9 +164,9 @@ void main() {
 	vec3 adjustedNormal = normalize(rotatedNormal);
 	fragNormal = (transpose(invViewMatrix)*vec4(adjustedNormal, 0.0f)).xyz;
 	terrainNormal =  (transpose(invViewMatrix)*vec4(terrainNormal, 1.0f)).xyz;
-	vec4 vertexPosView = viewMatrix*vec4(vertexPositionWorld, 1.0);
+	vec4 vertexPosView = viewMatrix*vec4(vertexPositionWorld, 1.0f);
 	depth = -vertexPosView.z;
 	gl_Position =  projectionMatrix*vertexPosView;
 	
-	fragUV = uv;
+	fragUV = vec2(0.0f);
 }

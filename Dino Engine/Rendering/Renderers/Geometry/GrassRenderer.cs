@@ -85,8 +85,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShadowShader.loadUniformInt("grassNoise", 1);
             _grassShadowShader.unBind();
 
-            generateBladeModelLOD0();
-            generateBladeModelLOD1();
+            grassBladeLOD0 = generateBladeModelLOD0();
+            grassBladeLOD1 = generateBladeModelLOD1();
             generateBladeModelShadow();
 
             FrameBufferSettings frameBufferSettings = new FrameBufferSettings(new Vector2i(600,600));
@@ -155,7 +155,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             StepToggle();
         }
-        private void generateBladeModelLOD0()
+        private glModel generateBladeModelLOD0()
         {
             VertexMaterial grassMaterial = new VertexMaterial(TextureGenerator.brick); //Throwaway
 
@@ -170,7 +170,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             bladeMesh.scale(new Vector3(1f, 1f, 0.3f));
 
             bladeMesh.makeFlat(true, false);
-            grassBladeLOD0 = glLoader.loadToVAO(bladeMesh);
+            return glLoader.loadToVAO(bladeMesh);
         }
         
         private void generateBladeModelShadow()
@@ -203,8 +203,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             grassBladeShadow = glLoader.loadToVAO(positions, normals, indices);
         }
-        
-        private void generateBladeModelLOD1()
+
+
+        private glModel generateBladeModelLOD1()
         {
             if (grassBladeLOD1 != null) grassBladeLOD1.cleanUp();
 
@@ -236,7 +237,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 1, 2, 4
             };
 
-            grassBladeLOD1 = glLoader.loadToVAO(positions, normals, indices);
+            return glLoader.loadToVAO(positions, normals, indices);
         }
 
         public override void Update()
@@ -365,8 +366,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
 
 
-            generateBladeModelLOD0();
-            generateBladeModelLOD1();
+            //generateBladeModelLOD0();
+            //generateBladeModelLOD1();
             generateBladeModelShadow();
 
             //StepSimulation(renderEngine.ScreenQuadRenderer);
@@ -474,7 +475,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             glModel grassBlade = grassBladeLOD0;
             GL.Enable(EnableCap.CullFace);
-
             if (command.LOD == 1)
             {
                 _grassShader.loadUniformBool("isBillboard", true);
@@ -487,7 +487,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindVertexArray(grassBlade.getVAOID());
             GL.EnableVertexAttribArray(0);
             GL.EnableVertexAttribArray(2);
-            GL.EnableVertexAttribArray(4);
+            //GL.EnableVertexAttribArray(4);
             GL.DisableVertexAttribArray(1);
             GL.DisableVertexAttribArray(3);
             GL.DisableVertexAttribArray(5);
@@ -498,6 +498,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(GrassRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
+            
             GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
             GL.PolygonOffset(1, 1);
             shadow.shadowFrameBuffer.bind();
@@ -528,7 +529,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.DisableVertexAttribArray(5);
 
             GL.DrawElementsInstanced(PrimitiveType.Triangles, grassBlade.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero, bladesPerChunk * command.chunks.Length);
-
+            
         }
     }
 }
