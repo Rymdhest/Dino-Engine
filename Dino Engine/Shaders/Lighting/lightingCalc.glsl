@@ -169,7 +169,6 @@ vec3 getLightPBR(
     //transmission /= (pow(geometricDepth*2.0, 2.0)+1.0);
     // Sharpen the backlight falloff
     float backBlend = pow(backLit, 1.0);
-
     // ----- AMBIENT -----
     vec3 totalAmbient = albedo * lightColour * attenuation * ambient;
 

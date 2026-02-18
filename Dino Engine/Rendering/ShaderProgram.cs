@@ -192,7 +192,15 @@ namespace Dino_Engine.Rendering
 
         private string PreProccessShaderFromFile(string fileName)
         {
-            string fullPath = _shaderFolderPath + "/" + fileName;
+            string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            string shaderFolderPath = Path.Combine(baseDirectory, "Shaders");
+            string fullPath = Path.Combine(shaderFolderPath, fileName);
+
+            if (!File.Exists(fullPath))
+            {
+                throw new FileNotFoundException($"Shader file not found! Tried here: {fullPath}");
+            }
+
             var processedShader = new System.Text.StringBuilder();
 
             foreach (string line in File.ReadLines(fullPath))

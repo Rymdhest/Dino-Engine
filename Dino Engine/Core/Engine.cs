@@ -93,7 +93,7 @@ namespace Dino_Engine.Core
             nws.Location = new Vector2i(0, 0);
             nws.WindowState = WindowState.Normal;
             nws.WindowBorder = WindowBorder.Resizable;
-            gws.UpdateFrequency = 240;
+            gws.UpdateFrequency = 20;
             return new WindowHandler(gws, nws);
         }
 

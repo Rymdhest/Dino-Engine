@@ -572,7 +572,7 @@ namespace Dino_Engine.Textures
         private int createGrassTexture()
         {
             MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
-            roughLayer.setMaterial(new Material(new Colour(60, 80, 15), 0.95f, 0f, 0.0f, 0.7f));
+            roughLayer.setMaterial(new Material(new Colour(60, 80, 15), 0.95f, 0f, 0.0f, 1.0f));
             return FinishTexture(roughLayer);
         }
         private int createIceTexture()
