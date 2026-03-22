@@ -9,11 +9,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public Matrix4 shadowProjectionMatrix;
         public FrameBuffer shadowFrameBuffer;
         public float projectionSize;
-        public float polygonOffset;
-        public Shadow(Vector2i resolution, Matrix4 lightProjectionMatrix, float projectionSize, float polygonOffset)
+        public float polygonOffsetModel;
+        public float polygonOffsetTerrain;
+        public Shadow(Vector2i resolution, Matrix4 lightProjectionMatrix, float projectionSize, float polygonOffsetModel, float polygonOffsetTerrain)
         {
             this.projectionSize = projectionSize;
-            this.polygonOffset = polygonOffset;
+            this.polygonOffsetModel = polygonOffsetModel;
+            this.polygonOffsetTerrain = polygonOffsetTerrain;
             FrameBufferSettings settings = new FrameBufferSettings(resolution);
             DepthAttachmentSettings depthAttachmentSettings = new DepthAttachmentSettings();
             depthAttachmentSettings.isTexture = true;

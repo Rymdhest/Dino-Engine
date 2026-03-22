@@ -15,6 +15,7 @@ namespace Dino_Engine.ECS.Systems
         public TerrainChunkSystem()
             : base(new BitMask(typeof(TerrainChunkComponent), typeof(ScaleComponent), typeof(LocalToWorldMatrixComponent)))
         {
+            Priority = -1;
         }
 
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
@@ -23,6 +24,7 @@ namespace Dino_Engine.ECS.Systems
             TerrainGenerator generator = world.GetComponent<TerrainGeneratorComponent>(world.GetSingleton<TerrainGeneratorComponent>()).Generator;
             Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
             UpdateNodeLODRecursive(quadtreeComponent.QuadTree, cameraPos, world, generator, quadtreeComponent.rootSize);
+            Engine.Instance.world.ApplyDeferredCommands();
         }
 
         public static void CollectVisibleChunks(QuadTreeNode node, Frustum frustum, List<Entity> visibleChunks)

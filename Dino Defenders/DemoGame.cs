@@ -203,9 +203,9 @@ namespace Dino_Defenders
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20f)),
-                new AmbientLightComponent(0.01f),
+                new AmbientLightComponent(0.02f),
                 new CelestialBodyComponent(),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 100)
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 500)
             ) ;
             
             for (int i = 0; i<0; i++)
@@ -225,7 +225,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
-                new ColorComponent(new Colour(86, 155, 255, 0.5f)),
+                new ColorComponent(new Colour(86, 155, 255, 1.0f)),
                 new SkyTag(),
                 new AmbientLightComponent(0.5f)
             );
@@ -493,7 +493,7 @@ namespace Dino_Defenders
             }
 
 
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.grass, new Colour(255, 255, 255)));
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.rock, new Colour(255, 255, 255)));
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
             for (int i = 0; i < RockMesh.meshVertices.Count; i++)
@@ -504,6 +504,7 @@ namespace Dino_Defenders
                 RockMesh.meshVertices[i].position = newPos;
             }
 
+
             RockMesh.FlatRandomness(0.045f);
             //RockMesh.makeFlat(flatMaterial: true, flatNormal: true);
             glModel rockModel = glLoader.loadToVAO(RockMesh);
@@ -511,8 +512,8 @@ namespace Dino_Defenders
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float height = 2.4f + MyMath.rng(0.9f);
-                float radius = 2.4f + MyMath.rng(0.8f);
+                float height = 1.4f + MyMath.rng(1.9f);
+                float radius = 1.4f + MyMath.rng(1.8f);
                 world.CreateEntity("rock test: " + i,
                     new PositionComponent(treePos),
                     new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),

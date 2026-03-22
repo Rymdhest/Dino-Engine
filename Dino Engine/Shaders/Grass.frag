@@ -39,7 +39,7 @@ void main() {
 	if (valid < 0.5f) discard;
 
 	vec3 color = (fragColor-fakeColorAmbientOcclusionStrength*fragColor)+tipFactor*fragColor*fakeColorAmbientOcclusionStrength;
-	gAlbedo = vec4(color, 1.0);
+	gAlbedo = vec4(color, 0.3);
 	gNormal = vec4(normalize(fragNormal), (1.0-fakeAmbientOcclusionStrength)+tipFactor*fakeAmbientOcclusionStrength);
 	if (!gl_FrontFacing) gNormal.xyz = -gNormal.xyz;
 	gNormal.xyz = compressNormal(normalize(gNormal.xyz +terrainNormal*groundNormalStrengthFlat+terrainNormal*groundNormalStrength*depth*0.01f));

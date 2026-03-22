@@ -29,6 +29,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
                     Systems.Add(instance);
                 }
             }
+            Systems.Sort((a, b) => a.Priority.CompareTo(b.Priority));
         }
         public static void UpdateAll(ECSWorld world, float deltaTime)
         {

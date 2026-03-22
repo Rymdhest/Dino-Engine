@@ -15,7 +15,9 @@ namespace Dino_Engine.ECS.Components
             for (int i = 0; i < numCascades; i++)
             {
                 var projeciton = Matrix4.CreateOrthographic(size, size, -size, size);
-                cascadesTemp.Add(new Shadow(resolution, projeciton, size, size * 0.001f+6f) );
+                float polygonOffsetTerrain = -size * 0.13f + 60f;
+                float polygonOffsetModel = size * 0.001f + 6f;
+                cascadesTemp.Add(new Shadow(resolution, projeciton, size, polygonOffsetModel, polygonOffsetTerrain) );
                 size /= 6.0f;
             }
             cascadesTemp.Sort((p1, p2) => p1.projectionSize.CompareTo(p2.projectionSize));

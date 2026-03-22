@@ -114,7 +114,7 @@ void main() {
 	terrainNormal = heightMapData.xyz;
 	float steepness = 1.0-dot(vec3(0.0, 1.0, 0.0), terrainNormal);
 	
-	vec3 VertexPositionLocal = position;
+	vec3 VertexPositionLocal = position*vec3(chunkSize, 1.0, chunkSize);
 	vec2 bladeWorldSeed = chunkOrigin+gridPosition;
 	bladeWorldSeed *= 1.0; // avoid hashing breaking with too small differences in values
 	float bladeRandomValue = hash21(bladeWorldSeed);

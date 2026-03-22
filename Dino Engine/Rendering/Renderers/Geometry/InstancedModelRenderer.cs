@@ -171,7 +171,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             shadow.shadowFrameBuffer.bind();
             //GL.Clear(ClearBufferMask.DepthBufferBit);
-            GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
+            GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
             //GL.PolygonOffset(4f, 1f);
 
             glModel glmodel = command.model;

@@ -13,6 +13,7 @@ namespace Dino_Engine.ECS.Systems
         public TerrainChunkRenderSystem()
             : base(new BitMask(typeof(TerrainChunkComponent), typeof(ScaleComponent), typeof(LocalToWorldMatrixComponent)))
         {
+            Priority = 1;
         }
 
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
@@ -60,11 +61,11 @@ namespace Dino_Engine.ECS.Systems
                 grassCommand.chunkPos = chunkPosition.Xz;
                 grassCommand.size = chunkSize.X;
                 grassCommand.arrayID = arrayID;
-                if (distance < 7)
+                if (distance < 20)
                 {
                     grassChunksLOD0.Add(grassCommand);
                 }
-                else if (distance < 20)
+                else if (distance < 500)
                 {
                     grassChunksLOD1.Add(grassCommand);
                 }

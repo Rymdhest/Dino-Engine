@@ -242,11 +242,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 50;
+            bladesPerAxis = 32;
 
-            bladeHeight =0.5f;
+            bladeHeight =1.5f;
             radiusBase = 0.015f;
-            radiusTop = radiusBase * 0.4f;
+            radiusTop = radiusBase * 0.6f;
     }
 
         public override void CleanUp()
@@ -366,8 +366,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
 
 
-            //generateBladeModelLOD0();
-            //generateBladeModelLOD1();
+            generateBladeModelLOD0();
+            generateBladeModelLOD1();
             generateBladeModelShadow();
 
             //StepSimulation(renderEngine.ScreenQuadRenderer);
@@ -398,12 +398,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
             _grassShader.loadUniformInt("textureIndex", TextureGenerator.grass);
-            _grassShader.loadUniformFloat("groundNormalStrength", 2.5f);
-            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 1.1f);
+            _grassShader.loadUniformFloat("groundNormalStrength", 0.5f);
+            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.1f);
             _grassShader.loadUniformFloat("colourError", 0.1f);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.2f);
             _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.3f);
-            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.8f, 0f, 0.0f, 1f));
+            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.8f, 0f, 0.0f, 0.5f));
             _grassShader.loadUniformVector3f("baseColorAlive", new Colour(180, 180, 115).ToVector3());
             _grassShader.loadUniformVector3f("baseColorDead", new Colour(555, 454, 600).ToVector3());
             //_grassShader.loadUniformVector3f("baseColor", new Colour(30, 11, 8).ToVector3());
@@ -499,7 +499,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PerformShadowCommand(GrassRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
             
-            GL.PolygonOffset(shadow.polygonOffset, shadow.polygonOffset * 10.1f);
+            GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
             GL.PolygonOffset(1, 1);
             shadow.shadowFrameBuffer.bind();
             int bladesPerChunk = (int)Math.Pow(bladesPerAxis, 2);

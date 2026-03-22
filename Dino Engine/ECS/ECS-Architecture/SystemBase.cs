@@ -15,7 +15,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
     {
         protected readonly BitMask WithMask;
         protected readonly BitMask WithoutMask;
-
+        public int Priority = 0;
 
         protected SystemBase(BitMask withMask, BitMask withoutMask)
         {
