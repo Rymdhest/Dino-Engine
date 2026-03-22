@@ -95,8 +95,11 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir, float textureIndex,float para
     float currentLayerDepth = 0.0;
     // the amount to shift the texture coordinates per layer (from vector P)
     //vec2 P = viewDir.xy/-viewDir.z * parallaxDepth; 
-    vec2 P = viewDir.xy * parallaxDepth;
-    //vec2 P = viewDir.xy / max(viewDir.z, 0.1) * parallaxDepth;
+
+    //vec2 P = viewDir.xy * parallaxDepth;
+    //vec2 P = viewDir.xy / max(viewDir.z, 0.05) * parallaxDepth;
+    vec2 P = (viewDir.xy / (viewDir.z + 0.1)) * parallaxDepth;
+
     vec2 deltaTexCoords = P / parallaxLayers;
 
     vec2  currentTexCoords = texCoords;

@@ -27,7 +27,7 @@ void main() {
 	int aInt = int(round(gAlbedo.a * 255.0));
 	int alphaBit = aInt & 1;
 
-	if (alphaBit == 0) discard;
+	//if (alphaBit == 0) discard;
 
 	gAlbedo.rgb *= fragColor;
 	vec4 normalTangentSpace = lookupNorma(fragUV, textureIndex);
@@ -46,5 +46,5 @@ void main() {
 	//gMaterials.a = 1.0;
 
 	//gAlbedo.rgb = vec3(gMaterials.a);
-
+	
 }

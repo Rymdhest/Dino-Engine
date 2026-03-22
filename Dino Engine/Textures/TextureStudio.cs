@@ -60,9 +60,14 @@ namespace Dino_Engine.Textures
 
             framBuffer.bind();
             _textureStudioShader.bind();
-            GL.ClearColor(0f, 0f, 0f, 0f);
+            //GL.ClearColor(0f, 0f, 0f, 0f);
             GL.DepthMask(true);
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            GL.ClearBuffer(ClearBuffer.Color, 0, new float[] { 0f, 0f, 0f, 0f });  // Albedo - Red
+            GL.ClearBuffer(ClearBuffer.Color, 1, new float[] { 0f, 0f, 0f, 0f });  // Normal - Light blue
+            GL.ClearBuffer(ClearBuffer.Color, 2, new float[] { 0f, 0f, 0f, 0f });  // Materials - Black
+            GL.Clear(ClearBufferMask.DepthBufferBit);
 
             GL.Enable(EnableCap.DepthTest);
             GL.DepthFunc(DepthFunction.Less);
