@@ -26,9 +26,8 @@ uniform float cascadeProjectionSizes[5];
 uniform int pcfRadius;
 
 
-vec2 calcShadow(vec3 positionViewSpace) {
+float calcShadow(vec3 positionViewSpace) {
 	float finalSunFactor = 1.0;
-	float geometricDepth = 0.0;
 	float bias = 0.0001;
 
 	for (int i = 0; i < numberOfCascades; i++) {
@@ -46,7 +45,6 @@ vec2 calcShadow(vec3 positionViewSpace) {
 			float sunFactorSum = 0.0;
 			float totalWeight = 0.0;
 
-			float depthSum = 0.0;
 			
 			vec2 pixelSize = 1.0 / vec2(textureSize(shadowMaps[i], 0));
 			for (int x = -pcfRadius; x <= pcfRadius; x++) {
@@ -60,21 +58,12 @@ vec2 calcShadow(vec3 positionViewSpace) {
 					
 					float depth = texture(depthMaps[i], positionSunSpace.xy + offset.xy).r;
 					float fragDepth = positionSunSpace.z-bias;
-					depthSum += max(0.0, fragDepth - depth);
 				}
 			}
 			finalSunFactor = min(finalSunFactor, sunFactorSum/totalWeight);
-
-
-
-
-			float cascadeRange = cascadeProjectionSizes[i];
-			geometricDepth = max(geometricDepth, (depthSum/totalWeight)*cascadeRange);
 		}
 	}
-
-
-	return vec2(finalSunFactor, geometricDepth);
+	return finalSunFactor;
 }
 
 void main(void){
@@ -88,12 +77,10 @@ void main(void){
 	float metallic = materialBuffer.b;
 	float materialHeight = materialBuffer.a;
 	float materialTransparancy = albedo.a;
-	vec2 shadowResult = calcShadow(position);
-	float geometricDepth = shadowResult.y+materialHeight*0.5;
+	float shadowResult = calcShadow(position);
 	float sunFactor = clamp(shadowResult.x, 0.0, 1.0);
 	vec3 viewDir = normalize(-position);
-	float sunFactorEntry = sunFactor;
-	vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColour, 1.0, ambientFactor*ambient, viewDir, LightDirectionViewSpace, sunFactor, sunFactorEntry, materialTransparancy, geometricDepth);
+	vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColour, 1.0, ambientFactor*ambient, viewDir, LightDirectionViewSpace, sunFactor, materialTransparancy, materialHeight);
 
 	out_Colour = vec4(color, 0.0);
 	

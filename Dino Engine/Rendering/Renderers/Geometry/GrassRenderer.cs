@@ -245,7 +245,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             bladesPerAxis = 32;
 
             bladeHeight =1.5f;
-            radiusBase = 0.015f;
+            radiusBase = 0.008f;
             radiusTop = radiusBase * 0.6f;
     }
 
@@ -398,14 +398,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
             _grassShader.loadUniformInt("textureIndex", TextureGenerator.grass);
-            _grassShader.loadUniformFloat("groundNormalStrength", 0.5f);
-            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.1f);
+            _grassShader.loadUniformFloat("groundNormalStrength", 0.0f);
+            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.0f);
             _grassShader.loadUniformFloat("colourError", 0.1f);
-            _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.2f);
-            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.3f);
+            _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.1f);
+            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.1f);
             _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.8f, 0f, 0.0f, 0.5f));
             _grassShader.loadUniformVector3f("baseColorAlive", new Colour(180, 180, 115).ToVector3());
-            _grassShader.loadUniformVector3f("baseColorDead", new Colour(555, 454, 600).ToVector3());
+            //_grassShader.loadUniformVector3f("baseColorAlive", new Colour(20, 50, 15).ToVector3());
+            _grassShader.loadUniformVector3f("baseColorDead", new Colour(255, 154,130).ToVector3());
             //_grassShader.loadUniformVector3f("baseColor", new Colour(30, 11, 8).ToVector3());
         }
 

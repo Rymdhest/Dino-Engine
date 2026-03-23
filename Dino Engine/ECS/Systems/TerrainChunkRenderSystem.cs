@@ -65,7 +65,7 @@ namespace Dino_Engine.ECS.Systems
                 {
                     grassChunksLOD0.Add(grassCommand);
                 }
-                else if (distance < 500)
+                else if (distance < 210)
                 {
                     grassChunksLOD1.Add(grassCommand);
                 }

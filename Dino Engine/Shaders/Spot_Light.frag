@@ -75,11 +75,8 @@ void main(void){
 
 
 	float lightFactor = 1.0;
-	float sunFactorEntry = 1.0;
 	if (isShadow) lightFactor = clamp(1.0-calcShadow(position), 0.0, 1.0);
-	 
-    
-    vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, lightFactor,sunFactorEntry, materialTransparancy, geometricDepth);
+    vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, lightFactor, materialTransparancy, geometricDepth);
 
 	float intensity = calcSoftEdge(lightDir, lightDirectionViewSpace, cutoffCosine);
 

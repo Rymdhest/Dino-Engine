@@ -126,9 +126,8 @@ vec3 getLightPBR(
     vec3 viewDir,
     vec3 lightDir,
     float lightFactor,
-    float lightFactorEntry,
-    float materialTransparancy,
-    float geometricDepth
+    float sss,
+    float materialDepth
 ) {
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
@@ -164,7 +163,7 @@ vec3 getLightPBR(
     vec3 saturated = mix(avg, albedo, 1.0); // 1.0 = no boost
     saturated = shiftHueFast(saturated, 1.0);
     // Simple absorption through the leaf
-    float depthFactor = 1.0/(pow(geometricDepth*2.0, 3.0)+1.0);
+    float depthFactor = 1.0/(pow(materialDepth*2.0, 3.0)+1.0);
     vec3 transmission = saturated * radiance * backLit*depthFactor;
     //transmission /= (pow(geometricDepth*2.0, 2.0)+1.0);
     // Sharpen the backlight falloff
@@ -175,7 +174,6 @@ vec3 getLightPBR(
     // ----- COMBINE -----
     // Blend between front PBR and back transmission based on light direction
     //vec3 litColor = LoFront*lightFactor+ transmission * materialTransparancy;
-    vec3 litColor = mix (LoFront*lightFactor, transmission*lightFactorEntry, materialTransparancy*backBlend);
-
+    vec3 litColor = mix (LoFront*lightFactor, transmission*lightFactor, sss*backBlend);
     return totalAmbient + litColor * (1.0 - ambient);
 }
