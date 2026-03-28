@@ -68,10 +68,17 @@ MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
 
     int aInt = int(round(albedoRead.a * 255.0));
     int alphaBit = aInt & 1;
+    
+    alphaBit = 1;
 
+    if (albedoRead.a < 1.0) {
+        alphaBit = 0;
+        //discard;
+    }
+    
     int subSurface7 = aInt >> 1;
     float subSurface = float(subSurface7) / 127.0;
-
+    subSurface = 0.0;
     MaterialProps props;
 
     props.albedo = albedoRead.rgb;
@@ -110,7 +117,9 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir, float textureIndex,float para
         // shift texture coordinates along direction of P
         currentTexCoords -= deltaTexCoords;
         // get depthmap value at current texture coordinates
-        currentDepthMapValue = 1.0 - lookupMaterial(currentTexCoords, textureIndex).a;
+        MaterialProps material = LookupAllMaterialProps(currentTexCoords, textureIndex);
+        //if (material.alphaBit == 0) discard;
+        currentDepthMapValue = 1.0 - material.height;
         // get depth of next layer
         currentLayerDepth += layerDepth;
     }

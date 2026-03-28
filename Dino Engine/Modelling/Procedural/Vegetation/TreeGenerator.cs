@@ -118,7 +118,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 15;
+            int nBranches = 10;
             for (int i = 0; i < nBranches; i++)
             {
                 float t = 0.3f + 0.7f * (float)i / (nBranches - 1);

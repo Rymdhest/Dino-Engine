@@ -242,10 +242,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 32;
+            bladesPerAxis = 50;
 
-            bladeHeight =1.5f;
-            radiusBase = 0.008f;
+            bladeHeight =2.0f;
+            radiusBase = 0.005f;
             radiusTop = radiusBase * 0.6f;
     }
 
@@ -513,6 +513,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             Vector4[] chunkData = new Vector4[MAX_GRASS_CHUNKS];
             for (int i = 0; i < command.chunks.Length; i++)
             {
+                if (i >= MAX_GRASS_CHUNKS - 1) {
+                    Console.WriteLine("Warning: More chunks in command than MAX_GRASS_CHUNKS. Some chunks will not be rendered.");
+                    continue;
+                }
                 var chunkCommand = command.chunks[i];
                 chunkData[i] = new Vector4(chunkCommand.chunkPos.X, chunkCommand.chunkPos.Y, chunkCommand.size, chunkCommand.arrayID);
             }

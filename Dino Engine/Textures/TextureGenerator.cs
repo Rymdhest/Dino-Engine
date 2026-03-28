@@ -194,7 +194,7 @@ namespace Dino_Engine.Textures
         treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, -MathF.PI / 1f));
         Mesh mesh2 = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(bark), textureRepeats: 1, flatStart: true);
 
-        int branchesPerSide = 13;
+        int branchesPerSide = 5;
         for (int i = 0; i < branchesPerSide; i++)
         {
             float t = 0.15f + 0.83f * (float)i / (branchesPerSide - 1);

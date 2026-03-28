@@ -31,10 +31,17 @@ layout (location = 2) out vec4 gMaterials;
 void main() {
 
 	vec3 viewDir   = normalize((TangentViewPos - TangentFragPos));
-    vec2 parallaxedCoords = ParallaxMapping(fragUV,  viewDir, textureIndex, parallaxDepth, parallaxLayers);
-    //vec2 parallaxedCoords = fragUV;
-    //if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
-    MaterialProps material = LookupAllMaterialProps(parallaxedCoords, textureIndex);
+    if (LookupAllMaterialProps(fragUV, textureIndex).alphaBit == 0) {
+        //discard;
+    }
+
+	vec2 parallaxedCoords = fragUV;
+	if (parallaxDepth > 0.001) {
+		parallaxedCoords = ParallaxMapping(fragUV,  viewDir, textureIndex, parallaxDepth, parallaxLayers);
+	}
+	//vec2 parallaxedCoords = fragUV;
+	//if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
+	MaterialProps material = LookupAllMaterialProps(parallaxedCoords, textureIndex);
 	gAlbedo.rgb = material.albedo;
 	gAlbedo.rgb *= fragColor;
 
