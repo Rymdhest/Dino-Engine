@@ -401,7 +401,7 @@ namespace Dino_Defenders
             curve.LERPWidth(1.3f, 0.1f);
             Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 7, new VertexMaterial(TextureGenerator.bark), textureRepeats:1, flatStart: true);
 
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(35f, 35f), new Vector2i(2,2), new VertexMaterial(TextureGenerator.treeBranch), centerY:false);
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(55f, 55f), new Vector2i(2,2), new VertexMaterial(TextureGenerator.treeBranch), centerY:false);
             for (int i = 0; i <branch.meshVertices.Count; i++)
             {
                 branch.meshVertices[i].position.Y -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f))*0.005f;
@@ -453,7 +453,7 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 25;
+            int nBranches = 15;
             for (int i = 0; i < nBranches; i++)
             {
                 float t = 0.2f+0.8f*(float)i/(nBranches - 1);

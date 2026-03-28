@@ -27,7 +27,7 @@ void main(void)
 
  
     albedo_out.rgb = albedo_in.rgb;
-    albedo_out.a = packedData;
+    //albedo_out.a = packedData;
     albedo_out.a = albedo_in.a;
     material_out.rgb = material_in.rgb;
     material_out.a = height_in;

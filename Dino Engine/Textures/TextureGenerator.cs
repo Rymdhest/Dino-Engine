@@ -96,6 +96,7 @@ namespace Dino_Engine.Textures
         {
             _textureNormalShader.bind();
             _textureNormalShader.loadUniformInt("heightMap", 0);
+            _textureNormalShader.loadUniformInt("materialMap", 1);
             _textureNormalShader.unBind();
 
             _textureMaterialPackShader.bind();
@@ -233,8 +234,11 @@ namespace Dino_Engine.Textures
             normalBuffer.bind(); 
             _textureNormalShader.loadUniformFloat("normalFlatness", normalFlatness * (1f/TEXTURE_RESOLUTION.X));
             _textureNormalShader.loadUniformVector2f("texelSize", new Vector2(1f)/TEXTURE_RESOLUTION);
+
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, materialBuffer.GetAttachment(2));
+            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.BindTexture(TextureTarget.Texture2D, materialBuffer.GetAttachment(1));
             Engine.RenderEngine.ScreenQuadRenderer.Render();
 
             return normalBuffer;

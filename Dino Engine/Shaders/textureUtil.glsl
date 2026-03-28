@@ -14,10 +14,14 @@ vec4 lookupAlbedo(vec2 coords, float index) {
         return texture(albedoMapModelTextureArray, vec3(coords, index));
     }
 }
+struct NormalLookupResult {
+    vec3 normal;
+    float ambient;
+    float SSS;
+};
 
-vec4 lookupNorma(vec2 coords, float index) {
+NormalLookupResult lookupNorma(vec2 coords, float index) {
     bool isMaterial = true;
-
     if (int(index + 0.5) >= numberOfMaterials) {
         isMaterial = false;
         index -= numberOfMaterials;
@@ -29,8 +33,14 @@ vec4 lookupNorma(vec2 coords, float index) {
     else {
         normal = texture(normalMapModelTextureArray, vec3(coords, index));
     }
-    normal.xyz = normal.xyz * 2.0 - 1.0;
-    return normal;
+    normal.xy = normal.xy * 2.0 - 1.0;
+    float nZ = sqrt(1.0 - clamp(dot(normal.xy, normal.xy), 0.0, 1.0));
+
+    NormalLookupResult result;
+    result.normal = vec3(normal.xy, nZ);
+    result.SSS = normal.z;
+    result.ambient = normal.a;
+    return result;
 }
 
 vec4 lookupMaterial(vec2 coords, float index) {
@@ -63,7 +73,7 @@ struct MaterialProps {
 
 MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
     vec4 albedoRead = lookupAlbedo(coords, index);
-    vec4 normalRead = lookupNorma(coords, index);
+    NormalLookupResult normalResult = lookupNorma(coords, index);
     vec4 materialRead = lookupMaterial(coords, index);
 
     int aInt = int(round(albedoRead.a * 255.0));
@@ -83,9 +93,9 @@ MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
 
     props.albedo = albedoRead.rgb;
     props.alphaBit = alphaBit;
-    props.subSurface = subSurface;
-    props.normal = normalRead.xyz;
-    props.ambient = normalRead.a;
+    props.subSurface = normalResult.SSS;
+    props.normal = normalResult.normal;
+    props.ambient = normalResult.ambient;
     props.roughness = materialRead.r;
     props.emission = materialRead.g;
     props.metalic = materialRead.b;

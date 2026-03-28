@@ -4,6 +4,7 @@ in vec2 textureCoords;
 layout (location = 0) out vec4 normal;
 
 uniform sampler2D heightMap;
+uniform sampler2D materialMap;
 uniform vec2 texelSize;
 uniform float normalFlatness;
 
@@ -19,9 +20,9 @@ void main(void)
     vec3 normalTemp = vec3(-dx, -dy, normalFlatness);
     //normalTemp.y *= -1;
     normalTemp = normalize(normalTemp);
-    normal.rgb = normalTemp*0.5f+0.5f;
+    normal.xy = (normalTemp*0.5f+0.5f).xy;
 
-
+    normal.z = texture(materialMap, textureCoords).a;;
     normal.a = 0.2f+height*0.8f;
     
 }

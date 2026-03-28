@@ -34,14 +34,15 @@ void main() {
 	if (alphaBit == 0) discard;
 
 	gAlbedo.rgb *= fragColor;
-	vec4 normalTangentSpace = lookupNorma(fragUV, textureIndex);
-	gNormal.xyz = normalize(normalTBN*(normalTangentSpace.xyz));
+	NormalLookupResult normalLookup = lookupNorma(fragUV, textureIndex);
+	gNormal.xyz = normalize(normalTBN*(normalLookup.normal));
 	if (!gl_FrontFacing) gNormal.xyz *= -1.0;
 
 	gNormal.xyz = (gNormal.xyz*0.5)+0.5;
 
-
-	gNormal.a = normalTangentSpace.a;
+	
+	gNormal.z = normalLookup.SSS;
+	gNormal.a = normalLookup.ambient;
 
 	float depth = -positionViewSpace_pass.z/maxDepth;
 	gMaterials = lookupMaterial(fragUV, textureIndex).rgba;
