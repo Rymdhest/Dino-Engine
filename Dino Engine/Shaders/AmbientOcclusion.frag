@@ -33,7 +33,7 @@ void main()
    vec3 randomVec = texture(texNoise, textureCoords*noiseScale).xyz;
    //vec3 randomVec = vec3(1.0, 1.0, 0.0);
     //randomVec = vec3(1, 1, 0);
-   float depthScaledRadius = radius*-fragPos.z;
+   float depthScaledRadius = radius*-(fragPos.z*0.2);
    float depthScaledStrength = strength;
    float depthScaledBias = bias;
     // Create TBN change-of-basis matrix: from tangent-space to view-space

@@ -85,6 +85,11 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             return _horizontalFramebuffer.GetAttachment(0);
         }
 
+        public FrameBuffer GetLastResultFrameBuffer()
+        {
+            return _horizontalFramebuffer;
+        }
+
         public override void CleanUp()
         {
             _gaussianBlurShader.cleanUp();

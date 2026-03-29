@@ -122,7 +122,7 @@ vec3 getLightPBR(
     float metallic,
     vec3 lightColour,
     float attenuation,
-    float ambient,
+    float ambientOcclusion,
     vec3 viewDir,
     vec3 lightDir,
     float lightFactor,
@@ -169,11 +169,11 @@ vec3 getLightPBR(
     // Sharpen the backlight falloff
     float backBlend = pow(backLit, 1.0);
     // ----- AMBIENT -----
-    vec3 totalAmbient = albedo * lightColour * attenuation * ambient;
+    vec3 totalAmbientOcclusion = albedo * lightColour * attenuation * ambientOcclusion;
 
     // ----- COMBINE -----
     // Blend between front PBR and back transmission based on light direction
     //vec3 litColor = LoFront*lightFactor+ transmission * materialTransparancy;
     vec3 litColor = mix (LoFront*lightFactor, transmission*lightFactor, sss*backBlend);
-    return totalAmbient + litColor * (1.0 - ambient);
+    return totalAmbientOcclusion + litColor * (1.0 - ambientOcclusion);
 }

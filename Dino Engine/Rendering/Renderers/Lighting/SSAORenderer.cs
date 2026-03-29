@@ -17,7 +17,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private const int kernelSize = 16;
         private Vector3[] kernelSamples;
         private int noiseTexture;
-        private int _downscalingFactor = 2;
+        private int _downscalingFactor = 1;
         internal SSAORenderer() : base("SSAO")
         {
             ambientOcclusionCombineShader.bind();
@@ -42,7 +42,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 sample.Normalize();
                 sample *= MyMath.rand.NextSingle();
                 float scale = (float)i / kernelSize;
-                scale = 0.1f + scale * scale * (1f - 0.1f);
+                //scale = 0.1f + scale * scale * (1f - 0.1f);
                 sample *= scale;
                 kernelSamples[i] = sample;
             }
@@ -57,8 +57,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             noiseTexture = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, noiseTexture);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, noiseScale, noiseScale, 0, PixelFormat.Rgb, PixelType.Float, noisePixels);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (float)TextureMagFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (float)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (float)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (float)TextureMinFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (float)TextureWrapMode.Repeat);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (float)TextureWrapMode.Repeat);
 
@@ -92,9 +92,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", .1f);
-            ambientOcclusionShader.loadUniformFloat("strength", 2.0f);
-            ambientOcclusionShader.loadUniformFloat("bias", 0.06f);
+            ambientOcclusionShader.loadUniformFloat("radius", 0.3f);
+            ambientOcclusionShader.loadUniformFloat("strength", 1.5f);
+            ambientOcclusionShader.loadUniformFloat("bias", 0.01f);
 
             ambientOcclusionShader.loadUniformVector2f("resolutionSSAO", _SSAOFramebuffer.getResolution());
 
@@ -108,7 +108,10 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             Engine.RenderEngine.ScreenQuadRenderer.Render();
             ambientOcclusionShader.unBind();
 
-            gaussianBlurRenderer.Render(_SSAOFramebuffer, 3, renderEngine.ScreenQuadRenderer, 0);
+            gaussianBlurRenderer.Render(_SSAOFramebuffer, 1, renderEngine.ScreenQuadRenderer, 0);
+
+            //_SSAOFramebuffer.resolveToScreen();
+            //gaussianBlurRenderer.GetLastResultFrameBuffer().resolveToScreen();
 
             ambientOcclusionCombineShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);

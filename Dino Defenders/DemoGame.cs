@@ -203,7 +203,7 @@ namespace Dino_Defenders
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20f)),
-                new AmbientLightComponent(0.05f),
+                new AmbientLightComponent(0.04f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 500)
             ) ;
@@ -225,7 +225,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
-                new ColorComponent(new Colour(86, 155, 255, 1.3f)),
+                new ColorComponent(new Colour(86, 155, 255, 1.1f)),
                 new SkyTag(),
                 new AmbientLightComponent(0.5f)
             );
