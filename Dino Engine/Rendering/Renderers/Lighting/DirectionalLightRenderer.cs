@@ -70,7 +70,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ActiveTexture(TextureUnit.Texture3);
             BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
-            _directionalLightShader.loadUniformInt("pcfRadius", 2);
+            _directionalLightShader.loadUniformInt("pcfRadius", 5);
         }
         internal override void Finish(RenderEngine renderEngine)
         {

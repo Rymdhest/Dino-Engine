@@ -27,11 +27,9 @@ void main() {
 	int aInt = int(round(gAlbedo.a * 255.0));
 	int alphaBit = aInt & 1;
 
-	alphaBit = 1;
-    if (gAlbedo.a < 0.5) {
-        alphaBit = 0;
+    if (gAlbedo.a < 1.0) {
+        discard;
     }
-	if (alphaBit == 0) discard;
 
 	gAlbedo.rgb *= fragColor;
 	NormalLookupResult normalLookup = lookupNorma(fragUV, textureIndex);

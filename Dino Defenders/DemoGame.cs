@@ -203,7 +203,7 @@ namespace Dino_Defenders
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20f)),
-                new AmbientLightComponent(0.02f),
+                new AmbientLightComponent(0.05f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 500)
             ) ;
@@ -225,7 +225,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
-                new ColorComponent(new Colour(86, 155, 255, 1.0f)),
+                new ColorComponent(new Colour(86, 155, 255, 1.3f)),
                 new SkyTag(),
                 new AmbientLightComponent(0.5f)
             );
@@ -440,7 +440,7 @@ namespace Dino_Defenders
                 newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
                 Vector3 col = MyMath.rng3D(0.3f);
                 newBranch.setColour(new Colour(new Vector3(1f) - col));
-                newBranch.rotate(new Vector3(0.2f - t, 0f, 0f));
+                newBranch.rotate(new Vector3(0.2f + t*0.8f, 0f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
                 //newBranch.rotate(new Vector3(0f, i * MathF.Tau / 3f, 0f));
                 newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
@@ -453,13 +453,13 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 15;
+            int nBranches = 25;
             for (int i = 0; i < nBranches; i++)
             {
                 float t = 0.2f+0.8f*(float)i/(nBranches - 1);
                 CurvePoint curvePoint = curve.getPointAt(t);
                 var newBranch = branch2.scaled(new Vector3(0.5f- t*0.4f));
-                newBranch.rotate(new Vector3(1.0f-t*0.6f, 0f, 0f));
+                newBranch.rotate(new Vector3(1.3f-t*0.8f, 0f, 0f));
                 newBranch.translate(new Vector3(0f, -curvePoint.width/2f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
                 newBranch.rotate(new Vector3(0f, i*MathF.Tau/5+MyMath.rng(MathF.Tau / 5), 0f));

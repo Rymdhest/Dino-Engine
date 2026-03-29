@@ -154,7 +154,7 @@ namespace Dino_Engine.Textures
         for (int i = 0; i < n; i++)
         {
             float traversedRatio = i / (float)(n - 1);
-            float angle = MathF.PI * i * 0.4f;
+            float angle = MathF.PI * i * 0.6f;
             float x = sinFBM[i] * r * traversedRatio;
             float z = sinFBM2[i] * r * traversedRatio * 0f;
             float y = traversedRatio * h;
@@ -166,13 +166,13 @@ namespace Dino_Engine.Textures
         curve.LERPWidth(1f, 0.1f);
         Mesh mesh = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(bark), textureRepeats: 1, flatStart: true);
 
-        int leavesPerSide = 5;
+        int leavesPerSide = 10;
         for (int i = 0; i< leavesPerSide; i++)
         {
             float t = 0.2f + 0.75f * (float)i / (leavesPerSide - 1);
             CurvePoint curvePoint = curve.getPointAt(t);
-            var newBranch = branchMesh.scaled(new Vector3(1.1f - t * 0.56f));
-            Vector3 col = MyMath.rng3D(0.1f);
+            var newBranch = branchMesh.scaled(new Vector3(1.1f - t * 0.7f));
+            Vector3 col = MyMath.rng3D(0.15f);
             newBranch.setColour(new Colour(new Vector3(1f)-col));
             //newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
             //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
@@ -195,13 +195,13 @@ namespace Dino_Engine.Textures
         treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, -MathF.PI / 1f));
         Mesh mesh2 = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(bark), textureRepeats: 1, flatStart: true);
 
-        int branchesPerSide = 5;
+        int branchesPerSide = 12;
         for (int i = 0; i < branchesPerSide; i++)
         {
             float t = 0.15f + 0.83f * (float)i / (branchesPerSide - 1);
             CurvePoint curvePoint = curve.getPointAt(t);
-            var newBranch = treeBranchMesh.scaled(new Vector3(1.5f - t * 1.06f));
-            Vector3 col = MyMath.rng3D(0.1f);
+            var newBranch = treeBranchMesh.scaled(new Vector3(1.5f - t * 0.26f));
+            Vector3 col = MyMath.rng3D(0.2f);
             newBranch.setColour(new Colour(new Vector3(1f) - col));
             //newBranch.rotate(new Vector3(0,0,0.9f - t * 0.5f));
             //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
