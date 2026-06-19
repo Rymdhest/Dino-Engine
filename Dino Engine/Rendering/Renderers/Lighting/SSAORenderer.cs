@@ -17,7 +17,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private const int kernelSize = 16;
         private Vector3[] kernelSamples;
         private int noiseTexture;
-        private int _downscalingFactor = 1;
+        private int _downscalingFactor = 2;
         internal SSAORenderer() : base("SSAO")
         {
             ambientOcclusionCombineShader.bind();
@@ -108,7 +108,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             Engine.RenderEngine.ScreenQuadRenderer.Render();
             ambientOcclusionShader.unBind();
 
-            gaussianBlurRenderer.Render(_SSAOFramebuffer, 1, renderEngine.ScreenQuadRenderer, 0);
+            gaussianBlurRenderer.Render(_SSAOFramebuffer, 2, renderEngine.ScreenQuadRenderer, 0);
 
             //_SSAOFramebuffer.resolveToScreen();
             //gaussianBlurRenderer.GetLastResultFrameBuffer().resolveToScreen();

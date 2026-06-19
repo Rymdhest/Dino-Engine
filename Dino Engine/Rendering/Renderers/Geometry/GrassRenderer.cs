@@ -403,7 +403,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShader.loadUniformFloat("colourError", 0.1f);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.1f);
             _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.1f);
-            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.8f, 0f, 0.0f, 0.5f));
+            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.95f, 0f, 0.0f, 0.0f));
             _grassShader.loadUniformVector3f("baseColorAlive", new Colour(180, 180, 115).ToVector3());
             //_grassShader.loadUniformVector3f("baseColorAlive", new Colour(20, 50, 15).ToVector3());
             _grassShader.loadUniformVector3f("baseColorDead", new Colour(255, 154,130).ToVector3());

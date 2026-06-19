@@ -198,12 +198,12 @@ namespace Dino_Defenders
                 new ModelRenderTag(),
                 new LocalToWorldMatrixComponent()
             );
-            
+            /*
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20f)),
-                new AmbientLightComponent(0.04f),
+                new AmbientLightComponent(0.02f),
                 new CelestialBodyComponent(),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 500)
             ) ;
@@ -214,21 +214,22 @@ namespace Dino_Defenders
                     new DirectionalLightTag(),
                     new DirectionNormalizedComponent(new Vector3(MyMath.rngMinusPlus(), -MyMath.rng()*1.0f, MyMath.rngMinusPlus())),
                     new CelestialBodyComponent(),
-                    new AmbientLightComponent(0.04f),
+                    new AmbientLightComponent(0.01f),
                     new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 1.0f)),
                     new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 1, 1000)
                 );
             }
+            */
 
-
-
+            
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
                 new ColorComponent(new Colour(86, 155, 255, 1.1f)),
                 new SkyTag(),
-                new AmbientLightComponent(0.5f)
+                new AmbientLightComponent(0.9f)
             );
+            
 
             spawnCity(Engine.world);
             spawnTestScene(Engine.world);
@@ -473,10 +474,10 @@ namespace Dino_Defenders
             Console.WriteLine("TREE HAS: "+cylinderMesh.faces.Count+" FACES");
 
 
-            float terrainSize = 200f;
+            float terrainSize = 1000f;
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
-            for (int i = 0; i<40; i++)
+            for (int i = 0; i<200; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
@@ -508,7 +509,7 @@ namespace Dino_Defenders
             RockMesh.FlatRandomness(0.045f);
             //RockMesh.makeFlat(flatMaterial: true, flatNormal: true);
             glModel rockModel = glLoader.loadToVAO(RockMesh);
-            for (int i = 0; i < 200; i++)
+            for (int i = 0; i < 300; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);

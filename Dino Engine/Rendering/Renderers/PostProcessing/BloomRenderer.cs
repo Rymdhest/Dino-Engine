@@ -91,7 +91,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             //renderer.GetLastFrameBuffer().resolveToScreen();
 
             upsamplingShader.bind();
-            upsamplingShader.loadUniformFloat("filterRadius", 0.001f);
+            upsamplingShader.loadUniformFloat("filterRadius", 0.0f);
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
             GL.BlendEquation(BlendEquationMode.FuncAdd);

@@ -27,7 +27,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
                 new LocalToWorldMatrixComponent(),
                 new PositionRotationInputControlComponent(),
                 new ViewMatrixComponent(),
-                new PerspectiveProjectionComponent(MathF.PI / 2.6f, Engine.Resolution, 0.1f, 1000f));;
+                new PerspectiveProjectionComponent(MathF.PI / 2.0f, Engine.Resolution, 0.1f, 1000f));;
         }
 
         public void Update(float deltaTime)
