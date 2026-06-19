@@ -17,7 +17,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private const int kernelSize = 16;
         private Vector3[] kernelSamples;
         private int noiseTexture;
-        private int _downscalingFactor = 2;
+        private int _downscalingFactor = 1;
         internal SSAORenderer() : base("SSAO")
         {
             ambientOcclusionCombineShader.bind();
@@ -86,14 +86,15 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         {
             FrameBuffer gBuffer = renderEngine.GBuffer;
             Vector2i resolution = Engine.Resolution;
-            GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
+            //GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
+            DepthBasedBlurRenderer depthBasedBlurRenderer = renderEngine.DepthBasedBlurRenderer;
 
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", 0.3f);
-            ambientOcclusionShader.loadUniformFloat("strength", 1.5f);
+            ambientOcclusionShader.loadUniformFloat("radius", 0.9f);
+            ambientOcclusionShader.loadUniformFloat("strength", 1.0f);
             ambientOcclusionShader.loadUniformFloat("bias", 0.01f);
 
             ambientOcclusionShader.loadUniformVector2f("resolutionSSAO", _SSAOFramebuffer.getResolution());
@@ -108,16 +109,17 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             Engine.RenderEngine.ScreenQuadRenderer.Render();
             ambientOcclusionShader.unBind();
 
-            gaussianBlurRenderer.Render(_SSAOFramebuffer, 2, renderEngine.ScreenQuadRenderer, 0);
-
+            //gaussianBlurRenderer.Render(_SSAOFramebuffer, 1, renderEngine.ScreenQuadRenderer, 0);
+            depthBasedBlurRenderer.Render(_SSAOFramebuffer, gBuffer.getDepthAttachment(), 1, renderEngine.ScreenQuadRenderer, 0);
             //_SSAOFramebuffer.resolveToScreen();
             //gaussianBlurRenderer.GetLastResultFrameBuffer().resolveToScreen();
+            //depthBasedBlurRenderer.GetLastResultFrameBuffer().resolveToScreen();
 
             ambientOcclusionCombineShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
             GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, gaussianBlurRenderer.GetLastResultTexture());
+            GL.BindTexture(TextureTarget.Texture2D, depthBasedBlurRenderer.GetLastResultTexture());
             renderEngine.lastUsedBuffer.RenderToNextFrameBuffer();
 
 

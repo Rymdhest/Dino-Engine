@@ -33,9 +33,7 @@ void main()
    vec3 randomVec = texture(texNoise, textureCoords*noiseScale).xyz;
    //vec3 randomVec = vec3(1.0, 1.0, 0.0);
     //randomVec = vec3(1, 1, 0);
-   float depthScaledRadius = radius*-(fragPos.z*0.2);
-   float depthScaledStrength = strength;
-   float depthScaledBias = bias;
+
     // Create TBN change-of-basis matrix: from tangent-space to view-space
     vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
     vec3 bitangent = cross(normal, tangent);
@@ -46,7 +44,7 @@ void main()
     {   
         // get sample position
         vec3 samplePos = TBN * samples[i]; // From tangent to view-space
-        samplePos = fragPos + samplePos * depthScaledRadius; 
+        samplePos = fragPos + samplePos * radius; 
         
         // project sample position (to sample texture) (to get position on screen/texture)
         vec4 offset = vec4(samplePos, 1.0);
@@ -55,15 +53,15 @@ void main()
         offset.xyz = offset.xyz * 0.5 + 0.5; // transform to range 0.0 - 1.0
         
         // get sample depth
-        float sampleDepth =ReconstructViewSpacePosition(offset.xy * resolution, texture(gDepth, offset.xy).r, invProjectionMatrix, resolutionSSAO).z;
+        float sampleDepth =ReconstructViewSpacePosition(offset.xy * resolutionSSAO, texture(gDepth, offset.xy).r, invProjectionMatrix, resolutionSSAO).z;
         
         // range check & accumulate
-        float rangeCheck = smoothstep(0.0, 1.0, depthScaledRadius / abs(fragPos.z - sampleDepth ));
+        float rangeCheck = smoothstep(0.0, 1.0, radius / abs(fragPos.z - sampleDepth ));
         
-        occlusion += (sampleDepth >= samplePos.z + depthScaledBias ? 1.0 : 0.0)*rangeCheck;
+        occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0)*rangeCheck;
     }
     occlusion = 1.0 - (occlusion / kernelSize);
 
-    FragColor = pow (occlusion, depthScaledStrength);
+    FragColor = pow (occlusion, strength);
 
 }

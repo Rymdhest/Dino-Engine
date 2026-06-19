@@ -67,6 +67,7 @@ namespace Dino_Engine.Rendering
         private FogRenderer _fogRenderer;
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
+        private DepthBasedBlurRenderer _depthBasedBlurRenderer;
         public SpotLightRenderer _spotLightRenderer;
         public ParticleRenderer _particleRenderer;
         public GrassRenderer _grassRenderer;
@@ -82,7 +83,8 @@ namespace Dino_Engine.Rendering
 
         public TextureGenerator textureGenerator = new TextureGenerator();
 
-        public GaussianBlurRenderer GaussianBlurRenderer { get => _gaussianBlurRenderer;  }
+        public GaussianBlurRenderer GaussianBlurRenderer { get => _gaussianBlurRenderer; }
+        public DepthBasedBlurRenderer DepthBasedBlurRenderer { get => _depthBasedBlurRenderer; }
         public FrameBuffer GBuffer { get => _gBuffer; }
         public ScreenQuadRenderer ScreenQuadRenderer { get => _screenQuadRenderer; }
 
@@ -133,6 +135,7 @@ namespace Dino_Engine.Rendering
             _fogRenderer = new FogRenderer();
             _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
             _gaussianBlurRenderer = new GaussianBlurRenderer();
+            _depthBasedBlurRenderer = new DepthBasedBlurRenderer();
             _spotLightRenderer = new SpotLightRenderer();
             _particleRenderer = new ParticleRenderer();
             _depthOfFieldRenderer = new DepthOfFieldRenderer();

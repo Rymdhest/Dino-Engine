@@ -198,7 +198,7 @@ namespace Dino_Defenders
                 new ModelRenderTag(),
                 new LocalToWorldMatrixComponent()
             );
-            /*
+            
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
@@ -219,7 +219,7 @@ namespace Dino_Defenders
                     new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 1, 1000)
                 );
             }
-            */
+            
 
             
             world.CreateEntity("Sky",
