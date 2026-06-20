@@ -12,7 +12,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
         public IEnumerator<EntityView> GetEnumerator()
         {
-            for (int i = 0; i < archetype.Count; i++)
+            for (int i = 0; i < archetype.EntityCount; i++)
             {
                 yield return new EntityView(archetype, i);
             }

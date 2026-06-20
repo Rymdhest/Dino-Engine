@@ -11,30 +11,37 @@ namespace Dino_Engine.ECS.Systems
 {
     public class PhysicsSystem : SystemBase
     {
-        // Cache collections to avoid GC allocations every frame
-        private List<PhysicsNode> _activeNodes = new();
-        private List<CollisionPair> _broadphasePairs = new();
+        // --- 1. DATA-ORIENTED COLLECTIONS ---
+        // A flat, contiguous array of all moving bodies for this specific frame.
+        private List<BodyState> _dynamicBodies = new();
         private List<ContactManifold> _manifolds = new();
 
-        // System requires at minimum a Position and a Collider.
+        // Spatial partitioning for static geometry (Trees, Buildings)
+        private SpatialHashGrid _staticGrid = new SpatialHashGrid(50f);
+        private int _cachedStaticCount = -1;
+        private readonly BitMask _staticMask;
+        private readonly BitMask _staticExcludeMask;
+
+        // The PhysicsSystem naturally iterates over Dynamic bodies using the base class mask
         public PhysicsSystem()
-            : base(new BitMask(typeof(PositionComponent), typeof(ColliderComponent)))
+            : base(new BitMask(typeof(PositionComponent), typeof(ColliderComponent), typeof(VelocityComponent), typeof(MassComponent)))
         {
+            // Static bodies are defined as having a Position and Collider, but explicitly NO Mass
+            _staticMask = new BitMask(typeof(PositionComponent), typeof(ColliderComponent));
+            _staticExcludeMask = new BitMask(typeof(MassComponent));
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
-            // Not used by this system because physics runs globally in UpdateInternal
             throw new NotImplementedException();
         }
 
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
-            _activeNodes.Clear();
-            _broadphasePairs.Clear();
+            _dynamicBodies.Clear();
             _manifolds.Clear();
 
-            // 1. GATHER EVENT BUFFER & GENERATOR
+            // --- PHASE 1: EVENT BUFFER & TERRAIN PREP ---
             CollisionEventBufferComponent eventBuffer = default;
             bool hasEventBuffer = false;
             var eventSingleton = world.GetSingleton<CollisionEventBufferComponent>();
@@ -45,142 +52,158 @@ namespace Dino_Engine.ECS.Systems
                 hasEventBuffer = true;
             }
 
-            // Get Generator for Terrain Collision
             var genEntity = world.GetSingleton<TerrainGeneratorComponent>();
             TerrainGenerator generator = genEntity.IsValid() ? world.GetComponent<TerrainGeneratorComponent>(genEntity).Generator : null;
 
-            // 2. DATA EXTRACTION
+
+            // --- PHASE 2: STATIC GRID MAINTENANCE ---
+            int currentStaticCount = 0;
+            foreach (var archetype in world.QueryArchetypes(_staticMask, _staticExcludeMask))
+                currentStaticCount += archetype.entities.Count;
+
+            // Rebuild spatial partition only if the environment structurally changes
+            if (currentStaticCount != _cachedStaticCount)
+            {
+                _staticGrid.Clear();
+                foreach (var archetype in world.QueryArchetypes(_staticMask, _staticExcludeMask))
+                {
+                    foreach (var entity in new ComponentAccessor(archetype))
+                    {
+                        _staticGrid.Add(new StaticCollider
+                        {
+                            Entity = entity,
+                            Position = entity.Get<PositionComponent>().value,
+                            Collider = entity.Get<ColliderComponent>()
+                        });
+                    }
+                }
+                _cachedStaticCount = currentStaticCount;
+            }
+
+
+            // --- PHASE 3: DYNAMIC DATA EXTRACTION (Respecting SystemBase) ---
+            // We use the system's inherent WithMask/WithoutMask to gather active physical bodies
             foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
             {
                 foreach (var entity in new ComponentAccessor(archetype))
                 {
-                    _activeNodes.Add(new PhysicsNode
+                    _dynamicBodies.Add(new BodyState
                     {
                         Entity = entity,
                         Position = entity.Get<PositionComponent>().value,
-                        Velocity = entity.GetOptional(new VelocityComponent(Vector3.Zero)).value,
-                        InverseMass = entity.GetOptional(new MassComponent(0f)).value > 0 ? 1f / entity.Get<MassComponent>().value : 0f,
+                        Velocity = entity.Get<VelocityComponent>().value,
+                        InverseMass = 1f / entity.Get<MassComponent>().value,
                         Collider = entity.Get<ColliderComponent>()
                     });
                 }
             }
 
-            // 3. INTEGRATION & TERRAIN COLLISION
-            for (int i = 0; i < _activeNodes.Count; i++)
+
+            // --- PHASE 4: INTEGRATION & BROADPHASE ---
+            for (int i = 0; i < _dynamicBodies.Count; i++)
             {
-                var node = _activeNodes[i];
-                if (node.InverseMass == 0) continue;
+                var bodyA = _dynamicBodies[i];
 
-                node.Position += node.Velocity * deltaTime;
+                // 1. Integration (Move the body)
+                bodyA.Position += bodyA.Velocity * deltaTime;
+                _dynamicBodies[i] = bodyA; // Save integrated position back for narrowphase
 
+                // 2. Terrain Collision (Generates a manifold just like any other object)
                 if (generator != null)
                 {
-                    float terrainHeight = generator.getHeightAt(new Vector2(node.Position.X, node.Position.Z));
-                    Vector3 terrainNormal = generator.GetNormalAt(node.Position.X, node.Position.Z); // NEW: Sample normal
+                    float terrainHeight = generator.getHeightAt(new Vector2(bodyA.Position.X, bodyA.Position.Z));
+                    float radius = bodyA.Collider.Type == ColliderType.Sphere ? bodyA.Collider.Data.Radius : 0.5f;
 
-                    float radius = node.Collider.Type == ColliderType.Sphere ? node.Collider.Data.Radius : 0.5f;
-
-                    if (node.Position.Y - radius < terrainHeight)
+                    if (bodyA.Position.Y - radius < terrainHeight)
                     {
-                        // Resolve Position (Push out along the terrain normal)
-                        float penetration = (terrainHeight + radius) - node.Position.Y;
-                        node.Position += terrainNormal * penetration;
-
-                        // Resolve Velocity (Bounce off the normal, not just Y-axis)
-                        // Reflect velocity across the surface normal: v_new = v_old - (1 + restitution) * (v_old dot N) * N
-                        float velDotNormal = Vector3.Dot(node.Velocity, terrainNormal);
-
-                        if (velDotNormal < 0) // Only bounce if moving into the surface
+                        _manifolds.Add(new ContactManifold
                         {
-                            node.Velocity -= (1.0f + node.Collider.Restitution) * velDotNormal * terrainNormal;
-                        }
-
-                        // APPLY FRICTION (Now that we have a normal, we can kill sliding on slopes)
-                        // Projects velocity onto the tangent plane and scales it down
-                        Vector3 tangentVel = node.Velocity - Vector3.Dot(node.Velocity, terrainNormal) * terrainNormal;
-                        node.Velocity -= tangentVel * 0.05f; // Adjust 0.05f for "stickiness"
+                            BodyIndexA = i,
+                            BodyIndexB = -1, // -1 signals the solver to use infinite mass
+                            EntityA = bodyA.Entity,
+                            EntityB = default, // Terrain has no entity view
+                            // FIX: Normal must point from A (Body) to B (Terrain), so it must point DOWN
+                            Normal = -generator.GetNormalAt(bodyA.Position.X, bodyA.Position.Z),
+                            Penetration = (terrainHeight + radius) - bodyA.Position.Y,
+                            Restitution = bodyA.Collider.Restitution,
+                            ContactPoint = new Vector3(bodyA.Position.X, terrainHeight, bodyA.Position.Z)
+                        });
                     }
                 }
-                _activeNodes[i] = node;
-            }
 
-            // 4. BROADPHASE
-            for (int i = 0; i < _activeNodes.Count; i++)
-            {
-                for (int j = i + 1; j < _activeNodes.Count; j++)
+                // 3. Dynamic vs Dynamic
+                for (int j = i + 1; j < _dynamicBodies.Count; j++)
                 {
-                    _broadphasePairs.Add(new CollisionPair { IndexA = i, IndexB = j });
+                    var bodyB = _dynamicBodies[j];
+                    ContactManifold m = Dispatch(bodyA.Position, bodyA.Collider, bodyB.Position, bodyB.Collider);
+                    if (m.IsColliding)
+                    {
+                        m.BodyIndexA = i;
+                        m.BodyIndexB = j;
+                        m.EntityA = bodyA.Entity;
+                        m.EntityB = bodyB.Entity;
+                        m.Restitution = MathF.Min(bodyA.Collider.Restitution, bodyB.Collider.Restitution);
+                        _manifolds.Add(m);
+                    }
+                }
+
+                // 4. Dynamic vs Static Trees
+                foreach (var staticCol in _staticGrid.QueryNearby(bodyA.Position))
+                {
+                    ContactManifold m = Dispatch(bodyA.Position, bodyA.Collider, staticCol.Position, staticCol.Collider);
+                    if (m.IsColliding)
+                    {
+                        m.BodyIndexA = i;
+                        m.BodyIndexB = -1; // -1 signals the solver to use infinite mass
+                        m.EntityA = bodyA.Entity;
+                        m.EntityB = staticCol.Entity;
+                        m.Restitution = MathF.Min(bodyA.Collider.Restitution, staticCol.Collider.Restitution);
+                        _manifolds.Add(m);
+                    }
                 }
             }
 
-            // 5. NARROWPHASE (The Dispatcher)
-            foreach (var pair in _broadphasePairs)
-            {
-                var nodeA = _activeNodes[pair.IndexA];
-                var nodeB = _activeNodes[pair.IndexB];
 
-                ContactManifold manifold = new ContactManifold { IsColliding = false };
-
-                // Collision Matrix
-                if (nodeA.Collider.Type == ColliderType.Sphere && nodeB.Collider.Type == ColliderType.Sphere)
-                {
-                    manifold = CheckSphereVsSphere(nodeA, nodeB);
-                }
-                else if (nodeA.Collider.Type == ColliderType.Sphere && nodeB.Collider.Type == ColliderType.Cylinder)
-                {
-                    manifold = CheckSphereVsCylinder(nodeA, nodeB);
-                }
-                else if (nodeA.Collider.Type == ColliderType.Cylinder && nodeB.Collider.Type == ColliderType.Sphere)
-                {
-                    manifold = CheckSphereVsCylinder(nodeB, nodeA);
-                }
-
-                if (manifold.IsColliding)
-                {
-                    manifold.IndexA = pair.IndexA;
-                    manifold.IndexB = pair.IndexB;
-                    _manifolds.Add(manifold);
-                }
-            }
-
-            // 6. SOLVER (Apply impulses and positional correction)
+            // --- PHASE 5: THE UNIFIED SOLVER ---
             ResolveCollisions();
 
-            // 7. WRITE BACK TO ECS (Using your entity.Set() pattern)
-            foreach (var node in _activeNodes)
+
+            // --- PHASE 6: WRITE BACK TO ECS ---
+            foreach (var body in _dynamicBodies)
             {
-                if (node.InverseMass == 0) continue; // Static objects haven't moved
+                var posComponent = body.Entity.Get<PositionComponent>();
+                posComponent.value = body.Position;
+                body.Entity.Set(posComponent);
 
-                var posComponent = node.Entity.Get<PositionComponent>();
-                posComponent.value = node.Position;
-                node.Entity.Set(posComponent);
-
-                var velComponent = node.Entity.GetOptional(new VelocityComponent(Vector3.Zero));
-                velComponent.value = node.Velocity;
-                node.Entity.Set(velComponent);
+                var velComponent = body.Entity.Get<VelocityComponent>();
+                velComponent.value = body.Velocity;
+                body.Entity.Set(velComponent);
             }
 
-            // 8. EMIT EVENTS
+
+            // --- PHASE 7: EMIT COLLISION EVENTS ---
             if (hasEventBuffer)
             {
                 foreach (var m in _manifolds)
                 {
-                    var a = _activeNodes[m.IndexA];
-                    var b = _activeNodes[m.IndexB];
-                    Vector3 relativeVelocity = b.Velocity - a.Velocity;
+                    Vector3 velA = _dynamicBodies[m.BodyIndexA].Velocity;
+                    Vector3 velB = m.BodyIndexB >= 0 ? _dynamicBodies[m.BodyIndexB].Velocity : Vector3.Zero;
 
                     eventBuffer.Events.Add(new CollisionEvent
                     {
-                        EntityA = a.Entity,
-                        EntityB = b.Entity,
+                        EntityA = m.EntityA,
+                        EntityB = m.EntityB,
                         ContactPoint = m.ContactPoint,
                         Normal = m.Normal,
-                        ImpactForce = MathF.Abs(Vector3.Dot(relativeVelocity, m.Normal))
+                        ImpactForce = MathF.Abs(Vector3.Dot(velB - velA, m.Normal))
                     });
                 }
             }
         }
 
+        // --- THE UNIFIED SOLVER ---
+        // Notice there are NO boolean flags here. 
+        // A -1 index purely means "this object has 0 velocity and 0 inverse mass".
         private void ResolveCollisions()
         {
             const float PositionalCorrectionPercent = 0.2f;
@@ -188,98 +211,138 @@ namespace Dino_Engine.ECS.Systems
 
             foreach (var m in _manifolds)
             {
-                var a = _activeNodes[m.IndexA];
-                var b = _activeNodes[m.IndexB];
+                var a = _dynamicBodies[m.BodyIndexA];
 
-                Vector3 relativeVelocity = b.Velocity - a.Velocity;
+                // Fetch B properties, falling back to static/infinite mass if Index is -1
+                Vector3 bVelocity = m.BodyIndexB >= 0 ? _dynamicBodies[m.BodyIndexB].Velocity : Vector3.Zero;
+                float bInverseMass = m.BodyIndexB >= 0 ? _dynamicBodies[m.BodyIndexB].InverseMass : 0f;
+
+                Vector3 relativeVelocity = bVelocity - a.Velocity;
                 float velAlongNormal = Vector3.Dot(relativeVelocity, m.Normal);
 
                 // Do not resolve if velocities are separating
+                // This check dictates that m.Normal MUST point from A to B
                 if (velAlongNormal > 0) continue;
 
-                float restitution = MathF.Min(a.Collider.Restitution, b.Collider.Restitution);
-                float totalInverseMass = a.InverseMass + b.InverseMass;
-
+                float totalInverseMass = a.InverseMass + bInverseMass;
                 if (totalInverseMass == 0) continue;
 
-                // Impulse Scalar
-                float j = -(1.0f + restitution) * velAlongNormal;
+                // 1. Calculate Impulse
+                float j = -(1.0f + m.Restitution) * velAlongNormal;
                 j /= totalInverseMass;
-
                 Vector3 impulse = m.Normal * j;
 
+                // 2. Apply Impulse
                 a.Velocity -= impulse * a.InverseMass;
-                b.Velocity += impulse * b.InverseMass;
 
-                // Positional Correction (Sinking Prevention)
+                // Optional: Simplified Friction for objects hitting the static world
+                if (m.BodyIndexB == -1)
+                {
+                    Vector3 tangentVel = a.Velocity - Vector3.Dot(a.Velocity, m.Normal) * m.Normal;
+                    a.Velocity -= tangentVel * 0.05f;
+                }
+
+                // 3. Positional Correction
                 Vector3 correction = m.Normal * (MathF.Max(m.Penetration - PositionalCorrectionSlop, 0.0f) / totalInverseMass * PositionalCorrectionPercent);
                 a.Position -= correction * a.InverseMass;
-                b.Position += correction * b.InverseMass;
 
-                // Write modified structs back to the array
-                _activeNodes[m.IndexA] = a;
-                _activeNodes[m.IndexB] = b;
+                // Write 'a' back to array
+                _dynamicBodies[m.BodyIndexA] = a;
+
+                // Write 'b' back to array (only if it actually exists in the dynamic array)
+                if (m.BodyIndexB >= 0)
+                {
+                    var b = _dynamicBodies[m.BodyIndexB];
+                    b.Velocity += impulse * bInverseMass;
+                    b.Position += correction * bInverseMass;
+                    _dynamicBodies[m.BodyIndexB] = b;
+                }
             }
         }
-        private ContactManifold CheckSphereVsCylinder(PhysicsNode sphere, PhysicsNode cylinder)
+
+        // --- DISPATCHER & NARROWPHASE MATH ---
+        private ContactManifold Dispatch(Vector3 posA, ColliderComponent colA, Vector3 posB, ColliderComponent colB)
         {
+            if (colA.Type == ColliderType.Sphere && colB.Type == ColliderType.Sphere)
+                return CheckSphereVsSphere(posA, colA, posB, colB);
 
-            Vector3 relPos = sphere.Position - cylinder.Position;
+            if (colA.Type == ColliderType.Sphere && colB.Type == ColliderType.Cylinder)
+                return CheckSphereVsCylinder(posA, colA, posB, colB);
 
-            // 1. Check vertical (Y) distance
+            if (colA.Type == ColliderType.Cylinder && colB.Type == ColliderType.Sphere)
+            {
+                var m = CheckSphereVsCylinder(posB, colB, posA, colA);
+                m.Normal = -m.Normal; // Flip normal since we swapped A and B
+                return m;
+            }
+
+            return new ContactManifold { IsColliding = false };
+        }
+
+        private ContactManifold CheckSphereVsCylinder(Vector3 spherePos, ColliderComponent sphereCol, Vector3 cylPos, ColliderComponent cylCol)
+        {
+            // Apply LocalOffsets to ensure accurate world space positioning
+            Vector3 worldSpherePos = spherePos + sphereCol.LocalOffset;
+            Vector3 worldCylPos = cylPos + cylCol.LocalOffset;
+
+            // relPos is the vector from Cylinder(B) to Sphere(A)
+            Vector3 relPos = worldSpherePos - worldCylPos;
+
             float verticalDist = MathF.Abs(relPos.Y);
-            float halfHeight = cylinder.Collider.Data.CylinderData.Y;
-
-            // 2. Check horizontal distance (XZ plane)
+            float halfHeight = cylCol.Data.CylinderData.Y;
             float horizDistSq = relPos.X * relPos.X + relPos.Z * relPos.Z;
-            float radius = cylinder.Collider.Data.CylinderData.X;
+            float radius = cylCol.Data.CylinderData.X;
 
-            // Determine the closest point on the cylinder to the sphere center
             float closestX = MyMath.clamp(relPos.X, -radius, radius);
             float closestZ = MyMath.clamp(relPos.Z, -radius, radius);
             float closestY = MyMath.clamp(relPos.Y, -halfHeight, halfHeight);
 
+            // closestPoint is local relative to the Cylinder
             Vector3 closestPoint = new Vector3(closestX, closestY, closestZ);
             float distSq = (relPos - closestPoint).LengthSquared;
-            float radiusSq = sphere.Collider.Data.Radius * sphere.Collider.Data.Radius;
+            float radiusSq = sphereCol.Data.Radius * sphereCol.Data.Radius;
 
             if (distSq > radiusSq) return new ContactManifold { IsColliding = false };
 
             float dist = MathF.Sqrt(distSq);
-            Vector3 normal = dist == 0 ? Vector3.UnitY : (relPos - closestPoint).Normalized();
+
+            // FIX: We need normal from A(Sphere) to B(Cylinder)
+            // (closestPoint - relPos) calculates the vector pointing FROM the sphere TO the cylinder surface.
+            Vector3 normal = dist == 0 ? -Vector3.UnitY : (closestPoint - relPos).Normalized();
+
             return new ContactManifold
             {
                 IsColliding = true,
                 Normal = normal,
-                Penetration = sphere.Collider.Data.Radius - dist,
-                ContactPoint = cylinder.Position + closestPoint
+                Penetration = sphereCol.Data.Radius - dist,
+                ContactPoint = worldCylPos + closestPoint
             };
         }
-        private ContactManifold CheckSphereVsSphere(PhysicsNode a, PhysicsNode b)
+
+        private ContactManifold CheckSphereVsSphere(Vector3 posA, ColliderComponent colA, Vector3 posB, ColliderComponent colB)
         {
-            ContactManifold m = new ContactManifold { IsColliding = false };
+            Vector3 worldPosA = posA + colA.LocalOffset;
+            Vector3 worldPosB = posB + colB.LocalOffset;
 
-            Vector3 posA = a.Position + a.Collider.LocalOffset;
-            Vector3 posB = b.Position + b.Collider.LocalOffset;
-
-            Vector3 normal = posB - posA;
+            // Normal from A to B
+            Vector3 normal = worldPosB - worldPosA;
             float distSq = normal.LengthSquared;
-            float radiusSum = a.Collider.Data.Radius + b.Collider.Data.Radius;
+            float radiusSum = colA.Data.Radius + colB.Data.Radius;
 
-            if (distSq >= radiusSum * radiusSum) return m;
+            if (distSq >= radiusSum * radiusSum) return new ContactManifold { IsColliding = false };
 
             float dist = MathF.Sqrt(distSq);
-            m.IsColliding = true;
-            m.Normal = dist == 0 ? Vector3.UnitY : normal.Normalized();
-            m.Penetration = radiusSum - dist;
-            m.ContactPoint = posA + (m.Normal * a.Collider.Data.Radius);
-
-            return m;
+            return new ContactManifold
+            {
+                IsColliding = true,
+                Normal = dist == 0 ? -Vector3.UnitY : normal.Normalized(),
+                Penetration = radiusSum - dist,
+                ContactPoint = worldPosA + (normal.Normalized() * colA.Data.Radius)
+            };
         }
 
         // --- INTERNAL DATA STRUCTURES ---
-
-        private struct PhysicsNode
+        private struct BodyState
         {
             public EntityView Entity;
             public Vector3 Position;
@@ -288,20 +351,69 @@ namespace Dino_Engine.ECS.Systems
             public ColliderComponent Collider;
         }
 
-        private struct CollisionPair
+        private struct StaticCollider
         {
-            public int IndexA;
-            public int IndexB;
+            public EntityView Entity;
+            public Vector3 Position;
+            public ColliderComponent Collider;
         }
 
+        // PURE DATA STRUCT - No nested structs, no boolean flags.
         private struct ContactManifold
         {
             public bool IsColliding;
-            public int IndexA;
-            public int IndexB;
+
+            // Unified Solver Data
+            public int BodyIndexA;
+            public int BodyIndexB; // -1 represents ANY infinite-mass static object
+            public float Restitution;
             public Vector3 Normal;
             public float Penetration;
             public Vector3 ContactPoint;
+
+            // Event Output Data
+            public EntityView EntityA;
+            public EntityView EntityB;
+        }
+
+        // --- SPATIAL HASH GRID ---
+        private class SpatialHashGrid
+        {
+            private float _cellSize;
+            private Dictionary<long, List<StaticCollider>> _grid = new();
+
+            public SpatialHashGrid(float cellSize) => _cellSize = cellSize;
+
+            public void Clear() => _grid.Clear();
+
+            private long GetKey(long x, long z) => (x * 31337) ^ z;
+
+            public void Add(StaticCollider node)
+            {
+                long x = (long)MathF.Floor(node.Position.X / _cellSize);
+                long z = (long)MathF.Floor(node.Position.Z / _cellSize);
+                long key = GetKey(x, z);
+
+                if (!_grid.ContainsKey(key)) _grid[key] = new List<StaticCollider>();
+                _grid[key].Add(node);
+            }
+
+            public IEnumerable<StaticCollider> QueryNearby(Vector3 pos)
+            {
+                long cx = (long)MathF.Floor(pos.X / _cellSize);
+                long cz = (long)MathF.Floor(pos.Z / _cellSize);
+
+                for (long x = cx - 1; x <= cx + 1; x++)
+                {
+                    for (long z = cz - 1; z <= cz + 1; z++)
+                    {
+                        if (_grid.TryGetValue(GetKey(x, z), out var list))
+                        {
+                            foreach (var node in list) yield return node;
+                        }
+                    }
+                }
+            }
         }
     }
 }

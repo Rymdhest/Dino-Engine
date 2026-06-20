@@ -1,5 +1,8 @@
-﻿
-using Dino_Engine.Core;
+﻿using Dino_Engine.Core;
+using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.ECS.Components;
+using System;
+using System.Collections.Generic;
 
 namespace Dino_Engine.ECS.ECS_Architecture
 {
@@ -8,7 +11,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public BitMask Mask;
         public readonly Dictionary<int, object> ComponentArrays = new();
         public List<Entity> entities = new();
-        public int Count => entities.Count;
+        public int EntityCount => entities.Count;
 
         public Archetype(BitMask mask)
         {
@@ -24,10 +27,10 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
         public void ClearAllEntitiesExcept(params Entity[] exceptions)
         {
-            for (int i = 0; i<entities.Count; i++)
+            for (int i = 0; i < entities.Count; i++)
             {
                 bool isException = false;
-                for (int j = 0; j<exceptions.Length; j++)
+                for (int j = 0; j < exceptions.Length; j++)
                 {
                     if (entities[i].Id == exceptions[j].Id)
                     {
@@ -66,10 +69,8 @@ namespace Dino_Engine.ECS.ECS_Architecture
             int last = entities.Count - 1;
             if (index != last)
             {
-                // Move the last entity into the removed spot
                 entities[index] = entities[last];
 
-                // Move all components for the last entity into the removed spot
                 foreach (var kvp in ComponentArrays)
                 {
                     dynamic list = kvp.Value;
@@ -77,7 +78,6 @@ namespace Dino_Engine.ECS.ECS_Architecture
                 }
             }
 
-            // Remove the last entity and its components
             entities.RemoveAt(last);
 
             foreach (var kvp in ComponentArrays)
@@ -86,25 +86,26 @@ namespace Dino_Engine.ECS.ECS_Architecture
                 list.RemoveAt(last);
             }
         }
-        public List<T> GetArray<T>() where T : struct, IComponent
+
+        // Optimized array access for bulk processing systems
+        public List<T>? GetComponentArray<T>() where T : struct, IComponent
         {
             int id = ComponentTypeRegistry.GetId(typeof(T));
-            return (List<T>)ComponentArrays[id];
+            if (ComponentArrays.TryGetValue(id, out object? array))
+            {
+                return (List<T>)array;
+            }
+            return null; // Return null instead of crashing
         }
 
         public T GetComponent<T>(int index) where T : struct, IComponent
         {
-            return GetArray<T>()[index];
-        }
-
-        public T TryGetComponent<T>(int index) where T : struct, IComponent
-        {
-            return GetArray<T>()[index];
+            return GetComponentArray<T>()[index];
         }
 
         public void SetComponent<T>(int index, T component) where T : struct, IComponent
         {
-            GetArray<T>()[index] = component;
+            GetComponentArray<T>()[index] = component;
         }
 
         public bool Has<T>() where T : struct, IComponent

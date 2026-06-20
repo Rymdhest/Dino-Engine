@@ -478,7 +478,7 @@ namespace Dino_Defenders
             float terrainSize = 1000f;
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
-            for (int i = 0; i<200; i++)
+            for (int i = 0; i<5000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
@@ -491,7 +491,6 @@ namespace Dino_Defenders
                     new ModelComponent(treeModel),
                     new ModelRenderTag(),
                     new LocalToWorldMatrixComponent(),
-                    new MassComponent(0f),
                     new ColliderComponent
                     {
                         Type = ColliderType.Cylinder,

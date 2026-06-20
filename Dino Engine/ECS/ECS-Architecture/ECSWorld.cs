@@ -141,7 +141,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             }
 
             archetype.AddEntity(newEntity, CompIDtoDataMap);
-            entityLocations[newEntity.Id] = (archetype, archetype.Count - 1);
+            entityLocations[newEntity.Id] = (archetype, archetype.EntityCount - 1);
             return newEntity;
         }
         public void DestroyEntity(Entity entity)
@@ -158,7 +158,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             }
 
             var (archetype, index) = location;
-            int last = archetype.Count - 1;
+            int last = archetype.EntityCount - 1;
             var lastEntity = archetype.entities[last];
 
             archetype.RemoveEntityAt(index);
@@ -219,7 +219,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             newArchetype.AddEntity(entity, components);
 
             // Update entity location
-            entityLocations[entity.Id] = (newArchetype, newArchetype.Count - 1);
+            entityLocations[entity.Id] = (newArchetype, newArchetype.EntityCount - 1);
         }
         public void RemoveComponentFromEntity(Entity entity, Type type)
         {
@@ -257,7 +257,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             currentLocation.archetype.RemoveEntityAt(currentLocation.index);
             newArchetype.AddEntity(entity, componentMap);
-            entityLocations[entity.Id] = (newArchetype, newArchetype.Count - 1);
+            entityLocations[entity.Id] = (newArchetype, newArchetype.EntityCount - 1);
         }
     }
 }

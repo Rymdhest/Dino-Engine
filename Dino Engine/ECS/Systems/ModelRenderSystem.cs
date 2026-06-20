@@ -4,13 +4,15 @@ using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using OpenTK.Mathematics;
+using System.Collections.Generic;
 
 namespace Dino_Engine.ECS.Systems
 {
     public class ModelRenderSystem : SystemBase
     {
-        private Dictionary<glModel, List<Matrix4>> commands = new();
-        private int minCountForInstanced = 10;
+        private readonly Dictionary<glModel, List<Matrix4>> _commands = new();
+        private readonly int _minCountForInstanced = 10;
+
         public ModelRenderSystem()
             : base(new BitMask(typeof(ModelRenderTag), typeof(ModelComponent), typeof(LocalToWorldMatrixComponent)))
         {
@@ -18,43 +20,59 @@ namespace Dino_Engine.ECS.Systems
 
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
+            // Clear previous frame commands without reallocating the dictionary itself
+            foreach (var list in _commands.Values)
+            {
+                list.Clear();
+            }
+
+            // Bulk process all archetypes that match our requirement
             foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
             {
-                var accessor = new ComponentAccessor(archetype);
+                var modelArray = archetype.GetComponentArray<ModelComponent>();
+                var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
+                int count = archetype.EntityCount;
 
-                foreach (var entity in accessor)
+                for (int i = 0; i < count; i++)
                 {
-                    UpdateEntity(entity, world, deltaTime);
-                }
-            }   
-            foreach (var cmd in commands)
-            {
-                ModelRenderCommand command = new ModelRenderCommand();
-                command.model = cmd.Key;
-                command.matrices = cmd.Value.ToArray();
+                    glModel model = modelArray[i].model;
+                    Matrix4 matrix = matrixArray[i].value;
 
-                if (command.matrices.Length > minCountForInstanced)
+                    if (!_commands.TryGetValue(model, out var list))
+                    {
+                        list = new List<Matrix4>();
+                        _commands[model] = list;
+                    }
+                    list.Add(matrix);
+                }
+            }
+
+            // Submit grouped commands to the renderers
+            foreach (var kvp in _commands)
+            {
+                var model = kvp.Key;
+                var matrices = kvp.Value;
+
+                if (matrices.Count == 0) continue;
+
+                var command = new ModelRenderCommand
+                {
+                    model = model,
+                    matrices = matrices.ToArray()
+                };
+
+                if (command.matrices.Length > _minCountForInstanced)
                 {
                     Engine.RenderEngine._instancedModelRenderer.SubmitGeometryCommand(command);
-                } else
+                }
+                else
                 {
                     Engine.RenderEngine._modelRenderer.SubmitGeometryCommand(command);
                 }
-
-                cmd.Value.Clear();
             }
-
-            commands.Clear();
         }
 
-        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
-        {
-            glModel model = entity.Get<ModelComponent>().model;
-            Matrix4 modelMatrix = entity.Get<LocalToWorldMatrixComponent>().value;
-
-            if (!commands.ContainsKey(model)) commands[model] = new List<Matrix4>();
-
-            commands[model].Add(modelMatrix);
-        }
+        // Overridden to be unused since we use bulk UpdateInternal
+        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
     }
 }

@@ -4,10 +4,8 @@ using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
-using Dino_Engine.Rendering.Renderers.PosGeometry;
-using Dino_Engine.Util;
 using OpenTK.Mathematics;
-using System.Diagnostics;
+using System.Collections.Generic;
 
 namespace Dino_Engine.ECS.Systems
 {
@@ -15,127 +13,103 @@ namespace Dino_Engine.ECS.Systems
     {
         private int minCountForInstanced = 10;
 
+        // Persistent structures to avoid per-frame allocations
+        private readonly Dictionary<glModel, List<Matrix4>> _cachedCommands = new();
+        private readonly List<Entity> _visibleChunks = new();
+        private readonly List<TerrainChunkRenderData> _terrainCommands = new();
+        private readonly List<GrassChunkRenderData> _grassCommands = new();
+
         public DirectionalCascadeShadowSystem()
-            : base(new BitMask(
-                typeof(DirectionalLightTag),
-                typeof(DirectionNormalizedComponent),
-                typeof(DirectionalCascadingShadowComponent)))
+            : base(new BitMask(typeof(DirectionalLightTag), typeof(DirectionNormalizedComponent), typeof(DirectionalCascadingShadowComponent)))
         {
         }
+
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
             var direction = entity.Get<DirectionNormalizedComponent>().value;
             var shadowCascade = entity.Get<DirectionalCascadingShadowComponent>();
             var cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
-            for (int i = 0; i<shadowCascade.cascades.Length; i++)
+
+            // 1. Prepare View Matrices
+            for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
                 shadowCascade.cascades[i].lightViewMatrix = CreateLightViewMatrix(direction, cameraPos, shadowCascade.cascades[i].projectionSize);
-                shadowCascade.cascades[i].shadowFrameBuffer.ClearDepth(); //// POTENTIALLY REALLY UGLY AND RENDER RELATED
+                shadowCascade.cascades[i].shadowFrameBuffer.ClearDepth();
             }
             entity.Set(shadowCascade);
 
+            // 2. Pre-build Model Commands (Once per frame, not per cascade)
+            _cachedCommands.Clear();
+            var shadowCastingModels = world.QueryEntities(new BitMask(typeof(ModelComponent), typeof(ModelRenderTag), typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
 
+            for (int i = 0; i < shadowCastingModels.Count; i++)
+            {
+                var ltw = world.GetComponent<LocalToWorldMatrixComponent>(shadowCastingModels[i]).value;
+                var model = world.GetComponent<ModelComponent>(shadowCastingModels[i]).model;
 
-            // MODELS
-            var shadowCastingModels = world.QueryEntities(new BitMask(
-                typeof(ModelComponent),
-                typeof(ModelRenderTag),
-                typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
+                if (!_cachedCommands.TryGetValue(model, out var list))
+                {
+                    list = new List<Matrix4>();
+                    _cachedCommands[model] = list;
+                }
+                list.Add(ltw);
+            }
+
+            // 3. Submit Models for each cascade
             for (int j = 0; j < shadowCascade.cascades.Length; j++)
             {
                 Shadow cascade = shadowCascade.cascades[j];
-                Dictionary<glModel, List<Matrix4>> commands = new();
-                for (int i = 0; i < shadowCastingModels.Count; i++)
+                foreach (var kvp in _cachedCommands)
                 {
-                    var LocalToWorldMatrix = world.GetComponent<LocalToWorldMatrixComponent>(shadowCastingModels[i]).value;
-                    var glModel = world.GetComponent<ModelComponent>(shadowCastingModels[i]).model;
+                    var model = kvp.Key;
+                    var matrices = kvp.Value;
 
-                    if (!commands.ContainsKey(glModel)) commands[glModel] = new List<Matrix4>();
-                    commands[glModel].Add(LocalToWorldMatrix);
-                }
-                foreach (var command in commands)
-                {
-                    var ModelCommand = new ModelRenderCommand();
-                    ModelCommand.model = command.Key;
-                    ModelCommand.matrices = command.Value.ToArray();
-
-                    if (ModelCommand.matrices.Length > minCountForInstanced)
-                    {
-                        Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(ModelCommand, cascade);
-                    }
+                    if (matrices.Count > minCountForInstanced)
+                        Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(new ModelRenderCommand { model = model, matrices = matrices.ToArray() }, cascade);
                     else
-                    {
-                        Engine.RenderEngine._modelRenderer.SubmitShadowCommand(ModelCommand, cascade);
-                    }
-
-                    command.Value.Clear();
-
+                        Engine.RenderEngine._modelRenderer.SubmitShadowCommand(new ModelRenderCommand { model = model, matrices = matrices.ToArray() }, cascade);
                 }
-                commands.Clear();
             }
 
+            // 4. Terrain & Grass
+            var quadtreeComp = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
 
-
-            // Terrain
-            for (int i = 0; i<shadowCascade.cascades.Length; i++)
+            for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
                 Shadow shadow = shadowCascade.cascades[i];
-                var visibleChunks = new List<Entity>();
+                _visibleChunks.Clear();
+                _terrainCommands.Clear();
+                _grassCommands.Clear();
 
-                var grassChunks = new List<GrassChunkRenderData>();
+                var viewProj = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
+                TerrainChunkSystem.CollectVisibleChunks(quadtreeComp.QuadTree, new Util.Frustum(viewProj), _visibleChunks);
 
-                var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
-                var viewProjectionMatrix = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
-                TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent.QuadTree, new Util.Frustum(viewProjectionMatrix), visibleChunks);
-                var terrainChunksRenderData = new List<TerrainChunkRenderData>();
-                foreach (Entity chunkEntity in visibleChunks)
+                foreach (Entity chunkEntity in _visibleChunks)
                 {
-                    Vector3 chunkPosition = world.GetComponent<LocalToWorldMatrixComponent>(chunkEntity).value.ExtractTranslation();
-                    Vector3 chunkSize = world.GetComponent<ScaleComponent>(chunkEntity).value;
-                    float arrayID = world.GetComponent<TerrainChunkComponent>(chunkEntity).normalHeightTextureArrayID;
-                    TerrainChunkRenderData chunkCommand = new TerrainChunkRenderData();
-                    chunkCommand.chunkPos = chunkPosition;
-                    chunkCommand.size = chunkSize;
-                    chunkCommand.arrayID = arrayID;
-                    terrainChunksRenderData.Add(chunkCommand);
+                    var ltw = world.GetComponent<LocalToWorldMatrixComponent>(chunkEntity).value;
+                    var size = world.GetComponent<ScaleComponent>(chunkEntity).value;
+                    var chunkComp = world.GetComponent<TerrainChunkComponent>(chunkEntity);
 
-                    GrassChunkRenderData grassCommand = new GrassChunkRenderData();
-                    grassCommand.chunkPos = chunkPosition.Xz;
-                    grassCommand.size = chunkSize.X;
-                    grassCommand.arrayID = arrayID;
+                    _terrainCommands.Add(new TerrainChunkRenderData { chunkPos = ltw.ExtractTranslation(), size = size, arrayID = chunkComp.normalHeightTextureArrayID });
 
-                    float distance = Vector2.Distance(cameraPos.Xz, chunkPosition.Xz + chunkSize.Xz * 0.5f);
-
-                    int TEST_CASCADE_GRASS_LIMIT = 5;
-                    if (distance < 500 && i < TEST_CASCADE_GRASS_LIMIT)
+                    float dist = Vector2.Distance(cameraPos.Xz, ltw.ExtractTranslation().Xz + size.Xz * 0.5f);
+                    if (dist < 500 && i < 5) // TEST_CASCADE_GRASS_LIMIT
                     {
-                        grassChunks.Add(grassCommand);
+                        _grassCommands.Add(new GrassChunkRenderData { chunkPos = ltw.ExtractTranslation().Xz, size = size.X, arrayID = chunkComp.normalHeightTextureArrayID });
                     }
                 }
 
-                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(grassChunks.ToArray(), 0), shadow);
-  
-
-                Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(terrainChunksRenderData.ToArray(), 0.0f), shadow);
+                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(_grassCommands.ToArray(), 0), shadow);
+                Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(_terrainCommands.ToArray(), 0.0f), shadow);
             }
-
-            // GRASS
         }
 
         private static Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 center, float size)
         {
             direction = Vector3.Normalize(direction);
-
-            // Pick an "up" vector that's safe; usually Y up, but if light direction is vertical, use another up.
-            Vector3 up = MathF.Abs(Vector3.Dot(direction, Vector3.UnitY)) > 0.99f
-                ? Vector3.UnitZ  // fallback up if direction is nearly vertical
-                : Vector3.UnitY;
-
-            // The eye position: move "back" along the light direction from the center of the cascade
-            Vector3 lightPos = center - direction * size/2f; // 100 units back; adjust based on cascade size
-
+            Vector3 up = MathF.Abs(Vector3.Dot(direction, Vector3.UnitY)) > 0.99f ? Vector3.UnitZ : Vector3.UnitY;
+            Vector3 lightPos = center - direction * size / 2f;
             return Matrix4.LookAt(lightPos, center, up);
         }
-
     }
 }
