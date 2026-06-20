@@ -1,7 +1,6 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Util.Data_Structures.Grids;
-using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Components
 {

@@ -1,8 +1,4 @@
-﻿using Dino_Engine.Core;
-using Dino_Engine.ECS.ECS_Architecture;
-using Dino_Engine.Modelling.Model;
-using Dino_Engine.Physics;
-using Dino_Engine.Util;
+﻿using Dino_Engine.Util;
 using Dino_Engine.Util.Data_Structures.Grids;
 using OpenTK.Mathematics;
 using Util.Noise;
@@ -80,6 +76,30 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             }
 
             return normalGrid;
+        }
+
+        public Vector3 GetNormalAt(float x, float z)
+        {
+            // Define a small epsilon for the gradient calculation
+            float eps = 0.1f;
+
+            // Sample the height at 4 points around the target
+            float hL = getHeightAt(new Vector2(x - eps, z));
+            float hR = getHeightAt(new Vector2(x + eps, z));
+            float hD = getHeightAt(new Vector2(x, z - eps));
+            float hU = getHeightAt(new Vector2(x, z + eps));
+
+            // Calculate the partial derivatives (gradients)
+            float dX = (hR - hL) / (2f * eps);
+            float dZ = (hU - hD) / (2f * eps);
+
+            // Build the tangent vectors based on the derivatives
+            Vector3 tangentX = new Vector3(1f, dX, 0f);
+            Vector3 tangentZ = new Vector3(0f, dZ, 1f);
+
+            // Cross product gives the surface normal
+            Vector3 normal = Vector3.Cross(tangentZ, tangentX);
+            return Vector3.Normalize(normal);
         }
 
         public FloatGrid generateChunk(Vector2 chunkPositionWorld, Vector2 sizeWorld, Vector2i resolution)

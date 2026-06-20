@@ -179,6 +179,7 @@ namespace Dino_Defenders
 
             world.RegisterSingleton<TerrainQuadTreeComponent>(world.CreateEntity(new TerrainQuadTreeComponent(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
             world.RegisterSingleton<TerrainGeneratorComponent>(world.CreateEntity(new TerrainGeneratorComponent(terrainGenerator)));
+            world.RegisterSingleton<CollisionEventBufferComponent>(world.CreateEntity(new CollisionEventBufferComponent()));
             world.ApplyDeferredCommands();
 
             Mesh boxMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.brick));
@@ -202,10 +203,10 @@ namespace Dino_Defenders
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 20f)),
-                new AmbientLightComponent(0.02f),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 15f)),
+                new AmbientLightComponent(0.08f),
                 new CelestialBodyComponent(),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 500)
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 3, 1750)
             ) ;
             
             for (int i = 0; i<0; i++)
@@ -214,7 +215,7 @@ namespace Dino_Defenders
                     new DirectionalLightTag(),
                     new DirectionNormalizedComponent(new Vector3(MyMath.rngMinusPlus(), -MyMath.rng()*1.0f, MyMath.rngMinusPlus())),
                     new CelestialBodyComponent(),
-                    new AmbientLightComponent(0.01f),
+                    new AmbientLightComponent(0.0f),
                     new ColorComponent(new Colour(0.3f, 0.5f, 1.0f, 1.0f)),
                     new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 1, 1000)
                 );
@@ -225,9 +226,9 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
-                new ColorComponent(new Colour(86, 155, 255, 1.1f)),
+                new ColorComponent(new Colour(86, 155, 255, 1.0f)),
                 new SkyTag(),
-                new AmbientLightComponent(0.9f)
+                new AmbientLightComponent(0.8f)
             );
             
 
@@ -489,7 +490,14 @@ namespace Dino_Defenders
                     new ScaleComponent(new Vector3(radius, height, radius)),
                     new ModelComponent(treeModel),
                     new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent()
+                    new LocalToWorldMatrixComponent(),
+                    new MassComponent(0f),
+                    new ColliderComponent
+                    {
+                        Type = ColliderType.Cylinder,
+                        Data = new ColliderData { HalfExtents = new Vector3(radius, height * 2f, radius) },
+                        Restitution = 0.2f // Trees aren't very bouncy
+                    }
                 );
             }
 

@@ -89,7 +89,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             grassBladeLOD1 = generateBladeModelLOD1();
             generateBladeModelShadow();
 
-            FrameBufferSettings frameBufferSettings = new FrameBufferSettings(new Vector2i(600,600));
+            FrameBufferSettings frameBufferSettings = new FrameBufferSettings(new Vector2i(1024,1024));
             frameBufferSettings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment0));
             _buffer1 = new FrameBuffer(frameBufferSettings);
             _buffer2 = new FrameBuffer(frameBufferSettings);

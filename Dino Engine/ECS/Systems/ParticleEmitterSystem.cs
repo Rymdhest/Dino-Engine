@@ -3,7 +3,6 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
-using System.Runtime.CompilerServices;
 
 namespace Dino_Engine.ECS.Systems
 {

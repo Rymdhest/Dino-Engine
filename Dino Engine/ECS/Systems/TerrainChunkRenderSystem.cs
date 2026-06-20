@@ -2,8 +2,6 @@
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Rendering.Renderers.Geometry;
-using Dino_Engine.Rendering.Renderers.Lighting;
-using Dino_Engine.Rendering.Renderers.PosGeometry;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Systems
