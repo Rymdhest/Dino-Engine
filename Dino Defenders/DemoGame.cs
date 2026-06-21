@@ -193,7 +193,7 @@ namespace Dino_Defenders
             y += 4;
             world.CreateEntity(
                 new PositionComponent(new Vector3(100, y, 100)),
-                new RotationComponent(new Vector3(-MathF.PI / 2f,0f, 0)),
+                new RotationComponent(new Vector3(0,1f, 0)),
                 new ScaleComponent(new Vector3(1)),
                 new ModelComponent(glLoader.loadToVAO(boxMesh)),
                 new ModelRenderTag(),
@@ -478,7 +478,7 @@ namespace Dino_Defenders
             float terrainSize = 1000f;
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
-            for (int i = 0; i<5000; i++)
+            for (int i = 0; i<500; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);

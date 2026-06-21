@@ -9,7 +9,7 @@ namespace Dino_Engine.ECS.Components
         public Shadow shadow;
         public SpotlightShadowComponent(Vector2i resolution, float angleRadians)
         {
-            var projectionMatrix = Matrix4.CreatePerspectiveFieldOfView(angleRadians, 1f, 0.15f, 10f);
+            var projectionMatrix = Matrix4.CreatePerspectiveFieldOfView(angleRadians, 1f, 0.15f, 30f);
             shadow = new Shadow(resolution, projectionMatrix, 0, 2.0f, 2.0f);
         }
 

@@ -32,6 +32,14 @@ namespace Dino_Engine.ECS.Systems
             command.attenuationRadius = entity.Get<AttunuationComponent>().AttunuationRadius;
             command.ambient = entity.GetOptional(new AmbientLightComponent(0f)).value;
 
+            if (entity.Has<PointLightShadowComponent>())
+            {
+                command.shadow = entity.Get<PointLightShadowComponent>().shadow;
+            }
+            else
+            {
+                command.shadow = null;
+            }
 
             Engine.RenderEngine._pointLightRenderer.SubmitCommand(command);
         }

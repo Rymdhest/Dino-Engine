@@ -82,7 +82,7 @@ namespace Dino_Engine.Debug
                 kvp.Value.FinishSecond();
             }
             //StatusReportDump(GPUTasks.Values.ToList<TaskTracker>());
-            StatusReportDump(CPUTasks.Values.ToList<TaskTracker>());
+            //StatusReportDump(CPUTasks.Values.ToList<TaskTracker>());
         }
 
         public void StatusReportDump(List<TaskTracker> tasks)

@@ -138,11 +138,19 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(ModelRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
-            shadow.shadowFrameBuffer.bind();
+            if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
+            {
+                shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
+            }
+            else
+            {
+                shadow.shadowFrameBuffer.bind();
+            }
+
             for (int i = 0; i < command.matrices.Length; i++)
             {
                 //GL.Clear(ClearBufferMask.DepthBufferBit);
-                GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
+                GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 1.1f);
                 //GL.PolygonOffset(1f, 1f);
 
                 glModel glmodel = command.model;

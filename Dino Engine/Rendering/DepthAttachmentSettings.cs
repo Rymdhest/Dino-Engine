@@ -1,10 +1,4 @@
-﻿
-using OpenTK.Graphics.OpenGL;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using OpenTK.Graphics.OpenGL;
 
 namespace Dino_Engine.Rendering
 {
@@ -13,7 +7,8 @@ namespace Dino_Engine.Rendering
         public bool isTexture = false;
         public bool isShadowDepthTexture = false;
         public PixelInternalFormat precision = PixelInternalFormat.DepthComponent32;
-        public DepthAttachmentSettings() {
-        }
+        public TextureTarget target = TextureTarget.Texture2D; // Added target support
+
+        public DepthAttachmentSettings() { }
     }
 }

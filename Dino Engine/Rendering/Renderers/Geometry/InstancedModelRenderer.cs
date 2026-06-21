@@ -7,7 +7,6 @@ using Dino_Engine.Rendering.Renderers.Lighting;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
-
     public class InstancedModelRenderer : GeometryCommandDrivenRenderer<ModelRenderCommand>
     {
         private ShaderProgram _instancedModelShader = new ShaderProgram("Model_Instanced.vert", "Model.frag");
@@ -34,17 +33,16 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instanceVBO = GL.GenBuffer();
         }
 
-
         public override void CleanUp()
         {
             _instancedModelShader.cleanUp();
             _instancedModelShadowShader.cleanUp();
+            GL.DeleteBuffer(_instanceVBO);
         }
 
         internal override void PrepareGeometry(RenderEngine renderEngine)
         {
             GL.Enable(EnableCap.DepthTest);
-            //GL.Enable(EnableCap.CullFace);
             GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
@@ -137,10 +135,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             int instanceCount = command.matrices.Length;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
 
-            // Upload per-instance matrices
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, command.matrices, BufferUsageHint.DynamicDraw);
-
 
             GL.BindVertexArray(glmodel.getVAOID());
             GL.EnableVertexAttribArray(0);
@@ -155,8 +151,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(8);
             GL.EnableVertexAttribArray(9);
 
-            // Set up instanced attributes 6-9 (one-time per VAO, could live in glModel)
-
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             int vec4Size = Vector4.SizeInBytes;
             for (int i = 0; i < 4; i++)
@@ -169,7 +163,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 
-            // Draw all instances
             GL.DrawElementsInstanced(
                 PrimitiveType.Triangles,
                 glmodel.getVertexCount(),
@@ -180,19 +173,23 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(ModelRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
-            shadow.shadowFrameBuffer.bind();
-            //GL.Clear(ClearBufferMask.DepthBufferBit);
+            if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
+            {
+                shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
+            }
+            else
+            {
+                shadow.shadowFrameBuffer.bind();
+            }
+
             GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
-            //GL.PolygonOffset(4f, 1f);
 
             glModel glmodel = command.model;
-
             int instanceCount = command.matrices.Length;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
 
-            _instancedModelShadowShader.loadUniformMatrix4f("viewpPojectionMatrix",shadow.lightViewMatrix* shadow.shadowProjectionMatrix);
+            _instancedModelShadowShader.loadUniformMatrix4f("viewpPojectionMatrix", shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
 
-            // Upload per-instance matrices
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, command.matrices, BufferUsageHint.DynamicDraw);
 
@@ -218,7 +215,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 
-            // Draw all instances
             GL.DrawElementsInstanced(
                 PrimitiveType.Triangles,
                 glmodel.getVertexCount(),

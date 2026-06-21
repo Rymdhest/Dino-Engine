@@ -297,7 +297,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             int numberOfChunks = command.chunks.Length;
 
-            shadow.shadowFrameBuffer.bind();
+            if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
+            {
+                shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
+            }
+            else
+            {
+                shadow.shadowFrameBuffer.bind();
+            }
             GL.PolygonOffset(shadow.polygonOffsetTerrain, shadow.polygonOffsetTerrain * 10.1f);
             //GL.PolygonOffset(-10f, 1f);
 

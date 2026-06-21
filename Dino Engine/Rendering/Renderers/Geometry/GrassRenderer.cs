@@ -497,12 +497,23 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         }
 
+
         internal override void PerformShadowCommand(GrassRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
             
             GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
-            GL.PolygonOffset(1, 1);
-            shadow.shadowFrameBuffer.bind();
+            //GL.PolygonOffset(1, 1);
+
+            if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
+            {
+                shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
+
+            }
+            else
+            {
+                shadow.shadowFrameBuffer.bind();
+            }
+
             int bladesPerChunk = (int)Math.Pow(bladesPerAxis, 2);
             _grassShadowShader.loadUniformInt("bladesPerChunk", bladesPerChunk);
             _grassShadowShader.loadUniformInt("bladesPerAxis", bladesPerAxis);
