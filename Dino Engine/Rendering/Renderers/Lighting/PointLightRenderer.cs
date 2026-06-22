@@ -79,6 +79,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             {
                 pointLightShader.loadUniformBool("isShadow", true);
                 pointLightShader.loadUniformInt("shadowMap", 4);
+                pointLightShader.loadUniformFloat("shadowSmoothRadius", 0.015f);
 
                 // Dynamic clip plane synchronization matches your point light attenuation radius
                 pointLightShader.loadUniformFloat("shadowNearPlane", 0.15f);

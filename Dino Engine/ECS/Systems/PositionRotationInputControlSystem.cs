@@ -82,11 +82,9 @@ namespace Dino_Engine.ECS.Systems
                 entity.Set(position);
             }
 
-
-
-            if (windowhandler.IsKeyPressed(Keys.B))
+            if (windowhandler.IsKeyPressed(Keys.V))
             {
-                float speed = 12f;
+                float speed = 6f;
                 float mass = 1.0f;
                 float duration = 10.0f;
                 if (windowhandler.IsKeyDown(Keys.LeftControl))
@@ -99,7 +97,49 @@ namespace Dino_Engine.ECS.Systems
                 var colVector = MyMath.rng3D();
                 if (colVector.Length < 1.0) colVector.Normalize();
                 var col = new Colour(colVector);
-                col.Intensity = 3.0f;
+                col.Intensity = 2.0f;
+                Vector3 forward = currentFinalRotation * -Vector3.UnitZ;
+                float FoV = MathF.PI / 3.0f;
+                world.CreateEntity("Shooting ball",
+                    new VelocityComponent(forward * speed),
+                    new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation() + forward * 1f),
+                    new LocalToWorldMatrixComponent(),
+                    new AttunuationComponent(0.002f, 0.002f, 0.002f),
+                    new AmbientLightComponent(0.02f),
+                    new ScaleComponent(new Vector3(0.1f)),
+                    new ModelComponent(ModelGenerator.UNIT_SPHERE),
+                    new ModelRenderTag(),
+                    new DirectionNormalizedComponent(forward),
+                    new SpotLightComponent(0.3f, FoV),
+                    new SpotlightShadowComponent(new Vector2i(512), FoV),
+                    new MassComponent(mass),
+                    new ColorComponent(col),
+                    new selfDestroyComponent(duration),
+                    new ColliderComponent
+                    {
+                        Type = ColliderType.Sphere,
+                        Data = new ColliderData { Radius = 2.0f }, // Match your ScaleComponent(0.15f)
+                        Restitution = 0.2f // Bounciness factor (0 to 1)
+                    }
+                );
+            }
+
+            if (windowhandler.IsKeyPressed(Keys.B))
+            {
+                float speed = 6f;
+                float mass = 1.0f;
+                float duration = 10.0f;
+                if (windowhandler.IsKeyDown(Keys.LeftControl))
+                {
+                    mass = 0.000001f;
+                    speed = 0f;
+                    duration = 30f;
+                }
+
+                var colVector = MyMath.rng3D();
+                if (colVector.Length < 1.0) colVector.Normalize();
+                var col = new Colour(colVector);
+                col.Intensity = 5.0f;
                 Vector3 forward = currentFinalRotation * -Vector3.UnitZ;
                 float FoV = MathF.PI / 3.0f;
                 world.CreateEntity("Shooting ball",
@@ -107,22 +147,20 @@ namespace Dino_Engine.ECS.Systems
                     new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation() + forward * 1f),
                     new LocalToWorldMatrixComponent(),
                     new AttunuationComponent(0.02f, 0.02f, 0.02f),
-                    new AmbientLightComponent(0.0f),
+                    new AmbientLightComponent(0.02f),
                     new ScaleComponent(new Vector3(0.1f)),
                     new ModelComponent(ModelGenerator.UNIT_SPHERE),
                     new ModelRenderTag(),
                     new DirectionNormalizedComponent(forward),
                     new PointLightTag(),
                     new PointLightShadowComponent(512),
-                    //new SpotLightComponent(0.3f, FoV),
-                    //new SpotlightShadowComponent(new Vector2i(512), FoV),
                     new MassComponent(mass),
                     new ColorComponent(col),
                     new selfDestroyComponent(duration),
                     new ColliderComponent
                     {
                         Type = ColliderType.Sphere,
-                        Data = new ColliderData { Radius = 0.1f }, // Match your ScaleComponent(0.15f)
+                        Data = new ColliderData { Radius = 2.0f }, // Match your ScaleComponent(0.15f)
                         Restitution = 0.2f // Bounciness factor (0 to 1)
                     }
                 );

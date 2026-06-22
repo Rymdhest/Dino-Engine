@@ -21,6 +21,8 @@ uniform vec3 lightPositionWorld;
 uniform float shadowNearPlane;
 uniform float shadowFarPlane;
 
+uniform float shadowSmoothRadius;
+
 uniform bool isShadow;
 uniform samplerCubeShadow shadowMap;
 
@@ -50,7 +52,7 @@ float calcShadow(vec3 fragPosViewSpace) {
     
     // 5. PCF Sampling
     float shadow = 0.0;
-    float diskRadius = 0.1; // Softness radius
+    float diskRadius = shadowSmoothRadius; // Softness radius
     int samples = 20;
 
     for (int i = 0; i < samples; ++i) {

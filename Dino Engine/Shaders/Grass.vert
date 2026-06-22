@@ -5,7 +5,6 @@
 
 layout(location=0) in vec3 position;
 layout(location=2) in vec3 normal;
-//layout(location=4) in vec2 uv;
 
 
 layout(std140, binding = 5) uniform ChunkDataBuffer {
@@ -22,7 +21,6 @@ out vec2 fragUV;
 
 uniform bool isBillboard;
 
-uniform float swayAmount;
 uniform float bladeHeight;
 uniform float bendyness;
 uniform float heightError;
@@ -39,7 +37,11 @@ uniform int bladesPerAxis;
 
 uniform float textureMapOffset;
 
+uniform vec2 simulationWorldSize;
+uniform vec2 simulationWorldPosition;
 
+
+uniform sampler2D bendMap;
 uniform sampler2DArray heightmaps;
 uniform sampler2D grassNoise;
 
@@ -144,11 +146,14 @@ void main() {
 	}
 	mat3 localRotMatrix = rotZMatrix(rotZ)*rotXMatrix(rotX)*rotYMatrix(rotY);
 
-	float adjustedSwayAmount = swayAmount+bladeRandomValue*0.0f;
-	float windX = tipFactor*adjustedSwayAmount*heightFactor*(sin(time*1.4+bladePositionWorld.z*0.7f)+cos(time*8.371+bladePositionWorld.z*1.8f)*0.06);
-	float windZ = tipFactor*sin(time*3.0+bladePositionWorld.x)*adjustedSwayAmount*0.3f*heightFactor;
+	vec2 bendMapUVPosition = (bladePositionWorld.xz-simulationWorldPosition)/simulationWorldSize;
+	vec2 bendMapValue = texture(bendMap, bendMapUVPosition).yx;
+	bendMapValue.x *= -1.0;
+	bendMapValue *= tipFactor;
+	rotX = bendMapValue.x;
+	rotZ = bendMapValue.y;
 	
-	localRotMatrix = rotXMatrix(windX)*rotZMatrix(windZ)*localRotMatrix;
+	localRotMatrix = rotXMatrix(rotX)*rotZMatrix(rotZ)*localRotMatrix;
 
 	VertexPositionLocal = localRotMatrix*VertexPositionLocal;
 

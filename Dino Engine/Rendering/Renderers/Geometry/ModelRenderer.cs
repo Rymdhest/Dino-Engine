@@ -49,7 +49,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();
 
-            _modelShader.loadUniformFloat("parallaxDepth", 0.0f);
+            _modelShader.loadUniformFloat("parallaxDepth", 0.2f);
             _modelShader.loadUniformFloat("parallaxLayers", 60);
 
             _modelShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
@@ -150,7 +150,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             for (int i = 0; i < command.matrices.Length; i++)
             {
                 //GL.Clear(ClearBufferMask.DepthBufferBit);
-                GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 1.1f);
+                GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
                 //GL.PolygonOffset(1f, 1f);
 
                 glModel glmodel = command.model;
