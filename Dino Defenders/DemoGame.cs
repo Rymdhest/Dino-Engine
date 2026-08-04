@@ -455,7 +455,7 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 5;
+            int nBranches = 50;
             for (int i = 0; i < nBranches; i++)
             {
                 float t = 0.2f+0.8f*(float)i/(nBranches - 1);
@@ -479,7 +479,7 @@ namespace Dino_Defenders
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
             Engine.RenderEngine.textureGenerator.AddImposterToModel(treeModel, 10);
-            for (int i = 0; i<500; i++)
+            for (int i = 0; i<200; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
@@ -507,7 +507,7 @@ namespace Dino_Defenders
             for (int i = 0; i < numTreesOnLine; i++)
             {
                 float factor = (float)i / (numTreesOnLine-1);
-                Vector3 treePos = new Vector3(factor * 40f + 40f, 0, 0);
+                Vector3 treePos = new Vector3(factor * 100f + 40f, 0, 0);
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
                 float height = 4f + MyMath.rng(0.9f);
                 float radius = 2f + MyMath.rngMinusPlus(0.3f);
@@ -516,7 +516,7 @@ namespace Dino_Defenders
                 world.CreateEntity("tree line test: " + i,
                     new PositionComponent(treePos),
                     new RotationComponent(new Vector3(0f, factor * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(radius, height, radius)),
+                    new ScaleComponent(new Vector3(radius*10, height, radius)),
                     new ModelComponent(treeModel),
                     new ModelRenderTag(),
                     new LocalToWorldMatrixComponent(),
@@ -545,6 +545,8 @@ namespace Dino_Defenders
             RockMesh.FlatRandomness(0.045f);
             //RockMesh.makeFlat(flatMaterial: true, flatNormal: true);
             glModel rockModel = glLoader.loadToVAO(RockMesh);
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModel, 50);
+
             for (int i = 0; i < 300; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
@@ -554,7 +556,7 @@ namespace Dino_Defenders
                 world.CreateEntity("rock test: " + i,
                     new PositionComponent(treePos),
                     new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(radius, height, radius)),
+                    new ScaleComponent(new Vector3(radius*10, height, radius)),
                     new ModelComponent(rockModel),
                     new ModelRenderTag(),
                     new LocalToWorldMatrixComponent()
@@ -966,17 +968,18 @@ namespace Dino_Defenders
             );
 
             int nr = 0;
+            var carModel = glLoader.loadToVAO(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight, out Vector3 exhaustPos));
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(carModel, 10);
             for (int i = 2; i < 17; i++)
             {
                 for (int j = 0; j < streetGenerator.lanes; j++)
                 {
                     float x = streetGenerator.laneWdith * j + streetGenerator.laneWdith * (0.5f + MyMath.rngMinusPlus(0.15f));
                     float z = 13f * i + MyMath.rngMinusPlus(4f);
-                    var carModel = glLoader.loadToVAO(CarGenerator.GenerateCar(out Vector3 leftLight, out Vector3 rightLight, out Vector3 exhaustPos));
                     Entity car = world.CreateEntity(
                         new PositionComponent(new Vector3(x, 0f, z)),
                         new RotationComponent(new Vector3(0f, MyMath.rngMinusPlus(0.03f), 0f)),
-                        new ScaleComponent(new Vector3(1.7f + MyMath.rngMinusPlus(0.2f))),
+                        new ScaleComponent(new Vector3(1.0f + MyMath.rngMinusPlus(0.2f))),
                         new ModelComponent(carModel),
                         new ModelRenderTag(),
                         new LocalToWorldMatrixComponent()

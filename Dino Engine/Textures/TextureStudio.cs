@@ -85,22 +85,37 @@ namespace Dino_Engine.Textures
 
             AABB box = model.box;
             Vector3 length = box.max - box.min;
-            Matrix4 projectionMatrix;
 
+            // The true local center of the model
+            Vector3 center = (box.max + box.min) / 2f;
+
+            // The maximum diagonal width required to capture the car from any angle
+            float maxXZ = MathF.Sqrt((length.X * length.X) + (length.Z * length.Z));
+
+            // 1. Move center to (0,0,0), THEN rotate it. (OpenTK row-major order)
+            Matrix4 modelMatrix = Matrix4.CreateTranslation(-center) * Matrix4.CreateRotationY(rotY);
+
+            // 2. Place camera outside the bounding volume, looking directly at (0,0,0)
+            Matrix4 viewMatrix = Matrix4.LookAt(
+                new Vector3(0f, 0f, maxXZ), // Camera position
+                Vector3.Zero,               // Look at origin
+                Vector3.UnitY               // Up vector
+            );
+
+            // 3. Perfect orthographic bounds
+            Matrix4 projectionMatrix;
             if (fullStretch)
             {
-                projectionMatrix = Matrix4.CreateOrthographic(length.X, length.Y, 0f, length.Z);
+                projectionMatrix = Matrix4.CreateOrthographic(length.X, length.Y, 0.1f, length.Z * 2.0f);
             }
             else
             {
-                float max = MathF.Max(length.Y, length.X);
-                projectionMatrix = Matrix4.CreateOrthographic(max, max, 0f, length.Z*2.0f);
+                // Width = maxXZ, Height = length.Y. 
+                // Z-planes pushed out safely to avoid clipping the spinning model
+                projectionMatrix = Matrix4.CreateOrthographic(maxXZ, length.Y, 0.1f, maxXZ * 2.0f);
             }
-            Matrix4 viewMatrix = MyMath.createViewMatrix(new Vector3(0f, 0f, 0f), new Vector3(0f, 0f, 0f));
-            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(-length.X / 2f - box.min.X, -length.Y / 2f - box.min.Y, -length.Z/2f + box.min.Z), new Vector3(0f, rotY, 0f), new Vector3(1f)));
-            //transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(0, 0, -11), new Vector3(0f), new Vector3(1f)));
 
-            Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;
+            Matrix4 modelViewMatrix = modelMatrix * viewMatrix;
             _textureStudioShader.loadUniformInt("numberOfMaterials", Engine.RenderEngine.textureGenerator.loadedMaterialTextures);
             _textureStudioShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
             _textureStudioShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * projectionMatrix);

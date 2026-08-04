@@ -4,8 +4,9 @@
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 normal;
 
+layout(location=5) in float instanceModelID;
 layout(location=6) in vec3 instancePosition;
-layout(location=7) in float instanceScale;
+layout(location=7) in vec2 instanceScale;
 layout(location=8) in float instanceRotY; 
 
 out vec2 fragUV;
@@ -29,7 +30,7 @@ void main() {
     viewTBN = mat3(viewMatrix) * worldTBN;
 
     // Apply model dimensions & scale
-    vec3 scaledPos = position * vec3(instanceScale, instanceScale, 1.0);
+    vec3 scaledPos = position * vec3(instanceScale.x, instanceScale.y, 1.0);
 
     // Build world position using screen-parallel vectors
     vec3 worldPos = instancePosition 
@@ -55,8 +56,7 @@ void main() {
     int finalAngleIndex = int(sliceIndex) % sliceCount;
 
     // Quad position [-0.5, 0.5] mapped to UV [0, 1]
-    fragUV = position.xy + vec2(0.5, 0.0);
+    fragUV = position.xy + vec2(0.5);
 
-    float modelID = 0.0;
-    textureIndex = (modelID * float(sliceCount)) + float(finalAngleIndex);
+    textureIndex = (instanceModelID * float(sliceCount)) + float(finalAngleIndex);
 }

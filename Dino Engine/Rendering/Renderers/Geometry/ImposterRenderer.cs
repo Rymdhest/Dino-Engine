@@ -13,10 +13,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct ImposterInstanceData
     {
+        public float modelID;  // 4 bytes
         public Vector3 Position; // 12 bytes
-        public float Scale;      // 4 bytes
-        public float RotationY;  // 4 bytes
-                                 // Total Stride = 20 bytes
+        public Vector2 Scale;      // 8 bytes
+        public float RotationY;   // 4 bytes
+                                 // Total Stride = 28 bytes
     }
 
     public struct ImposterRenderCommand : IRenderCommand
@@ -49,10 +50,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
 
             float[] positions = {
-                -0.5f, 0, 0,
-                0.5f, 0, 0,
-                -0.5f, 1f, 0,
-                0.5f, 1f, 0
+                -0.5f, -0.5f, 0,
+                0.5f, -0.5f, 0,
+                -0.5f, 0.5f, 0,
+                0.5f, 0.5f, 0
             };
 
             Vector3 n = new Vector3(0, 0, 1.0f);
@@ -174,7 +175,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             if (instanceCount == 0) return;
 
             // 1. Upload Data
-            int stride = Marshal.SizeOf<ImposterInstanceData>(); // Will be 20 bytes
+            int stride = Marshal.SizeOf<ImposterInstanceData>(); // Will be 28 bytes
             int sizeInBytes = instanceCount * stride;
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
@@ -190,19 +191,24 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             // 3. Setup Instanced Attributes
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
 
+            // Location 5: Instance model ID (float)
+            GL.EnableVertexAttribArray(5);
+            GL.VertexAttribPointer(5, 1, VertexAttribPointerType.Float, false, stride, 0);
+            GL.VertexAttribDivisor(5, 1);
+
             // Location 6: Instance Position (vec3)
             GL.EnableVertexAttribArray(6);
-            GL.VertexAttribPointer(6, 3, VertexAttribPointerType.Float, false, stride, 0);
+            GL.VertexAttribPointer(6, 3, VertexAttribPointerType.Float, false, stride, 4);
             GL.VertexAttribDivisor(6, 1);
 
-            // Location 7: Instance Scale (float)
+            // Location 7: Instance Scale (vec2)
             GL.EnableVertexAttribArray(7);
-            GL.VertexAttribPointer(7, 1, VertexAttribPointerType.Float, false, stride, 12); // Offset by 12 bytes (Vector3)
+            GL.VertexAttribPointer(7, 2, VertexAttribPointerType.Float, false, stride, 16); // Offset by 16 bytes
             GL.VertexAttribDivisor(7, 1);
 
             // Location 8: Instance Rotation Y (float)
             GL.EnableVertexAttribArray(8);
-            GL.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, false, stride, 16); // Offset by 16 bytes (Vector3 + Float)
+            GL.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, false, stride, 24); // Offset by 24 bytes 
             GL.VertexAttribDivisor(8, 1);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);

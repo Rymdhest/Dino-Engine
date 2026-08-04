@@ -126,7 +126,8 @@ namespace Dino_Engine.Textures
         }
         public void AddImposterToModel(glModel model, float distance)
         {
-            ImposterData imposterData = new ImposterData(preparedTextures.Count, distance);
+
+            ImposterData imposterData = new ImposterData(loadedImposterTextures/anglesPerImposter, distance, model.box);
             model.Imposter = imposterData;
             for (int i = 0; i < anglesPerImposter; i++)
             {
@@ -272,7 +273,7 @@ namespace Dino_Engine.Textures
         private void PackMaterialLayer(MaterialLayer layer)
         {
             _textureMaterialPackShader.bind();
-            _textureMaterialPackShader.loadUniformFloat("alphaCutoff", 0.5f);
+            _textureMaterialPackShader.loadUniformFloat("alphaCutoff", 0.01f);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, layer.GetLastFrameBuffer().GetAttachment(0));
             GL.ActiveTexture(TextureUnit.Texture1);
@@ -315,7 +316,7 @@ namespace Dino_Engine.Textures
             int mips = (int)Math.Floor(Math.Log(maxDimension, 2)) + 1;
             //if (type == 2) mips = 1;
             //if (type == 1) mips = 1;
-            if (type == 0) mips = 1;
+            //if (type == 0) mips = 1;
             GL.TexStorage3D(TextureTarget3d.Texture2DArray, mips, SizedInternalFormat.Rgba8, TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y, preparedTextures.Count+loadedTextures);
 
             if (loadedTextures > 0)

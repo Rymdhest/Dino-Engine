@@ -5,6 +5,8 @@ using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using OpenTK.Mathematics;
 using System.Collections.Generic;
+using static Dino_Engine.Modelling.Model.glModel;
+using static OpenTK.Graphics.OpenGL.GL;
 
 namespace Dino_Engine.ECS.Systems
 {
@@ -13,12 +15,11 @@ namespace Dino_Engine.ECS.Systems
         private readonly Dictionary<glModel, List<Matrix4>> _commands = new();
 
 
-        private readonly Dictionary<glModel, List<Matrix4>> _nearModels = new();
+        private readonly Dictionary<glModel, List<Matrix4>> _models = new();
 
         // Far: One global list for all imposters (Single Draw Call)
-        private readonly List<ImposterInstanceData> _farImposters = new();
+        private readonly List<ImposterInstanceData> _imposters = new();
 
-        private readonly float _lodDistanceSquared = 20.0f * 20.0f; // Example: 100 units
         private readonly int _minCountForInstanced = 10;
 
         public ModelRenderSystem()
@@ -29,8 +30,8 @@ namespace Dino_Engine.ECS.Systems
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
             // 1. Clear state
-            foreach (var list in _nearModels.Values) list.Clear();
-            _farImposters.Clear();
+            foreach (var list in _models.Values) list.Clear();
+            _imposters.Clear();
 
             Vector3 camPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
 
@@ -48,25 +49,55 @@ namespace Dino_Engine.ECS.Systems
                     float distSq = (pos - camPos).LengthSquared;
 
                     glModel model = modelArray[i].model;
+                    bool useImposter = false;
 
-                    if (distSq > _lodDistanceSquared)
+                    if (model.Imposter != null)
                     {
-                        // Add to global far bucket
-                        _farImposters.Add(new ImposterInstanceData
+                        if (distSq > model.Imposter.DistanceSquared) useImposter = true;
+                    }
+
+                    if (useImposter)
+                    {
+                        Vector3 entityScale = mat.ExtractScale();
+                        ImposterData imposter = model.Imposter;
+
+                        // 1. Safe extraction of rotation (fixes spinning bugs caused by scale)
+                        float rotY = MathF.Atan2(mat.M13, mat.M11);
+
+                        // 2. Rotate pre-calculated local center by entity's Y-rotation
+                        // Note: imposter.LocalCenter must be calculated in your constructor as: (box.max + box.min) / 2f
+                        Vector3 scaledCenter = imposter.LocalCenter * entityScale;
+
+                        // USE rotY HERE, NOT ExtractRotation()
+                        float cos = MathF.Cos(rotY);
+                        float sin = MathF.Sin(rotY);
+
+                        Vector3 rotatedOffset = new Vector3(
+                            scaledCenter.X * cos - scaledCenter.Z * sin,
+                            scaledCenter.Y, // Y offset is unaffected by Y-rotation
+                            scaledCenter.X * sin + scaledCenter.Z * cos
+                        );
+
+                        // 3. Final quad center in world space
+                        Vector3 quadWorldCenter = pos + rotatedOffset;
+
+                        // 4. Add to instance buffer
+                        _imposters.Add(new ImposterInstanceData
                         {
-                            Position = pos,
-                            Scale = mat.ExtractScale().Y * 10, 
-                            RotationY = MathF.Atan2(mat.M13, mat.M11)
-                            
+                            modelID = (float)model.Imposter.TextureIndex,
+                            Position = quadWorldCenter,
+
+                            // imposter.Scale should be (maxXZ, length.Y) from your texture generation step
+                            Scale = imposter.Scale * new Vector2(MathF.Max(entityScale.X, entityScale.Z), entityScale.Y),
+                            RotationY = rotY
                         });
                     }
                     else
                     {
-                        // Add to near bucket
-                        if (!_nearModels.TryGetValue(model, out var list))
+                        if (!_models.TryGetValue(model, out var list))
                         {
                             list = new List<Matrix4>();
-                            _nearModels[model] = list;
+                            _models[model] = list;
                         }
                         list.Add(mat);
                     }
@@ -74,7 +105,7 @@ namespace Dino_Engine.ECS.Systems
             }
 
             // 3. Submit Near Commands (Instanced or Standard)
-            foreach (var kvp in _nearModels)
+            foreach (var kvp in _models)
             {
                 if (kvp.Value.Count == 0) continue;
 
@@ -89,11 +120,11 @@ namespace Dino_Engine.ECS.Systems
             }
 
             // 4. Submit Global Imposter Command (One draw call total!)
-            if (_farImposters.Count > 0)
+            if (_imposters.Count > 0)
             {
                 Engine.RenderEngine._imposterRenderer.SubmitGeometryCommand(new ImposterRenderCommand
                 {
-                    instances = _farImposters.ToArray()
+                    instances = _imposters.ToArray()
                 });
             }
         }
