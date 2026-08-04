@@ -82,7 +82,7 @@ namespace Dino_Engine.Util
             matrix = matrix * Matrix4.CreateTranslation(position);
             return matrix;
         }
-        public static Matrix4 createTransformationMatrix(Vector3 position, Quaternion rotation, Vector3 scale)
+        public static Matrix4 createTransformationMatrix(in Vector3 position,in Quaternion rotation, in Vector3 scale)
         {
 
             Matrix4 matrix = Matrix4.Identity;

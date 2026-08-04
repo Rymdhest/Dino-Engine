@@ -1,14 +1,12 @@
 ﻿using Dino_Engine.Core;
-using Dino_Engine.ECS;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
-using Dino_Engine.Modelling.Procedural.Indoor;
-using Dino_Engine.Modelling.Procedural.Urban;
 using Dino_Engine.Physics;
 using Dino_Engine.Rendering;
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
+using static OpenTK.Graphics.OpenGL.GL;
 
 namespace Dino_Engine.Textures
 {
@@ -55,28 +53,27 @@ namespace Dino_Engine.Textures
             _textureStudioShader.unBind();
         }
 
-        public MaterialMapsTextures GenerateTextureFromMesh(Mesh mesh, bool fullStretch = true)
-        {
 
+        public MaterialMapsTextures GenerateTextureFromModel(glModel model, bool fullStretch = true, float rotY = 0f)
+        {
             framBuffer.bind();
             _textureStudioShader.bind();
             //GL.ClearColor(0f, 0f, 0f, 0f);
             GL.DepthMask(true);
             //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            GL.ClearBuffer(ClearBuffer.Color, 0, new float[] { 1f, 0f, 0f, 0f });  // Albedo - alpha
-            GL.ClearBuffer(ClearBuffer.Color, 1, new float[] { 0f, 0f, -1f, 0f });  // Normal - AO
-            GL.ClearBuffer(ClearBuffer.Color, 2, new float[] { 1f, 0f, 0f, 0f });  // Materials
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 0, new float[] { 1f, 0f, 0f, 0f });  // Albedo - alpha
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 1, new float[] { 0f, 0f, -1f, 0f });  // Normal - AO
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 2, new float[] { 1f, 0f, 0f, 0f });  // Materials
             GL.Clear(ClearBufferMask.DepthBufferBit);
 
             GL.Enable(EnableCap.DepthTest);
             GL.DepthFunc(DepthFunction.Less);
             GL.Enable(EnableCap.CullFace);
+            GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
 
-
-            glModel model = glLoader.loadToVAO(mesh);
 
             GL.BindVertexArray(model.getVAOID());
             GL.EnableVertexAttribArray(0);
@@ -86,23 +83,21 @@ namespace Dino_Engine.Textures
             GL.EnableVertexAttribArray(4);
             GL.EnableVertexAttribArray(5);
 
-            AABB box = mesh.createAABB();
-
-
+            AABB box = model.box;
             Vector3 length = box.max - box.min;
             Matrix4 projectionMatrix;
 
             if (fullStretch)
             {
-                projectionMatrix = Matrix4.CreateOrthographic(length.X, length.Y, 0f,length.Z);
+                projectionMatrix = Matrix4.CreateOrthographic(length.X, length.Y, 0f, length.Z);
             }
             else
             {
                 float max = MathF.Max(length.Y, length.X);
-                projectionMatrix = Matrix4.CreateOrthographic(max, max, 0f,length.Z );
+                projectionMatrix = Matrix4.CreateOrthographic(max, max, 0f, length.Z*2.0f);
             }
             Matrix4 viewMatrix = MyMath.createViewMatrix(new Vector3(0f, 0f, 0f), new Vector3(0f, 0f, 0f));
-            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(-length.X / 2f - box.min.X, -length.Y / 2f - box.min.Y, box.min.Z), new Vector3(0f), new Vector3(1f)));
+            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(-length.X / 2f - box.min.X, -length.Y / 2f - box.min.Y, -length.Z/2f + box.min.Z), new Vector3(0f, rotY, 0f), new Vector3(1f)));
             //transformationMatrix = MyMath.createTransformationMatrix(new Transformation(new Vector3(0, 0, -11), new Vector3(0f), new Vector3(1f)));
 
             Matrix4 modelViewMatrix = transformationMatrix * viewMatrix;
@@ -130,12 +125,19 @@ namespace Dino_Engine.Textures
             _textureStudioShader.unBind();
             framBuffer.unbind();
             GL.BindVertexArray(0);
-            model.cleanUp();
 
             int albedo = framBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
             int normal = framBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment1);
             int materials = framBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment2);
             return new MaterialMapsTextures(albedo, normal, materials);
+        }
+        public MaterialMapsTextures GenerateTextureFromMesh(Mesh mesh, bool fullStretch = true)
+        {
+            glModel model = glLoader.loadToVAO(mesh);
+            var textures = GenerateTextureFromModel(model, fullStretch);
+            model.cleanUp();
+            return textures;
+
         }
 
         public void CleanUp()

@@ -57,6 +57,7 @@ namespace Dino_Engine.Rendering
         public ModelRenderer _modelRenderer;
         public TerrainRenderer _terrainRenderer;
         public InstancedModelRenderer _instancedModelRenderer;
+        public ImposterRenderer _imposterRenderer;
         public DirectionalLightRenderer _directionalLightRenderer;
         public PointLightRenderer _pointLightRenderer;
         private ToneMapRenderer _toneMapRenderer;
@@ -125,6 +126,7 @@ namespace Dino_Engine.Rendering
             _modelRenderer = new ModelRenderer();
             _terrainRenderer = new TerrainRenderer();
             _instancedModelRenderer = new InstancedModelRenderer();
+            _imposterRenderer = new ImposterRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
             _pointLightRenderer = new PointLightRenderer();
             _toneMapRenderer = new ToneMapRenderer();
@@ -239,7 +241,7 @@ namespace Dino_Engine.Rendering
 
             _modelRenderer.ShadowRenderPass(this);
             _instancedModelRenderer.ShadowRenderPass(this);
-
+            _imposterRenderer.ShadowRenderPass(this);
 
         }
 
@@ -252,6 +254,7 @@ namespace Dino_Engine.Rendering
             
             _modelRenderer.GeometryRenderPass(this);
             _instancedModelRenderer.GeometryRenderPass(this);
+            _imposterRenderer.GeometryRenderPass(this);
 
             _terrainRenderer.GeometryRenderPass(this);
             _grassRenderer.GeometryRenderPass(this);

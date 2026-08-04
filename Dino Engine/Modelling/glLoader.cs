@@ -16,8 +16,9 @@ public class glLoader
         {
             indices[i] = vindices[i].index;
         }
-
-        return loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursFloatArray(), mesh.getAllNormalsArray(),mesh.getAllTangentsArray(), mesh.getAllUVsArray(), mesh.getAllMaterialIndicesArray(), indices);
+        glModel model = loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursFloatArray(), mesh.getAllNormalsArray(), mesh.getAllTangentsArray(), mesh.getAllUVsArray(), mesh.getAllMaterialIndicesArray(), indices);
+        model.box = mesh.createAABB();
+        return model;
     }
     public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, int[] indices)
     {

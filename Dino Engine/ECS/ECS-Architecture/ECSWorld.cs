@@ -1,8 +1,6 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
-using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
-using System.Runtime.CompilerServices;
 
 namespace Dino_Engine.ECS.ECS_Architecture
 {
@@ -205,7 +203,8 @@ namespace Dino_Engine.ECS.ECS_Architecture
             foreach (int compId in oldArchetype.Mask.GetSetBits())
             {
                 var array = oldArchetype.ComponentArrays[compId];
-                var componentValue = array.GetType().GetMethod("Get")!.Invoke(array, new object[] { oldIndex });
+                var list = (System.Collections.IList)array;
+                var componentValue = list[oldIndex];
                 components[compId] = componentValue;
             }
 

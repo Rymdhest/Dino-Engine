@@ -1,14 +1,5 @@
 ﻿using Dino_Engine.Core;
-using Dino_Engine.Rendering.Renderers.PosGeometry;
-using Dino_Engine.Util;
-using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace Dino_Engine.ECS.ECS_Architecture
 {
     public abstract class SystemBase

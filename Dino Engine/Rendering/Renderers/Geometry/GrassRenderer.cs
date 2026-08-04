@@ -233,8 +233,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 new Vector2(MyMath.lerp(radiusBase, radiusTop, 0.66f), bladeHeight*0.66f),
                 new Vector2(radiusTop, bladeHeight*0.95f),
                 new Vector2(0.0001f, bladeHeight)};
-            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 4, grassMaterial);
-            bladeMesh.scale(new Vector3(1f, 1f, 0.3f));
+            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 3, grassMaterial);
+            bladeMesh.scale(new Vector3(1f, 1f, 0.99f));
 
             bladeMesh.makeFlat(true, false);
             return glLoader.loadToVAO(bladeMesh);
@@ -309,11 +309,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 50;
+            bladesPerAxis = 32;
 
             bladeHeight =2.0f;
             radiusBase = 0.005f;
-            radiusTop = radiusBase * 0.6f;
+            radiusTop = radiusBase * 0.8f;
 
             var world = Engine.Instance.world;
             Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();

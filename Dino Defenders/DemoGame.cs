@@ -411,7 +411,7 @@ namespace Dino_Defenders
             }
             branch.translate(new Vector3(0f, -2f, 0.0f));
             branch.rotate(new Vector3(-MathF.PI/1.45f, 0f, 0f));
-            r = 3.0f;
+            r = 1.0f;
             float[] sinFBM3 = FBMmisc.sinFBM(4, 1.93f, n);
             float[] sinFBM4 = FBMmisc.sinFBM(5, 1.65f, n);
             controlPoints.Clear();
@@ -455,7 +455,7 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 25;
+            int nBranches = 5;
             for (int i = 0; i < nBranches; i++)
             {
                 float t = 0.2f+0.8f*(float)i/(nBranches - 1);
@@ -471,22 +471,51 @@ namespace Dino_Defenders
                 cylinderMesh += newBranch;
             }
             cylinderMesh.scale(new Vector3(0.2f));
-
+            
             Console.WriteLine("TREE HAS: "+cylinderMesh.faces.Count+" FACES");
 
-
+    
             float terrainSize = 1000f;
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(treeModel, 10);
             for (int i = 0; i<500; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
                 float height = 4f + MyMath.rng(0.9f);
                 float radius =2f+MyMath.rngMinusPlus(0.3f);
+                height = 1.0f;
+                radius = height;
                 world.CreateEntity("tree test: "+i,
                     new PositionComponent(treePos),
                     new RotationComponent(new Vector3(0f, MyMath.rng()*MathF.Tau, 0f)),
+                    new ScaleComponent(new Vector3(radius, height, radius)),
+                    new ModelComponent(treeModel),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent(),
+                    new ColliderComponent
+                    {
+                        Type = ColliderType.Cylinder,
+                        Data = new ColliderData { HalfExtents = new Vector3(radius, height * 2f, radius) },
+                        Restitution = 0.2f // Trees aren't very bouncy
+                    }
+                );
+            }
+
+            int numTreesOnLine = 10;
+            for (int i = 0; i < numTreesOnLine; i++)
+            {
+                float factor = (float)i / (numTreesOnLine-1);
+                Vector3 treePos = new Vector3(factor * 40f + 40f, 0, 0);
+                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
+                float height = 4f + MyMath.rng(0.9f);
+                float radius = 2f + MyMath.rngMinusPlus(0.3f);
+                height = 1.0f;
+                radius = height;
+                world.CreateEntity("tree line test: " + i,
+                    new PositionComponent(treePos),
+                    new RotationComponent(new Vector3(0f, factor * MathF.Tau, 0f)),
                     new ScaleComponent(new Vector3(radius, height, radius)),
                     new ModelComponent(treeModel),
                     new ModelRenderTag(),

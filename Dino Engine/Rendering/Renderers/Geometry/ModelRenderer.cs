@@ -10,6 +10,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     {
         public Matrix4[] matrices;
         public glModel model;
+
+        public ModelRenderCommand(glModel model, Matrix4[] matrices)
+        {
+            this.model = model;
+            this.matrices = matrices;
+        }
     }
     public class ModelRenderer : GeometryCommandDrivenRenderer<ModelRenderCommand>
     {
@@ -49,7 +55,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _modelShader.bind();
 
-            _modelShader.loadUniformFloat("parallaxDepth", 0.2f);
+            _modelShader.loadUniformFloat("parallaxDepth", 0.0f);
             _modelShader.loadUniformFloat("parallaxLayers", 60);
 
             _modelShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
@@ -63,6 +69,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
+
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
             GL.ActiveTexture(TextureUnit.Texture4);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
             GL.ActiveTexture(TextureUnit.Texture5);

@@ -16,11 +16,20 @@ using System.Net.Mail;
 using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
+using static Dino_Engine.Modelling.Model.glModel;
 using static Dino_Engine.Textures.MaterialLayersManipulator;
 using static Dino_Engine.Textures.ProceduralTextureRenderer;
+using static OpenTK.Graphics.OpenGL.GL;
 
 namespace Dino_Engine.Textures
 {
+
+    public enum arrayType     {
+        material,
+        model,
+        imposter
+    }
+
     public class TextureGenerator
     {
         public int megaAlbedoTextureArray;
@@ -34,11 +43,16 @@ namespace Dino_Engine.Textures
         public int megaNormalModelTextureArray;
         public int megaMaterialModelTextureArray;
 
+        public int megaAlbedoImposterTextureArray;
+        public int megaNormalImposterTextureArray;
+        public int megaMaterialImposterTextureArray;
+
         public int loadedModelTextures = 0;
         public int loadedMaterialTextures = 0;
+        public int loadedImposterTextures = 0;
 
         public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(1024, 1024)*1;
-
+        public readonly int anglesPerImposter = 8;
 
         public static int flat;
         public static int test;
@@ -110,6 +124,16 @@ namespace Dino_Engine.Textures
 
             textureStudio = new TextureStudio();
         }
+        public void AddImposterToModel(glModel model, float distance)
+        {
+            ImposterData imposterData = new ImposterData(preparedTextures.Count, distance);
+            model.Imposter = imposterData;
+            for (int i = 0; i < anglesPerImposter; i++)
+            {
+                preparedTextures.Add(textureStudio.GenerateTextureFromModel(model, fullStretch: false, rotY: i * (MathF.Tau / anglesPerImposter)));
+            }
+            addAllPreparedTexturesToTexArray(arrayType.imposter);
+        }
 
         public void GenerateAllTextures()
         {
@@ -130,13 +154,13 @@ namespace Dino_Engine.Textures
             wax = createWaxTexture();
             ice = createIceTexture();
 
-            addAllPreparedTexturesToTexArray(true);
+            addAllPreparedTexturesToTexArray(arrayType.material);
            
            
            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(), fullStretch: true));
            
           leaf = preparedTextures.Count - 1 + loadedMaterialTextures;
-          addAllPreparedTexturesToTexArray(false);
+          addAllPreparedTexturesToTexArray(arrayType.model);
 
 
             float leafSize = 10f;
@@ -185,7 +209,7 @@ namespace Dino_Engine.Textures
             TEST_BRANCH_MESH = mesh;
         preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
         leafBranch = preparedTextures.Count-1+ loadedMaterialTextures+loadedModelTextures;
-        addAllPreparedTexturesToTexArray(false);
+        addAllPreparedTexturesToTexArray(arrayType.model);
 
 
         Mesh treeBranchMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(1, 1), new VertexMaterial(leafBranch));
@@ -214,7 +238,7 @@ namespace Dino_Engine.Textures
         TEST_TREE_BRANCh_MESH = mesh2;
         preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
         treeBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
-        addAllPreparedTexturesToTexArray(false);
+        addAllPreparedTexturesToTexArray(arrayType.model);
 
         
         }
@@ -276,12 +300,12 @@ namespace Dino_Engine.Textures
             return preparedTextures.Count-1;
         }
 
-        private int loadTypeOfTextureToArray(int type, int oldArray, bool isMaterial)
+        private int loadTypeOfTextureToArray(int type, int oldArray, arrayType arrayType)
         {
             int loadedTextures;
-            if (isMaterial) loadedTextures = loadedMaterialTextures;
-            else loadedTextures = loadedModelTextures;
-
+            if (arrayType == arrayType.material) loadedTextures = loadedMaterialTextures;
+            else if (arrayType == arrayType.model) loadedTextures = loadedModelTextures;
+            else loadedTextures = loadedImposterTextures;
             int textureArray = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2DArray, textureArray);
 
@@ -291,7 +315,7 @@ namespace Dino_Engine.Textures
             int mips = (int)Math.Floor(Math.Log(maxDimension, 2)) + 1;
             //if (type == 2) mips = 1;
             //if (type == 1) mips = 1;
-            //if (type == 0) mips = 1;
+            if (type == 0) mips = 1;
             GL.TexStorage3D(TextureTarget3d.Texture2DArray, mips, SizedInternalFormat.Rgba8, TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y, preparedTextures.Count+loadedTextures);
 
             if (loadedTextures > 0)
@@ -313,7 +337,7 @@ namespace Dino_Engine.Textures
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
 
-            if (isMaterial)
+            if (arrayType == arrayType.material)
             {
                 GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
                 GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
@@ -333,22 +357,31 @@ namespace Dino_Engine.Textures
         }
 
 
-        private void addAllPreparedTexturesToTexArray(bool isMaterial)
+        private void addAllPreparedTexturesToTexArray(arrayType arrayType)
         {
-            if (isMaterial)
+            if (arrayType == arrayType.material)
             {
-                megaAlbedoTextureArray = loadTypeOfTextureToArray(0, megaAlbedoTextureArray, isMaterial);
-                megaNormalTextureArray = loadTypeOfTextureToArray(1, megaNormalTextureArray, isMaterial);
-                megaMaterialTextureArray = loadTypeOfTextureToArray(2, megaMaterialTextureArray, isMaterial);
+                megaAlbedoTextureArray = loadTypeOfTextureToArray(0, megaAlbedoTextureArray, arrayType);
+                megaNormalTextureArray = loadTypeOfTextureToArray(1, megaNormalTextureArray, arrayType);
+                megaMaterialTextureArray = loadTypeOfTextureToArray(2, megaMaterialTextureArray, arrayType);
 
                 loadedMaterialTextures += preparedTextures.Count;
-            } else
+            }
+            else if (arrayType == arrayType.model)
             {
-                megaAlbedoModelTextureArray = loadTypeOfTextureToArray(0, megaAlbedoModelTextureArray, isMaterial);
-                megaNormalModelTextureArray = loadTypeOfTextureToArray(1, megaNormalModelTextureArray, isMaterial);
-                megaMaterialModelTextureArray = loadTypeOfTextureToArray(2, megaMaterialModelTextureArray, isMaterial);
+                megaAlbedoModelTextureArray = loadTypeOfTextureToArray(0, megaAlbedoModelTextureArray, arrayType);
+                megaNormalModelTextureArray = loadTypeOfTextureToArray(1, megaNormalModelTextureArray, arrayType);
+                megaMaterialModelTextureArray = loadTypeOfTextureToArray(2, megaMaterialModelTextureArray, arrayType);
 
                 loadedModelTextures += preparedTextures.Count;
+            }
+            else if (arrayType == arrayType.imposter)
+            {
+                megaAlbedoImposterTextureArray = loadTypeOfTextureToArray(0, megaAlbedoImposterTextureArray, arrayType);
+                megaNormalImposterTextureArray = loadTypeOfTextureToArray(1, megaNormalImposterTextureArray, arrayType);
+                megaMaterialImposterTextureArray = loadTypeOfTextureToArray(2, megaMaterialImposterTextureArray, arrayType);
+
+                loadedImposterTextures += preparedTextures.Count;
             }
 
 
@@ -625,6 +658,10 @@ namespace Dino_Engine.Textures
             GL.DeleteTexture(megaAlbedoModelTextureArray);
             GL.DeleteTexture(megaNormalModelTextureArray);
             GL.DeleteTexture(megaMaterialModelTextureArray);
+
+            GL.DeleteTexture(megaAlbedoImposterTextureArray);
+            GL.DeleteTexture(megaNormalImposterTextureArray);
+            GL.DeleteTexture(megaMaterialImposterTextureArray);
 
             loadedModelTextures = 0;
             loadedMaterialTextures = 0;

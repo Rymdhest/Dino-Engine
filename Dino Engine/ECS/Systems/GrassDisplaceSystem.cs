@@ -27,8 +27,6 @@ namespace Dino_Engine.ECS.Systems
 
             foreach (var collisionEvent in buffer.Events)
             {
-                Console.WriteLine(collisionEvent.ContactPoint);
-
                 BlastData blast = new BlastData();
                 blast.exponent = 0.6f;
                 blast.radius = 1.33f;

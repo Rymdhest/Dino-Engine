@@ -38,8 +38,13 @@ namespace Dino_Engine.ECS.Systems
             }
             entity.Set(shadowCascade);
 
-            // 2. Pre-build Model Commands (Once per frame, not per cascade)
-            _cachedCommands.Clear();
+            // 2. Pre-build Model Commands (Fixing the Dictionary Trap)
+            // ONLY clear the underlying lists, keep the dictionary keys and list allocations intact!
+            foreach (var list in _cachedCommands.Values)
+            {
+                list.Clear();
+            }
+
             var shadowCastingModels = world.QueryEntities(new BitMask(typeof(ModelComponent), typeof(ModelRenderTag), typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
 
             for (int i = 0; i < shadowCastingModels.Count; i++)
@@ -55,19 +60,33 @@ namespace Dino_Engine.ECS.Systems
                 list.Add(ltw);
             }
 
+            // NEW: Convert Lists to Arrays ONCE per frame, not per cascade
+            // We create a temporary list of pre-built commands to feed to the cascades
+            var prebuiltCommands = new List<ModelRenderCommand>(_cachedCommands.Count);
+            foreach (var kvp in _cachedCommands)
+            {
+                if (kvp.Value.Count > 0)
+                {
+                    prebuiltCommands.Add(new ModelRenderCommand
+                    {
+                        model = kvp.Key,
+                        matrices = kvp.Value.ToArray() // Allocated exactly ONCE per unique model
+                    });
+                }
+            }
+
             // 3. Submit Models for each cascade
             for (int j = 0; j < shadowCascade.cascades.Length; j++)
             {
                 Shadow cascade = shadowCascade.cascades[j];
-                foreach (var kvp in _cachedCommands)
+                foreach (var cmd in prebuiltCommands)
                 {
-                    var model = kvp.Key;
-                    var matrices = kvp.Value;
-
-                    if (matrices.Count > minCountForInstanced)
-                        Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(new ModelRenderCommand { model = model, matrices = matrices.ToArray() }, cascade);
+                    
+                    if (cmd.matrices.Length > minCountForInstanced)
+                        Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, cascade);
                     else
-                        Engine.RenderEngine._modelRenderer.SubmitShadowCommand(new ModelRenderCommand { model = model, matrices = matrices.ToArray() }, cascade);
+                        Engine.RenderEngine._modelRenderer.SubmitShadowCommand(cmd, cascade);
+                    
                 }
             }
 
@@ -77,6 +96,8 @@ namespace Dino_Engine.ECS.Systems
             for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
                 Shadow shadow = shadowCascade.cascades[i];
+
+                // Reusing the lists
                 _visibleChunks.Clear();
                 _terrainCommands.Clear();
                 _grassCommands.Clear();
@@ -99,6 +120,9 @@ namespace Dino_Engine.ECS.Systems
                     }
                 }
 
+                // Fix: Call ToArray() at the very end of the collection process. 
+                // Note: If GrassRenderCommand/TerrainRenderCommand can be modified in your engine 
+                // to accept IReadOnlyList<T> or Span<T> instead of arrays, you would eliminate this final allocation entirely.
                 Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(_grassCommands.ToArray(), 0), shadow);
                 Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(_terrainCommands.ToArray(), 0.0f), shadow);
             }
