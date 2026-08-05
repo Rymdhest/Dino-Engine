@@ -19,22 +19,31 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
         public static Mesh GenerateLeaf()
         {
-            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.grass, new Colour(120, 100, 25));
+            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.grass, new Colour(135, 155, 145));
 
-            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(0.15f, 1f), new Vector2i(50, 50), leafMaterial);
+            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(1f, 1f), new Vector2i(50, 50), leafMaterial);
             leafMesh.rotate(new Vector3(MathF.PI/2f, 0f, 0f));
+
+            float wholeLeafBend = 1.0f;
+            float stemBend = 0.5f;
 
             for (int i = 0; i < leafMesh.meshVertices.Count; i++)
             {
-                leafMesh.meshVertices[i].position.X *= 2f + MathF.Sin((leafMesh.meshVertices[i].position.Y + 0.25f) * MathF.Tau * 1.0f) * 0.99f;
+                float ratioY = leafMesh.meshVertices[i].position.Y+0.5f;
+                float width = leafMesh.meshVertices[i].position.X;
+                Console.WriteLine(ratioY);
+                width *= MathF.Sin((MathF.Pow(ratioY, 0.7f)) * MathF.PI) + 0.001f+MathF.Sin(ratioY*16* MathF.Tau)*0.035f;
+                //width *= MathF.Pow(2, 0.9f+ratioY*0.1f);
+                leafMesh.meshVertices[i].position.X = width*0.5f;
+
                 //leafMesh.meshVertices[i].position.X += MathF.Sin(leafMesh.meshVertices[i].position.Y * MathF.Tau * 10f) * 0.005f;
 
-                leafMesh.meshVertices[i].position.Z += MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 20f) * 0.001f;
+                //leafMesh.meshVertices[i].position.Z += MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 20f) * 0.001f;
 
 
                 //leafMesh.meshVertices[i].position.Z = MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 15f) * 0.000005f;
             }
-
+            leafMesh.ProjectUVsWorldSpaceCube(1.0f);
 
 
             leafMesh.rotate(new Vector3(0, 0f, 0f));

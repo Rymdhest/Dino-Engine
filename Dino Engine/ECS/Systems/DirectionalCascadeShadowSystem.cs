@@ -5,7 +5,9 @@ using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using OpenTK.Mathematics;
+using System;
 using System.Collections.Generic;
+using static Dino_Engine.Modelling.Model.glModel;
 
 namespace Dino_Engine.ECS.Systems
 {
@@ -14,7 +16,9 @@ namespace Dino_Engine.ECS.Systems
         private int minCountForInstanced = 10;
 
         // Persistent structures to avoid per-frame allocations
-        private readonly Dictionary<glModel, List<Matrix4>> _cachedCommands = new();
+        private readonly Dictionary<glModel, List<Matrix4>> _models = new();
+        private readonly List<ImposterInstanceData> _imposters = new();
+
         private readonly List<Entity> _visibleChunks = new();
         private readonly List<TerrainChunkRenderData> _terrainCommands = new();
         private readonly List<GrassChunkRenderData> _grassCommands = new();
@@ -30,7 +34,7 @@ namespace Dino_Engine.ECS.Systems
             var shadowCascade = entity.Get<DirectionalCascadingShadowComponent>();
             var cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
 
-            // 1. Prepare View Matrices
+            // 1. Prepare View Matrices for Cascades
             for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
                 shadowCascade.cascades[i].lightViewMatrix = CreateLightViewMatrix(direction, cameraPos, shadowCascade.cascades[i].projectionSize);
@@ -38,66 +42,117 @@ namespace Dino_Engine.ECS.Systems
             }
             entity.Set(shadowCascade);
 
-            // 2. Pre-build Model Commands (Fixing the Dictionary Trap)
-            // ONLY clear the underlying lists, keep the dictionary keys and list allocations intact!
-            foreach (var list in _cachedCommands.Values)
+            // 2. Clear state
+            foreach (var list in _models.Values) list.Clear();
+            _imposters.Clear();
+
+            // 3. Classify Archetypes (LOD checking models vs imposters based on camera distance)
+            var modelQuery = world.QueryArchetypes(new BitMask(typeof(ModelRenderTag), typeof(ModelComponent), typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
+
+            foreach (var archetype in modelQuery)
             {
-                list.Clear();
-            }
+                var modelArray = archetype.GetComponentArray<ModelComponent>();
+                var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
+                int count = archetype.EntityCount;
 
-            var shadowCastingModels = world.QueryEntities(new BitMask(typeof(ModelComponent), typeof(ModelRenderTag), typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
-
-            for (int i = 0; i < shadowCastingModels.Count; i++)
-            {
-                var ltw = world.GetComponent<LocalToWorldMatrixComponent>(shadowCastingModels[i]).value;
-                var model = world.GetComponent<ModelComponent>(shadowCastingModels[i]).model;
-
-                if (!_cachedCommands.TryGetValue(model, out var list))
+                for (int i = 0; i < count; i++)
                 {
-                    list = new List<Matrix4>();
-                    _cachedCommands[model] = list;
+                    Matrix4 mat = matrixArray[i].value;
+                    Vector3 pos = mat.ExtractTranslation();
+                    float distSq = (pos - cameraPos).LengthSquared;
+
+                    glModel model = modelArray[i].model;
+                    bool useImposter = false;
+
+                    if (model.Imposter != null)
+                    {
+                        if (distSq > model.Imposter.DistanceSquared) useImposter = true;
+                    }
+
+                    if (useImposter)
+                    {
+                        Vector3 entityScale = mat.ExtractScale();
+                        ImposterData imposter = model.Imposter;
+
+                        float rotY = MathF.Atan2(mat.M13, mat.M11);
+                        Vector3 scaledCenter = imposter.LocalCenter * entityScale;
+
+                        float cos = MathF.Cos(rotY);
+                        float sin = MathF.Sin(rotY);
+
+                        Vector3 rotatedOffset = new Vector3(
+                            scaledCenter.X * cos - scaledCenter.Z * sin,
+                            scaledCenter.Y,
+                            scaledCenter.X * sin + scaledCenter.Z * cos
+                        );
+
+                        Vector3 quadWorldCenter = pos + rotatedOffset;
+
+                        _imposters.Add(new ImposterInstanceData
+                        {
+                            modelID = (float)model.Imposter.TextureIndex,
+                            Position = quadWorldCenter,
+                            Scale = entityScale,
+                            RotationY = rotY,
+                            BaseLength = imposter.BaseLength
+                        });
+                    }
+                    else
+                    {
+                        if (!_models.TryGetValue(model, out var list))
+                        {
+                            list = new List<Matrix4>();
+                            _models[model] = list;
+                        }
+                        list.Add(mat);
+                    }
                 }
-                list.Add(ltw);
             }
 
-            // NEW: Convert Lists to Arrays ONCE per frame, not per cascade
-            // We create a temporary list of pre-built commands to feed to the cascades
-            var prebuiltCommands = new List<ModelRenderCommand>(_cachedCommands.Count);
-            foreach (var kvp in _cachedCommands)
+            // 4. Pre-build Commands ONCE per frame (Array allocations)
+            var prebuiltModelCommands = new List<ModelRenderCommand>(_models.Count);
+            foreach (var kvp in _models)
             {
                 if (kvp.Value.Count > 0)
                 {
-                    prebuiltCommands.Add(new ModelRenderCommand
-                    {
-                        model = kvp.Key,
-                        matrices = kvp.Value.ToArray() // Allocated exactly ONCE per unique model
-                    });
+                    prebuiltModelCommands.Add(new ModelRenderCommand(kvp.Key, kvp.Value.ToArray()));
                 }
             }
 
-            // 3. Submit Models for each cascade
+            ImposterRenderCommand? imposterCommand = null;
+            if (_imposters.Count > 0)
+            {
+                imposterCommand = new ImposterRenderCommand { instances = _imposters.ToArray() };
+            }
+
+            // 5. Submit Models & Imposters to each Cascade
             for (int j = 0; j < shadowCascade.cascades.Length; j++)
             {
                 Shadow cascade = shadowCascade.cascades[j];
-                foreach (var cmd in prebuiltCommands)
+
+                // Standard Models
+                foreach (var cmd in prebuiltModelCommands)
                 {
-                    
                     if (cmd.matrices.Length > minCountForInstanced)
                         Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, cascade);
                     else
                         Engine.RenderEngine._modelRenderer.SubmitShadowCommand(cmd, cascade);
-                    
+                }
+
+                // Imposters
+                if (imposterCommand.HasValue)
+                {
+                    Engine.RenderEngine._imposterRenderer.SubmitShadowCommand(imposterCommand.Value, cascade);
                 }
             }
 
-            // 4. Terrain & Grass
+            // 6. Terrain & Grass
             var quadtreeComp = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
 
             for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
                 Shadow shadow = shadowCascade.cascades[i];
 
-                // Reusing the lists
                 _visibleChunks.Clear();
                 _terrainCommands.Clear();
                 _grassCommands.Clear();
@@ -114,15 +169,12 @@ namespace Dino_Engine.ECS.Systems
                     _terrainCommands.Add(new TerrainChunkRenderData { chunkPos = ltw.ExtractTranslation(), size = size, arrayID = chunkComp.normalHeightTextureArrayID });
 
                     float dist = Vector2.Distance(cameraPos.Xz, ltw.ExtractTranslation().Xz + size.Xz * 0.5f);
-                    if (dist < 500 && i < 5) // TEST_CASCADE_GRASS_LIMIT
+                    if (dist < 500 && i < 5)
                     {
                         _grassCommands.Add(new GrassChunkRenderData { chunkPos = ltw.ExtractTranslation().Xz, size = size.X, arrayID = chunkComp.normalHeightTextureArrayID });
                     }
                 }
 
-                // Fix: Call ToArray() at the very end of the collection process. 
-                // Note: If GrassRenderCommand/TerrainRenderCommand can be modified in your engine 
-                // to accept IReadOnlyList<T> or Span<T> instead of arrays, you would eliminate this final allocation entirely.
                 Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(_grassCommands.ToArray(), 0), shadow);
                 Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(_terrainCommands.ToArray(), 0.0f), shadow);
             }

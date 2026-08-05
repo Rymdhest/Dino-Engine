@@ -43,7 +43,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _imposterShader.unBind();
 
             _imposterShadowShader.bind();
-            //_imposterShadowShader.loadUniformInt("albedoMapImposterTextureArray", 0);
+            _imposterShadowShader.loadUniformInt("albedoMapTextureArray", 0);
             _imposterShadowShader.unBind();
 
             _instanceVBO = GL.GenBuffer();
@@ -95,8 +95,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoImposterTextureArray);
-            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalImposterTextureArray);
             GL.ActiveTexture(TextureUnit.Texture2);
@@ -131,7 +131,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PrepareShadow(RenderEngine renderEngine)
         {
-            /*
+            
             GL.DepthMask(true);
             GL.Enable(EnableCap.DepthTest);
             GL.Disable(EnableCap.CullFace);
@@ -140,19 +140,19 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.CullFace(CullFaceMode.Back);
 
             _imposterShadowShader.bind();
-            _imposterShadowShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
+            _imposterShadowShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedImposterTextures);
+            _imposterShadowShader.loadUniformInt("sliceCount", Engine.RenderEngine.textureGenerator.anglesPerImposter);
 
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoImposterTextureArray);
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
 
-            GL.ActiveTexture(TextureUnit.Texture3);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
-            */
         }
 
         internal override void FinishShadow(RenderEngine renderEngine)
         {
-            /*
+            
 
             GL.Disable(EnableCap.PolygonOffsetFill);
             GL.Enable(EnableCap.CullFace);
@@ -166,7 +166,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.DisableVertexAttribArray(8);
             GL.DisableVertexAttribArray(9);
             GL.BindVertexArray(0);
-            */
+            
         }
 
         internal override void PerformGeometryCommand(ImposterRenderCommand command, RenderEngine renderEngine)
@@ -175,7 +175,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             if (instanceCount == 0) return;
 
             // 1. Upload Data
-            int stride = Marshal.SizeOf<ImposterInstanceData>(); // Will be 28 bytes
+            int stride = Marshal.SizeOf<ImposterInstanceData>(); // Will be 44 bytes
             int sizeInBytes = instanceCount * stride;
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
@@ -229,7 +229,75 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(ImposterRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
-            
+            if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
+            {
+                shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
+            }
+            else
+            {
+                shadow.shadowFrameBuffer.bind();
+            }
+
+            GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
+
+
+            _imposterShadowShader.loadUniformMatrix4f("viewpPojectionMatrix", shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
+            _imposterShadowShader.loadUniformMatrix4f("lightViewpMatrix", shadow.lightViewMatrix);
+
+            int instanceCount = command.instances.Length;
+            if (instanceCount == 0) return;
+
+            // 1. Upload Data
+            int stride = Marshal.SizeOf<ImposterInstanceData>(); // Will be 44 bytes
+            int sizeInBytes = instanceCount * stride;
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
+            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, command.instances, BufferUsageHint.DynamicDraw);
+
+            // 2. Bind Mesh VAO
+            GL.BindVertexArray(imposterModel.getVAOID());
+
+            // Static Mesh Attributes (Locations 0 and 1)
+            GL.EnableVertexAttribArray(0); // Mesh Position
+            GL.EnableVertexAttribArray(1); // Mesh UV
+
+            // 3. Setup Instanced Attributes
+            GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
+
+            // Location 5: Instance model ID (float)
+            GL.EnableVertexAttribArray(5);
+            GL.VertexAttribPointer(5, 1, VertexAttribPointerType.Float, false, stride, 0);
+            GL.VertexAttribDivisor(5, 1);
+
+            // Location 6: Instance Position (vec3)
+            GL.EnableVertexAttribArray(6);
+            GL.VertexAttribPointer(6, 3, VertexAttribPointerType.Float, false, stride, 4);
+            GL.VertexAttribDivisor(6, 1);
+
+            // Location 7: Instance Scale (vec3)
+            GL.EnableVertexAttribArray(7);
+            GL.VertexAttribPointer(7, 3, VertexAttribPointerType.Float, false, stride, 16);
+            GL.VertexAttribDivisor(7, 1);
+
+            // Location 8: Instance Rotation Y (float)
+            GL.EnableVertexAttribArray(8);
+            GL.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, false, stride, 28);
+            GL.VertexAttribDivisor(8, 1);
+
+            // Location 9: Base Length (vec3)
+            GL.EnableVertexAttribArray(9);
+            GL.VertexAttribPointer(9, 3, VertexAttribPointerType.Float, false, stride, 32);
+            GL.VertexAttribDivisor(9, 1);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+
+            // 4. Draw
+            GL.DrawElementsInstanced(
+                PrimitiveType.Triangles,
+                imposterModel.getVertexCount(),
+                DrawElementsType.UnsignedInt,
+                IntPtr.Zero,
+                instanceCount);
         }
     }
 }

@@ -51,7 +51,7 @@ namespace Dino_Engine.Textures
         public int loadedMaterialTextures = 0;
         public int loadedImposterTextures = 0;
 
-        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(1024, 1024)*1;
+        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(512, 512)*1;
         public readonly int anglesPerImposter = 8;
 
         public static int flat;
@@ -158,7 +158,7 @@ namespace Dino_Engine.Textures
             addAllPreparedTexturesToTexArray(arrayType.material);
            
            
-           preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(), fullStretch: true));
+           preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(), fullStretch: false));
            
           leaf = preparedTextures.Count - 1 + loadedMaterialTextures;
           addAllPreparedTexturesToTexArray(arrayType.model);
@@ -191,12 +191,12 @@ namespace Dino_Engine.Textures
         curve.LERPWidth(1f, 0.1f);
         Mesh mesh = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(bark), textureRepeats: 1, flatStart: true);
 
-        int leavesPerSide = 10;
+        int leavesPerSide = 7;
         for (int i = 0; i< leavesPerSide; i++)
         {
-            float t = 0.2f + 0.75f * (float)i / (leavesPerSide - 1);
+            float t = 0.25f + 0.75f * MathF.Pow( (float)i / (leavesPerSide - 1), 0.8f);
             CurvePoint curvePoint = curve.getPointAt(t);
-            var newBranch = branchMesh.scaled(new Vector3(1.1f - t * 0.7f));
+            var newBranch = branchMesh.scaled(new Vector3(1.0f - t * 0.7f));
             Vector3 col = MyMath.rng3D(0.15f);
             newBranch.setColour(new Colour(new Vector3(1f)-col));
             //newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
@@ -215,24 +215,30 @@ namespace Dino_Engine.Textures
 
         Mesh treeBranchMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(1, 1), new VertexMaterial(leafBranch));
             treeBranchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
-            treeBranchMesh.rotate(new Vector3(0, 0f, -MathF.PI / 2.0f));
-            treeBranchMesh.translate(new Vector3(-10f / 2f, 0f, 0f));
-        treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, -MathF.PI / 1f));
+            treeBranchMesh.rotate(new Vector3(0, 0f, -MathF.PI / 1.0f));
+            treeBranchMesh.translate(new Vector3(0f,10f / 2f, 0f));
+        //treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, -MathF.PI / 1f));
         Mesh mesh2 = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(bark), textureRepeats: 1, flatStart: true);
 
-        int branchesPerSide = 12;
+        int branchesPerSide = 16;
         for (int i = 0; i < branchesPerSide; i++)
         {
-            float t = 0.15f + 0.83f * (float)i / (branchesPerSide - 1);
+            float t = 0.15f + 0.83f * MathF.Pow( (float)i / (branchesPerSide - 1), 0.75f);
             CurvePoint curvePoint = curve.getPointAt(t);
-            var newBranch = treeBranchMesh.scaled(new Vector3(1.5f - t * 0.26f));
+            var newBranch = treeBranchMesh.scaled(new Vector3(1.5f - t * 1.16f));
             Vector3 col = MyMath.rng3D(0.2f);
             newBranch.setColour(new Colour(new Vector3(1f) - col));
-            //newBranch.rotate(new Vector3(0,0,0.9f - t * 0.5f));
-            //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
-            //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
-            //newBranch.rotate(new Vector3(i * 0.14f,0f, 0f));
-            newBranch.rotate(curvePoint.rotation);
+
+            float odd = 1.0f;
+            if (i%2==0)
+                {
+                    odd = -1.0f;
+                }
+            newBranch.rotate(new Vector3(0,0,0.9f*odd));
+                //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
+                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+                //newBranch.rotate(new Vector3(i * 0.14f,0f, 0f));
+                newBranch.rotate(curvePoint.rotation);
             newBranch.translate(curvePoint.pos);
             mesh2 += newBranch;
         }
