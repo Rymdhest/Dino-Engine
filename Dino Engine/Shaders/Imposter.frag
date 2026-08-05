@@ -31,7 +31,7 @@ int numberOfMaterials = 0;
 void main() {
 
 	MaterialProps material = LookupAllMaterialProps(fragUV, textureIndex);
-    //if (material.alphaBit == 0) discard;
+    if (material.alphaBit == 0) discard;
 
 	gAlbedo.rgb = material.albedo;
 	vec3 normal = material.normal;

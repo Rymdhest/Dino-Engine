@@ -15,9 +15,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     {
         public float modelID;  // 4 bytes
         public Vector3 Position; // 12 bytes
-        public Vector2 Scale;      // 8 bytes
+        public Vector3 Scale;      // 12 bytes
         public float RotationY;   // 4 bytes
-                                 // Total Stride = 28 bytes
+        public Vector3 BaseLength;      // 12 bytes
     }
 
     public struct ImposterRenderCommand : IRenderCommand
@@ -201,15 +201,20 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.VertexAttribPointer(6, 3, VertexAttribPointerType.Float, false, stride, 4);
             GL.VertexAttribDivisor(6, 1);
 
-            // Location 7: Instance Scale (vec2)
+            // Location 7: Instance Scale (vec3)
             GL.EnableVertexAttribArray(7);
-            GL.VertexAttribPointer(7, 2, VertexAttribPointerType.Float, false, stride, 16); // Offset by 16 bytes
+            GL.VertexAttribPointer(7, 3, VertexAttribPointerType.Float, false, stride, 16);
             GL.VertexAttribDivisor(7, 1);
 
             // Location 8: Instance Rotation Y (float)
             GL.EnableVertexAttribArray(8);
-            GL.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, false, stride, 24); // Offset by 24 bytes 
+            GL.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, false, stride, 28);
             GL.VertexAttribDivisor(8, 1);
+
+            // Location 9: Base Length (vec3)
+            GL.EnableVertexAttribArray(9);
+            GL.VertexAttribPointer(9, 3, VertexAttribPointerType.Float, false, stride, 32);  
+            GL.VertexAttribDivisor(9, 1);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 

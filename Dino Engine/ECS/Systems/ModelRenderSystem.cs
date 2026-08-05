@@ -88,8 +88,9 @@ namespace Dino_Engine.ECS.Systems
                             Position = quadWorldCenter,
 
                             // imposter.Scale should be (maxXZ, length.Y) from your texture generation step
-                            Scale = imposter.Scale * new Vector2(MathF.Max(entityScale.X, entityScale.Z), entityScale.Y),
-                            RotationY = rotY
+                            Scale = entityScale,
+                            RotationY = rotY,
+                            BaseLength = imposter.BaseLength
                         });
                     }
                     else
