@@ -479,7 +479,7 @@ namespace Dino_Defenders
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
             Engine.RenderEngine.textureGenerator.AddImposterToModel(treeModel, 10);
-            for (int i = 0; i<200; i++)
+            for (int i = 0; i<20000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);

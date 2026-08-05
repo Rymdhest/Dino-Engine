@@ -58,9 +58,7 @@ namespace Dino_Engine.Textures
         {
             framBuffer.bind();
             _textureStudioShader.bind();
-            //GL.ClearColor(0f, 0f, 0f, 0f);
             GL.DepthMask(true);
-            //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 0, new float[] { 1f, 0f, 0f, 0f });  // Albedo - alpha
             GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 1, new float[] { 0f, 0f, -1f, 0f });  // Normal - AO
@@ -69,11 +67,8 @@ namespace Dino_Engine.Textures
 
             GL.Enable(EnableCap.DepthTest);
             GL.DepthFunc(DepthFunction.Less);
-            GL.Enable(EnableCap.CullFace);
             GL.Disable(EnableCap.CullFace);
-            GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
-
 
             GL.BindVertexArray(model.getVAOID());
             GL.EnableVertexAttribArray(0);
@@ -86,33 +81,34 @@ namespace Dino_Engine.Textures
             AABB box = model.box;
             Vector3 length = box.max - box.min;
 
-            // The true local center of the model
+            // Local center of the model
             Vector3 center = (box.max + box.min) / 2f;
 
-            // The maximum diagonal width required to capture the car from any angle
-            float maxXZ = MathF.Sqrt((length.X * length.X) + (length.Z * length.Z));
+            // Guard against flat planes (leaves)
+            float safeZ = MathF.Max(length.Z, 0.01f);
+            float maxXZ = MathF.Max(MathF.Sqrt((length.X * length.X) + (safeZ * safeZ)), 0.01f);
 
-            // 1. Move center to (0,0,0), THEN rotate it. (OpenTK row-major order)
+            // 1. Move center to (0,0,0), then rotate
             Matrix4 modelMatrix = Matrix4.CreateTranslation(-center) * Matrix4.CreateRotationY(rotY);
 
-            // 2. Place camera outside the bounding volume, looking directly at (0,0,0)
+            // 2. Camera looking directly at origin
             Matrix4 viewMatrix = Matrix4.LookAt(
-                new Vector3(0f, 0f, maxXZ), // Camera position
-                Vector3.Zero,               // Look at origin
-                Vector3.UnitY               // Up vector
+                new Vector3(0f, 0f, maxXZ),
+                Vector3.Zero,
+                Vector3.UnitY
             );
 
-            // 3. Perfect orthographic bounds
+            // 3. Orthographic Projection
             Matrix4 projectionMatrix;
             if (fullStretch)
             {
-                projectionMatrix = Matrix4.CreateOrthographic(length.X, length.Y, 0.1f, length.Z * 2.0f);
+                // TIGHT FIT: Fits exact X and Y bounds (e.g. static leaf textures)
+                projectionMatrix = Matrix4.CreateOrthographic(length.X, length.Y, 0.0f, maxXZ * 2.0f);
             }
             else
             {
-                // Width = maxXZ, Height = length.Y. 
-                // Z-planes pushed out safely to avoid clipping the spinning model
-                projectionMatrix = Matrix4.CreateOrthographic(maxXZ, length.Y, 0.1f, maxXZ * 2.0f);
+                // IMPOSTERS: Fits spinning XZ diagonal width, but maintains EXACT model Y height
+                projectionMatrix = Matrix4.CreateOrthographic(maxXZ, length.Y, 0.0f, maxXZ * 2.0f);
             }
 
             Matrix4 modelViewMatrix = modelMatrix * viewMatrix;
@@ -121,6 +117,7 @@ namespace Dino_Engine.Textures
             _textureStudioShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * projectionMatrix);
             _textureStudioShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
             _textureStudioShader.loadUniformFloat("maxDepth", length.Z);
+
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaAlbedoTextureArray);
             GL.ActiveTexture(TextureUnit.Texture1);
@@ -130,7 +127,6 @@ namespace Dino_Engine.Textures
 
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaAlbedoModelTextureArray);
-            //GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             GL.ActiveTexture(TextureUnit.Texture4);
             GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaNormalModelTextureArray);
             GL.ActiveTexture(TextureUnit.Texture5);
