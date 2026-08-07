@@ -24,10 +24,7 @@ layout (location = 2) out vec4 gMaterials;
 void main() {
 
 	gAlbedo = lookupAlbedo(fragUV, textureIndex);
-	int aInt = int(round(gAlbedo.a * 255.0));
-	int alphaBit = aInt & 1;
-
-    if (gAlbedo.a < 1.0) {discard;}
+    if (gAlbedo.a < 0.5) discard;
 
 	gAlbedo.rgb *= fragColor;
 	NormalLookupResult normalLookup = lookupNorma(fragUV, textureIndex);
@@ -44,7 +41,6 @@ void main() {
 	gMaterials = lookupMaterial(fragUV, textureIndex).rgba;
 	gMaterials.a += 1.0-depth;
 	gMaterials.a *= 0.5;
-	//gMaterials.a = 1.0;
 
 	
 }

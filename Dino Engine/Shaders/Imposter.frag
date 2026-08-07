@@ -41,6 +41,7 @@ void main() {
 	gNormal.xyz = normal;
 
     gAlbedo.a = material.subSurface;
+	gAlbedo.a = 0.0;
     gNormal.a = material.ambient;
 	gMaterials.r = material.roughness;
 	gMaterials.g = material.emission;

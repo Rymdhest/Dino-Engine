@@ -76,19 +76,11 @@ MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
     NormalLookupResult normalResult = lookupNorma(coords, index);
     vec4 materialRead = lookupMaterial(coords, index);
 
-    int aInt = int(round(albedoRead.a * 255.0));
-    int alphaBit = aInt & 1;
-    
-    alphaBit = 1;
-
-    if (albedoRead.a < 1.0) {
-        alphaBit = 0;
-        //discard;
+    int alphaBit= 1;
+    if (albedoRead.a < 0.5) {
+        alphaBit = 0; //discard;
     }
-    
-    int subSurface7 = aInt >> 1;
-    float subSurface = float(subSurface7) / 127.0;
-    subSurface = 0.0;
+
     MaterialProps props;
 
     props.albedo = albedoRead.rgb;

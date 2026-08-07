@@ -433,7 +433,7 @@ namespace Dino_Defenders
 
 
             Mesh branch2 = cylinderMesh2.scaled(new Vector3(1.0f, 1f, 1.0f));
-            int nTwigs = 5;
+            int nTwigs = 25;
             for (int i = 0; i < nTwigs; i++)
             {
                 float t = 0.2f + 0.8f * (float)i / (nTwigs - 1);
@@ -455,7 +455,7 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 25;
+            int nBranches = 15;
             for (int i = 0; i < nBranches; i++)
             {
                 float t = 0.2f+0.8f*(float)i/(nBranches - 1);
@@ -478,7 +478,7 @@ namespace Dino_Defenders
             float terrainSize = 1000f;
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
-            Engine.RenderEngine.textureGenerator.AddImposterToModel(treeModel, 0);
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(treeModel, 10);
             for (int i = 0; i<200; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
@@ -507,7 +507,7 @@ namespace Dino_Defenders
             for (int i = 0; i < numTreesOnLine; i++)
             {
                 float factor = (float)i / (numTreesOnLine-1);
-                Vector3 treePos = new Vector3(factor * 60f + 40f, 0, 0);
+                Vector3 treePos = new Vector3(factor * 140f + 40f, 0, 0);
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
                 float height = 4f + MyMath.rng(0.9f);
                 float radius = 2f + MyMath.rngMinusPlus(0.3f);

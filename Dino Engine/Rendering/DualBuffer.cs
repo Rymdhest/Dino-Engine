@@ -97,5 +97,11 @@ namespace Dino_Engine.Rendering
             _buffer1.cleanUp();
             _buffer2.cleanUp();
         }
+
+        public void UnBind()
+        {
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            Engine.WindowHandler.refreshViewport();
+        }
     }
 }

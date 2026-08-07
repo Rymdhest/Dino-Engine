@@ -6,21 +6,22 @@ using Dino_Engine.Rendering;
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
+using System;
+using System.Collections.Generic;
 using static OpenTK.Graphics.OpenGL.GL;
 
 namespace Dino_Engine.Textures
 {
     public class TextureStudio
     {
-
-        private FrameBuffer framBuffer;
+        private DualBuffer _studioFrameBuffer;
         private ShaderProgram _textureStudioShader = new ShaderProgram("textureStudioShader.vert", "textureStudioShader.frag");
-
+        private ShaderProgram _texturePaddingShader = new ShaderProgram("Simple.vert", "texturePaddingShader.frag");
 
         public TextureStudio()
         {
-           
             FrameBufferSettings gBufferSettings = new FrameBufferSettings(TextureGenerator.TEXTURE_RESOLUTION);
+
             DrawBufferSettings gAlbedo = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
             gAlbedo.formatInternal = PixelInternalFormat.Rgba8;
             gAlbedo.pixelType = PixelType.UnsignedByte;
@@ -39,30 +40,39 @@ namespace Dino_Engine.Textures
             DepthAttachmentSettings depthSettings = new DepthAttachmentSettings();
             depthSettings.isTexture = true;
             gBufferSettings.depthAttachmentSettings = depthSettings;
-            framBuffer = new FrameBuffer(gBufferSettings);
-
+            _studioFrameBuffer = new DualBuffer(gBufferSettings);
 
             _textureStudioShader.bind();
             _textureStudioShader.loadUniformInt("albedoMapTextureArray", 0);
             _textureStudioShader.loadUniformInt("normalMapTextureArray", 1);
             _textureStudioShader.loadUniformInt("materialMapTextureArray", 2);
-
             _textureStudioShader.loadUniformInt("albedoMapModelTextureArray", 3);
             _textureStudioShader.loadUniformInt("normalMapModelTextureArray", 4);
             _textureStudioShader.loadUniformInt("materialMapModelTextureArray", 5);
             _textureStudioShader.unBind();
-        }
 
+            _texturePaddingShader.bind();
+            _texturePaddingShader.loadUniformInt("AlbedoIn", 0);
+            _texturePaddingShader.loadUniformInt("NormalIn", 1);
+            _texturePaddingShader.loadUniformInt("MaterialIn", 2);
+            _texturePaddingShader.unBind();
+        }
 
         public MaterialMapsTextures GenerateTextureFromModel(glModel model, bool fullStretch = true, float rotY = 0f)
         {
-            framBuffer.bind();
+            // ==========================================
+            // PASS 1: RENDER MODEL TO FBO
+            // ==========================================
+            _studioFrameBuffer.GetNextFrameBuffer().bind();
             _textureStudioShader.bind();
             GL.DepthMask(true);
 
-            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 0, new float[] { 1f, 0f, 0f, 0f });  // Albedo - alpha
-            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 1, new float[] { 0f, 0f, -1f, 0f });  // Normal - AO
-            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 2, new float[] { 1f, 0f, 0f, 0f });  // Materials
+            // Clear Albedo to (0,0,0,0) so empty pixels have alpha = 0.0
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 0, new float[] { 0f, 0f, 0f, 0f }); // Albedo - alpha
+
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 1, new float[] { 0f, 0f, 0f, 0f }); // Normal - AO
+
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 2, new float[] { 0f, 0f, 0f, 0f }); // Materials
             GL.Clear(ClearBufferMask.DepthBufferBit);
 
             GL.Enable(EnableCap.DepthTest);
@@ -80,36 +90,17 @@ namespace Dino_Engine.Textures
 
             AABB box = model.box;
             Vector3 length = box.max - box.min;
-
-            // Local center of the model
             Vector3 center = (box.max + box.min) / 2f;
 
-            // Guard against flat planes (leaves)
             float safeZ = MathF.Max(length.Z, 0.01f);
             float maxXZ = MathF.Max(MathF.Sqrt((length.X * length.X) + (safeZ * safeZ)), 0.01f);
 
-            // 1. Move center to (0,0,0), then rotate
             Matrix4 modelMatrix = Matrix4.CreateTranslation(-center) * Matrix4.CreateRotationY(rotY);
+            Matrix4 viewMatrix = Matrix4.LookAt(new Vector3(0f, 0f, maxXZ), Vector3.Zero, Vector3.UnitY);
 
-            // 2. Camera looking directly at origin
-            Matrix4 viewMatrix = Matrix4.LookAt(
-                new Vector3(0f, 0f, maxXZ),
-                Vector3.Zero,
-                Vector3.UnitY
-            );
-
-            // 3. Orthographic Projection
-            Matrix4 projectionMatrix;
-            if (fullStretch)
-            {
-                // TIGHT FIT: Fits exact X and Y bounds (e.g. static leaf textures)
-                projectionMatrix = Matrix4.CreateOrthographic(length.X, length.Y, 0.0f, maxXZ * 2.0f);
-            }
-            else
-            {
-                // IMPOSTERS: Fits spinning XZ diagonal width, but maintains EXACT model Y height
-                projectionMatrix = Matrix4.CreateOrthographic(maxXZ, length.Y, 0.0f, maxXZ * 2.0f);
-            }
+            Matrix4 projectionMatrix = fullStretch
+                ? Matrix4.CreateOrthographic(length.X, length.Y, 0.0f, maxXZ * 2.0f)
+                : Matrix4.CreateOrthographic(maxXZ, length.Y, 0.0f, maxXZ * 2.0f);
 
             Matrix4 modelViewMatrix = modelMatrix * viewMatrix;
             _textureStudioShader.loadUniformInt("numberOfMaterials", Engine.RenderEngine.textureGenerator.loadedMaterialTextures);
@@ -133,28 +124,64 @@ namespace Dino_Engine.Textures
             GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaMaterialModelTextureArray);
 
             GL.DrawElements(PrimitiveType.Triangles, model.getVertexCount(), DrawElementsType.UnsignedInt, 0);
-            _textureStudioShader.unBind();
-            framBuffer.unbind();
+
+            _studioFrameBuffer.StepToggle();
+
+            // ==========================================
+            // PASS 2: FULL-CANVAS BOUNDARY DILATION
+            // ==========================================
+            _texturePaddingShader.bind();
+
+            var previousLastBuffer = Engine.RenderEngine.lastUsedBuffer;
+            GL.Disable(EnableCap.DepthTest);
+            GL.DepthMask(false);
+
+            // 1.5x Resolution guarantees the padding reaches the absolute corners
+            int totalPasses = (int)(TextureGenerator.TEXTURE_RESOLUTION.X * 1.5f);
+
+            for (int i = 0; i < totalPasses; i++)
+            {
+                GL.ActiveTexture(TextureUnit.Texture0);
+                GL.BindTexture(TextureTarget.Texture2D, _studioFrameBuffer.GetLastFrameBuffer().GetAttachment(0));
+                GL.ActiveTexture(TextureUnit.Texture1);
+                GL.BindTexture(TextureTarget.Texture2D, _studioFrameBuffer.GetLastFrameBuffer().GetAttachment(1));
+                GL.ActiveTexture(TextureUnit.Texture2);
+                GL.BindTexture(TextureTarget.Texture2D, _studioFrameBuffer.GetLastFrameBuffer().GetAttachment(2));
+
+                _studioFrameBuffer.RenderToNextFrameBuffer();
+            }
+
+            // Restore main engine state & unbind textures
+            Engine.RenderEngine.lastUsedBuffer = previousLastBuffer;
+            GL.DepthMask(true);
+            _texturePaddingShader.unBind();
             GL.BindVertexArray(0);
 
-            int albedo = framBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
-            int normal = framBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment1);
-            int materials = framBuffer.exportAttachmentAsTexture(ReadBufferMode.ColorAttachment2);
+            int albedo = _studioFrameBuffer.GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment0);
+            int normal = _studioFrameBuffer.GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment1);
+            int materials = _studioFrameBuffer.GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment2);
+
+            GL.ActiveTexture(TextureUnit.Texture2); GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.ActiveTexture(TextureUnit.Texture1); GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2D, 0);
+
+            _studioFrameBuffer.UnBind();
             return new MaterialMapsTextures(albedo, normal, materials);
         }
+
         public MaterialMapsTextures GenerateTextureFromMesh(Mesh mesh, bool fullStretch = true)
         {
             glModel model = glLoader.loadToVAO(mesh);
             var textures = GenerateTextureFromModel(model, fullStretch);
             model.cleanUp();
             return textures;
-
         }
 
         public void CleanUp()
         {
             _textureStudioShader.cleanUp();
-            framBuffer.cleanUp();
+            _studioFrameBuffer.CleanUp();
+            _texturePaddingShader.cleanUp();
         }
     }
 }
