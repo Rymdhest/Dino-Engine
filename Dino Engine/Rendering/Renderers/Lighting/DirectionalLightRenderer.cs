@@ -60,7 +60,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             ActiveTexture(TextureUnit.Texture0);
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
-
+                
             ActiveTexture(TextureUnit.Texture1);
             BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
 
@@ -110,7 +110,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             }
 
-            Vector4 lightDirectionViewSpace = new Vector4(-command.direction, 1.0f)* Matrix4.Transpose(renderEngine.context.invViewMatrix);
+            Vector4 lightDirectionViewSpace = new Vector4(-command.direction, 0.0f)* Matrix4.Transpose(renderEngine.context.invViewMatrix);
             _directionalLightShader.loadUniformVector3f("LightDirectionViewSpace", lightDirectionViewSpace.Xyz);
 
             _directionalLightShader.loadUniformVector3f("lightColour", command.colour);

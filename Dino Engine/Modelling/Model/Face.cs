@@ -49,28 +49,35 @@ namespace Dino_Engine.Modelling.Model
         }
         private void CalcFaceTangent(MeshVertex v0, MeshVertex v1, MeshVertex v2)
         {
-            Vector3 dv1 = v1.position - v0.position;
-            Vector3 dv2 = v2.position - v0.position;
+            // Compute edges of the final noisy triangle
+            Vector3 edge1 = v1.position - v0.position;
+            Vector3 edge2 = v2.position - v0.position;
 
-            Vector2 duv1 = v1.UVs[0] - v0.UVs[0];
-            Vector2 duv2 = v2.UVs[0] - v0.UVs[0];
+            // Use the face normal as the base normal direction
+            Vector3 n = faceNormal;
 
-            float f = 1.0f / (duv1.X * duv2.Y - duv1.Y * duv2.X);
-
-            if (float.IsInfinity(f) || float.IsNaN(f))
+            // Create a stable geometric tangent using the triangle's edges projected onto the normal plane
+            Vector3 tangent = edge1;
+            if (tangent.LengthSquared < 0.00001f)
             {
-                // Handle degenerate UV case by setting a default tangent
-                //return new Vector3(1, 0, 0); // Default tangent
+                tangent = edge2;
             }
 
-            faceTangent = (dv1 * duv2.Y - dv2 * duv1.Y) * f;
-            faceBitanget = (-dv1 * duv2.X + dv2 * duv1.X) * f;
+            // Gram-Schmidt orthogonalize the tangent against the normal
+            tangent = tangent - n * Vector3.Dot(n, tangent);
+            if (tangent.LengthSquared > 0.00001f)
+            {
+                faceTangent = tangent.Normalized();
+            }
+            else
+            {
+                // Fallback axis if degenerate
+                Vector3 fallback = MathF.Abs(n.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitZ;
+                faceTangent = Vector3.Cross(n, fallback).Normalized();
+            }
 
-            // Orthogonalize the tangent with the normal
-            //faceTangent = (faceTangent - v0.normal * Vector3.Dot(v0.normal, faceTangent)).Normalized();
-
-
-
+            // Compute bitangent via cross product ensuring correct orientation
+            faceBitanget = Vector3.Cross(n, faceTangent).Normalized();
         }
     }
 }

@@ -249,7 +249,7 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent()
             );
 
-            Mesh sphere = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.grass));
+            Mesh sphere = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.brick));
             world.CreateEntity("sphere",
                 new PositionComponent(new Vector3(20, 5, 0)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
@@ -533,14 +533,14 @@ namespace Dino_Defenders
             }
 
 
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.cobble, new Colour(255, 255, 255)));
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.rock, new Colour(255, 255, 255)));
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
             for (int i = 0; i < RockMesh.meshVertices.Count; i++)
             {
                 Vector3 oldPos = RockMesh.meshVertices[i].position;
                 float noiseValue = noise.FBM(oldPos.X, oldPos.Y, oldPos.Z, 1.5f, 4);
-                Vector3 newPos = oldPos + oldPos * noiseValue * 0.45f;
+                Vector3 newPos = oldPos + oldPos * noiseValue * 0.35f;
                 RockMesh.meshVertices[i].position = newPos;
             }
 

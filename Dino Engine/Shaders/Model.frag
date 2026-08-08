@@ -64,4 +64,5 @@ void main() {
 	gMaterials.g = material.emission;
 	gMaterials.b = material.metalic;
     gMaterials.a = material.height;
+
 }

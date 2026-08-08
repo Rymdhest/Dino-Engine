@@ -57,12 +57,12 @@ namespace Dino_Engine.Modelling.Model
 
         public void bakeUVs()
         {
-            foreach(Face face in faces)
+            foreach (Face face in faces)
             {
                 if (face.uvIndexA > 0)
                 {
                     MeshVertex oldVertex = face.A;
-                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[face.uvIndexA]), new vIndex(meshVertices.Count));
                     newVertex.normal = oldVertex.normal;
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
@@ -74,7 +74,7 @@ namespace Dino_Engine.Modelling.Model
                 if (face.uvIndexB > 0)
                 {
                     MeshVertex oldVertex = face.B;
-                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[face.uvIndexB]), new vIndex(meshVertices.Count));
                     newVertex.normal = oldVertex.normal;
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
@@ -86,7 +86,7 @@ namespace Dino_Engine.Modelling.Model
                 if (face.uvIndexC > 0)
                 {
                     MeshVertex oldVertex = face.C;
-                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[1]), new vIndex(meshVertices.Count));
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[face.uvIndexC]), new vIndex(meshVertices.Count));
                     newVertex.normal = oldVertex.normal;
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
@@ -169,20 +169,27 @@ namespace Dino_Engine.Modelling.Model
 
         public void calculateAllNormals()
         {
-            foreach (MeshVertex vertex in meshVertices)
+            for (int i = 0; i < meshVertices.Count; i++)
             {
+                MeshVertex vertex = meshVertices[i];
                 vertex.normal = new Vector3(0);
                 vertex.tangent = new Vector3(0);
                 vertex.bitangent = new Vector3(0);
+                meshVertices[i] = vertex;
             }
+
             foreach (Face face in faces)
             {
                 face.calcFaceNormal();
             }
-            foreach (MeshVertex vertex in meshVertices)
+
+            for (int i = 0; i < meshVertices.Count; i++)
             {
+                MeshVertex vertex = meshVertices[i];
                 vertex.calculateNormalAndTangent();
+                meshVertices[i] = vertex;
             }
+
             finishedNormals = true;
         }
 
