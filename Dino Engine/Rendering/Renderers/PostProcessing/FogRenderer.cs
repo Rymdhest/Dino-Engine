@@ -34,7 +34,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             FrameBuffer gBuffer = renderEngine.GBuffer;
 
 
-            fogShader.loadUniformFloat("fogDensity", 0.035f);
+            fogShader.loadUniformFloat("fogDensity", 0.055f);
             fogShader.loadUniformFloat("heightFallOff", 0.0002f);
             fogShader.loadUniformFloat("noiseFactor", 0.9f);
 

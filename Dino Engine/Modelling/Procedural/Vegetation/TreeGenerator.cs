@@ -31,7 +31,6 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             {
                 float ratioY = leafMesh.meshVertices[i].position.Y+0.5f;
                 float width = leafMesh.meshVertices[i].position.X;
-                Console.WriteLine(ratioY);
                 width *= MathF.Sin((MathF.Pow(ratioY, 0.7f)) * MathF.PI) + 0.001f+MathF.Sin(ratioY*16* MathF.Tau)*0.035f;
                 //width *= MathF.Pow(2, 0.9f+ratioY*0.1f);
                 leafMesh.meshVertices[i].position.X = width*0.5f;

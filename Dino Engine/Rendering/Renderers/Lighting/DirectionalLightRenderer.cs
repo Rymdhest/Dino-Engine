@@ -70,7 +70,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ActiveTexture(TextureUnit.Texture3);
             BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
 
-            _directionalLightShader.loadUniformInt("pcfRadius", 5);
+            _directionalLightShader.loadUniformInt("pcfRadius", 1);
         }
         internal override void Finish(RenderEngine renderEngine)
         {
@@ -102,7 +102,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 _directionalLightShader.loadUniformInt("depthMaps[" + i + "]", CASCADETEXTURESINDEXSTART + numberCascades + i);
                 ActiveTexture(TextureUnit.Texture4 + numberCascades+i);
                 BindTexture(TextureTarget.Texture2D, cascade.shadowFrameBuffer.getDepthAttachment());
-                BindSampler(CASCADETEXTURESINDEXSTART + numberCascades + i, shadowSampler);
+                BindSampler(CASCADETEXTURESINDEXSTART + numberCascades + i, depthSampler);
 
                 Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * cascade.lightViewMatrix * cascade.shadowProjectionMatrix;
                 _directionalLightShader.loadUniformMatrix4f("sunSpaceMatrices[" + i + "]", shadowMatrix);

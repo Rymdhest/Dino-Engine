@@ -37,7 +37,10 @@ namespace Dino_Engine.ECS.Systems
             // 1. Prepare View Matrices for Cascades
             for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
-                shadowCascade.cascades[i].lightViewMatrix = CreateLightViewMatrix(direction, cameraPos, shadowCascade.cascades[i].projectionSize);
+                var cascade = shadowCascade.cascades[i];
+                int resolution = cascade.shadowFrameBuffer.getResolution().X;
+
+                shadowCascade.cascades[i].lightViewMatrix = CreateLightViewMatrix(direction, cameraPos, cascade.projectionSize, resolution);
                 shadowCascade.cascades[i].shadowFrameBuffer.ClearDepth();
             }
             entity.Set(shadowCascade);
@@ -180,12 +183,33 @@ namespace Dino_Engine.ECS.Systems
             }
         }
 
-        private static Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 center, float size)
+        private static Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 center, float size, int resolution)
         {
             direction = Vector3.Normalize(direction);
             Vector3 up = MathF.Abs(Vector3.Dot(direction, Vector3.UnitY)) > 0.99f ? Vector3.UnitZ : Vector3.UnitY;
-            Vector3 lightPos = center - direction * size / 2f;
-            return Matrix4.LookAt(lightPos, center, up);
+
+            // Derive light orientation axes
+            Vector3 forward = direction;
+            Vector3 right = Vector3.Normalize(Vector3.Cross(up, forward));
+            Vector3 lightUp = Vector3.Cross(forward, right);
+
+            // Calculate world-space size of a single shadow texel
+            float texelSize = size / resolution;
+
+            // Project center onto the light's local X/Y plane
+            float x = Vector3.Dot(center, right);
+            float y = Vector3.Dot(center, lightUp);
+            float z = Vector3.Dot(center, forward);
+
+            // Snap X and Y to the discrete texel grid
+            x = MathF.Floor(x / texelSize) * texelSize;
+            y = MathF.Floor(y / texelSize) * texelSize;
+
+            // Reconstruct the stable, snapped center in world space
+            Vector3 snappedCenter = right * x + lightUp * y + forward * z;
+
+            Vector3 lightPos = snappedCenter - direction * size / 2f;
+            return Matrix4.LookAt(lightPos, snappedCenter, up);
         }
     }
 }
