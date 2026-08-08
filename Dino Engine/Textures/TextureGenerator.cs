@@ -172,16 +172,16 @@ namespace Dino_Engine.Textures
         branchMesh += branchMesh.translated(new Vector3(leafSize, 0f, 0f));
         var controlPoints = new List<Vector3>();
         int n = 10;
-        float[] sinFBM = FBMmisc.sinFBM(5, 0.6f, n);
-        float[] sinFBM2 = FBMmisc.sinFBM(5, 0.9f, n);
-        float r =0.8f;
-        float h = 50f;
+        float[] sinFBM = FBMmisc.sinFBM(4, 0.6f, n);
+        float[] sinFBM2 = FBMmisc.sinFBM(4, 0.9f, n);
+        float r =4.8f;
+        float h =60f;
         for (int i = 0; i < n; i++)
         {
             float traversedRatio = i / (float)(n - 1);
             float angle = MathF.PI * i * 0.6f;
             float x = sinFBM[i] * r * traversedRatio;
-            float z = sinFBM2[i] * r * traversedRatio * 0f;
+            float z = sinFBM2[i] * r * traversedRatio * 0.05f;
             float y = traversedRatio * h;
             controlPoints.Add(new Vector3(x, y, z));
         }
@@ -220,12 +220,12 @@ namespace Dino_Engine.Textures
         //treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, -MathF.PI / 1f));
         Mesh mesh2 = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(bark), textureRepeats: 1, flatStart: true);
 
-        int branchesPerSide = 16;
-        for (int i = 0; i < branchesPerSide; i++)
+        int branches = 16;
+        for (int i = 0; i < branches; i++)
         {
-            float t = 0.15f + 0.83f * MathF.Pow( (float)i / (branchesPerSide - 1), 0.75f);
+            float t = 0.15f + 0.83f * MathF.Pow( (float)i / (branches - 1), 0.75f);
             CurvePoint curvePoint = curve.getPointAt(t);
-            var newBranch = treeBranchMesh.scaled(new Vector3(1.5f - t * 1.16f));
+            var newBranch = treeBranchMesh.scaled(new Vector3(2.0f - t * 1.16f));
             Vector3 col = MyMath.rng3D(0.2f);
             newBranch.setColour(new Colour(new Vector3(1f) - col));
 

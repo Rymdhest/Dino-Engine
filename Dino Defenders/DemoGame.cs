@@ -383,8 +383,8 @@ namespace Dino_Defenders
             int n = 20;
             float[] sinFBM = FBMmisc.sinFBM(4, 0.23f, n);
             float[] sinFBM2 = FBMmisc.sinFBM(5, 0.15f, n);
-            float r = 2.0f;
-            float h = 50f;
+            float r = 10.0f;
+            float h = 150f;
             for (int i = 0; i<n;i++)
             {   
                 float traversedRatio = i/(float)(n - 1);
@@ -400,7 +400,7 @@ namespace Dino_Defenders
 
 
             Curve3D curve = spline.GenerateCurve(1);
-            curve.LERPWidth(1.3f, 0.1f);
+            curve.LERPWidth(5.3f, 0.1f);
             Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 7, new VertexMaterial(TextureGenerator.bark), textureRepeats:1, flatStart: true);
 
             Mesh branch = MeshGenerator.generatePlane(new Vector2(55f, 55f), new Vector2i(2,2), new VertexMaterial(TextureGenerator.treeBranch), centerY:false);
@@ -411,7 +411,7 @@ namespace Dino_Defenders
             }
             branch.translate(new Vector3(0f, -2f, 0.0f));
             branch.rotate(new Vector3(-MathF.PI/1.45f, 0f, 0f));
-            r = 1.0f;
+            r = 25.0f;
             float[] sinFBM3 = FBMmisc.sinFBM(4, 1.93f, n);
             float[] sinFBM4 = FBMmisc.sinFBM(5, 1.65f, n);
             controlPoints.Clear();
@@ -428,17 +428,17 @@ namespace Dino_Defenders
 
             CardinalSpline3D spline2 = new CardinalSpline3D(controlPoints, 0.0f);
             Curve3D curve2 = spline2.GenerateCurve(1);
-            curve2.LERPWidth(1.3f, 0.1f);
+            curve2.LERPWidth(4.3f, 0.1f);
             Mesh cylinderMesh2 = MeshGenerator.generateCurvedTube(curve2, 7, new VertexMaterial(TextureGenerator.bark), textureRepeats: 1, flatStart: true);
 
 
             Mesh branch2 = cylinderMesh2.scaled(new Vector3(1.0f, 1f, 1.0f));
-            int nTwigs = 25;
+            int nTwigs =20;
             for (int i = 0; i < nTwigs; i++)
             {
-                float t = 0.2f + 0.8f * (float)i / (nTwigs - 1);
+                float t = 0.1f + 0.9f * (float)i / (nTwigs - 1);
                 CurvePoint curvePoint = curve2.getPointAt(t);
-                var newBranch = branch.scaled(new Vector3(1.0f - t * 0.8f));
+                var newBranch = branch.scaled(new Vector3(1.65f - t * 0.8f));
                 newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
                 Vector3 col = MyMath.rng3D(0.3f);
                 newBranch.setColour(new Colour(new Vector3(1f) - col));
@@ -455,13 +455,14 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 15;
+            int nBranches = 40;
             for (int i = 0; i < nBranches; i++)
             {
                 float t = 0.2f+0.8f*(float)i/(nBranches - 1);
                 CurvePoint curvePoint = curve.getPointAt(t);
                 var newBranch = branch2.scaled(new Vector3(0.5f- t*0.4f));
-                newBranch.rotate(new Vector3(1.3f-t*0.8f, 0f, 0f));
+                newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
+                newBranch.rotate(new Vector3(1.1f-t*0.5f, 0f, 0f));
                 newBranch.translate(new Vector3(0f, -curvePoint.width/2f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
                 newBranch.rotate(new Vector3(0f, i*MathF.Tau/5+MyMath.rng(MathF.Tau / 5), 0f));
@@ -478,8 +479,8 @@ namespace Dino_Defenders
             float terrainSize = 1000f;
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
-            Engine.RenderEngine.textureGenerator.AddImposterToModel(treeModel, 10);
-            for (int i = 0; i<200; i++)
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(treeModel, 100);
+            for (int i = 0; i<2000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
@@ -490,7 +491,7 @@ namespace Dino_Defenders
                 world.CreateEntity("tree test: "+i,
                     new PositionComponent(treePos),
                     new RotationComponent(new Vector3(0f, MyMath.rng()*MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(radius, height, radius)),
+                    new ScaleComponent(new Vector3(radius, height, radius)*(0.5f+MyMath.rng())),
                     new ModelComponent(treeModel),
                     new ModelRenderTag(),
                     new LocalToWorldMatrixComponent(),
