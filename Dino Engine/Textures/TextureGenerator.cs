@@ -51,7 +51,7 @@ namespace Dino_Engine.Textures
         public int loadedMaterialTextures = 0;
         public int loadedImposterTextures = 0;
 
-        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(512, 512)*1;
+        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(512, 512)*1  ;
         public readonly int anglesPerImposter = 8;
 
         public static int flat;

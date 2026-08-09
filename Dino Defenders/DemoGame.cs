@@ -202,11 +202,12 @@ namespace Dino_Defenders
             
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
-                new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
+                //new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
+                new DirectionNormalizedComponent(new Vector3(-1.10f, -5.5f, -2.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 16f)),
                 new AmbientLightComponent(0.1f),
-                new CelestialBodyComponent(),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 3, 1750)
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 3, 1750),
+                new CelestialBodyComponent()
             ) ;
             
             for (int i = 0; i<0; i++)

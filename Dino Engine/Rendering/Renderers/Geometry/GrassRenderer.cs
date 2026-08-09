@@ -463,7 +463,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 shader.loadUniformFloat("radiusError", 0.35f);
                 shader.loadUniformFloat("cutOffThreshold", 0.1f);
                 shader.loadUniformFloat("cutOffRange", 0.7f);
-                shader.loadUniformFloat("steepnessCutoffStrength", .5f);
+                shader.loadUniformFloat("steepnessCutoffStrength", 4.0f);
                 shader.loadUniformFloat("textureMapOffset", 1f / TerrainRenderer.CHUNK_RESOLUTION);
                 shader.loadUniformVector2f("simulationWorldSize", simulationWorldSize);
                 shader.loadUniformVector2f("simulationWorldPosition", simulationWorldPosition);

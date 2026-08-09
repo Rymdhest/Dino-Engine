@@ -42,55 +42,6 @@ float calcAttunuation(vec3 lightPos, vec3 position, vec3 attenuation)
     return clamp(1.0 / (attenuation.x + attenuation.y * dist + attenuation.z * dist * dist) - 1, 0, 999);
 }
 
-// all done in view space
-vec3 getLightPBROLD(vec3 albedo, vec3 normal, float roughness, float metallic, vec3 lightColour, float attenuation, float ambient, vec3 viewDir, vec3 LightDir, float lightFactor)
-{
-    vec3 F0 = vec3(0.04);
-    vec3 Lo = vec3(0.0);
-    F0 = mix(F0, albedo, metallic);
-    vec3 N = normalize(normal);
-    vec3 V = viewDir;
-
-    // calculate per-light radiance
-    vec3 L = normalize(LightDir);
-    vec3 H = normalize(V + L);
-    vec3 radiance = lightColour* attenuation;
-
-    // cook-torrance brdf
-    float NDF = DistributionGGX(N, H, roughness);
-    float G = GeometrySmith(N, V, L, roughness);
-
-    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-
-    vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - metallic;
-    vec3 numerator = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
-    vec3 specular = numerator / denominator;
-
-    // add to outgoing radiance Lo
-    float NdotL = max(dot(N, L), 0.0);
-    Lo += (kD * albedo / 3.14159265359 + specular) * radiance * NdotL;
-
-    vec3 totalAmbient = vec3(albedo * lightColour)* attenuation* ambient;
-    vec3 color = totalAmbient + Lo * lightFactor*(1.0- ambient);
-
-    float subSurfaceAmount = 0.35;
-
-    vec3 saturated = mix(vec3(dot(albedo, vec3(0.2126, 0.7152, 0.0722))), albedo, 1.4);
-    vec3 subColor = saturated*radiance*lightFactor;
-    
-    
-    float backLit = clamp(dot(-N, L), 0.0, 1.0);
-    float scatterProfile = pow(backLit, 2.0);
-
-    vec3 scatter = saturated;
-    vec3 subSurfaceScatterRadius = vec3 (1.0);
-    //subSurfaceScatterRadius *= scatter;
-    vec3 SubSurfaceScatter = exp(-3.0*abs(NdotL)/(subSurfaceScatterRadius+0.001));
-    return color*(1.0)+subColor*subSurfaceAmount*scatterProfile;
-}
 
 vec3 shiftHueFast(vec3 color, float hueShift) {
     const mat3 rgb2yiq = mat3(

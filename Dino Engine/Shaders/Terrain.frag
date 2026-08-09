@@ -45,7 +45,7 @@ void main() {
         parallaxedCoordsRock = ParallaxMapping(fragUV,  viewDir, rockID, parallaxDepth, parallaxLayers);
     }
 
-    float rockWeight = lookupMaterial(parallaxedCoordsRock, rockID).a*((1.0-steepness)*1.0);
+    float rockWeight = lookupMaterial(parallaxedCoordsRock, rockID).a*((1.0-steepness)*6.0);
     float groundWeight = lookupMaterial(parallaxedCoordsGround, groundID).a*(steepness*1.0);
     
     float textureIndex = groundID;

@@ -272,6 +272,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PerformGeometryCommand(TerrainRenderCommand command, RenderEngine renderEngine)
         {
             _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
+            _terrainShader.loadUniformFloat("parallaxDepth", 0);
             _terrainShader.loadUniformFloat("parallaxLayers", 25);
 
             int numberOfChunks = command.chunks.Length;

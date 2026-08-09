@@ -61,33 +61,8 @@ namespace Dino_Engine.Textures
         public MaterialMapsTextures GenerateTextureFromModel(glModel model, bool fullStretch = true, float rotY = 0f)
         {
             // ==========================================
-            // PASS 1: RENDER MODEL TO FBO
+            // MATRIX & BOUNDS CALCULATIONS
             // ==========================================
-            _studioFrameBuffer.GetNextFrameBuffer().bind();
-            _textureStudioShader.bind();
-            GL.DepthMask(true);
-
-            // Clear Albedo to (0,0,0,0) so empty pixels have alpha = 0.0
-            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 0, new float[] { 0f, 0f, 0f, 0f }); // Albedo - alpha
-
-            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 1, new float[] { 0f, 0f, 0f, 0f }); // Normal - AO
-
-            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 2, new float[] { 0f, 0f, 0f, 0f }); // Materials
-            GL.Clear(ClearBufferMask.DepthBufferBit);
-
-            GL.Enable(EnableCap.DepthTest);
-            GL.DepthFunc(DepthFunction.Less);
-            GL.Disable(EnableCap.CullFace);
-            GL.Disable(EnableCap.Blend);
-
-            GL.BindVertexArray(model.getVAOID());
-            GL.EnableVertexAttribArray(0);
-            GL.EnableVertexAttribArray(1);
-            GL.EnableVertexAttribArray(2);
-            GL.EnableVertexAttribArray(3);
-            GL.EnableVertexAttribArray(4);
-            GL.EnableVertexAttribArray(5);
-
             AABB box = model.box;
             Vector3 length = box.max - box.min;
             Vector3 center = (box.max + box.min) / 2f;
@@ -103,28 +78,97 @@ namespace Dino_Engine.Textures
                 : Matrix4.CreateOrthographic(maxXZ, length.Y, 0.0f, maxXZ * 2.0f);
 
             Matrix4 modelViewMatrix = modelMatrix * viewMatrix;
-            _textureStudioShader.loadUniformInt("numberOfMaterials", Engine.RenderEngine.textureGenerator.loadedMaterialTextures);
+            Matrix4 modelViewProjectionMatrix = modelViewMatrix * projectionMatrix;
+            Matrix4 normalModelViewMatrix = Matrix4.Transpose(Matrix4.Invert(modelViewMatrix));
+
+            // ==========================================
+            // PASS 0: OVERDRAW / THICKNESS MAP
+            // ==========================================
+            _studioFrameBuffer.GetNextFrameBuffer().bind();
+            _textureStudioShader.bind();
+
+            GL.DepthMask(false); // Disable depth writes so all geometry processes
+            GL.Disable(EnableCap.DepthTest); // Disable depth test so back-faces/occluded geometry count
+            GL.Disable(EnableCap.CullFace);
+
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 0, new float[] { 0f, 0f, 0f, 0f });
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 1, new float[] { 0f, 0f, 0f, 0f });
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 2, new float[] { 0f, 0f, 0f, 0f });
+            GL.Clear(ClearBufferMask.DepthBufferBit);
+
+            // Enable Additive Blending to accumulate overdraw counts in the red channel
+            GL.Enable(EnableCap.Blend);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
+            GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
+
+            GL.BindVertexArray(model.getVAOID());
+            for (int i = 0; i <= 5; i++) GL.EnableVertexAttribArray(i);
+
+            _textureStudioShader.loadUniformInt("isOverdrawPass", 1);
             _textureStudioShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
-            _textureStudioShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewMatrix * projectionMatrix);
-            _textureStudioShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
-            _textureStudioShader.loadUniformFloat("maxDepth", length.Z);
+            _textureStudioShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewProjectionMatrix);
 
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaAlbedoTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaNormalTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaMaterialTextureArray);
-
-            GL.ActiveTexture(TextureUnit.Texture3);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaAlbedoModelTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture4);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaNormalModelTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture5);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaMaterialModelTextureArray);
+            // Bind mega textures (Units 0 - 5)
+            GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaAlbedoTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture1); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaNormalTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture2); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaMaterialTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture3); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaAlbedoModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture4); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaNormalModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture5); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaMaterialModelTextureArray);
 
             GL.DrawElements(PrimitiveType.Triangles, model.getVertexCount(), DrawElementsType.UnsignedInt, 0);
 
+            // Swap buffers so Pass 0 result is now in GetLastFrameBuffer()
+            _studioFrameBuffer.StepToggle();
+
+            // ==========================================
+            // PASS 1: RENDER MODEL TO FBO
+            // ==========================================
+            _studioFrameBuffer.GetNextFrameBuffer().bind();
+            _textureStudioShader.bind();
+
+            GL.DepthMask(true);
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthFunc(DepthFunction.Less);
+            GL.Disable(EnableCap.CullFace);
+            GL.Disable(EnableCap.Blend); // Turn off additive blending for regular render
+
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 0, new float[] { 0f, 0f, 0f, 0f });
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 1, new float[] { 0f, 0f, 0f, 0f });
+            GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color, 2, new float[] { 0f, 0f, 0f, 0f });
+            GL.Clear(ClearBufferMask.DepthBufferBit);
+
+            // Pass configuration for SSS Occlusion lookup
+            _textureStudioShader.loadUniformInt("isOverdrawPass", 0);
+            _textureStudioShader.loadUniformVector2f("resolution", TextureGenerator.TEXTURE_RESOLUTION);
+
+            // Bind Pass 0 output (Overdraw result) to Texture Unit 6
+            GL.ActiveTexture(TextureUnit.Texture6);
+            GL.BindTexture(TextureTarget.Texture2D, _studioFrameBuffer.GetLastFrameBuffer().GetAttachment(0));
+
+            _textureStudioShader.loadUniformInt("overdrawTexture", 6);
+
+            _textureStudioShader.loadUniformInt("numberOfMaterials", Engine.RenderEngine.textureGenerator.loadedMaterialTextures);
+            _textureStudioShader.loadUniformMatrix4f("modelViewMatrix", modelViewMatrix);
+            _textureStudioShader.loadUniformMatrix4f("modelViewProjectionMatrix", modelViewProjectionMatrix);
+            _textureStudioShader.loadUniformMatrix4f("normalModelViewMatrix", normalModelViewMatrix);
+            _textureStudioShader.loadUniformFloat("maxDepth", length.Z);
+
+            // Re-bind mega textures 0 - 5
+            GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaAlbedoTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture1); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaNormalTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture2); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaMaterialTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture3); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaAlbedoModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture4); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaNormalModelTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture5); GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine.textureGenerator.megaMaterialModelTextureArray);
+
+            GL.DrawElements(PrimitiveType.Triangles, model.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+
+            // Unbind Texture Unit 6
+            GL.ActiveTexture(TextureUnit.Texture6);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+
+            // Swap buffers so Pass 1 result is in GetLastFrameBuffer()
             _studioFrameBuffer.StepToggle();
 
             // ==========================================
@@ -136,7 +180,7 @@ namespace Dino_Engine.Textures
             GL.Disable(EnableCap.DepthTest);
             GL.DepthMask(false);
 
-            // 1.5x Resolution guarantees the padding reaches the absolute corners
+            // 1.5x Resolution guarantees padding reaches absolute corners seamlessly
             int totalPasses = (int)(TextureGenerator.TEXTURE_RESOLUTION.X * 1.5f);
 
             for (int i = 0; i < totalPasses; i++)
@@ -151,7 +195,7 @@ namespace Dino_Engine.Textures
                 _studioFrameBuffer.RenderToNextFrameBuffer();
             }
 
-            // Restore main engine state & unbind textures
+            // Restore engine state and clean up bindings
             Engine.RenderEngine.lastUsedBuffer = previousLastBuffer;
             GL.DepthMask(true);
             _texturePaddingShader.unBind();
@@ -166,6 +210,7 @@ namespace Dino_Engine.Textures
             GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2D, 0);
 
             _studioFrameBuffer.UnBind();
+
             return new MaterialMapsTextures(albedo, normal, materials);
         }
 
