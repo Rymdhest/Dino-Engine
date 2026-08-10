@@ -202,11 +202,10 @@ namespace Dino_Defenders
             
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
-                //new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
                 new DirectionNormalizedComponent(new Vector3(-1.10f, -3.5f, -2.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 13f)),
-                new AmbientLightComponent(0.1f),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 3, 1750),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 10f)),
+                new AmbientLightComponent(0.05f),
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 2, 3, 1750),
                 new CelestialBodyComponent()
             ) ;
             
@@ -227,7 +226,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
-                new ColorComponent(new Colour(86, 155, 255, 1.2f)),
+                new ColorComponent(new Colour(86, 155, 255, 1.0f)),
                 new SkyTag(),
                 new AmbientLightComponent(0.8f)
             );
@@ -583,10 +582,9 @@ namespace Dino_Defenders
 
             glModel fern = glLoader.loadToVAO(TreeGenerator.GenerateFern());
             Engine.RenderEngine.textureGenerator.AddImposterToModel(fern, 30);
-            for (int i = 0; i < 3000; i++)
+            for (int i = 0; i < 6000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                treePos *= 0.2f;
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
                 float size = 0.4f + MyMath.rng(0.4f);
                 world.CreateEntity("fern test: " + i,
@@ -602,10 +600,9 @@ namespace Dino_Defenders
 
             glModel flower = glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush());
             Engine.RenderEngine.textureGenerator.AddImposterToModel(flower, 30);
-            for (int i = 0; i < 300; i++)
+            for (int i = 0; i < 3000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                treePos *= 0.2f;
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
                 float size = 1.1f + MyMath.rng(0.4f);
                 world.CreateEntity("flower test: " + i,

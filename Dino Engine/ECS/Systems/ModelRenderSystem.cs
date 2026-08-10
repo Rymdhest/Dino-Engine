@@ -23,7 +23,7 @@ namespace Dino_Engine.ECS.Systems
         private readonly int _minCountForInstanced = 10;
 
         public ModelRenderSystem()
-            : base(new BitMask(typeof(ModelRenderTag), typeof(ModelComponent), typeof(LocalToWorldMatrixComponent)))
+            : base(new BitMask(typeof(ModelRenderTag), typeof(ModelComponent), typeof(LocalToWorldMatrixComponent), typeof(RotationComponent)))
         {
         }
 
@@ -40,6 +40,7 @@ namespace Dino_Engine.ECS.Systems
             {
                 var modelArray = archetype.GetComponentArray<ModelComponent>();
                 var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
+                var rotArray = archetype.GetComponentArray<RotationComponent>();
                 int count = archetype.EntityCount;
 
                 for (int i = 0; i < count; i++)
@@ -61,35 +62,20 @@ namespace Dino_Engine.ECS.Systems
                         Vector3 entityScale = mat.ExtractScale();
                         ImposterData imposter = model.Imposter;
 
-                        // 1. Safe extraction of rotation (fixes spinning bugs caused by scale)
-                        float rotY = MathF.Atan2(mat.M13, mat.M11);
+                        // 3. Grab the pure quaternion directly from ECS (assuming the field is called 'value' or 'rotation')
+                        Quaternion rot = rotArray[i].quaternion;
 
-                        // 2. Rotate pre-calculated local center by entity's Y-rotation
-                        // Note: imposter.LocalCenter must be calculated in your constructor as: (box.max + box.min) / 2f
+                        // 4. Standard forward transformation. No inversion hacks!
                         Vector3 scaledCenter = imposter.LocalCenter * entityScale;
-
-                        // USE rotY HERE, NOT ExtractRotation()
-                        float cos = MathF.Cos(rotY);
-                        float sin = MathF.Sin(rotY);
-
-                        Vector3 rotatedOffset = new Vector3(
-                            scaledCenter.X * cos - scaledCenter.Z * sin,
-                            scaledCenter.Y, // Y offset is unaffected by Y-rotation
-                            scaledCenter.X * sin + scaledCenter.Z * cos
-                        );
-
-                        // 3. Final quad center in world space
+                        Vector3 rotatedOffset = Vector3.Transform(scaledCenter, rot);
                         Vector3 quadWorldCenter = pos + rotatedOffset;
 
-                        // 4. Add to instance buffer
                         _imposters.Add(new ImposterInstanceData
                         {
                             modelID = (float)model.Imposter.TextureIndex,
                             Position = quadWorldCenter,
-
-                            // imposter.Scale should be (maxXZ, length.Y) from your texture generation step
                             Scale = entityScale,
-                            RotationY = rotY,
+                            Rotation = rot, // Pass pure rotation to shader
                             BaseLength = imposter.BaseLength
                         });
                     }

@@ -13,11 +13,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct ImposterInstanceData
     {
-        public float modelID;  // 4 bytes
-        public Vector3 Position; // 12 bytes
+        public float modelID;      // 4 bytes
+        public Vector3 Position;   // 12 bytes
         public Vector3 Scale;      // 12 bytes
-        public float RotationY;   // 4 bytes
-        public Vector3 BaseLength;      // 12 bytes
+        public Quaternion Rotation;// 16 bytes
+        public Vector3 BaseLength; // 12 bytes
     }
 
     public struct ImposterRenderCommand : IRenderCommand
@@ -203,14 +203,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.VertexAttribPointer(7, 3, VertexAttribPointerType.Float, false, stride, 16);
             GL.VertexAttribDivisor(7, 1);
 
-            // Location 8: Instance Rotation Y (float)
+            // Location 8: Instance Rotation (vec4/Quaternion)
             GL.EnableVertexAttribArray(8);
-            GL.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, false, stride, 28);
+            GL.VertexAttribPointer(8, 4, VertexAttribPointerType.Float, false, stride, 28);
             GL.VertexAttribDivisor(8, 1);
 
             // Location 9: Base Length (vec3)
             GL.EnableVertexAttribArray(9);
-            GL.VertexAttribPointer(9, 3, VertexAttribPointerType.Float, false, stride, 32);  
+            GL.VertexAttribPointer(9, 3, VertexAttribPointerType.Float, false, stride, 44);
             GL.VertexAttribDivisor(9, 1);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
@@ -276,14 +276,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.VertexAttribPointer(7, 3, VertexAttribPointerType.Float, false, stride, 16);
             GL.VertexAttribDivisor(7, 1);
 
-            // Location 8: Instance Rotation Y (float)
+            // Location 8: Instance Rotation (vec4/Quaternion)
             GL.EnableVertexAttribArray(8);
-            GL.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, false, stride, 28);
+            GL.VertexAttribPointer(8, 4, VertexAttribPointerType.Float, false, stride, 28);
             GL.VertexAttribDivisor(8, 1);
 
             // Location 9: Base Length (vec3)
             GL.EnableVertexAttribArray(9);
-            GL.VertexAttribPointer(9, 3, VertexAttribPointerType.Float, false, stride, 32);
+            GL.VertexAttribPointer(9, 3, VertexAttribPointerType.Float, false, stride, 44);
             GL.VertexAttribDivisor(9, 1);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);

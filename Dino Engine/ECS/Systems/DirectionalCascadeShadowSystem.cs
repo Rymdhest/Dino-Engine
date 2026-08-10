@@ -50,12 +50,21 @@ namespace Dino_Engine.ECS.Systems
             _imposters.Clear();
 
             // 3. Classify Archetypes (LOD checking models vs imposters based on camera distance)
-            var modelQuery = world.QueryArchetypes(new BitMask(typeof(ModelRenderTag), typeof(ModelComponent), typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
+            var modelQuery = world.QueryArchetypes(new BitMask(
+                typeof(ModelRenderTag),
+                typeof(ModelComponent),
+                typeof(LocalToWorldMatrixComponent),
+                typeof(RotationComponent)), // Added RotationComponent
+                BitMask.Empty);
 
             foreach (var archetype in modelQuery)
             {
                 var modelArray = archetype.GetComponentArray<ModelComponent>();
                 var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
+
+                // 2. Grab the rotation array
+                var rotArray = archetype.GetComponentArray<RotationComponent>();
+
                 int count = archetype.EntityCount;
 
                 for (int i = 0; i < count; i++)
@@ -77,18 +86,12 @@ namespace Dino_Engine.ECS.Systems
                         Vector3 entityScale = mat.ExtractScale();
                         ImposterData imposter = model.Imposter;
 
-                        float rotY = MathF.Atan2(mat.M13, mat.M11);
+                        // 3. Grab the pure quaternion
+                        Quaternion rot = rotArray[i].quaternion;
+
+                        // 4. Calculate offset using full 3D rotation
                         Vector3 scaledCenter = imposter.LocalCenter * entityScale;
-
-                        float cos = MathF.Cos(rotY);
-                        float sin = MathF.Sin(rotY);
-
-                        Vector3 rotatedOffset = new Vector3(
-                            scaledCenter.X * cos - scaledCenter.Z * sin,
-                            scaledCenter.Y,
-                            scaledCenter.X * sin + scaledCenter.Z * cos
-                        );
-
+                        Vector3 rotatedOffset = Vector3.Transform(scaledCenter, rot);
                         Vector3 quadWorldCenter = pos + rotatedOffset;
 
                         _imposters.Add(new ImposterInstanceData
@@ -96,9 +99,10 @@ namespace Dino_Engine.ECS.Systems
                             modelID = (float)model.Imposter.TextureIndex,
                             Position = quadWorldCenter,
                             Scale = entityScale,
-                            RotationY = rotY,
+                            Rotation = rot, // Pass the Quaternion
                             BaseLength = imposter.BaseLength
                         });
+
                     }
                     else
                     {

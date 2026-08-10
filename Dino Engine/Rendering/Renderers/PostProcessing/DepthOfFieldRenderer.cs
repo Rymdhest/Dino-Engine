@@ -36,7 +36,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             gaussianBlurRenderer.Render(buffer.GetLastFrameBuffer(), 5, renderEngine.ScreenQuadRenderer);
 
             _depthOfFieldShader.bind();
-            _depthOfFieldShader.loadUniformFloat("range", 0.0003f);
+            _depthOfFieldShader.loadUniformFloat("range", 0.001f);
             _depthOfFieldShader.loadUniformFloat("focusDistance", 0.0f);
 
 
