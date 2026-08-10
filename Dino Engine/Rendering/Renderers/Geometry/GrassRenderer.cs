@@ -309,10 +309,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 32;
+            bladesPerAxis = 40;
 
-            bladeHeight =2.0f;
-            radiusBase = 0.005f;
+            bladeHeight =3.0f;
+            radiusBase = 0.004f;
             radiusTop = radiusBase * 0.8f;
 
             var world = Engine.Instance.world;

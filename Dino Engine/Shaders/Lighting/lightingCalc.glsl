@@ -103,16 +103,16 @@ vec3 getLightPBR(
 
     vec3 diffuse = kD * albedo / 3.14159265359;
     vec3 LoFront = (diffuse + specular) * radiance * NdotL;
-
+     
 
     // ----- BACK LIGHTING TRANSMISSION -----
     float backLit = clamp(dot(V, normalize(-L+N*1.0)), -1.0, 1.0);
     backLit = backLit * 0.5+0.5;
-    backLit = pow(backLit,1.4);
+    backLit = pow(backLit,1.9);
     // Boost saturation for transmitted light
     vec3 avg = vec3(dot(albedo, vec3(0.2126, 0.7152, 0.0722)));
-    vec3 saturated = mix(avg, albedo, 1.05); // 1.0 = no boost
-    saturated = shiftHueFast(saturated, 1.0);
+    vec3 saturated = mix(avg, albedo, 1.2); // 1.0 = no boost
+    saturated = shiftHueFast(saturated, 0.99);
     // Simple absorption through the leaf
     float depthFactor = 1.0/(pow(materialDepth*2.0, 3.0)+1.0);
     vec3 transmission = saturated * radiance * backLit*depthFactor;

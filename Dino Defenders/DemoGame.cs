@@ -203,8 +203,8 @@ namespace Dino_Defenders
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 //new DirectionNormalizedComponent(new Vector3(-10f, -8.5f, -5.9f)),
-                new DirectionNormalizedComponent(new Vector3(-1.10f, -5.5f, -2.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 16f)),
+                new DirectionNormalizedComponent(new Vector3(-1.10f, -3.5f, -2.9f)),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 13f)),
                 new AmbientLightComponent(0.1f),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 3, 1750),
                 new CelestialBodyComponent()
@@ -240,6 +240,19 @@ namespace Dino_Defenders
         
         private void spawnTestScene(ECSWorld world)
         {
+
+
+            glModel testModel = glLoader.loadToVAO(TreeGenerator.GenerateDeadTree());
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(testModel, 30);
+            world.CreateEntity("test",
+                new PositionComponent(new Vector3(10, 0, -5)),
+                new RotationComponent(new Vector3(0f, 0f, 0f)),
+                new ScaleComponent(new Vector3(1f)),
+                new ModelComponent(testModel),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent()
+            );
+
             Mesh candle = FurnitureGenerator.GenerateCandle2();
             world.CreateEntity("candle",
                 new PositionComponent(new Vector3(0, 0, -5)),
@@ -567,6 +580,67 @@ namespace Dino_Defenders
                 );
             }
 
+
+            glModel fern = glLoader.loadToVAO(TreeGenerator.GenerateFern());
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(fern, 30);
+            for (int i = 0; i < 3000; i++)
+            {
+                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                treePos *= 0.2f;
+                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
+                float size = 0.4f + MyMath.rng(0.4f);
+                world.CreateEntity("fern test: " + i,
+                    new PositionComponent(treePos),
+                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
+                    new ScaleComponent(new Vector3(size)),
+                    new ModelComponent(fern),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
+            }
+
+
+            glModel flower = glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush());
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(flower, 30);
+            for (int i = 0; i < 300; i++)
+            {
+                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                treePos *= 0.2f;
+                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
+                float size = 1.1f + MyMath.rng(0.4f);
+                world.CreateEntity("flower test: " + i,
+                    new PositionComponent(treePos),
+                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
+                    new ScaleComponent(new Vector3(size)),
+                    new ModelComponent(flower),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
+            }
+
+            glModel deadTree = glLoader.loadToVAO(TreeGenerator.GenerateDeadTree());
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(deadTree, 60);
+            for (int i = 0; i < 700; i++)
+            {
+                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
+                float height = 0.5f + MyMath.rng(1.0f);
+                float radius = 0.6f + MyMath.rng(0.4f);
+                float rotZ = 0f;
+                if (MyMath.rng() < 0.3f)
+                {
+                    rotZ = MathF.PI / 2f;
+                }
+                treePos.Y += radius;
+                world.CreateEntity("dead tree: " + i,
+                    new PositionComponent(treePos),
+                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, rotZ)),
+                    new ScaleComponent(new Vector3(radius, height, radius)),
+                    new ModelComponent(deadTree),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
+            }
         }
        
     
