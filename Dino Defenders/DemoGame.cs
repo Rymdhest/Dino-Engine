@@ -241,7 +241,7 @@ namespace Dino_Defenders
         {
 
 
-            glModel testModel = glLoader.loadToVAO(TreeGenerator.GenerateDeadTree());
+            glModel testModel = glLoader.loadToVAO(TreeGenerator.GenerateBirchTree());
             Engine.RenderEngine.textureGenerator.AddImposterToModel(testModel, 30);
             world.CreateEntity("test",
                 new PositionComponent(new Vector3(10, 0, -5)),
@@ -610,6 +610,23 @@ namespace Dino_Defenders
                     new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
                     new ScaleComponent(new Vector3(size)),
                     new ModelComponent(flower),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
+            }
+
+            glModel birchTree = glLoader.loadToVAO(TreeGenerator.GenerateBirchTree());
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(flower, 100);
+            for (int i = 0; i < 500; i++)
+            {
+                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
+                float size = 0.75f + MyMath.rng(0.5f);
+                world.CreateEntity("birch tree test: " + i,
+                    new PositionComponent(treePos),
+                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
+                    new ScaleComponent(new Vector3(size)),
+                    new ModelComponent(birchTree),
                     new ModelRenderTag(),
                     new LocalToWorldMatrixComponent()
                 );
@@ -1119,7 +1136,7 @@ namespace Dino_Defenders
             }
 
 
-            var tree = glLoader.loadToVAO(treeGenerator.GenerateTree());
+            var tree = glLoader.loadToVAO(TreeGenerator.GenerateBirchTree());
             var streeLight = UrbanPropGenerator.GenerateStreetLight(out Vector3 lightPosition);
             for (int side = -1; side <= 1; side += 2)
             {

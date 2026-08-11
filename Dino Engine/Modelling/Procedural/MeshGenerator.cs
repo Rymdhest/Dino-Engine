@@ -117,7 +117,8 @@ namespace Dino_Engine.Modelling
             {
                 int ring = rings.Count - 1;
                 float y = rings[ring].pos.Y + sealTop;
-                Vector3 center = new Vector3(0, y, 0); // Center of the top cap
+                Vector3 center = rings[ring].pos; // Center of the top cap
+                center.Y += sealTop;
 
                 vertices.Add(new Vertex(center, material, new Vector2(0.5f, 0.5f)));
                 int centerIndex = vertices.Count - 1;

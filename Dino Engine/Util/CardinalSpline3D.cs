@@ -80,20 +80,20 @@ public class CardinalSpline3D
         return (position, normal);
     }
 
-    public Curve3D GenerateCurve(int segmentsPerSegment)
+    public Curve3D GenerateCurve(int segmentsBetweenControlPoints)
     {
-        if (segmentsPerSegment < 1)
+        if (segmentsBetweenControlPoints < 1)
         {
-            throw new ArgumentException("Segments per segment must be at least 1.");
+            throw new ArgumentException("Segments per control point must be at least 1.");
         }
 
         var result = new List<Vector3>();
 
         for (int i = 0; i < controlPoints.Count - 1; i++)
         {
-            for (int j = 0; j < segmentsPerSegment; j++)
+            for (int j = 0; j < segmentsBetweenControlPoints; j++)
             {
-                float t = j / (float)segmentsPerSegment;
+                float t = j / (float)segmentsBetweenControlPoints;
                 result.Add(Interpolate(t, i));
             }
         }
