@@ -5,7 +5,7 @@ namespace Dino_Engine.Modelling.Procedural
 {
     public class IcoSphereGenerator
     {
-        public static Mesh CreateIcosphere(int order, VertexMaterial material)
+        public static Mesh CreateIcosphere(int order, VertexMaterial material,int tiling =1)
         {
             // Set up a 20-triangle icosahedron
             float f = (1 + MathF.Sqrt(5)) / 2f;
@@ -71,7 +71,7 @@ namespace Dino_Engine.Modelling.Procedural
                 indicesPrev = indices;
             }
 
-            // Create MeshVertex list and normalize positions onto a unit sphere
+            // Create MeshVertex list and normalize positions onto a unit sphere (Scaled UVs applied here)
             List<MeshVertex> meshVertices = new List<MeshVertex>();
             for (int i = 0; i < positions.Length; i += 3)
             {
@@ -86,15 +86,14 @@ namespace Dino_Engine.Modelling.Procedural
 
                 Vector3 position = new Vector3(x, y, z);
 
-                float u = (MathF.Atan2(x, z) / (2f * MathF.PI)) + 0.5f;
-                float v = (MathF.Asin(y) / MathF.PI) + 0.5f;
+                // Scale U and V by the tiling parameter
+                float u = ((MathF.Atan2(x, z) / (2f * MathF.PI)) + 0.5f) * tiling;
+                float v = ((MathF.Asin(y) / MathF.PI) + 0.5f) * tiling;
 
                 Vertex baseVertex = new Vertex(position, material, new Vector2(u, v));
                 MeshVertex meshVertex = new MeshVertex(baseVertex, new vIndex(meshVertices.Count));
 
-                // A sphere's normal at any point is its normalized position
                 meshVertex.normal = position;
-
                 meshVertices.Add(meshVertex);
             }
 
@@ -108,16 +107,13 @@ namespace Dino_Engine.Modelling.Procedural
 
                 Face face = new Face(vA, vB, vC, 0, 0, 0);
 
-                // CRITICAL: Link the face to the vertices so calculateAllNormals() can find them!
                 vA.faces.Add(face);
                 vB.faces.Add(face);
                 vC.faces.Add(face);
 
-                // Compute analytical normals and tangents locally for this sphere face
                 Vector3 center = (face.A.position + face.B.position + face.C.position) / 3.0f;
                 face.faceNormal = center.Normalized();
 
-                // Tangent points along increasing U (east-west around Y axis)
                 Vector3 tangent = Vector3.Cross(face.faceNormal, Vector3.UnitY);
                 if (tangent.LengthSquared < 0.0001f)
                 {
@@ -135,24 +131,26 @@ namespace Dino_Engine.Modelling.Procedural
                 faces = faces
             };
 
-            // Process faces to configure alternate UVs and flags for seams/poles
+            // Process faces to configure alternate UVs scaled to the tiling domain
+            float halfDomain = tiling / 2f;
+
             foreach (Face face in mesh.faces)
             {
                 Vector2 uv0 = face.A.UVs[0];
                 Vector2 uv1 = face.B.UVs[0];
                 Vector2 uv2 = face.C.UVs[0];
 
-                // 1. Check Seam Wraparound (Must run BEFORE pole averaging)
-                if (MathF.Abs(uv0.X - uv1.X) > 0.5f ||
-                    MathF.Abs(uv0.X - uv2.X) > 0.5f ||
-                    MathF.Abs(uv1.X - uv2.X) > 0.5f)
+                // 1. Check Seam Wraparound using scaled half-domain threshold
+                if (MathF.Abs(uv0.X - uv1.X) > halfDomain ||
+                    MathF.Abs(uv0.X - uv2.X) > halfDomain ||
+                    MathF.Abs(uv1.X - uv2.X) > halfDomain)
                 {
-                    if (uv0.X < 0.5f) uv0.X += 1f;
-                    if (uv1.X < 0.5f) uv1.X += 1f;
-                    if (uv2.X < 0.5f) uv2.X += 1f;
+                    if (uv0.X < halfDomain) uv0.X += tiling;
+                    if (uv1.X < halfDomain) uv1.X += tiling;
+                    if (uv2.X < halfDomain) uv2.X += tiling;
                 }
 
-                // 2. Check Poles and Align U Coordinates cleanly
+                // 2. Check Poles
                 bool isPoleA = MathF.Abs(MathF.Abs(face.A.position.Y) - 1f) < 0.001f;
                 bool isPoleB = MathF.Abs(MathF.Abs(face.B.position.Y) - 1f) < 0.001f;
                 bool isPoleC = MathF.Abs(MathF.Abs(face.C.position.Y) - 1f) < 0.001f;
@@ -164,7 +162,6 @@ namespace Dino_Engine.Modelling.Procedural
                 // Helper to register alternate UVs safely
                 void AssignUV(ref MeshVertex vertex, ref int uvIndexFlag, Vector2 targetUV)
                 {
-                    // Check if it matches base UV[0]
                     if (MathF.Abs(vertex.UVs[0].X - targetUV.X) < 0.001f &&
                         MathF.Abs(vertex.UVs[0].Y - targetUV.Y) < 0.001f)
                     {
@@ -172,7 +169,6 @@ namespace Dino_Engine.Modelling.Procedural
                         return;
                     }
 
-                    // Check existing alternate UVs
                     for (int j = 1; j < vertex.UVs.Length; j++)
                     {
                         if (MathF.Abs(vertex.UVs[j].X - targetUV.X) < 0.001f &&
@@ -183,7 +179,6 @@ namespace Dino_Engine.Modelling.Procedural
                         }
                     }
 
-                    // Append new alternate UV
                     Vector2[] newArray = new Vector2[vertex.UVs.Length + 1];
                     Array.Copy(vertex.UVs, newArray, vertex.UVs.Length);
                     newArray[^1] = targetUV;

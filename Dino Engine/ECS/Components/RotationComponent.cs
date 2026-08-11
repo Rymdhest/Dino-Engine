@@ -7,6 +7,11 @@ namespace Dino_Engine.ECS.Components
     {
         public Quaternion quaternion;
 
+        public RotationComponent()
+        {
+            this.quaternion = new Quaternion(0f ,0f, 0f);
+        }
+
         public RotationComponent(Quaternion quaternion)
         {
             this.quaternion = quaternion;

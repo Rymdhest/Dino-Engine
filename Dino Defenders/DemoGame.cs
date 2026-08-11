@@ -262,7 +262,7 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent()
             );
 
-            Mesh sphere = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.brick));
+            Mesh sphere = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.cobble), 1);
             world.CreateEntity("sphere",
                 new PositionComponent(new Vector3(20, 5, 0)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
@@ -546,29 +546,29 @@ namespace Dino_Defenders
             }
 
 
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.rock, new Colour(255, 255, 255)));
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(4, new VertexMaterial(TextureGenerator.rock, new Colour(255, 255, 255)),8);
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
             for (int i = 0; i < RockMesh.meshVertices.Count; i++)
             {
                 Vector3 oldPos = RockMesh.meshVertices[i].position;
-                float noiseValue = noise.FBM(oldPos.X, oldPos.Y, oldPos.Z, 1.5f, 4);
-                Vector3 newPos = oldPos + oldPos * noiseValue * 0.35f;
+                float noiseValue = noise.FBM(oldPos.X, oldPos.Y, oldPos.Z, 0.86f,5);
+                Vector3 newPos = oldPos + oldPos * noiseValue * 0.66f;
                 RockMesh.meshVertices[i].position = newPos;
             }
 
 
-            RockMesh.FlatRandomness(0.045f);
+            RockMesh.FlatRandomness(0.01f);
             //RockMesh.makeFlat(flatMaterial: true, flatNormal: true);
             glModel rockModel = glLoader.loadToVAO(RockMesh);
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModel, 30);
 
-            for (int i = 0; i < 2000; i++)
+            for (int i = 0; i < 4000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float height = 1.4f + MyMath.rng(2.9f);
-                float radius = 1.4f + MyMath.rng(2.8f);
+                float height = 0.4f + MyMath.rng(2.9f);
+                float radius = 0.4f + MyMath.rng(2.8f);
                 world.CreateEntity("rock test: " + i,
                     new PositionComponent(treePos),
                     new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
@@ -1031,14 +1031,14 @@ namespace Dino_Defenders
                     world.CreateEntity(position, scale, rotation, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new ModelComponent(houseModel));
                 }
             }
-            Mesh houseGroundMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.brick));
+            Mesh houseGroundMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.bark));
             //Mesh.scaleUV = true;
             //houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
             Mesh.scaleUV = true;
-            houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
+            houseGroundMesh.scale(new Vector3(20f, 10f, 10f));
             houseGroundMesh.rotate(new Vector3(0f, -MathF.PI/2f, 0f));
             houseGroundMesh.scaleUVs(new Vector2(1.0f, 1.0f));
-            houseGroundMesh.ProjectUVsWorldSpaceCube(0.1f);
+            houseGroundMesh.ProjectUVsWorldSpaceCube(0.25f);
             //Mesh.scaleUV = true;
 
             world.CreateEntity(

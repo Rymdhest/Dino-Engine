@@ -18,7 +18,7 @@ float fbm(vec2 pos, vec2 scale, int octaves, float shift, float timeShift, float
     vec2 p = pos * frequency;
     octaveFactor = 1.0 + octaveFactor * 0.12;
 
-    vec2 sinCos = vec2(sin(shift), cos(shift));
+    vec2 sinCos = vec2(sin(shift), cos(shift)); 
     mat2 rotate = mat2(sinCos.y, sinCos.x, sinCos.x, sinCos.y);
 
     float value = 0.0;
