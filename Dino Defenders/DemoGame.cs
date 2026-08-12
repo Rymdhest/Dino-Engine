@@ -331,7 +331,7 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent()
             );
 
-            Mesh boxMeshLeaf = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.leafBranch));
+            Mesh boxMeshLeaf = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.birchTwig));
             world.CreateEntity("branch texture cube",
                 new PositionComponent(new Vector3(20f, 5, -50)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
@@ -341,7 +341,7 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent()
             );
 
-            Mesh cubeMeshTree = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.treeBranch));
+            Mesh cubeMeshTree = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.oakBranch));
             world.CreateEntity("tree texture cube",
                 new PositionComponent(new Vector3(40, 5, -50)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
@@ -729,7 +729,7 @@ namespace Dino_Defenders
             curve.LERPWidth(1.3f, 0.1f);
             Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 5, new VertexMaterial(TextureGenerator.bark), textureRepeats: 1, flatStart: true);
 
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.treeBranch), centerY: false);
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.oakBranch), centerY: false);
             for (int i = 0; i < branch.meshVertices.Count; i++)
             {
                 branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f)) * 0.05f;

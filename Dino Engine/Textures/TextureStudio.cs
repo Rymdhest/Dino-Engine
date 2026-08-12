@@ -74,8 +74,10 @@ namespace Dino_Engine.Textures
             Matrix4 viewMatrix = Matrix4.LookAt(new Vector3(0f, 0f, maxXZ), Vector3.Zero, Vector3.UnitY);
 
             Matrix4 projectionMatrix = fullStretch
-                ? Matrix4.CreateOrthographic(length.X, length.Y, 0.0f, maxXZ * 2.0f)
-                : Matrix4.CreateOrthographic(maxXZ, length.Y, 0.0f, maxXZ * 2.0f);
+                //? Matrix4.CreateOrthographic(length.X, length.Y, 0.0f, maxXZ * 2.0f)
+                ? Matrix4.CreateOrthographic(maxXZ, length.Y, 0.0f, maxXZ * 2.0f)
+                //: Matrix4.CreateOrthographic(maxXZ, length.Y, 0.0f, maxXZ * 2.0f);
+                : Matrix4.CreateOrthographic(MathF.Max(length.X, length.Y), MathF.Max(length.X, length.Y), 0.0f, maxXZ * 2.0f);
 
             Matrix4 modelViewMatrix = modelMatrix * viewMatrix;
             Matrix4 modelViewProjectionMatrix = modelViewMatrix * projectionMatrix;

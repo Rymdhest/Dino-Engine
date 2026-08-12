@@ -32,7 +32,7 @@ void main() {
     
     // Calculate slice angle based on Local Space camera direction
     // (We no longer need to subtract instanceRotY because localToCamera is already relative to the tree's rotation)
-    float camAngle = atan(localToCamera.x, localToCamera.z);
+    float camAngle = atan(-localToCamera.x, localToCamera.z);
     
     float relativeAngle = mod(camAngle, TWO_PI);
     if (relativeAngle < 0.0) {
