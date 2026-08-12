@@ -55,8 +55,12 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
             public Vector3 BranchStartRotation = new Vector3(0f, 0f, 0f);
             public Vector3 BranchEndRotation = new Vector3(0f, 0f, 0f);
             public Vector3 BranchRandomRotation = new Vector3(0.0f, 0.0f, 0.0f);
+            public float BranchStartSpin = 0f;
+            public float BranchEndSpin = 0f;
+            public float branchRandomScale = 0f;
             public Vector3 BranchStartScale = new Vector3(1f);
             public Vector3 BranchEndScale = new Vector3(0.1f);
+            public bool randomSpin = true;
         }
         public Mesh SpreadMeshAroundStem(Mesh branch, SpreadAroundStemSettings settings)
         {
@@ -65,11 +69,14 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                 float t = (float)i / (settings.numberBranches - 1);
                 t = settings.startStemRatio + (settings.endStemRatio - settings.startStemRatio) * t;
                 CurvePoint curvePoint = curve3D.getPointAt(t);
-                Mesh newBranch = branch.scaled(MyMath.lerp(settings.BranchStartScale, settings.BranchEndScale, t));
+                Vector3 scale = MyMath.lerp(settings.BranchStartScale, settings.BranchEndScale, t);
+                scale = scale + scale * new Vector3(settings.branchRandomScale * MyMath.rng());
+                Mesh newBranch = branch.scaled(scale);
                 newBranch.rotate(MyMath.lerp(settings.BranchStartRotation, settings.BranchEndRotation, t)+ settings.BranchRandomRotation*MyMath.rng3DMinusPlus(MathF.PI));
                 //newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
                 newBranch.translate(new Vector3(0f, 0f, curvePoint.width));
-                newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
+                newBranch.rotate(new Vector3(0f, MyMath.lerp(settings.BranchStartSpin, settings.BranchEndSpin, t), 0f));
+                if (settings.randomSpin) newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
                 newBranch.rotate(curvePoint.rotation);
                 newBranch.translate(curvePoint.pos);
 

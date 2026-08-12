@@ -205,7 +205,7 @@ namespace Dino_Defenders
                 new DirectionNormalizedComponent(new Vector3(-1.10f, -3.5f, -2.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 10f)),
                 new AmbientLightComponent(0.05f),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 2, 3, 1750),
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 3, 1750),
                 new CelestialBodyComponent()
             ) ;
             
@@ -321,7 +321,7 @@ namespace Dino_Defenders
             );
 
 
-            Mesh cubeMeshLeaf = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.leaf));
+            Mesh cubeMeshLeaf = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.pineBranch));
             world.CreateEntity("leaf texture cube",
                 new PositionComponent(new Vector3(0f, 5, -50)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
@@ -416,15 +416,15 @@ namespace Dino_Defenders
             curve.LERPWidth(5.3f, 0.1f);
             Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 7, new VertexMaterial(TextureGenerator.bark), textureRepeats:1, flatStart: true);
 
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(55f, 55f), new Vector2i(2,2), new VertexMaterial(TextureGenerator.treeBranch), centerY:false);
-            branch += branch.rotated(new Vector3(0, 0, MathF.PI/2f));
+            Mesh branch = MeshGenerator.generatePlane(new Vector2(55f, 55f), new Vector2i(2,2), new VertexMaterial(TextureGenerator.pineBranch), centerY:false);
+            //branch += branch.rotated(new Vector3(0, 0, MathF.PI/2f));
             for (int i = 0; i <branch.meshVertices.Count; i++)
             {
                 branch.meshVertices[i].position.Y -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f))*0.005f;
                 branch.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Z, 2.0f)) * 0.01f;
             }
             branch.translate(new Vector3(0f, -2f, 0.0f));
-            branch.rotate(new Vector3(-MathF.PI/1.45f, 0f, 0f));
+            branch.rotate(new Vector3(-MathF.PI/1.15f, 0f, 0f));
             r = 25.0f;
             float[] sinFBM3 = FBMmisc.sinFBM(4, 1.93f, n);
             float[] sinFBM4 = FBMmisc.sinFBM(5, 1.65f, n);
@@ -448,7 +448,7 @@ namespace Dino_Defenders
 
 
             Mesh branch2 = cylinderMesh2.scaled(new Vector3(1.0f, 1f, 1.0f));
-            int nTwigs =12;
+            int nTwigs =30;
             for (int i = 0; i < nTwigs; i++)
             {
                 float t = 0.1f + 0.9f * (float)i / (nTwigs - 1);
@@ -470,17 +470,17 @@ namespace Dino_Defenders
             //branch = MeshGenerator.generateBox(Material.ROCK);
             //branch.scale(new Vector3(0.3f, 0.3f, 5f));
             //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 60;
+            int nBranches = 20;
             for (int i = 0; i < nBranches; i++)
             {
-                float t = 0.1f+0.9f*(float)i/(nBranches - 1);
+                float t = 0.3f+0.7f*(float)i/(nBranches - 1);
                 CurvePoint curvePoint = curve.getPointAt(t);
-                var newBranch = branch2.scaled(new Vector3(0.4f- t*0.2f));
+                var newBranch = branch2.scaled(new Vector3(0.5f- t*0.45f));
                 newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
-                newBranch.rotate(new Vector3(1.1f-t*0.5f, 0f, 0f));
+                newBranch.rotate(new Vector3(-2.4f+t*0.2f, 0f, 0f));
                 newBranch.translate(new Vector3(0f, -curvePoint.width/2f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
-                newBranch.rotate(new Vector3(0f, i*MathF.Tau/5+MyMath.rng(MathF.Tau / 5), 0f));
+                newBranch.rotate(new Vector3(0f, i*MathF.Tau/3+MyMath.rng(MathF.Tau / 3), 0f));
                 //newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
                 newBranch.rotate(curvePoint.rotation);
                 newBranch.translate(curvePoint.pos);
@@ -495,7 +495,7 @@ namespace Dino_Defenders
 
             glModel treeModel = glLoader.loadToVAO(cylinderMesh);
             Engine.RenderEngine.textureGenerator.AddImposterToModel(treeModel, 100);
-            for (int i = 0; i<1000; i++)
+            for (int i = 0; i<2000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);

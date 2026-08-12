@@ -1,25 +1,15 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
-using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Modelling.Procedural.Nature;
-using Dino_Engine.Modelling.Procedural.Urban;
+using Dino_Engine.Modelling.Procedural.Vegetation;
 using Dino_Engine.Rendering;
-using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Mail;
-using System.Reflection.Emit;
-using System.Text;
-using System.Threading.Tasks;
 using static Dino_Engine.Modelling.Model.glModel;
 using static Dino_Engine.Textures.MaterialLayersManipulator;
 using static Dino_Engine.Textures.ProceduralTextureRenderer;
-using static OpenTK.Graphics.OpenGL.GL;
 
 namespace Dino_Engine.Textures
 {
@@ -51,7 +41,7 @@ namespace Dino_Engine.Textures
         public int loadedMaterialTextures = 0;
         public int loadedImposterTextures = 0;
 
-        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(512, 512)*1 ;
+        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(512, 512)*2 ;
         public readonly int anglesPerImposter = 8;
 
         public static int flat;
@@ -93,6 +83,8 @@ namespace Dino_Engine.Textures
         public static int leafBranch;
         public static int fernBranch;
         public static int treeBranch;
+        public static int pineBranch;
+        public static int pineTwig;
 
 
         public static  ProceduralTextureRenderer procTextGen = new ProceduralTextureRenderer();
@@ -253,7 +245,93 @@ namespace Dino_Engine.Textures
 
 
             generateFernBranch();
+            generatePineBranch();
+        }
 
+        private void generatePineBranch()
+        {
+
+            /// Create the twig stem
+            TreeBuilder twigbuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.bark, new Colour(205, 255, 255)), new VertexMaterial(TextureGenerator.treeBranch, new Colour(255, 255, 255)));
+            TreeBuilder.StemBuildSettings twigSettings = new TreeBuilder.StemBuildSettings();
+            twigSettings.radiusBase = 0.95f;
+            twigSettings.radiusTop = 0.3f;
+            twigSettings.stemBendRadius = 0.6f;
+            twigSettings.height = 30.0f;
+            twigSettings.sinkAmount = 0f;
+            twigSettings.baseRadiusFactor = 0.0f;
+            twigSettings.BaseWavePatternAmount = 0.0f;
+            twigbuilder.BuildStem(twigSettings);
+
+            // create single pine model
+            TreeBuilder singlePineBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.grass, new Colour(45, 50, 70)), new VertexMaterial(TextureGenerator.treeBranch, new Colour(255, 255, 255)));
+            TreeBuilder.StemBuildSettings singlePineSettings = new TreeBuilder.StemBuildSettings();
+            singlePineSettings.detailsHeight = 2;
+            singlePineSettings.detailPerRing = 3;
+            singlePineSettings.height = 15f;
+            singlePineSettings.radiusBase = 0.15f;
+            singlePineSettings.radiusTop = 0.1f;
+            singlePineSettings.baseRadiusFactor = 0.2f;
+            singlePineSettings.sinkAmount = 0.5f;
+            singlePineSettings.stemBendRadius = 0.02f;
+            singlePineSettings.textureRepeats = 1;
+            singlePineBuilder.BuildStem(singlePineSettings);
+
+            // add single pines around twig stem
+            TreeBuilder.SpreadAroundStemSettings twigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
+            twigSpawnSettings.BranchRandomRotation.Z = 1.0f;
+            twigSpawnSettings.BranchStartRotation.X = -0.95f;
+            twigSpawnSettings.BranchEndRotation.X = -0.45f;
+            twigSpawnSettings.BranchStartScale = new Vector3(1f);
+            twigSpawnSettings.BranchEndScale = new Vector3(0.8f);
+            twigSpawnSettings.numberBranches = 170;
+            twigSpawnSettings.startStemRatio = 0.05f;
+            twigbuilder.SpreadMeshAroundStem(singlePineBuilder.mesh.rotated(new Vector3(MathF.PI / 2f, 0f, 0f)), twigSpawnSettings);
+
+            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(twigbuilder.mesh, fullStretch: false));
+            pineTwig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+            addAllPreparedTexturesToTexArray(arrayType.model);
+
+            /// Create the branch stem
+            TreeBuilder branchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.bark, new Colour(205, 255, 255)), new VertexMaterial(TextureGenerator.treeBranch, new Colour(255, 255, 255)));
+            TreeBuilder.StemBuildSettings branchSettings = new TreeBuilder.StemBuildSettings();
+            branchSettings.radiusBase = 0.4f;
+            branchSettings.radiusTop = 0.4f;
+            branchSettings.stemBendRadius =1.9f;
+            branchSettings.height = 40.0f;
+            branchSettings.sinkAmount = 0f;
+            branchSettings.baseRadiusFactor = 0.0f;
+            branchSettings.BaseWavePatternAmount = 0.0f;
+            branchBuilder.BuildStem(branchSettings);
+
+            //create twig model
+            Mesh twigMesh = MeshGenerator.generatePlane(new Vector2(7f, 7f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.pineTwig, new Colour(255, 255, 255)), centerY: false);
+            //twigMesh += twigMesh.rotated(new Vector3(MathF.PI / 2f, 0f, 0));
+            twigMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
+            twigMesh.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
+
+            // add twigs around branch stem
+            TreeBuilder.SpreadAroundStemSettings branchSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
+            //branchSpawnSettings.BranchRandomRotation.Z = 1.0f;
+            branchSpawnSettings.BranchStartRotation.X = 0.0f;
+            branchSpawnSettings.BranchEndRotation.X = 0.0f;
+            branchSpawnSettings.BranchStartScale = new Vector3(1f);
+            branchSpawnSettings.BranchEndScale = new Vector3(0.8f);
+            branchSpawnSettings.BranchStartSpin = MathF.PI / 2f;
+            branchSpawnSettings.BranchEndSpin = MathF.PI/2f;
+            branchSpawnSettings.numberBranches = 10;
+            branchSpawnSettings.startStemRatio = 0.05f;
+            branchSpawnSettings.branchRandomScale = 3.0f;
+            branchSpawnSettings.randomSpin = false;
+            branchBuilder.SpreadMeshAroundStem(twigMesh.rotated(new Vector3(-MathF.PI * 1.22f, 0f, 0f)), branchSpawnSettings);
+            branchBuilder.SpreadMeshAroundStem(twigMesh.rotated(new Vector3(MathF.PI * 1.22f, 0f, 0f)), branchSpawnSettings);
+
+
+            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(branchBuilder.mesh, fullStretch: false));
+            pineBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+            addAllPreparedTexturesToTexArray(arrayType.model);
+            TEST_BRANCH_MESH = branchBuilder.mesh;
+            return;
         }
 
         private void generateFernBranch()
