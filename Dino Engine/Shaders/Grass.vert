@@ -148,7 +148,7 @@ void main() {
 
 	vec2 bendMapUVPosition = (bladePositionWorld.xz-simulationWorldPosition)/simulationWorldSize;
 	vec2 bendMapValue = texture(bendMap, bendMapUVPosition).yx;
-	bendMapValue.x *= -1.0;
+	bendMapValue.x *= -0.5;
 	bendMapValue *= tipFactor;
 	rotX = bendMapValue.x;
 	rotZ = bendMapValue.y;

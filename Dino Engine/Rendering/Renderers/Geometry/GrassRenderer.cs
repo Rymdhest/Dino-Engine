@@ -53,8 +53,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private ShaderProgram _grassBlastShader = new ShaderProgram("Simple.vert", "Grass_Blast.frag");
         private ShaderProgram _grassDisplaceShader = new ShaderProgram("Simple.vert", "Grass_Displace.frag");
 
-        private Vector2 simulationWorldSize = new Vector2(100f, 100f);
-        private Vector2 simulationWorldPosition = new Vector2(float.MinValue, float.MinValue);
+        public Vector2 simulationWorldSize = new Vector2(100f, 100f);
+        public Vector2 simulationWorldPosition = new Vector2(float.MinValue, float.MinValue);
 
         private FrameBuffer _buffer1;
         private FrameBuffer _buffer2;

@@ -20,7 +20,7 @@ namespace Dino_Engine.ECS.Systems
         // Far: One global list for all imposters (Single Draw Call)
         private readonly List<ImposterInstanceData> _imposters = new();
 
-        private readonly int _minCountForInstanced = 10;
+        private readonly int _minCountForInstanced = 1;
 
         public ModelRenderSystem()
             : base(new BitMask(typeof(ModelRenderTag), typeof(ModelComponent), typeof(LocalToWorldMatrixComponent), typeof(RotationComponent)))

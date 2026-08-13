@@ -41,7 +41,7 @@ namespace Dino_Engine.Textures
         public int loadedMaterialTextures = 0;
         public int loadedImposterTextures = 0;
 
-        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(512, 512)*1 ;
+        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(512, 512)*2 ;
         public readonly int anglesPerImposter = 8;
 
         public static int flat;
@@ -385,7 +385,7 @@ namespace Dino_Engine.Textures
             branchSpawnSettings.BranchStartSpin = MathF.PI / 2f;
             branchSpawnSettings.BranchEndSpin = MathF.PI/2f;
             branchSpawnSettings.numberBranches = 10;
-            branchSpawnSettings.startStemRatio = 0.05f;
+            branchSpawnSettings.startStemRatio = 0.15f;
             branchSpawnSettings.branchRandomScale = 3.0f;
             branchSpawnSettings.randomSpin = false;
             branchBuilder.SpreadMeshAroundStem(twigMesh.rotated(new Vector3(-MathF.PI * 1.22f, 0f, 0f)), branchSpawnSettings);

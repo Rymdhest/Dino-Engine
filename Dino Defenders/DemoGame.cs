@@ -396,10 +396,10 @@ namespace Dino_Defenders
             spawnModelOverTerrain(1000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 0.1f, 0.1f))), 30f);  // red
             spawnModelOverTerrain(1000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 1f, 10f))), 30f);  // purple
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(3.5f, 2.5f, 2.5f))), 30f);  //white
-            spawnModelOverTerrain(500, glLoader.loadToVAO(TreeGenerator.generatePineTree(15, 0.35f, alive: false, fallen: false)));
-            spawnModelOverTerrain(600, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)));
-            spawnModelOverTerrain(900, glLoader.loadToVAO(TreeGenerator.generatePineTree(25, 0.5f, alive: true, fallen: false)));
-            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.70f, alive: true, fallen: false)));
+            spawnModelOverTerrain(1500, glLoader.loadToVAO(TreeGenerator.generatePineTree(15, 0.35f, alive: false, fallen: false)));
+            spawnModelOverTerrain(1600, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)));
+            spawnModelOverTerrain(1900, glLoader.loadToVAO(TreeGenerator.generatePineTree(25, 0.5f, alive: true, fallen: false)));
+            spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.70f, alive: true, fallen: false)));
 
             spawnModelOverTerrain(400, glLoader.loadToVAO(TreeGenerator.GenerateFallenPineTree()));
             spawnModelOverTerrain(500, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()));

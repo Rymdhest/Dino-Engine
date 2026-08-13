@@ -216,7 +216,11 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             stemSettings.textureRepeats = 2;
             stemSettings.baseColor = new Colour(115, 215, 115);
             builder.BuildStem(stemSettings);
-
+            for (int i = 0; i < builder.mesh.meshVertices.Count; i++)
+            {
+                float t =MathF.Pow( MyMath.rng(), 3.0f);
+                builder.mesh.meshVertices[i].colour = new Colour(MyMath.lerp(new Vector3(1f), new Vector3(0.5f, 1f, 0.5f), t));
+            }
             TreeBuilder BranchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark, new Colour(255, 255, 255)));
 
 
@@ -238,7 +242,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(branchSize), new Vector2i(2, 4), branchTexture, centerY: false);
             for (int i = 0; i < leafMesh.meshVertices.Count; i++)
             {
-                leafMesh.meshVertices[i].position.Y -= MathF.Abs(MathF.Pow(leafMesh.meshVertices[i].position.X, 2.0f)) * 0.1f;
+                leafMesh.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(leafMesh.meshVertices[i].position.X, 2.0f)) * 0.1f;
                 leafMesh.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(leafMesh.meshVertices[i].position.Z, 2.0f)) * 0.05f;
             }
             //leafMesh += leafMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));

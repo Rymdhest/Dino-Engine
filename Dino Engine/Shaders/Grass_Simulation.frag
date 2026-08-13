@@ -20,9 +20,10 @@ vec2 calcWind(vec2 uv) {
     float sweep = dot(worldPos, windDirection);
     
     // 2. Your exact original math, applied to the sweep coordinate
-    float force = 0.08f * sin(sweep * 0.77f + time);
-    force += 0.05317f * sin(sweep * 0.124f + time * 2.412);
-    force += 0.0239973f * sin(sweep * 0.02567f + time * 7.328995);
+    float force = 0.15f * sin(sweep * 0.77f + time);
+    //force += 0.05317f * sin(sweep * 0.124f + time * 2.412);
+    force += 0.0539973f * sin(sweep * 0.7567f + time * 3.328995);
+    //force += 0.0411973f * sin(sweep * 0.01567f + time * 18.128995);
     
     // 3. Multiply by direction, power, and delta
     return windDirection * (force * globalWindStrength) * delta;

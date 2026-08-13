@@ -23,11 +23,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelShader.loadUniformInt("albedoMapModelTextureArray", 3);
             _instancedModelShader.loadUniformInt("normalMapModelTextureArray", 4);
             _instancedModelShader.loadUniformInt("materialMapModelTextureArray", 5);
+
+            _instancedModelShader.loadUniformInt("bendMap", 6);
             _instancedModelShader.unBind();
 
             _instancedModelShadowShader.bind();
             _instancedModelShadowShader.loadUniformInt("albedoMapTextureArray", 0);
             _instancedModelShadowShader.loadUniformInt("albedoMapModelTextureArray", 3);
+
+            _instancedModelShadowShader.loadUniformInt("bendMap", 6);
             _instancedModelShadowShader.unBind();
 
             _instanceVBO = GL.GenBuffer();
@@ -48,6 +52,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _instancedModelShader.bind();
 
+            _instancedModelShader.loadUniformVector2f("simulationWorldSize", renderEngine._grassRenderer.simulationWorldSize);
+            _instancedModelShader.loadUniformVector2f("simulationWorldPosition", renderEngine._grassRenderer.simulationWorldPosition);
+
             _instancedModelShader.loadUniformFloat("parallaxDepth", 0.0f);
             _instancedModelShader.loadUniformFloat("parallaxLayers", 20f);
 
@@ -66,6 +73,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
             GL.ActiveTexture(TextureUnit.Texture5);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
+
+
+            GL.ActiveTexture(TextureUnit.Texture6);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._grassRenderer.GetLastFrameBuffer().GetAttachment(0));
         }
 
         internal override void FinishGeometry(RenderEngine renderEngine)
@@ -101,11 +112,17 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelShadowShader.bind();
             _instancedModelShadowShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
+            _instancedModelShadowShader.loadUniformVector2f("simulationWorldSize", renderEngine._grassRenderer.simulationWorldSize);
+            _instancedModelShadowShader.loadUniformVector2f("simulationWorldPosition", renderEngine._grassRenderer.simulationWorldPosition);
+
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
 
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
+
+            GL.ActiveTexture(TextureUnit.Texture6);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._grassRenderer.GetLastFrameBuffer().GetAttachment(0));
         }
 
         internal override void FinishShadow(RenderEngine renderEngine)
