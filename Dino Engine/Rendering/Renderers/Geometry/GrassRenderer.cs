@@ -418,11 +418,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShader.loadUniformFloat("groundNormalStrength", 0.2f);
             _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.2f);
             _grassShader.loadUniformFloat("colourError", 0.1f);
-            _grassShader.loadUniformFloat("SSS", 0.75f);
+            _grassShader.loadUniformFloat("SSS", 0.6f);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.1f);
             _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.1f);
             _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.45f, 0f, 0.0f, 0.0f));
-            _grassShader.loadUniformVector3f("baseColorAlive", new Colour(70, 70, 45).ToVector3());
+            _grassShader.loadUniformVector3f("baseColorAlive", new Colour(60, 65, 80).ToVector3());
             //_grassShader.loadUniformVector3f("baseColorAlive", new Colour(20, 50, 15).ToVector3());
             _grassShader.loadUniformVector3f("baseColorDead", new Colour(145, 74,60).ToVector3());
             //_grassShader.loadUniformVector3f("baseColor", new Colour(30, 11, 8).ToVector3());
@@ -525,8 +525,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             
             GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
-            //GL.PolygonOffset(1, 1);
-
+            GL.PolygonOffset(0.01f, 0.01f);
+            
             if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
             {
                 shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);

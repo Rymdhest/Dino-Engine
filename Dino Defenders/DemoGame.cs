@@ -205,7 +205,7 @@ namespace Dino_Defenders
                 new DirectionNormalizedComponent(new Vector3(-1.10f, -3.5f, -2.9f)),
                 new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 10f)),
                 new AmbientLightComponent(0.05f),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 3, 1750),
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 2, 3, 1750),
                 new CelestialBodyComponent()
             ) ;
             
@@ -351,199 +351,10 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent()
             );
 
-
-            float poleHeight = 1f;
-            List<Vector2> layers = new List<Vector2>() {
-                new Vector2(10.0f, 0),
-                new Vector2(9.0f, 1.0f),
-                new Vector2(2.0f, 2.0f),
-                new Vector2(1.0f, 3.0f)};
-            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new VertexMaterial(TextureGenerator.bark), sealTop:0.1f);
-
-            foreach(MeshVertex meshVertex in poleMesh.meshVertices)
-            {
-                float angle = MathF.Atan2(meshVertex.position.X, meshVertex.position.Z)*12.0f;
-                //meshVertex.position += new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle))*0.1f;
-
-                if (meshVertex.position.Y < 1f)
-                {
-                    meshVertex.colour = new Colour(125, 165, 85);
-                    float valueX = MathF.Pow((MathF.Sin(angle)), 1.0f);
-                    float valueZ = MathF.Pow((MathF.Cos(angle)), 1.0f);
-                    //eshVertex.position += ( new Vector3(valueX, 0f, valueZ) * .05f);
-                }
-            }
-            //poleMesh.FlatRandomness(new Vector3(.05f, 0f, .05f));
-
-            var controlPoints = new List<Vector3>
-            {
-                new Vector3(0, 0, 0),
-                new Vector3(0, 2, 0),
-                new Vector3(2, 4, 0),
-                new Vector3(3, 6, 0),
-                new Vector3(3, 8, 0)
-            };
-            controlPoints = new List<Vector3>
-            {
-                new Vector3(0, 0, 0),
-                new Vector3(0, 5, 0),
-                new Vector3(2.5f, 5, 0),
-                new Vector3(5, 5, 0),
-                new Vector3(5, 0, 10)
-            };
-            controlPoints.Clear();
-
-            int n = 20;
-            float[] sinFBM = FBMmisc.sinFBM(4, 0.23f, n);
-            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.15f, n);
-            float r = 10.0f;
-            float h = 250f;
-            for (int i = 0; i<n;i++)
-            {   
-                float traversedRatio = i/(float)(n - 1);
-                float angle = MathF.PI * i * 0.2f;
-                float x = sinFBM[i] * r* traversedRatio;
-                float z = sinFBM2[i] * r* traversedRatio;
-                float y = traversedRatio *h;
-                controlPoints.Add(new Vector3(x, y, z));
-            }
-
-            CardinalSpline3D spline = new CardinalSpline3D(controlPoints,0.0f);
-
-
-
-            Curve3D curve = spline.GenerateCurve(1);
-            curve.LERPWidth(5.3f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 7, new VertexMaterial(TextureGenerator.bark), textureRepeats:1, flatStart: true);
-
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(55f, 55f), new Vector2i(2,2), new VertexMaterial(TextureGenerator.pineBranch), centerY:false);
-            //branch += branch.rotated(new Vector3(0, 0, MathF.PI/2f));
-            for (int i = 0; i <branch.meshVertices.Count; i++)
-            {
-                branch.meshVertices[i].position.Y -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f))*0.005f;
-                branch.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Z, 2.0f)) * 0.01f;
-            }
-            branch.translate(new Vector3(0f, -2f, 0.0f));
-            branch.rotate(new Vector3(-MathF.PI/1.15f, 0f, 0f));
-            r = 25.0f;
-            float[] sinFBM3 = FBMmisc.sinFBM(4, 1.93f, n);
-            float[] sinFBM4 = FBMmisc.sinFBM(5, 1.65f, n);
-            controlPoints.Clear();
-            n = 5;
-            h = 200f;
-            for (int i = 0; i < n; i++)
-            {
-                float traversedRatio = i / (float)(n - 1);
-                float angle = MathF.PI * i * 0.2f;
-                float x = sinFBM3[i] * r * traversedRatio;
-                float z = sinFBM4[i] * r * traversedRatio;
-                float y = traversedRatio * h;
-                controlPoints.Add(new Vector3(x, y, z));
-            }
-
-            CardinalSpline3D spline2 = new CardinalSpline3D(controlPoints, 0.0f);
-            Curve3D curve2 = spline2.GenerateCurve(1);
-            curve2.LERPWidth(4.3f, 0.1f);
-            Mesh cylinderMesh2 = MeshGenerator.generateCurvedTube(curve2, 7, new VertexMaterial(TextureGenerator.bark), textureRepeats: 1, flatStart: true);
-
-
-            Mesh branch2 = cylinderMesh2.scaled(new Vector3(1.0f, 1f, 1.0f));
-            int nTwigs =30;
-            for (int i = 0; i < nTwigs; i++)
-            {
-                float t = 0.1f + 0.9f * (float)i / (nTwigs - 1);
-                CurvePoint curvePoint = curve2.getPointAt(t);
-                var newBranch = branch.scaled(new Vector3(1.65f - t * 1.3f));
-                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
-                Vector3 col = MyMath.rng3D(0.3f);
-                newBranch.setColour(new Colour(new Vector3(1f) - col));
-                newBranch.rotate(new Vector3(0.2f + t*0.8f, 0f, 0f));
-                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
-                //newBranch.rotate(new Vector3(0f, i * MathF.Tau / 3f, 0f));
-                newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
-                newBranch.rotate(curvePoint.rotation);
-                newBranch.translate(curvePoint.pos);
-                branch2 += newBranch;
-            }
-            //branch = cylinderMesh;
-
-            //branch = MeshGenerator.generateBox(Material.ROCK);
-            //branch.scale(new Vector3(0.3f, 0.3f, 5f));
-            //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 20;
-            for (int i = 0; i < nBranches; i++)
-            {
-                float t = 0.3f+0.7f*(float)i/(nBranches - 1);
-                CurvePoint curvePoint = curve.getPointAt(t);
-                var newBranch = branch2.scaled(new Vector3(0.5f- t*0.45f));
-                newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
-                newBranch.rotate(new Vector3(-2.4f+t*0.2f, 0f, 0f));
-                newBranch.translate(new Vector3(0f, -curvePoint.width/2f, 0f));
-                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
-                newBranch.rotate(new Vector3(0f, i*MathF.Tau/3+MyMath.rng(MathF.Tau / 3), 0f));
-                //newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
-                newBranch.rotate(curvePoint.rotation);
-                newBranch.translate(curvePoint.pos);
-                cylinderMesh += newBranch;
-            }
-            cylinderMesh.scale(new Vector3(0.2f));
-            
-            Console.WriteLine("TREE HAS: "+cylinderMesh.faces.Count+" FACES");
-
     
             float terrainSize = 1000f;
 
-            glModel treeModel = glLoader.loadToVAO(cylinderMesh);
-            Engine.RenderEngine.textureGenerator.AddImposterToModel(treeModel, 100);
-            for (int i = 0; i<2000; i++)
-            {
-                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float height = 4f + MyMath.rng(0.9f);
-                float radius =2f+MyMath.rngMinusPlus(0.3f);
-                height = 1.0f;
-                radius = height;
-                world.CreateEntity("tree test: "+i,
-                    new PositionComponent(treePos),
-                    new RotationComponent(new Vector3(0f, MyMath.rng()*MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(radius, height, radius)*(0.5f+MyMath.rng())),
-                    new ModelComponent(treeModel),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent(),
-                    new ColliderComponent
-                    {
-                        Type = ColliderType.Cylinder,
-                        Data = new ColliderData { HalfExtents = new Vector3(radius, height * 2f, radius) },
-                        Restitution = 0.2f // Trees aren't very bouncy
-                    }
-                );
-            }
 
-            int numTreesOnLine = 10;
-            for (int i = 0; i < numTreesOnLine; i++)
-            {
-                float factor = (float)i / (numTreesOnLine-1);
-                Vector3 treePos = new Vector3(factor * 140f + 40f, 0, 0);
-                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float height = 4f + MyMath.rng(0.9f);
-                float radius = 2f + MyMath.rngMinusPlus(0.3f);
-                height = 1.0f;
-                radius = height;
-                world.CreateEntity("tree line test: " + i,
-                    new PositionComponent(treePos),
-                    new RotationComponent(new Vector3(0f, factor * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(radius, height, radius)),
-                    new ModelComponent(treeModel),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent(),
-                    new ColliderComponent
-                    {
-                        Type = ColliderType.Cylinder,
-                        Data = new ColliderData { HalfExtents = new Vector3(radius, height * 2f, radius) },
-                        Restitution = 0.2f // Trees aren't very bouncy
-                    }
-                );
-            }
 
 
             Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(4, new VertexMaterial(TextureGenerator.rock, new Colour(255, 255, 255)),8);
@@ -580,239 +391,45 @@ namespace Dino_Defenders
             }
 
 
-            glModel fern = glLoader.loadToVAO(TreeGenerator.GenerateFern());
-            Engine.RenderEngine.textureGenerator.AddImposterToModel(fern, 30);
-            for (int i = 0; i < 6000; i++)
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFern()), 30f);
+            spawnModelOverTerrain(1000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(6f, 1f, 1f))), 30f);  // yellow
+            spawnModelOverTerrain(1000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 0.1f, 0.1f))), 30f);  // red
+            spawnModelOverTerrain(1000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 1f, 10f))), 30f);  // purple
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(3.5f, 2.5f, 2.5f))), 30f);  //white
+            spawnModelOverTerrain(500, glLoader.loadToVAO(TreeGenerator.generatePineTree(15, 0.35f, alive: false, fallen: false)));
+            spawnModelOverTerrain(600, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)));
+            spawnModelOverTerrain(900, glLoader.loadToVAO(TreeGenerator.generatePineTree(25, 0.5f, alive: true, fallen: false)));
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.70f, alive: true, fallen: false)));
+
+            spawnModelOverTerrain(400, glLoader.loadToVAO(TreeGenerator.GenerateFallenPineTree()));
+            spawnModelOverTerrain(500, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()));
+        }
+       
+        private void spawnModelOverTerrain(int n, glModel model, float imposterDistance = 60f)
+        {
+            float terrainSize = 1000f;
+            ECSWorld world = Engine.world;
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(model, imposterDistance);
+            for (int i = 0; i < n; i++)
             {
-                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float size = 0.4f + MyMath.rng(0.4f);
-                world.CreateEntity("fern test: " + i,
-                    new PositionComponent(treePos),
+                Vector3 pos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                pos.Y = terrainGenerator.getHeightAt(pos.Xz);
+                world.CreateEntity("auto spawned model"+model.ToString()+" " + i,
+                    new PositionComponent(pos),
                     new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(size)),
-                    new ModelComponent(fern),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent()
-                );
-            }
-
-
-            glModel flower = glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush());
-            Engine.RenderEngine.textureGenerator.AddImposterToModel(flower, 30);
-            for (int i = 0; i < 3000; i++)
-            {
-                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float size = 1.1f + MyMath.rng(0.4f);
-                world.CreateEntity("flower test: " + i,
-                    new PositionComponent(treePos),
-                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(size)),
-                    new ModelComponent(flower),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent()
-                );
-            }
-
-            glModel birchTree = glLoader.loadToVAO(TreeGenerator.GenerateBirchTree());
-            Engine.RenderEngine.textureGenerator.AddImposterToModel(flower, 100);
-            for (int i = 0; i < 500; i++)
-            {
-                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float size = 0.75f + MyMath.rng(0.5f);
-                world.CreateEntity("birch tree test: " + i,
-                    new PositionComponent(treePos),
-                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(size)),
-                    new ModelComponent(birchTree),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent()
-                );
-            }
-
-            glModel deadTree = glLoader.loadToVAO(TreeGenerator.GenerateDeadTree());
-            Engine.RenderEngine.textureGenerator.AddImposterToModel(deadTree, 60);
-            for (int i = 0; i < 700; i++)
-            {
-                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float height = 0.5f + MyMath.rng(1.0f);
-                float radius = 0.6f + MyMath.rng(0.4f);
-                float rotZ = 0f;
-                if (MyMath.rng() < 0.3f)
-                {
-                    rotZ = MathF.PI / 2f;
-                }
-                treePos.Y += radius;
-                world.CreateEntity("dead tree: " + i,
-                    new PositionComponent(treePos),
-                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, rotZ)),
-                    new ScaleComponent(new Vector3(radius, height, radius)),
-                    new ModelComponent(deadTree),
+                    new ScaleComponent(new Vector3(1f+MyMath.rngMinusPlus(0.25f))),
+                    new ModelComponent(model),
                     new ModelRenderTag(),
                     new LocalToWorldMatrixComponent()
                 );
             }
         }
-       
-    
+
 
 
         private void spawnTerrain(ECSWorld world)
         {
-            TerrainGenerator generator = new TerrainGenerator();
-            Vector2 chunkSize = new Vector2(250, 255);
 
-
-            List<Vector2> layers = new List<Vector2>() {
-                new Vector2(10.0f, 0),
-                new Vector2(9.0f, 1.0f),
-                new Vector2(2.0f, 2.0f),
-                new Vector2(1.0f, 3.0f)};
-            Mesh poleMesh = MeshGenerator.generateCylinder(layers, 50, new VertexMaterial(TextureGenerator.bark), sealTop: 0.1f);
-
-            foreach (MeshVertex meshVertex in poleMesh.meshVertices)
-            {
-                float angle = MathF.Atan2(meshVertex.position.X, meshVertex.position.Z) * 12.0f;
-                //meshVertex.position += new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle))*0.1f;
-
-                if (meshVertex.position.Y < 1f)
-                {
-                    meshVertex.colour = new Colour(125, 165, 85);
-                    float valueX = MathF.Pow((MathF.Sin(angle)), 1.0f);
-                    float valueZ = MathF.Pow((MathF.Cos(angle)), 1.0f);
-                    //eshVertex.position += ( new Vector3(valueX, 0f, valueZ) * .05f);
-                }
-            }
-            //poleMesh.FlatRandomness(new Vector3(.05f, 0f, .05f));
-
-            var controlPoints = new List<Vector3>
-            {
-                new Vector3(0, 0, 0),
-                new Vector3(0, 2, 0),
-                new Vector3(2, 4, 0),
-                new Vector3(3, 6, 0),
-                new Vector3(3, 8, 0)
-            };
-            controlPoints = new List<Vector3>
-            {
-                new Vector3(0, 0, 0),
-                new Vector3(0, 5, 0),
-                new Vector3(2.5f, 5, 0),
-                new Vector3(5, 5, 0),
-                new Vector3(5, 0, 10)
-            };
-            controlPoints.Clear();
-
-            int n = 10;
-            float[] sinFBM = FBMmisc.sinFBM(5, 0.13f, n);
-            float[] sinFBM2 = FBMmisc.sinFBM(5, 0.2f, n);
-            float r = 2.0f;
-            float h = 100f;
-            for (int i = 0; i < n; i++)
-            {
-                float traversedRatio = i / (float)(n - 1);
-                float angle = MathF.PI * i * 0.2f;
-                float x = sinFBM[i] * r * traversedRatio;
-                float z = sinFBM2[i] * r * traversedRatio;
-                float y = traversedRatio * h;
-                controlPoints.Add(new Vector3(x, y, z));
-            }
-
-            CardinalSpline3D spline = new CardinalSpline3D(controlPoints, 0.0f);
-
-
-
-            Curve3D curve = spline.GenerateCurve(1);
-            curve.LERPWidth(1.3f, 0.1f);
-            Mesh cylinderMesh = MeshGenerator.generateCurvedTube(curve, 5, new VertexMaterial(TextureGenerator.bark), textureRepeats: 1, flatStart: true);
-
-            Mesh branch = MeshGenerator.generatePlane(new Vector2(40f, 40f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.oakBranch), centerY: false);
-            for (int i = 0; i < branch.meshVertices.Count; i++)
-            {
-                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.X, 2.0f)) * 0.05f;
-                branch.meshVertices[i].position.Z -= MathF.Abs(MathF.Pow(branch.meshVertices[i].position.Y, 2.0f)) * 0.015f;
-            }
-            branch.translate(new Vector3(0f, -2f, 0.0f));
-            branch.rotate(new Vector3(-MathF.PI / 1.45f, 0f, 0f));
-
-
-            Mesh branch2 = cylinderMesh.scaled(new Vector3(1.0f, 1f, 1.0f));
-            int nTwigs = 16;
-            for (int i = 0; i < nTwigs; i++)
-            {
-                float t = 0.5f + 0.5f * (float)i / (nTwigs - 1);
-                CurvePoint curvePoint = curve.getPointAt(t);
-                var newBranch = branch.scaled(new Vector3(0.6f - t * 0.4f));
-                Vector3 col = MyMath.rng3D(0.3f);
-                newBranch.setColour(new Colour(new Vector3(1f) - col));
-                newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
-                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
-                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
-                newBranch.rotate(new Vector3(0f, i * MathF.Tau / 5f, 0f));
-                newBranch.rotate(curvePoint.rotation);
-                newBranch.translate(curvePoint.pos);
-                branch2 += newBranch;
-            }
-            //branch = cylinderMesh;
-
-            //branch = MeshGenerator.generateBox(Material.ROCK);
-            //branch.scale(new Vector3(0.3f, 0.3f, 5f));
-            //branch.translate(new Vector3(0f, 0f, -2.5f));
-            int nBranches = 24;
-            for (int i = 0; i < nBranches; i++)
-            {
-                float t = 0.3f + 0.7f * (float)i / (nBranches - 1);
-                CurvePoint curvePoint = curve.getPointAt(t);
-                var newBranch = branch2.scaled(new Vector3(0.5f - t * 0.4f));
-                newBranch.rotate(new Vector3(.6f + t * 0.2f, 0f, 0f));
-                newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
-                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
-                newBranch.rotate(new Vector3(0f, i * MathF.Tau / 5f + MyMath.rngMinusPlus(0.35f), 0f));
-                //newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
-                newBranch.rotate(curvePoint.rotation);
-                newBranch.translate(curvePoint.pos);
-                cylinderMesh += newBranch;
-            }
-
-            var _glModel = glLoader.loadToVAO(cylinderMesh);
-            for (int i = 0; i < 115; i++)
-            {
-                var model = new ModelComponent(_glModel);
-
-                Vector2 xz = MyMath.rng2D(chunkSize.X);
-                float y = generator.getHeightAt(xz);
-                world.CreateEntity(model, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new PositionComponent(new Vector3(xz.X, y, xz.Y)), new RotationComponent(new Quaternion(0, MyMath.rng(MathF.Tau), 0f)), new ScaleComponent(new Vector3(0.3f + MyMath.rngMinusPlus(0.2f))));
-            }
-
-
-            var rockMesh = IcoSphereGenerator.CreateIcosphere(2, new VertexMaterial(TextureGenerator.crackedLava));
-            rockMesh.rotate(new Vector3(-MathF.PI/2f, 0f, 0f));
-
-            OpenSimplexNoise noise = new OpenSimplexNoise();
-
-            for (int i = 0; i<rockMesh.meshVertices.Count; i++)
-            {
-                Vector3 oldPos = rockMesh.meshVertices[i].position;
-                float noiseValue = noise.FBM(oldPos.X, oldPos.Y, oldPos.Z, 1.5f, 4);
-                Vector3 newPos = oldPos+oldPos*noiseValue*0.05f;
-                rockMesh.meshVertices[i].position = newPos;
-            }
-
-            rockMesh.FlatRandomness(0.0f);
-            rockMesh.makeFlat(flatMaterial: true, flatNormal:true);
-            var rockModel = glLoader.loadToVAO(rockMesh);
-            for (int i = 0; i < 1000; i++)
-            {
-                var model = new ModelComponent(rockModel);
-
-                Vector2 xz = MyMath.rng2D(chunkSize.X);
-                float y = generator.getHeightAt(xz);
-
-                world.CreateEntity(model, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new PositionComponent(new Vector3(xz.X, y, xz.Y)), new RotationComponent(new Quaternion(0, MyMath.rng(MathF.Tau), 0f)), new ScaleComponent(new Vector3(0.7f) + MyMath.rng3D(3.0f)));
-            }
 
             /*
             DebugRenderer.texture = terrainSteepnessMap.GetTexture();
@@ -1031,7 +648,7 @@ namespace Dino_Defenders
                     world.CreateEntity(position, scale, rotation, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new ModelComponent(houseModel));
                 }
             }
-            Mesh houseGroundMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.bark));
+            Mesh houseGroundMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.pineBark));
             //Mesh.scaleUV = true;
             //houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
             Mesh.scaleUV = true;

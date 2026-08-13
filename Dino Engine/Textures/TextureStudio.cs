@@ -65,7 +65,7 @@ namespace Dino_Engine.Textures
             // ==========================================
             AABB box = model.box;
             Vector3 length = box.max - box.min;
-            Vector3 center = (box.max + box.min) / 2f;
+            Vector3 center = (box.max + box.min) / 2f; 
 
             float safeZ = MathF.Max(length.Z, 0.01f);
             float maxXZ = MathF.Max(MathF.Sqrt((length.X * length.X) + (safeZ * safeZ)), 0.01f);

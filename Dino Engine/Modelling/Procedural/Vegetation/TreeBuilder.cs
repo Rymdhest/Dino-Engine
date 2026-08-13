@@ -13,13 +13,11 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
     {
         public Mesh mesh;
         public VertexMaterial trunkMaterial;
-        public VertexMaterial branchMaterial;
         public Curve3D? curve3D = null;
 
-        public TreeBuilder(VertexMaterial trunkMaterial, VertexMaterial branchMaterial)
+        public TreeBuilder(VertexMaterial trunkMaterial)
         {
             this.trunkMaterial = trunkMaterial;
-            this.branchMaterial = branchMaterial;
             mesh = new Mesh();
         }
 
@@ -76,7 +74,7 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                 //newBranch.translate(new Vector3(0f, -curvePoint.width / 2f, 0f));
                 newBranch.translate(new Vector3(0f, 0f, curvePoint.width));
                 newBranch.rotate(new Vector3(0f, MyMath.lerp(settings.BranchStartSpin, settings.BranchEndSpin, t), 0f));
-                if (settings.randomSpin) newBranch.rotate(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f));
+                if (settings.randomSpin) newBranch.rotate(new Vector3(0f, i* (MathF.Tau / 3.0f) + MyMath.rng() * (MathF.Tau/3.0f), 0f));
                 newBranch.rotate(curvePoint.rotation);
                 newBranch.translate(curvePoint.pos);
 
@@ -100,7 +98,7 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
             public float sinkAmount = 0f;
             public float stemBaseHeight = 3f;
             public int wavePatternFrequenzy = 8;
-            public int textureRepeats = 2;
+            public int textureRepeats = 1;
             public Colour? baseColor = null;
         }
 
