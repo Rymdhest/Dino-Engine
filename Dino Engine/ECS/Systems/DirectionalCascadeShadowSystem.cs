@@ -122,7 +122,7 @@ namespace Dino_Engine.ECS.Systems
             {
                 if (kvp.Value.Count > 0)
                 {
-                    prebuiltModelCommands.Add(new ModelRenderCommand(kvp.Key, kvp.Value.ToArray()));
+                    prebuiltModelCommands.Add(new ModelRenderCommand(kvp.Key, kvp.Value));
                 }
             }
 
@@ -140,7 +140,7 @@ namespace Dino_Engine.ECS.Systems
                 // Standard Models
                 foreach (var cmd in prebuiltModelCommands)
                 {
-                    if (cmd.matrices.Length > minCountForInstanced)
+                    if (cmd.matrices.Count > minCountForInstanced)
                         Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, cascade);
                     else
                         Engine.RenderEngine._modelRenderer.SubmitShadowCommand(cmd, cascade);
@@ -154,7 +154,7 @@ namespace Dino_Engine.ECS.Systems
             }
 
             // 6. Terrain & Grass
-            var quadtreeComp = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
+            var quadtreeComp = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
 
             for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {

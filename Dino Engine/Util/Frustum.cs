@@ -61,14 +61,14 @@ namespace Dino_Engine.Util
             foreach (var plane in Planes)
             {
                 Vector3 positive = new Vector3(
-                    plane.Normal.X >= 0 ? box.max.X : box.min.X,
-                    plane.Normal.Y >= 0 ? box.max.Y : box.min.Y,
-                    plane.Normal.Z >= 0 ? box.max.Z : box.min.Z);
+                    plane.Normal.X >= 0 ? box.Max.X : box.Min.X,
+                    plane.Normal.Y >= 0 ? box.Max.Y : box.Min.Y,
+                    plane.Normal.Z >= 0 ? box.Max.Z : box.Min.Z);
 
                 Vector3 negative = new Vector3(
-                    plane.Normal.X >= 0 ? box.min.X : box.max.X,
-                    plane.Normal.Y >= 0 ? box.min.Y : box.max.Y,
-                    plane.Normal.Z >= 0 ? box.min.Z : box.max.Z);
+                    plane.Normal.X >= 0 ? box.Min.X : box.Max.X,
+                    plane.Normal.Y >= 0 ? box.Min.Y : box.Max.Y,
+                    plane.Normal.Z >= 0 ? box.Min.Z : box.Max.Z);
 
                 if (Vector3.Dot(plane.Normal, positive) + plane.D < 0)
                     return IntersectionResult.Outside;

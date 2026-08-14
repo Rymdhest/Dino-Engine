@@ -23,7 +23,7 @@ namespace Dino_Engine.ECS.Systems
         private readonly int _minCountForInstanced = 1;
 
         public ModelRenderSystem()
-            : base(new BitMask(typeof(ModelRenderTag), typeof(ModelComponent), typeof(LocalToWorldMatrixComponent), typeof(RotationComponent)))
+            : base(new BitMask(typeof(ModelRenderTag), typeof(ModelComponent), typeof(LocalToWorldMatrixComponent), typeof(RotationComponent), typeof(PositionComponent), typeof(ScaleComponent)))
         {
         }
 
@@ -41,12 +41,16 @@ namespace Dino_Engine.ECS.Systems
                 var modelArray = archetype.GetComponentArray<ModelComponent>();
                 var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
                 var rotArray = archetype.GetComponentArray<RotationComponent>();
+
+                var posArray = archetype.GetComponentArray<PositionComponent>();
+                var scaleArray = archetype.GetComponentArray<ScaleComponent>();
+
                 int count = archetype.EntityCount;
 
                 for (int i = 0; i < count; i++)
                 {
                     Matrix4 mat = matrixArray[i].value;
-                    Vector3 pos = mat.ExtractTranslation();
+                    Vector3 pos = posArray[i].value;
                     float distSq = (pos - camPos).LengthSquared;
 
                     glModel model = modelArray[i].model;
@@ -59,7 +63,7 @@ namespace Dino_Engine.ECS.Systems
 
                     if (useImposter)
                     {
-                        Vector3 entityScale = mat.ExtractScale();
+                        Vector3 entityScale = scaleArray[i].value;
                         ImposterData imposter = model.Imposter;
 
                         // 3. Grab the pure quaternion directly from ECS (assuming the field is called 'value' or 'rotation')
@@ -98,11 +102,11 @@ namespace Dino_Engine.ECS.Systems
 
                 if (kvp.Value.Count > _minCountForInstanced)
                 {
-                    Engine.RenderEngine._instancedModelRenderer.SubmitGeometryCommand(new ModelRenderCommand( kvp.Key, kvp.Value.ToArray()));
+                    Engine.RenderEngine._instancedModelRenderer.SubmitGeometryCommand(new ModelRenderCommand( kvp.Key, kvp.Value));
                 }
                 else
                 {
-                    Engine.RenderEngine._modelRenderer.SubmitGeometryCommand(new ModelRenderCommand(kvp.Key, kvp.Value.ToArray()));
+                    Engine.RenderEngine._modelRenderer.SubmitGeometryCommand(new ModelRenderCommand(kvp.Key, kvp.Value));
                 }
             }
 

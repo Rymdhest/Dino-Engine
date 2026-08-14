@@ -5,11 +5,11 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Components
 {
-    public struct TerrainGeneratorComponent : IComponent
+    public struct TerrainGeneratorSingleton : IComponent
     {
         public TerrainGenerator Generator;
 
-        public TerrainGeneratorComponent(TerrainGenerator generator)
+        public TerrainGeneratorSingleton(TerrainGenerator generator)
         {
             this.Generator = generator;
         }

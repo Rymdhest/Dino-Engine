@@ -19,8 +19,8 @@ namespace Dino_Engine.ECS.Systems
 
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
-            var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>( world.GetSingleton<TerrainQuadTreeComponent>());
-            TerrainGenerator generator = world.GetComponent<TerrainGeneratorComponent>(world.GetSingleton<TerrainGeneratorComponent>()).Generator;
+            var quadtreeComponent = world.GetComponent<TerrainQuadTreeSingleton>( world.GetSingleton<TerrainQuadTreeSingleton>());
+            TerrainGenerator generator = world.GetComponent<TerrainGeneratorSingleton>(world.GetSingleton<TerrainGeneratorSingleton>()).Generator;
             Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
             UpdateNodeLODRecursive(quadtreeComponent.QuadTree, cameraPos, world, generator, quadtreeComponent.rootSize);
             Engine.Instance.world.ApplyDeferredCommands();

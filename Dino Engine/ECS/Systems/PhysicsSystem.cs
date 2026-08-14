@@ -42,18 +42,18 @@ namespace Dino_Engine.ECS.Systems
             _manifolds.Clear();
 
             // --- PHASE 1: EVENT BUFFER & TERRAIN PREP ---
-            CollisionEventBufferComponent eventBuffer = default;
+            CollisionEventBufferSingleton eventBuffer = default;
             bool hasEventBuffer = false;
-            var eventSingleton = world.GetSingleton<CollisionEventBufferComponent>();
+            var eventSingleton = world.GetSingleton<CollisionEventBufferSingleton>();
             if (eventSingleton.IsValid())
             {
-                eventBuffer = world.GetComponent<CollisionEventBufferComponent>(eventSingleton);
+                eventBuffer = world.GetComponent<CollisionEventBufferSingleton>(eventSingleton);
                 eventBuffer.Events.Clear();
                 hasEventBuffer = true;
             }
 
-            var genEntity = world.GetSingleton<TerrainGeneratorComponent>();
-            TerrainGenerator generator = genEntity.IsValid() ? world.GetComponent<TerrainGeneratorComponent>(genEntity).Generator : null;
+            var genEntity = world.GetSingleton<TerrainGeneratorSingleton>();
+            TerrainGenerator generator = genEntity.IsValid() ? world.GetComponent<TerrainGeneratorSingleton>(genEntity).Generator : null;
 
 
             // --- PHASE 2: STATIC GRID MAINTENANCE ---

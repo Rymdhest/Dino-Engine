@@ -4,11 +4,11 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Components
 {
-    public struct TerrainQuadTreeComponent : IComponent
+    public struct TerrainQuadTreeSingleton : IComponent
     {
         public QuadTreeNode QuadTree;
         public float rootSize;
-        public TerrainQuadTreeComponent(QuadTreeNode quadTree)
+        public TerrainQuadTreeSingleton(QuadTreeNode quadTree)
         {
             this.QuadTree = quadTree;
             this.rootSize = QuadTree.Size;

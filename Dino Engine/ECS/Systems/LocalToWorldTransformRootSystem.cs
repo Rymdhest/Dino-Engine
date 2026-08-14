@@ -16,9 +16,11 @@ namespace Dino_Engine.ECS.Systems
         // This allows us to access the Archetype's raw component arrays.
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
-            foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
+            var archetypes = world.QueryArchetypes(WithMask, WithoutMask);
+
+            // Run archetype chunks in parallel across CPU cores
+            Parallel.ForEach(archetypes, archetype =>
             {
-                // Retrieve raw component arrays directly from the archetype
                 var posArray = archetype.GetComponentArray<PositionComponent>();
                 var rotArray = archetype.GetComponentArray<RotationComponent>();
                 var scaleArray = archetype.GetComponentArray<ScaleComponent>();
@@ -31,18 +33,31 @@ namespace Dino_Engine.ECS.Systems
 
                 for (int i = 0; i < count; i++)
                 {
-                    // Access arrays directly by index - no lookups, no branching per entity
                     var pos = posArray[i].value;
 
-                    Quaternion rot = hasRotation ? rotArray[i].quaternion : Quaternion.Identity;
-                    Vector3 scale = hasScale ? scaleArray[i].value : Vector3.One;
-
-                    matrixArray[i] = new LocalToWorldMatrixComponent
+                    // FAST PATHS: Avoid heavy matrix math if rotation/scale are default
+                    if (!hasRotation && !hasScale)
                     {
-                        value = MyMath.createTransformationMatrix(pos, rot, scale)
-                    };
+                        matrixArray[i] = new LocalToWorldMatrixComponent
+                        {
+                            value = Matrix4.CreateTranslation(pos)
+                        };
+                    }
+                    else
+                    {
+                        // Fallback to full calculation
+                        Quaternion rot = hasRotation ? rotArray[i].quaternion : Quaternion.Identity;
+                        Vector3 scale = hasScale ? scaleArray[i].value : Vector3.One;
+
+                        matrixArray[i] = new LocalToWorldMatrixComponent
+                        {
+                            // Note: If MyMath.createTransformationMatrix is slow, replace it with:
+                            // Matrix4.CreateScale(scale) * Matrix4.CreateFromQuaternion(rot) * Matrix4.CreateTranslation(pos)
+                            value = MyMath.createTransformationMatrix(pos, rot, scale)
+                        };
+                    }
                 }
-            }
+            });
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)

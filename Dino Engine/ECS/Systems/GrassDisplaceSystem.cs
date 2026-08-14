@@ -23,7 +23,7 @@ namespace Dino_Engine.ECS.Systems
 
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
-            var buffer = world.GetComponent<CollisionEventBufferComponent>(world.GetSingleton<CollisionEventBufferComponent>());
+            var buffer = world.GetComponent<CollisionEventBufferSingleton>(world.GetSingleton<CollisionEventBufferSingleton>());
 
             foreach (var collisionEvent in buffer.Events)
             {

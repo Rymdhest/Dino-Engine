@@ -94,7 +94,8 @@ namespace Dino_Engine.ECS.Systems
                     duration = 30f;
                 }
 
-                var colVector = MyMath.rng3D();
+                //var colVector = MyMath.rng3D();
+                var colVector = new Vector3(1f, 1f, 1f);
                 if (colVector.Length < 1.0) colVector.Normalize();
                 var col = new Colour(colVector);
                 col.Intensity = 2.0f;
@@ -137,7 +138,8 @@ namespace Dino_Engine.ECS.Systems
                     duration = 30f;
                 }
 
-                var colVector = MyMath.rng3D();
+                //var colVector = MyMath.rng3D();
+                var colVector = new Vector3(1f, 1f ,1f);
                 if (colVector.Length < 1.0) colVector.Normalize();
                 var col = new Colour(colVector);
                 col.Intensity = 5.0f;

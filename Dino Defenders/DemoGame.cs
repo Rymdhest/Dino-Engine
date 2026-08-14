@@ -177,9 +177,11 @@ namespace Dino_Defenders
             //terrainGenerator = new TerrainGenerator();
             world.ClearAllEntitiesExcept(world.QueryEntities(new BitMask(typeof(MainCameraComponent)), BitMask.Empty).ToArray());
 
-            world.RegisterSingleton<TerrainQuadTreeComponent>(world.CreateEntity(new TerrainQuadTreeComponent(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
-            world.RegisterSingleton<TerrainGeneratorComponent>(world.CreateEntity(new TerrainGeneratorComponent(terrainGenerator)));
-            world.RegisterSingleton<CollisionEventBufferComponent>(world.CreateEntity(new CollisionEventBufferComponent()));
+            world.RegisterSingleton<TerrainQuadTreeSingleton>(world.CreateEntity(new TerrainQuadTreeSingleton(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
+            world.RegisterSingleton<TerrainGeneratorSingleton>(world.CreateEntity(new TerrainGeneratorSingleton(terrainGenerator)));
+            world.RegisterSingleton<CollisionEventBufferSingleton>(world.CreateEntity(new CollisionEventBufferSingleton()));
+            world.RegisterSingleton<DirtyEntitiesSingleton>(world.CreateEntity(new DirtyEntitiesSingleton()));
+            world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(50f)));
             world.ApplyDeferredCommands();
 
             Mesh boxMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.brick));
@@ -189,7 +191,7 @@ namespace Dino_Defenders
             boxMesh.ProjectUVsWorldSpaceCube(0.5f);
             //Mesh.scaleUV = true;
 
-            float y = world.GetComponent<TerrainGeneratorComponent>(world.GetSingleton<TerrainGeneratorComponent>()).Generator.getHeightAt(new Vector2(100, 100));
+            float y = world.GetComponent<TerrainGeneratorSingleton>(world.GetSingleton<TerrainGeneratorSingleton>()).Generator.getHeightAt(new Vector2(100, 100));
             y += 4;
             world.CreateEntity(
                 new PositionComponent(new Vector3(100, y, 100)),
@@ -400,8 +402,9 @@ namespace Dino_Defenders
             spawnModelOverTerrain(1600, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)));
             spawnModelOverTerrain(1900, glLoader.loadToVAO(TreeGenerator.generatePineTree(25, 0.5f, alive: true, fallen: false)));
             spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.70f, alive: true, fallen: false)));
-
-            spawnModelOverTerrain(400, glLoader.loadToVAO(TreeGenerator.GenerateFallenPineTree()));
+            Mesh pineTree = TreeGenerator.GenerateFallenPineTree();
+            Console.WriteLine("Pine tree has "+pineTree.faces.Count+" faces");
+            spawnModelOverTerrain(400, glLoader.loadToVAO(pineTree));
             spawnModelOverTerrain(500, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()));
         }
        

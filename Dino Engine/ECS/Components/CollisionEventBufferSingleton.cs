@@ -15,11 +15,11 @@ namespace Dino_Engine.ECS.Components
 
     // Singleton Component to hold frame events. 
     // Changed to a struct to satisfy the generic IComponent constraint.
-    public struct CollisionEventBufferComponent : IComponent
+    public struct CollisionEventBufferSingleton : IComponent
     {
         public List<CollisionEvent> Events;
 
-        public CollisionEventBufferComponent()
+        public CollisionEventBufferSingleton()
         {
             Events = new List<CollisionEvent>();
         }

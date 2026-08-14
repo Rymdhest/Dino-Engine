@@ -144,11 +144,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PerformGeometryCommand(ModelRenderCommand command, RenderEngine renderEngine)
         {
             glModel glmodel = command.model;
-            int instanceCount = command.matrices.Length;
+            int instanceCount = command.matrices.Count;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
-            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, command.matrices, BufferUsageHint.DynamicDraw);
+            Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);
+
+            // Pass the first element by reference. OpenTK will read 'sizeInBytes' starting from that memory address.
+            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, ref matrixSpan[0], BufferUsageHint.DynamicDraw);
 
             GL.BindVertexArray(glmodel.getVAOID());
             GL.EnableVertexAttribArray(0);
@@ -197,13 +200,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
 
             glModel glmodel = command.model;
-            int instanceCount = command.matrices.Length;
+            int instanceCount = command.matrices.Count;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
 
             _instancedModelShadowShader.loadUniformMatrix4f("viewpPojectionMatrix", shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
-            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, command.matrices, BufferUsageHint.DynamicDraw);
+            Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);
+            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, ref matrixSpan[0], BufferUsageHint.DynamicDraw);
 
             GL.BindVertexArray(glmodel.getVAOID());
             GL.EnableVertexAttribArray(0);

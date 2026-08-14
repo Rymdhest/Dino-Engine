@@ -8,10 +8,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 {
     public struct ModelRenderCommand : IRenderCommand
     {
-        public Matrix4[] matrices;
+        public List<Matrix4> matrices;
         public glModel model;
 
-        public ModelRenderCommand(glModel model, Matrix4[] matrices)
+        public ModelRenderCommand(glModel model, List<Matrix4> matrices)
         {
             this.model = model;
             this.matrices = matrices;
@@ -131,7 +131,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(4);
             GL.EnableVertexAttribArray(5);
 
-            for (int i = 0; i < command.matrices.Length; i++)
+            for (int i = 0; i < command.matrices.Count; i++)
             {
                 Matrix4 transformationMatrix = command.matrices[i];
                 Matrix4 modelViewMatrix = transformationMatrix * renderEngine.context.viewMatrix;
@@ -153,7 +153,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 shadow.shadowFrameBuffer.bind();
             }
 
-            for (int i = 0; i < command.matrices.Length; i++)
+            for (int i = 0; i < command.matrices.Count; i++)
             {
                 //GL.Clear(ClearBufferMask.DepthBufferBit);
                 GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);

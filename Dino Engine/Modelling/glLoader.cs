@@ -1,5 +1,7 @@
 ﻿using Dino_Engine.Modelling.Model;
+using Dino_Engine.Physics;
 using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling;
 
@@ -30,7 +32,7 @@ public class glLoader
         VBOS[1] = storeDataInAttributeList(1, 3, colors);
         VBOS[2] = storeDataInAttributeList(2, 3, normals);
         unbindVAO();
-        return new glModel(vaoID, VBOS, indices.Length);
+        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
     }
 
     public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, float[] tangents, float[] uvs, float[] materialIndices, int[] indices)
@@ -46,7 +48,7 @@ public class glLoader
         VBOS[4] = storeDataInAttributeList(4, 2, uvs);
         VBOS[5] = storeDataInAttributeList(5, 1, materialIndices);
         unbindVAO();
-        return new glModel(vaoID, VBOS, indices.Length);
+        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
     }
     public static glModel loadToVAO(float[] positions, float[] normals, int[] indices)
     {
@@ -57,7 +59,7 @@ public class glLoader
         VBOS[0] = storeDataInAttributeList(0, 3, positions);
         VBOS[1] = storeDataInAttributeList(2, 3, normals);
         unbindVAO();
-        return new glModel(vaoID, VBOS, indices.Length);
+        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
     }
     public static glModel loadToVAO(float[] positions, int[] indices, int dimensions)
     {
@@ -66,7 +68,7 @@ public class glLoader
         VBOS[1] = bindIndicesBuffer(indices);
         VBOS[0] = storeDataInAttributeList(0, dimensions, positions);
         unbindVAO();
-        return new glModel(vaoID, VBOS, indices.Length);
+        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
     }
 
     private static int createVAO()

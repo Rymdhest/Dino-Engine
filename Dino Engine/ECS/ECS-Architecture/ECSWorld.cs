@@ -15,6 +15,13 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
         public Entity Camera;
 
+
+        // Entities that care about the spatial grid (e.g., must have LocalToWorld Matrix + Model or Collider)
+        private static readonly BitMask RenderableSpatialMask = new BitMask(
+            typeof(LocalToWorldMatrixComponent),
+            typeof(ModelComponent)
+        );
+
         public int Count => entityLocations.Count;
         public ECSWorld()
         {
@@ -31,8 +38,12 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public void Update(float deltaTime)
         {
             SystemRegistry.UpdateAll(this, deltaTime);
-
+            DirtyEntitiesSingleton dirtyEntitiesSingleton = GetComponent<DirtyEntitiesSingleton>( GetSingleton<DirtyEntitiesSingleton>());
             ApplyDeferredCommands();
+
+            dirtyEntitiesSingleton.SpawnedEntitiesBuffer.Clear();
+            dirtyEntitiesSingleton.DestroyedEntitiesBuffer.Clear();
+            dirtyEntitiesSingleton.TransformChangesBuffer.Clear();
         }
 
         public void OnResize(ResizeEventArgs args)
@@ -107,9 +118,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
         public Entity CreateEntity(params IComponent[] components)
         {
-            var newEntity = new Entity(IDManager.Allocate());
-            deferredCommands.createEntityCommands.Add(new CreateEntityCommand(newEntity, components));
-            return newEntity;
+            return CreateEntity("no name", components);
         }
 
         public Entity CreateEntity(string name, params IComponent[] components)
@@ -118,6 +127,14 @@ namespace Dino_Engine.ECS.ECS_Architecture
             deferredCommands.createEntityCommands.Add(new CreateEntityCommand(newEntity, components));
             //deferredCommands.addComponentCommands.Add(new AddComponentCommand(newEntity, new NameComponent(name)));
             return newEntity;
+        }
+
+        public bool HasComponent<T>(Entity entity) where T : struct, IComponent
+        {
+            if (!entityLocations.TryGetValue(entity.Id, out var location))
+                return false;
+
+            return location.archetype.Has<T>();
         }
 
         private Entity CreateEntityDirect(Entity newEntity, params IComponent[] components)
@@ -140,6 +157,13 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             archetype.AddEntity(newEntity, CompIDtoDataMap);
             entityLocations[newEntity.Id] = (archetype, archetype.EntityCount - 1);
+             
+            if (mask.ContainsAll(RenderableSpatialMask))
+            {
+                var dirty = GetComponent<DirtyEntitiesSingleton>( GetSingleton<DirtyEntitiesSingleton>());
+                dirty.SpawnedEntitiesBuffer.Add(newEntity);
+            }
+
             return newEntity;
         }
         public void DestroyEntity(Entity entity)
@@ -155,7 +179,15 @@ namespace Dino_Engine.ECS.ECS_Architecture
                 //continue;
             }
 
+            
             var (archetype, index) = location;
+
+            if (archetype.Mask.ContainsAll(RenderableSpatialMask))
+            {
+                var dirty = GetComponent<DirtyEntitiesSingleton>(GetSingleton<DirtyEntitiesSingleton>());
+                dirty.DestroyedEntitiesBuffer.Add(entity);
+            }
+
             int last = archetype.EntityCount - 1;
             var lastEntity = archetype.entities[last];
 
@@ -166,6 +198,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             entityLocations.Remove(entity.Id);
             IDManager.Release(entity.Id);
+
         }
 
         public T GetComponent<T>(Entity entity) where T : struct, IComponent

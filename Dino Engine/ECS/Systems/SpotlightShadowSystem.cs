@@ -1,7 +1,10 @@
-﻿ using Dino_Engine.Core;
+﻿using System;
+using System.Collections.Generic;
+using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
@@ -13,6 +16,11 @@ namespace Dino_Engine.ECS.Systems
     public class SpotlightShadowSystem : SystemBase
     {
         private int minCountForInstanced = 10;
+
+        // Reuse cached lists to prevent garbage collection allocations during rendering
+        private readonly List<Entity> _lightCandidates = new();
+        private readonly List<Entity> _visibleChunks = new();
+
         public SpotlightShadowSystem()
             : base(new BitMask(
                 typeof(SpotLightComponent),
@@ -22,83 +30,110 @@ namespace Dino_Engine.ECS.Systems
                 typeof(SpotlightShadowComponent)))
         {
         }
+
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
             var direction = entity.Get<DirectionNormalizedComponent>().value;
-            var shadowComponent = entity.Get<SpotlightShadowComponent>();
+            var shadowComp = entity.Get<SpotlightShadowComponent>();
             var lightPos = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
             var cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
+            float lightRadius = entity.Get<AttunuationComponent>().AttunuationRadius;
 
-            shadowComponent.shadow.lightViewMatrix = CreateLightViewMatrix(direction, lightPos);
+            // 1. Update component shadow view matrix directly & clear depth buffer
+            shadowComp.shadow.lightViewMatrix = CreateLightViewMatrix(direction, lightPos);
+            shadowComp.shadow.shadowFrameBuffer.ClearDepth();
+            entity.Set(shadowComp);
 
-            shadowComponent.shadow.shadowFrameBuffer.ClearDepth();
+            Shadow shadow = shadowComp.shadow;
 
-            entity.Set(shadowComponent);
+            // -------------------------------------------------------------------
+            // STEP 1: BROADPHASE - Query Spatial Grid using Light Radius
+            // -------------------------------------------------------------------
+            Entity gridEntity = world.GetSingleton<RenderSpatialGridSingleton>();
+            SpatialGrid renderGrid = world.GetComponent<RenderSpatialGridSingleton>(gridEntity).Grid;
 
+            _lightCandidates.Clear();
+            renderGrid.QuerySphere(lightPos, lightRadius, _lightCandidates);
 
-            // MODELS
-            var shadowCastingModels = world.QueryEntities(new BitMask(
-                typeof(ModelComponent),
-                typeof(ModelRenderTag),
-                typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
+            // Construct Frustum for this spotlight
+            var viewProjectionMatrix = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
+            Frustum spotlightFrustum = new Frustum(viewProjectionMatrix);
 
-
-            Shadow shadow = shadowComponent.shadow;
+            // -------------------------------------------------------------------
+            // STEP 2: NARROWPHASE - Cull candidates against Spotlight Frustum
+            // -------------------------------------------------------------------
             Dictionary<glModel, List<Matrix4>> commands = new();
-            for (int i = 0; i < shadowCastingModels.Count; i++)
-            {
-                var LocalToWorldMatrix = world.GetComponent<LocalToWorldMatrixComponent>(shadowCastingModels[i]).value;
-                var glModel = world.GetComponent<ModelComponent>(shadowCastingModels[i]).model;
 
-                if (!commands.ContainsKey(glModel)) commands[glModel] = new List<Matrix4>();
-                commands[glModel].Add(LocalToWorldMatrix);
+            for (int c = 0; c < _lightCandidates.Count; c++)
+            {
+                Entity candidate = _lightCandidates[c];
+
+                if (!world.HasComponent<ModelComponent>(candidate) ||
+                    !world.HasComponent<ModelRenderTag>(candidate) ||
+                    !world.HasComponent<LocalToWorldMatrixComponent>(candidate))
+                {
+                    continue;
+                }
+
+                var ltw = world.GetComponent<LocalToWorldMatrixComponent>(candidate).value;
+                var modelComp = world.GetComponent<ModelComponent>(candidate);
+
+                if (modelComp.model == null) continue;
+
+                AABB localBounds = new AABB(modelComp.model.box.Min, modelComp.model.box.Max);
+                AABB worldBounds = AABB.Transform(localBounds, ltw);
+
+                if (spotlightFrustum.IntersectsAABB(worldBounds) != IntersectionResult.Outside)
+                {
+                    if (!commands.TryGetValue(modelComp.model, out var matrixList))
+                    {
+                        matrixList = new List<Matrix4>();
+                        commands[modelComp.model] = matrixList;
+                    }
+                    matrixList.Add(ltw);
+                }
             }
+
+            // Submit model shadow commands
             foreach (var command in commands)
             {
-                var ModelCommand = new ModelRenderCommand();
-                ModelCommand.model = command.Key;
-                ModelCommand.matrices = command.Value.ToArray();
-
-                if (ModelCommand.matrices.Length > minCountForInstanced)
-                {
-                    Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(ModelCommand, shadow);
-                }
+                var renderCmd = new ModelRenderCommand { model = command.Key, matrices = command.Value };
+                if (renderCmd.matrices.Count > minCountForInstanced)
+                    Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(renderCmd, shadow);
                 else
-                {
-                    Engine.RenderEngine._modelRenderer.SubmitShadowCommand(ModelCommand, shadow);
-                }
-
-                command.Value.Clear();
-
+                    Engine.RenderEngine._modelRenderer.SubmitShadowCommand(renderCmd, shadow);
             }
-            commands.Clear();
 
-
-
-
-            var visibleChunks = new List<Entity>();
-
+            // -------------------------------------------------------------------
+            // STEP 3: Terrain & Grass Shadow Rendering
+            // -------------------------------------------------------------------
+            _visibleChunks.Clear();
             var grassChunks = new List<GrassChunkRenderData>();
 
-            var quadtreeComponent = world.GetComponent<TerrainQuadTreeComponent>(world.GetSingleton<TerrainQuadTreeComponent>());
-            var viewProjectionMatrix = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
-            TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent.QuadTree, new Util.Frustum(viewProjectionMatrix), visibleChunks);
+            var quadtreeComponent = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
+            TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent.QuadTree, spotlightFrustum, _visibleChunks);
+
             var terrainChunksRenderData = new List<TerrainChunkRenderData>();
-            foreach (Entity chunkEntity in visibleChunks)
+            foreach (Entity chunkEntity in _visibleChunks)
             {
                 Vector3 chunkPosition = world.GetComponent<LocalToWorldMatrixComponent>(chunkEntity).value.ExtractTranslation();
                 Vector3 chunkSize = world.GetComponent<ScaleComponent>(chunkEntity).value;
                 float arrayID = world.GetComponent<TerrainChunkComponent>(chunkEntity).normalHeightTextureArrayID;
-                TerrainChunkRenderData chunkCommand = new TerrainChunkRenderData();
-                chunkCommand.chunkPos = chunkPosition;
-                chunkCommand.size = chunkSize;
-                chunkCommand.arrayID = arrayID;
+
+                TerrainChunkRenderData chunkCommand = new TerrainChunkRenderData
+                {
+                    chunkPos = chunkPosition,
+                    size = chunkSize,
+                    arrayID = arrayID
+                };
                 terrainChunksRenderData.Add(chunkCommand);
 
-                GrassChunkRenderData grassCommand = new GrassChunkRenderData();
-                grassCommand.chunkPos = chunkPosition.Xz;
-                grassCommand.size = chunkSize.X;
-                grassCommand.arrayID = arrayID;
+                GrassChunkRenderData grassCommand = new GrassChunkRenderData
+                {
+                    chunkPos = chunkPosition.Xz,
+                    size = chunkSize.X,
+                    arrayID = arrayID
+                };
 
                 float distance = Vector2.Distance(cameraPos.Xz, chunkPosition.Xz + chunkSize.Xz * 0.5f);
 
@@ -109,21 +144,16 @@ namespace Dino_Engine.ECS.Systems
             }
 
             Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(grassChunks.ToArray(), 0), shadow);
-
-
             Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(terrainChunksRenderData.ToArray(), 0.0f), shadow);
-            
         }
 
         private static Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 lightPos)
         {
             Vector3 up = MathF.Abs(Vector3.Dot(direction, Vector3.UnitY)) > 0.99f
-                ? Vector3.UnitZ  // fallback up if direction is nearly vertical
+                ? Vector3.UnitZ
                 : Vector3.UnitY;
 
-            return Matrix4.LookAt(lightPos, lightPos+ direction, Vector3.UnitY);
-
+            return Matrix4.LookAt(lightPos, lightPos + direction, up);
         }
-
     }
 }

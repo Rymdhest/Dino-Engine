@@ -64,8 +64,8 @@ namespace Dino_Engine.Textures
             // MATRIX & BOUNDS CALCULATIONS
             // ==========================================
             AABB box = model.box;
-            Vector3 length = box.max - box.min;
-            Vector3 center = (box.max + box.min) / 2f; 
+            Vector3 length = box.Max - box.Min;
+            Vector3 center = (box.Max + box.Min) / 2f; 
 
             float safeZ = MathF.Max(length.Z, 0.01f);
             float maxXZ = MathF.Max(MathF.Sqrt((length.X * length.X) + (safeZ * safeZ)), 0.01f);

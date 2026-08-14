@@ -21,11 +21,11 @@ public class glModel
             TextureIndex = textureIndex;
             this.DistanceSquared = distance*distance;
 
-            Vector3 length = box.max - box.min;
+            Vector3 length = box.Max - box.Min;
 
 
             // 2. Local offset from mesh origin (0,0,0) to AABB 3D center0
-            LocalCenter = (box.min + box.max) * 0.5f;
+            LocalCenter = (box.Min + box.Max) * 0.5f;
             float maxXZ = MathF.Sqrt((length.X * length.X) + (length.Z * length.Z));
 
             // The base size of the quad MUST match the ortho projection dimensions
@@ -38,14 +38,15 @@ public class glModel
     private int vaoID;
     private int[] VBOS;
     private int vertexCount;
-    public AABB? box = null;
+    public AABB box;
     public ImposterData? Imposter { get; set; } = null;
 
-    public glModel(int vaoID, int[] VBOS, int vertexCount)
+    public glModel(int vaoID, int[] VBOS, int vertexCount, AABB box)
     {
         this.vaoID = vaoID;
         this.VBOS = VBOS;
         this.vertexCount = vertexCount;
+        this.box = box;
     }
 
     public int getVAOID()
