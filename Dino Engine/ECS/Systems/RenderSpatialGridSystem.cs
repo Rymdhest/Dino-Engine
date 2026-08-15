@@ -19,15 +19,24 @@ namespace Dino_Engine.ECS.Systems
             Priority = 1;
         }
 
-        internal override void UpdateInternal(ECSWorld world, float deltaTime)  
+        internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
             Entity gridSingleton = world.GetSingleton<RenderSpatialGridSingleton>();
-
             SpatialGrid grid = world.GetComponent<RenderSpatialGridSingleton>(gridSingleton).Grid;
-
             DirtyEntitiesBuffers dirtyEntitiesBuffers = world.DirtyEntitiesBuffers;
 
-            // 1. Process NEW entities (Run ONCE when spawned)
+            // 1. Process DESTROYED entities FIRST
+            var destroyedEntities = dirtyEntitiesBuffers.DestroyedEntitiesBuffer;
+            for (int i = 0; i < destroyedEntities.Count; i++)
+            {
+                // Only remove if it's NOT also in the spawned buffer (recycled ID safety)
+                if (!dirtyEntitiesBuffers.SpawnedEntitiesBuffer.Contains(destroyedEntities[i]))
+                {
+                    grid.Remove(destroyedEntities[i]);
+                }
+            }
+
+            // 2. Process NEW entities
             var newEntities = dirtyEntitiesBuffers.SpawnedEntitiesBuffer;
             for (int i = 0; i < newEntities.Count; i++)
             {
@@ -38,7 +47,7 @@ namespace Dino_Engine.ECS.Systems
                 }
             }
 
-            // 2. Process MOVED entities (O(M) iteration - only entities that actually moved!)
+            // 3. Process MOVED entities
             var movedEntities = dirtyEntitiesBuffers.TransformChangesBuffer;
             for (int i = 0; i < movedEntities.Count; i++)
             {
@@ -48,14 +57,6 @@ namespace Dino_Engine.ECS.Systems
                     UpdateEntityInGrid(world, grid, entity);
                 }
             }
-
-            // 3. Process DESTROYED entities
-            var destroyedEntities = dirtyEntitiesBuffers.DestroyedEntitiesBuffer;
-            for (int i = 0; i < destroyedEntities.Count; i++)
-            {
-                grid.Remove(destroyedEntities[i]);
-            }
-
         }
         private void UpdateEntityInGrid(ECSWorld world, SpatialGrid grid, Entity entity)
         {

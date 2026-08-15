@@ -13,7 +13,7 @@ namespace Dino_Engine.ECS.Systems
 {
     public class DirectionalCascadeShadowSystem : SystemBase
     {
-        private int minCountForInstanced = 10;
+        private int minCountForInstanced = 0;
 
         // Persistent structures to avoid per-frame allocations
         private readonly Dictionary<glModel, List<Matrix4>> _models = new();

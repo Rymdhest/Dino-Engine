@@ -206,7 +206,7 @@ namespace Dino_Engine.Rendering
                 PostProcessPass();
 
 
-                //_debugRenderer.RenderNormals(eCSEngine, _dualBufferFull);
+                //_debugRenderer.RenderNormals(_dualBufferFull);
 
                 _simpleShader.bind();
                 lastUsedBuffer.GetLastFrameBuffer().resolveToScreen();

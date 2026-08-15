@@ -128,46 +128,45 @@ namespace Dino_Engine.ECS.Systems
 
             if (windowhandler.IsKeyPressed(Keys.B))
             {
-                float speed = 6f;
-                float mass = 1.0f;
-                float duration = 10.0f;
-                if (windowhandler.IsKeyDown(Keys.LeftControl))
-                {
-                    mass = 0.000001f;
-                    speed = 0f;
-                    duration = 30f;
+                for (int i = 0; i <1; i++) {
+
+                    float speed = 16f;
+                    float mass = 1.0f;
+                    float duration = 20.0f;
+                    if (windowhandler.IsKeyDown(Keys.LeftControl))
+                    {
+                        mass = 0.000001f;
+                        speed = 0f;
+                        duration = 30f;
+                    }
+
+                    //var colVector = MyMath.rng3D();
+                    var colVector = new Vector3(1f, 1f, 1f);
+                    if (colVector.Length < 1.0) colVector.Normalize();
+                    var col = new Colour(colVector);
+                    col.Intensity = 5.0f;
+                    Vector3 forward = currentFinalRotation * -Vector3.UnitZ;
+                    float FoV = MathF.PI / 3.0f;
+                    world.CreateEntity("Shooting ball",
+                        new VelocityComponent(forward * speed),
+                        new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation() + forward * 1f),
+                        new LocalToWorldMatrixComponent(),
+                        new RotationComponent(),
+                        new AttunuationComponent(0.01f, 0.01f, 0.01f),
+                        new AmbientLightComponent(0.08f),
+                        new ScaleComponent(new Vector3(0.05f)),
+                        new ModelComponent(ModelGenerator.UNIT_SPHERE),
+                        new ModelRenderTag(),
+                        new DirectionNormalizedComponent(forward),
+                        new PointLightTag(),
+                        new PointLightShadowComponent(512),
+                        new MassComponent(mass),
+                        new ColorComponent(col),
+                        new ColliderComponent { Type = ColliderType.Sphere, Data = new ColliderData { Radius = 2.5f }, Restitution = 0.2f },
+                        new selfDestroyComponent(duration)
+                    );
                 }
 
-                //var colVector = MyMath.rng3D();
-                var colVector = new Vector3(1f, 1f ,1f);
-                if (colVector.Length < 1.0) colVector.Normalize();
-                var col = new Colour(colVector);
-                col.Intensity = 5.0f;
-                Vector3 forward = currentFinalRotation * -Vector3.UnitZ;
-                float FoV = MathF.PI / 3.0f;
-                world.CreateEntity("Shooting ball",
-                    new VelocityComponent(forward * speed),
-                    new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation() + forward * 1f),
-                    new LocalToWorldMatrixComponent(),
-                    new RotationComponent(),
-                    new AttunuationComponent(0.02f, 0.02f, 0.02f),
-                    new AmbientLightComponent(0.02f),
-                    new ScaleComponent(new Vector3(0.1f)),
-                    new ModelComponent(ModelGenerator.UNIT_SPHERE),
-                    new ModelRenderTag(),
-                    new DirectionNormalizedComponent(forward),
-                    new PointLightTag(),
-                    new PointLightShadowComponent(512),
-                    new MassComponent(mass),
-                    new ColorComponent(col),
-                    new selfDestroyComponent(duration),
-                    new ColliderComponent
-                    {
-                        Type = ColliderType.Sphere,
-                        Data = new ColliderData { Radius = 2.0f }, // Match your ScaleComponent(0.15f)
-                        Restitution = 0.2f // Bounciness factor (0 to 1)
-                    }
-                );
             }
         }
 

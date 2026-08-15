@@ -76,10 +76,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _CelestialBodyFramebuffer.bind();
             _sunRayShader.bind();
             _sunRayShader.loadUniformFloat("Density", 0.2f);
-            _sunRayShader.loadUniformFloat("Weight", 0.3f);
-            _sunRayShader.loadUniformFloat("Exposure", 0.25f);
-            _sunRayShader.loadUniformFloat("Decay", .92f);
-            _sunRayShader.loadUniformFloat("illuminationDecay", 0.9f);
+            _sunRayShader.loadUniformFloat("Weight", 1.0f);
+            _sunRayShader.loadUniformFloat("Exposure", 0.1f);
+            _sunRayShader.loadUniformFloat("Decay", 0.95f);
+            _sunRayShader.loadUniformFloat("illuminationDecay", 1.0f);
             _sunRayShader.loadUniformVector2f("celestialRayResolution", _CelestialBodyFramebuffer.getResolution());
             _sunRayShader.loadUniformInt("samples", 25);
             _sunRayShader.loadUniformVector3f("sunDirection", -command.direction);

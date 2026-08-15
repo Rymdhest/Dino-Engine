@@ -173,14 +173,15 @@ namespace Dino_Defenders
         private void SpawnWorld()
         {
             ECSWorld world = Engine.world;
-
+            world.DirtyEntitiesBuffers.ClearAll();
+            world.DirtyEntities.Clear();
             //terrainGenerator = new TerrainGenerator();
             world.ClearAllEntitiesExcept(world.QueryEntities(new BitMask(typeof(MainCameraComponent)), BitMask.Empty).ToArray());
 
             world.RegisterSingleton<TerrainQuadTreeSingleton>(world.CreateEntity(new TerrainQuadTreeSingleton(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
             world.RegisterSingleton<TerrainGeneratorSingleton>(world.CreateEntity(new TerrainGeneratorSingleton(terrainGenerator)));
             world.RegisterSingleton<CollisionEventBufferSingleton>(world.CreateEntity(new CollisionEventBufferSingleton()));
-            world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(50f)));
+            world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(15f)));
             world.ApplyDeferredCommands();
 
             Mesh boxMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.brick));
@@ -391,20 +392,21 @@ namespace Dino_Defenders
                 );
             }
 
-
+            
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFern()), 30f);
             spawnModelOverTerrain(1000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(6f, 1f, 1f))), 30f);  // yellow
             spawnModelOverTerrain(1000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 0.1f, 0.1f))), 30f);  // red
             spawnModelOverTerrain(1000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 1f, 10f))), 30f);  // purple
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(3.5f, 2.5f, 2.5f))), 30f);  //white
-            spawnModelOverTerrain(1500, glLoader.loadToVAO(TreeGenerator.generatePineTree(15, 0.35f, alive: false, fallen: false)));
-            spawnModelOverTerrain(1600, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)));
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)));
             spawnModelOverTerrain(1900, glLoader.loadToVAO(TreeGenerator.generatePineTree(25, 0.5f, alive: true, fallen: false)));
-            spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.70f, alive: true, fallen: false)));
-            Mesh pineTree = TreeGenerator.GenerateFallenPineTree();
-            Console.WriteLine("Pine tree has "+pineTree.faces.Count+" faces");
-            spawnModelOverTerrain(400, glLoader.loadToVAO(pineTree));
+            spawnModelOverTerrain(1900, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.7f, alive: true, fallen: false)));
+            spawnModelOverTerrain(1500, glLoader.loadToVAO(TreeGenerator.generatePineTree(15, 0.35f, alive: false, fallen: false)));
+
+            spawnModelOverTerrain(400, glLoader.loadToVAO(TreeGenerator.GenerateFallenPineTree()));
             spawnModelOverTerrain(500, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()));
+
+            
         }
        
         private void spawnModelOverTerrain(int n, glModel model, float imposterDistance = 60f)
@@ -419,7 +421,7 @@ namespace Dino_Defenders
                 world.CreateEntity("auto spawned model"+model.ToString()+" " + i,
                     new PositionComponent(pos),
                     new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(1f+MyMath.rngMinusPlus(0.25f))),
+                    new ScaleComponent(new Vector3(1f+MyMath.rngMinusPlus(0.3f))),
                     new ModelComponent(model),
                     new ModelRenderTag(),
                     new LocalToWorldMatrixComponent()

@@ -31,8 +31,9 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
             for (int i = 0; i < n; i++)
             {
                 float traversedRatio = i / (float)(n - 1);
-                float x = sinFBM[i] * bendRadius * traversedRatio;
-                float z = sinFBM2[i] * bendRadius * traversedRatio * 0.05f;
+                float bendRatio = MathF.Pow(traversedRatio, 0.5f);
+                float x = sinFBM[i] * bendRadius * bendRatio;
+                float z = sinFBM2[i] * bendRadius * bendRatio * 0.05f;
                 float y = fromY + traversedRatio * totalLength;
                 controlPoints.Add(new Vector3(x, y, z));
             }

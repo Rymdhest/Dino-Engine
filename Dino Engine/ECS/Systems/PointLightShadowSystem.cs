@@ -14,7 +14,7 @@ namespace Dino_Engine.ECS.Systems
 {
     public class PointLightShadowSystem : SystemBase
     {
-        private int minCountForInstanced = 10;
+        private int minCountForInstanced = 0;
 
         // Reuse cached lists to prevent garbage collection allocations during rendering
         private readonly List<Entity> _lightCandidates = new();

@@ -206,8 +206,10 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark, new Colour(255, 255, 255)));
             TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
             stemSettings.radiusBase = radius;
+            stemSettings.detailsHeight = 3;
+            stemSettings.detailPerRing = 32;
             stemSettings.radiusTop = 0.03f;
-            stemSettings.stemBendRadius = 1.1f;
+            stemSettings.stemBendRadius = 0.7f;
             stemSettings.height = 30.0f;
             stemSettings.sinkAmount = 3f;
             stemSettings.stemBaseHeight = 3f;
@@ -219,14 +221,14 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             for (int i = 0; i < builder.mesh.meshVertices.Count; i++)
             {
                 float t =MathF.Pow( MyMath.rng(), 3.0f);
-                builder.mesh.meshVertices[i].colour = new Colour(MyMath.lerp(new Vector3(1f), new Vector3(0.5f, 1f, 0.5f), t));
+                builder.mesh.meshVertices[i].colour = new Colour(MyMath.lerp(builder.mesh.meshVertices[i].colour.ToVector3(), new Vector3(0.5f, 1f, 0.5f), t));
             }
             TreeBuilder BranchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark, new Colour(255, 255, 255)));
 
 
             TreeBuilder.StemBuildSettings branchSettings = new TreeBuilder.StemBuildSettings();
-            branchSettings.detailsHeight = 4;
-            branchSettings.detailPerRing = 6;
+            branchSettings.detailsHeight = 1;
+            branchSettings.detailPerRing = 3;
             branchSettings.height = 7f;
             branchSettings.radiusBase = 0.45f;
             branchSettings.radiusTop = 0.05f;

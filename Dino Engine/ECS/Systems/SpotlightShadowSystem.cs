@@ -15,7 +15,7 @@ namespace Dino_Engine.ECS.Systems
 {
     public class SpotlightShadowSystem : SystemBase
     {
-        private int minCountForInstanced = 10;
+        private int minCountForInstanced = 0;
 
         // Reuse cached lists to prevent garbage collection allocations during rendering
         private readonly List<Entity> _lightCandidates = new();
@@ -54,7 +54,6 @@ namespace Dino_Engine.ECS.Systems
 
             _lightCandidates.Clear();
             renderGrid.QuerySphere(lightPos, lightRadius, _lightCandidates);
-
             // Construct Frustum for this spotlight
             var viewProjectionMatrix = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
             Frustum spotlightFrustum = new Frustum(viewProjectionMatrix);

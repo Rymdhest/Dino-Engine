@@ -43,7 +43,7 @@ namespace Dino_Engine.Util
         /// </summary>
         /// <param name="cellSize">Size of each cubic cell in world units (e.g. 25.0f for rendering, 5.0f for physics).</param>
         /// <param name="maxCellSpanPerAxis">Maximum cell span along any single axis before an entity is routed to global overflow.</param>
-        public SpatialGrid(float cellSize = 25.0f, int maxCellSpanPerAxis = 4)
+        public SpatialGrid(float cellSize = 25.0f, int maxCellSpanPerAxis = 10)
         {
             _cellSize = cellSize;
             _maxCellSpanPerAxis = maxCellSpanPerAxis;

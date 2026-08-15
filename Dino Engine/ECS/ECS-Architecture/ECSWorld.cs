@@ -1,5 +1,9 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
+using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.Util;
+using OpenTK.Compute.OpenCL;
+using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 
 namespace Dino_Engine.ECS.ECS_Architecture
@@ -28,6 +32,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public int Count => entityLocations.Count;
         public ECSWorld()
         {
+
             Camera = CreateEntity("Camera",
                 new PositionComponent(0, 10f, 0f),
                 new RotationComponent(0f, 0.0f, 0.0f),
@@ -40,10 +45,10 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
         public void Update(float deltaTime)
         {
-            SystemRegistry.UpdateAll(this, deltaTime);
             ApplyDeferredCommands();
-
+            SystemRegistry.UpdateAll(this, deltaTime);
             DirtyEntitiesBuffers.ClearAll();
+            ApplyDeferredCommands();
         }
 
         public void OnResize(ResizeEventArgs args)
