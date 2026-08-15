@@ -1,6 +1,18 @@
 ﻿
+using Dino_Engine.Core;
+using Dino_Engine.ECS.Components;
+
 namespace Dino_Engine.ECS.ECS_Architecture
 {
+
+    public static class TransformTraits<T>
+    {
+        public static readonly bool IsTransformComponent =
+            typeof(T) == typeof(PositionComponent) ||
+            typeof(T) == typeof(RotationComponent) ||
+            typeof(T) == typeof(ScaleComponent);
+    }
+
     public struct EntityView
     {
         private readonly Archetype archetype;
@@ -26,6 +38,11 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public void Set<T>(T component) where T : struct, IComponent
         {
             archetype.SetComponent(indexInArchive, component);
+            if (TransformTraits<T>.IsTransformComponent)
+            {
+                ECSWorld world = Engine.Instance.world;
+                world.DirtyEntities.Add(this.Entity);
+            }
         }
 
         public bool Has<T>() where T : struct, IComponent

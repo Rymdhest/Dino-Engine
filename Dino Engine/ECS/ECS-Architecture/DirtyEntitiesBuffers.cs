@@ -2,14 +2,20 @@
 
 namespace Dino_Engine.ECS.Components
 {
-    public struct DirtyEntitiesSingleton : IComponent
+    public struct DirtyEntitiesBuffers
     {
         public List<Entity> TransformChangesBuffer { get; } = new();
         public List<Entity> SpawnedEntitiesBuffer { get; } = new();
         public List<Entity> DestroyedEntitiesBuffer { get; } = new();
 
-        public DirtyEntitiesSingleton()
+        public DirtyEntitiesBuffers()
         {
+        }
+        public void ClearAll()
+        {
+            SpawnedEntitiesBuffer.Clear();
+            DestroyedEntitiesBuffer.Clear();
+            TransformChangesBuffer.Clear();
         }
     }
 }

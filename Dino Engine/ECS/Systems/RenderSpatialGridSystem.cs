@@ -25,7 +25,7 @@ namespace Dino_Engine.ECS.Systems
 
             SpatialGrid grid = world.GetComponent<RenderSpatialGridSingleton>(gridSingleton).Grid;
 
-            DirtyEntitiesSingleton dirtyEntitiesBuffers = world.GetComponent<DirtyEntitiesSingleton>(world.GetSingleton<DirtyEntitiesSingleton>());
+            DirtyEntitiesBuffers dirtyEntitiesBuffers = world.DirtyEntitiesBuffers;
 
             // 1. Process NEW entities (Run ONCE when spawned)
             var newEntities = dirtyEntitiesBuffers.SpawnedEntitiesBuffer;

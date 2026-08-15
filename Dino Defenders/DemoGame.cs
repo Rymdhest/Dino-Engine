@@ -180,7 +180,6 @@ namespace Dino_Defenders
             world.RegisterSingleton<TerrainQuadTreeSingleton>(world.CreateEntity(new TerrainQuadTreeSingleton(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
             world.RegisterSingleton<TerrainGeneratorSingleton>(world.CreateEntity(new TerrainGeneratorSingleton(terrainGenerator)));
             world.RegisterSingleton<CollisionEventBufferSingleton>(world.CreateEntity(new CollisionEventBufferSingleton()));
-            world.RegisterSingleton<DirtyEntitiesSingleton>(world.CreateEntity(new DirtyEntitiesSingleton()));
             world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(50f)));
             world.ApplyDeferredCommands();
 

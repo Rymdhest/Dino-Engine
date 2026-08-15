@@ -16,6 +16,9 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public Entity Camera;
 
 
+        public HashSet<Entity> DirtyEntities { get; } = new();
+        public DirtyEntitiesBuffers DirtyEntitiesBuffers { get; } = new();
+
         // Entities that care about the spatial grid (e.g., must have LocalToWorld Matrix + Model or Collider)
         private static readonly BitMask RenderableSpatialMask = new BitMask(
             typeof(LocalToWorldMatrixComponent),
@@ -38,12 +41,9 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public void Update(float deltaTime)
         {
             SystemRegistry.UpdateAll(this, deltaTime);
-            DirtyEntitiesSingleton dirtyEntitiesSingleton = GetComponent<DirtyEntitiesSingleton>( GetSingleton<DirtyEntitiesSingleton>());
             ApplyDeferredCommands();
 
-            dirtyEntitiesSingleton.SpawnedEntitiesBuffer.Clear();
-            dirtyEntitiesSingleton.DestroyedEntitiesBuffer.Clear();
-            dirtyEntitiesSingleton.TransformChangesBuffer.Clear();
+            DirtyEntitiesBuffers.ClearAll();
         }
 
         public void OnResize(ResizeEventArgs args)
@@ -160,8 +160,15 @@ namespace Dino_Engine.ECS.ECS_Architecture
              
             if (mask.ContainsAll(RenderableSpatialMask))
             {
-                var dirty = GetComponent<DirtyEntitiesSingleton>( GetSingleton<DirtyEntitiesSingleton>());
-                dirty.SpawnedEntitiesBuffer.Add(newEntity);
+                DirtyEntitiesBuffers.SpawnedEntitiesBuffer.Add(newEntity);
+            }
+
+            int positionComponentId = ComponentTypeRegistry.GetId(typeof(PositionComponent));
+            if (mask.Has(positionComponentId))
+            {
+
+                // Construct EntityView using (archetype, index)
+                DirtyEntities.Add(newEntity);
             }
 
             return newEntity;
@@ -169,6 +176,12 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public void DestroyEntity(Entity entity)
         {
             deferredCommands.removeEntityCommands.Add(new RemoveEntityCommand(entity));
+        }
+
+        public EntityView GetEntityView(Entity entity)
+        {
+            var (archetype, index) = entityLocations[entity.Id];
+            return new EntityView(archetype, index);
         }
 
         private void DestroyEntityDirect(Entity entity)
@@ -184,9 +197,8 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             if (archetype.Mask.ContainsAll(RenderableSpatialMask))
             {
-                var dirty = GetComponent<DirtyEntitiesSingleton>(GetSingleton<DirtyEntitiesSingleton>());
-                dirty.DestroyedEntitiesBuffer.Add(entity);
-            }
+                DirtyEntitiesBuffers.DestroyedEntitiesBuffer.Add(entity);
+            }   
 
             int last = archetype.EntityCount - 1;
             var lastEntity = archetype.entities[last];
