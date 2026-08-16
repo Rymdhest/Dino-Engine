@@ -49,4 +49,5 @@ void main() {
 	gMaterials = vec4(grassMaterial);
 	
 	gAlbedo = gAlbedo*lookupAlbedo(fragUV, textureIndex);
+	//gAlbedo = lookupAlbedo(fragUV, textureIndex);
 }

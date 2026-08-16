@@ -229,11 +229,11 @@ namespace Dino_Defenders
             world.CreateEntity("Sky",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
-                new ColorComponent(new Colour(86, 155, 255, 1.0f)),
+                new ColorComponent(new Colour(86, 155, 255, 0.75f)),
                 new SkyTag(),
                 new AmbientLightComponent(0.8f)
             );
-            
+
 
             spawnCity(Engine.world);
             spawnTestScene(Engine.world);
@@ -244,7 +244,7 @@ namespace Dino_Defenders
         {
 
 
-            glModel testModel = glLoader.loadToVAO(TreeGenerator.GenerateBirchTree());
+            glModel testModel = glLoader.loadToVAO(TreeGenerator.GenerateBigLeafBush());
             Engine.RenderEngine.textureGenerator.AddImposterToModel(testModel, 30);
             world.CreateEntity("test",
                 new PositionComponent(new Vector3(10, 0, -5)),
@@ -360,38 +360,13 @@ namespace Dino_Defenders
 
 
 
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(4, new VertexMaterial(TextureGenerator.rock, new Colour(255, 255, 255)),8);
 
-            OpenSimplexNoise noise = new OpenSimplexNoise();
-            for (int i = 0; i < RockMesh.meshVertices.Count; i++)
-            {
-                Vector3 oldPos = RockMesh.meshVertices[i].position;
-                float noiseValue = noise.FBM(oldPos.X, oldPos.Y, oldPos.Z, 0.86f,5);
-                Vector3 newPos = oldPos + oldPos * noiseValue * 0.66f;
-
-                float floorScale = 4f;
-                float floorWeight = 0.75f;
-                //newPos.X = MathF.Floor(newPos.X * floorScale) / floorScale;
-                newPos.Y = (MathF.Floor(newPos.Y * floorScale) / floorScale)* floorWeight + newPos.Y*(1f- floorWeight);
-
-
-                RockMesh.meshVertices[i].position = newPos;
-            }
-            RockMesh.FlatRandomness(0.01f);
-
-            RockMesh.calculateAllNormals();
-            for (int i = 0; i < RockMesh.meshVertices.Count; i++)
-            {
-                Vector3 normal = RockMesh.meshVertices[i].normal;
-                float dotProduct = MyMath.clamp01(Vector3.Dot(normal, new Vector3(0f, 1f, 0f)));
-                dotProduct = MathF.Pow(dotProduct, 3.0f);
-                RockMesh.meshVertices[i].colour = new Colour(MyMath.lerp(RockMesh.meshVertices[i].colour.ToVector3(), new Vector3(0.7f, 0.9f, 0.6f), dotProduct));
-
-            }
 
             //RockMesh.makeFlat(flatMaterial: true, flatNormal: true);
-            glModel rockModel = glLoader.loadToVAO(RockMesh);
-            Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModel, 100);
+            glModel rockModel = glLoader.loadToVAO(RockGenerator.GenerateRock());
+            glModel rockModelBrown = glLoader.loadToVAO(RockGenerator.GenerateRockBrown());
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModel, 160);
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModelBrown, 60);
 
             for (int i = 0; i < 20000; i++)
             {
@@ -414,27 +389,49 @@ namespace Dino_Defenders
                     new LocalToWorldMatrixComponent()
                 );
             }
+            for (int i = 0; i < 1000; i++)
+            {
+                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
+                float flatness = MyMath.clamp01(Vector3.Dot(terrainGenerator.GetNormalAt(treePos.X, treePos.Z), new Vector3(0f, 1f, 0f)));
+                flatness = MyMath.clamp01((flatness - 0.5f) * 2.0f);
+                float steepness = 1f - MathF.Pow(flatness, 0.5f);
+                if (MathF.Pow(steepness, 1.0f) > MyMath.rng()) continue;
 
+
+                float height = 1.0f + MyMath.rng(1.0f) + steepness * 2f;
+                float radius = 1.0f + MyMath.rng(1.0f) + steepness * 1f;
+                world.CreateEntity("rock test: " + i,
+                    new PositionComponent(treePos),
+                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
+                    new ScaleComponent(new Vector3(radius, height, radius)),
+                    new ModelComponent(rockModelBrown),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
+            }
 
             OpenSimplexNoise treeMap = new OpenSimplexNoise();
             OpenSimplexNoise treeMap2 = new OpenSimplexNoise();
 
-            spawnModelOverTerrain(3000, glLoader.loadToVAO(TreeGenerator.GenerateFern()), 30f);
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFern()), 30f);
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateBigLeafBush()), 30f);
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(6f, 1f, 1f))), 30f);  // yellow
             spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 0.1f, 0.1f))), 30f);  // red
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 1f, 10f))), 30f);  // purple
             spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(3.5f, 2.5f, 2.5f))), 30f);  //white
 
             float treeImposterDistance = 70f;
-            spawnModelOverTerrain(10000, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)), treeImposterDistance, treeMap);
+            spawnModelOverTerrain(8000, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)), treeImposterDistance, treeMap);
             spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(25, 0.5f, alive: true, fallen: false)), treeImposterDistance, treeMap);
             spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.7f, alive: true, fallen: false)), treeImposterDistance, treeMap);
             spawnModelOverTerrain(3000, glLoader.loadToVAO(TreeGenerator.generatePineTree(15, 0.35f, alive: false, fallen: false)), treeImposterDistance, treeMap);
-            spawnModelOverTerrain(1000, glLoader.loadToVAO(TreeGenerator.GenerateFallenPineTree()), 60f, treeMap);
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFallenPineTree()), 60f, treeMap);
 
-            spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()), treeImposterDistance, treeMap2);
+            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()), treeImposterDistance, treeMap2);
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateOakTree()), treeImposterDistance, treeMap2);
 
-               
+
         }
        
         private void spawnModelOverTerrain(int n, glModel model, float imposterDistance = 60f, OpenSimplexNoise spawnMap = null)

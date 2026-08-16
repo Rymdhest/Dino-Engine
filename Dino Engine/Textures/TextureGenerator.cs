@@ -60,7 +60,8 @@ namespace Dino_Engine.Textures
         public static int rock;
         public static int wood;
         public static int pineBark;
-        public static int barkBirch;
+        public static int BirchBark;
+        public static int oakBark;
         public static int brick;
         public static int leather;
         public static int cobble;
@@ -87,9 +88,9 @@ namespace Dino_Engine.Textures
         public static int birchTwig;
         public static int birchBranch;
 
+
         public static int oakTwig;
         public static int oakBranch;
-
 
         public static int pineBranch;
         public static int pineTwig;
@@ -158,7 +159,8 @@ namespace Dino_Engine.Textures
             soil = createSoilTexture();
             wax = createWaxTexture();
             ice = createIceTexture();
-            barkBirch = createBirchBark();
+            BirchBark = createBirchBark();
+            oakBark = createOakBark();
 
             addAllPreparedTexturesToTexArray(arrayType.material);
            
@@ -171,18 +173,113 @@ namespace Dino_Engine.Textures
             fernLeaf = preparedTextures.Count - 1 + loadedModelTextures+ loadedMaterialTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
+
+
+
+            generateFernBranch();
+            generatePineBranch();
+            generateBirchBranch();
+            generateOakBranch();
+            generateDeadTwig();
+        }
+        private void generateOakBranch()
+        {
             float leafSize = 20f;
-            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(leaf));
+            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(leaf, new Colour(170, 150, 100)));
             branchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
-            branchMesh.rotate(new Vector3(0, 0f, MathF.PI/2f));
+            branchMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
             branchMesh.translate(new Vector3(-leafSize / 2f, 0f, 0f));
             branchMesh += branchMesh.translated(new Vector3(leafSize, 0f, 0f));
             var controlPoints = new List<Vector3>();
             int n = 10;
             float[] sinFBM = FBMmisc.sinFBM(4, 0.6f, n);
             float[] sinFBM2 = FBMmisc.sinFBM(4, 0.9f, n);
-            float r =4.8f;
-            float h =60f;
+            float r = 4.8f;
+            float h = 60f;
+            for (int i = 0; i < n; i++)
+            {
+                float traversedRatio = i / (float)(n - 1);  
+                float angle = MathF.PI * i * 0.6f;
+                float x = sinFBM[i] * r * traversedRatio;
+                float z = sinFBM2[i] * r * traversedRatio * 0.05f;
+                float y = traversedRatio * h;
+                controlPoints.Add(new Vector3(x, y, z));
+            }
+            CardinalSpline3D spline = new CardinalSpline3D(controlPoints, 0.0f);
+
+            Curve3D curve = spline.GenerateCurve(3);
+            curve.LERPWidth(1f, 0.1f);
+            Mesh mesh = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(oakBark), textureRepeats: 1, flatStart: true);
+
+            int leavesPerSide = 7;
+            for (int i = 0; i < leavesPerSide; i++)
+            {
+                float t = 0.25f + 0.75f * MathF.Pow((float)i / (leavesPerSide - 1), 0.8f);
+                CurvePoint curvePoint = curve.getPointAt(t);
+                var newBranch = branchMesh.scaled(new Vector3(1.0f - t * 0.7f));
+                //newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
+                //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
+                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+                //newBranch.rotate(new Vector3(0f, i * 1.14f, 0f));
+                newBranch.rotate(curvePoint.rotation);
+                newBranch.translate(curvePoint.pos);
+                mesh += newBranch;
+            }
+            TEST_BRANCH_MESH = mesh;
+            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
+            oakTwig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+            addAllPreparedTexturesToTexArray(arrayType.model);
+
+
+            Mesh treeBranchMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(1, 1), new VertexMaterial(oakTwig));
+            treeBranchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
+            treeBranchMesh.rotate(new Vector3(0, 0f, -MathF.PI / 1.0f));
+            treeBranchMesh.translate(new Vector3(0f, 10f / 2f, 0f));
+            //treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, -MathF.PI / 1f));
+            Mesh mesh2 = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(oakBark), textureRepeats: 1, flatStart: true);
+
+            int branches = 32;
+            for (int i = 0; i < branches; i++)
+            {
+                float t = 0.15f + 0.83f * MathF.Pow((float)i / (branches - 1), 0.75f);
+                CurvePoint curvePoint = curve.getPointAt(t);
+                var newBranch = treeBranchMesh.scaled(new Vector3(2.0f - t * 1.16f));
+                Vector3 col = MyMath.rng3D(0.0f);
+                newBranch.setColour(new Colour(new Vector3(1f) - col));
+
+                float odd = 1.0f;
+                if (i % 2 == 0)
+                {
+                    odd = -1.0f;
+                }
+                newBranch.rotate(new Vector3(0, 0, 0.9f * odd));
+                //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
+                //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
+                //newBranch.rotate(new Vector3(i * 0.14f,0f, 0f));
+                newBranch.rotate(curvePoint.rotation);
+                newBranch.translate(curvePoint.pos);
+                mesh2 += newBranch;
+            }
+            TEST_TREE_BRANCh_MESH = mesh2;
+            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
+            oakBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+            addAllPreparedTexturesToTexArray(arrayType.model);
+        }
+
+        private void generateBirchBranch()
+        {
+            float leafSize = 20f;
+            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(leaf));
+            branchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
+            branchMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
+            branchMesh.translate(new Vector3(-leafSize / 2f, 0f, 0f));
+            branchMesh += branchMesh.translated(new Vector3(leafSize, 0f, 0f));
+            var controlPoints = new List<Vector3>();
+            int n = 10;
+            float[] sinFBM = FBMmisc.sinFBM(4, 0.6f, n);
+            float[] sinFBM2 = FBMmisc.sinFBM(4, 0.9f, n);
+            float r = 4.8f;
+            float h = 60f;
             for (int i = 0; i < n; i++)
             {
                 float traversedRatio = i / (float)(n - 1);
@@ -199,13 +296,13 @@ namespace Dino_Engine.Textures
             Mesh mesh = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(grass), textureRepeats: 1, flatStart: true);
 
             int leavesPerSide = 7;
-            for (int i = 0; i< leavesPerSide; i++)
+            for (int i = 0; i < leavesPerSide; i++)
             {
-                float t = 0.25f + 0.75f * MathF.Pow( (float)i / (leavesPerSide - 1), 0.8f);
+                float t = 0.25f + 0.75f * MathF.Pow((float)i / (leavesPerSide - 1), 0.8f);
                 CurvePoint curvePoint = curve.getPointAt(t);
                 var newBranch = branchMesh.scaled(new Vector3(1.0f - t * 0.7f));
                 Vector3 col = MyMath.rng3D(0.15f);
-                newBranch.setColour(new Colour(new Vector3(1f)-col));
+                newBranch.setColour(new Colour(new Vector3(1f) - col));
                 //newBranch.rotate(new Vector3(0.9f - t * 0.5f, 0f, 0f));
                 //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
@@ -216,32 +313,32 @@ namespace Dino_Engine.Textures
             }
             TEST_BRANCH_MESH = mesh;
             preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
-            birchTwig = preparedTextures.Count-1+ loadedMaterialTextures+loadedModelTextures;
+            birchTwig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
 
             Mesh treeBranchMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(1, 1), new VertexMaterial(birchTwig));
             treeBranchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
             treeBranchMesh.rotate(new Vector3(0, 0f, -MathF.PI / 1.0f));
-            treeBranchMesh.translate(new Vector3(0f,10f / 2f, 0f));
+            treeBranchMesh.translate(new Vector3(0f, 10f / 2f, 0f));
             //treeBranchMesh += treeBranchMesh.rotated(new Vector3(0, 0f, -MathF.PI / 1f));
-            Mesh mesh2 = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(barkBirch), textureRepeats: 1, flatStart: true);
+            Mesh mesh2 = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(BirchBark), textureRepeats: 1, flatStart: true);
 
             int branches = 32;
             for (int i = 0; i < branches; i++)
             {
-                float t = 0.15f + 0.83f * MathF.Pow( (float)i / (branches - 1), 0.75f);
+                float t = 0.15f + 0.83f * MathF.Pow((float)i / (branches - 1), 0.75f);
                 CurvePoint curvePoint = curve.getPointAt(t);
                 var newBranch = treeBranchMesh.scaled(new Vector3(2.0f - t * 1.16f));
                 Vector3 col = MyMath.rng3D(0.2f);
                 newBranch.setColour(new Colour(new Vector3(1f) - col));
 
                 float odd = 1.0f;
-                if (i%2==0)
+                if (i % 2 == 0)
                 {
                     odd = -1.0f;
                 }
-                newBranch.rotate(new Vector3(0,0,0.9f*odd));
+                newBranch.rotate(new Vector3(0, 0, 0.9f * odd));
                 //newBranch.translate(new Vector3(curvePoint.width / 2f, 0f, 0f));
                 //newBranch.translate(new Vector3(0f, 0f, -curvePoint.width / 2f));
                 //newBranch.rotate(new Vector3(i * 0.14f,0f, 0f));
@@ -251,13 +348,8 @@ namespace Dino_Engine.Textures
             }
             TEST_TREE_BRANCh_MESH = mesh2;
             preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
-            oakBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+            birchBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
-
-
-            generateFernBranch();
-            generatePineBranch();
-            generateDeadTwig();
         }
 
         private void generateDeadTwig()
@@ -750,6 +842,29 @@ namespace Dino_Engine.Textures
             noise.setMaterial(new Material(new Colour(100, 70, 20), 0.55f, 0f, 0f));
             barkCracks.setMaterial(new Material(new Colour(130, 125, 125), 0.95f, 0f, 0f));
             wavy.setMaterial(new Material(new Colour(60, 40, 22), 0.35f, 0f, 0f));
+
+            MaterialLayersCombiner.combine(barkCracks, noise.scaleHeight(0.9f), FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: -0.1f, smoothness: 0.1f);
+
+            MaterialLayersCombiner.combine(bark, barkCracks, FilterMode.Lesser, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.1f, smoothness: 0.9f);
+
+            MaterialLayersCombiner.combine(bark, wavy.invertHeight(), FilterMode.Greater, heightOperation: Operation.Scale, materialOperation: Operation.Override, weight: 0.7f, smoothness: 0.9f);
+            MaterialLayersCombiner.combine(bark, noise.scaleHeight(1.0f), FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Smoothstep, weight: 0.4f, smoothness: 0.8f);
+
+            bark.addHeight(-0.05f);
+            bark.scaleHeight(4.0f);
+            return FinishTexture(bark, normalFlatness: 20.0f);
+        }
+
+        private int createOakBark()
+        {
+            var bark = procTextGen.PerlinFBM(new Vector2(30f, 5f), octaves: 10, amplitudePerOctave: 0.6f);
+            var noise = procTextGen.PerlinFBM(new Vector2(8f, 4f), octaves: 10, amplitudePerOctave: 0.5f);
+            var barkCracks = procTextGen.VoronoiCracks(new Vector2(16f, 8f), width: 0.055f, smoothness: 0.1f, jitter: 0.6f);
+            var wavy = procTextGen.PerlinFBM(new Vector2(2, 16), octaves: 3, amplitudePerOctave: 0.6f, rigged: true);
+            bark.setMaterial(new Material(new Colour(80, 60, 35), 0.95f, 0.0f, 0f));
+            noise.setMaterial(new Material(new Colour(90, 60, 20), 0.55f, 0f, 0f));
+            barkCracks.setMaterial(new Material(new Colour(120, 135, 85), 0.95f, 0f, 0f));
+            wavy.setMaterial(new Material(new Colour(90, 40, 22), 0.35f, 0f, 0f));
 
             MaterialLayersCombiner.combine(barkCracks, noise.scaleHeight(0.9f), FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: -0.1f, smoothness: 0.1f);
 

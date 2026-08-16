@@ -65,7 +65,8 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
         {
             for (int i = 0; i < settings.numberBranches; i++)
             {
-                float t = (float)i / (settings.numberBranches - 1);
+                float t = 1.0f;
+                if (settings.numberBranches >= 2) t = (float)i / (settings.numberBranches - 1);
                 t = settings.startStemRatio + (settings.endStemRatio - settings.startStemRatio) * t;
                 CurvePoint curvePoint = curve3D.getPointAt(t);
                 Vector3 scale = MyMath.lerp(settings.BranchStartScale, settings.BranchEndScale, t);

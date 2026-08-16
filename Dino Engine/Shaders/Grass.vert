@@ -173,5 +173,5 @@ void main() {
 	depth = -vertexPosView.z;
 	gl_Position =  projectionMatrix*vertexPosView;
 	
-	fragUV = vec2(0.0f);
+	fragUV = vec2(0.0, 0.0);
 }

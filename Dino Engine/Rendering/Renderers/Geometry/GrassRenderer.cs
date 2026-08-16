@@ -224,7 +224,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         private glModel generateBladeModelLOD0()
         {
-            VertexMaterial grassMaterial = new VertexMaterial(TextureGenerator.brick); //Throwaway
+            VertexMaterial grassMaterial = new VertexMaterial(TextureGenerator.grass); //Throwaway
 
             if (grassBladeLOD0 != null) grassBladeLOD0.cleanUp();
             List<Vector2> bladeLayers = new List<Vector2>() {

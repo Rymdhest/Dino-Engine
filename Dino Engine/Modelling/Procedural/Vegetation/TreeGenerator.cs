@@ -17,6 +17,62 @@ namespace Dino_Engine.Modelling.Procedural.Nature
     public class TreeGenerator
     {
 
+        public static Mesh GenerateBigLeafBush()
+        {
+            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.leaf, new Colour(105, 105, 105));
+
+            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(1f, 1f), new Vector2i(4, 6), leafMaterial, centerX: true, centerY: false);
+
+            for (int i = 0; i < leafMesh.meshVertices.Count; i++)
+            {
+                float ratioZ = leafMesh.meshVertices[i].position.Z;
+                float width = leafMesh.meshVertices[i].position.X*2.0f;
+                //width *= MathF.Pow(2, 0.9f+ratioY*0.1f);
+                leafMesh.meshVertices[i].position.Y += MathF.Pow(width, 2.0f)*0.3f;
+                leafMesh.meshVertices[i].position.Y -= MathF.Pow(ratioZ, 2.0f) * 0.2f;
+
+                //leafMesh.meshVertices[i].position.X += MathF.Sin(leafMesh.meshVertices[i].position.Y * MathF.Tau * 10f) * 0.005f;
+
+                //leafMesh.meshVertices[i].position.Z += MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 20f) * 0.001f;
+
+
+                //leafMesh.meshVertices[i].position.Z = MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 15f) * 0.000005f;
+            }
+
+            leafMesh.translate(new Vector3(0f, 0.0f, -0.05f));
+            leafMesh.rotate(new Vector3(0f, MathF.PI/2f, 0.0f));
+            leafMesh.scale(new Vector3(0.85f));
+            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.grass, new Colour(105, 105, 105)));
+            TreeBuilder.StemBuildSettings settings = new TreeBuilder.StemBuildSettings();
+            settings.height = 2.0f;
+            settings.stemBendRadius = 0.065f;
+            settings.radiusBase = 0.05f;
+            settings.radiusTop = 0.01f;
+            settings.sinkAmount = 0f;
+            settings.baseRadiusFactor = 0.1f;
+            settings.stemBaseHeight = 0.01f;
+            builder.BuildStem(settings);
+
+
+            TreeBuilder.SpreadAroundStemSettings spreadSettings = new TreeBuilder.SpreadAroundStemSettings();
+            spreadSettings.numberBranches = 1;
+            spreadSettings.randomSpin = false;
+            spreadSettings.startStemRatio = 0.05f;
+            spreadSettings.endStemRatio = 1.0f;
+            spreadSettings.BranchEndScale = new Vector3(1.0f);
+            builder.SpreadMeshAroundStem(leafMesh, spreadSettings);
+
+
+            Mesh mesh = new Mesh();
+
+            for (int i = 0; i<8; i++)
+            {
+                mesh += builder.mesh.rotated(new Vector3(MyMath.rngMinusPlus(0.16f), MyMath.rng(MathF.Tau), MyMath.rngMinusPlus(0.16f))).translated(new Vector3(MyMath.rngMinusPlus(0.35f), 0f, MyMath.rngMinusPlus(0.35f))).scaled(new Vector3(1f+MyMath.rngMinusPlus(0.4f)));
+            }
+
+            return mesh;
+        }
+
         public static Mesh GenerateFlowerBush(Vector3 flowerColour)
         {
 
@@ -130,7 +186,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 fern += leafMesh.rotated(new Vector3(0f, ratio*MathF.Tau, 0f)).scaled(new Vector3(scale));
             }
 
-            return fern;
+            return fern.scaled(new Vector3(0.7f));
         }
 
         public static Mesh GenerateFernLeaf()
@@ -173,8 +229,8 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(1f, 1f), new Vector2i(50, 50), leafMaterial);
             leafMesh.rotate(new Vector3(MathF.PI/2f, 0f, 0f));
 
-            float wholeLeafBend = 1.0f;
-            float stemBend = 0.5f;
+
+
 
             for (int i = 0; i < leafMesh.meshVertices.Count; i++)
             {
@@ -196,7 +252,39 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             leafMesh.rotate(new Vector3(0, 0f, 0f));
 
-            return leafMesh;
+            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark));
+            TreeBuilder.StemBuildSettings settings = new TreeBuilder.StemBuildSettings();
+            settings.height = 1.0f;
+            settings.stemBendRadius = 0.01f;
+            settings.radiusBase = 0.01f;
+            settings.radiusTop = 0.003f;
+            settings.sinkAmount = 0f;
+            settings.baseRadiusFactor = 0.1f;
+            settings.stemBaseHeight = 0.01f;
+            builder.BuildStem(settings);
+
+
+            TreeBuilder builderBranch = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark));
+            TreeBuilder.StemBuildSettings settingsBranch = new TreeBuilder.StemBuildSettings();
+            settingsBranch.height = 0.38f;
+            settingsBranch.stemBendRadius = 0.01f;
+            settingsBranch.radiusBase = 0.005f;
+            settingsBranch.radiusTop = 0.002f;
+            settingsBranch.sinkAmount = 0f;
+            settingsBranch.baseRadiusFactor = 0.1f;
+            settingsBranch.stemBaseHeight = 0.01f;
+            builderBranch.BuildStem(settingsBranch);
+
+            TreeBuilder.SpreadAroundStemSettings spreadSettings = new TreeBuilder.SpreadAroundStemSettings();
+            spreadSettings.numberBranches = 5;
+            spreadSettings.randomSpin = false;
+            spreadSettings.startStemRatio = 0.05f;
+            spreadSettings.endStemRatio = 0.8f;
+            spreadSettings.BranchEndScale = new Vector3(0.11f);
+            builder.SpreadMeshAroundStem(builderBranch.mesh.rotated(new Vector3(0, 0f, MathF.PI/4.3f)), spreadSettings);
+            builder.SpreadMeshAroundStem(builderBranch.mesh.rotated(new Vector3(0, 0f, -MathF.PI / 4.3f)), spreadSettings);
+
+            return (leafMesh+builder.mesh.translated(new Vector3(0f, -0.5f, 0f)));
         }
 
         public static Mesh generatePineTree(int numberBranches, float branchStartRatio, bool alive = true, bool fallen = false)
@@ -394,11 +482,69 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             return builder.mesh;
         }
+        public static Mesh GenerateOakTree()
+        {
+            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.oakBark, new Colour(255, 255, 255)));
+            TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
+            stemSettings.radiusBase = 1.5f;
+            stemSettings.radiusTop = 0.03f;
+            stemSettings.stemBendRadius = 1.9f;
+            stemSettings.height = 20.0f;
+            stemSettings.sinkAmount = 3f;
+            stemSettings.stemBaseHeight = 2f;
+            stemSettings.stemWavePatternAmount = 0.0f;
+            stemSettings.baseRadiusFactor = 1.5f;
+            stemSettings.baseColor = new Colour(160, 130, 45);
+            builder.BuildStem(stemSettings);
 
+            TreeBuilder BranchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.oakBark, new Colour(255, 255, 255)));
+
+
+            TreeBuilder.StemBuildSettings branchSettings = new TreeBuilder.StemBuildSettings();
+            branchSettings.detailsHeight = 4;
+            branchSettings.detailPerRing = 6;
+            branchSettings.height = 13f;
+            branchSettings.radiusBase = 0.50f;
+            branchSettings.radiusTop = 0.05f;
+            branchSettings.baseRadiusFactor = 0.2f;
+            branchSettings.sinkAmount = 0.5f;
+            branchSettings.stemBendRadius = 0.4f;
+            branchSettings.textureRepeats = 1;
+            BranchBuilder.BuildStem(branchSettings);
+
+            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(2, 4), new VertexMaterial(TextureGenerator.oakBranch), centerY: false);
+            //leafMesh += leafMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
+            TreeBuilder.SpreadAroundStemSettings twigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
+            twigSpawnSettings.BranchRandomRotation.Z = .0f;
+            twigSpawnSettings.BranchStartRotation.X = MathF.PI / 1.5f;
+            twigSpawnSettings.BranchEndRotation.X = MathF.PI / 1.0f;
+            twigSpawnSettings.BranchStartScale = new Vector3(1f);
+            twigSpawnSettings.BranchEndScale = new Vector3(0.4f);
+            twigSpawnSettings.numberBranches = 20;
+            twigSpawnSettings.startStemRatio = 0.05f;
+            BranchBuilder.SpreadMeshAroundStem(leafMesh.rotated(new Vector3(MathF.PI / 2f, 0f, 0f)), twigSpawnSettings);
+
+
+            TreeBuilder.SpreadAroundStemSettings branchSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
+            branchSpawnSettings.BranchRandomRotation.Z = 1.0f;
+            branchSpawnSettings.BranchStartRotation.X = -0.0f;
+            branchSpawnSettings.BranchEndRotation.X = -0.95f;
+            branchSpawnSettings.numberBranches = 40;
+            branchSpawnSettings.startStemRatio = 0.45f;
+            branchSpawnSettings.BranchEndScale = new Vector3(0.2f);
+
+            builder.SpreadMeshAroundStem(BranchBuilder.mesh.rotated(new Vector3(MathF.PI / 2f, 0f, 0f)), branchSpawnSettings);
+
+
+
+
+
+            return builder.mesh;
+        }
 
         public static Mesh GenerateBirchTree()
         {
-            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.barkBirch, new Colour(255, 255, 255)));
+            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.BirchBark, new Colour(255, 255, 255)));
             TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
             stemSettings.radiusBase = 0.5f;
             stemSettings.radiusTop = 0.03f;
@@ -411,7 +557,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             stemSettings.baseColor = new Colour(115, 115,115);
             builder.BuildStem(stemSettings);
 
-            TreeBuilder BranchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.barkBirch, new Colour(255, 255, 255)));
+            TreeBuilder BranchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.BirchBark, new Colour(255, 255, 255)));
 
 
             TreeBuilder.StemBuildSettings branchSettings = new TreeBuilder.StemBuildSettings();
@@ -426,7 +572,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.textureRepeats = 1;
             BranchBuilder.BuildStem(branchSettings);
 
-            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(6f, 6f), new Vector2i(2, 4), new VertexMaterial(TextureGenerator.oakBranch, new Colour(255, 255, 255)), centerY: false);
+            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(6f, 6f), new Vector2i(2, 4), new VertexMaterial(TextureGenerator.birchBranch, new Colour(255, 255, 255)), centerY: false);
             //leafMesh += leafMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
             TreeBuilder.SpreadAroundStemSettings twigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
             twigSpawnSettings.BranchRandomRotation.Z = .0f;
