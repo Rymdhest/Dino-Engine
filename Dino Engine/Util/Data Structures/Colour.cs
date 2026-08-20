@@ -4,8 +4,11 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.Util
 {
+
+
     public struct Colour
     {
+
         private float _red;
         private float _green;
         private float _blue;

@@ -206,7 +206,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-1.10f, -3.5f, -2.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 10f)),
+                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 14f)),
                 new AmbientLightComponent(0.05f),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 2, 3, 1750),
                 new CelestialBodyComponent()
@@ -275,7 +275,7 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent()
             );
 
-            Mesh cube = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.grass));
+            Mesh cube = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.foliage_olive));
             world.CreateEntity("cube",
                 new PositionComponent(new Vector3(24, 5, 0)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
@@ -300,7 +300,7 @@ namespace Dino_Defenders
                 new PositionComponent(new Vector3(0, 5, -30)),
                 new RotationComponent(new Vector3(0f, 0f, 0f)),
                 new ScaleComponent(new Vector3(10f)),
-                new ModelComponent(glLoader.loadToVAO(TreeGenerator.GenerateLeaf())),
+                new ModelComponent(glLoader.loadToVAO(TreeGenerator.GenerateLeaf(new VertexMaterial(TextureGenerator.leaf_olive), new VertexMaterial(TextureGenerator.pineBark)))),
                 new ModelRenderTag(),
                 new LocalToWorldMatrixComponent()
             );
@@ -416,10 +416,10 @@ namespace Dino_Defenders
 
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFern()), 30f);
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateBigLeafBush()), 30f);
-            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(6f, 1f, 1f))), 30f);  // yellow
-            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 0.1f, 0.1f))), 30f);  // red
-            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(10f, 1f, 10f))), 30f);  // purple
-            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(3.5f, 2.5f, 2.5f))), 30f);  //white
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.8f, 0.8f, 0.01f))), 30f);  // yellow
+            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.8f, 0.2f, 0.1f))), 30f);  // red
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.55f, 0.3f, 0.7f))), 30f);  // purple
+            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.8f, 0.8f, 0.8f))), 30f);  //white
 
             float treeImposterDistance = 70f;
             spawnModelOverTerrain(8000, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)), treeImposterDistance, treeMap);

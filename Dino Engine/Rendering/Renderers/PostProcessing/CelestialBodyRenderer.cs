@@ -81,7 +81,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _sunRayShader.loadUniformFloat("Decay", 0.95f);
             _sunRayShader.loadUniformFloat("illuminationDecay", 1.0f);
             _sunRayShader.loadUniformVector2f("celestialRayResolution", _CelestialBodyFramebuffer.getResolution());
-            _sunRayShader.loadUniformInt("samples", 25);
+            _sunRayShader.loadUniformInt("samples", 35);
             _sunRayShader.loadUniformVector3f("sunDirection", -command.direction);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, buffer.GetNextOutputTexture());

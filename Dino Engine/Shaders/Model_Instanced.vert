@@ -44,7 +44,7 @@ void main() {
 	vec2 bendMapUVPosition = (modelPosWorldSpace.xz-simulationWorldPosition)/simulationWorldSize;
 	vec2 bendMapValue = texture(bendMap, bendMapUVPosition).yx;
 	bendMapValue.x *= -1.0;
-	bendMapValue *= (position.y*0.001+length(position.xz)*0.01);
+	bendMapValue *= (position.y*0.001+length(position.xz)*0.01)*1.0;
 	float rotX = bendMapValue.x;
 	float rotZ = bendMapValue.y;
 	

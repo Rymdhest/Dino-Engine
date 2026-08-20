@@ -19,6 +19,7 @@ namespace Dino_Engine.Modelling.Model
         }
         public VertexMaterial(int materialTextureIndex)
         {
+
             this.materialTextureIndex = materialTextureIndex;
             this.colour = new Colour(255, 255, 255);
         }

@@ -11,9 +11,20 @@ namespace Dino_Engine.Modelling.Model
 
     public struct Material
     {
-        public static Material ROCK = new Material(new Colour(255, 255, 255), rougness:0.9f);
-        public static Material GLOW = new Material(new Colour(255, 255, 255), emission:1.0f);
-        public static Material BARK = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy:0.5f);
+        public static Material GROUND_ROCK = new Material(new Colour(100, 91, 75), rougness:0.9f);
+        public static Material GROUND_SOIL   = new Material(new Colour(94, 48, 25), rougness: 0.9f);
+
+        public static Material BARK_PINE = new Material(new Colour(105, 48, 25), rougness: 0.98f, subSurfaceTransparancy:0.0f);
+        public static Material BARK_OAK = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy: 0.0f);
+        public static Material BARK_BIRCH = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy: 0.0f);
+
+        public static Material FOLIAGE_GREEN = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy: 0.5f);
+        public static Material FOLIAGE_PINE = new Material(new Colour(40, 50, 20), rougness: 0.98f, subSurfaceTransparancy: 0.5f);
+        public static Material FOLIAGE_OLIVE = new Material(new Colour(86, 89, 28), rougness: 0.98f, subSurfaceTransparancy: 0.5f);
+        public static Material FOLIAGE_AUTUMN = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy: 0.5f);
+        public static Material FOLIAGE_WHITE = new Material(new Colour(255, 255, 255), rougness: 0.98f, subSurfaceTransparancy: 0.5f);
+
+        public static Material GLOW_WHITE = new Material(new Colour(255, 255, 255), emission: 1.0f);
 
         public Colour Colour;
         public float roughness;

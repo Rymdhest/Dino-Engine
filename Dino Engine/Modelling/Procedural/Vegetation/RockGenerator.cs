@@ -1,16 +1,11 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS;
 using Dino_Engine.Modelling.Model;
-using Dino_Engine.Modelling.Procedural.Vegetation;
-using Dino_Engine.Modelling.Procedural.Vegetation;
 using Dino_Engine.Rendering;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Compute.OpenCL;
 using OpenTK.Mathematics;
-using System.Reflection.Emit;
-using System.Reflection.PortableExecutable;
-using System.Xml.Serialization;
 using Util.Noise;
 using static OpenTK.Graphics.OpenGL.GL;
 namespace Dino_Engine.Modelling.Procedural.Nature
@@ -19,7 +14,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
     {
         public static Mesh GenerateRockBrown( )
         {
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(4, new VertexMaterial(TextureGenerator.pineBark, new Colour(255, 255, 255)), 16);
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(4, new VertexMaterial(TextureGenerator.soil, new Colour(255, 255, 255)), 8);
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
             for (int i = 0; i < RockMesh.meshVertices.Count; i++)
@@ -44,7 +39,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 Vector3 normal = RockMesh.meshVertices[i].normal;
                 float dotProduct = MyMath.clamp01(Vector3.Dot(normal, new Vector3(0f, 1f, 0f)));
                 dotProduct = MathF.Pow(dotProduct, 3.0f);
-                RockMesh.meshVertices[i].colour = new Colour(MyMath.lerp(RockMesh.meshVertices[i].colour.ToVector3(), new Vector3(0.5f, 1.0f, 0.6f), dotProduct));
+                RockMesh.meshVertices[i].colour = new Colour(MyMath.lerp(RockMesh.meshVertices[i].colour.ToVector3(), Dino_Engine.Modelling.Model.Material.FOLIAGE_OLIVE.Colour.ToVector3(), dotProduct));
 
             }
 
@@ -52,7 +47,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
         }
         public static Mesh GenerateRock()
         {
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(4, new VertexMaterial(TextureGenerator.rock, new Colour(255, 255, 255)), 32);
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(4, new VertexMaterial(TextureGenerator.rock), 16);
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
             for (int i = 0; i < RockMesh.meshVertices.Count; i++)
@@ -77,7 +72,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 Vector3 normal = RockMesh.meshVertices[i].normal;
                 float dotProduct = MyMath.clamp01(Vector3.Dot(normal, new Vector3(0f, 1f, 0f)));
                 dotProduct = MathF.Pow(dotProduct, 3.0f);
-                RockMesh.meshVertices[i].colour = new Colour(MyMath.lerp(RockMesh.meshVertices[i].colour.ToVector3(), new Vector3(0.7f, 0.9f, 0.6f), dotProduct));
+                RockMesh.meshVertices[i].colour = new Colour(MyMath.lerp(RockMesh.meshVertices[i].colour.ToVector3(), Dino_Engine.Modelling.Model.Material.FOLIAGE_OLIVE.Colour.ToVector3(), dotProduct*0.7f));
 
             }
 

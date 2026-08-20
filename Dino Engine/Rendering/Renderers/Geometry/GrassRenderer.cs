@@ -224,7 +224,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         }
         private glModel generateBladeModelLOD0()
         {
-            VertexMaterial grassMaterial = new VertexMaterial(TextureGenerator.grass); //Throwaway
+            VertexMaterial grassMaterial = new VertexMaterial(TextureGenerator.foliage_olive); //Throwaway
 
             if (grassBladeLOD0 != null) grassBladeLOD0.cleanUp();
             List<Vector2> bladeLayers = new List<Vector2>() {
@@ -413,18 +413,19 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
 
             _grassShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
-
-            _grassShader.loadUniformInt("textureIndex", TextureGenerator.grass);
+            Material grassMaterial = Material.FOLIAGE_OLIVE;
+            Material grassMaterialDead = Material.GROUND_SOIL;
+            _grassShader.loadUniformInt("textureIndex", TextureGenerator.foliage_olive);
             _grassShader.loadUniformFloat("groundNormalStrength", 0.2f);
             _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.2f);
             _grassShader.loadUniformFloat("colourError", 0.1f);
-            _grassShader.loadUniformFloat("SSS", 0.6f);
+            _grassShader.loadUniformFloat("SSS", grassMaterial.subSurfaceTransparancy);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.1f);
-            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.1f);
-            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(0.45f, 0f, 0.0f, 0.0f));
-            _grassShader.loadUniformVector3f("baseColorAlive", new Colour(60, 65, 80).ToVector3());
+            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.6f);
+            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(grassMaterial.roughness, grassMaterial.emission, grassMaterial.metalic, 0f));
+            _grassShader.loadUniformVector3f("baseColorAlive", grassMaterial.Colour.ToVector3());
             //_grassShader.loadUniformVector3f("baseColorAlive", new Colour(20, 50, 15).ToVector3());
-            _grassShader.loadUniformVector3f("baseColorDead", new Colour(145, 74,60).ToVector3());
+            _grassShader.loadUniformVector3f("baseColorDead", grassMaterialDead.Colour.ToVector3());
             //_grassShader.loadUniformVector3f("baseColor", new Colour(30, 11, 8).ToVector3());
 
         }

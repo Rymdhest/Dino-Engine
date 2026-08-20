@@ -19,30 +19,9 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
         public static Mesh GenerateBigLeafBush()
         {
-            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.leaf, new Colour(105, 105, 105));
-
-            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(1f, 1f), new Vector2i(4, 6), leafMaterial, centerX: true, centerY: false);
-
-            for (int i = 0; i < leafMesh.meshVertices.Count; i++)
-            {
-                float ratioZ = leafMesh.meshVertices[i].position.Z;
-                float width = leafMesh.meshVertices[i].position.X*2.0f;
-                //width *= MathF.Pow(2, 0.9f+ratioY*0.1f);
-                leafMesh.meshVertices[i].position.Y += MathF.Pow(width, 2.0f)*0.3f;
-                leafMesh.meshVertices[i].position.Y -= MathF.Pow(ratioZ, 2.0f) * 0.2f;
-
-                //leafMesh.meshVertices[i].position.X += MathF.Sin(leafMesh.meshVertices[i].position.Y * MathF.Tau * 10f) * 0.005f;
-
-                //leafMesh.meshVertices[i].position.Z += MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 20f) * 0.001f;
-
-
-                //leafMesh.meshVertices[i].position.Z = MathF.Sin(leafMesh.meshVertices[i].position.X * MathF.Tau * 15f) * 0.000005f;
-            }
-
-            leafMesh.translate(new Vector3(0f, 0.0f, -0.05f));
-            leafMesh.rotate(new Vector3(0f, MathF.PI/2f, 0.0f));
+            Mesh leafMesh = GenerateLeafMesh(new Vector2(0.3f, -0.2f), new Vector2i(4, 6), new VertexMaterial(TextureGenerator.leaf_olive));
             leafMesh.scale(new Vector3(0.85f));
-            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.grass, new Colour(105, 105, 105)));
+            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.foliage_olive));
             TreeBuilder.StemBuildSettings settings = new TreeBuilder.StemBuildSettings();
             settings.height = 2.0f;
             settings.stemBendRadius = 0.065f;
@@ -73,16 +52,27 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             return mesh;
         }
 
+        public static Mesh GenerateLeafMesh(Vector2 bend, Vector2i resolution, VertexMaterial material)
+        {
+            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(1f, 1f), resolution, material, centerX: true, centerY: false);
+            for (int i = 0; i < leafMesh.meshVertices.Count; i++)
+            {
+                float ratioZ = leafMesh.meshVertices[i].position.Z;
+                float width = leafMesh.meshVertices[i].position.X * 2.0f;
+                leafMesh.meshVertices[i].position.Y += MathF.Pow(width, 2.0f) * bend.X;
+                leafMesh.meshVertices[i].position.Y += MathF.Pow(ratioZ, 2.0f) * bend.Y;
+            }
+            leafMesh.translate(new Vector3(0f, 0.0f, -0.05f));
+            leafMesh.rotate(new Vector3(0f, MathF.PI / 2f, 0.0f));
+            return leafMesh;
+        }
+
         public static Mesh GenerateFlowerBush(Vector3 flowerColour)
         {
 
 
-            float leafSize = 0.3f;
-            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(TextureGenerator.leaf));
-            //leafMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
-            leafMesh.rotate(new Vector3(0, MathF.PI / 2f, 0));
-            //leafMesh.rotate(new Vector3(0, 0f, MathF.PI / 4f));
-            leafMesh.translate(new Vector3(-leafSize / 2f, 0f, 0f));
+            Mesh leafMesh = GenerateLeafMesh(new Vector2(0.3f, -0.4f), new Vector2i(4, 6), new VertexMaterial(TextureGenerator.leaf_olive));
+            leafMesh.scale(new Vector3(0.5f));
 
 
             Mesh flowerPlant = new Mesh();
@@ -106,14 +96,14 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             Curve3D curve = spline.GenerateCurve(3);
             curve.LERPWidth(0.03f, 0.02f);
-            Mesh stem = MeshGenerator.generateCurvedTube(curve, 3, new VertexMaterial(TextureGenerator.grass, new Colour(200, 150, 200)), textureRepeats: 1, flatStart: true);
+            Mesh stem = MeshGenerator.generateCurvedTube(curve, 3, new VertexMaterial(TextureGenerator.foliage_olive), textureRepeats: 1, flatStart: true);
             flowerPlant += stem;
 
 
             int leavesAlongStem = 7;
             for (int i = 0; i < leavesAlongStem; i++)
             {
-                float t = 0.25f + 0.75f * MathF.Pow((float)i / (leavesAlongStem - 1), 0.8f);
+                float t = 0.25f + 0.65f * MathF.Pow((float)i / (leavesAlongStem - 1), 0.8f);
                 CurvePoint curvePoint = curve.getPointAt(t);
                 var newBranch = leafMesh.scaled(new Vector3(1.0f - t * 0.7f));
                 Vector3 col = MyMath.rng3D(0.15f);
@@ -128,11 +118,15 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             int leavesAroundFlower = 7;
             CurvePoint curvePointTop = curve.getPointAt(1.0f);
+
+            Mesh leafFlowerMesh = GenerateLeafMesh(new Vector2(0.3f, 0.6f), new Vector2i(4, 6), new VertexMaterial(TextureGenerator.leaf_white, new Colour(flowerColour)));
+            leafFlowerMesh.scale(new Vector3(0.15f));
+            leafFlowerMesh.rotate(new Vector3(0f, 0f, MathF.PI/4f));
+
             for (int i = 0; i < leavesAroundFlower; i++)
             {
                 float t = (float)i / (leavesAroundFlower);
-                var newBranch = leafMesh.scaled(new Vector3(0.35f)).rotated(new Vector3(0f, 0f, -0.4f));
-                newBranch.setColour(new Colour(flowerColour));
+                var newBranch = leafFlowerMesh.rotated(new Vector3(0f, 0f, -0.4f));
                 newBranch.rotate(new Vector3(0f, t * MathF.Tau, 0f));
                 flower += newBranch;
             }
@@ -155,7 +149,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
         public static Mesh GenerateFern()
         {
-            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.fernBranch, new Colour(255, 255, 255));
+            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.fernBranch);
 
             Vector2 leafSize = new Vector2(0.5f,1f) * 1f;
 
@@ -191,7 +185,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
         public static Mesh GenerateFernLeaf()
         {
-            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.grass, new Colour(135, 155, 145));
+            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.foliage_olive);
 
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(1f, 1f), new Vector2i(50, 50), leafMaterial);
             leafMesh.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
@@ -222,9 +216,8 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             return leafMesh;
         }
 
-        public static Mesh GenerateLeaf()
+        public static Mesh GenerateLeaf(VertexMaterial leafMaterial, VertexMaterial stemMaterial)
         {
-            VertexMaterial leafMaterial = new VertexMaterial(TextureGenerator.grass, new Colour(135, 155, 145));
 
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(1f, 1f), new Vector2i(50, 50), leafMaterial);
             leafMesh.rotate(new Vector3(MathF.PI/2f, 0f, 0f));
@@ -252,7 +245,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             leafMesh.rotate(new Vector3(0, 0f, 0f));
 
-            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark));
+            TreeBuilder builder = new TreeBuilder(stemMaterial);
             TreeBuilder.StemBuildSettings settings = new TreeBuilder.StemBuildSettings();
             settings.height = 1.0f;
             settings.stemBendRadius = 0.01f;

@@ -48,6 +48,7 @@ namespace Dino_Engine.Textures
         public static int test;
         public static int grain;
         public static int sand;
+        public static int grassy_soil;
         public static int soil;
         public static int mud;
         public static int moss;
@@ -56,7 +57,9 @@ namespace Dino_Engine.Textures
         public static int sandDunes;
         public static int metalFloor;
         public static int gravel;
-        public static int grass;
+        public static int foliage_olive;
+        public static int foliage_white;
+        public static int foliage_pine;
         public static int rock;
         public static int wood;
         public static int pineBark;
@@ -83,7 +86,8 @@ namespace Dino_Engine.Textures
         public static int fernLeaf;
         public static int fernBranch;
 
-        public static int leaf;
+        public static int leaf_olive;
+        public static int leaf_white;
 
         public static int birchTwig;
         public static int birchBranch;
@@ -145,7 +149,9 @@ namespace Dino_Engine.Textures
         {
             
             grain = createGrainTexture();
-            grass = createGrassTexture();
+            foliage_olive = createGrassTexture(Material.FOLIAGE_OLIVE);
+            foliage_white = createGrassTexture(Material.FOLIAGE_WHITE);
+            foliage_pine = createGrassTexture(Material.FOLIAGE_PINE);
             flat = createFlatTexture();
             flatGlow = createFlatGlowTexture();
             sandDunes = createSandDunesTexture();
@@ -156,6 +162,7 @@ namespace Dino_Engine.Textures
             crackedLava = createCrackedLAva();
             rock = createRock();
             mirror = createMirrorTexture();
+            grassy_soil = createGrassySoilTexture();
             soil = createSoilTexture();
             wax = createWaxTexture();
             ice = createIceTexture();
@@ -165,10 +172,14 @@ namespace Dino_Engine.Textures
             addAllPreparedTexturesToTexArray(arrayType.material);
            
            
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(), fullStretch: false));
-            leaf = preparedTextures.Count - 1 + loadedModelTextures+ loadedMaterialTextures;
+            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(new VertexMaterial(TextureGenerator.foliage_olive), new VertexMaterial(TextureGenerator.pineBark)), fullStretch: false));
+            leaf_olive = preparedTextures.Count - 1 + loadedModelTextures+ loadedMaterialTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
-            
+
+            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(new VertexMaterial(TextureGenerator.foliage_white), new VertexMaterial(TextureGenerator.BirchBark)), fullStretch: false));
+            leaf_white = preparedTextures.Count - 1 + loadedModelTextures + loadedMaterialTextures;
+            addAllPreparedTexturesToTexArray(arrayType.model);
+
             preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateFernLeaf(), fullStretch: false));
             fernLeaf = preparedTextures.Count - 1 + loadedModelTextures+ loadedMaterialTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
@@ -185,7 +196,7 @@ namespace Dino_Engine.Textures
         private void generateOakBranch()
         {
             float leafSize = 20f;
-            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(leaf, new Colour(170, 150, 100)));
+            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(leaf_olive));
             branchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
             branchMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
             branchMesh.translate(new Vector3(-leafSize / 2f, 0f, 0f));
@@ -269,7 +280,7 @@ namespace Dino_Engine.Textures
         private void generateBirchBranch()
         {
             float leafSize = 20f;
-            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(leaf));
+            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(leaf_olive));
             branchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
             branchMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
             branchMesh.translate(new Vector3(-leafSize / 2f, 0f, 0f));
@@ -293,7 +304,7 @@ namespace Dino_Engine.Textures
 
             Curve3D curve = spline.GenerateCurve(3);
             curve.LERPWidth(1f, 0.1f);
-            Mesh mesh = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(grass), textureRepeats: 1, flatStart: true);
+            Mesh mesh = MeshGenerator.generateCurvedTube(curve, 8, new VertexMaterial(foliage_olive), textureRepeats: 1, flatStart: true);
 
             int leavesPerSide = 7;
             for (int i = 0; i < leavesPerSide; i++)
@@ -409,7 +420,7 @@ namespace Dino_Engine.Textures
         {
 
             /// Create the twig stem
-            TreeBuilder twigbuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark, new Colour(205, 255, 255)));
+            TreeBuilder twigbuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark));
             TreeBuilder.StemBuildSettings twigSettings = new TreeBuilder.StemBuildSettings();
             twigSettings.radiusBase = 0.95f;
             twigSettings.radiusTop = 0.3f;
@@ -421,7 +432,7 @@ namespace Dino_Engine.Textures
             twigbuilder.BuildStem(twigSettings);
 
             // create single pine model
-            TreeBuilder singlePineBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.grass, new Colour(45, 50, 70)));
+            TreeBuilder singlePineBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.foliage_pine));
             TreeBuilder.StemBuildSettings singlePineSettings = new TreeBuilder.StemBuildSettings();
             singlePineSettings.detailsHeight = 2;
             singlePineSettings.detailPerRing = 3;
@@ -450,7 +461,7 @@ namespace Dino_Engine.Textures
             addAllPreparedTexturesToTexArray(arrayType.model);
 
             /// Create the branch stem
-            TreeBuilder branchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark, new Colour(205, 255, 255)));
+            TreeBuilder branchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark));
             TreeBuilder.StemBuildSettings branchSettings = new TreeBuilder.StemBuildSettings();
             branchSettings.radiusBase = 0.4f;
             branchSettings.radiusTop = 0.4f;
@@ -462,7 +473,7 @@ namespace Dino_Engine.Textures
             branchBuilder.BuildStem(branchSettings);
 
             //create twig model
-            Mesh twigMesh = MeshGenerator.generatePlane(new Vector2(7f, 7f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.pineTwig, new Colour(255, 255, 255)), centerY: false);
+            Mesh twigMesh = MeshGenerator.generatePlane(new Vector2(7f, 7f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.pineTwig), centerY: false);
             //twigMesh += twigMesh.rotated(new Vector3(MathF.PI / 2f, 0f, 0));
             twigMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
             twigMesh.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
@@ -724,21 +735,23 @@ namespace Dino_Engine.Textures
 
         private int createRock()
         {
-            var levelsBig = procTextGen.Voronoi(new Vector2(117f, 117f), jitter: 1.0f, returnMode:ReturnMode.ID);
-            levelsBig.setMaterial(new Material(new Colour(75, 55, 55), 0.99f, 0f, 0f));
+            var levelsBig = procTextGen.Voronoi(new Vector2(128f, 128f), jitter: 1.0f, returnMode:ReturnMode.ID);
+            levelsBig.setMaterial(Material.GROUND_ROCK);
             var levelsSmall = procTextGen.Voronoi(new Vector2(24f, 24f), jitter: 1.0f, returnMode: ReturnMode.ID);
             var combined = MaterialLayersCombiner.combine(levelsBig, levelsSmall, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation:Operation.Add, weight:0.7f);
 
             var cellular = procTextGen.Cellular(new Vector2(117f, 117f), jitter:1.0f, metric:Metric.SquaredEuclidean).invertHeight();
-            cellular.setMaterial(new Material(new Colour(55, 85, 25), 0.4f, 0f, 0f));
+            Material material2 = Material.GROUND_ROCK;
+            material2.Colour.Intensity = 0.85f;
+            cellular.setMaterial(material2);
 
-            var combined2 = MaterialLayersCombiner.combine(combined, cellular, FilterMode.Everywhere, materialOperation: Operation.Mix, heightOperation: Operation.Add, weight: 0.2f);
+            var combined2 = MaterialLayersCombiner.combine(combined, cellular, FilterMode.Greater, materialOperation: Operation.Override, heightOperation: Operation.Override, weight: 0.2f);
 
             var cracks = procTextGen.VoronoiCracks(new Vector2(19f, 19f), jitter: 1.0f, width: 0.055f, smoothness: 0.5f).setMaterial(new Material(new Colour(120, 117, 116), 0.45f, 0f, 0f));
 
             MaterialLayersCombiner.combine(combined2, cracks, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Scale, weight: 0.2f);
 
-            var noise = procTextGen.PerlinFBM(new Vector2(44f, 44f), octaves: 10, amplitudePerOctave: 0.6f);
+            var noise = procTextGen.PerlinFBM(new Vector2(64f, 64f), octaves: 10, amplitudePerOctave: 0.6f);
 
             MaterialLayersCombiner.combine(combined2, noise, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Add, weight: 0.7f);
 
@@ -838,10 +851,10 @@ namespace Dino_Engine.Textures
             var noise = procTextGen.PerlinFBM(new Vector2(8f, 4f), octaves: 10, amplitudePerOctave: 0.5f);
             var barkCracks = procTextGen.VoronoiCracks(new Vector2(16f, 8f), width: 0.055f, smoothness: 0.1f, jitter: 0.6f);
             var wavy = procTextGen.PerlinFBM(new Vector2(2, 16), octaves: 3, amplitudePerOctave: 0.6f, rigged: true);
-            bark.setMaterial(new Material(new Colour(140, 60, 25), 0.95f, 0.0f, 0f));
-            noise.setMaterial(new Material(new Colour(100, 70, 20), 0.55f, 0f, 0f));
-            barkCracks.setMaterial(new Material(new Colour(130, 125, 125), 0.95f, 0f, 0f));
-            wavy.setMaterial(new Material(new Colour(60, 40, 22), 0.35f, 0f, 0f));
+            bark.setMaterial(Material.BARK_PINE);
+            noise.setMaterial(new Material(new Colour(75, 75, 75), 0.55f, 0f, 0f));
+            barkCracks.setMaterial(new Material(new Colour(25, 25, 25), 0.95f, 0f, 0f));
+            wavy.setMaterial(Material.FOLIAGE_OLIVE);
 
             MaterialLayersCombiner.combine(barkCracks, noise.scaleHeight(0.9f), FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: -0.1f, smoothness: 0.1f);
 
@@ -933,21 +946,36 @@ namespace Dino_Engine.Textures
             MaterialLayer tileWweaves = procTextGen.TileWeave(new Vector2(16f, 16f), count: 3, smoothness: 0.9f, width: 0.5f);
             return FinishTexture(tileWweaves);
         }
-
         private int createSoilTexture()
         {
-            MaterialLayer soilLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
-            soilLayer.setMaterial(new Material(new Colour(186, 136, 49), 0.75f, 0f, 0.0f));
 
-            MaterialLayer grassLayer = procTextGen.PerlinFBM(new Vector2(52f, 52f), octaves: 8, amplitudePerOctave: 0.5f);
-            grassLayer.setMaterial(new Material(new Colour(60, 80, 15), 0.65f, 0f, 0.0f));
+            MaterialLayer grassLayer = procTextGen.PerlinFBM(new Vector2(64f, 64f), octaves: 8, amplitudePerOctave: 0.5f);
+            grassLayer.setMaterial(Material.GROUND_SOIL);
+
+
+            MaterialLayer rockLayer = procTextGen.Voronoi(new Vector2(200f, 200f), jitter: 1.0f);
+            MaterialLayersCombiner.combine(rockLayer, procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 2, amplitudePerOctave: 0.5f), FilterMode.Everywhere, Operation.Nothing, Operation.Scale, weight: 0.2f);
+            rockLayer.setMaterial(Material.GROUND_ROCK);
+            rockLayer.scaleHeight(0.8f);
+            MaterialLayer hilly = procTextGen.PerlinFBM(new Vector2(16f, 16f), octaves: 3, amplitudePerOctave: 0.5f, rigged: true);
+            MaterialLayersCombiner.combine(grassLayer, hilly, FilterMode.Everywhere, Operation.Nothing, Operation.Mix, weight: 0.5f);
+
+            return FinishTexture(grassLayer, normalFlatness: 100);
+        }
+        private int createGrassySoilTexture()
+        {
+            MaterialLayer soilLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
+            soilLayer.setMaterial(Material.FOLIAGE_OLIVE);
+
+            MaterialLayer grassLayer = procTextGen.PerlinFBM(new Vector2(64f, 64f), octaves: 8, amplitudePerOctave: 0.5f);
+            grassLayer.setMaterial(Material.GROUND_SOIL);
 
 
             MaterialLayer rockLayer = procTextGen.Voronoi(new Vector2(200f, 200f), jitter:1.0f);
             MaterialLayersCombiner.combine(rockLayer, procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 2, amplitudePerOctave: 0.5f), FilterMode.Everywhere, Operation.Nothing, Operation.Scale, weight: 0.2f);
-            rockLayer.setMaterial(new Material(new Colour(82, 82, 82), 0.95f, 0f, 0.0f));
+            rockLayer.setMaterial(Material.GROUND_ROCK);
             rockLayer.scaleHeight(0.8f);
-            MaterialLayer hilly = procTextGen.PerlinFBM(new Vector2(15f, 15f), octaves: 3, amplitudePerOctave: 0.5f, rigged:true);
+            MaterialLayer hilly = procTextGen.PerlinFBM(new Vector2(16f, 16f), octaves: 3, amplitudePerOctave: 0.5f, rigged:true);
             MaterialLayersCombiner.combine(grassLayer, hilly, FilterMode.Everywhere, Operation.Nothing, Operation.Mix, weight:0.5f);
 
             MaterialLayersCombiner.combine(soilLayer, rockLayer, FilterMode.Greater, Operation.Override, Operation.Override, weight: 0.5f);
@@ -957,10 +985,10 @@ namespace Dino_Engine.Textures
             return FinishTexture(grassLayer, normalFlatness:100);
         }
 
-        private int createGrassTexture()
+        private int createGrassTexture(Material material)
         {
             MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
-            roughLayer.setMaterial(new Material(new Colour(150, 160, 25), 0.4f, 0f, 0.0f, 0.8f));
+            roughLayer.setMaterial(material);
             return FinishTexture(roughLayer);
         }
         private int createIceTexture()
