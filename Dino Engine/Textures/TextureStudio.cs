@@ -18,9 +18,9 @@ namespace Dino_Engine.Textures
         private ShaderProgram _textureStudioShader = new ShaderProgram("textureStudioShader.vert", "textureStudioShader.frag");
         private ShaderProgram _texturePaddingShader = new ShaderProgram("Simple.vert", "texturePaddingShader.frag");
 
-        public TextureStudio()
+        public TextureStudio(Vector2i resolution)
         {
-            FrameBufferSettings gBufferSettings = new FrameBufferSettings(TextureGenerator.TEXTURE_RESOLUTION);
+            FrameBufferSettings gBufferSettings = new FrameBufferSettings(resolution);
 
             DrawBufferSettings gAlbedo = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
             gAlbedo.formatInternal = PixelInternalFormat.Rgba8;
@@ -142,7 +142,7 @@ namespace Dino_Engine.Textures
 
             // Pass configuration for SSS Occlusion lookup
             _textureStudioShader.loadUniformInt("isOverdrawPass", 0);
-            _textureStudioShader.loadUniformVector2f("resolution", TextureGenerator.TEXTURE_RESOLUTION);
+            _textureStudioShader.loadUniformVector2f("resolution", _studioFrameBuffer.getResolution());
 
             // Bind Pass 0 output (Overdraw result) to Texture Unit 6
             GL.ActiveTexture(TextureUnit.Texture6);
@@ -183,7 +183,7 @@ namespace Dino_Engine.Textures
             GL.DepthMask(false);
 
             // 1.5x Resolution guarantees padding reaches absolute corners seamlessly
-            int totalPasses = (int)(TextureGenerator.TEXTURE_RESOLUTION.X * 1.5f);
+            int totalPasses = (int)(_studioFrameBuffer.getResolution().X * 1.5f);
 
             for (int i = 0; i < totalPasses; i++)
             {

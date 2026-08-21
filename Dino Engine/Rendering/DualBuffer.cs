@@ -49,7 +49,10 @@ namespace Dino_Engine.Rendering
             Engine.RenderEngine.lastUsedBuffer = this;
         }
 
-
+        public Vector2i getResolution()
+        {
+            return _buffer1.getResolution();
+        }
         public void blitBothDepthBufferFrom(FrameBuffer other)
         {
             _buffer1.blitDepthBufferFrom(other);

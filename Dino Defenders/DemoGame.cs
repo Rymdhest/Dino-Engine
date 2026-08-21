@@ -413,29 +413,30 @@ namespace Dino_Defenders
 
             OpenSimplexNoise treeMap = new OpenSimplexNoise();
             OpenSimplexNoise treeMap2 = new OpenSimplexNoise();
-
-            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFern()), 30f);
-            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateBigLeafBush()), 30f);
-            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.8f, 0.8f, 0.01f))), 30f);  // yellow
-            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.8f, 0.2f, 0.1f))), 30f);  // red
-            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.55f, 0.3f, 0.7f))), 30f);  // purple
-            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.8f, 0.8f, 0.8f))), 30f);  //white
+            float bushSway = 50f;
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFern()), 30f, swayAmount: 30f);
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateBigLeafBush()), 30f, swayAmount: 30f);
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.8f, 0.8f, 0.01f))), 30f, swayAmount: bushSway);  // yellow
+            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.8f, 0.2f, 0.1f))), 30f, swayAmount: bushSway);  // red
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.55f, 0.3f, 0.7f))), 30f, swayAmount: bushSway);  // purple
+            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateFlowerBush(new Vector3(0.8f, 0.8f, 0.8f))), 30f, swayAmount: bushSway);  //white
 
             float treeImposterDistance = 70f;
-            spawnModelOverTerrain(8000, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)), treeImposterDistance, treeMap);
-            spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(25, 0.5f, alive: true, fallen: false)), treeImposterDistance, treeMap);
-            spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.7f, alive: true, fallen: false)), treeImposterDistance, treeMap);
-            spawnModelOverTerrain(3000, glLoader.loadToVAO(TreeGenerator.generatePineTree(15, 0.35f, alive: false, fallen: false)), treeImposterDistance, treeMap);
+            spawnModelOverTerrain(8000, glLoader.loadToVAO(TreeGenerator.generatePineTree(45, 0.35f, alive: true, fallen: false)), treeImposterDistance, treeMap, 1.0f);
+            spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(25, 0.5f, alive: true, fallen: false)), treeImposterDistance, treeMap, 1.0f);
+            spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.7f, alive: true, fallen: false)), treeImposterDistance, treeMap, 1.0f);
+            spawnModelOverTerrain(3000, glLoader.loadToVAO(TreeGenerator.generatePineTree(15, 0.35f, alive: false, fallen: false)), treeImposterDistance, treeMap, 1.0f);
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFallenPineTree()), 60f, treeMap);
 
-            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()), treeImposterDistance, treeMap2);
-            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateOakTree()), treeImposterDistance, treeMap2);
+            spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()), treeImposterDistance, treeMap2, 1.0f);
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateOakTree()), treeImposterDistance, treeMap2, 1.0f);
 
 
         }
        
-        private void spawnModelOverTerrain(int n, glModel model, float imposterDistance = 60f, OpenSimplexNoise spawnMap = null)
+        private void spawnModelOverTerrain(int n, glModel model, float imposterDistance = 60f, OpenSimplexNoise spawnMap = null, float swayAmount = 0.0f)
         {
+            model.swayAmount = swayAmount;
             float terrainSize = 1000f;
             ECSWorld world = Engine.world;
             Engine.RenderEngine.textureGenerator.AddImposterToModel(model, imposterDistance);

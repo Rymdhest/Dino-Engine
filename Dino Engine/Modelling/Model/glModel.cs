@@ -38,6 +38,7 @@ public class glModel
     private int vaoID;
     private int[] VBOS;
     private int vertexCount;
+    public float swayAmount;
     public AABB box;
     public ImposterData? Imposter { get; set; } = null;
 
@@ -47,6 +48,7 @@ public class glModel
         this.VBOS = VBOS;
         this.vertexCount = vertexCount;
         this.box = box;
+        swayAmount = 0.0f;
     }
 
     public int getVAOID()

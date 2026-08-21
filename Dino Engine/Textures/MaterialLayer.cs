@@ -41,7 +41,7 @@ namespace Dino_Engine.Textures
             heightAttachment.wrapMode = TextureWrapMode.Repeat;
             heightAttachment.minFilterType = TextureMinFilter.Linear;
 
-            FrameBufferSettings materialSettings = new FrameBufferSettings(TextureGenerator.TEXTURE_RESOLUTION);
+            FrameBufferSettings materialSettings = new FrameBufferSettings(TextureGenerator.MATERIAL_RESOLUTION);
             materialSettings.drawBuffers.Add(albedoAttachment);
             materialSettings.drawBuffers.Add(materialAttachment);
             materialSettings.drawBuffers.Add(heightAttachment);

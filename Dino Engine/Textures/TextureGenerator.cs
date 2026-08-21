@@ -41,7 +41,9 @@ namespace Dino_Engine.Textures
         public int loadedMaterialTextures = 0;
         public int loadedImposterTextures = 0;
 
-        public static readonly Vector2i TEXTURE_RESOLUTION = new Vector2i(512, 512)*2 ;
+        public static readonly Vector2i MATERIAL_RESOLUTION = new Vector2i(512);
+        public static readonly Vector2i MODEL_TEXTURE_RESOLUTION = new Vector2i(1024*2);
+        public static readonly Vector2i IMPOSTER_RESOLUTION = new Vector2i(256);
         public readonly int anglesPerImposter = 8;
 
         public static int flat;
@@ -113,7 +115,8 @@ namespace Dino_Engine.Textures
 
         public static MaterialLayerHandler MaterialLayerHandler = new MaterialLayerHandler();
 
-        private TextureStudio textureStudio;
+        private TextureStudio textureImposterStudio;
+        private TextureStudio textureModelStudio;
 
         public TextureGenerator()
         {
@@ -131,7 +134,8 @@ namespace Dino_Engine.Textures
             MaterialLayer.procTextGen = procTextGen;
             MaterialLayer.MaterialLayersCombiner = MaterialLayersCombiner;
 
-            textureStudio = new TextureStudio();
+            textureModelStudio = new TextureStudio(TextureGenerator.MODEL_TEXTURE_RESOLUTION);
+            textureImposterStudio = new TextureStudio(TextureGenerator.IMPOSTER_RESOLUTION);
         }
         public void AddImposterToModel(glModel model, float distance)
         {
@@ -140,7 +144,7 @@ namespace Dino_Engine.Textures
             model.Imposter = imposterData;
             for (int i = 0; i < anglesPerImposter; i++)
             {
-                preparedTextures.Add(textureStudio.GenerateTextureFromModel(model, fullStretch: true, rotY: i * (MathF.Tau / anglesPerImposter)));
+                preparedTextures.Add(textureImposterStudio.GenerateTextureFromModel(model, fullStretch: true, rotY: i * (MathF.Tau / anglesPerImposter)));
             }
             addAllPreparedTexturesToTexArray(arrayType.imposter);
         }
@@ -172,15 +176,15 @@ namespace Dino_Engine.Textures
             addAllPreparedTexturesToTexArray(arrayType.material);
            
            
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(new VertexMaterial(TextureGenerator.foliage_olive), new VertexMaterial(TextureGenerator.pineBark)), fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(new VertexMaterial(TextureGenerator.foliage_olive), new VertexMaterial(TextureGenerator.pineBark)), fullStretch: false));
             leaf_olive = preparedTextures.Count - 1 + loadedModelTextures+ loadedMaterialTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(new VertexMaterial(TextureGenerator.foliage_white), new VertexMaterial(TextureGenerator.BirchBark)), fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(TreeGenerator.GenerateLeaf(new VertexMaterial(TextureGenerator.foliage_white), new VertexMaterial(TextureGenerator.BirchBark)), fullStretch: false));
             leaf_white = preparedTextures.Count - 1 + loadedModelTextures + loadedMaterialTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(TreeGenerator.GenerateFernLeaf(), fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(TreeGenerator.GenerateFernLeaf(), fullStretch: false));
             fernLeaf = preparedTextures.Count - 1 + loadedModelTextures+ loadedMaterialTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
@@ -237,7 +241,7 @@ namespace Dino_Engine.Textures
                 mesh += newBranch;
             }
             TEST_BRANCH_MESH = mesh;
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
             oakTwig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
@@ -272,7 +276,7 @@ namespace Dino_Engine.Textures
                 mesh2 += newBranch;
             }
             TEST_TREE_BRANCh_MESH = mesh2;
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
             oakBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
         }
@@ -323,7 +327,7 @@ namespace Dino_Engine.Textures
                 mesh += newBranch;
             }
             TEST_BRANCH_MESH = mesh;
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
             birchTwig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
@@ -358,7 +362,7 @@ namespace Dino_Engine.Textures
                 mesh2 += newBranch;
             }
             TEST_TREE_BRANCh_MESH = mesh2;
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
             birchBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
         }
@@ -408,7 +412,7 @@ namespace Dino_Engine.Textures
             twigbuilder.SpreadMeshAroundStem(branchBuilder.mesh.rotated(new Vector3(MathF.PI * 0.25f, 0f, 0f)), branchSpawnSettings);
 
 
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(twigbuilder.mesh, fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(twigbuilder.mesh, fullStretch: false));
             deadTwig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
             TEST_BRANCH_MESH = twigbuilder.mesh;
@@ -456,7 +460,7 @@ namespace Dino_Engine.Textures
             twigSpawnSettings.startStemRatio = 0.05f;
             twigbuilder.SpreadMeshAroundStem(singlePineBuilder.mesh.rotated(new Vector3(MathF.PI / 2f, 0f, 0f)), twigSpawnSettings);
 
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(twigbuilder.mesh, fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(twigbuilder.mesh, fullStretch: false));
             pineTwig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
@@ -495,7 +499,7 @@ namespace Dino_Engine.Textures
             branchBuilder.SpreadMeshAroundStem(twigMesh.rotated(new Vector3(MathF.PI * 1.22f, 0f, 0f)), branchSpawnSettings);
 
 
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(branchBuilder.mesh, fullStretch: false));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(branchBuilder.mesh, fullStretch: false));
             pineBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
             TEST_BRANCH_MESH = branchBuilder.mesh;
@@ -551,7 +555,7 @@ namespace Dino_Engine.Textures
                 mesh += newBranch;
             }
 
-            preparedTextures.Add(textureStudio.GenerateTextureFromMesh(mesh, fullStretch: true));
+            preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(mesh, fullStretch: true));
             fernBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
@@ -573,8 +577,8 @@ namespace Dino_Engine.Textures
 
             _textureNormalShader.bind();
             normalBuffer.bind(); 
-            _textureNormalShader.loadUniformFloat("normalFlatness", normalFlatness * (1f/TEXTURE_RESOLUTION.X));
-            _textureNormalShader.loadUniformVector2f("texelSize", new Vector2(1f)/TEXTURE_RESOLUTION);
+            _textureNormalShader.loadUniformFloat("normalFlatness", normalFlatness * (1f/materialBuffer.getResolution().X));
+            _textureNormalShader.loadUniformVector2f("texelSize", new Vector2(1f)/materialBuffer.getResolution());
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, materialBuffer.GetAttachment(2));
@@ -620,24 +624,38 @@ namespace Dino_Engine.Textures
         private int loadTypeOfTextureToArray(int type, int oldArray, arrayType arrayType)
         {
             int loadedTextures;
-            if (arrayType == arrayType.material) loadedTextures = loadedMaterialTextures;
-            else if (arrayType == arrayType.model) loadedTextures = loadedModelTextures;
-            else loadedTextures = loadedImposterTextures;
+            Vector2i resolution;
+
+            if (arrayType == arrayType.material)
+            {
+                loadedTextures = loadedMaterialTextures;
+                resolution = MATERIAL_RESOLUTION;
+            }
+            else if (arrayType == arrayType.model)
+            {
+                loadedTextures = loadedModelTextures;
+                resolution = MODEL_TEXTURE_RESOLUTION;
+            }
+            else
+            {
+                loadedTextures = loadedImposterTextures;
+                resolution = IMPOSTER_RESOLUTION;
+            }
             int textureArray = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2DArray, textureArray);
 
             // Allocate storage for the texture array with the correct number of slices
 
-            int maxDimension = Math.Max(TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y);
+            int maxDimension = Math.Max(resolution.X, resolution.Y);
             int mips = (int)Math.Floor(Math.Log(maxDimension, 2)) + 1;
             //if (type == 2) mips = 1;
             //if (type == 1) mips = 1;
             //if (type == 0) mips = 1;
-            GL.TexStorage3D(TextureTarget3d.Texture2DArray, mips, SizedInternalFormat.Rgba8, TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y, preparedTextures.Count+loadedTextures);
+            GL.TexStorage3D(TextureTarget3d.Texture2DArray, mips, SizedInternalFormat.Rgba8, resolution.X, resolution.Y, preparedTextures.Count+loadedTextures);
 
             if (loadedTextures > 0)
             {
-                GL.CopyImageSubData(oldArray, ImageTarget.Texture2DArray, 0, 0, 0, 0, textureArray, ImageTarget.Texture2DArray, 0, 0, 0, 0, TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y, loadedTextures);
+                GL.CopyImageSubData(oldArray, ImageTarget.Texture2DArray, 0, 0, 0, 0, textureArray, ImageTarget.Texture2DArray, 0, 0, 0, 0, resolution.X, resolution.Y, loadedTextures);
                 GL.DeleteTexture(oldArray);
             }
             
@@ -648,7 +666,7 @@ namespace Dino_Engine.Textures
                 //GL.BindTexture(TextureTarget.Texture2D, preparedTextures[i].textures[type]);
                 Engine.CheckGLError("After BindTexture2D");
                 //GL.CopyTexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, i, 0, 0, textureResolution.X, textureResolution.Y);
-                GL.CopyImageSubData(preparedTextures[i].textures[type], ImageTarget.Texture2D, 0, 0, 0, 0, textureArray, ImageTarget.Texture2DArray, 0, 0, 0, i+loadedTextures, TEXTURE_RESOLUTION.X, TEXTURE_RESOLUTION.Y, 1 );
+                GL.CopyImageSubData(preparedTextures[i].textures[type], ImageTarget.Texture2D, 0, 0, 0, 0, textureArray, ImageTarget.Texture2DArray, 0, 0, 0, i+loadedTextures, resolution.X, resolution.Y, 1 );
                 Engine.CheckGLError("After CopyTexSubImage3D " +i + " : " + loadedTextures);
             }
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
@@ -1045,7 +1063,8 @@ namespace Dino_Engine.Textures
             loadedModelTextures = 0;
             loadedMaterialTextures = 0;
             _textureNormalShader.cleanUp();
-            textureStudio.CleanUp();
+            textureModelStudio.CleanUp();
+            textureImposterStudio.CleanUp();
         }
     }
 }

@@ -13,6 +13,7 @@ uniform mat4 viewpPojectionMatrix;
 uniform sampler2D bendMap;
 uniform vec2 simulationWorldSize;
 uniform vec2 simulationWorldPosition;
+uniform float swayAmount;
 
 mat3 rotXMatrix(float a) {
 	return mat3(
@@ -38,7 +39,7 @@ void main(void){
 	vec2 bendMapUVPosition = (modelPosWorldSpace.xz-simulationWorldPosition)/simulationWorldSize;
 	vec2 bendMapValue = texture(bendMap, bendMapUVPosition).yx;
 	bendMapValue.x *= -1.0;
-	bendMapValue *= (position.y*0.001+length(position.xz)*0.01);
+	bendMapValue *= (position.y*0.001+length(position.xz)*0.01)*swayAmount;
 	float rotX = bendMapValue.x;
 	float rotZ = bendMapValue.y;
 	

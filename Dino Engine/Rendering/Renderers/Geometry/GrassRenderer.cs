@@ -222,6 +222,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             blast(renderer);
             StepToggle();
         }
+
+        
         private glModel generateBladeModelLOD0()
         {
             VertexMaterial grassMaterial = new VertexMaterial(TextureGenerator.foliage_olive); //Throwaway
@@ -309,7 +311,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 80;
+            bladesPerAxis = 50;
 
             bladeHeight =2.0f;
             radiusBase = 0.003f;
@@ -415,7 +417,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
             Material grassMaterial = Material.FOLIAGE_OLIVE;
             Material grassMaterialDead = Material.GROUND_SOIL;
-            _grassShader.loadUniformInt("textureIndex", TextureGenerator.foliage_olive);
+            _grassShader.loadUniformInt("textureIndex", TextureGenerator.cobble);
             _grassShader.loadUniformFloat("groundNormalStrength", 0.2f);
             _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.2f);
             _grassShader.loadUniformFloat("colourError", 0.1f);
@@ -511,11 +513,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.BindVertexArray(grassBlade.getVAOID());
             GL.EnableVertexAttribArray(0);
+            GL.EnableVertexAttribArray(1);
             GL.EnableVertexAttribArray(2);
-            //GL.EnableVertexAttribArray(4);
-            GL.DisableVertexAttribArray(1);
-            GL.DisableVertexAttribArray(3);
-            GL.DisableVertexAttribArray(5);
+            GL.EnableVertexAttribArray(3);
+            GL.EnableVertexAttribArray(4);
+            GL.EnableVertexAttribArray(5);
 
             GL.DrawElementsInstanced(PrimitiveType.Triangles, grassBlade.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero, bladesPerChunk * command.chunks.Length);
 
