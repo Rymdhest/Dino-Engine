@@ -374,7 +374,25 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             return builder.mesh;
         }
+        public static Mesh GeneratePineTrunk()
+        {
+            Colour mossColour = new Colour(115, 215, 115);
+            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark, new Colour(255, 255, 255)));
+            TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
+            stemSettings.radiusBase = 0.65f;
+            stemSettings.radiusTop = 0.65f;
+            stemSettings.stemBendRadius = 0.01f;
+            stemSettings.height = 2.0f;
+            stemSettings.sinkAmount = 2f;
+            stemSettings.stemBaseHeight = 1.5f;
+            stemSettings.stemWavePatternAmount = 0.1f;
+            stemSettings.baseRadiusFactor = 0.7f;
+            stemSettings.textureRepeats = 3;
+            stemSettings.baseColor = mossColour;
+            builder.BuildStem(stemSettings);
 
+            return builder.mesh;
+        }
         public static Mesh GenerateFallenPineTree()
         {
             Colour mossColour = new Colour(115, 215, 115);

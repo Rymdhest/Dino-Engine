@@ -311,11 +311,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 50;
+            bladesPerAxis = 80;
 
             bladeHeight =2.0f;
-            radiusBase = 0.003f;
-            radiusTop = radiusBase * 0.8f;
+            radiusBase = 0.0025f;
+            radiusTop = radiusBase * 0.6f;
 
             var world = Engine.Instance.world;
             Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
@@ -418,8 +418,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             Material grassMaterial = Material.FOLIAGE_OLIVE;
             Material grassMaterialDead = Material.GROUND_SOIL;
             _grassShader.loadUniformInt("textureIndex", TextureGenerator.cobble);
-            _grassShader.loadUniformFloat("groundNormalStrength", 0.2f);
-            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.2f);
+            _grassShader.loadUniformFloat("groundNormalStrength", 0.1f);
+            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.1f);
             _grassShader.loadUniformFloat("colourError", 0.1f);
             _grassShader.loadUniformFloat("SSS", grassMaterial.subSurfaceTransparancy);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.1f);

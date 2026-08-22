@@ -206,7 +206,7 @@ namespace Dino_Defenders
             world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-1.10f, -3.5f, -2.9f)),
-                new ColorComponent(new Colour(1.0f, 1.0f, 1.0f, 14f)),
+                new ColorComponent(new Colour(1.0f, 0.9f, 0.8f, 15f)),
                 new AmbientLightComponent(0.05f),
                 new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 2, 3, 1750),
                 new CelestialBodyComponent()
@@ -363,7 +363,7 @@ namespace Dino_Defenders
 
 
             //RockMesh.makeFlat(flatMaterial: true, flatNormal: true);
-            glModel rockModel = glLoader.loadToVAO(RockGenerator.GenerateRock());
+            glModel rockModel = glLoader.loadToVAO(RockGenerator.GenerateRock(0.75f));
             glModel rockModelBrown = glLoader.loadToVAO(RockGenerator.GenerateRockBrown());
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModel, 160);
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModelBrown, 60);
@@ -413,6 +413,7 @@ namespace Dino_Defenders
 
             OpenSimplexNoise treeMap = new OpenSimplexNoise();
             OpenSimplexNoise treeMap2 = new OpenSimplexNoise();
+            OpenSimplexNoise rockMap3 = new OpenSimplexNoise();
             float bushSway = 50f;
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFern()), 30f, swayAmount: 30f);
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateBigLeafBush()), 30f, swayAmount: 30f);
@@ -427,6 +428,8 @@ namespace Dino_Defenders
             spawnModelOverTerrain(5000, glLoader.loadToVAO(TreeGenerator.generatePineTree(10, 0.7f, alive: true, fallen: false)), treeImposterDistance, treeMap, 1.0f);
             spawnModelOverTerrain(3000, glLoader.loadToVAO(TreeGenerator.generatePineTree(15, 0.35f, alive: false, fallen: false)), treeImposterDistance, treeMap, 1.0f);
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateFallenPineTree()), 60f, treeMap);
+            spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GeneratePineTrunk()), 60f, treeMap);
+            spawnModelOverTerrain(30000, glLoader.loadToVAO(RockGenerator.GenerateRock(0.0f).scaled(new Vector3(0.55f))), 60f, rockMap3);
 
             spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()), treeImposterDistance, treeMap2, 1.0f);
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateOakTree()), treeImposterDistance, treeMap2, 1.0f);

@@ -45,7 +45,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             return RockMesh;
         }
-        public static Mesh GenerateRock()
+        public static Mesh GenerateRock(float floorWeight)
         {
             Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(4, new VertexMaterial(TextureGenerator.rock), 16);
 
@@ -57,7 +57,6 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 Vector3 newPos = oldPos + oldPos * noiseValue * 0.66f;
 
                 float floorScale = 4f;
-                float floorWeight = 0.75f;
                 //newPos.X = MathF.Floor(newPos.X * floorScale) / floorScale;
                 newPos.Y = (MathF.Floor(newPos.Y * floorScale) / floorScale) * floorWeight + newPos.Y * (1f - floorWeight);
 
@@ -78,6 +77,5 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             return RockMesh;
         }
-
     }
 }
