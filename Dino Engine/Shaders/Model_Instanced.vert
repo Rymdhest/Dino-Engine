@@ -24,23 +24,26 @@ uniform vec2 simulationWorldPosition;
 
 uniform float swayAmount;
 
-mat3 rotXMatrix(float a) {
-	return mat3(
-	1, 0, 0,
-	0, cos(a), -sin(a),
-	0,sin(a),cos(a));
+mat4 rotXMatrix(float a) {
+	return mat4(
+	1, 0, 0, 0,
+	0, cos(a), -sin(a), 0,
+	0,sin(a),cos(a), 0,
+	0, 0, 0, 1);
 }
-mat3 rotYMatrix(float a) {
-	return mat3(
-	cos(a), 0, sin(a),
-	0, 1, 0,
-	-sin(a),0,cos(a));
+mat4 rotYMatrix(float a) {
+	return mat4(
+	cos(a), 0, sin(a), 0,
+	0, 1, 0, 0,
+	-sin(a),0,cos(a), 0,
+	0, 0, 0, 1);
 }
-mat3 rotZMatrix(float a) {
-	return mat3(
-	cos(a), -sin(a), 0,
-	sin(a), cos(a), 0,
-	0,0,1); 
+mat4 rotZMatrix(float a) {
+	return mat4(
+	cos(a), -sin(a), 0, 0,
+	sin(a), cos(a), 0, 0,
+	0,0,1, 0,
+	0,0,0, 1); 
 }
 void main() {
 	vec3 modelPosWorldSpace = (modelMatrix*vec4(position, 1.0)).xyz;
@@ -51,14 +54,11 @@ void main() {
 	float rotX = bendMapValue.x;
 	float rotZ = bendMapValue.y;
 	
-	mat3 localRotMatrix = rotZMatrix(0.0)*rotXMatrix(0.0)*rotYMatrix(0.0);
+	mat4 localRotMatrix = rotZMatrix(0.0)*rotXMatrix(0.0)*rotYMatrix(0.0);
 	localRotMatrix = rotXMatrix(rotX)*rotZMatrix(rotZ)*localRotMatrix;
 
-	vec3 VertexPositionLocal = localRotMatrix*position;
-
-
-	mat4 modelView = viewMatrix*modelMatrix;
-	gl_Position =  projectionMatrix*modelView*vec4(VertexPositionLocal, 1.0);
+	mat4 modelView = viewMatrix*modelMatrix*localRotMatrix;
+	gl_Position =  projectionMatrix*modelView*vec4(position, 1.0);
 	mat4 normalModelViewMatrix = transpose(inverse(modelView));
 	fragUV = uv;
 	textureIndex = materialIndex;

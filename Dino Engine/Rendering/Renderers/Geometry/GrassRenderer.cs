@@ -72,6 +72,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private float radiusTop = 0.01f;
         private float bladeHeight = 1.0f;
 
+        private int bladesRenderedThisFrame = 0;
+
         public List<BlastData> blasts = new List<BlastData>();
 
         private int chunkUBO;
@@ -145,8 +147,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
 
 
-            var small = TextureGenerator.procTextGen.Voronoi(new Vector2(170f, 170f), jitter: 1.0f, phase: 1.0f, returnMode: ReturnMode.Height);
-            var big = TextureGenerator.procTextGen.PerlinFBM(new Vector2(17f, 17f), octaves: 4);
+            var small = TextureGenerator.procTextGen.Voronoi(new Vector2(126f, 126f), jitter: 1.0f, phase: 1.0f, returnMode: ReturnMode.Height);
+            var big = TextureGenerator.procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 4);
 
             small.scaleHeight(0.6f);
             small.addHeight(0.4f);
@@ -434,7 +436,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void FinishGeometry(RenderEngine renderEngine)
         {
-
+            //Console.WriteLine("Grass blades rendered this frame: "+bladesRenderedThisFrame);
+            bladesRenderedThisFrame = 0;
         }
 
         internal override void PrepareShadow(RenderEngine renderEngine)
@@ -520,6 +523,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(5);
 
             GL.DrawElementsInstanced(PrimitiveType.Triangles, grassBlade.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero, bladesPerChunk * command.chunks.Length);
+
+            bladesRenderedThisFrame += bladesPerChunk * command.chunks.Length;
 
         }
 
