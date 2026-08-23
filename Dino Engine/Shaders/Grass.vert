@@ -116,7 +116,14 @@ void main() {
 		heightMapData = readHeightmap(bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
 	}
 	vec3 bladePositionWorld = vec3(chunkOrigin.x, 0, chunkOrigin.y)+vec3(bladePositionChunkSpace.x, 0, bladePositionChunkSpace.y)+vec3(0, heightMapData.w, 0);
-	terrainNormal = heightMapData.xyz;
+
+	float roadWeight = heightMapData.z;
+	roadWeight = min (roadWeight*2.0, 1.0);
+	float nx = heightMapData.x;
+	float nz = heightMapData.y;
+	float ny = sqrt(max(0.0, 1.0 - (nx * nx + nz * nz)));
+	terrainNormal = normalize(vec3(nx, ny, nz));
+
 	float steepness = 1.0-dot(vec3(0.0, 1.0, 0.0), terrainNormal);
 	
 	vec3 VertexPositionLocal = position*vec3(chunkSize*2, 1.0, chunkSize*2);
@@ -126,7 +133,7 @@ void main() {
 	float voronoiNoiseFactor = texture(grassNoise, bladePositionWorld.xz*0.01).r;
 	float heightErrorFactor = 1.0+hash11(bladeIndex)*2.0*heightError-heightError;
 	float heightFactor = voronoiNoiseFactor*heightErrorFactor*(1.0-steepness);
-	float validFactor = (1.0-steepness*steepnessCutoffStrength)*heightFactor;
+	float validFactor = (1.0-steepness*steepnessCutoffStrength)*heightFactor*(1.0-roadWeight);
 	//if (validFactor < cutOffThreshold) {
 		float survivalChance = 1.0-((validFactor-cutOffThreshold)/cutOffRange);
 		if (bladeRandomValue < survivalChance) {

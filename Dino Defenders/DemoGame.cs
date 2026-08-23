@@ -29,6 +29,26 @@ namespace Dino_Defenders
         public DemoGame(Engine engine) : base(engine)
         {
             terrainGenerator = new TerrainGenerator();
+
+            // Define 2D waypoints that turn across the map
+            List<Vector2> waypoints = new List<Vector2>
+{
+    new Vector2(100f, 100f),
+    new Vector2(250f, 180f), // Sweeping right curve
+    new Vector2(280f, 350f), // Sharp turn left
+    new Vector2(500f, 500f)  // Destination
+};
+
+            // maxGrade = 0.20f allows up to 20% slopes before carving into steep hills
+            RoadSpline mountainRoad = ContourRoadBuilder.CreateRoad(
+                waypoints,
+                terrainGenerator,
+                sampleInterval: 4f,
+                maxGrade: 0.30f
+            );
+
+            terrainGenerator.ActiveRoadSplines.Add(mountainRoad);
+
             SpawnWorld();
         }
         public override void update()
@@ -374,7 +394,7 @@ namespace Dino_Defenders
             glModel rockModelBrown = glLoader.loadToVAO(RockGenerator.GenerateRockBrown());
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModel, 160);
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModelBrown, 60);
-
+            
             for (int i = 0; i < 20000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
@@ -443,7 +463,7 @@ namespace Dino_Defenders
 
             spawnModelOverTerrain(4000, glLoader.loadToVAO(TreeGenerator.GenerateBirchTree()), treeImposterDistance, treeMap2, 1.0f);
             spawnModelOverTerrain(2000, glLoader.loadToVAO(TreeGenerator.GenerateOakTree()), treeImposterDistance, treeMap2, 1.0f);
-
+            
 
         }
        
@@ -690,6 +710,8 @@ namespace Dino_Defenders
             TreeGenerator treeGenerator = new TreeGenerator();
             StreetGenerator streetGenerator = new StreetGenerator();
             TerrainGenerator terrainGenerator = new TerrainGenerator();
+
+
 
             for (int x = 0; x < 0; x++)
             {

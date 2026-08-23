@@ -205,6 +205,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShader.loadUniformFloat("groundID", TextureGenerator.soil);
             _terrainShader.loadUniformFloat("rockID", TextureGenerator.rock);
+            _terrainShader.loadUniformFloat("roadID", TextureGenerator.cobble);
             //_terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.flat);
             //_terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.flat);
 
@@ -272,7 +273,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PerformGeometryCommand(TerrainRenderCommand command, RenderEngine renderEngine)
         {
             _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
-            _terrainShader.loadUniformFloat("parallaxDepth", 0);
+            _terrainShader.loadUniformFloat("parallaxDepth", 0.06f);
             _terrainShader.loadUniformFloat("parallaxLayers", 25);
 
             int numberOfChunks = command.chunks.Length;

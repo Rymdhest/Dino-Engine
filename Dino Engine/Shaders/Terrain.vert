@@ -12,7 +12,7 @@ out vec3 worldNormal;
 out vec3 TangentViewPos;
 out vec3 TangentFragPos;
 out vec3 COLOR_TEST;
-
+out float roadWeight;
 
 uniform vec3 viewPos;
 uniform mat4 invViewMatrix;
@@ -34,7 +34,11 @@ vec3 reconstructTangent(vec2 uv)
 void main() {
 	vec4 textureData =  texture(normalHeightTextureArray, vec3(position.xz*(1.0-textureMapOffset)+vec2(textureMapOffset/2.0), instanceHeightMapID)).xyzw;
 	float height = textureData.a;
-	worldNormal = textureData.xyz;
+	roadWeight = textureData.z;
+	float nx = textureData.x;
+	float nz = textureData.y;
+	float ny = sqrt(max(0.0, 1.0 - (nx * nx + nz * nz)));
+	worldNormal = normalize(vec3(nx, ny, nz));
 	vec3 localPos = vec3(position.x, height, position.z);
     vec3 worldPos = localPos*instanceChunkSize+instanceChunkPos;
 
