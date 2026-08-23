@@ -24,7 +24,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.foliage_olive));
             TreeBuilder.StemBuildSettings settings = new TreeBuilder.StemBuildSettings();
             settings.height = 2.0f;
-            settings.stemBendRadius = 0.065f;
+            settings.stemBendRadiusEnd = 0.065f;
             settings.radiusBase = 0.05f;
             settings.radiusTop = 0.01f;
             settings.sinkAmount = 0f;
@@ -248,7 +248,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             TreeBuilder builder = new TreeBuilder(stemMaterial);
             TreeBuilder.StemBuildSettings settings = new TreeBuilder.StemBuildSettings();
             settings.height = 1.0f;
-            settings.stemBendRadius = 0.01f;
+            settings.stemBendRadiusEnd = 0.01f;
             settings.radiusBase = 0.01f;
             settings.radiusTop = 0.003f;
             settings.sinkAmount = 0f;
@@ -260,7 +260,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             TreeBuilder builderBranch = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark));
             TreeBuilder.StemBuildSettings settingsBranch = new TreeBuilder.StemBuildSettings();
             settingsBranch.height = 0.38f;
-            settingsBranch.stemBendRadius = 0.01f;
+            settingsBranch.stemBendRadiusEnd = 0.01f;
             settingsBranch.radiusBase = 0.005f;
             settingsBranch.radiusTop = 0.002f;
             settingsBranch.sinkAmount = 0f;
@@ -290,7 +290,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             stemSettings.detailsHeight = 3;
             stemSettings.detailPerRing = 32;
             stemSettings.radiusTop = 0.03f;
-            stemSettings.stemBendRadius = 0.7f;
+            stemSettings.stemBendRadiusEnd = 0.7f;
             stemSettings.height = 30.0f;
             stemSettings.sinkAmount = 3f;
             stemSettings.stemBaseHeight = 3f;
@@ -315,7 +315,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.radiusTop = 0.05f;
             branchSettings.baseRadiusFactor = 0.2f;
             branchSettings.sinkAmount = 0.5f;
-            branchSettings.stemBendRadius = 0.4f;
+            branchSettings.stemBendRadiusEnd = 0.4f;
             branchSettings.textureRepeats = 1;
             BranchBuilder.BuildStem(branchSettings);
 
@@ -381,7 +381,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
             stemSettings.radiusBase = 0.65f;
             stemSettings.radiusTop = 0.65f;
-            stemSettings.stemBendRadius = 0.01f;
+            stemSettings.stemBendRadiusEnd = 0.01f;
             stemSettings.height = 2.0f;
             stemSettings.sinkAmount = 2f;
             stemSettings.stemBaseHeight = 1.5f;
@@ -401,7 +401,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
             stemSettings.radiusBase = radiusBase;
             stemSettings.radiusTop = 0.8f;
-            stemSettings.stemBendRadius = 0.1f;
+            stemSettings.stemBendRadiusEnd = 0.1f;
             stemSettings.height = 10.0f;
             stemSettings.sinkAmount = 0f;
             stemSettings.stemBaseHeight = 3f;
@@ -433,7 +433,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.radiusTop = 0.05f;
             branchSettings.baseRadiusFactor = 0.2f;
             branchSettings.sinkAmount = 0.5f;
-            branchSettings.stemBendRadius = 0.4f;
+            branchSettings.stemBendRadiusEnd = 0.4f;
             branchSettings.textureRepeats = 1;
             branchSettings.baseColor = mossColour;
             BranchBuilder.BuildStem(branchSettings);
@@ -499,7 +499,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
             stemSettings.radiusBase = 1.5f;
             stemSettings.radiusTop = 0.03f;
-            stemSettings.stemBendRadius = 1.9f;
+            stemSettings.stemBendRadiusEnd = 1.9f;
             stemSettings.height = 20.0f;
             stemSettings.sinkAmount = 3f;
             stemSettings.stemBaseHeight = 2f;
@@ -519,7 +519,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.radiusTop = 0.05f;
             branchSettings.baseRadiusFactor = 0.2f;
             branchSettings.sinkAmount = 0.5f;
-            branchSettings.stemBendRadius = 0.4f;
+            branchSettings.stemBendRadiusEnd = 0.4f;
             branchSettings.textureRepeats = 1;
             BranchBuilder.BuildStem(branchSettings);
 
@@ -559,7 +559,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
             stemSettings.radiusBase = 0.5f;
             stemSettings.radiusTop = 0.03f;
-            stemSettings.stemBendRadius = 0.9f;
+            stemSettings.stemBendRadiusEnd = 0.9f;
             stemSettings.height = 30.0f;
             stemSettings.sinkAmount = 3f;
             stemSettings.stemBaseHeight = 2f;
@@ -579,7 +579,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.radiusTop = 0.05f;
             branchSettings.baseRadiusFactor = 0.2f;
             branchSettings.sinkAmount = 0.5f;
-            branchSettings.stemBendRadius = 0.4f;
+            branchSettings.stemBendRadiusEnd = 0.4f;
             branchSettings.textureRepeats = 1;
             BranchBuilder.BuildStem(branchSettings);
 

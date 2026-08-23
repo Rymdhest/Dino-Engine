@@ -1,5 +1,6 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Modelling.Procedural.Vegetation;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
@@ -89,6 +90,49 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
 
             return glLoader.loadToVAO(mesh);
+        }
+
+        public static Mesh GenerateFencePiece()
+        {
+            float fenceHeight = 0.6f;
+            float poleRadius = 0.04f;
+            float poleRadiusStacked = 0.03f;
+
+            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark));
+            TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
+            stemSettings.radiusBase = poleRadius;
+            stemSettings.radiusTop = poleRadius;
+            stemSettings.height = fenceHeight;
+            stemSettings.sinkAmount = 0f;
+            stemSettings.stemBendRadiusStart = 0.008f;
+            stemSettings.stemBendRadiusEnd = 0.008f;
+            stemSettings.stemBaseHeight = 0.0f;
+            stemSettings.stemWavePatternAmount = 0.0f;
+            stemSettings.baseRadiusFactor = 0.0f;
+            stemSettings.textureRepeats = 1;
+            builder.BuildStem(stemSettings);
+
+
+            Mesh fence = new Mesh();
+
+
+            fence += builder.mesh.translated(new Vector3(poleRadiusStacked+poleRadius, 0f, 0f));
+            fence += builder.mesh.translated(new Vector3(-poleRadiusStacked-poleRadius, 0f, 0f));
+
+            int numberOfPolesStacked = 5;
+            for (int i = 0; i<numberOfPolesStacked; i++)
+            {
+                stemSettings.height = 1f;
+                stemSettings.radiusBase = poleRadiusStacked;
+                stemSettings.radiusTop = poleRadiusStacked;
+                Mesh stackPole = builder.BuildStem(stemSettings);
+                stackPole.rotate(new Vector3(-MathF.PI / 2f, 0f, 0f));
+                float t = i / (float)(numberOfPolesStacked-1);
+
+                fence += stackPole.translated(new Vector3(0f , t* (fenceHeight-poleRadius*2f)+poleRadius, 0f));
+            }
+
+            return fence;
         }
     }
  }

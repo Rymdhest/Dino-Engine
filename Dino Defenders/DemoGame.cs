@@ -244,16 +244,23 @@ namespace Dino_Defenders
         {
 
 
-            glModel testModel = glLoader.loadToVAO(TreeGenerator.GenerateBigLeafBush());
-            Engine.RenderEngine.textureGenerator.AddImposterToModel(testModel, 30);
-            world.CreateEntity("test",
-                new PositionComponent(new Vector3(10, 0, -5)),
-                new RotationComponent(new Vector3(0f, 0f, 0f)),
-                new ScaleComponent(new Vector3(1f)),
-                new ModelComponent(testModel),
-                new ModelRenderTag(),
-                new LocalToWorldMatrixComponent()
-            );
+            glModel testModel = glLoader.loadToVAO(UrbanPropGenerator.GenerateFencePiece());
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(testModel, 100);
+            float fenceScale = 5f;
+            float rotY = 0f;
+            Vector3 fencePos = new Vector3(10, 0, -5);
+            for (int i = 0;i<100; i++)
+            {
+                world.CreateEntity("test",
+                    new PositionComponent(fencePos),
+                    new RotationComponent(new Vector3(0f, rotY, 0f)),
+                    new ScaleComponent(new Vector3(fenceScale)),
+                    new ModelComponent(testModel),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
+            }
+
 
             Mesh candle = FurnitureGenerator.GenerateCandle2();
             world.CreateEntity("candle",

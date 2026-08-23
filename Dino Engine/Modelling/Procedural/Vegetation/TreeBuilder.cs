@@ -21,28 +21,28 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
             mesh = new Mesh();
         }
 
-        private CardinalSpline3D GenerateSpline(float bendRadius, float fromY, float toY)
+        private CardinalSpline3D GenerateSpline(float bendRadiusStart, float bendRadiusEnd, float fromY, float toY)
         {
             var controlPoints = new List<Vector3>();
             float totalLength = toY - fromY;
             int n = 10;
-            float[] sinFBM = FBMmisc.sinFBM(4, 0.6f, n);
-            float[] sinFBM2 = FBMmisc.sinFBM(4, 0.9f, n);
+            float[] sinFBM = FBMmisc.sinFBM(4, 0.5f+MyMath.rng(0.5f), n);
+            float[] sinFBM2 = FBMmisc.sinFBM(4, 0.5f + MyMath.rng(0.5f), n);
             for (int i = 0; i < n; i++)
             {
                 float traversedRatio = i / (float)(n - 1);
                 float bendRatio = MathF.Pow(traversedRatio, 0.5f);
-                float x = sinFBM[i] * bendRadius * bendRatio;
-                float z = sinFBM2[i] * bendRadius * bendRatio * 0.05f;
+                float x = sinFBM[i] * MyMath.lerp(bendRadiusStart, bendRadiusEnd, bendRatio);
+                float z = sinFBM2[i] * MyMath.lerp(bendRadiusStart, bendRadiusEnd, bendRatio);
                 float y = fromY + traversedRatio * totalLength;
                 controlPoints.Add(new Vector3(x, y, z));
             }
             return new CardinalSpline3D(controlPoints, 0.0f);
         }
 
-        public Curve3D BuildCurve(float bendRadius, float length, float sink, int detail)
+        public Curve3D BuildCurve(float bendRadiusStart, float bendRadiusEnd, float length, float sink, int detail)
         {
-            Curve3D curve = GenerateSpline(bendRadius, -sink, length).GenerateCurve(detail);
+            Curve3D curve = GenerateSpline(bendRadiusStart, bendRadiusEnd, -sink, length).GenerateCurve(detail);
 
             return curve;
         }
@@ -91,7 +91,8 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
             public float radiusBase = 1f;
             public float radiusTop = 0.1f;
             public float height = 20f;
-            public float stemBendRadius = 1f;
+            public float stemBendRadiusStart = 0f;
+            public float stemBendRadiusEnd = 1f;
             public float stemWavePatternAmount = 0.1f;
             public float BaseWavePatternAmount = 0.4f;
             public float baseRadiusFactor = 1f;
@@ -106,7 +107,7 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
 
         public Mesh BuildStem(StemBuildSettings settings)
         {
-            if (curve3D == null) curve3D = BuildCurve(settings.stemBendRadius, settings.height, settings.sinkAmount, settings.detailsHeight);
+            curve3D = BuildCurve(settings.stemBendRadiusStart, settings.stemBendRadiusEnd, settings.height, settings.sinkAmount, settings.detailsHeight);
             curve3D.LERPWidth(settings.radiusBase, settings.radiusTop);
             Mesh poleMesh = MeshGenerator.generateCurvedTube(curve3D, settings.detailPerRing, trunkMaterial, textureRepeats: settings.textureRepeats, flatStart: true, sealTop: settings.radiusBase*0.1f);
             foreach (MeshVertex meshVertex in poleMesh.meshVertices)
@@ -114,7 +115,7 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                 float angle = (MathF.Atan2(meshVertex.position.X, meshVertex.position.Z) + MathF.PI) * settings.wavePatternFrequenzy;
                 //meshVertex.position += new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle)) * .5f;
 
-                if (meshVertex.position.Y < settings.stemBaseHeight)
+                if (meshVertex.position.Y < settings.stemBaseHeight && settings.stemBaseHeight > 0f)
                 {
                     float baseFactor = MathF.Max(meshVertex.position.Y, 0f) / settings.stemBaseHeight;
                     float baseAmount = 1f-MathF.Pow(baseFactor, 0.5f);

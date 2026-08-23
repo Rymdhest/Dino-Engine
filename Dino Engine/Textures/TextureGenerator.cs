@@ -375,7 +375,7 @@ namespace Dino_Engine.Textures
             TreeBuilder.StemBuildSettings twigSettings = new TreeBuilder.StemBuildSettings();
             twigSettings.radiusBase = 0.5f;
             twigSettings.radiusTop = 0.1f;
-            twigSettings.stemBendRadius = 0.5f;
+            twigSettings.stemBendRadiusEnd = 0.5f;
             twigSettings.height = 20.0f;
             twigSettings.sinkAmount = 0f;
             twigSettings.baseRadiusFactor = 1.0f;
@@ -389,7 +389,7 @@ namespace Dino_Engine.Textures
             TreeBuilder.StemBuildSettings branchSettings = new TreeBuilder.StemBuildSettings();
             branchSettings.radiusBase = 0.2f;
             branchSettings.radiusTop = 0.01f;
-            branchSettings.stemBendRadius = 0.7f;
+            branchSettings.stemBendRadiusEnd = 0.7f;
             branchSettings.height = 7.0f;
             branchSettings.sinkAmount = 0.25f;
             branchSettings.BaseWavePatternAmount = 0.0f;
@@ -428,7 +428,7 @@ namespace Dino_Engine.Textures
             TreeBuilder.StemBuildSettings twigSettings = new TreeBuilder.StemBuildSettings();
             twigSettings.radiusBase = 0.95f;
             twigSettings.radiusTop = 0.3f;
-            twigSettings.stemBendRadius = 0.6f;
+            twigSettings.stemBendRadiusEnd = 0.6f;
             twigSettings.height = 30.0f;
             twigSettings.sinkAmount = 0f;
             twigSettings.baseRadiusFactor = 0.0f;
@@ -445,7 +445,7 @@ namespace Dino_Engine.Textures
             singlePineSettings.radiusTop = 0.1f;
             singlePineSettings.baseRadiusFactor = 0.2f;
             singlePineSettings.sinkAmount = 0.5f;
-            singlePineSettings.stemBendRadius = 0.02f;
+            singlePineSettings.stemBendRadiusEnd = 0.02f;
             singlePineSettings.textureRepeats = 1;
             singlePineBuilder.BuildStem(singlePineSettings);
 
@@ -469,7 +469,7 @@ namespace Dino_Engine.Textures
             TreeBuilder.StemBuildSettings branchSettings = new TreeBuilder.StemBuildSettings();
             branchSettings.radiusBase = 0.4f;
             branchSettings.radiusTop = 0.4f;
-            branchSettings.stemBendRadius =1.9f;
+            branchSettings.stemBendRadiusEnd =1.9f;
             branchSettings.height = 60.0f;
             branchSettings.sinkAmount = 0f;
             branchSettings.baseRadiusFactor = 0.0f;

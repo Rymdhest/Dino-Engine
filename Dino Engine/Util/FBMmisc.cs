@@ -12,7 +12,7 @@ namespace Dino_Engine.Util
         public static float[] sinFBM(int octaves, float frequenzy, int resolution)
         {
             float[] result = new float[resolution];
-
+            float offset = MyMath.rng(MathF.Tau);
             float amplitude = 1f;
             float totalAmplitde = 0f;
             for (int i = 0; i < resolution; i++)
@@ -24,7 +24,7 @@ namespace Dino_Engine.Util
             {
                 for (int i = 0; i < resolution; i++)
                 {
-                    result[i] += MathF.Sin(frequenzy* (i/(float)(resolution))*MathF.Tau);
+                    result[i] += MathF.Sin(offset+frequenzy * (i/(float)(resolution))*MathF.Tau);
                 }
 
                 totalAmplitde += amplitude;
