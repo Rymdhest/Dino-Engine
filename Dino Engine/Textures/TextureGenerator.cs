@@ -41,7 +41,7 @@ namespace Dino_Engine.Textures
         public int loadedMaterialTextures = 0;
         public int loadedImposterTextures = 0;
 
-        public static readonly Vector2i MATERIAL_RESOLUTION = new Vector2i(512);
+        public static readonly Vector2i MATERIAL_RESOLUTION = new Vector2i(512*2);
         public static readonly Vector2i MODEL_TEXTURE_RESOLUTION = new Vector2i(1024*2);
         public static readonly Vector2i IMPOSTER_RESOLUTION = new Vector2i(256);
         public readonly int anglesPerImposter = 8;
@@ -781,7 +781,7 @@ namespace Dino_Engine.Textures
             float stoneSize = 8;
             float seed = MyMath.rand.NextSingle() * 100000.0f;
             var stones = procTextGen.VoronoiCracks(new Vector2(stoneSize, stoneSize), jitter: 1.0f, width:0.15f, smoothness:0.5f, seed: seed).setMaterial(Material.GROUND_ROCK);
-            var stonesID = procTextGen.VoronoiCracks(new Vector2(stoneSize, stoneSize), jitter: 1.0f, width: 0.15f, smoothness: 0.5f, returnMode:ReturnMode.ID, seed: seed).setMaterial(Material.FOLIAGE_OLIVE);
+            var stonesID = procTextGen.VoronoiCracks(new Vector2(stoneSize, stoneSize), jitter: 1.0f, width: 0.15f, smoothness: 0.5f, returnMode:ReturnMode.ID, seed: seed).setMaterial(Material.GROUND_SOIL);
             var background = procTextGen.PerlinFBM(new Vector2(64f, 64f), octaves: 10, amplitudePerOctave: 0.5f, rigged: false).setMaterial(Material.GROUND_SOIL);
             var roughLayer = procTextGen.PerlinFBM(new Vector2(32f, 32f), octaves: 10, amplitudePerOctave: 0.5f, rigged: false).setMaterial(Material.GROUND_ROCK);
             var stoneTop = procTextGen.PerlinFBM(new Vector2(16f, 16f), octaves:1, rigged:true).setMaterial(new Material(new Colour(114, 103, 76), 0.95f, 0f, 0f));
@@ -796,15 +796,18 @@ namespace Dino_Engine.Textures
 
             MaterialLayersCombiner.combine(stones, roughLayer, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Smoothstep, weight: 0.3f, smoothness: 0.5f);
 
-            MaterialLayersCombiner.combine(stonesID, stonesID, FilterMode.Everywhere, heightOperation: Operation.Hash, materialOperation: Operation.Nothing, weight: 0.5f, smoothness: 0.1f);
+            //MaterialLayersCombiner.combine(stonesID, stonesID, FilterMode.Everywhere, heightOperation: Operation.Hash, materialOperation: Operation.Nothing, weight: 0.5f, smoothness: 0.1f);
 
-            MaterialLayersCombiner.combine(stones, stonesID, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Mix, weight: 0.09f, smoothness: 0.1f);
+            MaterialLayersCombiner.combine(stones, stonesID, FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Nothing, weight: 0.3f, smoothness: 0.5f);
+            stonesID.scaleHeight(0.8f);
+            stonesID.addHeight(0.0f);
+            MaterialLayersCombiner.combine(stones, stonesID, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Mix, weight: 0.5f, smoothness: 0.5f);
             //MaterialLayersCombiner.combine(stones, scratch, FilterMode.Everywhere, heightOperation: Operation.Subtract, materialOperation: Operation.Nothing, weight: 0.05f, smoothness: 1.0f);
 
 
             MaterialLayersCombiner.combine(stones, background.scaleHeight(0.5f), FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.9f, smoothness: 0.1f);
 
-            return FinishTexture(stones, normalFlatness:50.0f);
+            return FinishTexture(stones, normalFlatness:30.0f);
             //MaterialLayersCombiner.combine(stones, dirtMask, FilterMode.Greater, heightOperation: Operation.Add, materialOperation: Operation.Smoothstep, weight: 0.5f, smoothness: 0.9f);
 
             MaterialLayersCombiner.combine(stones, stoneTop, FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Scale, weight: 0.15f, smoothness: 0.1f);
