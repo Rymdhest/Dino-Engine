@@ -15,8 +15,8 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public float mountainScale = 500f;
         public float noiseScale = 5f;
 
-        public float RoadWidth = 1.4f;
-        public float RoadShoulder =3.0f;
+        public float RoadWidth = 1.0f;
+        public float RoadShoulder =4.0f;
 
         private OpenSimplexNoise noise;
 
@@ -36,51 +36,33 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public Vector3 GetNormalAt(float x, float z)
         {
             float eps = 0.1f;
+            float padding = RoadWidth + RoadShoulder;
 
-            // Samples heights around target coordinate (includes road carving)
-            float hL = getHeightAt(new Vector2(x - eps, z));
-            float hR = getHeightAt(new Vector2(x + eps, z));
-            float hD = getHeightAt(new Vector2(x, z - eps));
-            float hU = getHeightAt(new Vector2(x, z + eps));
+            // Filter road segments around the sample point (including eps offset)
+            Vector2 min = new Vector2(x - eps, z - eps);
+            Vector2 max = new Vector2(x + eps, z + eps);
+            List<RoadSegment2D> candidates = GetCandidateSegmentsForChunk(min, max, padding);
 
-            // Gradient calculation
+            return GetNormalAt(x, z, candidates);
+        }
+
+        // Overload for batch/chunk generation when candidate segments are already available
+        public Vector3 GetNormalAt(float x, float z, List<RoadSegment2D> candidateSegments)
+        {
+            float eps = 0.1f;
+
+            float hL = getHeightAt(new Vector2(x - eps, z), candidateSegments);
+            float hR = getHeightAt(new Vector2(x + eps, z), candidateSegments);
+            float hD = getHeightAt(new Vector2(x, z - eps), candidateSegments);
+            float hU = getHeightAt(new Vector2(x, z + eps), candidateSegments);
+
             float dX = (hR - hL) / (2f * eps);
             float dZ = (hU - hD) / (2f * eps);
 
             Vector3 tangentX = new Vector3(1f, dX, 0f);
             Vector3 tangentZ = new Vector3(0f, dZ, 1f);
 
-            Vector3 normal = Vector3.Cross(tangentZ, tangentX);
-            return Vector3.Normalize(normal);
-        }
-
-        /// <summary>
-        /// Gets the final carved height at any world coordinate.
-        /// </summary>
-        public float getHeightAt(Vector2 position)
-        {
-            float baseTerrainHeight = getRawNoiseHeightAt(position);
-
-            // Check distance to nearby road splines
-            if (TryGetRoadInfoAt(position, out float roadTargetHeight, out float carveBlendFactor, out _))
-            {
-                // Smoothly blend from road surface elevation to natural noise elevation
-                return MathHelper.Lerp(baseTerrainHeight, roadTargetHeight, carveBlendFactor);
-            }
-
-            return baseTerrainHeight;
-        }
-
-        /// <summary>
-        /// Gets the road mask weight (1.0 = center of road, 0.0 = off road) for shader blending.
-        /// </summary>
-        public float getRoadMaskAt(Vector2 position)
-        {
-            if (TryGetRoadInfoAt(position, out _, out _, out float maskWeight))
-            {
-                return maskWeight;
-            }
-            return 0.0f;
+            return Vector3.Normalize(Vector3.Cross(tangentZ, tangentX));
         }
 
         /// <summary>
@@ -89,6 +71,14 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public FloatGrid generateRoadMaskGrid(Vector2 chunkPositionWorld, Vector2 sizeWorld, Vector2i resolution)
         {
             FloatGrid maskGrid = new FloatGrid(resolution);
+
+            float padding = RoadWidth + RoadShoulder;
+            List<RoadSegment2D> candidates = GetCandidateSegmentsForChunk(chunkPositionWorld, chunkPositionWorld + sizeWorld, padding);
+
+            // Fast-path: Return the zeroed mask immediately if no roads touch this chunk
+            if (candidates.Count == 0)
+                return maskGrid;
+
             Vector2 cellSizeWorld = sizeWorld / (resolution - new Vector2(1));
 
             for (int z = 0; z < maskGrid.Resolution.Y; z++)
@@ -96,7 +86,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                 for (int x = 0; x < maskGrid.Resolution.X; x++)
                 {
                     Vector2 worldPos = chunkPositionWorld + new Vector2(x, z) * cellSizeWorld;
-                    maskGrid.Values[x, z] = getRoadMaskAt(worldPos);
+                    maskGrid.Values[x, z] = getRoadMaskAt(worldPos, candidates);
                 }
             }
 
@@ -108,12 +98,16 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             FloatGrid grid = new FloatGrid(resolution);
             Vector2 cellSizeWorld = sizeWorld / (resolution - new Vector2(1));
 
+            // Gather candidate segments touching this chunk
+            float padding = RoadWidth + RoadShoulder;
+            List<RoadSegment2D> candidates = GetCandidateSegmentsForChunk(chunkPositionWorld, chunkPositionWorld + sizeWorld, padding);
+
             for (int z = 0; z < grid.Resolution.Y; z++)
             {
                 for (int x = 0; x < grid.Resolution.X; x++)
                 {
                     Vector2 worldPos = chunkPositionWorld + new Vector2(x, z) * cellSizeWorld;
-                    grid.Values[x, z] = getHeightAt(worldPos);
+                    grid.Values[x, z] = getHeightAt(worldPos, candidates);
                 }
             }
 
@@ -122,6 +116,10 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
         public Vector3Grid generateNormalGridFor(FloatGrid heightMap, Vector3 size, Vector2 worldOrigin)
         {
+            Vector2 chunkSizeWorld = new Vector2(size.X, size.Z);
+            float padding = RoadWidth + RoadShoulder;
+            List<RoadSegment2D> candidates = GetCandidateSegmentsForChunk(worldOrigin, worldOrigin + chunkSizeWorld, padding);
+
             size.X /= (heightMap.Resolution.X - 1);
             size.Z /= (heightMap.Resolution.Y - 1);
             Vector3Grid normalGrid = new Vector3Grid(heightMap.Resolution);
@@ -139,22 +137,22 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     if (x - 1 >= 0)
                         hL = heightMap.Values[x - 1, z] * size.Y;
                     else
-                        hL = getHeightAt(new Vector2(worldX - size.X, worldZ)) * size.Y;
+                        hL = getHeightAt(new Vector2(worldX - size.X, worldZ), candidates) * size.Y;
 
                     if (x + 1 < heightMap.Resolution.X)
                         hR = heightMap.Values[x + 1, z] * size.Y;
                     else
-                        hR = getHeightAt(new Vector2(worldX + size.X, worldZ)) * size.Y;
+                        hR = getHeightAt(new Vector2(worldX + size.X, worldZ), candidates) * size.Y;
 
                     if (z - 1 >= 0)
                         hD = heightMap.Values[x, z - 1] * size.Y;
                     else
-                        hD = getHeightAt(new Vector2(worldX, worldZ - size.Z)) * size.Y;
+                        hD = getHeightAt(new Vector2(worldX, worldZ - size.Z), candidates) * size.Y;
 
                     if (z + 1 < heightMap.Resolution.Y)
                         hU = heightMap.Values[x, z + 1] * size.Y;
                     else
-                        hU = getHeightAt(new Vector2(worldX, worldZ + size.Z)) * size.Y;
+                        hU = getHeightAt(new Vector2(worldX, worldZ + size.Z), candidates) * size.Y;
 
                     float dX = (hR - hL) / (2f * size.X);
                     float dz = (hU - hD) / (2f * size.Z);
@@ -164,10 +162,8 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
                     Vector3 normal = Vector3.Normalize(Vector3.Cross(tangentZ, tangentX));
 
-                    // Query road weight at this texel coordinate
-                    float roadWeight = getRoadMaskAt(worldPos);
+                    float roadWeight = getRoadMaskAt(worldPos, candidates);
 
-                    // X = Normal.X, Y = Normal.Z, Z = RoadWeight (0.0 to 1.0)
                     normalGrid.Values[x, z] = new Vector3(normal.X, normal.Z, roadWeight);
                 }
             }
@@ -175,14 +171,13 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             return normalGrid;
         }
 
-
-        public bool TryGetRoadInfoAt(Vector2 position, out float roadTargetHeight, out float carveBlendFactor, out float maskWeight)
+        public bool TryGetRoadInfoAt(Vector2 position, List<RoadSegment2D> candidateSegments, out float roadTargetHeight, out float carveBlendFactor, out float maskWeight)
         {
             roadTargetHeight = 0f;
             carveBlendFactor = 0f;
             maskWeight = 0f;
 
-            if (ActiveRoadSplines == null || ActiveRoadSplines.Count == 0)
+            if (candidateSegments == null || candidateSegments.Count == 0)
                 return false;
 
             float totalRadius = RoadWidth + RoadShoulder;
@@ -190,48 +185,25 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             float bestTargetHeight = 0f;
             bool foundRoad = false;
 
-            foreach (var spline in ActiveRoadSplines)
+            for (int i = 0; i < candidateSegments.Count; i++)
             {
-                if (spline == null || spline.BakedPoints == null || spline.BakedPoints.Count < 2)
-                    continue;
+                var seg = candidateSegments[i];
 
-                // Quick AABB rejection test (with shoulder margin)
-                if (position.X < spline.MinBounds.X - totalRadius ||
-                    position.X > spline.MaxBounds.X + totalRadius ||
-                    position.Y < spline.MinBounds.Y - totalRadius ||
-                    position.Y > spline.MaxBounds.Y + totalRadius)
+                float t = 0f;
+                if (seg.ABLenSq > 1e-6f)
                 {
-                    continue;
+                    t = Vector2.Dot(position - seg.A, seg.AB) / seg.ABLenSq;
+                    t = MathHelper.Clamp(t, 0f, 1f);
                 }
 
-                var points = spline.BakedPoints;
-                for (int i = 0; i < points.Count - 1; i++)
+                Vector2 closest2D = seg.A + seg.AB * t;
+                float distSq = Vector2.DistanceSquared(position, closest2D);
+
+                if (distSq < minDistanceSq)
                 {
-                    Vector3 p0 = points[i];
-                    Vector3 p1 = points[i + 1];
-
-                    Vector2 a = new Vector2(p0.X, p0.Z);
-                    Vector2 b = new Vector2(p1.X, p1.Z);
-
-                    Vector2 ab = b - a;
-                    float abLenSq = ab.LengthSquared;
-
-                    float t = 0f;
-                    if (abLenSq > 1e-6f)
-                    {
-                        t = Vector2.Dot(position - a, ab) / abLenSq;
-                        t = MathHelper.Clamp(t, 0f, 1f);
-                    }
-
-                    Vector2 closest2D = a + ab * t;
-                    float distSq = Vector2.DistanceSquared(position, closest2D);
-
-                    if (distSq < minDistanceSq)
-                    {
-                        minDistanceSq = distSq;
-                        bestTargetHeight = MathHelper.Lerp(p0.Y, p1.Y, t);
-                        foundRoad = true;
-                    }
+                    minDistanceSq = distSq;
+                    bestTargetHeight = MathHelper.Lerp(seg.P0.Y, seg.P1.Y, t);
+                    foundRoad = true;
                 }
             }
 
@@ -248,7 +220,6 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             }
             else
             {
-                // Smoothstep falloff across the shoulder zone: 1.0 at road edge -> 0.0 at shoulder edge
                 float normDist = (minDistance - RoadWidth) / RoadShoulder;
                 float smoothT = normDist * normDist * (3.0f - 2.0f * normDist);
                 float weight = 1.0f - smoothT;
@@ -258,6 +229,93 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             }
 
             return true;
+        }
+        public struct RoadSegment2D
+        {
+            public Vector3 P0;
+            public Vector3 P1;
+            public Vector2 A;
+            public Vector2 B;
+            public Vector2 AB;
+            public float ABLenSq;
+        }
+
+        private List<RoadSegment2D> GetCandidateSegmentsForChunk(Vector2 chunkMin, Vector2 chunkMax, float padding)
+        {
+            var candidates = new List<RoadSegment2D>();
+            if (ActiveRoadSplines == null || ActiveRoadSplines.Count == 0)
+                return candidates;
+
+            Vector2 pMin = chunkMin - new Vector2(padding);
+            Vector2 pMax = chunkMax + new Vector2(padding);
+
+            foreach (var spline in ActiveRoadSplines)
+            {
+                if (spline == null || spline.BakedPoints == null || spline.BakedPoints.Count < 2)
+                    continue;
+
+                // Quick rejection for the entire spline
+                if (pMax.X < spline.MinBounds.X || pMin.X > spline.MaxBounds.X ||
+                    pMax.Y < spline.MinBounds.Y || pMin.Y > spline.MaxBounds.Y)
+                    continue;
+
+                var points = spline.BakedPoints;
+                for (int i = 0; i < points.Count - 1; i++)
+                {
+                    Vector3 p0 = points[i];
+                    Vector3 p1 = points[i + 1];
+
+                    Vector2 a = new Vector2(p0.X, p0.Z);
+                    Vector2 b = new Vector2(p1.X, p1.Z);
+
+                    Vector2 segMin = Vector2.ComponentMin(a, b);
+                    Vector2 segMax = Vector2.ComponentMax(a, b);
+
+                    // Keep segment if its bounding box intersects the chunk bounds + padding
+                    if (pMax.X >= segMin.X && pMin.X <= segMax.X &&
+                        pMax.Y >= segMin.Y && pMin.Y <= segMax.Y)
+                    {
+                        Vector2 ab = b - a;
+                        candidates.Add(new RoadSegment2D
+                        {
+                            P0 = p0,
+                            P1 = p1,
+                            A = a,
+                            B = b,
+                            AB = ab,
+                            ABLenSq = ab.LengthSquared
+                        });
+                    }
+                }
+            }
+
+            return candidates;
+        }
+        public float getHeightAt(Vector2 position)
+        {
+            float padding = RoadWidth + RoadShoulder;
+            List<RoadSegment2D> candidates = GetCandidateSegmentsForChunk(position, position, padding);
+            return getHeightAt(position, candidates);
+        }
+        public float getHeightAt(Vector2 position, List<RoadSegment2D> candidateSegments)
+        {
+            float baseTerrainHeight = getRawNoiseHeightAt(position);
+
+            if (TryGetRoadInfoAt(position, candidateSegments, out float roadTargetHeight, out float carveBlendFactor, out _))
+            {
+                return MathHelper.Lerp(baseTerrainHeight, roadTargetHeight, carveBlendFactor);
+            }
+
+            return baseTerrainHeight;
+        }
+
+        public float getRoadMaskAt(Vector2 position, List<RoadSegment2D> candidateSegments)
+        {
+            if (TryGetRoadInfoAt(position, candidateSegments, out _, out _, out float maskWeight))
+            {
+                return maskWeight;
+            }
+            return 0.0f;
         }
 
         public float getRawNoiseHeightAt(Vector2 position)

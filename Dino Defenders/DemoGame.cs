@@ -30,24 +30,30 @@ namespace Dino_Defenders
         {
             terrainGenerator = new TerrainGenerator();
 
-            // Define 2D waypoints that turn across the map
-            List<Vector2> waypoints = new List<Vector2>
-{
-    new Vector2(100f, 100f),
-    new Vector2(250f, 180f), // Sweeping right curve
-    new Vector2(280f, 350f), // Sharp turn left
-    new Vector2(500f, 500f)  // Destination
-};
+            for (int i = 0; i<1; i++)
+            {
+                // Define 2D waypoints that turn across the map
+                Vector2 startPos = MyMath.rng2D(500f);
+                List<Vector2> waypoints = new List<Vector2>
+                {
+                    startPos,
+                    new Vector2(500, 0) + MyMath.rng2D(500f),
+                    new Vector2(500, 500) + MyMath.rng2D(500f),
+                    new Vector2(0, 500) + MyMath.rng2D(500f),
+                    startPos
+                };
 
-            // maxGrade = 0.20f allows up to 20% slopes before carving into steep hills
-            RoadSpline mountainRoad = ContourRoadBuilder.CreateRoad(
-                waypoints,
-                terrainGenerator,
-                sampleInterval: 4f,
-                maxGrade: 0.30f
-            );
+                // maxGrade = 0.20f allows up to 20% slopes before carving into steep hills
+                RoadSpline mountainRoad = ContourRoadBuilder.CreateRoad(
+                    waypoints,
+                    terrainGenerator,
+                    sampleInterval: 4f,
+                    maxGrade: 0.30f
+                );
 
-            terrainGenerator.ActiveRoadSplines.Add(mountainRoad);
+                terrainGenerator.ActiveRoadSplines.Add(mountainRoad);
+            }
+
 
             SpawnWorld();
         }
