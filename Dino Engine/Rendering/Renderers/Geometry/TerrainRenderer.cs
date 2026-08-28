@@ -203,7 +203,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShader.loadUniformVector3f("viewPos", renderEngine.context.viewPos);
 
-            _terrainShader.loadUniformFloat("groundID", TextureGenerator.soil);
+            _terrainShader.loadUniformFloat("groundID", TextureGenerator.sandDunes);
             _terrainShader.loadUniformFloat("rockID", TextureGenerator.rock);
             _terrainShader.loadUniformFloat("roadID", TextureGenerator.cobble);
             //_terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.flat);

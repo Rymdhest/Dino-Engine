@@ -130,7 +130,7 @@ namespace Dino_Engine.ECS.Systems
             {
                 for (int i = 0; i <1; i++) {
 
-                    float speed = 16f;
+                    float speed = 10f;
                     float mass = 1.0f;
                     float duration = 20.0f;
                     if (windowhandler.IsKeyDown(Keys.LeftControl))
@@ -153,7 +153,7 @@ namespace Dino_Engine.ECS.Systems
                         new LocalToWorldMatrixComponent(),
                         new RotationComponent(),
                         new AttunuationComponent(0.01f, 0.01f, 0.01f),
-                        new AmbientLightComponent(0.08f),
+                        new AmbientLightComponent(0.02f),
                         new ScaleComponent(new Vector3(0.05f)),
                         new ModelComponent(ModelGenerator.UNIT_SPHERE),
                         new ModelRenderTag(),

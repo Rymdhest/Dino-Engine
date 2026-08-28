@@ -11,7 +11,8 @@ namespace Dino_Engine.Core
     {
 
         public string _gameTitle;
-        public Vector2i _resolution = new Vector2i(1900, 1080);
+        //public Vector2i _resolution = new Vector2i(1900, 1080);
+        public Vector2i _resolution = new Vector2i(2560, 1440);
 
         public EngineLaunchSettings(string gameTitle) 
         {

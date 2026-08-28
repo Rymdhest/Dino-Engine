@@ -47,8 +47,8 @@ namespace Dino_Defenders
                 RoadSpline mountainRoad = ContourRoadBuilder.CreateRoad(
                     waypoints,
                     terrainGenerator,
-                    sampleInterval: 4f,
-                    maxGrade: 0.30f
+                    sampleInterval: 2f,
+                    maxGrade: 0.70f
                 );
 
                 terrainGenerator.ActiveRoadSplines.Add(mountainRoad);
@@ -234,7 +234,7 @@ namespace Dino_Defenders
                 new DirectionNormalizedComponent(new Vector3(-1.10f, -3.5f, -2.9f)),
                 new ColorComponent(new Colour(1.0f, 0.9f, 0.8f, 15f)),
                 new AmbientLightComponent(0.05f),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 1, 3, 1750),
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 2, 3, 1750),
                 new CelestialBodyComponent()
             ) ;
             
@@ -401,9 +401,10 @@ namespace Dino_Defenders
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModel, 160);
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModelBrown, 60);
             
-            for (int i = 0; i < 20000; i++)
+            for (int i = 0; i < 10000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                if (terrainGenerator.IsOnRoad(treePos.Xz, clearanceMargin: 1f)) continue;
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
                 float flatness =MyMath.clamp01(Vector3.Dot( terrainGenerator.GetNormalAt(treePos.X, treePos.Z), new Vector3(0f , 1f, 0f)));
                 flatness = MyMath.clamp01((flatness-0.5f)*2.0f);
@@ -425,6 +426,7 @@ namespace Dino_Defenders
             for (int i = 0; i < 1000; i++)
             {
                 Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                if (terrainGenerator.IsOnRoad(treePos.Xz, clearanceMargin: 1f)) continue;
                 treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
                 float flatness = MyMath.clamp01(Vector3.Dot(terrainGenerator.GetNormalAt(treePos.X, treePos.Z), new Vector3(0f, 1f, 0f)));
                 flatness = MyMath.clamp01((flatness - 0.5f) * 2.0f);
@@ -482,6 +484,8 @@ namespace Dino_Defenders
             for (int i = 0; i < n; i++)
             {
                 Vector3 pos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
+                if (terrainGenerator.IsOnRoad(pos.Xz, clearanceMargin:0f)) continue;
+
                 pos.Y = terrainGenerator.getHeightAt(pos.Xz);
                 if (terrainGenerator.GetNormalAt(pos.X, pos.Z).Y < 0.8f) continue;
 

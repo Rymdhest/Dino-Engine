@@ -237,8 +237,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 new Vector2(MyMath.lerp(radiusBase, radiusTop, 0.66f), bladeHeight*0.66f),
                 new Vector2(radiusTop, bladeHeight*0.95f),
                 new Vector2(0.0001f, bladeHeight)};
-            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 3, grassMaterial);
-            bladeMesh.scale(new Vector3(1f, 1f, 0.99f));
+            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 4, grassMaterial);
+            bladeMesh.scale(new Vector3(1.0f, 1f, 1.0f));
 
             bladeMesh.makeFlat(true, false);
             return glLoader.loadToVAO(bladeMesh);
@@ -313,10 +313,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 64;
+            bladesPerAxis = 64*0;
 
-            bladeHeight =1.75f;
-            radiusBase = 0.0035f;
+            bladeHeight =1.5f;
+            radiusBase = 0.003f;
             radiusTop = radiusBase * 0.6f;
 
             var world = Engine.Instance.world;
@@ -417,13 +417,13 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
 
             _grassShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
-            Material grassMaterial = Material.FOLIAGE_OLIVE;
+            Material grassMaterial = Material.FOLIAGE_PINE;
             Material grassMaterialDead = Material.GROUND_SOIL;
             _grassShader.loadUniformInt("textureIndex", TextureGenerator.cobble);
             _grassShader.loadUniformFloat("groundNormalStrength", 0.1f);
             _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.1f);
             _grassShader.loadUniformFloat("colourError", 0.1f);
-            _grassShader.loadUniformFloat("SSS", grassMaterial.subSurfaceTransparancy);
+            _grassShader.loadUniformFloat("SSS", grassMaterial.subSurfaceTransparancy*0.7f);
             _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.1f);
             _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.6f);
             _grassShader.loadUniformVector4f("grassMaterial", new Vector4(grassMaterial.roughness, grassMaterial.emission, grassMaterial.metalic, 0f));
@@ -465,7 +465,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             for (int i = 0; i <2; i++)
             {
                 shader.loadUniformFloat("bladeHeight", bladeHeight);
-                shader.loadUniformFloat("bendyness", 0.05f);
+                shader.loadUniformFloat("bendyness", 0.075f);
                 shader.loadUniformFloat("heightError", 0.35f);
                 shader.loadUniformFloat("radiusError", 0.35f);
                 shader.loadUniformFloat("cutOffThreshold", 0.1f);

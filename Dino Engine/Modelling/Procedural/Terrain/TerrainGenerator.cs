@@ -33,6 +33,54 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             noise = new OpenSimplexNoise(seed);
         }
 
+        /// <summary>
+        /// Checks if a 2D world position is on or near a road.
+        /// </summary>
+        /// <param name="position">World XZ position.</param>
+        /// <param name="clearanceMargin">Extra distance around the road to keep clear (e.g., 2.0f so trees aren't right on the edge).</param>
+        /// <param name="includeShoulder">If true, treats the shoulder as part of the road zone.</param>
+        public bool IsOnRoad(Vector2 position, float clearanceMargin = 0f, bool includeShoulder = true)
+        {
+            float thresholdRadius = (includeShoulder ? (RoadWidth + RoadShoulder) : RoadWidth) + clearanceMargin;
+            List<RoadSegment2D> candidates = GetCandidateSegmentsForChunk(position, position, thresholdRadius);
+            return IsOnRoad(position, candidates, clearanceMargin, includeShoulder);
+        }
+
+        /// <summary>
+        /// Optimized overload for batch object spawning during chunk generation.
+        /// </summary>
+        public bool IsOnRoad(Vector2 position, List<RoadSegment2D> candidateSegments, float clearanceMargin = 0f, bool includeShoulder = true)
+        {
+            if (candidateSegments == null || candidateSegments.Count == 0)
+                return false;
+
+            float roadRadius = includeShoulder ? (RoadWidth + RoadShoulder) : RoadWidth;
+            float maxDist = roadRadius + clearanceMargin;
+            float maxDistSq = maxDist * maxDist;
+
+            for (int i = 0; i < candidateSegments.Count; i++)
+            {
+                var seg = candidateSegments[i];
+
+                float t = 0f;
+                if (seg.ABLenSq > 1e-6f)
+                {
+                    t = Vector2.Dot(position - seg.A, seg.AB) / seg.ABLenSq;
+                    t = MathHelper.Clamp(t, 0f, 1f);
+                }
+
+                Vector2 closest2D = seg.A + seg.AB * t;
+                float distSq = Vector2.DistanceSquared(position, closest2D);
+
+                if (distSq <= maxDistSq)
+                {
+                    return true; // Point is on/near the road
+                }
+            }
+
+            return false;
+        }
+
         public Vector3 GetNormalAt(float x, float z)
         {
             float eps = 0.1f;

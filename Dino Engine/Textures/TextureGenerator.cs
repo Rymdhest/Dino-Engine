@@ -41,8 +41,8 @@ namespace Dino_Engine.Textures
         public int loadedMaterialTextures = 0;
         public int loadedImposterTextures = 0;
 
-        public static readonly Vector2i MATERIAL_RESOLUTION = new Vector2i(512*2);
-        public static readonly Vector2i MODEL_TEXTURE_RESOLUTION = new Vector2i(1024*2);
+        public static readonly Vector2i MATERIAL_RESOLUTION = new Vector2i(512*1);
+        public static readonly Vector2i MODEL_TEXTURE_RESOLUTION = new Vector2i(1024*1);
         public static readonly Vector2i IMPOSTER_RESOLUTION = new Vector2i(256);
         public readonly int anglesPerImposter = 8;
 
@@ -159,11 +159,14 @@ namespace Dino_Engine.Textures
             flat = createFlatTexture();
             flatGlow = createFlatGlowTexture();
             sandDunes = createSandDunesTexture();
+            sand = createSandTexture();
+
             cobble = createCobbleTexture();
             pineBark = createPineBark();
             metalFloor = createMetalFloorTexture();
             brick = brickTexture();
             crackedLava = createCrackedLAva();
+            crackedDesert = createCrackedDesert();
             rock = createRock();
             mirror = createMirrorTexture();
             grassy_soil = createGrassySoilTexture();
@@ -747,8 +750,17 @@ namespace Dino_Engine.Textures
         }
         private int createCrackedDesert()
         {
-            var voronoi = procTextGen.Voronoi(new Vector2(4f, 4f), jitter: 1.0f);
-            return FinishTexture(voronoi);
+            var voronoiCracks = procTextGen.VoronoiCracks(new Vector2(8f, 8f),width: 0.01f, smoothness:0.5f, jitter: 1.0f, seed:100f);
+            var voronoi = procTextGen.Voronoi(new Vector2(8f, 8f),jitter: 1.0f, seed: 100f);
+            voronoiCracks.setMaterial(Material.SAND);
+            var noise = procTextGen.PerlinFBM(new Vector2(64f, 64f), octaves: 10, amplitudePerOctave: 0.6f);
+
+            MaterialLayersCombiner.combine(voronoi, procTextGen.CreateFlatHeight(2.0f), FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Power, weight: 2.0f);
+            MaterialLayersCombiner.combine(voronoiCracks, voronoi.scaleHeight(0.5f), FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Subtract, weight: 0.5f);
+
+            MaterialLayersCombiner.combine(voronoiCracks, noise, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Subtract, weight: 0.2f);
+
+            return FinishTexture(voronoiCracks, normalFlatness: 40);
         }
 
         private int createRock()
@@ -817,31 +829,29 @@ namespace Dino_Engine.Textures
             MaterialLayersCombiner.combine(stones, background, FilterMode.Greater, heightOperation: Operation.Smoothstep, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.1f);
             return FinishTexture(stones);
         }
-
         private int createCrackedLAva()
         {
-            var lava = procTextGen.PerlinFBM(new Vector2(14f, 14f), octaves: 10, amplitudePerOctave: 0.9f);
+            var lava = procTextGen.PerlinFBM(new Vector2(16f, 16f), octaves: 5, amplitudePerOctave: 0.9f);
             lava.setMaterial(new Material(new Colour(0, 0, 0), 0.95f, 0f, 0f));
-            lava.mix(procTextGen.CreateMaterial(new Material(new Colour(255, 45, 23), 1.0f, 1.0f, 0f), height: 1.0f), FilterMode.Everywhere, Operation.Mix);
+            lava.mix(procTextGen.CreateMaterial(new Material(new Colour(255, 45, 23), 1.0f, 0.1f, 0f), height: 1.0f), FilterMode.Everywhere, Operation.Mix);
 
-            var cracks = procTextGen.VoronoiCracks(new Vector2(14f, 14f), width: 0.06f, smoothness: 0.5f, jitter: 1f);
+            var cracks = procTextGen.VoronoiCracks(new Vector2(8f, 8f), width: 0.15f, smoothness: 0.8f, jitter: 1f);
 
-            var cracks2 = procTextGen.VoronoiCracks(new Vector2(58f, 58f), width: 0.08f, smoothness: 0.5f, jitter: 1f);
-            cracks2.mix(procTextGen.PerlinFBM(new Vector2(6f, 6f), octaves: 1, amplitudePerOctave: 0.9f), FilterMode.Greater, Operation.Override, weight: 0.9f);
-            cracks2.setMaterial(new Material(new Colour(10, 10, 10), 0.95f, 0f, 0f));
+            var cracks2 = procTextGen.VoronoiCracks(new Vector2(16f, 16f), width: 0.08f, smoothness: 0.5f, jitter: 1f);
+            cracks2.mix(procTextGen.PerlinFBM(new Vector2(32f, 32f), octaves: 4, amplitudePerOctave: 0.7f), FilterMode.Greater, Operation.Override, weight: 0.5f);
+            cracks2.setMaterial(Material.Charcoal);
 
-            cracks.setMaterial(new Material(new Colour(60, 50, 50), 0.85f, 0f, 0f));
-            var noise = procTextGen.PerlinFBM(new Vector2(20f, 20f), octaves: 8, amplitudePerOctave: 0.6f, rigged:false);
+            cracks.setMaterial(Material.Charcoal);
+            var noise = procTextGen.PerlinFBM(new Vector2(32f, 32f), octaves: 4, amplitudePerOctave: 0.6f, rigged:false);
             //noise.invertHeight();
             cracks.mix(cracks2, FilterMode.Everywhere, Operation.Scale,  weight:0.35f);
 
-            MaterialLayersCombiner.combine(cracks, noise.scaleHeight(1.0f), FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Nothing, weight: 0.5f, smoothness: 0.8f);
+            MaterialLayersCombiner.combine(cracks, noise.scaleHeight(1.0f), FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Nothing, weight: 0.5f, smoothness: 0.4f);
 
-            lava.mix(procTextGen.CreateMaterial(new Material(new Colour(220, 6, 2), 1f, 0.4f, 0f), height: 1.0f), FilterMode.Everywhere, Operation.Mix);
 
             var crackedLava = MaterialLayersCombiner.combine(cracks, lava.scaleHeight(0.14f), FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.5f);
 
-            return FinishTexture(crackedLava, normalFlatness: 300.0f);
+            return FinishTexture(crackedLava, normalFlatness: 50.0f);
         }
         private int createBirchBark()
         {
@@ -986,7 +996,7 @@ namespace Dino_Engine.Textures
         private int createGrassySoilTexture()
         {
             MaterialLayer soilLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
-            soilLayer.setMaterial(Material.FOLIAGE_OLIVE);
+            soilLayer.setMaterial(Material.FOLIAGE_PINE);
 
             MaterialLayer grassLayer = procTextGen.PerlinFBM(new Vector2(64f, 64f), octaves: 8, amplitudePerOctave: 0.5f);
             grassLayer.setMaterial(Material.GROUND_SOIL);
@@ -1032,21 +1042,29 @@ namespace Dino_Engine.Textures
             roughLayer.setMaterial(new Material(new Colour(255, 10, 25), 0.4f, 0f, 0.0f, 0.8f));
             return FinishTexture(roughLayer);
         }
+
+        private int createSandTexture()
+        {
+            var noise = procTextGen.PerlinFBM(new Vector2(2f, 2f), octaves: 10, amplitudePerOctave: 0.8f);
+            noise.setMaterial(Material.SAND);
+            return FinishTexture(noise, normalFlatness: 40);
+        }
+
         private int createSandDunesTexture()
         {
-            var sandDunes = procTextGen.PerlinFBM(new Vector2(4f, 8f), octaves: 1, amplitudePerOctave: 0.17f, rigged: true);
+            var sandDunes = procTextGen.PerlinFBM(new Vector2(4f, 8f), octaves: 1, amplitudePerOctave: 0.27f, rigged: true);
             var noise = procTextGen.PerlinFBM(new Vector2(2f, 2f), octaves: 10, amplitudePerOctave: 0.8f);
             var noiseLarge = procTextGen.PerlinFBM(new Vector2(22f, 22f), octaves: 2, amplitudePerOctave: 0.5f);
-            sandDunes.setMaterial(new Material(new Colour(200, 170, 100), 0.35f, 0f, 0f));
-            noiseLarge.setMaterial(new Material(new Colour(100, 75, 80), 0.8f, 0f, 0f));
-            noise.setMaterial(new Material(new Colour(220, 190, 120), 0.98f, 0f, 0f));
+            sandDunes.setMaterial(Material.SAND);
+            noiseLarge.setMaterial(Material.SAND);
+            noise.setMaterial(Material.GROUND_ROCK);
 
-            MaterialLayersCombiner.combine(sandDunes, noise, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Mix, weight: 0.2f, smoothness: 0.9f);
+            MaterialLayersCombiner.combine(sandDunes, noise, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight: 0.2f, smoothness: 0.9f);
 
-            MaterialLayersCombiner.combine(noise, noiseLarge.scaleHeight(1f), FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Mix, weight: 0.5f, smoothness: 0.9f);
-            MaterialLayersCombiner.combine(sandDunes, noise, FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.9f);
+            //MaterialLayersCombiner.combine(noise, noiseLarge.scaleHeight(1f), FilterMode.Everywhere, heightOperation: Operation.Scale, materialOperation: Operation.Mix, weight: 0.2f, smoothness: 0.5f);
+            //MaterialLayersCombiner.combine(sandDunes, noise, FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: 0.5f, smoothness: 0.9f);
 
-            return FinishTexture(sandDunes, normalFlatness:80);
+            return FinishTexture(sandDunes, normalFlatness:60);
         }
 
         public void CleanUp()

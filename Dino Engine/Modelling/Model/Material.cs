@@ -12,7 +12,11 @@ namespace Dino_Engine.Modelling.Model
     public struct Material
     {
         public static Material GROUND_ROCK = new Material(new Colour(100, 91, 75), rougness:0.9f);
-        public static Material GROUND_SOIL   = new Material(new Colour(94, 48, 25), rougness: 0.9f);
+        public static Material GROUND_SOIL   = new Material(new Colour(94, 58, 35), rougness: 0.9f);
+
+        public static Material SAND = new Material(new Colour(150, 125, 85), rougness: 0.95f, subSurfaceTransparancy: 0.2f);
+
+        public static Material Charcoal = new Material(new Colour(3, 3, 3), rougness: 0.99f, subSurfaceTransparancy: 0.0f);
 
         public static Material BARK_PINE = new Material(new Colour(105, 48, 25), rougness: 0.98f, subSurfaceTransparancy:0.0f);
         public static Material BARK_OAK = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy: 0.0f);
