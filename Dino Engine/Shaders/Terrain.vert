@@ -11,6 +11,7 @@ out mat3 TBN;
 out vec3 worldNormal;
 out vec3 TangentViewPos;
 out vec3 TangentFragPos;
+out vec3 fragWorldPos;
 out vec3 COLOR_TEST;
 out float roadWeight;
 
@@ -47,7 +48,7 @@ void main() {
 	T = normalize(T - dot(T, N) * N); // Gram-Schmidt
 	vec3 B = normalize(cross(T, N));
 	mat3 TBN = mat3(T, B, N);
-
+	fragWorldPos = worldPos;
 	TangentFragPos = (worldPos)*TBN;
 	TangentViewPos = (viewPos)*TBN;
 	normalTBN = mat3(transpose(invViewMatrix))*TBN;
