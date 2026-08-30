@@ -19,6 +19,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public float RoadShoulder =4.0f;
 
         private OpenSimplexNoise noise;
+        private OpenSimplexNoise grassNoise;
 
         // Reference to your global road graph/splines
         public List<RoadSpline> ActiveRoadSplines { get; set; } = new List<RoadSpline>();
@@ -26,6 +27,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public TerrainGenerator()
         {
             noise = new OpenSimplexNoise();
+            grassNoise = new OpenSimplexNoise();
         }
 
         public TerrainGenerator(long seed)
@@ -162,7 +164,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             return grid;
         }
 
-        public Vector3Grid generateNormalGridFor(FloatGrid heightMap, Vector3 size, Vector2 worldOrigin)
+        public Vector3Grid generateNormalGridFor(FloatGrid heightMap, Vector3 size, Vector2 worldOrigin, out FloatGrid grassGrid)
         {
             Vector2 chunkSizeWorld = new Vector2(size.X, size.Z);
             float padding = RoadWidth + RoadShoulder;
@@ -171,6 +173,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             size.X /= (heightMap.Resolution.X - 1);
             size.Z /= (heightMap.Resolution.Y - 1);
             Vector3Grid normalGrid = new Vector3Grid(heightMap.Resolution);
+            grassGrid = new FloatGrid(heightMap.Resolution);
 
             for (int z = 0; z < normalGrid.Resolution.Y; z++)
             {
@@ -213,6 +216,11 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     float roadWeight = getRoadMaskAt(worldPos, candidates);
 
                     normalGrid.Values[x, z] = new Vector3(normal.X, normal.Z, roadWeight);
+
+                    float flatness = Vector3.Dot(normal, new Vector3(0f, 1f, 0f));
+                    float smallPatch =  0.5f + 0.5f * MathF.Pow(grassNoise.FBM01(worldX, worldZ, 0.55f, 3), 1.0f);
+                    float bigPatch =    0.3f + 0.7f * MathF.Pow(grassNoise.FBM01(worldX, worldZ, 0.2f, 3), 1.0f);
+                    grassGrid.Values[x, z] = flatness* smallPatch * bigPatch;
                 }
             }
 
@@ -425,6 +433,8 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             float smoothEdgeRange = 50f;
             if (position.X < smoothEdgeRange) y *= MyMath.lerp(0, 1, position.X / smoothEdgeRange);
             if (position.Y < smoothEdgeRange) y *= MyMath.lerp(0, 1, position.Y / smoothEdgeRange);
+
+            if (position.X < 500 & position.Y < 500) y = 0.0f;
 
             return y;
         }

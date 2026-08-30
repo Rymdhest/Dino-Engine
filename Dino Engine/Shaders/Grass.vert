@@ -46,6 +46,7 @@ uniform vec2 simulationWorldPosition;
 
 uniform sampler2D bendMap;
 uniform sampler2DArray heightmaps;
+uniform sampler2DArray heightmaps2;
 uniform sampler2D grassNoise;
 
 #define PI 3.1415926538
@@ -89,8 +90,8 @@ vec3 calcLocalCellPosition(vec2 gridPosition, float spacing) {
 	return vec3(offset.x, 0, offset.y);	
 }
 
-vec4 readHeightmap(vec2 uv, int chunkID) {
-	return texture(heightmaps, vec3(uv.xy*(1.0-textureMapOffset)+vec2(textureMapOffset/2.0), chunkID)).xyzw;
+vec4 readHeightmap(sampler2DArray map, vec2 uv, int chunkID) {
+	return texture(map, vec3(uv.xy*(1.0-textureMapOffset)+vec2(textureMapOffset/2.0), chunkID)).xyzw;
 }
 
 void main() {
@@ -110,11 +111,16 @@ void main() {
 	vec2 gridPosition = vec2((floor(bladeIndex/bladesPerAxis)), mod(float(bladeIndex),bladesPerAxis))*spacing;
 	vec2 bladePositionChunkSpace = gridPosition+vec2(hash23(gridPosition*10))*spacing;
 	vec4 heightMapData;
+	vec4 heightMapData2;
 	if (tipFactor < 0.001f) {
-		heightMapData = readHeightmap((position.xz+bladePositionChunkSpace)/chunkSize ,int(heightMapIndex));
+		//heightMapData = readHeightmap(heightmaps, (position.xz+bladePositionChunkSpace)/chunkSize ,int(heightMapIndex));
+		heightMapData = readHeightmap(heightmaps, bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
 	} else {
-		heightMapData = readHeightmap(bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
+		heightMapData = readHeightmap(heightmaps, bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
 	}
+	heightMapData2 = readHeightmap(heightmaps2, bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
+	float grassWeight = heightMapData2.r;
+
 	vec3 bladePositionWorld = vec3(chunkOrigin.x, 0, chunkOrigin.y)+vec3(bladePositionChunkSpace.x, 0, bladePositionChunkSpace.y)+vec3(0, heightMapData.w, 0);
 
 	float roadWeight = heightMapData.z;
@@ -131,6 +137,7 @@ void main() {
 	bladeWorldSeed *= 1.0; // avoid hashing breaking with too small differences in values
 	float bladeRandomValue = hash21(bladeWorldSeed);
 	float voronoiNoiseFactor = texture(grassNoise, bladePositionWorld.xz*0.01).r;
+	voronoiNoiseFactor = grassWeight;
 	float heightErrorFactor = 1.0+hash11(bladeIndex)*2.0*heightError-heightError;
 	float heightFactor = voronoiNoiseFactor*heightErrorFactor*(1.0-steepness);
 	float validFactor = (1.0-steepness*steepnessCutoffStrength)*heightFactor*(1.0-roadWeight);
@@ -139,6 +146,7 @@ void main() {
 		if (bladeRandomValue < survivalChance) {
 			valid = 0.0;
 		}
+		if (bladePositionWorld.y < 5.0) valid = 0.0;
 	//}
 
 	VertexPositionLocal.y *= heightFactor;

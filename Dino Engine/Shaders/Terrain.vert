@@ -14,6 +14,7 @@ out vec3 TangentFragPos;
 out vec3 fragWorldPos;
 out vec3 COLOR_TEST;
 out float roadWeight;
+out float grassWeight;
 
 uniform vec3 viewPos;
 uniform mat4 invViewMatrix;
@@ -21,6 +22,7 @@ uniform mat4 projectionViewMatrix;
 uniform float textureMapOffset;
 uniform float textureTileSize;
 uniform sampler2DArray normalHeightTextureArray;
+uniform sampler2DArray grassTextureArray;
 
 #include procedural/fastHash.glsl
 
@@ -34,8 +36,10 @@ vec3 reconstructTangent(vec2 uv)
 
 void main() {
 	vec4 textureData =  texture(normalHeightTextureArray, vec3(position.xz*(1.0-textureMapOffset)+vec2(textureMapOffset/2.0), instanceHeightMapID)).xyzw;
+	vec4 textureData2 =  texture(grassTextureArray, vec3(position.xz*(1.0-textureMapOffset)+vec2(textureMapOffset/2.0), instanceHeightMapID)).xyzw;
 	float height = textureData.a;
 	roadWeight = textureData.z;
+	grassWeight = textureData2.r;
 	float nx = textureData.x;
 	float nz = textureData.y;
 	float ny = sqrt(max(0.0, 1.0 - (nx * nx + nz * nz)));

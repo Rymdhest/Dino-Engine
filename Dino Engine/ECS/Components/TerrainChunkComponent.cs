@@ -9,12 +9,14 @@ namespace Dino_Engine.ECS.Components
         public int normalHeightTextureArrayID;
         public FloatGrid heightGrid;
         public Vector3Grid normalGrid;
-        public TerrainChunkComponent(FloatGrid heightGrid, Vector3Grid normalGrid)
+        public FloatGrid grassGrid;
+        public TerrainChunkComponent(FloatGrid heightGrid, Vector3Grid normalGrid, FloatGrid grassGrid)
         {
             this.heightGrid = heightGrid;
             this.normalGrid = normalGrid;
+            this.grassGrid = grassGrid;
 
-            normalHeightTextureArrayID = Engine.RenderEngine._terrainRenderer.insertDataToTextureArray(heightGrid, normalGrid);
+            normalHeightTextureArrayID = Engine.RenderEngine._terrainRenderer.insertDataToTextureArray(heightGrid, normalGrid, grassGrid);
         }
 
         public void Cleanup()

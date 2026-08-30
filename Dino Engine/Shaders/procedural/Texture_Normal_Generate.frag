@@ -23,6 +23,6 @@ void main(void)
     normal.xy = (normalTemp*0.5f+0.5f).xy;
 
     normal.z = texture(materialMap, textureCoords).a;;
-    normal.a = 0.2f+height*0.8f;
+    normal.a = 0.8f+height*0.2f;
     
 }

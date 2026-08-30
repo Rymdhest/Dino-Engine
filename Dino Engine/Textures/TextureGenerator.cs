@@ -63,6 +63,7 @@ namespace Dino_Engine.Textures
         public static int foliage_white;
         public static int foliage_pine;
         public static int rock;
+        public static int grass;
         public static int wood;
         public static int pineBark;
         public static int BirchBark;
@@ -156,6 +157,7 @@ namespace Dino_Engine.Textures
             foliage_olive = createGrassTexture(Material.FOLIAGE_OLIVE);
             foliage_white = createGrassTexture(Material.FOLIAGE_WHITE);
             foliage_pine = createGrassTexture(Material.FOLIAGE_PINE);
+            grass = createGrassTexture(Material.FOLIAGE_GREEN);
             flat = createFlatTexture();
             flatGlow = createFlatGlowTexture();
             sandDunes = createSandDunesTexture();
@@ -784,8 +786,9 @@ namespace Dino_Engine.Textures
             var noise = procTextGen.PerlinFBM(new Vector2(64f, 64f), octaves: 10, amplitudePerOctave: 0.6f);
 
             MaterialLayersCombiner.combine(combined2, noise, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Add, weight: 0.7f);
-
-            return FinishTexture(combined2, normalFlatness:250.0f);
+            combined2.scaleHeight(0.15f);
+            combined2.addHeight(0.85f);
+            return FinishTexture(combined2, normalFlatness:50.0f);
         }
 
         private int createCobbleTexture()
@@ -1020,6 +1023,7 @@ namespace Dino_Engine.Textures
         {
             MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
             roughLayer.setMaterial(material);
+            roughLayer.scaleHeight(1.0f);
             return FinishTexture(roughLayer);
         }
         private int createIceTexture()

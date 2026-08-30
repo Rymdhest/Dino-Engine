@@ -92,14 +92,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShader.loadUniformInt("materialMapModelTextureArray", 5);
 
             _grassShader.loadUniformInt("heightmaps", 6);
-            _grassShader.loadUniformInt("grassNoise", 7);
+            _grassShader.loadUniformInt("heightmaps2", 7);
             _grassShader.loadUniformInt("bendMap", 8);
 
             _grassShader.unBind();
 
             _grassShadowShader.bind();
             _grassShadowShader.loadUniformInt("heightmaps", 0);
-            _grassShadowShader.loadUniformInt("grassNoise", 1);
+            _grassShadowShader.loadUniformInt("heightmaps2", 1);
             _grassShadowShader.loadUniformInt("bendMap", 8);
             _grassShadowShader.unBind();
 
@@ -313,9 +313,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void Update()
         {
-            bladesPerAxis = 64*0;
+            bladesPerAxis = 40;
 
-            bladeHeight =1.5f;
+            bladeHeight =1.05f;
             radiusBase = 0.003f;
             radiusTop = radiusBase * 0.6f;
 
@@ -394,10 +394,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassShader.bind();
 
             GL.ActiveTexture(TextureUnit.Texture6);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetNormalHeightTextureArray());
+            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetNormalRoadHeightTextureArray());
 
             GL.ActiveTexture(TextureUnit.Texture7);
-            GL.BindTexture(TextureTarget.Texture2D, grassNoiseTexture);
+            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetGrassTextureArray());
 
             GL.ActiveTexture(TextureUnit.Texture8);
             GL.BindTexture(TextureTarget.Texture2D, GetNextFrameBuffer().GetAttachment(0));
@@ -452,10 +452,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
 
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetNormalHeightTextureArray());
+            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetNormalRoadHeightTextureArray());
 
             GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, grassNoiseTexture);
+            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetGrassTextureArray());
 
             GL.ActiveTexture(TextureUnit.Texture8);
             GL.BindTexture(TextureTarget.Texture2D, GetLastFrameBuffer().GetAttachment(0));

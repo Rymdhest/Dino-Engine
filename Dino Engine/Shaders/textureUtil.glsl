@@ -96,46 +96,35 @@ MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
     return props;
 }
 
-vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir, float textureIndex,float parallaxDepth, float parallaxLayers)
+
+float getSampledHeight(vec2 uv, float materialIndex)
 {
-    // calculate the size of each layer
-    float layerDepth = 1.0 / parallaxLayers;
-    // depth of current layer
+    // Uses your existing lookup abstraction
+    return lookupMaterial(uv, materialIndex).a; 
+}
+
+vec2 ParallaxMapping(vec2 baseUV, vec3 viewDir, float materialIndex, float depthScale, float layers)
+{
+    float layerDepth = 1.0 / layers;
     float currentLayerDepth = 0.0;
-    // the amount to shift the texture coordinates per layer (from vector P)
-    //vec2 P = viewDir.xy/-viewDir.z * parallaxDepth; 
 
-    //vec2 P = viewDir.xy * parallaxDepth;
-    //vec2 P = viewDir.xy / max(viewDir.z, 0.05) * parallaxDepth;
-    vec2 P = (viewDir.xy / (viewDir.z + 0.1)) * parallaxDepth;
+    vec2 P = (viewDir.xy / max(viewDir.z, 0.05)) * (depthScale / 5.0);
+    vec2 deltaUV = P / layers;
 
-    vec2 deltaTexCoords = P / parallaxLayers;
+    vec2 currentUV = baseUV;
+    float currentMapHeight = 1.0 - getSampledHeight(currentUV, materialIndex);
 
-    vec2  currentTexCoords = texCoords;
-    float currentDepthMapValue = 1.0 - lookupMaterial(currentTexCoords, textureIndex).a;
-
-    while (currentLayerDepth < currentDepthMapValue)
+    while (currentLayerDepth < currentMapHeight)
     {
-        // shift texture coordinates along direction of P
-        currentTexCoords -= deltaTexCoords;
-        // get depthmap value at current texture coordinates
-        MaterialProps material = LookupAllMaterialProps(currentTexCoords, textureIndex);
-        //if (material.alphaBit == 0) discard;
-        currentDepthMapValue = 1.0 - material.height;
-        // get depth of next layer
+        currentUV -= deltaUV;
+        currentMapHeight = 1.0 - getSampledHeight(currentUV, materialIndex);
         currentLayerDepth += layerDepth;
     }
 
-    // get texture coordinates before collision (reverse operations)
-    vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
+    vec2 prevUV = currentUV + deltaUV;
+    float afterDepth = currentMapHeight - currentLayerDepth;
+    float beforeDepth = (1.0 - getSampledHeight(prevUV, materialIndex)) - currentLayerDepth + layerDepth;
 
-    // get depth after and before collision for linear interpolation
-    float afterDepth = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth = (1.0 - lookupMaterial(prevTexCoords, textureIndex).a) - currentLayerDepth + layerDepth;
-
-    // interpolation of texture coordinates
     float weight = afterDepth / (afterDepth - beforeDepth);
-    vec2 finalTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
-
-    return finalTexCoords;
+    return mix(currentUV, prevUV, weight);
 }

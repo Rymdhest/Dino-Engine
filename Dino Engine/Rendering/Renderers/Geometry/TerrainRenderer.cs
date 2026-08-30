@@ -1,17 +1,18 @@
-﻿using OpenTK.Mathematics;
-using OpenTK.Graphics.OpenGL;
-using OpenTK.Windowing.Common;
-using Dino_Engine.Modelling.Model;
-using Dino_Engine.Core;
-using Dino_Engine.Util;
+﻿using Dino_Engine.Core;
 using Dino_Engine.Modelling;
-using System.Drawing;
+using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
-using Dino_Engine.Textures;
-using Dino_Engine.Util.Data_Structures.Grids;
-using System.Runtime.InteropServices;
-using System;
 using Dino_Engine.Rendering.Renderers.Lighting;
+using Dino_Engine.Textures;
+using Dino_Engine.Util;
+using Dino_Engine.Util.Data_Structures.Grids;
+using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
+using OpenTK.Windowing.Common;
+using System;
+using System.Drawing;
+using System.Runtime.InteropServices;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -38,7 +39,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private ShaderProgram _terrainShader = new ShaderProgram("Terrain.vert", "Terrain.frag");
         private ShaderProgram _terrainShadowShader = new ShaderProgram("Terrain_Shadow.vert", "Terrain_Shadow.frag");
         private glModel baseChunkModel;
-        private int normalHeightTextureArray;
+        private int normalRoadHeightTextureArray;
+        private int grassTextureArray;
         private IDAllocator<ushort> normalHeightTextureArrayAllocator = new();
         private readonly int MAX_TERRAIN_CHUNKS = 1024*2;
         public static readonly int CHUNK_RESOLUTION = 16;
@@ -57,6 +59,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _terrainShader.loadUniformInt("materialMapModelTextureArray", 5);
 
             _terrainShader.loadUniformInt("normalHeightTextureArray", 6);
+            _terrainShader.loadUniformInt("grassTextureArray", 7);
 
             _terrainShader.unBind();
 
@@ -101,8 +104,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindVertexArray(0);
 
 
-            normalHeightTextureArray = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2DArray, normalHeightTextureArray);
+            normalRoadHeightTextureArray = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);
             GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba16f, CHUNK_RESOLUTION, CHUNK_RESOLUTION, MAX_TERRAIN_CHUNKS);
 
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.Linear);
@@ -112,11 +115,26 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int) TextureWrapMode.ClampToEdge);
             GL.BindTexture(TextureTarget.Texture2DArray, 0);
 
+            grassTextureArray = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2DArray, grassTextureArray);
+            GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba16f, CHUNK_RESOLUTION, CHUNK_RESOLUTION, MAX_TERRAIN_CHUNKS);
+
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.BindTexture(TextureTarget.Texture2DArray, 0);
+
         }
 
-        public int GetNormalHeightTextureArray()
+        public int GetNormalRoadHeightTextureArray()
         {
-            return normalHeightTextureArray;
+            return normalRoadHeightTextureArray;
+        }
+        public int GetGrassTextureArray()
+        {
+            return grassTextureArray;
         }
 
         public void freeChunk(int chunk)
@@ -124,40 +142,56 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             normalHeightTextureArrayAllocator.Release((ushort)chunk);
         }
 
-        public int insertDataToTextureArray(FloatGrid heightGrid, Vector3Grid normalGrid)
+        public int insertDataToTextureArray(FloatGrid heightGrid, Vector3Grid normalGrid, FloatGrid grassGrid)
         {
             int dimensions = 4;
             int id = (int)normalHeightTextureArrayAllocator.Allocate();
             var resolution = heightGrid.Resolution;
-            var pixels = new float[dimensions * resolution.X * resolution.Y];
+            var pixelsNormalRoadHeight = new float[dimensions * resolution.X * resolution.Y];
+            var pixelsGrass = new float[dimensions * resolution.X * resolution.Y];
             for (int y = 0; y < resolution.Y; y++)
             {
                 for (int x = 0; x < resolution.X; x++)
                 {
                     int i = y * resolution.X + x;
-                    pixels[i * dimensions + 0] = normalGrid.Values[x, y].X;
-                    pixels[i * dimensions + 1] = normalGrid.Values[x, y].Y;
-                    pixels[i * dimensions + 2] = normalGrid.Values[x, y].Z;
-                    pixels[i * dimensions + 3] = heightGrid.Values[x, y];
+                    pixelsNormalRoadHeight[i * dimensions + 0] = normalGrid.Values[x, y].X;
+                    pixelsNormalRoadHeight[i * dimensions + 1] = normalGrid.Values[x, y].Y;
+                    pixelsNormalRoadHeight[i * dimensions + 2] = normalGrid.Values[x, y].Z;
+                    pixelsNormalRoadHeight[i * dimensions + 3] = heightGrid.Values[x, y];
+
+                    pixelsGrass[i * dimensions + 0] = grassGrid.Values[x, y];
+                    pixelsGrass[i * dimensions + 1] = grassGrid.Values[x, y];
+                    pixelsGrass[i * dimensions + 2] = grassGrid.Values[x, y];
+                    pixelsGrass[i * dimensions + 3] = grassGrid.Values[x, y];
                 }
             }
-            int newTexture = GL.GenTexture();
-            GL.BindTexture(TextureTarget.Texture2D, newTexture);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, resolution.X, resolution.Y, 0, PixelFormat.Rgba, PixelType.Float, pixels);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-            GL.BindTexture(TextureTarget.Texture2D, 0);
+            int array = GetNormalRoadHeightTextureArray();
+            var pixels = pixelsNormalRoadHeight;
+            for (int i = 0; i<2; i++)
+            {
+                int newTexture = GL.GenTexture();
+                GL.BindTexture(TextureTarget.Texture2D, newTexture);
+                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, resolution.X, resolution.Y, 0, PixelFormat.Rgba, PixelType.Float, pixels);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+                GL.BindTexture(TextureTarget.Texture2D, 0);
 
 
-            GL.BindTexture(TextureTarget.Texture2DArray, normalHeightTextureArray);
-            GL.CopyImageSubData(newTexture, ImageTarget.Texture2D, 0, 0, 0, 0, normalHeightTextureArray, ImageTarget.Texture2DArray, 0, 0, 0, id, resolution.X, resolution.Y, 1);
+                GL.BindTexture(TextureTarget.Texture2DArray, array);
+                GL.CopyImageSubData(newTexture, ImageTarget.Texture2D, 0, 0, 0, 0, array, ImageTarget.Texture2DArray, 0, 0, 0, id, resolution.X, resolution.Y, 1);
 
-            //GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
-            GL.BindTexture(TextureTarget.Texture2DArray, 0);
+                //GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
+                GL.BindTexture(TextureTarget.Texture2DArray, 0);
 
-            GL.DeleteTexture(newTexture);
+                GL.DeleteTexture(newTexture);
+
+                array = GetGrassTextureArray();
+                pixels = pixelsGrass;
+            }
+
+
 
 
             return id;
@@ -199,14 +233,18 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
 
             GL.ActiveTexture(TextureUnit.Texture6);
-            GL.BindTexture(TextureTarget.Texture2DArray, normalHeightTextureArray);
+            GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture7);
+            GL.BindTexture(TextureTarget.Texture2DArray, grassTextureArray);
 
             _terrainShader.loadUniformVector3f("viewPos", renderEngine.context.viewPos);
 
             _terrainShader.loadUniformFloat("groundID", TextureGenerator.soil);
+            _terrainShader.loadUniformFloat("grassID", TextureGenerator.grass);
             _terrainShader.loadUniformFloat("rockID", TextureGenerator.rock);
-            _terrainShader.loadUniformFloat("roadID", TextureGenerator.cobble);
+            _terrainShader.loadUniformFloat("roadID", TextureGenerator.cobble); 
             _terrainShader.loadUniformFloat("beachID", TextureGenerator.sandDunes);
+            _terrainShader.loadUniformFloat("transitionID", TextureGenerator.crackedDesert);
             //_terrainShader.loadUniformFloat("groundID", Engine.RenderEngine.textureGenerator.flat);
             //_terrainShader.loadUniformFloat("rockID", Engine.RenderEngine.textureGenerator.flat);
 
@@ -250,7 +288,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _terrainShader.loadUniformFloat("textureMapOffset", (1.0f / (CHUNK_RESOLUTION)));
 
             GL.ActiveTexture(TextureUnit.Texture6);
-            GL.BindTexture(TextureTarget.Texture2DArray, normalHeightTextureArray);
+            GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);
 
             GL.BindVertexArray(baseChunkModel.getVAOID());
             GL.EnableVertexAttribArray(0);
@@ -274,8 +312,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PerformGeometryCommand(TerrainRenderCommand command, RenderEngine renderEngine)
         {
             _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
-            _terrainShader.loadUniformFloat("parallaxDepth", 0.06f);
-            _terrainShader.loadUniformFloat("parallaxLayers", 25);
+            _terrainShader.loadUniformFloat("parallaxDepth", 0.5f);
+            _terrainShader.loadUniformFloat("parallaxLayers", 64);
 
             int numberOfChunks = command.chunks.Length;
 

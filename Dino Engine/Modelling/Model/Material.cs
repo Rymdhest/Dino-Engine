@@ -22,9 +22,9 @@ namespace Dino_Engine.Modelling.Model
         public static Material BARK_OAK = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy: 0.0f);
         public static Material BARK_BIRCH = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy: 0.0f);
 
-        public static Material FOLIAGE_GREEN = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy: 0.7f);
+        public static Material FOLIAGE_GREEN = new Material(new Colour(50, 53, 23), rougness: 0.98f, subSurfaceTransparancy: 0.8f);
         public static Material FOLIAGE_PINE = new Material(new Colour(45, 50, 20), rougness: 0.45f, subSurfaceTransparancy: 0.9f);
-        public static Material FOLIAGE_OLIVE = new Material(new Colour(86, 89, 28), rougness: 0.5f, subSurfaceTransparancy: 0.6f);
+        public static Material FOLIAGE_OLIVE = new Material(new Colour(86, 89, 28), rougness: 0.6f, subSurfaceTransparancy: 0.6f);
         public static Material FOLIAGE_AUTUMN = new Material(new Colour(190, 120, 90), rougness: 0.98f, subSurfaceTransparancy: 0.5f);
         public static Material FOLIAGE_WHITE = new Material(new Colour(255, 255, 255), rougness: 0.98f, subSurfaceTransparancy: 0.5f);
 

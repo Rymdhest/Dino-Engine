@@ -140,11 +140,11 @@ namespace Dino_Engine.ECS.Systems
             Vector3 scale = new Vector3(node.Size, 1.0f, node.Size);
             Vector2 position = node.WorldPos;
             var heightGrid = generator.generateChunk(node.WorldPos, scale.Xz, new Vector2i(TerrainRenderer.CHUNK_RESOLUTION));
-            var normalgrid = generator.generateNormalGridFor(heightGrid, scale, position);
+            var normalgrid = generator.generateNormalGridFor(heightGrid, scale, position, out var grassGrid);
 
 
             return world.CreateEntity("Terrain Chunk",
-                new TerrainChunkComponent(heightGrid, normalgrid),
+                new TerrainChunkComponent(heightGrid, normalgrid, grassGrid),
                 new PositionComponent(new Vector3(position.X, 0.0f, position.Y)),
                 new ScaleComponent(scale),
                 new LocalToWorldMatrixComponent()
