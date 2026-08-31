@@ -99,12 +99,12 @@ MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
 
 float getSampledHeight(vec2 uv, float materialIndex)
 {
-    // Uses your existing lookup abstraction
     return lookupMaterial(uv, materialIndex).a; 
 }
 
 vec2 ParallaxMapping(vec2 baseUV, vec3 viewDir, float materialIndex, float depthScale, float layers)
 {
+    
     float layerDepth = 1.0 / layers;
     float currentLayerDepth = 0.0;
 
@@ -114,17 +114,20 @@ vec2 ParallaxMapping(vec2 baseUV, vec3 viewDir, float materialIndex, float depth
     vec2 currentUV = baseUV;
     float currentMapHeight = 1.0 - getSampledHeight(currentUV, materialIndex);
 
-    while (currentLayerDepth < currentMapHeight)
+    int steps = 0;
+    while (currentLayerDepth < currentMapHeight && steps < int(layers))
     {
         currentUV -= deltaUV;
         currentMapHeight = 1.0 - getSampledHeight(currentUV, materialIndex);
         currentLayerDepth += layerDepth;
+        steps++;
     }
 
+    // Binary search refinement to eliminate coarse stepping artifacts
     vec2 prevUV = currentUV + deltaUV;
-    float afterDepth = currentMapHeight - currentLayerDepth;
-    float beforeDepth = (1.0 - getSampledHeight(prevUV, materialIndex)) - currentLayerDepth + layerDepth;
+    float nextDepth = currentMapHeight - currentLayerDepth;
+    float prevDepth = (1.0 - getSampledHeight(prevUV, materialIndex)) - currentLayerDepth + layerDepth;
 
-    float weight = afterDepth / (afterDepth - beforeDepth);
+    float weight = nextDepth / (nextDepth - prevDepth);
     return mix(currentUV, prevUV, weight);
 }

@@ -733,24 +733,36 @@ namespace Dino_Defenders
                     world.CreateEntity(position, scale, rotation, new ModelRenderTag(), new LocalToWorldMatrixComponent(), new ModelComponent(houseModel));
                 }
             }
-            Mesh houseGroundMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.pineBark));
-            //Mesh.scaleUV = true;
-            //houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
-            Mesh.scaleUV = true;
-            houseGroundMesh.scale(new Vector3(20f, 10f, 10f));
-            houseGroundMesh.rotate(new Vector3(0f, -MathF.PI/2f, 0f));
-            houseGroundMesh.scaleUVs(new Vector2(1.0f, 1.0f));
-            houseGroundMesh.ProjectUVsWorldSpaceCube(0.25f);
-            //Mesh.scaleUV = true;
 
-            world.CreateEntity(
-                new PositionComponent(new Vector3(-streetGenerator.TotalWidth / 2f - 50f, 0, -streetGenerator.TotalWidth / 2f - 50f)),
-                new RotationComponent(new Vector3(0, -MathF.PI / 2f, 0)),
-                new ScaleComponent(new Vector3(1)),
-                new ModelComponent(glLoader.loadToVAO(houseGroundMesh)),
-                new ModelRenderTag(),
-                new LocalToWorldMatrixComponent()
-            );
+            for (int i = 0; i<4; i++)
+            {
+                Mesh houseGroundMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.brick));
+                //Mesh.scaleUV = true;
+                //houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
+                Mesh.scaleUV = true;
+                houseGroundMesh.scale(new Vector3(10f, 10f, 10f));
+                houseGroundMesh.rotate(new Vector3(0f, i*MathF.PI*0.5f, 0f));
+                //houseGroundMesh.scaleUVs(new Vector2(1.0f, 1.0f));
+                //houseGroundMesh.ProjectUVsWorldSpaceCube(0.25f);
+                //Mesh.scaleUV = true;
+                for (int j = 0; j < 4; j++)
+                {
+                    float x = -streetGenerator.TotalWidth / 2f - 10f-20*j;
+                    float z = -streetGenerator.TotalWidth / 2f - 10f-20*i;
+                    world.CreateEntity(
+                        new PositionComponent(new Vector3(x, 0, z)),
+                        new RotationComponent(new Vector3(0, j*MathF.PI*0.5f, 0)),
+                        new ScaleComponent(new Vector3(1)),
+                        new ModelComponent(glLoader.loadToVAO(houseGroundMesh)),
+                        new ModelRenderTag(),
+                        new LocalToWorldMatrixComponent()
+                    );
+                }
+            }
+
+
+
+
 
             world.CreateEntity(
                 new PositionComponent(new Vector3(0)),

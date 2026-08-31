@@ -40,7 +40,6 @@ namespace Dino_Engine.Modelling.Model
             if (faces.Count == 0)
             {
                 Console.WriteLine("Warning: 0 faces in a vertex");
-                //throw new Exception("Warning: 0 faces in a vertex");
                 return;
             }
 
@@ -55,15 +54,17 @@ namespace Dino_Engine.Modelling.Model
             // Step 6: Orthogonalize and normalize the tangent vector
             tangent = Vector3.Normalize(tangent - normal * Vector3.Dot(normal, tangent));
 
-            // Step 7: Orthogonalize and normalize the bitangent vector
-            bitangent = Vector3.Cross(tangent, normal);
-            bitangent.Normalize();
-
-            // Optional Step: Ensure handedness (for DirectX or OpenGL consistency)
-            // If your coordinate system is right-handed, you can use the following:
-            if (Vector3.Dot(Vector3.Cross(normal, tangent), bitangent) < 0.0f)
+            // Step 7: Properly orthogonalize the bitangent against normal AND tangent (preserving UV orientation)
+            bitangent = bitangent - normal * Vector3.Dot(normal, bitangent);
+            bitangent = bitangent - tangent * Vector3.Dot(tangent, bitangent);
+            if (bitangent.LengthSquared > 0.00001f)
             {
-                //bitangent = -bitangent;
+                bitangent.Normalize();
+            }
+            else
+            {
+                bitangent = Vector3.Cross(tangent, normal);
+                bitangent.Normalize();
             }
         }
 

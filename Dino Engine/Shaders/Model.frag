@@ -1,6 +1,5 @@
 #version 420
 
-
 in vec3 fragColor;
 in vec2 fragUV;
 in vec3 TangentViewPos;
@@ -11,11 +10,9 @@ in float textureIndex;
 uniform int numberOfMaterials;
 uniform float parallaxDepth;
 uniform float parallaxLayers;
-
 uniform sampler2DArray albedoMapTextureArray;
 uniform sampler2DArray normalMapTextureArray;
 uniform sampler2DArray materialMapTextureArray;
-
 uniform sampler2DArray albedoMapModelTextureArray;
 uniform sampler2DArray normalMapModelTextureArray;
 uniform sampler2DArray materialMapModelTextureArray;
@@ -29,40 +26,35 @@ layout (location = 2) out vec4 gMaterials;
 #include gBufferUtil.glsl
 
 void main() {
-
-	vec3 viewDir   = normalize((TangentViewPos - TangentFragPos));
+	vec3 viewDir = normalize(TangentViewPos - TangentFragPos);
+    
     if (LookupAllMaterialProps(fragUV, textureIndex).alphaBit == 0) {
         //discard;
     }
 
 	vec2 parallaxedCoords = fragUV;
 	if (parallaxDepth > 0.001) {
-		parallaxedCoords = ParallaxMapping(fragUV,  viewDir, textureIndex, parallaxDepth, parallaxLayers);
+		parallaxedCoords = ParallaxMapping(fragUV, viewDir, textureIndex, parallaxDepth, parallaxLayers);
 	}
-	//vec2 parallaxedCoords = fragUV;
-	//if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
+
 	MaterialProps material = LookupAllMaterialProps(parallaxedCoords, textureIndex);
 	gAlbedo.rgb = material.albedo;
 	gAlbedo.rgb *= fragColor;
-
 
     if (material.alphaBit == 0) discard;
 
     gAlbedo.a = material.subSurface;
 
-    //gAlbedo.rgb = vec3(hash13(gl_PrimitiveID));
-    
-    //gAlbedo.rgb = vec3(fract(fragUV), 0f);
 	vec3 normalTangentSpace = material.normal;
     gNormal.a = material.ambient;
     if (!gl_FrontFacing) normalTangentSpace.z *= -1.0;
     normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
-    vec3 normal = normalize(normalTBN*normalTangentSpace.xyz);
+    
+    vec3 normal = normalize(normalTBN * normalTangentSpace.xyz);
 	gNormal.xyz = compressNormal(normal);
 
 	gMaterials.r = material.roughness;
 	gMaterials.g = material.emission;
 	gMaterials.b = material.metalic;
     gMaterials.a = material.height;
-
 }
