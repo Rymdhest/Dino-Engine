@@ -212,7 +212,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _terrainShader.bind();
 
-            _terrainShader.loadUniformFloat("textureTileSize", 5.0f);
+            _terrainShader.loadUniformFloat("textureTileSize", 10.0f);
 
             _terrainShader.loadUniformBool("DEBUG_VIEW", false);
             _terrainShader.loadUniformFloat("textureMapOffset", (1.0f / (CHUNK_RESOLUTION)));
@@ -241,7 +241,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShader.loadUniformFloat("groundID", TextureGenerator.soil);
             _terrainShader.loadUniformFloat("grassID", TextureGenerator.grass);
-            _terrainShader.loadUniformFloat("rockID", TextureGenerator.rock);
+            _terrainShader.loadUniformFloat("rockID", TextureGenerator.brick);
             _terrainShader.loadUniformFloat("roadID", TextureGenerator.cobble); 
             _terrainShader.loadUniformFloat("beachID", TextureGenerator.sandDunes);
             _terrainShader.loadUniformFloat("transitionID", TextureGenerator.crackedDesert);
@@ -313,7 +313,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
             _terrainShader.loadUniformFloat("parallaxDepth", 0.5f);
-            _terrainShader.loadUniformFloat("parallaxLayers", 64);
+            _terrainShader.loadUniformFloat("parallaxLayers", 24);
 
             int numberOfChunks = command.chunks.Length;
 

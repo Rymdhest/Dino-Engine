@@ -146,7 +146,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             glModel glmodel = command.model;
             int instanceCount = command.matrices.Count;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
-            _instancedModelShader.loadUniformFloat("swayAmount", glmodel.swayAmount);
+            _instancedModelShader.loadUniformFloat("swayAmount", glmodel.swayAmount*0.0f);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);

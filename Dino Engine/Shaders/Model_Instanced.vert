@@ -11,88 +11,45 @@ layout(location=6) in mat4 modelMatrix;
 
 out vec3 fragColor;
 out vec2 fragUV;
-out mat3 normalTBN;
-out vec3 worldNormal;
-out vec3 TangentViewPos;
-out vec3 TangentFragPos;
 out float textureIndex;
+
+// Stable World Space Attributes
+out vec3 fragWorldPos;
+out vec3 fragWorldNormal;
+out vec3 fragWorldTangent;
 
 uniform sampler2D bendMap;
 uniform vec2 simulationWorldSize;
 uniform vec2 simulationWorldPosition;
 uniform float swayAmount;
 
-mat4 rotXMatrix(float a) {
-	return mat4(
-	1, 0, 0, 0,
-	0, cos(a), -sin(a), 0,
-	0, sin(a), cos(a), 0,
-	0, 0, 0, 1);
-}
-mat4 rotYMatrix(float a) {
-	return mat4(
-	cos(a), 0, sin(a), 0,
-	0, 1, 0, 0,
-	-sin(a), 0, cos(a), 0,
-	0, 0, 0, 1);
-}
-mat4 rotZMatrix(float a) {
-	return mat4(
-	cos(a), -sin(a), 0, 0,
-	sin(a), cos(a), 0, 0,
-	0, 0, 1, 0,
-	0, 0, 0, 1); 
-}
+mat4 rotXMatrix(float a) { return mat4(1,0,0,0, 0,cos(a),-sin(a),0, 0,sin(a),cos(a),0, 0,0,0,1); }
+mat4 rotZMatrix(float a) { return mat4(cos(a),-sin(a),0,0, sin(a),cos(a),0,0, 0,0,1,0, 0,0,0,1); }
 
 void main() {
-	vec4 localPos = vec4(position, 1.0);
-	vec3 modelPosWorldSpace = (modelMatrix * localPos).xyz;
+	vec3 modelPosWorldSpace = (modelMatrix * vec4(position, 1.0)).xyz;
 	vec2 bendMapUVPosition = (modelPosWorldSpace.xz - simulationWorldPosition) / simulationWorldSize;
 	vec2 bendMapValue = texture(bendMap, bendMapUVPosition).yx;
 	bendMapValue.x *= -1.0;
 	bendMapValue *= (position.y * 0.001 + length(position.xz) * 0.01) * swayAmount;
-	float rotX = bendMapValue.x;
-	float rotZ = bendMapValue.y;
 	
-	mat4 localRotMatrix = rotZMatrix(0.0) * rotXMatrix(0.0) * rotYMatrix(0.0);
-	localRotMatrix = rotXMatrix(rotX) * rotZMatrix(rotZ) * localRotMatrix;
+	mat4 localRotMatrix = rotXMatrix(bendMapValue.x) * rotZMatrix(bendMapValue.y);
+	
+	// Final absolute world matrix
+	mat4 finalModelMatrix = modelMatrix * localRotMatrix;
+	vec4 worldPos = finalModelMatrix * vec4(position, 1.0);
+	
+	fragWorldPos = worldPos.xyz;
+	
+	// Normal Matrix (Transpose of Inverse of Final Model Matrix) guarantees correct scale/rotation
+	mat3 normalMatrix = transpose(inverse(mat3(finalModelMatrix)));
+	fragWorldNormal = normalMatrix * normal;
+	fragWorldTangent = normalMatrix * tangent;
 
-	vec4 deformedLocalPos = localRotMatrix * localPos;
-	vec4 worldPos = modelMatrix * deformedLocalPos;
-
-	mat4 modelView = viewMatrix * modelMatrix * localRotMatrix;
-	gl_Position =  projectionMatrix * modelView * localPos; // Note: using deformedLocalPos keeps the vertex animation correct
+	mat4 modelView = viewMatrix * finalModelMatrix;
+	gl_Position = projectionMatrix * modelView * vec4(position, 1.0);
 	
 	fragUV = uv;
 	textureIndex = materialIndex;
-	
-	// Combine entity rotation and vertex bending/sway rotations for the TBN frame
-	mat3 fullModelMatrix3 = mat3(modelMatrix * localRotMatrix);
-	vec3 T = normalize(fullModelMatrix3 * tangent);
-	vec3 N = normalize(fullModelMatrix3 * normal);
-	
-	// Gram-Schmidt orthogonalization to prevent skewing and tearing during rotation
-	T = normalize(T - dot(T, N) * N);
-	vec3 B = cross(T, N);
-    
-	worldNormal = N;
-
-	// Build World-to-Tangent space transformation matrix
-	mat3 TBN = mat3(T, B, N);
-	mat3 worldToTangent = transpose(TBN);
-
-	// Transform positions into consistent Tangent Space
-	TangentFragPos = worldToTangent * worldPos.xyz;
-	TangentViewPos = worldToTangent * viewPosWorld;
-
-	// Transform normals into View Space for your G-Buffer
-	mat4 normalModelViewMatrix = transpose(inverse(modelView));
-	mat3 viewTBN = mat3(
-		normalize(mat3(modelView) * tangent),
-		normalize(mat3(modelView) * B),
-		normalize(mat3(modelView) * normal)
-	);
-	normalTBN = viewTBN;
-
 	fragColor = color;
 }
