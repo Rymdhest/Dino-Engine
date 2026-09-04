@@ -212,7 +212,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.Blend);
             _terrainShader.bind();
 
-            _terrainShader.loadUniformFloat("textureTileSize", 10.0f);
+            _terrainShader.loadUniformFloat("textureTileSize", 4.0f);
 
             _terrainShader.loadUniformBool("DEBUG_VIEW", false);
             _terrainShader.loadUniformFloat("textureMapOffset", (1.0f / (CHUNK_RESOLUTION)));
@@ -312,7 +312,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         internal override void PerformGeometryCommand(TerrainRenderCommand command, RenderEngine renderEngine)
         {
             _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
-            _terrainShader.loadUniformFloat("parallaxDepth", 0.5f);
+            _terrainShader.loadUniformFloat("parallaxDepth", 3.0f);
             _terrainShader.loadUniformFloat("parallaxLayers", 24);
 
             int numberOfChunks = command.chunks.Length;

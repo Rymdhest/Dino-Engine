@@ -94,7 +94,6 @@ void GetCandidateMaterials(
     float wGround = groundFactor * 1.0 * terrainMask;
     ConsiderMaterial(groundID, wGround, candidateIDs, candidateWeights);
 
-    // Normalize weights so they blend smoothly without scaling artifacts
     float totalWeight = candidateWeights.x + max(0.0, candidateWeights.y) + max(0.0, candidateWeights.z);
     if (totalWeight > 0.0) {
         candidateWeights.x = max(0.0, candidateWeights.x) / totalWeight;
@@ -107,14 +106,14 @@ void GetCandidateMaterials(
     matC = candidateIDs.z; weightC = max(0.0, candidateWeights.z);
 }
 
-// Evaluate a continuous, blended height at the current ray step to prevent spikes
-float EvaluateBlendedHeightAtStep(vec2 currentUV, vec3 baseWorldPos, float steepness) {
+// Evaluates a smoothly blended height at any step coordinate to prevent artificial cliffs
+float EvaluateBlendedHeightAtStep(vec2 currentUV, vec3 baseWorldPos, float steepness, vec2 baseDX, vec2 baseDY) {
     vec2 currentWorldXZ = currentUV * textureTileSize;
     vec2 stepLocalXZ = clamp((currentWorldXZ - fragInstanceChunkPos) / fragInstanceChunkSizeXZ, 0.0, 1.0);
     vec2 sampleCoord = stepLocalXZ * (1.0 - textureMapOffset) + vec2(textureMapOffset / 2.0);
 
-    vec4 macroData1 = texture(normalHeightTextureArray, vec3(sampleCoord, fragInstanceHeightMapID));
-    vec4 macroData2 = texture(grassTextureArray, vec3(sampleCoord, fragInstanceHeightMapID));
+    vec4 macroData1 = textureGrad(normalHeightTextureArray, vec3(sampleCoord, fragInstanceHeightMapID), baseDX, baseDY);
+    vec4 macroData2 = textureGrad(grassTextureArray, vec3(sampleCoord, fragInstanceHeightMapID), baseDX, baseDY);
 
     float roadW = macroData1.z;
     float grassW = macroData2.r;
@@ -124,23 +123,22 @@ float EvaluateBlendedHeightAtStep(vec2 currentUV, vec3 baseWorldPos, float steep
     float matA, matB, matC, wA, wB, wC;
     GetCandidateMaterials(stepWorldPos, steepness, roadW, grassW, matA, matB, matC, wA, wB, wC);
 
-    float hA = lookupMaterial(currentUV, matA).a;
-    float hB = lookupMaterial(currentUV, matB).a;
-    float hC = lookupMaterial(currentUV, matC).a;
+    float hA = textureGrad(materialMapTextureArray, vec3(currentUV, matA), baseDX, baseDY).a;
+    float hB = textureGrad(materialMapTextureArray, vec3(currentUV, matB), baseDX, baseDY).a;
+    float hC = textureGrad(materialMapTextureArray, vec3(currentUV, matC), baseDX, baseDY).a;
 
-    // Continuous blended height across materials
     float blendedHeight = (hA * wA) + (hB * wB) + (hC * wC);
     return 1.0 - blendedHeight;
 }
 
-// Evaluate final crisp winning material at the resolved surface coordinate
-float EvaluateFinalWinner(vec2 finalUV, vec3 baseWorldPos, float steepness) {
+// Determines the single sharp winning material at the final resolved surface coordinate
+float EvaluateFinalWinner(vec2 finalUV, vec3 baseWorldPos, float steepness, vec2 baseDX, vec2 baseDY) {
     vec2 finalWorldXZ = finalUV * textureTileSize;
     vec2 stepLocalXZ = clamp((finalWorldXZ - fragInstanceChunkPos) / fragInstanceChunkSizeXZ, 0.0, 1.0);
     vec2 sampleCoord = stepLocalXZ * (1.0 - textureMapOffset) + vec2(textureMapOffset / 2.0);
 
-    vec4 macroData1 = texture(normalHeightTextureArray, vec3(sampleCoord, fragInstanceHeightMapID));
-    vec4 macroData2 = texture(grassTextureArray, vec3(sampleCoord, fragInstanceHeightMapID));
+    vec4 macroData1 = textureGrad(normalHeightTextureArray, vec3(sampleCoord, fragInstanceHeightMapID), baseDX, baseDY);
+    vec4 macroData2 = textureGrad(grassTextureArray, vec3(sampleCoord, fragInstanceHeightMapID), baseDX, baseDY);
 
     float roadW = macroData1.z;
     float grassW = macroData2.r;
@@ -150,9 +148,9 @@ float EvaluateFinalWinner(vec2 finalUV, vec3 baseWorldPos, float steepness) {
     float matA, matB, matC, wA, wB, wC;
     GetCandidateMaterials(stepWorldPos, steepness, roadW, grassW, matA, matB, matC, wA, wB, wC);
 
-    float hA = lookupMaterial(finalUV, matA).a;
-    float hB = lookupMaterial(finalUV, matB).a;
-    float hC = lookupMaterial(finalUV, matC).a;
+    float hA = textureGrad(materialMapTextureArray, vec3(finalUV, matA), baseDX, baseDY).a;
+    float hB = textureGrad(materialMapTextureArray, vec3(finalUV, matB), baseDX, baseDY).a;
+    float hC = textureGrad(materialMapTextureArray, vec3(finalUV, matC), baseDX, baseDY).a;
 
     float scoreA = hA * wA;
     float scoreB = hB * wB;
@@ -172,36 +170,46 @@ float EvaluateFinalWinner(vec2 finalUV, vec3 baseWorldPos, float steepness) {
     return winningMat;
 }
 
-vec2 StepByStepParallaxMapping(vec2 baseUV, vec3 viewDir, vec3 baseWorldPos, float steepness, float depthScale, float layers) {
-    float layerDepth = 1.0 / layers;
+// Parallax Occlusion Mapping using continuous blended height steps, refined with linear interpolation
+vec2 ParallaxOcclusionMapping(vec2 uv, vec3 viewDir, vec3 baseWorldPos, float steepness, float depth, float layers, vec2 baseDX, vec2 baseDY) {
+    if (viewDir.z <= 0.0) return uv;
 
-    vec2 P = (viewDir.xy / max(viewDir.z, 0.05)) * (depthScale / 5.0);
-    vec2 deltaUV = P / layers;
+    float numLayers = mix(layers * 2.0, layers, abs(viewDir.z));
+    float layerHeight = 1.0 / numLayers;
+    float scaledDepth = depth * 0.04;
+    
+    vec2 P = (viewDir.xy / viewDir.z) * scaledDepth;
+    vec2 deltaTexCoords = P / numLayers;
 
-    vec2 currentUV = baseUV;
-    float currentMapHeight = EvaluateBlendedHeightAtStep(currentUV, baseWorldPos, steepness);
-
-    // Safely bound jitter so it never exceeds the surface height (fixes peak distortion)
-    float noise = hash21(gl_FragCoord.xy);
-    float currentLayerDepth = noise * min(layerDepth, currentMapHeight);
-    currentUV -= deltaUV * (currentLayerDepth / layerDepth);
+    vec2 currentTexCoords = uv;
+    float currentLayerHeight = 0.0;
+    
+    float currentHeight = EvaluateBlendedHeightAtStep(currentTexCoords, baseWorldPos, steepness, baseDX, baseDY);
 
     int steps = 0;
-    while (currentLayerDepth < currentMapHeight && steps < int(layers)) {
-        currentUV -= deltaUV;
-        currentMapHeight = EvaluateBlendedHeightAtStep(currentUV, baseWorldPos, steepness);
-        currentLayerDepth += layerDepth;
+    int maxSteps = int(layers);
+    
+    while (currentLayerHeight < currentHeight && steps < maxSteps) {
+        currentTexCoords -= deltaTexCoords;
+        currentLayerHeight += layerHeight;
+        currentHeight = EvaluateBlendedHeightAtStep(currentTexCoords, baseWorldPos, steepness, baseDX, baseDY);
         steps++;
     }
 
-    // Refinement step for smoothness
-    vec2 prevUV = currentUV + deltaUV;
-    float nextDepth = currentMapHeight - currentLayerDepth;
-    float prevDepth = EvaluateBlendedHeightAtStep(prevUV, baseWorldPos, steepness) - currentLayerDepth + layerDepth;
+    if (steps == 0) return uv;
 
-    float weight = nextDepth / (nextDepth - prevDepth);
-    return mix(currentUV, prevUV, clamp(weight, 0.0, 1.0));
+    // Linear interpolation refinement between closest layers
+    vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
+    float prevLayerHeight = currentLayerHeight - layerHeight;
+    float prevHeight = EvaluateBlendedHeightAtStep(prevTexCoords, baseWorldPos, steepness, baseDX, baseDY) - prevLayerHeight;
+    float afterHeight = currentHeight - currentLayerHeight;
+
+    float weight = afterHeight / (afterHeight - prevHeight + 0.0001);
+    weight = clamp(weight, 0.0, 1.0);
+
+    return mix(currentTexCoords, prevTexCoords, weight);
 }
+
 void main() {
     vec3 N = normalize(fragWorldNormal);
     vec3 T = normalize(fragWorldTangent);
@@ -215,16 +223,19 @@ void main() {
 
     float steepness = dot(vec3(0.0, 1.0, 0.0), N);
 
-    // 1. Ray march using smooth continuous height blending (no spikes)
+    vec2 baseDX = dFdx(fragUV);
+    vec2 baseDY = dFdy(fragUV);
+
+    // 1. Ray march using smoothly blended heights to eliminate false cliffs and window artifacts
     vec2 winningUV = fragUV;
-    if (parallaxDepth > 0.001) {
-        winningUV = StepByStepParallaxMapping(fragUV, viewDir, fragWorldPos, steepness, parallaxDepth, parallaxLayers);
+    if (parallaxDepth > 0.0001 && viewDir.z > 0.0) {
+        winningUV = ParallaxOcclusionMapping(fragUV, viewDir, fragWorldPos, steepness, parallaxDepth, parallaxLayers, baseDX, baseDY);
     }
 
-    // 2. Determine the crisp winning material at the final resolved surface coordinate
-    float winningMat = EvaluateFinalWinner(winningUV, fragWorldPos, steepness);
+    // 2. Determine the single sharp winning material at the final resolved surface coordinate
+    float winningMat = EvaluateFinalWinner(winningUV, fragWorldPos, steepness, baseDX, baseDY);
 
-    // 3. Fetch properties for the winning material
+    // 3. Lookup final properties using the crisp winning material
     MaterialProps material = LookupAllMaterialProps(winningUV, winningMat);
 
     gAlbedo.rgb = material.albedo;
