@@ -107,7 +107,7 @@ void main() {
 	vec4 heightMapData2 = readHeightmap(heightmaps2, bladePositionChunkSpace/chunkSize ,int(heightMapIndex));
 	float grassWeight = heightMapData2.r;
 
-	vec3 bladePositionWorld = vec3(chunkOrigin.x, 0, chunkOrigin.y)+vec3(bladePositionChunkSpace.x, 0, bladePositionChunkSpace.y)+vec3(0, heightMapData.w, 0);
+	vec3 bladePositionWorld = vec3(chunkOrigin.x, 0.0, chunkOrigin.y)+vec3(bladePositionChunkSpace.x, 0, bladePositionChunkSpace.y)+vec3(0, heightMapData.w, 0);
 	float roadWeight = heightMapData.z;
 	roadWeight = min (roadWeight*2.0, 1.0);
 	float nx = heightMapData.x;
@@ -130,7 +130,6 @@ void main() {
 		if (bladeRandomValue < survivalChance) {
 			valid = 0.0;
 		}
-		if (bladePositionWorld.y < 5.0) valid = 0.0;
 	//}
 
 	VertexPositionLocal.y *= heightFactor;

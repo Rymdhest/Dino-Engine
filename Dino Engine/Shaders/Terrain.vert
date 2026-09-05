@@ -39,7 +39,9 @@ void main() {
     vec4 textureData = texture(normalHeightTextureArray, vec3(position.xz*(1.0-textureMapOffset)+vec2(textureMapOffset/2.0), instanceHeightMapID));
     float height = textureData.a;
     
-    worldPos.y += height * instanceChunkSize.y;
+    // Center displacement around 0.5: grooves sink below base, peaks rise above base.
+    // This allows trees/grass placed at the base position to sit naturally embedded.
+    worldPos.y += (height + 0.15) * instanceChunkSize.y;
 
     fragWorldPos = worldPos;
     fragWorldNormal = normalize(vec3(textureData.x, sqrt(max(0.0, 1.0 - (textureData.x * textureData.x + textureData.y * textureData.y))), textureData.y));

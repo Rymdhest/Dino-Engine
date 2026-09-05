@@ -55,8 +55,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelShader.loadUniformVector2f("simulationWorldSize", renderEngine._grassRenderer.simulationWorldSize);
             _instancedModelShader.loadUniformVector2f("simulationWorldPosition", renderEngine._grassRenderer.simulationWorldPosition);
 
-            _instancedModelShader.loadUniformFloat("parallaxDepth", 0.5f);
-            _instancedModelShader.loadUniformFloat("parallaxLayers", 40f);
+            _instancedModelShader.loadUniformFloat("parallaxDepth", 0.0f);
+            _instancedModelShader.loadUniformFloat("parallaxLayers", 5f);
 
             _instancedModelShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
@@ -146,7 +146,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             glModel glmodel = command.model;
             int instanceCount = command.matrices.Count;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
-            _instancedModelShader.loadUniformFloat("swayAmount", glmodel.swayAmount*0.0f);
+            _instancedModelShader.loadUniformFloat("swayAmount", glmodel.swayAmount);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);

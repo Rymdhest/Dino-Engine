@@ -241,7 +241,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShader.loadUniformFloat("groundID", TextureGenerator.soil);
             _terrainShader.loadUniformFloat("grassID", TextureGenerator.grass);
-            _terrainShader.loadUniformFloat("rockID", TextureGenerator.brick);
+            _terrainShader.loadUniformFloat("rockID", TextureGenerator.rock);
             _terrainShader.loadUniformFloat("roadID", TextureGenerator.cobble); 
             _terrainShader.loadUniformFloat("beachID", TextureGenerator.sandDunes);
             _terrainShader.loadUniformFloat("transitionID", TextureGenerator.crackedDesert);
@@ -259,7 +259,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(5);
 
             Matrix4 projectionViewMatrix = renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix;
-            _terrainShader.loadUniformMatrix4f("invViewMatrix", renderEngine.context.invViewMatrix);
+            //_terrainShader.loadUniformMatrix4f("invViewMatrix", renderEngine.context.invViewMatrix);
             _terrainShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);
         }
 

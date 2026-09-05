@@ -1,4 +1,6 @@
-#version 330 core
+#version 420 core
+
+#include Globals.glsl
 
 in vec2 fragUV;
 in vec2 fragInstanceChunkPos;
@@ -10,7 +12,6 @@ in vec3 fragWorldTangent;
 in vec3 COLOR_TEST;
 
 uniform vec3 viewPos;
-uniform mat4 invViewMatrix;
 uniform int numberOfMaterials;
 uniform float parallaxDepth;
 uniform float parallaxLayers;
@@ -235,7 +236,19 @@ void main() {
     // 2. Determine the single sharp winning material at the final resolved surface coordinate
     float winningMat = EvaluateFinalWinner(winningUV, fragWorldPos, steepness, baseDX, baseDY);
 
-    // 3. Lookup final properties using the crisp winning material
+    // 3. Write displaced depth to gl_FragDepth so trees/grass don't float
+    if (parallaxDepth > 0.0001 && viewDir.z > 0.0) {
+        vec2 uvDelta = winningUV - fragUV;
+        vec3 displacedWorldPos = fragWorldPos + (T * (uvDelta.x * textureTileSize)) + (B * (uvDelta.y * textureTileSize));
+        
+        float finalHeightVal = textureGrad(materialMapTextureArray, vec3(winningUV, winningMat), baseDX, baseDY).a;
+        displacedWorldPos -= N * ((1.0 - finalHeightVal) * (parallaxDepth * 0.04));
+
+        vec4 clipPos = projectionMatrix * viewMatrix * vec4(displacedWorldPos, 1.0);
+        gl_FragDepth = (clipPos.z / clipPos.w) * 0.5 + 0.5;
+    }
+
+    // 4. Lookup final properties using the crisp winning material
     MaterialProps material = LookupAllMaterialProps(winningUV, winningMat);
 
     gAlbedo.rgb = material.albedo;
