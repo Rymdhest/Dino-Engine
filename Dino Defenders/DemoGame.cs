@@ -234,7 +234,7 @@ namespace Dino_Defenders
                 new DirectionNormalizedComponent(new Vector3(-1.10f, -3.5f, -2.9f)),
                 new ColorComponent(new Colour(1.0f, 0.9f, 0.8f, 15f)),
                 new AmbientLightComponent(0.05f),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 2, 3, 1750),
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 2, 3, 1000),
                 new CelestialBodyComponent()
             ) ;
             

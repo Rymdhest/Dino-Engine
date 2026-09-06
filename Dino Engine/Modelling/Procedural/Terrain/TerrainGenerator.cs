@@ -1,8 +1,13 @@
-﻿using Dino_Engine.Util;
+﻿using Dino_Engine.Core;
+using Dino_Engine.ECS.Components;
+using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Physics;
+using Dino_Engine.Util;
 using Dino_Engine.Util.Data_Structures.Grids;
 using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
+using System.Security.Principal;
 using Util.Noise;
 
 namespace Dino_Engine.Modelling.Procedural.Terrain
@@ -163,12 +168,22 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
 
             return grid;
         }
-
         public Vector3Grid generateNormalGridFor(FloatGrid heightMap, Vector3 size, Vector2 worldOrigin, out FloatGrid grassGrid)
         {
             Vector2 chunkSizeWorld = new Vector2(size.X, size.Z);
             float padding = RoadWidth + RoadShoulder;
             List<RoadSegment2D> candidates = GetCandidateSegmentsForChunk(worldOrigin, worldOrigin + chunkSizeWorld, padding);
+
+            // 1. Query the spatial grid using an XZ column spanning all Y heights
+            AABB chunkColumnBounds = new AABB(
+                new Vector3(worldOrigin.X, -10000f, worldOrigin.Y),
+                new Vector3(worldOrigin.X + chunkSizeWorld.X, 10000f, worldOrigin.Y + chunkSizeWorld.Y)
+            );
+            ECSWorld world = Engine.Instance.world;
+            Entity gridEntity = world.GetSingleton<RenderSpatialGridSingleton>();
+            SpatialGrid spatialGrid = world.GetComponent<RenderSpatialGridSingleton>(gridEntity).Grid;
+            List<Entity> nearbyEntities = new List<Entity>();
+            spatialGrid.QueryAABB(chunkColumnBounds, nearbyEntities);
 
             size.X /= (heightMap.Resolution.X - 1);
             size.Z /= (heightMap.Resolution.Y - 1);
@@ -214,13 +229,36 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     Vector3 normal = Vector3.Normalize(Vector3.Cross(tangentZ, tangentX));
 
                     float roadWeight = getRoadMaskAt(worldPos, candidates);
-
                     normalGrid.Values[x, z] = new Vector3(normal.X, normal.Z, roadWeight);
 
+                    // Base grass calculation
                     float flatness = Vector3.Dot(normal, new Vector3(0f, 1f, 0f));
-                    float smallPatch =  0.5f + 0.5f * MathF.Pow(grassNoise.FBM01(worldX, worldZ, 0.55f, 3), 1.0f);
-                    float bigPatch =    0.3f + 0.7f * MathF.Pow(grassNoise.FBM01(worldX, worldZ, 0.2f, 3), 1.0f);
-                    grassGrid.Values[x, z] = flatness* smallPatch * bigPatch;
+                    float smallPatch = 0.5f + 0.5f * MathF.Pow(grassNoise.FBM01(worldX, worldZ, 0.55f, 3), 1.0f);
+                    float bigPatch = 0.3f + 0.7f * MathF.Pow(grassNoise.FBM01(worldX, worldZ, 0.2f, 3), 1.0f);
+                    float finalGrass = flatness * smallPatch * bigPatch;
+
+                    /*
+                    // 2. Carve out grass where model entities overlap on the XZ plane
+                    for (int i = 0; i < nearbyEntities.Count; i++)
+                    {
+                        Entity entity = nearbyEntities[i];
+
+                        // Assuming your entities have a Transform component and a bounding radius or AABB component.
+                        // Example check using entity world bounds or a radius from its center:
+                        // AABB entityBounds = entity.GetComponent<TransformComponent>().WorldBounds;
+                        // if (entityBounds.Contains(new Vector3(worldX, height, worldZ))) { finalGrass = 0f; break; }
+
+                        //Alternatively, using a simple 2D distance check from entity center for circular clearance:
+                        Vector2 entityPos = world.GetComponent<LocalToWorldMatrixComponent>(entity).value.ExtractTranslation().Xz;
+                        float radius = 0.3f;
+                        if (Vector2.DistanceSquared(worldPos, entityPos) < radius * radius)
+                        {
+                            finalGrass = 0f;
+                            break;
+                        }
+                    }
+                    */
+                    grassGrid.Values[x, z] = finalGrass;
                 }
             }
 

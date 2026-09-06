@@ -144,7 +144,7 @@ namespace Dino_Engine.ECS.Systems
 
 
             return world.CreateEntity("Terrain Chunk",
-                new TerrainChunkComponent(heightGrid, normalgrid, grassGrid),
+                new TerrainChunkComponent(heightGrid, normalgrid, grassGrid, position, scale.Xz),
                 new PositionComponent(new Vector3(position.X, 0.0f, position.Y)),
                 new ScaleComponent(scale),
                 new LocalToWorldMatrixComponent()

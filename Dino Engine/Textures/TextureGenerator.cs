@@ -993,7 +993,8 @@ namespace Dino_Engine.Textures
             rockLayer.scaleHeight(0.8f);
             MaterialLayer hilly = procTextGen.PerlinFBM(new Vector2(16f, 16f), octaves: 3, amplitudePerOctave: 0.5f, rigged: true);
             MaterialLayersCombiner.combine(grassLayer, hilly, FilterMode.Everywhere, Operation.Nothing, Operation.Mix, weight: 0.5f);
-
+            grassLayer.scaleHeight(0.4f);
+            grassLayer.addHeight(0.6f);
             return FinishTexture(grassLayer, normalFlatness: 100);
         }
         private int createGrassySoilTexture()

@@ -59,7 +59,7 @@ namespace Dino_Engine.ECS.Systems
                 grassCommand.chunkPos = chunkPosition.Xz;
                 grassCommand.size = chunkSize.X;
                 grassCommand.arrayID = arrayID;
-                if (distance < 10)
+                if (distance < 40)
                 {
                     grassChunksLOD0.Add(grassCommand);
                 }

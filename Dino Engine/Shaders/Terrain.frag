@@ -80,7 +80,7 @@ void GetCandidateMaterials(
     float wRock = (slopeFactor) * 10.0 * terrainMask;
     ConsiderMaterial(rockID, wRock, candidateIDs, candidateWeights);
 
-    float wGrass = grassW * 4.0 * terrainMask;
+    float wGrass = grassW * 6.0 * terrainMask;
     ConsiderMaterial(grassID, wGrass, candidateIDs, candidateWeights);
     
     float beachFactor = 1.0 - smoothstep(3.0, 5.0, altitude);

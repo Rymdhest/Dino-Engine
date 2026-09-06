@@ -1,7 +1,10 @@
 ﻿using Dino_Engine.Core;
+using Dino_Engine.ECS.Components;
+using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
@@ -38,12 +41,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     {
         private ShaderProgram _terrainShader = new ShaderProgram("Terrain.vert", "Terrain.frag");
         private ShaderProgram _terrainShadowShader = new ShaderProgram("Terrain_Shadow.vert", "Terrain_Shadow.frag");
+        private ShaderProgram _grassCarveShader = new ShaderProgram("GrassCarve.vert", "GrassCarve.frag");
+
         private glModel baseChunkModel;
         private int normalRoadHeightTextureArray;
         private int grassTextureArray;
         private IDAllocator<ushort> normalHeightTextureArrayAllocator = new();
         private readonly int MAX_TERRAIN_CHUNKS = 1024*2;
         public static readonly int CHUNK_RESOLUTION = 16;
+        private int carveFBO;
 
         private int instanceVBO;
 
@@ -126,6 +132,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
             GL.BindTexture(TextureTarget.Texture2DArray, 0);
 
+
+            carveFBO = GL.GenFramebuffer();
         }
 
         public int GetNormalRoadHeightTextureArray()
@@ -142,13 +150,16 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             normalHeightTextureArrayAllocator.Release((ushort)chunk);
         }
 
-        public int insertDataToTextureArray(FloatGrid heightGrid, Vector3Grid normalGrid, FloatGrid grassGrid)
+        public int insertDataAndCarveChunk(FloatGrid heightGrid, Vector3Grid normalGrid, FloatGrid grassGrid, Vector2 chunkPos, Vector2 chunkSize, SpatialGrid spatialGrid)
         {
-            int dimensions = 4;
             int id = (int)normalHeightTextureArrayAllocator.Allocate();
             var resolution = heightGrid.Resolution;
+            int dimensions = 4;
+
+            // 1. Upload initial CPU grass and normal/height data into texture arrays (your existing logic)
             var pixelsNormalRoadHeight = new float[dimensions * resolution.X * resolution.Y];
             var pixelsGrass = new float[dimensions * resolution.X * resolution.Y];
+
             for (int y = 0; y < resolution.Y; y++)
             {
                 for (int x = 0; x < resolution.X; x++)
@@ -160,41 +171,103 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                     pixelsNormalRoadHeight[i * dimensions + 3] = heightGrid.Values[x, y];
 
                     pixelsGrass[i * dimensions + 0] = grassGrid.Values[x, y];
-                    pixelsGrass[i * dimensions + 1] = grassGrid.Values[x, y];
-                    pixelsGrass[i * dimensions + 2] = grassGrid.Values[x, y];
-                    pixelsGrass[i * dimensions + 3] = grassGrid.Values[x, y];
+                    pixelsGrass[i * dimensions + 1] = 0f;
+                    pixelsGrass[i * dimensions + 2] = 0f;
+                    pixelsGrass[i * dimensions + 3] = 0f;
                 }
             }
-            int array = GetNormalRoadHeightTextureArray();
-            var pixels = pixelsNormalRoadHeight;
-            for (int i = 0; i<2; i++)
-            {
-                int newTexture = GL.GenTexture();
-                GL.BindTexture(TextureTarget.Texture2D, newTexture);
-                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, resolution.X, resolution.Y, 0, PixelFormat.Rgba, PixelType.Float, pixels);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-                GL.BindTexture(TextureTarget.Texture2D, 0);
 
+            // Upload to normalRoadHeightTextureArray slice [id]
+            UploadSliceData(normalRoadHeightTextureArray, pixelsNormalRoadHeight, resolution, id);
+            // Upload to grassTextureArray slice [id]
+            UploadSliceData(grassTextureArray, pixelsGrass, resolution, id);
 
-                GL.BindTexture(TextureTarget.Texture2DArray, array);
-                GL.CopyImageSubData(newTexture, ImageTarget.Texture2D, 0, 0, 0, 0, array, ImageTarget.Texture2DArray, 0, 0, 0, id, resolution.X, resolution.Y, 1);
-
-                //GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
-                GL.BindTexture(TextureTarget.Texture2DArray, 0);
-
-                GL.DeleteTexture(newTexture);
-
-                array = GetGrassTextureArray();
-                pixels = pixelsGrass;
-            }
-
-
-
+            // 2. GPU Carving Pass: Render overlapping models top-down into the grass texture slice
+            CarveGrassOnGPU(chunkPos, chunkSize, id, spatialGrid, resolution);
 
             return id;
+        }
+
+        private void UploadSliceData(int textureArray, float[] pixels, Vector2i resolution, int id)
+        {
+            int tempTex = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, tempTex);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, resolution.X, resolution.Y, 0, PixelFormat.Rgba, PixelType.Float, pixels);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+
+            GL.BindTexture(TextureTarget.Texture2DArray, textureArray);
+            GL.CopyImageSubData(tempTex, ImageTarget.Texture2D, 0, 0, 0, 0, textureArray, ImageTarget.Texture2DArray, 0, 0, 0, id, resolution.X, resolution.Y, 1);
+            GL.BindTexture(TextureTarget.Texture2DArray, 0);
+            GL.DeleteTexture(tempTex);
+        }
+
+        private void CarveGrassOnGPU(Vector2 chunkPos, Vector2 chunkSize, int arrayID, SpatialGrid spatialGrid, Vector2i resolution)
+        {
+            // Query spatial grid for entities in this chunk column
+            AABB chunkColumnBounds = new AABB(
+                new Vector3(chunkPos.X, -10000f, chunkPos.Y),
+                new Vector3(chunkPos.X + chunkSize.X, 10000f, chunkPos.Y + chunkSize.Y)
+            );
+
+            List<Entity> nearbyEntities = new List<Entity>();
+            spatialGrid.QueryAABB(chunkColumnBounds, nearbyEntities);
+
+            if (nearbyEntities.Count == 0) return; // Nothing to carve
+            System.Diagnostics.Debug.WriteLine($"Chunk at {chunkPos} found {nearbyEntities.Count} entities to carve.");
+
+            // Bind FBO and attach the specific grass texture array slice
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, carveFBO);
+            GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, grassTextureArray, 0, arrayID);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+
+            GL.Viewport(0, 0, resolution.X, resolution.Y);
+            GL.ColorMask(true, false, false, false);
+            GL.Disable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.CullFace);
+            GL.Disable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.Zero, BlendingFactor.SrcColor); // Or overwrite directly
+
+            _grassCarveShader.bind();
+            _grassCarveShader.loadUniformInt("normalHeightTextureArray", 0);
+            _grassCarveShader.loadUniformFloat("chunkArrayID", arrayID);
+            _grassCarveShader.loadUniformVector2f("chunkWorldPos", chunkPos);
+            _grassCarveShader.loadUniformVector2f("chunkSize", chunkSize);
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);
+
+            // Orthographic projection looking straight down (-Y axis) over the chunk
+            Matrix4 orthoProj = Matrix4.CreateOrthographicOffCenter(
+                chunkPos.X,
+                chunkPos.X + chunkSize.X,
+                chunkPos.Y,              // <-- Swap: put top coordinate here
+                chunkPos.Y + chunkSize.Y, // <-- Swap: put bottom coordinate here
+                -1000f, 1000f
+            );
+            _grassCarveShader.loadUniformMatrix4f("orthoProjectionView", orthoProj);
+
+            // Draw each overlapping model's mesh
+            ECSWorld world = Engine.Instance.world;
+
+            foreach (var entity in nearbyEntities)
+            {
+                // Assuming your entities have a Model component and a Transform/Matrix component
+                var model = world.GetComponent<ModelComponent>(entity);
+                GL.EnableVertexAttribArray(0);
+                GL.EnableVertexAttribArray(1);
+                GL.EnableVertexAttribArray(2);
+                var matrix = world.GetComponent<LocalToWorldMatrixComponent>(entity).value;
+                GL.BindVertexArray(model.model.getVAOID());
+                _grassCarveShader.loadUniformMatrix4f("modelMatrix", matrix);
+                GL.DrawElements(PrimitiveType.Triangles, model.model.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+            }
+                
+            GL.Disable(EnableCap.Blend);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            GL.ColorMask(true, true, true, true);
         }
 
 
