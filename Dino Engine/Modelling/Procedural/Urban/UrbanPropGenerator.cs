@@ -131,7 +131,7 @@ namespace Dino_Engine.Modelling.Procedural.Urban
 
                 fence += stackPole.translated(new Vector3(0f , t* (fenceHeight-poleRadius*2f)+poleRadius, 0f));
             }
-
+            fence.rotate(new Vector3(0f, -MathF.PI/2f, 0f));
             return fence;
         }
     }

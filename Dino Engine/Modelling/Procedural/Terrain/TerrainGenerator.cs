@@ -236,28 +236,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     float smallPatch = 0.5f + 0.5f * MathF.Pow(grassNoise.FBM01(worldX, worldZ, 0.55f, 3), 1.0f);
                     float bigPatch = 0.3f + 0.7f * MathF.Pow(grassNoise.FBM01(worldX, worldZ, 0.2f, 3), 1.0f);
                     float finalGrass = flatness * smallPatch * bigPatch;
-
-                    /*
-                    // 2. Carve out grass where model entities overlap on the XZ plane
-                    for (int i = 0; i < nearbyEntities.Count; i++)
-                    {
-                        Entity entity = nearbyEntities[i];
-
-                        // Assuming your entities have a Transform component and a bounding radius or AABB component.
-                        // Example check using entity world bounds or a radius from its center:
-                        // AABB entityBounds = entity.GetComponent<TransformComponent>().WorldBounds;
-                        // if (entityBounds.Contains(new Vector3(worldX, height, worldZ))) { finalGrass = 0f; break; }
-
-                        //Alternatively, using a simple 2D distance check from entity center for circular clearance:
-                        Vector2 entityPos = world.GetComponent<LocalToWorldMatrixComponent>(entity).value.ExtractTranslation().Xz;
-                        float radius = 0.3f;
-                        if (Vector2.DistanceSquared(worldPos, entityPos) < radius * radius)
-                        {
-                            finalGrass = 0f;
-                            break;
-                        }
-                    }
-                    */
+                    if (heightMap.Values[x, z] < 6.0f) finalGrass = 0.0f;
                     grassGrid.Values[x, z] = finalGrass;
                 }
             }
@@ -472,7 +451,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             if (position.X < smoothEdgeRange) y *= MyMath.lerp(0, 1, position.X / smoothEdgeRange);
             if (position.Y < smoothEdgeRange) y *= MyMath.lerp(0, 1, position.Y / smoothEdgeRange);
 
-            if (position.X < 500 & position.Y < 500) y = 0.0f;
+            //if (position.X < 500 & position.Y < 500) y = 0.0f;
 
             return y;
         }

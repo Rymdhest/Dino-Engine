@@ -228,8 +228,8 @@ namespace Dino_Defenders
                 new ModelRenderTag(),
                 new LocalToWorldMatrixComponent()
             );
-            
-            world.CreateEntity("Sun",
+
+            world.sun = world.CreateEntity("Sun",
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(new Vector3(-1.10f, -3.5f, -2.9f)),
                 new ColorComponent(new Colour(1.0f, 0.9f, 0.8f, 15f)),
@@ -273,18 +273,30 @@ namespace Dino_Defenders
             glModel testModel = glLoader.loadToVAO(UrbanPropGenerator.GenerateFencePiece());
             Engine.RenderEngine.textureGenerator.AddImposterToModel(testModel, 100);
             float fenceScale = 5f;
-            float rotY = 0f;
-            Vector3 fencePos = new Vector3(10, 0, -5);
+
+            Vector3 posCurrent = new Vector3(30, 0f, 30f);
+            Vector3 posNext = new Vector3(0f);
             for (int i = 0;i<100; i++)
             {
+                posNext.Xz = posCurrent.Xz + MyMath.rng2D(0.3f).Normalized()*fenceScale;
+                float rotY = -MyMath.AngleBetween(posCurrent.Xz, posNext.Xz);
+                posCurrent.Y = terrainGenerator.getHeightAt(posCurrent.Xz);
+                posNext.Y = terrainGenerator.getHeightAt(posNext.Xz);
+                float heightDifference = posNext.Y - posCurrent.Y;
+                float tilt = MathF.Sin(heightDifference / fenceScale);
+
+
+                float scaleLength = MathF.Sqrt(heightDifference* heightDifference+fenceScale*fenceScale);
                 world.CreateEntity("test",
-                    new PositionComponent(fencePos),
-                    new RotationComponent(new Vector3(0f, rotY, 0f)),
-                    new ScaleComponent(new Vector3(fenceScale)),
+                    new PositionComponent(posCurrent),
+                    new RotationComponent(new Vector3(0f, rotY, tilt)),
+                    new ScaleComponent(new Vector3(new Vector3(scaleLength, fenceScale, fenceScale))),
                     new ModelComponent(testModel),
                     new ModelRenderTag(),
                     new LocalToWorldMatrixComponent()
                 );
+
+                posCurrent = posNext;
             }
 
 

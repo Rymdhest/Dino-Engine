@@ -18,6 +18,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
         private Dictionary<Type, Entity> SingletonToEntity = new();
 
         public Entity Camera;
+        public Entity sun;
 
 
         public HashSet<Entity> DirtyEntities { get; } = new();

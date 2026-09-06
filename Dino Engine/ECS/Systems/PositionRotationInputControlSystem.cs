@@ -73,6 +73,19 @@ namespace Dino_Engine.ECS.Systems
                 movement = Vector3.Transform(movement, currentFinalRotation) * moveSpeed * deltaTime;
             }
 
+            if (windowhandler.IsKeyDown(Keys.KeyPadAdd))
+            {
+                DirectionNormalizedComponent dir = world.GetComponent<DirectionNormalizedComponent>(world.sun);
+                dir.value = dir.value + new Vector3(0.0f, -0.02f, 0.0f);
+                world.GetEntityView(world.sun).Set(dir); 
+            }
+            if (windowhandler.IsKeyDown(Keys.KeyPadSubtract))
+            {
+                DirectionNormalizedComponent dir = world.GetComponent<DirectionNormalizedComponent>(world.sun);
+                dir.value = dir.value + new Vector3(0.0f, 0.02f, 0.0f);
+                world.GetEntityView(world.sun).Set(dir);
+            }
+
             if (windowhandler.IsKeyDown(Keys.Q)) movement.Y -= moveSpeed*deltaTime;   // strafe left
             if (windowhandler.IsKeyDown(Keys.E)) movement.Y += moveSpeed*deltaTime;   // strafe right
             if (movement != Vector3.Zero)
