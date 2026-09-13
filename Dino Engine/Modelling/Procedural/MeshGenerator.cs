@@ -18,14 +18,14 @@ namespace Dino_Engine.Modelling
             mesh.translate(new Vector3(0, -1.0f, 0f));
             return mesh;
         }
-        public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, VertexMaterial material, float sealTop = float.NaN)
+        public static Mesh generateCylinder(List<Vector2> rings2, int polygonsPerRing, VertexMaterial material, float sealTop = float.NaN, float sealBot = float.NaN)
         {
             List<Vector3> rings = new List<Vector3>();
             for (int i = 0; i < rings2.Count; i++)
             {
                 rings.Add(new Vector3(rings2[i].X, rings2[i].Y, rings2[i].X));
             }
-            return generateCylinder(rings, polygonsPerRing, material, sealTop);
+            return generateCylinder(rings, polygonsPerRing, material, sealTop, sealBot);
         }
 
         public static Mesh generateCurvedTube(Curve3D curve, int polygonsPerRing, VertexMaterial material, float sealTop = float.NaN, int textureRepeats = 1, bool flatStart = true)

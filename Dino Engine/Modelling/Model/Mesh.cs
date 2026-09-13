@@ -126,7 +126,7 @@ namespace Dino_Engine.Modelling.Model
             }
             //calculateAllNormals();
         }
-        public void makeFlat(bool flatNormal, bool flatMaterial, bool flatUV = false)
+        public void makeFlat(bool flatNormal = true, bool flatMaterial= false, bool flatUV = false)
         {
             meshVertices.Clear();
             int i = 0;

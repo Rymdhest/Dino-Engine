@@ -30,6 +30,9 @@ namespace Dino_Engine.Modelling.Model
 
         public static Material GLOW_WHITE = new Material(new Colour(255, 255, 255), emission: 1.0f);
 
+        public static Material BONE = new Material(new Colour(125, 125, 125), rougness: 0.95f, subSurfaceTransparancy: 0.15f);
+        public static Material IRON = new Material(new Colour(165, 165, 165), rougness: 0.4f, subSurfaceTransparancy: 0.0f, metalic:0.4f);
+
         public Colour Colour;
         public float roughness;
         public float emission;

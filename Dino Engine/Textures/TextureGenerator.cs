@@ -69,13 +69,14 @@ namespace Dino_Engine.Textures
         public static int BirchBark;
         public static int oakBark;
         public static int brick;
+        public static int bone;
         public static int leather;
         public static int cobble;
         public static int crackedDesert;
         public static int crackedLava; 
         public static int snow;
         public static int ice;
-        public static int metal;
+        public static int iron;
         public static int gold;
         public static int copper;
         public static int crystal;
@@ -170,6 +171,7 @@ namespace Dino_Engine.Textures
             crackedLava = createCrackedLAva();
             crackedDesert = createCrackedDesert();
             rock = createRock();
+            bone = createBoneTexture();
             mirror = createMirrorTexture();
             grassy_soil = createGrassySoilTexture();
             soil = createSoilTexture();
@@ -177,6 +179,7 @@ namespace Dino_Engine.Textures
             ice = createIceTexture();
             BirchBark = createBirchBark();
             oakBark = createOakBark();
+            iron = createIron();
 
             addAllPreparedTexturesToTexArray(arrayType.material);
            
@@ -764,7 +767,14 @@ namespace Dino_Engine.Textures
 
             return FinishTexture(voronoiCracks, normalFlatness: 40);
         }
-
+        private int createBoneTexture()
+        {
+            MaterialLayer roughLayer = procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 8, amplitudePerOctave: 0.8f);
+            roughLayer.setMaterial(Material.BONE);
+            roughLayer.scaleHeight(0.2f);
+            roughLayer.addHeight(0.8f);
+            return FinishTexture(roughLayer);
+        }
         private int createRock()
         {
             var levelsBig = procTextGen.Voronoi(new Vector2(128f, 128f), jitter: 1.0f, returnMode:ReturnMode.ID);
@@ -886,7 +896,7 @@ namespace Dino_Engine.Textures
             var barkCracks = procTextGen.VoronoiCracks(new Vector2(16f, 8f), width: 0.055f, smoothness: 0.1f, jitter: 0.6f);
             var wavy = procTextGen.PerlinFBM(new Vector2(2, 16), octaves: 3, amplitudePerOctave: 0.6f, rigged: true);
             bark.setMaterial(Material.BARK_PINE);
-            noise.setMaterial(new Material(new Colour(75, 75, 75), 0.55f, 0f, 0f));
+            noise.setMaterial(new Material(new Colour(21, 17, 17), 0.55f, 0f, 0f));
             barkCracks.setMaterial(new Material(new Colour(25, 25, 25), 0.95f, 0f, 0f));
             wavy.setMaterial(Material.FOLIAGE_OLIVE);
 
@@ -901,17 +911,25 @@ namespace Dino_Engine.Textures
             bark.scaleHeight(4.0f);
             return FinishTexture(bark, normalFlatness: 20.0f);
         }
+        private int createIron()
+        {
+            var metal = procTextGen.PerlinFBM(new Vector2(30f, 5f), octaves: 5, amplitudePerOctave: 0.6f);
+            metal.setMaterial(Material.IRON);
 
+            metal.scaleHeight(0.3f);
+            metal.addHeight(0.7f);
+            return FinishTexture(metal, normalFlatness: 50.0f);
+        }
         private int createOakBark()
         {
             var bark = procTextGen.PerlinFBM(new Vector2(30f, 5f), octaves: 10, amplitudePerOctave: 0.6f);
             var noise = procTextGen.PerlinFBM(new Vector2(8f, 4f), octaves: 10, amplitudePerOctave: 0.5f);
-            var barkCracks = procTextGen.VoronoiCracks(new Vector2(16f, 8f), width: 0.055f, smoothness: 0.1f, jitter: 0.6f);
+            var barkCracks = procTextGen.VoronoiCracks(new Vector2(16f, 8f), width: 0.035f, smoothness: 0.1f, jitter: 0.6f);
             var wavy = procTextGen.PerlinFBM(new Vector2(2, 16), octaves: 3, amplitudePerOctave: 0.6f, rigged: true);
             bark.setMaterial(new Material(new Colour(80, 60, 35), 0.95f, 0.0f, 0f));
-            noise.setMaterial(new Material(new Colour(90, 60, 20), 0.55f, 0f, 0f));
-            barkCracks.setMaterial(new Material(new Colour(120, 135, 85), 0.95f, 0f, 0f));
-            wavy.setMaterial(new Material(new Colour(90, 40, 22), 0.35f, 0f, 0f));
+            noise.setMaterial(new Material(new Colour(9, 6, 2), 0.55f, 0f, 0f));
+            barkCracks.setMaterial(new Material(new Colour(12, 13, 8), 0.95f, 0f, 0f));
+            wavy.setMaterial(new Material(new Colour(9, 4, 5), 0.35f, 0f, 0f));
 
             MaterialLayersCombiner.combine(barkCracks, noise.scaleHeight(0.9f), FilterMode.Greater, heightOperation: Operation.Override, materialOperation: Operation.Override, weight: -0.1f, smoothness: 0.1f);
 

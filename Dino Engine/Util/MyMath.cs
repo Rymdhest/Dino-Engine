@@ -164,6 +164,10 @@ namespace Dino_Engine.Util
         {
             return clamp(number, 0.0f, 1.0f);
         }
+        public static Vector2 clamp01(Vector2 number)
+        {
+            return new Vector2(clamp01(number.X), clamp01(number.Y));
+        }
         public static float lerp(float left, float right, float amount)
         {
             return (1.0f - amount) * left + amount * right;

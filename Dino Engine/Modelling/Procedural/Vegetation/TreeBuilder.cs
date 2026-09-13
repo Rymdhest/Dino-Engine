@@ -105,9 +105,15 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
             public Colour? baseColor = null;
         }
 
-        public Mesh BuildStem(StemBuildSettings settings)
+        public Mesh BuildStem(StemBuildSettings settings, Curve3D curve = null)
         {
-            curve3D = BuildCurve(settings.stemBendRadiusStart, settings.stemBendRadiusEnd, settings.height, settings.sinkAmount, settings.detailsHeight);
+            if (curve == null)
+            {
+                curve3D = BuildCurve(settings.stemBendRadiusStart, settings.stemBendRadiusEnd, settings.height, settings.sinkAmount, settings.detailsHeight);
+            } else
+            {
+                curve3D = curve;
+            }
             curve3D.LERPWidth(settings.radiusBase, settings.radiusTop);
             Mesh poleMesh = MeshGenerator.generateCurvedTube(curve3D, settings.detailPerRing, trunkMaterial, textureRepeats: settings.textureRepeats, flatStart: true, sealTop: settings.radiusBase*0.1f);
             foreach (MeshVertex meshVertex in poleMesh.meshVertices)

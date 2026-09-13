@@ -79,7 +79,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ScreenSpaceReflectionShader.unBind();
 
 
-            gaussianBlurRenderer.Render(_reflectionFramebuffer, 6, renderer);
+            gaussianBlurRenderer.Render(_reflectionFramebuffer, 2, renderer);
 
             combineReflectionShader.bind();
 

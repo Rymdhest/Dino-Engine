@@ -264,6 +264,33 @@ namespace Dino_Defenders
             spawnCity(Engine.world);
             spawnTestScene(Engine.world);
             //spawnIndoorScene(eCSEngine);
+
+
+
+            Mesh skeleton = SkeletonGenerator.GenerateSkeleton();
+            glModel skeletonModel = glLoader.loadToVAO(skeleton);
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(skeletonModel, 60f);
+
+            for (int i = 0; i<1; i++)
+            {
+                float dist = 2.0f;
+                float x = (i / 100)*dist;
+                float z = (i % 100)*dist-5;
+                float height = terrainGenerator.getHeightAt(new Vector2(x, z));
+                world.CreateEntity("skeleton",
+                    new PositionComponent(new Vector3(x, height, z)),
+                    new RotationComponent(new Vector3(0f, MyMath.rngMinusPlus(0.0f), 0f)),
+                    new ScaleComponent(new Vector3(1f, 1f+MyMath.rng(0.0f), 1f)),
+                    new ModelComponent(skeletonModel),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent()
+                );
+            }
+
+
+
+            spawnModelOverTerrain(1000, glLoader.loadToVAO(skeleton.scaled(new Vector3(0.8f))), 30f, swayAmount: 0f);
+
         }
         
         private void spawnTestScene(ECSWorld world)
@@ -300,15 +327,7 @@ namespace Dino_Defenders
             }
 
 
-            Mesh candle = FurnitureGenerator.GenerateCandle2();
-            world.CreateEntity("candle",
-                new PositionComponent(new Vector3(0, 0, -5)),
-                new RotationComponent(new Vector3(0f, 0f, 0f)),
-                new ScaleComponent(new Vector3(8f)),
-                new ModelComponent(glLoader.loadToVAO(candle)),
-                new ModelRenderTag(),
-                new LocalToWorldMatrixComponent()
-            );
+
 
             Mesh sphere = IcoSphereGenerator.CreateIcosphere(3, new VertexMaterial(TextureGenerator.cobble), 1);
             world.CreateEntity("sphere",
