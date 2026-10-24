@@ -14,6 +14,7 @@ namespace Dino_Engine.Modelling.Model
         public bool finishedNormals = false;
         public bool finishedBaking = false;
         public static bool scaleUV = false;
+        public bool isUsingBones = false;
         public Mesh()
         {
             meshVertices = new List<MeshVertex>();
@@ -62,7 +63,7 @@ namespace Dino_Engine.Modelling.Model
                 if (face.uvIndexA > 0)
                 {
                     MeshVertex oldVertex = face.A;
-                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[face.uvIndexA]), new vIndex(meshVertices.Count));
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex), new vIndex(meshVertices.Count));
                     newVertex.normal = oldVertex.normal;
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
@@ -74,7 +75,7 @@ namespace Dino_Engine.Modelling.Model
                 if (face.uvIndexB > 0)
                 {
                     MeshVertex oldVertex = face.B;
-                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[face.uvIndexB]), new vIndex(meshVertices.Count));
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex), new vIndex(meshVertices.Count));
                     newVertex.normal = oldVertex.normal;
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
@@ -86,7 +87,7 @@ namespace Dino_Engine.Modelling.Model
                 if (face.uvIndexC > 0)
                 {
                     MeshVertex oldVertex = face.C;
-                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex.position, oldVertex.materialTextureIndex, oldVertex.colour, oldVertex.UVs[face.uvIndexC]), new vIndex(meshVertices.Count));
+                    MeshVertex newVertex = new MeshVertex(new Vertex(oldVertex), new vIndex(meshVertices.Count));
                     newVertex.normal = oldVertex.normal;
                     newVertex.tangent = oldVertex.tangent;
                     newVertex.bitangent = oldVertex.bitangent;
@@ -279,6 +280,30 @@ namespace Dino_Engine.Modelling.Model
             return array;
         }
 
+        public float[] getAllBoneIndicesArray()
+        {
+            float[] boneArray = new float[meshVertices.Count * 2];
+
+            for (int i = 0; i < meshVertices.Count; i++)
+            {
+                boneArray[2 * i + 0] = meshVertices[i].boneIndices.X;
+                boneArray[2 * i + 1] = meshVertices[i].boneIndices.Y;
+            }
+            return boneArray;
+        }
+
+        public float[] getAllBoneWeightsArray()
+        {
+            float[] boneArray = new float[meshVertices.Count * 2];
+
+            for (int i = 0; i < meshVertices.Count; i++)
+            {
+                boneArray[2 * i + 0] = meshVertices[i].BoneWeights.X;
+                boneArray[2 * i + 1] = meshVertices[i].BoneWeights.Y;
+            }
+            return boneArray;
+        }
+
         public vIndex[] getAllIndicesArray()
         {
             int indicesCount = faces.Count * 3;
@@ -347,7 +372,7 @@ namespace Dino_Engine.Modelling.Model
             for (int i = 0; i < oldVertices.Length; i++)
             {
                 Vector3 newPosition = Vector3.Transform(oldVertices[i].position, rotation);
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].UVs); // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, oldVertices[i].UVs); // TODO  potential uses same UVs
             }
             return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>());
         }
@@ -452,7 +477,7 @@ namespace Dino_Engine.Modelling.Model
                 {
                     newUVs[j] = new Vector2( oldVertices[i].UVs[j].X, oldVertices[i].UVs[j].Y);
                 }
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, newUVs); // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, newUVs); // TODO  potential uses same UVs
                 //if (scaleUV) newVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
             }
             return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>());
@@ -481,6 +506,31 @@ namespace Dino_Engine.Modelling.Model
             mesh.calculateAllNormals(); 
             return mesh;
         }
+
+        public Mesh SetAllBoneWeights(Vector2 weight)
+        {
+            for (int i = 0; i < meshVertices.Count; i++)
+            {
+                MeshVertex vertex = meshVertices[i];
+                vertex.BoneWeights = weight;
+                meshVertices[i] = vertex;
+            }
+            isUsingBones = true;
+            return this;
+        }
+
+        public Mesh setAllBoneIndices(Vector2 indices)
+        {
+            for (int i = 0; i < meshVertices.Count; i++)
+            {
+                MeshVertex vertex = meshVertices[i];
+                vertex.boneIndices = indices;
+                meshVertices[i] = vertex;
+            }
+            isUsingBones = true;
+            return this;
+        }
+
         public static Mesh operator +(Mesh a, Mesh b)  => Mesh.Add(a, b);
     }
 }

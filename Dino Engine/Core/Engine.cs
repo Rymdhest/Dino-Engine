@@ -52,7 +52,8 @@ namespace Dino_Engine.Core
             //ComponentTypeRegistry.Register<Position>();
             //ComponentTypeRegistry.Register<Velocity>();
             ComponentTypeRegistry.AutoRegisterAllComponents();
-            SystemRegistry.AutoRegisterAllSystems();
+            //SystemRegistry.AutoRegisterAllSystems();
+            SystemRegistry.ManualRegisterSystems();
 
             world = new();
 

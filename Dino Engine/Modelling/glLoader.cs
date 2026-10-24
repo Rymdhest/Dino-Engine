@@ -18,7 +18,15 @@ public class glLoader
         {
             indices[i] = vindices[i].index;
         }
-        glModel model = loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursFloatArray(), mesh.getAllNormalsArray(), mesh.getAllTangentsArray(), mesh.getAllUVsArray(), mesh.getAllMaterialIndicesArray(), indices);
+        glModel model;
+        if (mesh.isUsingBones)
+        {
+            model = loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursFloatArray(), mesh.getAllNormalsArray(), mesh.getAllTangentsArray(), mesh.getAllUVsArray(), mesh.getAllMaterialIndicesArray(), mesh.getAllBoneIndicesArray(), mesh.getAllBoneWeightsArray(), indices);
+        } else
+        {
+            model = loadToVAO(mesh.getAllPositionsArray(), mesh.getAllColoursFloatArray(), mesh.getAllNormalsArray(), mesh.getAllTangentsArray(), mesh.getAllUVsArray(), mesh.getAllMaterialIndicesArray(), indices);
+        }
+
         model.box = mesh.createAABB();
         return model;
     }
@@ -34,7 +42,6 @@ public class glLoader
         unbindVAO();
         return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
     }
-
     public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, float[] tangents, float[] uvs, float[] materialIndices, int[] indices)
     {
         int vaoID = createVAO();
@@ -47,6 +54,27 @@ public class glLoader
         VBOS[3] = storeDataInAttributeList(3, 3, tangents);
         VBOS[4] = storeDataInAttributeList(4, 2, uvs);
         VBOS[5] = storeDataInAttributeList(5, 1, materialIndices);
+        unbindVAO();
+        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+    }
+
+    public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, float[] tangents, float[] uvs, float[] materialIndices, float[] boneIndices, float[] boneWeights, int[] indices)
+    {
+
+
+        int vaoID = createVAO();
+        int[] VBOS = new int[9];
+        VBOS[8] = bindIndicesBuffer(indices);
+
+
+        VBOS[0] = storeDataInAttributeList(0, 3, positions);
+        VBOS[1] = storeDataInAttributeList(1, 3, colors);
+        VBOS[2] = storeDataInAttributeList(2, 3, normals);
+        VBOS[3] = storeDataInAttributeList(3, 3, tangents);
+        VBOS[4] = storeDataInAttributeList(4, 2, uvs);
+        VBOS[5] = storeDataInAttributeList(5, 1, materialIndices);
+        VBOS[6] = storeDataInAttributeList(6, 2, boneIndices);
+        VBOS[7] = storeDataInAttributeList(7, 2, boneWeights);
         unbindVAO();
         return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
     }
@@ -91,6 +119,8 @@ public class glLoader
         GL.BufferData(BufferTarget.ArrayBuffer, data.Length * sizeof(float), data, BufferUsageHint.StaticDraw);
         GL.VertexAttribPointer(attributeNumber, coordinateSize, VertexAttribPointerType.Float, false, 0, 0);
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+
+        //GL.EnableVertexAttribArray(attributeNumber);
 
         return vboID;
     }

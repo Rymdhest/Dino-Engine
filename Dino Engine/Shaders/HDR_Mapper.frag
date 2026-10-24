@@ -12,6 +12,10 @@ uniform float brightness;
 uniform float contrast;
 uniform float dithering;
 
+
+
+
+
 vec3 aces(vec3 x) {
   const float a = 2.51;
   const float b = 0.03;
@@ -27,6 +31,7 @@ vec3 reinhard(vec3 inputColor) {
 vec3 applyExposure(vec3 inputColor) {
 	return vec3(1.0) - exp(-inputColor * exposure);
 }
+
 
 vec3 applyToneMap(vec3 inputColor) {
 	//return aces(inputColor);

@@ -61,11 +61,12 @@ namespace Dino_Engine.ECS.Systems
             Quaternion currentFinalRotation =  currentYawRotation * currentPitchRotation;
 
             Vector3 movement = Vector3.Zero;
+            /*
             if (windowhandler.IsKeyDown(Keys.W)) movement -= Vector3.UnitZ;   // forward
             if (windowhandler.IsKeyDown(Keys.S)) movement += Vector3.UnitZ;   // backward
             if (windowhandler.IsKeyDown(Keys.A)) movement -= Vector3.UnitX;   // strafe left
             if (windowhandler.IsKeyDown(Keys.D)) movement += Vector3.UnitX;   // strafe right
-
+            */
             if (movement != Vector3.Zero)
             {
                 movement = Vector3.Normalize(movement);

@@ -28,7 +28,14 @@ namespace Dino_Engine.ECS.Systems
             var parent = entity.Get<ParentComponent>().parent;
             var parentLocalToWorld = world.GetComponent<LocalToWorldMatrixComponent>(parent).value;
 
-            entity.Set(new LocalToWorldMatrixComponent { value = (entityLocalToWorld* parentLocalToWorld) });
+            if (entity.Get<ParentComponent>().ignoreParentRotation)
+            {
+                entity.Set(new LocalToWorldMatrixComponent { value = (entityLocalToWorld * MyMath.createTransformationMatrix(parentLocalToWorld.ExtractTranslation(), new Vector3(0f), parentLocalToWorld.ExtractScale())) });
+            }
+            else
+            {
+                entity.Set(new LocalToWorldMatrixComponent { value = (entityLocalToWorld * parentLocalToWorld) });
+            }
         }
     }
 }

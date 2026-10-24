@@ -3,8 +3,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Components
 {
-    public struct MainCameraComponent : IComponent
+    public struct PlayerTag : IComponent
     {
-
     }
 }

@@ -131,7 +131,7 @@ namespace Dino_Engine.Rendering
         {
             for (int i = 0; i < values.Length; i++)
             {
-                GL.UniformMatrix4(uniforms[variableName + "[" + i + "]"],true, ref values[i]);
+                GL.UniformMatrix4(uniforms[variableName + "[" + i + "]"],false, ref values[i]);
             }
         }
 

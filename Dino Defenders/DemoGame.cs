@@ -1,23 +1,24 @@
-﻿using Dino_Engine.Core;
-using Dino_Engine.Modelling.Model;
-using Dino_Engine.Modelling.Procedural.Nature;
-using Dino_Engine.Modelling.Procedural.Urban;
-using Dino_Engine.Modelling.Procedural;
-using Dino_Engine.Util;
-using OpenTK.Mathematics;
-using Dino_Engine.Modelling;
-using Dino_Engine.Modelling.Procedural.Terrain;
-using Dino_Engine.Util.Data_Structures.Grids;
-using Util.Noise;
-using OpenTK.Windowing.GraphicsLibraryFramework;
-using Dino_Engine.ECS.ECS_Architecture;
+﻿using Dino_Engine.Animation;
+using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
-using Dino_Engine.Rendering.Renderers.Geometry;
-using Dino_Engine.Util.Data_Structures;
-using System.Xml.Linq;
-using System.Drawing;
-using Dino_Engine.Textures;
+using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Modelling;
+using Dino_Engine.Modelling.Model;
+using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Modelling.Procedural.Indoor;
+using Dino_Engine.Modelling.Procedural.Nature;
+using Dino_Engine.Modelling.Procedural.Terrain;
+using Dino_Engine.Modelling.Procedural.Urban;
+using Dino_Engine.Rendering.Renderers.Geometry;
+using Dino_Engine.Textures;
+using Dino_Engine.Util;
+using Dino_Engine.Util.Data_Structures;
+using Dino_Engine.Util.Data_Structures.Grids;
+using OpenTK.Mathematics;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+using System.Drawing;
+using System.Xml.Linq;
+using Util.Noise;
 
 namespace Dino_Defenders
 {
@@ -203,13 +204,17 @@ namespace Dino_Defenders
             world.DirtyEntitiesBuffers.ClearAll();
             world.DirtyEntities.Clear();
             //terrainGenerator = new TerrainGenerator();
-            world.ClearAllEntitiesExcept(world.QueryEntities(new BitMask(typeof(MainCameraComponent)), BitMask.Empty).ToArray());
+            //world.ClearAllEntitiesExcept(world.QueryEntities(new BitMask(typeof(MainCameraComponent)), BitMask.Empty).ToArray());
+            world.ClearAllEntitiesExcept();
 
             world.RegisterSingleton<TerrainQuadTreeSingleton>(world.CreateEntity(new TerrainQuadTreeSingleton(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
             world.RegisterSingleton<TerrainGeneratorSingleton>(world.CreateEntity(new TerrainGeneratorSingleton(terrainGenerator)));
             world.RegisterSingleton<CollisionEventBufferSingleton>(world.CreateEntity(new CollisionEventBufferSingleton()));
             world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(15f)));
             world.ApplyDeferredCommands();
+
+
+
 
             Mesh boxMesh = MeshGenerator.generateBox(new VertexMaterial(TextureGenerator.brick));
             Mesh.scaleUV = true;
@@ -262,34 +267,147 @@ namespace Dino_Defenders
 
 
             spawnCity(Engine.world);
-            spawnTestScene(Engine.world);
+            //spawnTestScene(Engine.world);
             //spawnIndoorScene(eCSEngine);
 
 
 
-            Mesh skeleton = SkeletonGenerator.GenerateSkeleton();
-            glModel skeletonModel = glLoader.loadToVAO(skeleton);
+            glModel skeletonModel = glLoader.loadToVAO(SkeletonGenerator.GenerateSkeleton());
             Engine.RenderEngine.textureGenerator.AddImposterToModel(skeletonModel, 60f);
 
-            for (int i = 0; i<1; i++)
+
+
+                
+
+            float dist = 2.0f;
+            float x = (1 / 100)*dist;
+            float z = (1 % 100)*dist-5;
+            float height = terrainGenerator.getHeightAt(new Vector2(x, z));
+
+            var clip = new AnimationClip
             {
-                float dist = 2.0f;
-                float x = (i / 100)*dist;
-                float z = (i % 100)*dist-5;
-                float height = terrainGenerator.getHeightAt(new Vector2(x, z));
-                world.CreateEntity("skeleton",
-                    new PositionComponent(new Vector3(x, height, z)),
-                    new RotationComponent(new Vector3(0f, MyMath.rngMinusPlus(0.0f), 0f)),
-                    new ScaleComponent(new Vector3(1f, 1f+MyMath.rng(0.0f), 1f)),
-                    new ModelComponent(skeletonModel),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent()
-                );
-            }
+                Name = "RightArmSwingTest",
+                Duration = 1.0f
+            };
+
+            float lowerLegSize = -0.4f;
+            float upperLegSize = 1.55f;
+
+            float swingAmplitude = 0.9f; // Upper arm pendulum swing
+            float lowerArmBend = 0.9f; // Elbow flex lag
+
+            // 1. Posture: Rotate T-pose upper arms down along the body (-90° / +90° around Z)
+            Quaternion armDownL = Quaternion.FromAxisAngle(Vector3.UnitZ, -MathF.PI / 2f);
+            Quaternion armDownR = Quaternion.FromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+
+            // 2. Swing Axes
+            Vector3 shoulderAxis = Vector3.UnitY; // Upper arm front-to-back pendulum
+            Vector3 elbowAxis = Vector3.UnitY; // Elbow flexion bend
+
+            // --- LEFT ARM ---
+            clip.Tracks[BoneType.UpperArmL] = new AnimationTrack(new List<Keyframe>
+            {
+                new Keyframe(0.0f, armDownL * Quaternion.FromAxisAngle(shoulderAxis,  swingAmplitude)),
+                new Keyframe(0.5f, armDownL * Quaternion.FromAxisAngle(shoulderAxis, -swingAmplitude)),
+                new Keyframe(1.0f, armDownL * Quaternion.FromAxisAngle(shoulderAxis,  swingAmplitude))
+            });
+
+            // LOWER ARM: NO armDown here! Only the local elbow bend.
+            clip.Tracks[BoneType.LowerArmL] = new AnimationTrack(new List<Keyframe>
+            {
+                new Keyframe(0.0f, Quaternion.FromAxisAngle(elbowAxis,  -0.4f)),
+                new Keyframe(0.5f, Quaternion.FromAxisAngle(elbowAxis,  -lowerArmBend)),
+                new Keyframe(1.0f, Quaternion.FromAxisAngle(elbowAxis,  -0.4f))
+            });
+
+            // --- RIGHT ARM (Inverted signs for natural running opposition) ---
+            clip.Tracks[BoneType.UpperArmR] = new AnimationTrack(new List<Keyframe>
+            {
+                new Keyframe(0.0f, armDownR * Quaternion.FromAxisAngle(shoulderAxis, swingAmplitude)),
+                new Keyframe(0.5f, armDownR * Quaternion.FromAxisAngle(shoulderAxis, -swingAmplitude)),
+                new Keyframe(1.0f, armDownR * Quaternion.FromAxisAngle(shoulderAxis, swingAmplitude))
+            });
+
+            // LOWER ARM: NO armDown here either!
+            clip.Tracks[BoneType.LowerArmR] = new AnimationTrack(new List<Keyframe>
+            {
+                new Keyframe(0.0f, Quaternion.FromAxisAngle(elbowAxis,  lowerArmBend)),
+                new Keyframe(0.5f, Quaternion.FromAxisAngle(elbowAxis,  0.4f)),
+                new Keyframe(1.0f, Quaternion.FromAxisAngle(elbowAxis,  lowerArmBend))
+            });
 
 
 
-            spawnModelOverTerrain(1000, glLoader.loadToVAO(skeleton.scaled(new Vector3(0.8f))), 30f, swayAmount: 0f);
+
+
+            clip.Tracks[BoneType.UpperLegL] = new AnimationTrack(new List<Keyframe>
+            {
+                new Keyframe(0.0f, Quaternion.FromAxisAngle(Vector3.UnitX, -upperLegSize)),
+                new Keyframe(0.5f, Quaternion.FromAxisAngle(Vector3.UnitX, upperLegSize)),
+                new Keyframe(1.0f, Quaternion.FromAxisAngle(Vector3.UnitX, -upperLegSize))
+            });
+
+            clip.Tracks[BoneType.LowerLegL] = new AnimationTrack(new List<Keyframe>
+            {
+                new Keyframe(0.0f, Quaternion.FromAxisAngle(Vector3.UnitX, -lowerLegSize)),
+                new Keyframe(0.5f, Quaternion.FromAxisAngle(Vector3.UnitX, lowerLegSize)),
+                new Keyframe(1.0f, Quaternion.FromAxisAngle(Vector3.UnitX, -lowerLegSize))
+            });
+
+            clip.Tracks[BoneType.UpperLegR] = new AnimationTrack(new List<Keyframe>
+            {
+                new Keyframe(0.0f, Quaternion.FromAxisAngle(Vector3.UnitX, upperLegSize)),
+                new Keyframe(0.5f, Quaternion.FromAxisAngle(Vector3.UnitX, -upperLegSize)),
+                new Keyframe(1.0f, Quaternion.FromAxisAngle(Vector3.UnitX, upperLegSize))
+            });
+
+            clip.Tracks[BoneType.LowerLegR] = new AnimationTrack(new List<Keyframe>
+            {
+                new Keyframe(0.0f, Quaternion.FromAxisAngle(Vector3.UnitX, lowerLegSize)),
+                new Keyframe(0.5f, Quaternion.FromAxisAngle(Vector3.UnitX, -lowerLegSize)),
+                new Keyframe(1.0f, Quaternion.FromAxisAngle(Vector3.UnitX, lowerLegSize))
+            });
+
+            var testLayer = new AnimationLayer
+            {
+                Name = "RightArmSwingLayer",
+                Clip = clip,
+                Priority = 10,
+                Loop = true
+            };
+
+            var animationComponent = new AnimationComponent(true);
+            animationComponent.Layers.Add(testLayer);
+
+            // 4. Setup Skeleton
+            var skeleton = new SkeletonComponent((int)BoneType.Count);
+            skeleton.InitializeBindPose();
+
+            // 5. Spawn Entity
+            Entity player = world.CreateEntity("skeleton",
+                new PositionComponent(new Vector3(x, height, z)),
+                new RotationComponent(new Vector3(0f, MyMath.rngMinusPlus(0.0f), 0f)),
+                new ScaleComponent(new Vector3(1f, 1f + MyMath.rng(0.0f), 1f)),
+                new CharacterModelComponent(skeletonModel),
+                animationComponent,
+                skeleton,
+                new LocalToWorldMatrixComponent(),
+                new VelocityComponent(),
+                new PlayerTag()
+            );
+
+            world.Camera = world.CreateEntity("Camera",
+                new PositionComponent(0, 20f, -10f),
+                new RotationComponent(MathF.PI/2.7f, MathF.PI, 0.0f),
+                new MainCameraTag(),
+                new LocalToWorldMatrixComponent(),
+                new PositionRotationInputControlComponent(),
+                new ViewMatrixComponent(),
+                new ParentComponent(player, ignoreParentRotation:true),
+                new PerspectiveProjectionComponent(MathHelper.DegreesToRadians(80f), Engine.Resolution, 0.1f, 1000f));
+
+
+            //spawnModelOverTerrain(1000, skeletonModel, 30f, swayAmount: 0f);
 
         }
         

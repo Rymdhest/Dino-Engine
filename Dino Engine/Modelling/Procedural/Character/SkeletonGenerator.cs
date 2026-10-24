@@ -1,5 +1,6 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Debug;
+using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Gear;
 using Dino_Engine.Modelling.Procedural.Vegetation;
@@ -18,19 +19,20 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
         {
             float armLength = 1.7f;
             float legLength = 2f;
+            Mesh skeleton = new Mesh();
 
-            Mesh skeleton = GenerateUpperBody(out Vector3 leftArmAchnor, out Vector3 rightArmAchnor, out Vector3 leftLegAchnor, out Vector3 RightLegAchnor, out Vector3 headAnchor);
+            Mesh upperBody = GenerateUpperBody(out Vector3 leftArmAchnor, out Vector3 rightArmAchnor, out Vector3 leftLegAchnor, out Vector3 RightLegAchnor, out Vector3 headAnchor);
+            skeleton += upperBody.translated(new Vector3(0f));
 
-            Mesh leg = generateLeg(legLength);
-            skeleton += leg.translated(RightLegAchnor);
-            skeleton += leg.scaled(new Vector3(-1f, 1f, 1f)).translated(leftLegAchnor);
+
+            skeleton += generateLeg(legLength, isRight:true).translated(RightLegAchnor);
+            skeleton += generateLeg(legLength, isRight:false).scaled(new Vector3(-1f, 1f, 1f)).translated(leftLegAchnor);
 
    
-            Mesh arm = GenerateArm(armLength);
-            Vector3 rightArmRotation = new Vector3(-1f, 1.65f, -0.5f);
-            Vector3 leftArmRotation = new Vector3(-.2f, .3f, 0.5f);
-            skeleton += arm.rotated(rightArmRotation).translated(rightArmAchnor);
-            skeleton += arm.scaled(new Vector3(-1f, 1f, 1f)).rotated(leftArmRotation).translated(leftArmAchnor);
+            Vector3 rightArmRotation = new Vector3(0f, 0f, -MathF.PI/2f);
+            Vector3 leftArmRotation = new Vector3(0f, 0f, MathF.PI/2f);
+            skeleton += GenerateArm(armLength, isRight:true).rotated(rightArmRotation).translated(rightArmAchnor);
+            skeleton += GenerateArm(armLength, isRight:false).scaled(new Vector3(-1f, 1f, 1f)).rotated(leftArmRotation).translated(leftArmAchnor);
 
 
             Mesh head = GenerateHead();
@@ -38,28 +40,30 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             Mesh sword = WeaponGenerator.GenerateSword();
             sword.translate(new Vector3(0f, - 0.25f, 0f));
-            sword.rotate(new Vector3(0f, 0f, MathF.PI/2f));
+            sword.rotate(new Vector3(0f, MathF.PI / 2f, 0f));
+            sword.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
             sword.translate(new Vector3(0f, -armLength-0.15f, 0f));
             sword.rotate(rightArmRotation);
             sword.translate(rightArmAchnor);
+            sword.setAllBoneIndices(new Vector2((int)BoneType.HandR, 0f));
             skeleton += sword;
 
 
             Mesh shield = ArmourGenerator.GenerateShield();
+            shield.rotate(new Vector3(0f, MathF.PI/2f, 0f));
             shield.translate(new Vector3(0f, -0.25f, 0f));
             //shield.rotate(new Vector3(0f, 0f, MathF.PI / 2f));
             shield.translate(new Vector3(0f, -armLength - 0.15f, 0f));
             shield.rotate(leftArmRotation);
             shield.translate(leftArmAchnor);
+            shield.setAllBoneIndices(new Vector2((int)BoneType.HandL, 0f));
             skeleton += shield;
-
 
 
             skeleton.translate(new Vector3(0f, legLength, 0f));
 
 
-
-
+            skeleton.isUsingBones = true;
             return skeleton;
         }
 
@@ -148,6 +152,8 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             body += collarBone.translated(leftArmAchnor);
             body += collarBone.scaled(new Vector3(-1f, 1f, 1f)).translated(rightArmAchnor);
 
+
+            body.setAllBoneIndices(new Vector2((int)BoneType.Chest, 0f));
             return body;
         }
 
@@ -242,6 +248,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             head += hat.scaled(new Vector3(0.5f)).translated(new Vector3(0f, scale.Y*2.0f-scale.Y*0.4f, 0f));
 
+            head.setAllBoneIndices(new Vector2((int)BoneType.Head, 0f));
             return head;
         }
 
@@ -298,7 +305,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             return mesh;
         }
 
-        public static Mesh generateLeg(float length)
+        public static Mesh generateLeg(float length, bool isRight)
         {
             Mesh mesh = new Mesh();
 
@@ -308,9 +315,13 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             Mesh legLower = new Mesh();
             legLower += legLowerPart.translated(new Vector3(0.05f, 0f, 0f));
             legLower += legLowerPart.translated(new Vector3(-0.05f, 0f, 0f));
+            if (isRight) legLower.setAllBoneIndices(new Vector2((int)BoneType.LowerLegR, 0f));
+            else legLower.setAllBoneIndices(new Vector2((int)BoneType.LowerLegL, 0f));
             leg += legLower;
 
             Mesh legUpper = GenerateBone(length: length/2f).translated(new Vector3(0f, length/2f, 0f));
+            if (isRight) legUpper.setAllBoneIndices(new Vector2((int)BoneType.UpperLegR, 0f));
+            else legUpper.setAllBoneIndices(new Vector2((int)BoneType.UpperLegL, 0f));
             leg += legUpper;
 
             Mesh foot = new Mesh();
@@ -319,6 +330,8 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             {
                 foot += toe.translated(new Vector3(0.05f * i, 0f, 0f)).scaled(new Vector3(1f, 2.5f, 1f + (2 + i) * 0.05f));
             }
+            if (isRight) foot.setAllBoneIndices(new Vector2((int)BoneType.FootR, 0f));
+            else foot.setAllBoneIndices(new Vector2((int)BoneType.FootL, 0f));
             leg += foot.translated(new Vector3(0f, 0.05f, -0.05f));
 
             leg.translate(new Vector3(0f, -length, 0f));
@@ -326,16 +339,21 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             return leg;
         }
 
-        public static Mesh GenerateArm(float length)
+        public static Mesh GenerateArm(float length, bool isRight)
         {
             Mesh arm = new Mesh();
             Mesh armLowerPart = GenerateBone(length: length/2f, radius: 0.035f);
             Mesh armLower = new Mesh();
             armLower += armLowerPart.translated(new Vector3(0.05f, 0f, 0f));
             armLower += armLowerPart.translated(new Vector3(-0.05f, 0f, 0f));
+
+            if (isRight) armLower.setAllBoneIndices(new Vector2((int)BoneType.LowerArmR, 0f));
+            else armLower.setAllBoneIndices(new Vector2((int)BoneType.LowerArmL, 0f));
             arm += armLower;
 
             Mesh armUpper = GenerateBone(length: length/2f, radius:0.05f).translated(new Vector3(0f, length/2f, 0f));
+            if (isRight) armUpper.setAllBoneIndices(new Vector2((int)BoneType.UpperArmR, 0f));
+            else armUpper.setAllBoneIndices(new Vector2((int)BoneType.UpperArmL, 0f));
             arm += armUpper;
 
             Mesh hand = new Mesh();
@@ -344,6 +362,10 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             {
                 hand += finger.translated(new Vector3(0.05f * i, 0f, 0f)).scaled(new Vector3(1f, 1f + (2 + i) * 0.05f, 2.5f));
             }
+            hand.rotate(new Vector3(0, MathF.PI / 2f, 0f));
+
+            if (isRight) hand.setAllBoneIndices(new Vector2((int)BoneType.HandR, 0f));
+            else hand.setAllBoneIndices(new Vector2((int)BoneType.HandL, 0f));
             arm += hand.translated(new Vector3(0f, 0.0f, 0.0f));
 
             arm.translate(new Vector3(0f, -length, 0f));
@@ -374,6 +396,54 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             Mesh mesh = MeshGenerator.generateCylinder(layers, 8, new VertexMaterial(TextureGenerator.bone), sealTop:0.001f, sealBot:-0.001f);
 
             return mesh;
+        }
+
+        public static Matrix4[] GetInverseBindMatrices()
+        {
+            float legLength = 2.0f;
+            float armLength = 1.7f;
+            float legSegment = legLength / 2.0f; // 1.0f
+            float armSegment = armLength / 2.0f; // 0.85f
+
+            Matrix4[] invBindMatrices = new Matrix4[14];
+
+            void SetInvBind(BoneType bone, Vector3 worldPivot)
+            {
+                invBindMatrices[(int)bone] = Matrix4.CreateTranslation(-worldPivot);
+            }
+
+            // --- Chest (Chest mesh vertices sit centered around Y = 2.0 in world space) ---
+            SetInvBind(BoneType.Chest, new Vector3(0f, 2.0f, 0f));
+
+            // --- Head ---
+            // rawHeadAnchor (1.85) + globalMeshOffset (2.0) = 3.85
+            SetInvBind(BoneType.Head, new Vector3(0f, 0.0f, -0.03f));
+
+            // --- Arms ---
+            // Right Arm (extends in -X)
+            SetInvBind(BoneType.UpperArmR, new Vector3(-0.45f, 3.85f, 0f));
+            SetInvBind(BoneType.LowerArmR, new Vector3(-0.45f - armSegment, 3.85f, 0f));
+            SetInvBind(BoneType.HandR, new Vector3(-0.45f - armLength, 3.85f, 0f));
+
+            // Left Arm (extends in +X)
+            SetInvBind(BoneType.UpperArmL, new Vector3(0.45f, 3.85f, 0f));
+            SetInvBind(BoneType.LowerArmL, new Vector3(0.45f + armSegment, 3.85f, 0f));
+            SetInvBind(BoneType.HandL, new Vector3(0.45f + armLength, 3.85f, 0f));
+
+            // --- Legs ---
+            // UpperLeg vertices live at Y = 1.0 to 2.0 -> Hip pivot at Y = 2.0
+            SetInvBind(BoneType.UpperLegR, new Vector3(-0.25f, 2.0f, 0f));
+            SetInvBind(BoneType.UpperLegL, new Vector3(0.25f, 2.0f, 0f));
+
+            // LowerLeg vertices live at Y = 0.0 to 1.0 -> Knee pivot at Y = 1.0
+            SetInvBind(BoneType.LowerLegR, new Vector3(-0.25f, 1.0f, 0f));
+            SetInvBind(BoneType.LowerLegL, new Vector3(0.25f, 1.0f, 0f));
+
+            // Foot vertices live at Y = 0.0 -> Ankle pivot at Y = 0.0
+            SetInvBind(BoneType.FootR, new Vector3(-0.25f, 0.0f, 0f));
+            SetInvBind(BoneType.FootL, new Vector3(0.25f, 0.0f, 0f));
+
+            return invBindMatrices;
         }
     }
 }

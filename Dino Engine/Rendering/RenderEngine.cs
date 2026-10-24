@@ -57,6 +57,7 @@ namespace Dino_Engine.Rendering
         public ModelRenderer _modelRenderer;
         public TerrainRenderer _terrainRenderer;
         public InstancedModelRenderer _instancedModelRenderer;
+        public CharacterRenderer _characterRenderer;
         public ImposterRenderer _imposterRenderer;
         public DirectionalLightRenderer _directionalLightRenderer;
         public PointLightRenderer _pointLightRenderer;
@@ -126,6 +127,7 @@ namespace Dino_Engine.Rendering
             _modelRenderer = new ModelRenderer();
             _terrainRenderer = new TerrainRenderer();
             _instancedModelRenderer = new InstancedModelRenderer();
+            _characterRenderer = new CharacterRenderer();
             _imposterRenderer = new ImposterRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
             _pointLightRenderer = new PointLightRenderer();
@@ -240,6 +242,7 @@ namespace Dino_Engine.Rendering
 
 
             _modelRenderer.ShadowRenderPass(this);
+            _characterRenderer.ShadowRenderPass(this);
             _instancedModelRenderer.ShadowRenderPass(this);
             _imposterRenderer.ShadowRenderPass(this);
 
@@ -253,6 +256,7 @@ namespace Dino_Engine.Rendering
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             
             _modelRenderer.GeometryRenderPass(this);
+            _characterRenderer.GeometryRenderPass(this);
             _instancedModelRenderer.GeometryRenderPass(this);
             _imposterRenderer.GeometryRenderPass(this);
 

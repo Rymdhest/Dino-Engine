@@ -10,7 +10,9 @@ namespace Dino_Engine.ECS.Systems
         public LocalToWorldTransformRootSystem()
             : base(new BitMask(typeof(LocalToWorldMatrixComponent), typeof(PositionComponent)),
                   new BitMask(typeof(ParentComponent)))
-        { }
+        {
+            Priority = 1;
+        }
 
         // We override UpdateInternal to avoid the per-entity virtual call overhead.
         // This allows us to access the Archetype's raw component arrays.

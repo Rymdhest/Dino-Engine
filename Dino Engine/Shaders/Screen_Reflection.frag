@@ -80,7 +80,7 @@ void main(){
 	float metallic = texture(gMaterials, textureCoords).b;
 	vec3 modelColor = texture(shadedColor, textureCoords).rgb;
 	vec3 positionWorld = ReconstructWorldSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, invViewMatrix, resolutionSSR);
-	vec3 hash = hash33(positionWorld);
+	vec3 hash = (positionWorld);
 	hash = (hash*2.0)-1.0;
 	normal += hash*rougness;
 	if (metallic < 0.0001) {

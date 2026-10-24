@@ -34,14 +34,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public ECSWorld()
         {
 
-            Camera = CreateEntity("Camera",
-                new PositionComponent(0, 10f, 0f),
-                new RotationComponent(0f, 0.0f, 0.0f),
-                new MainCameraComponent(),
-                new LocalToWorldMatrixComponent(),
-                new PositionRotationInputControlComponent(),
-                new ViewMatrixComponent(),
-                new PerspectiveProjectionComponent(MathF.PI / 2.0f, Engine.Resolution, 0.1f, 1000f));;
+
         }
 
         public void Update(float deltaTime)
@@ -130,6 +123,9 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public Entity CreateEntity(string name, params IComponent[] components)
         {
             var newEntity = new Entity(IDManager.Allocate());
+
+       
+
             deferredCommands.createEntityCommands.Add(new CreateEntityCommand(newEntity, components));
             //deferredCommands.addComponentCommands.Add(new AddComponentCommand(newEntity, new NameComponent(name)));
             return newEntity;

@@ -19,6 +19,7 @@ namespace Dino_Engine.Modelling.Model
             normal = new Vector3(0.0f, 1.0f, 0.0f);
             tangent = new Vector3(1.0f, 0.0f, 0.0f);
             bitangent = new Vector3(0.0f, 0.0f, 1.0f);
+
         }
 
         public void calculateNormalAndTangent()
