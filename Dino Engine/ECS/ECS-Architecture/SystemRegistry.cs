@@ -65,10 +65,10 @@ namespace Dino_Engine.ECS.ECS_Architecture
             Systems.Add(new PointLightSystem());
             Systems.Add(new SpotlightShadowSystem());
             Systems.Add(new SpotLightSystem());
+            Systems.Add(new CharacterRenderSystem());
             Systems.Add(new DirectionalCascadeShadowSystem());
             Systems.Add(new DirectionalLightSystem());
             Systems.Add(new TerrainChunkRenderSystem());
-            Systems.Add(new CharacterRenderSystem());
             Systems.Add(new CelestialBodyRenderSystem());
 
             Systems.Add(new TerrainChunkSystem());

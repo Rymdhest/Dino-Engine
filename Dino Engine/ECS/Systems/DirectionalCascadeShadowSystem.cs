@@ -17,6 +17,7 @@ namespace Dino_Engine.ECS.Systems
 
         // Persistent structures to avoid per-frame allocations
         private readonly Dictionary<glModel, List<Matrix4>> _models = new();
+        private readonly Dictionary<glModel, List<CharacterInstanceData>> _characters = new(); // Added for characters
         private readonly List<ImposterInstanceData> _imposters = new();
 
         private readonly List<Entity> _visibleChunks = new();
@@ -47,22 +48,21 @@ namespace Dino_Engine.ECS.Systems
 
             // 2. Clear state
             foreach (var list in _models.Values) list.Clear();
+            foreach (var list in _characters.Values) list.Clear(); // Clear character lists
             _imposters.Clear();
 
-            // 3. Classify Archetypes (LOD checking models vs imposters based on camera distance)
+            // 3. Classify Archetypes (Regular Models & Imposters)
             var modelQuery = world.QueryArchetypes(new BitMask(
                 typeof(ModelRenderTag),
                 typeof(ModelComponent),
                 typeof(LocalToWorldMatrixComponent),
-                typeof(RotationComponent)), // Added RotationComponent
+                typeof(RotationComponent)),
                 BitMask.Empty);
 
             foreach (var archetype in modelQuery)
             {
                 var modelArray = archetype.GetComponentArray<ModelComponent>();
                 var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
-
-                // 2. Grab the rotation array
                 var rotArray = archetype.GetComponentArray<RotationComponent>();
 
                 int count = archetype.EntityCount;
@@ -85,11 +85,8 @@ namespace Dino_Engine.ECS.Systems
                     {
                         Vector3 entityScale = mat.ExtractScale();
                         ImposterData imposter = model.Imposter;
-
-                        // 3. Grab the pure quaternion
                         Quaternion rot = rotArray[i].quaternion;
 
-                        // 4. Calculate offset using full 3D rotation
                         Vector3 scaledCenter = imposter.LocalCenter * entityScale;
                         Vector3 rotatedOffset = Vector3.Transform(scaledCenter, rot);
                         Vector3 quadWorldCenter = pos + rotatedOffset;
@@ -99,10 +96,9 @@ namespace Dino_Engine.ECS.Systems
                             modelID = (float)model.Imposter.TextureIndex,
                             Position = quadWorldCenter,
                             Scale = entityScale,
-                            Rotation = rot, // Pass the Quaternion
+                            Rotation = rot,
                             BaseLength = imposter.BaseLength
                         });
-
                     }
                     else
                     {
@@ -116,13 +112,73 @@ namespace Dino_Engine.ECS.Systems
                 }
             }
 
-            // 4. Pre-build Commands ONCE per frame (Array allocations)
-            var prebuiltModelCommands = new List<ModelRenderCommand>(_models.Count);
+            // 3.5. Classify Character Archetypes
+            // Note: Replace 'CharacterRenderTag' and 'AnimatorComponent' with your actual component types if they differ.
+            var characterQuery = world.QueryArchetypes(new BitMask(
+                typeof(CharacterModelComponent),
+                typeof(LocalToWorldMatrixComponent),
+                typeof(SkeletonComponent)),
+                BitMask.Empty);
+
+            foreach (var archetype in characterQuery)
+            {
+                var modelArray = archetype.GetComponentArray<CharacterModelComponent>();
+                var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
+                var skeletonArray = archetype.GetComponentArray<SkeletonComponent>();
+
+                int count = archetype.EntityCount;
+                for (int i = 0; i < count; i++)
+                {
+                    glModel model = modelArray[i].model;
+                    Matrix4 mat = matrixArray[i].value;
+                    var skeleton = skeletonArray[i];
+
+                    var skinningMatrices = skeleton.SkinningMatrices;
+                    int boneCount = skinningMatrices != null ? skinningMatrices.Length : (int)BoneType.Count;
+                    Matrix4[] skinningMatricesCopy = new Matrix4[boneCount];
+
+                    if (skinningMatrices != null && skinningMatrices.Length > 0)
+                    {
+                        Array.Copy(skinningMatrices, skinningMatricesCopy, boneCount);
+                    }
+                    else
+                    {
+                        for (int b = 0; b < boneCount; b++)
+                        {
+                            skinningMatricesCopy[b] = Matrix4.Identity;
+                        }
+                    }
+
+                    if (!_characters.TryGetValue(model, out var list))
+                    {
+                        list = new List<CharacterInstanceData>();
+                        _characters[model] = list;
+                    }
+
+                    list.Add(new CharacterInstanceData
+                    {
+                        ModelMatrix = mat,
+                        SkinningMatrices = skinningMatricesCopy
+                    });
+                }
+            }
+
+                // 4. Pre-build Commands ONCE per frame
+                var prebuiltModelCommands = new List<ModelRenderCommand>(_models.Count);
             foreach (var kvp in _models)
             {
                 if (kvp.Value.Count > 0)
                 {
                     prebuiltModelCommands.Add(new ModelRenderCommand(kvp.Key, kvp.Value));
+                }
+            }
+
+            var prebuiltCharacterCommands = new List<CharacterRenderCommand>(_characters.Count);
+            foreach (var kvp in _characters)
+            {
+                if (kvp.Value.Count > 0)
+                {
+                    prebuiltCharacterCommands.Add(new CharacterRenderCommand(kvp.Key, kvp.Value));
                 }
             }
 
@@ -132,10 +188,7 @@ namespace Dino_Engine.ECS.Systems
                 imposterCommand = new ImposterRenderCommand { instances = _imposters.ToArray() };
             }
 
-
-
-
-            // 5. Submit Models & Imposters to each Cascade
+            // 5. Submit Models, Characters & Imposters to each Cascade
             for (int j = 0; j < shadowCascade.cascades.Length; j++)
             {
                 Shadow cascade = shadowCascade.cascades[j];
@@ -147,6 +200,12 @@ namespace Dino_Engine.ECS.Systems
                         Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, cascade);
                     else
                         Engine.RenderEngine._modelRenderer.SubmitShadowCommand(cmd, cascade);
+                }
+
+                // Characters
+                foreach (var cmd in prebuiltCharacterCommands)
+                {
+                    Engine.RenderEngine._characterRenderer.SubmitShadowCommand(cmd, cascade);
                 }
 
                 // Imposters
@@ -195,24 +254,19 @@ namespace Dino_Engine.ECS.Systems
             direction = Vector3.Normalize(direction);
             Vector3 up = MathF.Abs(Vector3.Dot(direction, Vector3.UnitY)) > 0.99f ? Vector3.UnitZ : Vector3.UnitY;
 
-            // Derive light orientation axes
             Vector3 forward = direction;
             Vector3 right = Vector3.Normalize(Vector3.Cross(up, forward));
             Vector3 lightUp = Vector3.Cross(forward, right);
 
-            // Calculate world-space size of a single shadow texel
             float texelSize = size / resolution;
 
-            // Project center onto the light's local X/Y plane
             float x = Vector3.Dot(center, right);
             float y = Vector3.Dot(center, lightUp);
             float z = Vector3.Dot(center, forward);
 
-            // Snap X and Y to the discrete texel grid
             x = MathF.Floor(x / texelSize) * texelSize;
             y = MathF.Floor(y / texelSize) * texelSize;
 
-            // Reconstruct the stable, snapped center in world space
             Vector3 snappedCenter = right * x + lightUp * y + forward * z;
 
             Vector3 lightPos = snappedCenter - direction * size / 2f;

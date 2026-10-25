@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -36,15 +37,14 @@ namespace Dino_Engine.ECS.Systems
             var cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
             Shadow shadow = shadowComp.shadow;
             float lightRadius = entity.Get<AttunuationComponent>().AttunuationRadius;
+
             // -------------------------------------------------------------------
-            // STEP 1: BROADPHASE - Query Spatial Grid ONCE for all candidates
+            // STEP 1: BROADPHASE - Query Spatial Grid for Standard Models
             // -------------------------------------------------------------------
             Entity gridEntity = world.GetSingleton<RenderSpatialGridSingleton>();
             SpatialGrid renderGrid = world.GetComponent<RenderSpatialGridSingleton>(gridEntity).Grid;
 
             renderGrid.QuerySphere(lightPos, lightRadius, _lightCandidates);
-
-            //if (_lightCandidates.Count == 0) return;
 
             Vector3[] directions = {
                 Vector3.UnitX, -Vector3.UnitX, // +X, -X
@@ -76,15 +76,14 @@ namespace Dino_Engine.ECS.Systems
                 Frustum faceFrustum = new Frustum(viewProjectionMatrix);
 
                 // ---------------------------------------------------------------
-                // STEP 3: NARROWPHASE - Cull candidate models against face Frustum
+                // STEP 3A: NARROWPHASE - Cull Standard Models
                 // ---------------------------------------------------------------
-                Dictionary<glModel, List<Matrix4>> commands = new();
+                Dictionary<glModel, List<Matrix4>> standardCommands = new();
 
                 for (int c = 0; c < _lightCandidates.Count; c++)
                 {
                     Entity candidate = _lightCandidates[c];
 
-                    // Filter only renderable model entities
                     if (!world.HasComponent<ModelComponent>(candidate) ||
                         !world.HasComponent<ModelRenderTag>(candidate) ||
                         !world.HasComponent<LocalToWorldMatrixComponent>(candidate))
@@ -92,35 +91,107 @@ namespace Dino_Engine.ECS.Systems
                         continue;
                     }
 
-                    var ltw = world.GetComponent<LocalToWorldMatrixComponent>(candidate).value;
+                    var modelLtw = world.GetComponent<LocalToWorldMatrixComponent>(candidate).value;
                     var modelComp = world.GetComponent<ModelComponent>(candidate);
 
                     if (modelComp.model == null) continue;
 
-                    // Calculate world-space AABB using allocation-free Transform
-                    AABB localBounds = new AABB(modelComp.model.box.Min, modelComp.model.box.Max);
-                    AABB worldBounds = AABB.Transform(localBounds, ltw);
+                    AABB localBoundsStandard = new AABB(modelComp.model.box.Min, modelComp.model.box.Max);
+                    AABB worldBoundsStandard = AABB.Transform(localBoundsStandard, modelLtw);
 
-                    // Test AABB against this face's frustum
-                    if (faceFrustum.IntersectsAABB(worldBounds) != IntersectionResult.Outside)
+                    if (faceFrustum.IntersectsAABB(worldBoundsStandard) != IntersectionResult.Outside)
                     {
-                        if (!commands.TryGetValue(modelComp.model, out var matrixList))
+                        if (!standardCommands.TryGetValue(modelComp.model, out var matrixList))
                         {
                             matrixList = new List<Matrix4>();
-                            commands[modelComp.model] = matrixList;
+                            standardCommands[modelComp.model] = matrixList;
                         }
-                        matrixList.Add(ltw);
+                        matrixList.Add(modelLtw);
                     }
                 }
 
-                // Submit filtered geometry for this face
-                foreach (var command in commands)
+                // ---------------------------------------------------------------
+                // STEP 3B: NARROWPHASE - Cull and Collect Characters Directly from World
+                // ---------------------------------------------------------------
+                Dictionary<glModel, List<CharacterInstanceData>> characterCommands = new();
+                var characterQuery = world.QueryArchetypes(new BitMask(
+                    typeof(CharacterModelComponent),
+                    typeof(SkeletonComponent),
+                    typeof(LocalToWorldMatrixComponent)),
+                    BitMask.Empty);
+
+                foreach (var archetype in characterQuery)
+                {
+                    var modelArray = archetype.GetComponentArray<CharacterModelComponent>();
+                    var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
+                    var skeletonArray = archetype.GetComponentArray<SkeletonComponent>();
+
+                    int count = archetype.EntityCount;
+                    for (int c = 0; c < count; c++)
+                    {
+                        Matrix4 ltw = matrixArray[c].value;
+                        Vector3 charPos = ltw.ExtractTranslation();
+
+                        // Quick coarse distance check against light radius
+                        if ((charPos - lightPos).LengthSquared > (lightRadius * lightRadius))
+                            continue;
+
+                        glModel model = modelArray[c].model;
+                        if (model == null) continue;
+
+                        // Frustum culling against face frustum
+                        AABB localBounds = new AABB(model.box.Min, model.box.Max);
+                        AABB worldBounds = AABB.Transform(localBounds, ltw);
+
+                        if (faceFrustum.IntersectsAABB(worldBounds) != IntersectionResult.Outside)
+                        {
+                            var skeleton = skeletonArray[c];
+                            var skinningMatrices = skeleton.SkinningMatrices;
+                            int boneCount = skinningMatrices != null ? skinningMatrices.Length : (int)BoneType.Count;
+                            Matrix4[] skinningMatricesCopy = new Matrix4[boneCount];
+
+                            if (skinningMatrices != null && skinningMatrices.Length > 0)
+                            {
+                                Array.Copy(skinningMatrices, skinningMatricesCopy, boneCount);
+                            }
+                            else
+                            {
+                                for (int b = 0; b < boneCount; b++)
+                                {
+                                    skinningMatricesCopy[b] = Matrix4.Identity;
+                                }
+                            }
+
+                            if (!characterCommands.TryGetValue(model, out var charList))
+                            {
+                                charList = new List<CharacterInstanceData>();
+                                characterCommands[model] = charList;
+                            }
+
+                            charList.Add(new CharacterInstanceData
+                            {
+                                ModelMatrix = ltw,
+                                SkinningMatrices = skinningMatricesCopy
+                            });
+                        }
+                    }
+                }
+
+                // Submit Standard Models
+                foreach (var command in standardCommands)
                 {
                     var renderCmd = new ModelRenderCommand { model = command.Key, matrices = command.Value };
                     if (renderCmd.matrices.Count > minCountForInstanced)
                         Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(renderCmd, passShadow);
                     else
                         Engine.RenderEngine._modelRenderer.SubmitShadowCommand(renderCmd, passShadow);
+                }
+
+                // Submit Characters
+                foreach (var command in characterCommands)
+                {
+                    var renderCmd = new CharacterRenderCommand(command.Key, command.Value);
+                    Engine.RenderEngine._characterRenderer.SubmitShadowCommand(renderCmd, passShadow);
                 }
 
                 // ---------------------------------------------------------------

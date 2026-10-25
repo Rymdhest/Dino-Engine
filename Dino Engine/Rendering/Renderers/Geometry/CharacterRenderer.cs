@@ -81,7 +81,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void FinishGeometry(RenderEngine renderEngine)
         {
-            /*
+            
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);
             GL.DisableVertexAttribArray(2);
@@ -90,7 +90,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.DisableVertexAttribArray(5);
             GL.DisableVertexAttribArray(6); // Bone Indices
             GL.DisableVertexAttribArray(7); // Bone Weights
-            */
+            
             GL.BindVertexArray(0);
         }
 
@@ -164,7 +164,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(CharacterRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
-            Console.WriteLine("character shadow");
             if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
             {
                 shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
@@ -173,18 +172,20 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             {
                 shadow.shadowFrameBuffer.bind();
             }
-
             for (int i = 0; i < command.instances.Count; i++)
             {
                 GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
 
                 glModel glmodel = command.model;
                 GL.BindVertexArray(glmodel.getVAOID());
+
+
                 GL.EnableVertexAttribArray(0); // Position
                 GL.EnableVertexAttribArray(4); // Material Index
                 GL.EnableVertexAttribArray(5); // Model Texture Index
                 GL.EnableVertexAttribArray(6); // Bone Indices
                 GL.EnableVertexAttribArray(7); // Bone Weights
+
 
                 CharacterInstanceData instance = command.instances[i];
                 Matrix4 transformationMatrix = instance.ModelMatrix;
