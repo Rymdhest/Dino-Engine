@@ -31,42 +31,47 @@ namespace Dino_Engine.ECS.ECS_Architecture
         public static void ManualRegisterSystems()
         {
 
-            // -2
-            Systems.Add(new SkeletalAnimationSystem());
-
-            // -1
-            Systems.Add(new CharacterRenderSystem());
-            Systems.Add(new TerrainChunkSystem());
-
-
-            // 0
-            Systems.Add(new CelestialBodyRenderSystem());
-            Systems.Add(new DirectionalCascadeShadowSystem());
-            Systems.Add(new DirectionalLightSystem());
-            Systems.Add(new GrassChunkRenderSystem());
-            Systems.Add(new GrassDisplaceSystem());
-            Systems.Add(new GravitySystem());
+            // input
             Systems.Add(new PlayerInputSystem());
             Systems.Add(new PositionRotationInputControlSystem());
-            Systems.Add(new LocalToWorldTransformChildSystem());
-            Systems.Add(new ModelRenderSystem());
+
+
+            // update
+
+            Systems.Add(new GravitySystem());
+            Systems.Add(new SkeletalAnimationSystem());
             Systems.Add(new ParticleEmitterSystem());
-            Systems.Add(new ParticleRenderSystem());
-            Systems.Add(new PhysicsSystem());
-            Systems.Add(new PointLightShadowSystem());
-            Systems.Add(new PointLightSystem());
             Systems.Add(new SelfDestroySystem());
-            Systems.Add(new SkySYstem());
-            Systems.Add(new SpotlightShadowSystem());
-            Systems.Add(new SpotLightSystem());
+            Systems.Add(new PhysicsSystem());
             Systems.Add(new VelocitySystem());
+            Systems.Add(new FixToTerrainHeightSystem());
+
+
+            Systems.Add(new LocalToWorldTransformRootSystem());
+            Systems.Add(new LocalToWorldTransformChildSystem());
+
             Systems.Add(new ViewMatrixSystem());
             Systems.Add(new CameraSystem());
 
-            // 1
-            Systems.Add(new LocalToWorldTransformRootSystem());
+            Systems.Add(new GrassDisplaceSystem());
             Systems.Add(new RenderSpatialGridSystem());
+
+            // render
+            Systems.Add(new SkySYstem());
+            Systems.Add(new ModelRenderSystem());
+            Systems.Add(new GrassChunkRenderSystem());
+            Systems.Add(new ParticleRenderSystem());
+            Systems.Add(new PointLightShadowSystem());
+            Systems.Add(new PointLightSystem());
+            Systems.Add(new SpotlightShadowSystem());
+            Systems.Add(new SpotLightSystem());
+            Systems.Add(new DirectionalCascadeShadowSystem());
+            Systems.Add(new DirectionalLightSystem());
             Systems.Add(new TerrainChunkRenderSystem());
+            Systems.Add(new CharacterRenderSystem());
+            Systems.Add(new CelestialBodyRenderSystem());
+
+            Systems.Add(new TerrainChunkSystem());
 
         }
 

@@ -443,7 +443,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             mountainFactor /= totalAmplitude;
 
             yMountain *= mountainFactor;
-            yMountain *= 300f;
+            yMountain *= 100f;
 
             y += yMountain;
 

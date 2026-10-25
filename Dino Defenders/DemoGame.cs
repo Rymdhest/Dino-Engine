@@ -267,7 +267,7 @@ namespace Dino_Defenders
 
 
             spawnCity(Engine.world);
-            //spawnTestScene(Engine.world);
+            spawnTestScene(Engine.world);
             //spawnIndoorScene(eCSEngine);
 
 
@@ -280,8 +280,8 @@ namespace Dino_Defenders
                 
 
             float dist = 2.0f;
-            float x = (1 / 100)*dist;
-            float z = (1 % 100)*dist-5;
+            float x = 150f;
+            float z = 150f;
             float height = terrainGenerator.getHeightAt(new Vector2(x, z));
 
             var clip = new AnimationClip
@@ -393,18 +393,19 @@ namespace Dino_Defenders
                 skeleton,
                 new LocalToWorldMatrixComponent(),
                 new VelocityComponent(),
+                new FixToTerrainHeightComponent(),
                 new PlayerTag()
             );
 
             world.Camera = world.CreateEntity("Camera",
-                new PositionComponent(0, 20f, -10f),
+                new PositionComponent(0, 30f, -13f),
                 new RotationComponent(MathF.PI/2.7f, MathF.PI, 0.0f),
                 new MainCameraTag(),
                 new LocalToWorldMatrixComponent(),
                 new PositionRotationInputControlComponent(),
                 new ViewMatrixComponent(),
                 new ParentComponent(player, ignoreParentRotation:true),
-                new PerspectiveProjectionComponent(MathHelper.DegreesToRadians(80f), Engine.Resolution, 0.1f, 1000f));
+                new PerspectiveProjectionComponent(MathHelper.DegreesToRadians(60f), Engine.Resolution, 0.1f, 1000f));
 
 
             //spawnModelOverTerrain(1000, skeletonModel, 30f, swayAmount: 0f);

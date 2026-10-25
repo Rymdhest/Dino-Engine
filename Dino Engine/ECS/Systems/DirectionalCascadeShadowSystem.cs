@@ -132,6 +132,9 @@ namespace Dino_Engine.ECS.Systems
                 imposterCommand = new ImposterRenderCommand { instances = _imposters.ToArray() };
             }
 
+
+
+
             // 5. Submit Models & Imposters to each Cascade
             for (int j = 0; j < shadowCascade.cascades.Length; j++)
             {

@@ -164,6 +164,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(CharacterRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
+            Console.WriteLine("character shadow");
             if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
             {
                 shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
