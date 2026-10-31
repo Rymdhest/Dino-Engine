@@ -1,4 +1,5 @@
-﻿using Dino_Engine.Debug;
+﻿using Dino_Engine.Animation;
+using Dino_Engine.Debug;
 using Dino_Engine.ECS;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -48,6 +49,8 @@ namespace Dino_Engine.Core
             _performanceMonitor = new PerformanceMonitor();
             _renderEngine = new RenderEngine();
             _renderEngine.InitRenderers(settings._resolution);
+
+            AnimationLoader.Initialize();
 
             //ComponentTypeRegistry.Register<Position>();
             //ComponentTypeRegistry.Register<Velocity>();
@@ -110,6 +113,9 @@ namespace Dino_Engine.Core
         }
         private void Update()
         {
+
+            AnimationLoader.Initialize();
+
             _deltaFrameTimeTracker.update();
 
             /*

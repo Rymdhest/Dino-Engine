@@ -267,7 +267,7 @@ namespace Dino_Defenders
 
 
             spawnCity(Engine.world);
-            spawnTestScene(Engine.world);
+            //spawnTestScene(Engine.world);
             //spawnIndoorScene(eCSEngine);
 
 
@@ -284,11 +284,7 @@ namespace Dino_Defenders
             float z = 150f;
             float height = terrainGenerator.getHeightAt(new Vector2(x, z));
 
-            var clip = new AnimationClip
-            {
-                Name = "RightArmSwingTest",
-                Duration = 1.0f
-            };
+
 
             float lowerLegSize = -0.4f;
             float upperLegSize = 1.55f;
@@ -304,84 +300,10 @@ namespace Dino_Defenders
             Vector3 shoulderAxis = Vector3.UnitY; // Upper arm front-to-back pendulum
             Vector3 elbowAxis = Vector3.UnitY; // Elbow flexion bend
 
-            // --- LEFT ARM ---
-            clip.Tracks[BoneType.UpperArmL] = new AnimationTrack(new List<Keyframe>
-            {
-                new Keyframe(0.0f, armDownL * Quaternion.FromAxisAngle(shoulderAxis,  swingAmplitude)),
-                new Keyframe(0.5f, armDownL * Quaternion.FromAxisAngle(shoulderAxis, -swingAmplitude)),
-                new Keyframe(1.0f, armDownL * Quaternion.FromAxisAngle(shoulderAxis,  swingAmplitude))
-            });
-
-            // LOWER ARM: NO armDown here! Only the local elbow bend.
-            clip.Tracks[BoneType.LowerArmL] = new AnimationTrack(new List<Keyframe>
-            {
-                new Keyframe(0.0f, Quaternion.FromAxisAngle(elbowAxis,  -0.4f)),
-                new Keyframe(0.5f, Quaternion.FromAxisAngle(elbowAxis,  -lowerArmBend)),
-                new Keyframe(1.0f, Quaternion.FromAxisAngle(elbowAxis,  -0.4f))
-            });
-
-            // --- RIGHT ARM (Inverted signs for natural running opposition) ---
-            clip.Tracks[BoneType.UpperArmR] = new AnimationTrack(new List<Keyframe>
-            {
-                new Keyframe(0.0f, armDownR * Quaternion.FromAxisAngle(shoulderAxis, swingAmplitude)),
-                new Keyframe(0.5f, armDownR * Quaternion.FromAxisAngle(shoulderAxis, -swingAmplitude)),
-                new Keyframe(1.0f, armDownR * Quaternion.FromAxisAngle(shoulderAxis, swingAmplitude))
-            });
-
-            // LOWER ARM: NO armDown here either!
-            clip.Tracks[BoneType.LowerArmR] = new AnimationTrack(new List<Keyframe>
-            {
-                new Keyframe(0.0f, Quaternion.FromAxisAngle(elbowAxis,  lowerArmBend)),
-                new Keyframe(0.5f, Quaternion.FromAxisAngle(elbowAxis,  0.4f)),
-                new Keyframe(1.0f, Quaternion.FromAxisAngle(elbowAxis,  lowerArmBend))
-            });
 
 
+            var animationComponent = new AnimationComponent();
 
-
-
-            clip.Tracks[BoneType.UpperLegL] = new AnimationTrack(new List<Keyframe>
-            {
-                new Keyframe(0.0f, Quaternion.FromAxisAngle(Vector3.UnitX, -upperLegSize)),
-                new Keyframe(0.5f, Quaternion.FromAxisAngle(Vector3.UnitX, upperLegSize)),
-                new Keyframe(1.0f, Quaternion.FromAxisAngle(Vector3.UnitX, -upperLegSize))
-            });
-
-            clip.Tracks[BoneType.LowerLegL] = new AnimationTrack(new List<Keyframe>
-            {
-                new Keyframe(0.0f, Quaternion.FromAxisAngle(Vector3.UnitX, -lowerLegSize)),
-                new Keyframe(0.5f, Quaternion.FromAxisAngle(Vector3.UnitX, lowerLegSize)),
-                new Keyframe(1.0f, Quaternion.FromAxisAngle(Vector3.UnitX, -lowerLegSize))
-            });
-
-            clip.Tracks[BoneType.UpperLegR] = new AnimationTrack(new List<Keyframe>
-            {
-                new Keyframe(0.0f, Quaternion.FromAxisAngle(Vector3.UnitX, upperLegSize)),
-                new Keyframe(0.5f, Quaternion.FromAxisAngle(Vector3.UnitX, -upperLegSize)),
-                new Keyframe(1.0f, Quaternion.FromAxisAngle(Vector3.UnitX, upperLegSize))
-            });
-
-            clip.Tracks[BoneType.LowerLegR] = new AnimationTrack(new List<Keyframe>
-            {
-                new Keyframe(0.0f, Quaternion.FromAxisAngle(Vector3.UnitX, lowerLegSize)),
-                new Keyframe(0.5f, Quaternion.FromAxisAngle(Vector3.UnitX, -lowerLegSize)),
-                new Keyframe(1.0f, Quaternion.FromAxisAngle(Vector3.UnitX, lowerLegSize))
-            });
-
-            var testLayer = new AnimationLayer
-            {
-                Name = "RightArmSwingLayer",
-                Clip = clip,
-                Priority = 10,
-                Loop = true
-            };
-
-            var animationComponent = new AnimationComponent(true);
-            animationComponent.Layers.Add(testLayer);
-
-            // 4. Setup Skeleton
-            var skeleton = new SkeletonComponent((int)BoneType.Count);
-            skeleton.InitializeBindPose();
 
             // 5. Spawn Entity
             Entity player = world.CreateEntity("skeleton",
@@ -389,11 +311,12 @@ namespace Dino_Defenders
                 new RotationComponent(new Vector3(0f, MyMath.rngMinusPlus(0.0f), 0f)),
                 new ScaleComponent(new Vector3(1f, 1f + MyMath.rng(0.0f), 1f)),
                 new CharacterModelComponent(skeletonModel),
-                animationComponent,
-                skeleton,
+                new AnimationComponent(),
+                new SkeletonComponent(),
                 new LocalToWorldMatrixComponent(),
                 new VelocityComponent(),
                 new FixToTerrainHeightComponent(),
+                new GrassDisplaceComponent(2f),
                 new PlayerTag()
             );
 

@@ -35,7 +35,6 @@ namespace Dino_Engine.ECS.Systems
                     var skeleton = skeletonArray[i];
                     var stack = stackArray[i];
 
-                    skeleton.EnsureAllocated();
 
                     if (stack.Layers == null || stack.Layers.Count == 0)
                     {

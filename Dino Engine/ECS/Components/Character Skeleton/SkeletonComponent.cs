@@ -19,23 +19,20 @@ namespace Dino_Engine.ECS.Components
     {
         public int[] ParentIndices;
 
-        // Baseline rest pose (extracted from bind pose once)
         public Vector3[] LocalRestPositions;
         public Quaternion[] LocalRestRotations;
 
-        // Current evaluated local space (per frame)
         public Vector3[] LocalPositions;
         public Quaternion[] LocalRotations;
 
-        // Evaluated matrices
         public Matrix4[] ModelTransforms;
         public Matrix4[] BindPoseInverse;
         public Matrix4[] SkinningMatrices;
 
-        public SkeletonComponent() : this((int)BoneType.Count) { }
-
-        public SkeletonComponent(int boneCount)
+        public SkeletonComponent()
         {
+            int boneCount = (int)BoneType.Count;
+
             ParentIndices = new int[boneCount];
             LocalRestPositions = new Vector3[boneCount];
             LocalRestRotations = new Quaternion[boneCount];
@@ -48,13 +45,6 @@ namespace Dino_Engine.ECS.Components
             SkinningMatrices = new Matrix4[boneCount];
 
             InitializeBindPose();
-        }
-
-        public void EnsureAllocated()
-        {
-            int count = (int)BoneType.Count;
-            if (ParentIndices != null && ParentIndices.Length == count) return;
-            this = new SkeletonComponent(count);
         }
 
         public void InitializeBindPose()
@@ -95,7 +85,7 @@ namespace Dino_Engine.ECS.Components
                 else
                 {
                     Matrix4 parentGlobalRest = Matrix4.Invert(invBind[parentIdx]);
-                    childLocalRest = childGlobalRest * Matrix4.Invert(parentGlobalRest); // Original working order
+                    childLocalRest = childGlobalRest * Matrix4.Invert(parentGlobalRest);
                 }
 
                 LocalRestPositions[i] = childLocalRest.ExtractTranslation();

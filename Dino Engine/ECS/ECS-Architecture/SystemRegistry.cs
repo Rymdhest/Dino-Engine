@@ -39,13 +39,14 @@ namespace Dino_Engine.ECS.ECS_Architecture
             // update
 
             Systems.Add(new GravitySystem());
-            Systems.Add(new SkeletalAnimationSystem());
+            Systems.Add(new CharacterAnimationControlSystem());
             Systems.Add(new ParticleEmitterSystem());
             Systems.Add(new SelfDestroySystem());
             Systems.Add(new PhysicsSystem());
             Systems.Add(new VelocitySystem());
             Systems.Add(new FixToTerrainHeightSystem());
 
+            Systems.Add(new SkeletalAnimationSystem());
 
             Systems.Add(new LocalToWorldTransformRootSystem());
             Systems.Add(new LocalToWorldTransformChildSystem());
@@ -53,6 +54,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             Systems.Add(new ViewMatrixSystem());
             Systems.Add(new CameraSystem());
 
+            Systems.Add(new GrassCollisionDisplaceSystem());
             Systems.Add(new GrassDisplaceSystem());
             Systems.Add(new RenderSpatialGridSystem());
 

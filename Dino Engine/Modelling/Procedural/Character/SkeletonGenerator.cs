@@ -417,7 +417,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             // --- Head ---
             // rawHeadAnchor (1.85) + globalMeshOffset (2.0) = 3.85
-            SetInvBind(BoneType.Head, new Vector3(0f, 0.0f, -0.03f));
+            SetInvBind(BoneType.Head, new Vector3(0f, 3.85f, -0.03f));
 
             // --- Arms ---
             // Right Arm (extends in -X)

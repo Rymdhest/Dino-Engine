@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
-using Dino_Engine.ECS.ECS_Architecture;
 using OpenTK.Mathematics;
+using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Animation;
 
 namespace Dino_Engine.ECS.Components
 {
@@ -20,37 +21,72 @@ namespace Dino_Engine.ECS.Components
     {
         public List<Keyframe> Keyframes;
 
-        public AnimationTrack(List<Keyframe> Keyframes)
+        public AnimationTrack(List<Keyframe> keyframes)
         {
-            this.Keyframes = Keyframes;
+            Keyframes = keyframes;
         }
     }
 
     public class AnimationClip
     {
-        public string Name;
+        public AnimationId Id;
         public float Duration;
-        public Dictionary<BoneType, AnimationTrack> Tracks = new Dictionary<BoneType, AnimationTrack>();
+        public int Priority;
+        public Dictionary<BoneType, AnimationTrack> Tracks = new();
     }
 
     public class AnimationLayer
     {
-        public string Name;
+        public AnimationId ClipId;
         public AnimationClip Clip;
-        public int Priority;             // Higher number wins (e.g., Idle=0, Run=10, Attack=50)
-        public float Time;               // Current playback time in the clip
-        public float Speed = 1.0f;
+        public int Priority;
+        public float Time;
+        public float Speed;
         public bool Loop;
 
+        public AnimationLayer(AnimationId clipId, AnimationClip clip, int priority, bool loop, float speed = 1.0f)
+        {
+            ClipId = clipId;
+            Clip = clip;
+            Priority = priority;
+            Loop = loop;
+            Speed = speed;
+            Time = 0.0f;
+        }
     }
 
     public struct AnimationComponent : IComponent
     {
         public List<AnimationLayer> Layers;
 
-        public AnimationComponent(bool init)
+        // Parameterless constructor automatically provisions the permanent base Idle layer
+        public AnimationComponent()
         {
-            Layers = new List<AnimationLayer>();
+            Layers = new List<AnimationLayer>
+            {
+                new AnimationLayer(AnimationId.Idle, AnimationRegistry.Get(AnimationId.Idle), priority: 0, loop: true)
+            };
+        }
+
+        /// <summary>
+        /// Universally enforces that an animation type can only exist once. 
+        /// If already active, it resets its timer. If not, it safely adds it.
+        /// </summary>
+        public void PlayLayer(AnimationId clipId, bool loop = false, float speed = 1.0f)
+        {
+            var clip = AnimationRegistry.Get(clipId);
+
+            StopLayer(clipId);
+
+            Layers.Add(new AnimationLayer(clipId, clip, clip.Priority, loop, speed));
+        }
+
+        /// <summary>
+        /// Universally stops and removes an animation layer by its ID.
+        /// </summary>
+        public void StopLayer(AnimationId clipId)
+        {
+            Layers.RemoveAll(l => l.ClipId == clipId);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using Dino_Engine.Core;
+﻿using Dino_Engine.Animation;
+using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using OpenTK.Mathematics;
@@ -44,6 +45,12 @@ namespace Dino_Engine.ECS.Systems
             velocity.value = moveDirection * _moveSpeed;
             entity.Set(velocity);
 
+            if (windowhandler.IsMouseButtonDown(MouseButton.Left))
+            {
+                var animComp = entity.Get<AnimationComponent>();
+                animComp.PlayLayer(AnimationId.Swing, loop:false, speed:1.0f);
+                entity.Set(animComp);
+            }
         }
     }
 }
