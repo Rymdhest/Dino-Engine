@@ -1,16 +1,27 @@
-﻿using Dino_Engine.Core;
+using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Procedural.Terrain;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Util;
-using Dino_Engine.Util.Data_Structures;
 using OpenTK.Mathematics;
+using System.Collections.Generic;
 
 namespace Dino_Engine.ECS.Systems
 {
+    /// <summary>
+    /// Streams fixed-size terrain chunks around the camera. Unlike the old LOD quadtree, every
+    /// chunk is exactly <see cref="TerrainQuadTreeSingleton.ChunkSize"/> in size, so quality and
+    /// grass density are uniform everywhere (no popping). Only a square ring of
+    /// <see cref="TerrainQuadTreeSingleton.Radius"/> chunks on each side of the camera exists at
+    /// any time; everything else is destroyed.
+    /// </summary>
     public class TerrainChunkSystem : SystemBase
     {
+        // Reusable scratch buffers (avoid per-frame allocations)
+        private readonly List<Vector2i> _toCreate = new();
+        private readonly List<Vector2i> _toDestroy = new();
+
         public TerrainChunkSystem()
             : base(new BitMask(typeof(TerrainChunkComponent), typeof(ScaleComponent), typeof(LocalToWorldMatrixComponent)))
         {
@@ -19,129 +30,62 @@ namespace Dino_Engine.ECS.Systems
 
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
-            var quadtreeComponent = world.GetComponent<TerrainQuadTreeSingleton>( world.GetSingleton<TerrainQuadTreeSingleton>());
+            var terrainComp = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
             TerrainGenerator generator = world.GetComponent<TerrainGeneratorSingleton>(world.GetSingleton<TerrainGeneratorSingleton>()).Generator;
+
             Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
-            UpdateNodeLODRecursive(quadtreeComponent.QuadTree, cameraPos, world, generator, quadtreeComponent.rootSize);
+            float chunkSize = terrainComp.ChunkSize;
+            int radius = terrainComp.Radius;
+            var chunks = terrainComp.Chunks;
+
+            // The cell the camera is currently standing in. We keep a square ring of `radius`
+            // chunks on each side of this cell alive, and destroy everything else.
+            int camCx = (int)MathF.Floor(cameraPos.X / chunkSize);
+            int camCz = (int)MathF.Floor(cameraPos.Z / chunkSize);
+
+            // 1. Destroy chunks that have drifted outside the desired ring around the camera.
+            _toDestroy.Clear();
+            foreach (var kv in chunks)
+                if (!IsInRadius(kv.Key, camCx, camCz, radius))
+                    _toDestroy.Add(kv.Key);
+
+            for (int i = 0; i < _toDestroy.Count; i++)
+            {
+                Vector2i cell = _toDestroy[i];
+                Entity e = chunks[cell];
+                world.DestroyEntity(e);
+                chunks.Remove(cell);
+            }
+
+            // 2. Create any missing chunks inside the ring.
+            _toCreate.Clear();
+            for (int cx = camCx - radius; cx <= camCx + radius; cx++)
+                for (int cz = camCz - radius; cz <= camCz + radius; cz++)
+                    if (!chunks.ContainsKey(new Vector2i(cx, cz)))
+                        _toCreate.Add(new Vector2i(cx, cz));
+
+            for (int i = 0; i < _toCreate.Count; i++)
+            {
+                Vector2i key = _toCreate[i];
+                Entity e = CreateChunkEntity(key, chunkSize, world, generator);
+                chunks[key] = e;
+            }
+
             Engine.Instance.world.ApplyDeferredCommands();
         }
 
-        public static void CollectVisibleChunks(QuadTreeNode node, Frustum frustum, List<Entity> visibleChunks)
+        private static bool IsInRadius(Vector2i cell, int camCx, int camCz, int radius)
         {
-            float minHeight = -100;
-            float maxHeight = 700;
-            Vector3 min = new Vector3(node.WorldPos.X, minHeight, node.WorldPos.Y);
-            Vector3 max = new Vector3(node.WorldPos.X + node.Size, maxHeight, node.WorldPos.Y + node.Size);
-
-            var result = frustum.IntersectsAABB(new Physics.AABB(min, max));
-
-            if (result == IntersectionResult.Outside)
-                return;
-
-            if (result == IntersectionResult.Inside || node.Children == null)
-            {
-                if (node.ChunkEntity.IsValid())
-                    visibleChunks.Add((Entity)node.ChunkEntity);
-                return;
-            }
-
-            foreach (var child in node.Children)
-            {
-                CollectVisibleChunks(child, frustum, visibleChunks);
-            }
+            return Math.Abs(cell.X - camCx) <= radius && Math.Abs(cell.Y - camCz) <= radius;
         }
 
-        private void UpdateNodeLODRecursive(QuadTreeNode node, Vector3 cameraPos, ECSWorld world, TerrainGenerator generator, float rootSize)
+        private Entity CreateChunkEntity(Vector2i cell, float chunkSize, ECSWorld world, TerrainGenerator generator)
         {
-            float distance = Vector2.Distance(cameraPos.Xz, node.GetCenter());
-            float lodFactor = 5.14f;
-            int maxDepth = 20;
-            float minSize = 4f;
-            int desiredLOD = ComputeDesiredLOD(distance, node, lodFactor, maxDepth, minSize, rootSize);
+            Vector3 scale = new Vector3(chunkSize, 1.0f, chunkSize);
+            Vector2 position = new Vector2(cell.X * chunkSize, cell.Y * chunkSize);
 
-            if (desiredLOD > node.Depth)
-            {
-                if (node.Children == null)
-                    node.Subdivide();
-
-                foreach (var child in node.Children)
-                    UpdateNodeLODRecursive(child, cameraPos, world, generator, rootSize);
-
-                // Since we split, this node is no longer a leaf → remove its chunk entity if valid
-                if (node.ChunkEntity.IsValid())
-                {
-                    world.DestroyEntity(node.ChunkEntity);
-                    node.ChunkEntity = Entity.Invalid;
-                }
-            }
-            else if (desiredLOD < node.Depth)
-            {
-                // Needs merge: remove children recursively if they exist
-                if (node.Children != null)
-                {
-                    RemoveChildEntities(node, world);
-                    node.Children = null;
-                }
-
-                // Now node is a leaf: make sure it has a valid chunk entity
-                if (!node.ChunkEntity.IsValid())
-                    node.ChunkEntity = CreateChunkEntity(node, world, generator);
-            }
-            else
-            {
-                // Desired LOD matches current node’s LOD:
-                if (node.Children != null)
-                {
-                    foreach (var child in node.Children)
-                        UpdateNodeLODRecursive(child, cameraPos, world, generator, rootSize);
-
-                    // If still has chunk entity (since node has children, it shouldn’t), remove it
-                    if (node.ChunkEntity.IsValid())
-                    {
-                        world.DestroyEntity(node.ChunkEntity);
-                        node.ChunkEntity = Entity.Invalid;
-                    }
-                }
-                else
-                {
-                    // Leaf: ensure chunk entity exists
-                    if (!node.ChunkEntity.IsValid())
-                        node.ChunkEntity = CreateChunkEntity(node, world, generator);
-                }
-            }
-        }
-        private int ComputeDesiredLOD(float distance, QuadTreeNode node, float lodFactor, int maxDepth, float minSize, float rootSize)
-        {
-            // Early out if node too small → deepest LOD reached
-            if (node.Size <= minSize)
-                return node.Depth;
-
-            // Compute desired depth directly based on distance and quadtree parameters
-            int desiredDepth = 0;
-
-            // At each possible depth, estimate the size of a node at that depth, and determine
-            // if the camera distance would require that level of detail.
-            for (int d = 0; d <= maxDepth; d++)
-            {
-                // Approximate node size at this depth: root size / 2^depth
-                float sizeAtDepth = rootSize / (1 << d);
-
-                float threshold = sizeAtDepth * lodFactor;
-
-                if (distance < threshold)
-                    desiredDepth = d;
-            }
-
-            return desiredDepth;
-        }
-
-        private Entity CreateChunkEntity(QuadTreeNode node, ECSWorld world, TerrainGenerator generator)
-        {
-            Vector3 scale = new Vector3(node.Size, 1.0f, node.Size);
-            Vector2 position = node.WorldPos;
-            var heightGrid = generator.generateChunk(node.WorldPos, scale.Xz, new Vector2i(TerrainRenderer.CHUNK_RESOLUTION));
+            var heightGrid = generator.generateChunk(position, scale.Xz, new Vector2i(TerrainRenderer.CHUNK_RESOLUTION));
             var normalgrid = generator.generateNormalGridFor(heightGrid, scale, position, out var grassGrid);
-
 
             return world.CreateEntity("Terrain Chunk",
                 new TerrainChunkComponent(heightGrid, normalgrid, grassGrid, position, scale.Xz),
@@ -150,20 +94,29 @@ namespace Dino_Engine.ECS.Systems
                 new LocalToWorldMatrixComponent()
             );
         }
-        private void RemoveChildEntities(QuadTreeNode node, ECSWorld world)
+
+        /// <summary>
+        /// Frustum-culls the currently-alive fixed-size chunks and appends their entities to
+        /// <paramref name="visibleChunks"/>. All chunks are the same size, so this is a simple
+        /// per-chunk AABB test (no LOD recursion).
+        /// </summary>
+        public static void CollectVisibleChunks(TerrainQuadTreeSingleton terrainComp, Frustum frustum, List<Entity> visibleChunks)
         {
-            if (node.Children == null)
-                return;
+            float minHeight = -100;
+            float maxHeight = 700;
+            float chunkSize = terrainComp.ChunkSize;
 
-            foreach (var child in node.Children)
+            foreach (var kv in terrainComp.Chunks)
             {
-                if (child.ChunkEntity.IsValid())
-                {
-                    world.DestroyEntity(child.ChunkEntity);
-                    child.ChunkEntity = Entity.Invalid;
-                }
+                Vector2 origin = new Vector2(kv.Key.X * chunkSize, kv.Key.Y * chunkSize);
+                Vector3 min = new Vector3(origin.X, minHeight, origin.Y);
+                Vector3 max = new Vector3(origin.X + chunkSize, maxHeight, origin.Y + chunkSize);
 
-                RemoveChildEntities(child, world);
+                var result = frustum.IntersectsAABB(new Physics.AABB(min, max));
+                if (result == IntersectionResult.Outside)
+                    continue;
+
+                visibleChunks.Add(kv.Value);
             }
         }
 

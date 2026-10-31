@@ -180,6 +180,10 @@ vec2 ParallaxOcclusionMapping(vec2 uv, vec3 viewDir, vec3 baseWorldPos, float st
     float scaledDepth = depth * 0.04;
     
     vec2 P = (viewDir.xy / viewDir.z) * scaledDepth;
+    // Cap the TOTAL march offset: at grazing angles viewDir.z -> 0 and |P| would otherwise blow up,
+    // marching far past the height stack (the "warping when looking along the terrain" artifact).
+    float maxOffset = depth * 0.5;
+    P *= min(1.0, maxOffset / max(length(P), 1e-4));
     vec2 deltaTexCoords = P / numLayers;
 
     vec2 currentTexCoords = uv;

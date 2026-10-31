@@ -1,4 +1,4 @@
-﻿using Dino_Engine.Core;
+using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Model;
@@ -227,7 +227,7 @@ namespace Dino_Engine.ECS.Systems
                 _grassCommands.Clear();
 
                 var viewProj = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
-                TerrainChunkSystem.CollectVisibleChunks(quadtreeComp.QuadTree, new Util.Frustum(viewProj), _visibleChunks);
+                TerrainChunkSystem.CollectVisibleChunks(quadtreeComp, new Util.Frustum(viewProj), _visibleChunks);
 
                 foreach (Entity chunkEntity in _visibleChunks)
                 {

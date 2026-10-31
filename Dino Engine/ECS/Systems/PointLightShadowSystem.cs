@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
@@ -201,7 +201,7 @@ namespace Dino_Engine.ECS.Systems
                 var grassChunks = new List<GrassChunkRenderData>();
 
                 var quadtreeComponent = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
-                TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent.QuadTree, faceFrustum, _visibleChunks);
+                TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent, faceFrustum, _visibleChunks);
 
                 var terrainChunksRenderData = new List<TerrainChunkRenderData>();
                 foreach (Entity chunkEntity in _visibleChunks)

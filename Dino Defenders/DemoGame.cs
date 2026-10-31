@@ -1,4 +1,4 @@
-﻿using Dino_Engine.Animation;
+using Dino_Engine.Animation;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -207,7 +207,7 @@ namespace Dino_Defenders
             //world.ClearAllEntitiesExcept(world.QueryEntities(new BitMask(typeof(MainCameraComponent)), BitMask.Empty).ToArray());
             world.ClearAllEntitiesExcept();
 
-            world.RegisterSingleton<TerrainQuadTreeSingleton>(world.CreateEntity(new TerrainQuadTreeSingleton(new QuadTreeNode(new Vector2(0, 0), 1000f, 0))));
+            world.RegisterSingleton<TerrainQuadTreeSingleton>(world.CreateEntity(new TerrainQuadTreeSingleton(chunkSize: 8f, radius: 5)));
             world.RegisterSingleton<TerrainGeneratorSingleton>(world.CreateEntity(new TerrainGeneratorSingleton(terrainGenerator)));
             world.RegisterSingleton<CollisionEventBufferSingleton>(world.CreateEntity(new CollisionEventBufferSingleton()));
             world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(15f)));

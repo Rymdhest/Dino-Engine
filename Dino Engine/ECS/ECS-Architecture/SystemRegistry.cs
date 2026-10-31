@@ -1,4 +1,4 @@
-﻿using Dino_Engine.ECS.Systems;
+using Dino_Engine.ECS.Systems;
 using OpenTK.Windowing.Common;
 
 namespace Dino_Engine.ECS.ECS_Architecture
@@ -61,7 +61,6 @@ namespace Dino_Engine.ECS.ECS_Architecture
             // render
             Systems.Add(new SkySYstem());
             Systems.Add(new ModelRenderSystem());
-            Systems.Add(new GrassChunkRenderSystem());
             Systems.Add(new ParticleRenderSystem());
             Systems.Add(new PointLightShadowSystem());
             Systems.Add(new PointLightSystem());

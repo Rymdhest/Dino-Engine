@@ -1,4 +1,4 @@
-﻿using Dino_Engine.Core;
+using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Rendering.Renderers.Geometry;
@@ -23,14 +23,15 @@ namespace Dino_Engine.ECS.Systems
             Matrix4 CameraProjectionMatrix = world.GetComponent<PerspectiveProjectionComponent>(world.Camera).ProjectionMatrix;
             var quadtreeComponent = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
             var viewProjectionMatrix = CameraViewMatrix * CameraProjectionMatrix;
-            TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent.QuadTree, new Util.Frustum(viewProjectionMatrix), visibleChunks);
+            TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent, new Util.Frustum(viewProjectionMatrix), visibleChunks);
 
+            // All chunks are the same size now, so there is no terrain LOD. We keep a single list for
+            // terrain and a distance-based split for grass (dense near the camera, sparse further out)
+            // which still gives a nice density falloff without any popping.
             var grassChunksLOD0 = new List<GrassChunkRenderData>();
             var grassChunksLOD1 = new List<GrassChunkRenderData>();
 
-
-            var terrainChunksLOD0 = new List<TerrainChunkRenderData>();
-            var terrainChunksLOD1 = new List<TerrainChunkRenderData>();
+            var terrainChunks = new List<TerrainChunkRenderData>();
 
             foreach (Entity entity in visibleChunks)
             {
@@ -44,15 +45,7 @@ namespace Dino_Engine.ECS.Systems
                 chunkCommand.size = chunkSize;
                 chunkCommand.arrayID = arrayID;
 
-                if (distance < 10)
-                {
-                    terrainChunksLOD0.Add(chunkCommand);
-                }
-                else 
-                {
-                    terrainChunksLOD1.Add(chunkCommand);
-                }
-
+                terrainChunks.Add(chunkCommand);
 
 
                 GrassChunkRenderData grassCommand = new GrassChunkRenderData();
@@ -72,8 +65,8 @@ namespace Dino_Engine.ECS.Systems
             Engine.RenderEngine._grassRenderer.SubmitGeometryCommand(new GrassRenderCommand(grassChunksLOD0.ToArray(), 0));
             Engine.RenderEngine._grassRenderer.SubmitGeometryCommand(new GrassRenderCommand(grassChunksLOD1.ToArray(), 1));
 
-            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD0.ToArray(), 0.03f));
-            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunksLOD1.ToArray(), 0.0f));
+            // Single terrain command: every chunk is the same size/quality, so no LOD split needed.
+            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunks.ToArray(), 0.03f));
         }
 
 
