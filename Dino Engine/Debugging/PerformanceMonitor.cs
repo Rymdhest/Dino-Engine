@@ -11,6 +11,9 @@ namespace Dino_Engine.Debug
         {
 
         }
+
+        public IReadOnlyCollection<TaskTracker> GPUTaskTrackers => GPUTasks.Values;
+        public IReadOnlyCollection<TaskTracker> CPUTaskTrackers => CPUTasks.Values;
         public void startCPUTask(string name)
         {
             if (CPUTasks.TryGetValue(name, out TaskTracker task))

@@ -4,6 +4,8 @@ using Dino_Engine.ECS;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.ECS.Systems;
+using Dino_Engine.GUI;
+using Dino_Engine.GUI.Debug;
 using Dino_Engine.Rendering;
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
@@ -24,6 +26,8 @@ namespace Dino_Engine.Core
         private DeltaFrameTimeTracker _deltaFrameTimeTracker;
         private RenderEngine _renderEngine;
         private PerformanceMonitor _performanceMonitor;
+        private GuiContext? _gui;
+        private DebugOverlay? _debugOverlay;
         private static Engine? _instance;
         private Game game;
 
@@ -35,6 +39,11 @@ namespace Dino_Engine.Core
         public static Vector2i Resolution { get => _instance._windowHandler.ClientSize; }
         public static RenderEngine RenderEngine { get => _instance._renderEngine; }
         public static PerformanceMonitor PerformanceMonitor { get => _instance._performanceMonitor; }
+        /// <summary>The engine's GUI. Add elements to <c>Engine.Gui.Root</c>; check <c>WantsMouse</c>/<c>WantsKeyboard</c> before reacting to input.</summary>
+        public static GuiContext Gui { get => _instance!._gui!; }
+        /// <summary>Built-in debug tools (toggle with F3).</summary>
+        public static DebugOverlay DebugOverlay { get => _instance!._debugOverlay!; }
+        internal GuiContext? GuiOrNull => _gui;
 
         private static DebugProc debugProcCallback = DebugCallback;
 
@@ -59,6 +68,9 @@ namespace Dino_Engine.Core
             SystemRegistry.ManualRegisterSystems();
 
             world = new();
+
+            _gui = new GuiContext(_windowHandler);
+            _debugOverlay = new DebugOverlay(_gui);
 
             _windowHandler.UpdateFrame += delegate (FrameEventArgs eventArgs)
             {
@@ -117,6 +129,12 @@ namespace Dino_Engine.Core
             AnimationLoader.Initialize();
 
             _deltaFrameTimeTracker.update();
+
+            // GUI first, so WantsMouse/WantsKeyboard are current when game code and systems read input.
+            _performanceMonitor.startCPUTask("GUI UPDATE");
+            _debugOverlay?.Update(Delta);
+            _gui?.Update(Delta);
+            _performanceMonitor.finishCPUTask("GUI UPDATE");
 
             /*
             TEST_totalElapsed += sw.Elapsed.TotalMilliseconds;

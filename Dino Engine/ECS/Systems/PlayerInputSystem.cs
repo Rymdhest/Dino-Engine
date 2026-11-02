@@ -20,12 +20,14 @@ namespace Dino_Engine.ECS.Systems
             Vector3 moveDirection = Vector3.Zero;
             float _moveSpeed = 10f;
             var windowhandler = Engine.WindowHandler;
+            bool keyboardFree = !Engine.Gui.WantsKeyboard;
+            bool mouseFree = !Engine.Gui.WantsMouse;
 
 
-            if (windowhandler.IsKeyDown(Keys.W)) moveDirection.Z += 1.0f; // Assuming Z is forward/back
-            if (windowhandler.IsKeyDown(Keys.S)) moveDirection.Z -= 1.0f;
-            if (windowhandler.IsKeyDown(Keys.A)) moveDirection.X += 1.0f;
-            if (windowhandler.IsKeyDown(Keys.D)) moveDirection.X -= 1.0f;
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.W)) moveDirection.Z += 1.0f; // Assuming Z is forward/back
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.S)) moveDirection.Z -= 1.0f;
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.A)) moveDirection.X += 1.0f;
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.D)) moveDirection.X -= 1.0f;
 
             var velocity = entity.Get<VelocityComponent>();
 
@@ -45,7 +47,7 @@ namespace Dino_Engine.ECS.Systems
             velocity.value = moveDirection * _moveSpeed;
             entity.Set(velocity);
 
-            if (windowhandler.IsMouseButtonDown(MouseButton.Left))
+            if (mouseFree && windowhandler.IsMouseButtonDown(MouseButton.Left))
             {
                 var animComp = entity.Get<AnimationComponent>();
                 animComp.PlayLayer(AnimationId.Swing, loop:false, speed:1.0f);

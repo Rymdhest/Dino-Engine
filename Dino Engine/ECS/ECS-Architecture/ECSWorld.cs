@@ -31,6 +31,20 @@ namespace Dino_Engine.ECS.ECS_Architecture
         );
 
         public int Count => entityLocations.Count;
+        public IReadOnlyCollection<Archetype> Archetypes => archetypes.Values;
+
+        public bool TryGetEntityLocation(Entity entity, out Archetype archetype, out int index)
+        {
+            if (entityLocations.TryGetValue(entity.Id, out var location))
+            {
+                archetype = location.archetype;
+                index = location.index;
+                return true;
+            }
+            archetype = null!;
+            index = -1;
+            return false;
+        }
         public ECSWorld()
         {
 

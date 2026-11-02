@@ -25,10 +25,14 @@ namespace Dino_Engine.ECS.Systems
             float moveSpeed = 7.0f;
             float turnSpeed = 0.001f;
             var windowhandler = Engine.WindowHandler;
+            // While the cursor is grabbed for mouse look the GUI ignores the mouse, so WantsMouse only
+            // blocks starting a look over the GUI; it never interrupts one in progress.
+            bool keyboardFree = !Engine.Gui.WantsKeyboard;
+            bool mouseFree = !Engine.Gui.WantsMouse;
             if (windowhandler.IsKeyDown(Keys.LeftShift)) moveSpeed *= 10f;
             if (windowhandler.IsKeyDown(Keys.LeftControl)) moveSpeed *= 0.1f;
 
-            if (windowhandler.IsMouseButtonDown(MouseButton.Right))
+            if (mouseFree && windowhandler.IsMouseButtonDown(MouseButton.Right))
             {
                 windowhandler.setMouseGrabbed(true);
 
@@ -74,21 +78,21 @@ namespace Dino_Engine.ECS.Systems
                 movement = Vector3.Transform(movement, currentFinalRotation) * moveSpeed * deltaTime;
             }
 
-            if (windowhandler.IsKeyDown(Keys.KeyPadAdd))
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.KeyPadAdd))
             {
                 DirectionNormalizedComponent dir = world.GetComponent<DirectionNormalizedComponent>(world.sun);
                 dir.value = dir.value + new Vector3(0.0f, -0.02f, 0.0f);
                 world.GetEntityView(world.sun).Set(dir); 
             }
-            if (windowhandler.IsKeyDown(Keys.KeyPadSubtract))
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.KeyPadSubtract))
             {
                 DirectionNormalizedComponent dir = world.GetComponent<DirectionNormalizedComponent>(world.sun);
                 dir.value = dir.value + new Vector3(0.0f, 0.02f, 0.0f);
                 world.GetEntityView(world.sun).Set(dir);
             }
 
-            if (windowhandler.IsKeyDown(Keys.Q)) movement.Y -= moveSpeed*deltaTime;   // strafe left
-            if (windowhandler.IsKeyDown(Keys.E)) movement.Y += moveSpeed*deltaTime;   // strafe right
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.Q)) movement.Y -= moveSpeed*deltaTime;   // strafe left
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.E)) movement.Y += moveSpeed*deltaTime;   // strafe right
             if (movement != Vector3.Zero)
             {
                 var position = entity.Get<PositionComponent>();
@@ -96,7 +100,7 @@ namespace Dino_Engine.ECS.Systems
                 entity.Set(position);
             }
 
-            if (windowhandler.IsKeyPressed(Keys.V))
+            if (keyboardFree && windowhandler.IsKeyPressed(Keys.V))
             {
                 float speed = 6f;
                 float mass = 1.0f;
@@ -140,7 +144,7 @@ namespace Dino_Engine.ECS.Systems
                 );
             }
 
-            if (windowhandler.IsKeyPressed(Keys.B))
+            if (keyboardFree && windowhandler.IsKeyPressed(Keys.B))
             {
                 for (int i = 0; i <1; i++) {
 

@@ -227,10 +227,22 @@ namespace Dino_Engine.Rendering
                 //Console.WriteLine(textureGenerator.preparedTextures[0].textures[0]);
             }
 
+            RenderGui();
 
             FinishFrame();
 
 
+        }
+
+        private void RenderGui()
+        {
+            var gui = Engine.Instance?.GuiOrNull;
+            if (gui == null) return;
+            Engine.PerformanceMonitor.startGPUTask("GUI");
+            Engine.PerformanceMonitor.startCPUTask("GUI RENDER");
+            gui.Render();
+            Engine.PerformanceMonitor.finishCPUTask("GUI RENDER");
+            Engine.PerformanceMonitor.finishGPUTask("GUI");
         }
 
         private void ShadowPass()
