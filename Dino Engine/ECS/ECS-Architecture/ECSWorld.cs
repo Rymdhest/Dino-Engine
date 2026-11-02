@@ -17,8 +17,14 @@ namespace Dino_Engine.ECS.ECS_Architecture
         private Dictionary<uint, (Archetype archetype, int index)> entityLocations = new();
         private Dictionary<Type, Entity> SingletonToEntity = new();
 
+        // The active camera, which everything renders and streams from. CameraSwitchSystem swaps it
+        // between GameCamera and FreeCamera.
         public Entity Camera;
+        public Entity GameCamera;
+        public Entity FreeCamera;
         public Entity sun;
+
+        public bool IsFreeCameraActive => FreeCamera.IsValid() && Camera.Id == FreeCamera.Id;
 
 
         public HashSet<Entity> DirtyEntities { get; } = new();

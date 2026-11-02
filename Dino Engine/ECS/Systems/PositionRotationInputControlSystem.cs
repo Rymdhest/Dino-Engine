@@ -12,6 +12,16 @@ namespace Dino_Engine.ECS.Systems
 {
     public class PositionRotationInputControlSystem : SystemBase
     {
+        public const float MaxPitch = MathF.PI / 2f - 0.01f;
+
+        // The camera rotation (world -> view) for a yaw/pitch pair
+        public static Quaternion CreateViewRotation(float yaw, float pitch)
+        {
+            Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitY, -yaw);
+            Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitX, -pitch);
+            return pitchRotation * yawRotation;
+        }
+
         public PositionRotationInputControlSystem()
             : base(new BitMask(
                 typeof(PositionComponent),
@@ -22,6 +32,9 @@ namespace Dino_Engine.ECS.Systems
         }
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
+            // Only the active camera takes input, so an inactive free camera stays put
+            if (entity.Entity.Id != world.Camera.Id) return;
+
             float moveSpeed = 7.0f;
             float turnSpeed = 0.001f;
             var windowhandler = Engine.WindowHandler;
@@ -41,15 +54,10 @@ namespace Dino_Engine.ECS.Systems
                 //Console.WriteLine(windowhandler.MouseState.Delta.X +" : "+deltaTime);
                 pitchYaw.Pitch -= windowhandler.MouseState.Delta.Y * turnSpeed;
                 pitchYaw.Yaw -= windowhandler.MouseState.Delta.X * turnSpeed;
-                pitchYaw.Pitch = Math.Clamp(pitchYaw.Pitch, -MathF.PI / 2f + 0.01f, MathF.PI / 2f - 0.01f);
-
-
-                Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitY, -pitchYaw.Yaw);
-                Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitX, -pitchYaw.Pitch);
-                Quaternion finalRotation = pitchRotation * yawRotation;
+                pitchYaw.Pitch = Math.Clamp(pitchYaw.Pitch, -MaxPitch, MaxPitch);
 
                 var rotation = entity.Get<RotationComponent>();
-                rotation.quaternion = finalRotation;
+                rotation.quaternion = CreateViewRotation(pitchYaw.Yaw, pitchYaw.Pitch);
 
                 entity.Set(pitchYaw);
                 entity.Set(rotation);
@@ -65,12 +73,10 @@ namespace Dino_Engine.ECS.Systems
             Quaternion currentFinalRotation =  currentYawRotation * currentPitchRotation;
 
             Vector3 movement = Vector3.Zero;
-            /*
-            if (windowhandler.IsKeyDown(Keys.W)) movement -= Vector3.UnitZ;   // forward
-            if (windowhandler.IsKeyDown(Keys.S)) movement += Vector3.UnitZ;   // backward
-            if (windowhandler.IsKeyDown(Keys.A)) movement -= Vector3.UnitX;   // strafe left
-            if (windowhandler.IsKeyDown(Keys.D)) movement += Vector3.UnitX;   // strafe right
-            */
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.W)) movement -= Vector3.UnitZ;   // forward
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.S)) movement += Vector3.UnitZ;   // backward
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.A)) movement -= Vector3.UnitX;   // strafe left
+            if (keyboardFree && windowhandler.IsKeyDown(Keys.D)) movement += Vector3.UnitX;   // strafe right
             if (movement != Vector3.Zero)
             {
                 movement = Vector3.Normalize(movement);

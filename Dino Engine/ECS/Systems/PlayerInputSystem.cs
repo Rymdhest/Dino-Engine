@@ -17,6 +17,13 @@ namespace Dino_Engine.ECS.Systems
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
+            // The free camera owns the keyboard and mouse; park the player meanwhile
+            if (world.IsFreeCameraActive)
+            {
+                entity.Set(new VelocityComponent());
+                return;
+            }
+
             Vector3 moveDirection = Vector3.Zero;
             float _moveSpeed = 10f;
             var windowhandler = Engine.WindowHandler;

@@ -23,6 +23,8 @@ namespace Dino_Engine.ECS.Systems
         }
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
+            if (entity.Entity.Id != world.Camera.Id) return;
+
             Engine.RenderEngine.context.viewPos = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
             Engine.RenderEngine.context.viewMatrix = entity.Get<ViewMatrixComponent>().value;
             Engine.RenderEngine.context.invViewMatrix = Matrix4.Invert(Engine.RenderEngine.context.viewMatrix);

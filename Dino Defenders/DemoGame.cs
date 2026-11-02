@@ -320,15 +320,27 @@ namespace Dino_Defenders
                 new PlayerTag()
             );
 
-            world.Camera = world.CreateEntity("Camera",
+            // In-game camera: locked top-down view following the player
+            world.GameCamera = world.CreateEntity("Camera",
                 new PositionComponent(0, 30f, -13f),
                 new RotationComponent(MathF.PI/2.7f, MathF.PI, 0.0f),
                 new MainCameraTag(),
                 new LocalToWorldMatrixComponent(),
-                new PositionRotationInputControlComponent(),
                 new ViewMatrixComponent(),
                 new ParentComponent(player, ignoreParentRotation:true),
                 new PerspectiveProjectionComponent(MathHelper.DegreesToRadians(60f), Engine.Resolution, 0.1f, 1000f));
+
+            // Debug free-fly camera, toggled with CameraSwitchSystem.ToggleKey. It jumps to the game camera when switched to.
+            world.FreeCamera = world.CreateEntity("Free Camera",
+                new PositionComponent(0f, 0f, 0f),
+                new RotationComponent(),
+                new MainCameraTag(),
+                new LocalToWorldMatrixComponent(),
+                new PositionRotationInputControlComponent(),
+                new ViewMatrixComponent(),
+                new PerspectiveProjectionComponent(MathHelper.DegreesToRadians(60f), Engine.Resolution, 0.1f, 1000f));
+
+            world.Camera = world.GameCamera;
 
 
             //spawnModelOverTerrain(1000, skeletonModel, 30f, swayAmount: 0f);

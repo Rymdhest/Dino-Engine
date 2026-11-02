@@ -32,6 +32,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
         {
 
             // input
+            Systems.Add(new CameraSwitchSystem());
             Systems.Add(new PlayerInputSystem());
             Systems.Add(new PositionRotationInputControlSystem());
 
