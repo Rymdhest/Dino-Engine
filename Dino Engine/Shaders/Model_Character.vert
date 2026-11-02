@@ -14,8 +14,7 @@ out vec3 fragColor;
 out vec2 fragUV;
 out mat3 normalTBN;
 out vec3 worldNormal;
-out vec3 TangentViewPos;
-out vec3 TangentFragPos;
+out vec3 viewSpacePos;
 out float textureIndex;
 
 uniform mat4 modelMatrix;
@@ -49,7 +48,9 @@ void main() {
 
     // 3. Transform from Entity Local Space -> World Space -> Clip Space
     vec4 worldPos = modelMatrix * skinnedPosition;
-    gl_Position = projectionMatrix * viewMatrix * worldPos;
+    vec4 viewPos = viewMatrix * worldPos;
+    viewSpacePos = viewPos.xyz;
+    gl_Position = projectionMatrix * viewPos;
 
     fragUV = uv;
     textureIndex = materialIndex;
@@ -61,15 +62,7 @@ void main() {
     vec3 B = cross(N, T);
 
     mat3 TBN = mat3(T, B, N);
-    mat3 invTBN = transpose(TBN); // Model Space -> Tangent Space
 
-    // 5. Transform positions to Tangent Space
-    TangentFragPos = invTBN * skinnedPosition.xyz;
-     
-    // Model-space view position transformed into tangent space
-    vec3 modelViewPos = (inverse(modelMatrix) * vec4(viewPosWorld, 1.0)).xyz;
-    TangentViewPos = invTBN * modelViewPos;
-    
     normalTBN = mat3(normalModelViewMatrix) * TBN;
     fragColor = color;
 

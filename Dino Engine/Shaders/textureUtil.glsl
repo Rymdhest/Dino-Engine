@@ -1,6 +1,7 @@
 
 
-vec4 lookupAlbedo(vec2 coords, float index) {
+
+vec4 lookupAlbedoGrad(vec2 coords, float index, vec2 dx, vec2 dy) {
     bool isMaterial = true;
 
     if (int(index + 0.5) >= numberOfMaterials) {
@@ -8,19 +9,24 @@ vec4 lookupAlbedo(vec2 coords, float index) {
         index -= numberOfMaterials;
     }
     if (isMaterial) {
-        return texture(albedoMapTextureArray, vec3(coords, index));
+        return textureGrad(albedoMapTextureArray, vec3(coords, index), dx, dy);
     }
     else {
-        return texture(albedoMapModelTextureArray, vec3(coords, index));
+        return textureGrad(albedoMapModelTextureArray, vec3(coords, index), dx, dy);
     }
 }
+
+vec4 lookupAlbedo(vec2 coords, float index) {
+    return lookupAlbedoGrad(coords, index, dFdx(coords), dFdy(coords));
+}
+
 struct NormalLookupResult {
     vec3 normal;
     float ambient;
     float SSS;
 };
 
-NormalLookupResult lookupNorma(vec2 coords, float index) {
+NormalLookupResult lookupNormaGrad(vec2 coords, float index, vec2 dx, vec2 dy) {
     bool isMaterial = true;
     if (int(index + 0.5) >= numberOfMaterials) {
         isMaterial = false;
@@ -28,10 +34,10 @@ NormalLookupResult lookupNorma(vec2 coords, float index) {
     }
     vec4 normal;
     if (isMaterial) {
-        normal = texture(normalMapTextureArray, vec3(coords, index));
+        normal = textureGrad(normalMapTextureArray, vec3(coords, index), dx, dy);
     }
     else {
-        normal = texture(normalMapModelTextureArray, vec3(coords, index));
+        normal = textureGrad(normalMapModelTextureArray, vec3(coords, index), dx, dy);
     }
     normal.xy = normal.xy * 2.0 - 1.0;
     float nZ = sqrt(1.0 - clamp(dot(normal.xy, normal.xy), 0.0, 1.0));
@@ -43,7 +49,11 @@ NormalLookupResult lookupNorma(vec2 coords, float index) {
     return result;
 }
 
-vec4 lookupMaterial(vec2 coords, float index) {
+NormalLookupResult lookupNorma(vec2 coords, float index) {
+    return lookupNormaGrad(coords, index, dFdx(coords), dFdy(coords));
+}
+
+vec4 lookupMaterialGrad(vec2 coords, float index, vec2 dx, vec2 dy) {
     bool isMaterial = true;
 
     if (int(index + 0.5) >= numberOfMaterials) {
@@ -52,11 +62,15 @@ vec4 lookupMaterial(vec2 coords, float index) {
     }
 
     if (isMaterial) {
-        return texture(materialMapTextureArray, vec3(coords, index));
+        return textureGrad(materialMapTextureArray, vec3(coords, index), dx, dy);
     }
     else {
-        return texture(materialMapModelTextureArray, vec3(coords, index));
+        return textureGrad(materialMapModelTextureArray, vec3(coords, index), dx, dy);
     }
+}
+
+vec4 lookupMaterial(vec2 coords, float index) {
+    return lookupMaterialGrad(coords, index, dFdx(coords), dFdy(coords));
 }
 
 struct MaterialProps {
@@ -71,10 +85,12 @@ struct MaterialProps {
     float height;
 };
 
-MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
-    vec4 albedoRead = lookupAlbedo(coords, index);
-    NormalLookupResult normalResult = lookupNorma(coords, index);
-    vec4 materialRead = lookupMaterial(coords, index);
+// dx/dy are the screen-space derivatives to sample with. Pass the derivatives of the un-displaced UV when coords
+// come from parallax mapping, whose output jumps at occlusion edges and would otherwise select the wrong mip.
+MaterialProps LookupAllMaterialPropsGrad(vec2 coords, float index, vec2 dx, vec2 dy) {
+    vec4 albedoRead = lookupAlbedoGrad(coords, index, dx, dy);
+    NormalLookupResult normalResult = lookupNormaGrad(coords, index, dx, dy);
+    vec4 materialRead = lookupMaterialGrad(coords, index, dx, dy);
 
     int alphaBit= 1;
     if (albedoRead.a < 0.5) {
@@ -96,38 +112,48 @@ MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
     return props;
 }
 
-
-float getSampledHeight(vec2 uv, float materialIndex)
-{
-    return lookupMaterial(uv, materialIndex).a; 
+MaterialProps LookupAllMaterialProps(vec2 coords, float index) {
+    return LookupAllMaterialPropsGrad(coords, index, dFdx(coords), dFdy(coords));
 }
 
-vec2 ParallaxMapping(vec2 baseUV, vec3 viewDir, float materialIndex, float depthScale, float layers)
+
+// Parallax occlusion mapping in tangent space.
+// viewDir is the tangent-space direction towards the camera, built per pixel (see Model.frag).
+// dx/dy are the screen-space derivatives of baseUV, taken before the march since implicit derivatives
+// are undefined inside its data-dependent loop.
+vec2 ParallaxMapping(vec2 baseUV, vec3 viewDir, float materialIndex, float depthScale, float layers, vec2 dx, vec2 dy)
 {
-    
+    if (viewDir.z <= 1e-4) return baseUV;
+
     float layerDepth = 1.0 / layers;
-    float currentLayerDepth = 0.0;
 
     vec2 P = (viewDir.xy / max(viewDir.z, 0.05)) * (depthScale / 5.0);
     vec2 deltaUV = P / layers;
 
     vec2 currentUV = baseUV;
-    float currentMapHeight = 1.0 - getSampledHeight(currentUV, materialIndex);
+    float currentLayerDepth = 0.0;
+    float currentMapDepth = 1.0 - lookupMaterialGrad(currentUV, materialIndex, dx, dy).a;
+    if (currentMapDepth <= 0.0) return baseUV;
 
-    int steps = 0;
-    while (currentLayerDepth < currentMapHeight && steps < int(layers))
+    vec2 prevUV = currentUV;
+    float prevLayerDepth = 0.0;
+    float prevMapDepth = currentMapDepth;
+
+    int maxSteps = int(ceil(layers));
+    for (int i = 1; i <= maxSteps; i++)
     {
-        currentUV -= deltaUV;
-        currentMapHeight = 1.0 - getSampledHeight(currentUV, materialIndex);
-        currentLayerDepth += layerDepth;
-        steps++;
+        currentUV = baseUV - deltaUV * float(i);
+        currentLayerDepth = float(i) * layerDepth;
+        currentMapDepth = 1.0 - lookupMaterialGrad(currentUV, materialIndex, dx, dy).a;
+        if (currentLayerDepth >= currentMapDepth) break;
+        prevUV = currentUV;
+        prevLayerDepth = currentLayerDepth;
+        prevMapDepth = currentMapDepth;
     }
 
-    // Binary search refinement to eliminate coarse stepping artifacts
-    vec2 prevUV = currentUV + deltaUV;
-    float nextDepth = currentMapHeight - currentLayerDepth;
-    float prevDepth = (1.0 - getSampledHeight(prevUV, materialIndex)) - currentLayerDepth + layerDepth;
-
-    float weight = nextDepth / (nextDepth - prevDepth);
-    return mix(currentUV, prevUV, weight);
+    // Intersect the ray with the height field linearly interpolated between the last two layers
+    float before = prevMapDepth - prevLayerDepth;
+    float after = currentMapDepth - currentLayerDepth;
+    float weight = clamp(before / max(before - after, 1e-6), 0.0, 1.0);
+    return mix(prevUV, currentUV, weight);
 }

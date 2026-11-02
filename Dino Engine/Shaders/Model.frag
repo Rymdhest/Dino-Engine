@@ -3,8 +3,7 @@
 
 in vec3 fragColor;
 in vec2 fragUV;
-in vec3 TangentViewPos;
-in vec3 TangentFragPos;
+in vec3 viewSpacePos;
 in mat3 normalTBN;
 in float textureIndex;
 
@@ -30,18 +29,19 @@ layout (location = 2) out vec4 gMaterials;
 
 void main() {
 
-	vec3 viewDir   = normalize((TangentViewPos - TangentFragPos));
-    if (LookupAllMaterialProps(fragUV, textureIndex).alphaBit == 0) {
-        //discard;
-    }
+	vec2 uvDX = dFdx(fragUV);
+	vec2 uvDY = dFdy(fragUV);
 
 	vec2 parallaxedCoords = fragUV;
 	if (parallaxDepth > 0.001) {
-		parallaxedCoords = ParallaxMapping(fragUV,  viewDir, textureIndex, parallaxDepth, parallaxLayers);
+		// Tangent-space view direction, built per pixel from the interpolated frame. Interpolating tangent-space
+		// positions from the vertices instead mixes vectors from different frames and warps on curved meshes.
+		vec3 V = normalize(-viewSpacePos);
+		vec3 viewDir = vec3(dot(V, normalize(normalTBN[0])), dot(V, normalize(normalTBN[1])), dot(V, normalize(normalTBN[2])));
+		parallaxedCoords = ParallaxMapping(fragUV, viewDir, textureIndex, parallaxDepth, parallaxLayers, uvDX, uvDY);
 	}
-	//vec2 parallaxedCoords = fragUV;
 	//if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
-	MaterialProps material = LookupAllMaterialProps(parallaxedCoords, textureIndex);
+	MaterialProps material = LookupAllMaterialPropsGrad(parallaxedCoords, textureIndex, uvDX, uvDY);
 	gAlbedo.rgb = material.albedo;
 	gAlbedo.rgb *= fragColor;
 

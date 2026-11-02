@@ -14,8 +14,7 @@ out vec2 fragUV;
 out mat3 normalTBN;
 out vec3 worldNormal;
 
-out vec3 TangentViewPos;
-out vec3 TangentFragPos;
+out vec3 viewSpacePos;
 
 out float textureIndex;
 
@@ -23,7 +22,9 @@ uniform mat4 modelMatrix;
 uniform mat4 normalModelViewMatrix;
 
 void main() {
-	gl_Position =  projectionMatrix*viewMatrix*modelMatrix*vec4(position, 1.0);
+	vec4 viewPos = viewMatrix*modelMatrix*vec4(position, 1.0);
+	viewSpacePos = viewPos.xyz;
+	gl_Position =  projectionMatrix*viewPos;
 
 	fragUV = uv;
 	textureIndex = materialIndex;
@@ -34,9 +35,6 @@ void main() {
     vec3 B = normalize( cross(T, N));
     mat3 TBN =  mat3(T, B, N);
 
-
-    TangentFragPos = position*TBN;
-    TangentViewPos = (inverse(modelMatrix)*vec4(viewPosWorld, 1.0)).xyz*TBN;
 	normalTBN = mat3(normalModelViewMatrix)*TBN;
 
 	fragColor = color;

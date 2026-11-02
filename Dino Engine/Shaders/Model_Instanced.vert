@@ -14,8 +14,7 @@ out vec3 fragColor;
 out vec2 fragUV;
 out mat3 normalTBN;
 out vec3 worldNormal;
-out vec3 TangentViewPos;
-out vec3 TangentFragPos;
+out vec3 viewSpacePos;
 out float textureIndex;
 
 uniform sampler2D bendMap;
@@ -58,7 +57,9 @@ void main() {
 	localRotMatrix = rotXMatrix(rotX)*rotZMatrix(rotZ)*localRotMatrix;
 
 	mat4 modelView = viewMatrix*modelMatrix*localRotMatrix;
-	gl_Position =  projectionMatrix*modelView*vec4(position, 1.0);
+	vec4 viewPos = modelView*vec4(position, 1.0);
+	viewSpacePos = viewPos.xyz;
+	gl_Position =  projectionMatrix*viewPos;
 	mat4 normalModelViewMatrix = transpose(inverse(modelView));
 	fragUV = uv;
 	textureIndex = materialIndex;
@@ -69,9 +70,6 @@ void main() {
     vec3 B = normalize( cross(T, N));
     mat3 TBN =  mat3(T, B, N);
 
-
-    TangentFragPos = position*TBN;
-    TangentViewPos = (inverse(modelMatrix)*vec4(viewPosWorld, 1.0)).xyz*TBN;
 	normalTBN = mat3(normalModelViewMatrix)*TBN;
 
 	fragColor = color;
