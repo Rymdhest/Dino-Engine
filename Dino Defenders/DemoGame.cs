@@ -27,6 +27,9 @@ namespace Dino_Defenders
 
         private TerrainGenerator terrainGenerator;
 
+        // Side length of the square area (from the origin) that vegetation and rocks are scattered over.
+        private const float terrainSize = 1000f;
+
         public DemoGame(Engine engine) : base(engine)
         {
             terrainGenerator = new TerrainGenerator();
@@ -211,6 +214,7 @@ namespace Dino_Defenders
             world.RegisterSingleton<TerrainGeneratorSingleton>(world.CreateEntity(new TerrainGeneratorSingleton(terrainGenerator)));
             world.RegisterSingleton<CollisionEventBufferSingleton>(world.CreateEntity(new CollisionEventBufferSingleton()));
             world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(15f)));
+            world.RegisterSingleton<TerrainScatterSingleton>(world.CreateEntity(new TerrainScatterSingleton(MyMath.rand.Next(), Vector2.Zero, new Vector2(terrainSize))));
             world.ApplyDeferredCommands();
 
 
@@ -267,7 +271,7 @@ namespace Dino_Defenders
 
 
             spawnCity(Engine.world);
-            //spawnTestScene(Engine.world);
+            spawnTestScene(Engine.world);
             //spawnIndoorScene(eCSEngine);
 
 
@@ -472,64 +476,41 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent()
             );
 
-    
-            float terrainSize = 1000f;
-
-
-
-
-
-
             //RockMesh.makeFlat(flatMaterial: true, flatNormal: true);
             glModel rockModel = glLoader.loadToVAO(RockGenerator.GenerateRock(0.75f));
             glModel rockModelBrown = glLoader.loadToVAO(RockGenerator.GenerateRockBrown());
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModel, 160);
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModelBrown, 60);
-            
-            for (int i = 0; i < 10000; i++)
+
+            // Big rocks, more likely and taller on steep slopes
+            addScatterLayer(10000, rockModel, roadClearance: 1f, (Vector3 pos, Vector3 normal, Random rng, out Vector3 rockScale) =>
             {
-                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                if (terrainGenerator.IsOnRoad(treePos.Xz, clearanceMargin: 1f)) continue;
-                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float flatness =MyMath.clamp01(Vector3.Dot( terrainGenerator.GetNormalAt(treePos.X, treePos.Z), new Vector3(0f , 1f, 0f)));
-                flatness = MyMath.clamp01((flatness-0.5f)*2.0f);
-                if (MathF.Pow(flatness, 1.0f) > MyMath.rng()) continue;
+                rockScale = default;
+                float flatness = MyMath.clamp01(Vector3.Dot(normal, new Vector3(0f, 1f, 0f)));
+                flatness = MyMath.clamp01((flatness - 0.5f) * 2.0f);
+                if (MathF.Pow(flatness, 1.0f) > rng.NextSingle()) return false;
 
                 float steepness = 1f - MathF.Pow(flatness, 0.5f);
 
-                float height = 1.0f + MyMath.rng(1.0f)+steepness*20f;
-                float radius = 1.0f + MyMath.rng(1.0f)+steepness*10f;
-                world.CreateEntity("rock test: " + i,
-                    new PositionComponent(treePos),
-                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(radius, height, radius)),
-                    new ModelComponent(rockModel),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent()
-                );
-            }
-            for (int i = 0; i < 1000; i++)
+                float height = 1.0f + rng.NextSingle() + steepness * 20f;
+                float radius = 1.0f + rng.NextSingle() + steepness * 10f;
+                rockScale = new Vector3(radius, height, radius);
+                return true;
+            });
+            // Brown rocks, only on slopes
+            addScatterLayer(1000, rockModelBrown, roadClearance: 1f, (Vector3 pos, Vector3 normal, Random rng, out Vector3 rockScale) =>
             {
-                Vector3 treePos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                if (terrainGenerator.IsOnRoad(treePos.Xz, clearanceMargin: 1f)) continue;
-                treePos.Y = terrainGenerator.getHeightAt(treePos.Xz);
-                float flatness = MyMath.clamp01(Vector3.Dot(terrainGenerator.GetNormalAt(treePos.X, treePos.Z), new Vector3(0f, 1f, 0f)));
+                rockScale = default;
+                float flatness = MyMath.clamp01(Vector3.Dot(normal, new Vector3(0f, 1f, 0f)));
                 flatness = MyMath.clamp01((flatness - 0.5f) * 2.0f);
                 float steepness = 1f - MathF.Pow(flatness, 0.5f);
-                if (MathF.Pow(steepness, 1.0f) > MyMath.rng()) continue;
+                if (MathF.Pow(steepness, 1.0f) > rng.NextSingle()) return false;
 
-
-                float height = 1.0f + MyMath.rng(1.0f) + steepness * 2f;
-                float radius = 1.0f + MyMath.rng(1.0f) + steepness * 1f;
-                world.CreateEntity("rock test: " + i,
-                    new PositionComponent(treePos),
-                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(radius, height, radius)),
-                    new ModelComponent(rockModelBrown),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent()
-                );      
-            }
+                float height = 1.0f + rng.NextSingle() + steepness * 2f;
+                float radius = 1.0f + rng.NextSingle() + steepness * 1f;
+                rockScale = new Vector3(radius, height, radius);
+                return true;
+            });
 
             OpenSimplexNoise treeMap = new OpenSimplexNoise();
             OpenSimplexNoise treeMap2 = new OpenSimplexNoise();
@@ -560,37 +541,33 @@ namespace Dino_Defenders
 
         }
        
+        // Scatters ~n instances over the terrainSize x terrainSize area. Nothing is placed here: the instances
+        // are generated per terrain chunk as the chunks stream in around the camera.
         private void spawnModelOverTerrain(int n, glModel model, float imposterDistance = 60f, OpenSimplexNoise spawnMap = null, float swayAmount = 0.0f, float scale = 0.0075f, float power = 3.0f)
         {
             model.swayAmount = swayAmount;
-            float terrainSize = 1000f;
-            ECSWorld world = Engine.world;
             Engine.RenderEngine.textureGenerator.AddImposterToModel(model, imposterDistance);
-            for (int i = 0; i < n; i++)
+            addScatterLayer(n, model, roadClearance: 0f, (Vector3 pos, Vector3 normal, Random rng, out Vector3 instanceScale) =>
             {
-                Vector3 pos = new Vector3(MyMath.rng(terrainSize), 0, MyMath.rng(terrainSize));
-                if (terrainGenerator.IsOnRoad(pos.Xz, clearanceMargin:0f)) continue;
-
-                pos.Y = terrainGenerator.getHeightAt(pos.Xz);
-                if (terrainGenerator.GetNormalAt(pos.X, pos.Z).Y < 0.8f) continue;
+                instanceScale = default;
+                if (normal.Y < 0.8f) return false;
 
                 if (spawnMap != null)
                 {
                     float mapValue = spawnMap.FBM01(pos.X, pos.Z, scale, 4);
-                    if (MathF.Pow(mapValue, power) < MyMath.rng()) continue;
+                    if (MathF.Pow(mapValue, power) < rng.NextSingle()) return false;
                 }
 
+                instanceScale = new Vector3(1f + (rng.NextSingle() * 2f - 1f) * 0.3f);
+                return true;
+            });
+        }
 
-
-                world.CreateEntity("auto spawned model"+model.ToString()+" " + i,
-                    new PositionComponent(pos),
-                    new RotationComponent(new Vector3(0f, MyMath.rng() * MathF.Tau, 0f)),
-                    new ScaleComponent(new Vector3(1f+MyMath.rngMinusPlus(0.3f))),
-                    new ModelComponent(model),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent()
-                );
-            }
+        private void addScatterLayer(int n, glModel model, float roadClearance, TerrainScatterRule rule)
+        {
+            ECSWorld world = Engine.world;
+            var scatter = world.GetComponent<TerrainScatterSingleton>(world.GetSingleton<TerrainScatterSingleton>());
+            scatter.Layers.Add(new TerrainScatterLayer(model, n / (terrainSize * terrainSize), roadClearance, rule));
         }
 
 

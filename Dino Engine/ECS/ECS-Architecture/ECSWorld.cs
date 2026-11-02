@@ -100,6 +100,12 @@ namespace Dino_Engine.ECS.ECS_Architecture
             return entity;
         }
 
+        // False if T was never registered, or its entity has since been destroyed.
+        public bool TryGetSingleton<T>(out Entity entity) where T : struct, IComponent
+        {
+            return SingletonToEntity.TryGetValue(typeof(T), out entity) && HasComponent<T>(entity);
+        }
+
         public void RegisterSingleton<T>(Entity entity)
         {
             SingletonToEntity[typeof(T)] = entity;

@@ -217,6 +217,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             if (nearbyEntities.Count == 0) return; // Nothing to carve
             System.Diagnostics.Debug.WriteLine($"Chunk at {chunkPos} found {nearbyEntities.Count} entities to carve.");
 
+            CarveGrass(arrayID, chunkPos, chunkSize, resolution, nearbyEntities);
+        }
+
+        /// <summary>
+        /// Carves the grass under <paramref name="entities"/> into an already created chunk. Chunks only
+        /// carve what exists when they are created, so this covers entities that appear afterwards.
+        /// </summary>
+        public void CarveGrass(int arrayID, Vector2 chunkPos, Vector2 chunkSize, Vector2i resolution, List<Entity> entities)
+        {
             // Bind FBO and attach the specific grass texture array slice
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, carveFBO);
             GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, grassTextureArray, 0, arrayID);
@@ -252,7 +261,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             // Draw each overlapping model's mesh
             ECSWorld world = Engine.Instance.world;
 
-            foreach (var entity in nearbyEntities)
+            foreach (var entity in entities)
             {
                 // Assuming your entities have a Model component and a Transform/Matrix component
                 var model = world.GetComponent<ModelComponent>(entity);

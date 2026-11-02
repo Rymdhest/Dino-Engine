@@ -1,6 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Terrain;
 using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Geometry;
@@ -62,13 +63,16 @@ namespace Dino_Engine.ECS.Systems
         {
             var ltw = world.GetComponent<LocalToWorldMatrixComponent>(entity).value;
             var modelComp = world.GetComponent<ModelComponent>(entity);
+            grid.InsertOrUpdate(entity, ComputeWorldBounds(modelComp.model, ltw));
+        }
 
-            AABB localBounds = modelComp.model != null
-                ? new AABB(modelComp.model.box.Min, modelComp.model.box.Max)
+        public static AABB ComputeWorldBounds(glModel? model, Matrix4 localToWorld)
+        {
+            AABB localBounds = model != null
+                ? new AABB(model.box.Min, model.box.Max)
                 : new AABB(new Vector3(-1f), new Vector3(1f));
 
-            AABB worldBounds = AABB.Transform(localBounds, ltw);
-            grid.InsertOrUpdate(entity, worldBounds);
+            return AABB.Transform(localBounds, localToWorld);
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)

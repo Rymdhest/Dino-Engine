@@ -2,6 +2,7 @@ using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Procedural.Terrain;
+using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
@@ -21,6 +22,10 @@ namespace Dino_Engine.ECS.Systems
         // Reusable scratch buffers (avoid per-frame allocations)
         private readonly List<Vector2i> _toCreate = new();
         private readonly List<Vector2i> _toDestroy = new();
+        private readonly List<TerrainScatterInstance> _scatterInstances = new();
+        private readonly List<(Entity entity, AABB bounds)> _spawnedScatter = new();
+        private readonly HashSet<Vector2i> _createdThisFrame = new();
+        private readonly Dictionary<Vector2i, List<Entity>> _carveTargets = new();
 
         public TerrainChunkSystem()
             : base(new BitMask(typeof(TerrainChunkComponent), typeof(ScaleComponent), typeof(LocalToWorldMatrixComponent)))
@@ -43,12 +48,37 @@ namespace Dino_Engine.ECS.Systems
             int camCx = (int)MathF.Floor(cameraPos.X / chunkSize);
             int camCz = (int)MathF.Floor(cameraPos.Z / chunkSize);
 
-            // 1. Destroy chunks that have drifted outside the desired ring around the camera.
+            // 1. Find chunks that have drifted outside the desired ring around the camera.
             _toDestroy.Clear();
             foreach (var kv in chunks)
                 if (!IsInRadius(kv.Key, camCx, camCz, radius))
                     _toDestroy.Add(kv.Key);
 
+            // 2. Find missing chunks inside the ring.
+            _toCreate.Clear();
+            for (int cx = camCx - radius; cx <= camCx + radius; cx++)
+                for (int cz = camCz - radius; cz <= camCz + radius; cz++)
+                    if (!chunks.ContainsKey(new Vector2i(cx, cz)))
+                        _toCreate.Add(new Vector2i(cx, cz));
+
+            // 3. Stream the scattered objects. They have to exist before their chunks are created, because a
+            // chunk carves the grass under whatever is in the spatial grid at creation time.
+            bool hasScatter = world.TryGetSingleton<TerrainScatterSingleton>(out Entity scatterEntity);
+            SpatialGrid grid = world.GetComponent<RenderSpatialGridSingleton>(world.GetSingleton<RenderSpatialGridSingleton>()).Grid;
+            _spawnedScatter.Clear();
+            if (hasScatter)
+            {
+                var scatter = world.GetComponent<TerrainScatterSingleton>(scatterEntity);
+                for (int i = 0; i < _toDestroy.Count; i++)
+                    DespawnScatter(_toDestroy[i], scatter, world, grid);
+                for (int i = 0; i < _toCreate.Count; i++)
+                    SpawnScatter(_toCreate[i], chunkSize, scatter, world, generator, grid);
+
+                // The grass carve reads components of the new objects, so they must be real entities now.
+                world.ApplyDeferredCommands();
+            }
+
+            // 4. Destroy and create the chunks themselves.
             for (int i = 0; i < _toDestroy.Count; i++)
             {
                 Vector2i cell = _toDestroy[i];
@@ -57,13 +87,6 @@ namespace Dino_Engine.ECS.Systems
                 chunks.Remove(cell);
             }
 
-            // 2. Create any missing chunks inside the ring.
-            _toCreate.Clear();
-            for (int cx = camCx - radius; cx <= camCx + radius; cx++)
-                for (int cz = camCz - radius; cz <= camCz + radius; cz++)
-                    if (!chunks.ContainsKey(new Vector2i(cx, cz)))
-                        _toCreate.Add(new Vector2i(cx, cz));
-
             for (int i = 0; i < _toCreate.Count; i++)
             {
                 Vector2i key = _toCreate[i];
@@ -71,7 +94,100 @@ namespace Dino_Engine.ECS.Systems
                 chunks[key] = e;
             }
 
+            // 5. New objects that reach into chunks which already existed must carve those chunks too.
+            if (_spawnedScatter.Count > 0)
+                CarveScatterIntoExistingChunks(chunkSize, chunks, world);
+
             Engine.Instance.world.ApplyDeferredCommands();
+        }
+
+        private void SpawnScatter(Vector2i cell, float chunkSize, TerrainScatterSingleton scatter, ECSWorld world, TerrainGenerator generator, SpatialGrid grid)
+        {
+            TerrainScatter.GenerateChunk(generator, scatter.Layers, scatter.Seed, cell, chunkSize, scatter.BoundsMin, scatter.BoundsMax, _scatterInstances);
+            if (_scatterInstances.Count == 0) return;
+
+            var entities = new List<Entity>(_scatterInstances.Count);
+            for (int i = 0; i < _scatterInstances.Count; i++)
+            {
+                TerrainScatterInstance instance = _scatterInstances[i];
+                // Same matrix LocalToWorldTransformRootSystem computes, filled in now because that system has
+                // already run this frame and the spatial grid needs the bounds immediately.
+                Matrix4 localToWorld = MyMath.createTransformationMatrix(instance.Position, instance.Rotation, instance.Scale);
+
+                Entity e = world.CreateEntity(
+                    new PositionComponent(instance.Position),
+                    new RotationComponent(instance.Rotation),
+                    new ScaleComponent(instance.Scale),
+                    new ModelComponent(instance.Model),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent { value = localToWorld }
+                );
+
+                // Inserted directly: entities spawned here are applied after RenderSpatialGridSystem has run,
+                // and the spawn buffer it reads is cleared at the end of the frame.
+                AABB bounds = RenderSpatialGridSystem.ComputeWorldBounds(instance.Model, localToWorld);
+                grid.InsertOrUpdate(e, bounds);
+
+                entities.Add(e);
+                _spawnedScatter.Add((e, bounds));
+            }
+            scatter.ChunkInstances[cell] = entities;
+        }
+
+        private static void DespawnScatter(Vector2i cell, TerrainScatterSingleton scatter, ECSWorld world, SpatialGrid grid)
+        {
+            if (!scatter.ChunkInstances.Remove(cell, out var entities)) return;
+
+            for (int i = 0; i < entities.Count; i++)
+            {
+                // Removed directly, for the same reason as the insert in SpawnScatter. Leaving a destroyed
+                // entity in the grid would break the next grass carve that finds it.
+                grid.Remove(entities[i]);
+                world.DestroyEntity(entities[i]);
+            }
+        }
+
+        private void CarveScatterIntoExistingChunks(float chunkSize, Dictionary<Vector2i, Entity> chunks, ECSWorld world)
+        {
+            _createdThisFrame.Clear();
+            for (int i = 0; i < _toCreate.Count; i++)
+                _createdThisFrame.Add(_toCreate[i]);
+
+            _carveTargets.Clear();
+            for (int i = 0; i < _spawnedScatter.Count; i++)
+            {
+                var (entity, bounds) = _spawnedScatter[i];
+                int minCx = (int)MathF.Floor(bounds.Min.X / chunkSize);
+                int maxCx = (int)MathF.Floor(bounds.Max.X / chunkSize);
+                int minCz = (int)MathF.Floor(bounds.Min.Z / chunkSize);
+                int maxCz = (int)MathF.Floor(bounds.Max.Z / chunkSize);
+
+                for (int cx = minCx; cx <= maxCx; cx++)
+                    for (int cz = minCz; cz <= maxCz; cz++)
+                    {
+                        // Chunks created this frame already carved everything in the grid.
+                        Vector2i cell = new Vector2i(cx, cz);
+                        if (_createdThisFrame.Contains(cell) || !chunks.ContainsKey(cell)) continue;
+
+                        if (!_carveTargets.TryGetValue(cell, out var list))
+                        {
+                            list = new List<Entity>();
+                            _carveTargets[cell] = list;
+                        }
+                        list.Add(entity);
+                    }
+            }
+
+            foreach (var (cell, entities) in _carveTargets)
+            {
+                var chunk = world.GetComponent<TerrainChunkComponent>(chunks[cell]);
+                Engine.RenderEngine._terrainRenderer.CarveGrass(
+                    chunk.normalHeightTextureArrayID,
+                    new Vector2(cell.X * chunkSize, cell.Y * chunkSize),
+                    new Vector2(chunkSize),
+                    chunk.heightGrid.Resolution,
+                    entities);
+            }
         }
 
         private static bool IsInRadius(Vector2i cell, int camCx, int camCz, int radius)

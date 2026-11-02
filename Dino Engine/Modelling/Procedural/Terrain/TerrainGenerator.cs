@@ -174,17 +174,6 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             float padding = RoadWidth + RoadShoulder;
             List<RoadSegment2D> candidates = GetCandidateSegmentsForChunk(worldOrigin, worldOrigin + chunkSizeWorld, padding);
 
-            // 1. Query the spatial grid using an XZ column spanning all Y heights
-            AABB chunkColumnBounds = new AABB(
-                new Vector3(worldOrigin.X, -10000f, worldOrigin.Y),
-                new Vector3(worldOrigin.X + chunkSizeWorld.X, 10000f, worldOrigin.Y + chunkSizeWorld.Y)
-            );
-            ECSWorld world = Engine.Instance.world;
-            Entity gridEntity = world.GetSingleton<RenderSpatialGridSingleton>();
-            SpatialGrid spatialGrid = world.GetComponent<RenderSpatialGridSingleton>(gridEntity).Grid;
-            List<Entity> nearbyEntities = new List<Entity>();
-            spatialGrid.QueryAABB(chunkColumnBounds, nearbyEntities);
-
             size.X /= (heightMap.Resolution.X - 1);
             size.Z /= (heightMap.Resolution.Y - 1);
             Vector3Grid normalGrid = new Vector3Grid(heightMap.Resolution);
@@ -313,7 +302,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             public float ABLenSq;
         }
 
-        private List<RoadSegment2D> GetCandidateSegmentsForChunk(Vector2 chunkMin, Vector2 chunkMax, float padding)
+        public List<RoadSegment2D> GetCandidateSegmentsForChunk(Vector2 chunkMin, Vector2 chunkMax, float padding)
         {
             var candidates = new List<RoadSegment2D>();
             if (ActiveRoadSplines == null || ActiveRoadSplines.Count == 0)
