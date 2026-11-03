@@ -18,6 +18,8 @@ mono_crash.*
 
 # Build results
 [Dd]ebug/
+# ...but not the debug overlay's source folder
+!Dino Engine/GUI/Debug/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/

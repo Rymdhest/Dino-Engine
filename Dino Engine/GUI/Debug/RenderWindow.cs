@@ -1,0 +1,321 @@
+﻿using Dino_Engine.Core;
+using Dino_Engine.ECS.Components;
+using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.GUI.Rendering;
+using Dino_Engine.GUI.Widgets;
+using Dino_Engine.Physics;
+using OpenTK.Mathematics;
+
+namespace Dino_Engine.GUI.Debug
+{
+    /// <summary>Live render controls: debug view, sun direction/intensity, camera FOV and a G-buffer viewer.</summary>
+    internal static class RenderWindowBuilder
+    {
+        private static readonly string[] BufferNames = { "Final image", "Albedo", "Normals", "Materials", "Depth" };
+
+        public static GuiWindow Build()
+        {
+            GuiTheme theme = GuiContext.DefaultTheme;
+            var window = new GuiWindow("Render", 340f) { X = 12f, Y = 470f };
+
+            window.Content.Add(new Checkbox("Deferred debug view (F8)").Bind(
+                () => Engine.RenderEngine.debugView,
+                value => Engine.RenderEngine.debugView = value));
+
+            // ---------------------------------------------------------------- sun
+            var sun = window.Content.Add(new Foldout("Sun"));
+            sun.Content.Add(DebugUi.LabeledRow("Azimuth", new Slider(-180f, 180f) { Format = "0°", Step = 1f, FormatProvider = DebugUi.Culture }.Bind(
+                () => SunAngles().azimuth,
+                value => SetSunAngles(value, SunAngles().elevation))));
+            sun.Content.Add(DebugUi.LabeledRow("Elevation", new Slider(-10f, 90f) { Format = "0°", Step = 0.5f, FormatProvider = DebugUi.Culture }.Bind(
+                () => SunAngles().elevation,
+                value => SetSunAngles(SunAngles().azimuth, value))));
+            sun.Content.Add(DebugUi.LabeledRow("Intensity", new Slider(0f, 40f) { Format = "0.0", FormatProvider = DebugUi.Culture }.Bind(
+                () => TryGetSun<ColorComponent>(out var colour) ? colour.value.Intensity : 0f,
+                value =>
+                {
+                    if (!TryGetSun<ColorComponent>(out var colour)) return;
+                    var c = colour.value;
+                    c.Intensity = value;
+                    colour.value = c;
+                    SetSun(colour);
+                })));
+
+            // ---------------------------------------------------------------- wind
+            var wind = window.Content.Add(new Foldout("Wind"));
+            wind.Content.Add(WindSlider("Speed", 0f, 30f, "0.0 m/s", w => w.Speed, (ref WindSingleton w, float v) => w.Speed = v));
+            wind.Content.Add(WindSlider("Direction", -180f, 180f, "0°", w => w.Direction, (ref WindSingleton w, float v) => w.Direction = v, step: 1f));
+            wind.Content.Add(WindSlider("Gustiness", 0f, 1.5f, "0.00", w => w.Gustiness, (ref WindSingleton w, float v) => w.Gustiness = v));
+            wind.Content.Add(WindSlider("Gust size", 2f, 120f, "0 m", w => w.GustScale, (ref WindSingleton w, float v) => w.GustScale = v));
+            wind.Content.Add(WindSlider("Turbulence", 0f, 1.5f, "0.00", w => w.Turbulence, (ref WindSingleton w, float v) => w.Turbulence = v));
+            wind.Content.Add(WindSlider("Swirl size", 1f, 60f, "0.0 m", w => w.TurbulenceScale, (ref WindSingleton w, float v) => w.TurbulenceScale = v));
+            wind.Content.Add(WindSlider("Response", 0f, 10f, "0.0 s", w => w.ResponseTime, (ref WindSingleton w, float v) => w.ResponseTime = v));
+            wind.Content.Add(DebugUi.Heading("Vegetation"));
+            wind.Content.Add(WindSlider("Sway freq.", 0.2f, 4f, "0.00 Hz", w => w.VegetationFrequency, (ref WindSingleton w, float v) => w.VegetationFrequency = v));
+            wind.Content.Add(WindSlider("Damping", 0.02f, 1.5f, "0.00", w => w.VegetationDamping, (ref WindSingleton w, float v) => w.VegetationDamping = v));
+            wind.Content.Add(WindSlider("Max bend", 0f, 1.5f, "0.00 rad", w => w.VegetationMaxBend, (ref WindSingleton w, float v) => w.VegetationMaxBend = v));
+            wind.Content.Add(WindSlider("Ref. speed", 1f, 30f, "0.0 m/s", w => w.VegetationReferenceSpeed, (ref WindSingleton w, float v) => w.VegetationReferenceSpeed = v));
+            wind.Content.Add(WindSlider("Flutter", 0f, 0.5f, "0.00 rad", w => w.VegetationFlutter, (ref WindSingleton w, float v) => w.VegetationFlutter = v));
+            wind.Content.Add(WindSlider("Trample rec.", 0.5f, 60f, "0.0 s", w => w.FlattenRecoveryTime, (ref WindSingleton w, float v) => w.FlattenRecoveryTime = v));
+            var windGrid = wind.Content.Add(DebugUi.KeyValueGrid(0.3f));
+            DebugUi.AddRow(windGrid, "Live wind", () => Wind.TryGet(Engine.Instance?.world, out var live)
+                ? DebugUi.Inv($"{live.Velocity.Length:0.0} m/s towards {MathHelper.RadiansToDegrees(MathF.Atan2(live.Velocity.X, live.Velocity.Y)):0}°")
+                : "no wind singleton");
+            wind.Content.Add(new Button("Blast at player", () =>
+            {
+                var world = Engine.Instance?.world;
+                if (world == null || !TryGetPlayerPosition(world, out Vector3 position)) return;
+                Wind.AddBlast(world, position, radius: 18f, strength: 25f, duration: 1.6f);
+            }));
+
+            // ---------------------------------------------------------------- fog
+            var fog = window.Content.Add(new Foldout("Volumetric fog"));
+            fog.Content.Add(new Checkbox("Enabled").Bind(
+                () => TryGetFog(out var settings) && settings.Enabled,
+                value => EditFog((ref VolumetricFogSingleton f) => f.Enabled = value)));
+            fog.Content.Add(DebugUi.Heading("Shape"));
+            fog.Content.Add(FogSlider("Density", 0f, 3f, "0.00", f => f.Density, (ref VolumetricFogSingleton f, float v) => f.Density = v));
+            fog.Content.Add(FogSlider("Height", 0.25f, 20f, "0.0 m", f => f.Height, (ref VolumetricFogSingleton f, float v) => f.Height = v));
+            fog.Content.Add(FogSlider("Falloff", 0.25f, 5f, "0.00", f => f.HeightFalloff, (ref VolumetricFogSingleton f, float v) => f.HeightFalloff = v));
+            fog.Content.Add(FogSlider("Coverage", 0f, 1f, "0.00", f => f.Coverage, (ref VolumetricFogSingleton f, float v) => f.Coverage = v));
+            fog.Content.Add(FogSlider("Softness", 0.02f, 1f, "0.00", f => f.EdgeSoftness, (ref VolumetricFogSingleton f, float v) => f.EdgeSoftness = v));
+            fog.Content.Add(FogSlider("Follow terrain", 0f, 1f, "0.00", f => f.TerrainFollow, (ref VolumetricFogSingleton f, float v) => f.TerrainFollow = v));
+            fog.Content.Add(FogSlider("Base height", -50f, 150f, "0.0 m", f => f.BaseHeight, (ref VolumetricFogSingleton f, float v) => f.BaseHeight = v));
+            fog.Content.Add(DebugUi.Heading("Motion"));
+            fog.Content.Add(FogSlider("Noise scale", 4f, 150f, "0 m", f => f.NoiseScale, (ref VolumetricFogSingleton f, float v) => f.NoiseScale = v));
+            fog.Content.Add(FogSlider("Turbulence", 0f, 1f, "0.00", f => f.Turbulence, (ref VolumetricFogSingleton f, float v) => f.Turbulence = v));
+            fog.Content.Add(FogSlider("Detail", 0f, 0.9f, "0.00", f => f.Detail, (ref VolumetricFogSingleton f, float v) => f.Detail = v));
+            fog.Content.Add(FogSlider("Top heave", 0f, 1f, "0.00", f => f.TopVariation, (ref VolumetricFogSingleton f, float v) => f.TopVariation = v));
+            fog.Content.Add(FogSlider("Wind drift", 0f, 1.5f, "0.00", f => f.WindInfluence, (ref VolumetricFogSingleton f, float v) => f.WindInfluence = v));
+            fog.Content.Add(FogSlider("Gust push", 0f, 3f, "0.00 s", f => f.GustResponse, (ref VolumetricFogSingleton f, float v) => f.GustResponse = v));
+            fog.Content.Add(FogSlider("Roll speed", 0f, 3f, "0.00", f => f.RollSpeed, (ref VolumetricFogSingleton f, float v) => f.RollSpeed = v));
+            fog.Content.Add(DebugUi.Heading("Lighting"));
+            fog.Content.Add(FogSlider("Directional", 0f, 4f, "0.00", f => f.DirectionalScattering, (ref VolumetricFogSingleton f, float v) => f.DirectionalScattering = v));
+            fog.Content.Add(FogSlider("Point & spot", 0f, 4f, "0.00", f => f.LocalLightScattering, (ref VolumetricFogSingleton f, float v) => f.LocalLightScattering = v));
+            fog.Content.Add(FogSlider("Ambient", 0f, 4f, "0.00", f => f.AmbientScattering, (ref VolumetricFogSingleton f, float v) => f.AmbientScattering = v));
+            fog.Content.Add(FogSlider("Anisotropy", -0.5f, 0.9f, "0.00", f => f.Anisotropy, (ref VolumetricFogSingleton f, float v) => f.Anisotropy = v));
+            fog.Content.Add(FogSlider("Haze", 0f, 0.02f, "0.0000", f => f.HazeDensity, (ref VolumetricFogSingleton f, float v) => f.HazeDensity = v));
+            fog.Content.Add(DebugUi.Heading("Quality"));
+            fog.Content.Add(FogSlider("Max steps", 4f, 128f, "0", f => f.MaxSteps, (ref VolumetricFogSingleton f, float v) => f.MaxSteps = (int)v, step: 1f));
+            fog.Content.Add(FogSlider("Temporal", 0f, 0.98f, "0.00", f => f.TemporalBlend, (ref VolumetricFogSingleton f, float v) => f.TemporalBlend = v));
+
+            // ---------------------------------------------------------------- water
+            var water = window.Content.Add(new Foldout("Water"));
+            water.Content.Add(new Checkbox("Enabled").Bind(
+                () => Water.TryGet(Engine.Instance?.world, out var w) && w.Enabled,
+                value => EditWater((ref WaterSingleton w) => w.Enabled = value)));
+            water.Content.Add(new Checkbox("Ocean").Bind(
+                () => Water.TryGet(Engine.Instance?.world, out var w) && w.OceanEnabled,
+                value => EditWater((ref WaterSingleton w) => w.OceanEnabled = value)));
+            water.Content.Add(new Checkbox("Screen space reflections").Bind(
+                () => Water.TryGet(Engine.Instance?.world, out var w) && w.ScreenSpaceReflections,
+                value => EditWater((ref WaterSingleton w) => w.ScreenSpaceReflections = value)));
+            water.Content.Add(WaterSlider("Sea level", -10f, 20f, "0.00 m", w => w.SeaLevel, (ref WaterSingleton w, float v) => w.SeaLevel = v, step: 0.05f));
+            water.Content.Add(DebugUi.Heading("Shore waves"));
+            water.Content.Add(WaterSlider("Height", 0f, 3f, "0.00 m", w => w.ShoreWaveHeight, (ref WaterSingleton w, float v) => w.ShoreWaveHeight = v));
+            water.Content.Add(WaterSlider("Period", 2f, 14f, "0.0 s", w => w.ShoreWavePeriod, (ref WaterSingleton w, float v) => w.ShoreWavePeriod = v));
+            water.Content.Add(WaterSlider("Wavelength", 2f, 40f, "0.0 m", w => w.ShoreWaveLength, (ref WaterSingleton w, float v) => w.ShoreWaveLength = v));
+            water.Content.Add(WaterSlider("Reach", 5f, 80f, "0 m", w => w.ShoreWaveReach, (ref WaterSingleton w, float v) => w.ShoreWaveReach = v));
+            water.Content.Add(WaterSlider("Run-up", 0f, 2f, "0.00", w => w.RunUp, (ref WaterSingleton w, float v) => w.RunUp = v));
+            water.Content.Add(WaterSlider("Sets", 0f, 1f, "0.00", w => w.SetVariation, (ref WaterSingleton w, float v) => w.SetVariation = v));
+            water.Content.Add(WaterSlider("Wind sea", 0f, 1.5f, "0.00", w => w.WindWaveHeight, (ref WaterSingleton w, float v) => w.WindWaveHeight = v));
+            water.Content.Add(WaterSlider("Sea response", 0f, 120f, "0 s", w => w.SeaStateResponseTime, (ref WaterSingleton w, float v) => w.SeaStateResponseTime = v));
+            water.Content.Add(DebugUi.Heading("Surface"));
+            water.Content.Add(WaterSlider("Ripples", 0f, 3f, "0.00", w => w.RippleScale, (ref WaterSingleton w, float v) => w.RippleScale = v));
+            water.Content.Add(WaterSlider("Ripple drift", 0f, 0.5f, "0.00", w => w.RippleDrift, (ref WaterSingleton w, float v) => w.RippleDrift = v));
+            water.Content.Add(WaterSlider("Caustics", 0f, 3f, "0.00", w => w.CausticStrength, (ref WaterSingleton w, float v) => w.CausticStrength = v));
+            water.Content.Add(WaterSlider("Refraction", 0f, 3f, "0.00", w => w.RefractionStrength, (ref WaterSingleton w, float v) => w.RefractionStrength = v));
+            water.Content.Add(WaterSlider("Foam", 0f, 3f, "0.00", w => w.Foam, (ref WaterSingleton w, float v) => w.Foam = v));
+            water.Content.Add(WaterSlider("Whitecaps", 0f, 5f, "0.00", w => w.Whitecaps, (ref WaterSingleton w, float v) => w.Whitecaps = v));
+            water.Content.Add(WaterSlider("Wet sand", 0f, 0.9f, "0.00", w => w.WetSandDarkening, (ref WaterSingleton w, float v) => w.WetSandDarkening = v));
+            water.Content.Add(WaterSlider("Drying", 1f, 60f, "0 s", w => w.DryingTime, (ref WaterSingleton w, float v) => w.DryingTime = v));
+            water.Content.Add(DebugUi.Heading("Wading ripples"));
+            water.Content.Add(WaterSlider("Speed", 0.2f, 3f, "0.00 m/s", w => w.RippleSpeed, (ref WaterSingleton w, float v) => w.RippleSpeed = v));
+            water.Content.Add(WaterSlider("Decay", 0.2f, 6f, "0.0 s", w => w.RippleDecay, (ref WaterSingleton w, float v) => w.RippleDecay = v));
+            water.Content.Add(WaterSlider("Strength", 0f, 3f, "0.00", w => w.RippleNormalStrength, (ref WaterSingleton w, float v) => w.RippleNormalStrength = v));
+            water.Content.Add(DebugUi.Heading("Sea colour (absorption, scattering per metre)"));
+            water.Content.Add(WaterSlider("Absorb R", 0f, 1.5f, "0.000", w => w.OceanOptics.Absorption.X, (ref WaterSingleton w, float v) => w.OceanOptics.Absorption.X = v));
+            water.Content.Add(WaterSlider("Absorb G", 0f, 1.5f, "0.000", w => w.OceanOptics.Absorption.Y, (ref WaterSingleton w, float v) => w.OceanOptics.Absorption.Y = v));
+            water.Content.Add(WaterSlider("Absorb B", 0f, 1.5f, "0.000", w => w.OceanOptics.Absorption.Z, (ref WaterSingleton w, float v) => w.OceanOptics.Absorption.Z = v));
+            water.Content.Add(WaterSlider("Scatter R", 0f, 0.2f, "0.000", w => w.OceanOptics.Scattering.X, (ref WaterSingleton w, float v) => w.OceanOptics.Scattering.X = v));
+            water.Content.Add(WaterSlider("Scatter G", 0f, 0.2f, "0.000", w => w.OceanOptics.Scattering.Y, (ref WaterSingleton w, float v) => w.OceanOptics.Scattering.Y = v));
+            water.Content.Add(WaterSlider("Scatter B", 0f, 0.2f, "0.000", w => w.OceanOptics.Scattering.Z, (ref WaterSingleton w, float v) => w.OceanOptics.Scattering.Z = v));
+            var waterGrid = water.Content.Add(DebugUi.KeyValueGrid(0.3f));
+            DebugUi.AddRow(waterGrid, "Sea state", () => Water.TryGet(Engine.Instance?.world, out var w)
+                ? DebugUi.Inv($"{w.SeaState:0.0} m/s wind, breakers {WaterWaves.ShoreBreakerHeight(w):0.00} m")
+                : "no water singleton");
+            water.Content.Add(new Button("Splash at player", () =>
+            {
+                var world = Engine.Instance?.world;
+                if (world == null || !TryGetPlayerPosition(world, out Vector3 position)) return;
+                Water.AddSplash(world, position, radius: 1.2f, strength: 0.06f);
+            }));
+
+            // ---------------------------------------------------------------- camera
+            var camera = window.Content.Add(new Foldout("Camera"));
+            camera.Content.Add(DebugUi.LabeledRow("Field of view", new Slider(20f, 120f) { Format = "0°", Step = 1f, FormatProvider = DebugUi.Culture }.Bind(
+                () => TryGetCameraProjection(out var projection) ? MathHelper.RadiansToDegrees(projection.FieldOfView) : 60f,
+                value =>
+                {
+                    if (!TryGetCameraProjection(out var projection)) return;
+                    projection.FieldOfView = MathHelper.DegreesToRadians(value);
+                    projection.RebuildMatrix();
+                    var world = Engine.Instance!.world;
+                    world.GetEntityView(world.Camera).Set(projection);
+                })));
+            var cameraGrid = camera.Content.Add(DebugUi.KeyValueGrid(0.3f));
+            DebugUi.AddRow(cameraGrid, "Position", () => DebugOverlay.FormatVector(Engine.RenderEngine.context.viewPos));
+
+            // ---------------------------------------------------------------- g-buffer
+            var buffers = window.Content.Add(new Foldout("Buffers"));
+            var selector = new Dropdown(BufferNames, 0);
+            buffers.Content.Add(DebugUi.LabeledRow("Show", selector));
+            var image = buffers.Content.Add(new Image
+            {
+                Width = UIValue.Fill,
+                Height = UIValue.Auto,
+                FlipY = true,
+                Mode = GuiTextureMode.Opaque,
+                BorderColor = theme.Separator,
+                BorderWidth = 1f,
+                BackgroundColor = theme.InputBackground,
+            });
+            image.Updated += _ =>
+            {
+                Vector2i resolution = Engine.Resolution;
+                if (resolution.Y > 0) image.AspectRatio = (float)resolution.X / resolution.Y;
+                image.Mode = selector.SelectedIndex == 4 ? GuiTextureMode.RedAsGray : GuiTextureMode.Opaque;
+            };
+            image.TextureSource = () => selector.SelectedIndex switch
+            {
+                0 => Engine.RenderEngine.lastUsedBuffer.GetLastOutputTexture(),
+                1 => Engine.RenderEngine.GBuffer.GetAttachment(0),
+                2 => Engine.RenderEngine.GBuffer.GetAttachment(1),
+                3 => Engine.RenderEngine.GBuffer.GetAttachment(2),
+                4 => Engine.RenderEngine.GBuffer.getDepthAttachment(),
+                _ => 0,
+            };
+            buffers.Content.Add(DebugUi.Muted("Depth is non-linear, so most of the scene appears near white.", wrap: true));
+            return window;
+        }
+
+        // ---------------------------------------------------------------- helpers
+
+        private delegate void WindSetter(ref WindSingleton wind, float value);
+
+        private static GuiElement WindSlider(string caption, float min, float max, string format, Func<WindSingleton, float> get, WindSetter set, float step = 0f)
+        {
+            return DebugUi.LabeledRow(caption, new Slider(min, max) { Format = format, Step = step, FormatProvider = DebugUi.Culture }.Bind(
+                () => Wind.TryGet(Engine.Instance?.world, out var wind) ? get(wind) : min,
+                value =>
+                {
+                    var world = Engine.Instance?.world;
+                    if (world == null || !world.TryGetSingleton<WindSingleton>(out Entity entity)) return;
+                    var wind = world.GetComponent<WindSingleton>(entity);
+                    set(ref wind, value);
+                    world.GetEntityView(entity).Set(wind);
+                }));
+        }
+
+        private static bool TryGetPlayerPosition(ECSWorld world, out Vector3 position)
+        {
+            position = default;
+            List<Entity> players = world.QueryEntities(new BitMask(typeof(PlayerTag), typeof(LocalToWorldMatrixComponent)), BitMask.Empty);
+            if (players.Count == 0) return false;
+            position = world.GetComponent<LocalToWorldMatrixComponent>(players[0]).value.ExtractTranslation();
+            return true;
+        }
+
+        private delegate void FogSetter(ref VolumetricFogSingleton fog, float value);
+        private delegate void FogEdit(ref VolumetricFogSingleton fog);
+
+        private static GuiElement FogSlider(string caption, float min, float max, string format, Func<VolumetricFogSingleton, float> get, FogSetter set, float step = 0f)
+        {
+            return DebugUi.LabeledRow(caption, new Slider(min, max) { Format = format, Step = step, FormatProvider = DebugUi.Culture }.Bind(
+                () => TryGetFog(out var settings) ? get(settings) : min,
+                value => EditFog((ref VolumetricFogSingleton f) => set(ref f, value))));
+        }
+
+        private static bool TryGetFog(out VolumetricFogSingleton settings)
+        {
+            settings = default;
+            var world = Engine.Instance?.world;
+            if (world == null || !world.TryGetSingleton<VolumetricFogSingleton>(out Entity entity)) return false;
+            settings = world.GetComponent<VolumetricFogSingleton>(entity);
+            return true;
+        }
+
+        private static void EditFog(FogEdit edit)
+        {
+            var world = Engine.Instance?.world;
+            if (world == null || !world.TryGetSingleton<VolumetricFogSingleton>(out Entity entity)) return;
+            var settings = world.GetComponent<VolumetricFogSingleton>(entity);
+            edit(ref settings);
+            world.GetEntityView(entity).Set(settings);
+        }
+
+        private delegate void WaterSetter(ref WaterSingleton water, float value);
+        private delegate void WaterEdit(ref WaterSingleton water);
+
+        private static GuiElement WaterSlider(string caption, float min, float max, string format, Func<WaterSingleton, float> get, WaterSetter set, float step = 0f)
+        {
+            return DebugUi.LabeledRow(caption, new Slider(min, max) { Format = format, Step = step, FormatProvider = DebugUi.Culture }.Bind(
+                () => Water.TryGet(Engine.Instance?.world, out var water) ? get(water) : min,
+                value => EditWater((ref WaterSingleton w) => set(ref w, value))));
+        }
+
+        private static void EditWater(WaterEdit edit)
+        {
+            var world = Engine.Instance?.world;
+            if (world == null || !world.TryGetSingleton<WaterSingleton>(out Entity entity)) return;
+            var water = world.GetComponent<WaterSingleton>(entity);
+            edit(ref water);
+            world.GetEntityView(entity).Set(water);
+        }
+
+        private static bool TryGetSun<T>(out T component) where T : struct, IComponent
+        {
+            component = default;
+            var world = Engine.Instance?.world;
+            if (world == null || !world.HasComponent<T>(world.sun)) return false;
+            component = world.GetComponent<T>(world.sun);
+            return true;
+        }
+
+        private static void SetSun<T>(T component) where T : struct, IComponent
+        {
+            var world = Engine.Instance?.world;
+            if (world == null || !world.HasComponent<T>(world.sun)) return;
+            world.GetEntityView(world.sun).Set(component);
+        }
+
+        /// <summary>The light direction points from the sun towards the ground.</summary>
+        private static (float azimuth, float elevation) SunAngles()
+        {
+            if (!TryGetSun<DirectionNormalizedComponent>(out var direction)) return (0f, 45f);
+            Vector3 d = direction.value;
+            float elevation = MathHelper.RadiansToDegrees(MathF.Asin(Math.Clamp(-d.Y, -1f, 1f)));
+            float azimuth = MathHelper.RadiansToDegrees(MathF.Atan2(d.X, d.Z));
+            return (azimuth, elevation);
+        }
+
+        private static void SetSunAngles(float azimuthDegrees, float elevationDegrees)
+        {
+            if (!TryGetSun<DirectionNormalizedComponent>(out var direction)) return;
+            float azimuth = MathHelper.DegreesToRadians(azimuthDegrees);
+            float elevation = MathHelper.DegreesToRadians(elevationDegrees);
+            float horizontal = MathF.Cos(elevation);
+            direction.value = new Vector3(horizontal * MathF.Sin(azimuth), -MathF.Sin(elevation), horizontal * MathF.Cos(azimuth));
+            SetSun(direction);
+        }
+
+        private static bool TryGetCameraProjection(out PerspectiveProjectionComponent projection)
+        {
+            projection = default;
+            var world = Engine.Instance?.world;
+            if (world == null || !world.HasComponent<PerspectiveProjectionComponent>(world.Camera)) return false;
+            projection = world.GetComponent<PerspectiveProjectionComponent>(world.Camera);
+            return true;
+        }
+    }
+}
