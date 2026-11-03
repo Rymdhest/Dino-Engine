@@ -66,7 +66,7 @@ namespace Dino_Engine.Rendering
         private SSAORenderer _sSAORenderer;
         private BloomRenderer _bloomRenderer;
         private SkyRenderer _skyRenderer;
-        private FogRenderer _fogRenderer;
+        public VolumetricFogRenderer _volumetricFogRenderer;
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
         private DepthBasedBlurRenderer _depthBasedBlurRenderer;
@@ -136,7 +136,7 @@ namespace Dino_Engine.Rendering
             _sSAORenderer = new SSAORenderer();
             _bloomRenderer = new BloomRenderer();
             _skyRenderer = new SkyRenderer();
-            _fogRenderer = new FogRenderer();
+            _volumetricFogRenderer = new VolumetricFogRenderer();
             _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
             _gaussianBlurRenderer = new GaussianBlurRenderer();
             _depthBasedBlurRenderer = new DepthBasedBlurRenderer();
@@ -298,8 +298,8 @@ namespace Dino_Engine.Rendering
         }
         private void PostProcessPass()
         {
+            _volumetricFogRenderer.RenderPass(this);
             _depthOfFieldRenderer.RenderPass(this);
-            _fogRenderer.RenderPass(this);
             _sunRenderer.RenderPass(this);
             _bloomRenderer.RenderPass(this);
             _fXAARenderer.RenderPass(this); // before or after tone mapping????????????

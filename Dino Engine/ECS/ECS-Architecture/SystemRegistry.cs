@@ -72,6 +72,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             Systems.Add(new DirectionalLightSystem());
             Systems.Add(new TerrainChunkRenderSystem());
             Systems.Add(new CelestialBodyRenderSystem());
+            Systems.Add(new VolumetricFogSystem());
 
             Systems.Add(new TerrainChunkSystem());
 

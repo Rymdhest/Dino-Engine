@@ -20,6 +20,10 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
     public class PointLightRenderer : CommandDrivenRenderer<PointlightRenderCommand>
     {
+        // Clip planes of the cube shadow map projection (PointLightShadowComponent); shaders reconstruct depth with them.
+        public const float ShadowNearPlane = 0.15f;
+        public const float ShadowFarPlane = 30f;
+
         private ShaderProgram pointLightShader = new ShaderProgram("Point_Light.vert", "Point_Light.frag");
 
         public PointLightRenderer() : base("Point Light")
@@ -82,8 +86,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 pointLightShader.loadUniformFloat("shadowSmoothRadius", 0.015f);
 
                 // Dynamic clip plane synchronization matches your point light attenuation radius
-                pointLightShader.loadUniformFloat("shadowNearPlane", 0.15f);
-                pointLightShader.loadUniformFloat("shadowFarPlane", 30f);
+                pointLightShader.loadUniformFloat("shadowNearPlane", ShadowNearPlane);
+                pointLightShader.loadUniformFloat("shadowFarPlane", ShadowFarPlane);
 
                 ActiveTexture(TextureUnit.Texture4);
                 BindTexture(TextureTarget.TextureCubeMap, command.shadow.Value.shadowFrameBuffer.getDepthAttachment());

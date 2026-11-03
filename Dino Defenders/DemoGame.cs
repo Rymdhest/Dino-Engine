@@ -215,6 +215,7 @@ namespace Dino_Defenders
             world.RegisterSingleton<CollisionEventBufferSingleton>(world.CreateEntity(new CollisionEventBufferSingleton()));
             world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(15f)));
             world.RegisterSingleton<TerrainScatterSingleton>(world.CreateEntity(new TerrainScatterSingleton(MyMath.rand.Next(), Vector2.Zero, new Vector2(terrainSize))));
+            world.RegisterSingleton<VolumetricFogSingleton>(world.CreateEntity("Volumetric Fog", new VolumetricFogSingleton()));
             world.ApplyDeferredCommands();
 
 

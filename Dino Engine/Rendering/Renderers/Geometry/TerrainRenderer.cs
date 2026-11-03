@@ -367,7 +367,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _terrainShadowShader.bind();
 
-            _terrainShader.loadUniformFloat("textureMapOffset", (1.0f / (CHUNK_RESOLUTION)));
+            _terrainShadowShader.loadUniformFloat("textureMapOffset", (1.0f / (CHUNK_RESOLUTION)));
 
             GL.ActiveTexture(TextureUnit.Texture6);
             GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);
@@ -414,6 +414,56 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 IntPtr.Zero,
                 numberOfChunks
             );
+        }
+
+        /// <summary>
+        /// Renders the terrain surface of <paramref name="chunks"/> into the currently bound depth target with
+        /// both faces and no depth bias, for top-down height captures (see VolumetricFogRenderer).
+        /// </summary>
+        public void RenderHeightCapture(TerrainChunkRenderData[] chunks, Matrix4 projectionViewMatrix)
+        {
+            if (chunks.Length == 0) return;
+
+            GL.DepthMask(true);
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthFunc(DepthFunction.Less);
+            GL.Disable(EnableCap.CullFace);
+            GL.Disable(EnableCap.Blend);
+
+            _terrainShadowShader.bind();
+            _terrainShadowShader.loadUniformFloat("textureMapOffset", (1.0f / (CHUNK_RESOLUTION)));
+            _terrainShadowShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);
+
+            GL.ActiveTexture(TextureUnit.Texture6);
+            GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);
+
+            GL.BindVertexArray(baseChunkModel.getVAOID());
+            GL.EnableVertexAttribArray(0);
+            GL.EnableVertexAttribArray(3);
+            GL.EnableVertexAttribArray(4);
+            GL.EnableVertexAttribArray(5);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, instanceVBO);
+            GL.BufferData(BufferTarget.ArrayBuffer,
+                chunks.Length * Marshal.SizeOf<TerrainChunkRenderData>(),
+                chunks,
+                BufferUsageHint.DynamicDraw);
+
+            GL.DrawElementsInstanced(
+                PrimitiveType.Triangles,
+                baseChunkModel.getVertexCount(),
+                DrawElementsType.UnsignedInt,
+                IntPtr.Zero,
+                chunks.Length
+            );
+
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(3);
+            GL.DisableVertexAttribArray(4);
+            GL.DisableVertexAttribArray(5);
+            GL.BindVertexArray(0);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
         }
 
         internal override void PerformShadowCommand(TerrainRenderCommand command, Shadow shadow, RenderEngine renderEngine)

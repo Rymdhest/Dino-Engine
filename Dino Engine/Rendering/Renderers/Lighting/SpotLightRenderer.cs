@@ -82,6 +82,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _spotLightShader.cleanUp();
         }
 
+        /// <summary>The direction the light shines in, as used for shading (also used by the volumetric fog).</summary>
+        public static Vector3 WorldDirection(SpotlightRenderCommand command)
+        {
+            return (new Vector4(command.direction, 1.0f) * Matrix4.CreateFromQuaternion(command.rotation)).Xyz;
+        }
+
         public override void PerformCommand(SpotlightRenderCommand command, RenderEngine renderEngine)
         {
 
@@ -116,7 +122,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             Quaternion rotationToDesired = MyMath.FromToRotation(from, to);
 
 
-            Vector3 direction = (new Vector4(command.direction, 1.0f) * Matrix4.CreateFromQuaternion(command.rotation)).Xyz;
+            Vector3 direction = WorldDirection(command);
 
             float halfAngleModel = MathF.PI / 8f; // model's built-in 22.5°
             float radiusScale = MathF.Tan(command.halfAngleRad) / MathF.Tan(halfAngleModel);

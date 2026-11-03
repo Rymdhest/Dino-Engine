@@ -11,7 +11,7 @@ namespace Dino_Engine.ECS.Components
         public PointLightShadowComponent(int resolution)
         {
             // The projection far plane MUST match the light radius to sync correctly with shader depth reconstruction
-            var projectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(90f), 1f, 0.15f, 30f);
+            var projectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(90f), 1f, PointLightRenderer.ShadowNearPlane, PointLightRenderer.ShadowFarPlane);
             shadow = new Shadow(resolution, projectionMatrix, 0, 2.0f, 2.0f, true);
         }
 
