@@ -21,6 +21,19 @@ namespace Dino_Defenders.Gameplay
         Dead,       // Toppling over, and soon gone.
     }
 
+    /// <summary>What the player means to do this frame, from the keyboard and mouse or from whatever is driving the hero instead.</summary>
+    public struct HeroIntent
+    {
+        public Vector2 Move;
+        public Vector2? Aim;
+        public bool Attack;
+        public bool Dash;
+        public bool Whirl;
+        public bool Flask;
+        public bool Interact;
+        public bool Guide;
+    }
+
     public struct HealthComponent : IComponent
     {
         public float Current;

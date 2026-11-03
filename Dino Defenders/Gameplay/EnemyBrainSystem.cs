@@ -37,6 +37,11 @@ namespace Dino_Defenders.Gameplay
             GameSession session = GameSession.Current;
             var enemy = entity.Get<EnemyComponent>();
             if (enemy.State == EnemyState.Dead) return;
+            if (session.Paused)
+            {
+                entity.Set(new VelocityComponent());
+                return;
+            }
 
             Vector2 position = entity.Get<PositionComponent>().value.Xz;
             Vector2 hero = session.PlayerPosition;
@@ -216,7 +221,7 @@ namespace Dino_Defenders.Gameplay
 
             Vector3 position = entity.Get<PositionComponent>().value;
             bool hitHero = (position.Xz - session.PlayerPosition).LengthSquared < 2.4f * 2.4f;
-            bool blocked = session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f));
+            bool blocked = position.Y < session.World.Height.Sample(position.Xz) || session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f));
 
             if (hitHero) Combat.HurtHero(world, session, projectile.Damage, session.World.Plan.Level);
             if (hitHero || blocked || projectile.Life <= 0f) world.DestroyEntity(entity.Entity);

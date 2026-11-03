@@ -7,6 +7,7 @@ using Dino_Engine.Modelling.Procedural.Vegetation;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using Dino_Engine.World.Content;
+using OpenTK.Mathematics;
 
 namespace Dino_Engine.World
 {
@@ -17,8 +18,15 @@ namespace Dino_Engine.World
     public sealed class WorldAssetLibrary
     {
         private readonly Dictionary<string, glModel> _models = new();
+        private readonly Dictionary<string, List<Vector3>> _chimneys = new();
 
         public int Count => _models.Count;
+
+        /// <summary>Where smoke leaves a building, in model space. Known once its model has been built.</summary>
+        public IReadOnlyList<Vector3> ChimneysOf(string id)
+        {
+            return _chimneys.TryGetValue(id, out List<Vector3>? tops) ? tops : Array.Empty<Vector3>();
+        }
 
         public glModel Get(string id)
         {
@@ -35,7 +43,9 @@ namespace Dino_Engine.World
             }
             else
             {
-                mesh = BuildStructure(id, out imposterDistance);
+                var chimneys = new List<Vector3>();
+                mesh = BuildStructure(id, chimneys, out imposterDistance);
+                if (chimneys.Count > 0) _chimneys.Add(id, chimneys);
             }
 
             model = glLoader.loadToVAO(mesh);
@@ -110,7 +120,7 @@ namespace Dino_Engine.World
             }
         }
 
-        private static Mesh BuildStructure(string id, out float imposterDistance)
+        private static Mesh BuildStructure(string id, List<Vector3> chimneys, out float imposterDistance)
         {
             StructureDefinition definition = StructureCatalog.Parse(id, out BuildingStyle style, out int variant);
             imposterDistance = definition.ImposterDistance;
@@ -118,7 +128,7 @@ namespace Dino_Engine.World
             if (definition == StructureCatalog.Fence) return PropGenerator.GenerateFence();
             if (definition == StructureCatalog.GrainCrop) return PlantGenerator.GenerateGrainCrop();
             if (definition == StructureCatalog.VegetableCrop) return PlantGenerator.GenerateVegetableCrop();
-            if (definition.Styled && definition != StructureCatalog.WatchTower) return BuildingGenerator.Generate(definition, style, variant);
+            if (definition.Styled && definition != StructureCatalog.WatchTower) return BuildingGenerator.Generate(definition, style, variant, chimneys);
             return PropGenerator.Generate(definition, style);
         }
     }

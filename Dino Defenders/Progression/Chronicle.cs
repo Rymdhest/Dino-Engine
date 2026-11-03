@@ -41,7 +41,7 @@ namespace Dino_Defenders.Progression
             "They still tell of the harvest before {1} took {0}.",
             "No one in {0} speaks {1}'s name above a whisper.",
             "{0} has paid its tithe to {1} for three winters now.",
-            "What was left of {0} after the burning, {1} took for his own.",
+            "What was left of {0} after the burning, {1} took.",
         };
         private static readonly string[] Closings =
         {

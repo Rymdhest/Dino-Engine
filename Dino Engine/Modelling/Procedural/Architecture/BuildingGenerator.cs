@@ -96,8 +96,11 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             return new Colour(colour * shade);
         }
 
-        /// <summary>A building of the catalog in a style; <paramref name="variant"/> gives its look a little variety.</summary>
-        public static Mesh Generate(StructureDefinition definition, BuildingStyle style, int variant)
+        /// <summary>
+        /// A building of the catalog in a style; <paramref name="variant"/> gives its look a little variety. The tops of its chimneys,
+        /// in model space, are added to <paramref name="chimneys"/>.
+        /// </summary>
+        public static Mesh Generate(StructureDefinition definition, BuildingStyle style, int variant, List<Vector3>? chimneys = null)
         {
             var random = new WorldRandom(0x51ED).Fork(definition.Id).Fork((int)style * 16 + variant);
             Kit kit = KitFor(style, random);
@@ -106,15 +109,15 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             if (definition == StructureCatalog.Shed) return BuildShed(half, kit);
             if (definition == StructureCatalog.Barn) return BuildBarn(half, kit, random);
             if (definition == StructureCatalog.Temple) return BuildTemple(half, kit, random);
-            if (definition == StructureCatalog.Inn) return BuildHouse(half, 11.5f, kit, random, storeys: 2, chimneys: 2);
-            if (definition == StructureCatalog.Hall) return BuildHouse(half, 8.5f, kit, random, storeys: 1, chimneys: 2);
-            if (definition == StructureCatalog.Hut) return BuildHouse(half, 6.6f, kit, random, storeys: 1, chimneys: 0);
-            if (definition == StructureCatalog.Longhouse) return BuildHouse(half, 7.2f, kit, random, storeys: 1, chimneys: 1);
-            if (definition == StructureCatalog.House) return BuildHouse(half, 7.6f, kit, random, storeys: 1, chimneys: 1);
-            return BuildHouse(half, 7f, kit, random, storeys: 1, chimneys: 1);
+            if (definition == StructureCatalog.Inn) return BuildHouse(half, 11.5f, kit, random, storeys: 2, count: 2, chimneys);
+            if (definition == StructureCatalog.Hall) return BuildHouse(half, 8.5f, kit, random, storeys: 1, count: 2, chimneys);
+            if (definition == StructureCatalog.Hut) return BuildHouse(half, 6.6f, kit, random, storeys: 1, count: 0, chimneys);
+            if (definition == StructureCatalog.Longhouse) return BuildHouse(half, 7.2f, kit, random, storeys: 1, count: 1, chimneys);
+            if (definition == StructureCatalog.House) return BuildHouse(half, 7.6f, kit, random, storeys: 1, count: 1, chimneys);
+            return BuildHouse(half, 7f, kit, random, storeys: 1, count: 1, chimneys);
         }
 
-        private static Mesh BuildHouse(Vector2 half, float wallHeight, Kit kit, WorldRandom random, int storeys, int chimneys)
+        private static Mesh BuildHouse(Vector2 half, float wallHeight, Kit kit, WorldRandom random, int storeys, int count, List<Vector3>? chimneys)
         {
             var b = new MeshBuilder();
             AddPlinth(b, half, kit);
@@ -125,10 +128,13 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             AddWindows(b, half, PlinthHeight, top, kit, storeys, random);
             AddRoof(b, half, top, kit, random);
 
-            for (int i = 0; i < chimneys; i++)
+            for (int i = 0; i < count; i++)
             {
                 float x = (i == 0 ? 1f : -1f) * half.X * random.Range(0.3f, 0.62f);
-                AddChimney(b, new Vector3(x, 0f, random.Range(-0.3f, 0.3f) * half.Y), top + (half.Y + kit.Overhang) * kit.Pitch * 0.72f, kit);
+                Vector3 at = new Vector3(x, 0f, random.Range(-0.3f, 0.3f) * half.Y);
+                float chimneyTop = top + (half.Y + kit.Overhang) * kit.Pitch * 0.72f;
+                AddChimney(b, at, chimneyTop, kit);
+                chimneys?.Add(new Vector3(at.X, chimneyTop + 1.2f, at.Z));
             }
             return b.Build();
         }

@@ -1,0 +1,322 @@
+using Dino_Defenders.Gameplay;
+using Dino_Defenders.Progression;
+using Dino_Engine.Core;
+using Dino_Engine.ECS.Components;
+using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.GUI;
+using Dino_Engine.GUI.Rendering;
+using Dino_Engine.Util;
+using OpenTK.Mathematics;
+
+namespace Dino_Defenders.UI
+{
+    /// <summary>
+    /// What is always on screen, kept to the edges so the land stays the picture: health and flasks, the abilities, what the
+    /// chronicle asks for next, and the words and numbers that come off the world itself.
+    /// </summary>
+    internal sealed class Hud : GuiElement
+    {
+        private const float Margin = 26f;
+        private const float BannerFade = 0.7f;
+        private const float LogLife = 8f;
+        private const float BossRange = 70f;
+
+        private static readonly BitMask EnemyMask = new BitMask(typeof(EnemyComponent), typeof(HealthComponent), typeof(PositionComponent));
+
+        public Hud()
+        {
+            Width = UIValue.Fill;
+            Height = UIValue.Fill;
+            HitTest = HitTestMode.PassThrough;
+        }
+
+        protected override void OnUpdate(float deltaTime)
+        {
+            GameSession session = GameSession.Current;
+            if (session == null) return;
+
+            var texts = session.FloatingTexts;
+            for (int i = texts.Count - 1; i >= 0; i--)
+            {
+                FloatingText text = texts[i];
+                text.Age += deltaTime;
+                text.Position.Y += deltaTime * 1.4f;
+                if (text.Age >= text.Life) texts.RemoveAt(i);
+                else texts[i] = text;
+            }
+
+            // Banners wait their turn; only the first one ages.
+            if (session.Banners.Count > 0)
+            {
+                Banner banner = session.Banners[0];
+                banner.Age += deltaTime;
+                if (banner.Age >= banner.Life) session.Banners.RemoveAt(0);
+                else session.Banners[0] = banner;
+            }
+
+            for (int i = session.Log.Count - 1; i >= 0; i--)
+            {
+                LogLine line = session.Log[i];
+                line.Age += deltaTime;
+                if (line.Age >= LogLife) session.Log.RemoveAt(i);
+                else session.Log[i] = line;
+            }
+        }
+
+        protected override void OnDraw(GuiDrawList draw)
+        {
+            GameSession session = GameSession.Current;
+            if (session == null || Context == null) return;
+
+            GuiRect screen = Bounds;
+            if (session.Health <= 0f) draw.AddRect(screen, GuiColors.Rgba(20, 0, 0, 130));
+
+            DrawEnemies(draw, session, screen);
+            DrawFloatingTexts(draw, session, screen);
+            DrawGuidance(draw, session, screen);
+            DrawVitals(draw, session, screen);
+            DrawAbilities(draw, session, screen);
+            DrawChronicle(draw, session, screen);
+            DrawLog(draw, session, screen);
+            DrawPrompt(draw, session, screen);
+            DrawBanner(draw, session, screen);
+        }
+
+        // World to screen, in the same convention the renderer uses (row vectors).
+        private static bool Project(Vector3 world, GuiRect screen, out Vector2 point)
+        {
+            var context = Engine.RenderEngine.context;
+            Vector4 clip = new Vector4(world, 1f) * context.viewMatrix * context.projectionMatrix;
+            point = default;
+            if (clip.W <= 0.01f) return false;
+            point = new Vector2((clip.X / clip.W * 0.5f + 0.5f) * screen.Width, (0.5f - clip.Y / clip.W * 0.5f) * screen.Height);
+            return true;
+        }
+
+        private void DrawEnemies(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            ECSWorld world = Engine.Instance!.world;
+            foreach (Archetype archetype in world.QueryArchetypes(EnemyMask, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var enemy = entity.Get<EnemyComponent>();
+                    if (enemy.State == EnemyState.Dead) continue;
+
+                    var health = entity.Get<HealthComponent>();
+                    Vector3 position = entity.Get<PositionComponent>().value;
+                    float share = Math.Clamp(health.Current / health.Max, 0f, 1f);
+
+                    if (enemy.Rank == EnemyRank.Boss)
+                    {
+                        bool engaged = enemy.State != EnemyState.Idle || share < 1f;
+                        if (engaged && (position.Xz - session.PlayerPosition).Length < BossRange) DrawBossBar(draw, enemy, share, screen);
+                        continue;
+                    }
+
+                    bool marked = enemy.Rank == EnemyRank.Elite;
+                    if (share >= 1f && !marked) continue;
+
+                    float height = 5.4f * entity.Get<ScaleComponent>().value.Y;
+                    if (!Project(position + Vector3.UnitY * height, screen, out Vector2 at)) continue;
+
+                    float width = marked ? 76f : 52f;
+                    GuiRect back = new GuiRect(at.X - width * 0.5f, at.Y, width, 5f);
+                    draw.AddRect(back, GuiColors.Rgba(0, 0, 0, 170));
+                    draw.AddRect(new GuiRect(back.X, back.Y, back.Width * share, back.Height), Ui.Blood);
+                    if (marked) Ui.Text(Context!, draw, enemy.Name, 13f, new GuiRect(back.X - 60f, back.Y - 18f, width + 120f, 16f), Ui.Gold, Alignment.Center);
+                }
+            }
+        }
+
+        private void DrawBossBar(GuiDrawList draw, in EnemyComponent enemy, float share, GuiRect screen)
+        {
+            float width = MathF.Min(screen.Width * 0.46f, 620f);
+            GuiRect bar = new GuiRect((screen.Width - width) * 0.5f, Margin + 26f, width, 10f);
+            Ui.Text(Context!, draw, enemy.Name, 19f, new GuiRect(bar.X, Margin, bar.Width, 24f), Ui.Parchment, Alignment.Center);
+            draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 180), 2f, 1f, GuiColors.Rgba(120, 96, 58));
+            draw.AddRect(new GuiRect(bar.X + 1f, bar.Y + 1f, (bar.Width - 2f) * share, bar.Height - 2f), Ui.Blood, 1f);
+        }
+
+        private void DrawFloatingTexts(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            foreach (FloatingText text in session.FloatingTexts)
+            {
+                if (!Project(text.Position, screen, out Vector2 at)) continue;
+
+                float left = text.Life - text.Age;
+                float alpha = Math.Clamp(left / 0.3f, 0f, 1f);
+                Colour colour = GuiColors.Rgba(text.Colour.X, text.Colour.Y, text.Colour.Z, alpha);
+                Ui.Text(Context!, draw, text.Text, text.Size, new GuiRect(at.X - 200f, at.Y - 14f, 400f, 28f), colour, Alignment.Center);
+            }
+        }
+
+        // A mark that circles the hero, pointing the way to the next goal. Where it points comes from the world, projected, so it's
+        // right whatever the camera does.
+        private void DrawGuidance(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            if (session.Guidance is not Vector2 target || session.Health <= 0f) return;
+
+            Vector2 toward = target - session.PlayerPosition;
+            float distance = toward.Length;
+            if (distance < 12f) return;
+
+            float height = session.World.Height.Sample(session.PlayerPosition);
+            Vector3 hero = new Vector3(session.PlayerPosition.X, height, session.PlayerPosition.Y);
+            Vector3 ahead = hero + new Vector3(toward.X, 0f, toward.Y) / distance * 12f;
+            if (!Project(hero, screen, out Vector2 from) || !Project(ahead, screen, out Vector2 to)) return;
+
+            Vector2 direction = to - from;
+            if (direction.LengthSquared < 1f) return;
+            direction.Normalize();
+
+            Vector2 normal = new Vector2(-direction.Y, direction.X);
+            Vector2 tip = screen.Center + direction * MathF.Min(screen.Width, screen.Height) * 0.34f;
+            Vector2 back = tip - direction * 13f;
+            draw.AddLine(tip, back + normal * 9f, Ui.Gold, 2.4f);
+            draw.AddLine(tip, back - normal * 9f, Ui.Gold, 2.4f);
+
+            string label = distance >= 1000f ? $"{distance / 1000f:0.0} km" : $"{distance:0} m";
+            Ui.Text(Context!, draw, label, 13f, new GuiRect(back.X - 60f, back.Y - direction.Y * -14f - 9f, 120f, 18f), Ui.Parchment, Alignment.Center);
+        }
+
+        private void DrawVitals(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            HeroState hero = session.Hero;
+            float width = 300f;
+            GuiRect bar = new GuiRect(Margin, screen.Height - Margin - 34f, width, 16f);
+
+            float life = Math.Clamp(session.Health / session.Stats.MaxHealth, 0f, 1f);
+            draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 170), 2f, 1f, GuiColors.Rgba(120, 96, 58));
+            draw.AddRect(new GuiRect(bar.X + 1f, bar.Y + 1f, (bar.Width - 2f) * life, bar.Height - 2f), Ui.Life, 1f);
+            Ui.Text(Context!, draw, $"{MathF.Max(session.Health, 0f):0} / {session.Stats.MaxHealth:0}", 12.5f, bar, Ui.Parchment, Alignment.Center);
+
+            GuiRect experience = new GuiRect(bar.X, bar.Bottom + 4f, width, 4f);
+            draw.AddRect(experience, GuiColors.Rgba(0, 0, 0, 170));
+            float gained = hero.Level >= HeroState.MaxLevel ? 1f : Math.Clamp((float)hero.Experience / hero.ExperienceToNext, 0f, 1f);
+            draw.AddRect(new GuiRect(experience.X, experience.Y, experience.Width * gained, experience.Height), Ui.Experience);
+
+            GuiRect above = new GuiRect(bar.X, bar.Y - 25f, width, 22f);
+            Shade(draw, above);
+            Ui.Text(Context!, draw, $"Level {hero.Level}", 16f, above, Ui.Gold);
+            Ui.Text(Context!, draw, $"{hero.Gold} gold", 14f, above, Ui.Parchment, Alignment.End);
+            if (hero.UnspentPoints > 0)
+            {
+                Ui.Text(Context!, draw, $"{hero.UnspentPoints} to spend  [C]", 13f, new GuiRect(bar.Right + 12f, bar.Y, 160f, 16f), Ui.Gold);
+            }
+        }
+
+        private readonly record struct Ability(string Key, string Name, float Share, bool Ready);
+
+        private void DrawAbilities(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            Ability[] abilities =
+            {
+                new("LMB", "Strike", session.SwingCooldown / 0.6f, true),
+                new("Space", "Dodge", session.DashCooldown / 2.4f, true),
+                new("Q", "Whirl", session.WhirlCooldown / 8f, true),
+                new("R", $"Flask {session.Hero.Flasks}", 0f, session.Hero.Flasks > 0),
+                new("F", "Wind", session.GuideCooldown / 14f, true),
+            };
+
+            const float size = 56f;
+            const float gap = 8f;
+            float total = abilities.Length * size + (abilities.Length - 1) * gap;
+            float x = (screen.Width - total) * 0.5f;
+            float y = screen.Height - Margin - size;
+
+            foreach (Ability ability in abilities)
+            {
+                GuiRect slot = new GuiRect(x, y, size, size);
+                draw.AddRect(slot, Ui.Ink, 3f, 1f, GuiColors.Rgba(120, 96, 58));
+
+                float share = Math.Clamp(ability.Share, 0f, 1f);
+                if (share > 0f) draw.AddRect(new GuiRect(x, y + size * (1f - share), size, size * share), GuiColors.Rgba(150, 120, 70, 90), 3f);
+
+                Colour colour = !ability.Ready ? Ui.Faded.MultiplyAlpha(0.6f) : share > 0f ? Ui.Faded : Ui.Parchment;
+                Ui.Text(Context!, draw, ability.Name, 13f, new GuiRect(x, y + 8f, size, 22f), colour, Alignment.Center);
+                Ui.Text(Context!, draw, ability.Key, 11.5f, new GuiRect(x, y + size - 22f, size, 18f), Ui.Gold, Alignment.Center);
+                x += size + gap;
+            }
+        }
+
+        private void DrawChronicle(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            float width = 330f;
+            float x = screen.Width - width - Margin;
+            float y = Margin;
+
+            float height = 26f;
+            foreach (Objective objective in session.Chronicle.Objectives)
+            {
+                height += Ui.Wrap(Context!, objective.Summary, 14f, width - 14f).Count * 18f + 4f;
+            }
+            Shade(draw, new GuiRect(x, y, width, height));
+
+            Ui.Text(Context!, draw, session.World.Plan.Name, 17f, new GuiRect(x, y, width, 22f), Ui.Gold, Alignment.End);
+            y += 26f;
+
+            for (int i = session.Chronicle.Objectives.Count - 1; i >= 0; i--)
+            {
+                Objective objective = session.Chronicle.Objectives[i];
+                Colour colour = objective.Done ? Ui.Faded : objective.IsMain ? Ui.Parchment : GuiColors.Rgba(206, 194, 170);
+                foreach (string line in Ui.Wrap(Context!, objective.Summary, 14f, width - 14f))
+                {
+                    Ui.Text(Context!, draw, line, 14f, new GuiRect(x, y, width - 14f, 18f), colour, Alignment.End);
+                    y += 18f;
+                }
+                draw.AddCircle(new Vector2(x + width - 4f, y - 9f), 3f, objective.Done ? Ui.Good : Ui.Gold);
+                y += 4f;
+            }
+        }
+
+        // A soft dark patch behind text, so it holds up over snow, sand and sunlit walls as well as it does over grass.
+        private static void Shade(GuiDrawList draw, GuiRect rect)
+        {
+            GuiRect patch = new GuiRect(rect.X - 14f, rect.Y - 8f, rect.Width + 28f, rect.Height + 14f);
+            draw.AddRect(patch, GuiColors.Rgba(10, 8, 6, 120), 8f, 0f, default, 12f);
+        }
+
+        private void DrawLog(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            float y = screen.Height - Margin - 92f;
+            for (int i = session.Log.Count - 1; i >= 0; i--)
+            {
+                LogLine line = session.Log[i];
+                float alpha = Math.Clamp((LogLife - line.Age) / 1.5f, 0f, 1f);
+                Ui.Text(Context!, draw, line.Text, 14f, new GuiRect(Margin, y - 18f, 460f, 18f), Ui.Parchment.MultiplyAlpha(alpha));
+                y -= 19f;
+            }
+        }
+
+        private void DrawPrompt(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            if (session.InteractPrompt == null) return;
+            GuiRect line = new GuiRect(0f, screen.Height - Margin - 92f, screen.Width, 24f);
+            Ui.Text(Context!, draw, $"[E]  {session.InteractPrompt}", 17f, line, Ui.Parchment, Alignment.Center);
+        }
+
+        private void DrawBanner(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            if (session.Banners.Count == 0) return;
+            Banner banner = session.Banners[0];
+
+            float alpha = MathF.Min(banner.Age / BannerFade, (banner.Life - banner.Age) / BannerFade);
+            alpha = Math.Clamp(alpha, 0f, 1f);
+            float y = screen.Height * 0.17f;
+            float half = MathF.Min(screen.Width * 0.3f, 380f);
+
+            draw.PushOpacity(alpha);
+            Ui.Text(Context!, draw, banner.Title, 38f, new GuiRect(0f, y, screen.Width, 46f), Ui.Parchment, Alignment.Center);
+            y += 52f;
+            draw.AddLine(new Vector2(screen.Width * 0.5f - half, y), new Vector2(screen.Width * 0.5f + half, y), Ui.Gold.MultiplyAlpha(0.7f), 1f);
+            y += 8f;
+            foreach (string line in Ui.Wrap(Context!, banner.Subtitle, 17f, half * 2f))
+            {
+                Ui.Text(Context!, draw, line, 17f, new GuiRect(0f, y, screen.Width, 24f), Ui.Parchment, Alignment.Center);
+                y += 24f;
+            }
+            draw.PopOpacity();
+        }
+    }
+}

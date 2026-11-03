@@ -20,8 +20,20 @@ namespace Dino_Defenders.Gameplay
         public readonly HashSet<int> Dead = new();
         public readonly HashSet<int> Opened = new();
         public readonly List<Entity> Live = new();
+        public readonly List<SiteFeature> Features = new();
+        public readonly List<Item> Stock = new();
         public int ThreatIndex = -1;    // For settlements: the hostile site that preys on it.
     }
+
+    public enum SiteFeatureKind
+    {
+        Chimney,
+        Campfire,
+        Lantern,
+    }
+
+    /// <summary>Something at a site that comes alive when the hero is near: a thread of smoke, a fire, a lit lantern.</summary>
+    public readonly record struct SiteFeature(SiteFeatureKind Kind, Vector3 Position);
 
     /// <summary>A line of text that drifts up from something in the world.</summary>
     public struct FloatingText
@@ -43,6 +55,13 @@ namespace Dino_Defenders.Gameplay
         public float Life;
     }
 
+    /// <summary>A line in the running account of what just happened.</summary>
+    public struct LogLine
+    {
+        public string Text;
+        public float Age;
+    }
+
     /// <summary>
     /// The game in progress: the hero, the world they are in, and what has happened to it. Systems and panels all work on this,
     /// and it goes when the world does, except for the hero.
@@ -55,13 +74,20 @@ namespace Dino_Defenders.Gameplay
 
         public readonly HeroState Hero;
         public readonly WorldData World;
+        public readonly WorldRequest Request;
         public readonly Chronicle Chronicle;
         public readonly List<SiteState> Sites = new();
         public readonly List<FloatingText> FloatingTexts = new();
         public readonly List<Banner> Banners = new();
-        public readonly List<string> Log = new();
+        public readonly List<LogLine> Log = new();
 
         public Entity Player;
+        public HeroIntent Intent;
+        public Func<HeroIntent>? Autopilot;
+        public bool Paused;
+        public bool Liberated;      // The warlord has fallen.
+        public Vector2? TravelTo;   // A place the hero is about to appear at.
+        public Vector2? Guidance;
         public HeroStats Stats;
         public float Health;
         public Vector2 Respawn;
@@ -71,16 +97,16 @@ namespace Dino_Defenders.Gameplay
         public float SwingCooldown;
         public float GuideCooldown;
         public string? InteractPrompt;
-        public bool WorldOffered;
 
         /// <summary>Opened by interacting: the game shows the panel that goes with it.</summary>
         public Action<InteractKind, int>? InteractionOpened;
         public Action? WorldCleared;
 
-        public GameSession(HeroState hero, WorldData world)
+        public GameSession(HeroState hero, WorldData world, WorldRequest request)
         {
             Hero = hero;
             World = world;
+            Request = request;
             Chronicle = Chronicle.Write(world);
             Stats = hero.Compute();
             Health = Stats.MaxHealth;
@@ -169,10 +195,10 @@ namespace Dino_Defenders.Gameplay
             }
         }
 
-        /// <summary>Whether a settlement no longer lives in fear.</summary>
+        /// <summary>Whether a place no longer lives in fear: of those who prey on it, or, with no one nearer, of the warlord.</summary>
         public bool IsSafe(SiteState state)
         {
-            return state.ThreatIndex < 0 || Sites[state.ThreatIndex].Cleared;
+            return state.ThreatIndex >= 0 ? Sites[state.ThreatIndex].Cleared : Liberated;
         }
 
         public void RefreshStats()
@@ -194,7 +220,7 @@ namespace Dino_Defenders.Gameplay
 
         public void Note(string text)
         {
-            Log.Add(text);
+            Log.Add(new LogLine { Text = text });
             if (Log.Count > 6) Log.RemoveAt(0);
         }
 
@@ -256,18 +282,80 @@ namespace Dino_Defenders.Gameplay
                 GiveExperience(objective.RewardExperience);
                 Hero.Gold += objective.RewardGold;
                 Announce(objective.IsMain ? "The land is free" : "Chronicle fulfilled", objective.Text, 5f);
-                if (objective.IsMain) WorldCleared?.Invoke();
+                if (objective.IsMain)
+                {
+                    Liberated = true;
+                    WorldCleared?.Invoke();
+                }
             }
         }
 
-        /// <summary>The nearest goal still open, for the guiding wind and the marker on the screen.</summary>
-        public Vector2? GuidanceTarget()
+        /// <summary>The nearest goal still open, for the guiding wind and the marker on the screen. Once they are all done, the way out.</summary>
+        public void UpdateGuidance()
         {
-            return Chronicle.NextTarget(World, site =>
+            Guidance = Chronicle.NextTarget(World, site =>
             {
                 SiteState state = Sites[site.Id];
                 return site.Kind == SiteKind.Shrine ? state.Kindled : state.Cleared;
-            }, PlayerPosition);
+            }, PlayerPosition) ?? World.Sites[0].Position;
+        }
+
+        /// <summary>Writes where things stand into a save.</summary>
+        public void Capture(SaveGame save)
+        {
+            save.Hero = Hero;
+            // The request, not what it became: drawing an archetype is part of what a seed makes, so naming it would make another world.
+            save.WorldSeed = Request.Seed;
+            save.WorldArchetype = Request.ArchetypeId;
+            save.WorldLevel = Request.Level;
+            save.PlayerX = PlayerPosition.X;
+            save.PlayerZ = PlayerPosition.Y;
+            save.Health = Health;
+            save.RespawnX = Respawn.X;
+            save.RespawnZ = Respawn.Y;
+
+            save.Objectives = Chronicle.Objectives.Select(o => o.Progress).ToList();
+            save.Sites.Clear();
+            for (int i = 0; i < Sites.Count; i++)
+            {
+                SiteState state = Sites[i];
+                if (!state.Discovered && !state.Cleared && !state.Kindled && state.Dead.Count == 0 && state.Opened.Count == 0) continue;
+                save.Sites.Add(new SiteRecord
+                {
+                    Index = i,
+                    Discovered = state.Discovered,
+                    Cleared = state.Cleared,
+                    Kindled = state.Kindled,
+                    Rewarded = state.Rewarded,
+                    Dead = state.Dead.ToList(),
+                    Opened = state.Opened.ToList(),
+                });
+            }
+        }
+
+        /// <summary>Puts a saved world back as it was left.</summary>
+        public void Restore(SaveGame save)
+        {
+            foreach (SiteRecord record in save.Sites)
+            {
+                if (record.Index >= Sites.Count) continue;
+                SiteState state = Sites[record.Index];
+                state.Discovered = record.Discovered;
+                state.Cleared = record.Cleared;
+                state.Kindled = record.Kindled;
+                state.Rewarded = record.Rewarded;
+                state.Dead.UnionWith(record.Dead);
+                state.Opened.UnionWith(record.Opened);
+            }
+
+            for (int i = 0; i < save.Objectives.Count && i < Chronicle.Objectives.Count; i++)
+            {
+                Chronicle.Objectives[i].Progress = save.Objectives[i];
+            }
+
+            Liberated = Chronicle.WorldCleared;
+            if (save.RespawnX >= 0f) Respawn = new Vector2(save.RespawnX, save.RespawnZ);
+            if (save.Health > 0f) Health = Math.Min(save.Health, Stats.MaxHealth);
         }
     }
 }

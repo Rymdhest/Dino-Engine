@@ -1,3 +1,4 @@
+using Dino_Defenders.Progression;
 using Dino_Engine.Animation;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
@@ -35,6 +36,7 @@ namespace Dino_Defenders.Gameplay
         private Vector2 _dashDirection;
         private Vector2 _aim = Vector2.UnitY;
         private float _deadFor = -1f;
+        private Quaternion _fallenFrom = Quaternion.Identity;
 
         public PlayerControlSystem()
             : base(new BitMask(typeof(PlayerTag), typeof(VelocityComponent)))
@@ -48,9 +50,17 @@ namespace Dino_Defenders.Gameplay
             session.PlayerPosition = position.Xz;
             Engine.RenderEngine.context.focusPoint = new Vector4(position + Vector3.UnitY * CharacterHeight, OpeningRadius);
 
-            // The free camera owns the keyboard and mouse; park the player meanwhile
-            if (world.IsFreeCameraActive)
+            if (session.TravelTo is Vector2 destination)
             {
+                session.TravelTo = null;
+                entity.Set(new PositionComponent(new Vector3(destination.X, session.World.Height.Sample(destination), destination.Y)));
+                return;
+            }
+
+            // The free camera owns the keyboard and mouse, and open panels stop the game; park the player meanwhile
+            if (world.IsFreeCameraActive || session.Paused)
+            {
+                session.Intent = default;
                 entity.Set(new VelocityComponent());
                 return;
             }
@@ -58,30 +68,22 @@ namespace Dino_Defenders.Gameplay
             UpdateCooldowns(session, entity, deltaTime);
             if (session.Health <= 0f)
             {
+                session.Intent = default;
                 UpdateDeath(entity, session, deltaTime);
                 return;
             }
 
-            var window = Engine.WindowHandler;
-            bool keyboardFree = !Engine.Gui.WantsKeyboard;
-            bool mouseFree = !Engine.Gui.WantsMouse;
+            HeroIntent intent = session.Autopilot?.Invoke() ?? ReadPlayer(position);
+            session.Intent = intent;
+            if (intent.Aim is Vector2 aim && aim.LengthSquared > 1e-4f) _aim = aim.Normalized();
 
-            UpdateAim(position);
-
-            Vector2 move = Vector2.Zero;
-            if (keyboardFree)
-            {
-                if (window.IsKeyDown(Keys.W)) move.Y += 1f;
-                if (window.IsKeyDown(Keys.S)) move.Y -= 1f;
-                if (window.IsKeyDown(Keys.A)) move.X += 1f;
-                if (window.IsKeyDown(Keys.D)) move.X -= 1f;
-            }
+            Vector2 move = intent.Move;
             if (move.LengthSquared > 0f) move.Normalize();
 
             float speed = session.Stats.MoveSpeed;
             if (_swingImpactIn >= 0f || session.SwingCooldown > 0f) speed *= 0.55f;
 
-            if (keyboardFree && window.IsKeyPressed(Keys.Space) && session.DashCooldown <= 0f)
+            if (intent.Dash && session.DashCooldown <= 0f)
             {
                 _dashDirection = move.LengthSquared > 0f ? move : _aim;
                 _dashTimeLeft = DashDuration;
@@ -101,9 +103,9 @@ namespace Dino_Defenders.Gameplay
             bool attacking = _swingImpactIn >= 0f || session.SwingCooldown > 0f;
             CharacterFactory.Face(entity, attacking ? _aim : (move.LengthSquared > 0f ? move : Vector2.Zero), deltaTime);
 
-            if (mouseFree && window.IsMouseButtonDown(MouseButton.Left) && session.SwingCooldown <= 0f) StartSwing(entity, session);
-            if (keyboardFree && window.IsKeyPressed(Keys.Q) && session.WhirlCooldown <= 0f) Whirl(world, session, position);
-            if (keyboardFree && window.IsKeyPressed(Keys.R)) DrinkFlask(session, position);
+            if (intent.Attack && session.SwingCooldown <= 0f) StartSwing(entity, session);
+            if (intent.Whirl && session.WhirlCooldown <= 0f) Whirl(world, session, position);
+            if (intent.Flask) DrinkFlask(session, position);
 
             if (_swingImpactIn >= 0f)
             {
@@ -116,6 +118,26 @@ namespace Dino_Defenders.Gameplay
             }
 
             session.Health = Math.Min(session.Health + session.Stats.Regeneration * deltaTime, session.Stats.MaxHealth);
+        }
+
+        private HeroIntent ReadPlayer(Vector3 position)
+        {
+            var window = Engine.WindowHandler;
+            var intent = new HeroIntent { Aim = ReadAim(position) };
+
+            if (!Engine.Gui.WantsMouse) intent.Attack = window.IsMouseButtonDown(MouseButton.Left);
+            if (Engine.Gui.WantsKeyboard) return intent;
+
+            if (window.IsKeyDown(Keys.W)) intent.Move.Y += 1f;
+            if (window.IsKeyDown(Keys.S)) intent.Move.Y -= 1f;
+            if (window.IsKeyDown(Keys.A)) intent.Move.X += 1f;
+            if (window.IsKeyDown(Keys.D)) intent.Move.X -= 1f;
+            intent.Dash = window.IsKeyPressed(Keys.Space);
+            intent.Whirl = window.IsKeyPressed(Keys.Q);
+            intent.Flask = window.IsKeyPressed(Keys.R);
+            intent.Interact = window.IsKeyPressed(Keys.E);
+            intent.Guide = window.IsKeyPressed(Keys.F);
+            return intent;
         }
 
         private static void UpdateCooldowns(GameSession session, EntityView entity, float deltaTime)
@@ -131,7 +153,7 @@ namespace Dino_Defenders.Gameplay
         }
 
         // The ground point under the mouse: the view ray met with a plane at the character's chest.
-        private void UpdateAim(Vector3 position)
+        private static Vector2? ReadAim(Vector3 position)
         {
             var context = Engine.RenderEngine.context;
             Vector2 mouse = Engine.WindowHandler.MousePosition;
@@ -139,7 +161,11 @@ namespace Dino_Defenders.Gameplay
             float x = mouse.X / size.X * 2f - 1f;
             float y = 1f - mouse.Y / size.Y * 2f;
 
-            Matrix4 inverse = Matrix4.Invert(context.viewMatrix * context.projectionMatrix);
+            // Before the first frame has been rendered there's no camera to look through yet.
+            Matrix4 viewProjection = context.viewMatrix * context.projectionMatrix;
+            if (viewProjection.Determinant == 0f) return null;
+
+            Matrix4 inverse = Matrix4.Invert(viewProjection);
             Vector4 near = new Vector4(x, y, -1f, 1f) * inverse;
             Vector4 far = new Vector4(x, y, 1f, 1f) * inverse;
             Vector3 from = near.Xyz / near.W;
@@ -147,11 +173,10 @@ namespace Dino_Defenders.Gameplay
 
             float planeY = position.Y + 2.5f;
             float t = (planeY - from.Y) / (to.Y - from.Y);
-            if (t <= 0f || float.IsNaN(t)) return;
+            if (t <= 0f || float.IsNaN(t)) return null;
 
-            Vector3 hit = from + (to - from) * t;
-            Vector2 offset = hit.Xz - position.Xz;
-            if (offset.LengthSquared > 0.25f) _aim = offset.Normalized();
+            Vector2 offset = (from + (to - from) * t).Xz - position.Xz;
+            return offset.LengthSquared > 0.25f ? offset : null;
         }
 
         private void StartSwing(EntityView entity, GameSession session)
@@ -194,19 +219,22 @@ namespace Dino_Defenders.Gameplay
             if (_deadFor < 0f)
             {
                 _deadFor = 0f;
+                _fallenFrom = entity.Get<RotationComponent>().quaternion;
                 int lost = session.Hero.Gold / 10;
                 session.Hero.Gold -= lost;
                 session.Announce("You have fallen", lost > 0 ? $"{lost} gold lost on the road" : "The land goes on without you");
             }
 
             _deadFor += deltaTime;
+            float fall = MathF.Min(_deadFor / 0.5f, 1f);
+            entity.Set(new RotationComponent(_fallenFrom * Quaternion.FromAxisAngle(Vector3.UnitX, -MathF.PI * 0.5f * fall * fall)));
             if (_deadFor < DeathDelay) return;
 
             _deadFor = -1f;
-            var position = entity.Get<PositionComponent>();
-            position.value = new Vector3(session.Respawn.X, position.value.Y, session.Respawn.Y);
-            entity.Set(position);
+            entity.Set(new RotationComponent(_fallenFrom));
+            session.TravelTo = session.Respawn;
             session.Health = session.Stats.MaxHealth;
+            session.Hero.Flasks = HeroState.MaxFlasks;
         }
     }
 }

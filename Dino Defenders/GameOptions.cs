@@ -7,6 +7,14 @@ namespace Dino_Defenders
     /// scripted run look at one spot, take a screenshot and quit.
     ///   --seed N  --archetype id  --site Kind  --at x,z  --look distance  --shot file.png  --frames N
     ///   --tour folder   Visits one of every kind of site, and a wood, a road and a shore, photographing each.
+    ///   --level N       How dangerous the first world is.
+    ///   --bot true      Plays the hero: it fights whatever is near. For watching the game run with nobody at the keyboard.
+    ///   --sweep true    With the bot: when nothing is near, goes to the next place still held, until the world is free.
+    ///   --hero N        Starts the hero at level N, with the attributes to match.
+    ///   --panel name    Opens map, hero, chronicle, merchant, elder, waygate or pause once the world is up.
+    ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one.
+    ///   --savefile path Keeps the save here, and uses it even on a scripted run.
+    /// A scripted run otherwise neither reads nor writes the player's save.
     /// </summary>
     internal sealed class GameOptions
     {
@@ -18,6 +26,16 @@ namespace Dino_Defenders
         public string? Shot;
         public string? Tour;
         public int ShotAfterFrames = 150;
+        public int Level = 1;
+        public bool Bot;
+        public bool Sweep;
+        public int HeroLevel = 1;
+        public string? Panel;
+        public int TravelAfterFrames = -1;
+        public string? SaveFile;
+
+        /// <summary>Whether this run plays on from a save, as someone playing does, rather than being a throwaway.</summary>
+        public bool Saves => SaveFile != null || !(Seed != null || Archetype != null || Tour != null || Shot != null || Bot);
 
         public static GameOptions Parse(string[] args)
         {
@@ -38,6 +56,13 @@ namespace Dino_Defenders
                     case "shot": options.Shot = value; break;
                     case "tour": options.Tour = value; break;
                     case "frames": options.ShotAfterFrames = int.Parse(value); break;
+                    case "level": options.Level = int.Parse(value); break;
+                    case "bot": options.Bot = value == "true"; break;
+                    case "sweep": options.Sweep = value == "true"; break;
+                    case "hero": options.HeroLevel = int.Parse(value); break;
+                    case "panel": options.Panel = value; break;
+                    case "travel": options.TravelAfterFrames = int.Parse(value); break;
+                    case "savefile": options.SaveFile = value; break;
                 }
             }
             return options;

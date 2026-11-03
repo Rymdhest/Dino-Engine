@@ -16,7 +16,7 @@ namespace Dino_Engine.World
         private static readonly Vector3 SunDirection = Vector3.Normalize(new Vector3(-0.6f, 0.65f, -0.5f));
 
         /// <summary>RGBA rows, four bytes per pixel, north (z = Size) at the top.</summary>
-        public static byte[] Render(WorldData world, int resolution)
+        public static byte[] Render(WorldData world, int resolution, bool showSites = true)
         {
             byte[] pixels = new byte[resolution * resolution * 4];
             float size = world.Size;
@@ -65,7 +65,7 @@ namespace Dino_Engine.World
                 }
             });
             DrawRoads(pixels, resolution, world);
-            DrawSites(pixels, resolution, world);
+            if (showSites) DrawSites(pixels, resolution, world);
             return pixels;
         }
 

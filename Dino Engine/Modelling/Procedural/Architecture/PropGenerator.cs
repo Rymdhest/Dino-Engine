@@ -45,8 +45,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "scarecrow": BuildScarecrow(b); break;
                 case "rack": BuildDryingRack(b, random); break;
                 case "bench": BuildBench(b); break;
-                case "tent": BuildTent(b, definition.HalfExtents, Cloth(150, 126, 92)); break;
-                case "tent.large": BuildTent(b, definition.HalfExtents, Cloth(132, 52, 42)); break;
+                case "tent": BuildTent(b, definition.HalfExtents, 112, 92, 66); break;
+                case "tent.large": BuildTent(b, definition.HalfExtents, 118, 46, 38); break;
                 case "campfire": BuildCampfire(b, random); break;
                 case "logs": BuildLogStack(b, random); break;
                 case "boat": BuildBoat(b); break;
@@ -337,13 +337,24 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             }
         }
 
-        private static void BuildTent(MeshBuilder b, Vector2 half, VertexMaterial cloth)
+        // Sewn from lengths of cloth that have weathered differently, so the slopes don't read as one blank sheet from above.
+        private static void BuildTent(MeshBuilder b, Vector2 half, int red, int green, int blue)
         {
+            const int Lengths = 5;
+            VertexMaterial cloth = Cloth(red, green, blue);
+            VertexMaterial worn = Cloth((int)(red * 0.76f), (int)(green * 0.76f), (int)(blue * 0.76f));
+
             float height = half.Y * 1.5f;
             float length = half.X;
             b.TilesPerMetre = 0.5f;
-            b.Quad(new Vector3(-length, 0f, half.Y), new Vector3(length, 0f, half.Y), new Vector3(length, height, 0f), new Vector3(-length, height, 0f), cloth);
-            b.Quad(new Vector3(length, 0f, -half.Y), new Vector3(-length, 0f, -half.Y), new Vector3(-length, height, 0f), new Vector3(length, height, 0f), cloth);
+            for (int i = 0; i < Lengths; i++)
+            {
+                float from = length * (2f * i / Lengths - 1f);
+                float to = length * (2f * (i + 1) / Lengths - 1f);
+                VertexMaterial panel = i % 2 == 0 ? cloth : worn;
+                b.Quad(new Vector3(from, 0f, half.Y), new Vector3(to, 0f, half.Y), new Vector3(to, height, 0f), new Vector3(from, height, 0f), panel);
+                b.Quad(new Vector3(to, 0f, -half.Y), new Vector3(from, 0f, -half.Y), new Vector3(from, height, 0f), new Vector3(to, height, 0f), panel);
+            }
 
             VertexMaterial dark = new VertexMaterial(TextureGenerator.flat, new Colour(18, 15, 12));
             b.Triangle(new Vector3(length, 0f, half.Y), new Vector3(length, 0f, -half.Y), new Vector3(length, height, 0f), dark);

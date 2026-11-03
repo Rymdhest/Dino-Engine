@@ -53,6 +53,48 @@ namespace Dino_Defenders.Gameplay
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
 
+        /// <summary>Finds what comes alive at each site: the chimneys, fires and lanterns the generator placed there.</summary>
+        public static void FindFeatures(GameSession session, WorldAssetLibrary assets)
+        {
+            WorldObjects objects = session.World.Objects;
+            foreach (WorldObject item in objects.All())
+            {
+                string id = objects.AssetIds[item.Asset];
+                bool fire = id == StructureCatalog.Campfire.Id;
+                bool lantern = id == StructureCatalog.Lantern.Id || id == StructureCatalog.StoneLantern.Id;
+                IReadOnlyList<Vector3> chimneys = assets.ChimneysOf(id);
+                if (!fire && !lantern && chimneys.Count == 0) continue;
+
+                SiteState? owner = NearestSite(session, item.Position.Xz);
+                if (owner == null) continue;
+
+                if (fire) owner.Features.Add(new SiteFeature(SiteFeatureKind.Campfire, item.Position + Vector3.UnitY * 0.7f));
+                if (lantern) owner.Features.Add(new SiteFeature(SiteFeatureKind.Lantern, item.Position + Vector3.UnitY * 2.4f));
+                foreach (Vector3 top in chimneys)
+                {
+                    Vector3 scaled = top * item.Scale;
+                    owner.Features.Add(new SiteFeature(SiteFeatureKind.Chimney, item.Position + Vector3.Transform(scaled, item.Rotation)));
+                }
+            }
+        }
+
+        private static SiteState? NearestSite(GameSession session, Vector2 position)
+        {
+            SiteState? nearest = null;
+            float best = float.PositiveInfinity;
+            foreach (SiteState state in session.Sites)
+            {
+                if (state.Wild) continue;
+                float distance = (state.Site.Position - position).Length - state.Site.Radius;
+                if (distance < best && distance < 20f)
+                {
+                    best = distance;
+                    nearest = state;
+                }
+            }
+            return nearest;
+        }
+
         private static void Sleep(ECSWorld world, SiteState state)
         {
             foreach (Entity entity in state.Live) world.DestroyEntity(entity);
@@ -64,6 +106,7 @@ namespace Dino_Defenders.Gameplay
         {
             state.Active = true;
             var random = new WorldRandom(session.World.Plan.Seed).Fork("people").Fork(siteIndex);
+            Ambience.Light(world, session, state);
 
             for (int i = 0; i < state.Site.Spawns.Count; i++)
             {
@@ -81,7 +124,8 @@ namespace Dino_Defenders.Gameplay
                         SpawnVillager(world, session, state, siteIndex, spawn, spawnRandom, stationary: false);
                         break;
                     case SpawnRole.Merchant:
-                        if (session.IsSafe(state)) SpawnMerchant(world, session, state, siteIndex, i, spawn, spawnRandom);
+                        // The landing trades whatever happens: it's what a new arrival has to start from.
+                        if (session.IsSafe(state) || state.Site.Kind == SiteKind.Landing) SpawnMerchant(world, session, state, siteIndex, i, spawn, spawnRandom);
                         break;
                     case SpawnRole.Elder:
                         SpawnElder(world, session, state, siteIndex, i, spawn, spawnRandom);
@@ -245,6 +289,11 @@ namespace Dino_Defenders.Gameplay
             var villager = entity.Get<VillagerComponent>();
             Vector3 position = entity.Get<PositionComponent>().value;
             Vector2 toHero = session.PlayerPosition - position.Xz;
+            if (session.Paused)
+            {
+                entity.Set(new VelocityComponent());
+                return;
+            }
 
             if (toHero.LengthSquared < SpeechReach * SpeechReach && Engine.Time >= villager.NextSpeech)
             {
@@ -336,7 +385,7 @@ namespace Dino_Defenders.Gameplay
             EntityView view = world.GetEntityView(nearest);
             var offered = view.Get<InteractableComponent>();
             session.InteractPrompt = offered.Prompt;
-            if (!Engine.Gui.WantsKeyboard && Engine.WindowHandler.IsKeyPressed(OpenTK.Windowing.GraphicsLibraryFramework.Keys.E)) Use(world, session, view, offered);
+            if (session.Intent.Interact) Use(world, session, view, offered);
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
@@ -375,6 +424,9 @@ namespace Dino_Defenders.Gameplay
                 return;
             }
             state.Kindled = true;
+            var interactable = view.Get<InteractableComponent>();
+            interactable.Prompt = "Rest at the shrine";
+            view.Set(interactable);
             session.Announce("Shrine kindled", "Your flasks are full, and you will wake here if you fall.");
             session.GiveExperience(25 * session.World.Plan.Level);
             if (state.Site.Kind == SiteKind.Shrine) session.Advance(ObjectiveKind.PrayAtShrines, SiteKind.Shrine);

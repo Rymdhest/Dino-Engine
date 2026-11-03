@@ -13,6 +13,7 @@ namespace Dino_WorldLab
         private const float CharacterRadius = 1.1f;
         private const float RoadGradeLimit = 0.3f;
         private const float BareStretchLimit = 330f;    // 30 seconds at a run.
+        private const float GradeWindow = 4f;           // Grades are measured over at least this much road, as walked.
 
         public readonly List<string> Problems = new();
         public float LongestBareStretch { get; private set; }
@@ -28,6 +29,7 @@ namespace Dino_WorldLab
             CheckBiomes(world);
             CheckTravel(world);
             CheckBareStretches(world);
+            CheckPlayable(world);
         }
 
         private void Problem(string text)
@@ -208,21 +210,60 @@ namespace Dino_WorldLab
         {
             foreach (WorldRoad road in world.Roads)
             {
+                int start = 0;
+                float walked = 0f;
                 for (int i = 1; i < road.Points.Count; i++)
                 {
-                    Vector2 from = road.Points[i - 1].Xz;
                     Vector2 to = road.Points[i].Xz;
-                    float length = (to - from).Length;
-                    if (length < 1f) continue;
-                    float grade = MathF.Abs(world.Height.Sample(to) - world.Height.Sample(from)) / length;
+                    walked += (to - road.Points[i - 1].Xz).Length;
+                    if (world.WaterDepthAt(to) > 0.25f) Problem($"{road.Class} under {world.WaterDepthAt(to):0.0} m of water at {to}");
+
+                    // The distance along the road, not across it: a straight line over a hairpin bend is short, and says nothing about the climb.
+                    while (start + 1 < i && walked - (road.Points[start + 1].Xz - road.Points[start].Xz).Length >= GradeWindow)
+                    {
+                        walked -= (road.Points[start + 1].Xz - road.Points[start].Xz).Length;
+                        start++;
+                    }
+                    if (walked < GradeWindow) continue;
+
+                    Vector2 from = road.Points[start].Xz;
+                    float grade = MathF.Abs(world.Height.Sample(to) - world.Height.Sample(from)) / walked;
                     SteepestRoad = MathF.Max(SteepestRoad, grade);
                     if (grade > RoadGradeLimit)
                     {
-                        float planned = MathF.Abs(road.Points[i].Y - road.Points[i - 1].Y) / length;
+                        float planned = MathF.Abs(road.Points[i].Y - road.Points[start].Y) / walked;
                         float offCentre = MathF.Abs(world.Height.Sample(to) - road.Points[i].Y);
-                        Problem($"{road.Class} grade {grade:0.00} (planned {planned:0.00}, off by {offCentre:0.00}, step {length:0.0}, road {road.Length:0} m, point {i}/{road.Points.Count}) at {from}");
+                        Problem($"{road.Class} grade {grade:0.00} (planned {planned:0.00}, off by {offCentre:0.00}, over {walked:0.0} m, road {road.Length:0} m, point {i}/{road.Points.Count}) at {from}");
                     }
-                    if (world.WaterDepthAt(to) > 0.25f) Problem($"{road.Class} under {world.WaterDepthAt(to):0.0} m of water at {to}");
+                }
+            }
+        }
+
+        // What the game takes for granted of every world: somewhere to arrive and trade, a way out, someone to defeat, and everyone
+        // who lives there standing where they can be reached.
+        private void CheckPlayable(WorldData world)
+        {
+            if (world.Sites.Count == 0 || world.Sites[0].Kind != SiteKind.Landing)
+            {
+                Problem("the first site is not the landing");
+                return;
+            }
+
+            WorldSite landing = world.Sites[0];
+            if (!landing.Spawns.Any(s => s.Role == SpawnRole.Waygate)) Problem("the landing has no waygate");
+            if (!landing.Spawns.Any(s => s.Role == SpawnRole.Merchant)) Problem("the landing has no merchant");
+
+            int keeps = world.Sites.Count(s => s.Kind == SiteKind.Keep);
+            if (keeps == 0) Problem("no keep");
+            if (keeps > 0 && !world.Sites.Any(s => s.Kind == SiteKind.Keep && s.Spawns.Any(p => p.Role == SpawnRole.Boss))) Problem("no warlord in the keep");
+
+            for (int i = 0; i < world.Sites.Count; i++)
+            {
+                WorldSite site = world.Sites[i];
+                if (site.Id != i) Problem($"{site.Name} has id {site.Id} at index {i}");
+                foreach (SiteSpawn spawn in site.Spawns)
+                {
+                    if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of {site.Name} can't be reached at {spawn.Position}");
                 }
             }
         }

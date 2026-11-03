@@ -17,7 +17,7 @@ namespace Dino_Engine.World
     public static class WorldScene
     {
         public const float ChunkSize = 8f;
-        public const int ChunkRadius = 7;
+        public const int ChunkRadius = 8;
         public const float LongestGrass = 2f;
 
         public static void Enter(ECSWorld ecs, WorldData world, WorldAssetLibrary assets)
