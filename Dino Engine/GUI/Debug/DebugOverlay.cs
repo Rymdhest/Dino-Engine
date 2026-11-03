@@ -9,7 +9,7 @@ namespace Dino_Engine.GUI.Debug
     /// <summary>
     /// Built-in developer tools for any game made with the engine: live stats and frame graph, GPU/CPU timings,
     /// render controls and G-buffer viewer, ECS inspector, captured console output and a widget showcase.
-    /// Toggle everything with <see cref="ToggleKey"/> (F3). Windows can be opened from the toolbar.
+    /// Hidden at start; toggle everything with <see cref="ToggleKey"/> (F3). Windows can be opened from the toolbar.
     /// </summary>
     public class DebugOverlay
     {
@@ -62,6 +62,10 @@ namespace Dino_Engine.GUI.Debug
             RenderWindow.Visible = false;
             EntitiesWindow.Visible = false;
             ConsoleWindow.Visible = false;
+            ShowcaseWindow.Visible = false;
+
+            // Hidden until F3 is pressed.
+            Visible = false;
         }
 
         public bool Visible
