@@ -30,6 +30,8 @@ namespace Dino_Engine.Core
         private DebugOverlay? _debugOverlay;
         private static Engine? _instance;
         private Game game;
+        private string? _screenshotPath;
+        private Action? _screenshotSaved;
 
         public static float Delta { get => _instance._deltaFrameTimeTracker.Delta; }
         public static float Time { get => _instance._deltaFrameTimeTracker.TotalTime; }
@@ -160,6 +162,39 @@ namespace Dino_Engine.Core
             _windowHandler.onResize(eventArgs);
             world.OnResize(eventArgs);
             _renderEngine.OnResize(eventArgs);
+        }
+
+        /// <summary>Saves the next finished frame as a PNG. <paramref name="saved"/> runs once it is written.</summary>
+        public void RequestScreenshot(string path, Action? saved = null)
+        {
+            _screenshotPath = path;
+            _screenshotSaved = saved;
+        }
+
+        internal void CaptureFrame()
+        {
+            if (_screenshotPath == null) return;
+
+            Vector2i size = _windowHandler.ClientSize;
+            byte[] pixels = new byte[size.X * size.Y * 4];
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0);
+            GL.ReadBuffer(ReadBufferMode.Back);
+            GL.ReadPixels(0, 0, size.X, size.Y, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+
+            // GL reads bottom row first; images start with the top one.
+            int stride = size.X * 4;
+            byte[] flipped = new byte[pixels.Length];
+            for (int y = 0; y < size.Y; y++)
+            {
+                System.Buffer.BlockCopy(pixels, y * stride, flipped, (size.Y - 1 - y) * stride, stride);
+            }
+            for (int i = 3; i < flipped.Length; i += 4) flipped[i] = 255;
+
+            PngWriter.Write(_screenshotPath, flipped, size.X, size.Y);
+            _screenshotPath = null;
+            Action? saved = _screenshotSaved;
+            _screenshotSaved = null;
+            saved?.Invoke();
         }
 
         public void SetGame(Game game)

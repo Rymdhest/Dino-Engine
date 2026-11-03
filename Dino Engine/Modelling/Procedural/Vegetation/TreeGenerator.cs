@@ -280,7 +280,9 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             return (leafMesh+builder.mesh.translated(new Vector3(0f, -0.5f, 0f)));
         }
 
-        public static Mesh generatePineTree(int numberBranches, float branchStartRatio, bool alive = true, bool fallen = false)
+        /// <param name="branchTexture">The texture of the live branches. Null: the plain pine branch.</param>
+        /// <param name="branchTint">Colours the branches, for textures made pale to be tinted.</param>
+        public static Mesh generatePineTree(int numberBranches, float branchStartRatio, bool alive = true, bool fallen = false, int? branchTexture = null, Colour? branchTint = null)
         {
             float radius = 0.7f;
 
@@ -321,8 +323,8 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             float branchSize = alive ? 10f : 8f;
             int numberTwigs = alive ? 10 : 5;
-            VertexMaterial branchTexture = alive ? new VertexMaterial(TextureGenerator.pineBranch) : new VertexMaterial(TextureGenerator.deadTwig);
-            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(branchSize), new Vector2i(2, 4), branchTexture, centerY: false);
+            VertexMaterial branchMaterial = alive ? new VertexMaterial(branchTexture ?? TextureGenerator.pineBranch, branchTint ?? new Colour(255, 255, 255)) : new VertexMaterial(TextureGenerator.deadTwig);
+            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(branchSize), new Vector2i(2, 4), branchMaterial, centerY: false);
             for (int i = 0; i < leafMesh.meshVertices.Count; i++)
             {
                 leafMesh.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(leafMesh.meshVertices[i].position.X, 2.0f)) * 0.1f;
@@ -493,7 +495,9 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             return builder.mesh;
         }
-        public static Mesh GenerateOakTree()
+        /// <param name="branchTexture">The texture of the leafy branches. Null: the plain oak branch.</param>
+        /// <param name="branchTint">Colours the leaves, for textures made pale to be tinted.</param>
+        public static Mesh GenerateOakTree(int? branchTexture = null, Colour? branchTint = null)
         {
             TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.oakBark, new Colour(255, 255, 255)));
             TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
@@ -523,7 +527,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.textureRepeats = 1;
             BranchBuilder.BuildStem(branchSettings);
 
-            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(2, 4), new VertexMaterial(TextureGenerator.oakBranch), centerY: false);
+            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(2, 4), new VertexMaterial(branchTexture ?? TextureGenerator.oakBranch, branchTint ?? new Colour(255, 255, 255)), centerY: false);
             //leafMesh += leafMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
             TreeBuilder.SpreadAroundStemSettings twigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
             twigSpawnSettings.BranchRandomRotation.Z = .0f;
@@ -553,7 +557,9 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             return builder.mesh;
         }
 
-        public static Mesh GenerateBirchTree()
+        /// <param name="branchTexture">The texture of the leafy branches. Null: the plain birch branch.</param>
+        /// <param name="branchTint">Colours the leaves, for textures made pale to be tinted.</param>
+        public static Mesh GenerateBirchTree(int? branchTexture = null, Colour? branchTint = null)
         {
             TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.BirchBark, new Colour(255, 255, 255)));
             TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
@@ -583,7 +589,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.textureRepeats = 1;
             BranchBuilder.BuildStem(branchSettings);
 
-            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(6f, 6f), new Vector2i(2, 4), new VertexMaterial(TextureGenerator.birchBranch, new Colour(255, 255, 255)), centerY: false);
+            Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(6f, 6f), new Vector2i(2, 4), new VertexMaterial(branchTexture ?? TextureGenerator.birchBranch, branchTint ?? new Colour(255, 255, 255)), centerY: false);
             //leafMesh += leafMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
             TreeBuilder.SpreadAroundStemSettings twigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
             twigSpawnSettings.BranchRandomRotation.Z = .0f;

@@ -43,6 +43,9 @@ namespace Dino_Engine.World
         /// <summary>Share of the land each biome aims for, in the order of <see cref="Biomes"/>.</summary>
         public IReadOnlyList<float> BiomeShares { get; private init; } = Array.Empty<float>();
 
+        /// <summary>The light and weather the world is seen in.</summary>
+        public WorldMood Mood { get; private init; } = null!;
+
         public int Seed => Request.Seed;
         public int Level => Request.Level;
         /// <summary>Which of <see cref="PlaceNames"/>' languages the world speaks. Its people build in the style that goes with it.</summary>
@@ -84,6 +87,7 @@ namespace Dino_Engine.World
                 Erosion = random.Range(archetype.Erosion),
                 Biomes = biomes,
                 BiomeShares = shares,
+                Mood = WorldMood.Draw(biomes, random.Fork("mood")),
             };
         }
 

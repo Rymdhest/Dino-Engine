@@ -66,31 +66,39 @@ float grassFertility(float grassMap, float normalY, float road)
 }
 
 // 0 = lush, 1 = straw. Dry patches lie across the field at a scale of tens of metres, and grass that barely grows is dry.
-float grassDryness(vec2 xz, float fertility)
+// groundDryness is how dry the biome is here, from the terrain's grass map.
+float grassDryness(vec2 xz, float fertility, float groundDryness)
 {
     float patches = grassValueNoise(xz * (1.0 / 23.0)) * 0.65 + grassValueNoise(xz * (1.0 / 6.5)) * 0.35;
-    float threshold = 1.0 - grassBodyColour.w;
-    float dry = grassBodyColour.w > 0.0 ? smoothstep(threshold - 0.06, threshold + 0.1, patches) : 0.0;
+    float share = clamp(grassBodyColour.w + groundDryness, 0.0, 1.0);
+    float threshold = 1.0 - share;
+    float dry = share > 0.0 ? smoothstep(threshold - 0.06, threshold + 0.1, patches) : 0.0;
     return max(dry, 1.0 - smoothstep(0.1, 0.45, fertility));
 }
 
-// What a patch of blades averages to, seen from a distance: mostly body, some bleached tip.
-vec3 grassFieldColour(vec2 xz, float fertility)
+// The shaded base of a blade of the given colour, leaning towards the field's root colour.
+vec3 grassRootOf(vec3 bodyColour)
 {
-    vec3 body = mix(grassBodyColour.rgb, grassDryColour.rgb, grassDryness(xz, fertility));
+    return mix(grassRootColour.rgb, bodyColour * 0.3, 0.75);
+}
+
+// What a patch of blades averages to, seen from a distance: mostly body, some bleached tip.
+vec3 grassFieldColour(vec2 xz, float fertility, vec3 bodyColour, float groundDryness)
+{
+    vec3 body = mix(bodyColour, grassDryColour.rgb, grassDryness(xz, fertility, groundDryness));
     return mix(body, grassTipColour.rgb, 0.2);
 }
 
 // The ground under the grass takes on the field's colour (as in Ghost of Tsushima), so the gaps between blades read
 // as more grass: the shade under the blades where they stand thick, the colour of the blades where the field thins
 // away towards the draw distance.
-vec3 grassGroundTint(vec3 ground, vec2 xz, float fertility, float viewDistance)
+vec3 grassGroundTint(vec3 ground, vec2 xz, float fertility, float viewDistance, vec3 bodyColour, float groundDryness)
 {
     float strength = grassGround.x * smoothstep(0.02, 0.3, fertility);
     if (strength <= 0.0) return ground;
-    vec3 field = grassFieldColour(xz, fertility);
+    vec3 field = grassFieldColour(xz, fertility, bodyColour, groundDryness);
     float far = smoothstep(grassField.y * 0.5, grassField.y, viewDistance);
-    vec3 under = mix(mix(grassRootColour.rgb, field, 0.3), field, far);
+    vec3 under = mix(mix(grassRootOf(bodyColour), field, 0.3), field, far);
     return mix(ground, under, strength);
 }
 

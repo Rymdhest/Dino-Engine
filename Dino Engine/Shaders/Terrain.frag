@@ -17,15 +17,15 @@ uniform float parallaxLayers;
 uniform float textureTileSize;
 uniform float textureMapOffset;
 
-uniform float groundID;
-uniform float rockID;
-uniform float roadID;
-uniform float grassID;
-uniform float beachID;
-uniform float transitionID;
+// The world's ground materials, four to a vec4; surfaceWeightsA holds the weights of the first four, and so on.
+uniform vec4 surfaceMaterials[3];
 
 uniform sampler2DArray normalHeightTextureArray;
 uniform sampler2DArray grassTextureArray;
+uniform sampler2DArray grassColourTextureArray;
+uniform sampler2DArray surfaceWeightsA;
+uniform sampler2DArray surfaceWeightsB;
+uniform sampler2DArray surfaceWeightsC;
 uniform sampler2DArray albedoMapTextureArray;
 uniform sampler2DArray normalMapTextureArray;
 uniform sampler2DArray materialMapTextureArray;
@@ -67,76 +67,48 @@ void ConsiderMaterial(float matID, float weight, inout vec3 bestIDs, inout vec3 
     }
 }
 
-void GetCandidateMaterials(
-    vec3 fragPos,
-    float steepness,
-    float roadW,
-    float grassW,
-    out float matA,    out float matB,    out float matC,
-    out float weightA, out float weightB, out float weightC
-) {
-    float altitude = fragPos.y;
-    vec3 candidateIDs = vec3(0.0);
-    vec3 candidateWeights = vec3(-1.0);
-
-    float slopeFactor = 1.0 - smoothstep(0.3, 1.0, steepness);
-    float clampedRoad = clamp(roadW, 0.0, 1.0);
-    float terrainMask = 1.0 - clampedRoad;
-
-    float wRoad = clampedRoad * 6.0;
-    ConsiderMaterial(roadID, wRoad, candidateIDs, candidateWeights);
-
-    float wRock = (slopeFactor) * 10.0 * terrainMask;
-    ConsiderMaterial(rockID, wRock, candidateIDs, candidateWeights);
-
-    float wGrass = grassW * 6.0 * terrainMask;
-    ConsiderMaterial(grassID, wGrass, candidateIDs, candidateWeights);
-
-    float beachFactor = 1.0 - smoothstep(3.0, 5.0, altitude);
-    float wBeach = beachFactor * 10.0 * terrainMask;
-    ConsiderMaterial(beachID, wBeach, candidateIDs, candidateWeights);
-
-    float transitionFactor = smoothstep(3.0, 5.0, altitude) * (1.0 - smoothstep(5.0, 7.0, altitude));
-    float wTransition = transitionFactor * 10.0 * terrainMask;
-    ConsiderMaterial(transitionID, wTransition, candidateIDs, candidateWeights);
-
-    float groundFactor = smoothstep(5.0, 7.0, altitude);
-    float wGround = groundFactor * 1.0 * terrainMask;
-    ConsiderMaterial(groundID, wGround, candidateIDs, candidateWeights);
-
-    float totalWeight = candidateWeights.x + max(0.0, candidateWeights.y) + max(0.0, candidateWeights.z);
-    if (totalWeight > 0.0) {
-        candidateWeights.x = max(0.0, candidateWeights.x) / totalWeight;
-        candidateWeights.y = max(0.0, candidateWeights.y) / totalWeight;
-        candidateWeights.z = max(0.0, candidateWeights.z) / totalWeight;
-    }
-
-    matA = candidateIDs.x; weightA = max(0.0, candidateWeights.x);
-    matB = candidateIDs.y; weightB = max(0.0, candidateWeights.y);
-    matC = candidateIDs.z; weightC = max(0.0, candidateWeights.z);
-}
-
 struct TerrainMaterialSample {
     vec3 mats;
     vec3 weights;
     vec3 heights;
 };
 
-// Picks the candidate materials at a tile UV and samples their heights.
-// Derivatives are passed in because this runs inside the parallax loop, where implicit derivatives are undefined.
-// uvDX/uvDY are in tile UV space, macroDX/macroDY in the chunk's heightmap UV space.
-TerrainMaterialSample SampleTerrainMaterials(vec2 uv, float altitude, float steepness, vec2 uvDX, vec2 uvDY, vec2 macroDX, vec2 macroDY) {
-    vec2 worldXZ = uv * textureTileSize;
-    vec2 localXZ = clamp((worldXZ - fragInstanceChunkPos) / fragInstanceChunkSizeXZ, 0.0, 1.0);
-    vec2 macroCoord = localXZ * (1.0 - textureMapOffset) + vec2(textureMapOffset / 2.0);
+// The three strongest materials of this pixel and their shares, from the chunk's surface weights. Which materials make
+// up the ground is decided on the CPU (TerrainSurface), and read once per pixel, not in every step of the parallax march.
+TerrainMaterialSample GatherSurface(vec2 macroCoord, vec2 macroDX, vec2 macroDY) {
+    vec3 coord = vec3(macroCoord, fragInstanceHeightMapID);
+    vec4 a = textureGrad(surfaceWeightsA, coord, macroDX, macroDY);
+    vec4 b = textureGrad(surfaceWeightsB, coord, macroDX, macroDY);
+    vec4 c = textureGrad(surfaceWeightsC, coord, macroDX, macroDY);
 
-    float roadW = textureGrad(normalHeightTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).z;
-    float grassW = textureGrad(grassTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).r;
+    vec3 ids = vec3(0.0);
+    vec3 weights = vec3(-1.0);
+    ConsiderMaterial(surfaceMaterials[0].x, a.x, ids, weights);
+    ConsiderMaterial(surfaceMaterials[0].y, a.y, ids, weights);
+    ConsiderMaterial(surfaceMaterials[0].z, a.z, ids, weights);
+    ConsiderMaterial(surfaceMaterials[0].w, a.w, ids, weights);
+    ConsiderMaterial(surfaceMaterials[1].x, b.x, ids, weights);
+    ConsiderMaterial(surfaceMaterials[1].y, b.y, ids, weights);
+    ConsiderMaterial(surfaceMaterials[1].z, b.z, ids, weights);
+    ConsiderMaterial(surfaceMaterials[1].w, b.w, ids, weights);
+    ConsiderMaterial(surfaceMaterials[2].x, c.x, ids, weights);
+    ConsiderMaterial(surfaceMaterials[2].y, c.y, ids, weights);
+    ConsiderMaterial(surfaceMaterials[2].z, c.z, ids, weights);
+    ConsiderMaterial(surfaceMaterials[2].w, c.w, ids, weights);
+
+    weights = max(weights, vec3(0.0));
+    float total = weights.x + weights.y + weights.z;
 
     TerrainMaterialSample s;
-    GetCandidateMaterials(vec3(worldXZ.x, altitude, worldXZ.y), steepness, roadW, grassW,
-        s.mats.x, s.mats.y, s.mats.z, s.weights.x, s.weights.y, s.weights.z);
+    s.mats = ids;
+    s.weights = total > 0.0 ? weights / total : vec3(1.0, 0.0, 0.0);
+    s.heights = vec3(0.0);
+    return s;
+}
 
+// The heights of this pixel's materials at a tile UV. Derivatives are passed in because this runs inside the parallax
+// loop, where implicit derivatives are undefined.
+TerrainMaterialSample SampleTerrainMaterials(TerrainMaterialSample s, vec2 uv, vec2 uvDX, vec2 uvDY) {
     s.heights.x = textureGrad(materialMapTextureArray, vec3(uv, s.mats.x), uvDX, uvDY).a;
     s.heights.y = textureGrad(materialMapTextureArray, vec3(uv, s.mats.y), uvDX, uvDY).a;
     s.heights.z = textureGrad(materialMapTextureArray, vec3(uv, s.mats.z), uvDX, uvDY).a;
@@ -172,7 +144,7 @@ float WinningMaterial(TerrainMaterialSample s) {
 // projecting it back onto the plane along N gives the UV it lies under. Terrain UVs are a planar XZ projection
 // (uv = worldXZ / textureTileSize), so that UV is exact on any slope, with no tangent frame involved.
 // Returns the hit UV. rayT gets the distance along -V from fragWorldPos to the hit, for the depth write.
-vec2 ParallaxOcclusionMapping(vec2 uv, vec3 V, vec3 N, float altitude, float steepness, vec2 uvDX, vec2 uvDY, vec2 macroDX, vec2 macroDY, out float rayT) {
+vec2 ParallaxOcclusionMapping(vec2 uv, vec3 V, vec3 N, TerrainMaterialSample surface, vec2 uvDX, vec2 uvDY, out float rayT) {
     rayT = 0.0;
 
     float NdotV = dot(N, V);
@@ -193,7 +165,7 @@ vec2 ParallaxOcclusionMapping(vec2 uv, vec3 V, vec3 N, float altitude, float ste
     float tPerLayer = depthWorld * layerStep / NdotV;
     vec2 uvPerLayer = -(V - N * NdotV).xz * (tPerLayer / textureTileSize);
 
-    float prevSurfaceDepth = BlendedDepth(SampleTerrainMaterials(uv, altitude, steepness, uvDX, uvDY, macroDX, macroDY));
+    float prevSurfaceDepth = BlendedDepth(SampleTerrainMaterials(surface, uv, uvDX, uvDY));
     if (prevSurfaceDepth <= 0.0) return uv;
 
     float prevLayerDepth = 0.0;
@@ -204,7 +176,7 @@ vec2 ParallaxOcclusionMapping(vec2 uv, vec3 V, vec3 N, float altitude, float ste
     while (layer < maxSteps) {
         layer++;
         layerDepth = float(layer) * layerStep;
-        surfaceDepth = BlendedDepth(SampleTerrainMaterials(uv + uvPerLayer * float(layer), altitude, steepness, uvDX, uvDY, macroDX, macroDY));
+        surfaceDepth = BlendedDepth(SampleTerrainMaterials(surface, uv + uvPerLayer * float(layer), uvDX, uvDY));
         if (layerDepth >= surfaceDepth) break;
         prevLayerDepth = layerDepth;
         prevSurfaceDepth = surfaceDepth;
@@ -234,23 +206,23 @@ void main() {
 
     vec3 V = normalize(viewPos - fragWorldPos);
 
-    float steepness = dot(vec3(0.0, 1.0, 0.0), N);
-
     vec2 uvDX = dFdx(fragUV);
     vec2 uvDY = dFdy(fragUV);
     vec2 uvToMacro = textureTileSize / fragInstanceChunkSizeXZ * (1.0 - textureMapOffset);
     vec2 macroDX = uvDX * uvToMacro;
     vec2 macroDY = uvDY * uvToMacro;
+    vec2 macroCoord = clamp((fragWorldPos.xz - fragInstanceChunkPos) / fragInstanceChunkSizeXZ, 0.0, 1.0) * (1.0 - textureMapOffset) + vec2(textureMapOffset / 2.0);
+    TerrainMaterialSample surface = GatherSurface(macroCoord, macroDX, macroDY);
 
     // 1. Ray march using smoothly blended heights to eliminate false cliffs and window artifacts
     vec2 winningUV = fragUV;
     float rayT = 0.0;
     if (parallaxDepth > 0.0001) {
-        winningUV = ParallaxOcclusionMapping(fragUV, V, N, fragWorldPos.y, steepness, uvDX, uvDY, macroDX, macroDY, rayT);
+        winningUV = ParallaxOcclusionMapping(fragUV, V, N, surface, uvDX, uvDY, rayT);
     }
 
     // 2. Determine the single sharp winning material at the final resolved surface coordinate
-    float winningMat = WinningMaterial(SampleTerrainMaterials(winningUV, fragWorldPos.y, steepness, uvDX, uvDY, macroDX, macroDY));
+    float winningMat = WinningMaterial(SampleTerrainMaterials(surface, winningUV, uvDX, uvDY));
 
     // 3. Write the depth of the parallax hit so trees/grass don't float. The hit is on this pixel's view ray, rayT
     //    behind the rasterized surface. gl_FragDepth is written on every path; leaving it unwritten is undefined.
@@ -264,11 +236,11 @@ void main() {
     gAlbedo.rgb = material.albedo;
 
     // Under the grass the ground takes on the colour of the field, so gaps between blades read as more grass.
-    vec2 macroCoord = clamp((fragWorldPos.xz - fragInstanceChunkPos) / fragInstanceChunkSizeXZ, 0.0, 1.0) * (1.0 - textureMapOffset) + vec2(textureMapOffset / 2.0);
     float tintRoad = textureGrad(normalHeightTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).z;
-    float tintGrass = textureGrad(grassTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).r;
-    float tintFertility = grassFertility(tintGrass, N.y, tintRoad);
-    gAlbedo.rgb = grassGroundTint(gAlbedo.rgb, fragWorldPos.xz, tintFertility, length(viewPos - fragWorldPos));
+    vec4 tintGrass = textureGrad(grassTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY);
+    vec3 tintColour = textureGrad(grassColourTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).rgb;
+    float tintFertility = grassFertility(tintGrass.r, N.y, tintRoad);
+    gAlbedo.rgb = grassGroundTint(gAlbedo.rgb, fragWorldPos.xz, tintFertility, length(viewPos - fragWorldPos), tintColour, tintGrass.b);
 
     if (DEBUG_VIEW) {
         gAlbedo.rgb = vec3(hash13(gl_PrimitiveID)) * COLOR_TEST;

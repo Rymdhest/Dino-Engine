@@ -36,7 +36,7 @@ void main()
     normal = normalize(mix(normal, normalize(fragGroundNormal), mix(0.25 * (1.0 - t), 0.6, far)));
 
     // Shaded root, the blade's own colour along its body, a bleached tip, a slightly lighter midrib.
-    vec3 colour = mix(grassRootColour.rgb, fragColour, smoothstep(0.0, 0.55, t));
+    vec3 colour = mix(grassRootOf(fragColour), fragColour, smoothstep(0.0, 0.55, t));
     colour = mix(colour, mix(grassTipColour.rgb, grassDryColour.rgb, 0.35), fragLook.x * smoothstep(0.55, 1.0, t));
     colour *= 1.0 + 0.08 * (1.0 - smoothstep(0.0, 0.35, abs(u))) * (1.0 - far);
 

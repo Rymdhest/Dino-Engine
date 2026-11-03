@@ -79,7 +79,7 @@ namespace Dino_Engine.World.Generation
         private static void BuildLanding(SiteBuilder b)
         {
             Vector2 toRoad = b.Site.RoadDirection;
-            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.75f), 6f);
+            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.45f), 9f);
 
             // The gate stands back from the road with its face towards it, so the first thing seen is the way onwards.
             Vector2 gate = b.Centre - toRoad * 7f;
@@ -112,7 +112,7 @@ namespace Dino_Engine.World.Generation
                 b.Ring(StructureCatalog.Palisade, site.Radius * 1.02f, b.Random.Int(12, 16), 4f, 1f, 0.55f, site.RoadDirection, 12f);
             }
 
-            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, isVillage ? 17f : 10f), 8f);
+            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, isVillage ? 13f : 7f), 9f);
             PlaceSquare(b, isVillage);
 
             List<List<Vector3>> streets = b.StreetsWithin(site.Radius);
@@ -403,7 +403,7 @@ namespace Dino_Engine.World.Generation
         {
             Vector2 toWater = b.FindWater(90f, out Vector2 water, out float distance) ? water : -b.Site.RoadDirection;
             Vector2 side = new Vector2(-toWater.Y, toWater.X);
-            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, b.Site.Radius * 0.6f), 8f);
+            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, b.Site.Radius * 0.38f), 14f);
 
             int huts = b.Random.Int(3, 6);
             for (int i = 0; i < huts; i++)
@@ -435,7 +435,7 @@ namespace Dino_Engine.World.Generation
 
         private static void BuildLumberCamp(SiteBuilder b)
         {
-            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, b.Site.Radius * 0.8f), 7f);
+            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, b.Site.Radius * 0.45f), 12f);
             Vector2 toRoad = b.Site.RoadDirection;
             b.Place(StructureCatalog.Hut, b.Centre - toRoad * 8f, YawFacing(toRoad), padding: 0.8f);
             b.Place(StructureCatalog.Campfire, b.Centre + toRoad * 3f, 0f);
@@ -449,7 +449,7 @@ namespace Dino_Engine.World.Generation
         {
             Vector2 toRoad = b.Site.RoadDirection;
             Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
-            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.62f), 4f);
+            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.34f), 7f);
 
             b.Place(StructureCatalog.Altar, b.Centre, YawFacing(toRoad), padding: 0.5f);
             b.Spawn(SpawnRole.Altar, b.Centre + toRoad * 3f);
@@ -525,7 +525,7 @@ namespace Dino_Engine.World.Generation
         {
             WorldSite site = b.Site;
             Vector2 toRoad = site.RoadDirection;
-            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, site.Radius * 0.9f), 6f);
+            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, site.Radius * 0.62f), 12f);
             b.Ring(StructureCatalog.Palisade, site.Radius, b.Random.Int(9, 13), 4f, 1f, 0.55f, toRoad, 8f);
 
             b.Place(StructureCatalog.Campfire, b.Centre, 0f);

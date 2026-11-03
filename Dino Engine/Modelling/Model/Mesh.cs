@@ -318,7 +318,7 @@ namespace Dino_Engine.Modelling.Model
             return indicesArray;
         }
 
-        private Vertex[] getAllVerticesArray()
+        public Vertex[] getAllVerticesArray()
         {
             Vertex[] verticesArray = new Vertex[meshVertices.Count];
 

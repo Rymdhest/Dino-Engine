@@ -39,6 +39,7 @@ layout(std430, binding = 2) writeonly buffer GrassFarBlades {
 
 uniform sampler2DArray heightmaps;
 uniform sampler2DArray grassMaps;
+uniform sampler2DArray grassColourMaps;
 uniform sampler2D bendMap;
 uniform sampler2D windMap;
 
@@ -161,7 +162,8 @@ void main()
     }
 
     // --- Where grass grows ---
-    float grassMap = readChunkMap(grassMaps, inside, layer).r;
+    vec4 grassCell = readChunkMap(grassMaps, inside, layer);    // r cover, g height, b dryness
+    float grassMap = grassCell.r;
     float fertility = grassFertility(grassMap, groundNormal.y, terrain.z);
     if (grassRandom(seed) >= clamp((fertility - 0.1) / 0.7, 0.0, 1.0)) return;
 
@@ -172,7 +174,7 @@ void main()
     float tuftHue = grassRandom(tuftState);
     // Tufts dome up: blades in the middle stand taller than at the rim.
     float dome = 1.15 - 0.45 * clamp(tuftDistance, 0.0, 1.0);
-    float growth = grassMap * groundNormal.y;
+    float growth = grassMap * groundNormal.y * grassCell.g;
     float bladeLength = grassBlade.x * growth * tuftHeight * dome * (1.0 + (grassRandom(seed) * 2.0 - 1.0) * grassBlade.y) * fade;
     if (bladeLength < 0.02) return;
     float width = grassBlade.z * (0.75 + 0.5 * grassRandom(seed)) * widen * mix(0.4, 1.0, fade);
@@ -241,9 +243,10 @@ void main()
     side = vec2(side.x * cos(twist) - side.y * sin(twist), side.x * sin(twist) + side.y * cos(twist));
 
     // --- Look ---
-    float dryness = grassDryness(root.xz, fertility);
+    float dryness = grassDryness(root.xz, fertility, grassCell.b);
     float variation = grassRootColour.w;
-    vec3 colour = grassBodyColour.rgb * (1.0 + variation * ((tuftShade - 0.5) * 0.7 + (grassRandom(seed) - 0.5) * 0.35));
+    vec3 bodyColour = readChunkMap(grassColourMaps, inside, layer).rgb;
+    vec3 colour = bodyColour * (1.0 + variation * ((tuftShade - 0.5) * 0.7 + (grassRandom(seed) - 0.5) * 0.35));
     colour = mix(colour, grassTipColour.rgb, variation * tuftHue * tuftHue * 0.5);
     colour = mix(colour, grassDryColour.rgb, dryness * (0.75 + 0.25 * grassRandom(seed)));
 

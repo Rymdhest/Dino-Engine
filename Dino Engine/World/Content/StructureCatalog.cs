@@ -122,6 +122,32 @@ namespace Dino_Engine.World.Content
         public static readonly StructureDefinition GrainCrop = new StructureDefinition("crop.grain", new Vector2(1.2f, 0f), solid: false, imposterDistance: 45f);
         public static readonly StructureDefinition VegetableCrop = new StructureDefinition("crop.vegetable", new Vector2(1f, 0f), solid: false, imposterDistance: 45f);
 
+        private static readonly Dictionary<string, StructureDefinition> ById = BuildIndex();
+
+        private static Dictionary<string, StructureDefinition> BuildIndex()
+        {
+            var index = new Dictionary<string, StructureDefinition>();
+            foreach (var field in typeof(StructureCatalog).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+            {
+                if (field.GetValue(null) is StructureDefinition definition) index.Add(definition.Id, definition);
+            }
+            return index;
+        }
+
+        /// <summary>The structure an asset id stands for, and the style and variant in it, if it has them.</summary>
+        public static StructureDefinition Parse(string assetId, out BuildingStyle style, out int variant)
+        {
+            style = BuildingStyle.Timber;
+            variant = 0;
+            if (ById.TryGetValue(assetId, out StructureDefinition? plain)) return plain;
+
+            int variantDot = assetId.LastIndexOf('.');
+            int styleDot = assetId.LastIndexOf('.', variantDot - 1);
+            style = Enum.Parse<BuildingStyle>(assetId[(styleDot + 1)..variantDot], ignoreCase: true);
+            variant = int.Parse(assetId[(variantDot + 1)..]);
+            return ById[assetId[..styleDot]];
+        }
+
         /// <summary>The asset id of a structure: its id, plus style and variant where it has them.</summary>
         public static string AssetId(StructureDefinition definition, BuildingStyle style, int variant)
         {

@@ -76,6 +76,14 @@ namespace Dino_Engine.Textures
         public static int crackedLava; 
         public static int snow;
         public static int ice;
+        public static int dirtPath;
+        public static int farmland;
+        public static int thatch;
+        public static int shingle;
+        public static int slate;
+        public static int plaster;
+        public static int stoneWall;
+        public static int cloth;
         public static int iron;
         public static int gold;
         public static int copper;
@@ -104,6 +112,13 @@ namespace Dino_Engine.Textures
         public static int pineTwig;
 
         public static int deadTwig;
+
+        // The same twigs and branches with pale leaves, to be coloured by vertex colour: one chain of textures gives every
+        // shade of autumn and blossom.
+        public static int paleOakTwig;
+        public static int paleOakBranch;
+        public static int palePineTwig;
+        public static int palePineBranch;
 
 
         public static  ProceduralTextureRenderer procTextGen = new ProceduralTextureRenderer();
@@ -180,6 +195,20 @@ namespace Dino_Engine.Textures
             BirchBark = createBirchBark();
             oakBark = createOakBark();
             iron = createIron();
+            snow = createSnowTexture();
+            mud = createMudTexture();
+            moss = createMossTexture();
+            gravel = createGravelTexture();
+            dirtPath = createDirtPathTexture();
+            farmland = createFarmlandTexture();
+            wood = createWoodTexture();
+            thatch = createThatchTexture();
+            shingle = createShingleTexture();
+            slate = createSlateTexture();
+            plaster = createPlasterTexture();
+            stoneWall = createStoneWallTexture();
+            cloth = createClothTexture();
+            leather = createLeatherTexture();
 
             addAllPreparedTexturesToTexArray(arrayType.material);
            
@@ -200,15 +229,17 @@ namespace Dino_Engine.Textures
 
 
             generateFernBranch();
-            generatePineBranch();
+            generatePineBranch(foliage_pine, out pineTwig, out pineBranch);
+            generatePineBranch(foliage_white, out palePineTwig, out palePineBranch);
             generateBirchBranch();
-            generateOakBranch();
+            generateOakBranch(leaf_olive, out oakTwig, out oakBranch);
+            generateOakBranch(leaf_white, out paleOakTwig, out paleOakBranch);
             generateDeadTwig();
         }
-        private void generateOakBranch()
+        private void generateOakBranch(int leaf, out int twig, out int branch)
         {
             float leafSize = 20f;
-            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(leaf_olive));
+            Mesh branchMesh = MeshGenerator.generatePlane(new Vector2(leafSize), new Vector2i(1, 1), new VertexMaterial(leaf));
             branchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
             branchMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
             branchMesh.translate(new Vector3(-leafSize / 2f, 0f, 0f));
@@ -250,11 +281,11 @@ namespace Dino_Engine.Textures
             }
             TEST_BRANCH_MESH = mesh;
             preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(mesh, fullStretch: false));
-            oakTwig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+            twig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
 
-            Mesh treeBranchMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(1, 1), new VertexMaterial(oakTwig));
+            Mesh treeBranchMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(1, 1), new VertexMaterial(twig));
             treeBranchMesh.rotate(new Vector3(MathF.PI / 2f, 0, 0f));
             treeBranchMesh.rotate(new Vector3(0, 0f, -MathF.PI / 1.0f));
             treeBranchMesh.translate(new Vector3(0f, 10f / 2f, 0f));
@@ -285,7 +316,7 @@ namespace Dino_Engine.Textures
             }
             TEST_TREE_BRANCh_MESH = mesh2;
             preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(mesh2, fullStretch: false));
-            oakBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+            branch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
         }
 
@@ -428,7 +459,7 @@ namespace Dino_Engine.Textures
         }
 
 
-        private void generatePineBranch()
+        private void generatePineBranch(int needles, out int twig, out int branch)
         {
 
             /// Create the twig stem
@@ -444,7 +475,7 @@ namespace Dino_Engine.Textures
             twigbuilder.BuildStem(twigSettings);
 
             // create single pine model
-            TreeBuilder singlePineBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.foliage_pine));
+            TreeBuilder singlePineBuilder = new TreeBuilder(new VertexMaterial(needles));
             TreeBuilder.StemBuildSettings singlePineSettings = new TreeBuilder.StemBuildSettings();
             singlePineSettings.detailsHeight = 2;
             singlePineSettings.detailPerRing = 3;
@@ -469,7 +500,7 @@ namespace Dino_Engine.Textures
             twigbuilder.SpreadMeshAroundStem(singlePineBuilder.mesh.rotated(new Vector3(MathF.PI / 2f, 0f, 0f)), twigSpawnSettings);
 
             preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(twigbuilder.mesh, fullStretch: false));
-            pineTwig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+            twig = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
 
             /// Create the branch stem
@@ -485,7 +516,7 @@ namespace Dino_Engine.Textures
             branchBuilder.BuildStem(branchSettings);
 
             //create twig model
-            Mesh twigMesh = MeshGenerator.generatePlane(new Vector2(7f, 7f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.pineTwig), centerY: false);
+            Mesh twigMesh = MeshGenerator.generatePlane(new Vector2(7f, 7f), new Vector2i(2, 2), new VertexMaterial(twig), centerY: false);
             //twigMesh += twigMesh.rotated(new Vector3(MathF.PI / 2f, 0f, 0));
             twigMesh.rotate(new Vector3(0, 0f, MathF.PI / 2f));
             twigMesh.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
@@ -508,7 +539,7 @@ namespace Dino_Engine.Textures
 
 
             preparedTextures.Add(textureModelStudio.GenerateTextureFromMesh(branchBuilder.mesh, fullStretch: false));
-            pineBranch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
+            branch = preparedTextures.Count - 1 + loadedMaterialTextures + loadedModelTextures;
             addAllPreparedTexturesToTexArray(arrayType.model);
             TEST_BRANCH_MESH = branchBuilder.mesh;
             return;
@@ -1036,6 +1067,179 @@ namespace Dino_Engine.Textures
             MaterialLayersCombiner.combine(grassLayer, soilLayer, FilterMode.Greater, Operation.Override, Operation.Override, weight: 0.5f);
 
             return FinishTexture(grassLayer, normalFlatness:100);
+        }
+
+        private int createSnowTexture()
+        {
+            var drifts = procTextGen.PerlinFBM(new Vector2(5f, 5f), octaves: 7, amplitudePerOctave: 0.5f);
+            drifts.setMaterial(new Material(new Colour(226, 233, 242), 0.72f, 0f, 0f, 0.4f));
+            drifts.scaleHeight(0.4f);
+            drifts.addHeight(0.5f);
+            return FinishTexture(drifts, normalFlatness: 90f);
+        }
+
+        private int createMudTexture()
+        {
+            var mud = procTextGen.PerlinFBM(new Vector2(14f, 14f), octaves: 8, amplitudePerOctave: 0.55f);
+            mud.setMaterial(new Material(new Colour(48, 38, 29), 0.42f, 0f, 0f, 0f));
+            var wet = procTextGen.PerlinFBM(new Vector2(6f, 6f), octaves: 4, amplitudePerOctave: 0.6f);
+            wet.setMaterial(new Material(new Colour(30, 26, 22), 0.16f, 0f, 0f, 0f));
+            MaterialLayersCombiner.combine(mud, wet, FilterMode.Lesser, heightOperation: Operation.Nothing, materialOperation: Operation.Smoothstep, weight: 0.5f, smoothness: 0.4f);
+            mud.scaleHeight(0.5f);
+            mud.addHeight(0.4f);
+            return FinishTexture(mud, normalFlatness: 70f);
+        }
+
+        private int createMossTexture()
+        {
+            var moss = procTextGen.PerlinFBM(new Vector2(40f, 40f), octaves: 7, amplitudePerOctave: 0.7f);
+            moss.setMaterial(new Material(new Colour(58, 74, 31), 0.92f, 0f, 0f, 0.3f));
+            var soil = procTextGen.PerlinFBM(new Vector2(10f, 10f), octaves: 5, amplitudePerOctave: 0.55f);
+            soil.setMaterial(new Material(new Colour(52, 44, 30), 0.95f, 0f, 0f, 0f));
+            MaterialLayersCombiner.combine(moss, soil, FilterMode.Lesser, heightOperation: Operation.Nothing, materialOperation: Operation.Smoothstep, weight: 0.42f, smoothness: 0.3f);
+            moss.scaleHeight(0.6f);
+            moss.addHeight(0.35f);
+            return FinishTexture(moss, normalFlatness: 60f);
+        }
+
+        private int createGravelTexture()
+        {
+            float seed = MyMath.rand.NextSingle() * 100000f;
+            var stones = procTextGen.Cellular(new Vector2(46f, 46f), jitter: 1f, metric: Metric.SquaredEuclidean, seed: seed).invertHeight();
+            stones.setMaterial(new Material(new Colour(82, 74, 62), 0.9f, 0f, 0f));
+            var tones = procTextGen.Voronoi(new Vector2(46f, 46f), jitter: 1f, returnMode: ReturnMode.ID, seed: seed);
+            tones.setMaterial(new Material(new Colour(46, 40, 32), 0.9f, 0f, 0f));
+            MaterialLayersCombiner.combine(stones, tones, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Mix, weight: 0.45f, smoothness: 0.5f);
+            var grit = procTextGen.PerlinFBM(new Vector2(30f, 30f), octaves: 6, amplitudePerOctave: 0.5f);
+            MaterialLayersCombiner.combine(stones, grit, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight: 0.3f);
+            stones.scaleHeight(0.6f);
+            stones.addHeight(0.25f);
+            return FinishTexture(stones, normalFlatness: 45f);
+        }
+
+        // Earth packed hard by feet and wheels: mostly flat, with stones worn into it.
+        private int createDirtPathTexture()
+        {
+            var dirt = procTextGen.PerlinFBM(new Vector2(12f, 12f), octaves: 8, amplitudePerOctave: 0.5f);
+            dirt.setMaterial(new Material(new Colour(78, 58, 40), 0.93f, 0f, 0f));
+            var pale = procTextGen.PerlinFBM(new Vector2(5f, 5f), octaves: 4, amplitudePerOctave: 0.5f);
+            pale.setMaterial(new Material(new Colour(98, 76, 54), 0.95f, 0f, 0f));
+            MaterialLayersCombiner.combine(dirt, pale, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Smoothstep, weight: 0.5f, smoothness: 0.5f);
+
+            var stones = procTextGen.Cellular(new Vector2(30f, 30f), jitter: 1f, metric: Metric.SquaredEuclidean).invertHeight();
+            stones.setMaterial(new Material(new Colour(84, 76, 66), 0.85f, 0f, 0f));
+            MaterialLayersCombiner.combine(dirt, stones, FilterMode.Greater, heightOperation: Operation.Nothing, materialOperation: Operation.Override, weight: 0.86f, smoothness: 0.05f);
+
+            dirt.scaleHeight(0.45f);
+            dirt.addHeight(0.45f);
+            return FinishTexture(dirt, normalFlatness: 70f);
+        }
+
+        private int createFarmlandTexture()
+        {
+            var clods = procTextGen.PerlinFBM(new Vector2(22f, 22f), octaves: 6, amplitudePerOctave: 0.55f, rigged: true);
+            clods.setMaterial(new Material(new Colour(62, 44, 30), 0.97f, 0f, 0f));
+            var dry = procTextGen.PerlinFBM(new Vector2(7f, 7f), octaves: 5, amplitudePerOctave: 0.5f);
+            dry.setMaterial(new Material(new Colour(92, 68, 46), 0.97f, 0f, 0f));
+            MaterialLayersCombiner.combine(clods, dry, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Smoothstep, weight: 0.55f, smoothness: 0.4f);
+            clods.scaleHeight(0.8f);
+            return FinishTexture(clods, normalFlatness: 40f);
+        }
+
+        // Boards running along v, a little uneven, with dark gaps between them. Pale, to be stained by vertex colour.
+        private int createWoodTexture()
+        {
+            var boards = procTextGen.Createbricks(new Vector2(1f, 6f), smoothness: 0.05f, spacing: 0.012f, returnMode: ReturnMode.Height);
+            boards.setMaterial(new Material(new Colour(112, 84, 58), 0.72f, 0f, 0f));
+            var grain = procTextGen.PerlinFBM(new Vector2(3f, 70f), octaves: 6, amplitudePerOctave: 0.6f);
+            grain.setMaterial(new Material(new Colour(74, 54, 36), 0.8f, 0f, 0f));
+            MaterialLayersCombiner.combine(boards, grain, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Smoothstep, weight: 0.32f, smoothness: 0.5f);
+            return FinishTexture(boards, normalFlatness: 60f);
+        }
+
+        // Bundled reeds running down the roof: long strands in overlapping courses.
+        private int createThatchTexture()
+        {
+            var strands = procTextGen.PerlinFBM(new Vector2(70f, 3f), octaves: 7, amplitudePerOctave: 0.65f);
+            strands.setMaterial(new Material(new Colour(108, 86, 50), 0.95f, 0f, 0f, 0.15f));
+            var dark = procTextGen.PerlinFBM(new Vector2(30f, 2f), octaves: 5, amplitudePerOctave: 0.55f);
+            dark.setMaterial(new Material(new Colour(54, 42, 26), 0.97f, 0f, 0f));
+            MaterialLayersCombiner.combine(strands, dark, FilterMode.Lesser, heightOperation: Operation.Nothing, materialOperation: Operation.Smoothstep, weight: 0.5f, smoothness: 0.3f);
+
+            var courses = procTextGen.Sine(new Vector2(0f, 5f));
+            MaterialLayersCombiner.combine(strands, courses, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight: 0.35f);
+            strands.scaleHeight(0.75f);
+            return FinishTexture(strands, normalFlatness: 45f);
+        }
+
+        // Overlapping wooden shingles.
+        private int createShingleTexture()
+        {
+            Vector2 count = new Vector2(10f, 12f);
+            var tiles = procTextGen.Createbricks(count, smoothness: 0.08f, spacing: 0.012f, returnMode: ReturnMode.Height);
+            var tone = procTextGen.Createbricks(count, smoothness: 0.08f, spacing: 0.012f, returnMode: ReturnMode.ID);
+            tiles.setMaterial(new Material(new Colour(112, 104, 96), 0.78f, 0f, 0f));
+            tone.setMaterial(new Material(new Colour(70, 66, 64), 0.82f, 0f, 0f));
+            MaterialLayersCombiner.combine(tiles, tone, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Mix, weight: 0.5f, smoothness: 0.5f);
+            var wear = procTextGen.PerlinFBM(new Vector2(40f, 40f), octaves: 5, amplitudePerOctave: 0.55f);
+            MaterialLayersCombiner.combine(tiles, wear, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight: 0.12f);
+            return FinishTexture(tiles, normalFlatness: 40f);
+        }
+
+        private int createSlateTexture()
+        {
+            Vector2 count = new Vector2(8f, 16f);
+            var tiles = procTextGen.Createbricks(count, smoothness: 0.04f, spacing: 0.01f, returnMode: ReturnMode.Height);
+            var tone = procTextGen.Createbricks(count, smoothness: 0.04f, spacing: 0.01f, returnMode: ReturnMode.ID);
+            tiles.setMaterial(new Material(new Colour(72, 78, 86), 0.55f, 0f, 0f));
+            tone.setMaterial(new Material(new Colour(44, 48, 56), 0.6f, 0f, 0f));
+            MaterialLayersCombiner.combine(tiles, tone, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Mix, weight: 0.5f, smoothness: 0.5f);
+            return FinishTexture(tiles, normalFlatness: 40f);
+        }
+
+        private int createPlasterTexture()
+        {
+            var wall = procTextGen.PerlinFBM(new Vector2(9f, 9f), octaves: 8, amplitudePerOctave: 0.55f);
+            wall.setMaterial(new Material(new Colour(150, 140, 120), 0.92f, 0f, 0f));
+            var stain = procTextGen.PerlinFBM(new Vector2(3f, 2f), octaves: 4, amplitudePerOctave: 0.6f);
+            stain.setMaterial(new Material(new Colour(112, 100, 80), 0.95f, 0f, 0f));
+            MaterialLayersCombiner.combine(wall, stain, FilterMode.Lesser, heightOperation: Operation.Nothing, materialOperation: Operation.Smoothstep, weight: 0.45f, smoothness: 0.4f);
+            wall.scaleHeight(0.2f);
+            wall.addHeight(0.7f);
+            return FinishTexture(wall, normalFlatness: 120f);
+        }
+
+        // Rough courses of stone with deep mortar.
+        private int createStoneWallTexture()
+        {
+            Vector2 count = new Vector2(4f, 8f);
+            var stones = procTextGen.Createbricks(count, smoothness: 0.16f, spacing: 0.03f, returnMode: ReturnMode.Height);
+            var tone = procTextGen.Createbricks(count, smoothness: 0.16f, spacing: 0.03f, returnMode: ReturnMode.ID);
+            stones.setMaterial(new Material(new Colour(112, 106, 96), 0.93f, 0f, 0f));
+            tone.setMaterial(new Material(new Colour(70, 66, 60), 0.95f, 0f, 0f));
+            MaterialLayersCombiner.combine(stones, tone, FilterMode.Everywhere, heightOperation: Operation.Nothing, materialOperation: Operation.Mix, weight: 0.5f, smoothness: 0.5f);
+            var rough = procTextGen.PerlinFBM(new Vector2(18f, 18f), octaves: 7, amplitudePerOctave: 0.6f);
+            MaterialLayersCombiner.combine(stones, rough, FilterMode.Everywhere, heightOperation: Operation.Add, materialOperation: Operation.Nothing, weight: 0.32f);
+            return FinishTexture(stones, normalFlatness: 35f);
+        }
+
+        // Plain woven cloth, near white so that vertex colour dyes it.
+        private int createClothTexture()
+        {
+            var weave = procTextGen.TileWeave(new Vector2(48f, 48f), count: 2, smoothness: 0.8f, width: 0.6f);
+            weave.setMaterial(new Material(new Colour(178, 172, 158), 0.96f, 0f, 0f, 0.3f));
+            weave.scaleHeight(0.3f);
+            weave.addHeight(0.5f);
+            return FinishTexture(weave, normalFlatness: 80f);
+        }
+
+        private int createLeatherTexture()
+        {
+            var hide = procTextGen.Cellular(new Vector2(30f, 30f), jitter: 1f, metric: Metric.SquaredEuclidean);
+            hide.setMaterial(new Material(new Colour(112, 76, 50), 0.62f, 0f, 0f));
+            hide.scaleHeight(0.3f);
+            hide.addHeight(0.5f);
+            return FinishTexture(hide, normalFlatness: 80f);
         }
 
         private int createGrassTexture(Material material)

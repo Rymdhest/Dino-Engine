@@ -1,30 +1,38 @@
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Terrain;
 using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Util;
 using Dino_Engine.Util.Data_Structures.Grids;
+using Dino_Engine.World;
 using OpenTK.Mathematics;
 using System.Collections.Generic;
 
 namespace Dino_Engine.ECS.Systems
 {
     /// <summary>
-    /// Streams fixed-size terrain chunks around the camera. Unlike the old LOD quadtree, every
-    /// chunk is exactly <see cref="TerrainQuadTreeSingleton.ChunkSize"/> in size, so quality and
-    /// grass density are uniform everywhere (no popping). Only a square ring of
-    /// <see cref="TerrainQuadTreeSingleton.Radius"/> chunks on each side of the camera exists at
-    /// any time; everything else is destroyed.
+    /// Streams the world around the camera. Terrain comes in fixed-size chunks: every chunk is exactly
+    /// <see cref="TerrainQuadTreeSingleton.ChunkSize"/> in size, so quality and grass density are uniform everywhere (no
+    /// popping). Only a square ring of <see cref="TerrainQuadTreeSingleton.Radius"/> chunks on each side of the camera exists
+    /// at any time; everything else is destroyed. The objects a world has placed come in larger sectors that reach further
+    /// out than the chunks, and small plants are grown chunk by chunk (see <see cref="WorldStreamSingleton"/>).
     /// </summary>
     public class TerrainChunkSystem : SystemBase
     {
+        // How far past the terrain ring sectors stay alive, in metres. Trees are tall: they show before the ground under them.
+        private const float SectorMargin = 24f;
+        private const int SectorsPerFrame = 3;
+
         // Reusable scratch buffers (avoid per-frame allocations)
         private readonly List<Vector2i> _toCreate = new();
         private readonly List<Vector2i> _toDestroy = new();
-        private readonly List<TerrainScatterInstance> _scatterInstances = new();
-        private readonly List<(Entity entity, AABB bounds)> _spawnedScatter = new();
+        private readonly List<Vector2i> _sectorsToLoad = new();
+        private readonly List<Vector2i> _sectorsToDrop = new();
+        private readonly List<GroundPlant> _plants = new();
+        private readonly List<(Entity entity, AABB bounds)> _spawnedObjects = new();
         private readonly HashSet<Vector2i> _createdThisFrame = new();
         private readonly Dictionary<Vector2i, List<Entity>> _carveTargets = new();
 
@@ -38,6 +46,7 @@ namespace Dino_Engine.ECS.Systems
         {
             var terrainComp = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
             TerrainGenerator generator = world.GetComponent<TerrainGeneratorSingleton>(world.GetSingleton<TerrainGeneratorSingleton>()).Generator;
+            var stream = world.GetComponent<WorldStreamSingleton>(world.GetSingleton<WorldStreamSingleton>());
 
             Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
             float chunkSize = terrainComp.ChunkSize;
@@ -62,25 +71,20 @@ namespace Dino_Engine.ECS.Systems
                     if (!chunks.ContainsKey(new Vector2i(cx, cz)))
                         _toCreate.Add(new Vector2i(cx, cz));
 
-            // Where the water is: plants stay out of it and grass doesn't grow under it.
-            WaterQuery? water = _toCreate.Count > 0 ? WaterQuery.Create(world) : null;
-
-            // 3. Stream the scattered objects. They have to exist before their chunks are created, because a
-            // chunk carves the grass under whatever is in the spatial grid at creation time.
-            bool hasScatter = world.TryGetSingleton<TerrainScatterSingleton>(out Entity scatterEntity);
+            // 3. Stream the objects. They have to exist before their chunks are created, because a chunk carves the
+            // grass under whatever is in the spatial grid at creation time.
             SpatialGrid grid = world.GetComponent<RenderSpatialGridSingleton>(world.GetSingleton<RenderSpatialGridSingleton>()).Grid;
-            _spawnedScatter.Clear();
-            if (hasScatter)
-            {
-                var scatter = world.GetComponent<TerrainScatterSingleton>(scatterEntity);
-                for (int i = 0; i < _toDestroy.Count; i++)
-                    DespawnScatter(_toDestroy[i], scatter, world, grid);
-                for (int i = 0; i < _toCreate.Count; i++)
-                    SpawnScatter(_toCreate[i], chunkSize, scatter, world, generator, grid, water);
+            _spawnedObjects.Clear();
+            float sectorReach = (radius + 1) * chunkSize + SectorMargin;
+            StreamSectors(cameraPos.Xz, sectorReach, stream, world, grid);
 
-                // The grass carve reads components of the new objects, so they must be real entities now.
-                world.ApplyDeferredCommands();
-            }
+            for (int i = 0; i < _toDestroy.Count; i++)
+                DespawnEntities(_toDestroy[i], stream.ChunkPlants, world, grid);
+            for (int i = 0; i < _toCreate.Count; i++)
+                SpawnPlants(_toCreate[i], chunkSize, stream, world, grid);
+
+            // The grass carve reads components of the new objects, so they must be real entities now.
+            if (_spawnedObjects.Count > 0) world.ApplyDeferredCommands();
 
             // 4. Destroy and create the chunks themselves.
             for (int i = 0; i < _toDestroy.Count; i++)
@@ -94,73 +98,138 @@ namespace Dino_Engine.ECS.Systems
             for (int i = 0; i < _toCreate.Count; i++)
             {
                 Vector2i key = _toCreate[i];
-                Entity e = CreateChunkEntity(key, chunkSize, world, generator, water);
+                Entity e = CreateChunkEntity(key, chunkSize, world, generator);
                 chunks[key] = e;
             }
 
             // 5. New objects that reach into chunks which already existed must carve those chunks too.
-            if (_spawnedScatter.Count > 0)
-                CarveScatterIntoExistingChunks(chunkSize, chunks, world);
+            if (_spawnedObjects.Count > 0)
+                CarveObjectsIntoExistingChunks(chunkSize, chunks, world);
 
             Engine.Instance.world.ApplyDeferredCommands();
         }
 
-        private void SpawnScatter(Vector2i cell, float chunkSize, TerrainScatterSingleton scatter, ECSWorld world, TerrainGenerator generator, SpatialGrid grid, WaterQuery? water)
+        private void StreamSectors(Vector2 camera, float reach, WorldStreamSingleton stream, ECSWorld world, SpatialGrid grid)
         {
-            TerrainScatter.GenerateChunk(generator, scatter.Layers, scatter.Seed, cell, chunkSize, scatter.BoundsMin, scatter.BoundsMax, _scatterInstances, water);
-            if (_scatterInstances.Count == 0) return;
+            WorldObjects objects = stream.World.Objects;
+            float size = WorldObjects.SectorSize;
 
-            var entities = new List<Entity>(_scatterInstances.Count);
-            for (int i = 0; i < _scatterInstances.Count; i++)
+            _sectorsToDrop.Clear();
+            float dropReach = reach + size * 1.5f;
+            foreach (var kv in stream.Sectors)
+                if (SectorDistance(kv.Key, camera) > dropReach)
+                    _sectorsToDrop.Add(kv.Key);
+            for (int i = 0; i < _sectorsToDrop.Count; i++)
+                DespawnEntities(_sectorsToDrop[i], stream.Sectors, world, grid);
+
+            _sectorsToLoad.Clear();
+            int minX = (int)MathF.Floor((camera.X - reach) / size);
+            int maxX = (int)MathF.Floor((camera.X + reach) / size);
+            int minZ = (int)MathF.Floor((camera.Y - reach) / size);
+            int maxZ = (int)MathF.Floor((camera.Y + reach) / size);
+            for (int z = minZ; z <= maxZ; z++)
             {
-                TerrainScatterInstance instance = _scatterInstances[i];
-                // Same matrix LocalToWorldTransformRootSystem computes, filled in now because that system has
-                // already run this frame and the spatial grid needs the bounds immediately.
-                Matrix4 localToWorld = MyMath.createTransformationMatrix(instance.Position, instance.Rotation, instance.Scale);
-
-                Entity e = world.CreateEntity(
-                    new PositionComponent(instance.Position),
-                    new RotationComponent(instance.Rotation),
-                    new ScaleComponent(instance.Scale),
-                    new ModelComponent(instance.Model),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent { value = localToWorld }
-                );
-
-                // Inserted directly: entities spawned here are applied after RenderSpatialGridSystem has run,
-                // and the spawn buffer it reads is cleared at the end of the frame.
-                AABB bounds = RenderSpatialGridSystem.ComputeWorldBounds(instance.Model, localToWorld);
-                grid.InsertOrUpdate(e, bounds);
-
-                entities.Add(e);
-                _spawnedScatter.Add((e, bounds));
+                for (int x = minX; x <= maxX; x++)
+                {
+                    var sector = new Vector2i(x, z);
+                    if (!stream.Sectors.ContainsKey(sector) && SectorDistance(sector, camera) <= reach) _sectorsToLoad.Add(sector);
+                }
             }
-            scatter.ChunkInstances[cell] = entities;
+
+            // Nearest first, and a few per frame: walking over a sector boundary shouldn't hitch. A world just entered has
+            // nothing to show yet, so it gets everything at once.
+            _sectorsToLoad.Sort((a, b) => SectorDistance(a, camera).CompareTo(SectorDistance(b, camera)));
+            int budget = stream.Sectors.Count == 0 ? int.MaxValue : SectorsPerFrame;
+            for (int i = 0; i < _sectorsToLoad.Count && i < budget; i++)
+                SpawnSector(_sectorsToLoad[i], stream, world, grid);
         }
 
-        private static void DespawnScatter(Vector2i cell, TerrainScatterSingleton scatter, ECSWorld world, SpatialGrid grid)
+        // Metres from a point to the nearest edge of a sector.
+        private static float SectorDistance(Vector2i sector, Vector2 point)
         {
-            if (!scatter.ChunkInstances.Remove(cell, out var entities)) return;
+            float size = WorldObjects.SectorSize;
+            Vector2 min = new Vector2(sector.X, sector.Y) * size;
+            Vector2 nearest = Vector2.Clamp(point, min, min + new Vector2(size));
+            return (nearest - point).Length;
+        }
+
+        private void SpawnSector(Vector2i sector, WorldStreamSingleton stream, ECSWorld world, SpatialGrid grid)
+        {
+            IReadOnlyList<WorldObject>? objects = stream.World.Objects.InSector(sector);
+            var entities = new List<Entity>(objects?.Count ?? 0);
+            if (objects != null)
+            {
+                for (int i = 0; i < objects.Count; i++)
+                {
+                    WorldObject item = objects[i];
+                    entities.Add(SpawnModel(stream.ObjectModels[item.Asset], item.Position, item.Rotation, item.Scale, world, grid));
+                }
+            }
+            // Empty sectors are remembered too, or they would be looked up again every frame.
+            stream.Sectors[sector] = entities;
+        }
+
+        private void SpawnPlants(Vector2i cell, float chunkSize, WorldStreamSingleton stream, ECSWorld world, SpatialGrid grid)
+        {
+            stream.GroundCover.Generate(new Vector2(cell.X, cell.Y) * chunkSize, chunkSize, _plants);
+            if (_plants.Count == 0) return;
+
+            var entities = new List<Entity>(_plants.Count);
+            for (int i = 0; i < _plants.Count; i++)
+            {
+                GroundPlant plant = _plants[i];
+                Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, plant.Yaw);
+                entities.Add(SpawnModel(stream.Assets.Get(plant.Asset.Id), plant.Position, rotation, new Vector3(plant.Scale), world, grid));
+            }
+            stream.ChunkPlants[cell] = entities;
+        }
+
+        private Entity SpawnModel(glModel model, Vector3 position, Quaternion rotation, Vector3 scale, ECSWorld world, SpatialGrid grid)
+        {
+            // Same matrix LocalToWorldTransformRootSystem computes, filled in now because that system has
+            // already run this frame and the spatial grid needs the bounds immediately.
+            Matrix4 localToWorld = MyMath.createTransformationMatrix(position, rotation, scale);
+
+            Entity e = world.CreateEntity(
+                new PositionComponent(position),
+                new RotationComponent(rotation),
+                new ScaleComponent(scale),
+                new ModelComponent(model),
+                new ModelRenderTag(),
+                new LocalToWorldMatrixComponent { value = localToWorld }
+            );
+
+            // Inserted directly: entities spawned here are applied after RenderSpatialGridSystem has run,
+            // and the spawn buffer it reads is cleared at the end of the frame.
+            AABB bounds = RenderSpatialGridSystem.ComputeWorldBounds(model, localToWorld);
+            grid.InsertOrUpdate(e, bounds);
+            _spawnedObjects.Add((e, bounds));
+            return e;
+        }
+
+        private static void DespawnEntities(Vector2i key, Dictionary<Vector2i, List<Entity>> groups, ECSWorld world, SpatialGrid grid)
+        {
+            if (!groups.Remove(key, out var entities)) return;
 
             for (int i = 0; i < entities.Count; i++)
             {
-                // Removed directly, for the same reason as the insert in SpawnScatter. Leaving a destroyed
+                // Removed directly, for the same reason as the insert in SpawnModel. Leaving a destroyed
                 // entity in the grid would break the next grass carve that finds it.
                 grid.Remove(entities[i]);
                 world.DestroyEntity(entities[i]);
             }
         }
 
-        private void CarveScatterIntoExistingChunks(float chunkSize, Dictionary<Vector2i, Entity> chunks, ECSWorld world)
+        private void CarveObjectsIntoExistingChunks(float chunkSize, Dictionary<Vector2i, Entity> chunks, ECSWorld world)
         {
             _createdThisFrame.Clear();
             for (int i = 0; i < _toCreate.Count; i++)
                 _createdThisFrame.Add(_toCreate[i]);
 
             _carveTargets.Clear();
-            for (int i = 0; i < _spawnedScatter.Count; i++)
+            for (int i = 0; i < _spawnedObjects.Count; i++)
             {
-                var (entity, bounds) = _spawnedScatter[i];
+                var (entity, bounds) = _spawnedObjects[i];
                 int minCx = (int)MathF.Floor(bounds.Min.X / chunkSize);
                 int maxCx = (int)MathF.Floor(bounds.Max.X / chunkSize);
                 int minCz = (int)MathF.Floor(bounds.Min.Z / chunkSize);
@@ -199,43 +268,21 @@ namespace Dino_Engine.ECS.Systems
             return Math.Abs(cell.X - camCx) <= radius && Math.Abs(cell.Y - camCz) <= radius;
         }
 
-        private Entity CreateChunkEntity(Vector2i cell, float chunkSize, ECSWorld world, TerrainGenerator generator, WaterQuery? water)
+        private Entity CreateChunkEntity(Vector2i cell, float chunkSize, ECSWorld world, TerrainGenerator generator)
         {
             Vector3 scale = new Vector3(chunkSize, 1.0f, chunkSize);
             Vector2 position = new Vector2(cell.X * chunkSize, cell.Y * chunkSize);
 
             var heightGrid = generator.generateChunk(position, scale.Xz, new Vector2i(TerrainRenderer.CHUNK_RESOLUTION));
-            var normalgrid = generator.generateNormalGridFor(heightGrid, scale, position, out var grassGrid);
-            if (water != null && !water.IsEmpty) ClearGrassUnderWater(grassGrid, heightGrid, position, chunkSize, water);
+            var normalGrid = generator.generateNormalGridFor(position, scale.Xz, new Vector2i(TerrainRenderer.CHUNK_RESOLUTION));
+            var surface = generator.generateSurface(position, scale.Xz, heightGrid, normalGrid);
 
             return world.CreateEntity("Terrain Chunk",
-                new TerrainChunkComponent(heightGrid, normalgrid, grassGrid, position, scale.Xz),
+                new TerrainChunkComponent(heightGrid, normalGrid, surface, position, scale.Xz),
                 new PositionComponent(new Vector3(position.X, 0.0f, position.Y)),
                 new ScaleComponent(scale),
                 new LocalToWorldMatrixComponent()
             );
-        }
-
-        /// <summary>
-        /// No grass under water: it thins out over the first few centimetres of depth. Texels sit where generateChunk
-        /// samples the heights.
-        /// </summary>
-        private static void ClearGrassUnderWater(FloatGrid grassGrid, FloatGrid heightGrid, Vector2 origin, float chunkSize, WaterQuery water)
-        {
-            Vector2i resolution = grassGrid.Resolution;
-            Vector2 cell = new Vector2(chunkSize) / (resolution - new Vector2(1));
-            for (int z = 0; z < resolution.Y; z++)
-            {
-                for (int x = 0; x < resolution.X; x++)
-                {
-                    if (grassGrid.Values[x, z] <= 0f) continue;
-                    Vector2 xz = origin + new Vector2(x, z) * cell;
-                    float depth = water.DepthAt(new Vector3(xz.X, heightGrid.Values[x, z] + TerrainRenderer.SurfaceOffset, xz.Y));
-                    if (depth <= 0f) continue;
-                    float t = Math.Clamp(depth / 0.05f, 0f, 1f);
-                    grassGrid.Values[x, z] *= 1f - t * t * (3f - 2f * t);
-                }
-            }
         }
 
         /// <summary>

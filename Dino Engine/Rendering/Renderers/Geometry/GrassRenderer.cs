@@ -67,6 +67,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         private const int HeightMapUnit = 0;
         private const int GrassMapUnit = 1;
+        private const int GrassColourMapUnit = 2;
         private const int BendMapUnit = 8;
         private const int WindMapUnit = 9;
 
@@ -102,6 +103,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _generateShader.bind();
             _generateShader.loadUniformInt("heightmaps", HeightMapUnit);
             _generateShader.loadUniformInt("grassMaps", GrassMapUnit);
+            _generateShader.loadUniformInt("grassColourMaps", GrassColourMapUnit);
             _generateShader.loadUniformInt("bendMap", BendMapUnit);
             _generateShader.loadUniformInt("windMap", WindMapUnit);
             _generateShader.loadUniformInt("nearCapacity", NearCapacity);
@@ -239,6 +241,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine._terrainRenderer.GetNormalRoadHeightTextureArray());
             GL.ActiveTexture(TextureUnit.Texture0 + GrassMapUnit);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine._terrainRenderer.GetGrassTextureArray());
+            GL.ActiveTexture(TextureUnit.Texture0 + GrassColourMapUnit);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine._terrainRenderer.GetGrassColourTextureArray());
             GL.ActiveTexture(TextureUnit.Texture0 + BendMapUnit);
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.VegetationBendTexture);
             GL.ActiveTexture(TextureUnit.Texture0 + WindMapUnit);

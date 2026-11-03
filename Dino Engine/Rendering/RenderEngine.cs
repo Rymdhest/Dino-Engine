@@ -383,6 +383,7 @@ namespace Dino_Engine.Rendering
         private void FinishFrame()
         {
 
+            Engine.Instance?.CaptureFrame();
             Engine.WindowHandler.SwapBuffers();
         }
 
