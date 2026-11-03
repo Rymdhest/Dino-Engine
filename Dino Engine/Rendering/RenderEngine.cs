@@ -69,6 +69,7 @@ namespace Dino_Engine.Rendering
         private SkyRenderer _skyRenderer;
         public VolumetricFogRenderer _volumetricFogRenderer;
         public WindRenderer _windRenderer;
+        public WaterRenderer _waterRenderer;
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
         private DepthBasedBlurRenderer _depthBasedBlurRenderer;
@@ -140,6 +141,7 @@ namespace Dino_Engine.Rendering
             _skyRenderer = new SkyRenderer();
             _volumetricFogRenderer = new VolumetricFogRenderer();
             _windRenderer = new WindRenderer();
+            _waterRenderer = new WaterRenderer();
             _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
             _gaussianBlurRenderer = new GaussianBlurRenderer();
             _depthBasedBlurRenderer = new DepthBasedBlurRenderer();
@@ -204,11 +206,14 @@ namespace Dino_Engine.Rendering
             } else
             {
 
-                // Wind first: geometry, shadows and fog all read this frame's wind.
+                // Wind first: geometry, shadows, water and fog all read this frame's wind.
                 _windRenderer.RenderPass(this);
+                _waterRenderer.SimulationPass(this);
                 GeometryPass();
                 ShadowPass();
                 LightPass();
+                // Water over the lit scene, before the sky and particles, which then sit behind and on it.
+                _waterRenderer.RenderPass(this);
                 PostGeometryPass();
                 PostProcessPass();
 

@@ -5,6 +5,7 @@ using Dino_Engine.Modelling.Procedural.Terrain;
 using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Util;
+using Dino_Engine.Util.Data_Structures.Grids;
 using OpenTK.Mathematics;
 using System.Collections.Generic;
 
@@ -61,6 +62,9 @@ namespace Dino_Engine.ECS.Systems
                     if (!chunks.ContainsKey(new Vector2i(cx, cz)))
                         _toCreate.Add(new Vector2i(cx, cz));
 
+            // Where the water is: plants stay out of it and grass doesn't grow under it.
+            WaterQuery? water = _toCreate.Count > 0 ? WaterQuery.Create(world) : null;
+
             // 3. Stream the scattered objects. They have to exist before their chunks are created, because a
             // chunk carves the grass under whatever is in the spatial grid at creation time.
             bool hasScatter = world.TryGetSingleton<TerrainScatterSingleton>(out Entity scatterEntity);
@@ -72,7 +76,7 @@ namespace Dino_Engine.ECS.Systems
                 for (int i = 0; i < _toDestroy.Count; i++)
                     DespawnScatter(_toDestroy[i], scatter, world, grid);
                 for (int i = 0; i < _toCreate.Count; i++)
-                    SpawnScatter(_toCreate[i], chunkSize, scatter, world, generator, grid);
+                    SpawnScatter(_toCreate[i], chunkSize, scatter, world, generator, grid, water);
 
                 // The grass carve reads components of the new objects, so they must be real entities now.
                 world.ApplyDeferredCommands();
@@ -90,7 +94,7 @@ namespace Dino_Engine.ECS.Systems
             for (int i = 0; i < _toCreate.Count; i++)
             {
                 Vector2i key = _toCreate[i];
-                Entity e = CreateChunkEntity(key, chunkSize, world, generator);
+                Entity e = CreateChunkEntity(key, chunkSize, world, generator, water);
                 chunks[key] = e;
             }
 
@@ -101,9 +105,9 @@ namespace Dino_Engine.ECS.Systems
             Engine.Instance.world.ApplyDeferredCommands();
         }
 
-        private void SpawnScatter(Vector2i cell, float chunkSize, TerrainScatterSingleton scatter, ECSWorld world, TerrainGenerator generator, SpatialGrid grid)
+        private void SpawnScatter(Vector2i cell, float chunkSize, TerrainScatterSingleton scatter, ECSWorld world, TerrainGenerator generator, SpatialGrid grid, WaterQuery? water)
         {
-            TerrainScatter.GenerateChunk(generator, scatter.Layers, scatter.Seed, cell, chunkSize, scatter.BoundsMin, scatter.BoundsMax, _scatterInstances);
+            TerrainScatter.GenerateChunk(generator, scatter.Layers, scatter.Seed, cell, chunkSize, scatter.BoundsMin, scatter.BoundsMax, _scatterInstances, water);
             if (_scatterInstances.Count == 0) return;
 
             var entities = new List<Entity>(_scatterInstances.Count);
@@ -195,13 +199,14 @@ namespace Dino_Engine.ECS.Systems
             return Math.Abs(cell.X - camCx) <= radius && Math.Abs(cell.Y - camCz) <= radius;
         }
 
-        private Entity CreateChunkEntity(Vector2i cell, float chunkSize, ECSWorld world, TerrainGenerator generator)
+        private Entity CreateChunkEntity(Vector2i cell, float chunkSize, ECSWorld world, TerrainGenerator generator, WaterQuery? water)
         {
             Vector3 scale = new Vector3(chunkSize, 1.0f, chunkSize);
             Vector2 position = new Vector2(cell.X * chunkSize, cell.Y * chunkSize);
 
             var heightGrid = generator.generateChunk(position, scale.Xz, new Vector2i(TerrainRenderer.CHUNK_RESOLUTION));
             var normalgrid = generator.generateNormalGridFor(heightGrid, scale, position, out var grassGrid);
+            if (water != null && !water.IsEmpty) ClearGrassUnderWater(grassGrid, heightGrid, position, chunkSize, water);
 
             return world.CreateEntity("Terrain Chunk",
                 new TerrainChunkComponent(heightGrid, normalgrid, grassGrid, position, scale.Xz),
@@ -209,6 +214,28 @@ namespace Dino_Engine.ECS.Systems
                 new ScaleComponent(scale),
                 new LocalToWorldMatrixComponent()
             );
+        }
+
+        /// <summary>
+        /// No grass under water: it thins out over the first few centimetres of depth. Texels sit where generateChunk
+        /// samples the heights.
+        /// </summary>
+        private static void ClearGrassUnderWater(FloatGrid grassGrid, FloatGrid heightGrid, Vector2 origin, float chunkSize, WaterQuery water)
+        {
+            Vector2i resolution = grassGrid.Resolution;
+            Vector2 cell = new Vector2(chunkSize) / (resolution - new Vector2(1));
+            for (int z = 0; z < resolution.Y; z++)
+            {
+                for (int x = 0; x < resolution.X; x++)
+                {
+                    if (grassGrid.Values[x, z] <= 0f) continue;
+                    Vector2 xz = origin + new Vector2(x, z) * cell;
+                    float depth = water.DepthAt(new Vector3(xz.X, heightGrid.Values[x, z] + TerrainRenderer.SurfaceOffset, xz.Y));
+                    if (depth <= 0f) continue;
+                    float t = Math.Clamp(depth / 0.05f, 0f, 1f);
+                    grassGrid.Values[x, z] *= 1f - t * t * (3f - 2f * t);
+                }
+            }
         }
 
         /// <summary>

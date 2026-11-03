@@ -49,6 +49,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private IDAllocator<ushort> normalHeightTextureArrayAllocator = new();
         private readonly int MAX_TERRAIN_CHUNKS = 1024*2;
         public static readonly int CHUNK_RESOLUTION = 16;
+        /// <summary>
+        /// Metres Terrain.vert lifts the drawn surface above the height map (Terrain_shadow.vert, used for shadows and height
+        /// captures, does not). Code that matches the visible ground adds it to TerrainGenerator heights.
+        /// </summary>
+        public const float SurfaceOffset = 0.15f;
         private int carveFBO;
 
         private int instanceVBO;

@@ -1,4 +1,6 @@
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Physics;
+using Dino_Engine.Rendering.Renderers.Geometry;
 using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
@@ -21,13 +23,15 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public readonly float Density;        // Candidate points per square world unit (before the rule rejects any).
         public readonly float RoadClearance;  // Extra distance kept clear beyond the road shoulder.
         public readonly TerrainScatterRule Rule;
+        public readonly bool AllowUnderwater; // Rocks can lie in water; plants are kept out of the sea, ponds and puddles.
 
-        public TerrainScatterLayer(glModel model, float density, float roadClearance, TerrainScatterRule rule)
+        public TerrainScatterLayer(glModel model, float density, float roadClearance, TerrainScatterRule rule, bool allowUnderwater = false)
         {
             Model = model;
             Density = density;
             RoadClearance = roadClearance;
             Rule = rule;
+            AllowUnderwater = allowUnderwater;
         }
     }
 
@@ -45,9 +49,11 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
     /// </summary>
     public static class TerrainScatter
     {
+        /// <param name="water">Where the water is; instances of layers that don't allow it are kept out of it. Null: no water.</param>
         public static void GenerateChunk(TerrainGenerator generator, IReadOnlyList<TerrainScatterLayer> layers, int seed,
-            Vector2i cell, float chunkSize, Vector2 boundsMin, Vector2 boundsMax, List<TerrainScatterInstance> results)
+            Vector2i cell, float chunkSize, Vector2 boundsMin, Vector2 boundsMax, List<TerrainScatterInstance> results, WaterQuery? water = null)
         {
+            if (water != null && water.IsEmpty) water = null;
             results.Clear();
             if (layers.Count == 0) return;
 
@@ -83,12 +89,16 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     Vector3 position = new Vector3(p.X, generator.getHeightAt(p, roads), p.Y);
                     Vector3 normal = generator.GetNormalAt(p.X, p.Y, roads);
                     if (!layer.Rule(position, normal, rng, out Vector3 scale)) continue;
+                    Quaternion rotation = new Quaternion(new Vector3(0f, rng.NextSingle() * MathF.Tau, 0f));
+                    // Last, after every random draw, so water never changes what grows anywhere else in the chunk.
+                    if (water != null && !layer.AllowUnderwater
+                        && water.TryGetSurfaceAbove(position + new Vector3(0f, TerrainRenderer.SurfaceOffset, 0f), 0.01f, out _, out _)) continue;
 
                     results.Add(new TerrainScatterInstance
                     {
                         Model = layer.Model,
                         Position = position,
-                        Rotation = new Quaternion(new Vector3(0f, rng.NextSingle() * MathF.Tau, 0f)),
+                        Rotation = rotation,
                         Scale = scale
                     });
                 }

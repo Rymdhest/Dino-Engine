@@ -9,6 +9,7 @@ using Dino_Engine.Modelling.Procedural.Indoor;
 using Dino_Engine.Modelling.Procedural.Nature;
 using Dino_Engine.Modelling.Procedural.Terrain;
 using Dino_Engine.Modelling.Procedural.Urban;
+using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
@@ -217,6 +218,8 @@ namespace Dino_Defenders
             world.RegisterSingleton<TerrainScatterSingleton>(world.CreateEntity(new TerrainScatterSingleton(MyMath.rand.Next(), Vector2.Zero, new Vector2(terrainSize))));
             world.RegisterSingleton<WindSingleton>(world.CreateEntity("Wind", new WindSingleton()));
             world.RegisterSingleton<VolumetricFogSingleton>(world.CreateEntity("Volumetric Fog", new VolumetricFogSingleton()));
+            // The terrain sinks below zero west of x = 0 and south of z = 0, so the sea meets it along a winding coast there.
+            world.RegisterSingleton<WaterSingleton>(world.CreateEntity("Water", new WaterSingleton { SeaLevel = -0.6f }));
             world.ApplyDeferredCommands();
 
 
@@ -290,6 +293,8 @@ namespace Dino_Defenders
             float z = 150f;
             float height = terrainGenerator.getHeightAt(new Vector2(x, z));
 
+            spawnPondsAndPuddles(world, new Vector2(x, z), 60f);
+
 
 
             float lowerLegSize = -0.4f;
@@ -323,6 +328,7 @@ namespace Dino_Defenders
                 new VelocityComponent(),
                 new FixToTerrainHeightComponent(),
                 new GrassDisplaceComponent(2f),
+                new WaterDisturberComponent(0.45f),
                 new PlayerTag()
             );
 
@@ -484,8 +490,8 @@ namespace Dino_Defenders
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModel, 160);
             Engine.RenderEngine.textureGenerator.AddImposterToModel(rockModelBrown, 60);
 
-            // Big rocks, more likely and taller on steep slopes
-            addScatterLayer(10000, rockModel, roadClearance: 1f, (Vector3 pos, Vector3 normal, Random rng, out Vector3 rockScale) =>
+            // Big rocks, more likely and taller on steep slopes (and free to stand in water, unlike plants)
+            addScatterLayer(10000, rockModel, roadClearance: 1f, allowUnderwater: true, (Vector3 pos, Vector3 normal, Random rng, out Vector3 rockScale) =>
             {
                 rockScale = default;
                 float flatness = MyMath.clamp01(Vector3.Dot(normal, new Vector3(0f, 1f, 0f)));
@@ -500,7 +506,7 @@ namespace Dino_Defenders
                 return true;
             });
             // Brown rocks, only on slopes
-            addScatterLayer(1000, rockModelBrown, roadClearance: 1f, (Vector3 pos, Vector3 normal, Random rng, out Vector3 rockScale) =>
+            addScatterLayer(1000, rockModelBrown, roadClearance: 1f, allowUnderwater: true, (Vector3 pos, Vector3 normal, Random rng, out Vector3 rockScale) =>
             {
                 rockScale = default;
                 float flatness = MyMath.clamp01(Vector3.Dot(normal, new Vector3(0f, 1f, 0f)));
@@ -549,7 +555,7 @@ namespace Dino_Defenders
         {
             model.swayAmount = swayAmount;
             Engine.RenderEngine.textureGenerator.AddImposterToModel(model, imposterDistance);
-            addScatterLayer(n, model, roadClearance: 0f, (Vector3 pos, Vector3 normal, Random rng, out Vector3 instanceScale) =>
+            addScatterLayer(n, model, roadClearance: 0f, allowUnderwater: false, (Vector3 pos, Vector3 normal, Random rng, out Vector3 instanceScale) =>
             {
                 instanceScale = default;
                 if (normal.Y < 0.8f) return false;
@@ -565,11 +571,52 @@ namespace Dino_Defenders
             });
         }
 
-        private void addScatterLayer(int n, glModel model, float roadClearance, TerrainScatterRule rule)
+        private void addScatterLayer(int n, glModel model, float roadClearance, bool allowUnderwater, TerrainScatterRule rule)
         {
             ECSWorld world = Engine.world;
             var scatter = world.GetComponent<TerrainScatterSingleton>(world.GetSingleton<TerrainScatterSingleton>());
-            scatter.Layers.Add(new TerrainScatterLayer(model, n / (terrainSize * terrainSize), roadClearance, rule));
+            scatter.Layers.Add(new TerrainScatterLayer(model, n / (terrainSize * terrainSize), roadClearance, rule, allowUnderwater));
+        }
+
+        // Fills the hollows of the ground around `center` with still water: the deeper, larger ones become ponds, the
+        // shallow little ones puddles. The terrain is different every run, so they are found rather than placed by hand.
+        private void spawnPondsAndPuddles(ECSWorld world, Vector2 center, float radius)
+        {
+            Vector2 min = center - new Vector2(radius);
+            Vector2 max = center + new Vector2(radius);
+            var roads = terrainGenerator.GetCandidateSegmentsForChunk(min, max, terrainGenerator.RoadWidth + terrainGenerator.RoadShoulder);
+            List<WaterBasin> basins = WaterBasins.Find(
+                p => terrainGenerator.getHeightAt(p, roads) + TerrainRenderer.SurfaceOffset,
+                min, max, cellSize: 0.4f, minDepth: 0.03f, minArea: 0.5f);
+
+            const int maxPonds = 6, maxPuddles = 30;
+            int ponds = 0, puddles = 0;
+            foreach (WaterBasin basin in basins)
+            {
+                WaterBodyComponent body;
+                if (basin.MaxDepth >= 0.2f && basin.Area >= 8f)
+                {
+                    if (ponds == maxPonds) continue;
+                    ponds++;
+                    body = WaterBodyComponent.Pond(basin.HalfExtents, basin.Area > 150f ? WaterOptics.Lake : WaterOptics.Pond);
+                }
+                else if (basin.Area <= 12f)
+                {
+                    if (puddles == maxPuddles) continue;
+                    puddles++;
+                    body = new WaterBodyComponent(WaterShape.Rectangle, basin.HalfExtents, WaterOptics.Puddle)
+                    {
+                        WindExposure = 0.35f,
+                        EdgeFade = 0.02f,
+                    };
+                }
+                else continue;
+
+                world.CreateEntity("Water Body",
+                    new PositionComponent(new Vector3(basin.Center.X, basin.Level, basin.Center.Y)),
+                    body);
+            }
+            Console.WriteLine($"Water: {ponds} ponds and {puddles} puddles around {center}.");
         }
 
 

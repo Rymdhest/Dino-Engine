@@ -268,6 +268,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             _terrainHeightBuffer.ClearDepth();
             renderEngine._terrainRenderer.RenderHeightCapture(command.terrainChunks, projectionView);
+            // Fog lies on water, not on the bottom under it.
+            renderEngine._waterRenderer.RenderHeightCapture(projectionView);
             return true;
         }
 

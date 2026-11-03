@@ -9,6 +9,9 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
     public class SkyRenderer : RenderPassRenderer
     {
+        /// <summary>Brightness of the drawn sky relative to skyColour. Water reflects the same sky (WaterCommon.glsl).</summary>
+        public const float SkyStrength = 5.0f;
+
         private ShaderProgram skyShader = new ShaderProgram("Simple.vert", "sky.frag");
 
         public SkyRenderer() : base("sky")
@@ -21,7 +24,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             skyShader.bind();
             buffer.GetLastFrameBuffer().bind();
             GL.DepthFunc(DepthFunction.Lequal);
-            skyShader.loadUniformFloat("skyStrength", 5.0f);
+            skyShader.loadUniformFloat("skyStrength", SkyStrength);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
 

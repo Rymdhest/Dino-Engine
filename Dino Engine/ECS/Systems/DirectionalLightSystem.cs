@@ -34,8 +34,12 @@ namespace Dino_Engine.ECS.Systems
 
             Engine.RenderEngine._directionalLightRenderer.SubmitCommand(command);
 
-            // The sky light is the fog's ambient term already (skyColour), so it isn't scattered a second time.
-            if (!entity.Has<SkyTag>()) Engine.RenderEngine._volumetricFogRenderer.SubmitDirectionalLight(command);
+            // The sky light is the fog's and the water's ambient term already (skyColour), so it isn't applied a second time.
+            if (!entity.Has<SkyTag>())
+            {
+                Engine.RenderEngine._volumetricFogRenderer.SubmitDirectionalLight(command);
+                Engine.RenderEngine._waterRenderer.SubmitDirectionalLight(command);
+            }
         }
     }
 }
