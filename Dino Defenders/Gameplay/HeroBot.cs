@@ -1,0 +1,145 @@
+using Dino_Engine.ECS.Components;
+using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.World;
+using Dino_Engine.World.Content;
+using OpenTK.Mathematics;
+
+namespace Dino_Defenders.Gameplay
+{
+    /// <summary>
+    /// Plays the hero with nobody at the keyboard, to watch the game run. It fights whatever is close and drinks when hurt. Sweeping,
+    /// it also goes on to the next thing the world holds: every enemy, shrine and chest in turn, until none are left. It doesn't
+    /// try to play well; it is here to touch everything a player would.
+    /// </summary>
+    internal sealed class HeroBot
+    {
+        private const int Epilogue = 540;           // Frames left running at the end, long enough for a freed land to clear.
+        private const float EngageRange = 80f;
+        private const float SiteReach = 30f;
+        private const float UseReach = 3f;
+        private const int MostAttempts = 4;
+        private const int MostFramesHeld = 120;
+
+        private static readonly BitMask EnemyMask = new BitMask(typeof(EnemyComponent), typeof(PositionComponent));
+
+        private readonly ECSWorld _ecs;
+        private readonly bool _sweep;
+        private readonly Action<HeroBot> _finished;
+        private readonly Dictionary<Vector2, int> _attempts = new();
+        private int _framesLeft = -1;
+        private Vector2 _heldAt;
+        private int _framesHeld;
+
+        public int Unreachable { get; private set; }
+
+        public HeroBot(ECSWorld ecs, bool sweep, Action<HeroBot> finished)
+        {
+            _ecs = ecs;
+            _sweep = sweep;
+            _finished = finished;
+        }
+
+        public HeroIntent Think(GameSession session)
+        {
+            var intent = new HeroIntent();
+            if (session.Health < session.Stats.MaxHealth * 0.4f) intent.Flask = true;
+            intent.Interact = session.Offered is InteractKind.Shrine or InteractKind.Chest;
+
+            Vector2 here = session.PlayerPosition;
+            Vector2 nearest = default;
+            float best = float.PositiveInfinity;
+            int close = 0;
+            foreach (Entity entity in _ecs.QueryEntities(EnemyMask, BitMask.Empty))
+            {
+                EntityView view = _ecs.GetEntityView(entity);
+                if (view.Get<EnemyComponent>().State == EnemyState.Dead) continue;
+
+                Vector2 position = view.Get<PositionComponent>().value.Xz;
+                float distance = (position - here).Length;
+                if (distance < 8f) close++;
+                if (distance >= best) continue;
+                best = distance;
+                nearest = position;
+            }
+
+            if (best > EngageRange)
+            {
+                if (_sweep) GoOn(session);
+                return intent;
+            }
+
+            // It walks in straight lines, so a wall can hold it where a player would simply go around.
+            if ((here - _heldAt).LengthSquared > 0.25f || best < 8f)
+            {
+                _heldAt = here;
+                _framesHeld = 0;
+            }
+            else if (++_framesHeld > MostFramesHeld)
+            {
+                _framesHeld = 0;
+                session.TravelTo = nearest;
+            }
+
+            Vector2 toward = nearest - here;
+            intent.Aim = toward;
+            if (best > 4.5f) intent.Move = toward;
+            intent.Attack = best < 6f;
+            intent.Whirl = close >= 2;
+            intent.Dash = best is > 10f and < 18f;
+            return intent;
+        }
+
+        private void GoOn(GameSession session)
+        {
+            if (TryFindErrand(session, out Vector2 errand, out float reach))
+            {
+                if ((errand - session.PlayerPosition).Length <= reach) return;
+                _attempts[errand] = _attempts.GetValueOrDefault(errand) + 1;
+                session.TravelTo = errand;
+                return;
+            }
+
+            if (_framesLeft < 0) _framesLeft = Epilogue;
+            if (_framesLeft-- == 0) _finished(this);
+        }
+
+        private bool TryFindErrand(GameSession session, out Vector2 errand, out float reach)
+        {
+            Vector2 found = default;
+            float foundReach = 0f;
+            float best = float.PositiveInfinity;
+
+            void Consider(Vector2 position, float withinReach)
+            {
+                if (_attempts.GetValueOrDefault(position) >= MostAttempts)
+                {
+                    Unreachable++;
+                    return;
+                }
+                float distance = (position - session.PlayerPosition).Length;
+                if (distance >= best) return;
+                best = distance;
+                found = position;
+                foundReach = withinReach;
+            }
+
+            Unreachable = 0;
+            foreach (SiteState state in session.Sites)
+            {
+                if (!state.Cleared && state.HostilesTotal > 0) Consider(state.Site.Position, SiteReach);
+
+                for (int i = 0; i < state.Site.Spawns.Count; i++)
+                {
+                    SiteSpawn spawn = state.Site.Spawns[i];
+                    bool free = state.Cleared || state.HostilesTotal == 0;
+                    if (spawn.Role == SpawnRole.Chest && free && !state.Opened.Contains(i)) Consider(spawn.Position, UseReach);
+                    if (spawn.Role == SpawnRole.Altar && !state.Kindled) Consider(spawn.Position, UseReach);
+                }
+            }
+
+            errand = found;
+            reach = foundReach;
+            return !float.IsInfinity(best);
+        }
+    }
+}

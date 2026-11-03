@@ -97,6 +97,7 @@ namespace Dino_Defenders.Gameplay
         public float SwingCooldown;
         public float GuideCooldown;
         public string? InteractPrompt;
+        public InteractKind? Offered;
 
         /// <summary>Opened by interacting: the game shows the panel that goes with it.</summary>
         public Action<InteractKind, int>? InteractionOpened;

@@ -380,11 +380,13 @@ namespace Dino_Defenders.Gameplay
             }
 
             session.InteractPrompt = null;
+            session.Offered = null;
             if (!nearest.IsValid() || session.Health <= 0f) return;
 
             EntityView view = world.GetEntityView(nearest);
             var offered = view.Get<InteractableComponent>();
             session.InteractPrompt = offered.Prompt;
+            session.Offered = offered.Kind;
             if (session.Intent.Interact) Use(world, session, view, offered);
         }
 

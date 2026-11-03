@@ -576,6 +576,9 @@ namespace Dino_Engine.World.Generation
             b.Spawn(SpawnRole.Chest, b.Centre - toRoad * (site.Radius * 0.34f - 7f));
         }
 
+        private const int TowerRetreats = 4;
+        private const float TowerRetreatStep = 1.5f;
+
         private static void BuildKeep(SiteBuilder b)
         {
             WorldSite site = b.Site;
@@ -591,9 +594,17 @@ namespace Dino_Engine.World.Generation
                 b.Centre - toRoad * half - side * half,
                 b.Centre + toRoad * half - side * half,
             };
-            foreach (Vector2 corner in corners)
+            // A tower too close to a passing road gives ground toward the keep, and the walls meet it where it ends up.
+            for (int i = 0; i < corners.Length; i++)
             {
-                b.Place(StructureCatalog.StoneTower, corner, 0f, padding: -1f, maxSlope: 0.6f);
+                Vector2 inward = (b.Centre - corners[i]).Normalized();
+                for (int step = 0; step <= TowerRetreats; step++)
+                {
+                    Vector2 spot = corners[i] + inward * (step * TowerRetreatStep);
+                    if (!b.Place(StructureCatalog.StoneTower, spot, 0f, padding: 0f, maxSlope: 0.6f)) continue;
+                    corners[i] = spot;
+                    break;
+                }
             }
 
             float inset = 5.4f;

@@ -15,6 +15,32 @@ This is a fully **procedural game engine** built from scratch in C# using OpenGL
 
 ---
 
+## Dino Defenders
+
+The game built on the engine: a fantasy action RPG in randomized worlds. No two worlds are alike and none are made by hand. Each seed grows its own land, biomes, weather, roads, settlements and building style, and writes its own chronicle: who holds the land, and what it will take to free it. Free one and the waygate reaches harder lands, as far as you care to go. The hero and what they carry go with you, and progress is saved automatically.
+
+| | |
+|---|---|
+| WASD | Move |
+| Mouse | Aim |
+| Left button | Strike |
+| Space | Dodge |
+| Q | Whirl |
+| R | Drink a flask |
+| E | Use, talk, trade |
+| F | Guiding wind: the wind turns toward your next goal |
+| M | Map |
+| C or I | Hero and inventory |
+| J | Chronicle |
+| Mouse wheel | Zoom |
+| Esc | Menu |
+
+Start it with `dotnet run --project "Dino Defenders" -c Release`.
+
+`Dino WorldLab` generates and checks worlds with no window, for example `check --seed 1 --count 100`, or `map` to draw one.
+
+---
+
 ## Key Features
 
 ### Core Systems

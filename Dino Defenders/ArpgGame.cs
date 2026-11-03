@@ -23,13 +23,10 @@ namespace Dino_Defenders
         private const float AutosaveInterval = 30f;
         private const float InterfaceHeight = 1000f;
         private const float LoadSearchRadius = 24f;
-        private const int SweepEpilogue = 540;
         private const float ViewSpreadAtTop = 0.967f;   // Half-width of the view at the top of the screen, per metre of camera height and of aspect ratio.
         private const float FurthestZoomAllowed = 1.25f;
 
         private readonly record struct PreparedWorld(WorldRequest Request, WorldData World, byte[] Map);
-
-        private static readonly BitMask EnemyMask = new BitMask(typeof(EnemyComponent), typeof(PositionComponent));
 
         private readonly GameOptions _options;
         private readonly WorldAssetLibrary _assets = new();
@@ -39,7 +36,6 @@ namespace Dino_Defenders
         private Task<PreparedWorld>? _loading;
         private Entity _player;
         private float _nextAutosave;
-        private int _sweepEnds;
         private int _frames;
         private readonly List<(string name, Vector2 position)> _tourStops = new();
         private int _tourStop = -1;
@@ -261,7 +257,19 @@ namespace Dino_Defenders
                 session.Announce(world.Plan.Name, session.Chronicle.Prologue, 9f);
             }
 
-            if (_options.Bot) session.Autopilot = PlayBot;
+            if (_options.Bot)
+            {
+                var bot = new HeroBot(Engine.world, _options.Sweep, FinishSweep);
+                session.Autopilot = () => bot.Think(session);
+            }
+        }
+
+        private void FinishSweep(HeroBot bot)
+        {
+            Report();
+            Console.WriteLine($"Places the bot couldn't get to: {bot.Unreachable}");
+            if (_options.Shot != null) Engine.RequestScreenshot(_options.Shot, Dino_Engine.Core.Engine.WindowHandler.Close);
+            else Dino_Engine.Core.Engine.WindowHandler.Close();
         }
 
         private void OnWorldCleared(GameSession session)
@@ -269,73 +277,6 @@ namespace Dino_Defenders
             _hero.WorldsCleared++;
             session.Note("The waygate will reach further now.");
             Save();
-        }
-
-        // Fights whatever is close. It doesn't try to be good: it is here to exercise everything a player would touch.
-        private HeroIntent PlayBot()
-        {
-            GameSession session = GameSession.Current;
-            var intent = new HeroIntent();
-            if (session.Health < session.Stats.MaxHealth * 0.4f) intent.Flask = true;
-
-            Vector2 here = session.PlayerPosition;
-            Vector2 nearest = default;
-            float best = float.PositiveInfinity;
-            int close = 0;
-            foreach (Entity entity in Engine.world.QueryEntities(EnemyMask, BitMask.Empty))
-            {
-                EntityView view = Engine.world.GetEntityView(entity);
-                if (view.Get<EnemyComponent>().State == EnemyState.Dead) continue;
-
-                Vector2 position = view.Get<PositionComponent>().value.Xz;
-                float distance = (position - here).Length;
-                if (distance < 8f) close++;
-                if (distance >= best) continue;
-                best = distance;
-                nearest = position;
-            }
-
-            if (float.IsInfinity(best) || best > 45f)
-            {
-                if (_options.Sweep) SweepOn(session);
-                return intent;
-            }
-
-            Vector2 toward = nearest - here;
-            intent.Aim = toward;
-            if (best > 4.5f) intent.Move = toward;
-            intent.Attack = best < 6f;
-            intent.Whirl = close >= 2;
-            intent.Dash = best is > 10f and < 18f;
-            return intent;
-        }
-
-        // Goes to the nearest place that still has enemies in it, or closes the game when there are none left.
-        private void SweepOn(GameSession session)
-        {
-            SiteState? next = null;
-            float best = float.PositiveInfinity;
-            foreach (SiteState state in session.Sites)
-            {
-                if (state.Cleared || state.HostilesTotal == 0) continue;
-                float distance = (state.Site.Position - session.PlayerPosition).Length;
-                if (distance >= best) continue;
-                best = distance;
-                next = state;
-            }
-
-            if (next == null)
-            {
-                // Long enough for the land to clear, so that the last picture shows what it looks like free.
-                if (_sweepEnds == 0) _sweepEnds = _frames + SweepEpilogue;
-                if (_frames != _sweepEnds) return;
-
-                Report();
-                if (_options.Shot != null) Engine.RequestScreenshot(_options.Shot, Dino_Engine.Core.Engine.WindowHandler.Close);
-                else Dino_Engine.Core.Engine.WindowHandler.Close();
-                return;
-            }
-            if (best > 30f) session.TravelTo = next.Site.Position;
         }
 
         // Moves the player to each stop, waits for the streaming to settle, photographs it and moves on.
