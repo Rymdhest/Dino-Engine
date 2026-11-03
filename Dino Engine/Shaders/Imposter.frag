@@ -1,7 +1,9 @@
 #version 420
 
+#include Globals.glsl
 
 in vec2 fragUV;
+in vec3 fragWorldPos;
 in vec3 TangentViewPos;
 in vec3 TangentFragPos;
 in mat3 viewTBN;
@@ -28,8 +30,11 @@ int numberOfMaterials = 0;
 #include procedural/fastHash.glsl
 #include gBufferUtil.glsl
 #include AntiAliasing/Msaa.glsl
+#include FocusCutout.glsl
 
 void main() {
+
+	applyFocusCutout(fragWorldPos);
 
 	MaterialProps material = LookupAllMaterialProps(fragUV, textureIndex);
     // Cutouts end between the MSAA samples where the alpha crosses the cutoff.

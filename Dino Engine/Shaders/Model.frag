@@ -1,5 +1,6 @@
 #version 420
 
+#include Globals.glsl
 
 in vec3 fragColor;
 in vec2 fragUV;
@@ -27,8 +28,12 @@ layout (location = 2) out vec4 gMaterials;
 #include procedural/fastHash.glsl
 #include gBufferUtil.glsl
 #include AntiAliasing/Msaa.glsl
+#include FocusCutout.glsl
 
 void main() {
+
+	// Characters' own shader keeps them whole; for everything else this opens the view to the player.
+	applyFocusCutout((invViewMatrix * vec4(viewSpacePos, 1.0)).xyz);
 
 	vec2 uvDX = dFdx(fragUV);
 	vec2 uvDY = dFdy(fragUV);

@@ -10,4 +10,5 @@ layout(std140, binding = 0) uniform GlobalData{
     int worldSeed;
     vec3 skyColour;
     float EMPTY;
+    vec4 focusPoint;
 };

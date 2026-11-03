@@ -12,6 +12,7 @@ layout(location=9) in vec3 instanceBaseLength;
 out vec2 fragUV;
 out float textureIndex;
 out mat3 viewTBN;
+out vec3 fragWorldPos;
 
 uniform int sliceCount;
 const float PI = 3.14159265359;
@@ -85,6 +86,7 @@ void main() {
                   + (billboardUp * scaledPos.y);
 
     gl_Position = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
+    fragWorldPos = worldPos;
 
     fragUV = position.xy + vec2(0.5);
     textureIndex = (instanceModelID * float(sliceCount)) + float(finalAngleIndex);

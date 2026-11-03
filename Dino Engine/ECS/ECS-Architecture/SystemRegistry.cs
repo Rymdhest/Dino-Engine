@@ -44,8 +44,10 @@ namespace Dino_Engine.ECS.ECS_Architecture
             Systems.Add(new ParticleEmitterSystem());
             Systems.Add(new SelfDestroySystem());
             Systems.Add(new PhysicsSystem());
+            Systems.Add(new CharacterMotorSystem());
             Systems.Add(new VelocitySystem());
             Systems.Add(new FixToTerrainHeightSystem());
+            Systems.Add(new FollowCameraSystem());
 
             Systems.Add(new SkeletalAnimationSystem());
 
@@ -78,6 +80,24 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             Systems.Add(new TerrainChunkSystem());
 
+        }
+
+        /// <summary>Adds a game's system to run just before the engine's system of type <typeparamref name="T"/>.</summary>
+        public static void InsertBefore<T>(SystemBase system) where T : SystemBase
+        {
+            Systems.Insert(Systems.FindIndex(s => s is T), system);
+        }
+
+        /// <summary>Adds a game's system to run just after the engine's system of type <typeparamref name="T"/>.</summary>
+        public static void InsertAfter<T>(SystemBase system) where T : SystemBase
+        {
+            Systems.Insert(Systems.FindIndex(s => s is T) + 1, system);
+        }
+
+        /// <summary>Takes out an engine system a game replaces with its own.</summary>
+        public static void Remove<T>() where T : SystemBase
+        {
+            Systems.RemoveAll(s => s is T);
         }
 
         public static void UpdateAll(ECSWorld world, float deltaTime)

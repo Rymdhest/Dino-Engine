@@ -286,6 +286,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             // Remove from old archetype (swap-remove)
             oldArchetype.RemoveEntityAt(oldIndex);
+            if (oldIndex < oldArchetype.EntityCount) entityLocations[oldArchetype.entities[oldIndex].Id] = (oldArchetype, oldIndex);
 
             // Add to new archetype
             newArchetype.AddEntity(entity, components);
@@ -328,6 +329,10 @@ namespace Dino_Engine.ECS.ECS_Architecture
             }
 
             currentLocation.archetype.RemoveEntityAt(currentLocation.index);
+            if (currentLocation.index < currentLocation.archetype.EntityCount)
+            {
+                entityLocations[currentLocation.archetype.entities[currentLocation.index].Id] = (currentLocation.archetype, currentLocation.index);
+            }
             newArchetype.AddEntity(entity, componentMap);
             entityLocations[entity.Id] = (newArchetype, newArchetype.EntityCount - 1);
         }

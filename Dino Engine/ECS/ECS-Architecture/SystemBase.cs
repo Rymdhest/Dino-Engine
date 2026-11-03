@@ -28,6 +28,12 @@ namespace Dino_Engine.ECS.ECS_Architecture
         }
         internal virtual void UpdateInternal(ECSWorld world, float deltaTime)
         {
+            UpdateFrame(world, deltaTime);
+        }
+
+        // Runs once a frame and by default visits every matching entity. A game's system overrides this for work that isn't per entity.
+        protected virtual void UpdateFrame(ECSWorld world, float deltaTime)
+        {
             foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
             {
                 var accessor = new ComponentAccessor(archetype);

@@ -128,9 +128,6 @@ namespace Dino_Engine.Core
         }
         private void Update()
         {
-
-            AnimationLoader.Initialize();
-
             _deltaFrameTimeTracker.update();
 
             // GUI first, so WantsMouse/WantsKeyboard are current when game code and systems read input.

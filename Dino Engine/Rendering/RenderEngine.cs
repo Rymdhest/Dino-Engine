@@ -28,6 +28,7 @@ namespace Dino_Engine.Rendering
         public float time;
         public Vector2 resolution;
         public Vector3 skyColour;
+        public Vector4 focusPoint;  // xyz a point to keep in view, w the radius of the opening; see Shaders/FocusCutout.glsl.
     }
     public struct ShaderGlobals2
     {
@@ -42,6 +43,7 @@ namespace Dino_Engine.Rendering
         public int worldSeed;
         public Vector3 skyColour;
         public float EMPTY;
+        public Vector4 focusPoint;
     }
 
     public class RenderEngine
@@ -370,6 +372,7 @@ namespace Dino_Engine.Rendering
             globals.delta = Engine.Delta;
             globals.worldSeed = 1;
             globals.skyColour = context.skyColour;
+            globals.focusPoint = context.focusPoint;
 
 
 
