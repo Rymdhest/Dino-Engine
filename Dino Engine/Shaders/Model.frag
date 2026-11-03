@@ -26,6 +26,7 @@ layout (location = 2) out vec4 gMaterials;
 #include textureUtil.glsl
 #include procedural/fastHash.glsl
 #include gBufferUtil.glsl
+#include AntiAliasing/Msaa.glsl
 
 void main() {
 
@@ -45,8 +46,10 @@ void main() {
 	gAlbedo.rgb = material.albedo;
 	gAlbedo.rgb *= fragColor;
 
-
-    if (material.alphaBit == 0) discard;
+    // Cutouts (leaves) end between the MSAA samples where the alpha crosses the cutoff.
+    int coverage = alphaTestCoverage(material.alpha, 0.5);
+    if (coverage == 0) discard;
+    gl_SampleMask[0] = coverage;
 
     gAlbedo.a = material.subSurface;
 

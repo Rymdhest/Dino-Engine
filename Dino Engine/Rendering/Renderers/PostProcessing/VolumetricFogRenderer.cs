@@ -1,6 +1,7 @@
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Physics;
+using Dino_Engine.Rendering.Renderers.AntiAliasing;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Util;
@@ -69,7 +70,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private readonly ShaderProgram _noiseShader = new ShaderProgram("Simple.vert", "VolumetricFog_Noise.frag");
         private readonly ShaderProgram _marchShader = new ShaderProgram("Simple.vert", "VolumetricFog_March.frag");
         private readonly ShaderProgram _temporalShader = new ShaderProgram("Simple.vert", "VolumetricFog_Temporal.frag");
+        // Per pixel, and per sample for the edge pixels (MsaaRenderer.DrawSplit).
         private readonly ShaderProgram _compositeShader = new ShaderProgram("Simple.vert", "VolumetricFog_Composite.frag");
+        private readonly ShaderProgram _compositeSampleShader = new ShaderProgram("Simple.vert", "VolumetricFog_Composite.frag", new[] { "PER_SAMPLE" });
 
         private int _noiseTexture;
         private FrameBuffer _terrainHeightBuffer;
@@ -105,12 +108,14 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _temporalShader.loadUniformInt("historyFog", 2);
             _temporalShader.unBind();
 
-            _compositeShader.bind();
-            _compositeShader.loadUniformInt("shadedColourTexture", 0);
-            _compositeShader.loadUniformInt("gDepth", 1);
-            _compositeShader.loadUniformInt("fogTexture", 2);
-            _compositeShader.loadUniformInt("fogDistance", 3);
-            _compositeShader.unBind();
+            foreach (ShaderProgram shader in new[] { _compositeShader, _compositeSampleShader })
+            {
+                shader.bind();
+                shader.loadUniformInt("gDepth", 1);
+                shader.loadUniformInt("fogTexture", 2);
+                shader.loadUniformInt("fogDistance", 3);
+                shader.unBind();
+            }
 
             FrameBufferSettings terrainSettings = new FrameBufferSettings(new Vector2i(TerrainHeightResolution));
             terrainSettings.depthAttachmentSettings = new DepthAttachmentSettings { isTexture = true };
@@ -462,24 +467,31 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             return true;
         }
 
+        /// <summary>Fog and haze over the multisampled scene (with the water's depth), blended in per sample before the scene is resolved.</summary>
         private void Composite(VolumetricFogSingleton settings, FrameBuffer history, RenderEngine renderEngine)
         {
-            DualBuffer buffer = renderEngine.lastUsedBuffer;
+            MsaaRenderer msaa = renderEngine.Msaa;
+            msaa.SceneBuffer.bind();
+            GL.Enable(EnableCap.Blend);
+            // scene * transmittance + inscattered light; the scene's alpha is left alone.
+            GL.BlendFuncSeparate(BlendingFactorSrc.One, BlendingFactorDest.SrcAlpha, BlendingFactorSrc.Zero, BlendingFactorDest.One);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
 
-            _compositeShader.bind();
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, renderEngine.GBuffer.getDepthAttachment());
+            MsaaRenderer.BindTexture(1, msaa.GeometryBuffer.getDepthAttachment());
             GL.ActiveTexture(TextureUnit.Texture2);
             GL.BindTexture(TextureTarget.Texture2D, history.GetAttachment(0));
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, _marchBuffer.GetAttachment(1));
+            GL.ActiveTexture(TextureUnit.Texture0);
 
-            _compositeShader.loadUniformFloat("hazeDensity", Math.Max(settings.HazeDensity, 0f));
-
-            buffer.RenderToNextFrameBuffer();
-            _compositeShader.unBind();
+            float hazeDensity = Math.Max(settings.HazeDensity, 0f);
+            msaa.DrawSplit(_compositeShader, _compositeSampleShader, shader =>
+            {
+                shader.loadUniformFloat("hazeDensity", hazeDensity);
+                renderEngine.ScreenQuadRenderer.Render(blend: true, clearColor: false);
+            });
+            GL.Disable(EnableCap.Blend);
+            GL.UseProgram(0);
         }
 
         public override void OnResize(ResizeEventArgs eventArgs)
@@ -496,6 +508,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _marchShader.cleanUp();
             _temporalShader.cleanUp();
             _compositeShader.cleanUp();
+            _compositeSampleShader.cleanUp();
             GL.DeleteTexture(_noiseTexture);
             _terrainHeightBuffer.cleanUp();
             _marchBuffer.cleanUp();

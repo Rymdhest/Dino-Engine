@@ -7,6 +7,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
     internal class ToneMapRenderer : RenderPassRenderer
     {
+        /// <summary>Exposure applied before tone mapping. The MSAA resolve weighs samples by how bright this makes them look.</summary>
+        public const float Exposure = 0.85f;
+
         private ShaderProgram HDRMapShader = new ShaderProgram("Simple.vert", "HDR_Mapper.frag");
 
         public ToneMapRenderer() : base("Tonemapping")
@@ -28,7 +31,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             DualBuffer buffer = renderEngine.lastUsedBuffer;
 
-            HDRMapShader.loadUniformFloat("exposure", 0.85f);
+            HDRMapShader.loadUniformFloat("exposure", Exposure);
             HDRMapShader.loadUniformFloat("gamma", 2.2f);
             HDRMapShader.loadUniformFloat("saturation", 1.0f);
             HDRMapShader.loadUniformFloat("brightness", 1.0f);

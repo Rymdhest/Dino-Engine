@@ -20,13 +20,12 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         }
         internal override void Prepare(RenderEngine renderEngine)
         {
-            DualBuffer buffer = renderEngine.lastUsedBuffer;
             skyShader.bind();
-            buffer.GetLastFrameBuffer().bind();
+            // Into the multisampled scene: the per-sample depth test fills exactly the samples nothing covers, so outlines
+            // against the sky are anti-aliased.
+            renderEngine.Msaa.SceneBuffer.bind();
             GL.DepthFunc(DepthFunction.Lequal);
             skyShader.loadUniformFloat("skyStrength", SkyStrength);
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
 
 
             GL.Enable(EnableCap.Blend);

@@ -3,13 +3,17 @@ using OpenTK.Graphics.OpenGL;
 using Dino_Engine.Core;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
+using Dino_Engine.Rendering.Renderers.AntiAliasing;
+using OpenTK.Mathematics;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
     internal class ScreenSpaceReflectionRenderer : RenderPassRenderer
     {
         private ShaderProgram ScreenSpaceReflectionShader = new ShaderProgram("Simple.vert", "Screen_Reflection.frag");
+        // Per pixel, and per sample for the edge pixels (MsaaRenderer.DrawSplit).
         private ShaderProgram combineReflectionShader = new ShaderProgram("Simple.vert", "Combine_Reflection.frag");
+        private ShaderProgram combineReflectionSampleShader = new ShaderProgram("Simple.vert", "Combine_Reflection.frag", new[] { "PER_SAMPLE" });
         private FrameBuffer _reflectionFramebuffer;
         private int _downscalingFactor = 2;
 
@@ -22,11 +26,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ScreenSpaceReflectionShader.loadUniformInt("gDepth", 3);
             ScreenSpaceReflectionShader.unBind();
 
-            combineReflectionShader.bind();
-            combineReflectionShader.loadUniformInt("sourceColorTexture", 0);
-            combineReflectionShader.loadUniformInt("reflectionTexture", 1);
-            combineReflectionShader.loadUniformInt("gMaterials", 2);
-            combineReflectionShader.unBind();
+            foreach (ShaderProgram shader in new[] { combineReflectionShader, combineReflectionSampleShader })
+            {
+                shader.bind();
+                shader.loadUniformInt("reflectionTexture", 1);
+                shader.loadUniformInt("gMaterials", 2);
+                shader.unBind();
+            }
 
             FrameBufferSettings settings = new FrameBufferSettings(Engine.Resolution / _downscalingFactor);
             DrawBufferSettings drawSettings = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
@@ -49,16 +55,22 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         internal override void Render(RenderEngine renderEngine)
         {
 
+            MsaaRenderer msaa = renderEngine.Msaa;
             DualBuffer buffer = renderEngine.lastUsedBuffer;
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
             FrameBuffer gBuffer = renderEngine.GBuffer;
             GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
 
+            // The rays march over the lit scene averaged to one colour per pixel, in the dual buffer (free until the
+            // scene is resolved into it).
+            FrameBuffer shaded = buffer.GetNextFrameBuffer();
+            msaa.CopySceneColour(shaded, new Box2i(Vector2i.Zero, shaded.getResolution()));
+
             ScreenSpaceReflectionShader.bind();
             _reflectionFramebuffer.bind();
 
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
+            GL.BindTexture(TextureTarget.Texture2D, shaded.GetAttachment(0));
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
             GL.ActiveTexture(TextureUnit.Texture2);
@@ -81,22 +93,24 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             gaussianBlurRenderer.Render(_reflectionFramebuffer, 2, renderer);
 
-            combineReflectionShader.bind();
+            msaa.SceneBuffer.bind();
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFuncSeparate(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha, BlendingFactorSrc.Zero, BlendingFactorDest.One);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
 
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, gaussianBlurRenderer.GetLastResultTexture());
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
+            MsaaRenderer.BindTexture(2, msaa.GeometryBuffer.GetAttachment(2));
 
-            buffer.RenderToNextFrameBuffer();
+            msaa.DrawSplit(combineReflectionShader, combineReflectionSampleShader, shader => renderer.Render(blend: true, clearColor: false));
+            GL.Disable(EnableCap.Blend);
         }
 
         public override void CleanUp()
         {
             ScreenSpaceReflectionShader.cleanUp();
             combineReflectionShader.cleanUp();
+            combineReflectionSampleShader.cleanUp();
             _reflectionFramebuffer.cleanUp();
         }
 

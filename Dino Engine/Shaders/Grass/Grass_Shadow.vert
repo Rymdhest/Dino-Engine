@@ -23,7 +23,8 @@ void main()
     vec3 across;
     float acrossCoord;
     float t;
-    grassBladeVertex(blade, gl_VertexID, segments, shadowEye, position, normal, across, acrossCoord, t);
+    float coverage;
+    grassBladeVertex(blade, gl_VertexID, segments, shadowEye, 0.0, position, normal, across, acrossCoord, t, coverage);
 
     gl_Position = shadowViewProjectionMatrix * vec4(position, 1.0);
 }

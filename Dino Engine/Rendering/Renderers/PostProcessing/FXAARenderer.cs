@@ -4,6 +4,7 @@ using OpenTK.Windowing.Common;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
+    /// <summary>FXAA 3.11 over the tone-mapped image, when <see cref="AntiAliasing.AntiAliasingSettings.Fxaa"/> is on.</summary>
     internal class FXAARenderer : RenderPassRenderer
     {
         private ShaderProgram FXAAShader = new ShaderProgram("Simple.vert", "FXAA.frag");
@@ -28,13 +29,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
 
             DualBuffer buffer = renderEngine.lastUsedBuffer;
-
-            FXAAShader.loadUniformFloat("reduceMin", 512.0f);
-            FXAAShader.loadUniformFloat("reduceMul", 64.0f);
-            FXAAShader.loadUniformFloat("spanMax", 4.0f);
-
-
-            //renderer.RenderToNextFrameBuffer();
             buffer.RenderTextureToNextFrameBuffer(buffer.GetLastOutputTexture());
 
             FXAAShader.unBind();

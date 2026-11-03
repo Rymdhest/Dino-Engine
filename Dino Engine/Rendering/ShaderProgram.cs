@@ -16,12 +16,16 @@ namespace Dino_Engine.Rendering
         private int computeShaderID;
         private static string _shaderFolderPath = "../../../../Dino Engine/Shaders/";
         private Dictionary<string, int> uniforms = new Dictionary<string, int>();
-        public ShaderProgram(string vertexFile, string fragmentFile)
+        public ShaderProgram(string vertexFile, string fragmentFile) : this(vertexFile, fragmentFile, Array.Empty<string>())
         {
-            string vertexString = PreProccessShaderFromFile(vertexFile);
+        }
+        /// <summary>A program whose shaders are compiled with each of <paramref name="defines"/> #defined, for variants of one source.</summary>
+        public ShaderProgram(string vertexFile, string fragmentFile, string[] defines)
+        {
+            string vertexString = AddDefines(PreProccessShaderFromFile(vertexFile), defines);
             vertexShaderID = CreateShader(vertexString, ShaderType.VertexShader);
 
-            string fragmentString = PreProccessShaderFromFile(fragmentFile);
+            string fragmentString = AddDefines(PreProccessShaderFromFile(fragmentFile), defines);
             fragmentShaderID = CreateShader(fragmentString, ShaderType.FragmentShader);
             programID = GL.CreateProgram();
 
@@ -206,6 +210,18 @@ namespace Dino_Engine.Rendering
                     }
                 }
             }
+        }
+
+        /// <summary>Inserts a #define for each name right after the #version line, which must stay the first statement.</summary>
+        private static string AddDefines(string shaderString, string[] defines)
+        {
+            if (defines.Length == 0) return shaderString;
+            int version = shaderString.IndexOf("#version", StringComparison.Ordinal);
+            int lineEnd = version < 0 ? -1 : shaderString.IndexOf('\n', version);
+            if (lineEnd < 0) throw new InvalidOperationException("Shader defines need a #version line to follow.");
+            var lines = new System.Text.StringBuilder();
+            foreach (string define in defines) lines.Append("#define ").Append(define).Append('\n');
+            return shaderString.Insert(lineEnd + 1, lines.ToString());
         }
 
         private string PreProccessShaderFromFile(string fileName)

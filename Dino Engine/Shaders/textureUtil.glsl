@@ -75,6 +75,7 @@ vec4 lookupMaterial(vec2 coords, float index) {
 
 struct MaterialProps {
     vec3 albedo;
+    float alpha;        // the albedo map's alpha; cutouts end where it crosses 0.5
     int alphaBit;
     vec3 normal;
     float ambient;
@@ -100,6 +101,7 @@ MaterialProps LookupAllMaterialPropsGrad(vec2 coords, float index, vec2 dx, vec2
     MaterialProps props;
 
     props.albedo = albedoRead.rgb;
+    props.alpha = albedoRead.a;
     props.alphaBit = alphaBit;
     props.subSurface = normalResult.SSS;
     props.normal = normalResult.normal;

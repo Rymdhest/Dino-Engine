@@ -4,14 +4,17 @@ using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Widgets;
 using Dino_Engine.Physics;
+using Dino_Engine.Rendering.Renderers.AntiAliasing;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.GUI.Debug
 {
-    /// <summary>Live render controls: debug view, sun direction/intensity, wind, grass, fog, water, camera FOV and a G-buffer viewer.</summary>
+    /// <summary>Live render controls: debug view, anti-aliasing, sun direction/intensity, wind, grass, fog, water, camera FOV and a G-buffer viewer.</summary>
     internal static class RenderWindowBuilder
     {
         private static readonly string[] BufferNames = { "Final image", "Albedo", "Normals", "Materials", "Depth" };
+        private static readonly string[] MsaaModes = { "Off", "2x", "4x", "8x" };
+        private static readonly int[] MsaaSamples = { 1, 2, 4, 8 };
 
         public static GuiWindow Build()
         {
@@ -21,6 +24,20 @@ namespace Dino_Engine.GUI.Debug
             window.Content.Add(new Checkbox("Deferred debug view (F8)").Bind(
                 () => Engine.RenderEngine.debugView,
                 value => Engine.RenderEngine.debugView = value));
+
+            // ---------------------------------------------------------------- anti-aliasing
+            var antiAliasing = window.Content.Add(new Foldout("Anti-aliasing"));
+            AntiAliasingSettings aa = Engine.RenderEngine.AntiAliasing;
+            var msaa = new Dropdown(MsaaModes, Array.IndexOf(MsaaSamples, aa.Samples));
+            msaa.SelectionChanged += index => { if (index >= 0) aa.Samples = MsaaSamples[index]; };
+            antiAliasing.Content.Add(DebugUi.LabeledRow("MSAA", msaa));
+            antiAliasing.Content.Add(new Checkbox("Grass coverage (sub-pixel blades)").Bind(() => aa.GrassCoverage, value => aa.GrassCoverage = value));
+            antiAliasing.Content.Add(new Checkbox("Alpha to coverage (cutouts)").Bind(() => aa.AlphaToCoverage, value => aa.AlphaToCoverage = value));
+            antiAliasing.Content.Add(new Checkbox("FXAA after tone mapping").Bind(() => aa.Fxaa, value => aa.Fxaa = value));
+            antiAliasing.Content.Add(new Checkbox("Show edge pixels (shaded per sample)").Bind(() => aa.ShowEdgePixels, value => aa.ShowEdgePixels = value));
+            var antiAliasingGrid = antiAliasing.Content.Add(DebugUi.KeyValueGrid(0.3f));
+            DebugUi.AddRow(antiAliasingGrid, "Running", () => DebugUi.Inv(
+                $"{Engine.RenderEngine.Msaa.Samples}x MSAA (GPU supports up to {Engine.RenderEngine.Msaa.MaxSupportedSamples}x)"));
 
             // ---------------------------------------------------------------- sun
             var sun = window.Content.Add(new Foldout("Sun"));

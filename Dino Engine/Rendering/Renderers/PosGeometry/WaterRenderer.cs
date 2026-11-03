@@ -1,6 +1,7 @@
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Physics;
+using Dino_Engine.Rendering.Renderers.AntiAliasing;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Util;
@@ -327,9 +328,11 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             Box2i rect = Expand(oceanVisible ? oceanRect : stillRect, 0.04f);
             if (stillVisible) rect = Union(rect, Expand(stillRect, command.settings.ScreenSpaceReflections ? 0.35f : 0.04f));
 
-            DualBuffer buffer = renderEngine.lastUsedBuffer;
-            FrameBuffer target = buffer.GetLastFrameBuffer();
-            CopyScene(target, rect);
+            // Into the multisampled scene: its per-sample depth test anti-aliases the water's edges against whatever stands
+            // in front of it. Refraction reads the scene's samples averaged to one colour per pixel.
+            MsaaRenderer msaa = renderEngine.Msaa;
+            FrameBuffer target = msaa.SceneBuffer;
+            msaa.CopySceneColour(_sceneCopy, rect);
 
             bool cullFace = GL.IsEnabled(EnableCap.CullFace);
             target.bind();
@@ -353,20 +356,11 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             GL.UseProgram(0);
             if (cullFace) GL.Enable(EnableCap.CullFace);
 
-            // The water's depth to the G-buffer (fog, depth of field and the sun read it) and to the other half of the
-            // dual buffer, which the post-processing passes render into next. Depth only changed where the water is.
-            BlitDepth(target, renderEngine.GBuffer, waterRect);
-            BlitDepth(renderEngine.GBuffer, buffer.GetNextFrameBuffer(), waterRect);
+            // The water's depth to the single-sample G-buffer (fog, depth of field and the sun read it; the post-processing
+            // copies it on). Depth only changed where the water is.
+            msaa.ResolveDepth(renderEngine, waterRect);
             GL.DepthMask(false);
             target.unbind();
-        }
-
-        private static void BlitDepth(FrameBuffer source, FrameBuffer destination, Box2i rect)
-        {
-            source.bindRead();
-            destination.bindDraw();
-            GL.BlitFramebuffer(rect.Min.X, rect.Min.Y, rect.Max.X, rect.Max.Y, rect.Min.X, rect.Min.Y, rect.Max.X, rect.Max.Y,
-                ClearBufferMask.DepthBufferBit, BlitFramebufferFilter.Nearest);
         }
 
         /// <summary>Grows a pixel rectangle by a fraction of the screen height on every side, within the screen.</summary>
@@ -429,15 +423,6 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
                 max = Vector2.ComponentMax(max, ndc);
             }
             return true;
-        }
-
-        private void CopyScene(FrameBuffer source, Box2i rect)
-        {
-            source.bindRead();
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            _sceneCopy.bindDraw();
-            GL.BlitFramebuffer(rect.Min.X, rect.Min.Y, rect.Max.X, rect.Max.Y, rect.Min.X, rect.Min.Y, rect.Max.X, rect.Max.Y,
-                ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
         }
 
         private void BindSharedTextures(RenderEngine renderEngine)

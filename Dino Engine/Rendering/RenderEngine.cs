@@ -1,6 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Debug;
 using Dino_Engine.Rendering.Renderers;
+using Dino_Engine.Rendering.Renderers.AntiAliasing;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
@@ -78,6 +79,7 @@ namespace Dino_Engine.Rendering
         public GrassRenderer _grassRenderer;
         public CelestialBodyRenderer _sunRenderer;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
+        private MsaaRenderer _msaa;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
         public bool debugView = false;
         private ShaderProgram _simpleShader;
@@ -90,8 +92,19 @@ namespace Dino_Engine.Rendering
 
         public GaussianBlurRenderer GaussianBlurRenderer { get => _gaussianBlurRenderer; }
         public DepthBasedBlurRenderer DepthBasedBlurRenderer { get => _depthBasedBlurRenderer; }
+        /// <summary>
+        /// The single-sample G-buffer the screen-space passes read, resolved from the multisampled one each frame (each
+        /// pixel's farthest sample; attachment <see cref="MsaaRenderer.EdgeAttachment"/> flags the edge pixels).
+        /// Geometry renders into <see cref="MsaaRenderer.GeometryBuffer"/>.
+        /// </summary>
         public FrameBuffer GBuffer { get => _gBuffer; }
         public ScreenQuadRenderer ScreenQuadRenderer { get => _screenQuadRenderer; }
+        /// <summary>Anti-aliasing settings, read each frame.</summary>
+        public AntiAliasingSettings AntiAliasing { get; } = new AntiAliasingSettings();
+        /// <summary>The multisampled G-buffer and scene, and the passes that resolve them.</summary>
+        public MsaaRenderer Msaa { get => _msaa; }
+        /// <summary>This frame's screen-space ambient occlusion, for the light passes.</summary>
+        public int AmbientOcclusionTexture { get => _sSAORenderer.OcclusionTexture; }
 
         public RenderEngine()
         {
@@ -127,6 +140,7 @@ namespace Dino_Engine.Rendering
             lastUsedBuffer = _dualBufferFull;
             textureGenerator.GenerateAllTextures();
 
+            _msaa = new MsaaRenderer(AntiAliasing);
             _modelRenderer = new ModelRenderer();
             _terrainRenderer = new TerrainRenderer();
             _instancedModelRenderer = new InstancedModelRenderer();
@@ -170,6 +184,15 @@ namespace Dino_Engine.Rendering
             gMaterials.formatInternal = PixelInternalFormat.Rgba8;
             gMaterials.pixelType = PixelType.UnsignedByte;
             gBufferSettings.drawBuffers.Add(gMaterials);
+
+            // 1 on the edge pixels, whose MSAA samples show different surfaces (MsaaRenderer.EdgeAttachment).
+            DrawBufferSettings gEdges = new DrawBufferSettings(FramebufferAttachment.ColorAttachment3);
+            gEdges.formatInternal = PixelInternalFormat.R8;
+            gEdges.formatExternal = PixelFormat.Red;
+            gEdges.pixelType = PixelType.UnsignedByte;
+            gEdges.minFilterType = TextureMinFilter.Nearest;
+            gEdges.magFilterType = TextureMagFilter.Nearest;
+            gBufferSettings.drawBuffers.Add(gEdges);
 
             DepthAttachmentSettings depthSettings = new DepthAttachmentSettings();
             depthSettings.isTexture = true;
@@ -272,11 +295,8 @@ namespace Dino_Engine.Rendering
 
         private void GeometryPass()
         {
-            GBuffer.bind();
-            GL.DepthMask(true);
-            GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            
+            _msaa.BeginGeometry();
+
             _modelRenderer.GeometryRenderPass(this);
             _characterRenderer.GeometryRenderPass(this);
             _instancedModelRenderer.GeometryRenderPass(this);
@@ -287,14 +307,16 @@ namespace Dino_Engine.Rendering
             _grassRenderer.GeometryRenderPass(this);
             _terrainRenderer.GeometryRenderPass(this);
 
-
-            _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);
+            // The single-sample G-buffer for the screen-space passes, and the edge pixels marked for per-sample shading.
+            _msaa.ResolveGeometry(this);
         }
         private void LightPass()
         {
             _sSAORenderer.RenderPass(this);
 
-            _dualBufferFull.GetLastFrameBuffer().bind();
+            // Lighting adds up in the multisampled scene, which shares the G-buffer's depth and edge stencil.
+            _msaa.SceneBuffer.bind();
+            GL.ClearColor(0f, 0f, 0f, 1f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
             _directionalLightRenderer.RenderPass(this);
@@ -310,16 +332,24 @@ namespace Dino_Engine.Rendering
         }
         private void PostProcessPass()
         {
+            // The fog's composite is the last pass over the multisampled scene, which is then resolved into the dual buffer.
             _volumetricFogRenderer.RenderPass(this);
+            _msaa.ResolveScene(this);
+            // The sun's depth test reads the dual buffer's depth.
+            _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);
+
             _depthOfFieldRenderer.RenderPass(this);
             _sunRenderer.RenderPass(this);
             _bloomRenderer.RenderPass(this);
-            _fXAARenderer.RenderPass(this); // before or after tone mapping????????????
             _toneMapRenderer.RenderPass(this);
+            // FXAA works on the image as it will be seen: tone mapped, gamma encoded.
+            if (AntiAliasing.Fxaa) _fXAARenderer.RenderPass(this);
+            if (AntiAliasing.ShowEdgePixels && _msaa.Samples > 1) _msaa.DrawEdgeOverlay(this);
         }
 
         private void PrepareFrame()
         {
+            _msaa.BeginFrame(AntiAliasing);
             _dualBufferFull.clearBothBuffers();
 
             /*

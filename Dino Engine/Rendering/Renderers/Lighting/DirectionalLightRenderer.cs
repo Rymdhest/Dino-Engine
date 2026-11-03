@@ -2,6 +2,7 @@
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
 using Dino_Engine.Core;
+using Dino_Engine.Rendering.Renderers.AntiAliasing;
 using static OpenTK.Graphics.OpenGL.GL;
 
 
@@ -17,19 +18,26 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
     public class DirectionalLightRenderer : CommandDrivenRenderer<DirectionallightRenderCommand>
     {
+        // Per pixel, and per sample for the edge pixels (MsaaRenderer.DrawSplit).
         private ShaderProgram _directionalLightShader = new ShaderProgram("Simple.vert", "Directional_Light.frag");
+        private ShaderProgram _directionalLightSampleShader = new ShaderProgram("Simple.vert", "Directional_Light.frag", new[] { "PER_SAMPLE" });
 
         private int shadowSampler;
         private int depthSampler;
 
         public DirectionalLightRenderer() : base("Directional Light")
         {
-            _directionalLightShader.bind();
-            _directionalLightShader.loadUniformInt("gAlbedo", 0);
-            _directionalLightShader.loadUniformInt("gNormal", 1);
-            _directionalLightShader.loadUniformInt("gMaterials", 2);
-            _directionalLightShader.loadUniformInt("gDepth", 3);
-            _directionalLightShader.unBind();
+            foreach (ShaderProgram shader in new[] { _directionalLightShader, _directionalLightSampleShader })
+            {
+                shader.bind();
+                shader.loadUniformInt("gAlbedo", 0);
+                shader.loadUniformInt("gNormal", 1);
+                shader.loadUniformInt("gMaterials", 2);
+                shader.loadUniformInt("gDepth", 3);
+                shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
+                shader.loadUniformInt("pcfRadius", 3);
+                shader.unBind();
+            }
 
             shadowSampler = GL.GenSampler();
             GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
@@ -50,27 +58,11 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         internal override void Prepare(RenderEngine renderEngine)
         {
-            FrameBuffer gBuffer = renderEngine.GBuffer;
-
-            _directionalLightShader.bind();
-
             Enable(EnableCap.Blend);
             BlendFunc(BlendingFactor.One, BlendingFactor.One);
             BlendEquation(BlendEquationMode.FuncAdd);
 
-            ActiveTexture(TextureUnit.Texture0);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
-                
-            ActiveTexture(TextureUnit.Texture1);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
-
-            ActiveTexture(TextureUnit.Texture2);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
-
-            ActiveTexture(TextureUnit.Texture3);
-            BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
-
-            _directionalLightShader.loadUniformInt("pcfRadius", 3);
+            renderEngine.Msaa.BindGeometrySamples(renderEngine.AmbientOcclusionTexture);
         }
         internal override void Finish(RenderEngine renderEngine)
         {
@@ -78,6 +70,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public override void CleanUp()
         {
             _directionalLightShader.cleanUp();
+            _directionalLightSampleShader.cleanUp();
             GL.DeleteSampler(depthSampler);
             GL.DeleteSampler(shadowSampler);
         }
@@ -85,40 +78,42 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public override void PerformCommand(DirectionallightRenderCommand command, RenderEngine renderEngine)
         {
             int CASCADETEXTURESINDEXSTART = 4;
-            _directionalLightShader.loadUniformInt("numberOfCascades", command.cascades.Length);
             int numberCascades = command.cascades.Length;
 
             for (int i = 0; i < numberCascades; i++)
             {
                 Shadow cascade = command.cascades[i];
 
-                _directionalLightShader.loadUniformFloat("cascadeProjectionSizes[" + i + "]", cascade.projectionSize);
-
-                _directionalLightShader.loadUniformInt("shadowMaps[" + i + "]", CASCADETEXTURESINDEXSTART + i);
                 ActiveTexture(TextureUnit.Texture4 + i);
                 BindTexture(TextureTarget.Texture2D, cascade.shadowFrameBuffer.getDepthAttachment());
                 BindSampler(CASCADETEXTURESINDEXSTART + i, shadowSampler);
 
-                _directionalLightShader.loadUniformInt("depthMaps[" + i + "]", CASCADETEXTURESINDEXSTART + numberCascades + i);
                 ActiveTexture(TextureUnit.Texture4 + numberCascades+i);
                 BindTexture(TextureTarget.Texture2D, cascade.shadowFrameBuffer.getDepthAttachment());
                 BindSampler(CASCADETEXTURESINDEXSTART + numberCascades + i, depthSampler);
-
-                Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * cascade.lightViewMatrix * cascade.shadowProjectionMatrix;
-                _directionalLightShader.loadUniformMatrix4f("sunSpaceMatrices[" + i + "]", shadowMatrix);
-                _directionalLightShader.loadUniformInt("numberOfCascades", numberCascades);
-
             }
+            ActiveTexture(TextureUnit.Texture0);
 
             Vector4 lightDirectionViewSpace = new Vector4(-command.direction, 0.0f)* Matrix4.Transpose(renderEngine.context.invViewMatrix);
-            _directionalLightShader.loadUniformVector3f("LightDirectionViewSpace", lightDirectionViewSpace.Xyz);
 
-            _directionalLightShader.loadUniformVector3f("lightColour", command.colour);
-            _directionalLightShader.loadUniformFloat("ambientFactor", command.ambient);
+            renderEngine.Msaa.DrawSplit(_directionalLightShader, _directionalLightSampleShader, shader =>
+            {
+                shader.loadUniformInt("numberOfCascades", numberCascades);
+                for (int i = 0; i < numberCascades; i++)
+                {
+                    Shadow cascade = command.cascades[i];
+                    shader.loadUniformFloat("cascadeProjectionSizes[" + i + "]", cascade.projectionSize);
+                    shader.loadUniformInt("shadowMaps[" + i + "]", CASCADETEXTURESINDEXSTART + i);
+                    shader.loadUniformInt("depthMaps[" + i + "]", CASCADETEXTURESINDEXSTART + numberCascades + i);
+                    Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * cascade.lightViewMatrix * cascade.shadowProjectionMatrix;
+                    shader.loadUniformMatrix4f("sunSpaceMatrices[" + i + "]", shadowMatrix);
+                }
+                shader.loadUniformVector3f("LightDirectionViewSpace", lightDirectionViewSpace.Xyz);
+                shader.loadUniformVector3f("lightColour", command.colour);
+                shader.loadUniformFloat("ambientFactor", command.ambient);
 
-            //_directionalLightShader.loadUniformVector2f("resolution2", Engine.Resolution);
-
-            renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
+                renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
+            });
 
 
             //// TODO. BETTER CLEANER WAY PUT THIS SOMEWHERE ELSE....................

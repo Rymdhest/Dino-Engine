@@ -12,6 +12,7 @@ layout(std430, binding = 1) readonly buffer GrassBlades {
 };
 
 uniform int segments;
+uniform float minPixelWidth;    // blades are drawn at least this many pixels wide, at partial coverage (0 for off)
 
 out vec3 fragNormal;
 out vec3 fragAcross;
@@ -19,17 +20,25 @@ out vec3 fragGroundNormal;
 out float fragAcrossCoord;
 out float fragT;
 out float fragViewDepth;
+out float fragCoverage;
 flat out vec3 fragColour;
 flat out vec3 fragLook;
+flat out uint fragCoverageSeed;
 
 void main()
 {
     GrassBladeData blade = unpackGrassBlade(blades[gl_InstanceID]);
 
+    // Pixels a metre across makes, a metre from the eye.
+    float pixelsPerMetre = 0.5 * resolution.y * projectionMatrix[1][1];
+    float minHalfWidthPerMetre = 0.5 * minPixelWidth / pixelsPerMetre;
+
     vec3 position;
     vec3 normal;
     vec3 across;
-    grassBladeVertex(blade, gl_VertexID, segments, vec4(viewPosWorld, 1.0), position, normal, across, fragAcrossCoord, fragT);
+    grassBladeVertex(blade, gl_VertexID, segments, vec4(viewPosWorld, 1.0), minHalfWidthPerMetre, position, normal, across, fragAcrossCoord, fragT, fragCoverage);
+    // The blade's own, from where it grows: the same every frame, whichever slot of the list it lands in.
+    fragCoverageSeed = grassHash(floatBitsToUint(blade.root.x) ^ grassHash(floatBitsToUint(blade.root.z)));
 
     mat3 viewRotation = mat3(viewMatrix);
     fragNormal = viewRotation * normal;

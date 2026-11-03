@@ -2,13 +2,10 @@
 #include globals.glsl
 #include gBufferUtil.glsl
 #include Lighting/lightingCalc.glsl
+#include AntiAliasing/Msaa.glsl
+#include Lighting/gBufferSample.glsl
 
 layout (location = 0) out vec4 out_Colour;
-
-uniform sampler2D gDepth;
-uniform sampler2D gNormal;
-uniform sampler2D gAlbedo;
-uniform sampler2D gMaterials;
 
 uniform vec3 lightPositionViewSpace;
 uniform vec3 lightColor;
@@ -68,16 +65,14 @@ float calcShadow(vec3 fragPosViewSpace) {
 }
 
 void main(void) {
-    vec2 textureCoords = gl_FragCoord.xy / resolution;
-    vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolution);
-    vec4 normalBuffer = texture(gNormal, textureCoords).xyzw;
-    vec4 albedo = texture(gAlbedo, textureCoords).rgba;
-    vec3 materialBuffer = texture(gMaterials, textureCoords).rgb;
-    
-    vec3 normal = unCompressNormal(normalBuffer.xyz);
-    float ambient = normalBuffer.w;
-    float roughness = materialBuffer.r;
-    float metallic = materialBuffer.b;
+    GBufferSample g = readGBufferSample();
+    vec3 position = g.position;
+    vec4 albedo = g.albedo;
+
+    vec3 normal = g.normal;
+    float ambient = g.ambient;
+    float roughness = g.materials.r;
+    float metallic = g.materials.b;
     float materialTransparancy = albedo.a;
     
     vec3 viewDir = normalize(-position);

@@ -39,6 +39,12 @@ namespace Dino_Engine.Rendering.Renderers
             RenderPass(null);
         }
 
+        /// <summary>Draws the quad with the current state as it is: no clear, and depth, stencil, blend and masks untouched.</summary>
+        public void DrawQuad()
+        {
+            RenderPass(null);
+        }
+
         public override void OnResize(ResizeEventArgs eventArgs)
         {
         }

@@ -42,11 +42,37 @@ namespace Dino_Engine.Rendering
                 GL.DrawBuffers(buffers.Length, buffers);
             }
 
-            if (settings.depthAttachmentSettings != null)
+            if (settings.sharedDepth != null)
+            {
+                FrameBuffer owner = settings.sharedDepth;
+                GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, owner.DepthAttachmentPoint, owner.DepthTextureTarget, owner.depthAttachment, 0);
+            }
+            else if (settings.depthAttachmentSettings != null)
             {
                 depthAttachment = createDepthAttachment(settings.depthAttachmentSettings, settings.resolution);
             }
+
+            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            IsComplete = status == FramebufferErrorCode.FramebufferComplete;
+            if (!IsComplete)
+            {
+                Console.WriteLine($"Warning: framebuffer {frameBufferID} is incomplete ({status}).");
+            }
         }
+
+        /// <summary>Whether the GPU accepted the attachments as a framebuffer it can render to.</summary>
+        public bool IsComplete { get; private set; }
+
+        /// <summary>Samples per pixel of the attachments; 0 when they are ordinary textures.</summary>
+        public int Samples => settings.samples;
+
+        private FramebufferAttachment DepthAttachmentPoint => settings.depthAttachmentSettings != null && settings.depthAttachmentSettings.stencil
+            ? FramebufferAttachment.DepthStencilAttachment
+            : FramebufferAttachment.DepthAttachment;
+
+        private TextureTarget DepthTextureTarget => settings.samples > 0
+            ? TextureTarget.Texture2DMultisample
+            : settings.depthAttachmentSettings?.target ?? TextureTarget.Texture2D;
 
         public void resolveToScreen()
         {
@@ -106,7 +132,7 @@ namespace Dino_Engine.Rendering
 
         public int getDepthAttachment()
         {
-            return depthAttachment;
+            return settings.sharedDepth != null ? settings.sharedDepth.getDepthAttachment() : depthAttachment;
         }
 
         public void unbind()
@@ -118,6 +144,15 @@ namespace Dino_Engine.Rendering
         private int createRenderAttachment(DrawBufferSettings renderSettings, Vector2i resolution)
         {
             int attachment = GL.GenTexture();
+            if (settings.samples > 0)
+            {
+                // Fixed sample locations: every attachment of a framebuffer must agree, and the shaders read the positions once.
+                GL.BindTexture(TextureTarget.Texture2DMultisample, attachment);
+                GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, settings.samples, renderSettings.formatInternal, resolution.X, resolution.Y, true);
+                GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, renderSettings.colorAttachment, TextureTarget.Texture2DMultisample, attachment, 0);
+                GL.BindTexture(TextureTarget.Texture2DMultisample, 0);
+                return attachment;
+            }
             GL.BindTexture(TextureTarget.Texture2D, attachment);
             GL.TexImage2D(TextureTarget.Texture2D, 0, renderSettings.formatInternal, resolution.X, resolution.Y, 0, renderSettings.formatExternal, renderSettings.pixelType, IntPtr.Zero);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (float)renderSettings.magFilterType);
@@ -131,6 +166,26 @@ namespace Dino_Engine.Rendering
         private int createDepthAttachment(DepthAttachmentSettings depthSettings, Vector2i resolution)
         {
             int attachment = GL.GenTexture();
+            PixelInternalFormat depthFormat = depthSettings.stencil ? PixelInternalFormat.Depth32fStencil8 : depthSettings.precision;
+            if (settings.samples > 0)
+            {
+                GL.BindTexture(TextureTarget.Texture2DMultisample, attachment);
+                GL.TexImage2DMultisample(TextureTargetMultisample.Texture2DMultisample, settings.samples, depthFormat, resolution.X, resolution.Y, true);
+                GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, DepthAttachmentPoint, TextureTarget.Texture2DMultisample, attachment, 0);
+                GL.BindTexture(TextureTarget.Texture2DMultisample, 0);
+                return attachment;
+            }
+            if (depthSettings.stencil)
+            {
+                GL.BindTexture(TextureTarget.Texture2D, attachment);
+                GL.TexImage2D(TextureTarget.Texture2D, 0, depthFormat, resolution.X, resolution.Y, 0, PixelFormat.DepthStencil, PixelType.Float32UnsignedInt248Rev, IntPtr.Zero);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+                GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, DepthAttachmentPoint, TextureTarget.Texture2D, attachment, 0);
+                return attachment;
+            }
             GL.BindTexture(depthSettings.target, attachment);
 
             if (depthSettings.isTexture)
@@ -211,11 +266,13 @@ namespace Dino_Engine.Rendering
 
         public void cleanUp()
         {
-            if (settings.depthAttachmentSettings != null && settings.depthAttachmentSettings.isTexture)
+            // A shared depth attachment belongs to the framebuffer it came from.
+            DepthAttachmentSettings? ownDepth = settings.sharedDepth == null ? settings.depthAttachmentSettings : null;
+            if (ownDepth != null && (ownDepth.isTexture || ownDepth.stencil || settings.samples > 0))
             {
                 GL.DeleteTexture(depthAttachment);
             }
-            else if (settings.depthAttachmentSettings != null)
+            else if (ownDepth != null)
             {
                 GL.DeleteRenderbuffer(depthAttachment);
             }

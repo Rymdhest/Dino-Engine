@@ -3,13 +3,11 @@
 #include gBufferUtil.glsl
 #include Lighting/lightingCalc.glsl
 #include Globals.glsl
+#include AntiAliasing/Msaa.glsl
+#include Lighting/gBufferSample.glsl
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
-uniform sampler2D gDepth;
-uniform sampler2D gNormal;
-uniform sampler2D gAlbedo;
-uniform sampler2D gMaterials;
 uniform int numberOfCascades;
 
 
@@ -52,6 +50,17 @@ float calcShadow(vec3 positionViewSpace) {
     float finalSunFactor = 1.0;
     float bias = 0.0001;
 
+    // Per pixel, all 16 taps of the disk. On edge pixels, shaded once per sample, the samples share them out (every
+    // sampleCount-th tap each, at least 4) with rotations of their own, so an edge pixel costs about as much as any
+    // other and its samples of one surface average to the full filter.
+    int sampleIndex = msaaShadingSample();
+#ifdef PER_SAMPLE
+    int numSamples = max(16 / msaaSampleCount(), 4);
+#else
+    int numSamples = 16;
+#endif
+    int tapStride = 16 / numSamples;
+
     for (int i = 0; i < numberOfCascades; i++) {
         if (length(positionViewSpace) * 2.0 < cascadeProjectionSizes[i]) {
             vec4 positionSunSpace = sunSpaceMatrices[i] * vec4(positionViewSpace, 1.0);
@@ -64,10 +73,9 @@ float calcShadow(vec3 positionViewSpace) {
             }
             
             float sunFactorSum = 0.0;
-            const int numSamples = 16;
 
-            // Generate a random rotation angle per pixel to prevent fixed grid patterns
-            float randomAngle = random(vec3(gl_FragCoord.xy, float(i))) * 6.2831853;
+            // Generate a random rotation angle per pixel (and sample) to prevent fixed grid patterns
+            float randomAngle = random(vec3(floor(gl_FragCoord.xy) + 0.5, float(i) + 7.0 * float(sampleIndex))) * 6.2831853;
             mat2 rotation = mat2(
                 cos(randomAngle), -sin(randomAngle),
                 sin(randomAngle),  cos(randomAngle)
@@ -77,7 +85,7 @@ float calcShadow(vec3 positionViewSpace) {
             float filterRadius = float(pcfRadius); // Scale spread using your existing pcfRadius uniform
 
             for (int j = 0; j < numSamples; j++) {
-                vec2 rotatedOffset = rotation * poissonDisk[j];
+                vec2 rotatedOffset = rotation * poissonDisk[(sampleIndex + j * tapStride) & 15];
                 vec2 offsetCoord = rotatedOffset * texelSize * filterRadius;
 
                 vec3 sampleCoord = vec3(
@@ -96,15 +104,14 @@ float calcShadow(vec3 positionViewSpace) {
 }
 
 void main(void){
-	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolution);
-	vec4 normalBuffer = texture(gNormal, textureCoords).xyzw;
-	vec4 albedo = texture(gAlbedo, textureCoords).rgba;
-	vec4 materialBuffer = texture(gMaterials, textureCoords).rgba;
-	vec3 normal = unCompressNormal(normalBuffer.xyz);
-	float ambient = normalBuffer.w;
-	float roughness = materialBuffer.r;
-	float metallic = materialBuffer.b;
-	float materialHeight = materialBuffer.a;
+	GBufferSample g = readGBufferSample();
+	vec3 position = g.position;
+	vec4 albedo = g.albedo;
+	vec3 normal = g.normal;
+	float ambient = g.ambient;
+	float roughness = g.materials.r;
+	float metallic = g.materials.b;
+	float materialHeight = g.materials.a;
 	float materialTransparancy = albedo.a;
 	float shadowResult = calcShadow(position);
 	float sunFactor = clamp(shadowResult.x, 0.0, 1.0);

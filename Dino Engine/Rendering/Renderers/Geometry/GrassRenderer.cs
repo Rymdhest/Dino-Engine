@@ -39,6 +39,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     /// far list (7 vertices). Both are drawn with indirect draws, the vertices built from gl_VertexID alone.
     /// Settings come from <see cref="GrassSingleton"/> and reach the shaders as the GrassData uniform block (binding
     /// <see cref="UniformBinding"/>, Grass/GrassField.glsl), which Terrain.frag also reads to tint the ground under the grass.
+    /// With MSAA, blades thinner than <see cref="MinPixelWidth"/> on screen are drawn that wide over a matching share of
+    /// the samples (<see cref="AntiAliasing.AntiAliasingSettings.GrassCoverage"/>), so they don't pop between samples.
     /// </summary>
     public class GrassRenderer : GeometryCommandDrivenRenderer<GrassRenderCommand>
     {
@@ -58,6 +60,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private const int FarCapacity = 1 << 19;
         private const int SettingsVec4s = 10;
         private const int StatsFrames = 4;
+        // Least width of a blade on screen, in pixels, when thin blades are anti-aliased by coverage (Grass.vert). At one
+        // pixel a blade crossing the standard MSAA patterns always spans one of every sample position, so the share of
+        // the samples it covers stays put as it moves.
+        private const float MinPixelWidth = 1f;
 
         private const int HeightMapUnit = 0;
         private const int GrassMapUnit = 1;
@@ -297,7 +303,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             }
             UpdateStats();
 
-            renderEngine.GBuffer.bind();
+            renderEngine.Msaa.GeometryBuffer.bind();
             GL.Enable(EnableCap.DepthTest);
             GL.DepthMask(true);
             GL.Disable(EnableCap.Blend);
@@ -305,6 +311,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.CullFace);
 
             _grassShader.bind();
+            // Blades thinner than a pixel cover part of the samples instead; with one sample there is nothing to share.
+            bool coverage = renderEngine.AntiAliasing.GrassCoverage && renderEngine.Msaa.Samples > 1;
+            _grassShader.loadUniformFloat("minPixelWidth", coverage ? MinPixelWidth : 0f);
             GL.BindVertexArray(_emptyVao);
             GL.BindBuffer(BufferTarget.DrawIndirectBuffer, _commandBuffer);
             DrawList(_grassShader, _nearBuffer, NearSegments, 0);

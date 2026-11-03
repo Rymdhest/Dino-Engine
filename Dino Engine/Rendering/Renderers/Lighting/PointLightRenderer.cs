@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL;
 using static OpenTK.Graphics.OpenGL.GL;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.Rendering.Renderers.AntiAliasing;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -24,23 +25,27 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public const float ShadowNearPlane = 0.15f;
         public const float ShadowFarPlane = 30f;
 
+        // Per pixel, and per sample for the edge pixels (MsaaRenderer.DrawSplit).
         private ShaderProgram pointLightShader = new ShaderProgram("Point_Light.vert", "Point_Light.frag");
+        private ShaderProgram pointLightSampleShader = new ShaderProgram("Point_Light.vert", "Point_Light.frag", new[] { "PER_SAMPLE" });
 
         public PointLightRenderer() : base("Point Light")
         {
-            pointLightShader.bind();
-            pointLightShader.loadUniformInt("gAlbedo", 0);
-            pointLightShader.loadUniformInt("gNormal", 1);
-            pointLightShader.loadUniformInt("gMaterials", 2);
-            pointLightShader.loadUniformInt("gDepth", 3);
-            pointLightShader.unBind();
+            foreach (ShaderProgram shader in new[] { pointLightShader, pointLightSampleShader })
+            {
+                shader.bind();
+                shader.loadUniformInt("gAlbedo", 0);
+                shader.loadUniformInt("gNormal", 1);
+                shader.loadUniformInt("gMaterials", 2);
+                shader.loadUniformInt("gDepth", 3);
+                shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
+                shader.loadUniformInt("shadowMap", 4);
+                shader.unBind();
+            }
         }
 
         internal override void Prepare(RenderEngine renderEngine)
         {
-            FrameBuffer gBuffer = renderEngine.GBuffer;
-            pointLightShader.bind();
-
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Front);
 
@@ -52,14 +57,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.Enable(EnableCap.DepthTest);
             GL.DepthMask(false);
 
-            ActiveTexture(TextureUnit.Texture0);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
-            ActiveTexture(TextureUnit.Texture1);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
-            ActiveTexture(TextureUnit.Texture2);
-            BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
-            ActiveTexture(TextureUnit.Texture3);
-            BindTexture(TextureTarget.Texture2D, gBuffer.getDepthAttachment());
+            renderEngine.Msaa.BindGeometrySamples(renderEngine.AmbientOcclusionTexture);
 
             GL.BindVertexArray(ModelGenerator.UNIT_SPHERE.getVAOID());
             EnableVertexAttribArray(0);
@@ -67,37 +65,39 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         public override void PerformCommand(PointlightRenderCommand command, RenderEngine renderEngine)
         {
-            // Set Transformation
             Matrix4 transformationMatrix = MyMath.createTransformationMatrix(command.positionWorld, command.attenuationRadius * 1.1f);
-            pointLightShader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
-            pointLightShader.loadUniformVector3f("lightPositionWorld", command.positionWorld);
-            // Light Data
             Vector4 lightPosView = new Vector4(command.positionWorld, 1.0f) * renderEngine.context.viewMatrix;
-            pointLightShader.loadUniformVector3f("lightPositionViewSpace", lightPosView.Xyz);
-            pointLightShader.loadUniformVector3f("lightColor", command.colour);
-            pointLightShader.loadUniformVector3f("attenuation", command.attenuation);
-            pointLightShader.loadUniformFloat("lightAmbient", command.ambient);
-
-            // Shadow Handling
             if (command.shadow != null)
             {
-                pointLightShader.loadUniformBool("isShadow", true);
-                pointLightShader.loadUniformInt("shadowMap", 4);
-                pointLightShader.loadUniformFloat("shadowSmoothRadius", 0.015f);
-
-                // Dynamic clip plane synchronization matches your point light attenuation radius
-                pointLightShader.loadUniformFloat("shadowNearPlane", ShadowNearPlane);
-                pointLightShader.loadUniformFloat("shadowFarPlane", ShadowFarPlane);
-
                 ActiveTexture(TextureUnit.Texture4);
                 BindTexture(TextureTarget.TextureCubeMap, command.shadow.Value.shadowFrameBuffer.getDepthAttachment());
-            }
-            else
-            {
-                pointLightShader.loadUniformBool("isShadow", false);
+                ActiveTexture(TextureUnit.Texture0);
             }
 
-            GL.DrawElements(PrimitiveType.Triangles, ModelGenerator.UNIT_SPHERE.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+            renderEngine.Msaa.DrawSplit(pointLightShader, pointLightSampleShader, shader =>
+            {
+                // Set Transformation
+                shader.loadUniformMatrix4f("TransformationMatrix", transformationMatrix);
+                shader.loadUniformVector3f("lightPositionWorld", command.positionWorld);
+                // Light Data
+                shader.loadUniformVector3f("lightPositionViewSpace", lightPosView.Xyz);
+                shader.loadUniformVector3f("lightColor", command.colour);
+                shader.loadUniformVector3f("attenuation", command.attenuation);
+                shader.loadUniformFloat("lightAmbient", command.ambient);
+
+                // Shadow Handling
+                shader.loadUniformBool("isShadow", command.shadow != null);
+                if (command.shadow != null)
+                {
+                    shader.loadUniformFloat("shadowSmoothRadius", 0.015f);
+
+                    // Dynamic clip plane synchronization matches your point light attenuation radius
+                    shader.loadUniformFloat("shadowNearPlane", ShadowNearPlane);
+                    shader.loadUniformFloat("shadowFarPlane", ShadowFarPlane);
+                }
+
+                GL.DrawElements(PrimitiveType.Triangles, ModelGenerator.UNIT_SPHERE.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+            });
         }
 
         internal override void Finish(RenderEngine renderEngine)
@@ -108,6 +108,10 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.CullFace(CullFaceMode.Back);
         }
 
-        public override void CleanUp() => pointLightShader.cleanUp();
+        public override void CleanUp()
+        {
+            pointLightShader.cleanUp();
+            pointLightSampleShader.cleanUp();
+        }
     }
 }

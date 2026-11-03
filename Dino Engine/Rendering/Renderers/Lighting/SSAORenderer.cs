@@ -7,28 +7,24 @@ using Dino_Engine.Rendering.Renderers.PostProcessing;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
+    /// <summary>
+    /// Screen-space ambient occlusion from the single-sample G-buffer, blurred. The light passes take it off each
+    /// sample's own ambient occlusion (Lighting/gBufferSample.glsl), reading <see cref="OcclusionTexture"/>.
+    /// </summary>
     internal class SSAORenderer : RenderPassRenderer
     {
         private ShaderProgram ambientOcclusionShader = new ShaderProgram("Simple.vert", "AmbientOcclusion.frag");
-        private ShaderProgram ambientOcclusionPassthroughShader = new ShaderProgram("Simple.vert", "AmbientOcclusion_Passthrough.frag");
-        private ShaderProgram ambientOcclusionCombineShader = new ShaderProgram("Simple.vert", "Combine_SSAO.frag");
         private FrameBuffer _SSAOFramebuffer;
         public int noiseScale = 4;
         private const int kernelSize = 16;
         private Vector3[] kernelSamples;
         private int noiseTexture;
         private int _downscalingFactor = 1;
+        /// <summary>This frame's blurred occlusion (1 = open, 0 = occluded), once the pass has run.</summary>
+        public int OcclusionTexture { get; private set; }
+
         internal SSAORenderer() : base("SSAO")
         {
-            ambientOcclusionCombineShader.bind();
-            ambientOcclusionCombineShader.loadUniformInt("gNormal", 0);
-            ambientOcclusionCombineShader.loadUniformInt("SSAO", 1);
-            ambientOcclusionCombineShader.unBind();
-
-            ambientOcclusionPassthroughShader.bind();
-            ambientOcclusionPassthroughShader.loadUniformInt("ssaoInput", 0);
-            ambientOcclusionPassthroughShader.unBind();
-
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformInt("texNoise", 0);
             ambientOcclusionShader.loadUniformInt("gNormal", 1);
@@ -114,33 +110,11 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             //_SSAOFramebuffer.resolveToScreen();
             //gaussianBlurRenderer.GetLastResultFrameBuffer().resolveToScreen();
             //depthBasedBlurRenderer.GetLastResultFrameBuffer().resolveToScreen();
-
-            ambientOcclusionCombineShader.bind();
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(1));
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, depthBasedBlurRenderer.GetLastResultTexture());
-            renderEngine.lastUsedBuffer.RenderToNextFrameBuffer();
-
-
-            ambientOcclusionPassthroughShader.bind();
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, renderEngine.lastUsedBuffer.GetLastOutputTexture());
-
-            gBuffer.bind();
-            GL.ColorMask(0, false, false, false, false);
-            GL.ColorMask(1, false, false, false, true);
-            GL.ColorMask(2, false, false, false, false);
-            renderEngine.ScreenQuadRenderer.Render();
-            GL.ColorMask(0, true, true, true, true);
-            GL.ColorMask(1, true, true, true, true);
-            GL.ColorMask(2, true, true, true, true);
-            ambientOcclusionPassthroughShader.unBind();
+            OcclusionTexture = depthBasedBlurRenderer.GetLastResultTexture();
         }
 
         public override void CleanUp()
         {
-            ambientOcclusionPassthroughShader.cleanUp();
             ambientOcclusionShader.cleanUp();
             GL.DeleteTexture(noiseTexture);
             _SSAOFramebuffer.cleanUp();

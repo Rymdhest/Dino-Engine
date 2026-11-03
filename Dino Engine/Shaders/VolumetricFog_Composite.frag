@@ -1,18 +1,21 @@
 #version 420
 
-// Applies the half-resolution fog to the full-resolution image. The four nearest fog texels are
-// weighted by how close their surface distance is to this pixel's (joint bilateral upsample), so
+// Applies the half-resolution fog to the full-resolution multisampled scene. The four nearest fog texels are
+// weighted by how close their surface distance is to this sample's (joint bilateral upsample), so
 // fog doesn't bleed across depth edges such as tree canopies above fogged ground.
 // Distance haze over the whole view is added analytically on top.
+// Blended with (one, source alpha): the output is the light the fog and haze add (rgb) and the share of the scene that
+// still shows through them (a). Drawn per pixel and per sample (MsaaRenderer.DrawSplit), so every sample of an edge
+// pixel gets the fog of its own distance.
 
 #include gBufferUtil.glsl
 #include Globals.glsl
+#include AntiAliasing/Msaa.glsl
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
 
-uniform sampler2D shadedColourTexture;
-uniform sampler2D gDepth;
+uniform sampler2DMS gDepth;
 uniform sampler2D fogTexture;
 uniform sampler2D fogDistance;
 
@@ -20,9 +23,8 @@ uniform float hazeDensity;
 
 void main(void)
 {
-    vec3 colour = texture(shadedColourTexture, textureCoords).rgb;
-    float depth = texture(gDepth, textureCoords).r;
-    vec3 surfaceView = ReconstructViewSpacePosition(gl_FragCoord.xy, depth, invProjectionMatrix, resolution);
+    float depth = texelFetch(gDepth, ivec2(gl_FragCoord.xy), msaaShadingSample()).r;
+    vec3 surfaceView = ReconstructViewSpacePosition(msaaShadingCoord(), depth, invProjectionMatrix, resolution);
     float surfaceDistance = length(surfaceView);
 
     ivec2 fogSize = textureSize(fogTexture, 0);
@@ -55,13 +57,7 @@ void main(void)
     }
     fog = totalWeight > 1e-4 ? fog / totalWeight : closestFog;
 
-    colour = colour * fog.a + fog.rgb;
-
-    if (depth < 1.0)
-    {
-        float hazeTransmittance = exp(-hazeDensity * surfaceDistance);
-        colour = mix(skyColour, colour, hazeTransmittance);
-    }
-
-    out_Colour = vec4(colour, 1.0);
+    // colour * fog.a + fog.rgb, then mixed towards the sky colour by the haze in front of the surface.
+    float hazeTransmittance = depth < 1.0 ? exp(-hazeDensity * surfaceDistance) : 1.0;
+    out_Colour = vec4(fog.rgb * hazeTransmittance + skyColour * (1.0 - hazeTransmittance), fog.a * hazeTransmittance);
 }

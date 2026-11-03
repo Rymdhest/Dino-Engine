@@ -35,7 +35,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);
             GL.BlendEquation(BlendEquationMode.FuncAdd);
 
-            renderEngine.lastUsedBuffer.GetLastFrameBuffer().bind();
+            renderEngine.Msaa.SceneBuffer.bind();
             flatShader.bind();
             GL.BindVertexArray(ModelGenerator.UNIT_SPHERE.getVAOID());
             GL.EnableVertexAttribArray(0);

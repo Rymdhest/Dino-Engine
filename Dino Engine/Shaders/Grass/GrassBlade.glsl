@@ -93,10 +93,12 @@ vec3 grassBezierTangent(GrassBladeData blade, float t)
 
 // Vertex `vertexID` of a blade drawn as a strip of `segments` rows.
 // eye: the point the blade is seen from (w = 1), or the direction towards it (w = 0, for directional light shadows).
+// minHalfWidthPerMetre: the least half width the blade may show across the line of sight, per metre from the eye (0 for
+// none). Narrower blades are widened to it and coverage says how much of that width is really blade (1 otherwise).
 // normal is the blade's front face (the side the strip's winding faces), across runs from its left edge to its right,
 // acrossCoord is -1 on the left edge, 1 on the right and 0 at the tip, t runs from 0 at the root to 1 at the tip.
-void grassBladeVertex(GrassBladeData blade, int vertexID, int segments, vec4 eye,
-                      out vec3 position, out vec3 normal, out vec3 across, out float acrossCoord, out float t)
+void grassBladeVertex(GrassBladeData blade, int vertexID, int segments, vec4 eye, float minHalfWidthPerMetre,
+                      out vec3 position, out vec3 normal, out vec3 across, out float acrossCoord, out float t, out float coverage)
 {
     int row = min(vertexID >> 1, segments);
     acrossCoord = row == segments ? 0.0 : float(vertexID & 1) * 2.0 - 1.0;
@@ -131,9 +133,10 @@ void grassBladeVertex(GrassBladeData blade, int vertexID, int segments, vec4 eye
 
     // Blades seen edge-on are widened across the line of sight (as in Ghost of Tsushima), so the field stays full and
     // thin blades don't flicker in and out. Widening is strongest exactly edge-on and gone face-on.
+    coverage = 1.0;
     vec3 toEye = eye.w > 0.5 ? eye.xyz - position : eye.xyz;
     float eyeDistance = length(toEye);
-    if (grassLod.w > 0.0 && eyeDistance > 1e-4)
+    if ((grassLod.w > 0.0 || minHalfWidthPerMetre > 0.0) && eyeDistance > 1e-4)
     {
         vec3 view = toEye / eyeDistance;
         float facing = dot(normal, view);
@@ -143,7 +146,27 @@ void grassBladeVertex(GrassBladeData blade, int vertexID, int segments, vec4 eye
         {
             // Oriented like the blade's own left-to-right as seen from the eye, which flips as the eye passes its edge.
             screenAcross *= (facing >= 0.0 ? -1.0 : 1.0) / screenAcrossLength;
-            position += screenAcross * (acrossCoord * halfWidth * grassLod.w * (1.0 - abs(facing)));
+            float thickening = grassLod.w * (1.0 - abs(facing));
+            position += screenAcross * (acrossCoord * halfWidth * thickening);
+
+            // A blade thinner than about a pixel would cover the MSAA samples it happens to straddle, popping in and out
+            // as it sways. It is widened to the least width instead and covers that share of the samples (Grass.frag),
+            // so it adds the same amount of colour wherever it moves (phone-wire anti-aliasing, after Persson). The
+            // width that counts is across the line of sight: the blade's own, as much as it faces the eye, plus the
+            // thickening. The tip vertex takes the coverage of the row below, whose width the tip triangle narrows from.
+            if (minHalfWidthPerMetre > 0.0)
+            {
+                float rowHalfWidth = row == segments
+                    ? 0.5 * blade.width * grassWidthProfile(grassRowT(float(segments - 1) / float(segments)))
+                    : halfWidth;
+                float seenHalfWidth = rowHalfWidth * (abs(facing) / screenAcrossLength + thickening);
+                float leastHalfWidth = minHalfWidthPerMetre * eyeDistance;
+                if (seenHalfWidth < leastHalfWidth)
+                {
+                    coverage = seenHalfWidth / leastHalfWidth;
+                    position += screenAcross * (acrossCoord * (leastHalfWidth - seenHalfWidth));
+                }
+            }
         }
     }
 }

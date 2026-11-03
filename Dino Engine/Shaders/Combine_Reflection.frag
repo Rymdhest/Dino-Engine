@@ -1,17 +1,20 @@
-#version 330
+#version 420
+
+// Screen-space reflections into the multisampled scene. Blended with (source alpha, one minus source alpha), so each
+// sample moves towards the reflection by its own metallic: mix(scene, reflection, metallic). Drawn per pixel and per
+// sample (MsaaRenderer.DrawSplit).
+
+#include AntiAliasing/Msaa.glsl
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
 
-uniform sampler2D sourceColorTexture;
 uniform sampler2D reflectionTexture;
-uniform sampler2D gMaterials;
+uniform sampler2DMS gMaterials;
 
 void main(void){
 
-	vec3 sourceColor = texture(sourceColorTexture, textureCoords).rgb;
 	vec3 reflectionColor = texture(reflectionTexture, textureCoords).rgb;
-	float metalicness = texture(gMaterials, textureCoords).b;
-	out_Colour.rgb = mix(sourceColor, reflectionColor, metalicness);
-	out_Colour.a = 1.0f;
+	float metalicness = texelFetch(gMaterials, ivec2(gl_FragCoord.xy), msaaShadingSample()).b;
+	out_Colour = vec4(reflectionColor, metalicness);
 }
