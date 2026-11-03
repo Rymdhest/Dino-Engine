@@ -8,7 +8,7 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.GUI.Debug
 {
-    /// <summary>Live render controls: debug view, sun direction/intensity, camera FOV and a G-buffer viewer.</summary>
+    /// <summary>Live render controls: debug view, sun direction/intensity, wind, grass, fog, water, camera FOV and a G-buffer viewer.</summary>
     internal static class RenderWindowBuilder
     {
         private static readonly string[] BufferNames = { "Final image", "Albedo", "Normals", "Materials", "Depth" };
@@ -67,6 +67,44 @@ namespace Dino_Engine.GUI.Debug
                 if (world == null || !TryGetPlayerPosition(world, out Vector3 position)) return;
                 Wind.AddBlast(world, position, radius: 18f, strength: 25f, duration: 1.6f);
             }));
+
+            // ---------------------------------------------------------------- grass
+            var grass = window.Content.Add(new Foldout("Grass"));
+            grass.Content.Add(new Checkbox("Enabled").Bind(
+                () => TryGetGrass(out var settings) && settings.Enabled,
+                value => EditGrass((ref GrassSingleton g) => g.Enabled = value)));
+            grass.Content.Add(DebugUi.Heading("Field"));
+            grass.Content.Add(GrassSlider("Density", 4f, 300f, "0 /m²", g => g.Density, (ref GrassSingleton g, float v) => g.Density = v, step: 1f));
+            grass.Content.Add(GrassSlider("Draw distance", 10f, 200f, "0 m", g => g.DrawDistance, (ref GrassSingleton g, float v) => g.DrawDistance = v, step: 1f));
+            grass.Content.Add(GrassSlider("Thin from", 1f, 60f, "0.0 m", g => g.FalloffStart, (ref GrassSingleton g, float v) => g.FalloffStart = v));
+            grass.Content.Add(GrassSlider("Min density", 0.01f, 1f, "0.00", g => g.MinDensity, (ref GrassSingleton g, float v) => g.MinDensity = v));
+            grass.Content.Add(GrassSlider("LOD distance", 0f, 80f, "0.0 m", g => g.LodDistance, (ref GrassSingleton g, float v) => g.LodDistance = v));
+            grass.Content.Add(DebugUi.Heading("Blades"));
+            grass.Content.Add(GrassSlider("Height", 0.05f, 2.5f, "0.00 m", g => g.Height, (ref GrassSingleton g, float v) => g.Height = v));
+            grass.Content.Add(GrassSlider("Height var.", 0f, 1f, "0.00", g => g.HeightVariation, (ref GrassSingleton g, float v) => g.HeightVariation = v));
+            grass.Content.Add(GrassSlider("Width", 0.005f, 0.2f, "0.000 m", g => g.Width, (ref GrassSingleton g, float v) => g.Width = v));
+            grass.Content.Add(GrassSlider("Tilt", 0f, 1.2f, "0.00 rad", g => g.Tilt, (ref GrassSingleton g, float v) => g.Tilt = v));
+            grass.Content.Add(GrassSlider("Tilt var.", 0f, 1f, "0.00 rad", g => g.TiltVariation, (ref GrassSingleton g, float v) => g.TiltVariation = v));
+            grass.Content.Add(GrassSlider("Droop", 0f, 1.5f, "0.00 rad", g => g.Droop, (ref GrassSingleton g, float v) => g.Droop = v));
+            grass.Content.Add(GrassSlider("Roundness", 0f, 1.5f, "0.00", g => g.Roundness, (ref GrassSingleton g, float v) => g.Roundness = v));
+            grass.Content.Add(GrassSlider("Thickening", 0f, 1f, "0.00", g => g.Thickening, (ref GrassSingleton g, float v) => g.Thickening = v));
+            grass.Content.Add(DebugUi.Heading("Tufts"));
+            grass.Content.Add(GrassSlider("Size", 0.1f, 3f, "0.00 m", g => g.ClumpSize, (ref GrassSingleton g, float v) => g.ClumpSize = v));
+            grass.Content.Add(GrassSlider("Pull", 0f, 0.9f, "0.00", g => g.ClumpPull, (ref GrassSingleton g, float v) => g.ClumpPull = v));
+            grass.Content.Add(GrassSlider("Height var.", 0f, 1f, "0.00", g => g.ClumpHeightVariation, (ref GrassSingleton g, float v) => g.ClumpHeightVariation = v));
+            grass.Content.Add(GrassSlider("Splay", 0f, 1f, "0.00", g => g.ClumpSplay, (ref GrassSingleton g, float v) => g.ClumpSplay = v));
+            grass.Content.Add(DebugUi.Heading("Look"));
+            grass.Content.Add(GrassSlider("Colour var.", 0f, 1f, "0.00", g => g.ColourVariation, (ref GrassSingleton g, float v) => g.ColourVariation = v));
+            grass.Content.Add(GrassSlider("Dry patches", 0f, 1f, "0.00", g => g.DryPatches, (ref GrassSingleton g, float v) => g.DryPatches = v));
+            grass.Content.Add(GrassSlider("Translucency", 0f, 1f, "0.00", g => g.Translucency, (ref GrassSingleton g, float v) => g.Translucency = v));
+            grass.Content.Add(GrassSlider("Roughness", 0.05f, 1f, "0.00", g => g.Roughness, (ref GrassSingleton g, float v) => g.Roughness = v));
+            grass.Content.Add(GrassSlider("Ground tint", 0f, 1f, "0.00", g => g.GroundTint, (ref GrassSingleton g, float v) => g.GroundTint = v));
+            grass.Content.Add(DebugUi.Heading("Shadows"));
+            grass.Content.Add(GrassSlider("Distance", 0f, 150f, "0 m", g => g.ShadowDistance, (ref GrassSingleton g, float v) => g.ShadowDistance = v, step: 1f));
+            grass.Content.Add(GrassSlider("Density", 0.05f, 1f, "0.00", g => g.ShadowDensity, (ref GrassSingleton g, float v) => g.ShadowDensity = v));
+            var grassGrid = grass.Content.Add(DebugUi.KeyValueGrid(0.3f));
+            DebugUi.AddRow(grassGrid, "Blades drawn", () => DebugUi.Inv(
+                $"{Engine.RenderEngine._grassRenderer.NearBladesDrawn:N0} near, {Engine.RenderEngine._grassRenderer.FarBladesDrawn:N0} far"));
 
             // ---------------------------------------------------------------- fog
             var fog = window.Content.Add(new Foldout("Volumetric fog"));
@@ -224,6 +262,34 @@ namespace Dino_Engine.GUI.Debug
             if (players.Count == 0) return false;
             position = world.GetComponent<LocalToWorldMatrixComponent>(players[0]).value.ExtractTranslation();
             return true;
+        }
+
+        private delegate void GrassSetter(ref GrassSingleton grass, float value);
+        private delegate void GrassEdit(ref GrassSingleton grass);
+
+        private static GuiElement GrassSlider(string caption, float min, float max, string format, Func<GrassSingleton, float> get, GrassSetter set, float step = 0f)
+        {
+            return DebugUi.LabeledRow(caption, new Slider(min, max) { Format = format, Step = step, FormatProvider = DebugUi.Culture }.Bind(
+                () => TryGetGrass(out var settings) ? get(settings) : min,
+                value => EditGrass((ref GrassSingleton g) => set(ref g, value))));
+        }
+
+        private static bool TryGetGrass(out GrassSingleton settings)
+        {
+            settings = default;
+            var world = Engine.Instance?.world;
+            if (world == null || !world.TryGetSingleton<GrassSingleton>(out Entity entity)) return false;
+            settings = world.GetComponent<GrassSingleton>(entity);
+            return true;
+        }
+
+        private static void EditGrass(GrassEdit edit)
+        {
+            var world = Engine.Instance?.world;
+            if (world == null || !world.TryGetSingleton<GrassSingleton>(out Entity entity)) return;
+            var settings = world.GetComponent<GrassSingleton>(entity);
+            edit(ref settings);
+            world.GetEntityView(entity).Set(settings);
         }
 
         private delegate void FogSetter(ref VolumetricFogSingleton fog, float value);

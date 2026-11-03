@@ -241,9 +241,10 @@ namespace Dino_Engine.ECS.Systems
         /// <summary>
         /// Frustum-culls the currently-alive fixed-size chunks and appends their entities to
         /// <paramref name="visibleChunks"/>. All chunks are the same size, so this is a simple
-        /// per-chunk AABB test (no LOD recursion).
+        /// per-chunk AABB test (no LOD recursion). <paramref name="margin"/> widens each chunk's box
+        /// on the xz plane, for things that reach out of their chunk (grass blades).
         /// </summary>
-        public static void CollectVisibleChunks(TerrainQuadTreeSingleton terrainComp, Frustum frustum, List<Entity> visibleChunks)
+        public static void CollectVisibleChunks(TerrainQuadTreeSingleton terrainComp, Frustum frustum, List<Entity> visibleChunks, float margin = 0f)
         {
             float minHeight = -100;
             float maxHeight = 700;
@@ -252,8 +253,8 @@ namespace Dino_Engine.ECS.Systems
             foreach (var kv in terrainComp.Chunks)
             {
                 Vector2 origin = new Vector2(kv.Key.X * chunkSize, kv.Key.Y * chunkSize);
-                Vector3 min = new Vector3(origin.X, minHeight, origin.Y);
-                Vector3 max = new Vector3(origin.X + chunkSize, maxHeight, origin.Y + chunkSize);
+                Vector3 min = new Vector3(origin.X - margin, minHeight, origin.Y - margin);
+                Vector3 max = new Vector3(origin.X + chunkSize + margin, maxHeight, origin.Y + chunkSize + margin);
 
                 var result = frustum.IntersectsAABB(new Physics.AABB(min, max));
                 if (result == IntersectionResult.Outside)

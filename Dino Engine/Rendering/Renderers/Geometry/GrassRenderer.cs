@@ -1,19 +1,9 @@
 ﻿using Dino_Engine.Core;
-using Dino_Engine.ECS;
 using Dino_Engine.ECS.Components;
-using Dino_Engine.Modelling;
-using Dino_Engine.Modelling.Model;
-using Dino_Engine.Modelling.Procedural;
-using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Lighting;
-using Dino_Engine.Textures;
-using Dino_Engine.Util;
-using Dino_Engine.Util.Data_Structures.Grids;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
-using System.Drawing;
-using static Dino_Engine.Textures.ProceduralTextureRenderer;
 
 namespace Dino_Engine.Rendering.Renderers.Geometry
 {
@@ -28,452 +18,362 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     public struct GrassRenderCommand : IRenderCommand
     {
         public GrassChunkRenderData[] chunks;
-        public int LOD;
+        // Read from geometry commands only; shadow passes use the settings of the frame's geometry command.
+        public GrassSingleton settings;
 
-        public GrassRenderCommand(GrassChunkRenderData[] chunks, int lod)
+        public GrassRenderCommand(GrassChunkRenderData[] chunks) : this(chunks, new GrassSingleton())
+        {
+        }
+
+        public GrassRenderCommand(GrassChunkRenderData[] chunks, GrassSingleton settings)
         {
             this.chunks = chunks;
-            this.LOD = lod;
+            this.settings = settings;
         }
     }
 
+    /// <summary>
+    /// GPU grass after Ghost of Tsushima. For every view (the camera, and each light that casts grass shadows)
+    /// Grass/Grass_Generate.comp scatters blades over the submitted chunks, gathers them into tufts, thins them with
+    /// distance, culls them and appends the survivors, as finished Bézier curves, to a near list (15 vertex blades) and a
+    /// far list (7 vertices). Both are drawn with indirect draws, the vertices built from gl_VertexID alone.
+    /// Settings come from <see cref="GrassSingleton"/> and reach the shaders as the GrassData uniform block (binding
+    /// <see cref="UniformBinding"/>, Grass/GrassField.glsl), which Terrain.frag also reads to tint the ground under the grass.
+    /// </summary>
     public class GrassRenderer : GeometryCommandDrivenRenderer<GrassRenderCommand>
     {
+        public const int UniformBinding = 7;
+        public static readonly int MAX_GRASS_CHUNKS = 1024;
 
-        private ShaderProgram _grassShader = new ShaderProgram("Grass.vert", "Grass.frag");
-        private ShaderProgram _grassShadowShader = new ShaderProgram("Grass_Shadow.vert", "Grass_Shadow.frag");
+        // Bindings and sizes shared with the shaders in Shaders/Grass.
+        private const int ChunkUniformBinding = 5;
+        private const int CommandBinding = 0;
+        private const int NearBinding = 1;
+        private const int FarBinding = 2;
+        private const int WorkGroupSize = 64;
+        private const int BladeStride = 48;
+        private const int NearSegments = 7;
+        private const int FarSegments = 3;
+        private const int NearCapacity = 1 << 18;
+        private const int FarCapacity = 1 << 19;
+        private const int SettingsVec4s = 10;
+        private const int StatsFrames = 4;
 
-        // Grass sways with the engine's wind (WindRenderer): bendMap is the vegetation state, windMap the wind field.
+        private const int HeightMapUnit = 0;
+        private const int GrassMapUnit = 1;
         private const int BendMapUnit = 8;
         private const int WindMapUnit = 9;
 
-        private glModel grassBladeLOD0;
-        private glModel grassBladeLOD1;
-        private glModel grassBladeShadow;
+        // The two DrawArraysIndirect commands (count, instanceCount, first, baseInstance) as each generate pass starts.
+        private static readonly uint[] EmptyCommands = { NearSegments * 2 + 1, 0, 0, 0, FarSegments * 2 + 1, 0, 0, 0 };
 
-        private int grassNoiseTexture;
+        private readonly ShaderProgram _generateShader = new ShaderProgram("Grass/Grass_Generate.comp");
+        private readonly ShaderProgram _grassShader = new ShaderProgram("Grass/Grass.vert", "Grass/Grass.frag");
+        private readonly ShaderProgram _grassShadowShader = new ShaderProgram("Grass/Grass_Shadow.vert", "Grass/Grass_Shadow.frag");
 
-        public static readonly int MAX_GRASS_CHUNKS = 1024;
-        private int bladesPerAxis = 70;
-        private float radiusBase = 0.02f;
-        private float radiusTop = 0.01f;
-        private float bladeHeight = 1.0f;
+        private readonly int _chunkBuffer;
+        private readonly int _settingsBuffer;
+        private readonly int _commandBuffer;
+        private readonly int _nearBuffer;
+        private readonly int _farBuffer;
+        private readonly int _emptyVao;
+        private readonly int[] _statsBuffers = new int[StatsFrames];
+        private int _statsFrame;
 
-        private int bladesRenderedThisFrame = 0;
+        private readonly Vector4[] _chunkData = new Vector4[MAX_GRASS_CHUNKS];
+        private readonly float[] _settingsData = new float[SettingsVec4s * 4];
+        private readonly Vector4[] _frustumPlanes = new Vector4[6];
+        private readonly List<GrassChunkRenderData> _shadowChunks = new();
+        private readonly uint[] _stats = new uint[2];
+        private GrassSingleton _settings = new GrassSingleton();
 
-        private int chunkUBO;
+        /// <summary>Blades the camera drew a few frames ago (the counts are read back late so the GPU never stalls).</summary>
+        public int NearBladesDrawn { get; private set; }
+        public int FarBladesDrawn { get; private set; }
 
         public GrassRenderer() : base("Grass")
         {
-            _grassShader.bind();
+            _generateShader.bind();
+            _generateShader.loadUniformInt("heightmaps", HeightMapUnit);
+            _generateShader.loadUniformInt("grassMaps", GrassMapUnit);
+            _generateShader.loadUniformInt("bendMap", BendMapUnit);
+            _generateShader.loadUniformInt("windMap", WindMapUnit);
+            _generateShader.loadUniformInt("nearCapacity", NearCapacity);
+            _generateShader.loadUniformInt("farCapacity", FarCapacity);
+            _generateShader.loadUniformFloat("textureMapOffset", 1f / TerrainRenderer.CHUNK_RESOLUTION);
+            _generateShader.unBind();
 
-
-            _grassShader.loadUniformInt("albedoMapTextureArray", 0);
-            _grassShader.loadUniformInt("normalMapTextureArray", 1);
-            _grassShader.loadUniformInt("materialMapTextureArray", 2);
-
-            _grassShader.loadUniformInt("albedoMapModelTextureArray", 3);
-            _grassShader.loadUniformInt("normalMapModelTextureArray", 4);
-            _grassShader.loadUniformInt("materialMapModelTextureArray", 5);
-
-            _grassShader.loadUniformInt("heightmaps", 6);
-            _grassShader.loadUniformInt("heightmaps2", 7);
-            _grassShader.loadUniformInt("bendMap", BendMapUnit);
-            _grassShader.loadUniformInt("windMap", WindMapUnit);
-
-            _grassShader.unBind();
-
-            _grassShadowShader.bind();
-            _grassShadowShader.loadUniformInt("heightmaps", 0);
-            _grassShadowShader.loadUniformInt("heightmaps2", 1);
-            _grassShadowShader.loadUniformInt("bendMap", BendMapUnit);
-            _grassShadowShader.loadUniformInt("windMap", WindMapUnit);
-            _grassShadowShader.unBind();
-
-            grassBladeLOD0 = generateBladeModelLOD0();
-            grassBladeLOD1 = generateBladeModelLOD1();
-            generateBladeModelShadow();
-
-            chunkUBO = GL.GenBuffer();
-            int uboSize = MAX_GRASS_CHUNKS * (4 * 4); // vec4 = 16 bytes, no padding
-            GL.BindBuffer(BufferTarget.UniformBuffer, chunkUBO);
-            GL.BufferData(BufferTarget.UniformBuffer, uboSize, IntPtr.Zero, BufferUsageHint.DynamicDraw);
-            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 5, chunkUBO);
-
-
-            grassNoiseTexture = generateGrassNoiseTexture();
-        }
-
-
-
-
-        private int generateGrassNoiseTexture()
-        {
-
-
-            var small = TextureGenerator.procTextGen.Voronoi(new Vector2(126f, 126f), jitter: 1.0f, phase: 1.0f, returnMode: ReturnMode.Height);
-            var big = TextureGenerator.procTextGen.PerlinFBM(new Vector2(8f, 8f), octaves: 4);
-
-            small.scaleHeight(0.6f);
-            small.addHeight(0.4f);
-
-            //big.scaleHeight(1.0f);
-            //big.addHeight(0.0f);
-
-            var final = TextureGenerator.MaterialLayersCombiner.combine(small, big, MaterialLayersManipulator.FilterMode.Everywhere, MaterialLayersManipulator.Operation.Scale);
-
-
-            int texture = final.GetLastFrameBuffer().exportAttachmentAsTexture(ReadBufferMode.ColorAttachment2);
-            TextureGenerator.MaterialLayerHandler.cleanUp();
-
-            return texture;
-
-
-        }
-
-
-        private glModel generateBladeModelLOD0()
-        {
-            if (grassBladeLOD0 != null) grassBladeLOD0.cleanUp();
-            /*
-            VertexMaterial grassMaterial = new VertexMaterial(TextureGenerator.foliage_olive); //Throwaway
-            List<Vector2> bladeLayers = new List<Vector2>() {
-                new Vector2(radiusBase, 0),
-                new Vector2(MyMath.lerp(radiusBase, radiusTop, 0.33f), bladeHeight*0.33f),
-                new Vector2(MyMath.lerp(radiusBase, radiusTop, 0.66f), bladeHeight*0.66f),
-                new Vector2(radiusTop, bladeHeight*0.95f),
-                new Vector2(0.0001f, bladeHeight)};
-
-            bladeLayers.Clear();
-            int detailHeight = 5;
-            for (int i = 0; i<detailHeight; i++)
+            _chunkBuffer = CreateBuffer(BufferTarget.UniformBuffer, MAX_GRASS_CHUNKS * Vector4.SizeInBytes, BufferUsageHint.DynamicDraw);
+            _settingsBuffer = CreateBuffer(BufferTarget.UniformBuffer, SettingsVec4s * Vector4.SizeInBytes, BufferUsageHint.DynamicDraw);
+            _commandBuffer = CreateBuffer(BufferTarget.ShaderStorageBuffer, EmptyCommands.Length * sizeof(uint), BufferUsageHint.DynamicCopy);
+            _nearBuffer = CreateBuffer(BufferTarget.ShaderStorageBuffer, NearCapacity * BladeStride, BufferUsageHint.DynamicCopy);
+            _farBuffer = CreateBuffer(BufferTarget.ShaderStorageBuffer, FarCapacity * BladeStride, BufferUsageHint.DynamicCopy);
+            for (int i = 0; i < StatsFrames; i++)
             {
-                float ratio = ((float)i) / (detailHeight-1.0f);
-                bladeLayers.Add(new Vector2(MyMath.lerp(radiusBase, radiusTop, ratio), bladeHeight*0.95f * ratio));
+                _statsBuffers[i] = CreateBuffer(BufferTarget.CopyWriteBuffer, 2 * sizeof(uint), BufferUsageHint.StreamRead);
             }
-            bladeLayers.Add(new Vector2(0.0001f, bladeHeight));
+            _emptyVao = GL.GenVertexArray();
 
-            Mesh bladeMesh = MeshGenerator.generateCylinder(bladeLayers, 4, grassMaterial);
-            bladeMesh.scale(new Vector3(1.0f, 1f, 0.25f));
-
-            for (int i = 0; i < bladeMesh.meshVertices.Count; i++)
-            {
-                bladeMesh.meshVertices[i].position.Z += MathF.Abs( bladeMesh.meshVertices[i].position.X) * 0.5f;
-            }
-
-            //bladeMesh.makeFlat(true, false);
-            return glLoader.loadToVAO(bladeMesh);
-            */
-            Mesh bladeMesh = MeshGenerator.generatePlane(new Vector2(2f, bladeHeight), new Vector2i(2, 4), new VertexMaterial(TextureGenerator.foliage_olive), centerX: true, centerY: false);
-            bladeMesh.rotate(new Vector3(-MathF.PI / 2f, 0f, 0f));
-
-            for (int i = 0; i < bladeMesh.meshVertices.Count; i++)
-            {
-                float factor = bladeMesh.meshVertices[i].position.Y / bladeHeight;
-                factor = MathF.Pow(factor, 2.0f);
-                bladeMesh.meshVertices[i].position.X *= MyMath.lerp(radiusBase, radiusTop, factor);
-                bladeMesh.meshVertices[i].position.Z += MathF.Abs(bladeMesh.meshVertices[i].position.X) * 0.5f;
-            }
-
-            return glLoader.loadToVAO(bladeMesh);
-        }
-        
-        private void generateBladeModelShadow()
-        {
-            if (grassBladeShadow != null) grassBladeShadow.cleanUp();
-
-
-            float[] positions = {
-                -radiusBase, 0, 0,
-                radiusBase, 0, 0,
-                -radiusTop, bladeHeight, 0,
-                radiusTop, bladeHeight, 0
-            };
-
-            float roundness = 0.5f;
-            Vector3 NL = Vector3.Normalize(new Vector3(-roundness, 0, 1));
-            Vector3 NR = Vector3.Normalize(new Vector3(roundness, 0, 1));
-
-            float[] normals = {
-                NL.X, NL.Y, NL.Z,
-                NR.X, NR.Y, NR.Z,
-                NL.X, NL.Y, NL.Z,
-                NR.X, NR.Y, NR.Z,
-            };
-
-            int[] indices = {
-                0, 1, 2,
-                1, 3, 2
-            };
-
-            grassBladeShadow = glLoader.loadToVAO(positions, normals, indices);
+            UploadSettings(_settings);
         }
 
-
-        private glModel generateBladeModelLOD1()
+        private static int CreateBuffer(BufferTarget target, int size, BufferUsageHint usage)
         {
-            if (grassBladeLOD1 != null) grassBladeLOD1.cleanUp();
+            int buffer = GL.GenBuffer();
+            GL.BindBuffer(target, buffer);
+            GL.BufferData(target, size, IntPtr.Zero, usage);
+            GL.BindBuffer(target, 0);
+            return buffer;
+        }
 
-
-            float[] positions = {
-                -radiusBase, 0, 0,
-                0, 0, 0,
-                radiusBase, 0, 0,
-                -radiusTop, bladeHeight, 0,
-                radiusTop, bladeHeight, 0
-            };
-
-            float roundness = 0.2f;
-            float normY = -0.5f;
-            Vector3 NL = Vector3.Normalize(new Vector3(-roundness, normY, 1));
-            Vector3 NR = Vector3.Normalize(new Vector3(roundness, normY, 1));
-            Vector3 N = Vector3.Normalize(new Vector3(0, normY, 1));
-
-            float[] normals = {
-                NL.X, NL.Y, NL.Z,
-                N.X, N.Y, N.Z,
-                NR.X, NR.Y, NR.Z,
-                NL.X, NL.Y, NL.Z,
-                NR.X, NR.Y, NR.Z,
-            };
-
-            int[] indices = {
-                0, 1, 3,
-                1, 4, 3,
-                1, 2, 4
-            };
-
-            return glLoader.loadToVAO (positions, normals, indices);
+        /// <summary>Blades per side of a chunk for the requested density.</summary>
+        private static int BladesPerAxis(float chunkSize, float density)
+        {
+            return Math.Clamp((int)MathF.Round(chunkSize * MathF.Sqrt(MathF.Max(density, 0f))), 1, 256);
         }
 
         public override void Update()
         {
-            bladesPerAxis = 60;
-
-            bladeHeight =1.4f;
-            radiusBase = 0.003f;
-            radiusTop = radiusBase * 0.2f;
         }
 
         public override void CleanUp()
         {
-            GL.DeleteTexture(grassNoiseTexture);
+            _generateShader.cleanUp();
             _grassShader.cleanUp();
-            GL.DeleteBuffer(chunkUBO);
+            _grassShadowShader.cleanUp();
+            GL.DeleteBuffer(_chunkBuffer);
+            GL.DeleteBuffer(_settingsBuffer);
+            GL.DeleteBuffer(_commandBuffer);
+            GL.DeleteBuffer(_nearBuffer);
+            GL.DeleteBuffer(_farBuffer);
+            foreach (int buffer in _statsBuffers) GL.DeleteBuffer(buffer);
+            GL.DeleteVertexArray(_emptyVao);
         }
 
         public override void OnResize(ResizeEventArgs eventArgs)
         {
         }
 
-        internal override void PrepareGeometry(RenderEngine renderEngine)
+        private void UploadSettings(GrassSingleton s)
         {
-            GL.Enable(EnableCap.DepthTest);
+            WriteSettings(0, s.Density, s.DrawDistance, s.FalloffStart, s.MinDensity);
+            WriteSettings(1, s.LodDistance, s.ShadowDistance, s.ShadowDensity, s.Thickening);
+            WriteSettings(2, s.Height, s.HeightVariation, s.Width, s.Roundness);
+            WriteSettings(3, s.Tilt, s.TiltVariation, s.Droop, 0f);
+            WriteSettings(4, s.ClumpSize, s.ClumpPull, s.ClumpHeightVariation, s.ClumpSplay);
+            WriteSettings(5, s.RootColour.X, s.RootColour.Y, s.RootColour.Z, s.ColourVariation);
+            WriteSettings(6, s.BodyColour.X, s.BodyColour.Y, s.BodyColour.Z, s.DryPatches);
+            WriteSettings(7, s.TipColour.X, s.TipColour.Y, s.TipColour.Z, s.Translucency);
+            WriteSettings(8, s.DryColour.X, s.DryColour.Y, s.DryColour.Z, s.Roughness);
+            WriteSettings(9, s.Enabled ? s.GroundTint : 0f, 0f, 0f, 0f);
 
-            //GL.Enable(EnableCap.CullFace);
-            GL.Disable(EnableCap.CullFace);
-            GL.CullFace(CullFaceMode.Back);
-            GL.Disable(EnableCap.Blend);
-
-
-            generateBladeModelLOD0();
-            generateBladeModelLOD1();
-            generateBladeModelShadow();
-
-            //StepSimulation(renderEngine.ScreenQuadRenderer);
-            renderEngine.GBuffer.bind();
-
-            _grassShader.bind();
-
-            GL.ActiveTexture(TextureUnit.Texture6);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetNormalRoadHeightTextureArray());
-
-            GL.ActiveTexture(TextureUnit.Texture7);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetGrassTextureArray());
-
-            BindWindTextures(renderEngine);
-
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialTextureArray);
-
-            GL.ActiveTexture(TextureUnit.Texture3);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture4);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture5);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
-
-            _grassShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
-            Material grassMaterial = Material.FOLIAGE_PINE;
-            Material grassMaterialDead = Material.GROUND_SOIL;
-            _grassShader.loadUniformInt("textureIndex", TextureGenerator.foliage_pine);
-            _grassShader.loadUniformFloat("groundNormalStrength", 0.1f);
-            _grassShader.loadUniformFloat("groundNormalStrengthFlat", 0.2f);
-            _grassShader.loadUniformFloat("colourError", 0.1f);
-            _grassShader.loadUniformFloat("SSS", grassMaterial.subSurfaceTransparancy*0.6f);
-            _grassShader.loadUniformFloat("fakeAmbientOcclusionStrength", 0.1f);
-            _grassShader.loadUniformFloat("fakeColorAmbientOcclusionStrength", 0.6f);
-            _grassShader.loadUniformVector4f("grassMaterial", new Vector4(grassMaterial.roughness, grassMaterial.emission, grassMaterial.metalic, 0f));
-            _grassShader.loadUniformVector3f("baseColorAlive", grassMaterial.Colour.ToVector3());
-            //_grassShader.loadUniformVector3f("baseColorAlive", new Colour(20, 50, 15).ToVector3());
-            _grassShader.loadUniformVector3f("baseColorDead", grassMaterialDead.Colour.ToVector3());
-            //_grassShader.loadUniformVector3f("baseColor", new Colour(30, 11, 8).ToVector3());
-
+            GL.BindBuffer(BufferTarget.UniformBuffer, _settingsBuffer);
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, _settingsData.Length * sizeof(float), _settingsData);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, UniformBinding, _settingsBuffer);
         }
 
-        private static void BindWindTextures(RenderEngine renderEngine)
+        private void WriteSettings(int vec4Index, float x, float y, float z, float w)
         {
+            int offset = vec4Index * 4;
+            _settingsData[offset] = x;
+            _settingsData[offset + 1] = y;
+            _settingsData[offset + 2] = z;
+            _settingsData[offset + 3] = w;
+        }
+
+        /// <summary>
+        /// Planes (xyz normal, w distance; inside where dot(n, p) + w >= 0) of the volume a view-projection matrix sees,
+        /// with OpenGL's -w..w clip depth.
+        /// </summary>
+        private void ExtractFrustumPlanes(Matrix4 viewProjection)
+        {
+            Vector4 c0 = viewProjection.Column0;
+            Vector4 c1 = viewProjection.Column1;
+            Vector4 c2 = viewProjection.Column2;
+            Vector4 c3 = viewProjection.Column3;
+            _frustumPlanes[0] = c3 + c0;
+            _frustumPlanes[1] = c3 - c0;
+            _frustumPlanes[2] = c3 + c1;
+            _frustumPlanes[3] = c3 - c1;
+            _frustumPlanes[4] = c3 + c2;
+            _frustumPlanes[5] = c3 - c2;
+            for (int i = 0; i < 6; i++)
+            {
+                _frustumPlanes[i] /= _frustumPlanes[i].Xyz.Length;
+            }
+        }
+
+        /// <summary>Grows the grass of <paramref name="chunks"/> seen through <paramref name="viewProjection"/> into the blade lists.</summary>
+        private bool Generate(IReadOnlyList<GrassChunkRenderData> chunks, Matrix4 viewProjection, bool shadowPass)
+        {
+            int chunkCount = Math.Min(chunks.Count, MAX_GRASS_CHUNKS);
+            if (chunkCount == 0 || !_settings.Enabled) return false;
+            if (chunks.Count > MAX_GRASS_CHUNKS) Console.WriteLine("Warning: More chunks in command than MAX_GRASS_CHUNKS. Some chunks will not be rendered.");
+
+            for (int i = 0; i < chunkCount; i++)
+            {
+                var chunk = chunks[i];
+                _chunkData[i] = new Vector4(chunk.chunkPos.X, chunk.chunkPos.Y, chunk.size, chunk.arrayID);
+            }
+            GL.BindBuffer(BufferTarget.UniformBuffer, _chunkBuffer);
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, chunkCount * Vector4.SizeInBytes, _chunkData);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, ChunkUniformBinding, _chunkBuffer);
+
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _commandBuffer);
+            GL.BufferSubData(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, EmptyCommands.Length * sizeof(uint), EmptyCommands);
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, CommandBinding, _commandBuffer);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, NearBinding, _nearBuffer);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, FarBinding, _farBuffer);
+
+            RenderEngine renderEngine = Engine.RenderEngine;
+            GL.ActiveTexture(TextureUnit.Texture0 + HeightMapUnit);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine._terrainRenderer.GetNormalRoadHeightTextureArray());
+            GL.ActiveTexture(TextureUnit.Texture0 + GrassMapUnit);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine._terrainRenderer.GetGrassTextureArray());
             GL.ActiveTexture(TextureUnit.Texture0 + BendMapUnit);
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.VegetationBendTexture);
             GL.ActiveTexture(TextureUnit.Texture0 + WindMapUnit);
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.WindMapTexture);
+            GL.ActiveTexture(TextureUnit.Texture0);
+
+            ExtractFrustumPlanes(viewProjection);
+            int bladesPerAxis = BladesPerAxis(chunks[0].size, _settings.Density);
+
+            _generateShader.bind();
+            _generateShader.loadUniformVector4fArray("frustumPlanes", _frustumPlanes);
+            _generateShader.loadUniformInt("bladesPerAxis", bladesPerAxis);
+            _generateShader.loadUniformInt("shadowPass", shadowPass ? 1 : 0);
+            GL.DispatchCompute((bladesPerAxis * bladesPerAxis + WorkGroupSize - 1) / WorkGroupSize, chunkCount, 1);
+            GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.CommandBarrierBit);
+            return true;
+        }
+
+        private void DrawList(ShaderProgram shader, int blades, int segments, int commandIndex)
+        {
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, NearBinding, blades);
+            shader.loadUniformInt("segments", segments);
+            GL.DrawArraysIndirect(PrimitiveType.TriangleStrip, (IntPtr)(commandIndex * 4 * sizeof(uint)));
+        }
+
+        /// <summary>Copies this frame's blade counts aside and reads back the ones copied <see cref="StatsFrames"/> - 1 frames ago.</summary>
+        private void UpdateStats()
+        {
+            int current = _statsBuffers[_statsFrame % StatsFrames];
+            GL.BindBuffer(BufferTarget.CopyReadBuffer, _commandBuffer);
+            GL.BindBuffer(BufferTarget.CopyWriteBuffer, current);
+            GL.CopyBufferSubData(BufferTarget.CopyReadBuffer, BufferTarget.CopyWriteBuffer, (IntPtr)sizeof(uint), IntPtr.Zero, sizeof(uint));
+            GL.CopyBufferSubData(BufferTarget.CopyReadBuffer, BufferTarget.CopyWriteBuffer, (IntPtr)(5 * sizeof(uint)), (IntPtr)sizeof(uint), sizeof(uint));
+            _statsFrame++;
+
+            if (_statsFrame >= StatsFrames)
+            {
+                GL.BindBuffer(BufferTarget.CopyReadBuffer, _statsBuffers[_statsFrame % StatsFrames]);
+                GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 2 * sizeof(uint), _stats);
+                NearBladesDrawn = (int)_stats[0];
+                FarBladesDrawn = (int)_stats[1];
+            }
+            GL.BindBuffer(BufferTarget.CopyReadBuffer, 0);
+            GL.BindBuffer(BufferTarget.CopyWriteBuffer, 0);
+        }
+
+        internal override void PrepareGeometry(RenderEngine renderEngine)
+        {
+        }
+
+        internal override void PerformGeometryCommand(GrassRenderCommand command, RenderEngine renderEngine)
+        {
+            _settings = command.settings;
+            UploadSettings(_settings);
+
+            Matrix4 viewProjection = renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix;
+            if (!Generate(command.chunks, viewProjection, shadowPass: false))
+            {
+                NearBladesDrawn = 0;
+                FarBladesDrawn = 0;
+                return;
+            }
+            UpdateStats();
+
+            renderEngine.GBuffer.bind();
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthMask(true);
+            GL.Disable(EnableCap.Blend);
+            // Blades are seen from both sides.
+            GL.Disable(EnableCap.CullFace);
+
+            _grassShader.bind();
+            GL.BindVertexArray(_emptyVao);
+            GL.BindBuffer(BufferTarget.DrawIndirectBuffer, _commandBuffer);
+            DrawList(_grassShader, _nearBuffer, NearSegments, 0);
+            DrawList(_grassShader, _farBuffer, FarSegments, 1);
+            GL.BindBuffer(BufferTarget.DrawIndirectBuffer, 0);
+            GL.BindVertexArray(0);
         }
 
         internal override void FinishGeometry(RenderEngine renderEngine)
         {
-            //Console.WriteLine("Grass blades rendered this frame: "+bladesRenderedThisFrame);
-            bladesRenderedThisFrame = 0;
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
         }
 
         internal override void PrepareShadow(RenderEngine renderEngine)
         {
             GL.Enable(EnableCap.DepthTest);
-
             GL.Enable(EnableCap.PolygonOffsetFill);
-            GL.Enable(EnableCap.CullFace);
-            GL.CullFace(CullFaceMode.Back);
+            GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.Blend);
-
-
-
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetNormalRoadHeightTextureArray());
-
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2DArray, Engine.RenderEngine._terrainRenderer.GetGrassTextureArray());
-
-            BindWindTextures(renderEngine);
-
-            _grassShadowShader.bind();
-            ShaderProgram shader = _grassShadowShader;
-            for (int i = 0; i <2; i++)
-            {
-                shader.loadUniformFloat("bladeHeight", bladeHeight);
-                shader.loadUniformFloat("bendyness", 0.08f);
-                shader.loadUniformFloat("heightError", 0.35f);
-                shader.loadUniformFloat("radiusError", 0.35f);
-                shader.loadUniformFloat("cutOffThreshold", 0.1f);
-                shader.loadUniformFloat("cutOffRange", 0.7f);
-                shader.loadUniformFloat("steepnessCutoffStrength", 4.0f);
-                shader.loadUniformFloat("textureMapOffset", 1f / TerrainRenderer.CHUNK_RESOLUTION);
-
-                shader = _grassShader;
-                shader.bind();
-            }
-
-            _grassShadowShader.bind();
         }
 
         internal override void FinishShadow(RenderEngine renderEngine)
         {
-
             GL.Disable(EnableCap.PolygonOffsetFill);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
         }
-
-        internal override void PerformGeometryCommand(GrassRenderCommand command, RenderEngine renderEngine)
-        {
-            int bladesPerChunk = (int)Math.Pow(bladesPerAxis, 2);
-            _grassShader.loadUniformInt("bladesPerChunk", bladesPerChunk);
-            _grassShader.loadUniformInt("bladesPerAxis", bladesPerAxis);
-
-            Vector4[] chunkData = new Vector4[MAX_GRASS_CHUNKS];
-            for (int i = 0; i < command.chunks.Length; i++)
-            {
-                var chunkCommand = command.chunks[i];
-                chunkData[i] = new Vector4(chunkCommand.chunkPos.X, chunkCommand.chunkPos.Y, chunkCommand.size, chunkCommand.arrayID);
-            }
-            GL.BindBuffer(BufferTarget.UniformBuffer, chunkUBO);
-            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, Vector4.SizeInBytes * MAX_GRASS_CHUNKS, chunkData);
-
-            glModel grassBlade = grassBladeLOD0;
-            if (command.LOD == 1)
-            {
-                _grassShader.loadUniformBool("isBillboard", true);
-                GL.Enable(EnableCap.CullFace);
-                grassBlade = grassBladeLOD1;
-            } else
-            {
-                _grassShader.loadUniformBool("isBillboard", false);
-                GL.Disable(EnableCap.CullFace);
-            }
-
-            GL.BindVertexArray(grassBlade.getVAOID());
-            GL.EnableVertexAttribArray(0);
-            GL.EnableVertexAttribArray(1);
-            GL.EnableVertexAttribArray(2);
-            GL.EnableVertexAttribArray(3);
-            GL.EnableVertexAttribArray(4);
-            GL.EnableVertexAttribArray(5);
-
-            GL.DrawElementsInstanced(PrimitiveType.Triangles, grassBlade.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero, bladesPerChunk * command.chunks.Length);
-
-            bladesRenderedThisFrame += bladesPerChunk * command.chunks.Length;
-
-        }
-
 
         internal override void PerformShadowCommand(GrassRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
-            
-            GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
-            GL.PolygonOffset(0.01f, 0.01f);
-            
+            // Only chunks within the shadow distance of the camera have blades that cast shadows.
+            Vector2 camera = renderEngine.context.viewPos.Xz;
+            _shadowChunks.Clear();
+            foreach (var chunk in command.chunks)
+            {
+                Vector2 nearest = Vector2.Clamp(camera, chunk.chunkPos, chunk.chunkPos + new Vector2(chunk.size));
+                if ((nearest - camera).Length < _settings.ShadowDistance) _shadowChunks.Add(chunk);
+            }
+
+            Matrix4 viewProjection = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
+            if (!Generate(_shadowChunks, viewProjection, shadowPass: true)) return;
+
             if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
             {
                 shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
-
             }
             else
             {
                 shadow.shadowFrameBuffer.bind();
             }
+            GL.PolygonOffset(0.01f, 0.01f);
 
-            int bladesPerChunk = (int)Math.Pow(bladesPerAxis, 2);
-            _grassShadowShader.loadUniformInt("bladesPerChunk", bladesPerChunk);
-            _grassShadowShader.loadUniformInt("bladesPerAxis", bladesPerAxis);
-            _grassShadowShader.loadUniformMatrix4f("shadowViewProjectionMatrix", shadow.lightViewMatrix*shadow.shadowProjectionMatrix);
+            // Blades widen where the light sees them edge-on: a directional light (orthographic shadow) from its
+            // direction, other lights from their position.
+            Matrix4 lightToWorld = shadow.lightViewMatrix.Inverted();
+            bool directional = MathF.Abs(shadow.shadowProjectionMatrix.M34) < 1e-6f;
+            Vector4 eye = directional
+                ? new Vector4((new Vector4(0f, 0f, 1f, 0f) * lightToWorld).Xyz.Normalized(), 0f)
+                : new Vector4(lightToWorld.ExtractTranslation(), 1f);
 
-            //  KINDA BAD TO INVERT HE VIEW MATRIX JUST TO GET THE POSITION....
-            _grassShadowShader.loadUniformVector3f("lightPosWorld", shadow.lightViewMatrix.Inverted().ExtractTranslation());
-            Vector4[] chunkData = new Vector4[MAX_GRASS_CHUNKS];
-            for (int i = 0; i < command.chunks.Length; i++)
-            {
-                if (i >= MAX_GRASS_CHUNKS - 1) {
-                    Console.WriteLine("Warning: More chunks in command than MAX_GRASS_CHUNKS. Some chunks will not be rendered.");
-                    continue;
-                }
-                var chunkCommand = command.chunks[i];
-                chunkData[i] = new Vector4(chunkCommand.chunkPos.X, chunkCommand.chunkPos.Y, chunkCommand.size, chunkCommand.arrayID);
-            }
-
-            GL.BindBuffer(BufferTarget.UniformBuffer, chunkUBO);
-            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, Vector4.SizeInBytes * MAX_GRASS_CHUNKS, chunkData);
-
-            glModel grassBlade = grassBladeShadow;
-
-            GL.BindVertexArray(grassBlade.getVAOID());
-            GL.EnableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(1);
-            GL.DisableVertexAttribArray(3);
-            GL.DisableVertexAttribArray(4);
-            GL.DisableVertexAttribArray(5);
-
-            GL.DrawElementsInstanced(PrimitiveType.Triangles, grassBlade.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero, bladesPerChunk * command.chunks.Length);
-            
+            _grassShadowShader.bind();
+            _grassShadowShader.loadUniformMatrix4f("shadowViewProjectionMatrix", viewProjection);
+            _grassShadowShader.loadUniformVector4f("shadowEye", eye);
+            GL.BindVertexArray(_emptyVao);
+            GL.BindBuffer(BufferTarget.DrawIndirectBuffer, _commandBuffer);
+            DrawList(_grassShadowShader, _farBuffer, FarSegments, 1);
+            GL.BindBuffer(BufferTarget.DrawIndirectBuffer, 0);
+            GL.BindVertexArray(0);
         }
     }
 }

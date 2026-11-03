@@ -217,6 +217,7 @@ namespace Dino_Defenders
             world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(15f)));
             world.RegisterSingleton<TerrainScatterSingleton>(world.CreateEntity(new TerrainScatterSingleton(MyMath.rand.Next(), Vector2.Zero, new Vector2(terrainSize))));
             world.RegisterSingleton<WindSingleton>(world.CreateEntity("Wind", new WindSingleton()));
+            world.RegisterSingleton<GrassSingleton>(world.CreateEntity("Grass", new GrassSingleton()));
             world.RegisterSingleton<VolumetricFogSingleton>(world.CreateEntity("Volumetric Fog", new VolumetricFogSingleton()));
             // The terrain sinks below zero west of x = 0 and south of z = 0, so the sea meets it along a winding coast there.
             world.RegisterSingleton<WaterSingleton>(world.CreateEntity("Water", new WaterSingleton { SeaLevel = -0.6f }));

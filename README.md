@@ -40,7 +40,7 @@ This is a fully **procedural game engine** built from scratch in C# using OpenGL
 - **Procedural terrain** and landscape generation
 - **Procedural modeling** for all objects
 - **Procedural textures** for all textures
-- **Grass shader** lightweigth zero per instance data
+- **GPU-driven grass** in the style of Ghost of Tsushima: a compute pass grows, clumps, thins and culls the blades every frame, drawn as curved Bézier blades with indirect draws; nothing per blade is stored
 
 ### Other Post-processing Effects
 - **FXAA anti-aliasing**

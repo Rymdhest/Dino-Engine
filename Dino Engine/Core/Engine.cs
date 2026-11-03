@@ -101,7 +101,8 @@ namespace Dino_Engine.Core
             GameWindowSettings gws = GameWindowSettings.Default;
             NativeWindowSettings nws = NativeWindowSettings.Default;
             nws.API = ContextAPI.OpenGL;
-            nws.APIVersion = new Version(4,2);
+            // 4.3 for compute shaders, shader storage buffers and indirect draws (GPU grass).
+            nws.APIVersion = new Version(4,3);
             
             nws.AutoLoadBindings = true;
             nws.Title = settings._gameTitle;

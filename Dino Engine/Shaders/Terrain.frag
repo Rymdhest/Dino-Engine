@@ -45,6 +45,7 @@ layout (depth_greater) out float gl_FragDepth;
 #include textureUtil.glsl
 #include gBufferUtil.glsl
 #include procedural/fastHash.glsl
+#include Grass/GrassField.glsl
 
 // parallaxDepth * PARALLAX_DEPTH_SCALE is the height field depth in texture tiles.
 const float PARALLAX_DEPTH_SCALE = 0.04;
@@ -261,6 +262,14 @@ void main() {
     MaterialProps material = LookupAllMaterialPropsGrad(winningUV, winningMat, uvDX, uvDY);
 
     gAlbedo.rgb = material.albedo;
+
+    // Under the grass the ground takes on the colour of the field, so gaps between blades read as more grass.
+    vec2 macroCoord = clamp((fragWorldPos.xz - fragInstanceChunkPos) / fragInstanceChunkSizeXZ, 0.0, 1.0) * (1.0 - textureMapOffset) + vec2(textureMapOffset / 2.0);
+    float tintRoad = textureGrad(normalHeightTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).z;
+    float tintGrass = textureGrad(grassTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).r;
+    float tintFertility = grassFertility(tintGrass, N.y, tintRoad);
+    gAlbedo.rgb = grassGroundTint(gAlbedo.rgb, fragWorldPos.xz, tintFertility, length(viewPos - fragWorldPos));
+
     if (DEBUG_VIEW) {
         gAlbedo.rgb = vec3(hash13(gl_PrimitiveID)) * COLOR_TEST;
     }

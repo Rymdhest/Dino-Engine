@@ -282,8 +282,10 @@ namespace Dino_Engine.Rendering
             _instancedModelRenderer.GeometryRenderPass(this);
             _imposterRenderer.GeometryRenderPass(this);
 
-            _terrainRenderer.GeometryRenderPass(this);
+            // Grass before terrain: blades hide much of the ground, and depth testing then skips the terrain's costly
+            // parallax shading behind them. Grass also uploads the settings the terrain's ground tint reads.
             _grassRenderer.GeometryRenderPass(this);
+            _terrainRenderer.GeometryRenderPass(this);
 
 
             _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);

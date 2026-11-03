@@ -1,0 +1,287 @@
+#version 430
+
+// Grows the grass for one view (the camera, or a light for its shadow), in the manner of Ghost of Tsushima. One thread
+// per candidate blade on a jittered grid over each chunk:
+// 1. Blades gather into Voronoi tufts that share their height, colour and lean.
+// 2. The field thins out with distance (keeping about as many blades per pixel as up close) and fades where the grass
+//    map does. Blades leave in a fixed order and shrink away before they go, and the survivors widen to cover.
+// 3. Blades outside the view are culled, before most of the work.
+// 4. Survivors get their final curve, bent by the wind and trampling, and are appended to the near list (15 vertex
+//    blades) or the far list (7 vertices) of an indirect draw. In the shadow pass everything goes to the far list.
+// Nothing about single blades is stored between frames: a blade's random values come from its cell in world space.
+
+layout(local_size_x = 64) in;
+
+#include Globals.glsl
+#include Wind.glsl
+#include Grass/GrassField.glsl
+#include Grass/GrassBlade.glsl
+
+layout(std140, binding = 5) uniform ChunkDataBuffer {
+    vec4 chunkData[1024];   // xy chunk origin (world xz), z chunk size, w height map layer
+};
+
+struct GrassDrawCommand {
+    uint count;
+    uint instanceCount;
+    uint first;
+    uint baseInstance;
+};
+layout(std430, binding = 0) buffer GrassDrawCommands {
+    GrassDrawCommand drawCommands[2];   // 0 near list, 1 far list
+};
+layout(std430, binding = 1) writeonly buffer GrassNearBlades {
+    GrassBlade nearBlades[];
+};
+layout(std430, binding = 2) writeonly buffer GrassFarBlades {
+    GrassBlade farBlades[];
+};
+
+uniform sampler2DArray heightmaps;
+uniform sampler2DArray grassMaps;
+uniform sampler2D bendMap;
+uniform sampler2D windMap;
+
+uniform vec4 frustumPlanes[6];
+uniform int bladesPerAxis;
+uniform int shadowPass;
+uniform int nearCapacity;
+uniform int farCapacity;
+uniform float textureMapOffset;
+
+const float TAU = 6.28318530718;
+
+vec4 readChunkMap(sampler2DArray map, vec2 uv, float layer)
+{
+    return textureLod(map, vec3(uv * (1.0 - textureMapOffset) + vec2(textureMapOffset * 0.5), layer), 0.0);
+}
+
+// The nearest tuft centre: centres sit one per cell of a grid, jittered within it.
+void nearestTuft(vec2 xz, out vec2 centre, out uint seed)
+{
+    float spacing = max(grassClump.x, 0.05);
+    ivec2 cell = ivec2(floor(xz / spacing));
+    float best = 1e30;
+    centre = xz;
+    seed = 0u;
+    for (int y = -1; y <= 1; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            ivec2 c = cell + ivec2(x, y);
+            uint h = grassHash(c, 0x68e31da4u);
+            vec2 p = (vec2(c) + 0.15 + 0.7 * vec2(h & 0xffffu, h >> 16u) * (1.0 / 65535.0)) * spacing;
+            float d = dot(p - xz, p - xz);
+            if (d < best)
+            {
+                best = d;
+                centre = p;
+                seed = h;
+            }
+        }
+    }
+}
+
+// Fraction of the blades kept at a distance. Above 1 close by, so blades only start to go past the thinning start.
+float keepFraction(float viewDistance)
+{
+    float start = max(grassField.z, 0.1);
+    float keep = max(start * start / max(viewDistance * viewDistance, 1e-4), grassField.w);
+    return keep * (1.0 - smoothstep(grassField.y * 0.8, grassField.y, viewDistance));
+}
+
+float wrapAngle(float a)
+{
+    return a - TAU * floor(a / TAU + 0.5);
+}
+
+// Unit direction leaning `lean` radians from vertical towards lean's direction on the xz plane.
+vec3 leanDirection(vec2 lean, float maxAngle)
+{
+    float amount = length(lean);
+    if (amount < 1e-5) return vec3(0.0, 1.0, 0.0);
+    float angle = min(amount, maxAngle);
+    vec2 horizontal = lean / amount * sin(angle);
+    return vec3(horizontal.x, cos(angle), horizontal.y);
+}
+
+void main()
+{
+    int index = int(gl_GlobalInvocationID.x);
+    if (index >= bladesPerAxis * bladesPerAxis) return;
+
+    vec4 chunk = chunkData[gl_WorkGroupID.y];
+    vec2 chunkOrigin = chunk.xy;
+    float chunkSize = chunk.z;
+    float layer = chunk.w;
+    float spacing = chunkSize / float(bladesPerAxis);
+
+    ivec2 cell = ivec2(round(chunkOrigin / spacing)) + ivec2(index % bladesPerAxis, index / bladesPerAxis);
+    uint seed = grassHash(cell, 0x9e3779b9u);
+    vec2 xz = (vec2(cell) + vec2(grassRandom(seed), grassRandom(seed))) * spacing;
+
+    // --- Tuft ---
+    vec2 tuftCentre;
+    uint tuft;
+    nearestTuft(xz, tuftCentre, tuft);
+    vec2 fromCentre = xz - tuftCentre;
+    float tuftDistance = length(fromCentre) / max(grassClump.x, 0.05);
+    xz = mix(xz, tuftCentre, grassClump.y);
+
+    // --- Ground ---
+    vec2 local = (xz - chunkOrigin) / chunkSize;
+    vec2 inside = clamp(local, 0.0, 1.0);
+    vec4 terrain = readChunkMap(heightmaps, inside, layer);
+    vec3 groundNormal = vec3(terrain.x, sqrt(max(0.0, 1.0 - dot(terrain.xy, terrain.xy))), terrain.y);
+    // A blade pulled over the chunk's edge continues along the slope there rather than reading the neighbour's maps.
+    vec2 overshoot = (local - inside) * chunkSize;
+    vec3 root = vec3(xz.x, terrain.w - dot(groundNormal.xz, overshoot) / max(groundNormal.y, 0.2), xz.y);
+
+    // --- Distance thinning: every blade has a fixed rank and leaves when the kept fraction drops below it ---
+    float viewDistance = length(root - viewPosWorld);
+    float keep = keepFraction(viewDistance);
+    // The survivors widen to keep the field covered; fully for the extra thinning of shadow casters, whose shape no
+    // one sees, partly for the view's thinning, so far blades still look like blades.
+    float widen = mix(1.0, inversesqrt(clamp(keep, 0.04, 1.0)), 0.75);
+    if (shadowPass == 1)
+    {
+        float shadowDensity = clamp(grassLod.z, 0.05, 1.0);
+        keep *= shadowDensity * (1.0 - smoothstep(grassLod.y * 0.8, grassLod.y, viewDistance));
+        widen /= shadowDensity;
+    }
+    float rank = grassRandom(seed);
+    if (rank >= keep) return;
+    float fade = clamp((keep - rank) / (0.3 * min(keep, 1.0)), 0.0, 1.0);
+
+    // --- View culling: no blade reaches further from its root than the longest a blade can grow ---
+    float reach = grassBlade.x * (1.0 + grassBlade.y) * (1.0 + grassClump.z) * 1.15 + grassBlade.z * widen * 2.5;
+    for (int i = 0; i < 6; i++)
+    {
+        if (dot(frustumPlanes[i].xyz, root) + frustumPlanes[i].w < -reach) return;
+    }
+
+    // --- Where grass grows ---
+    float grassMap = readChunkMap(grassMaps, inside, layer).r;
+    float fertility = grassFertility(grassMap, groundNormal.y, terrain.z);
+    if (grassRandom(seed) >= clamp((fertility - 0.1) / 0.7, 0.0, 1.0)) return;
+
+    // --- Size ---
+    uint tuftState = tuft;
+    float tuftHeight = 1.0 + (grassRandom(tuftState) * 2.0 - 1.0) * grassClump.z;
+    float tuftShade = grassRandom(tuftState);
+    float tuftHue = grassRandom(tuftState);
+    // Tufts dome up: blades in the middle stand taller than at the rim.
+    float dome = 1.15 - 0.45 * clamp(tuftDistance, 0.0, 1.0);
+    float growth = grassMap * groundNormal.y;
+    float bladeLength = grassBlade.x * growth * tuftHeight * dome * (1.0 + (grassRandom(seed) * 2.0 - 1.0) * grassBlade.y) * fade;
+    if (bladeLength < 0.02) return;
+    float width = grassBlade.z * (0.75 + 0.5 * grassRandom(seed)) * widen * mix(0.4, 1.0, fade);
+
+    // --- Shape ---
+    // Blades lean their own way, partly out from their tuft's centre so tufts splay open.
+    float ownAngle = grassRandom(seed) * TAU;
+    float outAngle = dot(fromCentre, fromCentre) > 1e-8 ? atan(fromCentre.y, fromCentre.x) : ownAngle;
+    float leanAngle = ownAngle + wrapAngle(outAngle - ownAngle) * grassClump.w;
+    vec2 leanDir = vec2(cos(leanAngle), sin(leanAngle));
+    float tilt = max(grassShape.x + (grassRandom(seed) * 2.0 - 1.0) * grassShape.y, 0.0);
+    // Long blades flop over further than short ones.
+    float droop = grassShape.z * (0.5 + grassRandom(seed)) * clamp(bladeLength / max(grassBlade.x, 0.01), 0.3, 1.5);
+
+    // The patch's sway and trampling from the vegetation simulation, plus the blade's own flutter.
+    vec2 bend = vegetationBend(bendMap, windMap, root.xz);
+    vec2 flutterMid = vec2(0.0);
+    vec2 flutterTip = vec2(0.0);
+    vec2 wind = sampleWindMap(windMap, root.xz).xz;
+    float speed = length(wind);
+    float flutterRandom = grassRandom(seed);
+    float flutterPhase = grassRandom(seed) * TAU;
+    if (speed > 1e-3 && vegetationParams.z > 0.0 && vegetationParams.y > 0.0)
+    {
+        vec2 along = wind / speed;
+        vec2 acrossWind = vec2(-along.y, along.x);
+        float amplitude = vegetationParams.z * min(speed / vegetationParams.y, 1.5);
+        float phase = time * (2.0 + 2.0 * flutterRandom) * TAU + flutterPhase;
+        // The bob runs up the blade like a wave along a whip: the tip lags behind the middle.
+        float midPhase = phase - 0.9;
+        float tipPhase = phase - 1.8;
+        flutterMid = 0.5 * amplitude * (along * sin(midPhase) + acrossWind * 0.4 * sin(1.31 * midPhase + 1.7));
+        flutterTip = amplitude * (along * sin(tipPhase) + acrossWind * 0.4 * sin(1.31 * tipPhase + 1.7));
+    }
+
+    // Lean (radians from vertical, towards +x / +z) at the root, middle and tip. The root stays stiffer than the tip.
+    vec2 tipLean = leanDir * tilt + bend + flutterTip;
+    vec2 droopDir = dot(tipLean, tipLean) > 1e-6 ? normalize(tipLean) : leanDir;
+    tipLean += droopDir * droop;
+    vec2 rootLean = leanDir * (tilt * 0.3) + bend * 0.4;
+    vec2 midLean = mix(rootLean, tipLean, 0.45) + flutterMid;
+
+    // A curve whose direction sweeps from the root's lean through the middle's to the tip's: the tip is where that
+    // sweep ends up (Simpson's rule), and the inner control points carry the end directions.
+    vec3 d0 = leanDirection(rootLean, 1.2);
+    vec3 dm = leanDirection(midLean, 1.6);
+    vec3 d1 = leanDirection(tipLean, 2.0);
+    vec3 p3 = bladeLength / 6.0 * (d0 + 4.0 * dm + d1);
+    vec3 p1 = bladeLength / 3.0 * d0;
+    vec3 p2 = p3 - bladeLength / 3.0 * d1;
+    // Keep the blade's length however it bends (a cubic's length is close to the mean of its chord and its control polygon).
+    float curveLength = 0.5 * (length(p3) + length(p1) + length(p2 - p1) + length(p3 - p2));
+    float scale = bladeLength / max(curveLength, 1e-5);
+    p1 *= scale;
+    p2 *= scale;
+    p3 *= scale;
+    // The curve stays inside its control points' hull, so this keeps it out of the ground.
+    p2.y = max(p2.y, 0.04 * bladeLength);
+    p3.y = max(p3.y, 0.02 * bladeLength);
+
+    // A blade bends over its flat side, so it faces the way it leans: in a strong wind the whole field turns to face
+    // it. A little random twist keeps rows of blades from lining up.
+    vec2 faceDir = dot(tipLean, tipLean) > 1e-6 ? normalize(tipLean) : leanDir;
+    float twist = (grassRandom(seed) - 0.5) * 0.8;
+    vec2 side = vec2(-faceDir.y, faceDir.x);
+    side = vec2(side.x * cos(twist) - side.y * sin(twist), side.x * sin(twist) + side.y * cos(twist));
+
+    // --- Look ---
+    float dryness = grassDryness(root.xz, fertility);
+    float variation = grassRootColour.w;
+    vec3 colour = grassBodyColour.rgb * (1.0 + variation * ((tuftShade - 0.5) * 0.7 + (grassRandom(seed) - 0.5) * 0.35));
+    colour = mix(colour, grassTipColour.rgb, variation * tuftHue * tuftHue * 0.5);
+    colour = mix(colour, grassDryColour.rgb, dryness * (0.75 + 0.25 * grassRandom(seed)));
+
+    GrassBladeData blade;
+    blade.root = root;
+    blade.width = width;
+    blade.p1 = p1;
+    blade.p2 = p2;
+    blade.p3 = p3;
+    blade.morph = smoothstep(grassLod.x * 0.7, grassLod.x, viewDistance);
+    blade.side = side;
+    blade.colour = clamp(colour, 0.0, 1.0);
+    blade.tipBleach = clamp(0.1 + 0.45 * grassRandom(seed) + 0.4 * dryness, 0.0, 1.0);
+    blade.groundNormal = groundNormal.xz;
+    // Roots in thick grass, and in the middle of tufts, see less sky.
+    blade.rootAO = clamp(mix(0.8, 0.3, clamp(fertility * 1.2, 0.0, 1.0)) - 0.1 * (1.0 - clamp(tuftDistance * 1.5, 0.0, 1.0)), 0.1, 1.0);
+    blade.gloss = grassRandom(seed);
+
+    // --- Append. A full list drops the blade (the count is put back, so the draw never reads past the buffer) ---
+    bool near = shadowPass == 0 && viewDistance < grassLod.x;
+    if (near)
+    {
+        uint slot = atomicAdd(drawCommands[0].instanceCount, 1u);
+        if (slot >= uint(nearCapacity))
+        {
+            atomicAdd(drawCommands[0].instanceCount, 0xffffffffu);
+            return;
+        }
+        nearBlades[slot] = packGrassBlade(blade);
+    }
+    else
+    {
+        uint slot = atomicAdd(drawCommands[1].instanceCount, 1u);
+        if (slot >= uint(farCapacity))
+        {
+            atomicAdd(drawCommands[1].instanceCount, 0xffffffffu);
+            return;
+        }
+        farBlades[slot] = packGrassBlade(blade);
+    }
+}

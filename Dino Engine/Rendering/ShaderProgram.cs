@@ -13,6 +13,7 @@ namespace Dino_Engine.Rendering
         private int vertexShaderID;
         private int fragmentShaderID;
         private int geometryShaderID;
+        private int computeShaderID;
         private static string _shaderFolderPath = "../../../../Dino Engine/Shaders/";
         private Dictionary<string, int> uniforms = new Dictionary<string, int>();
         public ShaderProgram(string vertexFile, string fragmentFile)
@@ -52,6 +53,23 @@ namespace Dino_Engine.Rendering
             LoadAllUniformsFromShaderString(vertexString, vertexFile);
             LoadAllUniformsFromShaderString(fragmentString, fragmentFile);
             LoadAllUniformsFromShaderString(geometryString, geometryFile);
+        }
+        /// <summary>A compute program. Run it with GL.DispatchCompute while it is bound.</summary>
+        public ShaderProgram(string computeFile)
+        {
+            string computeString = PreProccessShaderFromFile(computeFile);
+            computeShaderID = CreateShader(computeString, ShaderType.ComputeShader);
+            programID = GL.CreateProgram();
+
+            GL.AttachShader(programID, computeShaderID);
+            GL.LinkProgram(programID);
+            GL.GetProgram(programID, GetProgramParameterName.LinkStatus, out var linked);
+            if (linked != (int)All.True)
+            {
+                Console.WriteLine($"Could not link compute shader {computeFile}.\n\n{GL.GetProgramInfoLog(programID)}");
+            }
+
+            LoadAllUniformsFromShaderString(computeString, computeFile);
         }
         public void loadUniformInt(string variableName, int value)
         {
@@ -249,6 +267,11 @@ namespace Dino_Engine.Rendering
             GL.DeleteShader(vertexShaderID);
             GL.DeleteShader(fragmentShaderID);
             GL.DeleteShader(geometryShaderID);
+            if (computeShaderID != 0)
+            {
+                GL.DetachShader(programID, computeShaderID);
+                GL.DeleteShader(computeShaderID);
+            }
             GL.DeleteProgram(programID);
         }
         public void printAllUniforms()
