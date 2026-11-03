@@ -1,0 +1,132 @@
+using OpenTK.Mathematics;
+
+namespace Dino_Engine.World.Content
+{
+    /// <summary>How a culture builds. Picked per world, so all the buildings of a world belong together.</summary>
+    public enum BuildingStyle
+    {
+        Timber,     // Half-timbered walls under steep thatch.
+        Eastern,    // Dark wood and pale panels under wide, upswept shingle roofs.
+        Stone,      // Rough stone under slate.
+    }
+
+    /// <summary>
+    /// A building or prop. Its size is fixed here, and <see cref="Modelling.Procedural.Architecture"/> builds its model to these
+    /// numbers, so worlds can be laid out without any geometry. Local +z is the front; a door opens that way.
+    /// </summary>
+    public sealed class StructureDefinition
+    {
+        public readonly string Id;
+        public readonly Vector2 HalfExtents;    // Metres along local x and z. Y of zero means a circle of radius X.
+        public readonly bool Solid;
+        public readonly bool Styled;            // Comes in a version per building style.
+        public readonly bool OnPad;             // The ground under it is levelled.
+        public readonly float ImposterDistance;
+        public readonly int Variants;
+        public readonly bool SpansRoad;         // A gate: the road is meant to run through it.
+
+        public StructureDefinition(string id, Vector2 halfExtents, bool solid = true, bool styled = false, bool onPad = false, float imposterDistance = 0f, int variants = 1, bool spansRoad = false)
+        {
+            Id = id;
+            HalfExtents = halfExtents;
+            Solid = solid;
+            Styled = styled;
+            OnPad = onPad;
+            ImposterDistance = imposterDistance;
+            Variants = variants;
+            SpansRoad = spansRoad;
+        }
+
+        public bool IsRound => HalfExtents.Y == 0f;
+        public float Width => HalfExtents.X * 2f;
+        public float Depth => (IsRound ? HalfExtents.X : HalfExtents.Y) * 2f;
+
+        public Footprint FootprintAt(Vector2 position, float yaw, float grow = 0f)
+        {
+            return IsRound
+                ? Footprint.Circle(position, HalfExtents.X + grow)
+                : Footprint.Box(position, HalfExtents + new Vector2(grow), yaw);
+        }
+    }
+
+    /// <summary>Every structure sites can be built from. A character stands about 4.6 m tall, so a door is 6 m high.</summary>
+    public static class StructureCatalog
+    {
+        private static StructureDefinition Building(string id, float halfWidth, float halfDepth, int variants = 3)
+        {
+            return new StructureDefinition(id, new Vector2(halfWidth, halfDepth), solid: true, styled: true, onPad: true, variants: variants);
+        }
+
+        private static StructureDefinition Prop(string id, float halfWidth, float halfDepth, bool solid = true)
+        {
+            return new StructureDefinition(id, new Vector2(halfWidth, halfDepth), solid: solid);
+        }
+
+        private static StructureDefinition Round(string id, float radius, bool solid = true)
+        {
+            return new StructureDefinition(id, new Vector2(radius, 0f), solid: solid);
+        }
+
+        public static readonly StructureDefinition Hut = Building("hut", 4.5f, 4f);
+        public static readonly StructureDefinition Cottage = Building("cottage", 6.5f, 5f);
+        public static readonly StructureDefinition House = Building("house", 8f, 6f);
+        public static readonly StructureDefinition Longhouse = Building("longhouse", 12f, 6f);
+        public static readonly StructureDefinition Barn = Building("barn", 9.5f, 7f, variants: 2);
+        public static readonly StructureDefinition Inn = Building("inn", 10f, 7.5f, variants: 2);
+        public static readonly StructureDefinition Hall = Building("hall", 13f, 8.5f, variants: 2);
+        public static readonly StructureDefinition Temple = Building("temple", 8.5f, 8.5f, variants: 1);
+        public static readonly StructureDefinition Shed = Building("shed", 3.5f, 3f, variants: 2);
+
+        public static readonly StructureDefinition Well = Round("well", 2f);
+        public static readonly StructureDefinition MarketStall = Prop("stall", 3.5f, 2.4f);
+        public static readonly StructureDefinition Cart = Prop("cart", 3.4f, 1.8f);
+        public static readonly StructureDefinition Haystack = Round("haystack", 2.3f);
+        public static readonly StructureDefinition Woodpile = Prop("woodpile", 2.6f, 1.1f);
+        public static readonly StructureDefinition Barrels = Round("barrels", 1.4f);
+        public static readonly StructureDefinition Crates = Prop("crates", 1.5f, 1.5f);
+        public static readonly StructureDefinition Lantern = Round("lantern", 0.5f);
+        public static readonly StructureDefinition StoneLantern = Round("lantern.stone", 0.9f);
+        public static readonly StructureDefinition Signpost = Round("signpost", 0.4f);
+        public static readonly StructureDefinition Scarecrow = Round("scarecrow", 0.6f, solid: false);
+        public static readonly StructureDefinition DryingRack = Prop("rack", 3f, 0.7f);
+        public static readonly StructureDefinition Bench = Prop("bench", 1.8f, 0.6f);
+        public static readonly StructureDefinition Tent = Prop("tent", 4.2f, 3.4f);
+        public static readonly StructureDefinition LargeTent = Prop("tent.large", 6f, 4.5f);
+        public static readonly StructureDefinition Campfire = Round("campfire", 1.6f);
+        public static readonly StructureDefinition LogStack = Prop("logs", 4f, 1.8f);
+        public static readonly StructureDefinition Boat = Prop("boat", 4.2f, 1.6f);
+        public static readonly StructureDefinition Jetty = Prop("jetty", 2.2f, 9f, solid: false);
+
+        public static readonly StructureDefinition WatchTower = new StructureDefinition("tower.watch", new Vector2(4.5f, 4.5f), solid: true, styled: true, onPad: true);
+        public static readonly StructureDefinition GuardTower = new StructureDefinition("tower.guard", new Vector2(3.5f, 3.5f), solid: true, onPad: true);
+        public static readonly StructureDefinition StoneTower = new StructureDefinition("tower.stone", new Vector2(6f, 0f), solid: true, onPad: true);
+        public static readonly StructureDefinition Keep = new StructureDefinition("keep", new Vector2(13f, 11f), solid: true, onPad: true);
+        public static readonly StructureDefinition GateArch = new StructureDefinition("gate.arch", new Vector2(4.2f, 0.9f), solid: false, spansRoad: true);
+        public static readonly StructureDefinition Gatehouse = new StructureDefinition("gatehouse", new Vector2(6f, 3f), solid: false, spansRoad: true);
+
+        public static readonly StructureDefinition Waygate = Prop("waygate", 4.4f, 1.6f, solid: false);
+        public static readonly StructureDefinition Altar = Round("altar", 1.8f);
+        public static readonly StructureDefinition Grave = Prop("grave", 0.9f, 1.5f);
+        public static readonly StructureDefinition Tomb = Prop("tomb", 3.6f, 5.4f);
+        public static readonly StructureDefinition Monolith = Round("monolith", 1.5f);
+        public static readonly StructureDefinition RuinWall = Prop("ruin.wall", 4.5f, 0.8f);
+        public static readonly StructureDefinition RuinColumn = Round("ruin.column", 1.1f);
+        public static readonly StructureDefinition Rubble = Round("ruin.rubble", 2.2f);
+        public static readonly StructureDefinition Cairn = Round("cairn", 1.1f);
+
+        // Lengths of wall or fence. Their models run along local +x, one metre at scale 1, and are stretched to fit.
+        public static readonly StructureDefinition Fence = new StructureDefinition("fence", new Vector2(0.5f, 0.25f), imposterDistance: 70f);
+        public static readonly StructureDefinition Palisade = new StructureDefinition("palisade", new Vector2(0.5f, 0.55f));
+        public static readonly StructureDefinition StoneWall = new StructureDefinition("wall.stone", new Vector2(0.5f, 0.8f));
+
+        public static readonly StructureDefinition GrainCrop = new StructureDefinition("crop.grain", new Vector2(1.2f, 0f), solid: false, imposterDistance: 45f);
+        public static readonly StructureDefinition VegetableCrop = new StructureDefinition("crop.vegetable", new Vector2(1f, 0f), solid: false, imposterDistance: 45f);
+
+        /// <summary>The asset id of a structure: its id, plus style and variant where it has them.</summary>
+        public static string AssetId(StructureDefinition definition, BuildingStyle style, int variant)
+        {
+            if (!definition.Styled) return definition.Id;
+            return $"{definition.Id}.{style.ToString().ToLowerInvariant()}.{variant % definition.Variants}";
+        }
+    }
+}
