@@ -54,6 +54,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             Systems.Add(new ViewMatrixSystem());
             Systems.Add(new CameraSystem());
+            Systems.Add(new WindSystem());
 
             Systems.Add(new GrassCollisionDisplaceSystem());
             Systems.Add(new GrassDisplaceSystem());

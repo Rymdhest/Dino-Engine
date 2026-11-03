@@ -27,8 +27,8 @@ namespace Dino_Engine.ECS.Components
         public float Turbulence;      // Domain-warp strength; makes the billows churn as they travel.
         public float Detail;          // Erosion of the billow edges by high-frequency noise.
         public float TopVariation;    // How much the top of the layer heaves up and down.
-        public float WindAngle;       // Degrees, direction the fog travels towards (0 = +Z).
-        public float WindSpeed;       // Metres per second.
+        public float WindInfluence;   // How much the fog drifts with the engine's wind (WindSingleton): 1 = moves with the air.
+        public float GustResponse;    // Seconds: gusts and blasts push the fog by this times how much faster than the mean the local wind blows.
         public float RollSpeed;       // How fast the fog churns and the wisps rise, independent of the wind.
 
         // --- Lighting ---
@@ -63,8 +63,8 @@ namespace Dino_Engine.ECS.Components
             Turbulence = 0.35f;
             Detail = 0.35f;
             TopVariation = 0.5f;
-            WindAngle = 35f;
-            WindSpeed = 1.5f;
+            WindInfluence = 1f;
+            GustResponse = 0.6f;
             RollSpeed = 0.4f;
 
             Albedo = new Vector3(0.95f, 0.96f, 1f);

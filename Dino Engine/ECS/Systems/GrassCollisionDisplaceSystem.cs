@@ -2,7 +2,7 @@
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Procedural.Terrain;
-using Dino_Engine.Rendering.Renderers.Geometry;
+using Dino_Engine.Rendering.Renderers.Simulation;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using System;
@@ -27,13 +27,13 @@ namespace Dino_Engine.ECS.Systems
 
             foreach (var collisionEvent in buffer.Events)
             {
-                BlastData blast = new BlastData();
-                blast.exponent = 0.6f;
-                blast.radius = 1.33f;
-                blast.power = 1.6f;
-                blast.center = collisionEvent.ContactPoint.Xz;
-
-                Engine.RenderEngine._grassRenderer.blasts.Add(blast);
+                Engine.RenderEngine._windRenderer.AddVegetationContact(new VegetationContact
+                {
+                    center = collisionEvent.ContactPoint.Xz,
+                    radius = 1.33f,
+                    power = 1.6f,
+                    exponent = 0.6f,
+                });
             }
 
         }

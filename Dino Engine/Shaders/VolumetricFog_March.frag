@@ -15,19 +15,22 @@
 #include gBufferUtil.glsl
 #include Globals.glsl
 #include Lighting/lightingCalc.glsl
+#include Wind.glsl
 
 layout (location = 0) out vec4 out_Fog;
 layout (location = 1) out float out_Distance;
 
 // Array sizes must match VolumetricFogRenderer.
 const int MAX_DIRECTIONAL_LIGHTS = 4;
-const int MAX_CASCADE_SLOTS = 6;
+const int MAX_CASCADE_SLOTS = 5;
 const int MAX_POINT_LIGHTS = 16;
 const int MAX_SPOT_LIGHTS = 16;
 
 uniform sampler2D gDepth;
 uniform sampler3D noiseTexture;
 uniform sampler2D terrainHeightMap;
+uniform sampler2D windMap;
+uniform float gustResponse;
 
 // Directional lights: colour is pre-multiplied by the fog's scattering setting, direction points towards the light.
 // Each light owns directionalCascadeCount[i] consecutive cascade slots from directionalCascadeStart[i], finest first.
@@ -36,8 +39,8 @@ uniform vec3 directionalColours[4];
 uniform vec3 directionalDirections[4];
 uniform int directionalCascadeStart[4];
 uniform int directionalCascadeCount[4];
-uniform mat4 cascadeMatrices[6];
-uniform sampler2DShadow cascadeShadowMaps[6];
+uniform mat4 cascadeMatrices[5];
+uniform sampler2DShadow cascadeShadowMaps[5];
 
 // Point lights: xyz position + w attenuation radius, rgb colour + w shadow map index (-1 = none), xyz attenuation.
 uniform int pointLightCount;
@@ -222,6 +225,7 @@ float localLightOpticalDepth(float extinction, vec3 position, vec3 lightPosition
 
 struct FogSample
 {
+    vec3 push;      // how far gusts have pushed the fog here (world metres)
     vec3 noisePosition;
     vec3 warp;
     float top;      // local height of the layer's top above its floor
@@ -231,7 +235,14 @@ struct FogSample
 FogSample prepareSample(vec3 position)
 {
     FogSample s;
-    s.noisePosition = position * invNoiseScale * NOISE_STRETCH;
+    // The fog drifts with the mean wind (baseOffset); where the wind locally runs ahead of or against the mean
+    // (gusts, blasts) it is pushed further. Capped at a quarter noise tile so blasts shove it rather than tear it.
+    vec4 localWind = sampleWindMap(windMap, position.xz);
+    s.push = (localWind.xyz - vec3(windMean.x, 0.0, windMean.y)) * gustResponse;
+    float pushLength = length(s.push);
+    float maxPush = 0.25 / invNoiseScale;
+    if (pushLength > maxPush) s.push *= maxPush / pushLength;
+    s.noisePosition = (position - s.push) * invNoiseScale * NOISE_STRETCH;
     vec4 low = textureLod(noiseTexture, s.noisePosition * WARP_FREQUENCY + warpOffset, 0.0);
     s.warp = (low.agb - 0.5) * turbulence;
     s.top = layerHeight * max(1.0 + (low.a - 0.5) * 2.0 * topVariation, 0.05);
@@ -376,7 +387,7 @@ void main(void)
             for (int k = 0; k < LIGHT_SAMPLES; k++)
             {
                 vec3 lightPosition = position + directionalDirections[l] * (lightStep * (float(k) + 0.5));
-                vec3 lightNoisePosition = lightPosition * invNoiseScale * NOISE_STRETCH;
+                vec3 lightNoisePosition = (lightPosition - s.push) * invNoiseScale * NOISE_STRETCH;
                 opticalDepth += shapeDensity(lightNoisePosition, s.warp, lightPosition.y - s.ground, s.top) * density * lightStep;
             }
             inScattered += directionalColours[l] * (visibility * multipleScattering(directionalPhases[l], opticalDepth));

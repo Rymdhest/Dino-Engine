@@ -24,14 +24,16 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelShader.loadUniformInt("normalMapModelTextureArray", 4);
             _instancedModelShader.loadUniformInt("materialMapModelTextureArray", 5);
 
-            _instancedModelShader.loadUniformInt("bendMap", 6);
+            _instancedModelShader.loadUniformInt("bendMap", BendMapUnit);
+            _instancedModelShader.loadUniformInt("windMap", WindMapUnit);
             _instancedModelShader.unBind();
 
             _instancedModelShadowShader.bind();
             _instancedModelShadowShader.loadUniformInt("albedoMapTextureArray", 0);
             _instancedModelShadowShader.loadUniformInt("albedoMapModelTextureArray", 3);
 
-            _instancedModelShadowShader.loadUniformInt("bendMap", 6);
+            _instancedModelShadowShader.loadUniformInt("bendMap", BendMapUnit);
+            _instancedModelShadowShader.loadUniformInt("windMap", WindMapUnit);
             _instancedModelShadowShader.unBind();
 
             _instanceVBO = GL.GenBuffer();
@@ -51,9 +53,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
             _instancedModelShader.bind();
-
-            _instancedModelShader.loadUniformVector2f("simulationWorldSize", renderEngine._grassRenderer.simulationWorldSize);
-            _instancedModelShader.loadUniformVector2f("simulationWorldPosition", renderEngine._grassRenderer.simulationWorldPosition);
 
             _instancedModelShader.loadUniformFloat("parallaxDepth", 0.0f);
             _instancedModelShader.loadUniformFloat("parallaxLayers", 5f);
@@ -75,8 +74,19 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
 
 
-            GL.ActiveTexture(TextureUnit.Texture6);
-            GL.BindTexture(TextureTarget.Texture2D, renderEngine._grassRenderer.GetLastFrameBuffer().GetAttachment(0));
+            BindWindTextures(renderEngine);
+        }
+
+        // Plants sway with the engine's wind (WindRenderer): bendMap is the vegetation state, windMap the wind field.
+        private const int BendMapUnit = 6;
+        private const int WindMapUnit = 7;
+
+        private static void BindWindTextures(RenderEngine renderEngine)
+        {
+            GL.ActiveTexture(TextureUnit.Texture0 + BendMapUnit);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.VegetationBendTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + WindMapUnit);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.WindMapTexture);
         }
 
         internal override void FinishGeometry(RenderEngine renderEngine)
@@ -112,17 +122,13 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelShadowShader.bind();
             _instancedModelShadowShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
-            _instancedModelShadowShader.loadUniformVector2f("simulationWorldSize", renderEngine._grassRenderer.simulationWorldSize);
-            _instancedModelShadowShader.loadUniformVector2f("simulationWorldPosition", renderEngine._grassRenderer.simulationWorldPosition);
-
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
 
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
 
-            GL.ActiveTexture(TextureUnit.Texture6);
-            GL.BindTexture(TextureTarget.Texture2D, renderEngine._grassRenderer.GetLastFrameBuffer().GetAttachment(0));
+            BindWindTextures(renderEngine);
         }
 
         internal override void FinishShadow(RenderEngine renderEngine)

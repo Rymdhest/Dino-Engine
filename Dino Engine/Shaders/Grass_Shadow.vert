@@ -2,6 +2,8 @@
 
 #include procedural/fasthash.glsl
 #include globals.glsl
+#include Wind.glsl
+#include GrassBlade.glsl
 
 layout(location=0) in vec3 position;
 
@@ -31,11 +33,10 @@ uniform sampler2DArray heightmaps;
 uniform sampler2DArray heightmaps2;
 uniform sampler2D grassNoise;
 
-uniform vec2 simulationWorldSize;
-uniform vec2 simulationWorldPosition;
 
 
 uniform sampler2D bendMap;
+uniform sampler2D windMap;
 
 #define PI 3.1415926538
 
@@ -136,27 +137,17 @@ void main() {
 	VertexPositionLocal.xz *= 1.0+bladeRandomValue*2.0*radiusError-radiusError;
 
 	vec2 bladeRandomValue2 = hash22(bladeWorldSeed);
-	float rotX = (bladeRandomValue2.x*2.0-1.0)*PI*2.0*tipFactor*bendyness;
-	float rotZ = (bladeRandomValue2.y*2.0-1.0)*PI*2.0*tipFactor*bendyness;
+	// Each blade's own lean (radians at the tip, towards +x / +z), as in Grass.vert.
+	vec2 staticLean = vec2(bladeRandomValue2.y * 2.0 - 1.0, -(bladeRandomValue2.x * 2.0 - 1.0)) * PI * 2.0 * bendyness;
+	// Shadow blades turn to face the light so they always cast their full width.
 	vec2 toCamera = normalize(lightPosWorld.xz - bladePositionWorld.xz);
-	float rotY = atan(toCamera.y, toCamera.x)-PI/2;;
-	mat3 localRotMatrix = rotZMatrix(rotZ)*rotXMatrix(rotX)*rotYMatrix(rotY);
+	float rotY = atan(toCamera.y, toCamera.x)-PI/2;
+	vec3 side = vec3(cos(rotY), 0.0, sin(rotY));
 
-	vec2 bendMapUVPosition = (bladePositionWorld.xz-simulationWorldPosition)/simulationWorldSize;
-	vec2 bendMapValue = texture(bendMap, bendMapUVPosition).yx;
-	bendMapValue.x *= -1.0;
-	bendMapValue *= tipFactor;
-	rotX = bendMapValue.x;
-	rotZ = bendMapValue.y;
-	
-	localRotMatrix = rotXMatrix(rotX)*rotZMatrix(rotZ)*localRotMatrix;
-
-	VertexPositionLocal = localRotMatrix*VertexPositionLocal;
-
-
-
-	
-	vec3 vertexPositionWorld = VertexPositionLocal+bladePositionWorld;
+	vec2 bend = staticLean + grassWindBend(bendMap, windMap, bladePositionWorld.xz, bladeRandomValue);
+	vec3 vertexPositionWorld;
+	vec3 unusedNormal;
+	bendGrassVertex(bladePositionWorld, bladeHeight * heightFactor, tipFactor, bend, side, VertexPositionLocal, vec3(0.0, 0.0, 1.0), vertexPositionWorld, unusedNormal);
 
 	gl_Position =  shadowViewProjectionMatrix*vec4(vertexPositionWorld, 1.0);
 }

@@ -1,4 +1,5 @@
 #version 420
+#include Wind.glsl
 
 
 layout(location=0) in vec3 position;
@@ -11,8 +12,7 @@ out vec2 fragUV;
 uniform mat4 viewpPojectionMatrix;
 
 uniform sampler2D bendMap;
-uniform vec2 simulationWorldSize;
-uniform vec2 simulationWorldPosition;
+uniform sampler2D windMap;
 uniform float swayAmount;
 
 mat3 rotXMatrix(float a) {
@@ -36,8 +36,7 @@ mat3 rotZMatrix(float a) {
 
 void main(void){
 	vec3 modelPosWorldSpace = (modelMatrix*vec4(position, 1.0)).xyz;
-	vec2 bendMapUVPosition = (modelPosWorldSpace.xz-simulationWorldPosition)/simulationWorldSize;
-	vec2 bendMapValue = texture(bendMap, bendMapUVPosition).yx;
+	vec2 bendMapValue = vegetationBend(bendMap, windMap, modelPosWorldSpace.xz).yx;
 	bendMapValue.x *= -1.0;
 	bendMapValue *= (position.y*0.001+length(position.xz)*0.01)*swayAmount;
 	float rotX = bendMapValue.x;

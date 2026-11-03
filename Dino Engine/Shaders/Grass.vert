@@ -2,6 +2,8 @@
 
 #include procedural/fasthash.glsl
 #include globals.glsl
+#include Wind.glsl
+#include GrassBlade.glsl
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
@@ -40,11 +42,10 @@ uniform int bladesPerAxis;
 
 uniform float textureMapOffset;
 
-uniform vec2 simulationWorldSize;
-uniform vec2 simulationWorldPosition;
 
 
 uniform sampler2D bendMap;
+uniform sampler2D windMap;
 uniform sampler2DArray heightmaps;
 uniform sampler2DArray heightmaps2;
 uniform sampler2D grassNoise;
@@ -152,8 +153,8 @@ void main() {
 	VertexPositionLocal.xz *= 1.0+bladeRandomValue*2.0*radiusError-radiusError;
 	
 	vec2 bladeRandomValue2 = hash22(bladeWorldSeed);
-	float rotX = (bladeRandomValue2.x*2.0-1.0)*PI*2.0*tipFactor*bendyness;
-	float rotZ = (bladeRandomValue2.y*2.0-1.0)*PI*2.0*tipFactor*bendyness;
+	// Each blade's own lean (radians at the tip, towards +x / +z).
+	vec2 staticLean = vec2(bladeRandomValue2.y * 2.0 - 1.0, -(bladeRandomValue2.x * 2.0 - 1.0)) * PI * 2.0 * bendyness;
 	float rotY;
 	if (isBillboard){
 		vec2 toCamera = normalize(viewPosWorld.xz - bladePositionWorld.xz);
@@ -161,29 +162,16 @@ void main() {
 	} else {
 		rotY = bladeRandomValue*-PI*2;
 	}
-	mat3 localRotMatrix = rotZMatrix(rotZ)*rotXMatrix(rotX)*rotYMatrix(rotY);
+	// The blade's width runs along `side` (rotYMatrix(rotY) applied to +x).
+	vec3 side = vec3(cos(rotY), 0.0, sin(rotY));
 
-	vec2 bendMapUVPosition = (bladePositionWorld.xz-simulationWorldPosition)/simulationWorldSize;
-	vec2 bendMapValue = texture(bendMap, bendMapUVPosition).yx;
-	bendMapValue.x *= -0.5;
-	bendMapValue *= tipFactor;
-	rotX = bendMapValue.x;
-	rotZ = bendMapValue.y;
-	
-	localRotMatrix = rotXMatrix(rotX)*rotZMatrix(rotZ)*localRotMatrix;
+	vec2 bend = staticLean + grassWindBend(bendMap, windMap, bladePositionWorld.xz, bladeRandomValue);
+	vec3 vertexPositionWorld;
+	vec3 adjustedNormal;
+	bendGrassVertex(bladePositionWorld, bladeHeight * heightFactor, tipFactor, bend, side, VertexPositionLocal, normal, vertexPositionWorld, adjustedNormal);
 
-	VertexPositionLocal = localRotMatrix*VertexPositionLocal;
-
-	
-
-	
-	vec3 vertexPositionWorld = VertexPositionLocal+bladePositionWorld;
 	fragColor = mix(baseColorDead, baseColorAlive, clamp(0.0, 1.0, validFactor*4.0-0.5));
 	fragColor = fragColor+fragColor*hash23(bladeWorldSeed)*colourError*2-colourError*fragColor;
-	//vec3 rotatedNormal = normal.xyz * inverse(transpose(rotationMatrix));
-	vec3 rotatedNormal = transpose(inverse(localRotMatrix))*normal.xyz;
-	//vec3 rotatedNormal = localRotMatrix*normal.xyz;
-	vec3 adjustedNormal = normalize(rotatedNormal);
 	fragNormal = (transpose(invViewMatrix)*vec4(adjustedNormal, 0.0f)).xyz;
 	terrainNormal =  (transpose(invViewMatrix)*vec4(terrainNormal, 1.0f)).xyz;
 	vec4 vertexPosView = viewMatrix*vec4(vertexPositionWorld, 1.0f);

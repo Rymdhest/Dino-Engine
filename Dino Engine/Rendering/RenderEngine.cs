@@ -5,6 +5,7 @@ using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
+using Dino_Engine.Rendering.Renderers.Simulation;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
@@ -67,6 +68,7 @@ namespace Dino_Engine.Rendering
         private BloomRenderer _bloomRenderer;
         private SkyRenderer _skyRenderer;
         public VolumetricFogRenderer _volumetricFogRenderer;
+        public WindRenderer _windRenderer;
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
         private DepthBasedBlurRenderer _depthBasedBlurRenderer;
@@ -137,6 +139,7 @@ namespace Dino_Engine.Rendering
             _bloomRenderer = new BloomRenderer();
             _skyRenderer = new SkyRenderer();
             _volumetricFogRenderer = new VolumetricFogRenderer();
+            _windRenderer = new WindRenderer();
             _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
             _gaussianBlurRenderer = new GaussianBlurRenderer();
             _depthBasedBlurRenderer = new DepthBasedBlurRenderer();
@@ -201,6 +204,8 @@ namespace Dino_Engine.Rendering
             } else
             {
 
+                // Wind first: geometry, shadows and fog all read this frame's wind.
+                _windRenderer.RenderPass(this);
                 GeometryPass();
                 ShadowPass();
                 LightPass();

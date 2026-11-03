@@ -39,10 +39,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private const int TerrainHeightResolution = 512;
         private const float TerrainDepthRange = 1000f;
 
-        // Light limits; array sizes must match VolumetricFog_March.frag. The shadow maps fill texture units 3..15,
-        // within the 16 units OpenGL guarantees.
+        // Light limits; array sizes must match VolumetricFog_March.frag. The shadow maps fill texture units 3..14 and
+        // the wind map unit 15, within the 16 units OpenGL guarantees.
         private const int MaxDirectionalLights = 4;
-        private const int MaxCascadeSlots = 6;
+        private const int MaxCascadeSlots = 5;
         private const int MaxPointLights = 16;
         private const int MaxPointShadows = 3;
         private const int MaxSpotLights = 16;
@@ -50,6 +50,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private const int CascadeUnitStart = 3;
         private const int SpotShadowUnitStart = CascadeUnitStart + MaxCascadeSlots;
         private const int PointShadowUnitStart = SpotShadowUnitStart + MaxSpotShadows;
+        private const int WindMapUnit = PointShadowUnitStart + MaxPointShadows;
 
         private static readonly string[] DirectionalColourNames = UniformNames("directionalColours", MaxDirectionalLights);
         private static readonly string[] DirectionalDirectionNames = UniformNames("directionalDirections", MaxDirectionalLights);
@@ -95,6 +96,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             for (int i = 0; i < MaxPointShadows; i++) _marchShader.loadUniformInt("pointShadowMaps[" + i + "]", PointShadowUnitStart + i);
             _marchShader.loadUniformFloat("pointShadowNear", PointLightRenderer.ShadowNearPlane);
             _marchShader.loadUniformFloat("pointShadowFar", PointLightRenderer.ShadowFarPlane);
+            _marchShader.loadUniformInt("windMap", WindMapUnit);
             _marchShader.unBind();
 
             _temporalShader.bind();
@@ -283,6 +285,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.BindTexture(TextureTarget.Texture3D, _noiseTexture);
             GL.ActiveTexture(TextureUnit.Texture2);
             GL.BindTexture(TextureTarget.Texture2D, _terrainHeightBuffer.getDepthAttachment());
+            GL.ActiveTexture(TextureUnit.Texture0 + WindMapUnit);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.WindMapTexture);
 
             UploadDirectionalLights(settings);
             UploadLocalLights(settings, renderEngine);
@@ -304,6 +308,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _marchShader.loadUniformFloat("turbulence", settings.Turbulence);
             _marchShader.loadUniformFloat("detail", Math.Clamp(settings.Detail, 0f, 0.95f));
             _marchShader.loadUniformFloat("topVariation", Math.Clamp(settings.TopVariation, 0f, 1f));
+            _marchShader.loadUniformFloat("gustResponse", Math.Max(settings.GustResponse, 0f));
             _marchShader.loadUniformVector3f("baseOffset", command.baseOffset);
             _marchShader.loadUniformVector3f("warpOffset", command.warpOffset);
             _marchShader.loadUniformVector3f("detailOffset", command.detailOffset);

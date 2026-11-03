@@ -1,7 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
-using Dino_Engine.Rendering.Renderers.Geometry;
+using Dino_Engine.Rendering.Renderers.Simulation;
 
 namespace Dino_Engine.ECS.Systems
 {
@@ -16,16 +16,13 @@ namespace Dino_Engine.ECS.Systems
             var position = entity.Get<PositionComponent>();
             var grassDisplace = entity.Get<GrassDisplaceComponent>();
 
-            var buffer = world.GetComponent<CollisionEventBufferSingleton>(world.GetSingleton<CollisionEventBufferSingleton>());
-
-
-            BlastData blast = new BlastData();
-            blast.exponent = grassDisplace.exponent;
-            blast.radius = grassDisplace.radius;
-            blast.power = grassDisplace.power;
-            blast.center = position.value.Xz;
-
-            Engine.RenderEngine._grassRenderer.blasts.Add(blast);
+            Engine.RenderEngine._windRenderer.AddVegetationContact(new VegetationContact
+            {
+                center = position.value.Xz,
+                radius = grassDisplace.radius,
+                power = grassDisplace.power,
+                exponent = grassDisplace.exponent,
+            });
 
         }
     }

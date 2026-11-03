@@ -1,6 +1,7 @@
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
@@ -45,7 +46,7 @@ namespace Dino_Engine.ECS.Systems
             var fog = entity.Get<VolumetricFogSingleton>();
             if (!fog.Enabled || !world.Camera.IsValid()) return;
 
-            Advance(fog, deltaTime);
+            Advance(fog, Wind.MeanVelocity(world) * fog.WindInfluence, deltaTime);
 
             var command = new VolumetricFogRenderCommand
             {
@@ -65,10 +66,10 @@ namespace Dino_Engine.ECS.Systems
             Engine.RenderEngine._volumetricFogRenderer.SubmitCommand(command);
         }
 
-        private void Advance(VolumetricFogSingleton fog, float deltaTime)
+        /// <param name="windVelocity">The mean wind the fog drifts with, on the xz plane in m/s.</param>
+        private void Advance(VolumetricFogSingleton fog, Vector2 windVelocity, float deltaTime)
         {
-            float angle = MathHelper.DegreesToRadians(fog.WindAngle);
-            Vector3 wind = new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle)) * fog.WindSpeed;
+            Vector3 wind = new Vector3(windVelocity.X, 0f, windVelocity.Y);
             Vector3 up = Vector3.UnitY * fog.RollSpeed;
             Vector3 toNoiseSpace = NoiseStretch * (deltaTime / MathF.Max(fog.NoiseScale, 0.1f));
 
