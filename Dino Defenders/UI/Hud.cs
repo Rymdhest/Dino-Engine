@@ -1,3 +1,4 @@
+using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Engine.Core;
@@ -22,6 +23,7 @@ namespace Dino_Defenders.UI
         private const float BossRange = 70f;
 
         private static readonly BitMask EnemyMask = new BitMask(typeof(EnemyComponent), typeof(HealthComponent), typeof(PositionComponent));
+        private static readonly BitMask HeroMask = new BitMask(typeof(HeroComponent), typeof(HealthComponent), typeof(PositionComponent));
 
         public Hud()
         {
@@ -72,6 +74,7 @@ namespace Dino_Defenders.UI
             if (session.Health <= 0f) draw.AddRect(screen, GuiColors.Rgba(20, 0, 0, 130));
 
             DrawEnemies(draw, session, screen);
+            DrawCompanions(draw, session, screen);
             DrawFloatingTexts(draw, session, screen);
             DrawGuidance(draw, session, screen);
             DrawVitals(draw, session, screen);
@@ -80,6 +83,7 @@ namespace Dino_Defenders.UI
             DrawLog(draw, session, screen);
             DrawPrompt(draw, session, screen);
             DrawBanner(draw, session, screen);
+            DrawConnection(draw, session);
         }
 
         // World to screen, in the same convention the renderer uses (row vectors).
@@ -127,6 +131,50 @@ namespace Dino_Defenders.UI
                     if (marked) Ui.Text(Context!, draw, enemy.Name, 13f, new GuiRect(back.X - 60f, back.Y - 18f, width + 120f, 16f), Ui.Gold, Alignment.Center);
                 }
             }
+        }
+
+        // Everyone else in the world: their name and health over their head, and along the side of the screen wherever they are.
+        private void DrawCompanions(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            if (session.Client.Party.Count <= 1) return;
+
+            ECSWorld world = Engine.Instance!.world;
+            float row = 0f;
+            foreach (Archetype archetype in world.QueryArchetypes(HeroMask, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var hero = entity.Get<HeroComponent>();
+                    if (hero.Player == session.Client.PlayerId) continue;
+
+                    var health = entity.Get<HealthComponent>();
+                    float share = Math.Clamp(health.Current / MathF.Max(health.Max, 1f), 0f, 1f);
+
+                    GuiRect frame = new GuiRect(Margin, Margin + row, 190f, 34f);
+                    Shade(draw, frame);
+                    Ui.Text(Context!, draw, $"{hero.Name}, level {hero.Level}", 14f, new GuiRect(frame.X, frame.Y, frame.Width, 18f), Ui.Parchment);
+                    draw.AddRect(new GuiRect(frame.X, frame.Y + 21f, frame.Width, 6f), GuiColors.Rgba(0, 0, 0, 170));
+                    draw.AddRect(new GuiRect(frame.X, frame.Y + 21f, frame.Width * share, 6f), Ui.Life);
+                    row += 46f;
+
+                    Vector3 position = entity.Get<PositionComponent>().value;
+                    if (!Project(position + Vector3.UnitY * 5.6f, screen, out Vector2 at)) continue;
+                    Ui.Text(Context!, draw, hero.Name, 14f, new GuiRect(at.X - 100f, at.Y - 22f, 200f, 18f), Ui.Parchment, Alignment.Center);
+                    GuiRect bar = new GuiRect(at.X - 28f, at.Y - 3f, 56f, 4f);
+                    draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 170));
+                    draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * share, bar.Height), Ui.Life);
+                }
+            }
+        }
+
+        private void DrawConnection(GuiDrawList draw, GameSession session)
+        {
+            GameClient client = session.Client;
+            if (client.Party.Count <= 1) return;
+
+            string text = $"{client.RoundTrip:0} ms";
+            if (client.Predictor.Corrections > 0) text += $"   {client.Predictor.Corrections} corrected";
+            Ui.Text(Context!, draw, text, 12.5f, new GuiRect(Bounds.Width - 200f - Margin, Bounds.Height - Margin - 16f, 200f, 16f), Ui.Faded, Alignment.End);
         }
 
         private void DrawBossBar(GuiDrawList draw, in EnemyComponent enemy, float share, GuiRect screen)

@@ -80,6 +80,9 @@ namespace Dino_Engine.Networking
 
         public void WriteVarInt(int value) => WriteVarUInt(ZigZag(value));
 
+        /// <summary>How many of something follow, for <see cref="BitReader.ReadCount"/>.</summary>
+        public void WriteCount(int count) => WriteVarUInt((uint)count);
+
         /// <summary>A change in a value: most are tiny, so its size is said first, in two bits.</summary>
         public void WriteDelta(int delta)
         {

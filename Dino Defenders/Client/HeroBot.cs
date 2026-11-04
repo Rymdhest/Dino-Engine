@@ -1,10 +1,11 @@
+using Dino_Defenders.Gameplay;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
-namespace Dino_Defenders.Gameplay
+namespace Dino_Defenders.Client
 {
     /// <summary>
     /// Plays the hero with nobody at the keyboard, to watch the game run. It fights whatever is close and drinks when hurt. Sweeping,
@@ -19,6 +20,7 @@ namespace Dino_Defenders.Gameplay
         private const float UseReach = 3f;
         private const int MostAttempts = 4;
         private const int MostFramesHeld = 120;
+        private const int FramesToArrive = 30;      // Being moved goes by way of the server, so it isn't done the moment it's asked.
 
         private static readonly BitMask EnemyMask = new BitMask(typeof(EnemyComponent), typeof(PositionComponent));
 
@@ -29,6 +31,7 @@ namespace Dino_Defenders.Gameplay
         private int _framesLeft = -1;
         private Vector2 _heldAt;
         private int _framesHeld;
+        private int _arriving;
 
         public int Unreachable { get; private set; }
 
@@ -42,6 +45,12 @@ namespace Dino_Defenders.Gameplay
         public HeroIntent Think(GameSession session)
         {
             var intent = new HeroIntent();
+            if (_arriving > 0)
+            {
+                _arriving--;
+                return intent;
+            }
+
             if (session.Health < session.Stats.MaxHealth * 0.4f) intent.Flask = true;
             intent.Interact = session.Offered is InteractKind.Shrine or InteractKind.Chest;
 
@@ -77,7 +86,7 @@ namespace Dino_Defenders.Gameplay
             else if (++_framesHeld > MostFramesHeld)
             {
                 _framesHeld = 0;
-                session.TravelTo = nearest;
+                Travel(session, nearest);
             }
 
             Vector2 toward = nearest - here;
@@ -89,13 +98,19 @@ namespace Dino_Defenders.Gameplay
             return intent;
         }
 
+        private void Travel(GameSession session, Vector2 to)
+        {
+            session.Client.TravelTo(to);
+            _arriving = FramesToArrive;
+        }
+
         private void GoOn(GameSession session)
         {
             if (TryFindErrand(session, out Vector2 errand, out float reach))
             {
                 if ((errand - session.PlayerPosition).Length <= reach) return;
                 _attempts[errand] = _attempts.GetValueOrDefault(errand) + 1;
-                session.TravelTo = errand;
+                Travel(session, errand);
                 return;
             }
 

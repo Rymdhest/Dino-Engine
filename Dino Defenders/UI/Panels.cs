@@ -1,4 +1,6 @@
+using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
+using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
@@ -64,13 +66,14 @@ namespace Dino_Defenders.UI
         {
             GameSession session = GameSession.Current;
             GuiRect map = MapRect();
-            foreach (SiteState state in session.Sites)
+            for (int i = 0; i < session.Sites.Count; i++)
             {
+                SiteState state = session.Sites[i];
                 if (!CanTravelTo(state)) continue;
                 Vector2 at = ToMap(map, state.Site.Position, session.World.Size);
                 if ((at - e.Position).Length > PickRadius) continue;
 
-                session.TravelTo = state.Site.Position;
+                session.Client.TravelToSite(i);
                 _close();
                 return;
             }
@@ -171,7 +174,7 @@ namespace Dino_Defenders.UI
     {
         private const int Columns = 6;
         private const int StockSize = 12;
-        private const int FlaskPrice = 12;
+        private const int FlaskPrice = 12;  // Shown here; the server is what charges it.
 
         private readonly StackPanel _details;
         private readonly GuiElement _market;
@@ -196,9 +199,9 @@ namespace Dino_Defenders.UI
             _title = left.Add(Ui.Heading("The Hero"));
             left.Add(Ui.Line().Bind(() => $"Level {Hero.Level}, {Hero.Gold} gold"));
             left.Add(Ui.Line("", 14f, Ui.Gold).Bind(() => Hero.UnspentPoints > 0 ? $"{Hero.UnspentPoints} points to spend" : " "));
-            left.Add(Attribute("Might", () => Hero.Might, () => Hero.Might++, "Health, and the weight of every blow."));
-            left.Add(Attribute("Finesse", () => Hero.Finesse, () => Hero.Finesse++, "Speed of the blade, and how often it finds a gap."));
-            left.Add(Attribute("Spirit", () => Hero.Spirit, () => Hero.Spirit++, "Recovery, and the strength of your abilities."));
+            left.Add(Attribute("Might", () => Hero.Might, HeroAttribute.Might, "Health, and the weight of every blow."));
+            left.Add(Attribute("Finesse", () => Hero.Finesse, HeroAttribute.Finesse, "Speed of the blade, and how often it finds a gap."));
+            left.Add(Attribute("Spirit", () => Hero.Spirit, HeroAttribute.Spirit, "Recovery, and the strength of your abilities."));
             left.Add(new Spacer(height: 8f));
             AddStats(left);
 
@@ -235,17 +238,11 @@ namespace Dino_Defenders.UI
             return _merchant != null && index < _merchant.Stock.Count ? _merchant.Stock[index] : null;
         }
 
-        private GuiElement Attribute(string name, Func<int> value, Action raise, string meaning)
+        private GuiElement Attribute(string name, Func<int> value, HeroAttribute attribute, string meaning)
         {
             var row = new StackPanel(Orientation.Horizontal, 8f) { Width = UIValue.Fill, Height = 32f, Tooltip = meaning };
             row.Add(Ui.Line().Bind(() => $"{name}  {value()}")).Width = 140f;
-            var button = row.Add(Ui.Action("+", () =>
-            {
-                if (Hero.UnspentPoints <= 0) return;
-                Hero.UnspentPoints--;
-                raise();
-                Session.RefreshStats();
-            }));
+            var button = row.Add(Ui.Action("+", () => Session.Client.RaiseAttribute(attribute)));
             button.Width = 36f;
             button.Updated += _ => button.Visible = Hero.UnspentPoints > 0;
             return row;
@@ -273,8 +270,7 @@ namespace Dino_Defenders.UI
                 ItemSlot worn = slot;
                 row.Add(new ItemCell(() => Hero.Equipped.GetValueOrDefault(worn), item =>
                 {
-                    Hero.Unequip(item.Slot);
-                    Session.RefreshStats();
+                    Session.Client.Unequip(item.Slot);
                     Describe(null);
                 }, Describe, worn));
             }
@@ -287,52 +283,27 @@ namespace Dino_Defenders.UI
             _merchant = merchant;
             _market.Visible = merchant != null;
             _title.Text = merchant != null ? merchant.Site.Name : "The Hero";
-            if (merchant != null && merchant.Stock.Count == 0) StockTable(merchant);
             Describe(null);
         }
 
-        private static void StockTable(SiteState merchant)
-        {
-            GameSession session = Session;
-            var random = new WorldRandom(session.World.Plan.Seed).Fork("market").Fork(merchant.Site.Id).Fork(session.Hero.WorldsCleared);
-            int level = session.World.Plan.Level + 1;
-            for (int i = 0; i < StockSize; i++)
-            {
-                merchant.Stock.Add(ItemGenerator.Roll(level, random.Fork(i), rarityBonus: 0.4f));
-            }
-        }
-
+        // All of these ask, and the server answers: what the hero has changes when it says so, a moment later.
         private void UseCarried(Item item)
         {
-            if (_merchant != null)
-            {
-                Hero.Inventory.Remove(item);
-                Hero.Gold += item.SellValue;
-            }
-            else
-            {
-                Hero.Equip(item);
-                Session.RefreshStats();
-            }
+            int index = Hero.Inventory.IndexOf(item);
+            if (index < 0) return;
+            if (_merchant != null) Session.Client.Sell(index);
+            else Session.Client.Equip(index);
             Describe(null);
         }
 
         private void Buy(Item item)
         {
-            if (_merchant == null || Hero.Gold < item.BuyValue || !Hero.Pickup(item)) return;
-            Hero.Gold -= item.BuyValue;
-            _merchant.Stock.Remove(item);
+            if (_merchant == null || Hero.Gold < item.BuyValue) return;
+            Session.Client.Buy(Session.Sites.IndexOf(_merchant), _merchant.Stock.IndexOf(item));
             Describe(null);
         }
 
-        private static void BuyFlasks()
-        {
-            while (Hero.Flasks < HeroState.MaxFlasks && Hero.Gold >= FlaskPrice)
-            {
-                Hero.Gold -= FlaskPrice;
-                Hero.Flasks++;
-            }
-        }
+        private static void BuyFlasks() => Session.Client.BuyFlasks();
 
         private void Describe(Item? item)
         {
@@ -421,9 +392,7 @@ namespace Dino_Defenders.UI
             }
 
             int gift = 45 * session.World.Plan.Level;
-            elder.Rewarded = true;
-            session.Hero.Gold += gift;
-            session.GiveExperience(60 * session.World.Plan.Level);
+            session.Client.ThankElder(session.Sites.IndexOf(elder));
             _body.Add(Ui.Paragraph($"\"We didn't think anyone would come. Take this, it's what we have.\"", 15f));
             _body.Add(Ui.Line($"{gift} gold", 14f, Ui.Gold));
         }
@@ -502,7 +471,7 @@ namespace Dino_Defenders.UI
         private readonly Label _confirm;
         private bool _confirming;
 
-        public PauseMenu(Action resume, Action quit, Action newJourney)
+        public PauseMenu(Action resume, Action friends, Action quit, Action newJourney)
         {
             Anchor = Anchor.Center;
             Width = 340f;
@@ -515,6 +484,7 @@ namespace Dino_Defenders.UI
             body.Add(Ui.Heading("Rest a While", 24f));
             body.Add(Ui.Action("Go on", resume));
             body.Add(Ui.Action("The hero (C)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Hero); }));
+            body.Add(Ui.Action("Travel with friends", friends));
             body.Add(Ui.Action("Leave the road", quit));
             body.Add(Ui.Action("Begin a new journey", () =>
             {
@@ -538,6 +508,61 @@ namespace Dino_Defenders.UI
         {
             _confirming = false;
             _confirm.Visible = false;
+        }
+    }
+
+    /// <summary>
+    /// Playing together. A game is open to friends from here, with a code to send them, and the code one has been sent goes in here.
+    /// </summary>
+    internal sealed class FriendsPanel : GuiElement
+    {
+        private readonly ArpgGame _game;
+        private readonly TextBox _code;
+        private readonly Label _problem;
+
+        public FriendsPanel(ArpgGame game)
+        {
+            _game = game;
+            Anchor = Anchor.Center;
+            Width = 620f;
+            Height = UIValue.Auto;
+            Padding = new Thickness(24f);
+            Ui.Dress(this);
+            Visible = false;
+
+            var body = Add(new StackPanel(Orientation.Vertical, 10f) { Width = UIValue.Fill, Height = UIValue.Auto });
+            body.Add(Ui.Heading("Travel with Friends", 24f));
+
+            var hosting = body.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Auto });
+            var open = hosting.Add(Ui.Action("Open this world to friends", () => _game.OpenToFriends()));
+            open.Updated += _ => open.Visible = !_game.Hosting && !_game.InFriendsGame;
+            var invite = hosting.Add(Ui.Line("", 16f, Ui.Gold).Bind(() => _game.InviteText ?? ""));
+            invite.Updated += _ => invite.Visible = _game.Hosting;
+            var copy = hosting.Add(Ui.Action("Copy the invite", () => Context!.Clipboard = _game.InviteText ?? ""));
+            copy.Updated += _ => copy.Visible = _game.Hosting;
+            var status = hosting.Add(Ui.Paragraph("", 14f, Ui.Faded).Bind(() => _game.InviteStatus));
+            status.Updated += _ => status.Visible = _game.Hosting;
+
+            body.Add(new Spacer(height: 6f));
+            var joining = body.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Auto });
+            joining.Add(Ui.Line("Join a friend", 15f, Ui.Gold));
+            _code = joining.Add(new TextBox("", "Paste the invite here") { Width = UIValue.Fill, Height = 32f });
+            _code.Submitted += _ => Join();
+            joining.Add(Ui.Action("Join", Join));
+            _problem = joining.Add(Ui.Paragraph("", 14f, Ui.Blood));
+            joining.Updated += _ => joining.Visible = !_game.Hosting;
+
+            var leave = body.Add(Ui.Action("Go back to your own world", () => _game.ReturnHome(null)));
+            leave.Updated += _ => leave.Visible = _game.InFriendsGame;
+
+            body.Add(new Spacer(height: 6f));
+            body.Add(Ui.Line("", 15f).Bind(() => $"In this game: {string.Join(", ", (_game.Client?.Party ?? new()).Select(p => p.name))}"));
+            body.Add(Ui.Line($"Up to {Protocol.MaxPlayers} heroes can share a world. Your hero and what they find come home with you.", 13f, Ui.Faded));
+        }
+
+        private void Join()
+        {
+            _problem.Text = _game.Join(_code.Text) ? "" : "That doesn't look like an invite.";
         }
     }
 
@@ -588,17 +613,19 @@ namespace Dino_Defenders.UI
         public readonly ChroniclePanel Chronicle = new();
         public readonly WaygatePanel Waygate;
         public readonly PauseMenu Pause;
+        public readonly FriendsPanel Friends;
         public readonly LoadingScreen Loading = new();
 
         private readonly GuiElement[] _panels;
 
-        public GameUi(GuiContext gui, Action<WorldRequest> travel, Action quit, Action newJourney)
+        public GameUi(GuiContext gui, ArpgGame game, Action<WorldRequest> travel, Action quit, Action newJourney)
         {
             Current = this;
             Map = new MapPanel(CloseAll);
             Waygate = new WaygatePanel(travel);
-            Pause = new PauseMenu(CloseAll, quit, newJourney);
-            _panels = new GuiElement[] { Map, Hero, Chronicle, Waygate, Pause };
+            Pause = new PauseMenu(CloseAll, () => Toggle(Friends!), quit, newJourney);
+            Friends = new FriendsPanel(game);
+            _panels = new GuiElement[] { Map, Hero, Chronicle, Waygate, Pause, Friends };
 
             gui.Root.Add(Hud);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);

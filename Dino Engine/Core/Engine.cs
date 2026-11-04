@@ -51,6 +51,9 @@ namespace Dino_Engine.Core
 
         public ECSWorld world;
 
+        /// <summary>Clear this while there is no world yet: the systems expect one, but the interface can still draw over nothing.</summary>
+        public bool WorldReady = true;
+
         public Engine(EngineLaunchSettings settings)
         {
             _instance = this;
@@ -150,7 +153,7 @@ namespace Dino_Engine.Core
             _renderEngine.Update();
             game.update();
 
-            world.Update(Engine.Delta);
+            if (WorldReady) world.Update(Engine.Delta);
 
         }
 

@@ -1,3 +1,4 @@
+using Dino_Defenders.Net;
 using OpenTK.Mathematics;
 
 namespace Dino_Defenders
@@ -11,9 +12,14 @@ namespace Dino_Defenders
     ///   --bot true      Plays the hero: it fights whatever is near. For watching the game run with nobody at the keyboard.
     ///   --sweep true    With the bot: when nothing is near, goes to the next place still held, until the world is free.
     ///   --hero N        Starts the hero at level N, with the attributes to match.
-    ///   --panel name    Opens map, hero, chronicle, merchant, elder, waygate or pause once the world is up.
+    ///   --panel name    Opens map, hero, chronicle, merchant, elder, waygate, friends or pause once the world is up.
     ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one.
     ///   --savefile path Keeps the save here, and uses it even on a scripted run.
+    ///   --host true     Opens the game to others straight away. --port N and --secret text say where and with what.
+    ///   --join place    Joins a game: an invite code, or address:port with --secret.
+    ///   --name text     What this hero is called in company.
+    ///   --netsim l,j,p  Plays through a bad line: l ms round trip, up to j ms of jitter, p percent of packets lost.
+    ///   --dedicated true  Runs a server with no window, for as long as it's left running.
     /// A scripted run otherwise neither reads nor writes the player's save.
     /// </summary>
     internal sealed class GameOptions
@@ -33,6 +39,13 @@ namespace Dino_Defenders
         public string? Panel;
         public int TravelAfterFrames = -1;
         public string? SaveFile;
+        public bool Host;
+        public int Port = UdpTransport.DefaultPort;
+        public string? Secret;
+        public string? Join;
+        public string? Name;
+        public string? NetSim;
+        public bool Dedicated;
 
         /// <summary>Whether this run plays on from a save, as someone playing does, rather than being a throwaway.</summary>
         public bool Saves => SaveFile != null || !(Seed != null || Archetype != null || Tour != null || Shot != null || Bot);
@@ -63,6 +76,13 @@ namespace Dino_Defenders
                     case "panel": options.Panel = value; break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
                     case "savefile": options.SaveFile = value; break;
+                    case "host": options.Host = value == "true"; break;
+                    case "port": options.Port = int.Parse(value); break;
+                    case "secret": options.Secret = value; break;
+                    case "join": options.Join = value; break;
+                    case "name": options.Name = value; break;
+                    case "netsim": options.NetSim = value; break;
+                    case "dedicated": options.Dedicated = value == "true"; break;
                 }
             }
             return options;

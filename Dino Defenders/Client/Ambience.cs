@@ -1,3 +1,4 @@
+using Dino_Defenders.Gameplay;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Physics;
@@ -6,7 +7,7 @@ using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
-namespace Dino_Defenders.Gameplay
+namespace Dino_Defenders.Client
 {
     /// <summary>
     /// Keeps a world breathing around the hero. The air takes on the place they are in: a marsh is thick with fog, a steppe is
@@ -24,6 +25,8 @@ namespace Dino_Defenders.Gameplay
         private const float LiberationTime = 7f;
         private const float LiberatedFog = 0.35f;
         private const float LiberatedSun = 1.18f;
+        private const float LightsWake = 100f;
+        private const float LightsSleep = 160f;
 
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
         private GameSession? _session;
@@ -51,12 +54,15 @@ namespace Dino_Defenders.Gameplay
             if (session == null) return;
             if (session != _session) Begin(world, session);
 
+            session.GuideCooldown = MathF.Max(session.GuideCooldown - deltaTime, 0f);
+
             _nextRegion -= deltaTime;
             if (_nextRegion <= 0f)
             {
                 _nextRegion = RegionInterval;
                 ReadRegion(session);
                 session.UpdateGuidance();
+                UpdateSiteLights(world, session);
             }
 
             if (session.Intent.Guide && session.GuideCooldown <= 0f && session.Guidance is Vector2 target)
@@ -70,6 +76,26 @@ namespace Dino_Defenders.Gameplay
             UpdateAir(world, session, deltaTime);
             UpdateLiberation(world, session, deltaTime);
             SpawnMotes(world, session, deltaTime);
+        }
+
+        // The fires and lanterns of a place are for looking at, so each player lights the ones near them.
+        private static void UpdateSiteLights(ECSWorld world, GameSession session)
+        {
+            foreach (SiteState state in session.Sites)
+            {
+                float distance = (state.Site.Position - session.PlayerPosition).Length - state.Site.Radius;
+                if (!state.Active && distance < LightsWake)
+                {
+                    state.Active = true;
+                    Ambience.Light(world, session, state);
+                }
+                else if (state.Active && distance > LightsSleep)
+                {
+                    foreach (Entity entity in state.Live) world.DestroyEntity(entity);
+                    state.Live.Clear();
+                    state.Active = false;
+                }
+            }
         }
 
         private void Begin(ECSWorld world, GameSession session)
@@ -206,6 +232,48 @@ namespace Dino_Defenders.Gameplay
     public static class Ambience
     {
         private const int MostLightsPerSite = 6;
+
+        /// <summary>Finds what comes alive at each site: the chimneys, fires and lanterns the generator placed there.</summary>
+        public static void FindFeatures(GameSession session, WorldAssetLibrary assets)
+        {
+            WorldObjects objects = session.World.Objects;
+            foreach (WorldObject item in objects.All())
+            {
+                string id = objects.AssetIds[item.Asset];
+                bool fire = id == StructureCatalog.Campfire.Id;
+                bool lantern = id == StructureCatalog.Lantern.Id || id == StructureCatalog.StoneLantern.Id;
+                IReadOnlyList<Vector3> chimneys = assets.ChimneysOf(id);
+                if (!fire && !lantern && chimneys.Count == 0) continue;
+
+                SiteState? owner = NearestSite(session, item.Position.Xz);
+                if (owner == null) continue;
+
+                if (fire) owner.Features.Add(new SiteFeature(SiteFeatureKind.Campfire, item.Position + Vector3.UnitY * 0.7f));
+                if (lantern) owner.Features.Add(new SiteFeature(SiteFeatureKind.Lantern, item.Position + Vector3.UnitY * 2.4f));
+                foreach (Vector3 top in chimneys)
+                {
+                    Vector3 scaled = top * item.Scale;
+                    owner.Features.Add(new SiteFeature(SiteFeatureKind.Chimney, item.Position + Vector3.Transform(scaled, item.Rotation)));
+                }
+            }
+        }
+
+        private static SiteState? NearestSite(GameSession session, Vector2 position)
+        {
+            SiteState? nearest = null;
+            float best = float.PositiveInfinity;
+            foreach (SiteState state in session.Sites)
+            {
+                if (state.Wild) continue;
+                float distance = (state.Site.Position - position).Length - state.Site.Radius;
+                if (distance < best && distance < 20f)
+                {
+                    best = distance;
+                    nearest = state;
+                }
+            }
+            return nearest;
+        }
 
         public static void Light(ECSWorld world, GameSession session, SiteState state)
         {

@@ -1,99 +1,52 @@
+using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
-using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
-using Dino_Engine.Modelling;
-using Dino_Engine.Modelling.Model;
-using Dino_Engine.Modelling.Procedural.Architecture;
-using Dino_Engine.Textures;
-using Dino_Engine.Util;
+using Dino_Engine.Networking;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
-namespace Dino_Defenders.Gameplay
+namespace Dino_Defenders.Server
 {
     /// <summary>
-    /// Fills places with their people as the hero comes near, and empties them again when they leave. Who appears depends on what
-    /// has happened there: the dead stay dead, opened chests stay open, and a village under threat keeps its merchants indoors.
+    /// Fills places with their people as a hero comes near, and empties them again when every hero has left. Who appears depends on
+    /// what has happened there: the dead stay dead, opened chests stay open, and a village under threat keeps its merchants indoors.
     /// </summary>
     public class EncounterSystem : SystemBase
     {
         private const float WakeDistance = 100f;
         private const float SleepDistance = 160f;
         private const float EliteChance = 0.14f;
+        private const float CheckInterval = 0.25f;
 
-        private readonly CharacterFactory _characters;
-        private float _nextCheck;
-        private glModel? _chestModel;
+        private readonly GameServer _server;
+        private double _nextCheck;
 
-        public EncounterSystem(CharacterFactory characters)
-            : base(new BitMask(typeof(PlayerTag)))
+        public EncounterSystem(GameServer server)
+            : base(new BitMask(typeof(HealthComponent)))
         {
-            _characters = characters;
+            _server = server;
         }
 
         protected override void UpdateFrame(ECSWorld world, float deltaTime)
         {
-            if (GameSession.Current == null || Engine.Time < _nextCheck) return;
-            _nextCheck = Engine.Time + 0.25f;
+            ServerSession? session = _server.Session;
+            if (session == null || session.Time < _nextCheck || session.Heroes.Count == 0) return;
+            _nextCheck = session.Time + CheckInterval;
 
-            GameSession session = GameSession.Current;
             session.UpdateDiscovery();
-            Vector2 hero = session.PlayerPosition;
 
             for (int i = 0; i < session.Sites.Count; i++)
             {
                 SiteState state = session.Sites[i];
-                float distance = (state.Site.Position - hero).Length - state.Site.Radius;
+                float distance = session.DistanceToAnyHero(state.Site.Position) - state.Site.Radius;
                 if (!state.Active && distance < WakeDistance) Wake(world, session, state, i);
                 else if (state.Active && distance > SleepDistance) Sleep(world, state);
             }
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
-
-        /// <summary>Finds what comes alive at each site: the chimneys, fires and lanterns the generator placed there.</summary>
-        public static void FindFeatures(GameSession session, WorldAssetLibrary assets)
-        {
-            WorldObjects objects = session.World.Objects;
-            foreach (WorldObject item in objects.All())
-            {
-                string id = objects.AssetIds[item.Asset];
-                bool fire = id == StructureCatalog.Campfire.Id;
-                bool lantern = id == StructureCatalog.Lantern.Id || id == StructureCatalog.StoneLantern.Id;
-                IReadOnlyList<Vector3> chimneys = assets.ChimneysOf(id);
-                if (!fire && !lantern && chimneys.Count == 0) continue;
-
-                SiteState? owner = NearestSite(session, item.Position.Xz);
-                if (owner == null) continue;
-
-                if (fire) owner.Features.Add(new SiteFeature(SiteFeatureKind.Campfire, item.Position + Vector3.UnitY * 0.7f));
-                if (lantern) owner.Features.Add(new SiteFeature(SiteFeatureKind.Lantern, item.Position + Vector3.UnitY * 2.4f));
-                foreach (Vector3 top in chimneys)
-                {
-                    Vector3 scaled = top * item.Scale;
-                    owner.Features.Add(new SiteFeature(SiteFeatureKind.Chimney, item.Position + Vector3.Transform(scaled, item.Rotation)));
-                }
-            }
-        }
-
-        private static SiteState? NearestSite(GameSession session, Vector2 position)
-        {
-            SiteState? nearest = null;
-            float best = float.PositiveInfinity;
-            foreach (SiteState state in session.Sites)
-            {
-                if (state.Wild) continue;
-                float distance = (state.Site.Position - position).Length - state.Site.Radius;
-                if (distance < best && distance < 20f)
-                {
-                    best = distance;
-                    nearest = state;
-                }
-            }
-            return nearest;
-        }
 
         private static void Sleep(ECSWorld world, SiteState state)
         {
@@ -102,11 +55,10 @@ namespace Dino_Defenders.Gameplay
             state.Active = false;
         }
 
-        private void Wake(ECSWorld world, GameSession session, SiteState state, int siteIndex)
+        private void Wake(ECSWorld world, ServerSession session, SiteState state, int siteIndex)
         {
             state.Active = true;
             var random = new WorldRandom(session.World.Plan.Seed).Fork("people").Fork(siteIndex);
-            Ambience.Light(world, session, state);
 
             for (int i = 0; i < state.Site.Spawns.Count; i++)
             {
@@ -134,16 +86,16 @@ namespace Dino_Defenders.Gameplay
                         if (!state.Opened.Contains(i)) SpawnChest(world, session, state, siteIndex, i, spawn);
                         break;
                     case SpawnRole.Altar:
-                        SpawnMarker(world, state, siteIndex, i, spawn, InteractKind.Shrine, state.Kindled ? "Rest at the shrine" : "Kindle the shrine", 5f);
+                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Shrine, state.Kindled ? "Rest at the shrine" : "Kindle the shrine", 5f);
                         break;
                     case SpawnRole.Waygate:
-                        SpawnMarker(world, state, siteIndex, i, spawn, InteractKind.Waygate, "Step through the waygate", 6f);
+                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Waygate, "Step through the waygate", 6f);
                         break;
                 }
             }
         }
 
-        private void SpawnEnemy(ECSWorld world, GameSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)
+        private void SpawnEnemy(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)
         {
             int level = session.World.Plan.Level + (int)(state.Site.Remoteness * 3f);
             bool boss = spawn.Role == SpawnRole.Boss;
@@ -161,13 +113,17 @@ namespace Dino_Defenders.Gameplay
 
             string kind = boss ? session.Chronicle.Warlord : undead ? "Restless Dead" : archer ? "Outlaw Archer" : spawn.Role == SpawnRole.Guard ? "Sentry" : "Outlaw";
             string name = elite ? $"Fearsome {kind}" : kind;
-            glModel model = boss ? _characters.Warlord : undead ? _characters.Skeleton : _characters.Bandit(random.Int(8), archer);
+            string model = boss ? "warlord" : undead ? "skeleton" : $"bandit{random.Int(8)}:{archer}";
 
             var enemy = new EnemyComponent
             {
                 Name = name,
                 Rank = boss ? EnemyRank.Boss : elite ? EnemyRank.Elite : EnemyRank.Normal,
                 Level = level,
+            };
+
+            var brain = new EnemyBrainComponent
+            {
                 SiteIndex = siteIndex,
                 SpawnIndex = spawnIndex,
                 Home = spawn.Position,
@@ -184,10 +140,11 @@ namespace Dino_Defenders.Gameplay
             };
 
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
-            state.Live.Add(world.CreateEntity(name, CharacterFactory.Body(name, model, position, scale, enemy, new HealthComponent(health))));
+            float importance = boss ? 4f : elite ? 2f : 1.5f;
+            state.Live.Add(world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, importance, enemy, brain, new HealthComponent(health), new SwingComponent())));
         }
 
-        private void SpawnVillager(ECSWorld world, GameSession session, SiteState state, int siteIndex, SiteSpawn spawn, WorldRandom random, bool stationary)
+        private void SpawnVillager(ECSWorld world, ServerSession session, SiteState state, int siteIndex, SiteSpawn spawn, WorldRandom random, bool stationary)
         {
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
             var villager = new VillagerComponent
@@ -199,65 +156,70 @@ namespace Dino_Defenders.Gameplay
                 WanderRadius = random.Range(8f, 20f),
                 Stationary = stationary,
             };
-            state.Live.Add(world.CreateEntity("Villager", CharacterFactory.Body("Villager", _characters.Villager(random.Int(12)), position, random.Range(0.92f, 1.04f), villager)));
+            state.Live.Add(world.CreateEntity("Villager", Bodies.Walking(_server, $"villager{random.Int(12)}", position, random.Range(0.92f, 1.04f), 0.5f, villager)));
         }
 
-        private void SpawnMerchant(ECSWorld world, GameSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)
+        private void SpawnMerchant(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)
         {
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
             var villager = new VillagerComponent { SiteIndex = siteIndex, Home = spawn.Position, Goal = spawn.Position, Stationary = true };
             var interactable = new InteractableComponent { Kind = InteractKind.Merchant, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = 5f, Prompt = "Trade" };
-            state.Live.Add(world.CreateEntity("Merchant", CharacterFactory.Body("Merchant", _characters.Villager(random.Int(12)), position, 1f, villager, interactable)));
+            state.Live.Add(world.CreateEntity("Merchant", Bodies.Walking(_server, $"villager{random.Int(12)}", position, 1f, 1f, villager, interactable)));
         }
 
-        private void SpawnElder(ECSWorld world, GameSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)
+        private void SpawnElder(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)
         {
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
             var villager = new VillagerComponent { SiteIndex = siteIndex, Home = spawn.Position, Goal = spawn.Position, Stationary = true };
             var interactable = new InteractableComponent { Kind = InteractKind.Elder, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = 5f, Prompt = "Speak with the elder" };
-            state.Live.Add(world.CreateEntity("Elder", CharacterFactory.Body("Elder", _characters.Villager(random.Int(12)), position, 1.02f, villager, interactable)));
+            state.Live.Add(world.CreateEntity("Elder", Bodies.Walking(_server, $"villager{random.Int(12)}", position, 1.02f, 1f, villager, interactable)));
         }
 
-        private void SpawnChest(ECSWorld world, GameSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn)
+        private void SpawnChest(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn)
         {
-            if (_chestModel == null)
-            {
-                var builder = new MeshBuilder();
-                VertexMaterial boards = new VertexMaterial(TextureGenerator.wood, new Colour(120, 84, 56));
-                VertexMaterial iron = new VertexMaterial(TextureGenerator.iron, new Colour(90, 90, 96));
-                builder.Box(new Vector3(0f, 0.6f, 0f), new Vector3(1f, 0.6f, 0.66f), boards);
-                builder.Surface(6, 1, (u, v) =>
-                {
-                    float angle = u * MathF.PI;
-                    return new Vector3((v * 2f - 1f) * 1f, 1.2f + MathF.Sin(angle) * 0.34f, MathF.Cos(angle) * 0.66f);
-                }, boards);
-                foreach (float x in new[] { -0.7f, 0.7f }) builder.Box(new Vector3(x, 0.8f, 0.68f), new Vector3(0.09f, 0.76f, 0.03f), iron);
-                builder.Box(new Vector3(0f, 1.1f, 0.7f), new Vector3(0.14f, 0.18f, 0.05f), iron);
-                _chestModel = glLoader.loadToVAO(builder.Build());
-            }
-
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
             state.Live.Add(world.CreateEntity("Chest",
+                new NetIdentityComponent(_server.Ghosts.NextId(), importance: 0.5f),
                 new PositionComponent(position),
                 new RotationComponent(new Vector3(0f, spawn.Position.X, 0f)),
                 new ScaleComponent(new Vector3(1.1f)),
-                new ModelComponent(_chestModel),
-                new ModelRenderTag(),
-                new LocalToWorldMatrixComponent(),
+                new VisualComponent("chest", VisualKind.Prop),
                 new InteractableComponent { Kind = InteractKind.Chest, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = 4.5f, Prompt = "Open the chest" }));
         }
 
-        private static void SpawnMarker(ECSWorld world, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, InteractKind kind, string prompt, float radius)
+        private void SpawnMarker(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, InteractKind kind, string prompt, float radius)
         {
-            float height = GameSession.Current.World.Height.Sample(spawn.Position);
+            float height = session.World.Height.Sample(spawn.Position);
             state.Live.Add(world.CreateEntity(prompt,
+                new NetIdentityComponent(_server.Ghosts.NextId(), importance: 0.5f),
                 new PositionComponent(new Vector3(spawn.Position.X, height, spawn.Position.Y)),
                 new InteractableComponent { Kind = kind, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = radius, Prompt = prompt }));
         }
     }
 
+    /// <summary>The components every walking character has on the server: where it is, how it moves, and what clients should draw.</summary>
+    public static class Bodies
+    {
+        public static IComponent[] Walking(GameServer server, string model, Vector3 position, float scale, float importance, params IComponent[] extra)
+        {
+            var components = new List<IComponent>
+            {
+                new NetIdentityComponent(server.Ghosts.NextId(), importance),
+                new PositionComponent(position),
+                new RotationComponent(new Vector3(0f)),
+                new ScaleComponent(new Vector3(scale)),
+                new VisualComponent(model, VisualKind.Character),
+                new VelocityComponent(),
+                new FixToTerrainHeightComponent(),
+                new CharacterMotorComponent(WorldData.CharacterRadius * MathF.Min(scale, 1.4f)),
+            };
+            components.AddRange(extra);
+            return components.ToArray();
+        }
+    }
+
     /// <summary>
-    /// Villagers about their day: walking between spots near home and stopping a while, and speaking when the hero passes. What
+    /// Villagers about their day: walking between spots near home and stopping a while, and speaking when a hero passes. What
     /// they say depends on whether the people preying on them are still out there.
     /// </summary>
     public class VillagerSystem : SystemBase
@@ -276,36 +238,47 @@ namespace Dino_Defenders.Gameplay
             "They're saying it was you.", "The market's open again.", "There's bread for you here.",
         };
 
+        private readonly GameServer _server;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
 
-        public VillagerSystem()
+        public VillagerSystem(GameServer server)
             : base(new BitMask(typeof(VillagerComponent), typeof(PositionComponent), typeof(VelocityComponent)))
         {
+            _server = server;
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
-            GameSession session = GameSession.Current;
+            ServerSession session = _server.Session!;
             var villager = entity.Get<VillagerComponent>();
             Vector3 position = entity.Get<PositionComponent>().value;
-            Vector2 toHero = session.PlayerPosition - position.Xz;
             if (session.Paused)
             {
                 entity.Set(new VelocityComponent());
                 return;
             }
 
-            if (toHero.LengthSquared < SpeechReach * SpeechReach && Engine.Time >= villager.NextSpeech)
+            ServerPlayer? nearest = session.NearestHero(position.Xz, out float toNearest);
+            Vector2 toHero = nearest != null ? nearest.Sim.Position - position.Xz : Vector2.Zero;
+
+            if (nearest != null && toNearest < SpeechReach && session.Time >= villager.NextSpeech)
             {
                 bool safe = session.IsSafe(session.Sites[villager.SiteIndex]);
-                session.Say(position + Vector3.UnitY * 5.6f, _random.Pick(safe ? Grateful : Afraid), new Vector3(0.92f, 0.9f, 0.8f), 14f, 3.2f);
-                villager.NextSpeech = Engine.Time + _random.Range(9f, 18f);
+                _server.Broadcast(new TextEvent
+                {
+                    Position = position + Vector3.UnitY * 5.6f,
+                    Text = _random.Pick(safe ? Grateful : Afraid),
+                    Colour = new Vector3(0.92f, 0.9f, 0.8f),
+                    Size = 14f,
+                    Life = 3.2f,
+                }, position.Xz);
+                villager.NextSpeech = session.Time + _random.Range(9f, 18f);
             }
 
             Vector2 velocity = Vector2.Zero;
             if (villager.Stationary)
             {
-                CharacterFactory.Face(entity, toHero.LengthSquared < 100f ? toHero : Vector2.Zero, deltaTime, 4f);
+                EnemyBrainSystem.Face(entity, nearest != null && toNearest < 10f ? toHero : Vector2.Zero, deltaTime, 4f);
             }
             else if (villager.Wait > 0f)
             {
@@ -321,7 +294,7 @@ namespace Dino_Defenders.Gameplay
                 else
                 {
                     velocity = offset.Normalized() * WalkSpeed;
-                    CharacterFactory.Face(entity, velocity, deltaTime, 6f);
+                    EnemyBrainSystem.Face(entity, velocity, deltaTime, 6f);
                 }
             }
 
@@ -343,8 +316,8 @@ namespace Dino_Defenders.Gameplay
     }
 
     /// <summary>
-    /// What the hero can pick up and use. Loot bobs where it fell and comes to them when they are close; E uses whatever they are
-    /// standing by.
+    /// What heroes can pick up and use. Loot lies where it fell and comes to the nearest hero when they are close; E uses whatever
+    /// they are standing by.
     /// </summary>
     public class InteractionSystem : SystemBase
     {
@@ -353,18 +326,28 @@ namespace Dino_Defenders.Gameplay
 
         private static readonly BitMask PickupMask = new BitMask(typeof(PickupComponent), typeof(PositionComponent));
 
-        public InteractionSystem()
+        private readonly GameServer _server;
+
+        public InteractionSystem(GameServer server)
             : base(new BitMask(typeof(InteractableComponent), typeof(PositionComponent)))
         {
+            _server = server;
         }
 
         protected override void UpdateFrame(ECSWorld world, float deltaTime)
         {
-            GameSession session = GameSession.Current;
+            ServerSession? session = _server.Session;
             if (session == null) return;
             UpdatePickups(world, session, deltaTime);
+        }
 
-            // The nearest thing in reach is the one on offer.
+        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
+
+        /// <summary>A hero has pressed use: the nearest thing in reach is what they meant.</summary>
+        public void Interact(ECSWorld world, ServerSession session, ServerPlayer hero)
+        {
+            if (hero.Health <= 0f) return;
+
             Entity nearest = default;
             float best = float.PositiveInfinity;
             foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
@@ -372,69 +355,64 @@ namespace Dino_Defenders.Gameplay
                 foreach (var entity in new ComponentAccessor(archetype))
                 {
                     var interactable = entity.Get<InteractableComponent>();
-                    float distance = (entity.Get<PositionComponent>().value.Xz - session.PlayerPosition).Length;
+                    float distance = (entity.Get<PositionComponent>().value.Xz - hero.Sim.Position).Length;
                     if (distance > interactable.Radius || distance >= best) continue;
                     best = distance;
                     nearest = entity.Entity;
                 }
             }
 
-            session.InteractPrompt = null;
-            session.Offered = null;
-            if (!nearest.IsValid() || session.Health <= 0f) return;
-
+            if (!nearest.IsValid()) return;
             EntityView view = world.GetEntityView(nearest);
-            var offered = view.Get<InteractableComponent>();
-            session.InteractPrompt = offered.Prompt;
-            session.Offered = offered.Kind;
-            if (session.Intent.Interact) Use(world, session, view, offered);
+            Use(world, session, hero, view, view.Get<InteractableComponent>());
         }
 
-        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
-
-        private static void Use(ECSWorld world, GameSession session, EntityView view, in InteractableComponent interactable)
+        private void Use(ECSWorld world, ServerSession session, ServerPlayer hero, EntityView view, in InteractableComponent interactable)
         {
             SiteState state = session.Sites[interactable.SiteIndex];
             switch (interactable.Kind)
             {
                 case InteractKind.Shrine:
-                    UseShrine(world, session, state, view);
+                    UseShrine(session, hero, state, view);
                     break;
                 case InteractKind.Chest:
                     state.Opened.Add(interactable.SpawnIndex);
+                    state.Changed = true;
                     state.Live.Remove(view.Entity);
-                    Combat.OpenChest(world, session, view.Get<PositionComponent>().value, session.World.Plan.Level + (int)(state.Site.Remoteness * 3f));
+                    session.Combat.OpenChest(hero, view.Get<PositionComponent>().value, session.World.Plan.Level + (int)(state.Site.Remoteness * 3f));
                     world.DestroyEntity(view.Entity);
                     break;
                 default:
-                    session.InteractionOpened?.Invoke(interactable.Kind, interactable.SiteIndex);
+                    _server.OpenPanel(hero, interactable.Kind, interactable.SiteIndex);
                     break;
             }
         }
 
-        private static void UseShrine(ECSWorld world, GameSession session, SiteState state, EntityView view)
+        private void UseShrine(ServerSession session, ServerPlayer hero, SiteState state, EntityView view)
         {
             Vector3 position = view.Get<PositionComponent>().value;
-            session.Health = session.Stats.MaxHealth;
-            session.Hero.Flasks = HeroState.MaxFlasks;
-            session.Respawn = position.Xz;
-            Combat.Spark(world, position + Vector3.UnitY * 3f, new Colour(0.5f, 1f, 0.75f, 2.5f), 26, 7f);
+            hero.Health = hero.Stats.MaxHealth;
+            hero.Hero.Flasks = HeroState.MaxFlasks;
+            hero.SummaryChanged = true;
+            hero.Respawn = position.Xz;
+            _server.Broadcast(new SparkEvent { Position = position + Vector3.UnitY * 3f, Kind = SparkKind.Shrine, Count = 26, Speed = 7f }, position.Xz);
 
             if (state.Kindled)
             {
-                session.Note("You rest at the shrine.");
+                _server.Note(hero, "You rest at the shrine.");
                 return;
             }
             state.Kindled = true;
+            state.Changed = true;
             var interactable = view.Get<InteractableComponent>();
             interactable.Prompt = "Rest at the shrine";
             view.Set(interactable);
-            session.Announce("Shrine kindled", "Your flasks are full, and you will wake here if you fall.");
-            session.GiveExperience(25 * session.World.Plan.Level);
+            _server.Announce(hero, "Shrine kindled", "Your flasks are full, and you will wake here if you fall.");
+            foreach (ServerPlayer everyone in session.Heroes) session.GiveExperience(everyone, 25 * session.World.Plan.Level);
             if (state.Site.Kind == SiteKind.Shrine) session.Advance(ObjectiveKind.PrayAtShrines, SiteKind.Shrine);
         }
 
-        private static void UpdatePickups(ECSWorld world, GameSession session, float deltaTime)
+        private void UpdatePickups(ECSWorld world, ServerSession session, float deltaTime)
         {
             foreach (var archetype in world.QueryArchetypes(PickupMask, BitMask.Empty))
             {
@@ -443,39 +421,52 @@ namespace Dino_Defenders.Gameplay
                     var pickup = entity.Get<PickupComponent>();
                     pickup.Age += deltaTime;
 
-                    Vector3 position = pickup.Rest + Vector3.UnitY * (0.3f + 0.2f * MathF.Sin(pickup.Age * 3f));
-                    Vector2 toHero = session.PlayerPosition - pickup.Rest.Xz;
-                    float distance = toHero.Length;
+                    ServerPlayer? hero = session.NearestHero(pickup.Rest.Xz, out float distance);
+                    if (hero == null)
+                    {
+                        entity.Set(pickup);
+                        continue;
+                    }
 
                     // Gold flies to the hero; items wait to be walked over, so that a full pack doesn't waste them.
                     if (pickup.Item == null && distance < MagnetReach && pickup.Age > 0.4f)
                     {
+                        Vector2 toHero = hero.Sim.Position - pickup.Rest.Xz;
                         pickup.Rest += new Vector3(toHero.X, 0f, toHero.Y) / MathF.Max(distance, 0.1f) * 22f * deltaTime;
+                        entity.Set(new PositionComponent(pickup.Rest));
                     }
 
-                    if (distance < PickupReach && pickup.Age > 0.4f && Collect(session, pickup, position))
+                    if (distance < PickupReach && pickup.Age > 0.4f && Collect(hero, pickup))
                     {
                         world.DestroyEntity(entity.Entity);
                         continue;
                     }
-
-                    entity.Set(new PositionComponent(position));
                     entity.Set(pickup);
                 }
             }
         }
 
-        private static bool Collect(GameSession session, in PickupComponent pickup, Vector3 position)
+        private bool Collect(ServerPlayer hero, in PickupComponent pickup)
         {
+            Vector3 position = pickup.Rest;
             if (pickup.Item == null)
             {
-                session.Hero.Gold += pickup.Gold;
-                session.Say(position + Vector3.UnitY * 3f, $"+{pickup.Gold} gold", new Vector3(1f, 0.82f, 0.3f), 14f, 1.1f);
+                hero.Hero.Gold += pickup.Gold;
+                hero.SummaryChanged = true;
+                _server.Broadcast(new TextEvent
+                {
+                    Position = position + Vector3.UnitY * 3f,
+                    Text = $"+{pickup.Gold} gold",
+                    Colour = new Vector3(1f, 0.82f, 0.3f),
+                    Size = 14f,
+                    Life = 1.1f,
+                }, position.Xz);
                 return true;
             }
 
-            if (!session.Hero.Pickup(pickup.Item)) return false;
-            session.Note($"Found: {pickup.Item.Name}");
+            if (!hero.Hero.Pickup(pickup.Item)) return false;
+            hero.GearChanged = true;
+            _server.Note(hero, $"Found: {pickup.Item.Name}");
             return true;
         }
     }

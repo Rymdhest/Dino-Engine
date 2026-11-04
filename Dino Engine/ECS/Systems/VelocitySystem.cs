@@ -12,7 +12,7 @@ namespace Dino_Engine.ECS.Systems
     public class VelocitySystem : SystemBase
     {
         public VelocitySystem()
-            : base(new BitMask(typeof(PositionComponent), typeof(VelocityComponent)))
+            : base(new BitMask(typeof(PositionComponent), typeof(VelocityComponent)), new BitMask(typeof(NetMovedTag)))
         {
         }
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
