@@ -62,6 +62,7 @@ namespace Dino_LaunchLab
 
                 report.Section("Opening it again");
                 NothingNew(report);
+                RunningAKeptCopy(report);
 
                 report.Section("The launcher replacing itself");
                 ReplacingItself(report);
@@ -184,6 +185,22 @@ namespace Dino_LaunchLab
             int code = Launch(_paths.LauncherExe, "--quit-when-ready");
             report.Check("It opens and is ready", code == 0, LauncherLog());
             report.Check("Having fetched only the manifest", _server.CountOf(Feed.ManifestName) == 1 && _server.CountOf(".zip") == 0 && _server.CountOf(".exe") == 0, string.Join(" ", _server.Requests.Select(r => r.Path)));
+        }
+
+        private static void RunningAKeptCopy(Report report)
+        {
+            string sound = Hashing.OfFile(_paths.LauncherExe);
+            DateTime written = File.GetLastWriteTimeUtc(_paths.LauncherExe);
+            string kept = Variant("kept-launcher.exe", 0x22);
+
+            // Going by the hash alone proves nothing: a launcher copied over the install replaces itself straight back.
+            int code = Launch(kept, "--quit-when-ready");
+            report.Check("A copy kept after installing leaves the installed launcher untouched", code == 0 && File.GetLastWriteTimeUtc(_paths.LauncherExe) == written && !LauncherLog().Contains("Replacing the launcher"), LauncherLog());
+
+            Installer.RememberDeath(_paths);
+            code = Launch(kept, "--quit-when-ready");
+            report.Check("Unless that one died: then it goes in, and the release's launcher follows", code == 0 && LauncherLog().Contains("Replacing the launcher") && Hashing.OfFile(_paths.LauncherExe) == sound, LauncherLog());
+            report.Check("Which starts with a clean slate", !File.Exists(_paths.LauncherDied));
         }
 
         private static void ReplacingItself(Report report)

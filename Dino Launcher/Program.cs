@@ -65,6 +65,7 @@ namespace Dino_Launcher
         private const string Title = "Dino Defenders";
 
         private static bool _takingOver;
+        private static InstallPaths? _paths;
 
         public static string LauncherVersion => Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
 
@@ -74,6 +75,7 @@ namespace Dino_Launcher
             LaunchOptions options = LaunchOptions.Parse(args);
             _takingOver = options.Handoff != null;
             var paths = new InstallPaths(options.Root);
+            _paths = paths;
             Log.Start(paths.Logs);
             Log.Write($"Launcher {LauncherVersion} started from {Application.ExecutablePath} {string.Join(" ", args)}");
 
@@ -112,7 +114,8 @@ namespace Dino_Launcher
             }
 
             var installer = new Installer(paths);
-            installer.CopyLauncher(Application.ExecutablePath);
+            if (installer.HasSoundLauncher(new GameInstall(paths).ReadInstalled(Feed.PublicKey))) Log.Write("Leaving the installed launcher as it is.");
+            else installer.CopyLauncher(Application.ExecutablePath);
             if (options.Root == null) installer.AddToWindows(LauncherVersion);
 
             Log.Write($"Installed to {paths.Root}.");
@@ -173,6 +176,7 @@ namespace Dino_Launcher
             // The launcher this is replacing is waiting to find out, and puts itself back the moment this goes. The player need never know.
             if (_takingOver) Environment.Exit(1);
 
+            if (_paths != null) Installer.RememberDeath(_paths);
             string message = $"Something went wrong in the launcher.\n\n{(problem as Exception)?.Message}\n\nIf it keeps happening, get a fresh copy:\n{Feed.LauncherLink}";
             MessageBox.Show(message, Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
             Environment.Exit(1);

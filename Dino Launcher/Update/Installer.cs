@@ -37,6 +37,32 @@ namespace Dino_Launcher.Update
         {
             Directory.CreateDirectory(_paths.Root);
             FileSystem.WriteAtomically(_paths.LauncherExe, File.ReadAllBytes(from));
+            FileSystem.TryDelete(_paths.LauncherDied);
+        }
+
+        /// <summary>
+        /// Whether what's installed should be left alone by a launcher started from somewhere else. People keep what they downloaded and
+        /// run it again, and by then it's usually older than what it installed: copying it in would put back an old launcher, every time.
+        /// There's no telling which of two launchers is newer, but the release says which one belongs with it, and that one is sound. One
+        /// that has died is not: a fresh download is the only way back from a launcher that can't fetch its own fix.
+        /// </summary>
+        public bool HasSoundLauncher(Manifest? installed)
+        {
+            return installed != null && !File.Exists(_paths.LauncherDied) && File.Exists(_paths.LauncherExe)
+                && Hashing.OfFile(_paths.LauncherExe) == installed.Launcher.Sha256;
+        }
+
+        /// <summary>Leaves word that a launcher failed, so that whatever is downloaded next is let in.</summary>
+        public static void RememberDeath(InstallPaths paths)
+        {
+            try
+            {
+                File.WriteAllText(paths.LauncherDied, "");
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                Log.Write($"Couldn't remember that the launcher failed: {e.Message}");
+            }
         }
 
         /// <summary>

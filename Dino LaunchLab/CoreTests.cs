@@ -100,6 +100,7 @@ namespace Dino_LaunchLab
             report.Section("Windows");
             Shortcuts(report);
             StrippingTheMark(report);
+            ACopyKeptAfterInstalling(report);
 
             return report.Finish();
         }
@@ -835,6 +836,37 @@ namespace Dino_LaunchLab
             report.Check("The test file really has a mark of the web", Streams.HasMark(download));
             new Installer(bench.Paths).CopyLauncher(download);
             report.Check("The installed copy doesn't, so Windows won't warn every time", File.Exists(bench.Paths.LauncherExe) && !Streams.HasMark(bench.Paths.LauncherExe));
+        }
+
+        private static void ACopyKeptAfterInstalling(Report report)
+        {
+            using var bench = new Bench();
+            var installer = new Installer(bench.Paths);
+            var game = new GameInstall(bench.Paths);
+            byte[] released = { 1, 2, 3 };  // What TestFeed says every launcher is.
+
+            bench.Feed.Release("0.1.0", TestFeed.Build(1));
+            File.WriteAllBytes(bench.Paths.LauncherExe, released);
+            report.Check("With no game yet, a download goes in", !installer.HasSoundLauncher(game.ReadInstalled(bench.Feed.PublicKey)));
+
+            bench.Run();
+            Manifest? installed = game.ReadInstalled(bench.Feed.PublicKey);
+            report.Check("The launcher its release names is left alone", installer.HasSoundLauncher(installed));
+
+            File.WriteAllBytes(bench.Paths.LauncherExe, new byte[] { 9 });
+            report.Check("Any other launcher is replaced, as it may be damaged", !installer.HasSoundLauncher(installed));
+
+            File.Delete(bench.Paths.LauncherExe);
+            report.Check("As is a missing one", !installer.HasSoundLauncher(installed));
+
+            File.WriteAllBytes(bench.Paths.LauncherExe, released);
+            Installer.RememberDeath(bench.Paths);
+            report.Check("Even the right one is replaced once it has died, or a fix could never get in", !installer.HasSoundLauncher(installed));
+
+            string download = Path.Combine(bench.Folder.Path, "download.exe");
+            File.WriteAllBytes(download, released);
+            installer.CopyLauncher(download);
+            report.Check("And a launcher put in place starts with a clean slate", installer.HasSoundLauncher(installed));
         }
     }
 }

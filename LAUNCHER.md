@@ -45,7 +45,7 @@ Send them this link. It never changes, and always gives the newest launcher:
 https://github.com/Rymdhest/Dino-Engine/releases/latest/download/DinoDefendersLauncher.exe
 ```
 
-They run it once. It installs itself, with no administrator rights, adds a desktop shortcut, and downloads the game. After that they open the shortcut and press Play. It needs Windows 10 or 11 and nothing else: the launcher uses the .NET Framework that comes with Windows, and the game brings its own runtime.
+They run it once. It installs itself, with no administrator rights, adds a desktop shortcut, and downloads the game. After that they open the shortcut and press Play. Anyone who runs what they downloaded again ends up in the same place: it leaves the installed launcher alone if that's the one its release names and it hasn't died, and starts it. Launchers from before 0.1.5 copied themselves over it every time, so one kept from then shows its old look for a moment and updates itself again, on every run. It needs Windows 10 or 11 and nothing else: the launcher uses the .NET Framework that comes with Windows, and the game brings its own runtime.
 
 **Windows will warn them once**, because the launcher isn't code signed: *Windows protected your PC*, then **More info**, then **Run anyway**. Browsers may also say the download isn't commonly downloaded. It only happens for the file they downloaded. Updates arrive through the launcher, so they aren't marked as downloads and never warn. This is also why the launcher is kept small and changes rarely: a file that stays the same builds up reputation with SmartScreen and antivirus, and the game's files never go through either check.
 
