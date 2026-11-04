@@ -12,6 +12,7 @@ namespace Dino_Engine.Networking
         private const double MostDilation = 0.05;
         private const double Gain = 0.015;          // Dilation per tick of error.
         private const int JumpBeyond = 20;          // Further out than this, drifting would take too long.
+        private const int MostCatchUp = 30;
         private const double JumpAfter = 1.5;       // Seconds it has to stay that far out. A stall passes by itself, and chasing one would be worse than it was.
 
         private double _accumulator;
@@ -54,8 +55,9 @@ namespace Dino_Engine.Networking
                 due++;
             }
 
-            // After a stall the hero shouldn't lurch through a second of ticks, and the server wouldn't want them.
-            return Math.Min(due, 8);
+            // A slow frame is caught up on in full, as a tick costs next to nothing and the server is waiting for those commands. Only
+            // a long stall is given up on: the time is lost, and the clock finds its way back.
+            return Math.Min(due, MostCatchUp);
         }
 
         public void Next() => Tick++;

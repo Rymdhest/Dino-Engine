@@ -44,7 +44,7 @@ namespace Dino_Defenders.Client
     /// </summary>
     public sealed class GameClient : INetListener, IDisposable
     {
-        private const int StartingLead = 6;     // Ticks, until the server has said how we're doing.
+        private const int FirstMargin = 3;      // Ticks of spare to start with, on top of the measured trip.
         private const int MostDamaged = 30;
 
         private readonly INetTransport _transport;
@@ -60,7 +60,6 @@ namespace Dino_Defenders.Client
         private int _epoch;
         private uint _ownGhost;
         private uint _lastSnapshotTick;
-        private bool _hadSnapshot;
         private HeroIntent _intent;
         private HeroButtons _presses;
         private string? _refusal;
@@ -149,7 +148,11 @@ namespace Dino_Defenders.Client
             if (State == ClientState.Disconnected) return;
 
             Render.Advance(seconds);
-            if (State == ClientState.Playing) UpdateHero(seconds);
+            if (State == ClientState.Playing)
+            {
+                if (Commands.Running) UpdateHero(seconds);
+                else SendCommands();
+            }
 
             Ghosts.CreatePending();
             if (Render.Started) Events.Flush(Render.RenderTick);
@@ -206,7 +209,7 @@ namespace Dino_Defenders.Client
         // next one, and a command only fails to arrive if a whole run of packets in a row goes missing.
         private void SendCommands()
         {
-            if (_connection == null || _recent.Count == 0) return;
+            if (_connection == null) return;
 
             BitWriter writer = Protocol.Begin(Message.Commands);
             writer.WriteVarInt(_epoch);
@@ -217,7 +220,8 @@ namespace Dino_Defenders.Client
             writer.WriteUInt((uint)Clock());
             writer.WriteVarUInt((uint)RoundTrip);
 
-            uint newest = _recent[^1].Tick;
+            // Before the hero starts this is still worth sending, empty: it's what measures the line.
+            uint newest = _recent.Count > 0 ? _recent[^1].Tick : 0;
             int count = 0;
             for (int i = _recent.Count - 1; i >= 0 && _recent[i].Tick == newest - (uint)count; i--) count++;
 
@@ -327,7 +331,6 @@ namespace Dino_Defenders.Client
             Commands.Stop();
             _recent.Clear();
             OwnGhost = null;
-            _hadSnapshot = false;
             _lastSnapshotTick = 0;
             _ownGhost = 0;
             Session = null;
@@ -382,11 +385,18 @@ namespace Dino_Defenders.Client
 
             while (_recent.Count > 1 && _recent[0].Tick <= confirmed) _recent.RemoveAt(0);
 
-            if (!_hadSnapshot)
+            if (!Commands.Running)
             {
-                _hadSnapshot = true;
                 Predictor.Reset(truth, tick);
-                Commands.Start(tick + StartingLead);
+
+                // This snapshot left half a trip ago, and a command takes half a trip to get back: starting a whole round trip
+                // ahead of it, and a little over, means commands are on time from the first. Guessing here would cost
+                // every new arrival some seconds of being corrected while the clock found its way.
+                if (RoundTrip > 0f || sentAt != 0)
+                {
+                    uint trip = (uint)MathF.Ceiling(RoundTrip / (1000f * NetTime.TickSeconds));
+                    Commands.Start(tick + trip + FirstMargin);
+                }
                 return;
             }
 

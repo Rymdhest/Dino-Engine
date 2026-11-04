@@ -73,8 +73,9 @@ namespace Dino_Defenders.Client
             bool moved = truth.Moves != _current.Moves;
             Rewind(tick, truth, stats, mover);
 
+            // Being put somewhere by the server isn't a wrong guess, however far it is.
             float error = (before - _current.Position).Length;
-            if (known && error > 1e-3f)
+            if (known && !moved && error > 1e-3f)
             {
                 Corrections++;
                 WorstCorrection = MathF.Max(WorstCorrection, error);

@@ -61,7 +61,6 @@ namespace Dino_Engine.ECS.ECS_Architecture
         {
             ApplyDeferredCommands();
             SystemRegistry.UpdateAll(this, deltaTime);
-            DirtyEntitiesBuffers.ClearAll();
             ApplyDeferredCommands();
         }
 

@@ -63,6 +63,9 @@ namespace Dino_NetLab
             BudgetIsKept(report);
             EventsArriveOnce(report);
 
+            report.Section("The render grid");
+            GridNeverLosesTrack(report);
+
             report.Section("Hostile input");
             SnapshotFuzz(report, options.Int("fuzz", 40000));
 
@@ -357,6 +360,53 @@ namespace Dino_NetLab
             int twice = heard.Values.Count(c => c > 1);
             report.Check("No event is heard twice, through 15% loss and 10% duplication", twice == 0, $"{twice} heard twice");
             report.Check("Nearly every event gets through", heard.Count >= Sent * 0.98, $"{heard.Count} of {Sent}");
+        }
+
+        // Terrain streaming applies deferred commands in the middle of a frame. Whatever it happens to destroy has to be noticed by the render
+        // grid all the same, or the grid keeps an id that soon belongs to something with no model, and the next chunk to carve grass crashes.
+        private static void GridNeverLosesTrack(Report report)
+        {
+            var world = new ECSWorld();
+            world.RegisterSingleton<RenderSpatialGridSingleton>(world.CreateEntity(new RenderSpatialGridSingleton(15f)));
+            world.ApplyDeferredCommands();
+            var system = new Dino_Engine.ECS.Systems.RenderSpatialGridSystem();
+            var grid = world.GetComponent<RenderSpatialGridSingleton>(world.GetSingleton<RenderSpatialGridSingleton>()).Grid;
+            var everywhere = new Dino_Engine.Physics.AABB(new Vector3(-1000f), new Vector3(1000f));
+            var found = new List<Entity>();
+
+            int Count()
+            {
+                found.Clear();
+                grid.QueryAABB(everywhere, found);
+                return found.Count;
+            }
+
+            Entity CreateProp() => world.CreateEntity(new PositionComponent(1f, 0f, 1f), new LocalToWorldMatrixComponent(), new ModelComponent(null!));
+
+            Entity prop = CreateProp();
+            world.ApplyDeferredCommands();
+            system.Step(world, 0.016f);
+            report.Check("A model enters the grid", Count() == 1, $"{Count()}");
+
+            // Destroyed partway through a frame, with the rest of the frame still to come.
+            world.DestroyEntity(prop);
+            world.ApplyDeferredCommands();
+            world.Update(0.016f);
+            system.Step(world, 0.016f);
+            report.Check("Destroyed in the middle of a frame, it still leaves the grid", Count() == 0, $"{Count()}");
+
+            // Its id comes straight back, on something that is gone again before the grid has looked.
+            Entity second = CreateProp();
+            world.ApplyDeferredCommands();
+            system.Step(world, 0.016f);
+            world.DestroyEntity(second);
+            world.ApplyDeferredCommands();
+            Entity third = CreateProp();
+            world.ApplyDeferredCommands();
+            world.DestroyEntity(third);
+            world.ApplyDeferredCommands();
+            system.Step(world, 0.016f);
+            report.Check("An id reused and gone again before the grid looks leaves nothing behind", Count() == 0, $"{Count()}");
         }
 
         private static void SnapshotFuzz(Report report, int rounds)

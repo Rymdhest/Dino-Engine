@@ -304,6 +304,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             foreach (var entity in entities)
             {
+                // The grid only hears of what is gone when it next updates, and terrain streaming applies deferred commands in
+                // between. So what it hands out can have been destroyed a moment ago, or its id be something else's by now.
+                if (!world.HasComponent<ModelComponent>(entity)) continue;
+
                 // Assuming your entities have a Model component and a Transform/Matrix component
                 var model = world.GetComponent<ModelComponent>(entity);
                 GL.EnableVertexAttribArray(0);

@@ -334,6 +334,7 @@ namespace Dino_NetLab
             {
                 PressesHappenOnce(report, worlds, request, name, conditions);
             }
+            LatePressIsNotRepeated(report);
             ActionsAtPanels(report, worlds, request);
             NewComponentNeedsNoCode(report, worlds, request);
 
@@ -377,7 +378,11 @@ namespace Dino_NetLab
             report.Check($"{name}: all five reach the world", allIn, string.Join(", ", lab.Players.Select(p => p.Client.State)));
             if (!allIn) return;
 
-            // What counts is how it plays, not the first few seconds of finding its feet.
+            // Arriving has to be as clean as staying: nobody should start a game by being dragged about.
+            int correctionsArriving = lab.Players.Sum(p => p.Client.Predictor.Corrections);
+            int comparedArriving = lab.Players.Sum(p => p.Client.Predictor.Compared);
+            if (conditions.SpikeChance == 0) report.Check($"{name}: arriving is as clean as staying", correctionsArriving <= comparedArriving / 200 + 1, $"{correctionsArriving} of {comparedArriving}");
+
             int correctionsBefore = lab.Players.Sum(p => p.Client.Predictor.Corrections);
             int comparedBefore = lab.Players.Sum(p => p.Client.Predictor.Compared);
             int lateBefore = lab.Server.Players.Sum(p => p.LateCommands);
@@ -752,6 +757,24 @@ namespace Dino_NetLab
             });
 
             report.Check($"{name}: every press of a button happens exactly once", happened == player.WhirlsPressed, $"{player.WhirlsPressed} pressed, {happened} happened");
+        }
+
+        // Every packet repeats the commands before it, so one that missed its tick arrives again and again. Whirl and dash have
+        // cooldowns that would hide a press happening twice. A flask has none: it would simply drink two.
+        private static void LatePressIsNotRepeated(Report report)
+        {
+            var player = new ServerPlayer(1, null!);
+            var press = new HeroCommand { Tick = 100, Buttons = HeroButtons.Flask };
+
+            for (int i = 0; i < 12; i++) player.Receive(press, 110);
+            bool first = player.Take(110).Has(HeroButtons.Flask);
+
+            for (int i = 0; i < 12; i++) player.Receive(press, 111);
+            bool second = player.Take(111).Has(HeroButtons.Flask);
+            bool third = player.Take(112).Has(HeroButtons.Flask);
+
+            report.Check("A press that came late still happens", first);
+            report.Check("Repeats of it in later packets don't happen again", !second && !third);
         }
 
         private static void ActionsAtPanels(Report report, WorldCache worlds, WorldRequest request)

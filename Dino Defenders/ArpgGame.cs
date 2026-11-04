@@ -355,7 +355,8 @@ namespace Dino_Defenders
                 _save = world;
             }
 
-            _save ??= new SaveGame();
+            // Someone whose first steps were in a friend's world has no land of their own yet: this is the one they'll go home to.
+            _save ??= new SaveGame { WorldSeed = Environment.TickCount };
             _save.Hero = _hero;
             _save.Store();
         }

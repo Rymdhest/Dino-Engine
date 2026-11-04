@@ -26,15 +26,11 @@ namespace Dino_Engine.ECS.Systems
             SpatialGrid grid = world.GetComponent<RenderSpatialGridSingleton>(gridSingleton).Grid;
             DirtyEntitiesBuffers dirtyEntitiesBuffers = world.DirtyEntitiesBuffers;
 
-            // 1. Process DESTROYED entities FIRST
+            // 1. Process DESTROYED entities FIRST. A recycled id goes back in below, if there is something alive under it.
             var destroyedEntities = dirtyEntitiesBuffers.DestroyedEntitiesBuffer;
             for (int i = 0; i < destroyedEntities.Count; i++)
             {
-                // Only remove if it's NOT also in the spawned buffer (recycled ID safety)
-                if (!dirtyEntitiesBuffers.SpawnedEntitiesBuffer.Contains(destroyedEntities[i]))
-                {
-                    grid.Remove(destroyedEntities[i]);
-                }
+                grid.Remove(destroyedEntities[i]);
             }
 
             // 2. Process NEW entities
@@ -58,6 +54,10 @@ namespace Dino_Engine.ECS.Systems
                     UpdateEntityInGrid(world, grid, entity);
                 }
             }
+
+            // Cleared here, by what reads them, and nowhere else. Entities come and go whenever deferred commands are applied, which
+            // isn't only between frames: one lost from these lists stays in the grid under an id that goes on to mean something else.
+            dirtyEntitiesBuffers.ClearAll();
         }
         private void UpdateEntityInGrid(ECSWorld world, SpatialGrid grid, Entity entity)
         {
