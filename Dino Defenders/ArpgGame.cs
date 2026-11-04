@@ -87,6 +87,12 @@ namespace Dino_Defenders
         {
             _options = options;
             ApplyRenderOptions(options.Render);
+            if (options.Film != null)
+            {
+                Directory.CreateDirectory(options.Film);
+                Dino_Engine.Core.Engine.UseFixedStep(1f / options.FilmRate);
+            }
+            Dino_Engine.Core.Engine.SkipClock(options.Clock);
             HeroName = options.Name ?? "";
             _presenter = new GhostPresenter(_characters);
             engine.WorldReady = false;
@@ -171,7 +177,7 @@ namespace Dino_Defenders
             string key = InviteCode.KeyFor(secret);
 
             // A scripted run has no business rearranging the firewall or the router of whoever happens to be running it.
-            bool scripted = _options.Bot || _options.Shot != null;
+            bool scripted = _options.Bot || _options.Shot != null || _options.Film != null;
             if (!scripted) _firewallProblem = WindowsFirewall.LetFriendsIn();
 
             try
@@ -284,6 +290,20 @@ namespace Dino_Defenders
                 });
             }
             if (_options.Tour != null) UpdateTour();
+            if (_options.Film != null) UpdateFilm();
+            foreach (var (frame, speed, direction) in _options.Wind)
+            {
+                if (_frames == frame) session.ScriptedWind = (speed, direction);
+            }
+            if (_frames == _options.GuideAfterFrames) session.Intent.Guide = true;
+        }
+
+        private void UpdateFilm()
+        {
+            int shot = _frames - _options.FilmStart;
+            if (shot < 0) return;
+            if (shot < _options.FilmFrames) Engine.RequestScreenshot(Path.Combine(_options.Film!, $"{shot:D4}.png"));
+            else Quit();
         }
 
         private void HandleLostConnection()

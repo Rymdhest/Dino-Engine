@@ -21,6 +21,11 @@ namespace Dino_Defenders
     ///   --netsim l,j,p  Plays through a bad line: l ms round trip, up to j ms of jitter, p percent of packets lost.
     ///   --dedicated true  Runs a server with no window, for as long as it's left running.
     ///   --render a=b,c=d  Sets values of the engine's LightingSettings, such as sun=0,bloom=0,exposure=0.8.
+    ///   --film folder   Saves a numbered run of frames, for anything that has to be judged moving. Each frame lasts exactly 1 / --filmrate
+    ///                   seconds, however long saving it takes. --filmstart N and --filmframes N say which frames.
+    ///   --clock s       Starts as if the game had been running s seconds already: some faults only show late in a session.
+    ///   --wind f:s:d;f:s:d  From frame f on, the region's wind is s m/s towards d degrees, in place of what the land gives.
+    ///   --guide N       Calls the guiding wind after N frames.
     /// A scripted run otherwise neither reads nor writes the player's save.
     /// </summary>
     internal sealed class GameOptions
@@ -49,9 +54,16 @@ namespace Dino_Defenders
         public string? NetSim;
         public bool Dedicated;
         public string? Render;
+        public string? Film;
+        public int FilmStart = 120;
+        public int FilmFrames = 240;
+        public float FilmRate = 30f;
+        public float Clock;
+        public readonly List<(int frame, float speed, float direction)> Wind = new();
+        public int GuideAfterFrames = -1;
 
         /// <summary>Whether this run plays on from a save, as someone playing does, rather than being a throwaway.</summary>
-        public bool Saves => SaveFile != null || !(Seed != null || Archetype != null || Tour != null || Shot != null || Bot);
+        public bool Saves => SaveFile != null || !(Seed != null || Archetype != null || Tour != null || Shot != null || Film != null || Bot);
 
         public static GameOptions Parse(string[] args)
         {
@@ -88,6 +100,19 @@ namespace Dino_Defenders
                     case "netsim": options.NetSim = value; break;
                     case "dedicated": options.Dedicated = value == "true"; break;
                     case "render": options.Render = value; break;
+                    case "film": options.Film = value; break;
+                    case "filmstart": options.FilmStart = int.Parse(value); break;
+                    case "filmframes": options.FilmFrames = int.Parse(value); break;
+                    case "filmrate": options.FilmRate = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
+                    case "clock": options.Clock = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
+                    case "guide": options.GuideAfterFrames = int.Parse(value); break;
+                    case "wind":
+                        foreach (string change in value.Split(';'))
+                        {
+                            string[] wind = change.Split(':');
+                            options.Wind.Add((int.Parse(wind[0]), float.Parse(wind[1], System.Globalization.CultureInfo.InvariantCulture), float.Parse(wind[2], System.Globalization.CultureInfo.InvariantCulture)));
+                        }
+                        break;
                 }
             }
             return options;

@@ -20,6 +20,12 @@ namespace Dino_Engine.Core
         public float TotalTime { get => _totalTime; }
         public int FramesLastSecond { get => _framesLastSecond; }
 
+        /// <summary>When set, every frame lasts exactly this long, however long it really took.</summary>
+        public float? FixedStep { get; set; }
+
+        /// <summary>Winds the clock forward, as if the engine had been running for that much longer.</summary>
+        public void Skip(float seconds) => _totalTime += seconds;
+
         public DeltaFrameTimeTracker()
         {
             _secondStopWatch.Start();
@@ -29,7 +35,7 @@ namespace Dino_Engine.Core
 
         public void update()
         {
-            _delta = (float)_frameStopWatch.Elapsed.TotalSeconds;
+            _delta = FixedStep ?? (float)_frameStopWatch.Elapsed.TotalSeconds;
             _frameStopWatch.Restart();
 
             if (_secondStopWatch.Elapsed.TotalMilliseconds >= 1000.0)

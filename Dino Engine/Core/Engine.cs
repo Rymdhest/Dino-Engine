@@ -35,6 +35,10 @@ namespace Dino_Engine.Core
 
         public static float Delta { get => _instance._deltaFrameTimeTracker.Delta; }
         public static float Time { get => _instance._deltaFrameTimeTracker.TotalTime; }
+        /// <summary>For a scripted film: every frame then lasts this long, so saving frames doesn't slow what they show.</summary>
+        public static void UseFixedStep(float seconds) => _instance._deltaFrameTimeTracker.FixedStep = seconds;
+        /// <summary>For a scripted run: starts as if the engine had already been running this long, since some faults only show late.</summary>
+        public static void SkipClock(float seconds) => _instance._deltaFrameTimeTracker.Skip(seconds);
         public static int FramesLastSecond { get => _instance._deltaFrameTimeTracker.FramesLastSecond; }
         public static Engine? Instance { get => _instance; }
         public static WindowHandler WindowHandler { get => _instance._windowHandler; }

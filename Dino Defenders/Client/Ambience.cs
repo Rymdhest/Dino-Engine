@@ -214,6 +214,7 @@ namespace Dino_Defenders.Client
             _fogTarget = MathHelper.Lerp(_fogTarget, MathF.Max(_fogTarget, ChurchyardFog), _nightTarget);
             _fogColourTarget = Vector3.Lerp(_fogColourTarget, ChurchyardFogColour, _nightTarget);
             if (_nightTarget > WispsFrom) _motes = AmbientMotes.Wisps;
+            if (session.ScriptedWind is (float speed, _)) _windTarget = speed;
         }
 
         private void UpdateAir(ECSWorld world, GameSession session, float deltaTime)
@@ -237,7 +238,7 @@ namespace Dino_Defenders.Client
             }
             else
             {
-                wind.Direction = session.World.Plan.Mood.WindDirection;
+                wind.Direction = session.ScriptedWind?.direction ?? session.World.Plan.Mood.WindDirection;
                 wind.Speed += (_windTarget - wind.Speed) * blend;
             }
             windView.Set(wind);
