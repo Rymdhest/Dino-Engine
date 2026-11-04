@@ -11,7 +11,7 @@
 
 <img width="1907" height="1074" alt="engine 2" src="https://github.com/user-attachments/assets/4ccadb53-51c7-4a29-9544-47a7f78602a3" />
 
-This is a fully **procedural game engine** built from scratch in C# using OpenGL and OpenTK. The engine does **not use any external libraries** beyond OpenTK. Every asset, from textures and models to terrain and effects, is generated **procedurally at runtime**.
+This is a fully **procedural game engine** built from scratch in C# using OpenGL and OpenTK. The engine does **not use any external libraries** beyond OpenTK (the game adds LiteNetLib and Mono.Nat for playing over the internet, behind an interface the engine defines). Every asset, from textures and models to terrain and effects, is generated **procedurally at runtime**.
 
 ---
 
@@ -37,7 +37,9 @@ The game built on the engine: a fantasy action RPG in randomized worlds. No two 
 
 Start it with `dotnet run --project "Dino Defenders" -c Release`.
 
-`Dino WorldLab` generates and checks worlds with no window, for example `check --seed 1 --count 100`, or `map` to draw one.
+Up to five heroes can share a world, with no server to run: in the pause menu, **Travel with friends** opens your world and gives you an invite to send, and takes an invite you've been sent. See [NETWORKING.md](NETWORKING.md).
+
+`Dino WorldLab` generates and checks worlds with no window, for example `check --seed 1 --count 100`, or `map` to draw one. `Dino NetLab` tests the networking the same way: `core` for replication alone, and `game` for the whole game on every kind of bad line.
 
 ---
 

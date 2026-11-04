@@ -7,6 +7,7 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
+using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
 namespace Dino_NetLab
@@ -33,6 +34,8 @@ namespace Dino_NetLab
         public bool Fights = true;
         public int WhirlEveryFrames;    // Instead of fighting: a press of whirl, this often.
         public int WhirlsPressed;
+        public bool PressUse;           // Presses use, once.
+        public readonly List<(InteractKind kind, SiteState site)> PanelsOpened = new();
         private int _frames;
         public double DivergenceTotal;
         public double DivergenceWorst;
@@ -78,6 +81,12 @@ namespace Dino_NetLab
 
         public HeroIntent ReadIntent()
         {
+            if (PressUse)
+            {
+                PressUse = false;
+                return new HeroIntent { Interact = true };
+            }
+
             if (WhirlEveryFrames > 0 && Client.Session != null)
             {
                 if (++_frames % WhirlEveryFrames != 0) return default;
@@ -134,7 +143,7 @@ namespace Dino_NetLab
         public void WorldNeeded(WorldRequest request) => _wanted = request;
         public void Arrived(Vector2 position) => Arrivals++;
         public void HeroActed(HeroStepEvents events, in HeroSimState hero) { }
-        public void OpenPanel(InteractKind kind, SiteState site) { }
+        public void OpenPanel(InteractKind kind, SiteState site) => PanelsOpened.Add((kind, site));
         public void Disconnected(string reason) => DisconnectReason = reason;
         public void Decorate(Ghost ghost, List<IComponent> components) { }
         public void Created(Ghost ghost) { }
@@ -302,6 +311,9 @@ namespace Dino_NetLab
             Console.WriteLine("Growing a world...");
             WorldData world = worlds.Get(request).Result;
 
+            report.Section("Invites");
+            InvitesSurviveBeingPasted(report);
+
             report.Section("Worlds");
             WorldsAgree(report, request, world);
 
@@ -336,9 +348,61 @@ namespace Dino_NetLab
             }
             LatePressIsNotRepeated(report);
             ActionsAtPanels(report, worlds, request);
+            UsingThings(report, worlds);
             NewComponentNeedsNoCode(report, worlds, request);
 
             return report.Finish();
+        }
+
+        // A code goes through a chat program and someone's hands. It has to come out the other side intact, or not at all.
+        private static void InvitesSurviveBeingPasted(Report report)
+        {
+            var random = new Random(5);
+            int wrong = 0;
+            for (int i = 0; i < 2000; i++)
+            {
+                var code = new InviteCode
+                {
+                    Public = i % 3 == 0 ? null : new System.Net.IPAddress(BitConverter.GetBytes(random.Next())),
+                    Local = i % 5 == 0 ? null : new System.Net.IPAddress(BitConverter.GetBytes(random.Next())),
+                    Port = random.Next(1, 65536),
+                    Secret = (uint)random.NextInt64(0, uint.MaxValue),
+                };
+                if (!InviteCode.TryParse(code.Text, out InviteCode? back) || back == null
+                    || back.Port != code.Port || back.Secret != code.Secret
+                    || !Equals(back.Public, code.Public) || !Equals(back.Local, code.Local))
+                {
+                    wrong++;
+                }
+            }
+            report.Check("2000 invites read back exactly", wrong == 0, $"{wrong} wrong");
+
+            var sample = new InviteCode { Public = System.Net.IPAddress.Parse("203.0.113.7"), Local = System.Net.IPAddress.Parse("192.168.1.20"), Port = 27815, Secret = 0xDEADBEEF };
+            string text = sample.Text;
+            report.Note(text);
+            report.Check("Case and stray spaces don't matter", InviteCode.TryParse($"  {text.ToLowerInvariant()} \n", out _));
+            report.Check("Nor dashes going missing", InviteCode.TryParse(text.Replace("-", ""), out _));
+
+            int noticed = 0;
+            int tried = 0;
+            const string Letters = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+            for (int i = 0; i < 2000; i++)
+            {
+                char[] typo = text.ToCharArray();
+                int at = random.Next(5, typo.Length);
+                if (typo[at] == '-') continue;
+                char replacement = Letters[random.Next(Letters.Length)];
+                if (replacement == typo[at]) continue;
+                typo[at] = replacement;
+                tried++;
+
+                if (!InviteCode.TryParse(new string(typo), out InviteCode? mistaken) || mistaken == null) noticed++;
+                else if (mistaken.Port == sample.Port && mistaken.Secret == sample.Secret && Equals(mistaken.Public, sample.Public) && Equals(mistaken.Local, sample.Local)) noticed++;
+            }
+            report.Check("A mistyped code is nearly always refused rather than sending someone to a stranger's address", noticed >= tried * 0.98, $"{noticed} of {tried}");
+            report.Check("Half a code is refused", !InviteCode.TryParse(text.Substring(0, text.Length / 2), out _));
+            report.Check("Something else entirely is refused", !InviteCode.TryParse("hello there", out _));
+            report.Check("Secrets differ from one game to the next", InviteCode.NewSecret() != InviteCode.NewSecret());
         }
 
         private static void WorldsAgree(Report report, WorldRequest request, WorldData world)
@@ -816,6 +880,115 @@ namespace Dino_NetLab
             player.Client.TravelTo(far);
             lab.Run(1);
             report.Check("Being moved by the server is believed at once", (player.Client.Predictor.Current.Position - far).Length < 0.1f);
+        }
+
+        // Merchants, chests and shrines, all the way through: the hero walks up, presses use, the server decides, and the answer comes back.
+        private static void UsingThings(Report report, WorldCache worlds)
+        {
+            var request = new WorldRequest(303, "isle");
+            using var lab = new GameLab(worlds, request, startSite: "Landing");
+            HeroState hero = LabHero();
+            hero.Gold = 1000000;
+            LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 60, Jitter = 10 }, 90, hero: hero);
+            player.Fights = false;
+            lab.Run(4);
+            ServerSession session = lab.Server.Session!;
+            ServerPlayer truth = lab.Server.Players.First();
+
+            Vector2? Find(InteractKind kind)
+            {
+                foreach (Archetype archetype in player.Ecs.QueryArchetypes(new BitMask(typeof(InteractableComponent), typeof(PositionComponent)), BitMask.Empty))
+                {
+                    foreach (EntityView entity in new ComponentAccessor(archetype))
+                    {
+                        if (entity.Get<InteractableComponent>().Kind == kind) return entity.Get<PositionComponent>().value.Xz;
+                    }
+                }
+                return null;
+            }
+
+            void Use(Vector2 where)
+            {
+                player.Client.TravelTo(where);
+                lab.Run(1);
+                player.PressUse = true;
+                lab.Run(1);
+            }
+
+            Vector2? merchant = Find(InteractKind.Merchant);
+            report.Check("A merchant reaches the client as a ghost", merchant != null);
+            if (merchant != null)
+            {
+                Use(merchant.Value);
+                bool opened = player.PanelsOpened.Any(p => p.kind == InteractKind.Merchant);
+                report.Check("Using a merchant opens their table", opened);
+                if (opened)
+                {
+                    SiteState market = player.PanelsOpened.First(p => p.kind == InteractKind.Merchant).site;
+                    int siteIndex = player.Client.Session!.Sites.IndexOf(market);
+                    int stock = market.Stock.Count;
+                    report.Check("And the server sends what's on it", stock > 0, $"{stock}");
+
+                    int gold = truth.Hero.Gold;
+                    int carried = truth.Hero.Inventory.Count;
+                    Item wanted = market.Stock[0];
+                    player.Client.Buy(siteIndex, 0);
+                    lab.Run(1);
+                    report.Check("Buying takes the gold, gives the item and clears it from the table", truth.Hero.Gold == gold - wanted.BuyValue && truth.Hero.Inventory.Count == carried + 1 && market.Stock.Count == stock - 1, $"gold {gold}->{truth.Hero.Gold}, table {stock}->{market.Stock.Count}");
+                    report.Check("The hero the client holds shows it", player.Client.Hero.Gold == truth.Hero.Gold && player.Client.Hero.Inventory.Count == truth.Hero.Inventory.Count);
+                }
+            }
+
+            Vector2? gate = Find(InteractKind.Waygate);
+            if (gate != null)
+            {
+                Use(gate.Value);
+                report.Check("Using a waygate offers the way", player.PanelsOpened.Any(p => p.kind == InteractKind.Waygate));
+            }
+
+            // A shrine and a chest are somewhere else in the world, and exist only once a hero is near.
+            WorldSite shrine = session.World.Sites.First(s => s.Kind == SiteKind.Shrine);
+            player.Client.TravelTo(shrine.Position);
+            lab.Run(3);
+            Vector2? altar = Find(InteractKind.Shrine);
+            report.Check("Going to a site wakes it, and its shrine arrives", altar != null);
+            if (altar != null)
+            {
+                int index = session.Sites.FindIndex(s => s.Site == shrine);
+                Use(altar.Value);
+                report.Check("Kindling a shrine lights it for the server", session.Sites[index].Kindled);
+                lab.Run(1);
+                report.Check("And for the client", player.Client.Session!.Sites[index].Kindled);
+                report.Check("And that's where the hero wakes", (truth.Respawn - altar.Value).Length < 0.5f);
+                report.Check("And the chronicle moves on, for both", session.Chronicle.Objectives.Any(o => o.Progress > 0) && player.Client.Session.Chronicle.Objectives.Any(o => o.Progress > 0));
+
+                player.Client.TravelTo(session.World.Sites[0].Position);
+                lab.Run(1);
+                player.Client.TravelToSite(index);
+                lab.Run(1);
+                report.Check("A kindled shrine can be travelled to", (player.Client.Predictor.Current.Position - shrine.Position).Length < 1f);
+            }
+
+            foreach (SiteState state in session.Sites)
+            {
+                int spawn = state.Site.Spawns.FindIndex(s => s.Role == SpawnRole.Chest);
+                if (spawn < 0 || state.Site.Kind == SiteKind.Keep) continue;
+
+                player.Client.TravelTo(state.Site.Spawns[spawn].Position);
+                lab.Run(3);
+                Vector2? chest = Find(InteractKind.Chest);
+                if (chest == null) continue;
+
+                int siteIndex = session.Sites.IndexOf(state);
+                int carried = truth.Hero.Inventory.Count;
+                int goldBefore = truth.Hero.Gold;
+                Use(chest.Value);
+                report.Check("Opening a chest leaves it open", state.Opened.Count > 0);
+                lab.Run(3);
+                report.Check("And what's in it can be collected", truth.Hero.Gold > goldBefore || truth.Hero.Inventory.Count > carried, $"gold {goldBefore}->{truth.Hero.Gold}, items {carried}->{truth.Hero.Inventory.Count}");
+                report.Check("The chest has gone from the client's world", Find(InteractKind.Chest) == null || (Find(InteractKind.Chest)!.Value - chest.Value).Length > 0.1f);
+                break;
+            }
         }
 
         private static HeroState LabHero()

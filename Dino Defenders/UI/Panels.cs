@@ -546,6 +546,8 @@ namespace Dino_Defenders.UI
             body.Add(new Spacer(height: 6f));
             var joining = body.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Auto });
             joining.Add(Ui.Line("Join a friend", 15f, Ui.Gold));
+            var name = joining.Add(new TextBox(_game.HeroName, "Your name, for them to see") { Width = UIValue.Fill, Height = 32f, MaxLength = 24 });
+            name.TextChanged += text => _game.HeroName = text;
             _code = joining.Add(new TextBox("", "Paste the invite here") { Width = UIValue.Fill, Height = 32f });
             _code.Submitted += _ => Join();
             joining.Add(Ui.Action("Join", Join));

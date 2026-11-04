@@ -60,11 +60,23 @@ namespace Dino_Defenders
         private int _tourWait;
         private bool _tourPhotographed;
 
-        /// <summary>The code to give friends, once this game is open to them.</summary>
-        public string? InviteText => _invite?.Text;
+        /// <summary>
+        /// The code to give friends, once this game is open to them. It's worked out as it's asked for, as the address on the internet is
+        /// only known once the router has answered, and that's the one that matters to anyone who isn't in the same house.
+        /// </summary>
+        public string? InviteText => _invite == null ? null : new InviteCode
+        {
+            Public = _portMapper?.External,
+            Local = _invite.Local,
+            Port = _invite.Port,
+            Secret = _invite.Secret,
+        }.Text;
 
         /// <summary>What's known about friends being able to reach this game.</summary>
         public string InviteStatus => _portMapper?.Status ?? "";
+
+        /// <summary>What this player goes by in company. Left empty, the server calls them Hero and a number: their account's name is theirs to share.</summary>
+        public string HeroName { get; set; } = "";
 
         public bool Hosting => _invite != null;
         public bool InFriendsGame => _server == null;
@@ -73,6 +85,7 @@ namespace Dino_Defenders
         public ArpgGame(Engine engine, GameOptions options) : base(engine)
         {
             _options = options;
+            HeroName = options.Name ?? "";
             _presenter = new GhostPresenter(_characters);
             engine.WorldReady = false;
             NetSchema.Build();
@@ -133,7 +146,7 @@ namespace Dino_Defenders
             {
                 transport = new ImpairedTransport(transport, NetworkConditions.Parse(_options.NetSim), () => _simulatedLine.Elapsed.TotalMilliseconds);
             }
-            _client = new GameClient(transport, this, Dino_Engine.Core.Engine.Instance!.world, _hero, _options.Name ?? Environment.UserName);
+            _client = new GameClient(transport, this, Dino_Engine.Core.Engine.Instance!.world, _hero, HeroName);
             _effects = new ClientEffects(Dino_Engine.Core.Engine.Instance!.world, _client);
         }
 
@@ -223,8 +236,6 @@ namespace Dino_Defenders
 
         public override void update()
         {
-            _frames++;
-
             _client?.Update(Dino_Engine.Core.Engine.Delta);
             HandleLostConnection();
             FinishLoading();
@@ -233,6 +244,9 @@ namespace Dino_Defenders
 
             GameSession session = GameSession.Current;
             if (session == null || _client?.Session != session) return;
+
+            // Counted from when there's a world to be in. How long it took to grow is no business of a script.
+            if (_client.State == ClientState.Playing) _frames++;
 
             session.Paused = _ui.AnyOpen || _ui.Loading.Visible || _options.Tour != null;
 
