@@ -1,8 +1,10 @@
 ﻿using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Networking;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Components
 {
+    [Replicated]
     public struct RotationComponent : IComponent
     {
         public Quaternion quaternion;
