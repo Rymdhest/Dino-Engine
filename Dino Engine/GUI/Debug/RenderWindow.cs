@@ -69,6 +69,10 @@ namespace Dino_Engine.GUI.Debug
                     Engine.Instance!.world.GetEntityView(entity).Set(colour);
                 })));
 
+            sun.Content.Add(DebugUi.LabeledRow("Night", new Slider(0f, 1f) { Format = "0.00", FormatProvider = DebugUi.Culture }.Bind(
+                () => Engine.RenderEngine.Lighting.Night,
+                value => Engine.RenderEngine.Lighting.Night = value)));
+
             // ---------------------------------------------------------------- lighting
             var light = window.Content.Add(new Foldout("Lighting"));
             LightingSettings lighting = Engine.RenderEngine.Lighting;

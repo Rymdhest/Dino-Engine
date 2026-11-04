@@ -202,7 +202,7 @@ namespace Dino_Engine.World.Content
         public static readonly SiteDefinition Graveyard = new SiteDefinition
         {
             Kind = SiteKind.Graveyard,
-            Label = "Barrow",
+            Label = "Barrow",   // Older than the church that now stands there, and a label seeds its kind's fork: renaming one moves every site of it.
             MapColour = new Vector3(0.64f, 0.56f, 0.82f),
             Radius = new FloatRange(24f, 32f),
             PerSquareKilometre = 1.1f,

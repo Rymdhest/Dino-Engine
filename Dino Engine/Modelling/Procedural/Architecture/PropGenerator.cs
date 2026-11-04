@@ -62,6 +62,10 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "altar": BuildAltar(b, random, lights); break;
                 case "grave": BuildGrave(b, random); break;
                 case "tomb": BuildTomb(b, definition.HalfExtents); break;
+                case "church": BuildChurch(b, definition.HalfExtents, lights); break;
+                case "candles": BuildCandles(b, random, lights); break;
+                case "candles.vigil": BuildVigilCandles(b, random, lights); break;
+                case "candle.stand": BuildCandleStand(b, lights); break;
                 case "monolith": BuildMonolith(b, random, lights); break;
                 case "ruin.wall": BuildRuinWall(b, random); break;
                 case "ruin.column": BuildRuinColumn(b, random); break;
@@ -700,6 +704,245 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.TilesPerMetre = 0.2f;
             b.Quad(new Vector3(-1.5f, 0f, z + 0.56f), new Vector3(1.5f, 0f, z + 0.56f), new Vector3(1.5f, 3.2f, z + 0.56f), new Vector3(-1.5f, 3.2f, z + 0.56f), new VertexMaterial(TextureGenerator.flat, new Colour(10, 10, 12)));
         }
+
+        private static VertexMaterial Wax => new VertexMaterial(TextureGenerator.flat, new Colour(226, 216, 190));
+        private static VertexMaterial Flame => Glow(1f, 0.42f, 0.08f, 3f);
+
+        private static void AddCandle(MeshBuilder b, Vector3 foot, float height, float radius)
+        {
+            b.Tube(foot, foot + Vector3.UnitY * height, radius, radius * 0.92f, 6, Wax);
+            b.Add(IcoSphereGenerator.CreateIcosphere(1, Flame), foot + Vector3.UnitY * (height + radius * 1.5f), new Vector3(radius * 0.8f, radius * 1.9f, radius * 0.8f));
+        }
+
+        private static void BuildCandles(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
+        {
+            lights.Add(AssetLight.Candles(new Vector3(0f, 1.3f, 0f)));
+
+            b.Tube(new Vector3(0f, -0.1f, 0f), new Vector3(0f, 0.06f, 0f), 0.46f, 0.4f, 8, Rough(96));
+            AddCandle(b, new Vector3(0f, 0.06f, 0f), random.Range(0.75f, 1f), 0.11f);
+            for (int i = 0; i < 4; i++)
+            {
+                float angle = i * (MathF.Tau / 4f) + random.Range(-0.3f, 0.3f);
+                AddCandle(b, new Vector3(MathF.Cos(angle) * 0.26f, 0.06f, MathF.Sin(angle) * 0.26f), random.Range(0.3f, 0.7f), random.Range(0.07f, 0.1f));
+            }
+        }
+
+        // Stepped up towards the back, as candles are left on the way into a church.
+        private static void BuildVigilCandles(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
+        {
+            lights.Add(AssetLight.VigilCandles(new Vector3(0f, 1.9f, 0f)));
+
+            VertexMaterial stone = Rough(110);
+            b.Box(new Vector3(0f, 0.08f, 0f), new Vector3(1f, 0.26f, 0.96f), stone);
+            b.Box(new Vector3(0f, 0.5f, -0.3f), new Vector3(0.9f, 0.18f, 0.5f), stone);
+            for (int row = 0; row < 3; row++)
+            {
+                float y = row == 0 ? 0.34f : 0.68f;
+                float z = 0.6f - row * 0.5f;
+                for (int i = 0; i < 5; i++)
+                {
+                    Vector3 foot = new Vector3(-0.72f + i * 0.36f + random.Range(-0.05f, 0.05f), y, z + random.Range(-0.06f, 0.06f));
+                    AddCandle(b, foot, random.Range(0.28f, 0.42f) + row * 0.16f, random.Range(0.07f, 0.095f));
+                }
+            }
+        }
+
+        private static void BuildCandleStand(MeshBuilder b, List<AssetLight> lights)
+        {
+            lights.Add(AssetLight.CandleStand(new Vector3(0f, 4.3f, 0f)));
+
+            b.Tube(new Vector3(0f, -0.2f, 0f), new Vector3(0f, 0.16f, 0f), 0.44f, 0.3f, 8, Iron);
+            b.Tube(new Vector3(0f, 0.16f, 0f), new Vector3(0f, 3.4f, 0f), 0.08f, 0.06f, 6, Iron);
+            foreach (float x in new[] { -0.62f, 0f, 0.62f })
+            {
+                float y = x == 0f ? 3.5f : 3.3f;
+                if (x != 0f) b.Beam(new Vector3(0f, 3f, 0f), new Vector3(x, y, 0f), 0.035f, Iron);
+                b.Tube(new Vector3(x, y - 0.02f, 0f), new Vector3(x, y + 0.04f, 0f), 0.17f, 0.2f, 7, Iron);
+                AddCandle(b, new Vector3(x, y + 0.04f, 0f), x == 0f ? 0.5f : 0.38f, 0.085f);
+            }
+        }
+
+        // Seen from above a church is its roof, so the plan is what has to say so: a cross of steep slate, the tower at its head.
+        private static void BuildChurch(MeshBuilder b, Vector2 half, List<AssetLight> lights)
+        {
+            const float WallTop = 9f;
+            const float Pitch = 1.05f;
+            const float Eaves = 0.7f;
+
+            VertexMaterial wall = Stone(168);
+            VertexMaterial trim = Stone(128);
+            VertexMaterial roof = new VertexMaterial(TextureGenerator.slate, new Colour(168, 174, 194));
+            VertexMaterial cap = new VertexMaterial(TextureGenerator.stoneWall, new Colour(84, 84, 92));
+
+            float naveHalf = half.X - 0.5f;
+            float length = half.Y - 0.5f;
+            Vector2 arms = StructureCatalog.ChurchTransept;
+            float armHalf = arms.Y - 0.3f;
+            float armEnd = arms.X - 0.3f;
+            float armAt = StructureCatalog.ChurchTranseptAhead;
+
+            // Plinths reach well below ground, so that a slope never shows daylight under the walls.
+            b.TilesPerMetre = 0.16f;
+            b.Box(new Vector3(0f, -1.8f, 0f), new Vector3(half.X, 2.5f, half.Y), trim);
+            b.Box(new Vector3(0f, -1.8f, armAt), new Vector3(arms.X, 2.5f, arms.Y), trim);
+            b.Box(new Vector3(0f, WallTop * 0.5f, 0f), new Vector3(naveHalf, WallTop * 0.5f, length), wall);
+            b.Box(new Vector3(0f, WallTop * 0.5f, armAt), new Vector3(armEnd, WallTop * 0.5f, armHalf), wall);
+
+            float naveRise = (naveHalf + Eaves) * Pitch;
+            float armRise = (armHalf + Eaves) * Pitch;
+            b.TilesPerMetre = 0.13f;
+            AddRoofAlongZ(b, naveHalf + Eaves, WallTop, naveRise, -length - Eaves, length + Eaves, roof);
+            AddRoofAlongX(b, armHalf + Eaves, WallTop, armRise, armEnd + Eaves, armAt, roof);
+            b.TilesPerMetre = 0.16f;
+            AddGable(b, new Vector3(0f, WallTop, -length), naveHalf, naveRise - Eaves * Pitch, Vector3.UnitX, -Vector3.UnitZ, wall);
+            AddGable(b, new Vector3(armEnd, WallTop, armAt), armHalf, armRise - Eaves * Pitch, -Vector3.UnitZ, Vector3.UnitX, wall);
+            AddGable(b, new Vector3(-armEnd, WallTop, armAt), armHalf, armRise - Eaves * Pitch, Vector3.UnitZ, -Vector3.UnitX, wall);
+            b.Tube(new Vector3(0f, WallTop + naveRise, -length - Eaves), new Vector3(0f, WallTop + naveRise, length + Eaves), 0.3f, 0.3f, 6, cap);
+            b.Tube(new Vector3(-armEnd - Eaves, WallTop + armRise, armAt), new Vector3(armEnd + Eaves, WallTop + armRise, armAt), 0.26f, 0.26f, 6, cap);
+
+            // Buttresses between the windows, and the windows themselves, down both sides of the nave.
+            Vector3[] panes =
+            {
+                new Vector3(1f, 0.22f, 0.12f), new Vector3(0.2f, 0.34f, 1f), new Vector3(1f, 0.62f, 0.14f), new Vector3(0.24f, 0.8f, 0.42f),
+            };
+            int pane = 0;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (float z = -length + 1.2f; z <= length - 6.5f; z += 3.9f)
+                {
+                    float armsFrom = armAt - armHalf - 1.2f;
+                    float armsTo = armAt + armHalf + 1.2f;
+                    bool blocked = z > armsFrom && z < armsTo;
+                    if (!blocked) b.Box(new Vector3(side * (naveHalf + 0.34f), 3.2f, z), new Vector3(0.34f, 3.2f, 0.5f), trim);
+
+                    float window = z + 1.95f;
+                    if (window > armsFrom && window < armsTo || window > length - 6.5f) continue;
+                    AddStainedWindow(b, new Vector3(side * naveHalf, 4.8f, window), side > 0 ? -Vector3.UnitZ : Vector3.UnitZ, 0.8f, 2.7f, panes, pane++, lights);
+                }
+            }
+            for (int side = -1; side <= 1; side += 2)
+            {
+                AddRoseWindow(b, new Vector3(side * armEnd, 6.1f, armAt), side * Vector3.UnitX, 1.9f, panes[(pane++) % panes.Length], lights);
+            }
+            AddRoseWindow(b, new Vector3(0f, 6.4f, -length), -Vector3.UnitZ, 2.3f, panes[0], lights);
+
+            // The tower at the front, with the door in its foot, and the spire that can be seen from the road.
+            const float TowerTop = 14.5f;
+            float towerHalf = 3.7f;
+            float towerAt = length - towerHalf + 0.6f;
+            b.Box(new Vector3(0f, TowerTop * 0.5f, towerAt), new Vector3(towerHalf, TowerTop * 0.5f, towerHalf), wall);
+            b.Box(new Vector3(0f, TowerTop + 0.1f, towerAt), new Vector3(towerHalf + 0.34f, 0.3f, towerHalf + 0.34f), trim);
+            for (int x = -1; x <= 1; x += 2)
+            {
+                for (int z = -1; z <= 1; z += 2)
+                {
+                    b.Box(new Vector3(x * towerHalf, 5f, towerAt + z * towerHalf), new Vector3(0.5f, 5f, 0.5f), trim);
+                }
+            }
+
+            b.TilesPerMetre = 0.14f;
+            b.Tube(new Vector3(0f, TowerTop + 0.3f, towerAt), new Vector3(0f, 25f, towerAt), towerHalf + 0.5f, 0.08f, 8, roof);
+            b.TilesPerMetre = 0.2f;
+            b.Beam(new Vector3(0f, 24.8f, towerAt), new Vector3(0f, 27.2f, towerAt), 0.09f, Iron);
+            b.Beam(new Vector3(-0.8f, 26.4f, towerAt), new Vector3(0.8f, 26.4f, towerAt), 0.09f, Iron);
+
+            float front = towerAt + towerHalf + 0.06f;
+            VertexMaterial oak = Wood(58, 42, 32);
+            b.Quad(new Vector3(-1.9f, 0f, front), new Vector3(1.9f, 0f, front), new Vector3(1.9f, 6f, front), new Vector3(-1.9f, 6f, front), oak);
+            b.Triangle(new Vector3(-1.9f, 6f, front), new Vector3(1.9f, 6f, front), new Vector3(0f, 7.6f, front), oak);
+            b.Beam(new Vector3(-2.2f, 0f, front + 0.1f), new Vector3(-2.2f, 6f, front + 0.1f), 0.28f, trim);
+            b.Beam(new Vector3(2.2f, 0f, front + 0.1f), new Vector3(2.2f, 6f, front + 0.1f), 0.28f, trim);
+            b.Beam(new Vector3(-2.2f, 6f, front + 0.1f), new Vector3(0f, 7.9f, front + 0.1f), 0.28f, trim);
+            b.Beam(new Vector3(2.2f, 6f, front + 0.1f), new Vector3(0f, 7.9f, front + 0.1f), 0.28f, trim);
+
+            foreach (float side in new[] { -1f, 1f })
+            {
+                b.Box(new Vector3(side * 3.6f, 0.1f, front + 0.5f), new Vector3(1.1f, 0.5f, 0.4f), trim);
+            }
+            AddStainedWindow(b, new Vector3(0f, 11.4f, front - 0.06f), Vector3.UnitX, 0.7f, 1.9f, panes, 2, lights);
+            b.ResetPlacement();
+        }
+
+        // Two slopes with the ridge along z, between z = back and z = front.
+        private static void AddRoofAlongZ(MeshBuilder b, float reach, float eave, float rise, float back, float front, VertexMaterial material)
+        {
+            float ridge = eave + rise;
+            float low = eave - 0.5f;
+            b.Quad(new Vector3(reach, low, front), new Vector3(reach, low, back), new Vector3(0f, ridge, back), new Vector3(0f, ridge, front), material);
+            b.Quad(new Vector3(-reach, low, back), new Vector3(-reach, low, front), new Vector3(0f, ridge, front), new Vector3(0f, ridge, back), material);
+        }
+
+        // Two slopes with the ridge along x, running out to x = +-end, around z = at.
+        private static void AddRoofAlongX(MeshBuilder b, float reach, float eave, float rise, float end, float at, VertexMaterial material)
+        {
+            float ridge = eave + rise;
+            float low = eave - 0.5f;
+            b.Quad(new Vector3(-end, low, at + reach), new Vector3(end, low, at + reach), new Vector3(end, ridge, at), new Vector3(-end, ridge, at), material);
+            b.Quad(new Vector3(end, low, at - reach), new Vector3(-end, low, at - reach), new Vector3(-end, ridge, at), new Vector3(end, ridge, at), material);
+        }
+
+        // The triangle of wall under the end of a roof. Goes counter-clockwise seen from `outward`, from `along` around to the peak.
+        private static void AddGable(MeshBuilder b, Vector3 middle, float halfWidth, float rise, Vector3 along, Vector3 outward, VertexMaterial material)
+        {
+            b.Triangle(middle - along * halfWidth, middle + along * halfWidth, middle + Vector3.UnitY * rise, material);
+        }
+
+        // A tall pointed window of coloured panes, set in a stone frame. `along` runs across it, with the outside on the right of it.
+        private static void AddStainedWindow(MeshBuilder b, Vector3 centre, Vector3 along, float halfWidth, float halfHeight, Vector3[] colours, int first, List<AssetLight> lights)
+        {
+            Vector3 up = Vector3.UnitY;
+            Vector3 outward = Vector3.Cross(along, up);
+            Vector3 face = centre + outward * 0.07f;
+            VertexMaterial frame = Stone(92);
+            float paneHeight = halfHeight * 2f / 3f;
+
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 bottom = face - up * halfHeight + up * (paneHeight * i);
+                VertexMaterial glass = GlassOf(colours[(first + i) % colours.Length]);
+                b.Quad(bottom - along * halfWidth, bottom + along * halfWidth, bottom + along * halfWidth + up * paneHeight, bottom - along * halfWidth + up * paneHeight, glass);
+            }
+            Vector3 shoulder = face + up * halfHeight;
+            b.Triangle(shoulder - along * halfWidth, shoulder + along * halfWidth, shoulder + up * (halfWidth * 1.5f), GlassOf(colours[(first + 3) % colours.Length]));
+
+            Vector3 ledge = centre + outward * 0.16f;
+            b.Beam(ledge - along * halfWidth - up * halfHeight, ledge - along * halfWidth + up * halfHeight, 0.11f, frame);
+            b.Beam(ledge + along * halfWidth - up * halfHeight, ledge + along * halfWidth + up * halfHeight, 0.11f, frame);
+            b.Beam(ledge - along * halfWidth - up * halfHeight, ledge + along * halfWidth - up * halfHeight, 0.13f, frame);
+            b.Beam(ledge - along * halfWidth + up * halfHeight, ledge + up * (halfHeight + halfWidth * 1.5f), 0.11f, frame);
+            b.Beam(ledge + along * halfWidth + up * halfHeight, ledge + up * (halfHeight + halfWidth * 1.5f), 0.11f, frame);
+            for (int i = 1; i < 3; i++)
+            {
+                Vector3 bar = ledge - up * halfHeight + up * (paneHeight * i);
+                b.Beam(bar - along * halfWidth, bar + along * halfWidth, 0.05f, Iron);
+            }
+
+            lights.Add(AssetLight.StainedGlass(centre + outward * 0.6f, outward, colours[first % colours.Length]));
+        }
+
+        private static void AddRoseWindow(MeshBuilder b, Vector3 centre, Vector3 outward, float radius, Vector3 colour, List<AssetLight> lights)
+        {
+            b.Tube(centre, centre + outward * 0.1f, radius, radius, 12, GlassOf(colour));
+
+            // Stone tracery over the glass: a hub, spokes and a rim.
+            VertexMaterial stone = Stone(92);
+            Vector3 face = centre + outward * 0.16f;
+            Vector3 across = Vector3.Cross(outward, Vector3.UnitY).Normalized();
+            b.Tube(centre + outward * 0.08f, centre + outward * 0.24f, radius * 0.2f, radius * 0.2f, 6, stone);
+            Vector3 previous = face + across * radius;
+            for (int i = 1; i <= 12; i++)
+            {
+                float angle = i * (MathF.Tau / 12f);
+                Vector3 rim = face + (across * MathF.Cos(angle) + Vector3.UnitY * MathF.Sin(angle)) * radius;
+                b.Beam(previous, rim, 0.12f, stone);
+                if (i % 2 == 0) b.Beam(face, rim, 0.06f, stone);
+                previous = rim;
+            }
+            lights.Add(AssetLight.StainedGlass(centre + outward * 0.6f, outward, colour));
+        }
+
+        // Dim for something that glows: any brighter and tone mapping bleaches the colour out of it.
+        private static VertexMaterial GlassOf(Vector3 colour) => Glow(colour.X, colour.Y, colour.Z, 0.95f);
 
         private static void BuildMonolith(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
         {

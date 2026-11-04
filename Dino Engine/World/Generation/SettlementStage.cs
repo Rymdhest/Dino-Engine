@@ -21,6 +21,10 @@ namespace Dino_Engine.World.Generation
         {
             world.Placement = new PlacementIndex(world.Size);
             world.Style = StyleOf(world);
+            foreach (WorldSite site in world.Sites)
+            {
+                if (site.Kind == SiteKind.Graveyard) EndRoadsShortOf(world, site.Position, StructureCatalog.Church.HalfExtents.Y + ChurchForecourt);
+            }
             foreach (WorldRoad road in world.Roads) ReserveRoad(world, road);
 
             WorldRandom random = world.Random.Fork("settlements");
@@ -550,30 +554,122 @@ namespace Dino_Engine.World.Generation
             b.Spawn(SpawnRole.Chest, b.Centre - toRoad * site.Radius * 0.42f);
         }
 
+        private const float ChurchForecourt = 2f;
+        private const float AisleHalfWidth = 3.6f;
+        private const float DeadTreeScale = 0.6f;
+        private const float GraveColumns = 5.6f;    // Metres apart, wide enough to walk between: a character is broad, and
+        private const float GraveRows = 7f;         // the dead can only rise where someone could reach them.
+        private const float WalkAround = 3.2f;      // Clear ground kept along the church and inside the wall.
+
         private static void BuildGraveyard(SiteBuilder b)
         {
             WorldSite site = b.Site;
             Vector2 toRoad = site.RoadDirection;
-            b.Ring(StructureCatalog.StoneWall, site.Radius, 8, 4.5f, 1f, 0.8f, toRoad, 6f);
+            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, site.Radius * 0.95f), 6f);
 
-            b.Place(StructureCatalog.Tomb, b.Centre - toRoad * site.Radius * 0.34f, YawFacing(toRoad), padding: 0.8f);
+            // The church goes first: everything else makes way for it, and whatever the land allows, it is what the place is for.
+            RaiseChurch(b, toRoad, out Vector2 church, out Vector2 front);
+            b.Ring(StructureCatalog.StoneWall, site.Radius, 8, 4.5f, 1f, 0.8f, toRoad, 6f, gateOnEdge: true);
 
-            float angle = YawFacing(toRoad);
-            for (float z = -site.Radius * 0.8f; z <= site.Radius * 0.8f; z += 6f)
+            // The path to the door, between tall candles, and a vigil kept either side of it.
+            Vector2 across = new Vector2(-front.Y, front.X);
+            Vector2 door = church + front * (StructureCatalog.Church.HalfExtents.Y + 0.6f);
+            float aisle = MathF.Max(site.Radius - Vector2.Dot(door - b.Centre, front), 4f);
+            Vector2 aisleEnd = door + front * aisle;
+            b.Paint(GroundPaint.Plaza, Footprint.Segment(door, aisleEnd, AisleHalfWidth - 1f), 2f);
+            foreach (float side in new[] { -1f, 1f })
             {
-                for (float x = -site.Radius * 0.8f; x <= site.Radius * 0.8f; x += 4.5f)
+                b.Place(StructureCatalog.VigilCandles, door + front * 1.6f + across * side * 4.4f, b.Random.Float() * MathF.Tau, padding: 0f);
+                for (float along = 6f; along < aisle - 1f; along += 6f)
                 {
-                    if (b.Random.Chance(0.35f)) continue;
-                    Vector2 local = new Vector2(x + b.Random.Range(-0.8f, 0.8f), z + b.Random.Range(-0.8f, 0.8f));
-                    if (local.Length > site.Radius * 0.82f) continue;
-                    if (MathF.Abs(local.X) < 3.6f) continue;    // The aisle from the gate to the tomb.
-                    Vector2 world = Footprint.Box(b.Centre, Vector2.One, angle).ToWorld(local);
-                    b.Place(StructureCatalog.Grave, world, angle + b.Random.Range(-0.12f, 0.12f), padding: 0.3f);
+                    b.Place(StructureCatalog.CandleStand, door + front * along + across * side * AisleHalfWidth, 0f, padding: 0.2f);
                 }
             }
 
+            float angle = YawFacing(front);
+            WorldRandom vigils = b.Random.Fork("candles");
+            Footprint rows = Footprint.Box(b.Centre, Vector2.One, angle);
+            for (float z = -site.Radius * 0.84f; z <= site.Radius * 0.84f; z += GraveRows)
+            {
+                for (float x = -site.Radius * 0.84f; x <= site.Radius * 0.84f; x += GraveColumns)
+                {
+                    if (b.Random.Chance(0.18f)) continue;
+                    Vector2 local = new Vector2(x + b.Random.Range(-0.3f, 0.3f), z + b.Random.Range(-0.3f, 0.3f));
+                    Vector2 spot = rows.ToWorld(local);
+                    if (DistanceToSegment(spot, door, aisleEnd) < AisleHalfWidth + 1.2f) continue;
+                    if (b.World.Placement.Overlaps(StructureCatalog.Grave.FootprintAt(spot, angle), PlacementLayer.Structure | PlacementLayer.Fence, WalkAround)) continue;
+
+                    float yaw = angle + b.Random.Range(-0.12f, 0.12f);
+                    if (!b.Place(StructureCatalog.Grave, spot, yaw, padding: 0.3f)) continue;
+
+                    // Someone still comes: candles at the foot of the grave, on the side towards the path.
+                    if (vigils.Chance(0.6f))
+                    {
+                        Vector2 foot = spot + new Vector2(MathF.Sin(yaw), MathF.Cos(yaw)) * 2.1f;
+                        b.Place(StructureCatalog.Candles, foot, vigils.Float() * MathF.Tau, vigils.Range(0.85f, 1.2f), padding: 0f);
+                    }
+                }
+            }
+
+            for (int i = 0; i < 2; i++) b.Scatter(StructureCatalog.Tomb, b.Centre, site.Radius * 0.85f, attempts: 10, padding: 0.8f);
+            for (int i = 0; i < 5; i++)
+            {
+                Vector2 spot = b.Centre + Direction(b.Random.Float() * MathF.Tau) * site.Radius * b.Random.Range(0.55f, 0.95f);
+                b.Place(StructureCatalog.DeadTree, spot, b.Random.Float() * MathF.Tau, DeadTreeScale * b.Random.Range(0.8f, 1.25f), padding: 0.6f);
+            }
+
             b.SpawnAround(SpawnRole.Undead, b.Centre, site.Radius * 0.75f, b.Random.Int(4, 7));
-            b.Spawn(SpawnRole.Chest, b.Centre - toRoad * (site.Radius * 0.34f - 7f));
+            b.Spawn(SpawnRole.Chest, door + front * 3.4f);
+        }
+
+        // As near the middle as the land and any passing road allow, with the door to the road. Beside a road that runs on through,
+        // it stands along the road instead, which takes less of the ground either side.
+        private static void RaiseChurch(SiteBuilder b, Vector2 toRoad, out Vector2 position, out Vector2 front)
+        {
+            Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
+            Vector2[] fronts = { toRoad, side, -side, -toRoad };
+            var arms = new Footprint[2];
+            float first = MathF.Atan2(-toRoad.Y, -toRoad.X);
+
+            for (float distance = 0f; distance <= b.Site.Radius * 0.7f; distance += 2f)
+            {
+                int directions = distance > 0f ? 8 : 1;
+                foreach (Vector2 facing in fronts)
+                {
+                    for (int i = 0; i < directions; i++)
+                    {
+                        Vector2 spot = b.Centre + Direction(first + i * (MathF.Tau / 8f)) * distance;
+                        arms[0] = StructureCatalog.ChurchArm(spot, facing, -1f);
+                        arms[1] = StructureCatalog.ChurchArm(spot, facing, 1f);
+                        if (!b.PlaceWithWings(StructureCatalog.Church, spot, YawFacing(facing), arms, padding: 0.6f, maxSlope: 0.6f)) continue;
+                        position = spot;
+                        front = facing;
+                        return;
+                    }
+                }
+            }
+
+            // WorldValidator fails a churchyard with no church, so a world this happens in doesn't go unnoticed.
+            position = b.Centre;
+            front = toRoad;
+        }
+
+        // A road that goes no further than here stops at the church door, not at the middle of the ground it would stand on.
+        private static void EndRoadsShortOf(WorldData world, Vector2 centre, float reach)
+        {
+            foreach (WorldRoad road in world.Roads)
+            {
+                List<Vector3> points = road.Points;
+                while (points.Count > 2 && (points[^1].Xz - centre).Length < reach) points.RemoveAt(points.Count - 1);
+                while (points.Count > 2 && (points[0].Xz - centre).Length < reach) points.RemoveAt(0);
+            }
+        }
+
+        private static float DistanceToSegment(Vector2 point, Vector2 from, Vector2 to)
+        {
+            Vector2 span = to - from;
+            float along = Math.Clamp(Vector2.Dot(point - from, span) / MathF.Max(span.LengthSquared, 1e-4f), 0f, 1f);
+            return (point - (from + span * along)).Length;
         }
 
         private const int TowerRetreats = 4;

@@ -225,7 +225,7 @@ namespace Dino_Engine.ECS.Systems
 
             if (light.ConeAngle > 0f)
             {
-                components.Add(new SpotLightComponent(0.6f, light.ConeAngle));
+                components.Add(new SpotLightComponent(1f, light.ConeAngle));
                 components.Add(new DirectionNormalizedComponent(Vector3.Transform(light.Direction, owner.Rotation)));
             }
             else

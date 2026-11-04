@@ -34,6 +34,7 @@ namespace Dino_Engine.World.Content
         Embers,
         Fireflies,
         Dust,
+        Wisps,
     }
 
     /// <summary>One entry of a biome's species list: an object and how common it is against the others in that list.</summary>

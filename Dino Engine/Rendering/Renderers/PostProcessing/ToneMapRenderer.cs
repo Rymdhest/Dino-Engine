@@ -30,7 +30,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             HDRMapShader.loadUniformFloat("exposure", renderEngine.Lighting.Exposure);
             HDRMapShader.loadUniformFloat("gamma", 2.2f);
-            HDRMapShader.loadUniformFloat("dithering", 0.4f);
+            // A whole step of the 8 bits it ends up in: anything less leaves bands in the slow fades of a dark scene.
+            HDRMapShader.loadUniformFloat("dithering", 1f);
 
             buffer.RenderTextureToNextFrameBuffer(buffer.GetLastOutputTexture());
 

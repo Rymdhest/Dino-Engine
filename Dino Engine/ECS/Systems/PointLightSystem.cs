@@ -25,6 +25,7 @@ namespace Dino_Engine.ECS.Systems
 
             PointlightRenderCommand command = new PointlightRenderCommand();
             command.colour = Radiance(entity);
+            if (command.colour == Vector3.Zero) return;
             command.positionWorld = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
             command.radius = range.Radius;
             command.fill = range.Fill;

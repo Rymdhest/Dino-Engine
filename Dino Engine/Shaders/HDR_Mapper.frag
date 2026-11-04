@@ -35,7 +35,9 @@ float random(vec2 coords) {
 vec3 applyDithering(vec3 inputColor) {
 	float NOISE_GRANULARITY = dithering/255.0;
 	vec2 coordinates = gl_FragCoord.xy / resolution;
-	return inputColor + mix(-NOISE_GRANULARITY, NOISE_GRANULARITY, random(coordinates));
+	// Black stays black: there is nothing to band, and noise would lift it.
+	float visible = clamp(max(inputColor.r, max(inputColor.g, inputColor.b)) * 255.0, 0.0, 1.0);
+	return inputColor + mix(-NOISE_GRANULARITY, NOISE_GRANULARITY, random(coordinates)) * visible;
 }
 
 void main(void){

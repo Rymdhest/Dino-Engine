@@ -23,6 +23,7 @@ namespace Dino_Engine.World.Content
 
         private static readonly Vector3 Flame = new Vector3(1f, 0.52f, 0.2f);
         private static readonly Vector3 Oil = new Vector3(1f, 0.66f, 0.34f);
+        private static readonly Vector3 Wax = new Vector3(1f, 0.6f, 0.26f);
 
         public static AssetLight Campfire(Vector3 at) => new AssetLight
         {
@@ -40,6 +41,34 @@ namespace Dino_Engine.World.Content
         {
             Position = at, Colour = Oil, Intensity = 75f, Radius = 17f, Fill = 0.2f,
             Flicker = 0.14f, FlickerSpeed = 6f, Shadow = true, LightsFog = true,
+        };
+
+        /// <summary>A few candles on the ground: a small pool of light, with long shadows from whatever stands near.</summary>
+        public static AssetLight Candles(Vector3 at) => new AssetLight
+        {
+            Position = at, Colour = Wax, Intensity = 16f, Radius = 11f, Fill = 0.3f,
+            Flicker = 0.28f, FlickerSpeed = 11f, Shadow = true, LightsFog = true,
+        };
+
+        /// <summary>A bank of candles.</summary>
+        public static AssetLight VigilCandles(Vector3 at) => new AssetLight
+        {
+            Position = at, Colour = Wax, Intensity = 40f, Radius = 15f, Fill = 0.3f,
+            Flicker = 0.2f, FlickerSpeed = 8f, Shadow = true, LightsFog = true,
+        };
+
+        /// <summary>Candles held up on a stand, to light a path.</summary>
+        public static AssetLight CandleStand(Vector3 at) => new AssetLight
+        {
+            Position = at, Colour = Wax, Intensity = 70f, Radius = 18f, Fill = 0.25f,
+            Flicker = 0.18f, FlickerSpeed = 9f, Shadow = true, LightsFog = true,
+        };
+
+        /// <summary>Light through coloured glass, thrown out and down onto the ground.</summary>
+        public static AssetLight StainedGlass(Vector3 at, Vector3 outward, Vector3 colour) => new AssetLight
+        {
+            Position = at, Colour = colour, Intensity = 340f, Radius = 20f, Fill = 0.05f,
+            Direction = (outward - Vector3.UnitY * 1.1f).Normalized(), ConeAngle = MathHelper.DegreesToRadians(84f),
         };
 
         /// <summary>The cold light of old stones and holy places.</summary>

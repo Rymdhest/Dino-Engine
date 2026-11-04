@@ -108,6 +108,13 @@ namespace Dino_Engine.World.Content
         public static readonly StructureDefinition Altar = Round("altar", 1.8f);
         public static readonly StructureDefinition Grave = Prop("grave", 0.9f, 1.5f);
         public static readonly StructureDefinition Tomb = Prop("tomb", 3.6f, 5.4f);
+        public static readonly StructureDefinition Candles = Round("candles", 0.45f, solid: false);
+        public static readonly StructureDefinition VigilCandles = Round("candles.vigil", 1f, solid: false);
+        public static readonly StructureDefinition CandleStand = Round("candle.stand", 0.4f);
+        public static readonly StructureDefinition DeadTree = Round("pine.dead", 0.8f);
+
+        /// <summary>A nave along local z with its door and tower at the front. The arms of its transept are footprints of their own, <see cref="ChurchArm"/>.</summary>
+        public static readonly StructureDefinition Church = new StructureDefinition("church", new Vector2(6.5f, 12.5f), onPad: true);
         public static readonly StructureDefinition Monolith = Round("monolith", 1.5f);
         public static readonly StructureDefinition RuinWall = Prop("ruin.wall", 4.5f, 0.8f);
         public static readonly StructureDefinition RuinColumn = Round("ruin.column", 1.1f);
@@ -121,6 +128,19 @@ namespace Dino_Engine.World.Content
 
         public static readonly StructureDefinition GrainCrop = new StructureDefinition("crop.grain", new Vector2(1.2f, 0f), solid: false, imposterDistance: 45f);
         public static readonly StructureDefinition VegetableCrop = new StructureDefinition("crop.vegetable", new Vector2(1f, 0f), solid: false, imposterDistance: 45f);
+
+        /// <summary>The transept of a church: half its span and width, and how far ahead of the church's centre it crosses the nave.</summary>
+        public static readonly Vector2 ChurchTransept = new Vector2(9.5f, 3.4f);
+        public const float ChurchTranseptAhead = -2.5f;
+
+        /// <summary>One arm of a church's transept, either side of the nave and not overlapping it.</summary>
+        public static Footprint ChurchArm(Vector2 church, Vector2 front, float side)
+        {
+            Vector2 across = new Vector2(-front.Y, front.X);
+            float length = (ChurchTransept.X - Church.HalfExtents.X) * 0.5f;
+            Vector2 centre = church + front * ChurchTranseptAhead + across * (side * (Church.HalfExtents.X + length + 0.05f));
+            return Footprint.Box(centre, new Vector2(length, ChurchTransept.Y), MathF.Atan2(front.X, front.Y));
+        }
 
         private static readonly Dictionary<string, StructureDefinition> ById = BuildIndex();
 

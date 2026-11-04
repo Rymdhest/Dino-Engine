@@ -14,10 +14,13 @@ namespace Dino_Engine.ECS.Systems
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
 
+            bool lit = entity.Get<ParticleRenderTag>().Lit;
+            if (!lit && !Engine.RenderEngine.Lighting.Emission) return;
+
             ParticleRenderCommand command = new ParticleRenderCommand();
             command.localToWorldMatrix = entity.Get<LocalToWorldMatrixComponent>().value;
             command.color = entity.Get<ColorComponent>().value;
-            if (entity.Get<ParticleRenderTag>().Lit) command.color.Intensity *= Engine.RenderEngine.context.daylight;
+            if (lit) command.color.Intensity *= Engine.RenderEngine.context.daylight;
             Engine.RenderEngine._particleRenderer.SubmitCommand(command);
         }
     }

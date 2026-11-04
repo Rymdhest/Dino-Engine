@@ -145,7 +145,7 @@ namespace Dino_Defenders.Progression
                 SiteKind.Watchtower => new[] { "From here you can see the next fire, when they are lit.", "The beacon has been cold for years." },
                 SiteKind.Ruins => new[] { "Whoever lived here left in a hurry, long ago.", "Roots have done what armies could not." },
                 SiteKind.BanditCamp => new[] { $"A hideout of {Faction}.", "Smoke, stolen goods and men with nothing to lose." },
-                SiteKind.Graveyard => new[] { "The dead here do not lie quiet.", "Barrows of a people the land has forgotten." },
+                SiteKind.Graveyard => new[] { "The dead here do not lie quiet.", "It is always night in that churchyard, whatever the hour." },
                 SiteKind.Keep => new[] { $"The seat of {Warlord}.", "Built with stolen stone, held with stolen sons." },
                 _ => new[] { "The way you came." },
             };

@@ -40,6 +40,7 @@ namespace Dino_Engine.World
             ecs.RegisterSingleton<GrassSingleton>(ecs.CreateEntity("Grass", new GrassSingleton { Height = LongestGrass }));
             ecs.RegisterSingleton<VolumetricFogSingleton>(ecs.CreateEntity("Volumetric Fog", CreateFog(mood)));
             ecs.RegisterSingleton<WaterSingleton>(ecs.CreateEntity("Water", CreateWater(world)));
+            ecs.RegisterSingleton<NightfallSingleton>(ecs.CreateEntity("Nightfall", new NightfallSingleton()));
             ecs.ApplyDeferredCommands();
 
             ecs.sun = ecs.CreateEntity("Sun",

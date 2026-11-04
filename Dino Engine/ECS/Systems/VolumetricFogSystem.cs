@@ -48,6 +48,11 @@ namespace Dino_Engine.ECS.Systems
 
             Advance(fog, Wind.MeanVelocity(world) * fog.WindInfluence, deltaTime);
 
+            NightfallSingleton night = SkySYstem.NightOf(world);
+            float glow = MathHelper.Lerp(1f, night.FogGlow, night.Amount);
+            fog.AmbientScattering *= glow;
+            fog.DirectionalScattering *= glow;
+
             var command = new VolumetricFogRenderCommand
             {
                 settings = fog,

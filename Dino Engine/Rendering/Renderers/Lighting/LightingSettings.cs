@@ -15,6 +15,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public bool Fog = true;
         public bool Bloom = true;
 
+        /// <summary>At least this much night everywhere, 0 to 1, whatever the game has made of it (NightfallSingleton).</summary>
+        public float Night = 0f;
+
         /// <summary>How much of the sky's colour reaches a surface facing straight up. Water uses the same (WATER_SKY_AMBIENT).</summary>
         public float SkyFill = 1.1f;
 
@@ -57,6 +60,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 case "emission": Emission = on; break;
                 case "fog": Fog = on; break;
                 case "bloom": Bloom = on; break;
+                case "night": Night = number; break;
                 case "skyfill": SkyFill = number; break;
                 case "sunfill": SunFill = number; break;
                 case "ground": GroundAlbedo = number; break;

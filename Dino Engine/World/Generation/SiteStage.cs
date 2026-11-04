@@ -370,7 +370,7 @@ namespace Dino_Engine.World.Generation
                 case SiteKind.Ruins:
                     return "Ruins of " + PlaceNames.Root(seed, random);
                 case SiteKind.Graveyard:
-                    return PlaceNames.Root(seed, random) + " Barrow";
+                    return PlaceNames.Root(seed, random) + " Churchyard";
                 case SiteKind.BanditCamp:
                     return PlaceNames.Wood(seed, random) + " Hideout";
                 case SiteKind.StandingStones:

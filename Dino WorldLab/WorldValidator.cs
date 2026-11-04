@@ -261,11 +261,30 @@ namespace Dino_WorldLab
             {
                 WorldSite site = world.Sites[i];
                 if (site.Id != i) Problem($"{site.Name} has id {site.Id} at index {i}");
+                if (site.Kind == SiteKind.Graveyard && !HasChurch(world, site)) Problem($"{site.Name} has no church");
+                if (site.Kind == SiteKind.Graveyard)
+                {
+                    foreach (SiteSpawn spawn in site.Spawns)
+                    {
+                        // The wall wanders up to 8% either side of the radius.
+                        float out_ = (spawn.Position - site.Position).Length - site.Radius * 1.08f;
+                        if (out_ > 0f) Problem($"{spawn.Role} of {site.Name} was pushed {out_:0.0} m out of the churchyard, to {spawn.Position}");
+                    }
+                }
                 foreach (SiteSpawn spawn in site.Spawns)
                 {
                     if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of {site.Name} can't be reached at {spawn.Position}");
                 }
             }
+        }
+
+        private static bool HasChurch(WorldData world, WorldSite site)
+        {
+            foreach (WorldObject item in world.Objects.All())
+            {
+                if (world.Objects.AssetIds[item.Asset] == StructureCatalog.Church.Id && (item.Position.Xz - site.Position).Length < site.Radius) return true;
+            }
+            return false;
         }
 
         private void CheckBiomes(WorldData world)

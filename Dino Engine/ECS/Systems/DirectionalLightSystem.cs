@@ -23,7 +23,7 @@ namespace Dino_Engine.ECS.Systems
 
             DirectionallightRenderCommand command = new DirectionallightRenderCommand();
 
-            command.colour = entity.Get<ColorComponent>().value.ToVector3();
+            command.colour = SkySYstem.AtThisHour(world, entity.Get<ColorComponent>().value.ToVector3());
             command.direction = entity.Get<DirectionNormalizedComponent>().value;
             if (entity.Has<DirectionalCascadingShadowComponent>())
             {

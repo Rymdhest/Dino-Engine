@@ -24,7 +24,7 @@ namespace Dino_Engine.ECS.Systems
 
             CelestialBodyRenderCommand command = new CelestialBodyRenderCommand();
 
-            command.colour = entity.Get<ColorComponent>().value.ToVector3();
+            command.colour = SkySYstem.AtThisHour(world, entity.Get<ColorComponent>().value.ToVector3());
             command.direction = entity.Get<DirectionNormalizedComponent>().value;
 
             Engine.RenderEngine._sunRenderer.SubmitCommand(command);

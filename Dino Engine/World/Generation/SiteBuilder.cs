@@ -64,6 +64,26 @@ namespace Dino_Engine.World.Generation
             return true;
         }
 
+        /// <summary>Puts down a building and the wings that stick out of it, all of them or none. Each wing has its own footprint.</summary>
+        public bool PlaceWithWings(StructureDefinition definition, Vector2 position, float yaw, Footprint[] wings, float padding, float maxSlope)
+        {
+            Footprint footprint = Scaled(definition, position, yaw, 1f);
+            if (!Fits(footprint, maxSlope, padding)) return false;
+            foreach (Footprint wing in wings)
+            {
+                if (!Fits(wing, maxSlope, padding)) return false;
+            }
+
+            Commit(definition, position, yaw, 1f, footprint);
+            float height = World.Pads[^1].Height;
+            foreach (Footprint wing in wings)
+            {
+                World.Placement.Add(wing, PlacementLayer.Structure, definition.Solid);
+                World.Pads.Add(new GroundPad(wing, height, 5f));
+            }
+            return true;
+        }
+
         private static Footprint Scaled(StructureDefinition definition, Vector2 position, float yaw, float scale)
         {
             return definition.IsRound
@@ -133,12 +153,14 @@ namespace Dino_Engine.World.Generation
         }
 
         /// <summary>
-        /// A closed ring of wall around the site, open where a road passes through and where <paramref name="gate"/> asks.
+        /// A closed ring of wall around the site, open where a road passes through and where <paramref name="gate"/> asks. A gate
+        /// that lands on a corner can come out too narrow to walk through; <paramref name="gateOnEdge"/> turns the ring so it can't.
         /// </summary>
-        public List<Vector2> Ring(StructureDefinition definition, float radius, int corners, float segmentLength, float scale, float thickness, Vector2? gate = null, float gateWidth = 9f)
+        public List<Vector2> Ring(StructureDefinition definition, float radius, int corners, float segmentLength, float scale, float thickness, Vector2? gate = null, float gateWidth = 9f, bool gateOnEdge = false)
         {
             var points = new List<Vector2>(corners);
             float start = Random.Float() * MathF.Tau;
+            if (gateOnEdge && gate.HasValue) start = MathF.Atan2(gate.Value.Y, gate.Value.X) + MathF.PI / corners;
             for (int i = 0; i < corners; i++)
             {
                 float angle = start + i * (MathF.Tau / corners);

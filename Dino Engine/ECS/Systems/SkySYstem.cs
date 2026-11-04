@@ -26,7 +26,8 @@ namespace Dino_Engine.ECS.Systems
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
             LightingSettings lighting = Engine.RenderEngine.Lighting;
-            Vector3 sky = lighting.Sky ? entity.Get<ColorComponent>().value.ToVector3() : Vector3.Zero;
+            NightfallSingleton night = NightOf(world);
+            Vector3 sky = lighting.Sky ? NightfallSingleton.Blend(entity.Get<ColorComponent>().value.ToVector3(), night.Sky, night.Amount) : Vector3.Zero;
             Vector3 sun = Sun(world);
             float sunHeight = sun == Vector3.Zero ? 0f : MathF.Max(-world.GetComponent<DirectionNormalizedComponent>(world.sun).value.Y, 0f);
             Vector3 sunOnGround = sun * (sunHeight / MathF.PI);
@@ -44,7 +45,22 @@ namespace Dino_Engine.ECS.Systems
         private static Vector3 Sun(ECSWorld world)
         {
             if (!Engine.RenderEngine.Lighting.Sun || !world.HasComponent<ColorComponent>(world.sun)) return Vector3.Zero;
-            return world.GetComponent<ColorComponent>(world.sun).value.ToVector3();
+            return AtThisHour(world, world.GetComponent<ColorComponent>(world.sun).value.ToVector3());
+        }
+
+        /// <summary>What a sun of this colour really shines with, by day or by the moon.</summary>
+        public static Vector3 AtThisHour(ECSWorld world, Vector3 sun)
+        {
+            NightfallSingleton night = NightOf(world);
+            return NightfallSingleton.Blend(sun, night.Moon, night.Amount);
+        }
+
+        /// <summary>Night as it stands, with any the F3 window is asking for.</summary>
+        public static NightfallSingleton NightOf(ECSWorld world)
+        {
+            NightfallSingleton night = world.TryGetSingleton<NightfallSingleton>(out Entity entity) ? world.GetComponent<NightfallSingleton>(entity) : new NightfallSingleton();
+            night.Amount = MathF.Max(night.Amount, Engine.RenderEngine.Lighting.Night);
+            return night;
         }
     }
 }

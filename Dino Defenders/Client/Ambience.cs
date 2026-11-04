@@ -13,6 +13,7 @@ namespace Dino_Defenders.Client
     /// Keeps a world breathing around the hero. The air takes on the place they are in: a marsh is thick with fog, a steppe is
     /// windy and dry, and what drifts past them is pollen, snow or embers according to the biome. The chimneys of a site
     /// smoke while it's near. The guiding wind turns the whole sky toward the next goal, and when the warlord falls the land clears.
+    /// It is always night in a churchyard: the day goes out as the hero nears one, and fog rises off the graves.
     /// </summary>
     public class AmbienceSystem : SystemBase
     {
@@ -27,6 +28,15 @@ namespace Dino_Defenders.Client
         private const float LiberatedSun = 1.18f;
         private const float LightsWake = 100f;
         private const float LightsSleep = 160f;
+        private const float NightReach = 90f;           // Metres outside a churchyard's wall that its night begins.
+        private const float NightResponse = 1.2f;       // Per second.
+        private const float ChurchyardFog = 0.26f;
+        private const float WispsFrom = 0.5f;           // How deep the night has to be for them to come out.
+        private const float HeroLightHeight = 6f;
+        private const float HeroLightRadius = 20f;
+        private const float HeroLightIntensity = 36f;
+
+        private static readonly Vector3 ChurchyardFogColour = new Vector3(0.82f, 0.88f, 1f);
 
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
         private GameSession? _session;
@@ -35,6 +45,8 @@ namespace Dino_Defenders.Client
         private float _windTarget;
         private Vector3 _fogColourTarget;
         private AmbientMotes _motes;
+        private float _nightTarget;
+        private Entity _heroLight;
         private float _moteDebt;
         private float _guideLeft;
         private float _guideDirection;
@@ -74,6 +86,7 @@ namespace Dino_Defenders.Client
             }
 
             UpdateAir(world, session, deltaTime);
+            UpdateNight(world, session, deltaTime);
             UpdateLiberation(world, session, deltaTime);
             SpawnMotes(world, session, deltaTime);
         }
@@ -106,6 +119,59 @@ namespace Dino_Defenders.Client
             _liberation = session.Liberated ? 1f : 0f;
             _sunColour = world.GetComponent<ColorComponent>(world.sun).value;
             ReadRegion(session);
+
+            // Whoever starts in a churchyard is already in its night.
+            EntityView nightView = world.GetEntityView(world.GetSingleton<NightfallSingleton>());
+            var night = nightView.Get<NightfallSingleton>();
+            night.Amount = _nightTarget;
+            nightView.Set(night);
+
+            EntityView fogView = world.GetEntityView(world.GetSingleton<VolumetricFogSingleton>());
+            var fog = fogView.Get<VolumetricFogSingleton>();
+            fog.Density = MathHelper.Lerp(fog.Density, _fogTarget, _nightTarget);
+            fog.Albedo = Vector3.Lerp(fog.Albedo, _fogColourTarget, _nightTarget);
+            fogView.Set(fog);
+
+            _heroLight = world.CreateEntity("Hero Light",
+                new PointLightTag(),
+                new PositionComponent(HeroLightPosition(session)),
+                new LocalToWorldMatrixComponent(),
+                new LightRangeComponent(HeroLightRadius, 0.35f, lightsFog: false),
+                new ColorComponent(new Colour(1f, 0.86f, 0.68f, 0f)));
+        }
+
+        private static Vector3 HeroLightPosition(GameSession session)
+        {
+            Vector2 at = session.PlayerPosition;
+            return new Vector3(at.X, session.World.Height.Sample(at) + HeroLightHeight, at.Y);
+        }
+
+        // Full night inside the walls, and none at all once they are far enough behind.
+        private static float NightAt(GameSession session)
+        {
+            float night = 0f;
+            foreach (SiteState state in session.Sites)
+            {
+                if (state.Wild || state.Site.Kind != SiteKind.Graveyard) continue;
+                float outside = (state.Site.Position - session.PlayerPosition).Length - state.Site.Radius;
+                float t = Math.Clamp(1f - outside / NightReach, 0f, 1f);
+                night = MathF.Max(night, t * t * (3f - 2f * t));
+            }
+            return night;
+        }
+
+        private void UpdateNight(ECSWorld world, GameSession session, float deltaTime)
+        {
+            EntityView view = world.GetEntityView(world.GetSingleton<NightfallSingleton>());
+            var night = view.Get<NightfallSingleton>();
+            night.Amount += (_nightTarget - night.Amount) * (1f - MathF.Exp(-NightResponse * deltaTime));
+            view.Set(night);
+
+            // Enough to see what's coming by, and no more than a hero's own lamp would throw.
+            if (!world.TryGetEntityLocation(_heroLight, out _, out _)) return;
+            EntityView light = world.GetEntityView(_heroLight);
+            light.Set(new PositionComponent(HeroLightPosition(session)));
+            light.Set(new ColorComponent(new Colour(1f, 0.86f, 0.68f, HeroLightIntensity * night.Amount)));
         }
 
         // What the air should be like here: the biomes underfoot, weighted, in the proportions the world's weather was set from.
@@ -143,6 +209,11 @@ namespace Dino_Defenders.Client
             _fogTarget = fog / MathF.Max(averageFog, 1e-4f) * mood.FogDensity;
             _windTarget = wind / MathF.Max(averageWind, 1e-4f) * mood.WindSpeed;
             _fogColourTarget = colour.LengthSquared > 0.01f ? colour : mood.FogColour;
+
+            _nightTarget = NightAt(session);
+            _fogTarget = MathHelper.Lerp(_fogTarget, MathF.Max(_fogTarget, ChurchyardFog), _nightTarget);
+            _fogColourTarget = Vector3.Lerp(_fogColourTarget, ChurchyardFogColour, _nightTarget);
+            if (_nightTarget > WispsFrom) _motes = AmbientMotes.Wisps;
         }
 
         private void UpdateAir(ECSWorld world, GameSession session, float deltaTime)
@@ -224,6 +295,7 @@ namespace Dino_Defenders.Client
             AmbientMotes.Embers => new(16f, 0.06f, 3.2f, 0.3f, 4f, 1.4f, 0.4f, new Colour(1f, 0.4f, 0.1f, 4f), Glows: true),
             AmbientMotes.Fireflies => new(9f, 0.06f, 3.5f, 0.6f, 3.5f, 0.1f, 0.05f, new Colour(0.75f, 1f, 0.35f, 4f), Glows: true),
             AmbientMotes.Dust => new(12f, 0.1f, 3.4f, 0.2f, 3f, 0.05f, 0.8f, new Colour(0.8f, 0.68f, 0.48f, 0.7f)),
+            AmbientMotes.Wisps => new(2.5f, 0.13f, 7f, 0.6f, 3f, 0.1f, 0.05f, new Colour(0.3f, 1f, 0.6f, 4f), Glows: true),
             _ => default,
         };
     }

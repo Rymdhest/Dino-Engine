@@ -11,7 +11,7 @@ namespace Dino_WorldLab
     /// Generates worlds without a window or a GPU, to look at them and to check that they hold up.
     ///   map     [--seed N] [--archetype id] [--out file.png] [--size pixels]   One world as a map.
     ///   sheet   [--seed N] [--count N] [--archetype id] [--out file.png]       A contact sheet of many worlds.
-    ///   plan    [--seed N] [--archetype id] [--site kind] [--span m] [--out f] A surveyor's plan of one site.
+    ///   plan    [--seed N] [--archetype id] [--site kind] [--nth N] [--span m] [--out f] A surveyor's plan of one site, the Nth of its kind.
     ///   check   [--seed N] [--count N] [--archetype id]                        Generates worlds and validates them. Exit code 1 on any problem.
     /// </summary>
     internal static class Program
@@ -96,7 +96,7 @@ namespace Dino_WorldLab
             Describe(world, 0);
 
             string kind = options.Text("site") ?? "Village";
-            WorldSite site = world.Sites.FirstOrDefault(s => s.Kind.ToString() == kind) ?? world.Sites[0];
+            WorldSite site = world.Sites.Where(s => s.Kind.ToString() == kind).Skip(options.Int("nth", 0)).FirstOrDefault() ?? world.Sites[0];
             float span = options.Int("span", (int)(site.Radius * 3.4f));
             int resolution = options.Int("size", 1200);
             Console.WriteLine($"{site.Definition.Label} {site.Name}: r {site.Radius:0} at {site.Position}, {site.Spawns.Count} spawns");

@@ -244,7 +244,8 @@ namespace Dino_Defenders.Server
             {
                 foreach (WorldSite site in world.Sites)
                 {
-                    if (site.Kind.ToString() == _settings.StartSite) return site.Position;
+                    // The middle of a site can be built on.
+                    if (site.Kind.ToString() == _settings.StartSite) return TryFindGround(world, site.Position, out Vector2 ground) ? ground : site.Position;
                 }
             }
             return world.Sites[0].Position;
