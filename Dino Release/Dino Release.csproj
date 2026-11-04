@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Dino_Release</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- The launcher's own definitions of a release, so that what's written here is exactly what it reads. -->
+  <ItemGroup>
+    <Compile Include="..\Dino Launcher\Update\Feed.cs" Link="Shared\Feed.cs" />
+    <Compile Include="..\Dino Launcher\Update\Manifest.cs" Link="Shared\Manifest.cs" />
+    <Compile Include="..\Dino Launcher\Update\SignedFile.cs" Link="Shared\SignedFile.cs" />
+  </ItemGroup>
+
+</Project>

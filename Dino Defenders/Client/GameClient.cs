@@ -257,6 +257,7 @@ namespace Dino_Defenders.Client
             BitWriter writer = Protocol.Begin(Message.Hello);
             writer.WriteUInt(Protocol.Version);
             writer.WriteUInt(NetSchema.Hash);
+            writer.WriteUInt(Protocol.Build);
             writer.WriteString(_name);
             Protocol.WriteHero(writer, Hero);
             Send(writer);

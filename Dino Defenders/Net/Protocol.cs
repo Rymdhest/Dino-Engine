@@ -62,7 +62,13 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 1;
+        public const uint Version = 2;
+
+        /// <summary>
+        /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
+        /// but the same components would connect and disagree about every step. With updates going out, that would be every other game.
+        /// </summary>
+        public static readonly uint Build = NetSchema.Fnv(BuildInfo.Version);
 
         public const int MaxPlayers = 5;
         public const int MostCommands = 12;

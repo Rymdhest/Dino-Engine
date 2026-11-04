@@ -671,6 +671,12 @@ namespace Dino_NetLab
 
         private static void WrongVersion(Report report, WorldCache worlds, WorldRequest request)
         {
+            report.Check("A different build is told so, in words, rather than reading rows wrongly", ToldDifferentVersions(worlds, request, NetSchema.Hash ^ 1u, Protocol.Build, out string schemaAnswer), schemaAnswer);
+            report.Check("A build with other rules but the same components is told so too", ToldDifferentVersions(worlds, request, NetSchema.Hash, Protocol.Build ^ 1u, out string buildAnswer), buildAnswer);
+        }
+
+        private static bool ToldDifferentVersions(WorldCache worlds, WorldRequest request, uint schema, uint build, out string answer)
+        {
             using var lab = new GameLab(worlds, request);
             (LoopbackTransport serverEnd, LoopbackTransport clientEnd) = LoopbackTransport.CreatePair();
             lab.Server.AddTransport(serverEnd);
@@ -679,14 +685,16 @@ namespace Dino_NetLab
 
             BitWriter hello = Protocol.Begin(Message.Hello);
             hello.WriteUInt(Protocol.Version);
-            hello.WriteUInt(NetSchema.Hash ^ 1u);
+            hello.WriteUInt(schema);
+            hello.WriteUInt(build);
             hello.WriteString("Stranger");
             Protocol.WriteHero(hello, HeroState.CreateNew());
             listener.Connection!.Send(hello.ToArray(), Delivery.Reliable);
 
             lab.Run(0.5);
             clientEnd.Poll(listener);
-            report.Check("A different build is told so, in words, rather than reading rows wrongly", listener.Closed?.Contains("versions") == true, listener.Closed ?? "not closed");
+            answer = listener.Closed ?? "not closed";
+            return listener.Closed?.Contains("versions") == true;
         }
 
         private sealed class RawClient : INetListener
@@ -764,6 +772,7 @@ namespace Dino_NetLab
                         BitWriter hello = Protocol.Begin(Message.Hello);
                         hello.WriteUInt(Protocol.Version);
                         hello.WriteUInt(NetSchema.Hash);
+                        hello.WriteUInt(Protocol.Build);
                         hello.WriteString("Rubbish");
                         Protocol.WriteHero(hello, HeroState.CreateNew());
                         attacker.Connection.Send(hello.ToArray(), Delivery.Reliable);

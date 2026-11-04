@@ -48,7 +48,7 @@ World state is never sent as "this changed". Snapshots are differences from a st
 
 - **Reading other entities in `HeroRules.Step`.** A client doesn't know where they really are, so it would guess wrong. This is what body-blocking would need, and it is the classic cause of ARPG desync. Knockback, stuns and slows should be things the server applies and the client hears about, which the correction path already handles.
 - **Using anything but `HeroCommand` as input to the step.** Both ends have to start from the same numbers.
-- **Changing a component's fields on one build only.** The schema hash is compared at the door, so two builds refuse each other, with a clear message.
+- **Changing a component's fields on one build only.** The schema hash is compared at the door, so two builds refuse each other, with a clear message. So is the build's version (`Protocol.Build`): releases go out often, and different rules with the same components would otherwise connect and disagree about every step. Builds made by hand all count as the same one.
 - **Dynamic text in a replicated string field.** Those go through a table that only grows. Use a number, or an event.
 - **Touching anything on the server from the client's thread** without `ServerHost.Post`.
 

@@ -4,6 +4,7 @@ using Dino_Engine.Core;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
+using OpenTK.Graphics.OpenGL;
 
 namespace Dino_Defenders
 {
@@ -11,6 +12,7 @@ namespace Dino_Defenders
     {
         static void Main(string[] args)
         {
+            GameLog.Start();
             GameOptions options = GameOptions.Parse(args);
             if (options.Dedicated)
             {
@@ -18,7 +20,8 @@ namespace Dino_Defenders
                 return;
             }
 
-            Engine engine = new Engine(new EngineLaunchSettings("Dino Defenders"));
+            Engine engine = new Engine(new EngineLaunchSettings(BuildInfo.Title));
+            Console.WriteLine($"{GL.GetString(StringName.Renderer)}, OpenGL {GL.GetString(StringName.Version)}");
             ArpgGame game = new ArpgGame(engine, options);
             engine.Run();
         }

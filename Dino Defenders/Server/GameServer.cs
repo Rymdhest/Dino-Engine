@@ -535,9 +535,10 @@ namespace Dino_Defenders.Server
 
             uint protocol = reader.ReadUInt();
             uint schema = reader.ReadUInt();
-            if (protocol != Protocol.Version || schema != NetSchema.Hash)
+            uint build = reader.ReadUInt();
+            if (protocol != Protocol.Version || schema != NetSchema.Hash || build != Protocol.Build)
             {
-                Refuse(player, "You and the host are running different versions of the game.");
+                Refuse(player, "You and the host are running different versions of the game. Close it and open the launcher to update, both of you.");
                 return;
             }
 

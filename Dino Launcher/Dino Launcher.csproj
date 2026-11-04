@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Windows 10 and 11 come with .NET Framework 4.8, so the launcher is one small file that needs nothing installed. -->
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Dino_Launcher</RootNamespace>
+    <AssemblyName>DinoDefendersLauncher</AssemblyName>
+    <Version>1.0.0</Version>
+    <Product>Dino Defenders</Product>
+    <AssemblyTitle>Dino Defenders Launcher</AssemblyTitle>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Prefer32Bit>false</Prefer32Bit>
+    <!--
+      The same source must make the same bytes: launchers replace themselves when the hash differs, so anything that varies from
+      build to build (a commit in the version, a path in a PDB) would send every tester a new launcher with every release.
+    -->
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <GenerateSupportedRuntime>false</GenerateSupportedRuntime>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\banner.jpg" LogicalName="banner.jpg" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+
+</Project>

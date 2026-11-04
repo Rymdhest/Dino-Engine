@@ -37,9 +37,11 @@ The game built on the engine: a fantasy action RPG in randomized worlds. No two 
 
 Start it with `dotnet run --project "Dino Defenders" -c Release`.
 
+To play without building it, [download the launcher](https://github.com/Rymdhest/Dino-Engine/releases/latest/download/DinoDefendersLauncher.exe) (Windows 10 or 11). It installs the game and keeps it up to date. Windows will warn about it once, as it isn't code signed: choose **More info**, then **Run anyway**. See [LAUNCHER.md](LAUNCHER.md), which also covers sending out a new build with `release.cmd`.
+
 Up to five heroes can share a world, with no server to run: in the pause menu, **Travel with friends** opens your world and gives you an invite to send, and takes an invite you've been sent. See [NETWORKING.md](NETWORKING.md).
 
-`Dino WorldLab` generates and checks worlds with no window, for example `check --seed 1 --count 100`, or `map` to draw one. `Dino NetLab` tests the networking the same way: `core` for replication alone, and `game` for the whole game on every kind of bad line.
+`Dino WorldLab` generates and checks worlds with no window, for example `check --seed 1 --count 100`, or `map` to draw one. `Dino NetLab` tests the networking the same way: `core` for replication alone, and `game` for the whole game on every kind of bad line. `Dino LaunchLab` does it for the launcher and release tool: `core`, `release` and `live`.
 
 ---
 
