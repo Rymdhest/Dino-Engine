@@ -40,8 +40,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             archetype.SetComponent(indexInArchive, component);
             if (TransformTraits<T>.IsTransformComponent)
             {
-                ECSWorld world = Engine.Instance.world;
-                world.DirtyEntities.Add(this.Entity);
+                archetype.World.DirtyEntities.Add(this.Entity);
             }
         }
 

@@ -35,6 +35,7 @@ namespace Dino_Engine.World
             ecs.RegisterSingleton<CollisionEventBufferSingleton>(ecs.CreateEntity(new CollisionEventBufferSingleton()));
             ecs.RegisterSingleton<RenderSpatialGridSingleton>(ecs.CreateEntity(new RenderSpatialGridSingleton(15f)));
             ecs.RegisterSingleton<WorldStreamSingleton>(ecs.CreateEntity(new WorldStreamSingleton(world, assets)));
+            ecs.RegisterSingleton<WorldDataSingleton>(ecs.CreateEntity(new WorldDataSingleton(world)));
             ecs.RegisterSingleton<WindSingleton>(ecs.CreateEntity("Wind", new WindSingleton { Speed = mood.WindSpeed, Direction = mood.WindDirection }));
             ecs.RegisterSingleton<GrassSingleton>(ecs.CreateEntity("Grass", new GrassSingleton { Height = LongestGrass }));
             ecs.RegisterSingleton<VolumetricFogSingleton>(ecs.CreateEntity("Volumetric Fog", CreateFog(mood)));

@@ -179,7 +179,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             if (!archetypes.TryGetValue(mask, out Archetype? archetype))
             {
-                archetype = new Archetype(mask);
+                archetype = new Archetype(this, mask);
                 archetypes[mask] = archetype;
             }
 
@@ -266,7 +266,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             // Get or create the target archetype
             if (!archetypes.TryGetValue(newMask, out var newArchetype))
             {
-                newArchetype = new Archetype(newMask);
+                newArchetype = new Archetype(this, newMask);
                 archetypes[newMask] = newArchetype;
             }
 
@@ -315,17 +315,16 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             if (!archetypes.TryGetValue(newMask, out Archetype newArchetype))
             {
-                newArchetype = new Archetype(newMask);
+                newArchetype = new Archetype(this, newMask);
                 archetypes[newMask] = newArchetype;
             }
 
             var componentMap = new Dictionary<int, object>();
-            for (int i = 0; i < ComponentTypeRegistry.Count; i++)
+            foreach (int id in currentLocation.archetype.Mask.GetSetBits())
             {
-                if (i == compID || !currentLocation.archetype.Mask.Has(i)) continue;
-                var array = currentLocation.archetype.ComponentArrays[i];
-                var method = array.GetType().GetMethod("Get");
-                componentMap[i] = method.Invoke(array, new object[] { currentLocation.index });
+                if (id == compID) continue;
+                var list = (System.Collections.IList)currentLocation.archetype.ComponentArrays[id];
+                componentMap[id] = list[currentLocation.index]!;
             }
 
             currentLocation.archetype.RemoveEntityAt(currentLocation.index);

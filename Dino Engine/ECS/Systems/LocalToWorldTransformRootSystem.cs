@@ -25,8 +25,8 @@ namespace Dino_Engine.ECS.Systems
 
             foreach (Entity entity in dirtyBuffer)
             {
-                // Verify entity is still alive before fetching its view
-                //if (!world.IsEntityValid(entity)) continue;
+                // Something can be destroyed in the same frame it moved, as a ghost is when the server says it has gone.
+                if (!world.TryGetEntityLocation(entity, out _, out _)) continue;
 
                 // Dynamically fetch the UP-TO-DATE EntityView from world
                 EntityView view = world.GetEntityView(entity);

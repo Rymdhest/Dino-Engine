@@ -189,9 +189,23 @@ namespace Dino_Engine.World
         private readonly int _cellsPerSide;
         private readonly List<int>?[] _cells;
         private readonly List<Entry> _entries = new();
-        // Marks entries already seen in the current query; big footprints sit in several cells.
-        private readonly List<int> _visitStamp = new();
-        private int _stamp;
+        // Marks entries already seen in the current query; big footprints sit in several cells. Each thread keeps its own marks, so a
+        // server and a client in one process can walk the same world at once.
+        private readonly ThreadLocal<Visits> _visits = new(() => new Visits());
+
+        private sealed class Visits
+        {
+            public int[] Stamps = Array.Empty<int>();
+            public int Stamp;
+        }
+
+        private Visits BeginQuery()
+        {
+            Visits visits = _visits.Value!;
+            if (visits.Stamps.Length < _entries.Count) Array.Resize(ref visits.Stamps, Math.Max(_entries.Count, visits.Stamps.Length * 2));
+            visits.Stamp++;
+            return visits;
+        }
 
         public PlacementIndex(float worldSize)
         {
@@ -205,7 +219,6 @@ namespace Dino_Engine.World
         {
             int index = _entries.Count;
             _entries.Add(new Entry(footprint, layer, solid));
-            _visitStamp.Add(0);
 
             float reach = footprint.BoundingRadius;
             CellRange(footprint.Centre, reach, out int minX, out int minZ, out int maxX, out int maxZ);
@@ -222,7 +235,7 @@ namespace Dino_Engine.World
         /// <summary>Whether <paramref name="footprint"/>, grown by <paramref name="padding"/>, touches anything in <paramref name="layers"/>.</summary>
         public bool Overlaps(in Footprint footprint, PlacementLayer layers, float padding = 0f)
         {
-            _stamp++;
+            Visits visits = BeginQuery();
             float reach = footprint.BoundingRadius + padding + MaxReachInCell;
             CellRange(footprint.Centre, reach, out int minX, out int minZ, out int maxX, out int maxZ);
             for (int z = minZ; z <= maxZ; z++)
@@ -234,8 +247,8 @@ namespace Dino_Engine.World
                     for (int i = 0; i < cell.Count; i++)
                     {
                         int index = cell[i];
-                        if (_visitStamp[index] == _stamp) continue;
-                        _visitStamp[index] = _stamp;
+                        if (visits.Stamps[index] == visits.Stamp) continue;
+                        visits.Stamps[index] = visits.Stamp;
                         Entry entry = _entries[index];
                         if ((entry.Layer & layers) != 0 && footprint.Overlaps(entry.Footprint, padding)) return true;
                     }
@@ -250,7 +263,7 @@ namespace Dino_Engine.World
         /// <summary>Whether <paramref name="footprint"/> touches anything solid.</summary>
         public bool OverlapsSolid(in Footprint footprint)
         {
-            _stamp++;
+            Visits visits = BeginQuery();
             CellRange(footprint.Centre, footprint.BoundingRadius + MaxReachInCell, out int minX, out int minZ, out int maxX, out int maxZ);
             for (int z = minZ; z <= maxZ; z++)
             {
@@ -261,8 +274,8 @@ namespace Dino_Engine.World
                     for (int i = 0; i < cell.Count; i++)
                     {
                         int index = cell[i];
-                        if (_visitStamp[index] == _stamp) continue;
-                        _visitStamp[index] = _stamp;
+                        if (visits.Stamps[index] == visits.Stamp) continue;
+                        visits.Stamps[index] = visits.Stamp;
                         Entry entry = _entries[index];
                         if (entry.Solid && footprint.Overlaps(entry.Footprint)) return true;
                     }
@@ -271,10 +284,10 @@ namespace Dino_Engine.World
             return false;
         }
 
-        /// <summary>Adds every solid footprint near <paramref name="centre"/> to <paramref name="results"/>. Safe to call from one thread at a time.</summary>
+        /// <summary>Adds every solid footprint near <paramref name="centre"/> to <paramref name="results"/>.</summary>
         public void CollectSolids(Vector2 centre, float radius, List<Footprint> results)
         {
-            _stamp++;
+            Visits visits = BeginQuery();
             CellRange(centre, radius, out int minX, out int minZ, out int maxX, out int maxZ);
             for (int z = minZ; z <= maxZ; z++)
             {
@@ -285,8 +298,8 @@ namespace Dino_Engine.World
                     for (int i = 0; i < cell.Count; i++)
                     {
                         int index = cell[i];
-                        if (_visitStamp[index] == _stamp) continue;
-                        _visitStamp[index] = _stamp;
+                        if (visits.Stamps[index] == visits.Stamp) continue;
+                        visits.Stamps[index] = visits.Stamp;
                         Entry entry = _entries[index];
                         if (entry.Solid) results.Add(entry.Footprint);
                     }

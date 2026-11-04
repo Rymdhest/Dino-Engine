@@ -26,6 +26,13 @@ namespace Dino_Engine.ECS.ECS_Architecture
             UpdateInternal(world, deltaTime);
             Engine.PerformanceMonitor.finishCPUTask(this.GetType().Name);
         }
+
+        /// <summary>Runs the system with no engine around it, for a world that isn't the one on screen: a server's, on its own thread.</summary>
+        public void Step(ECSWorld world, float deltaTime)
+        {
+            UpdateInternal(world, deltaTime);
+        }
+
         internal virtual void UpdateInternal(ECSWorld world, float deltaTime)
         {
             UpdateFrame(world, deltaTime);

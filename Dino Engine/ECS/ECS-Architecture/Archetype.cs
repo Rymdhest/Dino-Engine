@@ -4,13 +4,15 @@ namespace Dino_Engine.ECS.ECS_Architecture
 {
     public class Archetype
     {
+        public readonly ECSWorld World;
         public BitMask Mask;
         public readonly Dictionary<int, object> ComponentArrays = new();
         public List<Entity> entities = new();
         public int EntityCount => entities.Count;
 
-        public Archetype(BitMask mask)
+        public Archetype(ECSWorld world, BitMask mask)
         {
+            World = world;
             Mask = mask;
 
             foreach (int bit in mask.GetSetBits())
@@ -37,7 +39,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
                 if (!isException)
                 {
-                    Engine.Instance.world.DestroyEntity(entities[i]);
+                    World.DestroyEntity(entities[i]);
                 }
             }
         }
