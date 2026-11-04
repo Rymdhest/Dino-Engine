@@ -77,6 +77,8 @@ An arrow is drawn moving from the past into the player's own moment over its fir
 
 **Today: invite codes.** "Travel with friends" in the pause menu opens the game, asks the router to pass the port on by UPnP or NAT-PMP, and gives a code to paste into a chat. It carries the address and a secret, because with no server of ours there's nothing to look a game up in.
 
+Before the port opens, `WindowsFirewall.LetFriendsIn` adds a firewall rule for the game, which is one Yes on a Windows box, once per install. Without it a friend's packets stop at the host's own PC, with no sign of it if firewall notifications are off. Two windows on one PC can't show this, as local traffic skips the firewall. Joining needs no rule. Scripted runs skip it, as they skip the router.
+
 This works for friends on the same network, and across the internet when the router allows UPnP, as that is also how the game learns its public address. It can't work behind carrier-grade NAT, which some providers use, and the panel says so when it can tell. Without UPnP the code only holds the local address: a port forwarded by hand isn't enough yet, as nothing puts the public address into the code. Steam makes all of this go away.
 
 **On Steam: use Steam's relay.** This is the real answer, and the reason the transport is an interface. It needs no port forwarding, works behind any NAT and hides players' IP addresses, and it runs on Valve's machines, not yours. Inviting becomes the friends list: nobody sees a code.

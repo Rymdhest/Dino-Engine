@@ -47,6 +47,7 @@ namespace Dino_Defenders
         private GameClient? _client;
         private ClientEffects? _effects;
         private PortMapper? _portMapper;
+        private string? _firewallProblem;
         private InviteCode? _invite;
         private Task<PreparedWorld>? _loading;
         private string? _lostConnection;
@@ -73,7 +74,7 @@ namespace Dino_Defenders
         }.Text;
 
         /// <summary>What's known about friends being able to reach this game.</summary>
-        public string InviteStatus => _portMapper?.Status ?? "";
+        public string InviteStatus => _firewallProblem ?? _portMapper?.Status ?? "";
 
         /// <summary>What this player goes by in company. Left empty, the server calls them Hero and a number: their account's name is theirs to share.</summary>
         public string HeroName { get; set; } = "";
@@ -168,6 +169,11 @@ namespace Dino_Defenders
 
             uint secret = _options.Secret != null ? NetSchema.Fnv(_options.Secret) : InviteCode.NewSecret();
             string key = InviteCode.KeyFor(secret);
+
+            // A scripted run has no business rearranging the firewall or the router of whoever happens to be running it.
+            bool scripted = _options.Bot || _options.Shot != null;
+            if (!scripted) _firewallProblem = WindowsFirewall.LetFriendsIn();
+
             try
             {
                 UdpTransport transport = UdpTransport.Host(_options.Port, key);
@@ -181,8 +187,7 @@ namespace Dino_Defenders
 
             _invite = new InviteCode { Local = InviteCode.LocalAddresses().FirstOrDefault(), Port = _options.Port, Secret = secret };
 
-            // A scripted run has no business rearranging the router of whoever happens to be running it.
-            if (!_options.Bot && _options.Shot == null) _portMapper = new PortMapper(_options.Port);
+            if (!scripted) _portMapper = new PortMapper(_options.Port);
             Console.WriteLine($"Open to friends on port {_options.Port}. Invite: {_invite.Text}");
         }
 
@@ -226,6 +231,7 @@ namespace Dino_Defenders
             _server = null;
             _portMapper?.Dispose();
             _portMapper = null;
+            _firewallProblem = null;
             _invite = null;
             _loading = null;
         }

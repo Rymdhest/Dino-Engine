@@ -1,4 +1,7 @@
+using Dino_Engine.Networking;
 using Mono.Nat;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -155,6 +158,57 @@ namespace Dino_Defenders.Net
                 buffer &= (1 << bits) - 1;
             }
             return data.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Asks Windows to let friends in. Without this a friend's packets stop at the host's own firewall, in silence if its notifications
+    /// are off. A rule takes an administrator, so this is the one Yes a host has to give, once for each place the game is installed.
+    /// A friend who joins needs none: their traffic is answers to what they sent.
+    /// </summary>
+    public static class WindowsFirewall
+    {
+        private const int Declined = 1223;      // ERROR_CANCELLED, for No on the box Windows shows.
+
+        /// <summary>Must come before the port opens, or Windows puts up a box of its own as well. Returns what went wrong, if anything did.</summary>
+        public static string? LetFriendsIn()
+        {
+            string? program = Environment.ProcessPath;
+            if (!OperatingSystem.IsWindows() || program == null) return null;
+
+            // Named after the path, so that whether it's there is an exit code, whatever language Windows speaks.
+            string rule = $"Dino Defenders {NetSchema.Fnv(program.ToLowerInvariant()):X8}";
+            try
+            {
+                if (Netsh($"advfirewall firewall show rule name=\"{rule}\"", elevated: false) == 0) return null;
+
+                int result = Netsh($"advfirewall firewall add rule name=\"{rule}\" dir=in action=allow program=\"{program}\" protocol=udp profile=any enable=yes", elevated: true);
+                if (result == 0) return null;
+                Console.WriteLine($"Adding the firewall rule failed: {result}");
+            }
+            catch (Win32Exception exception) when (exception.NativeErrorCode == Declined)
+            {
+                return "Windows was told no, so it will keep friends out. Leave and open this world again to be asked again.";
+            }
+            catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
+            {
+                Console.WriteLine($"Adding the firewall rule failed: {exception.Message}");
+            }
+            return "Windows wouldn't let friends in, so they may not be able to reach you. Having a friend host is the easy way around it.";
+        }
+
+        private static int Netsh(string arguments, bool elevated)
+        {
+            var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "netsh.exe"), arguments)
+            {
+                UseShellExecute = elevated,
+                Verb = elevated ? "runas" : "",
+                CreateNoWindow = !elevated,
+                WindowStyle = ProcessWindowStyle.Hidden,
+            };
+            using Process process = Process.Start(start) ?? throw new InvalidOperationException("netsh didn't start.");
+            process.WaitForExit();
+            return process.ExitCode;
         }
     }
 
