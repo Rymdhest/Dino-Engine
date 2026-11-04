@@ -244,7 +244,7 @@ namespace Dino_Defenders.UI
             row.Add(Ui.Line().Bind(() => $"{name}  {value()}")).Width = 140f;
             var button = row.Add(Ui.Action("+", () => Session.Client.RaiseAttribute(attribute)));
             button.Width = 36f;
-            button.Updated += _ => button.Visible = Hero.UnspentPoints > 0;
+            row.Updated += _ => button.Visible = Hero.UnspentPoints > 0;
             return row;
         }
 
@@ -535,13 +535,9 @@ namespace Dino_Defenders.UI
 
             var hosting = body.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Auto });
             var open = hosting.Add(Ui.Action("Open this world to friends", () => _game.OpenToFriends()));
-            open.Updated += _ => open.Visible = !_game.Hosting && !_game.InFriendsGame;
             var invite = hosting.Add(Ui.Line("", 16f, Ui.Gold).Bind(() => _game.InviteText ?? ""));
-            invite.Updated += _ => invite.Visible = _game.Hosting;
             var copy = hosting.Add(Ui.Action("Copy the invite", () => Context!.Clipboard = _game.InviteText ?? ""));
-            copy.Updated += _ => copy.Visible = _game.Hosting;
             var status = hosting.Add(Ui.Paragraph("", 14f, Ui.Faded).Bind(() => _game.InviteStatus));
-            status.Updated += _ => status.Visible = _game.Hosting;
 
             body.Add(new Spacer(height: 6f));
             var joining = body.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Auto });
@@ -552,10 +548,19 @@ namespace Dino_Defenders.UI
             _code.Submitted += _ => Join();
             joining.Add(Ui.Action("Join", Join));
             _problem = joining.Add(Ui.Paragraph("", 14f, Ui.Blood));
-            joining.Updated += _ => joining.Visible = !_game.Hosting;
 
             var leave = body.Add(Ui.Action("Go back to your own world", () => _game.ReturnHome(null)));
-            leave.Updated += _ => leave.Visible = _game.InFriendsGame;
+
+            // Decided here rather than by each of them, as a hidden element isn't updated and could never show itself again.
+            Updated += _ =>
+            {
+                open.Visible = !_game.Hosting && !_game.InFriendsGame;
+                invite.Visible = _game.Hosting;
+                copy.Visible = _game.Hosting;
+                status.Visible = _game.Hosting;
+                joining.Visible = !_game.Hosting;
+                leave.Visible = _game.InFriendsGame;
+            };
 
             body.Add(new Spacer(height: 6f));
             body.Add(Ui.Line("", 15f).Bind(() => $"In this game: {string.Join(", ", (_game.Client?.Party ?? new()).Select(p => p.name))}"));
