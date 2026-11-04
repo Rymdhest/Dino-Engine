@@ -75,7 +75,7 @@ If a tester has **Smart App Control** on, there's no Run anyway button. It block
 
 ## What will break it
 
-- **Anything varying from build to build in the launcher.** Launchers replace themselves when the hash differs, so a timestamp or commit in the exe would send every tester a new launcher with every release, and throw away its reputation. It's why the project turns off PDBs and the source revision. Same source, same bytes: check by rebuilding and comparing.
+- **Anything varying from build to build in the launcher.** Launchers replace themselves when the hash differs, so a timestamp or commit in the exe would send every tester a new launcher with every release, and throw away its reputation. It's why the project turns off PDBs and the source revision. Same source, same bytes: check by rebuilding and comparing. That includes line endings in anything embedded as it stands: `.gitattributes` pins `app.manifest` for this reason, as git otherwise gives a checkout different bytes from the working folder. To check, build a fresh clone and compare the hash.
 - **Changing what `schema` or `launcher` mean in the manifest.** Launchers read those forever. Everything else can change, as long as `Manifest.CurrentSchema` goes up: old launchers replace themselves first, and leave what they can't read alone.
 - **Writing into the game's folder from the game.** It's replaced whole by every update, and anything the manifest doesn't list goes with it. Keep to `%APPDATA%` and `%LOCALAPPDATA%`.
 - **Naming a file `manifest.signed` in the build**, which is the name the installed manifest is kept under. Or anything else that needs renaming for GitHub: asset names stay plain letters, digits, dots and dashes.
