@@ -1,8 +1,10 @@
 #version 420
 
 // Steps the vegetation response to the wind. Every texel is a patch of plants that behaves like a damped
-// spring: the wind's drag sets where it wants to rest (vegetationRestBend), and the spring lags behind gusts,
-// overshoots and sways back. Contacts (feet, impacts) flatten plants into a layer that recovers slowly.
+// spring: the wind's drag and the waves going by set where it wants to be (vegetationTargetBend), and the spring
+// lags behind them, a little past and back. It is close to critically damped: any less and gusts that happen to
+// match its frequency ring it, and the field shivers. Contacts (feet, impacts) flatten plants into a layer that
+// recovers slowly.
 //
 // out_Bend:    xy bend angle (radians, leaning towards +x / +z), zw angular velocity (rad/s)
 // out_Contact: xy flattening by contacts (radians, same convention), zw unused
@@ -28,12 +30,30 @@ uniform int contactCount;
 uniform vec4 contacts[32];
 uniform float contactExponents[32];
 
-const float TAU = 6.28318530718;
+const float STIFFNESS_PATCH = 5.0;  // Metres across a patch of plants of about the same stiffness.
+const float CONTACT_RATE = 30.0;    // Per second: how fast plants go down under a contact.
 
 vec2 clampLength(vec2 v, float maxLength)
 {
     float len = length(v);
     return len > maxLength ? v * (maxLength / len) : v;
+}
+
+float cornerRandom(ivec2 cell)
+{
+    return float(windHash(uint(cell.x) + windHash(uint(cell.y))) & 0xffffu) / 65535.0;
+}
+
+// Smooth noise, 0..1: how stiff the plants are here.
+float stiffnessPatch(vec2 xz)
+{
+    vec2 p = xz / STIFFNESS_PATCH;
+    vec2 i = floor(p);
+    vec2 f = p - i;
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    ivec2 c = ivec2(i);
+    return mix(mix(cornerRandom(c), cornerRandom(c + ivec2(1, 0)), u.x),
+               mix(cornerRandom(c + ivec2(0, 1)), cornerRandom(c + ivec2(1, 1)), u.x), u.y);
 }
 
 void main(void)
@@ -49,17 +69,16 @@ void main(void)
     vec4 bend = valid ? texelFetch(previousBend, source, 0) : vec4(0.0);
     vec2 flatten = valid ? texelFetch(previousContact, source, 0).xy : vec2(0.0);
 
-    vec2 rest = clampLength(vegetationRestBend(sampleWindMap(windMap, xz).xz) + flatten, VEGETATION_MAX_TOTAL_BEND);
+    vec2 rest = clampLength(vegetationTargetBend(windMap, xz) + flatten, VEGETATION_MAX_TOTAL_BEND);
 
     // Texels that just scrolled in (or a reset) start settled instead of springing up from upright.
     if (!valid) bend = vec4(rest, 0.0, 0.0);
 
     if (integrate == 1)
     {
-        // Each patch gets its own stiffness (fixed to its world position) so a field doesn't sway in lockstep.
-        ivec2 worldTexel = ivec2(floor(xz / texelSize));
-        float variation = float(windHash(uint(worldTexel.x) + windHash(uint(worldTexel.y))) & 0xffffu) / 65535.0;
-        float omega = TAU * naturalFrequency * (0.8 + 0.4 * variation);
+        // Stiffness varies across the field (fixed to world position) so that it doesn't sway in lockstep, but smoothly, in
+        // patches: neighbouring plants at their own pace would drift out of step with each other and the field would boil.
+        float omega = WIND_TAU * naturalFrequency * (0.85 + 0.3 * stiffnessPatch(xz));
         float stiffness = omega * omega;
         float damping = 2.0 * dampingRatio * omega;
 
@@ -81,12 +100,13 @@ void main(void)
         float push = contact.w * pow((contact.z - dist) / contact.z, contactExponents[i]);
         vec2 contactBend = clampLength((dist > 1e-4 ? offset / dist : vec2(0.0)) * push, VEGETATION_MAX_TOTAL_BEND);
 
-        // Plants pressed further than they already are snap to it and stay flattened while they recover.
+        // Plants pressed further than they already are go down quickly, and stay flattened while they recover.
         if (dot(contactBend, contactBend) > dot(flatten, flatten)) flatten = contactBend;
         if (dot(contactBend, contactBend) > dot(bend.xy, bend.xy))
         {
-            bend.xy = contactBend;
-            bend.zw = vec2(0.0);
+            float pressed = 1.0 - exp(-deltaTime * CONTACT_RATE);
+            bend.xy = mix(bend.xy, contactBend, pressed);
+            bend.zw *= 1.0 - pressed;
         }
     }
 

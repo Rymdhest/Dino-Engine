@@ -107,6 +107,8 @@ namespace Dino_Engine.GUI.Debug
             wind.Content.Add(WindSlider("Turbulence", 0f, 1.5f, "0.00", w => w.Turbulence, (ref WindSingleton w, float v) => w.Turbulence = v));
             wind.Content.Add(WindSlider("Swirl size", 1f, 60f, "0.0 m", w => w.TurbulenceScale, (ref WindSingleton w, float v) => w.TurbulenceScale = v));
             wind.Content.Add(WindSlider("Response", 0f, 10f, "0.0 s", w => w.ResponseTime, (ref WindSingleton w, float v) => w.ResponseTime = v));
+            wind.Content.Add(WindSlider("Waves", 0f, 1f, "0.00 rad", w => w.WaveLean, (ref WindSingleton w, float v) => w.WaveLean = v));
+            wind.Content.Add(WindSlider("Wave length", 2f, 40f, "0.0 m", w => w.WaveLength, (ref WindSingleton w, float v) => w.WaveLength = v));
             wind.Content.Add(DebugUi.Heading("Vegetation"));
             wind.Content.Add(WindSlider("Sway freq.", 0.2f, 4f, "0.00 Hz", w => w.VegetationFrequency, (ref WindSingleton w, float v) => w.VegetationFrequency = v));
             wind.Content.Add(WindSlider("Damping", 0.02f, 1.5f, "0.00", w => w.VegetationDamping, (ref WindSingleton w, float v) => w.VegetationDamping = v));
@@ -157,8 +159,6 @@ namespace Dino_Engine.GUI.Debug
             grass.Content.Add(GrassSlider("Comb size", 2f, 80f, "0.0 m", g => g.CombSize, (ref GrassSingleton g, float v) => g.CombSize = v));
             grass.Content.Add(DebugUi.Heading("Wind"));
             grass.Content.Add(GrassSlider("Wind gain", 0f, 3f, "0.00", g => g.WindGain, (ref GrassSingleton g, float v) => g.WindGain = v));
-            grass.Content.Add(GrassSlider("Waves", 0f, 1.2f, "0.00 rad", g => g.WaveStrength, (ref GrassSingleton g, float v) => g.WaveStrength = v));
-            grass.Content.Add(GrassSlider("Wave length", 2f, 40f, "0.0 m", g => g.WaveLength, (ref GrassSingleton g, float v) => g.WaveLength = v));
             grass.Content.Add(GrassSlider("Wind sheen", 0f, 1f, "0.00", g => g.WindSheen, (ref GrassSingleton g, float v) => g.WindSheen = v));
             grass.Content.Add(DebugUi.Heading("Look"));
             grass.Content.Add(GrassSlider("Colour var.", 0f, 1f, "0.00", g => g.ColourVariation, (ref GrassSingleton g, float v) => g.ColourVariation = v));

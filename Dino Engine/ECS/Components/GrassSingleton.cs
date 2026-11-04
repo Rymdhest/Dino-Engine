@@ -46,8 +46,6 @@ namespace Dino_Engine.ECS.Components
 
         // --- Wind, on top of what WindSingleton does to all plants ---
         public float WindGain;              // How much further grass bends than other plants do.
-        public float WaveStrength;          // Radians the waves rolling down the wind lean the field over, in a 3 m/s wind.
-        public float WaveLength;            // Metres between waves.
         public float WindSheen;             // 0..1, how much gusts and waves light the blades they lean over.
 
         // --- Colour ---
@@ -104,8 +102,6 @@ namespace Dino_Engine.ECS.Components
             CombSize = 30f;
 
             WindGain = 1.6f;
-            WaveStrength = 0.55f;
-            WaveLength = 11f;
             WindSheen = 0.7f;
 
             RootColour = new Vector3(0.02f, 0.05f, 0.03f);

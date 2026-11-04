@@ -178,7 +178,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             WriteSettings(8, s.DryColour.X, s.DryColour.Y, s.DryColour.Z, s.Roughness);
             WriteSettings(9, s.Enabled ? s.GroundTint : 0f, s.BloomAmount, 0f, 0f);
             WriteSettings(10, s.Swell, 1f / MathF.Max(s.SwellSize, 0.1f), s.Comb, 1f / MathF.Max(s.CombSize, 0.1f));
-            WriteSettings(11, s.WindGain, s.WaveStrength, 1f / MathF.Max(s.WaveLength, 0.1f), s.WindSheen);
+            WriteSettings(11, s.WindGain, 0f, 0f, s.WindSheen);
             WriteSettings(12, s.HueDrift, s.CanopyShade, s.FieldNormal, s.BloomSize);
             WriteSettings(13, s.PlumeColour.X, s.PlumeColour.Y, s.PlumeColour.Z, s.PlumeAmount);
 

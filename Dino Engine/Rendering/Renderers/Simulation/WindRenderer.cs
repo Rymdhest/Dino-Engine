@@ -39,8 +39,9 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
         public const float VegetationSize = 160f;
 
         private const int ContactsPerPass = 32;
-        // WindData in Wind.glsl: 7 vec4s, then 3 vec4s per emitter.
-        private const int HeaderVec4s = 7;
+        // WindData in Wind.glsl: 9 vec4s, the wave trains, then 3 vec4s per emitter.
+        private const int WaveSlot = 9;
+        private const int HeaderVec4s = WaveSlot + WindField.WaveTrains;
         private const int UniformFloats = 4 * (HeaderVec4s + 3 * WindField.MaxGpuEmitters);
 
         private static readonly string[] ContactNames = UniformNames("contacts", ContactsPerPass);
@@ -182,13 +183,21 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
             _emitterOrder.Sort((a, b) => a.distance.CompareTo(b.distance));
             int emitterCount = Math.Min(_emitterOrder.Count, WindField.MaxGpuEmitters);
 
-            Write(0, wind.Velocity.X, wind.Velocity.Y, wind.Velocity.Length, emitterCount);
-            Write(1, wind.Gustiness, wind.Turbulence, WindField.InverseScale(wind.GustScale), WindField.InverseScale(wind.TurbulenceScale));
-            Write(2, wind.GustOffset.X, wind.GustOffset.Y, wind.GustPhase, 0f);
-            Write(3, wind.TurbulenceOffset.X, wind.TurbulenceOffset.Y, wind.TurbulencePhase, 0f);
-            Write(4, windOrigin.X, windOrigin.Y, WindMapSize, WindMapSize);
-            Write(5, vegetationOrigin.X, vegetationOrigin.Y, VegetationSize, VegetationSize);
-            Write(6, wind.VegetationMaxBend, wind.VegetationReferenceSpeed, wind.VegetationFlutter, 0f);
+            Vector2 along = WindSingleton.Towards(wind.Heading);
+            Write(0, wind.Velocity.X, wind.Velocity.Y, wind.LiveSpeed, emitterCount);
+            Write(1, along.X, along.Y, wind.Prevailing.X, wind.Prevailing.Y);
+            Write(2, wind.Gustiness, wind.Turbulence, WindField.InverseScale(wind.GustScale), WindField.InverseScale(wind.TurbulenceScale));
+            Write(3, wind.GustOffset.X, wind.GustOffset.Y, wind.GustPhase, 0f);
+            Write(4, wind.TurbulenceOffset.X, wind.TurbulenceOffset.Y, wind.TurbulencePhase, 0f);
+            Write(5, windOrigin.X, windOrigin.Y, WindMapSize, WindMapSize);
+            Write(6, vegetationOrigin.X, vegetationOrigin.Y, VegetationSize, VegetationSize);
+            Write(7, wind.VegetationMaxBend, wind.VegetationReferenceSpeed, wind.VegetationFlutter, wind.FlutterCycles);
+            Write(8, WindField.WaveLeanAt(wind.WaveLean, wind.LiveSpeed), WindField.WaveStrength(wind.LiveSpeed), wind.WaveWander, 0f);
+            for (int i = 0; i < WindField.WaveTrains; i++)
+            {
+                Vector4 train = WindField.WaveTrain(wind, i);
+                Write(WaveSlot + i, train.X, train.Y, train.Z, train.W);
+            }
             for (int i = 0; i < emitterCount; i++)
             {
                 WindEmitter emitter = emitters[_emitterOrder[i].index];

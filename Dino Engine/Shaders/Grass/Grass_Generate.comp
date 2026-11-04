@@ -7,8 +7,8 @@
 // 2. The field thins out with distance (keeping about as many blades per pixel as up close). Blades leave in a fixed order
 //    and shrink away before they go, and the survivors widen to cover.
 // 3. Blades outside the view are culled, before most of the work.
-// 4. Survivors take their place in the field: its height swells and sinks, it is combed one way and another, and waves
-//    roll through it down the wind. Some are plumes or blooms instead of leaves.
+// 4. Survivors take their place in the field: its height swells and sinks, and it is combed one way and another. Some are
+//    plumes or blooms instead of leaves.
 // 5. They get their final curve, bent by the wind and trampling, and are appended to the near list (15 vertex blades) or
 //    the far list (7 vertices) of an indirect draw. In the shadow pass everything goes to the far list.
 // Nothing about single blades is stored between frames: a blade's random values come from its cell in world space.
@@ -57,6 +57,11 @@ uniform float textureMapOffset;
 const float TAU = 6.28318530718;
 const float LONGEST_KIND = 1.3 * 1.3;   // How much longer than the field a tall tuft's plume can stand.
 const float FIELD_RELIEF = 2.5;         // How much more the light makes of the field's swells than their true slope.
+const float BEND_KNEE = 0.9;            // Radians past which a blade starts to resist bending further.
+const float DROOP_HOLD = 0.25;          // Radians of its own lean a blade's droop keeps to, against a wind from the other side.
+const float DROOP_SOFTNESS = 0.15;      // Radians of lean over which the droop swings across, when the wind does win.
+const float FACE_HOLD = 0.25;           // How much a blade's face keeps to the way it grew, as the square of a lean in radians.
+const float FLUTTER_KINDS = 4.0;        // Rates a quarter apart, so that every kind lands on a whole flutter at the wrap.
 
 vec4 readChunkMap(sampler2DArray map, vec2 uv, float layer)
 {
@@ -112,20 +117,19 @@ vec3 leanDirection(vec2 lean, float maxAngle)
     return vec3(horizontal.x, cos(angle), horizontal.y);
 }
 
-// A wave of wind passing through the field here, 0..1: two trains running down the wind at slightly different angles and
-// lengths, which meet in crests and part in lulls, on wavering fronts. 0 with no wind to speak of.
-float windCrest(vec2 xz)
+// Holds a lean to VEGETATION_MAX_TOTAL_BEND, gently: a hard stop would freeze the field wherever the wind pushes it there.
+vec2 limitBend(vec2 bend)
 {
-    if (windMean.z < 0.05 || grassWave.y <= 0.0) return 0.0;
-    vec2 along = windMean.xy / windMean.z;
-    vec2 across = vec2(-along.y, along.x);
-    float frequency = grassWave.z;
-    float travelled = time * windMean.z * 0.8 * frequency;
-    float warp = (grassValueNoise(xz * (1.0 / 21.0) + 3.0) - 0.5) * 2.2;
-    float first = sin((dot(xz, along + across * 0.3) * frequency + warp - travelled) * TAU);
-    float second = sin((dot(xz, along - across * 0.4) * frequency * 1.7 - warp * 0.7 - travelled * 1.7) * TAU);
-    float wave = clamp(0.5 + 0.34 * first + 0.2 * second, 0.0, 1.0);
-    return wave * wave;
+    float amount = length(bend);
+    if (amount <= BEND_KNEE) return bend;
+    float room = VEGETATION_MAX_TOTAL_BEND - BEND_KNEE;
+    return bend * ((BEND_KNEE + room * (1.0 - exp((BEND_KNEE - amount) / room))) / amount);
+}
+
+// A direction with its angle doubled, its length squared: as a line has no front or back, this is how lines are added up.
+vec2 asLine(vec2 v)
+{
+    return vec2(v.x * v.x - v.y * v.y, 2.0 * v.x * v.y);
 }
 
 void main()
@@ -254,7 +258,7 @@ void main()
     float ownAngle = grassRandom(seed) * TAU;
     float outAngle = dot(fromCentre, fromCentre) > 1e-8 ? atan(fromCentre.y, fromCentre.x) : ownAngle;
     float leanAngle = ownAngle + wrapAngle(outAngle - ownAngle) * grassClump.w;
-    float combAngle = grassCombAngle(root.xz, windMean.xy) + (tuftTurn - 0.5) * 1.0;
+    float combAngle = grassCombAngle(root.xz, windHeading.zw) + (tuftTurn - 0.5) * 1.0;
     // Out on their own, tufts have no neighbours to lie with, and fan open.
     leanAngle += wrapAngle(combAngle - leanAngle) * grassRoll.z * smoothstep(0.3, 0.8, supported) + (grassRandom(seed) - 0.5) * 0.7;
     vec2 leanDir = vec2(cos(leanAngle), sin(leanAngle));
@@ -272,8 +276,13 @@ void main()
         droop *= 0.7;
     }
 
-    // The patch's sway and trampling from the vegetation simulation, plus the blade's own flutter.
-    vec2 bend = vegetationBend(bendMap, windMap, root.xz) * grassWave.x;
+    // The patch's sway and trampling from the vegetation simulation. Stiffer tufts bend less, so a patch moving as one still
+    // has depth to it, and no two tufts stand the same. Then the tuft's own flutter: its blades shiver together, a little out
+    // of step, because that many blades each on their own beat fizz like static.
+    float tuftStiffness = grassRandom(tuftState);
+    float tuftFlutterPhase = grassRandom(tuftState);
+    float tuftFlutterKind = floor(grassRandom(tuftState) * FLUTTER_KINDS);
+    vec2 bend = limitBend(vegetationBend(bendMap, windMap, root.xz) * (grassWave.x * (0.8 + 0.4 * tuftStiffness)));
     vec2 flutterMid = vec2(0.0);
     vec2 flutterTip = vec2(0.0);
     vec4 windHere = sampleWindMap(windMap, root.xz);
@@ -285,25 +294,26 @@ void main()
     {
         vec2 along = wind / speed;
         vec2 acrossWind = vec2(-along.y, along.x);
-        float amplitude = vegetationParams.z * min(speed / vegetationParams.y, 1.5);
-        float phase = time * (2.0 + 2.0 * flutterRandom) * TAU + flutterPhase;
-        // The bob runs up the blade like a wave along a whip: the tip lags behind the middle.
+        // Most in the gusts, and least in the lulls.
+        float amplitude = vegetationParams.z * min(speed / vegetationParams.y, 1.5) * (0.4 + 1.2 * windHere.w) * (0.7 + 0.6 * flutterRandom);
+        float phase = (vegetationParams.w * (1.0 + 0.25 * tuftFlutterKind) + tuftFlutterPhase) * TAU + flutterPhase * 0.15;
+        // The bob runs up the blade like a wave along a whip: the tip lags behind the middle, and traces a narrow ellipse. The
+        // phase wraps at a whole number of flutters, so anything read from it has to go round a whole number of times too.
         float midPhase = phase - 0.9;
         float tipPhase = phase - 1.8;
-        flutterMid = 0.5 * amplitude * (along * sin(midPhase) + acrossWind * 0.4 * sin(1.31 * midPhase + 1.7));
-        flutterTip = amplitude * (along * sin(tipPhase) + acrossWind * 0.4 * sin(1.31 * tipPhase + 1.7));
+        flutterMid = 0.5 * amplitude * (along * sin(midPhase) + acrossWind * 0.4 * sin(midPhase + 1.7));
+        flutterTip = amplitude * (along * sin(tipPhase) + acrossWind * 0.4 * sin(tipPhase + 1.7));
     }
 
-    // Waves roll through the field down the wind, leaning it over as they pass.
-    float crest = windCrest(root.xz);
-    if (crest > 0.0) bend += windMean.xy / windMean.z * (crest * grassWave.y * min(windMean.z * (1.0 / 3.0), 1.6));
-    float bendAmount = length(bend);
-    if (bendAmount > VEGETATION_MAX_TOTAL_BEND) bend *= VEGETATION_MAX_TOTAL_BEND / bendAmount;
-
     // Lean (radians from vertical, towards +x / +z) at the root, middle and tip. The root stays stiffer than the tip.
-    vec2 tipLean = leanDir * tilt + bend + flutterTip;
-    vec2 droopDir = dot(tipLean, tipLean) > 1e-6 ? normalize(tipLean) : leanDir;
-    tipLean += droopDir * droop;
+    vec2 steadyLean = leanDir * tilt + bend;
+    // A blade droops the way it leans, and a wind from the other side has to stand it up before it can lay it over the
+    // other way: the droop passes through nothing. Taken straight from the lean it would snap across at the point where the
+    // wind and the blade's own lean cancel out, and with the flutter passing over that point, again and again. The flutter
+    // has no part in this for the same reason.
+    vec2 droopPull = leanDir * (tilt + DROOP_HOLD) + bend;
+    vec2 droopDir = droopPull * inversesqrt(dot(droopPull, droopPull) + DROOP_SOFTNESS * DROOP_SOFTNESS);
+    vec2 tipLean = steadyLean + flutterTip + droopDir * droop;
     vec2 rootLean = leanDir * (tilt * 0.3) + bend * 0.4;
     vec2 midLean = mix(rootLean, tipLean, 0.45) + flutterMid;
 
@@ -325,9 +335,12 @@ void main()
     p2.y = max(p2.y, 0.04 * bladeLength);
     p3.y = max(p3.y, 0.02 * bladeLength);
 
-    // A blade bends over its flat side, so it faces the way it leans: in a strong wind the whole field turns to face
-    // it. A little random twist keeps rows of blades from lining up.
-    vec2 faceDir = dot(tipLean, tipLean) > 1e-6 ? normalize(tipLean) : leanDir;
+    // A blade bends over its flat side, so it faces the way it leans: in a strong wind the whole field turns to face it.
+    // Which of its faces doesn't matter, so this is a line. The way it grew holds that line as its lean passes through
+    // upright, where the direction of a lean jumps right round. A little random twist keeps rows of blades from lining up.
+    vec2 faceLine = asLine(leanDir) * FACE_HOLD + asLine(steadyLean);
+    float faceAngle = 0.5 * atan(faceLine.y, faceLine.x);
+    vec2 faceDir = dot(faceLine, faceLine) > 1e-10 ? vec2(cos(faceAngle), sin(faceAngle)) : leanDir;
     float twist = (grassRandom(seed) - 0.5) * 0.8;
     vec2 side = vec2(-faceDir.y, faceDir.x);
     side = vec2(side.x * cos(twist) - side.y * sin(twist), side.x * sin(twist) + side.y * cos(twist));
@@ -374,14 +387,16 @@ void main()
         blade.gloss = grassRandom(seed);
         // Grass pressed down lies on top of the field, in the light, not deep inside it.
         blade.canopy = max(canopy, 0.1) * (1.0 - 0.7 * min(length(bend) * (1.0 / VEGETATION_MAX_TOTAL_BEND), 1.0));
-        blade.sheen = grassWave.w * clamp(crest * 0.8 + smoothstep(0.5, 0.9, windHere.w) * 0.6, 0.0, 1.0);
+        blade.sheen = grassWave.w * clamp(windCrest(root.xz) * 0.8 + smoothstep(0.5, 0.9, windHere.w) * 0.6, 0.0, 1.0);
 
         // The field's top as one soft surface: the ground's slope, the swells on it, and the nap of the blades, which
         // shows more of their flat sides to the sky the further they lie over.
         const float STEP = 0.7;
         vec2 rise = vec2(grassSwell(root.xz + vec2(STEP, 0.0)), grassSwell(root.xz + vec2(0.0, STEP))) - swell;
         vec2 slope = rise * (grassRoll.x * canopy * FIELD_RELIEF / STEP);
-        vec3 fieldNormal = normalize(vec3(groundNormal.x - slope.x, groundNormal.y, groundNormal.z - slope.y) - vec3(tipLean.x, 0.0, tipLean.y) * 0.4);
+        // Without the flutter: the light on the field moves with its masses, and doesn't sparkle with each blade.
+        vec2 napLean = steadyLean + droopDir * droop;
+        vec3 fieldNormal = normalize(vec3(groundNormal.x - slope.x, groundNormal.y, groundNormal.z - slope.y) - vec3(napLean.x, 0.0, napLean.y) * 0.4);
         blade.fieldNormal = fieldNormal.xz;
 
         vec3 head = kind == GRASS_PLUME

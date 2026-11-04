@@ -17,25 +17,37 @@ namespace Dino_Engine.ECS.Components
         public float Direction;        // Degrees, the direction the wind blows towards (0 = +Z, 90 = +X).
         public float Gustiness;        // How much gusts change the speed: 0.5 = gusts between half and one and a half times the mean.
         public float GustScale;        // Metres, size of gust patches. They travel with the wind and change shape as they go.
-        public float Turbulence;       // Swirling cross-wind, relative to the mean speed.
+        public float Turbulence;       // Swirling cross-wind, relative to the mean speed. Broad and slow: quick swirls only make plants shiver.
         public float TurbulenceScale;  // Metres, size of the swirls.
-        public float ResponseTime;     // Seconds the live wind takes to follow changes of Speed and Direction.
+        public float ResponseTime;     // Seconds the live wind takes to follow changes of Speed and Direction, turning the short way round.
+
+        // --- Waves: long fronts rolling down the wind, leaning the plants over as they pass. ---
+        public float WaveLean;         // Radians a crest leans plants over, in a 3 m/s wind.
+        public float WaveLength;       // Metres between waves.
 
         // --- How vegetation responds. Each patch of plants is a damped spring driven by the wind's drag. ---
         public float VegetationFrequency;      // Natural sway frequency in Hz (varies ±20% between patches).
         public float VegetationDamping;        // Damping ratio: low values sway back and forth, 1 settles without overshoot.
         public float VegetationMaxBend;        // Radians plants lean at most in a strong steady wind.
         public float VegetationReferenceSpeed; // Wind speed in m/s at which plants lean about 63% of VegetationMaxBend.
-        public float VegetationFlutter;        // Radians single grass blades flutter at VegetationReferenceSpeed.
+        public float VegetationFlutter;        // Radians tufts of grass flutter at VegetationReferenceSpeed.
         public float FlattenRecoveryTime;      // Seconds trampled plants take to stand back up (to about 37%).
 
         // --- Live state, advanced by WindSystem. ---
         public bool Initialized;
+        public float Heading;            // Live direction in radians, measured as Direction is. Kept apart from the speed, so a turning wind swings round and doesn't die away through nothing.
+        public float HeadingRate;        // Radians per second.
+        public float LiveSpeed;          // Live mean speed in m/s.
+        public float LiveSpeedRate;      // m/s per second.
         public Vector2 Velocity;         // Live mean wind on the xz plane in m/s.
+        public Vector2 Prevailing;       // Unit vector, the way the weather has laid the land. It stays put when the wind turns for a while.
         public Vector2 GustOffset;       // Gust pattern offset in noise units, wrapped to WindField.NoisePeriod.
         public float GustPhase;          // Gust pattern evolution, wrapped likewise.
         public Vector2 TurbulenceOffset;
         public float TurbulencePhase;
+        public float WaveCycles;         // Waves gone by, wrapped to WindField.WaveCyclesPeriod.
+        public float WaveWander;         // How far the wavering of their fronts has come, wrapped to 1.
+        public float FlutterCycles;      // Flutters gone by, wrapped to WindField.FlutterCyclesPeriod.
         public List<WindEmitter> Blasts;   // Blasts in flight (Wind.AddBlast); WindSystem ages and removes them.
         public List<WindEmitter> Emitters; // Every emitter acting this frame: blasts plus WindEmitterComponents.
 
@@ -43,37 +55,41 @@ namespace Dino_Engine.ECS.Components
         {
             Speed = 3f;
             Direction = 45f;
-            Gustiness = 0.6f;
-            GustScale = 24f;
-            Turbulence = 0.35f;
-            TurbulenceScale = 6f;
-            ResponseTime = 2f;
+            Gustiness = 0.4f;
+            GustScale = 32f;
+            Turbulence = 0.25f;
+            TurbulenceScale = 20f;
+            ResponseTime = 2.5f;
 
-            VegetationFrequency = 1.3f;
-            VegetationDamping = 0.25f;
+            WaveLean = 0.36f;
+            WaveLength = 11f;
+
+            VegetationFrequency = 0.85f;
+            VegetationDamping = 0.7f;
             VegetationMaxBend = 1.3f;
             VegetationReferenceSpeed = 8f;
-            VegetationFlutter = 0.08f;
+            VegetationFlutter = 0.035f;
             FlattenRecoveryTime = 12f;
 
             Initialized = false;
+            Heading = 0f;
+            HeadingRate = 0f;
+            LiveSpeed = 0f;
+            LiveSpeedRate = 0f;
             Velocity = Vector2.Zero;
+            Prevailing = Vector2.UnitY;
             GustOffset = Vector2.Zero;
             GustPhase = 0f;
             TurbulenceOffset = Vector2.Zero;
             TurbulencePhase = 0f;
+            WaveCycles = 0f;
+            WaveWander = 0f;
+            FlutterCycles = 0f;
             Blasts = new List<WindEmitter>();
             Emitters = new List<WindEmitter>();
         }
 
-        /// <summary>The mean wind Speed and Direction ask for, on the xz plane in m/s.</summary>
-        public Vector2 TargetVelocity
-        {
-            get
-            {
-                float angle = MathHelper.DegreesToRadians(Direction);
-                return new Vector2(MathF.Sin(angle), MathF.Cos(angle)) * MathF.Max(Speed, 0f);
-            }
-        }
+        /// <summary>The unit vector on the xz plane of an angle in radians, measured as Direction is.</summary>
+        public static Vector2 Towards(float angle) => new Vector2(MathF.Sin(angle), MathF.Cos(angle));
     }
 }

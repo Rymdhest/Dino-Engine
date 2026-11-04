@@ -19,7 +19,7 @@ layout(std140, binding = 7) uniform GrassData {
     vec4 grassDryColour;   // rgb, w roughness
     vec4 grassGround;      // x ground tint (0 when grass is off), y bloom amount, zw unused
     vec4 grassRoll;        // x swell (0..1), y 1 / swell size (1/m), z comb (0..1), w 1 / comb size (1/m)
-    vec4 grassWave;        // x wind gain, y wave strength (rad), z 1 / wave length (1/m), w wind sheen (0..1)
+    vec4 grassWave;        // x wind gain, yz unused, w wind sheen (0..1)
     vec4 grassPaint;       // x hue drift (0..1), y canopy shade (0..1), z field normal (0..1), w bloom size (m)
     vec4 grassPlume;       // rgb, w plume amount
 };
@@ -78,7 +78,7 @@ float grassSwell(vec2 xz)
 }
 
 // The way the field is combed here, radians on the xz plane: the prevailing wind, wandering in broad swirls. Long grass
-// lies the way the weather has laid it, like the nap of velvet.
+// lies the way the weather has laid it, like the nap of velvet, whichever way the wind happens to blow today.
 float grassCombAngle(vec2 xz, vec2 prevailing)
 {
     vec2 p = xz * grassRoll.w;

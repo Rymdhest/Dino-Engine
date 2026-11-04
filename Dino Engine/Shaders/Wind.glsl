@@ -5,7 +5,12 @@
 // - windVelocityAt(): the wind field itself (ambient gusts and turbulence plus local emitters). Wind_Field.frag
 //   bakes it into the wind map each frame; Wind/WindField.cs is an exact CPU mirror of it for gameplay code.
 // - sampleWindMap(): the baked wind map, which is what shaders should normally read.
+// - windCrest(): the waves rolling down the wind.
 // - vegetationBend(): the swaying state of vegetation from Wind_Vegetation.frag.
+//
+// Like the wind of Ghost of Tsushima, it is a steady vector with slow noise on it. What moves with the wind must only ever
+// read phases WindSystem has accumulated (never time multiplied by a live speed), and what plants read has to stay broad and
+// slow: quick noise on a field of plants reads as a fault, not as a breeze.
 //
 // Velocities are in m/s in world space (x, y = up, z), near the ground. The wind map holds
 // (velocity.x, velocity.y, velocity.z, gust intensity 0..1).
@@ -13,19 +18,23 @@
 // Written each frame by WindRenderer.UploadWindData (binding WindRenderer.UniformBinding); the layout must match it.
 layout(std140, binding = 6) uniform WindData {
     vec4 windMean;          // xy mean wind velocity on the xz plane (m/s), z mean speed, w number of emitters
+    vec4 windHeading;       // xy unit vector the live wind blows towards, zw unit vector of the prevailing wind
     vec4 windShape;         // x gustiness, y turbulence, z 1 / gust scale, w 1 / turbulence scale
     vec4 windGust;          // xy gust pattern offset (noise units), z gust evolution phase, w unused
     vec4 windTurbulence;    // xy turbulence pattern offset (noise units), z turbulence evolution phase, w unused
     vec4 windMapRegion;     // xy world xz of the wind map's corner, zw its size in metres
     vec4 vegetationRegion;  // xy world xz of the vegetation map's corner, zw its size in metres
-    vec4 vegetationParams;  // x max bend (radians), y reference speed (m/s), z flutter (radians), w unused
+    vec4 vegetationParams;  // x max bend (radians), y reference speed (m/s), z flutter (radians), w flutter phase (cycles)
+    vec4 windWave;          // x lean of a crest at this speed (radians), y strength of the waves (0..1), z wavering of their fronts (cycles), w unused
+    vec4 windWaves[4];      // A train each: xy wave vector (cycles per metre), z phase (cycles), w height
     vec4 windEmitters[96];  // 3 per emitter: (position, radius), (direction, strength), (type, age, duration, unused)
 };
 
 const float WIND_NOISE_PERIOD = 256.0;
-const int WIND_GUST_OCTAVES = 3;
-const int WIND_TURBULENCE_OCTAVES = 2;
+const int WIND_GUST_OCTAVES = 2;
 const int WIND_MAX_EMITTERS = 32;
+const int WIND_WAVE_TRAINS = 4;
+const float WIND_TAU = 6.28318530718;
 const float WIND_EMITTER_BLAST = 0.0;
 const float WIND_EMITTER_RADIAL = 1.0;
 const float WIND_EMITTER_DIRECTIONAL = 2.0;
@@ -109,7 +118,8 @@ float windGustNoise(vec2 xz)
         amplitude *= 0.5;
         frequency *= 2.0;
     }
-    return clamp(sum / total * 1.8, -1.0, 1.0);
+    float gust = clamp(sum / total * 1.8, -1.0, 1.0);
+    return gust * (1.5 - 0.5 * gust * gust);
 }
 
 // Swirling turbulence: the curl of a noise potential, so the flow it adds is divergence free (it swirls
@@ -117,19 +127,34 @@ float windGustNoise(vec2 xz)
 vec2 windTurbulenceCurl(vec2 xz)
 {
     vec2 q = xz * windShape.w - windTurbulence.xy;
-    vec2 gradient = vec2(0.0);
-    float amplitude = 1.0;
-    float total = 0.0;
-    float frequency = 1.0;
-    for (int o = 0; o < WIND_TURBULENCE_OCTAVES; o++)
-    {
-        gradient += amplitude * frequency * windNoised(vec3(q, windTurbulence.z) * frequency, WIND_NOISE_PERIOD * frequency).yz;
-        total += amplitude;
-        amplitude *= 0.5;
-        frequency *= 2.0;
-    }
-    gradient /= total;
+    vec2 gradient = windNoised(vec3(q, windTurbulence.z), WIND_NOISE_PERIOD).yz;
     return vec2(gradient.y, -gradient.x);
+}
+
+// The fronts of the waves waver as they come: a few long, slow sines, cheap enough for every texel of the simulation.
+float windFrontWander(vec2 xz)
+{
+    float slow = WIND_TAU * windWave.z;
+    return 0.5 * sin(xz.x * 0.083 + xz.y * 0.047 + slow)
+         + 0.35 * sin(xz.x * -0.061 + xz.y * 0.109 - slow)
+         + 0.25 * sin(xz.x * 0.137 + xz.y * -0.094 + 2.0 * slow);
+}
+
+// How much of a wave is passing here, 0..1. Two families of trains run down the wind at slightly different angles and
+// lengths, and meet in crests and part in lulls. Their directions are fixed, and a wind that turns fades from one to the
+// next (WindField.WaveTrain): turned as a whole, the fronts would slide past faster the further from the world's origin.
+float windCrest(vec2 xz)
+{
+    float wander = windFrontWander(xz);
+    float sum = 0.0;
+    for (int i = 0; i < WIND_WAVE_TRAINS; i++)
+    {
+        vec4 train = windWaves[i];
+        float shifted = i < 2 ? wander : -0.7 * wander;
+        sum += train.w * sin(WIND_TAU * (dot(xz, train.xy) + shifted - train.z));
+    }
+    float wave = clamp(0.5 + sum, 0.0, 1.0);
+    return wave * wave * windWave.y;
 }
 
 // Ambient wind without local emitters: (velocity, gust intensity 0..1).
@@ -219,8 +244,14 @@ vec2 vegetationRestBend(vec2 windXZ)
     return windXZ / speed * (vegetationParams.x * (1.0 - exp(-relative * relative)));
 }
 
+// The bend a patch of plants is heading for at this moment: where the local wind pushes it, and the wave going by.
+vec2 vegetationTargetBend(sampler2D windMap, vec2 xz)
+{
+    return vegetationRestBend(sampleWindMap(windMap, xz).xz) + windHeading.xy * (windWave.x * windCrest(xz));
+}
+
 // How far vegetation leans (radians) towards +x / +z at a point. Inside the vegetation simulation this is the
-// simulated, springy state; outside it falls back to the steady bend for the local wind.
+// simulated, springy state; outside it falls back to what the spring would be heading for.
 vec2 vegetationBend(sampler2D bendMap, sampler2D windMap, vec2 xz)
 {
     if (vegetationRegion.z > 0.0)
@@ -231,7 +262,7 @@ vec2 vegetationBend(sampler2D bendMap, sampler2D windMap, vec2 xz)
             return textureLod(bendMap, uv, 0.0).xy;
         }
     }
-    return vegetationRestBend(sampleWindMap(windMap, xz).xz);
+    return vegetationTargetBend(windMap, xz);
 }
 
 #endif

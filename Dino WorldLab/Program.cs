@@ -13,6 +13,7 @@ namespace Dino_WorldLab
     ///   sheet   [--seed N] [--count N] [--archetype id] [--out file.png]       A contact sheet of many worlds.
     ///   plan    [--seed N] [--archetype id] [--site kind] [--nth N] [--span m] [--out f] A surveyor's plan of one site, the Nth of its kind.
     ///   check   [--seed N] [--count N] [--archetype id]                        Generates worlds and validates them. Exit code 1 on any problem.
+    ///   wind                                                                   Puts the wind through what a game does to it. Exit code 1 on any problem.
     /// </summary>
     internal static class Program
     {
@@ -31,6 +32,8 @@ namespace Dino_WorldLab
                     return Plan(options);
                 case "check":
                     return Check(options);
+                case "wind":
+                    return WindCheck.Run();
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

@@ -31,6 +31,8 @@ namespace Dino_Engine.Physics
         public Vector3 Velocity;
         /// <summary>How strong the local gust is, 0 (lull) to 1 (peak).</summary>
         public float Gust;
+        /// <summary>How much of a wave is passing, 0 (trough) to 1 (crest). None without wind to speak of.</summary>
+        public float Crest;
     }
 
     /// <summary>
@@ -41,10 +43,62 @@ namespace Dino_Engine.Physics
     public static class WindField
     {
         public const float NoisePeriod = 256f;        // WIND_NOISE_PERIOD
-        public const int GustOctaves = 3;             // WIND_GUST_OCTAVES
-        public const int TurbulenceOctaves = 2;       // WIND_TURBULENCE_OCTAVES
+        public const int GustOctaves = 2;             // WIND_GUST_OCTAVES
         public const int MaxGpuEmitters = 32;         // WIND_MAX_EMITTERS
+        public const int WaveTrains = 4;              // WIND_WAVE_TRAINS
         public const float MaxVegetationBend = 1.5f;  // VEGETATION_MAX_TOTAL_BEND
+
+        /// <summary>A whole number of waves of every family: their phases all land on a whole wave here, so wrapping never shows.</summary>
+        public const float WaveCyclesPeriod = 10f;
+        /// <summary>A whole number of flutters of every kind (WIND_FLUTTER_KINDS), likewise.</summary>
+        public const float FlutterCyclesPeriod = 4f;
+
+        // Waves come from a rose of fixed directions, and each family takes the two nearest to where it's headed: a wind that
+        // turns fades one direction out and the next in. Turning the fronts themselves is no good, as far from the world's
+        // origin they would slide past at hundreds of metres a second.
+        private const float RoseStep = MathF.PI / 6f;
+        // The two families, which meet in crests and part in lulls: how far off the wind they run, how much shorter than
+        // WaveLength they are, how high they stand, and where their rose starts.
+        private static readonly (float offAngle, float frequency, float amplitude, float roseStart)[] WaveFamilies =
+        {
+            (0.29f, 1f, 0.34f, 0f),
+            (-0.38f, 1.7f, 0.2f, RoseStep * 0.5f),
+        };
+
+        /// <summary>
+        /// How fast patterns travel over the land in m/s. A light wind carries them at about its own pace, and a strong one
+        /// leaves them behind: strength shows in how far plants lean, and keeping up would only make the field frantic.
+        /// </summary>
+        public static float PatternSpeed(float speed) => speed / (1f + speed / 12f);
+
+        /// <summary>Radians a crest leans plants over at this speed. It grows with the wind and levels off.</summary>
+        public static float WaveLeanAt(float waveLean, float speed) => waveLean * 1.8f * MathF.Tanh(speed / 5.4f);
+
+        /// <summary>How much of the waves there is at this speed, 0..1: they die away as the air falls still.</summary>
+        public static float WaveStrength(float speed)
+        {
+            float t = Math.Clamp(speed / 2.5f, 0f, 1f);
+            return t * t * (3f - 2f * t);
+        }
+
+        /// <summary>
+        /// One of the wave trains: xy its wave vector (cycles per metre), z its phase (cycles, 0..1), w its height. Each family
+        /// has a pair, faded between the two directions of the rose either side of where the family is headed.
+        /// </summary>
+        public static Vector4 WaveTrain(in WindSingleton wind, int index)
+        {
+            var (offAngle, frequency, amplitude, roseStart) = WaveFamilies[index / 2];
+            float place = (wind.Heading + offAngle - roseStart) / RoseStep;
+            float step = MathF.Floor(place);
+            float towardsNext = MathF.Sin((place - step) * MathF.PI * 0.5f);
+            float next = towardsNext * towardsNext;
+            float previous = 1f - next;
+            float height = amplitude * (index % 2 == 0 ? previous : next) / MathF.Sqrt(previous * previous + next * next);
+            Vector2 direction = WindSingleton.Towards((step + index % 2) * RoseStep + roseStart);
+            float phase = wind.WaveCycles * frequency;
+            Vector2 waveVector = direction * (frequency * InverseScale(wind.WaveLength));
+            return new Vector4(waveVector.X, waveVector.Y, phase - MathF.Floor(phase), height);
+        }
 
         /// <summary>1 / scale, as uploaded to the GPU, so both sides divide by the same value.</summary>
         public static float InverseScale(float scale) => 1f / MathF.Max(scale, 0.01f);
@@ -54,8 +108,8 @@ namespace Dino_Engine.Physics
         {
             float gust = GustNoise(wind, xz);
             float speedScale = MathF.Max(1f + wind.Gustiness * gust, 0f);
-            Vector2 velocity = wind.Velocity * speedScale + TurbulenceCurl(wind, xz) * (wind.Velocity.Length * wind.Turbulence * 0.5f);
-            return new WindSample { Velocity = new Vector3(velocity.X, 0f, velocity.Y), Gust = gust * 0.5f + 0.5f };
+            Vector2 velocity = wind.Velocity * speedScale + TurbulenceCurl(wind, xz) * (wind.LiveSpeed * wind.Turbulence * 0.5f);
+            return new WindSample { Velocity = new Vector3(velocity.X, 0f, velocity.Y), Gust = gust * 0.5f + 0.5f, Crest = Crest(wind, xz) };
         }
 
         /// <summary>The full wind (ambient plus every emitter) on the ground at <paramref name="xz"/>.</summary>
@@ -120,6 +174,27 @@ namespace Dino_Engine.Physics
             return windXZ / speed * (wind.VegetationMaxBend * (1f - MathF.Exp(-relative * relative)));
         }
 
+        /// <summary>How much of a wave is passing here, 0..1; windCrest in Wind.glsl.</summary>
+        public static float Crest(in WindSingleton wind, Vector2 xz)
+        {
+            float wander = FrontWander(wind, xz);
+            float sum = 0f;
+            for (int i = 0; i < WaveTrains; i++)
+            {
+                Vector4 train = WaveTrain(wind, i);
+                float shifted = i < 2 ? wander : -0.7f * wander;
+                sum += train.W * MathF.Sin(MathF.Tau * (xz.X * train.X + xz.Y * train.Y + shifted - train.Z));
+            }
+            float wave = Math.Clamp(0.5f + sum, 0f, 1f);
+            return wave * wave * WaveStrength(wind.LiveSpeed);
+        }
+
+        /// <summary>The bend a patch of plants is heading for at this moment; vegetationTargetBend in Wind.glsl.</summary>
+        public static Vector2 VegetationTargetBend(in WindSingleton wind, Vector2 windXZ, Vector2 xz)
+        {
+            return VegetationRestBend(wind, windXZ) + WindSingleton.Towards(wind.Heading) * (WaveLeanAt(wind.WaveLean, wind.LiveSpeed) * Crest(wind, xz));
+        }
+
         /// <summary>Wraps a pattern offset or phase into the noise period; the noise tiles, so this never shows.</summary>
         public static float WrapToPeriod(float value) => value - NoisePeriod * MathF.Floor(value / NoisePeriod);
 
@@ -139,26 +214,24 @@ namespace Dino_Engine.Physics
                 amplitude *= 0.5f;
                 frequency *= 2f;
             }
-            return Math.Clamp(sum / total * 1.8f, -1f, 1f);
+            float gust = Math.Clamp(sum / total * 1.8f, -1f, 1f);
+            return gust * (1.5f - 0.5f * gust * gust);
         }
 
         private static Vector2 TurbulenceCurl(in WindSingleton wind, Vector2 xz)
         {
             Vector2 q = xz * InverseScale(wind.TurbulenceScale) - wind.TurbulenceOffset;
-            Vector2 gradient = Vector2.Zero;
-            float amplitude = 1f;
-            float total = 0f;
-            float frequency = 1f;
-            for (int o = 0; o < TurbulenceOctaves; o++)
-            {
-                Vector4 n = Noised(new Vector3(q.X, q.Y, wind.TurbulencePhase) * frequency, NoisePeriod * frequency);
-                gradient += amplitude * frequency * new Vector2(n.Y, n.Z);
-                total += amplitude;
-                amplitude *= 0.5f;
-                frequency *= 2f;
-            }
-            gradient /= total;
-            return new Vector2(gradient.Y, -gradient.X);
+            Vector4 n = Noised(new Vector3(q.X, q.Y, wind.TurbulencePhase), NoisePeriod);
+            return new Vector2(n.Z, -n.Y);
+        }
+
+        // The fronts of the waves waver as they come: a few long, slow sines, cheap enough for every texel of the simulation.
+        private static float FrontWander(in WindSingleton wind, Vector2 xz)
+        {
+            float slow = MathF.Tau * wind.WaveWander;
+            return 0.5f * MathF.Sin(xz.X * 0.083f + xz.Y * 0.047f + slow)
+                 + 0.35f * MathF.Sin(xz.X * -0.061f + xz.Y * 0.109f - slow)
+                 + 0.25f * MathF.Sin(xz.X * 0.137f + xz.Y * -0.094f + 2f * slow);
         }
 
         private static uint Hash(uint x)
