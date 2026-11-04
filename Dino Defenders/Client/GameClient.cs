@@ -53,7 +53,6 @@ namespace Dino_Defenders.Client
         private readonly string _name;
         private readonly List<HeroCommand> _recent = new();
         private readonly ulong _predictedMask;
-        private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
 
         private INetConnection? _connection;
         private WorldRequest _request;
@@ -73,6 +72,9 @@ namespace Dino_Defenders.Client
         public readonly InterpolationClock Render = new();
         public readonly HeroPredictor Predictor = new();
         public readonly List<(int id, string name)> Party = new();
+
+        /// <summary>Milliseconds, from any starting point.</summary>
+        public Func<long> Clock = System.Diagnostics.Stopwatch.StartNew() is var watch ? () => watch.ElapsedMilliseconds : null!;
 
         public HeroState Hero { get; }
         public HeroStats Stats { get; private set; }
@@ -200,8 +202,8 @@ namespace Dino_Defenders.Client
             Commands.Next();
         }
 
-        // Every packet carries the last several commands, not just the newest. Most of it is repetition, and it means that a lost packet is
-        // simply filled in by the next one: a command only fails to arrive if a whole run of packets in a row goes missing.
+        // Every packet carries each command the server hasn't confirmed yet, not just the newest. So a lost packet is simply filled in by the
+        // next one, and a command only fails to arrive if a whole run of packets in a row goes missing.
         private void SendCommands()
         {
             if (_connection == null || _recent.Count == 0) return;
@@ -212,7 +214,7 @@ namespace Dino_Defenders.Client
             writer.WriteUInt(Ghosts.AckBits);
             writer.WriteBool(Ghosts.NeedsReset);
             Ghosts.NeedsReset = false;
-            writer.WriteUInt((uint)_clock.ElapsedMilliseconds);
+            writer.WriteUInt((uint)Clock());
             writer.WriteVarUInt((uint)RoundTrip);
 
             uint newest = _recent[^1].Tick;
@@ -358,6 +360,7 @@ namespace Dino_Defenders.Client
             float health = reader.ReadFloat();
             uint sentAt = reader.ReadUInt();
             uint heldFor = reader.ReadVarUInt();
+            uint confirmed = reader.ReadUInt();
 
             if (epoch != _epoch || State != ClientState.Playing || tick <= _lastSnapshotTick) return;
             if (interval < 1 || !float.IsFinite(truth.Position.X) || !float.IsFinite(truth.Position.Y) || !float.IsFinite(health))
@@ -373,9 +376,11 @@ namespace Dino_Defenders.Client
             if (Session != null) Session.Health = health;
             if (sentAt != 0)
             {
-                float sample = (uint)_clock.ElapsedMilliseconds - sentAt - heldFor;
-                RoundTrip = RoundTrip == 0f ? sample : RoundTrip + (sample - RoundTrip) * 0.1f;
+                long sample = (uint)Clock() - (long)sentAt - heldFor;
+                if (sample >= 0) RoundTrip = RoundTrip == 0f ? sample : RoundTrip + (sample - RoundTrip) * 0.1f;
             }
+
+            while (_recent.Count > 1 && _recent[0].Tick <= confirmed) _recent.RemoveAt(0);
 
             if (!_hadSnapshot)
             {

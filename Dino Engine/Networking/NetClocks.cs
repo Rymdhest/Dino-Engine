@@ -12,10 +12,12 @@ namespace Dino_Engine.Networking
         private const double MostDilation = 0.05;
         private const double Gain = 0.015;          // Dilation per tick of error.
         private const int JumpBeyond = 20;          // Further out than this, drifting would take too long.
-        private const double JumpCooldown = 0.75;   // Seconds to see the effect of a jump before jumping again.
+        private const double JumpAfter = 1.5;       // Seconds it has to stay that far out. A stall passes by itself, and chasing one would be worse than it was.
 
         private double _accumulator;
-        private double _sinceJump = JumpCooldown;
+        private double _farOutFor;
+
+        private bool _farOut;
 
         /// <summary>The tick the next command is for.</summary>
         public uint Tick { get; private set; }
@@ -42,7 +44,7 @@ namespace Dino_Engine.Networking
         public int Advance(double seconds)
         {
             if (!Running) return 0;
-            _sinceJump += seconds;
+            _farOutFor = _farOut ? _farOutFor + seconds : 0.0;
             _accumulator += seconds * Rate;
 
             int due = 0;
@@ -66,9 +68,11 @@ namespace Dino_Engine.Networking
         {
             int error = spare - TargetSpare;
 
-            if (Math.Abs(error) > JumpBeyond && _sinceJump >= JumpCooldown)
+            _farOut = Math.Abs(error) > JumpBeyond;
+            if (_farOut && _farOutFor >= JumpAfter)
             {
-                _sinceJump = 0.0;
+                _farOut = false;
+                _farOutFor = 0.0;
                 Rate = 1.0;
                 int jump = -error;
                 Tick = (uint)Math.Max((long)Tick + jump, 1L);

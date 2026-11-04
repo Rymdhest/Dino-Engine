@@ -45,7 +45,6 @@ namespace Dino_Defenders.Server
         private readonly List<ServerPlayer> _heroes = new();
         private readonly List<SystemBase> _systems = new();
         private readonly InteractionSystem _interaction;
-        private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
         private readonly BitWriter _snapshot = new(2048);
         private readonly List<ServerPlayer> _due = new();
 
@@ -61,6 +60,9 @@ namespace Dino_Defenders.Server
         public readonly ECSWorld Ecs = new();
         public readonly GhostServer Ghosts;
         public ServerSession? Session { get; private set; }
+
+        /// <summary>Milliseconds, from any starting point.</summary>
+        public Func<long> Clock = System.Diagnostics.Stopwatch.StartNew() is var watch ? () => watch.ElapsedMilliseconds : null!;
 
         /// <summary>The tick being run, or about to be.</summary>
         public uint Tick { get; private set; } = 1;
@@ -599,14 +601,13 @@ namespace Dino_Defenders.Server
             if (reader.ReadBool()) player.View.ResetBaselines();
 
             player.LastClientTime = reader.ReadUInt();
-            player.LastClientTimeArrived = _clock.ElapsedMilliseconds;
+            player.LastClientTimeArrived = Clock();
             player.RoundTrip = (int)reader.ReadVarUInt();
 
             uint newest = reader.ReadUInt();
             int count = reader.ReadByte();
             if (count > Protocol.MostCommands) throw new NetReadException($"{count} commands in one packet.");
 
-            player.NoteArrival(newest, Tick);
             for (int i = 0; i < count; i++)
             {
                 HeroCommand command = HeroCommand.Read(reader, newest - (uint)i);
@@ -750,7 +751,8 @@ namespace Dino_Defenders.Server
             player.Sim.Write(writer);
             writer.WriteFloat(player.Health);
             writer.WriteUInt(player.LastClientTime);
-            writer.WriteVarUInt((uint)Math.Min(_clock.ElapsedMilliseconds - player.LastClientTimeArrived, 100000));
+            writer.WriteVarUInt((uint)Math.Clamp(Clock() - player.LastClientTimeArrived, 0, 100000));
+            writer.WriteUInt(player.NewestCommand);
 
             int budget = Math.Min(player.Connection.MaxUnreliableSize, Protocol.SnapshotBudget);
             Ghosts.WriteSnapshot(view, writer, budget * 8, Tick);

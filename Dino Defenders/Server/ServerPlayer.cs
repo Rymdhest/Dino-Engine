@@ -74,6 +74,10 @@ namespace Dino_Defenders.Server
             int spare = (int)(command.Tick - nextTick);
             if (command.Tick > NewestCommand) NewestCommand = command.Tick;
 
+            // How tight it was for this one, the first time it arrives. A packet from a slow client holds several ticks, and what
+            // matters to its clock is the oldest of them, not the newest.
+            if (!Seen(command.Tick) && spare < _worstSpare) _worstSpare = spare;
+
             if (command.Tick < nextTick)
             {
                 // Its tick has gone, but a press still counts: it happens late rather than not at all, or it would be lost
@@ -81,6 +85,7 @@ namespace Dino_Defenders.Server
                 if (command.Tick + CommandRing > nextTick && !Seen(command.Tick))
                 {
                     _carried |= command.Buttons & HeroButtons.Presses;
+                    _commands[command.Tick % CommandRing] = command;
                     LateCommands++;
                 }
                 return;
@@ -92,13 +97,6 @@ namespace Dino_Defenders.Server
         }
 
         private bool Seen(uint tick) => _commands[tick % CommandRing].Tick == tick;
-
-        /// <summary>Notes the tightest a packet has made it by, which goes back to the client to steer its clock by.</summary>
-        public void NoteArrival(uint newest, uint nextTick)
-        {
-            int spare = (int)(newest - nextTick);
-            if (spare < _worstSpare) _worstSpare = spare;
-        }
 
         /// <summary>The command for this tick. If it hasn't come, the last one again: most of the time a player is doing what they just did.</summary>
         public HeroCommand Take(uint tick)

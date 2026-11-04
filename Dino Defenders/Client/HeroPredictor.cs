@@ -34,6 +34,8 @@ namespace Dino_Defenders.Client
         public float WorstCorrection { get; private set; }
         public int Compared { get; private set; }
 
+        public void ForgetWorst() => WorstCorrection = 0f;
+
         public void Reset(in HeroSimState state, uint tick)
         {
             _current = state;

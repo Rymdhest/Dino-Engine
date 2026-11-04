@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Dino Engine\Dino Engine.csproj" />
+    <ProjectReference Include="..\Dino Defenders\Dino Defenders.csproj" />
   </ItemGroup>
 
 </Project>

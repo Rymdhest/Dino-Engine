@@ -6,13 +6,16 @@ namespace Dino_NetLab
     /// <summary>
     /// Tests networking with no window and no real network: a server and clients in one process, joined by a simulated line, stepped
     /// by hand so that minutes pass in seconds and every run goes the same way.
-    ///   core  [--seed N] [--fuzz N]     The replication layer on its own.
+    ///   core  [--seed N] [--fuzz N]                 The replication layer on its own.
+    ///   game  [--seed N] [--seconds N] [--fuzz N]   The whole game: real server, real clients, every kind of line.
     /// Exit code 1 on any failure.
     /// </summary>
     internal static class Program
     {
         private static int Main(string[] args)
         {
+            // The game's assembly has to be loaded for its components to be found.
+            _ = typeof(Dino_Defenders.Server.GameServer).Assembly;
             ComponentTypeRegistry.AutoRegisterAllComponents();
             NetSchema.Build();
 
@@ -22,6 +25,8 @@ namespace Dino_NetLab
             {
                 case "core":
                     return CoreTests.Run(options);
+                case "game":
+                    return GameTests.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

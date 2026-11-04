@@ -18,6 +18,7 @@ namespace Dino_Engine.Networking
         private LoopbackTransport _other = null!;
         private bool _announced;
         private bool _closed;
+        private bool _reported;
 
         private LoopbackTransport()
         {
@@ -46,8 +47,9 @@ namespace Dino_Engine.Networking
             {
                 if (item.Closed != null)
                 {
-                    if (_closed) continue;
                     _closed = true;
+                    if (_reported) continue;
+                    _reported = true;
                     listener.OnDisconnected(_connection, item.Closed);
                     continue;
                 }
@@ -85,6 +87,7 @@ namespace Dino_Engine.Networking
                 if (_owner._closed) return;
                 _owner._closed = true;
                 _owner._other._incoming.Enqueue(new Item(null, Delivery.Reliable, reason));
+                _owner._incoming.Enqueue(new Item(null, Delivery.Reliable, reason));
             }
         }
     }
