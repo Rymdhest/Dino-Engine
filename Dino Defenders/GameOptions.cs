@@ -6,7 +6,7 @@ namespace Dino_Defenders
     /// <summary>
     /// What the game was started with. Playing needs none of it; these jump straight to a world for development, and let a
     /// scripted run look at one spot, take a screenshot and quit.
-    ///   --seed N  --archetype id  --site Kind  --at x,z  --look distance  --shot file.png  --frames N
+    ///   --seed N  --archetype id  --site Kind  --at x,z  --look distance  --angle degrees  --shot file.png  --frames N
     ///   --tour folder   Visits one of every kind of site, and a wood, a road and a shore, photographing each.
     ///   --level N       How dangerous the first world is.
     ///   --bot true      Plays the hero: it fights whatever is near. For watching the game run with nobody at the keyboard.
@@ -30,6 +30,7 @@ namespace Dino_Defenders
         public string? Site;
         public Vector2? At;
         public float? Look;         // Metres above the player for a high look at a place.
+        public float? Angle;        // Degrees above the horizon the camera looks down from, for a low look at a place.
         public string? Shot;
         public string? Tour;
         public int ShotAfterFrames = 150;
@@ -68,6 +69,7 @@ namespace Dino_Defenders
                         options.At = new Vector2(float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
                         break;
                     case "look": options.Look = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
+                    case "angle": options.Angle = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "shot": options.Shot = value; break;
                     case "tour": options.Tour = value; break;
                     case "frames": options.ShotAfterFrames = int.Parse(value); break;

@@ -50,6 +50,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private int normalRoadHeightTextureArray;
         private int grassTextureArray;
         private int grassColourTextureArray;
+        private int grassBloomTextureArray;
         private readonly int[] surfaceWeightArrays = new int[3];
         private readonly Vector4[] surfaceMaterials = new Vector4[3];
         private IDAllocator<ushort> normalHeightTextureArrayAllocator = new();
@@ -128,6 +129,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             normalRoadHeightTextureArray = CreateChunkTextureArray();
             grassTextureArray = CreateChunkTextureArray();
             grassColourTextureArray = CreateChunkTextureArray();
+            grassBloomTextureArray = CreateChunkTextureArray();
             for (int i = 0; i < surfaceWeightArrays.Length; i++) surfaceWeightArrays[i] = CreateChunkTextureArray();
 
 
@@ -196,6 +198,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             return grassColourTextureArray;
         }
+        public int GetGrassBloomTextureArray()
+        {
+            return grassBloomTextureArray;
+        }
 
         public void freeChunk(int chunk)
         {
@@ -226,6 +232,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             UploadSliceData(normalRoadHeightTextureArray, pixelsNormalRoadHeight, resolution, id);
             UploadSliceData(grassTextureArray, surface.Grass, resolution, id);
             UploadSliceData(grassColourTextureArray, surface.GrassColour, resolution, id);
+            UploadSliceData(grassBloomTextureArray, surface.GrassBloom, resolution, id);
             for (int i = 0; i < surfaceWeightArrays.Length; i++)
             {
                 UploadSliceData(surfaceWeightArrays[i], surface.Weights[i], resolution, id);

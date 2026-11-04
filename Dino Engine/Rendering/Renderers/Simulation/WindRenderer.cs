@@ -36,7 +36,7 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
         public const int WindMapResolution = 512;
         public const float WindMapSize = 256f;
         public const int VegetationResolution = 1024;
-        public const float VegetationSize = 100f;
+        public const float VegetationSize = 160f;
 
         private const int ContactsPerPass = 32;
         // WindData in Wind.glsl: 7 vec4s, then 3 vec4s per emitter.

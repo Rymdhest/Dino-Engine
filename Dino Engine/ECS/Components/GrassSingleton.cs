@@ -8,7 +8,8 @@ namespace Dino_Engine.ECS.Components
     /// scatters blades over the visible terrain chunks, gathers them into tufts, thins them out with distance, culls them
     /// and builds each survivor's curve; nothing about single blades is stored. Where grass grows comes from the terrain's
     /// grass map. Register one as a world singleton; edit it live from the F3 Render window. Without one, grass renders
-    /// with these defaults.
+    /// with these defaults. The distances suit a camera some 30 metres out: everything it sees should be well inside
+    /// <see cref="FalloffStart"/>, or the player only ever meets the field's thinned-out far end.
     /// </summary>
     public struct GrassSingleton : IComponent
     {
@@ -37,6 +38,18 @@ namespace Dino_Engine.ECS.Components
         public float ClumpHeightVariation;  // 0..1, how much tufts differ in height.
         public float ClumpSplay;            // 0..1, 0 = blades lean every which way, 1 = they lean out from their tuft's centre.
 
+        // --- The field as a whole, which is what the eye reads from above ---
+        public float Swell;                 // 0..1, how far the top of the field rises and sinks, as a share of its height.
+        public float SwellSize;             // Metres across a swell.
+        public float Comb;                  // 0..1, how much blades lean the way the field is combed rather than their own way.
+        public float CombSize;              // Metres across a sweep of the combing.
+
+        // --- Wind, on top of what WindSingleton does to all plants ---
+        public float WindGain;              // How much further grass bends than other plants do.
+        public float WaveStrength;          // Radians the waves rolling down the wind lean the field over, in a 3 m/s wind.
+        public float WaveLength;            // Metres between waves.
+        public float WindSheen;             // 0..1, how much gusts and waves light the blades they lean over.
+
         // --- Colour ---
         public Vector3 RootColour;          // Shaded base of the blades.
         public Vector3 BodyColour;          // Healthy blade.
@@ -47,6 +60,15 @@ namespace Dino_Engine.ECS.Components
         public float Translucency;          // Light let through by backlit blades.
         public float Roughness;
         public float GroundTint;            // 0..1, how much the ground under the grass takes on the field's colour, which hides the gaps.
+        public float HueDrift;              // 0..1, how far colour wanders between cool and warm across the field.
+        public float CanopyShade;           // 0..1, how dark it gets deep inside the field.
+        public float FieldNormal;           // 0..1, how much blades are lit as one soft surface rather than each on its own.
+
+        // --- Flowers and seed heads. Where and how many is the biome's; these scale it ---
+        public float BloomAmount;           // Multiplies the share of blades in flower.
+        public float BloomSize;             // Metres across a flower.
+        public float PlumeAmount;           // Multiplies the share of tufts in seed.
+        public Vector3 PlumeColour;         // Seed heads.
 
         // --- Shadows ---
         public float ShadowDistance;        // Metres from the camera within which blades cast shadows.
@@ -56,38 +78,56 @@ namespace Dino_Engine.ECS.Components
         {
             Enabled = true;
 
-            Density = 110f;
-            DrawDistance = 75f;
-            FalloffStart = 22f;
+            Density = 140f;
+            DrawDistance = 115f;
+            FalloffStart = 48f;
             MinDensity = 0.3f;
-            LodDistance = 16f;
+            LodDistance = 44f;
 
             Height = 1.2f;
             HeightVariation = 0.35f;
-            Width = 0.05f;
-            Tilt = 0.3f;
-            TiltVariation = 0.25f;
-            Droop = 0.55f;
-            Roundness = 0.45f;
+            Width = 0.07f;
+            Tilt = 0.5f;
+            TiltVariation = 0.3f;
+            Droop = 1f;
+            Roundness = 0.5f;
             Thickening = 0.6f;
 
-            ClumpSize = 0.55f;
-            ClumpPull = 0.3f;
+            ClumpSize = 0.85f;
+            ClumpPull = 0.35f;
             ClumpHeightVariation = 0.35f;
-            ClumpSplay = 0.6f;
+            ClumpSplay = 0.45f;
 
-            RootColour = new Vector3(0.035f, 0.06f, 0.018f);
+            Swell = 0.45f;
+            SwellSize = 17f;
+            Comb = 0.68f;
+            CombSize = 30f;
+
+            WindGain = 1.6f;
+            WaveStrength = 0.55f;
+            WaveLength = 11f;
+            WindSheen = 0.7f;
+
+            RootColour = new Vector3(0.02f, 0.05f, 0.03f);
             BodyColour = new Vector3(0.13f, 0.2f, 0.05f);
-            TipColour = new Vector3(0.36f, 0.37f, 0.12f);
-            DryColour = new Vector3(0.42f, 0.33f, 0.16f);
-            ColourVariation = 0.5f;
-            DryPatches = 0.25f;
-            Translucency = 0.6f;
+            TipColour = new Vector3(0.5f, 0.55f, 0.14f);
+            DryColour = new Vector3(0.46f, 0.32f, 0.1f);
+            ColourVariation = 0.55f;
+            DryPatches = 0.08f;
+            Translucency = 0.8f;
             Roughness = 0.5f;
-            GroundTint = 0.7f;
+            GroundTint = 0.85f;
+            HueDrift = 0.7f;
+            CanopyShade = 0.6f;
+            FieldNormal = 0.68f;
 
-            ShadowDistance = 45f;
-            ShadowDensity = 0.6f;
+            BloomAmount = 1f;
+            BloomSize = 0.17f;
+            PlumeAmount = 1f;
+            PlumeColour = new Vector3(0.6f, 0.48f, 0.26f);
+
+            ShadowDistance = 70f;
+            ShadowDensity = 0.35f;
         }
     }
 }

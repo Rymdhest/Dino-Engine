@@ -11,6 +11,9 @@ namespace Dino_Engine.World
         public float Height;    // 0..1 of the world's longest blades.
         public float Dryness;   // 0..1, how much of it has turned to straw.
         public Vector3 Colour;
+        public float Plumes;    // 0..1, share of its tufts carrying seed heads.
+        public float Bloom;     // 0..1, share of its blades that are flowers.
+        public Vector3 BloomColour;
     }
 
     /// <summary>
@@ -124,6 +127,11 @@ namespace Dino_Engine.World
             float blade = 0f;
             float dry = 0f;
             Vector3 colour = Vector3.Zero;
+            float plumes = 0f;
+            float bloom = 0f;
+            Vector3 bloomColour = Vector3.Zero;
+            // Flowers grow in drifts, each of one colour.
+            float bloomPick = Smoothstep(0.4f, 0.6f, _noise.Fbm01(x + 211f, z + 47f, 19f, 2));
 
             for (int b = 0; b < _biomes.Length; b++)
             {
@@ -142,6 +150,9 @@ namespace Dino_Engine.World
                 blade += share * biome.GrassHeight;
                 dry += share * biome.GrassDryness;
                 colour += share * biome.GrassColour;
+                plumes += share * biome.GrassPlumes;
+                bloom += share * biome.GrassBloom;
+                bloomColour += share * Vector3.Lerp(biome.GrassBloomColour, biome.GrassBloomColourTwo, bloomPick);
             }
 
             weights[_slot[(int)SurfaceMaterial.Cobble]] += paved;
@@ -149,8 +160,8 @@ namespace Dino_Engine.World
             weights[_slot[(int)SurfaceMaterial.Gravel]] += plaza * notRoad;
             weights[_slot[(int)SurfaceMaterial.Farmland]] += farm * notRoad;
 
-            float small = 0.62f + 0.38f * _noise.Fbm01(x, z, 2.2f, 2);
-            float broad = 0.52f + 0.48f * _noise.Fbm01(x + 91f, z - 13f, 6f, 2);
+            float small = 0.8f + 0.2f * _noise.Fbm01(x, z, 2.2f, 2);
+            float broad = 0.72f + 0.28f * _noise.Fbm01(x + 91f, z - 13f, 6f, 2);
             float grows = (1f - rock) * notRoad * (1f - plaza) * (1f - farm) * (1f - yard * 0.7f);
             // Grass thins out over the last of the dry ground and stops at the water.
             grows *= Smoothstep(0.02f, 0.5f, above);
@@ -160,9 +171,12 @@ namespace Dino_Engine.World
             grass = new GrassCell
             {
                 Cover = Saturate(cover * small * broad * grows * normalY),
-                Height = Saturate(blade),
+                Height = Saturate(blade * (1f - canopy * 0.3f)),
                 Dryness = Saturate(dry + drift * 0.08f),
                 Colour = colour * tint,
+                Plumes = Saturate(plumes),
+                Bloom = Saturate(bloom * Smoothstep(0.42f, 0.62f, _noise.Fbm01(x - 57f, z + 133f, 31f, 2)) * (1f - canopy)),
+                BloomColour = bloomColour,
             };
         }
     }

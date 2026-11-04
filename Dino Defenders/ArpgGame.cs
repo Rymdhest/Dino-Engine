@@ -361,6 +361,8 @@ namespace Dino_Defenders
 
             HeroPredictor predictor = _client!.Predictor;
             Console.WriteLine($"Net: {_client.Party.Count} in the party, {_client.Ghosts.Ghosts.Count} ghosts, round trip {_client.RoundTrip:0} ms, {predictor.Corrections} corrections in {predictor.Compared} checks (worst {predictor.WorstCorrection:0.00} m), {_client.Ghosts.Mismatches} mismatches, {_client.BytesReceived / 1024} KB in, {_client.BytesSent / 1024} KB out");
+            var grass = Dino_Engine.Core.Engine.RenderEngine._grassRenderer;
+            Console.WriteLine($"Grass: {grass.NearBladesDrawn} near, {grass.FarBladesDrawn} far");
         }
 
         private void Save()
@@ -645,10 +647,11 @@ namespace Dino_Defenders
             float height = session.World.Height.Sample(start);
 
             float look = _options.Look ?? 30f;
-            Vector3 offset = new Vector3(0f, look, -look * 0.43f);
+            float pitch = _options.Angle is float angle ? MathHelper.DegreesToRadians(angle) : MathF.PI / 2.7f;
+            Vector3 offset = new Vector3(0f, look, -look / MathF.Tan(pitch));
             ecs.GameCamera = ecs.CreateEntity("Camera",
                 new PositionComponent(new Vector3(start.X, height, start.Y) + offset),
-                new RotationComponent(MathF.PI / 2.7f, MathF.PI, 0f),
+                new RotationComponent(pitch, MathF.PI, 0f),
                 new MainCameraTag(),
                 new LocalToWorldMatrixComponent(),
                 new ViewMatrixComponent(),

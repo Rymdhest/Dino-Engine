@@ -36,7 +36,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     /// GPU grass after Ghost of Tsushima. For every view (the camera, and each light that casts grass shadows)
     /// Grass/Grass_Generate.comp scatters blades over the submitted chunks, gathers them into tufts, thins them with
     /// distance, culls them and appends the survivors, as finished Bézier curves, to a near list (15 vertex blades) and a
-    /// far list (7 vertices). Both are drawn with indirect draws, the vertices built from gl_VertexID alone.
+    /// far list (7 vertices). Both are drawn with indirect draws, the vertices built from gl_VertexID alone. Some blades are
+    /// plumes or blooms, which the same strips draw differently; where they grow is in the terrain's bloom and colour maps.
     /// Settings come from <see cref="GrassSingleton"/> and reach the shaders as the GrassData uniform block (binding
     /// <see cref="UniformBinding"/>, Grass/GrassField.glsl), which Terrain.frag also reads to tint the ground under the grass.
     /// With MSAA, blades thinner than <see cref="MinPixelWidth"/> on screen are drawn that wide over a matching share of
@@ -53,12 +54,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private const int NearBinding = 1;
         private const int FarBinding = 2;
         private const int WorkGroupSize = 64;
-        private const int BladeStride = 48;
+        private const int BladeStride = 64;
         private const int NearSegments = 7;
         private const int FarSegments = 3;
-        private const int NearCapacity = 1 << 18;
-        private const int FarCapacity = 1 << 19;
-        private const int SettingsVec4s = 10;
+        private const int NearCapacity = 1 << 20;
+        private const int FarCapacity = 1 << 20;
+        private const int SettingsVec4s = 14;
         private const int StatsFrames = 4;
         // Least width of a blade on screen, in pixels, when thin blades are anti-aliased by coverage (Grass.vert). At one
         // pixel a blade crossing the standard MSAA patterns always spans one of every sample position, so the share of
@@ -68,6 +69,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private const int HeightMapUnit = 0;
         private const int GrassMapUnit = 1;
         private const int GrassColourMapUnit = 2;
+        private const int GrassBloomMapUnit = 3;
         private const int BendMapUnit = 8;
         private const int WindMapUnit = 9;
 
@@ -104,6 +106,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _generateShader.loadUniformInt("heightmaps", HeightMapUnit);
             _generateShader.loadUniformInt("grassMaps", GrassMapUnit);
             _generateShader.loadUniformInt("grassColourMaps", GrassColourMapUnit);
+            _generateShader.loadUniformInt("grassBloomMaps", GrassBloomMapUnit);
             _generateShader.loadUniformInt("bendMap", BendMapUnit);
             _generateShader.loadUniformInt("windMap", WindMapUnit);
             _generateShader.loadUniformInt("nearCapacity", NearCapacity);
@@ -173,7 +176,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             WriteSettings(6, s.BodyColour.X, s.BodyColour.Y, s.BodyColour.Z, s.DryPatches);
             WriteSettings(7, s.TipColour.X, s.TipColour.Y, s.TipColour.Z, s.Translucency);
             WriteSettings(8, s.DryColour.X, s.DryColour.Y, s.DryColour.Z, s.Roughness);
-            WriteSettings(9, s.Enabled ? s.GroundTint : 0f, 0f, 0f, 0f);
+            WriteSettings(9, s.Enabled ? s.GroundTint : 0f, s.BloomAmount, 0f, 0f);
+            WriteSettings(10, s.Swell, 1f / MathF.Max(s.SwellSize, 0.1f), s.Comb, 1f / MathF.Max(s.CombSize, 0.1f));
+            WriteSettings(11, s.WindGain, s.WaveStrength, 1f / MathF.Max(s.WaveLength, 0.1f), s.WindSheen);
+            WriteSettings(12, s.HueDrift, s.CanopyShade, s.FieldNormal, s.BloomSize);
+            WriteSettings(13, s.PlumeColour.X, s.PlumeColour.Y, s.PlumeColour.Z, s.PlumeAmount);
 
             GL.BindBuffer(BufferTarget.UniformBuffer, _settingsBuffer);
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, _settingsData.Length * sizeof(float), _settingsData);
@@ -243,6 +250,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine._terrainRenderer.GetGrassTextureArray());
             GL.ActiveTexture(TextureUnit.Texture0 + GrassColourMapUnit);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine._terrainRenderer.GetGrassColourTextureArray());
+            GL.ActiveTexture(TextureUnit.Texture0 + GrassBloomMapUnit);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine._terrainRenderer.GetGrassBloomTextureArray());
             GL.ActiveTexture(TextureUnit.Texture0 + BendMapUnit);
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.VegetationBendTexture);
             GL.ActiveTexture(TextureUnit.Texture0 + WindMapUnit);

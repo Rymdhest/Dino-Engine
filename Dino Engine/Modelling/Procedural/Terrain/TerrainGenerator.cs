@@ -12,14 +12,17 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public readonly float[][] Weights = new float[3][];
         /// <summary>Per texel: cover (r, which the grass carve erases under objects), height (g), dryness (b).</summary>
         public readonly float[] Grass;
-        /// <summary>Per texel: the grass's colour.</summary>
+        /// <summary>Per texel: the grass's colour (rgb) and the share of its tufts in seed (a).</summary>
         public readonly float[] GrassColour;
+        /// <summary>Per texel: the colour of the flowers in the grass (rgb) and the share of its blades in flower (a).</summary>
+        public readonly float[] GrassBloom;
 
         public TerrainChunkSurface(int texels)
         {
             for (int i = 0; i < Weights.Length; i++) Weights[i] = new float[texels * 4];
             Grass = new float[texels * 4];
             GrassColour = new float[texels * 4];
+            GrassBloom = new float[texels * 4];
         }
     }
 
@@ -124,6 +127,11 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     surface.GrassColour[texel] = grass.Colour.X;
                     surface.GrassColour[texel + 1] = grass.Colour.Y;
                     surface.GrassColour[texel + 2] = grass.Colour.Z;
+                    surface.GrassColour[texel + 3] = grass.Plumes;
+                    surface.GrassBloom[texel] = grass.BloomColour.X;
+                    surface.GrassBloom[texel + 1] = grass.BloomColour.Y;
+                    surface.GrassBloom[texel + 2] = grass.BloomColour.Z;
+                    surface.GrassBloom[texel + 3] = grass.Bloom;
                 }
             }
 
