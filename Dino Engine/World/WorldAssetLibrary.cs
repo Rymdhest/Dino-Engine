@@ -17,6 +17,10 @@ namespace Dino_Engine.World
     /// </summary>
     public sealed class WorldAssetLibrary
     {
+        // Off while the camera stays top down: it never sees far enough to need them, and at its height the distances in the catalogs
+        // turned plants into imposters just past the hero. A model that isn't given one is always drawn, and casts its shadow, as a mesh.
+        private static readonly bool UseImposters = false;
+
         private readonly Dictionary<string, glModel> _models = new();
         private readonly Dictionary<string, List<Vector3>> _chimneys = new();
 
@@ -50,7 +54,7 @@ namespace Dino_Engine.World
 
             model = glLoader.loadToVAO(mesh);
             model.swayAmount = sway;
-            if (imposterDistance > 0f) Engine.RenderEngine.textureGenerator.AddImposterToModel(model, imposterDistance);
+            if (UseImposters && imposterDistance > 0f) Engine.RenderEngine.textureGenerator.AddImposterToModel(model, imposterDistance);
             _models.Add(id, model);
             return model;
         }
