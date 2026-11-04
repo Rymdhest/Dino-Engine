@@ -85,6 +85,7 @@ namespace Dino_Defenders
         public ArpgGame(Engine engine, GameOptions options) : base(engine)
         {
             _options = options;
+            ApplyRenderOptions(options.Render);
             HeroName = options.Name ?? "";
             _presenter = new GhostPresenter(_characters);
             engine.WorldReady = false;
@@ -110,6 +111,16 @@ namespace Dino_Defenders
                 : new WorldRequest(options.Seed ?? Environment.TickCount, options.Archetype, options.Level), _save);
 
             if (options.Host) OpenToFriends();
+        }
+
+        private static void ApplyRenderOptions(string? render)
+        {
+            if (render == null) return;
+            foreach (string setting in render.Split(','))
+            {
+                string[] parts = setting.Split('=');
+                if (parts.Length != 2 || !Dino_Engine.Core.Engine.RenderEngine.Lighting.Set(parts[0], parts[1])) Console.WriteLine($"No render setting '{setting}'.");
+            }
         }
 
         private void RegisterSystems()

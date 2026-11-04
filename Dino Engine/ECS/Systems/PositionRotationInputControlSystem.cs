@@ -122,15 +122,14 @@ namespace Dino_Engine.ECS.Systems
                 var colVector = new Vector3(1f, 1f, 1f);
                 if (colVector.Length < 1.0) colVector.Normalize();
                 var col = new Colour(colVector);
-                col.Intensity = 2.0f;
+                col.Intensity = 120.0f;
                 Vector3 forward = currentFinalRotation * -Vector3.UnitZ;
                 float FoV = MathF.PI / 3.0f;
                 world.CreateEntity("Shooting ball",
                     new VelocityComponent(forward * speed),
                     new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation() + forward * 1f),
                     new LocalToWorldMatrixComponent(),
-                    new AttunuationComponent(0.002f, 0.002f, 0.002f),
-                    new AmbientLightComponent(0.0f),
+                    new LightRangeComponent(25f),
                     new ScaleComponent(new Vector3(.1f)),
                     new ModelComponent(ModelGenerator.UNIT_SPHERE),
                     new ModelRenderTag(),
@@ -168,7 +167,7 @@ namespace Dino_Engine.ECS.Systems
                     var colVector = new Vector3(1f, 1f, 1f);
                     if (colVector.Length < 1.0) colVector.Normalize();
                     var col = new Colour(colVector);
-                    col.Intensity = 5.0f;
+                    col.Intensity = 60.0f;
                     Vector3 forward = currentFinalRotation * -Vector3.UnitZ;
                     float FoV = MathF.PI / 3.0f;
                     world.CreateEntity("Shooting ball",
@@ -176,14 +175,13 @@ namespace Dino_Engine.ECS.Systems
                         new PositionComponent(entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation() + forward * 1f),
                         new LocalToWorldMatrixComponent(),
                         new RotationComponent(),
-                        new AttunuationComponent(0.01f, 0.01f, 0.01f),
-                        new AmbientLightComponent(0.02f),
+                        new LightRangeComponent(16f, 0.1f),
                         new ScaleComponent(new Vector3(0.05f)),
                         new ModelComponent(ModelGenerator.UNIT_SPHERE),
                         new ModelRenderTag(),
                         new DirectionNormalizedComponent(forward),
                         new PointLightTag(),
-                        new PointLightShadowComponent(512),
+                        new PointLightShadowComponent(),
                         new MassComponent(mass),
                         new ColorComponent(col),
                         new ColliderComponent { Type = ColliderType.Sphere, Data = new ColliderData { Radius = 2.5f }, Restitution = 0.2f },

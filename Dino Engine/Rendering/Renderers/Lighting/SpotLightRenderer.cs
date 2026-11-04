@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 using static OpenTK.Graphics.OpenGL.GL;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.AntiAliasing;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
@@ -14,12 +15,11 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     {
         public Quaternion rotation;
         public Vector3 colour;
-        public Vector3 attenuation;
-        public float attenuationRadius;
+        public float radius;
+        public float fill;
         public Vector3 direction;
         public Vector3 positionWorld;
         public float softness;
-        public float ambient;
         public float halfAngleRad;
         public float cutoffCosine;
         public Shadow? shadow;
@@ -30,6 +30,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         // Per pixel, and per sample for the edge pixels (MsaaRenderer.DrawSplit).
         private ShaderProgram _spotLightShader = new ShaderProgram("Point_Light.vert", "Spot_Light.frag");
         private ShaderProgram _spotLightSampleShader = new ShaderProgram("Point_Light.vert", "Spot_Light.frag", new[] { "PER_SAMPLE" });
+        private Frustum _view;
+
         public SpotLightRenderer() : base("Spotlight")
         {
             foreach (ShaderProgram shader in new[] { _spotLightShader, _spotLightSampleShader })
@@ -47,6 +49,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         }
         internal override void Prepare(RenderEngine renderEngine)
         {
+            _view = new Frustum(renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix);
+
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Front);
             //GL.CullFace(CullFaceMode.Back);
@@ -88,6 +92,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         public override void PerformCommand(SpotlightRenderCommand command, RenderEngine renderEngine)
         {
+            Vector3 reach = new Vector3(command.radius);
+            if (_view.IntersectsAABB(new AABB(command.positionWorld - reach, command.positionWorld + reach)) == IntersectionResult.Outside) return;
+
             Matrix4 shadowMatrix = Matrix4.Identity;
             if (command.shadow != null)
             {
@@ -98,7 +105,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shadowMatrix = renderEngine.context.invViewMatrix * shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
             }
 
-            float attunuationRadius = command.attenuationRadius;
             Vector3 worldPos = command.positionWorld;
 
             Vector3 from = new Vector3(0, -1, 0);
@@ -110,7 +116,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             float halfAngleModel = MathF.PI / 8f; // model's built-in 22.5°
             float radiusScale = MathF.Tan(command.halfAngleRad) / MathF.Tan(halfAngleModel);
-            Vector3 scale = new Vector3(radiusScale * attunuationRadius, attunuationRadius, radiusScale * attunuationRadius);
+            Vector3 scale = new Vector3(radiusScale * command.radius, command.radius, radiusScale * command.radius);
             Matrix4 transformationMatrix = MyMath.createTransformationMatrix(worldPos, rotationToDesired, scale * 1.05f);
 
             Vector4 lightPositionViewSpace = ((new Vector4(worldPos, 1.0f))) * renderEngine.context.viewMatrix;
@@ -130,10 +136,10 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformVector3f("lightDirectionViewSpace", lightDirectionViewSpace.Xyz);
 
                 shader.loadUniformVector3f("lightColor", command.colour);
-                shader.loadUniformVector3f("attenuation", command.attenuation);
+                shader.loadUniformFloat("lightRadius", command.radius);
                 shader.loadUniformFloat("softness", command.softness);
                 shader.loadUniformFloat("cutoffCosine", command.cutoffCosine);
-                shader.loadUniformFloat("lightAmbient", command.ambient);
+                shader.loadUniformFloat("lightFill", command.fill);
 
                 GL.DrawElements(PrimitiveType.Triangles, ModelGenerator.UNIT_CONE.getVertexCount(), DrawElementsType.UnsignedInt, 0);
             });

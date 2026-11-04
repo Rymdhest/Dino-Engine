@@ -1,21 +1,23 @@
 #version 330
 
+// What bloom spreads: only light brighter than the threshold, with a soft knee so nothing switches on at an edge. The
+// rest of the scene is left out entirely, or the blur would lay a veil over the whole picture.
+
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
 
 uniform sampler2D shadedInput;
-uniform sampler2D gMaterials;
-uniform sampler2D gAlbedo;
-uniform float bloomStrength;
-uniform float emissionStrength;
+uniform float threshold;
+uniform float knee;
 
 void main(void){
 
-	vec3 diffuse = texture(shadedInput, textureCoords).rgb;
-	vec3 albedo = texture(gAlbedo, textureCoords).rgb;
-	float emission = texture(gMaterials, textureCoords).y;
+	vec3 colour = texture(shadedInput, textureCoords).rgb;
+	float brightness = max(colour.r, max(colour.g, colour.b));
 
-	float luminance = dot(diffuse, vec3(0.2126, 0.7152, 0.0722));
-	vec3 globalBloom = diffuse*luminance*bloomStrength;
-	out_Colour.rgb = (globalBloom+albedo*emission*emissionStrength);
+	float soft = clamp(brightness - threshold + knee, 0.0, 2.0 * knee);
+	soft = soft * soft / (4.0 * knee + 1e-4);
+	float kept = max(soft, brightness - threshold) / max(brightness, 1e-4);
+
+	out_Colour = vec4(colour * kept, 1.0);
 }

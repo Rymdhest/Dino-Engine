@@ -5,11 +5,12 @@ using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Widgets;
 using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.AntiAliasing;
+using Dino_Engine.Rendering.Renderers.Lighting;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.GUI.Debug
 {
-    /// <summary>Live render controls: debug view, anti-aliasing, sun direction/intensity, wind, grass, fog, water, camera FOV and a G-buffer viewer.</summary>
+    /// <summary>Live render controls: debug view, anti-aliasing, sun and sky, lighting, wind, grass, fog, water, camera FOV and a G-buffer viewer.</summary>
     internal static class RenderWindowBuilder
     {
         private static readonly string[] BufferNames = { "Final image", "Albedo", "Normals", "Materials", "Depth" };
@@ -57,6 +58,41 @@ namespace Dino_Engine.GUI.Debug
                     colour.value = c;
                     SetSun(colour);
                 })));
+            sun.Content.Add(DebugUi.LabeledRow("Sky", new Slider(0f, 4f) { Format = "0.00", FormatProvider = DebugUi.Culture }.Bind(
+                () => TryGetSky(out _, out var colour) ? colour.value.Intensity : 0f,
+                value =>
+                {
+                    if (!TryGetSky(out Entity entity, out var colour)) return;
+                    var c = colour.value;
+                    c.Intensity = value;
+                    colour.value = c;
+                    Engine.Instance!.world.GetEntityView(entity).Set(colour);
+                })));
+
+            // ---------------------------------------------------------------- lighting
+            var light = window.Content.Add(new Foldout("Lighting"));
+            LightingSettings lighting = Engine.RenderEngine.Lighting;
+            light.Content.Add(DebugUi.Muted("Each of these takes one source of light out, to see what the rest do alone.", wrap: true));
+            light.Content.Add(new Checkbox("Sun").Bind(() => lighting.Sun, value => lighting.Sun = value));
+            light.Content.Add(new Checkbox("Sky").Bind(() => lighting.Sky, value => lighting.Sky = value));
+            light.Content.Add(new Checkbox("Point lights and spotlights").Bind(() => lighting.LocalLights, value => lighting.LocalLights = value));
+            light.Content.Add(new Checkbox("Emissive surfaces").Bind(() => lighting.Emission, value => lighting.Emission = value));
+            light.Content.Add(new Checkbox("Fog and haze").Bind(() => lighting.Fog, value => lighting.Fog = value));
+            light.Content.Add(new Checkbox("Bloom").Bind(() => lighting.Bloom, value => lighting.Bloom = value));
+            light.Content.Add(DebugUi.Heading("Levels"));
+            light.Content.Add(LightingSlider("Exposure", 0.1f, 2f, "0.00", () => lighting.Exposure, v => lighting.Exposure = v));
+            light.Content.Add(LightingSlider("Sky fill", 0f, 3f, "0.00", () => lighting.SkyFill, v => lighting.SkyFill = v));
+            light.Content.Add(LightingSlider("Sun fill", 0f, 0.2f, "0.000", () => lighting.SunFill, v => lighting.SunFill = v));
+            light.Content.Add(LightingSlider("Ground bounce", 0f, 1f, "0.00", () => lighting.GroundAlbedo, v => lighting.GroundAlbedo = v));
+            light.Content.Add(LightingSlider("Local lights", 0f, 4f, "0.00", () => lighting.LocalLightScale, v => lighting.LocalLightScale = v));
+            light.Content.Add(LightingSlider("Emission", 0f, 4f, "0.00", () => lighting.EmissionScale, v => lighting.EmissionScale = v));
+            light.Content.Add(DebugUi.Heading("Bloom"));
+            light.Content.Add(LightingSlider("Threshold", 0f, 16f, "0.0", () => lighting.BloomThreshold, v => lighting.BloomThreshold = v));
+            light.Content.Add(LightingSlider("Knee", 0.01f, 8f, "0.0", () => lighting.BloomKnee, v => lighting.BloomKnee = v));
+            light.Content.Add(LightingSlider("Strength", 0f, 3f, "0.00", () => lighting.BloomStrength, v => lighting.BloomStrength = v));
+            light.Content.Add(DebugUi.Heading("Shadows"));
+            light.Content.Add(LightingSlider("Point lights", 0f, 8f, "0", () => lighting.ShadowedPointLights, v => lighting.ShadowedPointLights = (int)v, step: 1f));
+            light.Content.Add(LightingSlider("Distance", 10f, 120f, "0 m", () => lighting.ShadowDistance, v => lighting.ShadowDistance = v, step: 1f));
 
             // ---------------------------------------------------------------- wind
             var wind = window.Content.Add(new Foldout("Wind"));
@@ -255,6 +291,24 @@ namespace Dino_Engine.GUI.Debug
         }
 
         // ---------------------------------------------------------------- helpers
+
+        private static GuiElement LightingSlider(string caption, float min, float max, string format, Func<float> get, Action<float> set, float step = 0f)
+        {
+            return DebugUi.LabeledRow(caption, new Slider(min, max) { Format = format, Step = step, FormatProvider = DebugUi.Culture }.Bind(get, set));
+        }
+
+        private static bool TryGetSky(out Entity entity, out ColorComponent colour)
+        {
+            entity = default;
+            colour = default;
+            var world = Engine.Instance?.world;
+            if (world == null) return false;
+            List<Entity> skies = world.QueryEntities(new BitMask(typeof(SkyTag), typeof(ColorComponent)), BitMask.Empty);
+            if (skies.Count == 0) return false;
+            entity = skies[0];
+            colour = world.GetComponent<ColorComponent>(entity);
+            return true;
+        }
 
         private delegate void WindSetter(ref WindSingleton wind, float value);
 

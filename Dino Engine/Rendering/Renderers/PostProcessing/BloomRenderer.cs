@@ -1,25 +1,30 @@
 ﻿using Dino_Engine.Core;
+using Dino_Engine.Rendering.Renderers.Lighting;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
-using System.Net.Mail;
 using Dino_Engine.ECS;
 
 namespace Dino_Engine.Rendering.Renderers.PostProcessing
 {
+    /// <summary>
+    /// The glow around what's too bright to look at. Light over <see cref="LightingSettings.BloomThreshold"/> is picked out,
+    /// blurred down a chain of half-sized buffers (Jimenez, "Next Generation Post Processing in Call of Duty", 2014) and
+    /// added back on the way up. The chain stops well short of the size of the screen: its last steps are almost one colour,
+    /// and adding that is a veil over the whole picture. Emission is in the scene by now (Ambient_Light.frag), so this only
+    /// ever spreads light that is really there.
+    /// </summary>
     internal class BloomRenderer : RenderPassRenderer
     {
         private ShaderProgram downsamplingShader = new ShaderProgram("Simple.vert", "Downsampling.frag");
         private ShaderProgram upsamplingShader = new ShaderProgram("Simple.vert", "Upsampling.frag");
         private ShaderProgram bloomFilterShader = new ShaderProgram("Simple.vert", "bloom_Filter.frag");
-        private const int downSamples = 9;
+        private const int downSamples = 6;
         public FrameBuffer[] sampleFramebuffers = new FrameBuffer[downSamples];
         internal BloomRenderer() : base("Bloom")
         {
             bloomFilterShader.bind();
             bloomFilterShader.loadUniformInt("shadedInput", 0);
-            bloomFilterShader.loadUniformInt("gMaterials", 1);
-            bloomFilterShader.loadUniformInt("gAlbedo", 2);
             bloomFilterShader.unBind();
 
             downsamplingShader.bind();
@@ -60,69 +65,59 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         internal override void Render(RenderEngine renderEngine)
         {
-            FrameBuffer gBuffer = renderEngine.GBuffer;
+            LightingSettings lighting = renderEngine.Lighting;
+            if (!lighting.Bloom) return;
+
             DualBuffer buffer = renderEngine.lastUsedBuffer;
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
 
+            // Into the other half of the dual buffer, which leaves the scene in the half the bloom is added to at the end.
             bloomFilterShader.bind();
-            bloomFilterShader.loadUniformFloat("bloomStrength", 0.01f);
-            bloomFilterShader.loadUniformFloat("emissionStrength", 10.0f);
+            bloomFilterShader.loadUniformFloat("threshold", lighting.BloomThreshold);
+            bloomFilterShader.loadUniformFloat("knee", lighting.BloomKnee);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(2));
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2D, gBuffer.GetAttachment(0));
             buffer.RenderToNextFrameBuffer();
 
             downsamplingShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, buffer.GetLastOutputTexture());
 
+            Vector2i source = buffer.getResolution();
             for (int i = 0; i < downSamples; i++)
             {
                 sampleFramebuffers[i].bind();
-                downsamplingShader.loadUniformVector2f("srcResolution", sampleFramebuffers[i].getResolution());
+                downsamplingShader.loadUniformVector2f("srcResolution", source);
                 downsamplingShader.loadUniformInt("mipLevel", i);
                 renderer.Render(clearColor: true);
                 GL.BindTexture(TextureTarget.Texture2D, sampleFramebuffers[i].GetAttachment(0));
+                source = sampleFramebuffers[i].getResolution();
             }
-            //
-            //renderer.GetLastFrameBuffer().resolveToScreen();
 
             upsamplingShader.bind();
-            upsamplingShader.loadUniformFloat("filterRadius", 0.0f);
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
             GL.BlendEquation(BlendEquationMode.FuncAdd);
-            //GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            //GL.BlendFuncSeparate(BlendingFactorSrc.One, BlendingFactorDest.One, BlendingFactorSrc.One, BlendingFactorDest.One);
-            //GL.BlendEquation(BlendEquationMode.FuncAdd);
 
-            for (int i = downSamples-1 ; i > 0; i--)
+            upsamplingShader.loadUniformFloat("strength", 1f);
+            for (int i = downSamples - 1; i > 0; i--)
             {
                 FrameBuffer current = sampleFramebuffers[i];
-                FrameBuffer next = sampleFramebuffers[i-1];
 
                 GL.ActiveTexture(TextureUnit.Texture0);
                 GL.BindTexture(TextureTarget.Texture2D, current.GetAttachment(0));
 
-                next.bind();
-
-                //upsamplingShader.loadUniformFloat("filterRadius", 0.001f);
+                sampleFramebuffers[i - 1].bind();
                 upsamplingShader.loadUniformVector2f("srcResolution", current.getResolution());
-                if (i == 1)
-                {
-                    //renderer.GetLastFrameBuffer().bind();
-                    buffer.GetNextFrameBuffer().bind();
-                    renderer.Render(blend: true, clearColor: false);
-                }
-                else
-                {
-                    renderer.Render(blend: true, clearColor: false);
-                }
-
+                renderer.Render(blend: true, clearColor: false);
             }
+
+            // Every level of the chain has been summed, so what comes out is shared between them to keep the light it started with.
+            GL.BindTexture(TextureTarget.Texture2D, sampleFramebuffers[0].GetAttachment(0));
+            buffer.GetNextFrameBuffer().bind();
+            upsamplingShader.loadUniformVector2f("srcResolution", sampleFramebuffers[0].getResolution());
+            upsamplingShader.loadUniformFloat("strength", lighting.BloomStrength / downSamples);
+            renderer.Render(blend: true, clearColor: false);
             buffer.StepToggle();
 
             Engine.WindowHandler.refreshViewport();

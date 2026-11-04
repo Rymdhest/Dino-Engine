@@ -7,51 +7,25 @@ uniform sampler2D HDRcolorTexture;
 
 uniform float exposure;
 uniform float gamma;
-uniform float saturation;
-uniform float brightness;
-uniform float contrast;
 uniform float dithering;
 
+// The ACES reference rendering and output transforms as Stephen Hill fitted them, with their colour space conversions.
+// The fit's small negative offset is left out: it clips the dimmest light to black, and the edge of every pool of
+// lamplight then shows as a hard, frayed line. Without it black is still exactly black.
+const mat3 ACES_INPUT = mat3(
+	0.59719, 0.07600, 0.02840,
+	0.35458, 0.90834, 0.13383,
+	0.04823, 0.01566, 0.83777);
+const mat3 ACES_OUTPUT = mat3(
+	 1.60475, -0.10208, -0.00327,
+	-0.53108,  1.10813, -0.07276,
+	-0.07367, -0.00605,  1.07602);
 
-
-
-
-vec3 aces(vec3 x) {
-  const float a = 2.51;
-  const float b = 0.03;
-  const float c = 2.43;
-  const float d = 0.59;
-  const float e = 0.14;
-  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
-}
-vec3 reinhard(vec3 inputColor) {
-	float key = 1.418f;
-	return inputColor / (inputColor + vec3(1.0)) * (inputColor * key);
-}
-vec3 applyExposure(vec3 inputColor) {
-	return vec3(1.0) - exp(-inputColor * exposure);
-}
-
-
-vec3 applyToneMap(vec3 inputColor) {
-	//return aces(inputColor);
-	return reinhard(inputColor);
-}
-
-vec3 applyGamma(vec3 inputColor) {
-	return pow(inputColor, vec3(1.0 / gamma));
-}
-
-vec3 applyBrightness(vec3 inputColor) {
-	return inputColor*vec3(brightness);
-}
-vec3 applyContrast(vec3 inputColor) {
-    return mix(0.5 + (inputColor - 0.5) * contrast, inputColor, contrast);
-}
-vec3 applySaturation(vec3 inputColor) {
-    float luminance = dot(inputColor, vec3(0.2126, 0.7152, 0.0722));
-    vec3 desaturatedColor = vec3(luminance);
-    return mix(desaturatedColor, inputColor, saturation);
+vec3 acesFitted(vec3 colour) {
+	colour = ACES_INPUT * colour;
+	vec3 a = colour * (colour + 0.0245786);
+	vec3 b = colour * (0.983729 * colour + 0.4329510) + 0.238081;
+	return clamp(ACES_OUTPUT * (a / b), 0.0, 1.0);
 }
 
 float random(vec2 coords) {
@@ -65,15 +39,11 @@ vec3 applyDithering(vec3 inputColor) {
 }
 
 void main(void){
-	vec3 color =  texture(HDRcolorTexture, textureCoords).rgb;
+	vec3 color = texture(HDRcolorTexture, textureCoords).rgb;
 
-	color = applyExposure(color);
-	color = applyToneMap(color);
-	color = applyContrast(color);
-	color = applyBrightness(color);
-	color = applySaturation(color);
-	color = applyGamma(color);
+	color = acesFitted(color * exposure);
+	color = pow(color, vec3(1.0 / gamma));
 	color = applyDithering(color);
 
-	out_Colour =  vec4(color, 1.0f);
+	out_Colour = vec4(color, 1.0);
 }

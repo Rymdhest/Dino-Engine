@@ -1,6 +1,6 @@
 #version 330
 uniform sampler2D srcTexture;
-uniform float filterRadius;
+uniform float strength;
 uniform vec2 srcResolution;
 in vec2 textureCoords;
 layout (location = 0)
@@ -9,11 +9,9 @@ out vec4 upsample;
 
 void main()
 {
-    // The filter kernel is applied with a radius, specified in texture
-    // coordinates, so that the radius will vary across mip resolutions.
-    float aspectRatio = srcResolution.x / srcResolution.y; // Don't update this every frame, only when resizing the window, and consider sending it to the shader as a single float value pre-calculated in .cpp
-    float x = filterRadius;
-    float y = filterRadius * aspectRatio;
+    // One source texel out: a tent over the texels around this point, so the blur stays round as it grows.
+    float x = 1.0 / srcResolution.x;
+    float y = 1.0 / srcResolution.y;
 
     // Take 9 samples around current texel:
     // a - b - c
@@ -39,7 +37,7 @@ void main()
     upsample.rgb = e*4.0;
     upsample.rgb += (b+d+f+h)*2.0;
     upsample.rgb += (a+c+g+i);
-    upsample.rgb *= 1.0 / 16.0;
+    upsample.rgb *= strength / 16.0;
 
     upsample.a = 1.0;
 }

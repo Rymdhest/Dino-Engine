@@ -78,7 +78,7 @@ namespace Dino_Defenders.Client
             SpawnMotes(world, session, deltaTime);
         }
 
-        // The fires and lanterns of a place are for looking at, so each player lights the ones near them.
+        // The fires of a place are for looking at, so each player lights the ones near them.
         private static void UpdateSiteLights(ECSWorld world, GameSession session)
         {
             foreach (SiteState state in session.Sites)
@@ -203,7 +203,7 @@ namespace Dino_Defenders.Client
                 Vector3 at = centre + new Vector3(_random.Range(-MoteRadius, MoteRadius), _random.Range(style.LowestHeight, style.HighestHeight), _random.Range(-MoteRadius, MoteRadius));
                 Vector3 velocity = new Vector3(drift.X + _random.Range(-0.5f, 0.5f), style.Rise + _random.Range(-0.2f, 0.2f), drift.Y + _random.Range(-0.5f, 0.5f));
                 world.CreateEntity(
-                    new ParticleRenderTag(),
+                    new ParticleRenderTag { Lit = !style.Glows },
                     new LocalToWorldMatrixComponent(),
                     new PositionComponent(at),
                     new ScaleComponent(new Vector3(style.Size * _random.Range(0.7f, 1.2f))),
@@ -213,7 +213,7 @@ namespace Dino_Defenders.Client
             }
         }
 
-        private readonly record struct MoteStyle(float Rate, float Size, float Life, float LowestHeight, float HighestHeight, float Rise, float Drift, Colour Colour);
+        private readonly record struct MoteStyle(float Rate, float Size, float Life, float LowestHeight, float HighestHeight, float Rise, float Drift, Colour Colour, bool Glows = false);
 
         private static MoteStyle StyleOf(AmbientMotes kind) => kind switch
         {
@@ -221,19 +221,17 @@ namespace Dino_Defenders.Client
             AmbientMotes.Petals => new(16f, 0.11f, 6f, 2f, 11f, -0.7f, 0.4f, new Colour(1f, 0.62f, 0.68f, 1.1f)),
             AmbientMotes.FallingLeaves => new(12f, 0.13f, 6f, 3f, 12f, -1f, 0.45f, new Colour(0.85f, 0.42f, 0.14f, 1f)),
             AmbientMotes.Snow => new(34f, 0.07f, 6f, 4f, 15f, -1.5f, 0.5f, new Colour(0.95f, 0.97f, 1f, 1.2f)),
-            AmbientMotes.Embers => new(16f, 0.06f, 3.2f, 0.3f, 4f, 1.4f, 0.4f, new Colour(1f, 0.4f, 0.1f, 4f)),
-            AmbientMotes.Fireflies => new(9f, 0.06f, 3.5f, 0.6f, 3.5f, 0.1f, 0.05f, new Colour(0.75f, 1f, 0.35f, 4f)),
+            AmbientMotes.Embers => new(16f, 0.06f, 3.2f, 0.3f, 4f, 1.4f, 0.4f, new Colour(1f, 0.4f, 0.1f, 4f), Glows: true),
+            AmbientMotes.Fireflies => new(9f, 0.06f, 3.5f, 0.6f, 3.5f, 0.1f, 0.05f, new Colour(0.75f, 1f, 0.35f, 4f), Glows: true),
             AmbientMotes.Dust => new(12f, 0.1f, 3.4f, 0.2f, 3f, 0.05f, 0.8f, new Colour(0.8f, 0.68f, 0.48f, 0.7f)),
             _ => default,
         };
     }
 
-    /// <summary>Lights the fires of a place, and its lanterns, while the hero is near enough to see them.</summary>
+    /// <summary>The flames and smoke of a place, while the hero is near enough to see them. Their light comes with the models they rise from.</summary>
     public static class Ambience
     {
-        private const int MostLightsPerSite = 6;
-
-        /// <summary>Finds what comes alive at each site: the chimneys, fires and lanterns the generator placed there.</summary>
+        /// <summary>Finds what comes alive at each site: the chimneys and fires the generator placed there.</summary>
         public static void FindFeatures(GameSession session, WorldAssetLibrary assets)
         {
             WorldObjects objects = session.World.Objects;
@@ -241,15 +239,13 @@ namespace Dino_Defenders.Client
             {
                 string id = objects.AssetIds[item.Asset];
                 bool fire = id == StructureCatalog.Campfire.Id;
-                bool lantern = id == StructureCatalog.Lantern.Id || id == StructureCatalog.StoneLantern.Id;
                 IReadOnlyList<Vector3> chimneys = assets.ChimneysOf(id);
-                if (!fire && !lantern && chimneys.Count == 0) continue;
+                if (!fire && chimneys.Count == 0) continue;
 
                 SiteState? owner = NearestSite(session, item.Position.Xz);
                 if (owner == null) continue;
 
                 if (fire) owner.Features.Add(new SiteFeature(SiteFeatureKind.Campfire, item.Position + Vector3.UnitY * 0.7f));
-                if (lantern) owner.Features.Add(new SiteFeature(SiteFeatureKind.Lantern, item.Position + Vector3.UnitY * 2.4f));
                 foreach (Vector3 top in chimneys)
                 {
                     Vector3 scaled = top * item.Scale;
@@ -277,7 +273,6 @@ namespace Dino_Defenders.Client
 
         public static void Light(ECSWorld world, GameSession session, SiteState state)
         {
-            int lights = 0;
             foreach (SiteFeature feature in state.Features)
             {
                 switch (feature.Kind)
@@ -289,24 +284,9 @@ namespace Dino_Defenders.Client
                     case SiteFeatureKind.Campfire:
                         state.Live.Add(Flames(world, feature.Position));
                         state.Live.Add(Smoke(world, feature.Position + Vector3.UnitY * 1.6f));
-                        if (lights++ < MostLightsPerSite) state.Live.Add(Glow(world, feature.Position + Vector3.UnitY * 1.2f, new Colour(1f, 0.56f, 0.22f, 12f)));
-                        break;
-
-                    case SiteFeatureKind.Lantern:
-                        if (lights++ < MostLightsPerSite) state.Live.Add(Glow(world, feature.Position, new Colour(1f, 0.72f, 0.4f, 6f)));
                         break;
                 }
             }
-        }
-
-        private static Entity Glow(ECSWorld world, Vector3 position, Colour colour)
-        {
-            return world.CreateEntity("Site Light",
-                new PointLightTag(),
-                new PositionComponent(position),
-                new LocalToWorldMatrixComponent(),
-                new AttunuationComponent(1f, 0.25f, 0.12f),
-                new ColorComponent(colour));
         }
 
         private static Entity Smoke(ECSWorld world, Vector3 position)
@@ -321,6 +301,7 @@ namespace Dino_Defenders.Client
                     particleWeight = -0.04f,
                     particleDirectionError = 0.28f,
                     particleColourStart = new Colour(0.56f, 0.55f, 0.54f, 0.6f, 0.55f),
+                    particlesLit = true,
                 },
                 new PositionComponent(position),
                 new DirectionNormalizedComponent(Vector3.UnitY),
@@ -338,7 +319,8 @@ namespace Dino_Defenders.Client
                     particleSizeStart = 0.34f,
                     particleWeight = -0.25f,
                     particleDirectionError = 0.3f,
-                    particleColourStart = new Colour(1f, 0.5f, 0.12f, 4f),
+                    // Deep and dim for a flame: these are added together where they overlap, and many of them burn out to white.
+                    particleColourStart = new Colour(1f, 0.34f, 0.06f, 1.3f),
                 },
                 new PositionComponent(position),
                 new DirectionNormalizedComponent(Vector3.UnitY),

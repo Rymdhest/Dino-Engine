@@ -46,16 +46,12 @@ namespace Dino_Engine.World
                 new DirectionalLightTag(),
                 new DirectionNormalizedComponent(mood.SunDirection),
                 new ColorComponent(new Colour(mood.SunColour.X, mood.SunColour.Y, mood.SunColour.Z, mood.SunIntensity)),
-                new AmbientLightComponent(0.05f),
-                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 1, 120),
+                new DirectionalCascadingShadowComponent(new Vector2i(1024, 1024) * 4, 1, 150),
                 new CelestialBodyComponent());
 
             ecs.CreateEntity("Sky",
-                new DirectionalLightTag(),
-                new DirectionNormalizedComponent(new Vector3(0.01f, -1.0f, 0.01f)),
                 new ColorComponent(new Colour(mood.SkyColour.X, mood.SkyColour.Y, mood.SkyColour.Z, mood.SkyIntensity)),
-                new SkyTag(),
-                new AmbientLightComponent(0.8f));
+                new SkyTag());
 
             foreach (WorldPond pond in world.Ponds)
             {

@@ -32,3 +32,16 @@ vec3 compressNormal(vec3 normal) {
 vec3 unCompressNormal(vec3 normal) {
     return normal * 2.0f - 1.0f;
 }
+
+// Emission as the G-buffer holds it. A surface shines at its albedo times this, up to MAX_EMISSION; the 8 bits of the
+// channel are linear in it. EMISSION_GAIN is how bright a material of emission 1 and colour 1 is.
+const float MAX_EMISSION = 32.0;
+const float EMISSION_GAIN = 4.0;
+
+float encodeEmission(float strength) {
+    return strength / MAX_EMISSION;
+}
+
+vec3 decodeEmission(vec3 albedo, float stored) {
+    return albedo * (stored * MAX_EMISSION);
+}

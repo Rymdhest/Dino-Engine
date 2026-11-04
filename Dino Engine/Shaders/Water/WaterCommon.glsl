@@ -18,7 +18,7 @@ const float WATER_PI = 3.14159265359;
 const float WATER_IOR = 1.333;
 const float WATER_F0 = 0.0204;               // ((n - 1) / (n + 1))^2 for water
 const float WATER_BASE_ROUGHNESS2 = 0.0004;  // GGX alpha^2 of the capillary waves finer than the ripple texture (alpha 0.02)
-const float WATER_SKY_AMBIENT = 1.1;         // Sky light relative to skyColour as the deferred lights apply it (ambient plus overhead sky light)
+const float WATER_SKY_AMBIENT = 1.1;         // Sky light relative to skyColour, as LightingSettings.SkyFill has it for surfaces
 const vec3 WATER_FOAM_ALBEDO = vec3(0.82, 0.86, 0.88);
 const float WATER_PATTERN_RESOLUTION = 512.0;  // WaterTextureBaker.PatternResolution
 const float WATER_CAUSTIC_ENCODE = 3.0;        // WaterTextureBaker.CausticEncodeScale
@@ -81,13 +81,12 @@ uniform sampler2DShadow cascadeShadowMaps[5];
 uniform int pointLightCount;
 uniform vec4 pointPositionRadius[8];
 uniform vec4 pointColour[8];
-uniform vec4 pointAttenuation[8];
 
 uniform int spotLightCount;
 uniform vec4 spotPositionRadius[8];
 uniform vec4 spotColour[8];
 uniform vec4 spotDirectionCutoff[8];
-uniform vec4 spotAttenuationSoftness[8];
+uniform float spotSoftness[8];
 
 // ---------------------------------------------------------------- lights
 
@@ -114,7 +113,7 @@ float waterSpotCone(vec3 toLight, int light)
     float cutoff = spotDirectionCutoff[light].w;
     float theta = dot(toLight, -spotDirectionCutoff[light].xyz);
     if (theta < cutoff) return 0.0;
-    float epsilon = max(spotAttenuationSoftness[light].w * (1.0 - cutoff), 1e-6);
+    float epsilon = max(spotSoftness[light] * (1.0 - cutoff), 1e-6);
     return smoothstep(0.0, 1.0, clamp((theta - cutoff) / epsilon, 0.0, 1.0));
 }
 
@@ -390,7 +389,7 @@ WaterShading waterShade(vec3 position, vec3 N, float alphaSquared, vec3 V, Water
         vec3 toLight = pointPositionRadius[l].xyz - position;
         float distanceSquared = dot(toLight, toLight);
         if (distanceSquared >= pointPositionRadius[l].w * pointPositionRadius[l].w) continue;
-        float attenuation = calcAttunuation(pointPositionRadius[l].xyz, position, pointAttenuation[l].xyz);
+        float attenuation = lightFalloff(sqrt(distanceSquared), pointPositionRadius[l].w);
         if (attenuation <= 0.0) continue;
         waterAddLight(N, V, toLight * inversesqrt(max(distanceSquared, 1e-8)), pointColour[l].rgb * attenuation, roughness, viewCosine,
                       extinction, path, specular, inScattered, foamLight);
@@ -403,7 +402,7 @@ WaterShading waterShade(vec3 position, vec3 N, float alphaSquared, vec3 V, Water
         vec3 L = toLight * inversesqrt(max(distanceSquared, 1e-8));
         float cone = waterSpotCone(L, l);
         if (cone <= 0.0) continue;
-        float attenuation = calcAttunuation(spotPositionRadius[l].xyz, position, spotAttenuationSoftness[l].xyz);
+        float attenuation = lightFalloff(sqrt(distanceSquared), spotPositionRadius[l].w);
         if (attenuation <= 0.0) continue;
         waterAddLight(N, V, L, spotColour[l].rgb * (cone * attenuation), roughness, viewCosine, extinction, path,
                       specular, inScattered, foamLight);

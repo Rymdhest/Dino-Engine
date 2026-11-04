@@ -13,12 +13,9 @@ uniform int numberOfCascades;
 
 uniform vec3 LightDirectionViewSpace;
 uniform vec3 lightColour;
-uniform float ambientFactor;
 
 uniform mat4 sunSpaceMatrices[5];
 uniform sampler2DShadow shadowMaps[5];
-uniform sampler2D depthMaps[5];
-uniform float cascadeProjectionSizes[5];
 
 
 uniform int pcfRadius;
@@ -62,62 +59,48 @@ float calcShadow(vec3 positionViewSpace) {
     int tapStride = 16 / numSamples;
 
     for (int i = 0; i < numberOfCascades; i++) {
-        if (length(positionViewSpace) * 2.0 < cascadeProjectionSizes[i]) {
-            vec4 positionSunSpace = sunSpaceMatrices[i] * vec4(positionViewSpace, 1.0);
-            positionSunSpace = positionSunSpace * 0.5 + 0.5;
+        vec4 positionSunSpace = sunSpaceMatrices[i] * vec4(positionViewSpace, 1.0);
+        positionSunSpace = positionSunSpace * 0.5 + 0.5;
 
-            // Discard if outside texture bounds
-            if (any(lessThan(positionSunSpace.xyz, vec3(0.0))) ||
-                any(greaterThan(positionSunSpace.xyz, vec3(1.0)))) {
-                continue;
-            }
-            
-            float sunFactorSum = 0.0;
+        // Outside this cascade's box.
+        if (any(lessThan(positionSunSpace.xyz, vec3(0.0))) ||
+            any(greaterThan(positionSunSpace.xyz, vec3(1.0)))) {
+            continue;
+        }
 
-            // Generate a random rotation angle per pixel (and sample) to prevent fixed grid patterns
-            float randomAngle = random(vec3(floor(gl_FragCoord.xy) + 0.5, float(i) + 7.0 * float(sampleIndex))) * 6.2831853;
-            mat2 rotation = mat2(
-                cos(randomAngle), -sin(randomAngle),
-                sin(randomAngle),  cos(randomAngle)
+        float sunFactorSum = 0.0;
+
+        // Generate a random rotation angle per pixel (and sample) to prevent fixed grid patterns
+        float randomAngle = random(vec3(floor(gl_FragCoord.xy) + 0.5, float(i) + 7.0 * float(sampleIndex))) * 6.2831853;
+        mat2 rotation = mat2(
+            cos(randomAngle), -sin(randomAngle),
+            sin(randomAngle),  cos(randomAngle)
+        );
+
+        vec2 texelSize = 1.0 / vec2(textureSize(shadowMaps[i], 0));
+        float filterRadius = float(pcfRadius); // Scale spread using your existing pcfRadius uniform
+
+        for (int j = 0; j < numSamples; j++) {
+            vec2 rotatedOffset = rotation * poissonDisk[(sampleIndex + j * tapStride) & 15];
+            vec2 offsetCoord = rotatedOffset * texelSize * filterRadius;
+
+            vec3 sampleCoord = vec3(
+                positionSunSpace.xy + offsetCoord,
+                positionSunSpace.z - bias
             );
 
-            vec2 texelSize = 1.0 / vec2(textureSize(shadowMaps[i], 0));
-            float filterRadius = float(pcfRadius); // Scale spread using your existing pcfRadius uniform
-
-            for (int j = 0; j < numSamples; j++) {
-                vec2 rotatedOffset = rotation * poissonDisk[(sampleIndex + j * tapStride) & 15];
-                vec2 offsetCoord = rotatedOffset * texelSize * filterRadius;
-
-                vec3 sampleCoord = vec3(
-                    positionSunSpace.xy + offsetCoord,
-                    positionSunSpace.z - bias
-                );
-
-                float sunFactor = texture(shadowMaps[i], sampleCoord);
-                sunFactorSum += sunFactor;
-            }
-            
-            finalSunFactor = min(finalSunFactor, sunFactorSum / float(numSamples));
+            sunFactorSum += texture(shadowMaps[i], sampleCoord);
         }
+
+        finalSunFactor = min(finalSunFactor, sunFactorSum / float(numSamples));
     }
     return finalSunFactor;
 }
 
 void main(void){
 	GBufferSample g = readGBufferSample();
-	vec3 position = g.position;
-	vec4 albedo = g.albedo;
-	vec3 normal = g.normal;
-	float ambient = g.ambient;
-	float roughness = g.materials.r;
-	float metallic = g.materials.b;
-	float materialHeight = g.materials.a;
-	float materialTransparancy = albedo.a;
-	float shadowResult = calcShadow(position);
-	float sunFactor = clamp(shadowResult.x, 0.0, 1.0);
-	vec3 viewDir = normalize(-position);
-	vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColour, 1.0, ambientFactor*ambient, viewDir, LightDirectionViewSpace, sunFactor, materialTransparancy, materialHeight);
+	if (g.depth >= 1.0) discard;
 
-	out_Colour = vec4(color, 0.0);
-	
+	vec3 radiance = lightColour * clamp(calcShadow(g.position), 0.0, 1.0);
+	out_Colour = vec4(lightSurface(surfaceOf(g), normalize(LightDirectionViewSpace), radiance), 0.0);
 }

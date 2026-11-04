@@ -15,6 +15,9 @@ namespace Dino_Engine.ECS.Systems
     {
         private int minCountForInstanced = 0;
 
+        // How far along the view the centre of a cascade lies, in cascade widths.
+        private const float LookAhead = 0.25f;
+
         // Persistent structures to avoid per-frame allocations
         private readonly Dictionary<glModel, List<Matrix4>> _models = new();
         private readonly Dictionary<glModel, List<CharacterInstanceData>> _characters = new(); // Added for characters
@@ -35,13 +38,17 @@ namespace Dino_Engine.ECS.Systems
             var shadowCascade = entity.Get<DirectionalCascadingShadowComponent>();
             var cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
 
+            // The camera looks down at the ground from well away, so the shadows belong around what it looks at, not around itself.
+            Vector3 forward = (new Vector4(0f, 0f, -1f, 0f) * Matrix4.Invert(world.GetComponent<ViewMatrixComponent>(world.Camera).value)).Xyz.Normalized();
+
             // 1. Prepare View Matrices for Cascades
             for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
                 var cascade = shadowCascade.cascades[i];
                 int resolution = cascade.shadowFrameBuffer.getResolution().X;
 
-                shadowCascade.cascades[i].lightViewMatrix = CreateLightViewMatrix(direction, cameraPos, cascade.projectionSize, resolution);
+                Vector3 center = cameraPos + forward * (cascade.projectionSize * LookAhead);
+                shadowCascade.cascades[i].lightViewMatrix = CreateLightViewMatrix(direction, center, cascade.projectionSize, resolution);
                 shadowCascade.cascades[i].shadowFrameBuffer.ClearDepth();
             }
             entity.Set(shadowCascade);

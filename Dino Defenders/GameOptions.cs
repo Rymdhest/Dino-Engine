@@ -20,6 +20,7 @@ namespace Dino_Defenders
     ///   --name text     What this hero is called in company.
     ///   --netsim l,j,p  Plays through a bad line: l ms round trip, up to j ms of jitter, p percent of packets lost.
     ///   --dedicated true  Runs a server with no window, for as long as it's left running.
+    ///   --render a=b,c=d  Sets values of the engine's LightingSettings, such as sun=0,bloom=0,exposure=0.8.
     /// A scripted run otherwise neither reads nor writes the player's save.
     /// </summary>
     internal sealed class GameOptions
@@ -46,6 +47,7 @@ namespace Dino_Defenders
         public string? Name;
         public string? NetSim;
         public bool Dedicated;
+        public string? Render;
 
         /// <summary>Whether this run plays on from a save, as someone playing does, rather than being a throwaway.</summary>
         public bool Saves => SaveFile != null || !(Seed != null || Archetype != null || Tour != null || Shot != null || Bot);
@@ -83,6 +85,7 @@ namespace Dino_Defenders
                     case "name": options.Name = value; break;
                     case "netsim": options.NetSim = value; break;
                     case "dedicated": options.Dedicated = value == "true"; break;
+                    case "render": options.Render = value; break;
                 }
             }
             return options;

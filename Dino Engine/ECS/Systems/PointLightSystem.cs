@@ -2,7 +2,6 @@
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Rendering.Renderers.Lighting;
-using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 
@@ -13,38 +12,46 @@ namespace Dino_Engine.ECS.Systems
         public PointLightSystem()
             : base(new BitMask(
                 typeof(PointLightTag),
-                typeof(PositionComponent),
                 typeof(LocalToWorldMatrixComponent),
-                typeof(AttunuationComponent),
+                typeof(LightRangeComponent),
                 typeof(ColorComponent)))
         {
         }
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
+            if (!Engine.RenderEngine.Lighting.LocalLights) return;
 
-
-            var posToWorldMatrix = entity.Get<LocalToWorldMatrixComponent>().value;
+            var range = entity.Get<LightRangeComponent>();
 
             PointlightRenderCommand command = new PointlightRenderCommand();
-            command.colour = entity.Get<ColorComponent>().value.ToVector3();
-            command.attenuation = entity.Get<AttunuationComponent>().Attunuation;
-            command.positionWorld = posToWorldMatrix.ExtractTranslation();
-            command.attenuationRadius = entity.Get<AttunuationComponent>().AttunuationRadius;
-            command.ambient = entity.GetOptional(new AmbientLightComponent(0f)).value;
+            command.colour = Radiance(entity);
+            command.positionWorld = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
+            command.radius = range.Radius;
+            command.fill = range.Fill;
 
             if (entity.Has<PointLightShadowComponent>())
             {
-                command.shadow = entity.Get<PointLightShadowComponent>().shadow;
-            }
-            else
-            {
-                command.shadow = null;
+                var shadow = entity.Get<PointLightShadowComponent>();
+                command.shadow = shadow.Shadow;
+                command.shadowStrength = shadow.Strength;
             }
 
             Engine.RenderEngine._pointLightRenderer.SubmitCommand(command);
-            Engine.RenderEngine._volumetricFogRenderer.SubmitPointLight(command);
+            if (range.LightsFog) Engine.RenderEngine._volumetricFogRenderer.SubmitPointLight(command);
             Engine.RenderEngine._waterRenderer.SubmitPointLight(command);
         }
 
+        /// <summary>What a local light gives at one metre right now, flickering and dying away included.</summary>
+        internal static Vector3 Radiance(EntityView entity)
+        {
+            Vector3 colour = entity.Get<ColorComponent>().value.ToVector3() * Engine.RenderEngine.Lighting.LocalLightScale;
+            if (entity.Has<LightFlickerComponent>()) colour *= entity.Get<LightFlickerComponent>().Brightness(Engine.Time);
+            if (entity.Has<LightPulseTag>())
+            {
+                float left = entity.Get<selfDestroyComponent>().getRemainingRatio();
+                colour *= left * left;
+            }
+            return colour;
+        }
     }
 }

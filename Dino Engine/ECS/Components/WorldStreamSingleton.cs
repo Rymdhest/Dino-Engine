@@ -1,6 +1,7 @@
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.World;
+using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using System.Collections.Generic;
 
@@ -17,6 +18,7 @@ namespace Dino_Engine.ECS.Components
         public WorldAssetLibrary Assets;
         public WorldGroundCover GroundCover;
         public glModel[] ObjectModels;      // By index in World.Objects.AssetIds.
+        public IReadOnlyList<AssetLight>[] ObjectLights;    // Likewise.
 
         /// <summary>The live entities of each sector of placed objects.</summary>
         public Dictionary<Vector2i, List<Entity>> Sectors = new();
@@ -30,7 +32,12 @@ namespace Dino_Engine.ECS.Components
             Assets = assets;
             GroundCover = new WorldGroundCover(world);
             ObjectModels = new glModel[world.Objects.AssetIds.Count];
-            for (int i = 0; i < ObjectModels.Length; i++) ObjectModels[i] = assets.Get(world.Objects.AssetIds[i]);
+            ObjectLights = new IReadOnlyList<AssetLight>[ObjectModels.Length];
+            for (int i = 0; i < ObjectModels.Length; i++)
+            {
+                ObjectModels[i] = assets.Get(world.Objects.AssetIds[i]);
+                ObjectLights[i] = assets.LightsOf(world.Objects.AssetIds[i]);
+            }
         }
     }
 }

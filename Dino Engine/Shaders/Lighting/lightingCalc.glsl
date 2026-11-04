@@ -1,3 +1,11 @@
+// How surfaces answer light, shared by the deferred light passes, the fog and the water. Colours are radiance: a white
+// surface lit head-on by a light of colour c shines at c / pi.
+
+const float LIGHT_PI = 3.14159265359;
+const float LIGHT_SOURCE_RADIUS = 0.4;      // Metres: how close a local light behaves as a point. Keeps it finite up close.
+const float MIN_ROUGHNESS = 0.045;          // Below this the highlight is narrower than half floats can hold.
+const float TRANSMISSION_GAIN = 1.2;        // How much brighter a backlit leaf reads than the same leaf lit from the front.
+
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
     float a = roughness * roughness;
@@ -7,7 +15,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
 
     float num = a2;
     float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = 3.14159265359 * denom * denom;
+    denom = LIGHT_PI * denom * denom;
 
     return num / denom;
 }
@@ -36,99 +44,62 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-float calcAttunuation(vec3 lightPos, vec3 position, vec3 attenuation)
+// What reaches a point from a local light of intensity 1: inverse square from a source of some size, windowed to reach
+// exactly zero at the light's radius, so that its volume can end there with no visible edge. The window is the gentler
+// sibling of the usual (1 - (d/r)^4)^2 (Karis, "Real Shading in Unreal Engine 4", 2013): that one holds on until almost
+// the end and then drops, and light at the edge of its reach meets the ground so flat that every bump frays the drop.
+float lightFalloff(float distanceToLight, float radius)
 {
-    float dist = length(lightPos - position.xyz);
-    return clamp(1.0 / (attenuation.x + attenuation.y * dist + attenuation.z * dist * dist) - 1, 0, 999);
+    float ratio = distanceToLight / radius;
+    float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
+    return window * window / (distanceToLight * distanceToLight + LIGHT_SOURCE_RADIUS * LIGHT_SOURCE_RADIUS);
 }
 
-
-vec3 shiftHueFast(vec3 color, float hueShift) {
-    const mat3 rgb2yiq = mat3(
-         0.299,  0.587,  0.114,
-         0.595716, -0.274453, -0.321263,
-         0.211456, -0.522591,  0.311135
-    );
-    const mat3 yiq2rgb = mat3(
-         1.0,  0.9563,  0.6210,
-         1.0, -0.2721, -0.6474,
-         1.0, -1.1070,  1.7046
-    );
-
-    vec3 yiq = rgb2yiq * color;
-    float hue = atan(yiq.z, yiq.y); 
-    float chroma = sqrt(yiq.y * yiq.y + yiq.z * yiq.z);
-
-    hue += hueShift * 6.2831853; 
-    yiq.y = chroma * cos(hue);
-    yiq.z = chroma * sin(hue);
-
-    return clamp(yiq2rgb * yiq, 0.0, 1.0);
+// What a surface reflects of a whole environment, from its colour at normal incidence (Karis, "Physically Based Shading
+// on Mobile", 2014): the split-sum lookup of image-based lighting as a fit, with no texture.
+vec3 environmentBRDF(vec3 F0, float roughness, float NdotV)
+{
+    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+    const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+    vec4 r = roughness * c0 + c1;
+    float a004 = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
+    vec2 scaleBias = vec2(-1.04, 1.04) * a004 + r.zw;
+    return F0 * scaleBias.x + scaleBias.y;
 }
 
-vec3 getLightPBR(
-    vec3 albedo,
-    vec3 normal,
-    float roughness,
-    float metallic,
-    vec3 lightColour,
-    float attenuation,
-    float ambientOcclusion,
-    vec3 viewDir,
-    vec3 lightDir,
-    float lightFactor,
-    float sss,
-    float materialDepth
-) {
-    vec3 F0 = vec3(0.04);
-    F0 = mix(F0, albedo, metallic);
+struct Surface
+{
+    vec3 albedo;
+    vec3 normal;
+    vec3 view;              // Towards the camera.
+    float roughness;
+    float metallic;
+    float translucency;     // How much light gets through: 0 for anything solid.
+    float thickness;        // How far that light has to travel inside.
+};
 
-    vec3 N = normalize(normal);
-    vec3 V = normalize(viewDir);
-    vec3 L = normalize(lightDir);
+// The light a surface sends to the camera from one light. L points towards the light; radiance is what arrives there.
+vec3 lightSurface(Surface s, vec3 L, vec3 radiance)
+{
+    vec3 N = s.normal;
+    vec3 V = s.view;
     vec3 H = normalize(V + L);
-
-    vec3 radiance = lightColour * attenuation;
-
-    // ----- PBR FRONT LIGHTING -----
-    float NDF = DistributionGGX(N, H, roughness);
-    float G   = GeometrySmith(N, V, L, roughness);
-    vec3  F   = fresnelSchlick(max(dot(H, V), 0.0), F0);
-
-    vec3 kS = F;
-    vec3 kD = (1.0 - kS) * (1.0 - metallic);
-
+    float roughness = max(s.roughness, MIN_ROUGHNESS);
     float NdotL = max(dot(N, L), 0.0);
-    vec3  specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 0.0001);
 
-    vec3 diffuse = kD * albedo / 3.14159265359;
-    vec3 LoFront = (diffuse + specular) * radiance * NdotL;
-     
+    vec3 F0 = mix(vec3(0.04), s.albedo, s.metallic);
+    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
+    float NDF = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(N, V, L, roughness);
+    vec3 specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 0.0001);
+    vec3 diffuse = (1.0 - F) * (1.0 - s.metallic) * s.albedo / LIGHT_PI;
+    vec3 reflected = (diffuse + specular) * NdotL;
 
-    // ----- BACK LIGHTING TRANSMISSION -----
-    float backLit = clamp(dot(V, normalize(-L+N*1.0)), -1.0, 1.0);
-    backLit = backLit * 0.5+0.5;
-    backLit = pow(backLit,1.9);
-    // Boost saturation for transmitted light
-    vec3 avg = vec3(dot(albedo, vec3(0.2126, 0.7152, 0.0722)));
-    vec3 saturated = mix(avg, albedo, 1.2); // 1.0 = no boost
-    saturated = shiftHueFast(saturated, 0.99);
-    // Simple absorption through the leaf
-    float depthFactor = 1.0/(pow(materialDepth*2.0, 3.0)+1.0);
-    vec3 transmission = saturated * radiance * backLit*depthFactor;
-    //transmission /= (pow(geometricDepth*2.0, 2.0)+1.0);
-    // Sharpen the backlight falloff
-    float backBlend = pow(backLit, 1.0);
-    // ----- AMBIENT -----
-    vec3 totalAmbientOcclusion = albedo * lightColour * attenuation * ambientOcclusion;
+    // Thin things let light through, most of all seen against it. What comes out has lost the colours the leaf absorbs.
+    float backLit = dot(V, normalize(N - L)) * 0.5 + 0.5;
+    vec3 tint = max(mix(vec3(dot(s.albedo, vec3(0.2126, 0.7152, 0.0722))), s.albedo, 1.2), vec3(0.0));
+    float absorption = 1.0 / (pow(s.thickness * 2.0, 3.0) + 1.0);
+    vec3 transmitted = tint * (s.translucency * absorption * pow(backLit, 1.9) * TRANSMISSION_GAIN / LIGHT_PI);
 
-    // ----- COMBINE -----
-    // Blend between front PBR and back transmission based on light direction
-    //vec3 litColor = LoFront*lightFactor+ transmission * materialTransparancy;
-    //vec3 litColor = mix (LoFront*lightFactor, transmission*lightFactor, sss*backBlend);
-    vec3 litColor = (LoFront + transmission * sss) * lightFactor;
-    vec3 localAmbient = albedo * lightColour * attenuation * ambientOcclusion;
-
-    // We simply add the local ambient to the direct light. Direct light is never darkened.
-    return localAmbient + litColor;
+    return (reflected + transmitted) * radiance;
 }

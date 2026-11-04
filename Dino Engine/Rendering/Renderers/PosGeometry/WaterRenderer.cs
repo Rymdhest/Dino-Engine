@@ -89,11 +89,10 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private static readonly string[] CascadeMatrixNames = UniformNames("cascadeMatrices", MaxCascadeSlots);
         private static readonly string[] PointPositionRadiusNames = UniformNames("pointPositionRadius", MaxPointLights);
         private static readonly string[] PointColourNames = UniformNames("pointColour", MaxPointLights);
-        private static readonly string[] PointAttenuationNames = UniformNames("pointAttenuation", MaxPointLights);
         private static readonly string[] SpotPositionRadiusNames = UniformNames("spotPositionRadius", MaxSpotLights);
         private static readonly string[] SpotColourNames = UniformNames("spotColour", MaxSpotLights);
         private static readonly string[] SpotDirectionCutoffNames = UniformNames("spotDirectionCutoff", MaxSpotLights);
-        private static readonly string[] SpotAttenuationSoftnessNames = UniformNames("spotAttenuationSoftness", MaxSpotLights);
+        private static readonly string[] SpotSoftnessNames = UniformNames("spotSoftness", MaxSpotLights);
 
         private readonly ShaderProgram _stillShader = new ShaderProgram("Water/Water_Still.vert", "Water/Water_Still.frag");
         private readonly ShaderProgram _oceanShader = new ShaderProgram("Water/Water_Ocean.vert", "Water/Water_Ocean.frag");
@@ -135,12 +134,11 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private int _pointCount;
         private readonly Vector4[] _pointPositionRadius = new Vector4[MaxPointLights];
         private readonly Vector4[] _pointColour = new Vector4[MaxPointLights];
-        private readonly Vector4[] _pointAttenuation = new Vector4[MaxPointLights];
         private int _spotCount;
         private readonly Vector4[] _spotPositionRadius = new Vector4[MaxSpotLights];
         private readonly Vector4[] _spotColour = new Vector4[MaxSpotLights];
         private readonly Vector4[] _spotDirectionCutoff = new Vector4[MaxSpotLights];
-        private readonly Vector4[] _spotAttenuationSoftness = new Vector4[MaxSpotLights];
+        private readonly float[] _spotSoftness = new float[MaxSpotLights];
 
         public WaterRenderer() : base("Water")
         {
@@ -591,16 +589,15 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             for (int i = 0; i < _pointLights.Count; i++)
             {
                 PointlightRenderCommand light = _pointLights[i];
-                if (IsCandidate(light.positionWorld, light.attenuationRadius, light.colour, frustum, cameraPosition, out float distance)) _lightCandidates.Add((distance, i));
+                if (IsCandidate(light.positionWorld, light.radius, light.colour, frustum, cameraPosition, out float distance)) _lightCandidates.Add((distance, i));
             }
             _lightCandidates.Sort((a, b) => a.distance.CompareTo(b.distance));
             _pointCount = Math.Min(_lightCandidates.Count, MaxPointLights);
             for (int i = 0; i < _pointCount; i++)
             {
                 PointlightRenderCommand light = _pointLights[_lightCandidates[i].index];
-                _pointPositionRadius[i] = new Vector4(light.positionWorld, light.attenuationRadius);
+                _pointPositionRadius[i] = new Vector4(light.positionWorld, light.radius);
                 _pointColour[i] = new Vector4(light.colour, 0f);
-                _pointAttenuation[i] = new Vector4(light.attenuation, 0f);
             }
 
             _lightCandidates.Clear();
@@ -608,7 +605,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             {
                 SpotlightRenderCommand light = _spotLights[i];
                 if (SpotLightRenderer.WorldDirection(light).LengthSquared > 0f
-                    && IsCandidate(light.positionWorld, light.attenuationRadius, light.colour, frustum, cameraPosition, out float distance))
+                    && IsCandidate(light.positionWorld, light.radius, light.colour, frustum, cameraPosition, out float distance))
                 {
                     _lightCandidates.Add((distance, i));
                 }
@@ -618,10 +615,10 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             for (int i = 0; i < _spotCount; i++)
             {
                 SpotlightRenderCommand light = _spotLights[_lightCandidates[i].index];
-                _spotPositionRadius[i] = new Vector4(light.positionWorld, light.attenuationRadius);
+                _spotPositionRadius[i] = new Vector4(light.positionWorld, light.radius);
                 _spotColour[i] = new Vector4(light.colour, 0f);
                 _spotDirectionCutoff[i] = new Vector4(SpotLightRenderer.WorldDirection(light).Normalized(), light.cutoffCosine);
-                _spotAttenuationSoftness[i] = new Vector4(light.attenuation, light.softness);
+                _spotSoftness[i] = light.softness;
             }
         }
 
@@ -642,7 +639,6 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             {
                 shader.loadUniformVector4f(PointPositionRadiusNames[i], _pointPositionRadius[i]);
                 shader.loadUniformVector4f(PointColourNames[i], _pointColour[i]);
-                shader.loadUniformVector4f(PointAttenuationNames[i], _pointAttenuation[i]);
             }
 
             shader.loadUniformInt("spotLightCount", _spotCount);
@@ -651,7 +647,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
                 shader.loadUniformVector4f(SpotPositionRadiusNames[i], _spotPositionRadius[i]);
                 shader.loadUniformVector4f(SpotColourNames[i], _spotColour[i]);
                 shader.loadUniformVector4f(SpotDirectionCutoffNames[i], _spotDirectionCutoff[i]);
-                shader.loadUniformVector4f(SpotAttenuationSoftnessNames[i], _spotAttenuationSoftness[i]);
+                shader.loadUniformFloat(SpotSoftnessNames[i], _spotSoftness[i]);
             }
         }
 
@@ -662,7 +658,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private static bool IsCandidate(Vector3 position, float radius, Vector3 colour, Frustum frustum, Vector3 cameraPosition, out float distance)
         {
             distance = 0f;
-            // No reach, no colour, or an attenuation without a real radius (NaN): nothing to add.
+            // No reach or no colour: nothing to add.
             if (!(radius > 0f) || colour == Vector3.Zero) return false;
             if (frustum.IntersectsAABB(new AABB(position - new Vector3(radius), position + new Vector3(radius))) == IntersectionResult.Outside) return false;
             distance = MathF.Max((position - cameraPosition).Length - radius, 0f);

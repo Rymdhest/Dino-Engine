@@ -1,23 +1,15 @@
 ﻿using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Rendering.Renderers.Lighting;
-using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Components
 {
-    public struct PointLightShadowComponent : IComponent, ICleanupComponent
+    /// <summary>
+    /// A point light that can cast shadows. There are far fewer shadow maps than such lights, so
+    /// <see cref="Systems.PointLightShadowSystem"/> lends them to the ones near the hero and fades them in and out.
+    /// </summary>
+    public struct PointLightShadowComponent : IComponent
     {
-        public Shadow shadow;
-        // Point lights require a 90-degree FOV for each face of the cube
-        public PointLightShadowComponent(int resolution)
-        {
-            // The projection far plane MUST match the light radius to sync correctly with shader depth reconstruction
-            var projectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(90f), 1f, PointLightRenderer.ShadowNearPlane, PointLightRenderer.ShadowFarPlane);
-            shadow = new Shadow(resolution, projectionMatrix, 0, 2.0f, 2.0f, true);
-        }
-
-        public void Cleanup()
-        {
-            shadow.shadowFrameBuffer.cleanUp();
-        }
+        public Shadow? Shadow;  // The map on loan to this light, if any.
+        public float Strength;  // 0 no shadow, 1 full shadow.
     }
 }

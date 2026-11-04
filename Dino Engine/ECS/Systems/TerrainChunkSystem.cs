@@ -8,6 +8,7 @@ using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Util;
 using Dino_Engine.Util.Data_Structures.Grids;
 using Dino_Engine.World;
+using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using System.Collections.Generic;
 
@@ -163,6 +164,7 @@ namespace Dino_Engine.ECS.Systems
                 {
                     WorldObject item = objects[i];
                     entities.Add(SpawnModel(stream.ObjectModels[item.Asset], item.Position, item.Rotation, item.Scale, world, grid));
+                    foreach (AssetLight light in stream.ObjectLights[item.Asset]) entities.Add(SpawnLight(light, item, world));
                 }
             }
             // Empty sectors are remembered too, or they would be looked up again every frame.
@@ -205,6 +207,33 @@ namespace Dino_Engine.ECS.Systems
             grid.InsertOrUpdate(e, bounds);
             _spawnedObjects.Add((e, bounds));
             return e;
+        }
+
+        private static Entity SpawnLight(AssetLight light, WorldObject owner, ECSWorld world)
+        {
+            Vector3 position = owner.Position + Vector3.Transform(light.Position * owner.Scale, owner.Rotation);
+            var components = new List<IComponent>
+            {
+                new PositionComponent(position),
+                new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(position) },
+                new LightRangeComponent(light.Radius, light.Fill, light.LightsFog),
+                new ColorComponent(new Colour(light.Colour.X, light.Colour.Y, light.Colour.Z, light.Intensity)),
+            };
+
+            // Each light keeps its own time, so a village doesn't flicker as one.
+            if (light.Flicker > 0f) components.Add(new LightFlickerComponent(light.Flicker, light.FlickerSpeed, position.X * 1.3f + position.Z * 0.7f));
+
+            if (light.ConeAngle > 0f)
+            {
+                components.Add(new SpotLightComponent(0.6f, light.ConeAngle));
+                components.Add(new DirectionNormalizedComponent(Vector3.Transform(light.Direction, owner.Rotation)));
+            }
+            else
+            {
+                components.Add(new PointLightTag());
+                if (light.Shadow) components.Add(new PointLightShadowComponent());
+            }
+            return world.CreateEntity(components.ToArray());
         }
 
         private static void DespawnEntities(Vector2i key, Dictionary<Vector2i, List<Entity>> groups, ECSWorld world, SpatialGrid grid)

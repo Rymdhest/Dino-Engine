@@ -23,6 +23,7 @@ namespace Dino_Engine.World
 
         private readonly Dictionary<string, glModel> _models = new();
         private readonly Dictionary<string, List<Vector3>> _chimneys = new();
+        private readonly Dictionary<string, List<AssetLight>> _lights = new();
 
         public int Count => _models.Count;
 
@@ -30,6 +31,12 @@ namespace Dino_Engine.World
         public IReadOnlyList<Vector3> ChimneysOf(string id)
         {
             return _chimneys.TryGetValue(id, out List<Vector3>? tops) ? tops : Array.Empty<Vector3>();
+        }
+
+        /// <summary>The lights an object carries, in model space. Known once its model has been built.</summary>
+        public IReadOnlyList<AssetLight> LightsOf(string id)
+        {
+            return _lights.TryGetValue(id, out List<AssetLight>? lights) ? lights : Array.Empty<AssetLight>();
         }
 
         public glModel Get(string id)
@@ -48,8 +55,10 @@ namespace Dino_Engine.World
             else
             {
                 var chimneys = new List<Vector3>();
-                mesh = BuildStructure(id, chimneys, out imposterDistance);
+                var lights = new List<AssetLight>();
+                mesh = BuildStructure(id, chimneys, lights, out imposterDistance);
                 if (chimneys.Count > 0) _chimneys.Add(id, chimneys);
+                if (lights.Count > 0) _lights.Add(id, lights);
             }
 
             model = glLoader.loadToVAO(mesh);
@@ -124,7 +133,7 @@ namespace Dino_Engine.World
             }
         }
 
-        private static Mesh BuildStructure(string id, List<Vector3> chimneys, out float imposterDistance)
+        private static Mesh BuildStructure(string id, List<Vector3> chimneys, List<AssetLight> lights, out float imposterDistance)
         {
             StructureDefinition definition = StructureCatalog.Parse(id, out BuildingStyle style, out int variant);
             imposterDistance = definition.ImposterDistance;
@@ -132,8 +141,8 @@ namespace Dino_Engine.World
             if (definition == StructureCatalog.Fence) return PropGenerator.GenerateFence();
             if (definition == StructureCatalog.GrainCrop) return PlantGenerator.GenerateGrainCrop();
             if (definition == StructureCatalog.VegetableCrop) return PlantGenerator.GenerateVegetableCrop();
-            if (definition.Styled && definition != StructureCatalog.WatchTower) return BuildingGenerator.Generate(definition, style, variant, chimneys);
-            return PropGenerator.Generate(definition, style);
+            if (definition.Styled && definition != StructureCatalog.WatchTower) return BuildingGenerator.Generate(definition, style, variant, chimneys, lights);
+            return PropGenerator.Generate(definition, style, lights);
         }
     }
 }

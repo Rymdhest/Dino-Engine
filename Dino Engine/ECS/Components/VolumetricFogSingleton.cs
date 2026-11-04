@@ -33,7 +33,7 @@ namespace Dino_Engine.ECS.Components
 
         // --- Lighting ---
         public Vector3 Albedo;        // Scattering colour, (1,1,1) = pure white water droplets.
-        public float DirectionalScattering; // Multiplier on light scattered from directional lights (the sky light excluded).
+        public float DirectionalScattering; // Multiplier on light scattered from directional lights.
         public float LocalLightScattering;  // Multiplier on light scattered from point lights and spotlights.
         public float AmbientScattering; // Multiplier on in-scattered sky light.
         public float Anisotropy;      // Henyey-Greenstein g, > 0 scatters forward (bright when looking towards the sun).
@@ -73,7 +73,7 @@ namespace Dino_Engine.ECS.Components
             AmbientScattering = 1f;
             Anisotropy = 0.35f;
 
-            HazeDensity = 0.003f;
+            HazeDensity = 0.001f;
 
             MaxSteps = 32;
             TemporalBlend = 0.9f;

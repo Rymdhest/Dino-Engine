@@ -26,6 +26,7 @@ namespace Dino_Engine.ECS.Components
         public Colour particleColourEnd = new Colour(255, 55, 55, 1f, 1f);
 
         public bool parentEmitter = false;
+        public bool particlesLit = false;   // See ParticleRenderTag.Lit.
 
         public ParticleEmitterComponent()
         {

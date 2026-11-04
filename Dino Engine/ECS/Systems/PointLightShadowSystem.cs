@@ -1,11 +1,8 @@
-using System;
-using System.Collections.Generic;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
-using Dino_Engine.Modelling.Model;
 using Dino_Engine.Physics;
-using Dino_Engine.Rendering.Renderers.Geometry;
+using Dino_Engine.Rendering;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
@@ -13,228 +10,166 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Systems
 {
+    /// <summary>
+    /// Shares out the cube shadow maps. A shadow map is what makes a light expensive, and a village has dozens of lights that
+    /// could cast one, so only the nearest to the hero that can be seen hold a map (<see cref="LightingSettings.ShadowedPointLights"/>).
+    /// A light gaining or giving up its map fades, so nothing pops. Maps are made as they're first needed and kept.
+    /// </summary>
     public class PointLightShadowSystem : SystemBase
     {
-        private int minCountForInstanced = 0;
+        private const int Resolution = 512;
+        private const float FadePerSecond = 3f;
+        private const int FaceUp = 2;
 
-        // Reuse cached lists to prevent garbage collection allocations during rendering
-        private readonly List<Entity> _lightCandidates = new();
-        private readonly List<Entity> _visibleChunks = new();
+        // Maps beyond the budget, for lights still fading out while the ones taking over fade in.
+        private const int SpareMaps = 2;
+
+        private static readonly Vector3[] Directions = { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ };
+        private static readonly Vector3[] Ups = { -Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ, -Vector3.UnitY, -Vector3.UnitY };
+
+        private readonly LocalShadowCasters _casters = new();
+        private readonly List<Shadow> _freeMaps = new();
+        private readonly Dictionary<Entity, Shadow> _lentMaps = new();
+        private readonly List<Entity> _gone = new();
+        private readonly List<(float distance, Entity light)> _candidates = new();
+        private readonly HashSet<Entity> _chosen = new();
+        private int _mapsMade;
 
         public PointLightShadowSystem()
             : base(new BitMask(
                 typeof(PointLightTag),
                 typeof(LocalToWorldMatrixComponent),
-                typeof(AttunuationComponent),
+                typeof(LightRangeComponent),
                 typeof(PointLightShadowComponent)))
         {
         }
 
-        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
+        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
+
+        protected override void UpdateFrame(ECSWorld world, float deltaTime)
         {
-            var shadowComp = entity.Get<PointLightShadowComponent>();
-            var lightPos = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
-            var cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
-            Shadow shadow = shadowComp.shadow;
-            float lightRadius = entity.Get<AttunuationComponent>().AttunuationRadius;
+            ReclaimMaps(world);
+            ChooseLights(world);
 
-            // -------------------------------------------------------------------
-            // STEP 1: BROADPHASE - Query Spatial Grid for Standard Models
-            // -------------------------------------------------------------------
-            Entity gridEntity = world.GetSingleton<RenderSpatialGridSingleton>();
-            SpatialGrid renderGrid = world.GetComponent<RenderSpatialGridSingleton>(gridEntity).Grid;
-
-            renderGrid.QuerySphere(lightPos, lightRadius, _lightCandidates);
-
-            Vector3[] directions = {
-                Vector3.UnitX, -Vector3.UnitX, // +X, -X
-                Vector3.UnitY, -Vector3.UnitY, // +Y, -Y
-                Vector3.UnitZ, -Vector3.UnitZ  // +Z, -Z
-            };
-
-            Vector3[] ups = {
-                -Vector3.UnitY, -Vector3.UnitY, // +X, -X use -Y as Up
-                Vector3.UnitZ, -Vector3.UnitZ,  // +Y uses +Z, -Y uses -Z as Up
-                -Vector3.UnitY, -Vector3.UnitY  // +Z, -Z use -Y as Up
-            };
-
-            // -------------------------------------------------------------------
-            // STEP 2: Render 6 passes into the Cubemap
-            // -------------------------------------------------------------------
-            for (int i = 0; i < 6; i++)
+            foreach (Archetype archetype in world.QueryArchetypes(WithMask, WithoutMask))
             {
-                Shadow passShadow = shadow;
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var shadow = entity.Get<PointLightShadowComponent>();
+                    bool chosen = _chosen.Contains(entity.Entity);
+
+                    if (chosen && shadow.Shadow == null) shadow.Shadow = BorrowMap(entity.Entity);
+                    shadow.Strength = shadow.Shadow == null ? 0f : Math.Clamp(shadow.Strength + (chosen ? FadePerSecond : -FadePerSecond) * deltaTime, 0f, 1f);
+                    if (!chosen && shadow.Strength <= 0f && shadow.Shadow != null)
+                    {
+                        _lentMaps.Remove(entity.Entity);
+                        _freeMaps.Add(shadow.Shadow.Value);
+                        shadow.Shadow = null;
+                    }
+                    entity.Set(shadow);
+
+                    if (shadow.Shadow != null)
+                    {
+                        Vector3 position = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
+                        RenderMap(shadow.Shadow.Value, position, entity.Get<LightRangeComponent>().Radius, world);
+                    }
+                }
+            }
+        }
+
+        // A light can be destroyed holding a map, when its sector streams out. Its id may already belong to something else by
+        // then, so what counts is whether whatever has that id now still says it has a map.
+        private void ReclaimMaps(ECSWorld world)
+        {
+            _gone.Clear();
+            foreach (Entity light in _lentMaps.Keys)
+            {
+                bool holding = world.TryGetEntityLocation(light, out _, out _)
+                    && world.HasComponent<PointLightShadowComponent>(light)
+                    && world.GetComponent<PointLightShadowComponent>(light).Shadow != null;
+                if (!holding) _gone.Add(light);
+            }
+            foreach (Entity light in _gone)
+            {
+                _freeMaps.Add(_lentMaps[light]);
+                _lentMaps.Remove(light);
+            }
+        }
+
+        private void ChooseLights(ECSWorld world)
+        {
+            _chosen.Clear();
+            LightingSettings lighting = Engine.RenderEngine.Lighting;
+            if (!lighting.LocalLights || lighting.ShadowedPointLights <= 0 || !world.Camera.IsValid()) return;
+
+            ref ShaderGlobals context = ref Engine.RenderEngine.context;
+            Vector3 focus = context.focusPoint.W > 0f ? context.focusPoint.Xyz : context.viewPos;
+            var frustum = new Frustum(context.viewMatrix * context.projectionMatrix);
+
+            _candidates.Clear();
+            foreach (Archetype archetype in world.QueryArchetypes(WithMask, WithoutMask))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    Vector3 position = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
+                    float distance = (position - focus).Length;
+                    if (distance > lighting.ShadowDistance) continue;
+
+                    Vector3 reach = new Vector3(entity.Get<LightRangeComponent>().Radius);
+                    if (frustum.IntersectsAABB(new AABB(position - reach, position + reach)) == IntersectionResult.Outside) continue;
+                    _candidates.Add((distance, entity.Entity));
+                }
+            }
+
+            _candidates.Sort((a, b) => a.distance.CompareTo(b.distance));
+            for (int i = 0; i < _candidates.Count && i < lighting.ShadowedPointLights; i++) _chosen.Add(_candidates[i].light);
+        }
+
+        private Shadow? BorrowMap(Entity light)
+        {
+            Shadow map;
+            if (_freeMaps.Count > 0)
+            {
+                map = _freeMaps[^1];
+                _freeMaps.RemoveAt(_freeMaps.Count - 1);
+            }
+            else if (_mapsMade < Engine.RenderEngine.Lighting.ShadowedPointLights + SpareMaps)
+            {
+                map = MakeMap();
+                _mapsMade++;
+            }
+            else
+            {
+                return null;
+            }
+            _lentMaps[light] = map;
+            return map;
+        }
+
+        private static Shadow MakeMap()
+        {
+            // A cube map's six faces each see 90 degrees.
+            Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(90f), 1f, PointLightRenderer.ShadowNearPlane, PointLightRenderer.ShadowFarPlane);
+            return new Shadow(Resolution, projection, 0, 2f, 2f, true);
+        }
+
+        private void RenderMap(Shadow map, Vector3 position, float radius, ECSWorld world)
+        {
+            _casters.Gather(world, position, MathF.Min(radius, PointLightRenderer.ShadowFarPlane));
+
+            for (int face = 0; face < 6; face++)
+            {
                 GL.DepthMask(true);
-                shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + i);
+                map.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + face);
                 GL.Clear(ClearBufferMask.DepthBufferBit);
 
-                passShadow.cubemapFaceIndex = i;
-                passShadow.lightViewMatrix = Matrix4.LookAt(lightPos, lightPos + directions[i], ups[i]);
+                // What's above a light only shadows what's above that again, and nobody sees the underside of a roof from here.
+                if (face == FaceUp) continue;
 
-                // Construct Frustum for this specific Cubemap face
-                var viewProjectionMatrix = passShadow.lightViewMatrix * passShadow.shadowProjectionMatrix;
-                Frustum faceFrustum = new Frustum(viewProjectionMatrix);
-
-                // ---------------------------------------------------------------
-                // STEP 3A: NARROWPHASE - Cull Standard Models
-                // ---------------------------------------------------------------
-                Dictionary<glModel, List<Matrix4>> standardCommands = new();
-
-                for (int c = 0; c < _lightCandidates.Count; c++)
-                {
-                    Entity candidate = _lightCandidates[c];
-
-                    if (!world.HasComponent<ModelComponent>(candidate) ||
-                        !world.HasComponent<ModelRenderTag>(candidate) ||
-                        !world.HasComponent<LocalToWorldMatrixComponent>(candidate))
-                    {
-                        continue;
-                    }
-
-                    var modelLtw = world.GetComponent<LocalToWorldMatrixComponent>(candidate).value;
-                    var modelComp = world.GetComponent<ModelComponent>(candidate);
-
-                    if (modelComp.model == null) continue;
-
-                    AABB localBoundsStandard = new AABB(modelComp.model.box.Min, modelComp.model.box.Max);
-                    AABB worldBoundsStandard = AABB.Transform(localBoundsStandard, modelLtw);
-
-                    if (faceFrustum.IntersectsAABB(worldBoundsStandard) != IntersectionResult.Outside)
-                    {
-                        if (!standardCommands.TryGetValue(modelComp.model, out var matrixList))
-                        {
-                            matrixList = new List<Matrix4>();
-                            standardCommands[modelComp.model] = matrixList;
-                        }
-                        matrixList.Add(modelLtw);
-                    }
-                }
-
-                // ---------------------------------------------------------------
-                // STEP 3B: NARROWPHASE - Cull and Collect Characters Directly from World
-                // ---------------------------------------------------------------
-                Dictionary<glModel, List<CharacterInstanceData>> characterCommands = new();
-                var characterQuery = world.QueryArchetypes(new BitMask(
-                    typeof(CharacterModelComponent),
-                    typeof(SkeletonComponent),
-                    typeof(LocalToWorldMatrixComponent)),
-                    BitMask.Empty);
-
-                foreach (var archetype in characterQuery)
-                {
-                    var modelArray = archetype.GetComponentArray<CharacterModelComponent>();
-                    var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
-                    var skeletonArray = archetype.GetComponentArray<SkeletonComponent>();
-
-                    int count = archetype.EntityCount;
-                    for (int c = 0; c < count; c++)
-                    {
-                        Matrix4 ltw = matrixArray[c].value;
-                        Vector3 charPos = ltw.ExtractTranslation();
-
-                        // Quick coarse distance check against light radius
-                        if ((charPos - lightPos).LengthSquared > (lightRadius * lightRadius))
-                            continue;
-
-                        glModel model = modelArray[c].model;
-                        if (model == null) continue;
-
-                        // Frustum culling against face frustum
-                        AABB localBounds = new AABB(model.box.Min, model.box.Max);
-                        AABB worldBounds = AABB.Transform(localBounds, ltw);
-
-                        if (faceFrustum.IntersectsAABB(worldBounds) != IntersectionResult.Outside)
-                        {
-                            var skeleton = skeletonArray[c];
-                            var skinningMatrices = skeleton.SkinningMatrices;
-                            int boneCount = skinningMatrices != null ? skinningMatrices.Length : (int)BoneType.Count;
-                            Matrix4[] skinningMatricesCopy = new Matrix4[boneCount];
-
-                            if (skinningMatrices != null && skinningMatrices.Length > 0)
-                            {
-                                Array.Copy(skinningMatrices, skinningMatricesCopy, boneCount);
-                            }
-                            else
-                            {
-                                for (int b = 0; b < boneCount; b++)
-                                {
-                                    skinningMatricesCopy[b] = Matrix4.Identity;
-                                }
-                            }
-
-                            if (!characterCommands.TryGetValue(model, out var charList))
-                            {
-                                charList = new List<CharacterInstanceData>();
-                                characterCommands[model] = charList;
-                            }
-
-                            charList.Add(new CharacterInstanceData
-                            {
-                                ModelMatrix = ltw,
-                                SkinningMatrices = skinningMatricesCopy
-                            });
-                        }
-                    }
-                }
-
-                // Submit Standard Models
-                foreach (var command in standardCommands)
-                {
-                    var renderCmd = new ModelRenderCommand { model = command.Key, matrices = command.Value };
-                    if (renderCmd.matrices.Count > minCountForInstanced)
-                        Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(renderCmd, passShadow);
-                    else
-                        Engine.RenderEngine._modelRenderer.SubmitShadowCommand(renderCmd, passShadow);
-                }
-
-                // Submit Characters
-                foreach (var command in characterCommands)
-                {
-                    var renderCmd = new CharacterRenderCommand(command.Key, command.Value);
-                    Engine.RenderEngine._characterRenderer.SubmitShadowCommand(renderCmd, passShadow);
-                }
-
-                // ---------------------------------------------------------------
-                // STEP 4: Terrain & Grass Shadow Rendering
-                // ---------------------------------------------------------------
-                _visibleChunks.Clear();
-                var grassChunks = new List<GrassChunkRenderData>();
-
-                var quadtreeComponent = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
-                TerrainChunkSystem.CollectVisibleChunks(quadtreeComponent, faceFrustum, _visibleChunks);
-
-                var terrainChunksRenderData = new List<TerrainChunkRenderData>();
-                foreach (Entity chunkEntity in _visibleChunks)
-                {
-                    Vector3 chunkPosition = world.GetComponent<LocalToWorldMatrixComponent>(chunkEntity).value.ExtractTranslation();
-                    Vector3 chunkSize = world.GetComponent<ScaleComponent>(chunkEntity).value;
-                    float arrayID = world.GetComponent<TerrainChunkComponent>(chunkEntity).normalHeightTextureArrayID;
-
-                    TerrainChunkRenderData chunkCommand = new TerrainChunkRenderData
-                    {
-                        chunkPos = chunkPosition,
-                        size = chunkSize,
-                        arrayID = arrayID
-                    };
-                    terrainChunksRenderData.Add(chunkCommand);
-
-                    GrassChunkRenderData grassCommand = new GrassChunkRenderData
-                    {
-                        chunkPos = chunkPosition.Xz,
-                        size = chunkSize.X,
-                        arrayID = arrayID
-                    };
-
-                    float distance = Vector2.Distance(cameraPos.Xz, chunkPosition.Xz + chunkSize.Xz * 0.5f);
-
-                    if (distance < 30)
-                    {
-                        grassChunks.Add(grassCommand);
-                    }
-                }
-
-                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(grassChunks.ToArray()), passShadow);
-                Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(terrainChunksRenderData.ToArray(), 0.0f), passShadow);
+                Shadow view = map;
+                view.cubemapFaceIndex = face;
+                view.lightViewMatrix = Matrix4.LookAt(position, position + Directions[face], Ups[face]);
+                _casters.Submit(new Frustum(view.lightViewMatrix * view.shadowProjectionMatrix), view);
             }
         }
     }

@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL;
 using static OpenTK.Graphics.OpenGL.GL;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
+using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.AntiAliasing;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
@@ -12,22 +13,25 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     public struct PointlightRenderCommand : IRenderCommand
     {
         public Vector3 colour;
-        public Vector3 attenuation;
-        public float attenuationRadius;
+        public float radius;
+        public float fill;
         public Vector3 positionWorld;
-        public float ambient;
-        public Shadow? shadow; // Support for point light shadows
+        public Shadow? shadow;
+        public float shadowStrength;
     }
 
     public class PointLightRenderer : CommandDrivenRenderer<PointlightRenderCommand>
     {
-        // Clip planes of the cube shadow map projection (PointLightShadowComponent); shaders reconstruct depth with them.
+        // Clip planes of the cube shadow map projection (PointLightShadowSystem); shaders reconstruct depth with them.
         public const float ShadowNearPlane = 0.15f;
         public const float ShadowFarPlane = 30f;
+        // Width of the shadow filter per metre from the light.
+        private const float ShadowSoftness = 0.012f;
 
         // Per pixel, and per sample for the edge pixels (MsaaRenderer.DrawSplit).
         private ShaderProgram pointLightShader = new ShaderProgram("Point_Light.vert", "Point_Light.frag");
         private ShaderProgram pointLightSampleShader = new ShaderProgram("Point_Light.vert", "Point_Light.frag", new[] { "PER_SAMPLE" });
+        private Frustum _view;
 
         public PointLightRenderer() : base("Point Light")
         {
@@ -46,6 +50,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         internal override void Prepare(RenderEngine renderEngine)
         {
+            _view = new Frustum(renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix);
+
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Front);
 
@@ -65,7 +71,10 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         public override void PerformCommand(PointlightRenderCommand command, RenderEngine renderEngine)
         {
-            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(command.positionWorld, command.attenuationRadius * 1.1f);
+            Vector3 reach = new Vector3(command.radius);
+            if (_view.IntersectsAABB(new AABB(command.positionWorld - reach, command.positionWorld + reach)) == IntersectionResult.Outside) return;
+
+            Matrix4 transformationMatrix = MyMath.createTransformationMatrix(command.positionWorld, command.radius * 1.1f);
             Vector4 lightPosView = new Vector4(command.positionWorld, 1.0f) * renderEngine.context.viewMatrix;
             if (command.shadow != null)
             {
@@ -82,16 +91,15 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 // Light Data
                 shader.loadUniformVector3f("lightPositionViewSpace", lightPosView.Xyz);
                 shader.loadUniformVector3f("lightColor", command.colour);
-                shader.loadUniformVector3f("attenuation", command.attenuation);
-                shader.loadUniformFloat("lightAmbient", command.ambient);
+                shader.loadUniformFloat("lightRadius", command.radius);
+                shader.loadUniformFloat("lightFill", command.fill);
 
                 // Shadow Handling
                 shader.loadUniformBool("isShadow", command.shadow != null);
                 if (command.shadow != null)
                 {
-                    shader.loadUniformFloat("shadowSmoothRadius", 0.015f);
-
-                    // Dynamic clip plane synchronization matches your point light attenuation radius
+                    shader.loadUniformFloat("shadowSoftness", ShadowSoftness);
+                    shader.loadUniformFloat("shadowStrength", command.shadowStrength);
                     shader.loadUniformFloat("shadowNearPlane", ShadowNearPlane);
                     shader.loadUniformFloat("shadowFarPlane", ShadowFarPlane);
                 }

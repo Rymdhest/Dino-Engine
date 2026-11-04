@@ -37,7 +37,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             _depthOfFieldShader.bind();
             _depthOfFieldShader.loadUniformFloat("range", 0.001f);
-            _depthOfFieldShader.loadUniformFloat("focusDistance", 0.0f);
+            // In focus at the hero. Focused on the camera itself, the whole picture is a little out of focus.
+            ref ShaderGlobals context = ref renderEngine.context;
+            float focus = context.focusPoint.W > 0f ? (context.focusPoint.Xyz - context.viewPos).Length : 0f;
+            _depthOfFieldShader.loadUniformFloat("focusDistance", focus);
 
 
             GL.ActiveTexture(TextureUnit.Texture0);

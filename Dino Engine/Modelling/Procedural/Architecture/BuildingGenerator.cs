@@ -34,13 +34,14 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             public float Lumps;         // How uneven the roof surface is, in metres.
             public float Upsweep;       // How far the corners of the eaves lift.
             public bool HipRoof;
+            public List<AssetLight>? Lights;    // Where the windows shine from, for whoever asked.
         }
 
         private static Kit KitFor(BuildingStyle style, WorldRandom random)
         {
             VertexMaterial stone = new VertexMaterial(TextureGenerator.stoneWall, new Colour(150, 144, 136));
             // Windows glow faintly from inside, so that they read as lit rooms and not as holes.
-            VertexMaterial window = new VertexMaterial(TextureGenerator.flatGlow, new Colour(1f, 0.72f, 0.38f, 0.5f));
+            VertexMaterial window = new VertexMaterial(TextureGenerator.flatGlow, new Colour(1f, 0.6f, 0.26f, 0.5f));
 
             switch (style)
             {
@@ -98,12 +99,13 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
 
         /// <summary>
         /// A building of the catalog in a style; <paramref name="variant"/> gives its look a little variety. The tops of its chimneys,
-        /// in model space, are added to <paramref name="chimneys"/>.
+        /// in model space, are added to <paramref name="chimneys"/>, and the light from its windows to <paramref name="lights"/>.
         /// </summary>
-        public static Mesh Generate(StructureDefinition definition, BuildingStyle style, int variant, List<Vector3>? chimneys = null)
+        public static Mesh Generate(StructureDefinition definition, BuildingStyle style, int variant, List<Vector3>? chimneys = null, List<AssetLight>? lights = null)
         {
             var random = new WorldRandom(0x51ED).Fork(definition.Id).Fork((int)style * 16 + variant);
             Kit kit = KitFor(style, random);
+            kit.Lights = lights;
             Vector2 half = definition.HalfExtents;
 
             if (definition == StructureCatalog.Shed) return BuildShed(half, kit);
@@ -251,6 +253,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
 
             b.Quad(face - along * HalfWidth - up * HalfHeight, face + along * HalfWidth - up * HalfHeight,
                    face + along * HalfWidth + up * HalfHeight, face - along * HalfWidth + up * HalfHeight, kit.Window);
+
+            kit.Lights?.Add(AssetLight.Window(centre + outward * 0.5f, outward));
 
             Vector3 frame = centre + outward * 0.18f;
             b.Beam(frame - along * HalfWidth - up * HalfHeight, frame - along * HalfWidth + up * HalfHeight, 0.12f, kit.Frame);

@@ -11,9 +11,9 @@ layout (location = 0) out vec4 out_Colour;
 uniform vec3 lightPositionViewSpace;
 uniform vec3 lightDirectionViewSpace;
 uniform vec3 lightColor;
-uniform vec3 attenuation;
+uniform float lightRadius;
 uniform float softness;
-uniform float lightAmbient;
+uniform float lightFill;        // As in Point_Light.frag.
 uniform float cutoffCosine;
 
 uniform mat4 lightSpaceMatrix;
@@ -48,36 +48,25 @@ float calcShadow(vec3 positionViewSpace) {
 float calcSoftEdge(vec3 lightDir, vec3 lightDirectionViewSpace, float cutoff)
 {
     float theta = dot(lightDir, normalize(-lightDirectionViewSpace));
-    if (theta < cutoff) discard;
-    float epsilon = softness * (1.0 - cutoff); 
-    float intensity = smoothstep(0, 1, clamp((theta - cutoff) / epsilon, 0.0f, 1.0f));
-	return intensity;
+    if (theta < cutoff) return 0.0;
+    float epsilon = max(softness * (1.0 - cutoff), 1e-6);
+    return smoothstep(0.0, 1.0, clamp((theta - cutoff) / epsilon, 0.0, 1.0));
 }
 
 void main(void){
 	GBufferSample g = readGBufferSample();
-	vec3 position = g.position;
-	vec4 albedo = g.albedo;
-	vec3 normal = g.normal;
-	float ambient = g.ambient;
-	float roughness = g.materials.r;
-	float metallic = g.materials.b;
-    float materialTransparancy = albedo.a;
-	float geometricDepth = 0.0;
-	vec3 viewDir = normalize(-position);
-    vec3 lightDir = normalize(lightPositionViewSpace - position);
-	float attenuationFactor = calcAttunuation(lightPositionViewSpace, position, attenuation);
+	vec3 toLight = lightPositionViewSpace - g.position;
+	float distanceToLight = length(toLight);
+	vec3 lightDir = toLight / max(distanceToLight, 1e-4);
 
+	float strength = lightFalloff(distanceToLight, lightRadius) * calcSoftEdge(lightDir, lightDirectionViewSpace, cutoffCosine);
+	if (strength <= 0.0) discard;
 
-	float lightFactor = 1.0;
-	if (isShadow) lightFactor = clamp(1.0-calcShadow(position), 0.0, 1.0);
-    vec3 color = getLightPBR(albedo.rgb, normal, roughness, metallic, lightColor, attenuationFactor, lightAmbient*ambient, viewDir, lightDir, lightFactor, materialTransparancy, geometricDepth);
+	Surface s = surfaceOf(g);
+	vec3 radiance = lightColor * strength;
+	float visibility = isShadow ? clamp(1.0 - calcShadow(g.position), 0.0, 1.0) : 1.0;
 
-	float intensity = calcSoftEdge(lightDir, lightDirectionViewSpace, cutoffCosine);
-
-    color *= intensity;
-
-	out_Colour = vec4(color, 0.0);
-
-	
+	vec3 colour = lightSurface(s, lightDir, radiance * visibility);
+	colour += s.albedo * radiance * (lightFill * g.ambient / LIGHT_PI);
+	out_Colour = vec4(colour, 0.0);
 }

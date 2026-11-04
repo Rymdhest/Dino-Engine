@@ -12,7 +12,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     {
         public Vector3 colour;
         public Vector3 direction;
-        public float ambient;
         public Shadow[] cascades;
     }
 
@@ -23,7 +22,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private ShaderProgram _directionalLightSampleShader = new ShaderProgram("Simple.vert", "Directional_Light.frag", new[] { "PER_SAMPLE" });
 
         private int shadowSampler;
-        private int depthSampler;
 
         public DirectionalLightRenderer() : base("Directional Light")
         {
@@ -46,14 +44,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureWrapT, (int)TextureWrapMode.ClampToBorder);
             GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureCompareMode, (int)All.CompareRefToTexture);
             GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureCompareFunc, (int)All.Lequal);
-
-            depthSampler = GL.GenSampler();
-            GL.SamplerParameter(depthSampler, SamplerParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            GL.SamplerParameter(depthSampler, SamplerParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            GL.SamplerParameter(depthSampler, SamplerParameterName.TextureWrapS, (int)TextureWrapMode.ClampToBorder);
-            GL.SamplerParameter(depthSampler, SamplerParameterName.TextureWrapT, (int)TextureWrapMode.ClampToBorder);
-            GL.SamplerParameter(depthSampler, SamplerParameterName.TextureCompareMode, (int)All.None);
-
         }
 
         internal override void Prepare(RenderEngine renderEngine)
@@ -71,7 +61,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         {
             _directionalLightShader.cleanUp();
             _directionalLightSampleShader.cleanUp();
-            GL.DeleteSampler(depthSampler);
             GL.DeleteSampler(shadowSampler);
         }
 
@@ -87,10 +76,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 ActiveTexture(TextureUnit.Texture4 + i);
                 BindTexture(TextureTarget.Texture2D, cascade.shadowFrameBuffer.getDepthAttachment());
                 BindSampler(CASCADETEXTURESINDEXSTART + i, shadowSampler);
-
-                ActiveTexture(TextureUnit.Texture4 + numberCascades+i);
-                BindTexture(TextureTarget.Texture2D, cascade.shadowFrameBuffer.getDepthAttachment());
-                BindSampler(CASCADETEXTURESINDEXSTART + numberCascades + i, depthSampler);
             }
             ActiveTexture(TextureUnit.Texture0);
 
@@ -102,15 +87,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 for (int i = 0; i < numberCascades; i++)
                 {
                     Shadow cascade = command.cascades[i];
-                    shader.loadUniformFloat("cascadeProjectionSizes[" + i + "]", cascade.projectionSize);
                     shader.loadUniformInt("shadowMaps[" + i + "]", CASCADETEXTURESINDEXSTART + i);
-                    shader.loadUniformInt("depthMaps[" + i + "]", CASCADETEXTURESINDEXSTART + numberCascades + i);
                     Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * cascade.lightViewMatrix * cascade.shadowProjectionMatrix;
                     shader.loadUniformMatrix4f("sunSpaceMatrices[" + i + "]", shadowMatrix);
                 }
                 shader.loadUniformVector3f("LightDirectionViewSpace", lightDirectionViewSpace.Xyz);
                 shader.loadUniformVector3f("lightColour", command.colour);
-                shader.loadUniformFloat("ambientFactor", command.ambient);
 
                 renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
             });
@@ -120,7 +102,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             for (int i = 0; i < numberCascades; i++)
             {
                 BindSampler(CASCADETEXTURESINDEXSTART + i, 0);
-                BindSampler(CASCADETEXTURESINDEXSTART + numberCascades + i, 0);
             }
         }
 

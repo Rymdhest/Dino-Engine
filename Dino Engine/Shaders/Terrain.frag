@@ -259,7 +259,7 @@ void main() {
     gNormal.xyz = compressNormal(normal);
 
     gMaterials.r = material.roughness;
-    gMaterials.g = material.emission;
+    gMaterials.g = encodeEmission(material.emission * EMISSION_GAIN);
     gMaterials.b = material.metalic;
     gMaterials.a = material.height;
 }

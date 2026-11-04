@@ -3,7 +3,7 @@
 
 // The multisampled G-buffer as the light passes read it: one sample per invocation, sample 0 in the per-pixel variant
 // and gl_SampleID in the PER_SAMPLE one (see AntiAliasing/Msaa.glsl). MsaaRenderer.BindGeometrySamples binds the
-// textures. Needs Globals.glsl, gBufferUtil.glsl and AntiAliasing/Msaa.glsl included first.
+// textures. Needs Globals.glsl, gBufferUtil.glsl, Lighting/lightingCalc.glsl and AntiAliasing/Msaa.glsl included first.
 
 uniform sampler2DMS gAlbedo;
 uniform sampler2DMS gNormal;
@@ -13,10 +13,11 @@ uniform sampler2D ambientOcclusion;
 
 struct GBufferSample
 {
+    float depth;        // 1 where nothing was drawn
     vec3 position;      // view space
     vec4 albedo;        // rgb albedo, a subsurface (light let through)
     vec3 normal;        // view space
-    float ambient;      // the material's ambient occlusion, less the screen-space occlusion
+    float ambient;      // the material's ambient occlusion and the screen-space occlusion together
     vec4 materials;     // roughness, emission, metallic, height
 };
 
@@ -26,16 +27,28 @@ GBufferSample readGBufferSample()
     int index = msaaShadingSample();
 
     GBufferSample g;
-    float depth = texelFetch(gDepth, pixel, index).r;
-    g.position = ReconstructViewSpacePosition(msaaShadingCoord(), depth, invProjectionMatrix, resolution);
+    g.depth = texelFetch(gDepth, pixel, index).r;
+    g.position = ReconstructViewSpacePosition(msaaShadingCoord(), g.depth, invProjectionMatrix, resolution);
     g.albedo = texelFetch(gAlbedo, pixel, index);
     vec4 normal = texelFetch(gNormal, pixel, index);
-    g.normal = unCompressNormal(normal.xyz);
-    // The screen-space occlusion is per pixel; it takes away from each sample's own.
-    float occlusion = texture(ambientOcclusion, (vec2(pixel) + 0.5) / resolution).r;
-    g.ambient = clamp(normal.a - (1.0 - occlusion), 0.0, 1.0);
+    g.normal = normalize(unCompressNormal(normal.xyz));
+    // The screen-space occlusion is per pixel; it darkens each sample's own.
+    g.ambient = normal.a * texture(ambientOcclusion, (vec2(pixel) + 0.5) / resolution).r;
     g.materials = texelFetch(gMaterials, pixel, index);
     return g;
+}
+
+Surface surfaceOf(GBufferSample g)
+{
+    Surface s;
+    s.albedo = g.albedo.rgb;
+    s.normal = g.normal;
+    s.view = normalize(-g.position);
+    s.roughness = g.materials.r;
+    s.metallic = g.materials.b;
+    s.translucency = g.albedo.a;
+    s.thickness = g.materials.a;
+    return s;
 }
 
 #endif

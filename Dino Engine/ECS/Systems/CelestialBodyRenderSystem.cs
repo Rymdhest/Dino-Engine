@@ -20,6 +20,8 @@ namespace Dino_Engine.ECS.Systems
         }
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
+            if (!Engine.RenderEngine.Lighting.Sun) return;
+
             CelestialBodyRenderCommand command = new CelestialBodyRenderCommand();
 
             command.colour = entity.Get<ColorComponent>().value.ToVector3();

@@ -102,8 +102,24 @@ namespace Dino_Defenders.Client
             {
                 components.Add(new ModelComponent(_characters.Resolve(visual.Value.Model)));
                 components.Add(new ModelRenderTag());
+                if (PickupGlow(visual.Value.Model) is Colour glow)
+                {
+                    components.Add(new PointLightTag());
+                    components.Add(new LightRangeComponent(PickupLightRadius, 0.2f, lightsFog: false));
+                    components.Add(new ColorComponent(glow));
+                }
             }
         }
+
+        private const float PickupLightRadius = 6f;
+
+        // What lies on the ground to be picked up catches the eye by shining on what's around it.
+        private static Colour? PickupGlow(string model) => model switch
+        {
+            "gold" => new Colour(1f, 0.74f, 0.3f, 7f),
+            "item" => new Colour(0.9f, 0.95f, 1f, 7f),
+            _ => null,
+        };
 
         public void Created(Ghost ghost)
         {
@@ -384,7 +400,11 @@ namespace Dino_Defenders.Client
                 client.Session?.Say(e.Position, $"{e.Amount:0}", colour, size, 0.9f);
             });
             client.Events.On<TextEvent>(e => client.Session?.Say(e.Position, e.Text, e.Colour, e.Size, e.Life));
-            client.Events.On<SparkEvent>(e => Spark(e.Position, ColourOf(e.Kind), e.Count, e.Speed));
+            client.Events.On<SparkEvent>(e =>
+            {
+                Spark(e.Position, ColourOf(e.Kind), e.Count, e.Speed, lit: e.Kind == SparkKind.Blood);
+                if (e.Kind == SparkKind.Shrine) Flash(e.Position, new Colour(0.5f, 1f, 0.75f, 300f), 26f, 1.6f);
+            });
             client.Events.On<HeroMoveEvent>(e => Show(e.Move, e.Position, e.Aim));
         }
 
@@ -418,12 +438,26 @@ namespace Dino_Defenders.Client
             if ((events & HeroStepEvents.Whirled) != 0)
             {
                 Wind.AddBlast(_world, position, 14f, 22f, 1f);
+                Flash(position + Vector3.UnitY * 2.4f, new Colour(0.8f, 0.92f, 1f, 90f), 14f, 0.5f);
                 for (int i = 0; i < 18; i++)
                 {
                     float angle = i * (MathF.Tau / 18f);
                     Spark(position + new Vector3(MathF.Cos(angle) * 6f, 2.4f, MathF.Sin(angle) * 6f), ColourOf(SparkKind.Whirl), 1, 2f);
                 }
             }
+        }
+
+        /// <summary>A moment of light from what just happened here, dying away over <paramref name="life"/> seconds.</summary>
+        private void Flash(Vector3 position, Colour colour, float radius, float life)
+        {
+            _world.CreateEntity("Flash",
+                new PointLightTag(),
+                new LightPulseTag(),
+                new PositionComponent(position),
+                new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(position) },
+                new LightRangeComponent(radius, 0.3f),
+                new ColorComponent(colour),
+                new selfDestroyComponent(life));
         }
 
         private static Colour ColourOf(SparkKind kind) => kind switch
@@ -435,13 +469,13 @@ namespace Dino_Defenders.Client
         };
 
         /// <summary>A short burst of particles.</summary>
-        private void Spark(Vector3 position, Colour colour, int count, float speed)
+        private void Spark(Vector3 position, Colour colour, int count, float speed, bool lit = false)
         {
             for (int i = 0; i < Math.Min(count, 64); i++)
             {
                 Vector3 direction = new Vector3(_random.Range(-1f, 1f), _random.Range(0.2f, 1.2f), _random.Range(-1f, 1f)).Normalized();
                 _world.CreateEntity(
-                    new ParticleRenderTag(),
+                    new ParticleRenderTag { Lit = lit },
                     new LocalToWorldMatrixComponent(),
                     new PositionComponent(position),
                     new ScaleComponent(new Vector3(_random.Range(0.1f, 0.22f))),

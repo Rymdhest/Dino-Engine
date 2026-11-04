@@ -42,7 +42,7 @@ namespace Dino_Engine.ECS.Systems
         {
             direction = direction + MyMath.rng3DMinusPlus(emitter.particleDirectionError);
             direction.Normalize();
-            yield return new ParticleRenderTag();
+            yield return new ParticleRenderTag { Lit = emitter.particlesLit };
             yield return new LocalToWorldMatrixComponent();
             yield return new PositionComponent (position);
             yield return new ScaleComponent(new Vector3(emitter.particleSizeStart));

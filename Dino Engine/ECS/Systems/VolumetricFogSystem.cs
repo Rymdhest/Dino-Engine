@@ -44,7 +44,7 @@ namespace Dino_Engine.ECS.Systems
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
             var fog = entity.Get<VolumetricFogSingleton>();
-            if (!fog.Enabled || !world.Camera.IsValid()) return;
+            if (!fog.Enabled || !Engine.RenderEngine.Lighting.Fog || !world.Camera.IsValid()) return;
 
             Advance(fog, Wind.MeanVelocity(world) * fog.WindInfluence, deltaTime);
 

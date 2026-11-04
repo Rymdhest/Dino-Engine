@@ -38,7 +38,7 @@ vec3 SSR(vec3 position, vec3 reflection) {
 
 	for (; i < iterationCount; i++) {
 		screenPosition = generateProjectedPosition(marchingPosition);
-		depthFromScreen = -ReconstructViewSpacePosition(screenPosition*resolution, texture(gDepth, screenPosition).r, invProjectionMatrix, resolutionSSR).z;
+		depthFromScreen = -ReconstructViewSpacePosition(screenPosition*resolutionSSR, texture(gDepth, screenPosition).r, invProjectionMatrix, resolutionSSR).z;
 		delta = abs(marchingPosition.z) - depthFromScreen;
 		if (abs(delta) < distanceBias) {
 			vec3 color = vec3(1);
@@ -74,25 +74,21 @@ vec3 SSR(vec3 position, vec3 reflection) {
 }
 
 void main(){
-	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolutionSSR);
-	vec3 normal =  unCompressNormal(texture(gNormal, textureCoords).xyz);
-	float rougness = texture(gMaterials, textureCoords).r*0.5f;
 	float metallic = texture(gMaterials, textureCoords).b;
-	vec3 modelColor = texture(shadedColor, textureCoords).rgb;
-	vec3 positionWorld = ReconstructWorldSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, invViewMatrix, resolutionSSR);
-	vec3 hash = (positionWorld);
-	hash = (hash*2.0)-1.0;
-	normal += hash*rougness;
-	if (metallic < 0.0001) {
-		discard;
-		out_Colour = texture(shadedColor, textureCoords);
-	} else {
-		vec3 reflectionDirection = normalize(reflect(position, normalize(normal)));
-		out_Colour = vec4(SSR(position, normalize(reflectionDirection)), 1.f);
-		if (out_Colour.xyz == vec3(0.f)){
-			float up = max(dot(vec3(0.0f, 1.0f, 0.0f), normalize(normal)), 0.0f);
-			out_Colour.rgb = mix(modelColor, skyColour, up);
-			out_Colour.rgb = skyColour;
-		}
-	}
+	if (metallic < 0.0001) discard;
+
+	float depth = texture(gDepth, textureCoords).r;
+	vec3 position = ReconstructViewSpacePosition(gl_FragCoord.xy, depth, invProjectionMatrix, resolutionSSR);
+	vec3 positionWorld = ReconstructWorldSpacePosition(gl_FragCoord.xy, depth, invProjectionMatrix, invViewMatrix, resolutionSSR);
+	float roughness = texture(gMaterials, textureCoords).r * 0.5;
+
+	// A rough surface scatters its reflection: the normal is shaken by a little noise, fixed in the world.
+	vec3 normal = unCompressNormal(texture(gNormal, textureCoords).xyz);
+	normal += (hash3D(floor(positionWorld * 64.0)) * 2.0 - 1.0) * roughness;
+
+	vec3 reflectionDirection = normalize(reflect(position, normalize(normal)));
+	vec3 reflected = SSR(position, reflectionDirection);
+
+	// A ray that finds nothing leaves the surface as the light passes shaded it, ambient reflection and all.
+	out_Colour = vec4(reflected == vec3(0.0) ? texture(shadedColor, textureCoords).rgb : reflected, 1.0);
 }

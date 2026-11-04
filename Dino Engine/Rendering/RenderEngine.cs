@@ -29,6 +29,7 @@ namespace Dino_Engine.Rendering
         public Vector2 resolution;
         public Vector3 skyColour;
         public Vector4 focusPoint;  // xyz a point to keep in view, w the radius of the opening; see Shaders/FocusCutout.glsl.
+        public float daylight;      // How bright the day is, 1 in full sun: for what's lit without going through the light passes.
     }
     public struct ShaderGlobals2
     {
@@ -63,6 +64,7 @@ namespace Dino_Engine.Rendering
         public InstancedModelRenderer _instancedModelRenderer;
         public CharacterRenderer _characterRenderer;
         public ImposterRenderer _imposterRenderer;
+        public AmbientLightRenderer _ambientLightRenderer;
         public DirectionalLightRenderer _directionalLightRenderer;
         public PointLightRenderer _pointLightRenderer;
         private ToneMapRenderer _toneMapRenderer;
@@ -103,6 +105,8 @@ namespace Dino_Engine.Rendering
         public ScreenQuadRenderer ScreenQuadRenderer { get => _screenQuadRenderer; }
         /// <summary>Anti-aliasing settings, read each frame.</summary>
         public AntiAliasingSettings AntiAliasing { get; } = new AntiAliasingSettings();
+        /// <summary>Lighting and exposure settings, read each frame.</summary>
+        public LightingSettings Lighting { get; } = new LightingSettings();
         /// <summary>The multisampled G-buffer and scene, and the passes that resolve them.</summary>
         public MsaaRenderer Msaa { get => _msaa; }
         /// <summary>This frame's screen-space ambient occlusion, for the light passes.</summary>
@@ -148,6 +152,7 @@ namespace Dino_Engine.Rendering
             _instancedModelRenderer = new InstancedModelRenderer();
             _characterRenderer = new CharacterRenderer();
             _imposterRenderer = new ImposterRenderer();
+            _ambientLightRenderer = new AmbientLightRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
             _pointLightRenderer = new PointLightRenderer();
             _toneMapRenderer = new ToneMapRenderer();
@@ -321,6 +326,7 @@ namespace Dino_Engine.Rendering
             GL.ClearColor(0f, 0f, 0f, 1f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
+            _ambientLightRenderer.RenderPass(this);
             _directionalLightRenderer.RenderPass(this);
             _pointLightRenderer.RenderPass(this);
             _spotLightRenderer.RenderPass(this);

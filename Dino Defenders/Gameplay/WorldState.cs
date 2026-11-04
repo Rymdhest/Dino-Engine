@@ -30,10 +30,9 @@ namespace Dino_Defenders.Gameplay
     {
         Chimney,
         Campfire,
-        Lantern,
     }
 
-    /// <summary>Something at a site that comes alive when the hero is near: a thread of smoke, a fire, a lit lantern.</summary>
+    /// <summary>Something at a site that comes alive when the hero is near: a thread of smoke, a fire.</summary>
     public readonly record struct SiteFeature(SiteFeatureKind Kind, Vector3 Position);
 
     /// <summary>

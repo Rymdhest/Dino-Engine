@@ -42,11 +42,10 @@ uniform int directionalCascadeCount[4];
 uniform mat4 cascadeMatrices[5];
 uniform sampler2DShadow cascadeShadowMaps[5];
 
-// Point lights: xyz position + w attenuation radius, rgb colour + w shadow map index (-1 = none), xyz attenuation.
+// Point lights: xyz position + w radius, rgb colour + w shadow map index (-1 = none).
 uniform int pointLightCount;
 uniform vec4 pointPositionRadius[16];
 uniform vec4 pointColourShadow[16];
-uniform vec4 pointAttenuation[16];
 uniform samplerCubeShadow pointShadowMaps[3];
 uniform float pointShadowNear;
 uniform float pointShadowFar;
@@ -56,7 +55,7 @@ uniform int spotLightCount;
 uniform vec4 spotPositionRadius[16];
 uniform vec4 spotColourShadow[16];
 uniform vec4 spotDirectionCutoff[16];
-uniform vec4 spotAttenuationSoftness[16];
+uniform float spotSoftness[16];
 uniform mat4 spotShadowMatrices[4];
 uniform sampler2DShadow spotShadowMaps[4];
 
@@ -186,7 +185,7 @@ float spotCone(vec3 toLight, int light)
     float cutoff = spotDirectionCutoff[light].w;
     float theta = dot(toLight, -spotDirectionCutoff[light].xyz);
     if (theta < cutoff) return 0.0;
-    float epsilon = max(spotAttenuationSoftness[light].w * (1.0 - cutoff), 1e-6);
+    float epsilon = max(spotSoftness[light] * (1.0 - cutoff), 1e-6);
     return smoothstep(0.0, 1.0, clamp((theta - cutoff) / epsilon, 0.0, 1.0));
 }
 
@@ -403,13 +402,13 @@ void main(void)
             float distanceSquared = dot(toLightVector, toLightVector);
             if (distanceSquared >= pointPositionRadius[l].w * pointPositionRadius[l].w) continue;
 
-            float attenuation = calcAttunuation(lightPosition, position, pointAttenuation[l].xyz);
+            float distanceToLight = sqrt(distanceSquared);
+            float attenuation = lightFalloff(distanceToLight, pointPositionRadius[l].w);
             if (attenuation <= 0.0) continue;
             int shadowIndex = int(floor(pointColourShadow[l].w + 0.5));
             float visibility = shadowIndex >= 0 ? pointShadow(shadowIndex, -toLightVector) : 1.0;
             if (visibility <= 0.0) continue;
 
-            float distanceToLight = sqrt(distanceSquared);
             vec3 toLight = toLightVector / max(distanceToLight, 1e-5);
             float opticalDepth = localLightOpticalDepth(extinction, position, lightPosition, distanceToLight, layerTop);
             inScattered += pointColourShadow[l].rgb * (attenuation * visibility * multipleScattering(octavePhases(dot(rayDirection, toLight)), opticalDepth));
@@ -427,7 +426,7 @@ void main(void)
             vec3 toLight = toLightVector / max(distanceToLight, 1e-5);
             float cone = spotCone(toLight, l);
             if (cone <= 0.0) continue;
-            float attenuation = calcAttunuation(lightPosition, position, spotAttenuationSoftness[l].xyz);
+            float attenuation = lightFalloff(distanceToLight, spotPositionRadius[l].w);
             if (attenuation <= 0.0) continue;
             int shadowIndex = int(floor(spotColourShadow[l].w + 0.5));
             float visibility = shadowIndex >= 0 ? spotShadow(shadowIndex, position) : 1.0;

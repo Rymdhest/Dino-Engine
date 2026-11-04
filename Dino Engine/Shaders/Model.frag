@@ -48,8 +48,9 @@ void main() {
 	}
 	//if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
 	MaterialProps material = LookupAllMaterialPropsGrad(parallaxedCoords, textureIndex, uvDX, uvDY);
-	gAlbedo.rgb = material.albedo;
-	gAlbedo.rgb *= fragColor;
+	// An emissive colour can be brighter than the albedo's 8 bits hold. Its hue stays there and the rest goes to the emission.
+	float overbright = material.emission > 0.0 ? max(max(fragColor.r, max(fragColor.g, fragColor.b)), 1.0) : 1.0;
+	gAlbedo.rgb = material.albedo * fragColor / overbright;
 
     // Cutouts (leaves) end between the MSAA samples where the alpha crosses the cutoff.
     int coverage = alphaTestCoverage(material.alpha, 0.5);
@@ -69,7 +70,7 @@ void main() {
 	gNormal.xyz = compressNormal(normal);
 
 	gMaterials.r = material.roughness;
-	gMaterials.g = material.emission;
+	gMaterials.g = encodeEmission(material.emission * EMISSION_GAIN * overbright);
 	gMaterials.b = material.metalic;
     gMaterials.a = material.height;
 

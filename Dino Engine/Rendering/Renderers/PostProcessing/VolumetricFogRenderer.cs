@@ -60,11 +60,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private static readonly string[] CascadeMatrixNames = UniformNames("cascadeMatrices", MaxCascadeSlots);
         private static readonly string[] PointPositionRadiusNames = UniformNames("pointPositionRadius", MaxPointLights);
         private static readonly string[] PointColourShadowNames = UniformNames("pointColourShadow", MaxPointLights);
-        private static readonly string[] PointAttenuationNames = UniformNames("pointAttenuation", MaxPointLights);
         private static readonly string[] SpotPositionRadiusNames = UniformNames("spotPositionRadius", MaxSpotLights);
         private static readonly string[] SpotColourShadowNames = UniformNames("spotColourShadow", MaxSpotLights);
         private static readonly string[] SpotDirectionCutoffNames = UniformNames("spotDirectionCutoff", MaxSpotLights);
-        private static readonly string[] SpotAttenuationSoftnessNames = UniformNames("spotAttenuationSoftness", MaxSpotLights);
+        private static readonly string[] SpotSoftnessNames = UniformNames("spotSoftness", MaxSpotLights);
         private static readonly string[] SpotShadowMatrixNames = UniformNames("spotShadowMatrices", MaxSpotShadows);
 
         private readonly ShaderProgram _noiseShader = new ShaderProgram("Simple.vert", "VolumetricFog_Noise.frag");
@@ -392,7 +391,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             for (int i = 0; i < _pointLights.Count; i++)
             {
                 PointlightRenderCommand light = _pointLights[i];
-                if (IsCandidate(light.positionWorld, light.attenuationRadius, light.colour * scattering, frustum, cameraPosition, out float distance))
+                if (IsCandidate(light.positionWorld, light.radius, light.colour * scattering, frustum, cameraPosition, out float distance))
                 {
                     _lightCandidates.Add((distance, i));
                 }
@@ -411,9 +410,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                     GL.ActiveTexture(TextureUnit.Texture0 + PointShadowUnitStart + shadowIndex);
                     GL.BindTexture(TextureTarget.TextureCubeMap, light.shadow.Value.shadowFrameBuffer.getDepthAttachment());
                 }
-                _marchShader.loadUniformVector4f(PointPositionRadiusNames[i], new Vector4(light.positionWorld, light.attenuationRadius));
+                _marchShader.loadUniformVector4f(PointPositionRadiusNames[i], new Vector4(light.positionWorld, light.radius));
                 _marchShader.loadUniformVector4f(PointColourShadowNames[i], new Vector4(light.colour * scattering, shadowIndex));
-                _marchShader.loadUniformVector4f(PointAttenuationNames[i], new Vector4(light.attenuation, 0f));
             }
             _marchShader.loadUniformInt("pointLightCount", pointCount);
 
@@ -423,7 +421,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             {
                 SpotlightRenderCommand light = _spotLights[i];
                 if (SpotLightRenderer.WorldDirection(light).LengthSquared > 0f
-                    && IsCandidate(light.positionWorld, light.attenuationRadius, light.colour * scattering, frustum, cameraPosition, out float distance))
+                    && IsCandidate(light.positionWorld, light.radius, light.colour * scattering, frustum, cameraPosition, out float distance))
                 {
                     _lightCandidates.Add((distance, i));
                 }
@@ -445,10 +443,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                     _marchShader.loadUniformMatrix4f(SpotShadowMatrixNames[shadowIndex], shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
                 }
                 Vector3 direction = SpotLightRenderer.WorldDirection(light).Normalized();
-                _marchShader.loadUniformVector4f(SpotPositionRadiusNames[i], new Vector4(light.positionWorld, light.attenuationRadius));
+                _marchShader.loadUniformVector4f(SpotPositionRadiusNames[i], new Vector4(light.positionWorld, light.radius));
                 _marchShader.loadUniformVector4f(SpotColourShadowNames[i], new Vector4(light.colour * scattering, shadowIndex));
                 _marchShader.loadUniformVector4f(SpotDirectionCutoffNames[i], new Vector4(direction, light.cutoffCosine));
-                _marchShader.loadUniformVector4f(SpotAttenuationSoftnessNames[i], new Vector4(light.attenuation, light.softness));
+                _marchShader.loadUniformFloat(SpotSoftnessNames[i], light.softness);
             }
             _marchShader.loadUniformInt("spotLightCount", spotCount);
         }
@@ -460,7 +458,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private static bool IsCandidate(Vector3 position, float radius, Vector3 colour, Frustum frustum, Vector3 cameraPosition, out float distance)
         {
             distance = 0f;
-            // No reach, no colour, or an attenuation without a real radius (NaN): nothing to add.
+            // No reach or no colour: nothing to add.
             if (!(radius > 0f) || colour == Vector3.Zero) return false;
             if (frustum.IntersectsAABB(new AABB(position - new Vector3(radius), position + new Vector3(radius))) == IntersectionResult.Outside) return false;
             distance = MathF.Max((position - cameraPosition).Length - radius, 0f);

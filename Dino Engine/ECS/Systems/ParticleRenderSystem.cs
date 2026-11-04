@@ -17,6 +17,7 @@ namespace Dino_Engine.ECS.Systems
             ParticleRenderCommand command = new ParticleRenderCommand();
             command.localToWorldMatrix = entity.Get<LocalToWorldMatrixComponent>().value;
             command.color = entity.Get<ColorComponent>().value;
+            if (entity.Get<ParticleRenderTag>().Lit) command.color.Intensity *= Engine.RenderEngine.context.daylight;
             Engine.RenderEngine._particleRenderer.SubmitCommand(command);
         }
     }

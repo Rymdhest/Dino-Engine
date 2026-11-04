@@ -19,11 +19,12 @@ namespace Dino_Engine.ECS.Systems
         }
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
         {
+            if (!Engine.RenderEngine.Lighting.Sun) return;
+
             DirectionallightRenderCommand command = new DirectionallightRenderCommand();
 
             command.colour = entity.Get<ColorComponent>().value.ToVector3();
             command.direction = entity.Get<DirectionNormalizedComponent>().value;
-            command.ambient = entity.GetOptional(new AmbientLightComponent(0f)).value;
             if (entity.Has<DirectionalCascadingShadowComponent>())
             {
                 command.cascades = entity.Get<DirectionalCascadingShadowComponent>().cascades;
@@ -33,13 +34,8 @@ namespace Dino_Engine.ECS.Systems
             }
 
             Engine.RenderEngine._directionalLightRenderer.SubmitCommand(command);
-
-            // The sky light is the fog's and the water's ambient term already (skyColour), so it isn't applied a second time.
-            if (!entity.Has<SkyTag>())
-            {
-                Engine.RenderEngine._volumetricFogRenderer.SubmitDirectionalLight(command);
-                Engine.RenderEngine._waterRenderer.SubmitDirectionalLight(command);
-            }
+            Engine.RenderEngine._volumetricFogRenderer.SubmitDirectionalLight(command);
+            Engine.RenderEngine._waterRenderer.SubmitDirectionalLight(command);
         }
     }
 }

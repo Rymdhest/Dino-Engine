@@ -22,10 +22,12 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
         private static VertexMaterial Iron => new VertexMaterial(TextureGenerator.iron, new Colour(110, 110, 115));
         private static VertexMaterial Thatch => new VertexMaterial(TextureGenerator.thatch, new Colour(232, 212, 172));
         private static VertexMaterial Glow(float r, float g, float b, float strength) => new VertexMaterial(TextureGenerator.flatGlow, new Colour(r, g, b, strength));
-        private static VertexMaterial FireGlow => Glow(1f, 0.55f, 0.18f, 3f);
+        private static VertexMaterial FireGlow => Glow(1f, 0.42f, 0.1f, 3.5f);
 
-        public static Mesh Generate(StructureDefinition definition, BuildingStyle style)
+        /// <summary>A prop of the catalog. The lights it carries, in model space, are added to <paramref name="lights"/>.</summary>
+        public static Mesh Generate(StructureDefinition definition, BuildingStyle style, List<AssetLight>? lights = null)
         {
+            lights ??= new List<AssetLight>();
             var random = new WorldRandom(0x7A11).Fork(definition.Id);
             string id = definition.Id;
             var b = new MeshBuilder();
@@ -39,15 +41,15 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "woodpile": BuildWoodpile(b, random); break;
                 case "barrels": BuildBarrels(b, random); break;
                 case "crates": BuildCrates(b, random); break;
-                case "lantern": BuildLantern(b); break;
-                case "lantern.stone": BuildStoneLantern(b); break;
+                case "lantern": BuildLantern(b, lights); break;
+                case "lantern.stone": BuildStoneLantern(b, lights); break;
                 case "signpost": BuildSignpost(b); break;
                 case "scarecrow": BuildScarecrow(b); break;
                 case "rack": BuildDryingRack(b, random); break;
                 case "bench": BuildBench(b); break;
                 case "tent": BuildTent(b, definition.HalfExtents, 112, 92, 66); break;
                 case "tent.large": BuildTent(b, definition.HalfExtents, 118, 46, 38); break;
-                case "campfire": BuildCampfire(b, random); break;
+                case "campfire": BuildCampfire(b, random, lights); break;
                 case "logs": BuildLogStack(b, random); break;
                 case "boat": BuildBoat(b); break;
                 case "jetty": BuildJetty(b, definition.HalfExtents); break;
@@ -56,11 +58,11 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "keep": BuildKeep(b, definition.HalfExtents); break;
                 case "gate.arch": BuildGateArch(b); break;
                 case "gatehouse": BuildGatehouse(b, definition.HalfExtents); break;
-                case "waygate": BuildWaygate(b); break;
-                case "altar": BuildAltar(b, random); break;
+                case "waygate": BuildWaygate(b, lights); break;
+                case "altar": BuildAltar(b, random, lights); break;
                 case "grave": BuildGrave(b, random); break;
                 case "tomb": BuildTomb(b, definition.HalfExtents); break;
-                case "monolith": BuildMonolith(b, random); break;
+                case "monolith": BuildMonolith(b, random, lights); break;
                 case "ruin.wall": BuildRuinWall(b, random); break;
                 case "ruin.column": BuildRuinColumn(b, random); break;
                 case "ruin.rubble": BuildRubble(b, random); break;
@@ -262,23 +264,25 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             Crate(new Vector3(-0.4f, 1.4f, 0.05f), 0.45f, random.Range(-0.6f, 0.6f));
         }
 
-        private static void BuildLantern(MeshBuilder b)
+        private static void BuildLantern(MeshBuilder b, List<AssetLight> lights)
         {
+            lights.Add(AssetLight.Lantern(new Vector3(0f, 4.3f, 0.95f)));
             b.Tube(new Vector3(0f, -0.3f, 0f), new Vector3(0f, 5.4f, 0f), 0.13f, 0.09f, 6, DarkWood);
             b.Beam(new Vector3(0f, 5.2f, 0f), new Vector3(0f, 5.2f, 1f), 0.06f, DarkWood);
             b.Tube(new Vector3(0f, 5.2f, 0.95f), new Vector3(0f, 4.8f, 0.95f), 0.02f, 0.02f, 3, Iron);
-            b.Box(new Vector3(0f, 4.45f, 0.95f), new Vector3(0.22f, 0.32f, 0.22f), Glow(1f, 0.68f, 0.3f, 3f));
+            b.Box(new Vector3(0f, 4.45f, 0.95f), new Vector3(0.22f, 0.32f, 0.22f), Glow(1f, 0.5f, 0.16f, 3f));
             b.Box(new Vector3(0f, 4.82f, 0.95f), new Vector3(0.28f, 0.05f, 0.28f), Iron);
             b.Box(new Vector3(0f, 4.1f, 0.95f), new Vector3(0.28f, 0.04f, 0.28f), Iron);
         }
 
-        private static void BuildStoneLantern(MeshBuilder b)
+        private static void BuildStoneLantern(MeshBuilder b, List<AssetLight> lights)
         {
+            lights.Add(AssetLight.StoneLantern(new Vector3(0f, 2.76f, 0f)));
             VertexMaterial stone = Rough(186);
             b.Tube(new Vector3(0f, -0.2f, 0f), new Vector3(0f, 0.34f, 0f), 0.85f, 0.7f, 6, stone);
             b.Tube(new Vector3(0f, 0.34f, 0f), new Vector3(0f, 2f, 0f), 0.26f, 0.22f, 6, stone);
             b.Tube(new Vector3(0f, 2f, 0f), new Vector3(0f, 2.3f, 0f), 0.62f, 0.55f, 6, stone);
-            b.Box(new Vector3(0f, 2.76f, 0f), new Vector3(0.36f, 0.44f, 0.36f), Glow(1f, 0.62f, 0.25f, 2.6f));
+            b.Box(new Vector3(0f, 2.76f, 0f), new Vector3(0.36f, 0.44f, 0.36f), Glow(1f, 0.46f, 0.14f, 2.6f));
             foreach (float x in new[] { -1f, 1f })
             {
                 foreach (float z in new[] { -1f, 1f })
@@ -368,8 +372,9 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             }
         }
 
-        private static void BuildCampfire(MeshBuilder b, WorldRandom random)
+        private static void BuildCampfire(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
         {
+            lights.Add(AssetLight.Campfire(new Vector3(0f, 1.6f, 0f)));
             for (int i = 0; i < 9; i++)
             {
                 float angle = i * (MathF.Tau / 9f);
@@ -625,8 +630,10 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
         }
 
         // The way between worlds: a ring of old stone with a pale light standing in it.
-        private static void BuildWaygate(MeshBuilder b)
+        private static void BuildWaygate(MeshBuilder b, List<AssetLight> lights)
         {
+            lights.Add(AssetLight.Glow(new Vector3(0f, 3.4f, 0f), new Vector3(0.35f, 0.85f, 1f), 75f, 20f));
+
             VertexMaterial stone = Rough(158);
             const int Blocks = 11;
             const float Radius = 4.4f;
@@ -653,8 +660,10 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Quad(new Vector3(-(Radius - 0.5f), 0.3f, 0f), new Vector3(Radius - 0.5f, 0.3f, 0f), new Vector3(Radius - 0.5f, 1.2f, 0f), new Vector3(-(Radius - 0.5f), 1.2f, 0f), Glow(0.22f, 0.6f, 0.75f, 0.32f));
         }
 
-        private static void BuildAltar(MeshBuilder b, WorldRandom random)
+        private static void BuildAltar(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
         {
+            lights.Add(AssetLight.Glow(new Vector3(0f, 3.1f, 0f), new Vector3(0.45f, 1f, 0.72f), 42f, 15f));
+
             VertexMaterial stone = Rough(176);
             b.Tube(new Vector3(0f, -0.3f, 0f), new Vector3(0f, 0.32f, 0f), 1.8f, 1.6f, 8, stone);
             b.Tube(new Vector3(0f, 0.32f, 0f), new Vector3(0f, 1.3f, 0f), 0.92f, 0.76f, 8, stone);
@@ -692,11 +701,12 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Quad(new Vector3(-1.5f, 0f, z + 0.56f), new Vector3(1.5f, 0f, z + 0.56f), new Vector3(1.5f, 3.2f, z + 0.56f), new Vector3(-1.5f, 3.2f, z + 0.56f), new VertexMaterial(TextureGenerator.flat, new Colour(10, 10, 12)));
         }
 
-        private static void BuildMonolith(MeshBuilder b, WorldRandom random)
+        private static void BuildMonolith(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
         {
             VertexMaterial stone = Rough(160);
             float height = random.Range(7.5f, 10f);
             float lean = random.Range(-0.5f, 0.5f);
+            lights.Add(AssetLight.Glow(new Vector3(lean * 0.55f, height * 0.62f, 1.5f), new Vector3(0.3f, 0.75f, 1f), 38f, 15f));
             b.Tube(new Vector3(0f, -1f, 0f), new Vector3(lean, height, lean * 0.5f), 1.45f, 0.72f, 5, stone);
             b.Add(IcoSphereGenerator.CreateIcosphere(1, Glow(0.3f, 0.75f, 1f, 1.2f)), new Vector3(lean * 0.55f, height * 0.62f, 1f), new Vector3(0.22f, 0.5f, 0.1f));
         }
