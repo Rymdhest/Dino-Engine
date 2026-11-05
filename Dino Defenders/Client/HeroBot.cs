@@ -22,13 +22,18 @@ namespace Dino_Defenders.Client
         private const int MostFramesHeld = 120;
         private const int FramesToArrive = 30;      // Being moved goes by way of the server, so it isn't done the moment it's asked.
 
+        private const float LootReach = 16f;
+        private const float QuietEnough = 12f;      // How far off enemies have to be for it to stop for what's on the ground.
+
         private static readonly BitMask EnemyMask = new BitMask(typeof(EnemyComponent), typeof(PositionComponent));
+        private static readonly BitMask LootMask = new BitMask(typeof(PickupComponent), typeof(PositionComponent));
 
         private readonly ECSWorld _ecs;
         private readonly bool _sweep;
         private readonly Vector2? _walkTo;
         private readonly Action<HeroBot> _finished;
         private readonly Dictionary<Vector2, int> _attempts = new();
+        private readonly HashSet<int> _tried = new();
         private int _framesLeft = -1;
         private Vector2 _heldAt;
         private int _framesHeld;
@@ -82,6 +87,9 @@ namespace Dino_Defenders.Client
                 nearest = position;
             }
 
+            if (session.Fetch.Active) return intent;
+            if (best > QuietEnough && Fetch(session)) return intent;
+
             if (best > EngageRange)
             {
                 if (_sweep) GoOn(session);
@@ -114,6 +122,23 @@ namespace Dino_Defenders.Client
                 if (skill.Skill.Form == Skills.SkillForm.Strike && skill.Skill.Arc >= MathF.Tau ? close >= 2 : best < reach) intent.Use(slot);
             }
             return intent;
+        }
+
+        // It clicks on what's on the ground as anyone would, and goes for each thing once, as there's no telling a find it can't reach from one it hasn't got to yet.
+        private bool Fetch(GameSession session)
+        {
+            if (session.Hero.Inventory.Count >= Progression.HeroState.InventorySize) return false;
+
+            foreach (Entity entity in _ecs.QueryEntities(LootMask, BitMask.Empty))
+            {
+                EntityView view = _ecs.GetEntityView(entity);
+                var pickup = view.Get<PickupComponent>();
+                if (pickup.Find == 0 || !pickup.Landed || !session.Ground.ContainsKey(pickup.Find)) continue;
+                if ((pickup.Rest.Xz - session.PlayerPosition).Length > LootReach || !_tried.Add(pickup.Find)) continue;
+                session.Fetch.Begin(pickup.Find, pickup.Rest.Xz);
+                return true;
+            }
+            return false;
         }
 
         private void Travel(GameSession session, Vector2 to)

@@ -125,6 +125,19 @@ namespace Dino_Defenders.Progression
             return new WeaponProfile(WeaponDamage * (1f - WeaponSpread), WeaponDamage * (1f + WeaponSpread), traits.AttackTime, traits.CritChance, tags);
         }
 
+        /// <summary>What it is before anything has been rolled on it.</summary>
+        public IEnumerable<string> DescribeBase()
+        {
+            if (WeaponDamage > 0f)
+            {
+                WeaponProfile weapon = Weapon();
+                yield return $"{weapon.Min:0} to {weapon.Max:0} Damage, {1f / weapon.AttackTime:0.##} attacks a second";
+            }
+            if (Armour > 0f) yield return $"{Armour:0} Armour";
+            if (Evasion > 0f) yield return $"{Evasion:0} Evasion";
+            if (Barrier > 0f) yield return $"{Barrier:0} Barrier";
+        }
+
         /// <summary>The lines a player reads, in the order they should read them.</summary>
         public IEnumerable<string> Describe()
         {
@@ -383,20 +396,40 @@ namespace Dino_Defenders.Progression
         {
             Rarity rarity = RollRarity(random, rarityBonus);
             if (least.HasValue && rarity < least.Value) rarity = least.Value;
+            return Compose(level, random, rarity, slot, 0f, false);
+        }
 
+        /// <summary>
+        /// An item of exactly this grade, for what's already been decided by a loot table. A legendary with no unique to be at this level comes out as the next best thing.
+        /// </summary>
+        /// <param name="quality">From 0 to 1, how well it comes out: from a fair roll of everything, to every line at the top of what its level can reach, on the newest make, with as many lines as it can have.</param>
+        public static Item Forge(int level, WorldRandom random, LootGrade grade, float quality, ItemSlot? slot = null)
+        {
+            Rarity rarity = grade switch
+            {
+                LootGrade.Legendary => Rarity.Legendary,
+                LootGrade.Masterwork or LootGrade.Rare => Rarity.Rare,
+                LootGrade.Magic => Rarity.Magic,
+                _ => Rarity.Common,
+            };
+            return Compose(level, random, rarity, slot, quality, grade >= LootGrade.Masterwork);
+        }
+
+        private static Item Compose(int level, WorldRandom random, Rarity rarity, ItemSlot? slot, float quality, bool masterwork)
+        {
             ItemSlot chosen = slot ?? (ItemSlot)random.Int(Enum.GetValues<ItemSlot>().Length);
             if (rarity == Rarity.Legendary && UniqueCatalog.Pick(level, slot, random) is UniqueDefinition unique) return UniqueCatalog.Make(unique, level, random);
             if (rarity == Rarity.Legendary) rarity = Rarity.Rare;
 
-            BaseItem baseItem = PickBase(chosen, level, random);
-            Item item = Make(baseItem, level, random);
+            BaseItem baseItem = PickBase(chosen, level, random, quality);
+            Item item = Make(baseItem, level, random, quality);
             item.Rarity = rarity;
 
             int affixes = rarity switch
             {
                 Rarity.Common => 0,
-                Rarity.Magic => random.Int(1, 2),
-                _ => random.Int(3, 5),
+                Rarity.Magic => Climb(random.Int(1, 2), 2, quality, random),
+                _ => masterwork ? Loot.MasterworkLines : Climb(random.Int(3, 5), 5, quality, random),
             };
 
             var names = new List<(bool prefix, string text)>();
@@ -407,9 +440,9 @@ namespace Dino_Defenders.Progression
                 if (affix == null) break;
                 taken.Add(affix.Id);
 
-                int tier = BestTier(affix, level, random);
+                int tier = BestTier(affix, level, random, quality);
                 Tier rolled = affix.Tiers[tier];
-                item.Lines.Add(new ItemLine(affix.Id, random.Range(rolled.Low, rolled.High)));
+                item.Lines.Add(new ItemLine(affix.Id, Rise(rolled.Low, rolled.High, quality, random)));
                 names.Add((affix.Prefix, affix.Names[Math.Min(tier, affix.Names.Length - 1)]));
             }
 
@@ -417,9 +450,23 @@ namespace Dino_Defenders.Progression
             return item;
         }
 
-        private static Item Make(BaseItem baseItem, int level, WorldRandom random)
+        // A roll that good quality leans towards the top of. At none it's the plain roll.
+        private static float Rise(float low, float high, float quality, WorldRandom random)
         {
-            float roll = random.Range(0.92f, 1.08f);
+            float share = 1f - MathF.Pow(1f - random.Float(), 1f + quality * 2.5f);
+            return low + (high - low) * share;
+        }
+
+        // One more line, as often as quality says, up to what the item can have.
+        private static int Climb(int lines, int most, float quality, WorldRandom random)
+        {
+            while (lines < most && quality > 0f && random.Chance(quality)) lines++;
+            return lines;
+        }
+
+        private static Item Make(BaseItem baseItem, int level, WorldRandom random, float quality = 0f)
+        {
+            float roll = Rise(0.92f, 1.08f, quality, random);
             return new Item
             {
                 Name = baseItem.Name,
@@ -454,7 +501,7 @@ namespace Dino_Defenders.Progression
             return Rarity.Common;
         }
 
-        private static BaseItem PickBase(ItemSlot slot, int level, WorldRandom random)
+        private static BaseItem PickBase(ItemSlot slot, int level, WorldRandom random, float quality)
         {
             BaseItem? best = null;
             var candidates = new List<BaseItem>();
@@ -469,7 +516,7 @@ namespace Dino_Defenders.Progression
             // Weapons and armour come in kinds, and nobody should be stuck with one. Newer makes are likelier, within the kind that comes up.
             BaseItem first = random.Pick(candidates);
             var kin = candidates.Where(c => c.Kind == first.Kind && (c.Armour > 0f) == (first.Armour > 0f) && (c.Evasion > 0f) == (first.Evasion > 0f) && (c.Barrier > 0f) == (first.Barrier > 0f)).ToList();
-            return random.Chance(0.7f) ? kin[^1] : first;
+            return random.Chance(0.7f + 0.3f * quality) ? kin[^1] : first;
         }
 
         private static Affix? PickAffix(ItemSlot slot, int level, HashSet<string> taken, WorldRandom random)
@@ -484,7 +531,7 @@ namespace Dino_Defenders.Progression
         }
 
         // The top tier a level reaches is the rarest roll; lower tiers stay possible.
-        private static int BestTier(Affix affix, int level, WorldRandom random)
+        private static int BestTier(Affix affix, int level, WorldRandom random, float quality)
         {
             int top = 0;
             for (int i = 0; i < affix.Tiers.Length; i++)
@@ -492,7 +539,7 @@ namespace Dino_Defenders.Progression
                 if (affix.Tiers[i].MinLevel <= level) top = i;
             }
             int tier = top;
-            while (tier > 0 && random.Chance(0.4f)) tier--;
+            while (tier > 0 && random.Chance(0.4f * (1f - quality))) tier--;
             return tier;
         }
 

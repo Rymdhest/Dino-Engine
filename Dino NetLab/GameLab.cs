@@ -113,6 +113,13 @@ namespace Dino_NetLab
 
         public HeroIntent ReadIntent()
         {
+            if (Client.Session is { Fetch.Active: true } fetching)
+            {
+                var fetch = new HeroIntent();
+                fetching.Fetch.Steer(fetching, ref fetch);
+                return fetch;
+            }
+
             if (StrikeAt is Vector2 target && Client.Session != null)
             {
                 StrikeAt = null;
@@ -277,7 +284,7 @@ namespace Dino_NetLab
             hero.Level = 12;
             hero.Equipped[ItemSlot.Weapon].WeaponDamage = 34f;
             hero.Equipped[ItemSlot.Amulet] = new Item { Name = "Lab Charm", Slot = ItemSlot.Amulet, Level = 12, Lines = { new ItemLine("health", 400f) } };
-            Learn(hero, "pyre.firebolt", "winter.frost-nova", "storm.spark");
+            Learn(hero, "pyre.firebolt", "forge.whirl", "winter.frost-nova", "storm.spark");
             return hero;
         }
 

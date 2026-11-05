@@ -380,8 +380,8 @@ namespace Dino_Defenders.Server
     }
 
     /// <summary>
-    /// What heroes can pick up and use. Loot lies where it fell and comes to the nearest hero when they are close; E uses whatever
-    /// they are standing by.
+    /// What heroes can use. E uses whatever they are standing by, and gold comes to whoever is near, as nobody should have to stop for it. Everything else on the ground
+    /// has to be asked for: see <see cref="GroundLoot"/>.
     /// </summary>
     public class InteractionSystem : SystemBase
     {
@@ -443,7 +443,8 @@ namespace Dino_Defenders.Server
                     state.Opened.Add(interactable.SpawnIndex);
                     state.Changed = true;
                     state.Live.Remove(view.Entity);
-                    session.Combat.OpenChest(hero, view.Get<PositionComponent>().value, EncounterSystem.LevelAt(session, state));
+                    LootTier tier = state.Wild ? LootTier.Cache : state.Site.Kind == SiteKind.Keep ? LootTier.Hoard : LootTier.Chest;
+                    session.Combat.OpenChest(hero, view.Get<PositionComponent>().value, EncounterSystem.LevelAt(session, state), tier);
                     world.DestroyEntity(view.Entity);
                     break;
                 default:
@@ -485,57 +486,41 @@ namespace Dino_Defenders.Server
                 foreach (var entity in new ComponentAccessor(archetype))
                 {
                     var pickup = entity.Get<PickupComponent>();
-                    pickup.Age += deltaTime;
+                    if (pickup.Gold <= 0 || _server.Tick < pickup.Born + (uint)(Loot.GoldFlight * NetTime.TicksPerSecond)) continue;
 
                     ServerPlayer? hero = session.NearestHero(pickup.Rest.Xz, out float distance);
-                    if (hero == null)
-                    {
-                        entity.Set(pickup);
-                        continue;
-                    }
+                    if (hero == null) continue;
 
-                    // Gold flies to the hero; items wait to be walked over, so that a full pack doesn't waste them.
-                    if (pickup.Item == null && distance < MagnetReach && pickup.Age > 0.4f)
+                    if (distance < PickupReach)
                     {
-                        Vector2 toHero = hero.Sim.Position - pickup.Rest.Xz;
-                        pickup.Rest += new Vector3(toHero.X, 0f, toHero.Y) / MathF.Max(distance, 0.1f) * 22f * deltaTime;
-                        entity.Set(new PositionComponent(pickup.Rest));
-                    }
-
-                    if (distance < PickupReach && pickup.Age > 0.4f && Collect(hero, pickup))
-                    {
+                        Collect(hero, pickup);
                         world.DestroyEntity(entity.Entity);
                         continue;
                     }
+
+                    if (distance >= MagnetReach) continue;
+                    Vector2 toHero = hero.Sim.Position - pickup.Rest.Xz;
+                    pickup.Rest += new Vector3(toHero.X, 0f, toHero.Y) / MathF.Max(distance, 0.1f) * 22f * deltaTime;
+                    entity.Set(new PositionComponent(pickup.Rest));
                     entity.Set(pickup);
                 }
             }
         }
 
-        private bool Collect(ServerPlayer hero, in PickupComponent pickup)
+        private void Collect(ServerPlayer hero, in PickupComponent pickup)
         {
             Vector3 position = pickup.Rest;
-            if (pickup.Item == null)
+            hero.Hero.Gold += pickup.Gold;
+            hero.SummaryChanged = true;
+            _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Coins, Value = pickup.Gold }, position.Xz);
+            _server.Broadcast(new TextEvent
             {
-                hero.Hero.Gold += pickup.Gold;
-                hero.SummaryChanged = true;
-                _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Coins, Value = pickup.Gold }, position.Xz);
-                _server.Broadcast(new TextEvent
-                {
-                    Position = position + Vector3.UnitY * 3f,
-                    Text = $"+{pickup.Gold} gold",
-                    Colour = new Vector3(1f, 0.82f, 0.3f),
-                    Size = 14f,
-                    Life = 1.1f,
-                }, position.Xz);
-                return true;
-            }
-
-            if (!hero.Hero.Pickup(pickup.Item)) return false;
-            hero.GearChanged = true;
-            _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Find, Value = (int)pickup.Item.Rarity }, position.Xz);
-            _server.Note(hero, $"Found: {pickup.Item.Name}");
-            return true;
+                Position = position + Vector3.UnitY * 3f,
+                Text = $"+{pickup.Gold} gold",
+                Colour = new Vector3(1f, 0.82f, 0.3f),
+                Size = 14f,
+                Life = 1.1f,
+            }, position.Xz);
         }
     }
 }

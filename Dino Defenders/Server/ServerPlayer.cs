@@ -52,6 +52,7 @@ namespace Dino_Defenders.Server
         public int SendInterval = 2;
         public int RoundTrip;
         public readonly Dictionary<int, List<Item>> Stocks = new();
+        public readonly List<(int find, uint until)> Asked = new();     // What's been asked for on the ground, and how long they have to get to it.
 
         /// <summary>The newest command received, and commands that came too late to use.</summary>
         public uint NewestCommand { get; private set; }

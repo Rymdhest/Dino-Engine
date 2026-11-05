@@ -49,6 +49,8 @@ namespace Dino_SoundLab
                 CheckWind();
                 CheckGrounds();
                 CheckWater();
+                Console.WriteLine("Loot");
+                CheckLoot();
                 Console.WriteLine("Side by side");
                 CheckSideBySide();
                 Console.WriteLine("DSP");
@@ -425,6 +427,29 @@ namespace Dino_SoundLab
             SoundBuffer body = Splashes.Body.Render(5);
             SoundBuffer wade = Splashes.Wade.Render(5);
             Expect(body.Length > wade.Length, "a body going in makes less of a splash than a foot");
+        }
+
+        // A good find is known by ear before it's seen, so each step up has to be more of an event than the last, and these are the one kind of sound that stays the same from take to take.
+        private static void CheckLoot()
+        {
+            SoundDefinition[] drops = { Treasure.DropRare, Treasure.DropMasterwork, Treasure.DropLegendary };
+            for (int i = 0; i < drops.Length; i++)
+            {
+                Expect(drops[i].PitchSpread == 0f, $"{drops[i].Id}: wanders in pitch, and has to be learned like a name");
+                if (i == 0) continue;
+                Expect(drops[i].Presence > drops[i - 1].Presence, $"{drops[i].Id}: stands out no more than {drops[i - 1].Id}");
+                Expect(drops[i].Render(1).Seconds > drops[i - 1].Render(1).Seconds, $"{drops[i].Id}: is over sooner than {drops[i - 1].Id}");
+            }
+
+            // It lands on the very moment its sound breaks. Anything else is a thud and then, a little late, a chord.
+            SoundBuffer legendary = Treasure.DropLegendary.Render(1);
+            int strike = (int)(Treasure.LegendaryStrike * AudioFormat.SampleRate);
+            int window = AudioFormat.SampleRate / 5;
+            float before = 0f, after = 0f;
+            for (int i = strike - window; i < strike - AudioFormat.SampleRate / 50; i++) before = MathF.Max(before, MathF.Abs(legendary.Left[i]));
+            for (int i = strike; i < strike + window; i++) after = MathF.Max(after, MathF.Abs(legendary.Left[i]));
+            Console.WriteLine($"  A legendary breaks {AudioFormat.GainToDecibels(after / MathF.Max(before, 1e-6f)):0.0} dB above what led up to it.");
+            Expect(after > before * 2f, $"loot.drop.legendary: doesn't break when it lands ({before:0.000} before, {after:0.000} after)");
         }
 
         private static (float[] left, float[] right, double cost) Run(LiveSound sound, float seconds)

@@ -25,6 +25,7 @@ namespace Dino_Defenders.Server
 
         public readonly GameServer Server;
         public readonly Combat Combat;
+        public readonly GroundLoot Ground;
         public readonly Bestiary Bestiary = new();
         public readonly List<Actor> Minions = new();
         public bool ObjectivesChanged;
@@ -41,6 +42,7 @@ namespace Dino_Defenders.Server
         {
             Server = server;
             Combat = new Combat(this);
+            Ground = new GroundLoot(this);
         }
 
         /// <summary>The nearest hero still on their feet.</summary>

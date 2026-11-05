@@ -29,7 +29,7 @@ There are no classes. There is one great talent tree, of over 850 nodes, and wha
 | Space | Dodge |
 | R | Drink a flask |
 | E | Use, talk, trade |
-| F | Guiding wind: the wind turns toward your next goal |
+| F | Guiding wind, once you've set a land free: the wind turns toward your next goal |
 | M | Map |
 | C or I | Hero and inventory |
 | T | The talent tree |

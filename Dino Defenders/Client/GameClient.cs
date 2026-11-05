@@ -49,6 +49,7 @@ namespace Dino_Defenders.Client
     {
         private const int FirstMargin = 3;      // Ticks of spare to start with, on top of the measured trip.
         private const int MostDamaged = 30;
+        private const long TakenFor = 1500;     // Milliseconds something asked for stays hidden before it's taken not to have happened.
 
         private readonly INetTransport _transport;
         private readonly IClientHost _host;
@@ -77,6 +78,9 @@ namespace Dino_Defenders.Client
         public readonly InterpolationClock Render = new();
         public readonly HeroPredictor Predictor = new();
         public readonly List<(int id, string name)> Party = new();
+
+        /// <summary>This player has reached for something on the ground, and whether there was room for it. It's heard at once, as a click that answers late feels broken.</summary>
+        public event Action<Item, bool>? Reached;
 
         /// <summary>Milliseconds, from any starting point.</summary>
         public Func<long> Clock = System.Diagnostics.Stopwatch.StartNew() is var watch ? () => watch.ElapsedMilliseconds : null!;
@@ -326,6 +330,9 @@ namespace Dino_Defenders.Client
                     case Message.Party:
                         OnParty(reader);
                         break;
+                    case Message.GroundItem:
+                        OnGroundItem(reader);
+                        break;
                 }
             }
             catch (NetReadException e)
@@ -541,6 +548,20 @@ namespace Dino_Defenders.Client
             }
         }
 
+        private void OnGroundItem(BitReader reader)
+        {
+            int find = reader.ReadVarInt();
+            Item? item = reader.ReadBool() ? Protocol.ReadItem(reader) : null;
+            if (Session == null) return;
+
+            if (item != null) Session.Ground[find] = item;
+            else
+            {
+                Session.Ground.Remove(find);
+                Session.Taken.Remove(find);
+            }
+        }
+
         private BitWriter Action(HeroAction action)
         {
             BitWriter writer = Protocol.Begin(Message.Action);
@@ -624,6 +645,26 @@ namespace Dino_Defenders.Client
             BitWriter writer = Action(HeroAction.Waygate);
             Protocol.WriteRequest(writer, request);
             Send(writer);
+        }
+
+        /// <summary>Takes something from the ground, for a hero who has walked up to it. It looks gone at once, and the server has the last word.</summary>
+        public void PickUp(int find)
+        {
+            GameSession? session = Session;
+            if (session == null || !session.Ground.TryGetValue(find, out Item? item)) return;
+
+            if (Hero.Inventory.Count >= HeroState.InventorySize)
+            {
+                session.Note("Your pack is full.");
+                Reached?.Invoke(item, false);
+                return;
+            }
+
+            BitWriter writer = Action(HeroAction.PickUp);
+            writer.WriteVarInt(find);
+            Send(writer);
+            session.Taken[find] = Clock() + TakenFor;
+            Reached?.Invoke(item, true);
         }
 
         public void ThankElder(int site)

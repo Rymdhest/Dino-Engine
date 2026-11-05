@@ -28,6 +28,7 @@ namespace Dino_Defenders.Net
         OpenPanel,      // Reliable: you've opened something.
         Market,         // Reliable: what a merchant has for you.
         Party,          // Reliable: who else is here.
+        GroundItem,     // Reliable: what a find on the ground is.
     }
 
     public enum HeroAction : byte
@@ -45,6 +46,7 @@ namespace Dino_Defenders.Net
         TravelToPoint,  // Only for scripted runs, where the server allows it.
         Waygate,
         ThankElder,
+        PickUp,
     }
 
     public enum NoticeKind : byte
@@ -60,7 +62,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 4;
+        public const uint Version = 5;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -228,7 +230,7 @@ namespace Dino_Defenders.Net
             return items;
         }
 
-        private static void WriteItem(BitWriter writer, Item item)
+        public static void WriteItem(BitWriter writer, Item item)
         {
             writer.WriteString(item.Name);
             writer.WriteByte((byte)item.Slot);
@@ -249,7 +251,7 @@ namespace Dino_Defenders.Net
             }
         }
 
-        private static Item ReadItem(BitReader reader)
+        public static Item ReadItem(BitReader reader)
         {
             var item = new Item
             {

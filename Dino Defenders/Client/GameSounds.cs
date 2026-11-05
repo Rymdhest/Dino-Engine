@@ -113,6 +113,57 @@ namespace Dino_Defenders.Client
             Audio.Play(Magic.Aura(ClientEffects.ElementOf(skill.Look)), position);
         }
 
+        /// <summary>Into the pack, or not: that's only ever this player's to hear.</summary>
+        public void Reached(Item item, bool room)
+        {
+            if (!room)
+            {
+                Audio.Play(Interface.Refuse);
+                return;
+            }
+
+            Audio.Play(item.Rarity switch
+            {
+                Rarity.Legendary => Treasure.ItemLegendary,
+                Rarity.Rare => Treasure.ItemRare,
+                Rarity.Magic => Treasure.ItemMagic,
+                _ => Treasure.ItemCommon,
+            });
+        }
+
+        /// <summary>A legendary's sound takes as long as its flight, and arrives when it does.</summary>
+        public void LootLaunched(LootGrade grade, Vector3 position)
+        {
+            if (grade == LootGrade.Legendary) Audio.Play(Treasure.DropLegendary);
+        }
+
+        /// <summary>A find coming down: what it is, by what it hits the ground with, and what it's worth, by the note that follows.</summary>
+        public void LootLanded(LootGrade grade, ItemSlot slot, bool gold, Vector3 position)
+        {
+            if (gold)
+            {
+                Audio.Play(Treasure.Coin, position);
+                return;
+            }
+
+            Audio.Play(slot switch
+            {
+                ItemSlot.Ring or ItemSlot.Amulet => Treasure.LandJewel,
+                ItemSlot.Body or ItemSlot.Feet => Treasure.LandCloth,
+                _ => Treasure.LandMetal,
+            }, position);
+            if (grade == LootGrade.Masterwork) Audio.Play(Treasure.DropMasterwork);
+            else if (grade == LootGrade.Rare) Audio.Play(Treasure.DropRare, position);
+        }
+
+        /// <summary>Something good found lying there has its note all the same, as that's how a player knows to look.</summary>
+        public void LootDiscovered(LootGrade grade, Vector3 position)
+        {
+            if (grade == LootGrade.Legendary) Audio.Play(Treasure.DropLegendary);
+            else if (grade == LootGrade.Masterwork) Audio.Play(Treasure.DropMasterwork);
+            else if (grade == LootGrade.Rare) Audio.Play(Treasure.DropRare, position);
+        }
+
         /// <summary>A spell going off somewhere.</summary>
         public void Burst(SkillDefinition skill, Vector3 position)
         {
@@ -203,16 +254,6 @@ namespace Dino_Defenders.Client
             {
                 case SoundCue.Coins:
                     Audio.Play(e.Value >= 60 ? Treasure.Hoard : e.Value >= 12 ? Treasure.Handful : Treasure.Coin, e.Position);
-                    break;
-                case SoundCue.Find:
-                    if (!Mine(e)) break;
-                    Audio.Play((Rarity)e.Value switch
-                    {
-                        Rarity.Legendary => Treasure.ItemLegendary,
-                        Rarity.Rare => Treasure.ItemRare,
-                        Rarity.Magic => Treasure.ItemMagic,
-                        _ => Treasure.ItemCommon,
-                    });
                     break;
                 case SoundCue.Chest:
                     Audio.Play(Treasure.ChestOpen, e.Position);

@@ -108,6 +108,10 @@ namespace Dino_NetLab
                 }
             }
 
+            // It never stops to pick anything up, so all it's dropped is still lying where it fell.
+            int Dropped(LootGrade grade) => session.Ground.All.Count(lying => Loot.GradeOf(lying.item) == grade);
+            int good = Dropped(LootGrade.Rare) + Dropped(LootGrade.Masterwork) + Dropped(LootGrade.Legendary);
+            Console.WriteLine($"Dropped {Dropped(LootGrade.Plain)} plain, {Dropped(LootGrade.Magic)} magic, {Dropped(LootGrade.Rare)} rare, {Dropped(LootGrade.Masterwork)} masterwork, {Dropped(LootGrade.Legendary)} legendary: something good every {minutes * 60f / Math.Max(good, 1):0} s, or {lastKills / (float)Math.Max(good, 1):0} kills.");
             Console.WriteLine($"Gold {truth.Hero.Gold}, carrying {truth.Hero.Inventory.Count} items. Server: {lab.TickCostTotal / Math.Max(lab.TicksTimed, 1):0.00} ms a tick on average, worst {lab.TickCostWorst:0.0} ms.");
             return 0;
         }

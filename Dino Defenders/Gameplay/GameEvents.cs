@@ -112,7 +112,6 @@ namespace Dino_Defenders.Gameplay
     public enum SoundCue
     {
         Coins,
-        Find,
         Chest,
         Flask,
         ShrineKindled,

@@ -321,6 +321,14 @@ namespace Dino_Defenders
 
             if (_frames == _options.TravelAfterFrames) StepThroughWaygate();
             if (_frames == 90 && _options.Panel != null) OpenPanel(_options.Panel);
+            if (_frames == 30 && _options.Loot is string loot && _server != null)
+            {
+                _server.Ask(server =>
+                {
+                    server.ShowLoot(loot);
+                    return true;
+                });
+            }
             if (_frames == 30 && _options.Parade is string parade && _server != null)
             {
                 _server.Ask(server =>
@@ -646,12 +654,15 @@ namespace Dino_Defenders
         {
             GameSession? session = _client?.Session;
 
+            // Whatever they were walking to, they aren't now, and shouldn't set off for it again from a shrine on the other side of the world.
+            if (session != null && session.Health <= 0f) session.Fetch.Cancel();
+
             // The free camera owns the keyboard and mouse, and open panels stop the hero.
             if (session == null || Engine.world.IsFreeCameraActive || session.Paused || session.Health <= 0f) return default;
-            if (session.Autopilot != null) return session.Autopilot();
-
             Vector2 at = session.PlayerPosition;
-            return LocalInput.Read(new Vector3(at.X, session.World.Height.Sample(at), at.Y), session.Sim);
+            HeroIntent intent = session.Autopilot != null ? session.Autopilot() : LocalInput.Read(new Vector3(at.X, session.World.Height.Sample(at), at.Y), session.Sim);
+            session.Fetch.Steer(session, ref intent);
+            return intent;
         }
 
         void IClientHost.HeroActed(HeroStepEvents events, in HeroSimState hero)

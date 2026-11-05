@@ -160,7 +160,7 @@ namespace Dino_NetLab
 
         private static void Forms(Report report, WorldCache worlds, WorldRequest request)
         {
-            using (Arena arena = Enter(worlds, request))
+            using (Arena arena = Enter(worlds, request, "forge.whirl"))
             {
                 Actor ahead = arena.Dummy(East * 4f);
                 Actor behind = arena.Dummy(West * 4f);

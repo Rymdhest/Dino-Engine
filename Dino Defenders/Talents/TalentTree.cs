@@ -218,6 +218,9 @@ namespace Dino_Defenders.Talents
                 float degrees = centre + (twig < 2 ? -Fork : Fork) + (twig % 2 == 0 ? -SecondFork : SecondFork);
                 Pod(twigs[twig][0], twigs[twig][2], firstForkAt + BranchNodes * Step, degrees, 1f);
             }
+
+            // An eleventh goes on the free side of the trunk, last of all, as what's already placed has to stay where it is.
+            Pod(trunk[1], trunk[3], TrunkStart + Step, centre, -1f);
         }
 
         private static TalentNode Keystone(Sector sector, int index, KeystoneEntry entry, Vector2 position)

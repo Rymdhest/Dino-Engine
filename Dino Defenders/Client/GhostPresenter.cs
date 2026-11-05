@@ -1,4 +1,5 @@
 using Dino_Defenders.Gameplay;
+using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
 using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
@@ -78,12 +79,14 @@ namespace Dino_Defenders.Client
                 }
             }
 
+            PickupComponent? loot = null;
             for (int i = 0; i < components.Count; i++)
             {
                 if (components[i] is PickupComponent pickup)
                 {
                     pickup.Rest = position;
                     components[i] = pickup;
+                    loot = pickup;
                 }
             }
 
@@ -130,11 +133,23 @@ namespace Dino_Defenders.Client
             {
                 components.Add(new ModelComponent(_characters.Resolve(visual.Value.Model)));
                 components.Add(new ModelRenderTag());
-                if (PickupGlow(visual.Value.Model) is Colour glow)
+                if (loot is PickupComponent find)
                 {
-                    components.Add(new PointLightTag());
-                    components.Add(new LightRangeComponent(PickupLightRadius, 0.2f, lightsFog: false));
-                    components.Add(new ColorComponent(glow));
+                    // Gold catches the eye by shining on what's around it, and so does anything better than plain, which starts to when it lands.
+                    if (find.Find == 0)
+                    {
+                        components.Add(new PointLightTag());
+                        components.Add(new LightRangeComponent(GoldLightRadius, 0.2f, lightsFog: false));
+                        components.Add(new ColorComponent(new Colour(1f, 0.74f, 0.3f, 0f)));
+                    }
+                    else if (LootShow.GlowStrength(find.Grade) > 0f)
+                    {
+                        Colour light = LootShow.GlowOf(find.Grade);
+                        components.Add(new PointLightTag());
+                        components.Add(new LightRangeComponent(LootShow.LightRadius, 0.2f, lightsFog: false));
+                        components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, 0f)));
+                    }
+                    if (LootShow.BeamOf(find.Grade) != null) components.Add(new BeamComponent());
                 }
                 else if (visual.Value.Model.StartsWith(CharacterFactory.BoltPrefix) && Enum.TryParse(visual.Value.Model.AsSpan(CharacterFactory.BoltPrefix.Length), out DamageType look))
                 {
@@ -159,18 +174,10 @@ namespace Dino_Defenders.Client
             }
         }
 
-        private const float PickupLightRadius = 6f;
+        private const float GoldLightRadius = 6f;
         private const float BoltLightRadius = 11f;
         private const float BeastCadence = 2.1f;
         private const int HostileBoltsPerLight = 3;
-
-        // What lies on the ground to be picked up catches the eye by shining on what's around it.
-        private static Colour? PickupGlow(string model) => model switch
-        {
-            "gold" => new Colour(1f, 0.74f, 0.3f, 7f),
-            "item" => new Colour(0.9f, 0.95f, 1f, 7f),
-            _ => null,
-        };
 
         public void Created(Ghost ghost)
         {
@@ -204,7 +211,6 @@ namespace Dino_Defenders.Client
         private readonly BitMask _enemyMask = new BitMask(typeof(EnemyComponent), typeof(RotationComponent), typeof(ScaleComponent));
         private readonly BitMask _heroMask = new BitMask(typeof(HeroComponent), typeof(HealthComponent), typeof(RotationComponent));
         private readonly BitMask _arrowMask = new BitMask(typeof(BallisticComponent), typeof(PositionComponent), typeof(ScaleComponent));
-        private readonly BitMask _pickupMask = new BitMask(typeof(PickupComponent), typeof(PositionComponent));
 
         public GhostPresentationSystem(Func<GameClient?> client, Func<ClientEffects?> effects)
             : base(new BitMask(typeof(PositionComponent)))
@@ -229,7 +235,7 @@ namespace Dino_Defenders.Client
             ToppleFallen(world, deltaTime);
             ToppleHeroes(world, deltaTime);
             FlyArrows(world, client, session);
-            BobPickups(world, deltaTime);
+            LootShow.Update(world, client, session, _effects(), deltaTime);
             ShowLasting(world, deltaTime);
         }
 
@@ -424,22 +430,6 @@ namespace Dino_Defenders.Client
             }
         }
 
-        private void BobPickups(ECSWorld world, float deltaTime)
-        {
-            foreach (Archetype archetype in world.QueryArchetypes(_pickupMask, BitMask.Empty))
-            {
-                foreach (EntityView entity in new ComponentAccessor(archetype))
-                {
-                    var pickup = entity.Get<PickupComponent>();
-                    pickup.Age += deltaTime;
-                    entity.Set(pickup);
-
-                    Vector3 position = entity.Get<PositionComponent>().value;
-                    position.Y = pickup.Rest.Y + 0.3f + 0.2f * MathF.Sin(pickup.Age * 3f);
-                    entity.Set(new PositionComponent(position));
-                }
-            }
-        }
     }
 
     /// <summary>What's on offer where the hero stands. Offering is for the player to see; using it goes to the server, which decides for itself.</summary>
@@ -482,11 +472,14 @@ namespace Dino_Defenders.Client
     /// <summary>Sparks, numbers and gusts: what things look like happening, whether told by the server or done by this player a moment ago.</summary>
     public sealed class ClientEffects
     {
+        private const int MostCallouts = 2;
+
         private static readonly Vector3 HitColour = new Vector3(1f, 0.92f, 0.7f);
         private static readonly Vector3 CritColour = new Vector3(1f, 0.55f, 0.15f);
         private static readonly Vector3 HurtColour = new Vector3(1f, 0.25f, 0.2f);
 
         private readonly ECSWorld _world;
+        private readonly GameClient _client;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
 
         public readonly GameSounds Sounds;
@@ -524,6 +517,60 @@ namespace Dino_Defenders.Client
                 if (e.Kind == SparkKind.Shrine) Flash(e.Position, new Colour(0.5f, 1f, 0.75f, 300f), 26f, 1.6f);
             });
             client.Events.On<HeroMoveEvent>(e => Show(e.Move, e.Position, e.Aim, e.Skill));
+            client.Reached += (item, room) => Sounds.Reached(item, room);
+            _client = client;
+        }
+
+        /// <summary>Something has just left what it came out of. A legendary's whole sound starts here, and breaks as it lands.</summary>
+        public void LootLaunched(LootGrade grade, bool gold, Vector3 position)
+        {
+            if (!gold) Sounds.LootLaunched(grade, position);
+        }
+
+        /// <summary>Something has come down, for all to see.</summary>
+        public void LootLanded(int find, LootGrade grade, ItemSlot slot, bool gold, Vector3 position)
+        {
+            Sounds.LootLanded(grade, slot, gold, position);
+            if (gold || grade < LootGrade.Magic) return;
+
+            Colour glow = LootShow.GlowOf(grade);
+            Vector3 foot = position + Vector3.UnitY * 0.5f;
+            if (grade == LootGrade.Magic)
+            {
+                Spark(foot, glow, 5, 3f);
+                return;
+            }
+
+            // Each step up is bigger in every way, and the top of it moves the land itself.
+            int step = grade - LootGrade.Rare;
+            Flash(position + Vector3.UnitY * 2.5f, new Colour(glow.Red, glow.Green, glow.Blue, 260f + 240f * step), 16f + 13f * step, 0.6f + 0.4f * step);
+            Ring(foot, 2.6f + 1.6f * step, glow, 16 + 10 * step);
+            Spark(foot, glow, 14 + 18 * step, 6f + 3f * step);
+            if (step > 0) Wind.AddBlast(_world, position, 9f + 9f * step, 12f + 12f * step, 0.5f + 0.3f * step);
+            if (step > 0) Announce(find, grade);
+        }
+
+        private void Announce(int find, LootGrade grade)
+        {
+            GameSession? session = _client.Session;
+            if (session == null || !session.Ground.TryGetValue(find, out Item? item)) return;
+
+            // A boss can pour out more of these than there's room for, and it gives its best last.
+            if (session.Callouts.Count >= MostCallouts) session.Callouts.RemoveAt(0);
+            session.Callouts.Add(new LootCallout { Text = item.Name, Grade = grade });
+        }
+
+        /// <summary>Something good, already lying there when it came into sight.</summary>
+        public void LootDiscovered(LootGrade grade, Vector3 position)
+        {
+            Sounds.LootDiscovered(grade, position);
+        }
+
+        /// <summary>A spark off something good, in the air or rising up its beam.</summary>
+        public void LootMote(LootGrade grade, Vector3 position, float height)
+        {
+            Vector3 at = position + new Vector3(_random.Range(-0.5f, 0.5f), _random.Range(0f, height), _random.Range(-0.5f, 0.5f));
+            Spark(at, LootShow.GlowOf(grade), 1, 1.6f);
         }
 
         /// <summary>
@@ -768,7 +815,7 @@ namespace Dino_Defenders.Client
             }
             intent.Flask = window.IsKeyPressed(Keys.R);
             intent.Interact = window.IsKeyPressed(Keys.E);
-            intent.Guide = window.IsKeyPressed(Keys.F);
+            intent.Guide = window.IsKeyPressed(Keys.F) && GameSession.Current.Hero.HasGuidingWind;
             return intent;
         }
 

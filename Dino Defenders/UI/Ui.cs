@@ -26,12 +26,32 @@ namespace Dino_Defenders.UI
 
         public static FontFace Face => _face ??= SystemFonts.TryLoad("Palatino Linotype", "Book Antiqua", "Georgia", "Cambria", "Times New Roman") ?? Engine.Gui.Theme.Font;
 
-        public static Colour RarityColour(Rarity rarity) => rarity switch
+        public static Colour GradeColour(LootGrade grade) => grade switch
         {
-            Rarity.Magic => GuiColors.Rgba(112, 150, 230),
-            Rarity.Rare => GuiColors.Rgba(232, 204, 92),
-            Rarity.Legendary => GuiColors.Rgba(232, 128, 52),
+            LootGrade.Magic => GuiColors.Rgba(112, 150, 230),
+            LootGrade.Rare => GuiColors.Rgba(232, 204, 92),
+            LootGrade.Masterwork => GuiColors.Rgba(190, 120, 255),
+            LootGrade.Legendary => GuiColors.Rgba(255, 138, 46),
             _ => Parchment,
+        };
+
+        /// <summary>What's behind a find's name on the ground: dark enough to read over anything, with enough of its colour in it to tell at a glance.</summary>
+        public static Colour GradeFill(LootGrade grade) => grade switch
+        {
+            LootGrade.Magic => GuiColors.Rgba(10, 16, 36, 210),
+            LootGrade.Rare => GuiColors.Rgba(38, 30, 8, 220),
+            LootGrade.Masterwork => GuiColors.Rgba(36, 14, 58, 232),
+            LootGrade.Legendary => GuiColors.Rgba(66, 26, 4, 238),
+            _ => GuiColors.Rgba(12, 10, 8, 180),
+        };
+
+        public static string GradeName(Item item) => item.Unique != null ? "Unique" : Loot.GradeOf(item) switch
+        {
+            LootGrade.Plain => "Common",
+            LootGrade.Magic => "Magic",
+            LootGrade.Rare => "Rare",
+            LootGrade.Masterwork => "Masterwork",
+            _ => "Legendary",
         };
 
         /// <summary>One line of text with a soft shadow, so it reads over anything the world puts behind it.</summary>

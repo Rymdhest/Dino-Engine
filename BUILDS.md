@@ -121,7 +121,7 @@ A skill works the same on any slot. The mouse buttons are held, and what the oth
 
 ## The tree
 
-One tree, no classes. `TalentTree` is a wheel of twelve sectors around a root, each forking twice as it goes out, so the further a build reaches the more its choices narrow. It's built from the tables in `TalentContent`: a sector is a row of small-node mods, ten pods, and three keystones.
+One tree, no classes. `TalentTree` is a wheel of twelve sectors around a root, each forking twice as it goes out, so the further a build reaches the more its choices narrow. It's built from the tables in `TalentContent`: a sector is a row of small-node mods, ten pods (the Forge has an eleventh, Whirl, on the free side of its trunk), and three keystones.
 
 - **Pods** loop out from a branch and back to it further on, so going through one never strands anyone.
 - **Bridges** join each sector to its neighbours on two rings, with a notable in the middle for those who walk both.
@@ -130,6 +130,8 @@ One tree, no classes. `TalentTree` is a wheel of twelve sectors around a root, e
 - **Small nodes are always worth having**, for the same reason.
 
 There are no classes, so what a hero *is* gets worked out from where they've spent their points (`TalentTree.TitleOf`): the sector they've given most to names them, the next colours it, and a keystone can have the last word.
+
+A new hero knows Strike and nothing else, and everything on their bar after that is learned. Whirl is four points from the root, so it's within reach at level 2. The guiding wind comes with the first land set free (`HeroState.HasGuidingWind`).
 
 Points: two a level, one for each land set free, and three to start with. Refunds are free for now, so that builds can be tried: right click a node, or Forget all.
 
@@ -163,7 +165,35 @@ Spacing is what makes it work. Packs stand about a short run apart, but the gap 
 
 A pack acts as one. Whoever notices a hero or is struck calls out (`Actor.Alarm`), and it's passed on once, as far as `CallReach`. That has to stay below the gap between packs, or one fight wakes the next. Around a foe they keep `PersonalSpace` from each other (`EnemyBrainSystem.Spread`), as nothing else stops a pack closing into one body with many heads. Only `EncounterSystem.MostWakings` packs wake at a check, as a hero stepping out of a waygate is surrounded by them.
 
-A world holds a thousand enemies or more, so what they give is worked out for that. `ExperienceAt` goes by how much health a kill had, so followers are worth less than what leads them. Plain enemies rarely drop anything (`ItemChance`) and elites often do. Flasks fill from kills (`KillsPerFlask`), as a fight now goes on far from any shrine. Bosses and sites work as they did, but their garrisons grow with the world, added on the end of `Spawns`: what's dead is kept by number, so numbers mustn't move. A place that was cleared stays clear, whatever a newer build would have put there.
+A world holds a thousand enemies or more, so what they give is worked out for that. `ExperienceAt` goes by how much health a kill had, so followers are worth less than what leads them, and what they drop is the next section's business. Flasks fill from kills (`KillsPerFlask`), as a fight now goes on far from any shrine. Bosses and sites work as they did, but their garrisons grow with the world, added on the end of `Spawns`: what's dead is kept by number, so numbers mustn't move. A place that was cleared stays clear, whatever a newer build would have put there.
+
+## Loot
+
+Finding something good is the reward the rest of the game is for, so read this before changing how anything drops. Nothing is ever picked up by walking over it: a find lies where it fell until a player clicks it, and only gold comes by itself.
+
+**A find has a grade.** `Loot.GradeOf` works it out from the item and it's never stored, so nothing can disagree with it and an item from an older build is graded like any other. It's what everything that shows a find goes by. Colour is `Ui.GradeColour`, and the rest is `LootShow`.
+
+| Grade | Is | Shows |
+|---|---|---|
+| Plain | No lines | A faint label |
+| Magic | One or two lines | A blue label and a small glow |
+| Rare | Three to five lines | A gold beam and a rising fifth (`DropRare`) |
+| Masterwork | A rare with six lines, which nothing else can roll | A violet beam, a hammer on steel (`DropMasterwork`), the grass thrown back, its name across the screen |
+| Legendary | A unique | An orange beam, a sound that rises for its whole flight and breaks as it lands (`DropLegendary`), and all of the above, bigger |
+
+**A source has a tier.** `LootTables` is one row each, and it's the only place any of this is decided. `TierOf` reads an enemy's real health against what's ordinary at its level, so a new creature is paid for what it takes to kill with nothing to fill in: `Fodder` is what a pack is mostly made of, `Soldier` an ordinary enemy, and `Champion` something large at the head of one, then `Elite` and `Boss` by rank. Chests are `Cache` in a camp, `Chest` at a place on the map, and `Hoard` in a keep.
+
+A row says how many finds, the chance of each grade, what nothing can be worse than (`Least`), what the first find is sure to be (`Promised`), how far above the source's level its items are (`ExtraLevels`), and how well they roll (`Quality`). Quality is what makes a boss's rare better than a wolf's rare: more lines, higher tiers, the top of each roll, the newest base. A boss always gives five rare finds or better, one of them legendary, on top of what it wore. Each step up pays at least twice the last, and `check` fails if one doesn't.
+
+Two things move the odds on top of a row. `Loot.Daring` pays up to double for going after what's above you and as little as 0.4 for what's beneath you, going by the strongest hero there. `LootLuck` shortens a dry spell: the odds climb the longer something hasn't come, and fall back when it does, so a player can't walk through a hundred enemies for nothing. A world has one of these, shared by everyone in it.
+
+**How it drops.** `GroundLoot` owns what's lying about. `Spill` sends it out one after another, gold first and the best last, so a fountain ends on what matters. Everything about a drop is worked out on the client from `PickupComponent`, which is sent once: where it came from, when it left, and where it lands. So nothing can be missed the way an event can, and someone who walks up later just finds it lying there, with its sound if they haven't heard it. A find is only ever announced once to a player (`GameSession.Heard`). Better finds go higher and take longer to come down, because the wait is part of it, and `Treasure.LegendaryStrike` is both a legendary's flight time and the moment its sound breaks, so the two have to stay one number.
+
+**Clicking.** `LootLabels` draws a box for each find and is the only part of the screen that stops the mouse for it. Labels push each other up rather than overlap, best first. An attack begun elsewhere goes straight across them, the right mouse button always does, and holding shift goes through them altogether, for fighting over what's on the ground. Clicking starts `LootFetch`, which walks the hero there through `HeroIntent` like any other movement, so it can't disagree with the server, and calls itself off if the player does anything else. The server only checks the hero is close enough. It has to arrive, so it uses an exact `WorldPathfinder`: the ordinary one is coarse, which suits a crowd but steps over fences and the metre-wide strips of ground nobody can cross. For the same reason `Landing` won't put a find on the far side of a wall from what dropped it.
+
+Loot is shared: whoever gets there first has it. What's left on the ground is lost on leaving a world or quitting, as it always was.
+
+To see it: `--loot all` drops one of every grade in front of the hero, and `--loot boss`, `elite`, `chest` or `hoard` what that tier gives.
 
 ## Networking
 
@@ -181,9 +211,11 @@ dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" bench      # What it
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" balance    # How a fight goes at each level
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list       # Everything there is, with its text as the player reads it
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" density    # How much there is to fight in a world, and how long between fights
-dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" pace           # A real client on foot, from pack to pack: kills, time in fights, falls
+dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" loot       # What each source gives, what a whole world comes to, and the longest dry spells
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" pace           # A real client on foot, from pack to pack: kills, time in fights, falls, and how often something good drops
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" loot           # What's on the ground: who sees it, who gets it, and that nobody gets it without asking
 dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" packs      # Who stands where, as a map
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build          # Every skill, ailment, reaction and keystone, for real on a running server
 ```
 
-Run `check` and `build` after any change here, and `game` if the hero's step or the protocol moved. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.
+Run `check` and `build` after any change here, `game` if the hero's step or the protocol moved, and `loot` and `pace` if anything about drops did. A bot proves nothing about clicking: post real mouse messages for that. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.

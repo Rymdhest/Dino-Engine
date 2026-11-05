@@ -88,7 +88,7 @@ namespace Dino_Defenders.UI
         }
 
         // World to screen, in the same convention the renderer uses (row vectors).
-        private static bool Project(Vector3 world, GuiRect screen, out Vector2 point)
+        public static bool Project(Vector3 world, GuiRect screen, out Vector2 point)
         {
             var context = Engine.RenderEngine.context;
             Vector4 clip = new Vector4(world, 1f) * context.viewMatrix * context.projectionMatrix;
@@ -316,7 +316,7 @@ namespace Dino_Defenders.UI
             }
             abilities.Add(new("Space", "Dodge", sim.DodgeCooldown / MathF.Max(session.Sheet.DodgeCooldown, 0.1f), true));
             abilities.Add(new("R", $"Flask {session.Hero.Flasks}", 0f, session.Hero.Flasks > 0));
-            abilities.Add(new("F", "Wind", session.GuideCooldown / 14f, true));
+            if (session.Hero.HasGuidingWind) abilities.Add(new("F", "Wind", session.GuideCooldown / 14f, true));
 
             const float size = 62f;
             const float gap = 8f;

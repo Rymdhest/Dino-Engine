@@ -100,6 +100,9 @@ namespace Dino_BuildLab
             int Index(string id) => TalentTree.Find(id)!.Index;
 
             HeroState fresh = HeroState.CreateNew();
+            report.Check("A new hero knows how to hit things, and nothing else", HeroBuild.Compile(fresh).Skills.SequenceEqual(new[] { SkillCatalog.Strike }));
+            report.Check("The wind doesn't answer them until a land is free", !fresh.HasGuidingWind && new HeroState { WorldsCleared = 1 }.HasGuidingWind);
+            report.Check("Whirl is one of the first things they can learn", TalentTree.DepthOf[Index("forge.whirl")] <= new HeroState { Level = 2 }.TalentPoints, $"{TalentTree.DepthOf[Index("forge.whirl")]} points");
             report.Check("A new hero can take the first step", TalentTree.CanAllocate(fresh, Index("pyre.t0")));
             report.Check("But not a step further", !TalentTree.CanAllocate(fresh, Index("pyre.t1")));
             report.Check("Nor anything that's taken", !TalentTree.CanAllocate(Hero(5, "pyre.t0"), Index("pyre.t0")));
@@ -242,8 +245,8 @@ namespace Dino_BuildLab
             var known = SkillCatalog.All.Where(s => !s.Hidden).ToList();
             report.Note($"{SkillCatalog.All.Count} skills, {known.Count} that can be learned");
             report.Check("Ids are all different", SkillCatalog.All.Select(s => s.Id).Distinct().Count() == SkillCatalog.All.Count);
-            report.Check("Every skill that can be learned is taught somewhere", known.Where(s => s != SkillCatalog.Strike && s != SkillCatalog.Whirl).All(s => TalentTree.Nodes.Any(n => n.Mods.Any(m => m.Kind == ModKind.GrantSkill && m.Skill == s.Number))),
-                string.Join(", ", known.Where(s => s != SkillCatalog.Strike && s != SkillCatalog.Whirl && !TalentTree.Nodes.Any(n => n.Mods.Any(m => m.Kind == ModKind.GrantSkill && m.Skill == s.Number))).Select(s => s.Id)));
+            report.Check("Every skill that can be learned is taught somewhere", known.Where(s => s != SkillCatalog.Strike).All(s => TalentTree.Nodes.Any(n => n.Mods.Any(m => m.Kind == ModKind.GrantSkill && m.Skill == s.Number))),
+                string.Join(", ", known.Where(s => s != SkillCatalog.Strike && !TalentTree.Nodes.Any(n => n.Mods.Any(m => m.Kind == ModKind.GrantSkill && m.Skill == s.Number))).Select(s => s.Id)));
             report.Check("Every one has words to go with it", known.All(s => s.Text.Length > 0));
             report.Check("Every skill is an attack or a spell", SkillCatalog.All.All(s => s.IsAttack != s.IsSpell));
 
@@ -469,7 +472,7 @@ namespace Dino_BuildLab
             hero.Equip(hero.Inventory[1]);
             ActorSheet ringed = HeroBuild.Compile(hero).SheetFor(Condition.None);
             report.Check("And mean what they meant", ringed.MoveSpeed > sheet.MoveSpeed && ringed.HealthRegen > sheet.HealthRegen && ringed.ItemRarity == 12f && ringed.GoldFind == 30f && ringed.Profile(SkillCatalog.Strike)!.AverageHit > sheet.Profile(SkillCatalog.Strike)!.AverageHit);
-            report.Check("A new hero has a bar to play with", hero.Bar[0] == "strike" && hero.Bar[2] == "whirl");
+            report.Check("A new hero has a bar with one thing on it", hero.Bar[0] == "strike" && hero.Bar.Skip(1).All(s => s == null));
 
             string path = Path.Combine(Path.GetTempPath(), $"buildlab-old-{Environment.ProcessId}.json");
             File.WriteAllText(path, OldSave);

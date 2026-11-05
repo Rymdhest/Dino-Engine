@@ -35,6 +35,14 @@ namespace Dino_Defenders.Gameplay
         public float Age;
     }
 
+    /// <summary>A great find, named across the top of the screen.</summary>
+    public struct LootCallout
+    {
+        public string Text;
+        public LootGrade Grade;
+        public float Age;
+    }
+
     /// <summary>
     /// The game as this player sees it: their hero, the world they are in, and what has happened to it. The interface reads all of
     /// this and none of it is the truth: that is on the server, and everything here is what it last said, kept up to date by
@@ -48,6 +56,11 @@ namespace Dino_Defenders.Gameplay
         public readonly List<FloatingText> FloatingTexts = new();
         public readonly List<Banner> Banners = new();
         public readonly List<LogLine> Log = new();
+        public readonly List<LootCallout> Callouts = new();
+        public readonly Dictionary<int, Item> Ground = new();   // What each find on the ground is, as far as this player has been told.
+        public readonly Dictionary<int, long> Taken = new();    // What's been asked for and is drawn as gone, until when, by the client's clock.
+        public readonly HashSet<int> Heard = new();             // Finds this player has already been told about, with a sound and all.
+        public readonly LootFetch Fetch = new();
 
         public HeroState Hero => Client.Hero;
         public ActorSheet Sheet => Client.Sheet;

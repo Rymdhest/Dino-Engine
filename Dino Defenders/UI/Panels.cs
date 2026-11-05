@@ -164,7 +164,7 @@ namespace Dino_Defenders.UI
                 return;
             }
 
-            Colour colour = Ui.RarityColour(item.Rarity);
+            Colour colour = Ui.GradeColour(Loot.GradeOf(item));
             if (IsHovered) draw.AddRect(Bounds, GuiColors.Rgba(255, 240, 200, 26), 2f);
             draw.AddRect(Bounds, GuiColors.Transparent, 2f, 1.5f, colour.MultiplyAlpha(0.8f));
             Ui.DrawSlotIcon(draw, item.Slot, Bounds, colour);
@@ -332,12 +332,12 @@ namespace Dino_Defenders.UI
                 return;
             }
 
-            _details.Add(Ui.Paragraph(item.Name, 18f, Ui.RarityColour(item.Rarity)));
-            string rarity = item.Unique != null ? "Unique" : item.Rarity.ToString();
+            Colour colour = Ui.GradeColour(Loot.GradeOf(item));
+            _details.Add(Ui.Paragraph(item.Name, 18f, colour));
             string slot = item.Slot == ItemSlot.Weapon ? item.Kind.ToString() : item.Slot.ToString();
-            _details.Add(Ui.Line($"{rarity} {slot}, level {item.Level}", 13f, Ui.Faded));
+            _details.Add(Ui.Line($"{Ui.GradeName(item)} {slot}, level {item.Level}", 13f, Ui.Faded));
             AddBase(item, 14f, Ui.Parchment);
-            foreach (string line in item.Describe()) _details.Add(Ui.Paragraph(line, 14f, Ui.RarityColour(item.Rarity)));
+            foreach (string line in item.Describe()) _details.Add(Ui.Paragraph(line, 14f, colour));
             if (item.Unique != null && UniqueCatalog.Find(item.Unique) is UniqueDefinition unique) _details.Add(Ui.Paragraph(unique.Lore, 13f, Ui.Faded));
 
             bool carried = Hero.Inventory.Contains(item);
@@ -354,14 +354,7 @@ namespace Dino_Defenders.UI
 
         private void AddBase(Item item, float size, Colour colour)
         {
-            if (item.WeaponDamage > 0f)
-            {
-                WeaponProfile weapon = item.Weapon();
-                _details.Add(Ui.Line($"{weapon.Min:0} to {weapon.Max:0} Damage, {1f / weapon.AttackTime:0.##} attacks a second", size, colour));
-            }
-            if (item.Armour > 0f) _details.Add(Ui.Line($"{item.Armour:0} Armour", size, colour));
-            if (item.Evasion > 0f) _details.Add(Ui.Line($"{item.Evasion:0} Evasion", size, colour));
-            if (item.Barrier > 0f) _details.Add(Ui.Line($"{item.Barrier:0} Barrier", size, colour));
+            foreach (string line in item.DescribeBase()) _details.Add(Ui.Line(line, size, colour));
         }
     }
 
@@ -534,7 +527,7 @@ namespace Dino_Defenders.UI
             _confirm.Visible = false;
 
             body.Add(Ui.Line("WASD move, mouse aims, skills on LMB, RMB, Q, 1 to 4", 13f, Ui.Faded));
-            body.Add(Ui.Line("Space dodge, R flask, E use, F guiding wind", 13f, Ui.Faded));
+            body.Add(Ui.Line("Space dodge, R flask, E use, F guiding wind once a land is free", 13f, Ui.Faded));
             body.Add(Ui.Line("M map, C hero, T tree, K skills, J chronicle, wheel zoom", 13f, Ui.Faded));
         }
 
@@ -649,6 +642,7 @@ namespace Dino_Defenders.UI
         public static GameUi Current = null!;
 
         public readonly Hud Hud = new();
+        public readonly LootLabels Labels = new();
         public readonly MapPanel Map;
         public readonly HeroPanel Hero = new();
         public readonly TalentPanel Talents = new();
@@ -671,6 +665,7 @@ namespace Dino_Defenders.UI
             _panels = new GuiElement[] { Map, Hero, Talents, Skills, Chronicle, Waygate, Pause, Friends };
 
             gui.Root.Add(Hud);
+            gui.Root.Add(Labels);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
             gui.Root.Add(Loading);
         }

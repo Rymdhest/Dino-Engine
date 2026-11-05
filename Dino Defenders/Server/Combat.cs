@@ -21,9 +21,6 @@ namespace Dino_Defenders.Server
     {
         private const int MostRewind = 15;      // A quarter of a second: past this, what a player saw is too old to hold against anyone else.
         private const int MostPerStep = 256;    // Consequences dealt with in a tick. What's over waits for the next one.
-        private const float GoldChance = 0.16f;
-        private const float ItemChance = 0.025f;
-        private const float EliteItemChance = 0.4f;
         private const float ChainFade = 0.85f;
         private const float ChainGrowth = 1.25f;
         private const float EchoDelay = 0.6f;
@@ -74,6 +71,7 @@ namespace Dino_Defenders.Server
         private readonly List<Actor> _found = new();
         private readonly List<Actor> _chained = new();
         private readonly List<Consequence> _later = new();
+        private readonly LootLuck _lootLuck = new();
 
         public readonly ActorGrid Grid;
         public readonly LandReader Land;
@@ -1098,31 +1096,24 @@ namespace Dino_Defenders.Server
 
         public void DropLoot(in EnemyComponent enemy, Vector3 position, Actor actor)
         {
-            // A world holds a thousand of these. What's worth having comes from those that took some beating.
-            float rank = enemy.Rank switch { EnemyRank.Boss => 10f, EnemyRank.Elite => 3f, _ => 1f };
-            float goldFind = 1f + BestOfParty(s => s.GoldFind) / 100f;
-            float itemFind = BestOfParty(s => s.ItemRarity) / 100f;
-
-            if (_luck.Chance(enemy.Rank == EnemyRank.Normal ? GoldChance : 1f))
-            {
-                int gold = (int)(_luck.Range(3f, 9f) * enemy.Level * rank * goldFind);
-                SpawnPickup(position, null, gold);
-            }
+            // A world holds a thousand of these. What's worth having comes from those that took some beating, and how much beating is in the health it really had.
+            LootTier tier = LootTables.TierOf(enemy.Rank, actor.Sheet.MaxHealth / Bestiary.HealthAt(enemy.Level));
+            List<Item> items = Loot.Roll(tier, enemy.Level, StrongestHero, BestOfParty(s => s.ItemRarity) / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)));
 
             // What it was wearing is yours now. That's the whole point of having seen it used.
-            if (actor.Gear != null)
-            {
-                foreach (Item worn in actor.Gear) SpawnPickup(position, worn, 0);
-            }
+            if (actor.Gear != null) items.AddRange(actor.Gear);
 
-            float itemChance = enemy.Rank switch { EnemyRank.Boss => 1.4f, EnemyRank.Elite => EliteItemChance, _ => ItemChance };
-            int drops = enemy.Rank == EnemyRank.Boss ? 3 : 1;
-            for (int i = 0; i < drops; i++)
+            int gold = Loot.RollGold(tier, enemy.Level, BestOfParty(s => s.GoldFind) / 100f, _luck);
+            _session.Ground.Spill(position, items, gold, LootTables.Of(tier).GoldPiles);
+        }
+
+        private int StrongestHero
+        {
+            get
             {
-                if (!_luck.Chance(itemChance)) continue;
-                Rarity? least = enemy.Rank == EnemyRank.Boss ? Rarity.Rare : enemy.Rank == EnemyRank.Elite ? Rarity.Magic : null;
-                Item item = ItemGenerator.Roll(enemy.Level + 1, _luck.Fork(_luck.Int(1 << 30)), itemFind, least);
-                SpawnPickup(position, item, 0);
+                int best = 1;
+                foreach (ServerPlayer hero in _session.Heroes) best = Math.Max(best, hero.Hero.Level);
+                return best;
             }
         }
 
@@ -1133,31 +1124,13 @@ namespace Dino_Defenders.Server
             return best;
         }
 
-        public void OpenChest(ServerPlayer opener, Vector3 position, int level)
+        public void OpenChest(ServerPlayer opener, Vector3 position, int level, LootTier tier)
         {
             Server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Chest }, position.Xz);
             ActorSheet sheet = opener.Actor.Sheet;
-            int gold = (int)(_luck.Range(14f, 30f) * level * (1f + sheet.GoldFind / 100f));
-            float rarity = sheet.ItemRarity / 100f + 0.8f;
-            SpawnPickup(position, null, gold);
-            SpawnPickup(position, ItemGenerator.Roll(level + 1, _luck.Fork(_luck.Int(1 << 30)), rarity, Rarity.Magic), 0);
-            if (_luck.Chance(0.4f))
-            {
-                SpawnPickup(position, ItemGenerator.Roll(level + 1, _luck.Fork(_luck.Int(1 << 30)), rarity), 0);
-            }
-        }
-
-        private void SpawnPickup(Vector3 position, Item? item, int gold)
-        {
-            Vector2 scatter = new Vector2(_luck.Range(-1f, 1f), _luck.Range(-1f, 1f)).Normalized() * _luck.Range(1f, 3f);
-            Vector3 rest = position + new Vector3(scatter.X, 0.6f, scatter.Y);
-            World.CreateEntity("Pickup",
-                new NetIdentityComponent(Server.Ghosts.NextId()),
-                new PositionComponent(rest),
-                new RotationComponent(new Vector3(0f)),
-                new ScaleComponent(new Vector3(item != null ? 0.32f : 0.2f)),
-                new VisualComponent(item != null ? "item" : "gold", VisualKind.Prop),
-                new PickupComponent { Item = item, Gold = gold, Rest = rest });
+            List<Item> items = Loot.Roll(tier, level, StrongestHero, sheet.ItemRarity / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)));
+            int gold = Loot.RollGold(tier, level, sheet.GoldFind / 100f, _luck);
+            _session.Ground.Spill(position, items, gold, LootTables.Of(tier).GoldPiles, GroundLoot.ChestDelay);
         }
     }
 }

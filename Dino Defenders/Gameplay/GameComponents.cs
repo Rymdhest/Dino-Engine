@@ -154,14 +154,27 @@ namespace Dino_Defenders.Gameplay
         public string Prompt;
     }
 
-    /// <summary>Loot on the ground. Who gets it is the server's business; what shows is whether it's gold or a find.</summary>
+    /// <summary>
+    /// Loot, on the ground or on its way there. Everything a client needs to show it falling is here and sent once, so a drop is worked out from these and can't be missed the
+    /// way an event can: someone who walks up later just finds it lying there. What a find is comes by <see cref="Net.Message.GroundItem"/>, as names can't go in a component.
+    /// </summary>
     [Replicated]
     public struct PickupComponent : IComponent
     {
-        [NotReplicated] public Item? Item;
+        public int Find;            // Which find this is, to ask for it by. Nobody asks for gold, so it has none.
+        public LootGrade Grade;
+        public ItemSlot Slot;
+        public uint Born;           // The tick it leaves what it came out of.
+        public Vector3 From;
+
         [NotReplicated] public int Gold;
-        [NotReplicated] public float Age;
         [NotReplicated] public Vector3 Rest;
+
+        // How far through falling it is, on the client.
+        [NotReplicated] public bool Launched;
+        [NotReplicated] public bool Landed;
+        [NotReplicated] public float LandedFor;
+        [NotReplicated] public float NextMote;
     }
 
     /// <summary>How far through its sounds an arrow is, on the client.</summary>

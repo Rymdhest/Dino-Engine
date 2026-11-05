@@ -38,11 +38,13 @@ namespace Dino_Defenders.Progression
 
         public int UnspentPoints => Math.Max(TalentPoints - Talents.Count, 0);
 
+        /// <summary>The wind answers those who've set a land free, and nobody before that.</summary>
+        public bool HasGuidingWind => WorldsCleared > 0;
+
         private static string?[] NewBar()
         {
             var bar = new string?[SkillSlots];
             bar[0] = SkillCatalog.Strike.Id;
-            bar[2] = SkillCatalog.Whirl.Id;
             return bar;
         }
 
@@ -165,7 +167,7 @@ namespace Dino_Defenders.Progression
         /// <summary>Makes a hero's loadout. <paramref name="stolen"/> is what they've mimicked, if they can.</summary>
         public static Loadout Compile(HeroState hero, IReadOnlyList<ActiveBuff>? buffs = null, SkillDefinition? stolen = null)
         {
-            var skills = new List<SkillDefinition> { SkillCatalog.Strike, SkillCatalog.Whirl };
+            var skills = new List<SkillDefinition> { SkillCatalog.Strike };
             if (stolen != null && !skills.Contains(stolen)) skills.Add(stolen);
             return new Loadout(hero.Level, WeaponOf(hero), Gather(hero, buffs), skills);
         }

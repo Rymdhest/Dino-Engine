@@ -348,20 +348,32 @@ namespace Dino_Defenders.Server
 
     /// <summary>
     /// A* over a world's passable ground, for short trips around what stands in the way. It gives up after a fixed amount of
-    /// searching: a character that can't quickly find a way is better off pushing on than stalling the frame.
+    /// searching: a character that can't quickly find a way is better off pushing on than stalling the frame. Left as it is it's coarse, which
+    /// suits a crowd that's only ever on its way somewhere: it only looks at points, and a fence can pass between two of them. A hero sent somewhere by a click has to
+    /// arrive, so <paramref name="exact"/> goes cell by cell of <see cref="WorldData.Passable"/> and doesn't cut corners, and nothing can pass between those.
     /// </summary>
     public sealed class WorldPathfinder
     {
-        private const float Step = 3f;
-        private const int SearchLimit = 700;
+        private const float ExactStep = 1f;     // WorldData.PassCell.
+        private const int ExactSearch = 20000;
 
+        private readonly float _step;
+        private readonly int _searchLimit;
+        private readonly bool _exact;
         private readonly Dictionary<long, (long from, float cost)> _visited = new();
         private readonly PriorityQueue<long, float> _frontier = new();
 
-        public static bool HasClearLine(WorldData world, Vector2 from, Vector2 to)
+        public WorldPathfinder(bool exact = false)
+        {
+            _exact = exact;
+            _step = exact ? ExactStep : 3f;
+            _searchLimit = exact ? ExactSearch : 700;
+        }
+
+        public static bool HasClearLine(WorldData world, Vector2 from, Vector2 to, float spacing = 1.5f)
         {
             float length = (to - from).Length;
-            int steps = Math.Max((int)(length / 1.5f), 1);
+            int steps = Math.Max((int)(length / spacing), 1);
             for (int i = 1; i <= steps; i++)
             {
                 if (!world.Passable.IsSet(Vector2.Lerp(from, to, (float)i / steps))) return false;
@@ -370,15 +382,15 @@ namespace Dino_Defenders.Server
         }
 
         private static long Key(int x, int z) => ((long)x << 32) | (uint)z;
-        private static Vector2 Position(long key) => new Vector2((int)(key >> 32), (int)(key & 0xFFFFFFFF)) * Step;
+        private Vector2 Position(long key) => new Vector2((int)(key >> 32), (int)(key & 0xFFFFFFFF)) * _step;
 
         public List<Vector2>? Find(WorldData world, Vector2 from, Vector2 to)
         {
             _visited.Clear();
             _frontier.Clear();
 
-            int startX = (int)MathF.Round(from.X / Step);
-            int startZ = (int)MathF.Round(from.Y / Step);
+            int startX = (int)MathF.Round(from.X / _step);
+            int startZ = (int)MathF.Round(from.Y / _step);
             long start = Key(startX, startZ);
             _visited[start] = (start, 0f);
             _frontier.Enqueue(start, 0f);
@@ -387,7 +399,7 @@ namespace Dino_Defenders.Server
             float bestDistance = (from - to).Length;
             int searched = 0;
 
-            while (_frontier.TryDequeue(out long current, out _) && searched++ < SearchLimit)
+            while (_frontier.TryDequeue(out long current, out _) && searched++ < _searchLimit)
             {
                 Vector2 here = Position(current);
                 float remaining = (here - to).Length;
@@ -396,7 +408,7 @@ namespace Dino_Defenders.Server
                     bestDistance = remaining;
                     best = current;
                 }
-                if (remaining < Step) break;
+                if (remaining < _step) break;
 
                 int x = (int)(current >> 32);
                 int z = (int)(current & 0xFFFFFFFF);
@@ -409,8 +421,9 @@ namespace Dino_Defenders.Server
                         long next = Key(x + dx, z + dz);
                         Vector2 there = Position(next);
                         if (!world.Passable.IsSet(there)) continue;
+                        if (_exact && dx != 0 && dz != 0 && !(world.Passable.IsSet(Position(Key(x + dx, z))) && world.Passable.IsSet(Position(Key(x, z + dz))))) continue;
 
-                        float total = cost + (dx != 0 && dz != 0 ? Step * 1.414f : Step);
+                        float total = cost + (dx != 0 && dz != 0 ? _step * 1.414f : _step);
                         if (_visited.TryGetValue(next, out var seen) && seen.cost <= total) continue;
                         _visited[next] = (current, total);
                         _frontier.Enqueue(next, total + (there - to).Length);

@@ -68,6 +68,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             Systems.Add(new SkySYstem());
             Systems.Add(new ModelRenderSystem());
             Systems.Add(new ParticleRenderSystem());
+            Systems.Add(new BeamRenderSystem());
             Systems.Add(new PointLightShadowSystem());
             Systems.Add(new PointLightSystem());
             Systems.Add(new SpotlightShadowSystem());

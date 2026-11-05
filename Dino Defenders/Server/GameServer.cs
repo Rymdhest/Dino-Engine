@@ -143,6 +143,7 @@ namespace Dino_Defenders.Server
             {
                 player.InWorld = false;
                 player.Stocks.Clear();
+                player.Asked.Clear();
             }
 
             Session = null;
@@ -239,6 +240,7 @@ namespace Dino_Defenders.Server
             SendProgress(player, everything: true);
             SendHero(player, gear: true);
             SendParty();
+            session.Ground.Introduce(player);
         }
 
         private Vector2 StartPosition(WorldData world, bool first)
@@ -368,6 +370,7 @@ namespace Dino_Defenders.Server
 
             if (command.Has(HeroButtons.Flask)) DrinkFlask(player, position);
             if (command.Has(HeroButtons.Interact)) _interaction.Interact(Ecs, session, player);
+            session.Ground.Serve(player);
         }
 
         private void DrinkFlask(ServerPlayer player, Vector3 position)
@@ -769,6 +772,10 @@ namespace Dino_Defenders.Server
                     Session.GiveExperience(player, 60 * Session.World.Plan.Level);
                     break;
 
+                case HeroAction.PickUp:
+                    Session!.Ground.Ask(player, reader.ReadVarInt());
+                    break;
+
                 default:
                     throw new NetReadException($"No such action as {action}.");
             }
@@ -908,6 +915,12 @@ namespace Dino_Defenders.Server
         public void Parade(string which)
         {
             if (Session != null && _heroes.Count > 0) _encounters.Parade(Ecs, Session, _heroes[0].Sim.Position, which);
+        }
+
+        /// <summary>For a scripted run: loot in front of the first hero.</summary>
+        public void ShowLoot(string which)
+        {
+            if (Session != null && _heroes.Count > 0) Session.Ground.Show(_heroes[0].Sim.Position, which);
         }
 
         public void CaptureWorld(SaveGame save)

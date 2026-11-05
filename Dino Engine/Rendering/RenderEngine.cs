@@ -80,6 +80,7 @@ namespace Dino_Engine.Rendering
         private DepthBasedBlurRenderer _depthBasedBlurRenderer;
         public SpotLightRenderer _spotLightRenderer;
         public ParticleRenderer _particleRenderer;
+        public BeamRenderer _beamRenderer;
         public GrassRenderer _grassRenderer;
         public CelestialBodyRenderer _sunRenderer;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
@@ -168,6 +169,7 @@ namespace Dino_Engine.Rendering
             _depthBasedBlurRenderer = new DepthBasedBlurRenderer();
             _spotLightRenderer = new SpotLightRenderer();
             _particleRenderer = new ParticleRenderer();
+            _beamRenderer = new BeamRenderer();
             _depthOfFieldRenderer = new DepthOfFieldRenderer();
             _grassRenderer = new GrassRenderer();
             _sunRenderer = new CelestialBodyRenderer();
@@ -337,6 +339,7 @@ namespace Dino_Engine.Rendering
         {
             _skyRenderer.RenderPass(this);
             _particleRenderer.RenderPass(this);
+            _beamRenderer.RenderPass(this);
         }
         private void PostProcessPass()
         {

@@ -58,6 +58,7 @@ namespace Dino_Defenders.Talents
                     P("long-arms", "Long Arms", Inc(Stat.AreaOfEffect, 6f, Tags.Melee), Flat(Stat.MeleeReach, 1.2f), Inc(Stat.AreaOfEffect, 18f, Tags.Melee)),
                     P("butchers-work", "Butcher's Work", Chance(Tags.Bleed, 4f, Tags.Melee), Chance(Tags.Bleed, 15f, Tags.Melee), Inc(Stat.Damage, 28f, Tags.Bleed)),
                     P("two-hands", "Both Hands", Inc(Stat.Damage, 9f, Tags.TwoHanded), Inc(Stat.Damage, 30f, Tags.TwoHanded), Inc(Stat.AttackSpeed, 7f, Tags.TwoHanded)),
+                    S(SkillCatalog.Whirl, Inc(Stat.AreaOfEffect, 6f, Tags.Melee)),
                 },
                 Keystones = new[]
                 {
