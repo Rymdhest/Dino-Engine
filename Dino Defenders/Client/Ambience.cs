@@ -1,4 +1,5 @@
 using Dino_Defenders.Gameplay;
+using Dino_Defenders.Progression;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Physics;
@@ -152,6 +153,8 @@ namespace Dino_Defenders.Client
         // Full night inside the walls, and none at all once they are far enough behind.
         private static float NightAt(GameSession session)
         {
+            if (session.Offering.Has(Omens.Night)) return 1f;
+
             float night = 0f;
             foreach (SiteState state in session.Sites)
             {

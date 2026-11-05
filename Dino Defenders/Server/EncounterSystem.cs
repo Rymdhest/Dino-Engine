@@ -16,9 +16,12 @@ namespace Dino_Defenders.Server
     /// </summary>
     public class EncounterSystem : SystemBase
     {
+        private const float ShrineReach = 6.5f;     // It's used from one side of the altar, and has to reach anyone standing at the far side.
+        private const float ChestScale = 1.35f;     // A size bigger than life, like anything else that matters seen from up where the camera is.
         private const float WakeDistance = 100f;
         private const float SleepDistance = 160f;
         private const float EliteChance = 0.14f;
+        private const float WarhostEliteChance = 0.35f;
         private const float GuardArcherChance = 0.45f;
         private const float CheckInterval = 0.25f;
         private const int MostWakings = 4;      // At a check. A hero stepping out of a waygate is surrounded by places, and they needn't all arrive in one tick.
@@ -98,7 +101,7 @@ namespace Dino_Defenders.Server
                         if (!state.Opened.Contains(i)) SpawnChest(world, session, state, siteIndex, i, spawn);
                         break;
                     case SpawnRole.Altar:
-                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Shrine, state.Kindled ? "Rest at the shrine" : "Kindle the shrine", 5f);
+                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Shrine, state.Kindled ? "Rest at the shrine" : "Kindle the shrine", ShrineReach);
                         break;
                     case SpawnRole.Waygate:
                         SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Waygate, "Step through the waygate", 6f);
@@ -113,7 +116,7 @@ namespace Dino_Defenders.Server
             SpawnRole folk = spawn.Role is SpawnRole.Guard or SpawnRole.Boss ? SpawnRole.Raider : spawn.Role;
             if (!musters.TryGetValue(folk, out PackOrders? orders))
             {
-                orders = new PackOrders(session.World, state.Site, folk, LevelAt(session, state), state.Wild, random.Fork("pack"));
+                orders = new PackOrders(session.World, state.Site, folk, LevelAt(session, state), state.Wild, random.Fork("pack"), session.Offering);
                 musters.Add(folk, orders);
             }
             return orders;
@@ -136,7 +139,7 @@ namespace Dino_Defenders.Server
             else (kind, rank, trait) = orders.Draw(spawnIndex, kinds);
 
             // The people of a place have their hard cases, where a pack has its leader.
-            if (!boss && !state.Wild && kinds.Chance(EliteChance))
+            if (!boss && !state.Wild && kinds.Chance(session.Offering.Has(Omens.Warhost) ? WarhostEliteChance : EliteChance))
             {
                 rank = EnemyRank.Elite;
                 trait = kinds.Int(Bestiary.Traits.Length);
@@ -149,7 +152,7 @@ namespace Dino_Defenders.Server
 
             Dino_Defenders.Progression.Item[]? gear = null;
             string? title = null;
-            Loadout loadout = boss ? Bestiary.Boss(kind, level, random.Fork("boss"), out gear, out title) : session.Bestiary.Shared(kind, level, rank, trait);
+            Loadout loadout = boss ? Bestiary.Boss(kind, level, random.Fork("boss"), out gear, out title, session.Bestiary.Worn) : session.Bestiary.Shared(kind, level, rank, trait);
 
             string name = boss ? session.Chronicle.Warlord : kind.Name;
             if (title != null) name = $"{name}, {title}";
@@ -161,7 +164,7 @@ namespace Dino_Defenders.Server
                 SiteIndex = siteIndex,
                 SpawnIndex = spawnIndex,
                 Home = spawn.Position,
-                AggroRadius = kind.AggroRadius,
+                AggroRadius = kind.AggroRadius * session.Offering.Notice,
                 LeashRadius = kind.LeashRadius,
                 KeepsAway = kind.KeepsAway,
                 Experience = Bestiary.ExperienceAt(level, rankHealth * kind.Health),
@@ -245,7 +248,7 @@ namespace Dino_Defenders.Server
                 new NetIdentityComponent(_server.Ghosts.NextId(), importance: 0.5f),
                 new PositionComponent(position),
                 new RotationComponent(new Vector3(0f, spawn.Position.X, 0f)),
-                new ScaleComponent(new Vector3(1.1f)),
+                new ScaleComponent(new Vector3(ChestScale)),
                 new VisualComponent("chest", VisualKind.Prop),
                 new InteractableComponent { Kind = InteractKind.Chest, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = 4.5f, Prompt = "Open the chest" }));
         }
@@ -289,6 +292,7 @@ namespace Dino_Defenders.Server
     {
         private const float WalkSpeed = 3.6f;
         private const float SpeechReach = 9f;
+        private const float SpeechOverMark = 11.5f;     // Whoever can be used has a mark over their head, and the camera looks so far down that it takes this to clear it.
 
         private static readonly string[] Afraid =
         {
@@ -329,7 +333,7 @@ namespace Dino_Defenders.Server
                 bool safe = session.IsSafe(session.Sites[villager.SiteIndex]);
                 _server.Broadcast(new TextEvent
                 {
-                    Position = position + Vector3.UnitY * 5.6f,
+                    Position = position + Vector3.UnitY * (entity.Has<InteractableComponent>() ? SpeechOverMark : 5.6f),
                     Text = _random.Pick(safe ? Grateful : Afraid),
                     Colour = new Vector3(0.92f, 0.9f, 0.8f),
                     Size = 14f,
@@ -444,6 +448,7 @@ namespace Dino_Defenders.Server
                     state.Changed = true;
                     state.Live.Remove(view.Entity);
                     LootTier tier = state.Wild ? LootTier.Cache : state.Site.Kind == SiteKind.Keep ? LootTier.Hoard : LootTier.Chest;
+                    if (session.Gilded) tier = LootTables.Better(tier);
                     session.Combat.OpenChest(hero, view.Get<PositionComponent>().value, EncounterSystem.LevelAt(session, state), tier);
                     world.DestroyEntity(view.Entity);
                     break;

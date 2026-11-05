@@ -13,6 +13,7 @@ namespace Dino_Engine.World.Generation
         private const float HighestBuildSlope = 0.42f;
         private const float MinGroundAboveWater = 0.4f;
         private const PlacementLayer Blockers = PlacementLayer.Built | PlacementLayer.Road;
+        private const float NearStep = 1.5f;
 
         public readonly WorldData World;
         public readonly WorldSite Site;
@@ -62,6 +63,27 @@ namespace Dino_Engine.World.Generation
             if (!Fits(footprint, maxSlope, padding, blockers)) return false;
             Commit(definition, position, yaw, scale, footprint);
             return true;
+        }
+
+        /// <summary>
+        /// Puts down something a site is nothing without: where it was meant to go if it fits there, or else as near to that as it will. A spawn with nothing standing on it is a
+        /// prompt in an empty field, so anything that can be used goes through here, and <paramref name="placed"/> is where to put its spawn.
+        /// </summary>
+        public bool PlaceNear(StructureDefinition definition, Vector2 position, float yaw, float reach, out Vector2 placed, float padding = 1.2f)
+        {
+            for (float distance = 0f; distance <= reach; distance += NearStep)
+            {
+                int directions = distance > 0f ? 8 : 1;
+                for (int i = 0; i < directions; i++)
+                {
+                    placed = position + Direction(i * (MathF.Tau / 8f)) * distance;
+                    if (Place(definition, placed, yaw, padding: padding)) return true;
+                }
+            }
+
+            // WorldValidator fails a site that loses one of these, so a world this happens in doesn't go unnoticed.
+            placed = position;
+            return false;
         }
 
         /// <summary>Puts down a building and the wings that stick out of it, all of them or none. Each wing has its own footprint.</summary>

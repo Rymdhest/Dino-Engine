@@ -1,4 +1,5 @@
 using Dino_Defenders.Gameplay;
+using Dino_Defenders.Progression;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 
@@ -23,6 +24,8 @@ namespace Dino_Defenders.Server
         private const float LedAtFirst = 0.15f;
         private const float LedPerLevel = 0.04f;
         private const float MostLed = 0.5f;
+        private const float WarhostElites = 2.5f;
+        private const float MostWarhostElites = 0.8f;
 
         private readonly Recipe _recipe;
         private readonly bool _led;
@@ -32,19 +35,22 @@ namespace Dino_Defenders.Server
         private readonly int _sharedTrait;
 
         /// <param name="free">Whether this is a pack of its own, rather than some of the people of a place.</param>
-        public PackOrders(WorldData world, WorldSite site, SpawnRole folk, int level, bool free, WorldRandom random)
+        /// <param name="offering">What's been paid on this land. Whoever has paid for trouble isn't taking their first steps.</param>
+        public PackOrders(WorldData world, WorldSite site, SpawnRole folk, int level, bool free, WorldRandom random, Offering offering)
         {
+            bool warhost = offering.Has(Omens.Warhost);
             _recipe = Warbands.RecipeFor(world, site, folk, random.Fork("recipe"));
-            _firstSteps = world.Plan.Level <= 1 && site.Remoteness < 0.2f;
+            _firstSteps = world.Plan.Level <= 1 && site.Remoteness < 0.2f && !offering.AtStake;
             _leaderTrait = Bestiary.NoTrait;
             _sharedTrait = Bestiary.NoTrait;
             if (!free || _firstSteps) return;
 
             int traits = Bestiary.Traits.Length;
-            _led = _recipe.Leaders.Length > 0 && (site.Haunt == HauntKind.Camp || random.Chance(MathF.Min(LedAtFirst + LedPerLevel * level, MostLed)));
+            _led = _recipe.Leaders.Length > 0 && (site.Haunt == HauntKind.Camp || random.Chance(warhost ? 1f : MathF.Min(LedAtFirst + LedPerLevel * level, MostLed)));
             if (!_led) return;
 
-            if (random.Chance(MathF.Min(EliteLeaderAtFirst + EliteLeaderPerLevel * level, MostEliteLeaders)))
+            float elites = MathF.Min(EliteLeaderAtFirst + EliteLeaderPerLevel * level, MostEliteLeaders);
+            if (random.Chance(warhost ? MathF.Min(elites * WarhostElites, MostWarhostElites) : elites))
             {
                 _leaderRank = EnemyRank.Elite;
                 _leaderTrait = random.Int(traits);

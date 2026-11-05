@@ -396,14 +396,25 @@ namespace Dino_Defenders.Client
             var builder = new MeshBuilder();
             VertexMaterial boards = new VertexMaterial(TextureGenerator.wood, new Colour(120, 84, 56));
             VertexMaterial iron = new VertexMaterial(TextureGenerator.iron, new Colour(90, 90, 96));
+            VertexMaterial glow = new VertexMaterial(TextureGenerator.flatGlow, new Colour(1f, 0.4f, 0.02f, 1.6f));
             builder.Box(new Vector3(0f, 0.6f, 0f), new Vector3(1f, 0.6f, 0.66f), boards);
             builder.Surface(6, 1, (u, v) =>
             {
                 float angle = u * MathF.PI;
                 return new Vector3((v * 2f - 1f) * 1f, 1.2f + MathF.Sin(angle) * 0.34f, MathF.Cos(angle) * 0.66f);
             }, boards);
-            foreach (float x in new[] { -0.7f, 0.7f }) builder.Box(new Vector3(x, 0.8f, 0.68f), new Vector3(0.09f, 0.76f, 0.03f), iron);
-            builder.Box(new Vector3(0f, 1.1f, 0.7f), new Vector3(0.14f, 0.18f, 0.05f), iron);
+            foreach (float x in new[] { -0.7f, 0.7f })
+            {
+                builder.Box(new Vector3(x, 0.8f, 0.68f), new Vector3(0.09f, 0.76f, 0.03f), iron);
+
+                // Over the lid, as the lid is most of what's seen of a chest from up where the camera is.
+                builder.Surface(6, 1, (u, v) =>
+                {
+                    float angle = u * MathF.PI;
+                    return new Vector3(x + (v * 2f - 1f) * 0.1f, 1.2f + MathF.Sin(angle) * 0.37f, MathF.Cos(angle) * 0.69f);
+                }, glow);
+            }
+            builder.Box(new Vector3(0f, 1.1f, 0.7f), new Vector3(0.14f, 0.18f, 0.05f), glow);
             return builder.Build();
         }
     }

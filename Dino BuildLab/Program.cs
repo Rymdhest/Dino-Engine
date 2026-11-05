@@ -11,6 +11,7 @@ namespace Dino_BuildLab
     ///   list [--what keystones|uniques|notables|affixes|skills]   Everything a player can read.
     ///   density [--seed N] [--count N] [--level N] [--archetype id]   How much there is to fight in a world, and how long it is between fights.
     ///   loot [--level N]   What each source gives, what a whole world comes to, and the longest dry spells.
+    ///   offering [--level N] [--worlds N]   What each step of peril costs and pays.
     /// </summary>
     internal static class Program
     {
@@ -36,6 +37,8 @@ namespace Dino_BuildLab
                     return Density.Run(options);
                 case "loot":
                     return LootLab.Run(options);
+                case "offering":
+                    return OfferingLab.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;
@@ -93,6 +96,7 @@ namespace Dino_BuildLab
             var report = new Report();
             StatChecks.Run(report);
             ContentChecks.Run(report);
+            OfferingLab.Checks(report);
             LootLab.Check(report);
             FuzzChecks.Run(report, options.Int("rounds", 3000));
             return report.Finish();

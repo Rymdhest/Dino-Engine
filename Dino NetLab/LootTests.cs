@@ -459,7 +459,7 @@ namespace Dino_NetLab
 
             var next = new WorldRequest(404, "isle", 2);
             worlds.Get(next).Wait();
-            scene.Player.Client.StepThroughWaygate(next);
+            scene.Player.Client.StepThroughWaygate(next, new Offering());
             scene.Lab.Run(6);
 
             report.Check("What was left behind is gone", scene.Session.Ground.Count == 0 && scene.Seen.Ground.Count == 0);

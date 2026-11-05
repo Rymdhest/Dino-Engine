@@ -177,5 +177,7 @@ namespace Dino_Defenders.Stats
         FireHeals = 1ul << 33,              // Part of fire damage taken heals instead.
         NoOwnDamage = 1ul << 34,            // Your own hits deal nothing.
         LuckyHits = 1ul << 35,              // Damage is rolled twice, keeping the better.
+        BurstsOnDeath = 1ul << 36,          // A moment after dying, you go up in flames.
+        RalliesOnDeath = 1ul << 37,         // Your death drives those around you on.
     }
 }

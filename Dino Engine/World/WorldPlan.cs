@@ -8,12 +8,16 @@ namespace Dino_Engine.World
         public readonly int Seed;
         public readonly string? ArchetypeId;    // Null: drawn from the seed.
         public readonly int Level;              // How dangerous the world is, 1 and up.
+        public readonly float MorePeople;       // How much bigger every pack and garrison is than usual, as a share: 0.5 is half as many again.
+        public readonly float MorePacks;        // How many more packs stand on the land, as a share. Neither touches anything but PackStage.
 
-        public WorldRequest(int seed, string? archetypeId = null, int level = 1)
+        public WorldRequest(int seed, string? archetypeId = null, int level = 1, float morePeople = 0f, float morePacks = 0f)
         {
             Seed = seed;
             ArchetypeId = archetypeId;
             Level = level;
+            MorePeople = morePeople;
+            MorePacks = morePacks;
         }
     }
 

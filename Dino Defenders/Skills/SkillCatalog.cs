@@ -43,6 +43,15 @@ namespace Dino_Defenders.Skills
             Mods = new[] { Flat(Stat.HealthRegenPercent, 4f), More(Stat.DamageTaken, -15f) },
         });
 
+        public static readonly BuffDefinition Rallied = Add(new BuffDefinition
+        {
+            Id = "rallied",
+            Name = "Rallied",
+            Duration = 10f,
+            MostStacks = 5,
+            Mods = new[] { Inc(Stat.Damage, 12f), Inc(Stat.AttackSpeed, 6f), Inc(Stat.CastSpeed, 6f), Inc(Stat.MoveSpeed, 6f) },
+        });
+
         public static readonly BuffDefinition Afterglow = Add(new BuffDefinition
         {
             Id = "afterglow",

@@ -308,6 +308,8 @@ namespace Dino_Defenders.Stats
             (Rule.FireHeals, "A quarter of the Fire Damage you take heals you instead"),
             (Rule.NoOwnDamage, "Your own Hits deal no Damage"),
             (Rule.LuckyHits, "Your Damage is rolled twice, keeping the better"),
+            (Rule.BurstsOnDeath, "You burst into flame a moment after you die"),
+            (Rule.RalliesOnDeath, "Those around you fight harder when you die"),
         };
 
         private static string Number(float value)

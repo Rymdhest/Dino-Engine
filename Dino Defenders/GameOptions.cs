@@ -1,4 +1,5 @@
 using Dino_Defenders.Net;
+using Dino_Defenders.Progression;
 using OpenTK.Mathematics;
 
 namespace Dino_Defenders
@@ -18,7 +19,10 @@ namespace Dino_Defenders
     ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar.
     ///   --loot all      Drops one find of every grade in front of the hero, or everything a tier gives, as boss, elite, chest or hoard.
     ///   --panel name    Opens map, hero, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
-    ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one.
+    ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one, with whatever offering is below.
+    ///   --peril N  --teeming N  --overrun N  --omens a,b   What's been paid on the first world, or on the way through a waygate with --travel.
+    ///   --gold N        Starts the hero with this much gold.
+    ///   --proven N      Starts the hero having come through this much peril.
     ///   --savefile path Keeps the save here, and uses it even on a scripted run.
     ///   --host true     Opens the game to others straight away. --port N and --secret text say where and with what.
     ///   --join place    Joins a game: an invite code, or address:port with --secret.
@@ -59,6 +63,9 @@ namespace Dino_Defenders
         public string? Loot;
         public string? Panel;
         public int TravelAfterFrames = -1;
+        public readonly Offering Offering = new();
+        public int Gold;
+        public int Proven;
         public string? SaveFile;
         public bool Host;
         public int Port = UdpTransport.DefaultPort;
@@ -120,6 +127,12 @@ namespace Dino_Defenders
                     case "loot": options.Loot = value; break;
                     case "panel": options.Panel = value; break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
+                    case "peril": options.Offering.Peril = int.Parse(value); break;
+                    case "teeming": options.Offering.Teeming = int.Parse(value); break;
+                    case "overrun": options.Offering.Overrun = int.Parse(value); break;
+                    case "omens": options.Offering.Omens.AddRange(value.Split(',')); break;
+                    case "gold": options.Gold = int.Parse(value); break;
+                    case "proven": options.Proven = int.Parse(value); break;
                     case "savefile": options.SaveFile = value; break;
                     case "host": options.Host = value == "true"; break;
                     case "port": options.Port = int.Parse(value); break;
@@ -148,6 +161,7 @@ namespace Dino_Defenders
                         break;
                 }
             }
+            options.Offering.Sanitize();
             return options;
         }
     }

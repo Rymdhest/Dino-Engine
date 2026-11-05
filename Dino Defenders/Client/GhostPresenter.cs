@@ -105,6 +105,15 @@ namespace Dino_Defenders.Client
                 break;
             }
 
+            // A gate between worlds and a place of power can be heard before they're seen. They're drawn by the world, so this is all of them there is.
+            foreach (IComponent component in components)
+            {
+                if (component is not InteractableComponent place) continue;
+                if (place.Kind == InteractKind.Waygate) components.Add(new SoundEmitterComponent(Life.Gate, gain: PlaceHum));
+                else if (place.Kind == InteractKind.Shrine) components.Add(new SoundEmitterComponent(Life.ShrineGlow, gain: PlaceHum));
+                break;
+            }
+
             if (visual == null) return;
 
             components.Add(new LocalToWorldMatrixComponent());
@@ -163,18 +172,22 @@ namespace Dino_Defenders.Client
                     }
                 }
 
-                // A gate between worlds and a place of power can be heard before they're seen.
+                // The only thing that can be used with no light of its own, and it's brown on brown ground.
                 foreach (IComponent component in components)
                 {
-                    if (component is not InteractableComponent place) continue;
-                    if (place.Kind == InteractKind.Waygate) components.Add(new SoundEmitterComponent(Life.Gate));
-                    else if (place.Kind == InteractKind.Shrine) components.Add(new SoundEmitterComponent(Life.ShrineGlow));
+                    if (component is not InteractableComponent { Kind: InteractKind.Chest }) continue;
+                    components.Add(new PointLightTag());
+                    components.Add(new LightRangeComponent(ChestLightRadius, 0.2f, lightsFog: false));
+                    components.Add(new ColorComponent(new Colour(1f, 0.62f, 0.16f, ChestLight)));
                     break;
                 }
             }
         }
 
         private const float GoldLightRadius = 6f;
+        private const float PlaceHum = 0.55f;   // It never stops, so it sits under the land's own sound. At full level it's as loud as all the rest together.
+        private const float ChestLightRadius = 9f;
+        private const float ChestLight = 14f;
         private const float BoltLightRadius = 11f;
         private const float BeastCadence = 2.1f;
         private const int HostileBoltsPerLight = 3;
@@ -449,6 +462,7 @@ namespace Dino_Defenders.Client
 
             string? prompt = null;
             InteractKind? kind = null;
+            Entity thing = default;
             float best = float.PositiveInfinity;
             foreach (Archetype archetype in world.QueryArchetypes(WithMask, WithoutMask))
             {
@@ -460,12 +474,14 @@ namespace Dino_Defenders.Client
                     best = distance;
                     prompt = interactable.Prompt;
                     kind = interactable.Kind;
+                    thing = entity.Entity;
                 }
             }
 
             bool up = session.Health > 0f;
             session.InteractPrompt = up ? prompt : null;
             session.Offered = up ? kind : null;
+            session.OfferedThing = up ? thing : default;
         }
     }
 

@@ -13,6 +13,8 @@ namespace Dino_Engine.World.Generation
     public sealed class SettlementStage : IWorldStage
     {
         private const float WaysideSpacing = 130f;
+        private const float AltarForecourt = 4.7f;      // A road that ends at an altar stops this far short of it, which clears the road's own width and leaves room to stand.
+        private const float EssentialReach = 1.5f;      // Share of a site's radius something it can't do without may stray to find ground: a neighbour's field can cover all of a small site.
 
         public string Description => "Raising the villages";
         public float Cost => 1f;
@@ -24,6 +26,7 @@ namespace Dino_Engine.World.Generation
             foreach (WorldSite site in world.Sites)
             {
                 if (site.Kind == SiteKind.Graveyard) EndRoadsShortOf(world, site.Position, StructureCatalog.Church.HalfExtents.Y + ChurchForecourt);
+                if (site.Kind is SiteKind.Shrine or SiteKind.StandingStones) EndRoadsShortOf(world, site.Position, StructureCatalog.Altar.HalfExtents.X + AltarForecourt);
             }
             foreach (WorldRoad road in world.Roads) ReserveRoad(world, road);
 
@@ -86,8 +89,7 @@ namespace Dino_Engine.World.Generation
             b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.45f), 9f);
 
             // The gate stands back from the road with its face towards it, so the first thing seen is the way onwards.
-            Vector2 gate = b.Centre - toRoad * 7f;
-            if (!b.Place(StructureCatalog.Waygate, gate, YawFacing(toRoad), padding: 0.5f)) gate = b.Centre;
+            b.PlaceNear(StructureCatalog.Waygate, b.Centre - toRoad * 7f, YawFacing(toRoad), b.Site.Radius * EssentialReach, out Vector2 gate, padding: 0.5f);
             b.Spawn(SpawnRole.Waygate, gate + toRoad * 2.5f);
 
             Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
@@ -455,12 +457,12 @@ namespace Dino_Engine.World.Generation
             Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
             b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.34f), 7f);
 
-            b.Place(StructureCatalog.Altar, b.Centre, YawFacing(toRoad), padding: 0.5f);
-            b.Spawn(SpawnRole.Altar, b.Centre + toRoad * 3f);
+            b.PlaceNear(StructureCatalog.Altar, b.Centre, YawFacing(toRoad), b.Site.Radius * EssentialReach, out Vector2 altar, padding: 0.5f);
+            b.Spawn(SpawnRole.Altar, altar + toRoad * 3f);
             b.Place(StructureCatalog.GateArch, b.Centre + toRoad * (b.Site.Radius * 0.72f), YawFacing(toRoad), padding: 0.2f);
             for (int i = -1; i <= 1; i += 2)
             {
-                b.Place(StructureCatalog.StoneLantern, b.Centre + side * (i * 4.6f) + toRoad * 2.2f, 0f, padding: 0.2f);
+                b.Place(StructureCatalog.StoneLantern, altar + side * (i * 4.6f) + toRoad * 2.2f, 0f, padding: 0.2f);
             }
         }
 
@@ -474,8 +476,8 @@ namespace Dino_Engine.World.Generation
                 float angle = start + i * (MathF.Tau / stones);
                 b.Place(StructureCatalog.Monolith, b.Centre + Direction(angle) * radius, b.Random.Float() * MathF.Tau, b.Random.Range(0.85f, 1.3f), padding: 0.2f);
             }
-            b.Place(StructureCatalog.Altar, b.Centre, b.Random.Float() * MathF.Tau, padding: 0.3f);
-            b.Spawn(SpawnRole.Altar, b.Centre + b.Site.RoadDirection * 3f);
+            b.PlaceNear(StructureCatalog.Altar, b.Centre, b.Random.Float() * MathF.Tau, b.Site.Radius * EssentialReach, out Vector2 altar, padding: 0.3f);
+            b.Spawn(SpawnRole.Altar, altar + b.Site.RoadDirection * 3f);
             if (b.Random.Chance(0.45f)) b.Spawn(SpawnRole.Chest, b.Centre - b.Site.RoadDirection * 3f);
         }
 

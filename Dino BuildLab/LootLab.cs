@@ -14,7 +14,7 @@ namespace Dino_BuildLab
         private const int Rolls = 200000;
 
         // What a world is made of, roughly, by what stands in it: most of a pack is fodder. `Dino NetLab pace` kills a good part of this at the speed a plain hero does.
-        private static readonly (LootTier tier, int count)[] World =
+        internal static readonly (LootTier tier, int count)[] World =
         {
             (LootTier.Fodder, 900), (LootTier.Soldier, 200), (LootTier.Champion, 80), (LootTier.Elite, 20), (LootTier.Boss, 1),
             (LootTier.Cache, 30), (LootTier.Chest, 8), (LootTier.Hoard, 1),
@@ -23,7 +23,7 @@ namespace Dino_BuildLab
         private readonly record struct Tally(float Finds, float[] Grades, float Lines, float LineShare, float Worth, float Level);
 
         // What one find is worth, on a scale where each grade is several of the last: this is what "much better" has to mean, in one number.
-        private static float WorthOf(Item item)
+        internal static float WorthOf(Item item)
         {
             float grade = Loot.GradeOf(item) switch
             {

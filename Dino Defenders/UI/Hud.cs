@@ -82,7 +82,6 @@ namespace Dino_Defenders.UI
             DrawAbilities(draw, session, screen);
             DrawChronicle(draw, session, screen);
             DrawLog(draw, session, screen);
-            DrawPrompt(draw, session, screen);
             DrawBanner(draw, session, screen);
             DrawConnection(draw, session);
         }
@@ -346,7 +345,8 @@ namespace Dino_Defenders.UI
             float x = screen.Width - width - Margin;
             float y = Margin;
 
-            float height = 26f;
+            bool offered = session.Offering.Any;
+            float height = offered ? 46f : 26f;
             foreach (Objective objective in session.Chronicle.Objectives)
             {
                 height += Ui.Wrap(Context!, objective.Summary, 14f, width - 14f).Count * 18f + 4f;
@@ -355,6 +355,12 @@ namespace Dino_Defenders.UI
 
             Ui.Text(Context!, draw, session.World.Plan.Name, 17f, new GuiRect(x, y, width, 22f), Ui.Gold, Alignment.End);
             y += 26f;
+
+            if (offered)
+            {
+                Ui.Text(Context!, draw, WaygatePanel.Standing(session), 14f, new GuiRect(x, y, width, 18f), session.Broken ? Ui.Blood : Ui.Parchment, Alignment.End);
+                y += 20f;
+            }
 
             for (int i = session.Chronicle.Objectives.Count - 1; i >= 0; i--)
             {
@@ -387,13 +393,6 @@ namespace Dino_Defenders.UI
                 Ui.Text(Context!, draw, line.Text, 14f, new GuiRect(Margin, y - 18f, 460f, 18f), Ui.Parchment.MultiplyAlpha(alpha));
                 y -= 19f;
             }
-        }
-
-        private void DrawPrompt(GuiDrawList draw, GameSession session, GuiRect screen)
-        {
-            if (session.InteractPrompt == null) return;
-            GuiRect line = new GuiRect(0f, screen.Height - Margin - 92f, screen.Width, 24f);
-            Ui.Text(Context!, draw, $"[E]  {session.InteractPrompt}", 17f, line, Ui.Parchment, Alignment.Center);
         }
 
         private void DrawBanner(GuiDrawList draw, GameSession session, GuiRect screen)

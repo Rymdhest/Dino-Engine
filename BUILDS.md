@@ -195,6 +195,30 @@ Loot is shared: whoever gets there first has it. What's left on the ground is lo
 
 To see it: `--loot all` drops one of every grade in front of the hero, and `--loot boss`, `elite`, `chest` or `hoard` what that tier gives.
 
+## Offerings
+
+Gold burned at a waygate makes the land beyond it worse and richer, in the way a Mythic+ key and a rolled map do. It's the game's reason to want gold, and it's chosen on the way to a new land, never for the one a hero is standing in. Everything comes from a few choices in `Offering` (`Progression/Offering.cs`), which is all that's saved or sent. There are three kinds of thing to pay for, and they're kept apart on purpose.
+
+| Choice | Is | Costs a player | Pays |
+|---|---|---|---|
+| Peril, 0 to 30 | The key level. Enemies get 15% more health and 8% more damage a step, compounding | Fights | More finds, rarer finds, better rolls, higher item levels, more gold and experience. Nothing plain from Peril 3 |
+| Teeming and Overrun, 0 to 3 each | Packs up to 150% larger, and up to 100% more of them: about 4.3 times the enemies at the top of both | Gold alone | Nothing more per enemy. There are simply more of them, none any stronger, and that's the reward |
+| Omens, 1 to 5 by peril | What a map's mods are. Dangers that pay in what drops, and things that change the land | Whatever each does | What each says |
+
+**A crowd is part of the world.** `WorldRequest.MorePeople` and `MorePacks` are read by `PackStage` and nothing else, so the ground, the sites and everything before it come out exactly the same, and both ends grow one world from what they're told. `Offering.Shape` makes the request, and it's the only thing that does. `LeastSpacing` holds packs clear of `CallReach` however many are paid for, so a fight can spread to the next pack but can't wake the whole land.
+
+**Danger is what enemies wear.** `Offering.EnemyMods` goes into the session's `Bestiary` and onto every loadout it hands out, bosses too, so there's no new rule in `Combat` and nothing a hero couldn't meet anyway. `TierOf` reads a find's worth from real health, which peril has just changed, so `DropLoot` divides `EnemyHealth` back out. Forget that and peril turns fodder into champions and pays for them twice. `Volatile` and `Rallying` are `Rule`s, and `Die` sets them off through the deferred list, as it can be running inside a loop over what's nearby.
+
+**What it pays** is a `LootBoon`, handed to `Loot.Roll` and `RollGold`. `LootBoon.None` leaves a roll exactly as it was. Sure things, a boss or a chest, take half of the quantity, or the top of the climb is a carpet rather than a heap. `MostLegendary` and `MostMasterwork` cap a single find's chance, as past that a boss drops nothing else.
+
+**It can be failed.** Everyone in a world shares `Offering.AllowedFalls`. One more than that and the offering is `Broken`: the land stays as it is and pays no more than any other, and nothing is proven. That's what a timer is in a dungeon, on a game with no dungeons. An offering of more enemies alone can't break, as there's nothing there to take back.
+
+**It's a climb.** A hero can call down `PerilProven + 2`. Freeing a land under an unbroken offering proves its peril, and doing it without a fall proves one more and pays two hoards instead of one, on the spot. Everyone there at the time gets the credit. Whoever steps through pays for everyone with them, and it's `GameServer.Pay` that decides: what a client shows is only what it thinks that will say.
+
+**The sums are what stands behind this.** `Dino BuildLab offering` runs whole worlds at each step, and `check` holds that each step pays more than the last and that through Peril 15 a kill pays more than it takes, for a hero no stronger than before. Past that it's the hero who has to have grown. A step of peril is priced against about half a world's gold, and grows faster than gold does. A crowd is priced so that it pays for itself several times over, as it's the one thing here with no risk in it. None of these numbers have been played by a person.
+
+An omen's id is saved, and the order of `Omens` is what's sent, so a new one goes on the end. To see one: `--peril 5 --teeming 2 --overrun 1 --omens volatile,night`, with `--gold` and `--proven` for walking up to a waygate with `--panel waygate`.
+
 ## Networking
 
 `HeroRules.Step` is still a pure function of the command, the hero's kit and the world. Both ends compile the same `ActorSheet` from the same `HeroState`, so they agree on every number without sending any.
@@ -212,10 +236,12 @@ dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" balance    # How a f
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list       # Everything there is, with its text as the player reads it
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" density    # How much there is to fight in a world, and how long between fights
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" loot       # What each source gives, what a whole world comes to, and the longest dry spells
+dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" offering   # What each step of peril costs and pays, and what more enemies come to
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" pace           # A real client on foot, from pack to pack: kills, time in fights, falls, and how often something good drops
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" loot           # What's on the ground: who sees it, who gets it, and that nobody gets it without asking
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" offering       # What's paid at a waygate, for real: who pays, what it does to the land, what falling costs, what's paid out
 dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" packs      # Who stands where, as a map
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build          # Every skill, ailment, reaction and keystone, for real on a running server
 ```
 
-Run `check` and `build` after any change here, `game` if the hero's step or the protocol moved, and `loot` and `pace` if anything about drops did. A bot proves nothing about clicking: post real mouse messages for that. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.
+Run `check` and `build` after any change here, `game` if the hero's step or the protocol moved, `loot` and `pace` if anything about drops did, and `offering` if anything about a waygate or what's paid at one did. A bot proves nothing about clicking: post real mouse messages for that. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.

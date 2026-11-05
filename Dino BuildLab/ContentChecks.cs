@@ -167,6 +167,10 @@ namespace Dino_BuildLab
             {
                 foreach (Mod mod in unique.Mods) yield return (unique.Id, mod);
             }
+            foreach (OmenDefinition omen in Omens.All)
+            {
+                foreach (Mod mod in omen.Mods) yield return (omen.Id, mod);
+            }
             foreach (SkillDefinition skill in SkillCatalog.All)
             {
                 foreach (Mod mod in skill.Mods) yield return (skill.Id, mod);

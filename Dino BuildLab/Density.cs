@@ -33,7 +33,7 @@ namespace Dino_BuildLab
             for (int i = 0; i < count; i++)
             {
                 string id = archetype ?? ArchetypeCatalog.All[i % ArchetypeCatalog.All.Count].Id;
-                var request = new WorldRequest(firstSeed + i, id, level);
+                var request = new WorldRequest(firstSeed + i, id, level, options.Int("people", 0) / 100f, options.Int("packs", 0) / 100f);
                 WorldData world = new WorldGenerator().Generate(request);
                 var tally = new Tally(world, request);
 

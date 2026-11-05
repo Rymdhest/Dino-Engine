@@ -226,6 +226,14 @@ namespace Dino_Defenders.Server
 
         private readonly Dictionary<(string kind, int level, EnemyRank rank, int trait), Loadout> _shared = new();
 
+        /// <summary>What everything hostile in this world wears on top of what it is, on a land that's had something paid on it.</summary>
+        public readonly IReadOnlyList<Mod> Worn;
+
+        public Bestiary(IReadOnlyList<Mod>? worn = null)
+        {
+            Worn = worn ?? Array.Empty<Mod>();
+        }
+
         private static IEnumerable<Mod> Base(EnemyKind kind, int level, float rankHealth)
         {
             yield return Flat(Stat.Health, HealthAt(level) * rankHealth * kind.Health);
@@ -266,7 +274,7 @@ namespace Dino_Defenders.Server
                 if (Traits[trait].Name == "Warded") mods = mods.Append(Flat(Stat.Barrier, HealthAt(level) * rankHealth));
             }
 
-            loadout = new Loadout(level, WeaponFor(kind, level, rankDamage), mods, kind.Skills);
+            loadout = new Loadout(level, WeaponFor(kind, level, rankDamage), mods.Concat(Worn), kind.Skills);
             _shared.Add((kind.Id, level, rank, trait), loadout);
             return loadout;
         }
@@ -275,7 +283,8 @@ namespace Dino_Defenders.Server
         /// A boss is the only one of itself, so it gets a loadout to itself. It wears real gear and walks the same tree a hero does. It'll fight with all
         /// of that, and what it wore is what it drops.
         /// </summary>
-        public static Loadout Boss(EnemyKind kind, int level, WorldRandom random, out Item[] gear, out string? title)
+        /// <param name="landWide">What everything hostile here wears, which a boss wears too.</param>
+        public static Loadout Boss(EnemyKind kind, int level, WorldRandom random, out Item[] gear, out string? title, IReadOnlyList<Mod>? landWide = null)
         {
             var mods = new List<Mod>(Base(kind, level, 11f));
             WorldRandom gearDraw = random.Fork("gear");
@@ -305,6 +314,7 @@ namespace Dino_Defenders.Server
 
             WorldRandom traitDraw = random.Fork("traits");
             mods.AddRange(traitDraw.Pick(Traits).Mods);
+            if (landWide != null) mods.AddRange(landWide);
             return new Loadout(level, WeaponFor(kind, level, 1.9f), mods, kind.Skills);
         }
 

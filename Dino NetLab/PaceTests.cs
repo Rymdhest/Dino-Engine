@@ -46,8 +46,12 @@ namespace Dino_NetLab
             int minutes = options.Int("minutes", 5);
             var request = new WorldRequest(seed, options.Text("archetype") ?? "isle", level);
 
+            var offering = new Offering { Peril = options.Int("peril", 0), Teeming = options.Int("teeming", 0), Overrun = options.Int("overrun", 0) };
+            if (options.Text("omens") is string omens) offering.Omens.AddRange(omens.Split(','));
+            offering.Sanitize();
+
             var worlds = new WorldCache();
-            using var lab = new GameLab(worlds, request, "Landing");
+            using var lab = new GameLab(worlds, request, "Landing", offering);
             HeroState hero = options.Text("strong") != null ? GameLab.StrongHero() : HeroState.CreateNew();
             hero.Level = Math.Max(hero.Level, heroLevel);
             LabPlayer player = lab.AddPlayer("Walker", new NetworkConditions { Latency = 30, Jitter = 5 }, 11, hero: hero);
@@ -62,7 +66,7 @@ namespace Dino_NetLab
             int sinceRoute = 0;
             int sidestep = 0;
 
-            Console.WriteLine($"World level {level}, hero level {heroLevel}, on foot from pack to pack");
+            Console.WriteLine($"World level {level}, hero level {heroLevel}, on foot from pack to pack{(offering.Any ? $", {offering.Title()} {offering.OmenNames()}" : "")}");
             Console.WriteLine("minute  level  kills  /min  in a fight  falls  flasks  health  walked");
 
             var near = new List<Actor>();

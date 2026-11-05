@@ -366,13 +366,16 @@ namespace Dino_Defenders.Server
         private const float DarknessReach = 90f;
 
         private readonly WorldData _world;
+        private readonly bool _endlessNight;
         private readonly Condition[] _biomes;
         private readonly List<WorldSite> _graveyards = new();
         private readonly List<(Vector2 position, float radius, float until)> _pools = new();
 
-        public LandReader(WorldData world)
+        /// <param name="endlessNight">Whether all of it is dark, as a land can be made to be.</param>
+        public LandReader(WorldData world, bool endlessNight = false)
         {
             _world = world;
+            _endlessNight = endlessNight;
             _biomes = new Condition[world.Plan.Biomes.Count];
             for (int i = 0; i < _biomes.Length; i++)
             {
@@ -416,6 +419,7 @@ namespace Dino_Defenders.Server
             float x = position.X, z = position.Y;
             if (_world.Canopy.Sample(x, z) > 0.5f) land |= Condition.UnderTrees;
             if (_world.PavedRoad.Sample(x, z) > 0.5f || _world.TrailRoad.Sample(x, z) > 0.5f) land |= Condition.OnRoad;
+            if (_endlessNight) return land | Condition.InDarkness;
 
             foreach (WorldSite site in _graveyards)
             {

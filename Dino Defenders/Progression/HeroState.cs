@@ -22,6 +22,9 @@ namespace Dino_Defenders.Progression
         public float FlaskCharge { get; set; }
         public int WorldsCleared { get; set; }
 
+        /// <summary>The highest peril this hero has come through, which is what says how much they can call down next.</summary>
+        public int PerilProven { get; set; }
+
         /// <summary>The nodes taken on the talent tree, by id, in the order they were taken.</summary>
         public List<string> Talents { get; set; } = new();
 

@@ -79,8 +79,9 @@ namespace Dino_Defenders.Gameplay
         public float GuideCooldown;
         public string? InteractPrompt;
         public InteractKind? Offered;
+        public Entity OfferedThing;     // What the key would use: the same one the server will pick.
 
-        public GameSession(GameClient client, WorldData world, WorldRequest request) : base(world, request)
+        public GameSession(GameClient client, WorldData world, WorldRequest request, Offering offering) : base(world, request, offering)
         {
             Client = client;
             Health = Sheet.MaxHealth;

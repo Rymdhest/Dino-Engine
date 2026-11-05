@@ -18,6 +18,7 @@ namespace Dino_Defenders.Server
     public sealed class ServerSettings
     {
         public WorldRequest Request;
+        public Offering? Offering;      // What was paid to make that world what it is.
         public SaveGame? Save;
         public bool AllowTeleport;      // For scripted runs: a client may ask to be put anywhere.
         public Vector2? Start;
@@ -53,6 +54,7 @@ namespace Dino_Defenders.Server
 
         private Task<WorldData>? _loading;
         private WorldRequest _request;
+        private Offering _offering = new();
         private SaveGame? _saved;
         private CharacterMover? _mover;
         private uint _structureHash;
@@ -100,7 +102,7 @@ namespace Dino_Defenders.Server
             _systems.Add(new VelocitySystem());
             _systems.Add(new FixToTerrainHeightSystem());
 
-            BeginWorld(settings.Request, settings.Save);
+            BeginWorld(settings.Request, settings.Offering ?? new Offering(), settings.Save);
         }
 
         public void AddTransport(INetTransport transport) => _transports.Add(transport);
@@ -135,7 +137,7 @@ namespace Dino_Defenders.Server
             _transports.Clear();
         }
 
-        private void BeginWorld(WorldRequest request, SaveGame? save)
+        private void BeginWorld(WorldRequest request, Offering offering, SaveGame? save)
         {
             _epoch++;
             _heroes.Clear();
@@ -150,9 +152,10 @@ namespace Dino_Defenders.Server
             Ecs.ClearAllEntitiesExcept();
             Ecs.DirtyEntities.Clear();
 
-            _request = request;
+            _offering = offering;
+            _request = offering.Shape(request);
             _saved = save;
-            _loading = _worlds.Get(request);
+            _loading = _worlds.Get(_request);
 
             foreach (ServerPlayer player in _players.Values)
             {
@@ -174,7 +177,7 @@ namespace Dino_Defenders.Server
             }
 
             WorldData world = finished.Result;
-            Session = new ServerSession(this, world, _request);
+            Session = new ServerSession(this, world, _request, _offering);
             if (_saved != null) Session.Restore(_saved);
             _mover = new CharacterMover(world);
             (_structureHash, _groundHash) = Protocol.WorldHash(world);
@@ -405,6 +408,7 @@ namespace Dino_Defenders.Server
                 player.Hero.Gold -= lost;
                 player.SummaryChanged = true;
                 Announce(player, "You have fallen", lost > 0 ? $"{lost} gold lost on the road" : "The land goes on without you");
+                Session!.HeroFell();
             }
 
             player.DownFor += NetTime.TickSeconds;
@@ -603,6 +607,7 @@ namespace Dino_Defenders.Server
             writer.WriteVarInt(player.Id);
             writer.WriteUInt(Tick);
             Protocol.WriteRequest(writer, _request);
+            Protocol.WriteOffering(writer, _offering);
             player.Connection.Send(writer.ToArray(), Delivery.Reliable);
         }
 
@@ -749,7 +754,11 @@ namespace Dino_Defenders.Server
                     int to = reader.ReadVarInt();
                     if (to < 0 || to >= Session!.Sites.Count) break;
                     SiteState destination = Session.Sites[to];
-                    if (destination.Kindled || destination.Site.Kind == SiteKind.Landing) Teleport(player, destination.Site.Position);
+                    if (destination.Kindled || destination.Site.Kind == SiteKind.Landing)
+                    {
+                        // The middle of a site can be built on, and a shrine's altar stands there.
+                        Teleport(player, TryFindGround(Session.World, destination.Site.Position, out Vector2 ground) ? ground : destination.Site.Position);
+                    }
                     break;
 
                 case HeroAction.TravelToPoint:
@@ -758,7 +767,9 @@ namespace Dino_Defenders.Server
                     break;
 
                 case HeroAction.Waygate:
-                    BeginWorld(Protocol.ReadRequest(reader), null);
+                    WorldRequest road = Protocol.ReadRequest(reader);
+                    Offering offering = Protocol.ReadOffering(reader);
+                    if (Pay(player, offering, road.Level)) BeginWorld(road, offering, null);
                     break;
 
                 case HeroAction.ThankElder:
@@ -779,6 +790,29 @@ namespace Dino_Defenders.Server
                 default:
                     throw new NetReadException($"No such action as {action}.");
             }
+        }
+
+        // Whoever steps through pays, and for everyone going with them. It's asked here and nowhere else: what a client shows is only what it thinks this will say.
+        private bool Pay(ServerPlayer player, Offering offering, int level)
+        {
+            if (!offering.Any) return true;
+
+            if (offering.Peril > Offering.Reach(player.Hero))
+            {
+                Note(player, "The gate won't bear that much peril from you yet.");
+                return false;
+            }
+
+            long price = offering.Price(level);
+            if (price > player.Hero.Gold)
+            {
+                Note(player, $"That offering costs {price} gold.");
+                return false;
+            }
+
+            player.Hero.Gold -= (int)price;
+            player.SummaryChanged = true;
+            return true;
         }
 
         private void SendUpdates()
@@ -866,6 +900,8 @@ namespace Dino_Defenders.Server
             ServerSession session = Session!;
             BitWriter writer = Protocol.Begin(Message.Progress);
             writer.WriteBool(session.Liberated);
+            writer.WriteVarInt(session.Falls);
+            writer.WriteBool(session.Broken);
 
             writer.WriteCount(session.Chronicle.Objectives.Count);
             foreach (Objective objective in session.Chronicle.Objectives) writer.WriteVarInt(objective.Progress);

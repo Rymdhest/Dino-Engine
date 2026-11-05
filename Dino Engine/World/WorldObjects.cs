@@ -158,6 +158,34 @@ namespace Dino_Engine.World
             return _sectors[sector.Y * SectorsPerSide + sector.X];
         }
 
+        /// <summary>The nearest of an asset to <paramref name="position"/>, if there's one within <paramref name="reach"/>.</summary>
+        public bool TryNearest(string assetId, Vector2 position, float reach, out WorldObject found)
+        {
+            found = default;
+            if (!_assetIndex.TryGetValue(assetId, out int asset)) return false;
+
+            bool any = false;
+            float best = reach * reach;
+            Vector2i from = SectorOf(position - new Vector2(reach));
+            Vector2i to = SectorOf(position + new Vector2(reach));
+            for (int y = from.Y; y <= to.Y; y++)
+            {
+                for (int x = from.X; x <= to.X; x++)
+                {
+                    if (InSector(new Vector2i(x, y)) is not IReadOnlyList<WorldObject> objects) continue;
+                    foreach (WorldObject item in objects)
+                    {
+                        float distance = (item.Position.Xz - position).LengthSquared;
+                        if (item.Asset != asset || distance > best) continue;
+                        best = distance;
+                        found = item;
+                        any = true;
+                    }
+                }
+            }
+            return any;
+        }
+
         public IEnumerable<WorldObject> All()
         {
             foreach (List<WorldObject>? sector in _sectors)

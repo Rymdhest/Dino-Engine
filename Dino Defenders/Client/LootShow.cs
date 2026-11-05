@@ -183,8 +183,8 @@ namespace Dino_Defenders.Client
     }
 
     /// <summary>
-    /// Walks the hero to what the player clicked and takes it. The hero gets there the way they'd get anywhere, by what's asked of them through <see cref="HeroIntent"/>, so
-    /// nothing about it can disagree with the server. Anything else the player does means they've changed their mind.
+    /// Walks the hero to what the player clicked, and takes it or uses it. The hero gets there the way they'd get anywhere, by what's asked of them through <see cref="HeroIntent"/>,
+    /// so nothing about it can disagree with the server. Anything else the player does means they've changed their mind.
     /// </summary>
     public sealed class LootFetch
     {
@@ -193,9 +193,13 @@ namespace Dino_Defenders.Client
         private const long PatienceMilliseconds = 600;      // How long going nowhere is put up with before finding another way.
         private const int MostReplans = 3;
         private const float CountsAsMoving = 0.5f;
+        private const float UseMargin = 1f;                 // A press goes to whatever's nearest where the server has the hero, which isn't quite here. This far inside, it can only be the one that was clicked.
+
+        private static readonly BitMask Places = new BitMask(typeof(InteractableComponent), typeof(PositionComponent));
 
         private readonly WorldPathfinder _paths = new(exact: true);
         private int _find;
+        private (int Site, int Spawn)? _use;
         private Vector2 _at;
         private List<Vector2>? _path;
         private int _step;
@@ -203,11 +207,23 @@ namespace Dino_Defenders.Client
         private Vector2 _lastAt;
         private long _lastMoved;
 
-        public bool Active => _find != 0;
+        public bool Active => _find != 0 || _use != null;
 
         public void Begin(int find, Vector2 at)
         {
+            Set(find, null, at);
+        }
+
+        /// <summary>Walks to something that can be used, by which spawn of which site it is, as what it's called on this client can change if it goes out of sight on the way.</summary>
+        public void BeginUse(int site, int spawn, Vector2 at)
+        {
+            Set(0, (site, spawn), at);
+        }
+
+        private void Set(int find, (int Site, int Spawn)? use, Vector2 at)
+        {
             _find = find;
+            _use = use;
             _at = at;
             _path = null;
             _step = 0;
@@ -215,21 +231,34 @@ namespace Dino_Defenders.Client
             _lastMoved = 0;
         }
 
-        public void Cancel() => _find = 0;
+        public void Cancel()
+        {
+            _find = 0;
+            _use = null;
+        }
 
         public void Steer(GameSession session, ref HeroIntent intent)
         {
-            if (_find == 0) return;
+            if (!Active) return;
 
             GameClient client = session.Client;
-            if (!session.Ground.ContainsKey(_find) || intent.Move != Vector2.Zero || intent.Slots != 0 || intent.Dash)
+            if ((_find != 0 && !session.Ground.ContainsKey(_find)) || intent.Move != Vector2.Zero || intent.Slots != 0 || intent.Dash)
             {
                 Cancel();
                 return;
             }
 
             Vector2 here = session.PlayerPosition;
-            if ((_at - here).LengthSquared <= Loot.Reach * Loot.Reach)
+            if (_use != null)
+            {
+                if (!Look(client.Ecs, here, out bool ready) || ready)
+                {
+                    intent.Interact = ready;
+                    Cancel();
+                    return;
+                }
+            }
+            else if ((_at - here).LengthSquared <= Loot.Reach * Loot.Reach)
             {
                 client.PickUp(_find);
                 Cancel();
@@ -254,6 +283,35 @@ namespace Dino_Defenders.Client
             }
 
             intent.Move = NextStop(session.World, here) - here;
+        }
+
+        // Whether it's still there, and whether a press from here would be sure to reach it and not whatever else is near.
+        private bool Look(ECSWorld world, Vector2 here, out bool ready)
+        {
+            bool found = false;
+            float distance = 0f;
+            float reach = 0f;
+            float others = float.PositiveInfinity;
+            foreach (Archetype archetype in world.QueryArchetypes(Places, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var place = entity.Get<InteractableComponent>();
+                    Vector2 at = entity.Get<PositionComponent>().value.Xz;
+                    float away = (at - here).Length;
+                    if (place.SiteIndex == _use!.Value.Site && place.SpawnIndex == _use.Value.Spawn)
+                    {
+                        found = true;
+                        _at = at;
+                        distance = away;
+                        reach = place.Radius;
+                    }
+                    else if (away <= place.Radius + UseMargin) others = MathF.Min(others, away);
+                }
+            }
+
+            ready = found && distance <= reach - UseMargin && distance + UseMargin < others;
+            return found;
         }
 
         // The furthest point along the way that can be walked to in a straight line, so a hero heads for where they're going and doesn't pick their way from point to point.

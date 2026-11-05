@@ -214,7 +214,7 @@ namespace Dino_NetLab
             return intent;
         }
 
-        public void WorldNeeded(WorldRequest request) => _wanted = request;
+        public void WorldNeeded(WorldRequest request, Offering offering) => _wanted = request;
         public void Arrived(Vector2 position) => Arrivals++;
         public void HeroActed(HeroStepEvents events, in HeroSimState hero)
         {
@@ -257,13 +257,13 @@ namespace Dino_NetLab
         public double TickCostWorst;
         public int TicksTimed;
 
-        public GameLab(WorldCache worlds, WorldRequest request, string startSite = "BanditCamp")
+        public GameLab(WorldCache worlds, WorldRequest request, string startSite = "BanditCamp", Offering? offering = null, SaveGame? save = null)
         {
             _worlds = worlds;
 
             // Generation takes real time, and this clock doesn't wait for it.
-            worlds.Get(request).Wait();
-            Server = new GameServer(new ServerSettings { Request = request, StartSite = startSite, AllowTeleport = true }, worlds);
+            worlds.Get((offering ?? new Offering()).Shape(request)).Wait();
+            Server = new GameServer(new ServerSettings { Request = request, Offering = offering, Save = save, StartSite = startSite, AllowTeleport = true }, worlds);
             Server.Clock = () => (long)(_now * 1000.0);
         }
 
@@ -460,6 +460,7 @@ namespace Dino_NetLab
             LatePressIsNotRepeated(report);
             ActionsAtPanels(report, worlds, request);
             UsingThings(report, worlds);
+            ClickingToUse(report, worlds);
             NewComponentNeedsNoCode(report, worlds, request);
 
             return report.Finish();
@@ -738,7 +739,7 @@ namespace Dino_NetLab
             LabPlayer late = lab.AddPlayer("Latecomer", line, 2);
             lab.Run(5);
             report.Check("Someone can join a game in progress", late.Client.State == ClientState.Playing);
-            report.Check("They arrive beside their friend", (late.Client.Predictor.Current.Position - first.Client.Predictor.Current.Position).Length < 60f);
+            report.Check("They arrive beside their friend", (late.Client.Predictor.Current.Position - first.Client.Predictor.Current.Position).Length < 60f, $"{late.Client.Predictor.Current.Position} and {first.Client.Predictor.Current.Position}");
             report.Check("They hear what has already happened to the world", late.Client.Session!.Sites.Sum(s => s.Dead.Count) >= killsBefore, $"{late.Client.Session.Sites.Sum(s => s.Dead.Count)} of {killsBefore}");
             report.Check("Each sees the other", first.Client.Ghosts.Ghosts.Count > 0 && first.Client.Party.Count == 2 && late.Client.Party.Count == 2);
 
@@ -768,7 +769,7 @@ namespace Dino_NetLab
 
             int goldBefore = lab.Players[0].Client.Hero.Gold;
             var next = new WorldRequest(request.Seed + 1, "isle", 2);
-            lab.Players[1].Client.StepThroughWaygate(next);
+            lab.Players[1].Client.StepThroughWaygate(next, new Offering());
 
             // A new world takes real time to grow, however fast this clock runs.
             for (int i = 0; i < 600 && lab.Players.Any(p => p.Arrivals < 2); i++)
@@ -1122,6 +1123,109 @@ namespace Dino_NetLab
                 && server.Loadout.Skills.Length == client.Loadout.Skills.Length;
         }
 
+        // Clicking a mark: the hero walks there on their own feet, and the press that ends it goes to the thing that was clicked and nothing else.
+        private static void ClickingToUse(Report report, WorldCache worlds)
+        {
+            var request = new WorldRequest(303, "isle");
+            using var lab = new GameLab(worlds, request, startSite: "Landing");
+            LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 60, Jitter = 10 }, 91, hero: LabHero());
+            player.Fights = false;
+            lab.Run(4);
+            ServerSession session = lab.Server.Session!;
+            ServerPlayer truth = lab.Server.Players.First();
+            GameSession seen = player.Client.Session!;
+
+            InteractableComponent? Find(InteractKind kind, out Vector2 at)
+            {
+                at = default;
+                foreach (Archetype archetype in player.Ecs.QueryArchetypes(new BitMask(typeof(InteractableComponent), typeof(PositionComponent)), BitMask.Empty))
+                {
+                    foreach (EntityView entity in new ComponentAccessor(archetype))
+                    {
+                        var place = entity.Get<InteractableComponent>();
+                        if (place.Kind != kind) continue;
+                        at = entity.Get<PositionComponent>().value.Xz;
+                        return place;
+                    }
+                }
+                return null;
+            }
+
+            void Click(in InteractableComponent place, Vector2 at) => seen.Fetch.BeginUse(place.SiteIndex, place.SpawnIndex, at);
+
+            if (Find(InteractKind.Merchant, out Vector2 stall) is InteractableComponent merchant)
+            {
+                player.Client.TravelTo(seen.World.Sites[0].Position + new Vector2(0f, -24f));
+                lab.Run(1);
+                Vector2 start = truth.Sim.Position;
+                Click(merchant, stall);
+                lab.Run(8);
+                report.Check("Clicking a merchant walks the hero up and opens their table", player.PanelsOpened.Any(p => p.kind == InteractKind.Merchant), $"{(truth.Sim.Position - stall).Length:0.0} m away");
+                report.Check("Having really walked there", (truth.Sim.Position - start).Length > 8f);
+                report.Check("And that's the end of it", !seen.Fetch.Active);
+
+                player.PanelsOpened.Clear();
+                player.Client.TravelTo(stall + new Vector2(merchant.Radius - 0.1f, 0f));
+                lab.Run(1);
+                Click(merchant, stall);
+                lab.Run(3);
+                report.Check("From the very edge of its reach, a click still lands", player.PanelsOpened.Any(p => p.kind == InteractKind.Merchant));
+
+                player.PanelsOpened.Clear();
+                player.Client.TravelTo(stall + new Vector2(0f, 30f));
+                lab.Run(1);
+                foreach ((string what, HeroIntent input) in new[] { ("walking", new HeroIntent { Move = Vector2.UnitX }), ("dodging", new HeroIntent { Dash = true }) })
+                {
+                    Click(merchant, stall);
+                    HeroIntent intent = input;
+                    seen.Fetch.Steer(seen, ref intent);
+                    report.Check($"Anything else the player does calls it off: {what}", !seen.Fetch.Active && !intent.Interact);
+                }
+
+                seen.Fetch.BeginUse(merchant.SiteIndex, 9999, stall);
+                HeroIntent nothing = default;
+                seen.Fetch.Steer(seen, ref nothing);
+                report.Check("Something that's gone is given up on, with no press", !seen.Fetch.Active && !nothing.Interact);
+            }
+
+            if (Find(InteractKind.Waygate, out Vector2 gate) is InteractableComponent waygate)
+            {
+                player.Client.TravelTo(gate + new Vector2(0f, -22f));
+                lab.Run(1);
+                Click(waygate, gate);
+                lab.Run(8);
+                report.Check("Clicking a waygate walks up and offers the way", player.PanelsOpened.Any(p => p.kind == InteractKind.Waygate), $"{(truth.Sim.Position - gate).Length:0.0} m away");
+            }
+
+            // These stand seven metres apart, so the reach of each covers the way to the other: a press too soon goes to the wrong one.
+            WorldSite stones = seen.World.Sites.First(s => s.Kind == SiteKind.StandingStones && s.Spawns.Any(p => p.Role == SpawnRole.Chest));
+            SiteState state = session.Sites.First(s => s.Site.Id == stones.Id);
+            Vector2 altarAt = stones.Spawns.First(s => s.Role == SpawnRole.Altar).Position;
+            Vector2 chestAt = stones.Spawns.First(s => s.Role == SpawnRole.Chest).Position;
+            Vector2 past = (chestAt - altarAt).Normalized();
+
+            player.Client.TravelTo(chestAt + past * 6f);
+            lab.Run(3);
+            if (Find(InteractKind.Shrine, out Vector2 altarGhost) is InteractableComponent altar)
+            {
+                Click(altar, altarGhost);
+                lab.Run(6);
+                report.Check("Clicking something past something else uses what was clicked", state.Kindled);
+                report.Check("And leaves alone what was walked past", state.Opened.Count == 0);
+            }
+            else report.Check("A shrine with a chest beside it reaches the client", false);
+
+            player.Client.TravelTo(altarAt - past * 6f);
+            lab.Run(2);
+            if (Find(InteractKind.Chest, out Vector2 chestGhost) is InteractableComponent chest)
+            {
+                Click(chest, chestGhost);
+                lab.Run(6);
+                report.Check("And the other way round", state.Opened.Count == 1);
+            }
+            else report.Check("That chest reaches the client", false);
+        }
+
         // Merchants, chests and shrines, all the way through: the hero walks up, presses use, the server decides, and the answer comes back.
         private static void UsingThings(Report report, WorldCache worlds)
         {
@@ -1206,7 +1310,9 @@ namespace Dino_NetLab
                 lab.Run(1);
                 player.Client.TravelToSite(index);
                 lab.Run(1);
-                report.Check("A kindled shrine can be travelled to", (player.Client.Predictor.Current.Position - shrine.Position).Length < 1f);
+                Vector2 arrived = player.Client.Predictor.Current.Position;
+                report.Check("A kindled shrine can be travelled to", (arrived - shrine.Position).Length < 8f);
+                report.Check("And the hero arrives beside its altar, not inside it", session.World.Passable.IsSet(arrived));
             }
 
             foreach (SiteState state in session.Sites)

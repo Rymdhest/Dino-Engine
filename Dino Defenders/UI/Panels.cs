@@ -382,6 +382,11 @@ namespace Dino_Defenders.UI
             _body.ClearChildren();
             _body.Add(Ui.Heading(session.World.Plan.Name, 26f));
             _body.Add(Ui.Line($"{session.World.Plan.Archetype.Name}, under {chronicle.Faction}. Level {session.World.Plan.Level}.", 14f, Ui.Faded));
+            if (session.Offering.Any)
+            {
+                _body.Add(Ui.Line(WaygatePanel.Standing(session), 14f, session.Broken ? Ui.Blood : Ui.Gold));
+                foreach (OmenDefinition omen in session.Offering.Chosen()) _body.Add(Ui.Paragraph($"{omen.Name}. {omen.Describe()}", 13f, Ui.Faded));
+            }
             _body.Add(Ui.Paragraph(chronicle.Prologue, 16f));
             _body.Add(new Spacer(height: 6f));
 
@@ -422,16 +427,39 @@ namespace Dino_Defenders.UI
         }
     }
 
-    /// <summary>Where the waygate can lead: other lands, each its own place, and harder once this one is free.</summary>
+    /// <summary>
+    /// Where the waygate can lead: other lands, each its own place, and harder once this one is free. Whatever is set here is what's offered on the way through to any of them, and
+    /// it's kept from one visit to the next, as a player who's found how much they can take will want that again.
+    /// </summary>
     internal sealed class WaygatePanel : GuiElement
     {
         private const int Choices = 3;
+        private const int OmenColumns = 7;
+        private const string OmenHelp = "Rest your eyes on an omen to read it.";
+
+        private static readonly Colour Chosen = GuiColors.Rgba(112, 74, 28);
 
         private readonly StackPanel _cards;
         private readonly Label _note;
-        private readonly Action<WorldRequest> _travel;
+        private readonly Label _about;
+        private readonly Label _cost;
+        private readonly Action<WorldRequest, Offering> _travel;
+        private readonly Offering _offering = new();
+        private readonly List<(OmenDefinition omen, Button button)> _omens = new();
+        private int _level = 1;
 
-        public WaygatePanel(Action<WorldRequest> travel)
+        private static HeroState Hero => GameSession.Current.Hero;
+
+        /// <summary>How an offering stands, in a line.</summary>
+        public static string Standing(GameSession session)
+        {
+            Offering offering = session.Offering;
+            if (session.Broken) return $"{offering.Title()}: the offering is broken";
+            if (!offering.AtStake || session.Liberated) return offering.Title();
+            return session.FallsLeft > 0 ? $"{offering.Title()}: {session.FallsLeft} {(session.FallsLeft == 1 ? "fall" : "falls")} left" : $"{offering.Title()}: no more falls";
+        }
+
+        public WaygatePanel(Action<WorldRequest, Offering> travel)
         {
             _travel = travel;
             Anchor = Anchor.Center;
@@ -445,6 +473,100 @@ namespace Dino_Defenders.UI
             body.Add(Ui.Heading("The Waygate", 26f));
             _note = body.Add(Ui.Paragraph("", 15f, Ui.Faded));
             _cards = body.Add(new StackPanel(Orientation.Horizontal, 14f) { Width = UIValue.Fill, Height = UIValue.Auto });
+
+            body.Add(Ui.Heading("The Offering", 20f));
+            body.Add(Ui.Paragraph("Gold burned at the gate makes the land beyond worse, and richer. Fall too often there and what was paid is gone. See the land free to climb higher.", 14f, Ui.Faded));
+
+            Dial(body, "Peril", () => _offering.Peril, value => _offering.Peril = value, () => Offering.Reach(Hero), DescribePeril);
+            Dial(body, "Teeming", () => _offering.Teeming, value => _offering.Teeming = value, () => Offering.MostCrowd,
+                () => _offering.Teeming == 0 ? "Packs as they come" : $"Packs {_offering.MorePeople * 100f:0}% larger, and no stronger for it");
+            Dial(body, "Overrun", () => _offering.Overrun, value => _offering.Overrun = value, () => Offering.MostCrowd,
+                () => _offering.Overrun == 0 ? "As many packs as ever" : $"{_offering.MorePacks * 100f:0}% more packs on the land, and no stronger for it");
+
+            body.Add(Ui.Line("", 14f, Ui.Gold).Bind(() => $"Omens: {_offering.Omens.Count} of {Offering.OmenSlots(_offering.Peril)}. More peril carries more."));
+            var grid = body.Add(new GridPanel(OmenColumns, 6f, 6f));
+            foreach (OmenDefinition omen in Omens.All) _omens.Add((omen, grid.Add(OmenButton(omen))));
+            _about = body.Add(Ui.Paragraph(OmenHelp, 14f, Ui.Parchment));
+
+            body.Add(Ui.Line("", 14f).Bind(DescribeRewards));
+            _cost = body.Add(Ui.Line("", 15f, Ui.Gold).Bind(() => $"Costs {_offering.Price(_level)} gold of your {Hero.Gold}"));
+
+            // Decided here rather than by each of them, as this is what knows how many are chosen.
+            Updated += _ =>
+            {
+                if (GameSession.Current == null) return;
+                bool room = _offering.Omens.Count < Offering.OmenSlots(_offering.Peril);
+                foreach ((OmenDefinition omen, Button button) in _omens)
+                {
+                    bool chosen = _offering.Has(omen);
+                    button.NormalColor = chosen ? Chosen : Ui.InkLight;
+                    button.Enabled = chosen || room;
+                }
+                _cost.Color = _offering.Price(_level) > Hero.Gold ? Ui.Blood : Ui.Gold;
+            };
+        }
+
+        private void Dial(GuiElement body, string name, Func<int> value, Action<int> set, Func<int> most, Func<string> says)
+        {
+            var row = body.Add(new StackPanel(Orientation.Horizontal, 8f) { Width = UIValue.Fill, Height = 28f });
+            row.Add(Ui.Line(name, 15f, Ui.Gold)).Width = 80f;
+            row.Add(Step("-", () => Turn(set, value() - 1, most())));
+            row.Add(Ui.Line("", 16f).Bind(() => value().ToString())).Width = 30f;
+            row.Add(Step("+", () => Turn(set, value() + 1, most())));
+            row.Add(Ui.Line("", 14f, Ui.Parchment).Bind(says)).Width = UIValue.Fill;
+        }
+
+        private static Button Step(string text, Action pressed)
+        {
+            Button button = Ui.Action(text, pressed);
+            button.Width = 34f;
+            button.Height = 26f;
+            return button;
+        }
+
+        private void Turn(Action<int> set, int value, int most)
+        {
+            set(Math.Clamp(value, 0, most));
+            _offering.Sanitize();
+        }
+
+        private Button OmenButton(OmenDefinition omen)
+        {
+            Button button = Ui.Action(omen.Name, () => Toggle(omen));
+            button.Height = 28f;
+            button.MouseEnter += () => _about.Text = $"{omen.Name}. {omen.Describe()}";
+            button.MouseLeave += () => _about.Text = OmenHelp;
+            return button;
+        }
+
+        private void Toggle(OmenDefinition omen)
+        {
+            if (!_offering.Omens.Remove(omen.Id) && _offering.Omens.Count < Offering.OmenSlots(_offering.Peril)) _offering.Omens.Add(omen.Id);
+        }
+
+        private string DescribePeril()
+        {
+            if (_offering.Peril == 0) return $"Enemies as they are. You can reach Peril {Offering.Reach(Hero)}";
+            return $"Enemies: {(_offering.EnemyHealth - 1f) * 100f:0}% more health, {(_offering.EnemyDamage - 1f) * 100f:0}% more damage";
+        }
+
+        private string DescribeRewards()
+        {
+            if (!_offering.AtStake) return _offering.Any ? "The same from each, and more of them to get it from." : "Nothing offered, and nothing more than the land gives.";
+            LootBoon boon = _offering.Boon();
+            string levels = boon.ExtraLevels > 1 ? $", items {boon.ExtraLevels} levels up" : boon.ExtraLevels == 1 ? ", items a level up" : "";
+            string plain = boon.Least > LootGrade.Plain ? ", nothing plain" : "";
+            return $"Drops: {(boon.Quantity - 1f) * 100f:0}% more, {(boon.Rarity - 1f) * 100f:0}% rarer{levels}{plain}. {Offering.AllowedFalls} falls allowed.";
+        }
+
+        private void StepThrough(WorldRequest request)
+        {
+            if (_offering.Price(request.Level) > Hero.Gold)
+            {
+                GameSession.Current.Note("You can't pay for that offering.");
+                return;
+            }
+            _travel(request, _offering.Copy());
         }
 
         public void Open()
@@ -452,6 +574,9 @@ namespace Dino_Defenders.UI
             GameSession session = GameSession.Current;
             bool free = session.Chronicle.WorldCleared;
             int level = session.World.Plan.Level + (free ? 1 : 0);
+            _level = level;
+            _offering.Peril = Math.Min(_offering.Peril, Offering.Reach(session.Hero));
+            _offering.Sanitize();
             _note.Text = free
                 ? "With this land free, the old roads open further. Beyond them the lands are harder, and richer."
                 : $"While {session.Chronicle.Warlord} holds this land, the gate reaches only as far as lands like it. You may go, and it will not wait for you.";
@@ -484,7 +609,8 @@ namespace Dino_Defenders.UI
             card.Add(Ui.Line($"Level {plan.Level}", 14f, Ui.Faded));
             card.Add(Ui.Paragraph(string.Join(", ", plan.Biomes.Select(b => b.Name)), 14f));
             card.Add(Ui.Line(plan.Mood.Name, 14f, Ui.Faded));
-            card.Add(Ui.Action("Step through", () => _travel(request)));
+            Button step = card.Add(Ui.Action("Step through", () => StepThrough(request)));
+            step.Label.Bind(() => _offering.Any ? $"Step through for {_offering.Price(request.Level)} gold" : "Step through");
             return card;
         }
     }
@@ -641,6 +767,7 @@ namespace Dino_Defenders.UI
     {
         public static GameUi Current = null!;
 
+        public readonly UseMarks Marks = new();
         public readonly Hud Hud = new();
         public readonly LootLabels Labels = new();
         public readonly MapPanel Map;
@@ -655,7 +782,7 @@ namespace Dino_Defenders.UI
 
         private readonly GuiElement[] _panels;
 
-        public GameUi(GuiContext gui, ArpgGame game, Action<WorldRequest> travel, Action quit, Action newJourney)
+        public GameUi(GuiContext gui, ArpgGame game, Action<WorldRequest, Offering> travel, Action quit, Action newJourney)
         {
             Current = this;
             Map = new MapPanel(CloseAll);
@@ -664,6 +791,7 @@ namespace Dino_Defenders.UI
             Friends = new FriendsPanel(game);
             _panels = new GuiElement[] { Map, Hero, Talents, Skills, Chronicle, Waygate, Pause, Friends };
 
+            gui.Root.Add(Marks);
             gui.Root.Add(Hud);
             gui.Root.Add(Labels);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);

@@ -16,6 +16,7 @@ namespace Dino_Engine.World.Generation
         private const float FormationStep = 2.7f;
         private const float StandingDepth = 0.3f;       // Metres of water a pack is willing to stand about in.
         private const float QuietSize = 420f;
+        private const float LeastSpacing = 40f;         // However many are asked for. Noise closes this to 34 m, still clear of how far a cry carries, so a fight can't wake the whole land.
 
         // A settlement keeps the land around it. The landing most of all: it's where people get their bearings, though the first fight should be in sight of it.
         private const float LandingMargin = 46f;
@@ -27,7 +28,7 @@ namespace Dino_Engine.World.Generation
         public float Cost => 0.2f;
 
         /// <summary>Metres between packs in this world.</summary>
-        public static float Spacing(int level) => Lerp(66f, 56f, Saturate(MathF.Log(MathF.Max(level, 1)) / MathF.Log(30f)));
+        public static float Spacing(int level, float morePacks = 0f) => MathF.Max(Lerp(66f, 56f, Saturate(MathF.Log(MathF.Max(level, 1)) / MathF.Log(30f))) / MathF.Sqrt(1f + morePacks), LeastSpacing);
 
         /// <summary>
         /// How many stand together, before anything is drawn. This climbs quickly and levels off, as worlds go up one at a time, and a player should
@@ -36,13 +37,14 @@ namespace Dino_Engine.World.Generation
         public static float UsualSize(int level, float remoteness) => 3f + 2.2f * MathF.Log(MathF.Max(level, 1)) + 2f * remoteness;
 
         /// <summary>A pack's size: most are about the usual, some are stragglers and a few are out in force.</summary>
-        public static int DrawSize(int level, float remoteness, WorldRandom random)
+        /// <param name="crowd">How many times the usual number have been asked for.</param>
+        public static int DrawSize(int level, float remoteness, WorldRandom random, float crowd = 1f)
         {
-            float size = UsualSize(level, remoteness) * random.Range(0.85f, 1.15f);
+            float size = UsualSize(level, remoteness) * crowd * random.Range(0.85f, 1.15f);
             float roll = random.Float();
             if (roll < 0.14f) size *= 0.55f;
             else if (roll > 0.9f) size *= 1.6f;
-            return Math.Clamp((int)MathF.Round(size), 2, 18);
+            return Math.Clamp((int)MathF.Round(size), 2, (int)(18f * crowd));
         }
 
         public void Run(WorldData world)
@@ -74,6 +76,7 @@ namespace Dino_Engine.World.Generation
             private readonly Territory _territory;
             private readonly WorldNoise _quiet;
             private readonly float _spacing;
+            private readonly float _crowd;
             private readonly SpotIndex _taken;
             private int _drawn;
 
@@ -83,7 +86,8 @@ namespace Dino_Engine.World.Generation
                 _random = random;
                 _territory = new Territory(world);
                 _quiet = new WorldNoise(random.Fork("quiet"));
-                _spacing = Spacing(world.Plan.Level);
+                _spacing = Spacing(world.Plan.Level, world.Plan.Request.MorePacks);
+                _crowd = 1f + world.Plan.Request.MorePeople;
                 _taken = new SpotIndex(world.Size, _spacing);
             }
 
@@ -113,7 +117,7 @@ namespace Dino_Engine.World.Generation
                 if (held is not SpawnRole role) return;
 
                 WorldRandom random = _random.Fork("sites").Fork(site.Id);
-                int wanted = (int)MathF.Round(UsualSize(_world.Plan.Level, site.Remoteness) * share);
+                int wanted = (int)MathF.Round(UsualSize(_world.Plan.Level, site.Remoteness) * share * _crowd);
                 float reach = site.Radius * 0.72f;
                 int placed = 0;
                 for (int attempt = 0; attempt < wanted * 8 && placed < wanted; attempt++)
@@ -130,8 +134,8 @@ namespace Dino_Engine.World.Generation
                 WorldRandom random = _random.Fork("camp").Fork(index);
                 if (TryFindOpen(camp.Position, camp.Radius, random, out Vector2 centre))
                 {
-                    int size = (int)MathF.Round(DrawSize(_world.Plan.Level, camp.Remoteness, random) * 1.6f);
-                    Muster(camp, camp.Folk, centre, Math.Clamp(size, 4, 20), camp.Radius, random);
+                    int size = (int)MathF.Round(DrawSize(_world.Plan.Level, camp.Remoteness, random, _crowd) * 1.6f);
+                    Muster(camp, camp.Folk, centre, Math.Clamp(size, 4, (int)(20f * _crowd)), camp.Radius, random);
 
                     // A den holds what its hunters dragged home. Everyone else keeps theirs in a box.
                     if (camp.Spawns.Count > 0 && camp.Folk != SpawnRole.Beast && random.Chance(0.7f) && TryFindOpen(camp.Position, camp.Radius * 0.8f, random, out Vector2 chest))
@@ -218,7 +222,8 @@ namespace Dino_Engine.World.Generation
                     Biome = _world.DominantBiome(at),
                 };
 
-                Muster(haunt, folk, at, DrawSize(_world.Plan.Level, remoteness, random), FormationReach, random);
+                // A crowd needs the room of one: the same ground would only pack them into a single body.
+                Muster(haunt, folk, at, DrawSize(_world.Plan.Level, remoteness, random, _crowd), FormationReach * MathF.Sqrt(_crowd), random);
                 if (haunt.Spawns.Count < 2) return false;
 
                 _taken.Add(at);

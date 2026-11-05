@@ -41,6 +41,20 @@ namespace Dino_Defenders.Progression
         LootGrade Least, LootGrade Promised, float Quality, int ExtraLevels,
         float GoldChance, float GoldScale, int GoldPiles);
 
+    /// <summary>What's been paid for at a waygate, on top of what any source gives. Every share here is a multiplier, so <see cref="None"/> leaves a roll exactly as it was.</summary>
+    /// <param name="Quantity">What the number of finds is multiplied by.</param>
+    /// <param name="Rarity">What the chance of anything better than plain is multiplied by.</param>
+    /// <param name="Legend">What the chance of a masterwork or a legendary is multiplied by, on top of <paramref name="Rarity"/>.</param>
+    /// <param name="Quality">Added to a table's quality.</param>
+    /// <param name="ExtraLevels">Added to how far above a source's level its items are.</param>
+    /// <param name="Least">Nothing is worse than this, whatever the table says.</param>
+    /// <param name="Gold">What gold is multiplied by.</param>
+    /// <param name="Experience">What experience is multiplied by.</param>
+    public readonly record struct LootBoon(float Quantity, float Rarity, float Legend, float Quality, int ExtraLevels, LootGrade Least, float Gold, float Experience)
+    {
+        public static readonly LootBoon None = new(1f, 1f, 1f, 0f, 0, LootGrade.Plain, 1f, 1f);
+    }
+
     /// <summary>
     /// What everything in the world is worth killing or opening for. Two things carry all of the risk and reward: <see cref="LootTables.TierOf"/> reads how hard
     /// something was to kill from the health it really had, and <see cref="Loot.Daring"/> pays for taking on what's above you and stops paying for what's beneath you.
@@ -66,6 +80,13 @@ namespace Dino_Defenders.Progression
         };
 
         public static LootTable Of(LootTier tier) => Tables[(int)tier];
+
+        /// <summary>The next chest up, for a land whose chests are worth more than they look.</summary>
+        public static LootTier Better(LootTier chest) => chest switch
+        {
+            LootTier.Cache => LootTier.Chest,
+            _ => LootTier.Hoard,
+        };
 
         /// <param name="threat">Its health, as a share of an ordinary enemy's at its level.</param>
         public static LootTier TierOf(EnemyRank rank, float threat) => rank switch
@@ -140,6 +161,9 @@ namespace Dino_Defenders.Progression
         private const float DaringStep = 0.07f;
         private const float LeastDaring = 0.4f;
         private const float MostDaring = 2f;
+        private const float MostLegendary = 0.5f;   // Of one find. Past this a boss on a paid-for land would drop nothing else, and a legendary is only worth what the rest of the pile makes it.
+        private const float MostMasterwork = 0.4f;
+        private const float SureQuantity = 0.5f;    // A boss or a chest is a pile already. This much of what's been paid for goes on it, so that the top of the climb is a heap and not a carpet.
 
         public static LootGrade GradeOf(Item item) => item.Rarity switch
         {
@@ -156,24 +180,28 @@ namespace Dino_Defenders.Progression
         /// <param name="level">The level of what's being looted.</param>
         /// <param name="heroLevel">The level of the strongest hero there.</param>
         /// <param name="find">The party's item rarity, as a share: 0.5 is half as likely again.</param>
-        public static List<Item> Roll(LootTier tier, int level, int heroLevel, float find, LootLuck luck, WorldRandom random)
+        public static List<Item> Roll(LootTier tier, int level, int heroLevel, float find, LootLuck luck, WorldRandom random) => Roll(tier, level, heroLevel, find, luck, random, LootBoon.None);
+
+        /// <param name="boon">What's been paid for on this land.</param>
+        public static List<Item> Roll(LootTier tier, int level, int heroLevel, float find, LootLuck luck, WorldRandom random, in LootBoon boon)
         {
             LootTable table = LootTables.Of(tier);
             float daring = Daring(level, heroLevel);
-            float fortune = (1f + find) * daring;
+            float fortune = (1f + find) * daring * boon.Rarity;
 
             // A small chance is what luck and daring can move. Whatever is sure to drop is sure, and they go into what it is instead.
-            float finds = table.Finds < 1f ? table.Finds * luck.Finds * daring : table.Finds;
+            float finds = table.Finds < 1f ? table.Finds * luck.Finds * daring * boon.Quantity : table.Finds * (1f + (boon.Quantity - 1f) * SureQuantity);
             int count = (int)finds + (random.Chance(finds - MathF.Floor(finds)) ? 1 : 0);
 
             var items = new List<Item>(count);
             for (int i = 0; i < count; i++)
             {
-                LootGrade grade = Draw(table, fortune, luck, random);
+                LootGrade grade = Draw(table, fortune, luck, boon.Legend, random);
                 if (grade < table.Least) grade = table.Least;
+                if (grade < boon.Least) grade = boon.Least;
                 if (i == 0 && grade < table.Promised) grade = table.Promised;
 
-                Item item = Fresh(items, level + table.ExtraLevels, random.Fork(i), grade, table.Quality);
+                Item item = Fresh(items, level + table.ExtraLevels + boon.ExtraLevels, random.Fork(i), grade, MathF.Min(table.Quality + boon.Quality, 1f));
                 luck.Found(GradeOf(item));
                 items.Add(item);
             }
@@ -193,21 +221,22 @@ namespace Dino_Defenders.Progression
             return item;
         }
 
-        private static LootGrade Draw(LootTable table, float fortune, LootLuck luck, WorldRandom random)
+        private static LootGrade Draw(LootTable table, float fortune, LootLuck luck, float legend, WorldRandom random)
         {
             float good = fortune * luck.Good;
             float roll = random.Float();
-            if ((roll -= table.Legendary * good * luck.Legend) < 0f) return LootGrade.Legendary;
-            if ((roll -= table.Masterwork * good) < 0f) return LootGrade.Masterwork;
+            if ((roll -= MathF.Min(table.Legendary * good * luck.Legend * legend, MostLegendary)) < 0f) return LootGrade.Legendary;
+            if ((roll -= MathF.Min(table.Masterwork * good * legend, MostMasterwork)) < 0f) return LootGrade.Masterwork;
             if ((roll -= table.Rare * good) < 0f) return LootGrade.Rare;
             return roll - table.Magic * fortune < 0f ? LootGrade.Magic : LootGrade.Plain;
         }
 
         /// <summary>How much gold a source gives, in all, or nothing if it gives none.</summary>
-        public static int RollGold(LootTier tier, int level, float goldFind, WorldRandom random)
+        /// <param name="share">What it's multiplied by, on a land where that's been paid for.</param>
+        public static int RollGold(LootTier tier, int level, float goldFind, WorldRandom random, float share = 1f)
         {
             LootTable table = LootTables.Of(tier);
-            return random.Chance(table.GoldChance) ? (int)(random.Range(3f, 9f) * level * table.GoldScale * (1f + goldFind)) : 0;
+            return random.Chance(table.GoldChance) ? (int)(random.Range(3f, 9f) * level * table.GoldScale * (1f + goldFind) * share) : 0;
         }
     }
 }

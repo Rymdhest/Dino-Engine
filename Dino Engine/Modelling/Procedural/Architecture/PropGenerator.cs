@@ -673,7 +673,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Tube(new Vector3(0f, 0.32f, 0f), new Vector3(0f, 1.3f, 0f), 0.92f, 0.76f, 8, stone);
             b.Tube(new Vector3(0f, 1.3f, 0f), new Vector3(0f, 1.6f, 0f), 1.1f, 1.1f, 8, stone);
 
-            Mesh crystal = IcoSphereGenerator.CreateIcosphere(1, Glow(0.45f, 1f, 0.72f, 2.8f));
+            Mesh crystal = IcoSphereGenerator.CreateIcosphere(1, Glow(0.08f, 1f, 0.5f, 2.8f));
             b.Add(crystal, new Vector3(0f, 2.5f, 0f), new Vector3(0.38f, 0.92f, 0.38f), random.Float() * MathF.Tau);
         }
 

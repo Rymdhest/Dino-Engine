@@ -1,4 +1,5 @@
 using Dino_Engine.World;
+using Dino_Engine.World.Generation;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
@@ -263,6 +264,11 @@ namespace Dino_WorldLab
                 WorldSite site = world.Sites[i];
                 if (site.Id != i) Problem($"{site.Name} has id {site.Id} at index {i}");
                 if (site.Kind == SiteKind.Graveyard && !HasChurch(world, site)) Problem($"{site.Name} has no church");
+                foreach (SiteSpawn spawn in site.Spawns)
+                {
+                    if (spawn.Role == SpawnRole.Altar && !Stands(world, StructureCatalog.Altar, spawn.Position)) Problem($"{site.Name} can be prayed at, but has no altar");
+                    if (spawn.Role == SpawnRole.Waygate && !Stands(world, StructureCatalog.Waygate, spawn.Position)) Problem($"{site.Name} can be left by, but has no waygate");
+                }
                 if (site.Kind == SiteKind.Graveyard)
                 {
                     foreach (SiteSpawn spawn in site.Spawns)
@@ -306,7 +312,7 @@ namespace Dino_WorldLab
                 {
                     if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of a {haunt.Haunt} can't be reached at {spawn.Position}");
                     if (world.WaterDepthAt(spawn.Position) > 0.35f) Problem($"{spawn.Role} of a {haunt.Haunt} is standing in water at {spawn.Position}");
-                    if ((spawn.Position - haunt.Position).Length > MostPackRadius) Problem($"{spawn.Role} of a {haunt.Haunt} at {haunt.Position} has wandered off to {spawn.Position}");
+                    if ((spawn.Position - haunt.Position).Length > MostPackRadius * MathF.Sqrt(1f + world.Plan.Request.MorePeople)) Problem($"{spawn.Role} of a {haunt.Haunt} at {haunt.Position} has wandered off to {spawn.Position}");
                 }
 
                 foreach (WorldSite site in world.Sites)
@@ -317,12 +323,14 @@ namespace Dino_WorldLab
             }
             if (nearest > MostLandingWalk) Problem($"the first pack is {nearest:0} m from the landing");
 
+            // More packs have been paid for, and they stand closer. Anything closer than that is a fault as it always was.
+            float leastGap = LeastPackGap * PackStage.Spacing(world.Plan.Level, world.Plan.Request.MorePacks) / PackStage.Spacing(world.Plan.Level);
             var packs = world.Haunts.Where(h => h.Haunt != HauntKind.Camp).ToList();
             for (int i = 0; i < packs.Count; i++)
             {
                 for (int j = i + 1; j < packs.Count; j++)
                 {
-                    if ((packs[i].Position - packs[j].Position).LengthSquared < LeastPackGap * LeastPackGap) Problem($"packs at {packs[i].Position} and {packs[j].Position} can't be fought apart");
+                    if ((packs[i].Position - packs[j].Position).LengthSquared < leastGap * leastGap) Problem($"packs at {packs[i].Position} and {packs[j].Position} can't be fought apart");
                 }
             }
 
@@ -344,6 +352,18 @@ namespace Dino_WorldLab
                 }
             }
             if (land > 0 && (float)near / land < LeastSpread) Problem($"only {(float)near / land:0%} of the land has a pack near it");
+        }
+
+        // Whether what a spawn is there to use is really there, as a prompt with nothing to see is the worst a place can do.
+        private const float MostSpawnStray = 8f;
+
+        private static bool Stands(WorldData world, StructureDefinition definition, Vector2 spawn)
+        {
+            foreach (WorldObject item in world.Objects.All())
+            {
+                if (world.Objects.AssetIds[item.Asset] == definition.Id && (item.Position.Xz - spawn).Length < MostSpawnStray) return true;
+            }
+            return false;
         }
 
         private static bool HasChurch(WorldData world, WorldSite site)

@@ -19,7 +19,7 @@ namespace Dino_Defenders.Client
         HeroIntent ReadIntent();
 
         /// <summary>A world is wanted. When it is ready, call <see cref="GameClient.EnterWorld"/>.</summary>
-        void WorldNeeded(WorldRequest request);
+        void WorldNeeded(WorldRequest request, Offering offering);
 
         /// <summary>The hero is standing in the world at last.</summary>
         void Arrived(Vector2 position);
@@ -60,6 +60,7 @@ namespace Dino_Defenders.Client
 
         private INetConnection? _connection;
         private WorldRequest _request;
+        private Offering _offering = new();
         private CharacterMover? _mover;
         private int _epoch;
         private uint _ownGhost;
@@ -74,6 +75,7 @@ namespace Dino_Defenders.Client
 
         public readonly NetEventHandlers Events = new();
         public readonly GhostClient Ghosts;
+        public ECSWorld Ecs => _ecs;
         public readonly CommandClock Commands = new();
         public readonly InterpolationClock Render = new();
         public readonly HeroPredictor Predictor = new();
@@ -258,7 +260,7 @@ namespace Dino_Defenders.Client
         /// <summary>The world is ready: stands by to be put in it.</summary>
         public void EnterWorld(WorldData world)
         {
-            Session = new GameSession(this, world, _request);
+            Session = new GameSession(this, world, _request, _offering);
             _mover = new CharacterMover(world);
             State = ClientState.Waiting;
 
@@ -348,7 +350,9 @@ namespace Dino_Defenders.Client
             _epoch = reader.ReadVarInt();
             PlayerId = reader.ReadVarInt();
             reader.ReadUInt();
-            _request = Protocol.ReadRequest(reader);
+            WorldRequest request = Protocol.ReadRequest(reader);
+            _offering = Protocol.ReadOffering(reader);
+            _request = _offering.Shape(request);
 
             // Everything of the last world goes with it: ghosts, clocks, and any hero still running around in it.
             Ghosts.Clear();
@@ -360,7 +364,7 @@ namespace Dino_Defenders.Client
             _ownGhost = 0;
             Session = null;
             State = ClientState.Loading;
-            _host.WorldNeeded(_request);
+            _host.WorldNeeded(_request, _offering);
         }
 
         private void OnArrived(BitReader reader)
@@ -469,6 +473,8 @@ namespace Dino_Defenders.Client
         private void OnProgress(BitReader reader)
         {
             bool liberated = reader.ReadBool();
+            int falls = reader.ReadVarInt();
+            bool broken = reader.ReadBool();
             int objectives = reader.ReadCount(64);
             var progress = new int[objectives];
             for (int i = 0; i < objectives; i++) progress[i] = reader.ReadVarInt();
@@ -501,6 +507,8 @@ namespace Dino_Defenders.Client
 
             if (session == null) return;
             session.Liberated = liberated;
+            session.Falls = falls;
+            session.Broken = broken;
             for (int i = 0; i < objectives && i < session.Chronicle.Objectives.Count; i++) session.Chronicle.Objectives[i].Progress = progress[i];
         }
 
@@ -640,10 +648,11 @@ namespace Dino_Defenders.Client
             Send(writer);
         }
 
-        public void StepThroughWaygate(in WorldRequest request)
+        public void StepThroughWaygate(in WorldRequest request, Offering offering)
         {
             BitWriter writer = Action(HeroAction.Waygate);
             Protocol.WriteRequest(writer, request);
+            Protocol.WriteOffering(writer, offering);
             Send(writer);
         }
 

@@ -43,15 +43,19 @@ namespace Dino_Defenders.Gameplay
     {
         public readonly WorldData World;
         public readonly WorldRequest Request;
+        public readonly Offering Offering;
         public readonly Chronicle Chronicle;
         public readonly List<SiteState> Sites = new();
 
         public bool Liberated;      // The warlord has fallen.
+        public int Falls;           // Heroes who've fallen here, for a land that's had something paid on it.
+        public bool Broken;         // Too many have, and what was paid for is gone.
 
-        protected WorldProgress(WorldData world, WorldRequest request)
+        protected WorldProgress(WorldData world, WorldRequest request, Offering? offering = null)
         {
             World = world;
             Request = request;
+            Offering = offering ?? new Offering();
             Chronicle = Chronicle.Write(world);
 
             foreach (WorldSite site in world.Sites) Sites.Add(CreateState(site, wild: false));
@@ -91,6 +95,9 @@ namespace Dino_Defenders.Gameplay
                 }
             }
         }
+
+        /// <summary>How many more can fall before the offering breaks. Everyone in a world shares these.</summary>
+        public int FallsLeft => Math.Max(Offering.AllowedFalls - Falls, 0);
 
         /// <summary>Whether a place no longer lives in fear: of those who prey on it, or, with no one nearer, of the warlord.</summary>
         public bool IsSafe(SiteState state)

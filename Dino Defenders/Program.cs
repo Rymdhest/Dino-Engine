@@ -34,7 +34,7 @@ namespace Dino_Defenders
 
             uint secret = options.Secret != null ? NetSchema.Fnv(options.Secret) : InviteCode.NewSecret();
             var request = new WorldRequest(options.Seed ?? Environment.TickCount, options.Archetype, options.Level);
-            var server = new GameServer(new ServerSettings { Request = request, StartSite = options.Site }, new WorldCache());
+            var server = new GameServer(new ServerSettings { Request = request, Offering = options.Offering, StartSite = options.Site }, new WorldCache());
             server.AddTransport(UdpTransport.Host(options.Port, InviteCode.KeyFor(secret)));
             using var host = new ServerHost(server);
 

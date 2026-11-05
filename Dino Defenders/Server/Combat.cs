@@ -38,6 +38,10 @@ namespace Dino_Defenders.Server
         private const float FireHealShare = 0.25f;
         private const float DebtForgiven = 0.15f;
         private const float ReadBusy = 0.1f;
+        private const float BurstDelay = 0.9f;      // Seconds from a body falling to its going up. A dodge is half that.
+        private const float BurstRadius = 4.5f;
+        private const float BurstShare = 0.45f;     // Of an ordinary enemy's blow. They come in numbers.
+        private const float RallyReach = 16f;
 
         private enum Later : byte
         {
@@ -47,6 +51,8 @@ namespace Dino_Defenders.Server
             Conduct,
             Raise,
             Spread,
+            Burst,
+            Rally,
         }
 
         private struct Consequence
@@ -80,7 +86,7 @@ namespace Dino_Defenders.Server
         {
             _session = session;
             Grid = new ActorGrid(session.World.Size);
-            Land = new LandReader(session.World);
+            Land = new LandReader(session.World, session.Offering.Has(Omens.Night));
         }
 
         private GameServer Server => _session.Server;
@@ -180,6 +186,13 @@ namespace Dino_Defenders.Server
                     break;
                 case Later.Spread:
                     if (c.Victim != null) SpreadAilments(c.Source, c.Victim);
+                    break;
+                case Later.Burst:
+                    Show(new SkillEvent { Position = Ground(c.Origin), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Burst, Radius = c.Radius }, c.Origin);
+                    Blast(c.Source, c.Origin, c.Radius, c.Type, c.Amount, c.Tags, null);
+                    break;
+                case Later.Rally:
+                    Rally(c.Source);
                     break;
             }
         }
@@ -946,9 +959,33 @@ namespace Dino_Defenders.Server
 
             Actor credit = killer.Owner ?? killer;
             if (credit != actor && credit.IsFoeOf(actor)) Credit(credit, actor, skill);
+            if (actor.Sheet.Has(Rule.BurstsOnDeath)) BeginBurst(actor);
+            if (actor.Sheet.Has(Rule.RalliesOnDeath)) Defer(new Consequence { Kind = Later.Rally, At = Now, Source = actor });
 
             if (actor.Player != null) return;
             _session.Fell(actor, from);
+        }
+
+        // It's the ring that's the danger, so there's long enough to see it and get clear. A crowd going up at once can kill whoever stands in the middle of it, and that's the omen working.
+        private void BeginBurst(Actor actor)
+        {
+            Show(new SkillEvent { Position = Ground(actor.Position), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Warning, Radius = BurstRadius, Time = BurstDelay }, actor.Position);
+            float amount = Bestiary.DamageAt(actor.Loadout.Level) * BurstShare * _session.Offering.EnemyDamage;
+            Defer(new Consequence { Kind = Later.Burst, At = Now + BurstDelay, Source = actor, Origin = actor.Position, Radius = BurstRadius, Type = DamageType.Fire, Amount = amount, Tags = Tags.Reaction });
+        }
+
+        private void Rally(Actor fallen)
+        {
+            _chained.Clear();
+            Grid.Foes(fallen.Team == Team.Enemies ? Team.Heroes : Team.Enemies, fallen.Position, RallyReach, _chained);
+            bool anyone = false;
+            foreach (Actor ally in _chained)
+            {
+                if (ally.Dead) continue;
+                AddBuff(ally, BuffCatalog.Rallied, 0f);
+                anyone = true;
+            }
+            if (anyone) Show(new SkillEvent { Position = Ground(fallen.Position), Skill = SkillCatalog.Strike.Number, Phase = SkillPhase.Warning, Radius = RallyReach, Time = 0.3f }, fallen.Position);
         }
 
         private void Credit(Actor killer, Actor victim, SkillProfile? skill)
@@ -1097,13 +1134,15 @@ namespace Dino_Defenders.Server
         public void DropLoot(in EnemyComponent enemy, Vector3 position, Actor actor)
         {
             // A world holds a thousand of these. What's worth having comes from those that took some beating, and how much beating is in the health it really had.
-            LootTier tier = LootTables.TierOf(enemy.Rank, actor.Sheet.MaxHealth / Bestiary.HealthAt(enemy.Level));
-            List<Item> items = Loot.Roll(tier, enemy.Level, StrongestHero, BestOfParty(s => s.ItemRarity) / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)));
+            // What's been paid for on this land comes out of that, or peril would turn its fodder into champions and pay for them twice.
+            LootBoon boon = _session.Boon;
+            LootTier tier = LootTables.TierOf(enemy.Rank, actor.Sheet.MaxHealth / (Bestiary.HealthAt(enemy.Level) * _session.Offering.EnemyHealth));
+            List<Item> items = Loot.Roll(tier, enemy.Level, StrongestHero, BestOfParty(s => s.ItemRarity) / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)), boon);
 
             // What it was wearing is yours now. That's the whole point of having seen it used.
             if (actor.Gear != null) items.AddRange(actor.Gear);
 
-            int gold = Loot.RollGold(tier, enemy.Level, BestOfParty(s => s.GoldFind) / 100f, _luck);
+            int gold = Loot.RollGold(tier, enemy.Level, BestOfParty(s => s.GoldFind) / 100f, _luck, boon.Gold);
             _session.Ground.Spill(position, items, gold, LootTables.Of(tier).GoldPiles);
         }
 
@@ -1128,9 +1167,26 @@ namespace Dino_Defenders.Server
         {
             Server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Chest }, position.Xz);
             ActorSheet sheet = opener.Actor.Sheet;
-            List<Item> items = Loot.Roll(tier, level, StrongestHero, sheet.ItemRarity / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)));
-            int gold = Loot.RollGold(tier, level, sheet.GoldFind / 100f, _luck);
+            LootBoon boon = _session.Boon;
+            List<Item> items = Loot.Roll(tier, level, StrongestHero, sheet.ItemRarity / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)), boon);
+            int gold = Loot.RollGold(tier, level, sheet.GoldFind / 100f, _luck, boon.Gold);
             _session.Ground.Spill(position, items, gold, LootTables.Of(tier).GoldPiles, GroundLoot.ChestDelay);
+        }
+
+        /// <summary>What a land pays out on top of everything else, for an offering seen through to the end. It comes as hoards, on the spot.</summary>
+        public void PayOut(Vector3 position, int level, int hoards)
+        {
+            LootBoon boon = _session.Boon;
+            float find = BestOfParty(s => s.ItemRarity) / 100f;
+            var items = new List<Item>();
+            int gold = 0;
+            for (int i = 0; i < hoards; i++)
+            {
+                items.AddRange(Loot.Roll(LootTier.Hoard, level, StrongestHero, find, _lootLuck, _luck.Fork(_luck.Int(1 << 30)), boon));
+                gold += Loot.RollGold(LootTier.Hoard, level, BestOfParty(s => s.GoldFind) / 100f, _luck, boon.Gold);
+            }
+            Server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Chest }, position.Xz);
+            _session.Ground.Spill(position, items, gold, LootTables.Of(LootTier.Hoard).GoldPiles * hoards, GroundLoot.ChestDelay);
         }
     }
 }

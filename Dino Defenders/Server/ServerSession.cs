@@ -21,12 +21,16 @@ namespace Dino_Defenders.Server
         private const float SharedExperienceReach = 80f;
         private const float MinionSight = 28f;
 
+        private const int PaidHoards = 1;
+        private const int FlawlessHoards = 2;
+
         private readonly List<Actor> _nearby = new();
+        private readonly LootBoon _boon;
 
         public readonly GameServer Server;
         public readonly Combat Combat;
         public readonly GroundLoot Ground;
-        public readonly Bestiary Bestiary = new();
+        public readonly Bestiary Bestiary;
         public readonly List<Actor> Minions = new();
         public bool ObjectivesChanged;
 
@@ -38,9 +42,17 @@ namespace Dino_Defenders.Server
         /// <summary>Set while the game is held still, as it can be for someone playing alone.</summary>
         public bool Paused => Server.Paused;
 
-        public ServerSession(GameServer server, WorldData world, WorldRequest request) : base(world, request)
+        /// <summary>What's being paid out here, which is nothing once the offering has broken.</summary>
+        public LootBoon Boon => Broken ? LootBoon.None : _boon;
+
+        /// <summary>Whether this land's chests are worth more than they look.</summary>
+        public bool Gilded => Offering.Has(Omens.Gilded) && !Broken;
+
+        public ServerSession(GameServer server, WorldData world, WorldRequest request, Offering? offering = null) : base(world, request, offering)
         {
             Server = server;
+            Bestiary = new Bestiary(Offering.EnemyMods());
+            _boon = Offering.Boon();
             Combat = new Combat(this);
             Ground = new GroundLoot(this);
         }
@@ -188,10 +200,48 @@ namespace Dino_Defenders.Server
             state.Dead.Add(brain.SpawnIndex);
             state.Live.Remove(actor.Entity);
 
-            ShareExperience(position.Xz, brain.Experience);
+            ShareExperience(position.Xz, (int)(brain.Experience * Boon.Experience));
             ChargeFlasks(position.Xz, enemy.Rank);
             Combat.DropLoot(enemy, position, actor);
+
+            bool wasHeld = !Liberated;
             OnHostileKilled(state);
+            if (wasHeld && Liberated) Reckon(position, enemy.Level);
+        }
+
+        /// <summary>A hero has fallen. On a land that's been paid for, that's what the offering is measured in.</summary>
+        public void HeroFell()
+        {
+            if (!Offering.AtStake || Broken || Liberated) return;
+
+            Falls++;
+            ObjectivesChanged = true;
+            if (Falls <= Offering.AllowedFalls)
+            {
+                Server.Note(null, FallsLeft > 0 ? $"The offering holds. {FallsLeft} more can fall." : "The offering holds, but only just. One more fall will break it.");
+                return;
+            }
+
+            Broken = true;
+            Server.Announce(null, "The offering is broken", "What was paid is gone. The land stays as it is, and pays no more than any other.", 6f);
+        }
+
+        // The land is free and the offering held, so the gate pays what it owes. A clean run is worth a step more on the climb, and a second hoard.
+        private void Reckon(Vector3 at, int level)
+        {
+            if (!Offering.AtStake || Broken) return;
+
+            bool flawless = Falls == 0;
+            int proven = Offering.Peril > 0 ? Offering.Peril + (flawless ? 1 : 0) : 0;
+            foreach (ServerPlayer hero in Heroes)
+            {
+                if (proven <= hero.Hero.PerilProven) continue;
+                hero.Hero.PerilProven = Math.Min(proven, Offering.MostPeril);
+                hero.SummaryChanged = true;
+            }
+
+            Combat.PayOut(at, level, flawless ? FlawlessHoards : PaidHoards);
+            Server.Announce(null, flawless ? "The offering is paid in full" : "The offering is paid", Offering.Peril > 0 ? $"The gate will bear Peril {Math.Min(proven + Offering.ReachBeyondProven, Offering.MostPeril)} now." : "", 6f);
         }
 
         /// <summary>Puts someone's minions on their feet, as many as they're allowed, oldest going first.</summary>
@@ -250,7 +300,11 @@ namespace Dino_Defenders.Server
             }
 
             // Anyone else has to stop sharing what they've been sharing, for as long as it lasts.
+            // All of what it is, not just its numbers: a loadout keeps rules and triggers apart, and a buff taking those away would turn off whatever makes it what it is.
             var mods = new List<Mod>(actor.Innate.Mods);
+            mods.AddRange(actor.Innate.RuleMods);
+            mods.AddRange(actor.Innate.Triggers);
+            if (actor.Innate.Granted != Condition.None) mods.Add(M.Grant(actor.Innate.Granted));
             foreach (ActiveBuff buff in actor.Buffs)
             {
                 for (int stack = 0; stack < buff.Stacks; stack++) mods.AddRange(buff.Buff.Mods);
@@ -321,6 +375,9 @@ namespace Dino_Defenders.Server
             save.WorldSeed = Request.Seed;
             save.WorldArchetype = Request.ArchetypeId;
             save.WorldLevel = Request.Level;
+            save.Offering = Offering;
+            save.OfferingFalls = Falls;
+            save.OfferingBroken = Broken;
 
             save.Objectives = Chronicle.Objectives.Select(o => o.Progress).ToList();
             save.Sites.Clear();
@@ -365,6 +422,8 @@ namespace Dino_Defenders.Server
             }
 
             Liberated = Chronicle.WorldCleared;
+            Falls = save.OfferingFalls;
+            Broken = save.OfferingBroken;
         }
     }
 }

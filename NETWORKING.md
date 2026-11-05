@@ -69,7 +69,7 @@ Everything is one message on a connection, reliable or not.
 | `HeroUpdate` `Progress` `Notice` `Market` | reliable | Things said once and meant, including talents, the skill bar and what's buffing a hero |
 | `GroundItem` | reliable | What a find on the ground is, and that it's gone. Sent to everyone as it drops, and to whoever arrives later |
 
-Worlds are never sent: the seed is, and each machine grows its own. Both ends compare a hash of the result. Sites and spawns must match exactly. Ground only has to match closely, as worlds are grown with floating point and the C runtime can round differently from one machine to the next, which at worst costs a correction.
+Worlds are never sent: the seed is, with the `Offering` paid on it, and each machine grows its own. An offering decides how many stand on the land, so `Offering.Shape` has to be what makes the request on both ends. Both ends compare a hash of the result. Sites and spawns must match exactly. Ground only has to match closely, as worlds are grown with floating point and the C runtime can round differently from one machine to the next, which at worst costs a correction.
 
 The hero's own data lives on the server during a game and is copied to the client, which is what ends up in that player's save. World progress belongs to the host.
 
@@ -112,6 +112,7 @@ Cheating isn't prevented. A host controls their own server, and a player's hero 
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" core     # Replication alone, and fuzzing
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" game     # The whole game, on every kind of line
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" loot     # What's on the ground, with real clients on the other end of a line
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" offering # What's paid at a waygate, and that a friend who turns up later is in the same land
 ```
 
 Run both after touching anything here. A test of timing has to measure against the server itself, as a client's own idea of how far behind it is can be as wrong as the rest of it, and a stalled client needs its line kept running (`ImpairedTransport.Carry`), or what was sent meanwhile doesn't arrive at once as it really does. To feel a bad line in the real game, or play across two windows on one machine:

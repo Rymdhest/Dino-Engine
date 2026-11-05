@@ -116,6 +116,8 @@ namespace Dino_Defenders
             _save = options.Saves ? SaveGame.Load() : null;
             _hero = _save?.Hero ?? HeroState.CreateNew();
             _hero.Level = Math.Max(_hero.Level, options.HeroLevel);
+            _hero.Gold = Math.Max(_hero.Gold, options.Gold);
+            _hero.PerilProven = Math.Max(_hero.PerilProven, options.Proven);
             ApplyBuildOptions(_hero, options);
 
             if (options.Join != null)
@@ -186,6 +188,7 @@ namespace Dino_Defenders
             var server = new GameServer(new ServerSettings
             {
                 Request = request,
+                Offering = save?.Offering ?? (_options.TravelAfterFrames < 0 ? _options.Offering : null),
                 Save = save,
                 AllowTeleport = _options.Bot || _options.Tour != null,
                 Start = _options.At,
@@ -517,14 +520,14 @@ namespace Dino_Defenders
         {
             GameSession session = GameSession.Current;
             var random = new WorldRandom(session.World.Plan.Seed).Fork("test road");
-            Travel(new WorldRequest(random.Int(int.MaxValue), null, session.World.Plan.Level + 1));
+            Travel(new WorldRequest(random.Int(int.MaxValue), null, session.World.Plan.Level + 1), _options.Offering);
         }
 
-        private void Travel(WorldRequest request)
+        private void Travel(WorldRequest request, Offering offering)
         {
             Save();
             _ui.CloseAll();
-            _client?.StepThroughWaygate(request);
+            _client?.StepThroughWaygate(request, offering);
         }
 
         private void ShowLoading(string title, string detail)
@@ -537,14 +540,14 @@ namespace Dino_Defenders
             screen.Visible = true;
         }
 
-        void IClientHost.WorldNeeded(WorldRequest request)
+        void IClientHost.WorldNeeded(WorldRequest request, Offering offering)
         {
             _ui.CloseAll();
             Audio.StopWorld(1.2f);
             Music.End(1.2f);
             if (GameSession.Current != null) Audio.Play(Treasure.Waygate);
             WorldPlan plan = WorldPlan.Create(request);
-            ShowLoading(plan.Name, $"{plan.Archetype.Name}, level {plan.Level}");
+            ShowLoading(plan.Name, offering.Any ? $"{plan.Archetype.Name}, level {plan.Level}. {offering.Title()}" : $"{plan.Archetype.Name}, level {plan.Level}");
 
             LoadingScreen screen = _ui.Loading;
             _worlds.Progress = (progress, stage) =>
@@ -630,6 +633,7 @@ namespace Dino_Defenders
                 session.Announce(session.World.Plan.Name, session.Chronicle.Prologue, 9f);
             }
             _firstWorldOfThisSession = false;
+            if (session.Offering.Any && !session.Liberated) session.Announce(session.Offering.Title(), session.Offering.OmenNames(), 6f);
             Save();
         }
 

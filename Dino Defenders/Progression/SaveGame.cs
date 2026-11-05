@@ -28,6 +28,11 @@ namespace Dino_Defenders.Progression
         public int WorldSeed { get; set; }
         public string? WorldArchetype { get; set; }
         public int WorldLevel { get; set; } = 1;
+
+        /// <summary>What was paid to make that world what it is. It's part of which world it was, as anything saved by number is only right for the same one.</summary>
+        public Offering Offering { get; set; } = new();
+        public int OfferingFalls { get; set; }
+        public bool OfferingBroken { get; set; }
         public List<SiteRecord> Sites { get; set; } = new();
         public List<int> Objectives { get; set; } = new();
         public float PlayerX { get; set; } = -1f;
@@ -104,6 +109,7 @@ namespace Dino_Defenders.Progression
             if (save == null) return null;
             FixBar(save.Hero);
             TalentTree.Sanitize(save.Hero);
+            save.Offering.Sanitize();
             return save;
         }
 

@@ -62,7 +62,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 5;
+        public const uint Version = 6;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -103,6 +103,33 @@ namespace Dino_Defenders.Net
             return new WorldRequest(seed, archetype, level);
         }
 
+        public static void WriteOffering(BitWriter writer, Offering offering)
+        {
+            writer.WriteVarInt(offering.Peril);
+            writer.WriteVarInt(offering.Teeming);
+            writer.WriteVarInt(offering.Overrun);
+            var omens = offering.Chosen().ToList();
+            writer.WriteCount(omens.Count);
+            foreach (OmenDefinition omen in omens) writer.WriteVarInt(omen.Number);
+        }
+
+        public static Offering ReadOffering(BitReader reader)
+        {
+            var offering = new Offering { Peril = reader.ReadVarInt(), Teeming = reader.ReadVarInt(), Overrun = reader.ReadVarInt() };
+            if (offering.Peril < 0 || offering.Peril > Offering.MostPeril) throw new NetReadException($"An offering of peril {offering.Peril}.");
+            if (offering.Teeming < 0 || offering.Teeming > Offering.MostCrowd || offering.Overrun < 0 || offering.Overrun > Offering.MostCrowd) throw new NetReadException("An offering of more than there can be.");
+
+            int count = reader.ReadCount(Omens.All.Count);
+            for (int i = 0; i < count; i++)
+            {
+                int number = reader.ReadVarInt();
+                if (number < 0 || number >= Omens.All.Count) throw new NetReadException($"No such omen as {number}.");
+                offering.Omens.Add(Omens.All[number].Id);
+            }
+            offering.Sanitize();
+            return offering;
+        }
+
         public static void WriteHeroSummary(BitWriter writer, HeroState hero)
         {
             writer.WriteVarInt(hero.Level);
@@ -110,6 +137,7 @@ namespace Dino_Defenders.Net
             writer.WriteVarInt(hero.Gold);
             writer.WriteVarInt(hero.Flasks);
             writer.WriteVarInt(hero.WorldsCleared);
+            writer.WriteVarInt(hero.PerilProven);
 
             writer.WriteCount(hero.Talents.Count);
             foreach (string id in hero.Talents) writer.WriteVarInt(TalentTree.Find(id)?.Index ?? 0);
@@ -128,6 +156,7 @@ namespace Dino_Defenders.Net
             hero.Gold = Math.Max(reader.ReadVarInt(), 0);
             hero.Flasks = Math.Clamp(reader.ReadVarInt(), 0, HeroState.MaxFlasks);
             hero.WorldsCleared = Math.Max(reader.ReadVarInt(), 0);
+            hero.PerilProven = Math.Clamp(reader.ReadVarInt(), 0, Offering.MostPeril);
 
             int talents = reader.ReadCount(TalentTree.Nodes.Length);
             var taken = new List<string>(talents);

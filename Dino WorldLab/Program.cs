@@ -195,7 +195,7 @@ namespace Dino_WorldLab
             {
                 int seed = firstSeed + i;
                 string id = archetype ?? ArchetypeCatalog.All[i % ArchetypeCatalog.All.Count].Id;
-                var request = new WorldRequest(seed, id);
+                var request = new WorldRequest(seed, id, options.Int("level", 1), options.Int("people", 0) / 100f, options.Int("packs", 0) / 100f);
                 WorldData world;
                 try
                 {
