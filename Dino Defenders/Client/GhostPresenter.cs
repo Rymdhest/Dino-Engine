@@ -31,6 +31,7 @@ namespace Dino_Defenders.Client
     public sealed class GhostPresenter : IGhostHost
     {
         private readonly CharacterFactory _characters;
+        private int _hostileBolts;
 
         public GhostPresenter(CharacterFactory characters)
         {
@@ -45,6 +46,7 @@ namespace Dino_Defenders.Client
             bool turned = false;
             bool sized = false;
             VisualComponent? visual = null;
+            bool hostileBolt = false;
 
             for (int i = 0; i < components.Count; i++)
             {
@@ -66,6 +68,7 @@ namespace Dino_Defenders.Client
                         break;
                     case BallisticComponent found:
                         position = found.Origin;
+                        hostileBolt = !found.FromHeroes;
                         break;
                     case SwingComponent found:
                         // Whatever it was last doing happened before this client was there to see it.
@@ -105,8 +108,16 @@ namespace Dino_Defenders.Client
             if (visual.Value.Kind == VisualKind.Character)
             {
                 components.Add(new CharacterModelComponent(_characters.Resolve(visual.Value.Model)));
-                components.Add(new AnimationComponent());
-                components.Add(new SkeletonComponent());
+                if (CharacterFactory.BeastOf(visual.Value.Model) != null)
+                {
+                    components.Add(new AnimationComponent { RunClip = AnimationId.Gallop, AttackClip = AnimationId.Bite, Cadence = BeastCadence });
+                    components.Add(new SkeletonComponent(CharacterFactory.RigOf(visual.Value.Model)));
+                }
+                else
+                {
+                    components.Add(new AnimationComponent());
+                    components.Add(new SkeletonComponent());
+                }
                 components.Add(new VelocityComponent());
                 components.Add(new FixToTerrainHeightComponent());
                 components.Add(new GrassDisplaceComponent(3f * scale) { power = 1.4f, exponent = 0.6f });
@@ -127,10 +138,14 @@ namespace Dino_Defenders.Client
                 }
                 else if (visual.Value.Model.StartsWith(CharacterFactory.BoltPrefix) && Enum.TryParse(visual.Value.Model.AsSpan(CharacterFactory.BoltPrefix.Length), out DamageType look))
                 {
-                    Colour light = ClientEffects.LightOf(look);
-                    components.Add(new PointLightTag());
-                    components.Add(new LightRangeComponent(BoltLightRadius, 0.2f, lightsFog: false));
-                    components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, 40f)));
+                    // A pack of casters can have dozens in the air, and it's the hero's own that the eye is on: one in three of theirs still lights the ground.
+                    if (!hostileBolt || ++_hostileBolts % HostileBoltsPerLight == 0)
+                    {
+                        Colour light = ClientEffects.LightOf(look);
+                        components.Add(new PointLightTag());
+                        components.Add(new LightRangeComponent(BoltLightRadius, 0.2f, lightsFog: false));
+                        components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, 40f)));
+                    }
                 }
 
                 // A gate between worlds and a place of power can be heard before they're seen.
@@ -146,6 +161,8 @@ namespace Dino_Defenders.Client
 
         private const float PickupLightRadius = 6f;
         private const float BoltLightRadius = 11f;
+        private const float BeastCadence = 2.1f;
+        private const int HostileBoltsPerLight = 3;
 
         // What lies on the ground to be picked up catches the eye by shining on what's around it.
         private static Colour? PickupGlow(string model) => model switch
@@ -313,7 +330,7 @@ namespace Dino_Defenders.Client
                     // This player's own swing started when they pressed.
                     if (entity.Entity.Id == own) continue;
                     var animation = entity.Get<AnimationComponent>();
-                    animation.PlayLayer(AnimationId.Swing, loop: false, speed: swing.Speed);
+                    animation.PlayLayer(animation.AttackClip, loop: false, speed: swing.Speed);
                     entity.Set(animation);
                 }
             }

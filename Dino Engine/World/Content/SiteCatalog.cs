@@ -17,6 +17,7 @@ namespace Dino_Engine.World.Content
         BanditCamp,
         Graveyard,
         Keep,           // The stronghold at the far end of the world.
+        Haunt,          // Anywhere a pack has settled. Not a place anyone would name, so these aren't on the map.
     }
 
     public enum RoadClass
@@ -292,6 +293,15 @@ namespace Dino_Engine.World.Content
             Road = RoadClass.Footpath,
             RoadChance = 0.25f,
             Levelling = 0.6f,
+        };
+
+        /// <summary>What every <see cref="WorldData.Haunts"/> is. It isn't in <see cref="All"/>, as these don't claim land the way places do.</summary>
+        public static readonly SiteDefinition Haunt = new SiteDefinition
+        {
+            Kind = SiteKind.Haunt,
+            Label = "Haunt",
+            MapColour = new Vector3(0.8f, 0.35f, 0.3f),
+            Limits = new IntRange(0, 0),
         };
 
         public static readonly IReadOnlyList<SiteDefinition> All = new[]

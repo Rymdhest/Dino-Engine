@@ -59,6 +59,13 @@ namespace Dino_Engine.ECS.Components
     {
         public List<AnimationLayer> Layers;
 
+        /// <summary>What it does to get about and to strike. Animals differ from people in little else.</summary>
+        public AnimationId RunClip = AnimationId.Run;
+        public AnimationId AttackClip = AnimationId.Swing;
+
+        /// <summary>How quickly its legs go, for the speed it's moving at. Short legs have to go faster.</summary>
+        public float Cadence = 1f;
+
         // Parameterless constructor automatically provisions the permanent base Idle layer
         public AnimationComponent()
         {

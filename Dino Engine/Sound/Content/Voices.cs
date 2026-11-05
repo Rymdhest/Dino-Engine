@@ -20,6 +20,8 @@ namespace Dino_Engine.Sound.Content
         public static readonly SoundDefinition DeadHurt = Add("voice.dead.hurt", take => Moan(take, 0.3f), -22f, cooldown: 0.3f);
         public static readonly SoundDefinition DeadDeath = Add("voice.dead.death", DeadCollapse, -18f);
         public static readonly SoundDefinition DeadMoan = Add("voice.dead.moan", take => Moan(take, 1f), -24f, cooldown: 1f);
+        public static readonly SoundDefinition BeastSnarl = Add("voice.beast.snarl", Snarl, -21f, cooldown: 0.5f);
+        public static readonly SoundDefinition BeastDeath = Add("voice.beast.death", Yelp, -20f);
         public static readonly SoundDefinition WarlordRoar = Add("voice.warlord.roar", Roar, -15f, presence: 4f, priority: 90);
         public static readonly SoundDefinition WarlordDeath = Add("voice.warlord.death", take => { Roar(take); Dying(take, 74f, 1.45f); }, -14f, presence: 6f, priority: 92);
 
@@ -60,6 +62,44 @@ namespace Dino_Engine.Sound.Content
                 Breath = 0.35f,
                 Rough = 0.35f,
                 Tension = 0.8f,
+            };
+            take.Mix(Vocal.Utter(take, seconds + 0.04f, voice).Normalize(0f));
+        }
+
+        // A voice held low in the throat and shaken, with its mouth barely open.
+        private static void Snarl(Take take)
+        {
+            SoundRandom random = take.Random;
+            float seconds = random.Range(0.3f, 0.5f);
+            float pitch = random.Range(88f, 112f);
+            var voice = new VoiceSettings
+            {
+                Pitch = Curve.Points((0f, pitch * 0.9f), (seconds * 0.3f, pitch * 1.35f), (seconds, pitch * 0.85f)),
+                Loudness = Curve.Hump(seconds * 0.12f, seconds, 1f, 0.8f),
+                Tract = t => Vowel.Lerp(Vowel.Uh, Vowel.Oh, Math.Clamp(t / seconds, 0f, 1f)),
+                Size = 0.82f,
+                Breath = 0.6f,
+                Rough = 0.95f,
+                Tension = 0.95f,
+            };
+            take.Mix(Vocal.Utter(take, seconds + 0.04f, voice).Normalize(0f));
+        }
+
+        // High and short, falling away. Nothing else in the world makes this sound.
+        private static void Yelp(Take take)
+        {
+            SoundRandom random = take.Random;
+            float seconds = random.Range(0.2f, 0.32f);
+            float pitch = random.Range(420f, 560f);
+            var voice = new VoiceSettings
+            {
+                Pitch = Curve.Points((0f, pitch), (seconds * 0.25f, pitch * 1.3f), (seconds, pitch * 0.6f)),
+                Loudness = Curve.Hump(seconds * 0.1f, seconds, 1f, 0.7f),
+                Tract = t => Vowel.Lerp(Vowel.Eh, Vowel.Uh, Math.Clamp(t / seconds, 0f, 1f)),
+                Size = 0.62f,
+                Breath = 0.3f,
+                Rough = 0.4f,
+                Tension = 0.9f,
             };
             take.Mix(Vocal.Utter(take, seconds + 0.04f, voice).Normalize(0f));
         }

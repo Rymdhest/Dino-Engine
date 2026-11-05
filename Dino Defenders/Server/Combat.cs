@@ -21,6 +21,9 @@ namespace Dino_Defenders.Server
     {
         private const int MostRewind = 15;      // A quarter of a second: past this, what a player saw is too old to hold against anyone else.
         private const int MostPerStep = 256;    // Consequences dealt with in a tick. What's over waits for the next one.
+        private const float GoldChance = 0.16f;
+        private const float ItemChance = 0.025f;
+        private const float EliteItemChance = 0.4f;
         private const float ChainFade = 0.85f;
         private const float ChainGrowth = 1.25f;
         private const float EchoDelay = 0.6f;
@@ -432,6 +435,9 @@ namespace Dino_Defenders.Server
         public void Hit(Actor source, SkillProfile skill, Actor target, float strength, Vector2 from)
         {
             if (target.Dead) return;
+
+            // Nothing stands idle while someone shoots at it, and it doesn't keep that to itself.
+            target.Alarm = EnemyBrainSystem.StruckAlarm;
             Vector3 point = new Vector3(target.Position.X, target.Height + 3.4f, target.Position.Y);
 
             if (target.Player is ServerPlayer hero && hero.Sim.Safe > 0f)
@@ -615,8 +621,9 @@ namespace Dino_Defenders.Server
 
         private static HitBody BodyOf(Actor actor)
         {
-            if (actor.Body == "skeleton") return HitBody.Bone;
-            return actor.Body == "warlord" ? HitBody.Armour : HitBody.Flesh;
+            if (actor.Body.StartsWith("skeleton")) return HitBody.Bone;
+            if (actor.Body is "wolf" or "direwolf" or "boar" or "bear") return HitBody.Beast;
+            return actor.Body is "warlord" or "revenant" ? HitBody.Armour : HitBody.Flesh;
         }
 
         private void Recover(Actor source, SkillProfile skill, float dealt)
@@ -1091,11 +1098,12 @@ namespace Dino_Defenders.Server
 
         public void DropLoot(in EnemyComponent enemy, Vector3 position, Actor actor)
         {
+            // A world holds a thousand of these. What's worth having comes from those that took some beating.
             float rank = enemy.Rank switch { EnemyRank.Boss => 10f, EnemyRank.Elite => 3f, _ => 1f };
             float goldFind = 1f + BestOfParty(s => s.GoldFind) / 100f;
             float itemFind = BestOfParty(s => s.ItemRarity) / 100f;
 
-            if (_luck.Chance(0.5f * MathF.Min(rank, 2f)))
+            if (_luck.Chance(enemy.Rank == EnemyRank.Normal ? GoldChance : 1f))
             {
                 int gold = (int)(_luck.Range(3f, 9f) * enemy.Level * rank * goldFind);
                 SpawnPickup(position, null, gold);
@@ -1107,7 +1115,7 @@ namespace Dino_Defenders.Server
                 foreach (Item worn in actor.Gear) SpawnPickup(position, worn, 0);
             }
 
-            float itemChance = 0.14f * rank;
+            float itemChance = enemy.Rank switch { EnemyRank.Boss => 1.4f, EnemyRank.Elite => EliteItemChance, _ => ItemChance };
             int drops = enemy.Rank == EnemyRank.Boss ? 3 : 1;
             for (int i = 0; i < drops; i++)
             {

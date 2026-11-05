@@ -128,6 +128,17 @@ namespace Dino_Defenders.Server
             }
         }
 
+        // A fight goes on far from any shrine now, so flasks have to come back from fighting.
+        private void ChargeFlasks(Vector2 position, EnemyRank rank)
+        {
+            float worth = rank switch { EnemyRank.Boss => 30f, EnemyRank.Elite => 4f, _ => 1f };
+            foreach (ServerPlayer hero in Heroes)
+            {
+                if ((hero.Sim.Position - position).LengthSquared > SharedExperienceReach * SharedExperienceReach) continue;
+                if (hero.Hero.ChargeFlask(worth)) hero.SummaryChanged = true;
+            }
+        }
+
         public void UpdateDiscovery()
         {
             foreach (SiteState state in Sites)
@@ -176,6 +187,7 @@ namespace Dino_Defenders.Server
             state.Live.Remove(actor.Entity);
 
             ShareExperience(position.Xz, brain.Experience);
+            ChargeFlasks(position.Xz, enemy.Rank);
             Combat.DropLoot(enemy, position, actor);
             OnHostileKilled(state);
         }
@@ -197,8 +209,7 @@ namespace Dino_Defenders.Server
                 float angle = i * MathF.Tau / MathF.Max(skill.MinionCount, 1);
                 Vector2 spot = at + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 3f;
                 if (!World.Passable.IsSet(spot)) spot = at;
-                bool hound = kind == Bestiary.Hound;
-                Actor minion = Raise(owner, loadout, kind.Name, "skeleton", spot, hound ? 0.72f : 1f, kind.AggroRadius);
+                Actor minion = Raise(owner, loadout, kind.Name, kind.Look, spot, kind == Bestiary.Hound ? 0.85f : 1f, kind.AggroRadius);
                 minion.MinionLeft = skill.Duration * owner.Sheet.MinionDuration;
                 minion.MinionOf = skill.Skill;
             }
@@ -334,6 +345,9 @@ namespace Dino_Defenders.Server
             foreach (SiteRecord record in save.Sites)
             {
                 if (record.Index >= Sites.Count) continue;
+
+                // Packs were numbered differently before version 3, and a mark against one of those would be a mark against somebody else.
+                if (save.Version < 3 && record.Index >= World.Sites.Count) continue;
                 SiteState state = Sites[record.Index];
                 state.Discovered = record.Discovered;
                 state.Cleared = record.Cleared;

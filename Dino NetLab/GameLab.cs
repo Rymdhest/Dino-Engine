@@ -35,6 +35,7 @@ namespace Dino_NetLab
         public int Swings;
         public int HitsSeen;
         public bool Fights = true;
+        public Vector2? Heading;        // With nothing to fight: where to walk to, in place of wandering.
         public const int WhirlSlot = 2;
         public int WhirlEveryFrames;    // Instead of fighting: a press of whirl, this often.
         public int WhirlsPressed;
@@ -143,7 +144,7 @@ namespace Dino_NetLab
                 _wanderLeft = _random.Next(15, 90);
             }
 
-            if (best < 90f)
+            if (best < (Heading != null ? 16f : 90f))
             {
                 Vector2 toward = nearest - here;
                 intent.Aim = toward;
@@ -164,8 +165,9 @@ namespace Dino_NetLab
             }
             else
             {
-                intent.Aim = _wander;
-                intent.Move = _wander;
+                Vector2 way = Heading is Vector2 heading ? heading - here : _wander;
+                intent.Aim = way;
+                intent.Move = way;
                 intent.Dash = _random.NextDouble() < 0.01;
             }
             intent.Flask = _random.NextDouble() < 0.004;
@@ -869,7 +871,8 @@ namespace Dino_NetLab
         // twice. Whatever the line does, one press has to be one action.
         private static void PressesHappenOnce(Report report, WorldCache worlds, WorldRequest request, string name, NetworkConditions conditions)
         {
-            using var lab = new GameLab(worlds, request);
+            // At the landing, as this is about the line: a hero stunned in the middle of a camp has a press refused, rightly, and that would count against it.
+            using var lab = new GameLab(worlds, request, "Landing");
             LabPlayer player = lab.AddPlayer("Hero", conditions, 80);
             player.Fights = false;
             lab.Run(6);

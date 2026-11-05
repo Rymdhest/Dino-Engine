@@ -41,7 +41,7 @@ Modifiers are read when something changes, never when a blow lands.
 - Enemies of one kind, level and trait share a single loadout, so three hundred skeletons are one set of numbers.
 - `Hits` is the whole of what happens per blow. It allocates nothing, and `bench` proves it.
 
-On the development machine a blow from a 600-modifier build takes about 170 ns, which is nearly all the 60 modifiers in it that only count against particular foes. A build of two takes about 17 ns. A full recompile of 600 modifiers takes about 120 µs. A running server with five heroes and 800 enemies of eight kinds, on 151 sets of numbers, averages about 1.2 ms of its 16.7 ms tick. Its worst single tick was about 15 ms, measured in a process that also runs the clients, and nobody has traced that yet.
+On the development machine a blow from a 600-modifier build takes about 170 ns, which is nearly all the 60 modifiers in it that only count against particular foes. A build of two takes about 17 ns. A full recompile of 600 modifiers takes about 120 µs. A running server with five heroes and 800 enemies of eight kinds, on 151 sets of numbers, averages about 1.4 ms of its 16.7 ms tick. Its worst single tick was about 17 ms, just over budget, measured in a process that also runs the clients, and nobody has traced that yet.
 
 ### Damage
 
@@ -151,7 +151,19 @@ Uniques (`UniqueCatalog`) are items with lines of their own, and should change w
 
 `Bestiary` holds what creatures are: skills, mods, and how strength grows with level. Elites get a trait, which is the same modifiers gear is made of. A boss wears real items and takes a real keystone, fights with them, and drops what it wore, so a player has usually seen a unique used before they ever hold it.
 
-`HealthAt` and `DamageAt` are fitted to the `balance` table: a sample hero who knows nothing of keystones and doesn't choose their gear needs about three hits and survives about ten. Anything a real build does better is the build working. They climb the way a hero does, fast early on, and what's exponential in them keeps lands past the level cap getting harder.
+`HealthAt` and `DamageAt` are fitted to the `balance` table: a sample hero who knows nothing of keystones and doesn't choose their gear needs about three hits and survives about ten. Anything a real build does better is the build working. They climb the way a hero does, fast early on, and what's exponential in them keeps lands past the level cap getting harder. That's an ordinary enemy, which a pack is mostly not: its core has about half the health and under half the damage, so a build that's working goes through them.
+
+### Packs
+
+What a player feels is the time between fights, not the head count, so a world is built around that. Between sites stand a few hundred packs (`WorldData.Haunts`), and each has a reason to be where it is: `Ambush` beside a road, `Picket` outside a stronghold, `Den` out in the wild, or a `Camp` with tents, graves or standing stones of its own and often a chest. The world says where and whose, and the game says who. `Territory` gives each stretch of country to a folk, from what's near and from slow noise of its own, so that outlaws work the roads, the dead gather around graves, beasts keep to the deep woods, and cults hold the old stones and harsh land. Those cults serve whatever the land is: fire in the badlands, frost on the snow. `CampStage` runs before the ground is baked and trees are planted, and `PackStage` runs last, on the finished `Passable`, so nothing it places needs repairing.
+
+Spacing is what makes it work. Packs stand about a short run apart, but the gap has to clear two creatures' range of notice, so a hero can take one on at a time. `PackStage.Spacing` closes up with the world's level, and noise opens it out here and there, because an even carpet of packs reads as wallpaper. `UsualSize` starts at three and climbs fast at first, because worlds go up one at a time and the second and third should feel different, then levels off. Some packs are stragglers and a few are out in force.
+
+`Warbands` holds what they're made of, as a `Recipe` of leaders, core and support. The core dies quickly and is there to be plowed through, and what makes a pack worth stopping for is what's mixed in: someone shooting from behind it, or something large at the head of it. A leader is a different creature from its followers, because that's what a player reads first. Leaders are rarer in early worlds, and in the first stretch of the first world there are none and no support at all. Some leaders are elite, and at higher levels a leader's trait can run through the whole pack, which makes a Burning band of outlaws one thing to deal with.
+
+A pack acts as one. Whoever notices a hero or is struck calls out (`Actor.Alarm`), and it's passed on once, as far as `CallReach`. That has to stay below the gap between packs, or one fight wakes the next. Around a foe they keep `PersonalSpace` from each other (`EnemyBrainSystem.Spread`), as nothing else stops a pack closing into one body with many heads. Only `EncounterSystem.MostWakings` packs wake at a check, as a hero stepping out of a waygate is surrounded by them.
+
+A world holds a thousand enemies or more, so what they give is worked out for that. `ExperienceAt` goes by how much health a kill had, so followers are worth less than what leads them. Plain enemies rarely drop anything (`ItemChance`) and elites often do. Flasks fill from kills (`KillsPerFlask`), as a fight now goes on far from any shrine. Bosses and sites work as they did, but their garrisons grow with the world, added on the end of `Spawns`: what's dead is kept by number, so numbers mustn't move. A place that was cleared stays clear, whatever a newer build would have put there.
 
 ## Networking
 
@@ -168,6 +180,9 @@ dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" check      # The sum
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" bench      # What it costs, and that blows allocate nothing
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" balance    # How a fight goes at each level
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list       # Everything there is, with its text as the player reads it
+dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" density    # How much there is to fight in a world, and how long between fights
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" pace           # A real client on foot, from pack to pack: kills, time in fights, falls
+dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" packs      # Who stands where, as a map
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build          # Every skill, ailment, reaction and keystone, for real on a running server
 ```
 

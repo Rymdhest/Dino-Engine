@@ -142,6 +142,7 @@ namespace Dino_Defenders.Server
         public float CarrierClock;
         public bool Critical;           // The next hit is sure to crit.
         public bool Still;              // Stands and takes it: a training dummy.
+        public int Alarm;               // Someone close has raised a cry: how much further it has to travel, counting this one.
         public bool Dead;
         public bool LoadoutChanged;
 

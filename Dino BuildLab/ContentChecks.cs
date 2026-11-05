@@ -36,6 +36,7 @@ namespace Dino_BuildLab
 
             report.Section("Saves from before all this");
             OldSaves(report);
+            PackContent(report);
 
             report.Section("A hero and an enemy are the same thing");
             Symmetry(report);
@@ -426,6 +427,28 @@ namespace Dino_BuildLab
             }
             """;
 
+        private static void PackContent(Report report)
+        {
+            report.Section("Packs");
+            var recipes = Warbands.All().ToList();
+            var named = new HashSet<EnemyKind>(recipes.SelectMany(r => r.Leaders.Concat(r.Core).Concat(r.Support)));
+            report.Check("Everyone in a pack is someone the bestiary knows", named.All(k => Bestiary.Everyone.Contains(k)));
+            report.Check("Every kind has a name of its own", Bestiary.Everyone.Select(k => k.Id).Distinct().Count() == Bestiary.Everyone.Length);
+            report.Check("Every pack has a core to it", recipes.All(r => r.Core.Length > 0));
+            report.Check("A pack has support if it says it does", recipes.All(r => (r.SupportShare > 0f) == (r.Support.Length > 0)));
+            report.Check("Anything that fights can do so", Bestiary.Everyone.All(k => k.Skills.Length > 0 && k.Skills.Any(s => s.Form is not (SkillForm.Buff or SkillForm.Summon or SkillForm.Leap))));
+
+            // What a pack is mostly made of goes down quickly. That's what clearing one is, and what a leader isn't.
+            report.Check("The core of a pack is less than one ordinary enemy", recipes.All(r => r.Core.Min(k => k.Health) <= 1f && r.Core.Average(k => k.Health) < 1f));
+            report.Check("What leads it is more than what follows", recipes.Where(r => r.Leaders.Length > 0).All(r => r.Leaders.Average(k => k.Health) > r.Core.Average(k => k.Health)));
+
+            var looks = new[] { "bandit", "cutthroat", "brute", "skeleton", "skeleton:bow", "revenant", "wolf", "direwolf", "boar", "bear", "warlord" };
+            report.Check("Everything is drawn as something", Bestiary.Everyone.All(k => looks.Contains(k.Look) || k.Look.StartsWith("robed:") || k.Look.StartsWith("acolyte:")), string.Join(" ", Bestiary.Everyone.Select(k => k.Look)));
+
+            report.Check("Even the least kill is worth something", Bestiary.ExperienceAt(1, 0.42f) >= 1);
+            report.Check("A leader is worth more than a follower", Bestiary.ExperienceAt(5, 2.6f) > Bestiary.ExperienceAt(5, 0.5f));
+        }
+
         private static void OldSaves(Report report)
         {
             SaveGame? save = SaveGame.Read(OldSave);
@@ -470,7 +493,7 @@ namespace Dino_BuildLab
             SaveGame.PathOverride = null;
             File.Delete(path);
             report.Check("Bringing a save up to date keeps a copy of how it was", kept);
-            report.Check("And what's written back is the new kind", written.Contains("\"Version\": 2") && written.Contains("\"Lines\"") && !written.Contains("\"Modifiers\""));
+            report.Check("And what's written back is the new kind", written.Contains($"\"Version\": {SaveGame.CurrentVersion}") && written.Contains("\"Lines\"") && !written.Contains("\"Modifiers\""));
             report.Check("An old save put back by hand still loads", restored != null && restored.Hero.Level == upgraded?.Hero.Level);
             report.Check("And leaves the first copy of it alone", firstCopy);
             report.Check("Not managing to keep a copy doesn't cost the hero", uncopied != null);

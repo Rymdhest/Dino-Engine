@@ -30,6 +30,7 @@ namespace Dino_WorldLab
             CheckTravel(world);
             CheckBareStretches(world);
             CheckPlayable(world);
+            CheckPacks(world);
         }
 
         private void Problem(string text)
@@ -276,6 +277,73 @@ namespace Dino_WorldLab
                     if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of {site.Name} can't be reached at {spawn.Position}");
                 }
             }
+        }
+
+        // Worked out from the finished world, not from what PackStage meant to do. The numbers are what a player would feel: anything looser is a walk.
+        private const float MostLandingWalk = 170f;     // Metres from the landing to the nearest pack.
+        private const float LeastSpread = 0.5f;         // Share of the land with a pack near it.
+        private const float PackReach = 48f;
+        private const float MostPackRadius = 20f;
+        private const float LeastPackGap = 40f;         // Centre to centre: closer and two packs can't be fought one at a time.
+
+        private void CheckPacks(WorldData world)
+        {
+            if (world.Haunts.Count == 0)
+            {
+                Problem("nothing to fight between the sites");
+                return;
+            }
+
+            WorldSite landing = world.Sites[0];
+            float nearest = float.PositiveInfinity;
+            foreach (WorldSite haunt in world.Haunts)
+            {
+                nearest = MathF.Min(nearest, (haunt.Position - landing.Position).Length);
+                if (haunt.Haunt == HauntKind.None) Problem($"a haunt at {haunt.Position} has no reason to be there");
+                if (!haunt.Spawns.Any(s => s.Role.IsHostile())) Problem($"a haunt at {haunt.Position} has nobody in it");
+
+                foreach (SiteSpawn spawn in haunt.Spawns)
+                {
+                    if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of a {haunt.Haunt} can't be reached at {spawn.Position}");
+                    if (world.WaterDepthAt(spawn.Position) > 0.35f) Problem($"{spawn.Role} of a {haunt.Haunt} is standing in water at {spawn.Position}");
+                    if ((spawn.Position - haunt.Position).Length > MostPackRadius) Problem($"{spawn.Role} of a {haunt.Haunt} at {haunt.Position} has wandered off to {spawn.Position}");
+                }
+
+                foreach (WorldSite site in world.Sites)
+                {
+                    float margin = site.Kind == SiteKind.Landing ? 40f : site.Definition.IsSettlement ? 30f : 0f;
+                    if (margin > 0f && haunt.Haunt != HauntKind.Camp && (haunt.Position - site.Position).Length < site.Radius + margin) Problem($"a {haunt.Haunt} at {haunt.Position} is on the doorstep of {site.Name}");
+                }
+            }
+            if (nearest > MostLandingWalk) Problem($"the first pack is {nearest:0} m from the landing");
+
+            var packs = world.Haunts.Where(h => h.Haunt != HauntKind.Camp).ToList();
+            for (int i = 0; i < packs.Count; i++)
+            {
+                for (int j = i + 1; j < packs.Count; j++)
+                {
+                    if ((packs[i].Position - packs[j].Position).LengthSquared < LeastPackGap * LeastPackGap) Problem($"packs at {packs[i].Position} and {packs[j].Position} can't be fought apart");
+                }
+            }
+
+            int land = 0;
+            int near = 0;
+            for (float z = 12f; z < world.Size; z += 24f)
+            {
+                for (float x = 12f; x < world.Size; x += 24f)
+                {
+                    var at = new Vector2(x, z);
+                    if (!world.Passable.IsSet(at)) continue;
+                    land++;
+                    foreach (WorldSite haunt in world.Haunts)
+                    {
+                        if ((haunt.Position - at).LengthSquared > PackReach * PackReach) continue;
+                        near++;
+                        break;
+                    }
+                }
+            }
+            if (land > 0 && (float)near / land < LeastSpread) Problem($"only {(float)near / land:0%} of the land has a pack near it");
         }
 
         private static bool HasChurch(WorldData world, WorldSite site)

@@ -55,7 +55,7 @@ namespace Dino_Defenders.Gameplay
             Chronicle = Chronicle.Write(world);
 
             foreach (WorldSite site in world.Sites) Sites.Add(CreateState(site, wild: false));
-            AddWildBands();
+            foreach (WorldSite haunt in world.Haunts) Sites.Add(CreateState(haunt, wild: true));
             LinkThreats();
         }
 
@@ -64,53 +64,9 @@ namespace Dino_Defenders.Gameplay
             var state = new SiteState { Site = site, Wild = wild };
             foreach (SiteSpawn spawn in site.Spawns)
             {
-                if (spawn.Role is SpawnRole.Raider or SpawnRole.Guard or SpawnRole.Undead or SpawnRole.Boss) state.HostilesTotal++;
+                if (spawn.Role.IsHostile()) state.HostilesTotal++;
             }
             return state;
-        }
-
-        // Bands that roam the roads between places, so that a journey is never only a walk. They aren't on the map; they just
-        // happen to you, more often the further from the landing you go.
-        private void AddWildBands()
-        {
-            var random = new WorldRandom(World.Plan.Seed).Fork("wild bands");
-            int bands = (int)(World.ReachableArea / 1_000_000f * 3.2f * World.Plan.Archetype.Dangers);
-            var placed = new List<Vector2>();
-
-            for (int attempt = 0; attempt < bands * 40 && placed.Count < bands; attempt++)
-            {
-                WorldRoad road = random.Pick(World.Roads);
-                if (road.Points.Count < 4) continue;
-                Vector2 spot = road.Points[random.Int(road.Points.Count)].Xz + new Vector2(random.Range(-14f, 14f), random.Range(-14f, 14f));
-                float remoteness = World.Remoteness.Sample(spot);
-                if (remoteness < 0.22f || !World.Passable.IsSet(spot)) continue;
-
-                bool crowded = false;
-                foreach (WorldSite site in World.Sites) crowded |= (site.Position - spot).Length < site.Radius + 70f;
-                foreach (Vector2 other in placed) crowded |= (other - spot).Length < 170f;
-                if (crowded) continue;
-
-                var band = new WorldSite
-                {
-                    Id = -1,
-                    Definition = SiteCatalog.BanditCamp,
-                    Name = "Roving band",
-                    Position = spot,
-                    Radius = 8f,
-                    Remoteness = remoteness,
-                };
-                int size = random.Int(2, 4);
-                SpawnRole role = random.Chance(0.25f) ? SpawnRole.Undead : SpawnRole.Raider;
-                for (int i = 0; i < size; i++)
-                {
-                    Vector2 at = spot + new Vector2(random.Range(-5f, 5f), random.Range(-5f, 5f));
-                    if (World.Passable.IsSet(at)) band.Spawns.Add(new SiteSpawn(role, at));
-                }
-                if (band.Spawns.Count == 0) continue;
-
-                placed.Add(spot);
-                Sites.Add(CreateState(band, wild: true));
-            }
         }
 
         // Each settlement fears the nearest place that preys on it, and that fear is what the hero can lift.

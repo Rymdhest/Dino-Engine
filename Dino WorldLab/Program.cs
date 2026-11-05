@@ -13,6 +13,7 @@ namespace Dino_WorldLab
     ///   sheet   [--seed N] [--count N] [--archetype id] [--out file.png]       A contact sheet of many worlds.
     ///   plan    [--seed N] [--archetype id] [--site kind] [--nth N] [--span m] [--out f] A surveyor's plan of one site, the Nth of its kind.
     ///   check   [--seed N] [--count N] [--archetype id]                        Generates worlds and validates them. Exit code 1 on any problem.
+    ///   packs   [--seed N] [--archetype id] [--level N] [--out file.png]       Who stands where: the mix, and a map of it, each folk in its colour.
     ///   wind                                                                   Puts the wind through what a game does to it. Exit code 1 on any problem.
     /// </summary>
     internal static class Program
@@ -32,6 +33,8 @@ namespace Dino_WorldLab
                     return Plan(options);
                 case "check":
                     return Check(options);
+                case "packs":
+                    return Packs(options);
                 case "wind":
                     return WindCheck.Run();
                 default:
@@ -111,6 +114,73 @@ namespace Dino_WorldLab
             return 0;
         }
 
+        private static int Packs(Options options)
+        {
+            int seed = options.Int("seed", 1);
+            WorldData world = new WorldGenerator().Generate(new WorldRequest(seed, options.Text("archetype"), options.Int("level", 1)));
+            Describe(world, 0);
+
+            foreach (var kind in world.Haunts.GroupBy(h => h.Haunt).OrderBy(g => g.Key))
+            {
+                string folk = string.Join(" ", kind.GroupBy(h => h.Folk).OrderBy(g => g.Key).Select(g => $"{g.Key}:{g.Count()}"));
+                Console.WriteLine($"{kind.Key,-7} {kind.Count(),4}  average {kind.Average(h => h.Spawns.Count(s => s.Role.IsHostile())):0.0}, most {kind.Max(h => h.Spawns.Count(s => s.Role.IsHostile()))}  {folk}");
+            }
+            foreach (var folk in world.Haunts.GroupBy(h => h.Folk).OrderBy(g => g.Key))
+            {
+                WorldSite first = folk.OrderBy(h => (h.Position - world.Sites[0].Position).Length).First();
+                Console.WriteLine($"Nearest {folk.Key} to the landing: {first.Haunt} of {first.Spawns.Count} at {first.Position.X:0},{first.Position.Y:0}");
+            }
+
+            foreach (WorldSite camp in world.Haunts.Where(h => h.Haunt == HauntKind.Camp).Take(8)) Console.WriteLine($"Camp of {camp.Folk}, {camp.Spawns.Count} there, at {camp.Position.X:0},{camp.Position.Y:0}");
+
+            int resolution = options.Int("size", 1400);
+            byte[] image = WorldMapImage.Render(world, resolution);
+            float scale = resolution / world.Size;
+            void Dot(Vector2 at, float radius, byte r, byte g, byte b)
+            {
+                int cx = (int)(at.X * scale);
+                int cy = resolution - 1 - (int)(at.Y * scale);
+                int reach = (int)MathF.Ceiling(radius);
+                for (int y = -reach; y <= reach; y++)
+                {
+                    for (int x = -reach; x <= reach; x++)
+                    {
+                        if (x * x + y * y > radius * radius || cx + x < 0 || cy + y < 0 || cx + x >= resolution || cy + y >= resolution) continue;
+                        int i = ((cy + y) * resolution + cx + x) * 4;
+                        image[i] = r;
+                        image[i + 1] = g;
+                        image[i + 2] = b;
+                        image[i + 3] = 255;
+                    }
+                }
+            }
+
+            foreach (WorldSite haunt in world.Haunts)
+            {
+                (byte r, byte g, byte b) = haunt.Folk switch
+                {
+                    SpawnRole.Undead => ((byte)190, (byte)120, (byte)255),
+                    SpawnRole.Beast => ((byte)255, (byte)170, (byte)40),
+                    SpawnRole.Cultist => ((byte)40, (byte)230, (byte)230),
+                    _ => ((byte)255, (byte)50, (byte)50),
+                };
+                if (haunt.Haunt == HauntKind.Camp) Dot(haunt.Position, 6f, 255, 255, 255);
+                foreach (SiteSpawn spawn in haunt.Spawns) Dot(spawn.Position, 1.6f, r, g, b);
+            }
+            foreach (WorldSite site in world.Sites)
+            {
+                foreach (SiteSpawn spawn in site.Spawns)
+                {
+                    if (spawn.Role.IsHostile()) Dot(spawn.Position, 1.6f, 255, 255, 120);
+                }
+            }
+
+            string path = options.Text("out") ?? "packs.png";
+            PngWriter.Write(path, image, resolution, resolution);
+            Console.WriteLine($"Wrote {path}");
+            return 0;
+        }
+
         private static int Check(Options options)
         {
             int firstSeed = options.Int("seed", 1);
@@ -176,6 +246,16 @@ namespace Dino_WorldLab
                 Add(site.Position.X);
                 Add(site.Position.Y);
                 Add(site.Radius);
+                Add(site.Spawns.Count);
+            }
+            foreach (WorldSite haunt in world.Haunts)
+            {
+                Add((int)haunt.Folk);
+                foreach (SiteSpawn spawn in haunt.Spawns)
+                {
+                    Add(spawn.Position.X);
+                    Add(spawn.Position.Y);
+                }
             }
             foreach (WorldRoad road in world.Roads)
             {

@@ -40,10 +40,12 @@ namespace Dino_Engine.World.Generation
                 new SiteStage(),
                 new RoadStage(),
                 new SettlementStage(),
+                new CampStage(),
                 new TerrainBakeStage(),
                 new WaterStage(),
                 new VegetationStage(),
                 new FinalizeStage(),
+                new PackStage(),
             };
         }
 

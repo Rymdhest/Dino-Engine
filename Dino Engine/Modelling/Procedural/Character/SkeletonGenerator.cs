@@ -15,7 +15,11 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
     public class SkeletonGenerator
     {
 
-        public static Mesh GenerateSkeleton()
+        public static Mesh GenerateArcher() => GenerateSkeleton(archer: true);
+
+        public static Mesh GenerateSkeleton() => GenerateSkeleton(archer: false);
+
+        private static Mesh GenerateSkeleton(bool archer)
         {
             float armLength = 1.7f;
             float legLength = 2f;
@@ -37,6 +41,14 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             Mesh head = GenerateHead();
             skeleton += head.translated(headAnchor);
+
+            if (archer)
+            {
+                skeleton += Character.HumanoidGenerator.Bow(leftArmAchnor);
+                skeleton.translate(new Vector3(0f, legLength, 0f));
+                skeleton.isUsingBones = true;
+                return skeleton;
+            }
 
             Mesh sword = WeaponGenerator.GenerateSword();
             sword.translate(new Vector3(0f, - 0.25f, 0f));

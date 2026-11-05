@@ -321,6 +321,14 @@ namespace Dino_Defenders
 
             if (_frames == _options.TravelAfterFrames) StepThroughWaygate();
             if (_frames == 90 && _options.Panel != null) OpenPanel(_options.Panel);
+            if (_frames == 30 && _options.Parade is string parade && _server != null)
+            {
+                _server.Ask(server =>
+                {
+                    server.Parade(parade);
+                    return true;
+                });
+            }
             if (_options.Shot != null && _frames == _options.ShotAfterFrames)
             {
                 Engine.RequestScreenshot(_options.Shot, () =>
@@ -571,6 +579,7 @@ namespace Dino_Defenders
             var clock = Stopwatch.StartNew();
             WorldData world = prepared.World;
             WorldScene.Enter(Engine.world, world, _assets);
+            _characters.Prepare();
             Console.WriteLine($"Prepared {_assets.Count} models in {clock.Elapsed.TotalSeconds:0.00} s");
 
             _client!.EnterWorld(world);

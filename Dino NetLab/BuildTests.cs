@@ -148,6 +148,9 @@ namespace Dino_NetLab
             report.Section("Keys held down");
             HeldKeys(report, worlds, request);
 
+            report.Section("Packs");
+            PackTests.Run(report, worlds);
+
             report.Section("A crowd");
             Crowd(report, worlds, request, 300);
             Crowd(report, worlds, request, 800);

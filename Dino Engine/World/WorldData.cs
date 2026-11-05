@@ -59,6 +59,8 @@ namespace Dino_Engine.World
         public ScalarField Remoteness = null!;
         public readonly List<WorldSite> Sites = new();
         public readonly List<WorldRoad> Roads = new();
+        /// <summary>Everywhere a pack has settled, apart from the sites. Camps are here from CampStage on, the rest from PackStage.</summary>
+        public readonly List<WorldSite> Haunts = new();
 
         // --- What people built, from SettlementStage on ---
         public BuildingStyle Style;

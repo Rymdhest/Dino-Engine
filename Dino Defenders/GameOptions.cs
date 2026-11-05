@@ -15,6 +15,7 @@ namespace Dino_Defenders
     ///   --hero N        Starts the hero at level N.
     ///   --talents a,b   Walks the talent tree to these nodes, by id, taking everything on the way. Skills they teach go on the bar.
     ///   --equip a,b     Puts these uniques on the hero, by id.
+    ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar.
     ///   --panel name    Opens map, hero, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
     ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one.
     ///   --savefile path Keeps the save here, and uses it even on a scripted run.
@@ -53,6 +54,7 @@ namespace Dino_Defenders
         public int HeroLevel = 1;
         public readonly List<string> Talents = new();
         public readonly List<string> Equip = new();
+        public string? Parade;
         public string? Panel;
         public int TravelAfterFrames = -1;
         public string? SaveFile;
@@ -112,6 +114,7 @@ namespace Dino_Defenders
                     case "hero": options.HeroLevel = int.Parse(value); break;
                     case "talents": options.Talents.AddRange(value.Split(',')); break;
                     case "equip": options.Equip.AddRange(value.Split(',')); break;
+                    case "parade": options.Parade = value; break;
                     case "panel": options.Panel = value; break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
                     case "savefile": options.SaveFile = value; break;

@@ -6,6 +6,8 @@
         Walk,
         Run,
         Shoot,
-        Swing
+        Swing,
+        Gallop,
+        Bite
     }
 }

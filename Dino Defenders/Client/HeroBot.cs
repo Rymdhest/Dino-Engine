@@ -159,7 +159,8 @@ namespace Dino_Defenders.Client
             Unreachable = 0;
             foreach (SiteState state in session.Sites)
             {
-                if (!state.Cleared && state.HostilesTotal > 0) Consider(state.Site.Position, SiteReach);
+                // A pack is what it meets on the way. There are hundreds, and they aren't what freeing a world is about.
+                if (!state.Cleared && state.HostilesTotal > 0 && !state.Wild) Consider(state.Site.Position, SiteReach);
 
                 for (int i = 0; i < state.Site.Spawns.Count; i++)
                 {

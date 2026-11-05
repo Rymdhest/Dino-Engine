@@ -9,6 +9,7 @@ namespace Dino_BuildLab
     ///   bench     What it costs, on this machine.
     ///   balance   How a fight goes at each level, for a few sample builds.
     ///   list [--what keystones|uniques|notables|affixes|skills]   Everything a player can read.
+    ///   density [--seed N] [--count N] [--level N] [--archetype id]   How much there is to fight in a world, and how long it is between fights.
     /// </summary>
     internal static class Program
     {
@@ -30,6 +31,8 @@ namespace Dino_BuildLab
                     return Balance.Run(options);
                 case "list":
                     return Listing.Run(options);
+                case "density":
+                    return Density.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

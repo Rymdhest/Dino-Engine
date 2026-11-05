@@ -19,9 +19,9 @@ namespace Dino_Defenders.Server
         private const float WakeDistance = 100f;
         private const float SleepDistance = 160f;
         private const float EliteChance = 0.14f;
-        private const float CasterChance = 0.18f;
-        private const float MournerChance = 0.2f;
+        private const float GuardArcherChance = 0.45f;
         private const float CheckInterval = 0.25f;
+        private const int MostWakings = 4;      // At a check. A hero stepping out of a waygate is surrounded by places, and they needn't all arrive in one tick.
 
         private readonly GameServer _server;
         private double _nextCheck;
@@ -40,11 +40,16 @@ namespace Dino_Defenders.Server
 
             session.UpdateDiscovery();
 
+            int wakings = 0;
             for (int i = 0; i < session.Sites.Count; i++)
             {
                 SiteState state = session.Sites[i];
                 float distance = session.DistanceToAnyHero(state.Site.Position) - state.Site.Radius;
-                if (!state.Active && distance < WakeDistance) Wake(world, session, state, i);
+                if (!state.Active && distance < WakeDistance && wakings < MostWakings)
+                {
+                    wakings++;
+                    Wake(world, session, state, i);
+                }
                 else if (state.Active && distance > SleepDistance) Sleep(world, state);
             }
         }
@@ -62,6 +67,7 @@ namespace Dino_Defenders.Server
         {
             state.Active = true;
             var random = new WorldRandom(session.World.Plan.Seed).Fork("people").Fork(siteIndex);
+            var musters = new Dictionary<SpawnRole, PackOrders>();
 
             for (int i = 0; i < state.Site.Spawns.Count; i++)
             {
@@ -73,7 +79,10 @@ namespace Dino_Defenders.Server
                     case SpawnRole.Guard:
                     case SpawnRole.Undead:
                     case SpawnRole.Boss:
-                        if (!state.Dead.Contains(i)) SpawnEnemy(world, session, state, siteIndex, i, spawn, spawnRandom);
+                    case SpawnRole.Beast:
+                    case SpawnRole.Cultist:
+                        // A place set free stays free, whoever a newer build would have put there.
+                        if (!state.Dead.Contains(i) && !state.Cleared) SpawnEnemy(world, session, state, siteIndex, i, spawn, Orders(session, state, spawn, random, musters), spawnRandom);
                         break;
                     case SpawnRole.Villager:
                         SpawnVillager(world, session, state, siteIndex, spawn, spawnRandom, stationary: false);
@@ -98,35 +107,53 @@ namespace Dino_Defenders.Server
             }
         }
 
-        private void SpawnEnemy(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)
+        // Everyone of a folk at one place answers to the same orders.
+        private static PackOrders Orders(ServerSession session, SiteState state, in SiteSpawn spawn, WorldRandom random, Dictionary<SpawnRole, PackOrders> musters)
         {
-            int level = session.World.Plan.Level + (int)(state.Site.Remoteness * 3f);
+            SpawnRole folk = spawn.Role is SpawnRole.Guard or SpawnRole.Boss ? SpawnRole.Raider : spawn.Role;
+            if (!musters.TryGetValue(folk, out PackOrders? orders))
+            {
+                orders = new PackOrders(session.World, state.Site, folk, LevelAt(session, state), state.Wild, random.Fork("pack"));
+                musters.Add(folk, orders);
+            }
+            return orders;
+        }
+
+        /// <summary>How strong what's found at a place is. Danger climbs with the distance from where a hero came in.</summary>
+        public static int LevelAt(ServerSession session, SiteState state) => session.World.Plan.Level + (int)(state.Site.Remoteness * 3f);
+
+        private void SpawnEnemy(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, PackOrders orders, WorldRandom random)
+        {
+            int level = LevelAt(session, state);
             bool boss = spawn.Role == SpawnRole.Boss;
-            bool undead = spawn.Role == SpawnRole.Undead;
-            bool archer = !undead && !boss && random.Chance(spawn.Role == SpawnRole.Guard ? 0.45f : 0.22f);
-            bool elite = !boss && random.Chance(EliteChance);
-
-            float rankHealth = boss ? 11f : elite ? 2.6f : 1f;
-            float scale = boss ? 1.7f : elite ? 1.22f : random.Range(0.94f, 1.06f);
-            string model = boss ? "warlord" : undead ? "skeleton" : $"bandit{random.Int(8)}:{archer}";
-
-            // New draws come from a new fork, so that what's already decided about a world stays decided.
             WorldRandom kinds = random.Fork("kind");
-            EnemyKind kind = boss ? Bestiary.Warlord
-                : undead ? (kinds.Chance(MournerChance) ? Bestiary.Mourner : Bestiary.Restless)
-                : archer ? Bestiary.Archer
-                : spawn.Role == SpawnRole.Guard ? Bestiary.Sentry
-                : kinds.Chance(CasterChance) ? kinds.Pick(Bestiary.Casters) : Bestiary.Outlaw;
-            int trait = elite ? kinds.Int(Bestiary.Traits.Length) : Bestiary.NoTrait;
 
-            var rank = boss ? EnemyRank.Boss : elite ? EnemyRank.Elite : EnemyRank.Normal;
+            EnemyKind kind;
+            EnemyRank rank;
+            int trait;
+            if (boss) (kind, rank, trait) = (Bestiary.Warlord, EnemyRank.Boss, Bestiary.NoTrait);
+            else if (spawn.Role == SpawnRole.Guard) (kind, rank, trait) = (kinds.Chance(GuardArcherChance) ? Bestiary.Archer : Bestiary.Sentry, EnemyRank.Normal, Bestiary.NoTrait);
+            else (kind, rank, trait) = orders.Draw(spawnIndex, kinds);
+
+            // The people of a place have their hard cases, where a pack has its leader.
+            if (!boss && !state.Wild && kinds.Chance(EliteChance))
+            {
+                rank = EnemyRank.Elite;
+                trait = kinds.Int(Bestiary.Traits.Length);
+            }
+
+            bool elite = rank == EnemyRank.Elite;
+            float rankHealth = boss ? 11f : elite ? 2.6f : 1f;
+            float scale = kind.Scale * (boss ? 1.7f : elite ? 1.22f : random.Range(0.94f, 1.06f));
+            string model = Bestiary.ModelOf(kind, random);
+
             Dino_Defenders.Progression.Item[]? gear = null;
             string? title = null;
             Loadout loadout = boss ? Bestiary.Boss(kind, level, random.Fork("boss"), out gear, out title) : session.Bestiary.Shared(kind, level, rank, trait);
 
             string name = boss ? session.Chronicle.Warlord : kind.Name;
             if (title != null) name = $"{name}, {title}";
-            if (elite) name = $"{Bestiary.Traits[trait].Name} {kind.Name}";
+            if (trait != Bestiary.NoTrait) name = $"{Bestiary.Traits[trait].Name} {kind.Name}";
 
             var enemy = new EnemyComponent { Name = name, Rank = rank, Level = level };
             var brain = new EnemyBrainComponent
@@ -137,7 +164,7 @@ namespace Dino_Defenders.Server
                 AggroRadius = kind.AggroRadius,
                 LeashRadius = kind.LeashRadius,
                 KeepsAway = kind.KeepsAway,
-                Experience = Bestiary.ExperienceAt(level, rankHealth),
+                Experience = Bestiary.ExperienceAt(level, rankHealth * kind.Health),
                 Cooldown = random.Range(0f, 1f),
             };
 
@@ -154,6 +181,30 @@ namespace Dino_Defenders.Server
             float importance = boss ? 4f : elite ? 2f : 1.5f;
             actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, importance, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor)));
             state.Live.Add(actor.Entity);
+        }
+
+        /// <summary>One of everything, standing still in rows, for looking at. They don't belong anywhere, so nothing is kept of them.</summary>
+        public void Parade(ECSWorld world, ServerSession session, Vector2 at, string which)
+        {
+            const int perRow = 7;
+            var random = new WorldRandom(1);
+            EnemyKind[] kinds = which == "all" ? Bestiary.Everyone : Bestiary.Everyone.Where(kind => which.Split(',').Contains(kind.Id)).ToArray();
+            for (int i = 0; i < kinds.Length; i++)
+            {
+                EnemyKind kind = kinds[i];
+                Vector2 spot = at + new Vector2((i % perRow - (perRow - 1) * 0.5f) * 5.5f, -7f - i / perRow * 7f);
+                Vector3 position = new Vector3(spot.X, session.World.Height.Sample(spot), spot.Y);
+                Loadout loadout = session.Bestiary.Shared(kind, 1, EnemyRank.Normal, Bestiary.NoTrait);
+                var actor = new Actor(Team.Enemies, loadout, spot, WorldData.CharacterRadius) { Body = kind.Look, Height = position.Y, Still = true };
+                var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = spot };
+                IComponent[] body = Bodies.Walking(_server, Bestiary.ModelOf(kind, random), position, kind.Scale, 2f,
+                    new EnemyComponent { Name = kind.Name, Level = 1 }, brain, new HealthComponent(actor.Sheet.MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor));
+                for (int part = 0; part < body.Length; part++)
+                {
+                    if (body[part] is RotationComponent) body[part] = new RotationComponent(new Vector3(0f, MathF.PI * 0.8f, 0f));
+                }
+                actor.Entity = world.CreateEntity(kind.Name, body);
+            }
         }
 
         private void SpawnVillager(ECSWorld world, ServerSession session, SiteState state, int siteIndex, SiteSpawn spawn, WorldRandom random, bool stationary)
@@ -392,7 +443,7 @@ namespace Dino_Defenders.Server
                     state.Opened.Add(interactable.SpawnIndex);
                     state.Changed = true;
                     state.Live.Remove(view.Entity);
-                    session.Combat.OpenChest(hero, view.Get<PositionComponent>().value, session.World.Plan.Level + (int)(state.Site.Remoteness * 3f));
+                    session.Combat.OpenChest(hero, view.Get<PositionComponent>().value, EncounterSystem.LevelAt(session, state));
                     world.DestroyEntity(view.Entity);
                     break;
                 default:

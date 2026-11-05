@@ -11,6 +11,7 @@ namespace Dino_Defenders.Progression
         public const int MaxLevel = 60;
         public const float BaseMoveSpeed = 10f;
         public const int MaxFlasks = 4;
+        public const float KillsPerFlask = 15f;
         public const int InventorySize = 36;
         public const int SkillSlots = 7;
 
@@ -18,6 +19,7 @@ namespace Dino_Defenders.Progression
         public int Experience { get; set; }
         public int Gold { get; set; }
         public int Flasks { get; set; } = 3;
+        public float FlaskCharge { get; set; }
         public int WorldsCleared { get; set; }
 
         /// <summary>The nodes taken on the talent tree, by id, in the order they were taken.</summary>
@@ -56,6 +58,22 @@ namespace Dino_Defenders.Progression
                 levels++;
             }
             return levels;
+        }
+
+        /// <summary>Puts a kill towards the next flask. Says whether that filled one.</summary>
+        public bool ChargeFlask(float worth)
+        {
+            if (Flasks >= MaxFlasks)
+            {
+                FlaskCharge = 0f;
+                return false;
+            }
+
+            FlaskCharge += worth;
+            if (FlaskCharge < KillsPerFlask) return false;
+            FlaskCharge -= KillsPerFlask;
+            Flasks++;
+            return true;
         }
 
         public bool Pickup(Item item)

@@ -149,7 +149,7 @@ namespace Dino_Defenders.Client
         private static HitBody BodyOf(in EntityView entity)
         {
             string model = entity.Has<VisualComponent>() ? entity.Get<VisualComponent>().Model : "";
-            return model == "skeleton" ? HitBody.Bone : model == "warlord" ? HitBody.Armour : HitBody.Flesh;
+            return model.StartsWith("skeleton") ? HitBody.Bone : model is "warlord" or "revenant" ? HitBody.Armour : CharacterFactory.BeastOf(model) != null ? HitBody.Beast : HitBody.Flesh;
         }
 
         private static SoundDefinition BodyHit(HitBody body) => body switch
@@ -187,7 +187,7 @@ namespace Dino_Defenders.Client
 
             if (e.Critical) Audio.Play(Impacts.Critical, e.Position);
             if (e.Body == HitBody.Bone) return;
-            if (_random.Chance(0.45f)) After(0.02f, e.Body == HitBody.Armour ? Voices.WarlordRoar : Voices.OutlawHurt, e.Position, e.Body == HitBody.Armour ? -8f : 0f);
+            if (_random.Chance(0.45f)) After(0.02f, e.Body == HitBody.Armour ? Voices.WarlordRoar : e.Body == HitBody.Beast ? Voices.BeastSnarl : Voices.OutlawHurt, e.Position, e.Body == HitBody.Armour ? -8f : 0f);
         }
 
         // Things that happen to one person are heard in their own head, and only from across the field by anyone else.
@@ -324,7 +324,7 @@ namespace Dino_Defenders.Client
         {
             foreach (AnimationLayer layer in animation.Layers)
             {
-                if (layer.ClipId == AnimationId.Run) return layer;
+                if (layer.ClipId == animation.RunClip) return layer;
             }
             return null;
         }
@@ -382,8 +382,9 @@ namespace Dino_Defenders.Client
                     if (entity.Entity.Id == own) continue;
                     Vector3 position = entity.Get<PositionComponent>().value;
                     string model = entity.Get<VisualComponent>().Model;
-                    if (model.EndsWith("True")) Audio.Play(Archery.Draw, position);
-                    else Audio.Play(model == "warlord" ? Blades.HeavySwing : Blades.Swing, position);
+                    if (model.EndsWith("True") || model.EndsWith(":bow")) Audio.Play(Archery.Draw, position);
+                    else if (CharacterFactory.BeastOf(model) != null) Audio.Play(Voices.BeastSnarl, position);
+                    else Audio.Play(model is "warlord" or "revenant" ? Blades.HeavySwing : Blades.Swing, position);
                 }
             }
         }
@@ -404,17 +405,17 @@ namespace Dino_Defenders.Client
                     string model = entity.Get<VisualComponent>().Model;
                     if (enemy.State == EnemyState.Dead)
                     {
-                        if (model == "skeleton") Audio.Play(Voices.DeadDeath, position);
+                        if (model.StartsWith("skeleton")) Audio.Play(Voices.DeadDeath, position);
                         else
                         {
-                            Audio.Play(model == "warlord" ? Voices.WarlordDeath : Voices.OutlawDeath, position);
+                            Audio.Play(model == "warlord" ? Voices.WarlordDeath : CharacterFactory.BeastOf(model) != null ? Voices.BeastDeath : Voices.OutlawDeath, position);
                             bool drowned = GameSession.Current?.World.WaterDepthAt(position.Xz) > 0.2f;
                             sounds.After(FallDelay, drowned ? Splashes.Body : Impacts.BodyFall, position);
                         }
                     }
                     else if (enemy.State == EnemyState.Chasing && was is EnemyState.Idle or EnemyState.Returning)
                     {
-                        Audio.Play(model == "warlord" ? Voices.WarlordRoar : model == "skeleton" ? Voices.DeadMoan : Voices.OutlawShout, position);
+                        Audio.Play(model == "warlord" ? Voices.WarlordRoar : model.StartsWith("skeleton") || model == "revenant" ? Voices.DeadMoan : CharacterFactory.BeastOf(model) != null ? Voices.BeastSnarl : Voices.OutlawShout, position);
                     }
                 }
             }

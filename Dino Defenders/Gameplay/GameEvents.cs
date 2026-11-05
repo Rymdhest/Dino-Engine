@@ -18,6 +18,7 @@ namespace Dino_Defenders.Gameplay
         Flesh,
         Bone,
         Armour,
+        Beast,
     }
 
     /// <summary>What became of a blow that didn't land as one.</summary>

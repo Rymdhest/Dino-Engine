@@ -31,10 +31,12 @@ namespace Dino_Defenders.UI
         private const float TipWidth = 340f;
 
         private const string ForgetText = "Forget all";
+        private const double ForgetWindow = 4.0;    // Seconds to press again.
+        private const double ForgetPause = 0.4;     // Sooner than this is the same press, bounced or doubled.
 
         private readonly TextBox _search;
         private readonly Button _forget;
-        private bool _forgetting;
+        private double _forgetUntil;    // While this is ahead of the clock, a press means it.
         private readonly bool[] _taken = new bool[TalentTree.Nodes.Length];
         private readonly bool[] _open = new bool[TalentTree.Nodes.Length];
         private readonly bool[] _lit = new bool[TalentTree.Nodes.Length];
@@ -91,15 +93,17 @@ namespace Dino_Defenders.UI
             for (int i = 0; i < _lit.Length; i++) _lit[i] = wanted.Length > 1 && _text[i].Contains(wanted);
         }
 
-        // A whole build goes with this, and there's no way back, so one stray click mustn't be enough.
+        // A whole build goes with this, and there's no way back, so one stray click mustn't be enough, and nor must a double click.
         private void ForgetAll()
         {
-            if (!_forgetting)
+            double now = Dino_Engine.Core.Engine.Time;
+            if (now >= _forgetUntil)
             {
-                _forgetting = true;
+                _forgetUntil = now + ForgetWindow;
                 _forget.Text = "Press again";
                 return;
             }
+            if (now < _forgetUntil - ForgetWindow + ForgetPause) return;
 
             StopForgetting();
             Audio.Play(Interface.Close);
@@ -109,7 +113,7 @@ namespace Dino_Defenders.UI
 
         private void StopForgetting()
         {
-            _forgetting = false;
+            _forgetUntil = 0.0;
             _forget.Text = ForgetText;
         }
 
@@ -167,7 +171,8 @@ namespace Dino_Defenders.UI
             GameSession session = GameSession.Current;
             if (session == null || Context == null) return;
 
-            if (_forgetting && !_forget.IsHovered) StopForgetting();
+            // Not on the mouse leaving: the button's text changing costs it the hover for a frame, which took back every first press.
+            if (_forgetUntil > 0.0 && Dino_Engine.Core.Engine.Time >= _forgetUntil) StopForgetting();
 
             Array.Clear(_taken);
             foreach (int index in TalentTree.Allocated(Hero)) _taken[index] = true;

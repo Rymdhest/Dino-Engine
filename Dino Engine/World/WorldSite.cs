@@ -16,6 +16,24 @@ namespace Dino_Engine.World
         Chest,
         Altar,          // A shrine's place of prayer.
         Waygate,        // The way in and out of the world.
+        Beast,          // A hostile that lives wild.
+        Cultist,        // A hostile in the service of the land's powers.
+    }
+
+    public static class SpawnRoles
+    {
+        /// <summary>Whether someone standing here has to be fought.</summary>
+        public static bool IsHostile(this SpawnRole role) => role is SpawnRole.Guard or SpawnRole.Raider or SpawnRole.Undead or SpawnRole.Boss or SpawnRole.Beast or SpawnRole.Cultist;
+    }
+
+    /// <summary>Why a pack is where it is. Places on the map have a <see cref="SiteKind"/>; these are what stands between them.</summary>
+    public enum HauntKind
+    {
+        None,
+        Camp,           // Somewhere of their own, with something to show for it.
+        Picket,         // Watching the ways into a place.
+        Ambush,         // Waiting beside a road.
+        Den,            // Out in the wild, where they live.
     }
 
     public readonly struct SiteSpawn
@@ -45,6 +63,8 @@ namespace Dino_Engine.World
         public Vector2 RoadDirection = Vector2.UnitX;   // Unit, from the site's centre towards where its road comes in.
         public bool HasHall;
         public bool HasInn;
+        public HauntKind Haunt;     // For a pack: why it's here.
+        public SpawnRole Folk;      // For a pack: who it is.
 
         /// <summary>Where a game should put characters and things. Worldgen only says where and what for.</summary>
         public readonly List<SiteSpawn> Spawns = new();

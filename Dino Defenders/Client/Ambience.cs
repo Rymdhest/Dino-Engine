@@ -336,7 +336,7 @@ namespace Dino_Defenders.Client
             float best = float.PositiveInfinity;
             foreach (SiteState state in session.Sites)
             {
-                if (state.Wild) continue;
+                if (state.Wild && state.Site.Haunt != HauntKind.Camp) continue;
                 float distance = (state.Site.Position - position).Length - state.Site.Radius;
                 if (distance < best && distance < 20f)
                 {

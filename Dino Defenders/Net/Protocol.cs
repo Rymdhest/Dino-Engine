@@ -60,7 +60,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 3;
+        public const uint Version = 4;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -314,6 +314,8 @@ namespace Dino_Defenders.Net
                 Mix(ref structure, (uint)site.Kind);
                 Mix(ref structure, (uint)site.Spawns.Count);
             }
+            Mix(ref structure, (uint)world.Haunts.Count);
+            foreach (WorldSite haunt in world.Haunts) Mix(ref structure, (uint)haunt.Spawns.Count);
             Mix(ref structure, (uint)world.Roads.Count);
 
             uint ground = 2166136261u;

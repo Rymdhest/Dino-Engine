@@ -68,6 +68,8 @@ namespace Dino_Defenders.Server
         public Func<long> Clock = System.Diagnostics.Stopwatch.StartNew() is var watch ? () => watch.ElapsedMilliseconds : null!;
 
         /// <summary>The tick being run, or about to be.</summary>
+        private readonly EncounterSystem _encounters;
+
         public uint Tick { get; private set; } = 1;
 
         public IReadOnlyList<ServerPlayer> Heroes => _heroes;
@@ -93,7 +95,7 @@ namespace Dino_Defenders.Server
             _systems.Add(new ZoneSystem(this));
             _systems.Add(new DyingSystem());
             _systems.Add(_interaction);
-            _systems.Add(new EncounterSystem(this));
+            _systems.Add(_encounters = new EncounterSystem(this));
             _systems.Add(new CharacterMotorSystem());
             _systems.Add(new VelocitySystem());
             _systems.Add(new FixToTerrainHeightSystem());
@@ -861,13 +863,14 @@ namespace Dino_Defenders.Server
             writer.WriteCount(session.Chronicle.Objectives.Count);
             foreach (Objective objective in session.Chronicle.Objectives) writer.WriteVarInt(objective.Progress);
 
+            // Everything means everything that has happened: a world is mostly packs no one has met, and a client starts out knowing those.
             int count = 0;
-            foreach (SiteState state in session.Sites) count += state.Changed || everything ? 1 : 0;
+            foreach (SiteState state in session.Sites) count += Tells(state, everything) ? 1 : 0;
             writer.WriteCount(count);
             for (int i = 0; i < session.Sites.Count; i++)
             {
                 SiteState state = session.Sites[i];
-                if (!state.Changed && !everything) continue;
+                if (!Tells(state, everything)) continue;
                 writer.WriteVarInt(i);
                 writer.WriteBool(state.Discovered);
                 writer.WriteBool(state.Cleared);
@@ -879,6 +882,11 @@ namespace Dino_Defenders.Server
                 foreach (int opened in state.Opened) writer.WriteVarInt(opened);
             }
             player.Connection.Send(writer.ToArray(), Delivery.Reliable);
+        }
+
+        private static bool Tells(SiteState state, bool everything)
+        {
+            return state.Changed || (everything && (state.Discovered || state.Cleared || state.Kindled || state.Rewarded || state.Dead.Count > 0 || state.Opened.Count > 0));
         }
 
         private void SendParty()
@@ -896,6 +904,12 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>Writes the world, and where the first hero stands in it, into a save. The hero's own record is added on their machine.</summary>
+        /// <summary>For a scripted run: one of everything, in front of the first hero.</summary>
+        public void Parade(string which)
+        {
+            if (Session != null && _heroes.Count > 0) _encounters.Parade(Ecs, Session, _heroes[0].Sim.Position, which);
+        }
+
         public void CaptureWorld(SaveGame save)
         {
             if (Session == null) return;

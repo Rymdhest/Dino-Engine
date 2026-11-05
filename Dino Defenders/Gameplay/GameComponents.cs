@@ -70,6 +70,7 @@ namespace Dino_Defenders.Gameplay
         public float WindUp;
         public int Experience;
         public Vector2 Wander;
+        public Vector2 Apart;       // Which way it's being crowded, as last worked out.
         public List<Vector2>? Path;
         public int PathStep;
         public double NextPathTime;

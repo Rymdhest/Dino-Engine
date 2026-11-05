@@ -9,6 +9,7 @@ namespace Dino_NetLab
     ///   core  [--seed N] [--fuzz N]                 The replication layer on its own.
     ///   game  [--seed N] [--seconds N] [--fuzz N]   The whole game: real server, real clients, every kind of line.
     ///   build [--seed N]                            Every skill, ailment, reaction and keystone, done for real on a running server.
+    ///   pace  [--seed N] [--level N] [--hero N] [--minutes N] [--archetype id]   How playing goes: time in fights, kills, falls.
     /// Exit code 1 on any failure.
     /// </summary>
     internal static class Program
@@ -30,6 +31,8 @@ namespace Dino_NetLab
                     return GameTests.Run(options);
                 case "build":
                     return BuildTests.Run(options);
+                case "pace":
+                    return PaceTests.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

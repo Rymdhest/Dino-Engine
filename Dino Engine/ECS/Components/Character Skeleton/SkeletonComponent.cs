@@ -29,7 +29,12 @@ namespace Dino_Engine.ECS.Components
         public Matrix4[] BindPoseInverse;
         public Matrix4[] SkinningMatrices;
 
-        public SkeletonComponent()
+        public SkeletonComponent() : this(SkeletonGenerator.GetInverseBindMatrices())
+        {
+        }
+
+        /// <summary>A body with its joints elsewhere: see <see cref="Modelling.Procedural.Character.BeastGenerator"/>.</summary>
+        public SkeletonComponent(Matrix4[] inverseBind)
         {
             int boneCount = (int)BoneType.Count;
 
@@ -44,13 +49,11 @@ namespace Dino_Engine.ECS.Components
             BindPoseInverse = new Matrix4[boneCount];
             SkinningMatrices = new Matrix4[boneCount];
 
-            InitializeBindPose();
+            InitializeBindPose(inverseBind);
         }
 
-        public void InitializeBindPose()
+        public void InitializeBindPose(Matrix4[] invBind)
         {
-            Matrix4[] invBind = SkeletonGenerator.GetInverseBindMatrices();
-
             ParentIndices[(int)BoneType.Chest] = -1;
             ParentIndices[(int)BoneType.Head] = (int)BoneType.Chest;
 

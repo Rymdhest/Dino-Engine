@@ -80,6 +80,28 @@ namespace Dino_Engine.Modelling.Procedural.Character
             return body;
         }
 
+        /// <summary>A bow in the left hand of a body on this rig, whose left shoulder is at <paramref name="leftShoulder"/>.</summary>
+        public static Mesh Bow(Vector3 leftShoulder)
+        {
+            var b = new MeshBuilder();
+            VertexMaterial wood = new VertexMaterial(TextureGenerator.wood, new Colour(96, 70, 48));
+            Vector3 previous = new Vector3(0f, -1.7f, 0f);
+            for (int i = 1; i <= 10; i++)
+            {
+                float t = i / 10f * 2f - 1f;
+                Vector3 next = new Vector3(0f, t * 1.7f, (1f - t * t) * 0.62f);
+                b.Tube(previous, next, 0.05f, 0.05f, 5, wood, capped: false);
+                previous = next;
+            }
+            b.Tube(new Vector3(0f, -1.7f, 0f), new Vector3(0f, 1.7f, 0f), 0.012f, 0.012f, 3, new VertexMaterial(TextureGenerator.cloth, new Colour(190, 180, 160)), capped: false);
+            Mesh bow = b.Build();
+            bow.translate(new Vector3(0f, -ArmLength - 0.1f, 0f));
+            bow.rotate(new Vector3(0f, 0f, MathF.PI / 2f));
+            bow.translate(leftShoulder);
+            bow.setAllBoneIndices(new Vector2((int)BoneType.HandL, 0f));
+            return bow;
+        }
+
         private static Mesh BuildTorso(HumanoidLook look)
         {
             var b = new MeshBuilder { TilesPerMetre = 0.5f };
@@ -234,23 +256,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
             }
             else if (look.Held == HeldItem.Bow)
             {
-                var b = new MeshBuilder();
-                VertexMaterial wood = new VertexMaterial(TextureGenerator.wood, new Colour(96, 70, 48));
-                Vector3 previous = new Vector3(0f, -1.7f, 0f);
-                for (int i = 1; i <= 10; i++)
-                {
-                    float t = i / 10f * 2f - 1f;
-                    Vector3 next = new Vector3(0f, t * 1.7f, (1f - t * t) * 0.62f);
-                    b.Tube(previous, next, 0.05f, 0.05f, 5, wood, capped: false);
-                    previous = next;
-                }
-                b.Tube(new Vector3(0f, -1.7f, 0f), new Vector3(0f, 1.7f, 0f), 0.012f, 0.012f, 3, new VertexMaterial(TextureGenerator.cloth, new Colour(190, 180, 160)), capped: false);
-                Mesh bow = b.Build();
-                bow.translate(new Vector3(0f, -ArmLength - 0.1f, 0f));
-                bow.rotate(leftArmRotation);
-                bow.translate(leftShoulder);
-                bow.setAllBoneIndices(new Vector2((int)BoneType.HandL, 0f));
-                body += bow;
+                body += Bow(leftShoulder);
             }
 
             if (look.Shield)

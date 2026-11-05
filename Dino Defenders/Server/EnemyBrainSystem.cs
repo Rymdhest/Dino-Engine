@@ -22,10 +22,19 @@ namespace Dino_Defenders.Server
         private const float ShortestWindUp = 0.45f;     // However quick the skill, there's always a moment to get out of the way.
         private const float MeleeSlack = 1.2f;
         private const float FollowDistance = 7f;
+        private const float CallReach = 20f;            // How far a cry carries. Less than the gap between packs, so one pack doesn't bring the next.
+        private const float AlarmSight = 60f;           // A cry only sends someone after a foe that's near enough to be what it's about.
+        private const int NoticedAlarm = 2;             // Whoever notices calls, and those who hear pass it on once.
+        public const int StruckAlarm = 3;
+        private const float PersonalSpace = 2.5f;
+        private const float CrowdReach = 16f;           // Only a crowd around a foe has to sort itself out.
+        private const int SpreadEvery = 3;              // Ticks between each one looking around it.
+        private const int MostNeighbours = 8;
 
         private readonly GameServer _server;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
         private readonly WorldPathfinder _paths = new();
+        private readonly List<Actor> _near = new();
 
         public EnemyBrainSystem(GameServer server)
             : base(new BitMask(typeof(EnemyComponent), typeof(EnemyBrainComponent), typeof(VelocityComponent), typeof(ActorComponent)))
@@ -76,6 +85,8 @@ namespace Dino_Defenders.Server
             Vector2 foe = target?.Position ?? position;
             bool noFoe = target == null;
 
+            if (enemy.State != EnemyState.Idle) actor.Alarm = 0;
+
             brain.StateTime += deltaTime * rate;
             brain.Cooldown -= deltaTime * rate;
 
@@ -84,7 +95,11 @@ namespace Dino_Defenders.Server
             {
                 case EnemyState.Idle:
                     velocity = actor.Owner != null ? Heel(ref brain, session, position, speed) : Wander(ref brain, enemy, position, speed);
-                    if (!noFoe && toTarget < Noticing(brain, target!)) Change(ref enemy, ref brain, EnemyState.Chasing);
+                    if (!noFoe && (toTarget < Noticing(brain, target!) || (actor.Alarm > 0 && toTarget < AlarmSight)))
+                    {
+                        Call(session, actor);
+                        Change(ref enemy, ref brain, EnemyState.Chasing);
+                    }
                     break;
 
                 case EnemyState.Chasing:
@@ -114,6 +129,7 @@ namespace Dino_Defenders.Server
                         velocity = (position - foe).Normalized() * speed * 0.6f;
                     }
                     Face(entity, foe - position, deltaTime);
+                    velocity += Spread(session, actor, ref brain, entity.Entity.Id, toTarget) * speed;
                     break;
 
                 case EnemyState.WindingUp:
@@ -127,6 +143,7 @@ namespace Dino_Defenders.Server
                     break;
 
                 case EnemyState.Recovering:
+                    velocity = Spread(session, actor, ref brain, entity.Entity.Id, toTarget) * speed * 0.6f;
                     if (brain.StateTime >= RecoverTime) Change(ref enemy, ref brain, EnemyState.Chasing);
                     break;
 
@@ -147,6 +164,51 @@ namespace Dino_Defenders.Server
             entity.Set(new VelocityComponent(new Vector3(velocity.X, 0f, velocity.Y)));
             entity.Set(brain);
             entity.Set(enemy);
+        }
+
+        // What's near hears it too. A pack is one thing to a hero who walks up to it, however far its members happen to be from them.
+        private void Call(ServerSession session, Actor actor)
+        {
+            int left = actor.Alarm > 0 ? actor.Alarm - 1 : NoticedAlarm;
+            actor.Alarm = 0;
+            if (left <= 0 || actor.Team != Team.Enemies) return;
+
+            _near.Clear();
+            session.Combat.Grid.Foes(Team.Heroes, actor.Position, CallReach, _near);
+            foreach (Actor other in _near)
+            {
+                if (other != actor && other.Alarm < left) other.Alarm = left;
+            }
+        }
+
+        // Which way to step so as not to stand in someone. Without this a pack closes on a foe until it's one body with many heads. It's worked out now
+        // and then, as a push that's a few ticks old does just as well, and anyone far from a fight has no one to be in the way of.
+        private Vector2 Spread(ServerSession session, Actor actor, ref EnemyBrainComponent brain, uint id, float toTarget)
+        {
+            if (toTarget > CrowdReach) return Vector2.Zero;
+            if ((session.Server.Tick + id) % SpreadEvery != 0) return brain.Apart;
+
+            _near.Clear();
+            session.Combat.Grid.Foes(actor.Team == Team.Enemies ? Team.Heroes : Team.Enemies, actor.Position, PersonalSpace, _near);
+
+            Vector2 push = Vector2.Zero;
+            int counted = 0;
+            foreach (Actor other in _near)
+            {
+                if (other == actor) continue;
+                if (++counted > MostNeighbours) break;
+
+                Vector2 away = actor.Position - other.Position;
+                float distance = away.Length;
+
+                // Two in exactly one place have nothing to tell them apart but who they are.
+                if (distance < 0.05f) away = new Vector2(MathF.Cos(id * 2.4f), MathF.Sin(id * 2.4f));
+                else away /= distance;
+                push += away * (1f - MathF.Min(distance / PersonalSpace, 1f));
+            }
+
+            brain.Apart = push.LengthSquared > 1f ? push.Normalized() : push;
+            return brain.Apart;
         }
 
         // The quieter a hero, the closer they can get.
@@ -239,7 +301,9 @@ namespace Dino_Defenders.Server
             {
                 brain.Path = _paths.Find(world, position, target);
                 brain.PathStep = 0;
-                brain.NextPathTime = session.Time + PathRefresh;
+
+                // Each at its own moment, or a pack blocked by the same wall all search in the same tick.
+                brain.NextPathTime = session.Time + PathRefresh * _random.Range(0.75f, 1.25f);
             }
 
             if (brain.Path == null || brain.Path.Count == 0) return (target - position).Normalized();

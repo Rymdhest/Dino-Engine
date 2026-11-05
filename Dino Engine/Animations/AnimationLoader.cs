@@ -14,6 +14,55 @@ namespace Dino_Engine.Animation
             AnimationRegistry.Register(CreateIdleClip());
             AnimationRegistry.Register(CreateRunClip());
             AnimationRegistry.Register(CreateSwordSwingClip());
+            AnimationRegistry.Register(CreateGallopClip());
+            AnimationRegistry.Register(CreateBiteClip());
+        }
+
+        // An animal's legs are short and quick. Fore and hind pairs reach and gather against each other, with a little offset so that it doesn't hop.
+        private static AnimationClip CreateGallopClip()
+        {
+            var clip = new AnimationClip { Id = AnimationId.Gallop, Duration = 1.0f };
+
+            const float reach = 0.62f;
+            const float knee = 0.45f;
+            Quaternion downL = Quaternion.FromAxisAngle(Vector3.UnitZ, -MathF.PI / 2f);
+            Quaternion downR = Quaternion.FromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+
+            AnimationTrack Swing(Func<float, Quaternion> pose, float phase)
+            {
+                var keys = new List<Keyframe>();
+                for (int i = 0; i <= 8; i++)
+                {
+                    float t = i / 8f;
+                    keys.Add(new Keyframe(t, pose(MathF.Sin((t + phase) * MathF.Tau))));
+                }
+                return new AnimationTrack(keys);
+            }
+
+            // Which way a foreleg swings about its own y is opposite on each side, as each arm is the other's mirror.
+            clip.Tracks[BoneType.UpperArmL] = Swing(s => downL * Quaternion.FromAxisAngle(Vector3.UnitY, s * reach), 0f);
+            clip.Tracks[BoneType.UpperArmR] = Swing(s => downR * Quaternion.FromAxisAngle(Vector3.UnitY, -s * reach), 0.1f);
+            clip.Tracks[BoneType.LowerArmL] = Swing(s => Quaternion.FromAxisAngle(Vector3.UnitY, -(s * 0.5f + 0.5f) * knee), 0.15f);
+            clip.Tracks[BoneType.LowerArmR] = Swing(s => Quaternion.FromAxisAngle(Vector3.UnitY, (s * 0.5f + 0.5f) * knee), 0.25f);
+            clip.Tracks[BoneType.UpperLegL] = Swing(s => Quaternion.FromAxisAngle(Vector3.UnitX, s * reach), 0.5f);
+            clip.Tracks[BoneType.UpperLegR] = Swing(s => Quaternion.FromAxisAngle(Vector3.UnitX, s * reach), 0.6f);
+            clip.Tracks[BoneType.LowerLegL] = Swing(s => Quaternion.FromAxisAngle(Vector3.UnitX, (s * 0.5f + 0.5f) * knee), 0.65f);
+            clip.Tracks[BoneType.LowerLegR] = Swing(s => Quaternion.FromAxisAngle(Vector3.UnitX, (s * 0.5f + 0.5f) * knee), 0.75f);
+            return clip;
+        }
+
+        // Head back, then in.
+        private static AnimationClip CreateBiteClip()
+        {
+            var clip = new AnimationClip { Id = AnimationId.Bite, Duration = 1.0f };
+            clip.Tracks[BoneType.Head] = new AnimationTrack(new List<Keyframe>
+            {
+                new Keyframe(0.0f, Quaternion.Identity),
+                new Keyframe(0.14f, Quaternion.FromAxisAngle(Vector3.UnitX, -0.55f)),
+                new Keyframe(0.28f, Quaternion.FromAxisAngle(Vector3.UnitX, 0.5f)),
+                new Keyframe(0.42f, Quaternion.Identity)
+            });
+            return clip;
         }
 
         private static AnimationClip CreateIdleClip()

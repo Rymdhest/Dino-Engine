@@ -30,12 +30,13 @@ namespace Dino_Engine.ECS.Systems
                     bool isMoving = speed > 0.0001f;
 
                     // 2. Check if the Run layer is active
-                    var runLayer = animComp.Layers.Find(l => l.ClipId == AnimationId.Run);
+                    AnimationId runClip = animComp.RunClip;
+                    var runLayer = animComp.Layers.Find(l => l.ClipId == runClip);
 
                     if (isMoving && runLayer == null)
                     {
                         // Add Run layer on top of Idle
-                        animComp.PlayLayer(AnimationId.Run, loop:true, speed: speed*0.1f);
+                        animComp.PlayLayer(runClip, loop:true, speed: speed*0.1f*animComp.Cadence);
                     }
                     else if (!isMoving && runLayer != null)
                     {
@@ -45,7 +46,7 @@ namespace Dino_Engine.ECS.Systems
                     else if (runLayer != null)
                     {
                         // The legs keep up with the body. Set only at the start, a run kept the pace of its first frame, which is nearly always slower than the run: it went at half speed.
-                        runLayer.Speed = speed * 0.1f;
+                        runLayer.Speed = speed * 0.1f * animComp.Cadence;
                     }
 
                     // 3. Write the modified struct back to the component array
