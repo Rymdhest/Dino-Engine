@@ -185,6 +185,8 @@ namespace Dino_Engine.Networking
         private const int WindowBits = 7;
         private const float LeaveMargin = 1.2f;     // Hysteresis, so something at the edge doesn't flicker in and out.
         private const int MostDepartures = 200;
+        private const int DepartureBits = 64;       // At most, for an id and a tick.
+        private const int DepartureShare = 4;       // Of a packet: a quarter is the most that departures can take.
         private const int MostStrings = 24;
         private const int EventBits = 3000;
         private const uint EventLife = 45;          // Ticks. After this it would look odd anyway.
@@ -341,7 +343,7 @@ namespace Dino_Engine.Networking
             writer.WriteVarUInt(sequence);
             WriteStrings(view, writer, packet);
             UpdateRelevance(view, tick);
-            WriteDepartures(view, writer, packet);
+            WriteDepartures(view, writer, packet, maxBits);
             WriteEvents(view, writer, packet, tick);
             WriteGhosts(view, writer, packet, sequence, maxBits - 1);
             writer.WriteBool(false);
@@ -393,9 +395,10 @@ namespace Dino_Engine.Networking
         }
 
         // Said again in every snapshot until confirmed, so a lost one can't leave a corpse standing on a client.
-        private static void WriteDepartures(GhostView view, BitWriter writer, GhostView.SentPacket packet)
+        private static void WriteDepartures(GhostView view, BitWriter writer, GhostView.SentPacket packet, int maxBits)
         {
-            int count = Math.Min(view.Departing.Count, MostDepartures);
+            // A share of the packet at most, however much is leaving. What doesn't fit goes in the next one, like anything else unconfirmed.
+            int count = Math.Min(view.Departing.Count, Math.Min(MostDepartures, maxBits / DepartureShare / DepartureBits));
             writer.WriteVarUInt((uint)count);
             foreach ((uint id, uint leftAt) in view.Departing)
             {

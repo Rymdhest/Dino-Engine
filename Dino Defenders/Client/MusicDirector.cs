@@ -98,7 +98,7 @@ namespace Dino_Defenders.Client
             else _fightLeft = MathF.Max(_fightLeft - Interval, 0f);
 
             // Being hurt raises the stakes as much as more enemies do.
-            float hurt = 1f - Math.Clamp(session.Health / MathF.Max(session.Stats.MaxHealth, 1f), 0f, 1f);
+            float hurt = 1f - Math.Clamp(session.Health / MathF.Max(session.Sheet.MaxHealth, 1f), 0f, 1f);
 
             MusicMood mood;
             float wanted;

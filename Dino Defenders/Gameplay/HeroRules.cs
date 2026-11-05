@@ -1,7 +1,10 @@
 using Dino_Defenders.Progression;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
 using OpenTK.Mathematics;
+using System.Runtime.CompilerServices;
 
 namespace Dino_Defenders.Gameplay
 {
@@ -10,27 +13,35 @@ namespace Dino_Defenders.Gameplay
     {
         public Vector2 Move;
         public Vector2? Aim;
-        public bool Attack;
+        public int Slots;       // A bit for each skill slot being asked for.
         public bool Dash;
-        public bool Whirl;
         public bool Flask;
         public bool Interact;
         public bool Guide;
+
+        public void Use(int slot) => Slots |= 1 << slot;
     }
 
     [Flags]
-    public enum HeroButtons : byte
+    public enum HeroButtons : ushort
     {
         None = 0,
-        Attack = 1,     // Held.
-        Dash = 2,       // Pressed, like the rest.
-        Whirl = 4,
-        Flask = 8,
-        Interact = 16,
-        Frozen = 32,    // The game is paused, as someone playing alone can.
+        Slot0 = 1,      // Held, like Slot1: the mouse buttons.
+        Slot1 = 2,
+        Slot2 = 4,      // Pressed, like the rest.
+        Slot3 = 8,
+        Slot4 = 16,
+        Slot5 = 32,
+        Slot6 = 64,
+        Dash = 128,
+        Flask = 256,
+        Interact = 512,
+        Frozen = 1024,  // The game is paused, as someone playing alone can.
+
+        Slots = Slot0 | Slot1 | Slot2 | Slot3 | Slot4 | Slot5 | Slot6,
 
         /// <summary>The ones that happen once per press, and so must never be lost.</summary>
-        Presses = Dash | Whirl | Flask | Interact,
+        Presses = Slot2 | Slot3 | Slot4 | Slot5 | Slot6 | Dash | Flask | Interact,
     }
 
     /// <summary>
@@ -74,9 +85,8 @@ namespace Dino_Defenders.Gameplay
                 command.AimZ = (short)MathF.Round(aim.Y / AimStep);
             }
 
-            if (intent.Attack) command.Buttons |= HeroButtons.Attack;
+            command.Buttons |= (HeroButtons)(intent.Slots & (int)HeroButtons.Slots);
             if (intent.Dash) command.Buttons |= HeroButtons.Dash;
-            if (intent.Whirl) command.Buttons |= HeroButtons.Whirl;
             if (intent.Flask) command.Buttons |= HeroButtons.Flask;
             if (intent.Interact) command.Buttons |= HeroButtons.Interact;
             return command;
@@ -88,7 +98,7 @@ namespace Dino_Defenders.Gameplay
             writer.WriteByte((byte)MoveZ);
             writer.WriteBits((ushort)AimX, 16);
             writer.WriteBits((ushort)AimZ, 16);
-            writer.WriteByte((byte)Buttons);
+            writer.WriteBits((ushort)Buttons, 16);
             writer.WriteByte(ViewLag);
         }
 
@@ -99,7 +109,7 @@ namespace Dino_Defenders.Gameplay
             MoveZ = (sbyte)reader.ReadByte(),
             AimX = (short)reader.ReadBits(16),
             AimZ = (short)reader.ReadBits(16),
-            Buttons = (HeroButtons)reader.ReadByte(),
+            Buttons = (HeroButtons)reader.ReadBits(16),
             ViewLag = reader.ReadByte(),
         };
     }
@@ -108,37 +118,64 @@ namespace Dino_Defenders.Gameplay
     public enum HeroStepEvents
     {
         None = 0,
-        Swung = 1,      // A swing has started.
-        Struck = 2,     // Its blow lands now.
-        Whirled = 4,
-        Dashed = 8,
+        Used = 1,       // A skill has started. Which one is in HeroSimState.Using.
+        Landed = 2,     // Its blow lands now.
+        Dashed = 4,
+    }
+
+    /// <summary>A number for each skill slot. It's a value, so a hero's state can be copied into the history a client keeps of it.</summary>
+    [InlineArray(HeroState.SkillSlots)]
+    public struct SlotTimes
+    {
+        private float _first;
     }
 
     /// <summary>
     /// Everything about a hero that a tick can change. The client predicts this and the server has the last word on it, so it is
     /// sent whole and unrounded: a client that lands on the same numbers knows it guessed right, and otherwise has what it needs to
-    /// correct itself.
+    /// correct itself. The last group the server alone sets, and the client takes as it finds them: that's what lets a chill or a freeze
+    /// slow a hero without either end having to guess.
     /// </summary>
     public struct HeroSimState
     {
+        public const sbyte NoSlot = -1;
+
         public Vector2 Position;
         public float Yaw;
         public Vector2 Aim;
+        public float AimReach;
         public Vector2 DashDirection;
+        public float DashSpeed;
         public float DashLeft;
-        public float SwingImpactIn;     // Below 0 when no blow is on its way.
-        public float SwingCooldown;
-        public float DashCooldown;
-        public float WhirlCooldown;
+        public sbyte Using;             // The slot being used, while it's being used.
+        public float ImpactIn;          // Below 0 when no blow is on its way.
+        public float BusyFor;
+        public SlotTimes Cooldowns;
+        public float DodgeCooldown;
         public float Safe;              // Nothing can touch them for this long: a dodge's window of safety.
+        public sbyte Queued;            // A press made too early, held on to for a moment.
+        public float QueuedFor;
+        public float Mana;
         public bool Down;
         public byte Moves;              // Goes up each time the server puts them somewhere else, so it isn't smoothed over.
 
-        public static HeroSimState At(Vector2 position) => new HeroSimState
+        public float Health;
+        public float Held;              // Stunned or frozen for this long.
+        public float MoveRate;
+        public float ActionRate;
+        public Condition State;
+        public Counters Counters;
+
+        public static HeroSimState At(Vector2 position, float mana) => new HeroSimState
         {
             Position = position,
             Aim = Vector2.UnitY,
-            SwingImpactIn = -1f,
+            Using = NoSlot,
+            Queued = NoSlot,
+            ImpactIn = -1f,
+            Mana = mana,
+            MoveRate = 1f,
+            ActionRate = 1f,
         };
 
         public readonly void Write(BitWriter writer)
@@ -148,44 +185,140 @@ namespace Dino_Defenders.Gameplay
             writer.WriteFloat(Yaw);
             writer.WriteFloat(Aim.X);
             writer.WriteFloat(Aim.Y);
+            writer.WriteFloat(AimReach);
             writer.WriteFloat(DashDirection.X);
             writer.WriteFloat(DashDirection.Y);
+            writer.WriteFloat(DashSpeed);
             writer.WriteFloat(DashLeft);
-            writer.WriteFloat(SwingImpactIn);
-            writer.WriteFloat(SwingCooldown);
-            writer.WriteFloat(DashCooldown);
-            writer.WriteFloat(WhirlCooldown);
+            writer.WriteByte((byte)Using);
+            writer.WriteFloat(ImpactIn);
+            writer.WriteFloat(BusyFor);
+
+            // Most of these are nothing, most of the time.
+            uint running = 0;
+            for (int i = 0; i < HeroState.SkillSlots; i++)
+            {
+                if (Cooldowns[i] > 0f) running |= 1u << i;
+            }
+            writer.WriteBits(running, HeroState.SkillSlots);
+            for (int i = 0; i < HeroState.SkillSlots; i++)
+            {
+                if ((running & (1u << i)) != 0) writer.WriteFloat(Cooldowns[i]);
+            }
+
+            writer.WriteFloat(DodgeCooldown);
             writer.WriteFloat(Safe);
+            writer.WriteByte((byte)Queued);
+            writer.WriteFloat(QueuedFor);
+            writer.WriteFloat(Mana);
             writer.WriteBool(Down);
             writer.WriteByte(Moves);
+
+            writer.WriteFloat(Health);
+            writer.WriteFloat(Held);
+            writer.WriteFloat(MoveRate);
+            writer.WriteFloat(ActionRate);
+            writer.WriteVarULong((ulong)State);
+            writer.WriteVarInt(Counters.Gold);
+            writer.WriteByte(Counters.ShrinesKindled);
+            writer.WriteByte(Counters.RecentKills);
+            writer.WriteByte(Counters.HealthSpent);
+            writer.WriteByte(Counters.Minions);
+            writer.WriteByte(Counters.AlliesNear);
         }
 
-        public static HeroSimState Read(BitReader reader) => new HeroSimState
+        public static HeroSimState Read(BitReader reader)
         {
-            Position = new Vector2(reader.ReadFloat(), reader.ReadFloat()),
-            Yaw = reader.ReadFloat(),
-            Aim = new Vector2(reader.ReadFloat(), reader.ReadFloat()),
-            DashDirection = new Vector2(reader.ReadFloat(), reader.ReadFloat()),
-            DashLeft = reader.ReadFloat(),
-            SwingImpactIn = reader.ReadFloat(),
-            SwingCooldown = reader.ReadFloat(),
-            DashCooldown = reader.ReadFloat(),
-            WhirlCooldown = reader.ReadFloat(),
-            Safe = reader.ReadFloat(),
-            Down = reader.ReadBool(),
-            Moves = reader.ReadByte(),
-        };
+            var state = new HeroSimState
+            {
+                Position = new Vector2(reader.ReadFloat(), reader.ReadFloat()),
+                Yaw = reader.ReadFloat(),
+                Aim = new Vector2(reader.ReadFloat(), reader.ReadFloat()),
+                AimReach = reader.ReadFloat(),
+                DashDirection = new Vector2(reader.ReadFloat(), reader.ReadFloat()),
+                DashSpeed = reader.ReadFloat(),
+                DashLeft = reader.ReadFloat(),
+                Using = (sbyte)reader.ReadByte(),
+                ImpactIn = reader.ReadFloat(),
+                BusyFor = reader.ReadFloat(),
+            };
+
+            uint running = reader.ReadBits(HeroState.SkillSlots);
+            for (int i = 0; i < HeroState.SkillSlots; i++)
+            {
+                if ((running & (1u << i)) != 0) state.Cooldowns[i] = reader.ReadFloat();
+            }
+
+            state.DodgeCooldown = reader.ReadFloat();
+            state.Safe = reader.ReadFloat();
+            state.Queued = (sbyte)reader.ReadByte();
+            state.QueuedFor = reader.ReadFloat();
+            state.Mana = reader.ReadFloat();
+            state.Down = reader.ReadBool();
+            state.Moves = reader.ReadByte();
+
+            state.Health = reader.ReadFloat();
+            state.Held = reader.ReadFloat();
+            state.MoveRate = reader.ReadFloat();
+            state.ActionRate = reader.ReadFloat();
+            state.State = (Condition)reader.ReadVarULong();
+            state.Counters = new Counters
+            {
+                Gold = reader.ReadVarInt(),
+                ShrinesKindled = reader.ReadByte(),
+                RecentKills = reader.ReadByte(),
+                HealthSpent = reader.ReadByte(),
+                Minions = reader.ReadByte(),
+                AlliesNear = reader.ReadByte(),
+            };
+            return state;
+        }
 
         /// <summary>Whether a prediction landed on the same place as what the server says. How they face doesn't affect anything, so it isn't counted.</summary>
         public readonly bool Matches(in HeroSimState other)
         {
-            return (Position - other.Position).LengthSquared < 1e-6f
-                && Down == other.Down && Moves == other.Moves
-                && MathF.Abs(DashLeft - other.DashLeft) < 1e-3f
-                && MathF.Abs(SwingImpactIn - other.SwingImpactIn) < 1e-3f
-                && MathF.Abs(SwingCooldown - other.SwingCooldown) < 1e-3f
-                && MathF.Abs(DashCooldown - other.DashCooldown) < 1e-3f
-                && MathF.Abs(WhirlCooldown - other.WhirlCooldown) < 1e-3f;
+            if ((Position - other.Position).LengthSquared >= 1e-6f || Down != other.Down || Moves != other.Moves || Using != other.Using) return false;
+            if (MathF.Abs(DashLeft - other.DashLeft) >= 1e-3f || MathF.Abs(ImpactIn - other.ImpactIn) >= 1e-3f || MathF.Abs(BusyFor - other.BusyFor) >= 1e-3f) return false;
+            if (MathF.Abs(DodgeCooldown - other.DodgeCooldown) >= 1e-3f || MathF.Abs(Mana - other.Mana) >= 0.05f) return false;
+            for (int i = 0; i < HeroState.SkillSlots; i++)
+            {
+                if (MathF.Abs(Cooldowns[i] - other.Cooldowns[i]) >= 1e-3f) return false;
+            }
+            return true;
+        }
+
+        /// <summary>Takes on what only the server decides, which is never a wrong guess.</summary>
+        public void TakeOrders(in HeroSimState truth)
+        {
+            Health = truth.Health;
+            Held = truth.Held;
+            MoveRate = truth.MoveRate;
+            ActionRate = truth.ActionRate;
+            State = truth.State;
+            Counters = truth.Counters;
+        }
+    }
+
+    /// <summary>
+    /// What a hero has to work with, as of now: their sheet, and what's in each slot. Made when the sheet changes rather than looked up in a tick.
+    /// </summary>
+    public sealed class HeroKit
+    {
+        public readonly ActorSheet Sheet;
+        public readonly SkillProfile?[] Slots = new SkillProfile?[HeroState.SkillSlots];
+
+        public HeroKit(HeroState hero, ActorSheet sheet)
+        {
+            Sheet = sheet;
+            for (int slot = 0; slot < HeroState.SkillSlots; slot++)
+            {
+                int index = HeroBuild.SlotIndex(hero, sheet.Loadout, slot);
+                if (index < 0) continue;
+
+                SkillProfile profile = sheet.Profile(index);
+                Tags needs = profile.Skill.Needs;
+                if (needs == Tags.None || (sheet.Loadout.Weapon.Tags & needs) != 0) Slots[slot] = profile;
+            }
         }
     }
 
@@ -198,48 +331,60 @@ namespace Dino_Defenders.Gameplay
     /// </summary>
     public static class HeroRules
     {
-        public const float SwingDuration = 0.6f;
-        public const float SwingImpact = 0.15f;
-        public const float SwingReach = 6.4f;
-        public const float SwingArc = 2.4f;
         public const float DashDuration = 0.2f;
-        public const float DashSpeed = 34f;
-        public const float DashCooldown = 2.4f;
-        public const float WhirlReach = 8.5f;
-        public const float WhirlCooldown = 8f;
-        public const float WhirlDamage = 1.9f;
         public const float FlaskHeal = 0.45f;
         public const float DeathDelay = 2.4f;
         public const float Radius = WorldData.CharacterRadius;
+        public const float QueueTime = 0.3f;
 
         private const float TurnSpeed = 14f;
 
-        public static HeroStepEvents Step(ref HeroSimState hero, in HeroCommand command, in HeroStats stats, CharacterMover mover)
+        public static HeroButtons SlotButton(int slot) => (HeroButtons)(1 << slot);
+
+        public static HeroStepEvents Step(ref HeroSimState hero, in HeroCommand command, HeroKit kit, CharacterMover mover)
         {
             const float deltaTime = NetTime.TickSeconds;
             if (command.Has(HeroButtons.Frozen)) return HeroStepEvents.None;
 
-            hero.SwingCooldown = MathF.Max(hero.SwingCooldown - deltaTime, 0f);
-            hero.DashCooldown = MathF.Max(hero.DashCooldown - deltaTime, 0f);
-            hero.WhirlCooldown = MathF.Max(hero.WhirlCooldown - deltaTime, 0f);
+            ActorSheet sheet = kit.Sheet;
+            for (int i = 0; i < HeroState.SkillSlots; i++) hero.Cooldowns[i] = MathF.Max(hero.Cooldowns[i] - deltaTime, 0f);
+            hero.DodgeCooldown = MathF.Max(hero.DodgeCooldown - deltaTime, 0f);
             hero.Safe = MathF.Max(hero.Safe - deltaTime, 0f);
+            hero.QueuedFor = MathF.Max(hero.QueuedFor - deltaTime, 0f);
+            hero.Held = MathF.Max(hero.Held - deltaTime, 0f);
+            hero.Mana = MathF.Min(hero.Mana + sheet.ManaRegen * deltaTime, sheet.MaxMana);
             if (hero.Down) return HeroStepEvents.None;
 
             var events = HeroStepEvents.None;
             Vector2 aim = command.Aim;
-            if (aim.LengthSquared > 1e-4f) hero.Aim = aim.Normalized();
+            if (aim.LengthSquared > 1e-4f)
+            {
+                hero.AimReach = aim.Length;
+                hero.Aim = aim / hero.AimReach;
+            }
+
+            // Stunned or frozen, nothing happens, and whatever was starting goes with it.
+            if (hero.Held > 0f)
+            {
+                hero.Using = HeroSimState.NoSlot;
+                hero.ImpactIn = -1f;
+                hero.BusyFor = 0f;
+                hero.DashLeft = 0f;
+                return events;
+            }
 
             Vector2 move = command.Move;
             if (move.LengthSquared > 0f) move.Normalize();
 
-            float speed = stats.MoveSpeed;
-            if (hero.SwingImpactIn >= 0f || hero.SwingCooldown > 0f) speed *= 0.55f;
+            float speed = sheet.MoveSpeed * hero.MoveRate;
+            if (hero.Using >= 0 && kit.Slots[hero.Using] is SkillProfile inHand) speed *= inHand.Skill.MoveFactor;
 
-            if (command.Has(HeroButtons.Dash) && hero.DashCooldown <= 0f)
+            if (command.Has(HeroButtons.Dash) && hero.DodgeCooldown <= 0f)
             {
                 hero.DashDirection = move.LengthSquared > 0f ? move : hero.Aim;
+                hero.DashSpeed = sheet.DodgeSpeed;
                 hero.DashLeft = DashDuration;
-                hero.DashCooldown = DashCooldown;
+                hero.DodgeCooldown = sheet.DodgeCooldown;
                 hero.Safe = DashDuration + 0.1f;
                 events |= HeroStepEvents.Dashed;
             }
@@ -248,33 +393,87 @@ namespace Dino_Defenders.Gameplay
             if (hero.DashLeft > 0f)
             {
                 hero.DashLeft -= deltaTime;
-                velocity = hero.DashDirection * DashSpeed;
+                velocity = hero.DashDirection * hero.DashSpeed;
             }
             hero.Position = mover.Move(hero.Position, velocity, Radius, deltaTime);
 
-            bool attacking = hero.SwingImpactIn >= 0f || hero.SwingCooldown > 0f;
-            Turn(ref hero, attacking ? hero.Aim : move, deltaTime);
+            Turn(ref hero, hero.Using >= 0 ? hero.Aim : move, deltaTime);
 
-            if (command.Has(HeroButtons.Attack) && hero.SwingCooldown <= 0f)
+            float action = deltaTime * hero.ActionRate;
+            hero.BusyFor = MathF.Max(hero.BusyFor - action, 0f);
+            if (hero.ImpactIn >= 0f)
             {
-                float rate = stats.AttackSpeed;
-                hero.SwingCooldown = SwingDuration / rate;
-                hero.SwingImpactIn = SwingImpact / rate;
-                events |= HeroStepEvents.Swung;
+                hero.ImpactIn -= action;
+                if (hero.ImpactIn < 0f) events |= HeroStepEvents.Landed;
             }
 
-            if (command.Has(HeroButtons.Whirl) && hero.WhirlCooldown <= 0f)
+            // What's landed stays in hand for this tick, so that whoever reads the events can see what it was.
+            if (hero.BusyFor <= 0f && hero.ImpactIn < 0f && (events & HeroStepEvents.Landed) == 0) hero.Using = HeroSimState.NoSlot;
+
+            for (int slot = 2; slot < HeroState.SkillSlots; slot++)
             {
-                hero.WhirlCooldown = WhirlCooldown;
-                events |= HeroStepEvents.Whirled;
+                if (!command.Has(SlotButton(slot))) continue;
+                hero.Queued = (sbyte)slot;
+                hero.QueuedFor = QueueTime;
             }
 
-            if (hero.SwingImpactIn >= 0f)
+            if (hero.Using < 0)
             {
-                hero.SwingImpactIn -= deltaTime;
-                if (hero.SwingImpactIn < 0f) events |= HeroStepEvents.Struck;
+                if (hero.QueuedFor > 0f && TryUse(ref hero, kit, hero.Queued, ref events))
+                {
+                    hero.QueuedFor = 0f;
+                }
+                else if (command.Has(HeroButtons.Slot1) && TryUse(ref hero, kit, 1, ref events))
+                {
+                }
+                else if (command.Has(HeroButtons.Slot0))
+                {
+                    TryUse(ref hero, kit, 0, ref events);
+                }
             }
             return events;
+        }
+
+        /// <summary>
+        /// Whether the key on a slot presses it this frame. What a key sends is a press, so that a quick tap is never lost, which means one held
+        /// down has to press again for its skill to repeat as a mouse button's does. It waits until the skill could go: one on cooldown would
+        /// otherwise keep the queue from a second key held with it.
+        /// </summary>
+        public static bool KeyPresses(in HeroSimState hero, int slot, bool down, bool justPressed) =>
+            justPressed || down && hero.Using < 0 && hero.Cooldowns[slot] <= 0f;
+
+        private static bool TryUse(ref HeroSimState hero, HeroKit kit, int slot, ref HeroStepEvents events)
+        {
+            if (slot < 0 || slot >= HeroState.SkillSlots || kit.Slots[slot] is not SkillProfile skill || hero.Cooldowns[slot] > 0f) return false;
+
+            if (skill.CostsHealth)
+            {
+                if (hero.Health <= skill.Cost) return false;
+                hero.Health -= skill.Cost;
+            }
+            else
+            {
+                if (hero.Mana < skill.Cost) return false;
+                hero.Mana -= skill.Cost;
+            }
+
+            hero.Using = (sbyte)slot;
+            hero.ImpactIn = skill.ImpactTime;
+            hero.BusyFor = skill.UseTime;
+            hero.Cooldowns[slot] = skill.Cooldown;
+            events |= HeroStepEvents.Used;
+
+            // A leap is carried out here, as moving always is. It lands when it arrives.
+            if (skill.Skill.Form == SkillForm.Leap)
+            {
+                float distance = MathF.Min(MathF.Max(hero.AimReach, 2f), skill.Range);
+                hero.DashDirection = hero.Aim;
+                hero.DashSpeed = skill.Skill.LeapSpeed;
+                hero.DashLeft = distance / skill.Skill.LeapSpeed;
+                hero.ImpactIn = hero.DashLeft;
+                hero.BusyFor = MathF.Max(hero.DashLeft, skill.UseTime);
+            }
+            return true;
         }
 
         private static void Turn(ref HeroSimState hero, Vector2 direction, float deltaTime)

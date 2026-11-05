@@ -1,6 +1,7 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Skills;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using OpenTK.Mathematics;
@@ -30,9 +31,10 @@ namespace Dino_Defenders.Server
         public GhostView View = new();
         public string Name = "Hero";
         public HeroState Hero = null!;
-        public HeroStats Stats;
+        public Actor Actor = null!;
+        public HeroKit Kit = null!;
         public HeroSimState Sim;
-        public float Health;
+        public SkillDefinition? Stolen;
         public float DownFor;
         public Vector2 Respawn;
         public Entity Entity;
@@ -44,6 +46,7 @@ namespace Dino_Defenders.Server
         public int ReadyEpoch = -1;
         public bool SummaryChanged;
         public bool GearChanged;
+        public bool BuffsChanged;
         public uint LastClientTime;
         public long LastClientTimeArrived;
         public int SendInterval = 2;
@@ -61,11 +64,22 @@ namespace Dino_Defenders.Server
             Connection = connection;
         }
 
-        public void RefreshStats()
+        /// <summary>Gear, talents or something else has changed, so everything is worked out again.</summary>
+        public void RefreshLoadout()
         {
-            float healthShare = Health / Math.Max(Stats.MaxHealth, 1f);
-            Stats = Hero.Compute();
-            Health = Math.Min(Stats.MaxHealth * healthShare, Stats.MaxHealth);
+            Actor.Adopt(HeroBuild.Compile(Hero, Actor.Buffs, Stolen));
+            Kit = new HeroKit(Hero, Actor.Sheet);
+        }
+
+        /// <summary>Takes up the last skill that hit them, for those who can.</summary>
+        public void Mimic(SkillDefinition skill)
+        {
+            if (Stolen == skill) return;
+            Stolen = skill;
+            Hero.Bar[^1] = skill.Id;
+            RefreshLoadout();
+            SummaryChanged = true;
+            BuffsChanged = true;
         }
 
         /// <summary>Takes commands off the wire. <paramref name="nextTick"/> is the next tick to run.</summary>
@@ -118,7 +132,7 @@ namespace Dino_Defenders.Server
                 {
                     command.MoveX = 0;
                     command.MoveZ = 0;
-                    command.Buttons &= ~HeroButtons.Attack;
+                    command.Buttons &= ~HeroButtons.Slots;
                 }
             }
 

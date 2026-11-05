@@ -3,6 +3,9 @@ using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
+using Dino_Defenders.Talents;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
@@ -32,9 +35,13 @@ namespace Dino_NetLab
         public int Swings;
         public int HitsSeen;
         public bool Fights = true;
+        public const int WhirlSlot = 2;
         public int WhirlEveryFrames;    // Instead of fighting: a press of whirl, this often.
         public int WhirlsPressed;
         public bool PressUse;           // Presses use, once.
+        public int HeldSlots;           // Instead of fighting: the keys on these slots held down.
+        private int _heldLastFrame;
+        public readonly int[] Uses = new int[HeroState.SkillSlots];
         public readonly List<(InteractKind kind, SiteState site)> PanelsOpened = new();
         private int _frames;
         public double DivergenceTotal;
@@ -87,11 +94,27 @@ namespace Dino_NetLab
                 return new HeroIntent { Interact = true };
             }
 
+            if (HeldSlots != 0 && Client.Session != null)
+            {
+                var held = new HeroIntent();
+                for (int slot = 2; slot < HeroState.SkillSlots; slot++)
+                {
+                    bool down = (HeldSlots & 1 << slot) != 0;
+                    bool justPressed = down && (_heldLastFrame & 1 << slot) == 0;
+                    if (HeroRules.KeyPresses(Client.Session.Sim, slot, down, justPressed)) held.Use(slot);
+                }
+                _heldLastFrame = HeldSlots;
+                return held;
+            }
+            _heldLastFrame = 0;
+
             if (WhirlEveryFrames > 0 && Client.Session != null)
             {
                 if (++_frames % WhirlEveryFrames != 0) return default;
                 WhirlsPressed++;
-                return new HeroIntent { Whirl = true };
+                var press = new HeroIntent();
+                press.Use(WhirlSlot);
+                return press;
             }
 
             if (!Fights || Client.Session == null) return default;
@@ -104,7 +127,8 @@ namespace Dino_NetLab
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
-                    if (entity.Get<EnemyComponent>().State == EnemyState.Dead) continue;
+                    var enemy = entity.Get<EnemyComponent>();
+                    if (enemy.State == EnemyState.Dead || enemy.Friendly) continue;
                     Vector2 position = entity.Get<PositionComponent>().value.Xz;
                     float distance = (position - here).Length;
                     if (distance >= best) continue;
@@ -124,10 +148,19 @@ namespace Dino_NetLab
                 Vector2 toward = nearest - here;
                 intent.Aim = toward;
                 intent.Move = best > 4.5f ? toward : _wander;
-                intent.Attack = best < 6f;
-                if (intent.Attack) Swings++;
-                intent.Whirl = best < 7f && _random.NextDouble() < 0.02;
+                if (best < 6f)
+                {
+                    intent.Use(0);
+                    Swings++;
+                }
+                if (best < 7f && _random.NextDouble() < 0.02) intent.Use(WhirlSlot);
                 intent.Dash = best is > 10f and < 18f && _random.NextDouble() < 0.05;
+
+                // Spells too, as what they do to mana and cooldowns has to be predicted like everything else.
+                for (int slot = 1; slot < HeroState.SkillSlots; slot++)
+                {
+                    if (slot != WhirlSlot && Client.Kit.Slots[slot] != null && best < 24f && _random.NextDouble() < 0.03) intent.Use(slot);
+                }
             }
             else
             {
@@ -142,7 +175,10 @@ namespace Dino_NetLab
 
         public void WorldNeeded(WorldRequest request) => _wanted = request;
         public void Arrived(Vector2 position) => Arrivals++;
-        public void HeroActed(HeroStepEvents events, in HeroSimState hero) { }
+        public void HeroActed(HeroStepEvents events, in HeroSimState hero)
+        {
+            if ((events & HeroStepEvents.Used) != 0 && hero.Using >= 0) Uses[hero.Using]++;
+        }
         public void OpenPanel(InteractKind kind, SiteState site) => PanelsOpened.Add((kind, site));
         public void Disconnected(string reason) => DisconnectReason = reason;
         public void Decorate(Ghost ghost, List<IComponent> components) { }
@@ -199,9 +235,27 @@ namespace Dino_NetLab
         {
             HeroState hero = HeroState.CreateNew();
             hero.Level = 12;
-            hero.Might = 40;
-            hero.Spirit = 30;
+            hero.Equipped[ItemSlot.Weapon].WeaponDamage = 34f;
+            hero.Equipped[ItemSlot.Amulet] = new Item { Name = "Lab Charm", Slot = ItemSlot.Amulet, Level = 12, Lines = { new ItemLine("health", 400f) } };
+            Learn(hero, "pyre.firebolt", "winter.frost-nova", "storm.spark");
             return hero;
+        }
+
+        /// <summary>Walks a hero to these nodes the way a player would, and puts what they teach on the bar.</summary>
+        public static void Learn(HeroState hero, params string[] nodes)
+        {
+            foreach (string id in nodes)
+            {
+                foreach (int step in TalentTree.PathTo(hero, TalentTree.Find(id)!.Index))
+                {
+                    TalentNode node = TalentTree.Nodes[step];
+                    hero.Talents.Add(node.Id);
+                    foreach (Mod mod in node.Mods)
+                    {
+                        if (mod.Kind == ModKind.GrantSkill) HeroBuild.OfferToBar(hero, SkillCatalog.Get(mod.Skill));
+                    }
+                }
+            }
         }
 
         /// <summary>Lets <paramref name="seconds"/> of game go by.</summary>
@@ -490,6 +544,7 @@ namespace Dino_NetLab
             report.Check($"{name}: no snapshot ever referred to state a client lacked", mismatches == 0, $"{mismatches}");
             report.Check($"{name}: every hero ends exactly where the server has them", positionsAgree);
             report.Check($"{name}: every client's copy of its hero matches the server's", heroesAgree);
+            report.Check($"{name}: every hero comes to exactly the same numbers on both ends", lab.Players.All(p => SheetsAgree(lab.Server.Players.First(s => s.Name == p.Name), p)));
             report.Check($"{name}: all clients stayed connected", lab.Players.All(p => p.DisconnectReason == null));
             report.Check($"{name}: snapshots stay inside one packet", lab.Server.LargestSnapshot <= Protocol.SnapshotBudget, $"{lab.Server.LargestSnapshot}");
             report.Note($"{name}: {kills} kills, {peakGhosts} ghosts at peak");
@@ -501,7 +556,8 @@ namespace Dino_NetLab
         private static bool HeroesMatch(HeroState a, HeroState b)
         {
             return a.Level == b.Level && a.Experience == b.Experience && a.Gold == b.Gold && a.Flasks == b.Flasks
-                && a.Inventory.Count == b.Inventory.Count && a.Equipped.Count == b.Equipped.Count && a.WorldsCleared == b.WorldsCleared;
+                && a.Inventory.Count == b.Inventory.Count && a.Equipped.Count == b.Equipped.Count && a.WorldsCleared == b.WorldsCleared
+                && a.Talents.SequenceEqual(b.Talents) && a.Bar.SequenceEqual(b.Bar);
         }
 
         // A host on fibre and a friend on bad wifi: one player's line mustn't become everyone's problem.
@@ -543,14 +599,22 @@ namespace Dino_NetLab
             GameServer server = lab.Server;
             Vector2 centre = server.Heroes[0].Sim.Position;
             var random = new Random(9);
+
+            // All three hundred are one loadout, which is the point. They can't be killed in the time, or do much.
+            var kind = new EnemyKind { Id = "lab-horde", Name = "Restless Dead", Skills = new[] { SkillCatalog.Strike, SkillCatalog.Shot }, Weapon = Tags.Bow, Health = 2000f, Damage = 0.01f, MoveSpeed = 6f };
+            Loadout horde = server.Session!.Bestiary.Shared(kind, 1, EnemyRank.Normal, Bestiary.NoTrait);
             for (int i = 0; i < Enemies; i++)
             {
                 Vector2 at = centre + new Vector2(random.NextSingle() - 0.5f, random.NextSingle() - 0.5f) * 90f;
-                server.Ecs.CreateEntity(Bodies.Walking(server, "skeleton", new Vector3(at.X, 0f, at.Y), 1f, 1.5f,
+                var actor = new Actor(Team.Enemies, horde, at, 1.1f) { Body = "skeleton", Site = server.Session.Sites[0] };
+                actor.Entity = server.Ecs.CreateEntity(Bodies.Walking(server, "skeleton", new Vector3(at.X, 0f, at.Y), 1f, 1.5f,
                     new EnemyComponent { Name = "Restless Dead", Level = 1 },
-                    new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 200f, LeashRadius = 500f, MoveSpeed = 6f, AttackRange = 4.6f, WindUp = 0.5f, Damage = 0.1f, Experience = 0 },
-                    new HealthComponent(100000f), new SwingComponent()));
+                    new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 200f, LeashRadius = 500f, Experience = 0 },
+                    new HealthComponent(actor.Sheet.MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor)));
             }
+
+            var archer = new Actor(Team.Enemies, horde, centre, 1.1f) { Body = "skeleton" };
+            SkillProfile shot = archer.Sheet.Profile(SkillCatalog.Shot)!;
 
             int ticks = 0;
             int arrowsLoosed = 0;
@@ -570,7 +634,7 @@ namespace Dino_NetLab
                     new RotationComponent(new Vector3(0f)),
                     new VisualComponent("arrow", VisualKind.Prop),
                     new BallisticComponent { Origin = new Vector3(from.X, 8f, from.Y), Velocity = new Vector3(direction.X, 0f, direction.Y) * 42f, StartTick = server.Tick },
-                    new ProjectileComponent { Damage = 0.1f, Life = 1.6f });
+                    new ProjectileComponent { State = new Projectile { Source = archer, Skill = shot, Life = 1.6f, Start = from } });
                 arrowsLoosed++;
             });
 
@@ -598,7 +662,7 @@ namespace Dino_NetLab
         private static HeroState StrongHeroForHorde()
         {
             HeroState hero = GameLab.StrongHero();
-            hero.Equipped[ItemSlot.Amulet] = new Item { Name = "Test Charm", Slot = ItemSlot.Amulet, Level = 1, Modifiers = { new Modifier { Stat = Stat.Health, Value = 1000000f } } };
+            hero.Equipped[ItemSlot.Amulet] = new Item { Name = "Test Charm", Slot = ItemSlot.Amulet, Level = 1, Lines = { new ItemLine("health", 1000000f) } };
             return hero;
         }
 
@@ -811,20 +875,20 @@ namespace Dino_NetLab
             lab.Run(6);
 
             ServerPlayer truth = lab.Server.Players.First();
-            player.WhirlEveryFrames = (int)(HeroRules.WhirlCooldown * 60.0) + 90;
+            player.WhirlEveryFrames = (int)(SkillCatalog.Whirl.Cooldown * 60.0) + 90;
 
             int happened = 0;
             float last = 0f;
             lab.Run(120, () =>
             {
-                float cooldown = truth.Sim.WhirlCooldown;
+                float cooldown = truth.Sim.Cooldowns[LabPlayer.WhirlSlot];
                 if (cooldown > last + 1f) happened++;
                 last = cooldown;
             });
             player.WhirlEveryFrames = 0;
             lab.Run(3, () =>
             {
-                float cooldown = truth.Sim.WhirlCooldown;
+                float cooldown = truth.Sim.Cooldowns[LabPlayer.WhirlSlot];
                 if (cooldown > last + 1f) happened++;
                 last = cooldown;
             });
@@ -859,14 +923,39 @@ namespace Dino_NetLab
             lab.Run(4);
             ServerPlayer truth = lab.Server.Players.First();
 
-            int might = truth.Hero.Might;
-            player.Client.RaiseAttribute(HeroAttribute.Might);
+            int Node(string id) => TalentTree.Find(id)!.Index;
+            int points = truth.Hero.UnspentPoints;
+            player.Client.Allocate(Node("pyre.t0"));
             lab.Run(0.5);
-            report.Check("Spending a point reaches the server and comes back", truth.Hero.Might == might + 1 && player.Client.Hero.Might == might + 1 && player.Client.Hero.UnspentPoints == 0);
+            report.Check("Spending a talent reaches the server and comes back", truth.Hero.Talents.Contains("pyre.t0") && player.Client.Hero.Talents.Contains("pyre.t0") && player.Client.Hero.UnspentPoints == points - 1);
 
-            player.Client.RaiseAttribute(HeroAttribute.Might);
+            player.Client.Allocate(Node("key.tidewalker"));
             lab.Run(0.5);
-            report.Check("A point that isn't there can't be spent", truth.Hero.Might == might + 1);
+            report.Check("A talent nowhere near what's taken can't be had", !truth.Hero.Talents.Contains("key.tidewalker"));
+
+            player.Client.Allocate(Node("pyre.firebolt.0"));
+            player.Client.Allocate(Node("pyre.firebolt"));
+            lab.Run(0.5);
+            report.Check("A skill learned on the tree goes on the bar, on both ends", truth.Hero.Bar.Contains("firebolt") && player.Client.Hero.Bar.Contains("firebolt"));
+            report.Check("And there's a profile to use it with, on both ends", truth.Kit.Slots.Any(s => s?.Skill == SkillCatalog.Firebolt) && player.Client.Kit.Slots.Any(s => s?.Skill == SkillCatalog.Firebolt));
+
+            player.Client.Allocate(Node("pyre.t1"));
+            lab.Run(0.5);
+            report.Check("A point that isn't there can't be spent", !truth.Hero.Talents.Contains("pyre.t1"));
+
+            player.Client.Refund(Node("pyre.t0"));
+            lab.Run(0.5);
+            report.Check("A node others hang from can't be given back", truth.Hero.Talents.Contains("pyre.t0"));
+
+            player.Client.Refund(Node("pyre.firebolt"));
+            lab.Run(0.5);
+            report.Check("A node at the end of a path can", !truth.Hero.Talents.Contains("pyre.firebolt") && !player.Client.Hero.Talents.Contains("pyre.firebolt"));
+            report.Check("And what it taught goes with it", truth.Kit.Slots.All(s => s?.Skill != SkillCatalog.Firebolt));
+
+            player.Client.ForgetTalents();
+            lab.Run(0.5);
+            report.Check("Forgetting everything gives it all back", truth.Hero.Talents.Count == 0 && player.Client.Hero.UnspentPoints == points);
+            report.Check("And the numbers follow, the same on both ends", SheetsAgree(truth, player));
 
             int carried = truth.Hero.Inventory.Count;
             player.Client.Equip(0);
@@ -882,6 +971,10 @@ namespace Dino_NetLab
             player.Client.Sell(-5);
             player.Client.Buy(999, 0);
             player.Client.TravelToSite(99999);
+            player.Client.Allocate(99999);
+            player.Client.Allocate(-1);
+            player.Client.Refund(99999);
+            player.Client.AssignSlot(6, null);
             lab.Run(0.5);
             report.Check("Nonsense requests are ignored", player.Client.State == ClientState.Playing);
 
@@ -889,6 +982,14 @@ namespace Dino_NetLab
             player.Client.TravelTo(far);
             lab.Run(1);
             report.Check("Being moved by the server is believed at once", (player.Client.Predictor.Current.Position - far).Length < 0.1f);
+        }
+
+        private static bool SheetsAgree(ServerPlayer truth, LabPlayer player)
+        {
+            ActorSheet server = truth.Actor.Sheet;
+            ActorSheet client = player.Client.Sheet;
+            return server.MaxHealth == client.MaxHealth && server.MaxMana == client.MaxMana && server.MoveSpeed == client.MoveSpeed && server.Armour == client.Armour
+                && server.Loadout.Skills.Length == client.Loadout.Skills.Length;
         }
 
         // Merchants, chests and shrines, all the way through: the hero walks up, presses use, the server decides, and the answer comes back.
@@ -1003,7 +1104,6 @@ namespace Dino_NetLab
         private static HeroState LabHero()
         {
             HeroState hero = HeroState.CreateNew();
-            hero.UnspentPoints = 1;
             hero.Gold = 500;
             hero.Inventory.Add(new Item { Name = "A Ring", Slot = ItemSlot.Ring, Level = 3 });
             hero.Inventory.Add(new Item { Name = "Spare Boots", Slot = ItemSlot.Feet, Level = 3, Armour = 2f });

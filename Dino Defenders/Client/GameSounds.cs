@@ -1,5 +1,7 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
 using Dino_Engine.Animation;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
@@ -48,7 +50,7 @@ namespace Dino_Defenders.Client
             _client = client;
 
             client.Events.On<DamageEvent>(Hit);
-            client.Events.On<HeroMoveEvent>(e => Moves(e.Move, e.Position, 1f));
+            client.Events.On<HeroMoveEvent>(e => Moves(e.Move, e.Position, e.Skill > 0 && SkillCatalog.IsNumber(e.Skill) ? SkillCatalog.Get(e.Skill) : null, 1f));
             client.Events.On<TextEvent>(e =>
             {
                 if (!e.Speech) return;
@@ -77,27 +79,44 @@ namespace Dino_Defenders.Client
         }
 
         /// <summary>This player's hero, the moment they acted.</summary>
-        public void HeroActed(HeroStepEvents events, Vector3 position, Vector2 aim, float attackSpeed)
+        public void HeroActed(HeroStepEvents events, Vector3 position, Vector2 aim, SkillProfile? skill)
         {
-            Moves(events, position, attackSpeed);
+            float rate = skill != null ? 0.6f / MathF.Max(skill.UseTime, 0.05f) : 1f;
+            Moves(events, position, skill?.Skill, rate);
 
-            if ((events & HeroStepEvents.Struck) != 0) Predict(position, aim, HeroRules.SwingReach, HeroRules.SwingArc);
-            if ((events & HeroStepEvents.Whirled) != 0) Predict(position, Vector2.UnitX, HeroRules.WhirlReach, MathF.Tau);
+            if ((events & HeroStepEvents.Landed) != 0 && skill != null && skill.Skill.Form is SkillForm.Strike or SkillForm.Leap && skill.DealsDamage)
+            {
+                Predict(position, aim, skill.Reach, skill.Skill.Arc);
+            }
         }
 
-        private void Moves(HeroStepEvents events, Vector3 position, float rate)
+        private void Moves(HeroStepEvents events, Vector3 position, SkillDefinition? skill, float rate)
         {
-            if ((events & HeroStepEvents.Swung) != 0)
+            if ((events & HeroStepEvents.Used) != 0 && skill != null)
             {
-                Audio.Play(Blades.Swing, position, 0f, MathF.Sqrt(rate));
-                if (_random.Chance(Effort)) After(0.03f, Voices.HeroEffort, position);
-            }
-            if ((events & HeroStepEvents.Whirled) != 0)
-            {
-                Audio.Play(Blades.Whirl, position);
-                Audio.Play(Voices.HeroEffort, position);
+                if (skill.IsSpell)
+                {
+                    Audio.Play(Magic.Cast(ClientEffects.ElementOf(skill.Look)), position);
+                }
+                else
+                {
+                    Audio.Play(skill.Arc >= MathF.Tau ? Blades.Whirl : Blades.Swing, position, 0f, MathF.Sqrt(rate));
+                    if (_random.Chance(Effort)) After(0.03f, Voices.HeroEffort, position);
+                }
             }
             if ((events & HeroStepEvents.Dashed) != 0) Audio.Play(Blades.Dash, position);
+        }
+
+        /// <summary>A patch of ground starting to do something.</summary>
+        public void ZoneOpens(SkillDefinition skill, Vector3 position)
+        {
+            Audio.Play(Magic.Aura(ClientEffects.ElementOf(skill.Look)), position);
+        }
+
+        /// <summary>A spell going off somewhere.</summary>
+        public void Burst(SkillDefinition skill, Vector3 position)
+        {
+            Audio.Play(Magic.Burst(ClientEffects.ElementOf(skill.Look)), position);
         }
 
         // The hero's own stroke, tested against what's on this screen, the same test the server is about to make.
@@ -109,7 +128,8 @@ namespace Dino_Defenders.Client
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
-                    if (entity.Get<EnemyComponent>().State == EnemyState.Dead) continue;
+                    var enemy = entity.Get<EnemyComponent>();
+                    if (enemy.State == EnemyState.Dead || enemy.Friendly) continue;
                     Vector3 position = entity.Get<PositionComponent>().value;
                     Vector2 offset = position.Xz - origin.Xz;
                     float distance = offset.Length;
@@ -141,6 +161,14 @@ namespace Dino_Defenders.Client
 
         private void Hit(DamageEvent e)
         {
+            if (e.Note != HitNote.None)
+            {
+                if (e.Note == HitNote.Blocked) Audio.Play(Impacts.Armour, e.Position);
+                return;
+            }
+
+            if (e.Type != DamageType.Physical) Audio.Play(Magic.Hit(ClientEffects.ElementOf(e.Type)), e.Position);
+
             if (e.ToHero)
             {
                 Audio.Play(Impacts.Heavy, e.Position);

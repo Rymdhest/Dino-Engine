@@ -2,6 +2,9 @@ using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
+using Dino_Defenders.Talents;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Widgets;
@@ -169,7 +172,7 @@ namespace Dino_Defenders.UI
     }
 
     /// <summary>
-    /// The hero and what they carry: attributes to spend, gear to wear and, at a merchant, a table to buy from. Whatever the mouse
+    /// The hero and what they carry: what they come to, gear to wear and, at a merchant, a table to buy from. Whatever the mouse
     /// is over is described on the right, set against what is worn in its place.
     /// </summary>
     internal sealed class HeroPanel : GuiElement
@@ -199,13 +202,12 @@ namespace Dino_Defenders.UI
 
             var left = columns.Add(new StackPanel(Orientation.Vertical, 3f) { Width = 250f, Height = UIValue.Fill });
             _title = left.Add(Ui.Heading("The Hero"));
+            left.Add(Ui.Line("", 15f, Ui.Parchment).Bind(() => TalentTree.TitleOf(Hero)));
             left.Add(Ui.Line().Bind(() => $"Level {Hero.Level}, {Hero.Gold} gold"));
-            left.Add(Ui.Line("", 14f, Ui.Gold).Bind(() => Hero.UnspentPoints > 0 ? $"{Hero.UnspentPoints} points to spend" : " "));
-            left.Add(Attribute("Might", () => Hero.Might, HeroAttribute.Might, "Health, and the weight of every blow."));
-            left.Add(Attribute("Finesse", () => Hero.Finesse, HeroAttribute.Finesse, "Speed of the blade, and how often it finds a gap."));
-            left.Add(Attribute("Spirit", () => Hero.Spirit, HeroAttribute.Spirit, "Recovery, and the strength of your abilities."));
-            left.Add(new Spacer(height: 8f));
-            AddStats(left);
+            left.Add(Ui.Line("", 14f, Ui.Gold).Bind(() => Hero.UnspentPoints > 0 ? $"{Hero.UnspentPoints} talents to spend  [T]" : " "));
+            left.Add(new Spacer(height: 6f));
+            var sheet = left.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
+            AddStats(sheet.Content.Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Auto }));
 
             var middle = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = 420f, Height = UIValue.Fill });
             middle.Add(Ui.Line("Worn", 15f, Ui.Gold));
@@ -240,28 +242,35 @@ namespace Dino_Defenders.UI
             return _merchant != null && index < _merchant.Stock.Count ? _merchant.Stock[index] : null;
         }
 
-        private GuiElement Attribute(string name, Func<int> value, HeroAttribute attribute, string meaning)
-        {
-            var row = new StackPanel(Orientation.Horizontal, 8f) { Width = UIValue.Fill, Height = 32f, Tooltip = meaning };
-            row.Add(Ui.Line().Bind(() => $"{name}  {value()}")).Width = 140f;
-            var button = row.Add(Ui.Action("+", () => Session.Client.RaiseAttribute(attribute)));
-            button.Width = 36f;
-            row.Updated += _ => button.Visible = Hero.UnspentPoints > 0;
-            return row;
-        }
-
         private static void AddStats(GuiElement parent)
         {
-            void Stat(Func<HeroStats, string> text) => parent.Add(Ui.Line("", 14f, Ui.Faded).Bind(() => text(Session.Stats)));
+            void Group(string name) => parent.Add(Ui.Line(name, 14f, Ui.Gold));
+            void Line(Func<ActorSheet, string> text) => parent.Add(Ui.Line("", 14f, Ui.Faded).Bind(() => text(Session.Sheet)));
 
-            Stat(s => $"Damage {s.Damage:0.#}");
-            Stat(s => $"Armour {s.Armour:0}");
-            Stat(s => $"Health {s.MaxHealth:0}");
-            Stat(s => $"Recovery {s.Regeneration:0.#} a second");
-            Stat(s => $"Critical {s.CritChance * 100f:0.#}% for {s.CritMultiplier * 100f:0}%");
-            Stat(s => $"Attack speed {s.AttackSpeed * 100f:0}%");
-            Stat(s => $"Movement {s.MoveSpeed:0.#} m/s");
-            Stat(s => $"Ability power {s.SkillPower * 100f:0}%");
+            Group("Your main skill");
+            Line(s => Session.Client.Kit.Slots[0] is SkillProfile main ? main.Skill.Name : "Nothing");
+            Line(s => Session.Client.Kit.Slots[0] is SkillProfile main ? $"{main.AverageHit:0.#} a hit, {main.DamagePerSecond:0.#} a second" : " ");
+            Line(s => Session.Client.Kit.Slots[0] is SkillProfile main ? $"Critical {main.CritChance:0.#}% for {main.CritMultiplier:0}%" : " ");
+            Line(s => Session.Client.Kit.Slots[0] is SkillProfile main ? $"Used in {main.UseTime:0.##} seconds" : " ");
+
+            Group("Pools");
+            Line(s => $"Health {s.MaxHealth:0}, {s.HealthRegen:0.#} a second");
+            Line(s => $"Mana {s.MaxMana:0}, {s.ManaRegen:0.#} a second");
+            Line(s => s.MaxBarrier > 0f ? $"Barrier {s.MaxBarrier:0}" : "No barrier");
+
+            Group("Defence");
+            Line(s => $"Armour {s.Armour:0}");
+            Line(s => $"Evasion {s.Evasion:0}");
+            Line(s => s.BlockAttacks > 0f || s.BlockSpells > 0f ? $"Block {s.BlockAttacks:0}% of attacks, {s.BlockSpells:0}% of spells" : "No block");
+            Line(s => $"Fire {s.Resistance[1]:0}%  Cold {s.Resistance[2]:0}%  Lightning {s.Resistance[3]:0}%");
+            Line(s => $"Magic {s.Resistance[4]:0}%  Poison {s.Resistance[5]:0}%");
+            Line(s => s.TakenFromMana > 0f ? $"{s.TakenFromMana:0}% taken from mana first" : " ");
+
+            Group("Going about");
+            Line(s => $"Movement {s.MoveSpeed:0.#} m/s");
+            Line(s => $"Dodge every {s.DodgeCooldown:0.#} seconds");
+            Line(s => s.ItemRarity != 0f ? $"Item rarity {s.ItemRarity:0}%" : " ");
+            Line(s => s.GoldFind != 0f ? $"Gold found {s.GoldFind:0}%" : " ");
         }
 
         private GuiElement BuildEquipment()
@@ -324,10 +333,12 @@ namespace Dino_Defenders.UI
             }
 
             _details.Add(Ui.Paragraph(item.Name, 18f, Ui.RarityColour(item.Rarity)));
-            _details.Add(Ui.Line($"{item.Rarity} {item.Slot}, level {item.Level}", 13f, Ui.Faded));
-            if (item.WeaponDamage > 0f) _details.Add(Ui.Line($"{item.WeaponDamage:0} Damage"));
-            if (item.Armour > 0f) _details.Add(Ui.Line($"{item.Armour:0} Armour"));
-            foreach (Modifier modifier in item.Modifiers) _details.Add(Ui.Line(modifier.Describe(), 14f, Ui.RarityColour(item.Rarity)));
+            string rarity = item.Unique != null ? "Unique" : item.Rarity.ToString();
+            string slot = item.Slot == ItemSlot.Weapon ? item.Kind.ToString() : item.Slot.ToString();
+            _details.Add(Ui.Line($"{rarity} {slot}, level {item.Level}", 13f, Ui.Faded));
+            AddBase(item, 14f, Ui.Parchment);
+            foreach (string line in item.Describe()) _details.Add(Ui.Paragraph(line, 14f, Ui.RarityColour(item.Rarity)));
+            if (item.Unique != null && UniqueCatalog.Find(item.Unique) is UniqueDefinition unique) _details.Add(Ui.Paragraph(unique.Lore, 13f, Ui.Faded));
 
             bool carried = Hero.Inventory.Contains(item);
             if (_merchant != null) _details.Add(Ui.Line(carried ? $"Sells for {item.SellValue} gold" : $"Costs {item.BuyValue} gold", 14f, Ui.Gold));
@@ -336,10 +347,21 @@ namespace Dino_Defenders.UI
             {
                 _details.Add(new Spacer(height: 6f));
                 _details.Add(Ui.Line($"Now worn: {worn.Name}", 13f, Ui.Faded));
-                if (worn.WeaponDamage > 0f) _details.Add(Ui.Line($"{worn.WeaponDamage:0} Damage", 13f, Ui.Faded));
-                if (worn.Armour > 0f) _details.Add(Ui.Line($"{worn.Armour:0} Armour", 13f, Ui.Faded));
-                foreach (Modifier modifier in worn.Modifiers) _details.Add(Ui.Line(modifier.Describe(), 13f, Ui.Faded));
+                AddBase(worn, 13f, Ui.Faded);
+                foreach (string line in worn.Describe()) _details.Add(Ui.Paragraph(line, 13f, Ui.Faded));
             }
+        }
+
+        private void AddBase(Item item, float size, Colour colour)
+        {
+            if (item.WeaponDamage > 0f)
+            {
+                WeaponProfile weapon = item.Weapon();
+                _details.Add(Ui.Line($"{weapon.Min:0} to {weapon.Max:0} Damage, {1f / weapon.AttackTime:0.##} attacks a second", size, colour));
+            }
+            if (item.Armour > 0f) _details.Add(Ui.Line($"{item.Armour:0} Armour", size, colour));
+            if (item.Evasion > 0f) _details.Add(Ui.Line($"{item.Evasion:0} Evasion", size, colour));
+            if (item.Barrier > 0f) _details.Add(Ui.Line($"{item.Barrier:0} Barrier", size, colour));
         }
     }
 
@@ -493,6 +515,8 @@ namespace Dino_Defenders.UI
             body.Add(Ui.Heading("Rest a While", 24f));
             body.Add(Ui.Action("Go on", resume));
             body.Add(Ui.Action("The hero (C)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Hero); }));
+            body.Add(Ui.Action("The tree (T)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Talents); }));
+            body.Add(Ui.Action("Skills (K)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Skills); }));
             body.Add(Ui.Action("Travel with friends", friends));
             SoundSettings.AddControls(body);
             body.Add(Ui.Action("Leave the road", quit));
@@ -509,9 +533,9 @@ namespace Dino_Defenders.UI
             _confirm = body.Add(Ui.Paragraph("This forgets your hero for good. Press it again if you mean it.", 14f, Ui.Blood));
             _confirm.Visible = false;
 
-            body.Add(Ui.Line("WASD move, mouse aims, left button strikes", 13f, Ui.Faded));
-            body.Add(Ui.Line("Space dodge, Q whirl, R flask, E use, F guiding wind", 13f, Ui.Faded));
-            body.Add(Ui.Line("M map, C hero, J chronicle, wheel zoom", 13f, Ui.Faded));
+            body.Add(Ui.Line("WASD move, mouse aims, skills on LMB, RMB, Q, 1 to 4", 13f, Ui.Faded));
+            body.Add(Ui.Line("Space dodge, R flask, E use, F guiding wind", 13f, Ui.Faded));
+            body.Add(Ui.Line("M map, C hero, T tree, K skills, J chronicle, wheel zoom", 13f, Ui.Faded));
         }
 
         public void Reset()
@@ -627,6 +651,8 @@ namespace Dino_Defenders.UI
         public readonly Hud Hud = new();
         public readonly MapPanel Map;
         public readonly HeroPanel Hero = new();
+        public readonly TalentPanel Talents = new();
+        public readonly SkillPanel Skills = new();
         public readonly ChroniclePanel Chronicle = new();
         public readonly WaygatePanel Waygate;
         public readonly PauseMenu Pause;
@@ -642,7 +668,7 @@ namespace Dino_Defenders.UI
             Waygate = new WaygatePanel(travel);
             Pause = new PauseMenu(CloseAll, () => Toggle(Friends!), quit, newJourney);
             Friends = new FriendsPanel(game);
-            _panels = new GuiElement[] { Map, Hero, Chronicle, Waygate, Pause, Friends };
+            _panels = new GuiElement[] { Map, Hero, Talents, Skills, Chronicle, Waygate, Pause, Friends };
 
             gui.Root.Add(Hud);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
@@ -667,6 +693,7 @@ namespace Dino_Defenders.UI
             Audio.Play(Interface.Open);
             panel.Visible = true;
             if (panel == Hero) Hero.Open(null);
+            if (panel == Skills) Skills.Open();
             if (panel == Chronicle) Chronicle.Open(null);
         }
 

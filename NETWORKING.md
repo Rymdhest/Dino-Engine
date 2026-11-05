@@ -42,12 +42,15 @@ World state is never sent as "this changed". Snapshots are differences from a st
 
 **A new rule**: write it as a system under `Server/`. It runs on the server and its results replicate. It must not touch `GameSession`, `Engine` or anything GL.
 
-**A new hero ability**: add it to `HeroRules.Step` if it affects movement or cooldowns, and to `GameServer.Act` for what it does to the world.
+**A new skill**: it's data, in `SkillCatalog`, and needs no networking. `HeroRules.Step` already handles anything on the bar: cost, cooldown, timing and moving. What it does to the world happens in `Combat`, on the server. See `BUILDS.md`.
+
+**A new stat, or one that depends on something**: needs nothing either. Both ends compile the same sheet from the same hero, and `HeroSimState` carries the state and counters that pick which sheet is in force.
 
 ### What will break it
 
 - **Reading other entities in `HeroRules.Step`.** A client doesn't know where they really are, so it would guess wrong. This is what body-blocking would need, and it is the classic cause of ARPG desync. Knockback, stuns and slows should be things the server applies and the client hears about, which the correction path already handles.
 - **Using anything but `HeroCommand` as input to the step.** Both ends have to start from the same numbers.
+- **Adding up a hero's modifiers in a different order on one end.** Floats don't add up the same way in every order, so `HeroBuild` gathers them in a fixed one.
 - **Changing a component's fields on one build only.** The schema hash is compared at the door, so two builds refuse each other, with a clear message. So is the build's version (`Protocol.Build`): releases go out often, and different rules with the same components would otherwise connect and disagree about every step. Builds made by hand all count as the same one.
 - **Dynamic text in a replicated string field.** Those go through a table that only grows. Use a number, or an event.
 - **Touching anything on the server from the client's thread** without `ServerHost.Post`.
@@ -61,7 +64,7 @@ Everything is one message on a connection, reliable or not.
 | `Commands` | unreliable, every tick | Inputs not yet confirmed, and which snapshots arrived |
 | `Snapshot` | unreliable, 30 Hz | Your hero exactly, then differences for what's near you, within one packet |
 | `Hello` `Welcome` `WorldReady` `Arrived` | reliable | Joining |
-| `HeroUpdate` `Progress` `Notice` `Market` | reliable | Things said once and meant |
+| `HeroUpdate` `Progress` `Notice` `Market` | reliable | Things said once and meant, including talents, the skill bar and what's buffing a hero |
 
 Worlds are never sent: the seed is, and each machine grows its own. Both ends compare a hash of the result. Sites and spawns must match exactly. Ground only has to match closely, as worlds are grown with floating point and the C runtime can round differently from one machine to the next, which at worst costs a correction.
 

@@ -1,4 +1,5 @@
 using Dino_Defenders.Progression;
+using Dino_Defenders.Stats;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using OpenTK.Mathematics;
@@ -43,6 +44,7 @@ namespace Dino_Defenders.Gameplay
         public EnemyRank Rank;
         public int Level;
         public EnemyState State;
+        public bool Friendly;       // Someone's minion: the same creature, on the other side.
         [NetStep(1f / 64f), NetSnap] public Vector3 FallAxis;
 
         // How its fall is drawn, on the client.
@@ -61,14 +63,11 @@ namespace Dino_Defenders.Gameplay
         public Vector2 Home;
         public float StateTime;
         public float Cooldown;
-        public float Damage;
-        public float Armour;
-        public float MoveSpeed;
         public float AggroRadius;
         public float LeashRadius;
-        public float AttackRange;
+        public bool KeepsAway;
+        public int Skill;           // Which of its skills it's winding up.
         public float WindUp;
-        public bool Ranged;
         public int Experience;
         public Vector2 Wander;
         public List<Vector2>? Path;
@@ -81,6 +80,7 @@ namespace Dino_Defenders.Gameplay
     public struct HeroComponent : IComponent
     {
         public string Name;
+        public string Title;        // What their tree makes them. There are few of these, so a table that only grows is fine.
         public int Player;
         public int Level;
 
@@ -182,14 +182,32 @@ namespace Dino_Defenders.Gameplay
         public Vector3 Origin;
         public Vector3 Velocity;
         public uint StartTick;
+        public bool FromHeroes;     // Friendly fire isn't a thing, so these never need to vanish at a hero's feet.
         [NotReplicated] public ArrowHeard Heard;
 
         public readonly Vector3 PositionAt(double tick) => Origin + Velocity * (float)((tick - StartTick) * NetTime.TickSecondsPrecise);
     }
 
-    public struct ProjectileComponent : IComponent
+    /// <summary>What ailments someone is under, for those watching. The numbers behind them stay on the server.</summary>
+    [Replicated]
+    public struct AfflictedComponent : IComponent
     {
-        public float Damage;
-        public float Life;
+        public uint Flags;
+
+        [NotReplicated] public float NextSpark;
+
+        public readonly bool Has(Condition condition) => ((Condition)Flags & condition) != 0;
+    }
+
+    /// <summary>A patch of ground that's doing something. Sent once: everything else about it can be worked out from that.</summary>
+    [Replicated]
+    public struct ZoneComponent : IComponent
+    {
+        public int Skill;
+        [NetStep(0.25f)] public float Radius;
+        [NetStep(0.25f)] public float Life;
+
+        [NotReplicated] public float Age;
+        [NotReplicated] public float NextMote;
     }
 }

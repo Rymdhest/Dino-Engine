@@ -1,0 +1,220 @@
+using Dino_Defenders.Gameplay;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
+using Dino_Engine.ECS.Components;
+using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.World;
+using OpenTK.Mathematics;
+
+namespace Dino_Defenders.Server
+{
+    /// <summary>Something in flight. Who threw it and with what numbers go with it, so it still counts if they've died or moved on.</summary>
+    public sealed class Projectile
+    {
+        public Actor Source = null!;
+        public SkillProfile Skill = null!;
+        public float Life;
+        public int Pierce;
+        public int Chains;
+        public float Strength = 1f;
+        public Vector2 Start;
+        public bool Returning;
+        public readonly List<Actor> Spent = new();
+    }
+
+    public struct ProjectileComponent : IComponent
+    {
+        public Projectile State;
+    }
+
+    /// <summary>A patch of ground that's doing something to whoever stands on it.</summary>
+    public sealed class ZoneState
+    {
+        public Actor Source = null!;
+        public SkillProfile Skill = null!;
+        public Vector2 At;
+        public float Left;
+        public float NextPulse;
+    }
+
+    public struct ZoneStateComponent : IComponent
+    {
+        public ZoneState State;
+    }
+
+    /// <summary>
+    /// Keeps everyone in a fight up to date: where they are for the grid, what's true of them, what's wearing off, and what they've lost. It goes through
+    /// component arrays directly, as it's the one thing that visits every actor every tick, and looks up nothing it doesn't need to.
+    /// </summary>
+    public sealed class ActorSystem : SystemBase
+    {
+        private const float LandInterval = 0.25f;
+        private const float AlliesReach = 24f;
+
+        private static readonly BitMask Mask = new BitMask(typeof(ActorComponent), typeof(PositionComponent), typeof(HealthComponent));
+
+        private readonly GameServer _server;
+        private float _nextLand;
+
+        public ActorSystem(GameServer server)
+            : base(Mask)
+        {
+            _server = server;
+        }
+
+        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
+
+        protected override void UpdateFrame(ECSWorld world, float deltaTime)
+        {
+            ServerSession? session = _server.Session;
+            if (session == null) return;
+
+            Combat combat = session.Combat;
+            if (session.Paused) return;
+
+            _nextLand -= deltaTime;
+            bool readLand = _nextLand <= 0f;
+            if (readLand)
+            {
+                _nextLand = LandInterval;
+                combat.Land.Forget((float)session.Time);
+            }
+
+            combat.Grid.Begin();
+            foreach (Archetype archetype in world.QueryArchetypes(Mask, BitMask.Empty))
+            {
+                List<ActorComponent> actors = archetype.GetComponentArray<ActorComponent>()!;
+                List<PositionComponent> positions = archetype.GetComponentArray<PositionComponent>()!;
+                List<HealthComponent> healths = archetype.GetComponentArray<HealthComponent>()!;
+                List<AfflictedComponent>? afflicted = archetype.GetComponentArray<AfflictedComponent>();
+
+                for (int i = 0; i < archetype.EntityCount; i++)
+                {
+                    Actor actor = actors[i].Actor;
+                    Vector3 position = positions[i].value;
+                    actor.Height = position.Y;
+                    actor.Advance(deltaTime, _server.Tick, position.Xz);
+
+                    if (!actor.Dead)
+                    {
+                        combat.Grid.Add(actor);
+                        combat.Linger(actor, deltaTime);
+                        combat.Presence(actor, deltaTime);
+
+                        if (actor.LoadoutChanged) session.Rebuild(actor);
+                        if (actor.IsHero) actor.Counters = Counted(session, actor);
+                        else if (actor.Owner != null) actor.Counters = actor.Owner.Counters;
+
+                        // Only those who care about the land are worth asking it for. They ask a few times a second: nobody's walking far in that.
+                        if (readLand && (actor.Loadout.Relevant & Condition.Land) != 0) actor.Ground = combat.Land.At(actor.Position);
+                        actor.ReadState(actor.Ground);
+                    }
+
+                    // This is how everyone else sees it, the dead included: it's what tells a friend's client that a hero has fallen.
+                    HealthComponent health = healths[i];
+                    if (health.Current != actor.Vitals.Health || health.Max != actor.Sheet.MaxHealth)
+                    {
+                        healths[i] = new HealthComponent { Current = actor.Vitals.Health, Max = actor.Sheet.MaxHealth };
+                    }
+
+                    if (afflicted != null)
+                    {
+                        uint shown = (uint)(actor.State & Condition.Afflicted);
+                        if (afflicted[i].Flags != shown) afflicted[i] = new AfflictedComponent { Flags = shown };
+                    }
+                }
+            }
+
+            combat.Step();
+        }
+
+        private static Counters Counted(ServerSession session, Actor actor)
+        {
+            int shrines = 0;
+            foreach (SiteState state in session.Sites)
+            {
+                if (state.Kindled) shrines++;
+            }
+
+            int allies = 0;
+            foreach (ServerPlayer hero in session.Heroes)
+            {
+                if (hero.Actor != actor && (hero.Actor.Position - actor.Position).LengthSquared < AlliesReach * AlliesReach) allies++;
+            }
+
+            int minions = 0;
+            foreach (Actor minion in session.Minions)
+            {
+                if (minion.Owner == actor) minions++;
+            }
+
+            Counters counters = actor.Counters;
+            counters.Gold = actor.Player!.Hero.Gold;
+            counters.ShrinesKindled = (byte)Math.Min(shrines, 255);
+            counters.AlliesNear = (byte)allies;
+            counters.Minions = (byte)Math.Min(minions, 255);
+            return counters;
+        }
+    }
+
+    /// <summary>Flies everything until it finds someone, something solid, or the end of its strength.</summary>
+    public class ProjectileSystem : SystemBase
+    {
+        private readonly GameServer _server;
+
+        public ProjectileSystem(GameServer server)
+            : base(new BitMask(typeof(ProjectileComponent), typeof(BallisticComponent), typeof(PositionComponent)))
+        {
+            _server = server;
+        }
+
+        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
+        {
+            ServerSession session = _server.Session!;
+            Projectile projectile = entity.Get<ProjectileComponent>().State;
+            projectile.Life -= deltaTime;
+
+            BallisticComponent flight = entity.Get<BallisticComponent>();
+            Vector3 position = flight.PositionAt(_server.Tick);
+            entity.Set(new PositionComponent(position));
+
+            bool blocked = position.Y < session.World.Height.Sample(position.Xz) || session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f));
+            bool flying = session.Combat.Touch(projectile, position);
+
+            if (flying && !blocked && projectile.Life > 0f) return;
+
+            // It ended on something other than a body, so what it does at the end of its flight hasn't happened yet.
+            if (flying && projectile.Skill.Radius > 0f) session.Combat.Burst(projectile, position.Xz);
+            session.Combat.Returns(projectile, position);
+            world.DestroyEntity(entity.Entity);
+        }
+    }
+
+    /// <summary>Works out what lasting ground does, and clears it when it's done.</summary>
+    public class ZoneSystem : SystemBase
+    {
+        private readonly GameServer _server;
+
+        public ZoneSystem(GameServer server)
+            : base(new BitMask(typeof(ZoneStateComponent)))
+        {
+            _server = server;
+        }
+
+        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
+        {
+            ServerSession session = _server.Session!;
+            if (session.Paused) return;
+
+            ZoneState zone = entity.Get<ZoneStateComponent>().State;
+            zone.Left -= deltaTime;
+            zone.NextPulse -= deltaTime;
+            if (zone.NextPulse <= 0f)
+            {
+                zone.NextPulse += zone.Skill.Interval;
+                session.Combat.Pulse(zone);
+            }
+            if (zone.Left <= 0f) world.DestroyEntity(entity.Entity);
+        }
+    }
+}

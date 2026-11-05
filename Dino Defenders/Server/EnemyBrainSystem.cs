@@ -1,4 +1,6 @@
 using Dino_Defenders.Gameplay;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
@@ -8,23 +10,25 @@ using OpenTK.Mathematics;
 namespace Dino_Defenders.Server
 {
     /// <summary>
-    /// What enemies do. They hold their ground until a hero comes close, run them down, and take a moment over each blow so that
-    /// it can be seen coming and stepped away from. Stray too far from home and they give up and go back. When the straight
-    /// way is blocked they find a path over the world's passable ground.
+    /// What creatures do. They hold their ground until a foe comes close, run them down, and take a moment over each blow so that it can be seen
+    /// coming and stepped away from. Stray too far from home and they give up and go back. When the straight way is blocked they find a path over
+    /// the world's passable ground. A minion is the same creature, whose home is at its owner's side.
     /// </summary>
     public class EnemyBrainSystem : SystemBase
     {
         private const float RecoverTime = 0.75f;
         private const float PathRefresh = 0.8f;
         private const float WaypointReach = 2.2f;
-        private const float ArrowSpeed = 42f;
+        private const float ShortestWindUp = 0.45f;     // However quick the skill, there's always a moment to get out of the way.
+        private const float MeleeSlack = 1.2f;
+        private const float FollowDistance = 7f;
 
         private readonly GameServer _server;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
         private readonly WorldPathfinder _paths = new();
 
         public EnemyBrainSystem(GameServer server)
-            : base(new BitMask(typeof(EnemyComponent), typeof(EnemyBrainComponent), typeof(VelocityComponent), typeof(HealthComponent)))
+            : base(new BitMask(typeof(EnemyComponent), typeof(EnemyBrainComponent), typeof(VelocityComponent), typeof(ActorComponent)))
         {
             _server = server;
         }
@@ -40,50 +44,83 @@ namespace Dino_Defenders.Server
                 return;
             }
 
+            Actor actor = entity.Get<ActorComponent>().Actor;
+            if (actor.Still) return;
             var brain = entity.Get<EnemyBrainComponent>();
-            Vector2 position = entity.Get<PositionComponent>().value.Xz;
-            ServerPlayer? target = session.NearestHero(position, out float toHero);
-            Vector2 hero = target?.Sim.Position ?? position;
-            bool heroDown = target == null;
 
-            brain.StateTime += deltaTime;
-            brain.Cooldown -= deltaTime;
+            // Frozen or stunned, nothing happens, and what it was winding up is lost.
+            if (actor.Afflictions.Held)
+            {
+                if (enemy.State == EnemyState.WindingUp) Change(ref enemy, ref brain, EnemyState.Recovering);
+                entity.Set(new VelocityComponent());
+                entity.Set(brain);
+                entity.Set(enemy);
+                return;
+            }
+
+            float rate = actor.Afflictions.ActionRate;
+            Vector2 position = actor.Position;
+            float speed = actor.Sheet.MoveSpeed * rate;
+
+            if (actor.Owner is Actor owner)
+            {
+                brain.Home = owner.Position;
+                if (owner.Dead || (actor.MinionLeft -= deltaTime) <= 0f)
+                {
+                    session.Combat.Dismiss(actor);
+                    return;
+                }
+            }
+
+            Actor? target = session.NearestFoe(actor, out float toTarget);
+            Vector2 foe = target?.Position ?? position;
+            bool noFoe = target == null;
+
+            brain.StateTime += deltaTime * rate;
+            brain.Cooldown -= deltaTime * rate;
 
             Vector2 velocity = Vector2.Zero;
             switch (enemy.State)
             {
                 case EnemyState.Idle:
-                    velocity = Wander(ref brain, enemy, position);
-                    if (!heroDown && toHero < brain.AggroRadius) Change(ref enemy, ref brain, EnemyState.Chasing);
+                    velocity = actor.Owner != null ? Heel(ref brain, session, position, speed) : Wander(ref brain, enemy, position, speed);
+                    if (!noFoe && toTarget < Noticing(brain, target!)) Change(ref enemy, ref brain, EnemyState.Chasing);
                     break;
 
                 case EnemyState.Chasing:
-                    if (heroDown || (position - brain.Home).Length > brain.LeashRadius)
+                    if (noFoe || (position - brain.Home).Length > brain.LeashRadius)
                     {
                         Change(ref enemy, ref brain, EnemyState.Returning);
+                        break;
                     }
-                    else if (toHero <= brain.AttackRange && brain.Cooldown <= 0f)
+
+                    int ready = brain.Cooldown <= 0f ? Ready(actor, toTarget) : -1;
+                    float wants = Comfort(actor);
+                    if (ready >= 0)
                     {
+                        brain.Skill = ready;
+                        SkillProfile chosen = actor.Sheet.Profile(ready);
+                        brain.WindUp = MathF.Max(chosen.ImpactTime, ShortestWindUp);
                         Change(ref enemy, ref brain, EnemyState.WindingUp);
                         PlaySwing(entity, brain);
                     }
-                    else if (toHero > brain.AttackRange * 0.75f)
+                    else if (toTarget > wants * 0.75f)
                     {
-                        velocity = MoveTowards(ref brain, session, position, hero) * brain.MoveSpeed;
+                        velocity = MoveTowards(ref brain, session, position, foe) * speed;
                     }
-                    else if (brain.Ranged)
+                    else if (brain.KeepsAway)
                     {
                         // Archers keep their distance rather than stand and be cut down.
-                        velocity = (position - hero).Normalized() * brain.MoveSpeed * 0.6f;
+                        velocity = (position - foe).Normalized() * speed * 0.6f;
                     }
-                    Face(entity, hero - position, deltaTime);
+                    Face(entity, foe - position, deltaTime);
                     break;
 
                 case EnemyState.WindingUp:
-                    Face(entity, hero - position, deltaTime, 6f);
+                    Face(entity, foe - position, deltaTime, 6f);
                     if (brain.StateTime >= brain.WindUp)
                     {
-                        if (target != null) Strike(world, session, entity, enemy, brain, position, target);
+                        if (target != null) Let(session, actor, brain, enemy, position, target, toTarget);
                         brain.Cooldown = enemy.Rank == EnemyRank.Boss ? 1.1f : 1.5f;
                         Change(ref enemy, ref brain, EnemyState.Recovering);
                     }
@@ -97,13 +134,11 @@ namespace Dino_Defenders.Server
                     if ((position - brain.Home).Length < 3f)
                     {
                         Change(ref enemy, ref brain, EnemyState.Idle);
-                        var health = entity.Get<HealthComponent>();
-                        health.Current = health.Max;
-                        entity.Set(health);
+                        if (actor.Owner == null) actor.Vitals = Vitals.Full(actor.Sheet);
                     }
                     else
                     {
-                        velocity = MoveTowards(ref brain, session, position, brain.Home) * brain.MoveSpeed;
+                        velocity = MoveTowards(ref brain, session, position, brain.Home) * speed;
                         Face(entity, velocity, deltaTime);
                     }
                     break;
@@ -112,6 +147,48 @@ namespace Dino_Defenders.Server
             entity.Set(new VelocityComponent(new Vector3(velocity.X, 0f, velocity.Y)));
             entity.Set(brain);
             entity.Set(enemy);
+        }
+
+        // The quieter a hero, the closer they can get.
+        private static float Noticing(in EnemyBrainComponent brain, Actor foe) => brain.AggroRadius * (1f - foe.Sheet.Stealth / 100f);
+
+        // How close it wants to be before it's happy.
+        private static float Comfort(Actor actor)
+        {
+            float best = 0f;
+            for (int i = 0; i < actor.Loadout.Skills.Length; i++) best = MathF.Max(best, Reach(actor.Sheet.Profile(i)));
+            return best;
+        }
+
+        private static float Reach(SkillProfile skill) => skill.Skill.Form switch
+        {
+            SkillForm.Strike => skill.Reach,
+            SkillForm.Nova => skill.Radius * 0.75f,
+            _ => skill.Range,
+        };
+
+        // The first thing it has that's ready and will reach. Skills are listed best first, so that's also the one it wants.
+        private static int Ready(Actor actor, float distance)
+        {
+            for (int i = 0; i < actor.Loadout.Skills.Length; i++)
+            {
+                if (actor.Cooldowns[i] > 0f) continue;
+                SkillProfile skill = actor.Sheet.Profile(i);
+                if (skill.Skill.Form is SkillForm.Buff or SkillForm.Summon or SkillForm.Leap) continue;
+                if (distance <= Reach(skill)) return i;
+            }
+            return -1;
+        }
+
+        private static void Let(ServerSession session, Actor actor, in EnemyBrainComponent brain, in EnemyComponent enemy, Vector2 position, Actor target, float distance)
+        {
+            SkillProfile skill = actor.Sheet.Profile(brain.Skill);
+            actor.Cooldowns[brain.Skill] = skill.Cooldown;
+
+            // Reach is checked now, when the blow lands: stepping back during the wind-up makes it miss.
+            Vector2 toward = target.Position - position;
+            Vector2 facing = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.UnitY;
+            session.Combat.Release(actor, skill, position, facing, distance + MeleeSlack);
         }
 
         public static void Face(EntityView entity, Vector2 direction, float deltaTime, float speed = 14f)
@@ -130,7 +207,7 @@ namespace Dino_Defenders.Server
             brain.Path = null;
         }
 
-        private Vector2 Wander(ref EnemyBrainComponent brain, in EnemyComponent enemy, Vector2 position)
+        private Vector2 Wander(ref EnemyBrainComponent brain, in EnemyComponent enemy, Vector2 position, float speed)
         {
             if (brain.StateTime > 3f || brain.Wander == default)
             {
@@ -139,7 +216,13 @@ namespace Dino_Defenders.Server
             }
             Vector2 offset = brain.Wander - position;
             if (offset.Length < 1f || enemy.Rank == EnemyRank.Boss) return Vector2.Zero;
-            return offset.Normalized() * brain.MoveSpeed * 0.3f;
+            return offset.Normalized() * speed * 0.3f;
+        }
+
+        private Vector2 Heel(ref EnemyBrainComponent brain, ServerSession session, Vector2 position, float speed)
+        {
+            if ((brain.Home - position).Length < FollowDistance) return Vector2.Zero;
+            return MoveTowards(ref brain, session, position, brain.Home) * speed;
         }
 
         // The straight line if it is clear; otherwise a path, refreshed now and then as the target moves.
@@ -172,74 +255,6 @@ namespace Dino_Defenders.Server
             swing.Serial++;
             swing.Speed = 0.4f / MathF.Max(brain.WindUp, 0.1f);
             entity.Set(swing);
-        }
-
-        private void Strike(ECSWorld world, ServerSession session, EntityView entity, in EnemyComponent enemy, in EnemyBrainComponent brain, Vector2 position, ServerPlayer target)
-        {
-            Vector2 hero = target.Sim.Position;
-            if (brain.Ranged)
-            {
-                FireArrow(world, entity, brain, position, hero);
-                return;
-            }
-
-            // Reach is checked now, when the blow lands: stepping back during the wind-up makes it miss.
-            float reach = brain.AttackRange + 1.2f;
-            if ((hero - position).LengthSquared <= reach * reach) session.Combat.HurtHero(target, brain.Damage, enemy.Level);
-        }
-
-        private void FireArrow(ECSWorld world, EntityView entity, in EnemyBrainComponent brain, Vector2 position, Vector2 hero)
-        {
-            Vector2 direction = (hero - position).Normalized();
-            float height = entity.Get<PositionComponent>().value.Y + 3.2f;
-            float yaw = MathF.Atan2(direction.X, direction.Y);
-            var origin = new Vector3(position.X + direction.X * 1.5f, height, position.Y + direction.Y * 1.5f);
-
-            world.CreateEntity("Arrow",
-                new NetIdentityComponent(_server.Ghosts.NextId(), importance: 2f),
-                new PositionComponent(origin),
-                new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, yaw)),
-                new VisualComponent("arrow", VisualKind.Prop),
-                new BallisticComponent { Origin = origin, Velocity = new Vector3(direction.X, 0f, direction.Y) * ArrowSpeed, StartTick = _server.Tick },
-                new ProjectileComponent { Damage = brain.Damage, Life = 1.6f });
-        }
-    }
-
-    /// <summary>Flies arrows until they find a hero, something solid, or the end of their strength.</summary>
-    public class ProjectileSystem : SystemBase
-    {
-        private const float HitReach = 2.4f;
-
-        private readonly GameServer _server;
-
-        public ProjectileSystem(GameServer server)
-            : base(new BitMask(typeof(ProjectileComponent), typeof(BallisticComponent), typeof(PositionComponent)))
-        {
-            _server = server;
-        }
-
-        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
-        {
-            ServerSession session = _server.Session!;
-            var projectile = entity.Get<ProjectileComponent>();
-            projectile.Life -= deltaTime;
-            entity.Set(projectile);
-
-            Vector3 position = entity.Get<BallisticComponent>().PositionAt(_server.Tick);
-            entity.Set(new PositionComponent(position));
-
-            ServerPlayer? struck = null;
-            foreach (ServerPlayer hero in session.Heroes)
-            {
-                if (hero.Sim.Down || (position.Xz - hero.Sim.Position).LengthSquared >= HitReach * HitReach) continue;
-                struck = hero;
-                break;
-            }
-
-            bool blocked = position.Y < session.World.Height.Sample(position.Xz) || session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f));
-
-            if (struck != null) session.Combat.HurtHero(struck, projectile.Damage, session.World.Plan.Level);
-            if (struck != null || blocked || projectile.Life <= 0f) world.DestroyEntity(entity.Entity);
         }
     }
 

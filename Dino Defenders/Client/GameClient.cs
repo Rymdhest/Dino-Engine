@@ -1,6 +1,9 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
+using Dino_Defenders.Talents;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
@@ -64,6 +67,9 @@ namespace Dino_Defenders.Client
         private HeroButtons _presses;
         private string? _refusal;
         private int _damaged;
+        private Loadout _loadout;
+        private Condition _state;
+        private Counters _counters;
 
         public readonly NetEventHandlers Events = new();
         public readonly GhostClient Ghosts;
@@ -76,7 +82,15 @@ namespace Dino_Defenders.Client
         public Func<long> Clock = System.Diagnostics.Stopwatch.StartNew() is var watch ? () => watch.ElapsedMilliseconds : null!;
 
         public HeroState Hero { get; }
-        public HeroStats Stats { get; private set; }
+
+        /// <summary>
+        /// What this hero comes to right now, worked out here from the same record and the same state as the server's, so that the two can't
+        /// disagree for longer than a message takes.
+        /// </summary>
+        public ActorSheet Sheet { get; private set; }
+        public HeroKit Kit { get; private set; }
+        public readonly List<ActiveBuff> Buffs = new();
+        public SkillDefinition? Stolen { get; private set; }
         public GameSession? Session { get; private set; }
         public ClientState State { get; private set; } = ClientState.Connecting;
         public int PlayerId { get; private set; }
@@ -100,7 +114,9 @@ namespace Dino_Defenders.Client
             _ecs = ecs;
             _name = name;
             Hero = hero;
-            Stats = hero.Compute();
+            _loadout = HeroBuild.Compile(hero);
+            Sheet = _loadout.SheetFor(Condition.None);
+            Kit = new HeroKit(hero, Sheet);
             Ghosts = new GhostClient(ecs, new OwnGhostWatcher(this, host), Events);
             _predictedMask = (1ul << NetSchema.IndexOfComponent(typeof(PositionComponent))) | (1ul << NetSchema.IndexOfComponent(typeof(RotationComponent)));
         }
@@ -163,8 +179,8 @@ namespace Dino_Defenders.Client
             // Read every frame, so that a press in a frame with no tick due still lands in the next one.
             HeroIntent intent = _host.ReadIntent();
             _intent = intent;
+            _presses |= (HeroButtons)intent.Slots & HeroButtons.Presses;
             if (intent.Dash) _presses |= HeroButtons.Dash;
-            if (intent.Whirl) _presses |= HeroButtons.Whirl;
             if (intent.Flask) _presses |= HeroButtons.Flask;
             if (intent.Interact) _presses |= HeroButtons.Interact;
 
@@ -177,9 +193,7 @@ namespace Dino_Defenders.Client
             if (session == null) return;
             HeroSimState hero = Predictor.Current;
             session.PlayerPosition = Predictor.DrawnPosition(Commands.Alpha);
-            session.SwingCooldown = hero.SwingCooldown;
-            session.DashCooldown = hero.DashCooldown;
-            session.WhirlCooldown = hero.WhirlCooldown;
+            session.Sim = hero;
             session.Intent = intent;
         }
 
@@ -197,7 +211,7 @@ namespace Dino_Defenders.Client
                 if (Alone) command.Buttons |= HeroButtons.Frozen;
             }
 
-            HeroStepEvents events = Predictor.Step(command, Stats, _mover!);
+            HeroStepEvents events = Predictor.Step(command, Kit, _mover!);
             if (events != HeroStepEvents.None) _host.HeroActed(events, Predictor.Current);
 
             _recent.Add(command);
@@ -361,13 +375,14 @@ namespace Dino_Defenders.Client
             bool alone = reader.ReadBool();
             int spare = reader.ReadVarInt();
             HeroSimState truth = HeroSimState.Read(reader);
-            float health = reader.ReadFloat();
+            float barrier = reader.ReadFloat();
+            float debt = reader.ReadFloat();
             uint sentAt = reader.ReadUInt();
             uint heldFor = reader.ReadVarUInt();
             uint confirmed = reader.ReadUInt();
 
             if (epoch != _epoch || State != ClientState.Playing || tick <= _lastSnapshotTick) return;
-            if (interval < 1 || !float.IsFinite(truth.Position.X) || !float.IsFinite(truth.Position.Y) || !float.IsFinite(health))
+            if (interval < 1 || !float.IsFinite(truth.Position.X) || !float.IsFinite(truth.Position.Y) || !float.IsFinite(truth.Health) || truth.Using >= HeroState.SkillSlots || truth.Queued >= HeroState.SkillSlots)
             {
                 throw new NetReadException("A snapshot that can't be true.");
             }
@@ -377,7 +392,13 @@ namespace Dino_Defenders.Client
             Alone = alone;
             Render.OnSnapshot(tick, interval);
 
-            if (Session != null) Session.Health = health;
+            Refit(truth.State, truth.Counters);
+            if (Session != null)
+            {
+                Session.Health = truth.Health;
+                Session.Barrier = barrier;
+                Session.Debt = debt;
+            }
             if (sentAt != 0)
             {
                 long sample = (uint)Clock() - (long)sentAt - heldFor;
@@ -406,17 +427,33 @@ namespace Dino_Defenders.Client
             {
                 // Commands numbered from here on no longer follow on from those already sent.
                 _recent.Clear();
-                Predictor.Jump(tick, truth, Commands.Tick - 1, Stats, _mover!);
+                Predictor.Jump(tick, truth, Commands.Tick - 1, Kit, _mover!);
                 return;
             }
-            Predictor.Reconcile(tick, truth, Stats, _mover!);
+            Predictor.Reconcile(tick, truth, Kit, _mover!);
         }
 
         private void OnHeroUpdate(BitReader reader)
         {
             Protocol.ReadHeroSummary(reader, Hero);
+            Protocol.ReadBuffs(reader, Buffs, out SkillDefinition? stolen);
+            Stolen = stolen;
             if (reader.ReadBool()) Protocol.ReadGear(reader, Hero);
-            Stats = Hero.Compute();
+
+            _loadout = HeroBuild.Compile(Hero, Buffs, Stolen);
+            Sheet = _loadout.SheetFor(_state, _counters);
+            Kit = new HeroKit(Hero, Sheet);
+        }
+
+        // The same sheet the server has for the hero, given what the server says is true of them.
+        private void Refit(Condition state, in Counters counters)
+        {
+            _state = state;
+            _counters = counters;
+            ActorSheet sheet = _loadout.SheetFor(state, counters);
+            if (ReferenceEquals(sheet, Sheet)) return;
+            Sheet = sheet;
+            Kit = new HeroKit(Hero, sheet);
         }
 
         private void OnProgress(BitReader reader)
@@ -508,10 +545,27 @@ namespace Dino_Defenders.Client
             return writer;
         }
 
-        public void RaiseAttribute(HeroAttribute attribute)
+        public void Allocate(int node)
         {
-            BitWriter writer = Action(HeroAction.RaiseAttribute);
-            writer.WriteByte((byte)attribute);
+            BitWriter writer = Action(HeroAction.Allocate);
+            writer.WriteVarInt(node);
+            Send(writer);
+        }
+
+        public void Refund(int node)
+        {
+            BitWriter writer = Action(HeroAction.Refund);
+            writer.WriteVarInt(node);
+            Send(writer);
+        }
+
+        public void ForgetTalents() => Send(Action(HeroAction.ForgetTalents));
+
+        public void AssignSlot(int slot, SkillDefinition? skill)
+        {
+            BitWriter writer = Action(HeroAction.AssignSlot);
+            writer.WriteByte((byte)slot);
+            writer.WriteVarInt(skill?.Number ?? 0);
             Send(writer);
         }
 

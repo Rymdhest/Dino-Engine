@@ -61,7 +61,7 @@ namespace Dino_Defenders.Client
                 return intent;
             }
 
-            if (session.Health < session.Stats.MaxHealth * 0.4f) intent.Flask = true;
+            if (session.Health < session.Sheet.MaxHealth * 0.4f) intent.Flask = true;
             intent.Interact = session.Offered is InteractKind.Shrine or InteractKind.Chest;
 
             Vector2 here = session.PlayerPosition;
@@ -71,7 +71,8 @@ namespace Dino_Defenders.Client
             foreach (Entity entity in _ecs.QueryEntities(EnemyMask, BitMask.Empty))
             {
                 EntityView view = _ecs.GetEntityView(entity);
-                if (view.Get<EnemyComponent>().State == EnemyState.Dead) continue;
+                var enemy = view.Get<EnemyComponent>();
+                if (enemy.State == EnemyState.Dead || enemy.Friendly) continue;
 
                 Vector2 position = view.Get<PositionComponent>().value.Xz;
                 float distance = (position - here).Length;
@@ -102,9 +103,16 @@ namespace Dino_Defenders.Client
             Vector2 toward = nearest - here;
             intent.Aim = toward;
             if (best > 4.5f) intent.Move = toward;
-            intent.Attack = best < 6f;
-            intent.Whirl = close >= 2;
+            if (best < 6f) intent.Use(0);
             intent.Dash = best is > 10f and < 18f;
+
+            // Whatever else is on the bar gets used whenever it could reach, so that a scripted run exercises a build and not only its first skill.
+            for (int slot = 1; slot < Progression.HeroState.SkillSlots; slot++)
+            {
+                if (session.Client.Kit.Slots[slot] is not Stats.SkillProfile skill) continue;
+                float reach = MathF.Max(skill.Range, skill.Reach);
+                if (skill.Skill.Form == Skills.SkillForm.Strike && skill.Skill.Arc >= MathF.Tau ? close >= 2 : best < reach) intent.Use(slot);
+            }
             return intent;
         }
 

@@ -116,7 +116,7 @@ namespace Dino_Defenders
             _save = options.Saves ? SaveGame.Load() : null;
             _hero = _save?.Hero ?? HeroState.CreateNew();
             _hero.Level = Math.Max(_hero.Level, options.HeroLevel);
-            _hero.Might += (options.HeroLevel - 1) * 3;
+            ApplyBuildOptions(_hero, options);
 
             if (options.Join != null)
             {
@@ -129,6 +129,32 @@ namespace Dino_Defenders
                 : new WorldRequest(options.Seed ?? Environment.TickCount, options.Archetype, options.Level), _save);
 
             if (options.Host) OpenToFriends();
+        }
+
+        // For scripted runs: a hero made to order, to look at a build without earning it.
+        private static void ApplyBuildOptions(HeroState hero, GameOptions options)
+        {
+            foreach (string id in options.Talents)
+            {
+                if (Talents.TalentTree.Find(id) is not Talents.TalentNode node) continue;
+                foreach (int step in Talents.TalentTree.PathTo(hero, node.Index))
+                {
+                    Talents.TalentNode taken = Talents.TalentTree.Nodes[step];
+                    hero.Talents.Add(taken.Id);
+                    foreach (Stats.Mod mod in taken.Mods)
+                    {
+                        if (mod.Kind == Stats.ModKind.GrantSkill) HeroBuild.OfferToBar(hero, Skills.SkillCatalog.Get(mod.Skill));
+                    }
+                }
+            }
+
+            foreach (string id in options.Equip)
+            {
+                if (UniqueCatalog.Find(id) is not UniqueDefinition unique) continue;
+                Item item = UniqueCatalog.Make(unique, hero.Level, new Dino_Engine.World.WorldRandom(1));
+                hero.Inventory.Add(item);
+                hero.Equip(item);
+            }
         }
 
         private static void ApplyRenderOptions(string? render)
@@ -148,7 +174,7 @@ namespace Dino_Defenders
             // What a client does with what it is told. None of the game's rules run here: they're on the server.
             SystemRegistry.InsertBefore<GravitySystem>(new PromptSystem());
             SystemRegistry.InsertBefore<GravitySystem>(new AmbienceSystem());
-            SystemRegistry.InsertAfter<VelocitySystem>(new GhostPresentationSystem(() => _client));
+            SystemRegistry.InsertAfter<VelocitySystem>(new GhostPresentationSystem(() => _client, () => _effects));
             SystemRegistry.InsertBefore<GravitySystem>(new SoundscapeSystem());
             SystemRegistry.InsertBefore<GravitySystem>(new MusicDirectorSystem());
             SystemRegistry.InsertAfter<GhostPresentationSystem>(new CharacterSoundSystem(() => _effects?.Sounds));
@@ -365,6 +391,8 @@ namespace Dino_Defenders
             if (window.IsKeyPressed(Keys.M)) _ui.Toggle(_ui.Map);
             if (window.IsKeyPressed(Keys.C) || window.IsKeyPressed(Keys.I)) _ui.Toggle(_ui.Hero);
             if (window.IsKeyPressed(Keys.J)) _ui.Toggle(_ui.Chronicle);
+            if (window.IsKeyPressed(Keys.T)) _ui.Toggle(_ui.Talents);
+            if (window.IsKeyPressed(Keys.K)) _ui.Toggle(_ui.Skills);
         }
 
         private void OpenPanel(string name)
@@ -373,6 +401,8 @@ namespace Dino_Defenders
             {
                 case "map": _ui.Toggle(_ui.Map); break;
                 case "hero": _ui.Toggle(_ui.Hero); break;
+                case "talents": _ui.Toggle(_ui.Talents); break;
+                case "skills": _ui.Toggle(_ui.Skills); break;
                 case "chronicle": _ui.Toggle(_ui.Chronicle); break;
                 case "pause": _ui.Toggle(_ui.Pause); break;
                 case "sound":
@@ -401,7 +431,7 @@ namespace Dino_Defenders
             int found = session.Sites.Count(s => s.Discovered);
             string objectives = string.Join(", ", session.Chronicle.Objectives.Select(o => $"{o.Progress}/{o.Goal}"));
             Console.WriteLine($"World: {session.World.Plan.Name}, level {session.World.Plan.Level}, {found} sites found, objectives {objectives}, liberated {session.Liberated}");
-            Console.WriteLine($"Hero: level {_hero.Level}, {session.Health:0}/{session.Stats.MaxHealth:0} health, {_hero.Gold} gold, {_hero.Inventory.Count} items, {fallen} enemies fallen, {cleared} sites cleared at {session.PlayerPosition.X:0},{session.PlayerPosition.Y:0}");
+            Console.WriteLine($"Hero: level {_hero.Level}, {session.Health:0}/{session.Sheet.MaxHealth:0} health, {_hero.Gold} gold, {_hero.Inventory.Count} items, {fallen} enemies fallen, {cleared} sites cleared at {session.PlayerPosition.X:0},{session.PlayerPosition.Y:0}");
 
             HeroPredictor predictor = _client!.Predictor;
             Console.WriteLine($"Net: {_client.Party.Count} in the party, {_client.Ghosts.Ghosts.Count} ghosts, round trip {_client.RoundTrip:0} ms, {predictor.Corrections} corrections in {predictor.Compared} checks (worst {predictor.WorstCorrection:0.00} m), {_client.Ghosts.Mismatches} mismatches, {_client.BytesReceived / 1024} KB in, {_client.BytesSent / 1024} KB out");
@@ -612,7 +642,7 @@ namespace Dino_Defenders
             if (session.Autopilot != null) return session.Autopilot();
 
             Vector2 at = session.PlayerPosition;
-            return LocalInput.Read(new Vector3(at.X, session.World.Height.Sample(at), at.Y));
+            return LocalInput.Read(new Vector3(at.X, session.World.Height.Sample(at), at.Y), session.Sim);
         }
 
         void IClientHost.HeroActed(HeroStepEvents events, in HeroSimState hero)

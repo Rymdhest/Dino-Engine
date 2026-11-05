@@ -1,5 +1,6 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
@@ -18,6 +19,8 @@ namespace Dino_Defenders.Server
         private const float WakeDistance = 100f;
         private const float SleepDistance = 160f;
         private const float EliteChance = 0.14f;
+        private const float CasterChance = 0.18f;
+        private const float MournerChance = 0.2f;
         private const float CheckInterval = 0.25f;
 
         private readonly GameServer _server;
@@ -104,44 +107,53 @@ namespace Dino_Defenders.Server
             bool elite = !boss && random.Chance(EliteChance);
 
             float rankHealth = boss ? 11f : elite ? 2.6f : 1f;
-            float rankDamage = boss ? 1.9f : elite ? 1.4f : 1f;
             float scale = boss ? 1.7f : elite ? 1.22f : random.Range(0.94f, 1.06f);
-
-            // A level above yours hits harder and takes longer to bring down, and it adds up.
-            float health = 26f * MathF.Pow(1.17f, level) * rankHealth;
-            float damage = 7f * MathF.Pow(1.14f, level) * rankDamage * (archer ? 0.75f : 1f);
-
-            string kind = boss ? session.Chronicle.Warlord : undead ? "Restless Dead" : archer ? "Outlaw Archer" : spawn.Role == SpawnRole.Guard ? "Sentry" : "Outlaw";
-            string name = elite ? $"Fearsome {kind}" : kind;
             string model = boss ? "warlord" : undead ? "skeleton" : $"bandit{random.Int(8)}:{archer}";
 
-            var enemy = new EnemyComponent
-            {
-                Name = name,
-                Rank = boss ? EnemyRank.Boss : elite ? EnemyRank.Elite : EnemyRank.Normal,
-                Level = level,
-            };
+            // New draws come from a new fork, so that what's already decided about a world stays decided.
+            WorldRandom kinds = random.Fork("kind");
+            EnemyKind kind = boss ? Bestiary.Warlord
+                : undead ? (kinds.Chance(MournerChance) ? Bestiary.Mourner : Bestiary.Restless)
+                : archer ? Bestiary.Archer
+                : spawn.Role == SpawnRole.Guard ? Bestiary.Sentry
+                : kinds.Chance(CasterChance) ? kinds.Pick(Bestiary.Casters) : Bestiary.Outlaw;
+            int trait = elite ? kinds.Int(Bestiary.Traits.Length) : Bestiary.NoTrait;
 
+            var rank = boss ? EnemyRank.Boss : elite ? EnemyRank.Elite : EnemyRank.Normal;
+            Dino_Defenders.Progression.Item[]? gear = null;
+            string? title = null;
+            Loadout loadout = boss ? Bestiary.Boss(kind, level, random.Fork("boss"), out gear, out title) : session.Bestiary.Shared(kind, level, rank, trait);
+
+            string name = boss ? session.Chronicle.Warlord : kind.Name;
+            if (title != null) name = $"{name}, {title}";
+            if (elite) name = $"{Bestiary.Traits[trait].Name} {kind.Name}";
+
+            var enemy = new EnemyComponent { Name = name, Rank = rank, Level = level };
             var brain = new EnemyBrainComponent
             {
                 SiteIndex = siteIndex,
                 SpawnIndex = spawnIndex,
                 Home = spawn.Position,
-                Damage = damage,
-                Armour = 6f * level * (boss ? 2f : 1f),
-                MoveSpeed = (undead ? 5.2f : 6.8f) * (elite ? 1.1f : 1f),
-                AggroRadius = boss ? 26f : archer ? 30f : 21f,
-                LeashRadius = boss ? 70f : 60f,
-                AttackRange = archer ? 24f : 4.6f * scale,
-                WindUp = boss ? 0.6f : archer ? 0.75f : 0.5f,
-                Ranged = archer,
-                Experience = (int)(14f * MathF.Pow(1.14f, level) * rankHealth),
+                AggroRadius = kind.AggroRadius,
+                LeashRadius = kind.LeashRadius,
+                KeepsAway = kind.KeepsAway,
+                Experience = Bestiary.ExperienceAt(level, rankHealth),
                 Cooldown = random.Range(0f, 1f),
             };
 
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
+            var actor = new Actor(Team.Enemies, loadout, spawn.Position, WorldData.CharacterRadius * MathF.Min(scale, 1.4f))
+            {
+                Site = state,
+                Body = model,
+                Gear = gear,
+                Height = position.Y,
+                Nature = boss ? Condition.Boss : elite ? Condition.Elite : Condition.None,
+            };
+
             float importance = boss ? 4f : elite ? 2f : 1.5f;
-            state.Live.Add(world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, importance, enemy, brain, new HealthComponent(health), new SwingComponent())));
+            actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, importance, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            state.Live.Add(actor.Entity);
         }
 
         private void SpawnVillager(ECSWorld world, ServerSession session, SiteState state, int siteIndex, SiteSpawn spawn, WorldRandom random, bool stationary)
@@ -347,7 +359,7 @@ namespace Dino_Defenders.Server
         /// <summary>A hero has pressed use: the nearest thing in reach is what they meant.</summary>
         public void Interact(ECSWorld world, ServerSession session, ServerPlayer hero)
         {
-            if (hero.Health <= 0f) return;
+            if (hero.Actor.Vitals.Health <= 0f) return;
 
             Entity nearest = default;
             float best = float.PositiveInfinity;
@@ -392,7 +404,7 @@ namespace Dino_Defenders.Server
         private void UseShrine(ServerSession session, ServerPlayer hero, SiteState state, EntityView view)
         {
             Vector3 position = view.Get<PositionComponent>().value;
-            hero.Health = hero.Stats.MaxHealth;
+            hero.Actor.Vitals = Vitals.Full(hero.Actor.Sheet);
             hero.Hero.Flasks = HeroState.MaxFlasks;
             hero.SummaryChanged = true;
             hero.Respawn = position.Xz;

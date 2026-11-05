@@ -1,5 +1,9 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
+using Dino_Engine.ECS.Components;
+using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
@@ -15,9 +19,14 @@ namespace Dino_Defenders.Server
     {
         private const float DiscoverRadius = 60f;
         private const float SharedExperienceReach = 80f;
+        private const float MinionSight = 28f;
+
+        private readonly List<Actor> _nearby = new();
 
         public readonly GameServer Server;
         public readonly Combat Combat;
+        public readonly Bestiary Bestiary = new();
+        public readonly List<Actor> Minions = new();
         public bool ObjectivesChanged;
 
         /// <summary>Seconds of game time.</summary>
@@ -50,6 +59,46 @@ namespace Dino_Defenders.Server
             return nearest;
         }
 
+        /// <summary>The nearest thing on the other side from someone. Enemies look for heroes and what's with them; minions look around themselves.</summary>
+        public Actor? NearestFoe(Actor actor, out float distance)
+        {
+            Actor? nearest = null;
+            distance = float.PositiveInfinity;
+
+            if (actor.Team == Team.Enemies)
+            {
+                foreach (ServerPlayer hero in Heroes)
+                {
+                    if (hero.Sim.Down) continue;
+                    float away = (hero.Sim.Position - actor.Position).Length;
+                    if (away >= distance) continue;
+                    distance = away;
+                    nearest = hero.Actor;
+                }
+
+                foreach (Actor minion in Minions)
+                {
+                    if (minion.Dead) continue;
+                    float away = (minion.Position - actor.Position).Length;
+                    if (away >= distance) continue;
+                    distance = away;
+                    nearest = minion;
+                }
+                return nearest;
+            }
+
+            _nearby.Clear();
+            Combat.Grid.Foes(actor.Team, actor.Position, MinionSight, _nearby);
+            foreach (Actor foe in _nearby)
+            {
+                float away = (foe.Position - actor.Position).Length;
+                if (away >= distance) continue;
+                distance = away;
+                nearest = foe;
+            }
+            return nearest;
+        }
+
         /// <summary>How far the nearest hero is, on their feet or not: for what should be happening around them.</summary>
         public float DistanceToAnyHero(Vector2 position)
         {
@@ -60,14 +109,14 @@ namespace Dino_Defenders.Server
 
         public void GiveExperience(ServerPlayer hero, int amount)
         {
-            int levels = hero.Hero.GainExperience(amount);
+            int levels = hero.Hero.GainExperience((int)(amount * (1f + hero.Actor.Sheet.ExperienceGain / 100f)));
             hero.SummaryChanged = true;
             if (levels <= 0) return;
 
-            hero.RefreshStats();
-            hero.Health = hero.Stats.MaxHealth;
+            hero.RefreshLoadout();
+            hero.Actor.Vitals = Vitals.Full(hero.Actor.Sheet);
             Server.Broadcast(new SoundEvent { Position = Server.HeroPosition(hero), Cue = SoundCue.LevelUp }, hero.Sim.Position);
-            Server.Announce(hero, $"Level {hero.Hero.Level}", "Three points to spend. Press C.");
+            Server.Announce(hero, $"Level {hero.Hero.Level}", $"{hero.Hero.UnspentPoints} talents to spend. Press T.");
         }
 
         /// <summary>A fight shared is a reward shared: everyone close enough to have been in it gets the whole of it.</summary>
@@ -93,6 +142,107 @@ namespace Dino_Defenders.Server
                 Server.Announce(null, state.Site.Name, Chronicle.Describe(state.Site, World), 4.5f);
                 foreach (ServerPlayer hero in Heroes) GiveExperience(hero, 6 * World.Plan.Level);
             }
+        }
+
+        /// <summary>Someone who isn't a hero has fallen. It stays on the ground a while, and what happens next depends on whose side it was on.</summary>
+        public void Fell(Actor actor, Vector2 from)
+        {
+            ECSWorld ecs = Server.Ecs;
+            if (!actor.Entity.IsValid() || !ecs.TryGetEntityLocation(actor.Entity, out _, out _)) return;
+
+            EntityView view = ecs.GetEntityView(actor.Entity);
+            var enemy = view.Get<EnemyComponent>();
+            var brain = view.Get<EnemyBrainComponent>();
+            Vector3 position = view.Get<PositionComponent>().value;
+
+            Vector2 away = position.Xz - from;
+            away = away.LengthSquared > 0.01f ? away.Normalized() : Vector2.UnitX;
+            enemy.State = EnemyState.Dead;
+            enemy.FallAxis = new Vector3(away.Y, 0f, -away.X);
+            brain.StateTime = 0f;
+            view.Set(enemy);
+            view.Set(brain);
+            view.Set(new VelocityComponent());
+            view.Set(new HealthComponent { Current = 0f, Max = actor.Sheet.MaxHealth });
+
+            if (actor.Owner != null)
+            {
+                Minions.Remove(actor);
+                return;
+            }
+
+            if (actor.Site is not SiteState state) return;
+            state.Dead.Add(brain.SpawnIndex);
+            state.Live.Remove(actor.Entity);
+
+            ShareExperience(position.Xz, brain.Experience);
+            Combat.DropLoot(enemy, position, actor);
+            OnHostileKilled(state);
+        }
+
+        /// <summary>Puts someone's minions on their feet, as many as they're allowed, oldest going first.</summary>
+        public void Summon(Actor owner, SkillProfile skill, Vector2 at)
+        {
+            if (Bestiary.Minion(skill.Skill.Minion) is not EnemyKind kind) return;
+            Loadout loadout = Bestiary.MinionOf(owner.Loadout, owner.Sheet, kind);
+
+            // A new call replaces whoever answered the last one.
+            for (int i = Minions.Count - 1; i >= 0; i--)
+            {
+                if (Minions[i].Owner == owner && Minions[i].MinionOf == skill.Skill) Combat.Dismiss(Minions[i]);
+            }
+
+            for (int i = 0; i < skill.MinionCount; i++)
+            {
+                float angle = i * MathF.Tau / MathF.Max(skill.MinionCount, 1);
+                Vector2 spot = at + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 3f;
+                if (!World.Passable.IsSet(spot)) spot = at;
+                bool hound = kind == Bestiary.Hound;
+                Actor minion = Raise(owner, loadout, kind.Name, "skeleton", spot, hound ? 0.72f : 1f, kind.AggroRadius);
+                minion.MinionLeft = skill.Duration * owner.Sheet.MinionDuration;
+                minion.MinionOf = skill.Skill;
+            }
+        }
+
+        /// <summary>Stands a fallen enemy back up on its killer's side, with everything it had.</summary>
+        public void RaiseFallen(Actor killer, Actor victim)
+        {
+            Actor risen = Raise(killer, Bestiary.Risen(victim.Loadout, killer.Loadout.Level), "Risen", victim.Body, victim.Position, 1f, 26f);
+            risen.MinionLeft = 20f * killer.Sheet.MinionDuration;
+        }
+
+        private Actor Raise(Actor owner, Loadout loadout, string name, string model, Vector2 at, float scale, float aggro)
+        {
+            ECSWorld ecs = Server.Ecs;
+            float height = World.Height.Sample(at);
+            var actor = new Actor(Team.Heroes, loadout, at, WorldData.CharacterRadius * scale) { Owner = owner, Body = model, Height = height };
+
+            var enemy = new EnemyComponent { Name = name, Rank = EnemyRank.Normal, Level = owner.Loadout.Level, Friendly = true };
+            var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = owner.Position, AggroRadius = aggro, LeashRadius = 45f };
+            var position = new Vector3(at.X, height, at.Y);
+            actor.Entity = ecs.CreateEntity(name, Bodies.Walking(Server, model, position, scale, 1.5f, enemy, brain, new HealthComponent(loadout.SheetFor(Condition.None).MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            Minions.Add(actor);
+            return actor;
+        }
+
+        /// <summary>Something an actor has has changed, so it needs new numbers.</summary>
+        public void Rebuild(Actor actor)
+        {
+            actor.LoadoutChanged = false;
+            if (actor.Player is ServerPlayer hero)
+            {
+                hero.RefreshLoadout();
+                hero.BuffsChanged = true;
+                return;
+            }
+
+            // Anyone else has to stop sharing what they've been sharing, for as long as it lasts.
+            var mods = new List<Mod>(actor.Innate.Mods);
+            foreach (ActiveBuff buff in actor.Buffs)
+            {
+                for (int stack = 0; stack < buff.Stacks; stack++) mods.AddRange(buff.Buff.Mods);
+            }
+            actor.Adopt(actor.Buffs.Count == 0 ? actor.Innate : new Loadout(actor.Innate.Level, actor.Innate.Weapon, mods, actor.Innate.Skills));
         }
 
         /// <summary>A hostile at a site has fallen; if it was the last, the site is free.</summary>

@@ -1,5 +1,6 @@
 using Dino_Defenders.Client;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Stats;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
@@ -49,7 +50,7 @@ namespace Dino_Defenders.Gameplay
         public readonly List<LogLine> Log = new();
 
         public HeroState Hero => Client.Hero;
-        public HeroStats Stats => Client.Stats;
+        public ActorSheet Sheet => Client.Sheet;
 
         public Entity Player;
         public HeroIntent Intent;
@@ -58,10 +59,10 @@ namespace Dino_Defenders.Gameplay
         public bool Paused;
         public Vector2? Guidance;
         public float Health;
+        public float Barrier;
+        public float Debt;
         public Vector2 PlayerPosition;
-        public float DashCooldown;
-        public float WhirlCooldown;
-        public float SwingCooldown;
+        public HeroSimState Sim;
         public float GuideCooldown;
         public string? InteractPrompt;
         public InteractKind? Offered;
@@ -69,7 +70,7 @@ namespace Dino_Defenders.Gameplay
         public GameSession(GameClient client, WorldData world, WorldRequest request) : base(world, request)
         {
             Client = client;
-            Health = Stats.MaxHealth;
+            Health = Sheet.MaxHealth;
             PlayerPosition = world.Sites[0].Position;
         }
 

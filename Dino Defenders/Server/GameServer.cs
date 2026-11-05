@@ -1,6 +1,9 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
+using Dino_Defenders.Talents;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.ECS.Systems;
@@ -83,9 +86,11 @@ namespace Dino_Defenders.Server
             Ghosts = new GhostServer(Ecs);
 
             _interaction = new InteractionSystem(this);
+            _systems.Add(new ActorSystem(this));
             _systems.Add(new EnemyBrainSystem(this));
             _systems.Add(new VillagerSystem(this));
             _systems.Add(new ProjectileSystem(this));
+            _systems.Add(new ZoneSystem(this));
             _systems.Add(new DyingSystem());
             _systems.Add(_interaction);
             _systems.Add(new EncounterSystem(this));
@@ -111,7 +116,6 @@ namespace Dino_Defenders.Server
                 StepHeroes();
                 foreach (SystemBase system in _systems) system.Step(Ecs, NetTime.TickSeconds);
                 Ecs.ApplyDeferredCommands();
-                Session.Combat.RecordPositions(Tick);
                 Ecs.DirtyEntities.Clear();
             }
 
@@ -187,16 +191,19 @@ namespace Dino_Defenders.Server
             bool first = _heroes.Count == 0;
             Vector2 start = StartPosition(session.World, first);
 
-            player.Stats = player.Hero.Compute();
-            player.Health = player.Stats.MaxHealth;
+            var actor = new Actor(Team.Heroes, HeroBuild.Compile(player.Hero), start, HeroRules.Radius) { Player = player, Body = "hero" };
+            player.Actor = actor;
+            player.Stolen = null;
+            player.Kit = new HeroKit(player.Hero, actor.Sheet);
             player.Respawn = session.World.Sites[0].Position;
             if (first && _saved != null)
             {
-                if (_saved.Health > 0f) player.Health = Math.Min(_saved.Health, player.Stats.MaxHealth);
+                if (_saved.Health > 0f) actor.Vitals.Health = Math.Min(_saved.Health, actor.Sheet.MaxHealth);
                 if (_saved.RespawnX >= 0f) player.Respawn = new Vector2(_saved.RespawnX, _saved.RespawnZ);
             }
 
-            player.Sim = HeroSimState.At(start);
+            player.Sim = HeroSimState.At(start, actor.Vitals.Mana);
+            player.Sim.Health = actor.Vitals.Health;
             player.View = new GhostView { Focus = start };
             player.GhostId = Ghosts.NextId();
             player.DownFor = 0f;
@@ -209,9 +216,12 @@ namespace Dino_Defenders.Server
                 new ScaleComponent(new Vector3(1f)),
                 new VisualComponent($"hero{(player.Id - 1) % Protocol.MaxPlayers}", VisualKind.Character),
                 new FixToTerrainHeightComponent(),
-                new HeroComponent { Name = player.Name, Player = player.Id, Level = player.Hero.Level },
-                new HealthComponent(player.Stats.MaxHealth) { Current = player.Health },
-                new SwingComponent());
+                new HeroComponent { Name = player.Name, Title = TalentTree.TitleOf(player.Hero), Player = player.Id, Level = player.Hero.Level },
+                new HealthComponent(actor.Sheet.MaxHealth) { Current = actor.Vitals.Health },
+                new SwingComponent(),
+                new AfflictedComponent(),
+                new ActorComponent(actor));
+            actor.Entity = player.Entity;
 
             _heroes.Add(player);
             player.InWorld = true;
@@ -281,64 +291,77 @@ namespace Dino_Defenders.Server
                 if (!alone) command.Buttons &= ~HeroButtons.Frozen;
                 Paused = alone && command.Has(HeroButtons.Frozen);
 
-                HeroStepEvents events = HeroRules.Step(ref player.Sim, command, player.Stats, _mover!);
+                Actor actor = player.Actor;
+                if (!ReferenceEquals(player.Kit.Sheet, actor.Sheet)) player.Kit = new HeroKit(player.Hero, actor.Sheet);
+                Brief(player);
+
+                float healthBefore = player.Sim.Health;
+                HeroStepEvents events = HeroRules.Step(ref player.Sim, command, player.Kit, _mover!);
+                actor.Vitals.Mana = player.Sim.Mana;
+                actor.Vitals.Health = player.Sim.Health;
+                if (player.Sim.Health < healthBefore) actor.HealthSpent += (healthBefore - player.Sim.Health) / actor.Sheet.MaxHealth * 100f;
+
                 if (!Paused)
                 {
-                    if (player.Health > 0f)
-                    {
-                        Act(session, player, command, events);
-                        player.Health = Math.Min(player.Health + player.Stats.Regeneration * NetTime.TickSeconds, player.Stats.MaxHealth);
-                    }
-                    else
-                    {
-                        UpdateDown(player);
-                    }
+                    if (actor.Vitals.Health > 0f) Act(session, player, command, events);
+                    else UpdateDown(player);
                 }
 
                 EntityView view = Ecs.GetEntityView(player.Entity);
                 Vector2 at = player.Sim.Position;
                 view.Set(new PositionComponent(new Vector3(at.X, session.World.Height.Sample(at), at.Y)));
                 view.Set(new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, player.Sim.Yaw)));
-                view.Set(new HealthComponent { Current = player.Health, Max = player.Stats.MaxHealth });
 
                 var hero = view.Get<HeroComponent>();
-                if (hero.Level != player.Hero.Level)
+                string title = TalentTree.TitleOf(player.Hero);
+                if (hero.Level != player.Hero.Level || hero.Title != title)
                 {
                     hero.Level = player.Hero.Level;
+                    hero.Title = title;
                     view.Set(hero);
                 }
             }
+        }
+
+        // What's happened to a hero since their last step that their step has to know about: only the server can say.
+        private static void Brief(ServerPlayer player)
+        {
+            Actor actor = player.Actor;
+            Afflictions afflictions = actor.Afflictions;
+            player.Sim.Mana = actor.Vitals.Mana;
+            player.Sim.Health = actor.Vitals.Health;
+            player.Sim.Held = MathF.Max(afflictions.FreezeLeft, afflictions.StunLeft);
+            player.Sim.ActionRate = afflictions.ActionRate;
+            player.Sim.MoveRate = afflictions.ActionRate;
+            player.Sim.State = actor.State;
+            player.Sim.Counters = actor.Counters;
         }
 
         private void Act(ServerSession session, ServerPlayer player, in HeroCommand command, HeroStepEvents events)
         {
             Vector3 position = HeroPosition(player);
             Vector2 at = player.Sim.Position;
+            SkillProfile? skill = player.Sim.Using >= 0 ? player.Kit.Slots[player.Sim.Using] : null;
 
-            if ((events & HeroStepEvents.Swung) != 0)
+            if ((events & HeroStepEvents.Used) != 0 && skill != null)
             {
                 EntityView view = Ecs.GetEntityView(player.Entity);
                 var swing = view.Get<SwingComponent>();
                 swing.Serial++;
-                swing.Speed = 2f * player.Stats.AttackSpeed;
+                swing.Speed = 1.2f / MathF.Max(skill.UseTime, 0.05f);
                 view.Set(swing);
             }
 
-            if ((events & HeroStepEvents.Struck) != 0)
+            if ((events & HeroStepEvents.Landed) != 0 && skill != null)
             {
-                session.Combat.StrikeEnemies(player, at, player.Sim.Aim, HeroRules.SwingReach, HeroRules.SwingArc, 1f, command.ViewLag);
-            }
-
-            if ((events & HeroStepEvents.Whirled) != 0)
-            {
-                session.Combat.StrikeEnemies(player, at, Vector2.UnitX, HeroRules.WhirlReach, MathF.Tau, HeroRules.WhirlDamage * player.Stats.SkillPower, command.ViewLag);
+                session.Combat.Release(player.Actor, skill, at, player.Sim.Aim, player.Sim.AimReach, command.ViewLag);
             }
 
             // Its owner saw all of this the moment they pressed; it's everyone else who needs telling.
-            const HeroStepEvents visible = HeroStepEvents.Struck | HeroStepEvents.Whirled | HeroStepEvents.Dashed;
+            const HeroStepEvents visible = HeroStepEvents.Landed | HeroStepEvents.Used | HeroStepEvents.Dashed;
             if ((events & visible) != 0)
             {
-                Broadcast(new HeroMoveEvent { Position = position, Aim = player.Sim.Aim, Move = events & visible }, at, except: player);
+                Broadcast(new HeroMoveEvent { Position = position, Aim = player.Sim.Aim, Move = events & visible, Skill = skill?.Skill.Number ?? 0 }, at, except: player);
             }
 
             if (command.Has(HeroButtons.Flask)) DrinkFlask(player, position);
@@ -347,11 +370,14 @@ namespace Dino_Defenders.Server
 
         private void DrinkFlask(ServerPlayer player, Vector3 position)
         {
-            if (player.Hero.Flasks <= 0 || player.Health >= player.Stats.MaxHealth) return;
+            Actor actor = player.Actor;
+            ActorSheet sheet = actor.Sheet;
+            if (player.Hero.Flasks <= 0 || actor.Vitals.Health >= sheet.MaxHealth) return;
             player.Hero.Flasks--;
             player.SummaryChanged = true;
-            float heal = player.Stats.MaxHealth * HeroRules.FlaskHeal;
-            player.Health = Math.Min(player.Health + heal, player.Stats.MaxHealth);
+            float heal = sheet.MaxHealth * HeroRules.FlaskHeal * sheet.FlaskScale;
+            Hits.Heal(sheet, ref actor.Vitals, heal);
+            Session!.Combat.SetOff(actor, TriggerEvent.Flask, actor.Position);
             Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Flask }, position.Xz);
             Broadcast(new TextEvent
             {
@@ -380,7 +406,9 @@ namespace Dino_Defenders.Server
             if (player.DownFor < HeroRules.DeathDelay) return;
 
             player.Sim.Down = false;
-            player.Health = player.Stats.MaxHealth;
+            player.Actor.Dead = false;
+            player.Actor.Afflictions.Clear();
+            player.Actor.Vitals = Vitals.Full(player.Actor.Sheet);
             player.Hero.Flasks = HeroState.MaxFlasks;
             player.SummaryChanged = true;
             Teleport(player, player.Respawn);
@@ -486,6 +514,8 @@ namespace Dino_Defenders.Server
 
             if (_heroes.Remove(player))
             {
+                // What followed them goes with them.
+                player.Actor.Dead = true;
                 Ecs.DestroyEntity(player.Entity);
                 Note(null, $"{player.Name} has gone their own way.");
             }
@@ -555,7 +585,7 @@ namespace Dino_Defenders.Server
 
             player.Name = name.Length > 0 ? name : $"Hero {player.Id}";
             player.Hero = hero;
-            player.Stats = hero.Compute();
+            TalentTree.Sanitize(hero);
             player.Greeted = true;
             SendWorld(player, Message.Welcome);
             Console.WriteLine($"{player.Name} joined from {player.Connection.Address}.");
@@ -624,14 +654,39 @@ namespace Dino_Defenders.Server
             var action = (HeroAction)reader.ReadByte();
             switch (action)
             {
-                case HeroAction.RaiseAttribute:
-                    var attribute = (HeroAttribute)reader.ReadByte();
-                    if (hero.UnspentPoints <= 0) break;
-                    hero.UnspentPoints--;
-                    if (attribute == HeroAttribute.Might) hero.Might++;
-                    else if (attribute == HeroAttribute.Finesse) hero.Finesse++;
-                    else hero.Spirit++;
-                    player.RefreshStats();
+                case HeroAction.Allocate:
+                    int allocate = reader.ReadVarInt();
+                    if (!TalentTree.CanAllocate(hero, allocate)) break;
+                    TalentNode taken = TalentTree.Nodes[allocate];
+                    hero.Talents.Add(taken.Id);
+                    foreach (Mod mod in taken.Mods)
+                    {
+                        if (mod.Kind == ModKind.GrantSkill) HeroBuild.OfferToBar(hero, SkillCatalog.Get(mod.Skill));
+                    }
+                    player.RefreshLoadout();
+                    player.SummaryChanged = true;
+                    break;
+
+                case HeroAction.Refund:
+                    int refund = reader.ReadVarInt();
+                    if (!TalentTree.CanRefund(hero, refund)) break;
+                    hero.Talents.Remove(TalentTree.Nodes[refund].Id);
+                    player.RefreshLoadout();
+                    player.SummaryChanged = true;
+                    break;
+
+                case HeroAction.ForgetTalents:
+                    hero.Talents.Clear();
+                    player.RefreshLoadout();
+                    player.SummaryChanged = true;
+                    break;
+
+                case HeroAction.AssignSlot:
+                    int slotIndex = reader.ReadByte();
+                    int skillNumber = reader.ReadVarInt();
+                    if (slotIndex >= HeroState.SkillSlots) break;
+                    hero.Bar[slotIndex] = SkillCatalog.IsNumber(skillNumber) ? SkillCatalog.Get(skillNumber).Id : null;
+                    player.Kit = new HeroKit(hero, player.Actor.Sheet);
                     player.SummaryChanged = true;
                     break;
 
@@ -639,7 +694,7 @@ namespace Dino_Defenders.Server
                     int equip = reader.ReadVarInt();
                     if (equip < 0 || equip >= hero.Inventory.Count) break;
                     hero.Equip(hero.Inventory[equip]);
-                    player.RefreshStats();
+                    player.RefreshLoadout();
                     player.GearChanged = true;
                     break;
 
@@ -647,7 +702,7 @@ namespace Dino_Defenders.Server
                     int slot = reader.ReadByte();
                     if (!Enum.IsDefined((ItemSlot)slot)) break;
                     hero.Unequip((ItemSlot)slot);
-                    player.RefreshStats();
+                    player.RefreshLoadout();
                     player.GearChanged = true;
                     break;
 
@@ -725,7 +780,7 @@ namespace Dino_Defenders.Server
             foreach (ServerPlayer player in _players.Values)
             {
                 if (!player.InWorld) continue;
-                if (Tick % HeroUpdateEvery == 0 && (player.SummaryChanged || player.GearChanged)) SendHero(player, player.GearChanged);
+                if (Tick % HeroUpdateEvery == 0 && (player.SummaryChanged || player.GearChanged || player.BuffsChanged)) SendHero(player, player.GearChanged);
                 if (Tick % player.SendInterval == 0) _due.Add(player);
             }
 
@@ -751,8 +806,11 @@ namespace Dino_Defenders.Server
             writer.WriteByte((byte)player.SendInterval);
             writer.WriteBool(_players.Count == 1);
             writer.WriteVarInt(Math.Clamp(player.Spare, -100000, 100000));
+            player.Sim.Health = player.Actor.Vitals.Health;
+            player.Sim.Mana = player.Actor.Vitals.Mana;
             player.Sim.Write(writer);
-            writer.WriteFloat(player.Health);
+            writer.WriteFloat(player.Actor.Vitals.Barrier);
+            writer.WriteFloat(player.Actor.Vitals.Debt);
             writer.WriteUInt(player.LastClientTime);
             writer.WriteVarUInt((uint)Math.Clamp(Clock() - player.LastClientTimeArrived, 0, 100000));
             writer.WriteUInt(player.NewestCommand);
@@ -770,11 +828,13 @@ namespace Dino_Defenders.Server
         {
             BitWriter writer = Protocol.Begin(Message.HeroUpdate);
             Protocol.WriteHeroSummary(writer, player.Hero);
+            Protocol.WriteBuffs(writer, player.Actor.Buffs, player.Stolen);
             writer.WriteBool(gear);
             if (gear) Protocol.WriteGear(writer, player.Hero);
             player.Connection.Send(writer.ToArray(), Delivery.Reliable);
             player.SummaryChanged = false;
             player.GearChanged = false;
+            player.BuffsChanged = false;
         }
 
         private void SendChangedProgress()
@@ -845,7 +905,7 @@ namespace Dino_Defenders.Server
             ServerPlayer host = _heroes[0];
             save.PlayerX = host.Sim.Position.X;
             save.PlayerZ = host.Sim.Position.Y;
-            save.Health = host.Health;
+            save.Health = host.Actor.Vitals.Health;
             save.RespawnX = host.Respawn.X;
             save.RespawnZ = host.Respawn.Y;
         }

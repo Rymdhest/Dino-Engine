@@ -12,7 +12,9 @@ namespace Dino_Defenders
     ///   --bot true      Plays the hero: it fights whatever is near. For watching the game run with nobody at the keyboard.
     ///   --sweep true    With the bot: when nothing is near, goes to the next place still held, until the world is free.
     ///   --walk x,z      With the bot: runs straight there and does nothing else, for whatever needs someone on foot. It gets about by being moved otherwise.
-    ///   --hero N        Starts the hero at level N, with the attributes to match.
+    ///   --hero N        Starts the hero at level N.
+    ///   --talents a,b   Walks the talent tree to these nodes, by id, taking everything on the way. Skills they teach go on the bar.
+    ///   --equip a,b     Puts these uniques on the hero, by id.
     ///   --panel name    Opens map, hero, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
     ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one.
     ///   --savefile path Keeps the save here, and uses it even on a scripted run.
@@ -49,6 +51,8 @@ namespace Dino_Defenders
         public bool Sweep;
         public Vector2? Walk;
         public int HeroLevel = 1;
+        public readonly List<string> Talents = new();
+        public readonly List<string> Equip = new();
         public string? Panel;
         public int TravelAfterFrames = -1;
         public string? SaveFile;
@@ -106,6 +110,8 @@ namespace Dino_Defenders
                         options.Walk = new Vector2(float.Parse(walk[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(walk[1], System.Globalization.CultureInfo.InvariantCulture));
                         break;
                     case "hero": options.HeroLevel = int.Parse(value); break;
+                    case "talents": options.Talents.AddRange(value.Split(',')); break;
+                    case "equip": options.Equip.AddRange(value.Split(',')); break;
                     case "panel": options.Panel = value; break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
                     case "savefile": options.SaveFile = value; break;

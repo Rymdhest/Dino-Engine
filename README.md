@@ -19,18 +19,21 @@ This is a fully **procedural game engine** built from scratch in C# using OpenGL
 
 The game built on the engine: a fantasy action RPG in randomized worlds. No two worlds are alike and none are made by hand. Each seed grows its own land, biomes, weather, roads, settlements and building style, and writes its own chronicle: who holds the land, and what it will take to free it. Free one and the waygate reaches harder lands, as far as you care to go. The hero and what they carry go with you, and progress is saved automatically.
 
+There are no classes. There is one great talent tree, of over 850 nodes, and what a hero is depends on where they've walked on it. Stats stack in the way anyone who has played a big ARPG will know: flat, then all increases together, then each "more" on its own. What's less usual is that the land itself is part of a build, that elements react when they meet, and that enemies are built from exactly the same parts as you: bosses fight with what they wear, and drop it. See [BUILDS.md](BUILDS.md).
+
 | | |
 |---|---|
 | WASD | Move |
 | Mouse | Aim |
-| Left button | Strike |
+| Left button, right button, Q, 1 to 4 | Whatever's on your skill bar |
 | Space | Dodge |
-| Q | Whirl |
 | R | Drink a flask |
 | E | Use, talk, trade |
 | F | Guiding wind: the wind turns toward your next goal |
 | M | Map |
 | C or I | Hero and inventory |
+| T | The talent tree |
+| K | Your skills, and what's on the bar |
 | J | Chronicle |
 | Mouse wheel | Zoom |
 | Esc | Menu |
@@ -41,7 +44,7 @@ To play without building it, [download the launcher](https://github.com/Rymdhest
 
 Up to five heroes can share a world, with no server to run: in the pause menu, **Travel with friends** opens your world and gives you an invite to send, and takes an invite you've been sent. See [NETWORKING.md](NETWORKING.md).
 
-`Dino WorldLab` generates and checks worlds with no window, for example `check --seed 1 --count 100`, or `map` to draw one. `Dino NetLab` tests the networking the same way: `core` for replication alone, and `game` for the whole game on every kind of bad line. `Dino LaunchLab` does it for the launcher and release tool: `core`, `release` and `live`. `Dino SoundLab` does it for sound and music: `check` for everything that can be known without ears, `render` to listen to it, `sheet` to see it, `musiccheck` and `music` for the score. See [SOUND.md](SOUND.md).
+`Dino WorldLab` generates and checks worlds with no window, for example `check --seed 1 --count 100`, or `map` to draw one. `Dino NetLab` tests the networking the same way: `core` for replication alone, `game` for the whole game on every kind of bad line, and `build` for every skill and keystone on a running server. `Dino BuildLab` does it for the build system: `check` for the sums and the content, `bench` for what it costs, `balance` for how a fight goes at each level. `Dino LaunchLab` does it for the launcher and release tool: `core`, `release` and `live`. `Dino SoundLab` does it for sound and music: `check` for everything that can be known without ears, `render` to listen to it, `sheet` to see it, `musiccheck` and `music` for the score. See [SOUND.md](SOUND.md).
 
 ---
 

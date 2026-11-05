@@ -1,5 +1,4 @@
 using Dino_Defenders.Gameplay;
-using Dino_Defenders.Progression;
 using Dino_Engine.World;
 using OpenTK.Mathematics;
 
@@ -46,10 +45,10 @@ namespace Dino_Defenders.Client
         }
 
         /// <summary>Runs one new tick. What it returns happens only here: running it again in a correction is silent.</summary>
-        public HeroStepEvents Step(in HeroCommand command, in HeroStats stats, CharacterMover mover)
+        public HeroStepEvents Step(in HeroCommand command, HeroKit kit, CharacterMover mover)
         {
             _previous = _current;
-            HeroStepEvents events = HeroRules.Step(ref _current, command, stats, mover);
+            HeroStepEvents events = HeroRules.Step(ref _current, command, kit, mover);
             _commands[command.Tick % Ring] = command;
             _newest = command.Tick;
             Remember(_current, command.Tick);
@@ -63,15 +62,19 @@ namespace Dino_Defenders.Client
         }
 
         /// <summary>The server's word on <paramref name="tick"/>. Returns whether it disagreed.</summary>
-        public bool Reconcile(uint tick, in HeroSimState truth, in HeroStats stats, CharacterMover mover)
+        public bool Reconcile(uint tick, in HeroSimState truth, HeroKit kit, CharacterMover mover)
         {
             Compared++;
             bool known = _stateTicks[tick % Ring] == tick;
-            if (known && _states[tick % Ring].Matches(truth)) return false;
+            if (known && _states[tick % Ring].Matches(truth))
+            {
+                _current.TakeOrders(truth);
+                return false;
+            }
 
             Vector2 before = _current.Position;
             bool moved = truth.Moves != _current.Moves;
-            Rewind(tick, truth, stats, mover);
+            Rewind(tick, truth, kit, mover);
 
             // Being put somewhere by the server isn't a wrong guess, however far it is.
             float error = (before - _current.Position).Length;
@@ -88,13 +91,13 @@ namespace Dino_Defenders.Client
         }
 
         /// <summary>The clock has jumped. Works things out afresh from the server's word, up to the new <paramref name="newest"/>.</summary>
-        public void Jump(uint tick, in HeroSimState truth, uint newest, in HeroStats stats, CharacterMover mover)
+        public void Jump(uint tick, in HeroSimState truth, uint newest, HeroKit kit, CharacterMover mover)
         {
             _newest = newest;
-            Rewind(tick, truth, stats, mover);
+            Rewind(tick, truth, kit, mover);
         }
 
-        private void Rewind(uint tick, in HeroSimState truth, in HeroStats stats, CharacterMover mover)
+        private void Rewind(uint tick, in HeroSimState truth, HeroKit kit, CharacterMover mover)
         {
             _current = truth;
             _previous = truth;
@@ -121,7 +124,7 @@ namespace Dino_Defenders.Client
                 last = command;
 
                 _previous = _current;
-                HeroRules.Step(ref _current, command, stats, mover);
+                HeroRules.Step(ref _current, command, kit, mover);
                 Remember(_current, t);
             }
         }

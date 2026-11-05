@@ -1,5 +1,7 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Server;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
 using Dino_Engine.Animation;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
@@ -85,6 +87,18 @@ namespace Dino_Defenders.Client
             if (!placed) components.Add(new PositionComponent(position));
             if (!turned) components.Add(new RotationComponent(new Vector3(0f)));
             if (!sized) components.Add(new ScaleComponent(new Vector3(1f)));
+
+            for (int i = 0; i < components.Count; i++)
+            {
+                if (components[i] is not ZoneComponent zone) continue;
+                Colour light = ClientEffects.LightOf(SkillCatalog.Named(zone.Skill).Look);
+                components.Add(new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(position) });
+                components.Add(new PointLightTag());
+                components.Add(new LightRangeComponent(zone.Radius * 1.6f, 0.2f, lightsFog: false));
+                components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, 26f)));
+                break;
+            }
+
             if (visual == null) return;
 
             components.Add(new LocalToWorldMatrixComponent());
@@ -111,6 +125,13 @@ namespace Dino_Defenders.Client
                     components.Add(new LightRangeComponent(PickupLightRadius, 0.2f, lightsFog: false));
                     components.Add(new ColorComponent(glow));
                 }
+                else if (visual.Value.Model.StartsWith(CharacterFactory.BoltPrefix) && Enum.TryParse(visual.Value.Model.AsSpan(CharacterFactory.BoltPrefix.Length), out DamageType look))
+                {
+                    Colour light = ClientEffects.LightOf(look);
+                    components.Add(new PointLightTag());
+                    components.Add(new LightRangeComponent(BoltLightRadius, 0.2f, lightsFog: false));
+                    components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, 40f)));
+                }
 
                 // A gate between worlds and a place of power can be heard before they're seen.
                 foreach (IComponent component in components)
@@ -124,6 +145,7 @@ namespace Dino_Defenders.Client
         }
 
         private const float PickupLightRadius = 6f;
+        private const float BoltLightRadius = 11f;
 
         // What lies on the ground to be picked up catches the eye by shining on what's around it.
         private static Colour? PickupGlow(string model) => model switch
@@ -154,8 +176,12 @@ namespace Dino_Defenders.Client
         private const float FallingStart = 0.5f;
         private const double ArrowCatchUp = 15.0;   // Ticks over which an arrow moves up into the player's own moment.
         private const float ArrowHitReach = 2.4f;
+        private const float BoltSize = 0.42f;
 
         private readonly Func<GameClient?> _client;
+        private readonly Func<ClientEffects?> _effects;
+        private readonly BitMask _zoneMask = new BitMask(typeof(ZoneComponent), typeof(PositionComponent));
+        private readonly BitMask _afflictedMask = new BitMask(typeof(AfflictedComponent), typeof(PositionComponent));
         private readonly BitMask _motionMask = new BitMask(typeof(GhostMotionComponent), typeof(PositionComponent), typeof(VelocityComponent));
         private readonly BitMask _swingMask = new BitMask(typeof(SwingComponent), typeof(AnimationComponent));
         private readonly BitMask _enemyMask = new BitMask(typeof(EnemyComponent), typeof(RotationComponent), typeof(ScaleComponent));
@@ -163,10 +189,11 @@ namespace Dino_Defenders.Client
         private readonly BitMask _arrowMask = new BitMask(typeof(BallisticComponent), typeof(PositionComponent), typeof(ScaleComponent));
         private readonly BitMask _pickupMask = new BitMask(typeof(PickupComponent), typeof(PositionComponent));
 
-        public GhostPresentationSystem(Func<GameClient?> client)
+        public GhostPresentationSystem(Func<GameClient?> client, Func<ClientEffects?> effects)
             : base(new BitMask(typeof(PositionComponent)))
         {
             _client = client;
+            _effects = effects;
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
@@ -186,6 +213,48 @@ namespace Dino_Defenders.Client
             ToppleHeroes(world, deltaTime);
             FlyArrows(world, client, session);
             BobPickups(world, deltaTime);
+            ShowLasting(world, deltaTime);
+        }
+
+        // What's going on on the ground and on people, which has no event of its own as it doesn't happen at any one moment.
+        private void ShowLasting(ECSWorld world, float deltaTime)
+        {
+            if (_effects() is not ClientEffects effects || deltaTime <= 0f) return;
+
+            foreach (Archetype archetype in world.QueryArchetypes(_zoneMask, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var zone = entity.Get<ZoneComponent>();
+                    if (zone.Age == 0f) effects.Sounds.ZoneOpens(SkillCatalog.Named(zone.Skill), entity.Get<PositionComponent>().value);
+                    zone.Age += deltaTime;
+                    zone.NextMote -= deltaTime;
+                    if (zone.NextMote <= 0f)
+                    {
+                        zone.NextMote = 0.09f;
+                        effects.Mote(entity.Get<PositionComponent>().value, zone.Radius, SkillCatalog.Named(zone.Skill).Look);
+                    }
+                    entity.Set(zone);
+                }
+            }
+
+            foreach (Archetype archetype in world.QueryArchetypes(_afflictedMask, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var afflicted = entity.Get<AfflictedComponent>();
+                    if (afflicted.Flags == 0) continue;
+                    afflicted.NextSpark -= deltaTime;
+                    if (afflicted.NextSpark > 0f)
+                    {
+                        entity.Set(afflicted);
+                        continue;
+                    }
+                    afflicted.NextSpark = 0.16f;
+                    entity.Set(afflicted);
+                    effects.Ailing(entity.Get<PositionComponent>().value, afflicted);
+                }
+            }
         }
 
         private static void MoveOwnHero(ECSWorld world, GameClient client, GameSession session)
@@ -326,12 +395,14 @@ namespace Dino_Defenders.Client
                     Vector3 position = arrow.PositionAt(Math.Max(tick, arrow.StartTick));
 
                     // It's the server that decides, and word of that is on the way. Meanwhile an arrow shouldn't be seen flying on through what it hit.
-                    bool spent = (position.Xz - session.PlayerPosition).LengthSquared < ArrowHitReach * ArrowHitReach
+                    bool spent = (!arrow.FromHeroes && (position.Xz - session.PlayerPosition).LengthSquared < ArrowHitReach * ArrowHitReach)
                         || position.Y < session.World.Height.Sample(position.Xz)
                         || session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f));
 
                     entity.Set(new PositionComponent(position));
-                    entity.Set(new ScaleComponent(new Vector3(spent ? 0.001f : 1f)));
+                    bool bolt = entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model.StartsWith(CharacterFactory.BoltPrefix);
+                    entity.Set(new ScaleComponent(new Vector3(spent ? 0.001f : bolt ? BoltSize : 1f)));
+                    if (!spent && bolt && _effects() is ClientEffects effects) effects.Wake(entity.Get<VisualComponent>().Model, position);
                 }
             }
         }
@@ -410,9 +481,24 @@ namespace Dino_Defenders.Client
 
             client.Events.On<DamageEvent>(e =>
             {
-                Vector3 colour = e.ToHero ? HurtColour : e.Critical ? CritColour : HitColour;
+                if (e.Note != HitNote.None)
+                {
+                    client.Session?.Say(e.Position, e.Note.ToString(), new Vector3(0.8f, 0.8f, 0.75f), 14f, 0.7f);
+                    return;
+                }
+
+                Vector3 colour = e.ToHero ? HurtColour : e.Critical ? CritColour : e.Type == DamageType.Physical ? HitColour : TextColourOf(e.Type);
                 float size = e.ToHero ? 17f : e.Critical ? 22f : 16f;
                 client.Session?.Say(e.Position, $"{e.Amount:0}", colour, size, 0.9f);
+            });
+            client.Events.On<SkillEvent>(ShowSkill);
+            client.Events.On<LinkEvent>(ShowLink);
+            client.Events.On<ReactionEvent>(e =>
+            {
+                Colour colour = ReactionColour(e.Kind);
+                client.Session?.Say(e.Position + Vector3.UnitY * 2.2f, $"{e.Kind}!", new Vector3(colour.Red, colour.Green, colour.Blue), 20f, 1.2f);
+                Flash(e.Position, new Colour(colour.Red, colour.Green, colour.Blue, 240f), e.Radius * 2.2f, 0.45f);
+                Ring(e.Position, e.Radius, new Colour(colour.Red, colour.Green * 0.7f, colour.Blue * 0.6f, 1.6f), 22);
             });
             client.Events.On<TextEvent>(e => client.Session?.Say(e.Position, e.Text, e.Colour, e.Size, e.Life));
             client.Events.On<SparkEvent>(e =>
@@ -420,7 +506,127 @@ namespace Dino_Defenders.Client
                 Spark(e.Position, ColourOf(e.Kind), e.Count, e.Speed, lit: e.Kind == SparkKind.Blood);
                 if (e.Kind == SparkKind.Shrine) Flash(e.Position, new Colour(0.5f, 1f, 0.75f, 300f), 26f, 1.6f);
             });
-            client.Events.On<HeroMoveEvent>(e => Show(e.Move, e.Position, e.Aim));
+            client.Events.On<HeroMoveEvent>(e => Show(e.Move, e.Position, e.Aim, e.Skill));
+        }
+
+        /// <summary>
+        /// What a type of damage looks like as something glowing in the air. These are deep on purpose: particles go straight into a scene lit by a sun of
+        /// about 13, and anything pale or bright comes out the same washed-out white, which would leave a player unable to tell fire from frost.
+        /// </summary>
+        public static Colour GlowOf(DamageType type) => type switch
+        {
+            DamageType.Fire => new Colour(1f, 0.24f, 0.02f, 1.5f),
+            DamageType.Cold => new Colour(0.08f, 0.42f, 1f, 1.5f),
+            DamageType.Lightning => new Colour(0.3f, 0.36f, 1f, 1.9f),
+            DamageType.Magic => new Colour(0.52f, 0.06f, 1f, 1.5f),
+            DamageType.Poison => new Colour(0.16f, 0.8f, 0.04f, 1.3f),
+            _ => new Colour(0.8f, 0.66f, 0.46f, 1f),
+        };
+
+        /// <summary>What a type of damage looks like, as light.</summary>
+        public static Colour LightOf(DamageType type) => type switch
+        {
+            DamageType.Fire => new Colour(1f, 0.46f, 0.12f, 1f),
+            DamageType.Cold => new Colour(0.42f, 0.78f, 1f, 1f),
+            DamageType.Lightning => new Colour(0.7f, 0.74f, 1f, 1f),
+            DamageType.Magic => new Colour(0.72f, 0.3f, 1f, 1f),
+            DamageType.Poison => new Colour(0.4f, 0.95f, 0.2f, 1f),
+            _ => new Colour(0.95f, 0.88f, 0.74f, 1f),
+        };
+
+        public static Dino_Engine.Sound.Content.Element ElementOf(DamageType type) => type switch
+        {
+            DamageType.Fire => Element.Fire,
+            DamageType.Cold => Element.Frost,
+            DamageType.Lightning => Element.Lightning,
+            DamageType.Poison => Element.Poison,
+            DamageType.Magic => Element.Arcane,
+            _ => Element.Shadow,
+        };
+
+        private static Vector3 TextColourOf(DamageType type)
+        {
+            Colour light = LightOf(type);
+            return new Vector3(light.Red, light.Green, light.Blue);
+        }
+
+        private static Colour ReactionColour(Reaction reaction) => reaction switch
+        {
+            Reaction.Scald => new Colour(1f, 0.82f, 0.62f, 1f),
+            Reaction.Crackle => new Colour(0.82f, 0.9f, 1f, 1f),
+            Reaction.Flashfire => new Colour(0.9f, 1f, 0.3f, 1f),
+            Reaction.Shatter => new Colour(0.7f, 0.92f, 1f, 1f),
+            _ => new Colour(0.56f, 0.72f, 1f, 1f),
+        };
+
+        private void ShowSkill(SkillEvent e)
+        {
+            SkillDefinition skill = SkillCatalog.Named(e.Skill);
+            Colour light = LightOf(skill.Look);
+
+            if (e.Phase == SkillPhase.Warning)
+            {
+                Ring(e.Position + Vector3.UnitY * 0.4f, e.Radius, light, 24);
+                return;
+            }
+
+            Sounds.Burst(skill, e.Position);
+            Flash(e.Position + Vector3.UnitY * 2f, new Colour(light.Red, light.Green, light.Blue, 200f), MathF.Max(e.Radius * 2f, 8f), 0.4f);
+            Ring(e.Position + Vector3.UnitY * 1.2f, e.Radius, GlowOf(skill.Look), 26);
+            Spark(e.Position + Vector3.UnitY * 1.6f, GlowOf(skill.Look), 12, 7f);
+            if (e.Radius > 4f) Wind.AddBlast(_world, e.Position, e.Radius * 1.6f, 14f, 0.6f);
+        }
+
+        private void ShowLink(LinkEvent e)
+        {
+            Colour light = GlowOf(e.Look);
+            Vector3 way = e.To - e.From;
+            int steps = Math.Clamp((int)(way.Length / 1.4f), 3, 24);
+            for (int i = 0; i <= steps; i++)
+            {
+                float share = (float)i / steps;
+                Vector3 jitter = e.Wide ? Vector3.Zero : new Vector3(_random.Range(-0.5f, 0.5f), _random.Range(-0.4f, 0.4f), _random.Range(-0.5f, 0.5f));
+                Spark(e.From + way * share + jitter, light, e.Wide ? 2 : 1, 1.2f);
+            }
+            Flash(e.To, new Colour(light.Red, light.Green, light.Blue, 90f), 9f, 0.2f);
+        }
+
+        private void Ring(Vector3 centre, float radius, Colour colour, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                float angle = i * (MathF.Tau / count);
+                Spark(centre + new Vector3(MathF.Cos(angle) * radius, 0.4f, MathF.Sin(angle) * radius), colour, 1, 1.4f);
+            }
+        }
+
+        /// <summary>A moment of whatever a patch of ground is doing.</summary>
+        public void Mote(Vector3 centre, float radius, DamageType look)
+        {
+            float angle = _random.Range(0f, MathF.Tau);
+            float reach = MathF.Sqrt(_random.Float()) * radius;
+            Spark(centre + new Vector3(MathF.Cos(angle) * reach, 0.4f, MathF.Sin(angle) * reach), GlowOf(look), 1, 2.4f);
+        }
+
+        /// <summary>What someone is suffering from, as it shows.</summary>
+        public void Ailing(Vector3 position, in AfflictedComponent afflicted)
+        {
+            Vector3 at = position + new Vector3(_random.Range(-1f, 1f), _random.Range(1f, 4.4f), _random.Range(-1f, 1f));
+            if (afflicted.Has(Condition.Frozen)) Spark(at, GlowOf(DamageType.Cold), 2, 0.5f);
+            else if (afflicted.Has(Condition.Burning)) Spark(at, GlowOf(DamageType.Fire), 1, 2.4f);
+            else if (afflicted.Has(Condition.Chilled)) Spark(at, GlowOf(DamageType.Cold), 1, 0.8f);
+            else if (afflicted.Has(Condition.Shocked)) Spark(at, GlowOf(DamageType.Lightning), 1, 3f);
+            else if (afflicted.Has(Condition.Envenomed)) Spark(at, GlowOf(DamageType.Poison), 1, 1f);
+            else if (afflicted.Has(Condition.Hexed)) Spark(at, GlowOf(DamageType.Magic), 1, 1f);
+            else if (afflicted.Has(Condition.Bleeding)) Spark(at, new Colour(0.8f, 0.1f, 0.06f, 1.5f), 1, 1.4f, lit: true);
+        }
+
+        /// <summary>What a spell leaves in the air behind it.</summary>
+        public void Wake(string model, Vector3 position)
+        {
+            if (!model.StartsWith(CharacterFactory.BoltPrefix) || _random.Float() > 0.4f) return;
+            if (!Enum.TryParse(model.AsSpan(CharacterFactory.BoltPrefix.Length), out DamageType look)) return;
+            Spark(position, GlowOf(look), 1, 1f);
         }
 
         /// <summary>This player's hero, the moment they acted.</summary>
@@ -429,29 +635,28 @@ namespace Dino_Defenders.Client
             GameSession? session = client.Session;
             if (session == null) return;
 
-            if ((events & HeroStepEvents.Swung) != 0 && client.OwnGhost != null && _world.TryGetEntityLocation(client.OwnGhost.Entity, out _, out _))
+            SkillProfile? skill = hero.Using >= 0 ? client.Kit.Slots[hero.Using] : null;
+            if ((events & HeroStepEvents.Used) != 0 && skill != null && client.OwnGhost != null && _world.TryGetEntityLocation(client.OwnGhost.Entity, out _, out _))
             {
                 EntityView view = _world.GetEntityView(client.OwnGhost.Entity);
                 var animation = view.Get<AnimationComponent>();
-                animation.PlayLayer(AnimationId.Swing, loop: false, speed: 2f * client.Stats.AttackSpeed);
+                animation.PlayLayer(AnimationId.Swing, loop: false, speed: 1.2f / MathF.Max(skill.UseTime, 0.05f));
                 view.Set(animation);
             }
 
             Vector3 position = new Vector3(hero.Position.X, session.World.Height.Sample(hero.Position), hero.Position.Y);
-            Show(events, position, hero.Aim);
-            Sounds.HeroActed(events, position, hero.Aim, client.Stats.AttackSpeed);
+            Show(events, position, hero.Aim, skill?.Skill.Number ?? 0);
+            Sounds.HeroActed(events, position, hero.Aim, skill);
         }
 
-        private void Show(HeroStepEvents events, Vector3 position, Vector2 aim)
+        private void Show(HeroStepEvents events, Vector3 position, Vector2 aim, int number)
         {
-            if ((events & HeroStepEvents.Struck) != 0)
-            {
-                Spark(position + new Vector3(aim.X * 3f, 3f, aim.Y * 3f), ColourOf(SparkKind.Blade), 3, 4f);
-            }
+            SkillDefinition? skill = number > 0 && SkillCatalog.IsNumber(number) ? SkillCatalog.Get(number) : null;
 
             if ((events & HeroStepEvents.Dashed) != 0) Wind.AddBlast(_world, position, 6f, 8f, 0.4f);
+            if ((events & HeroStepEvents.Landed) == 0 || skill == null) return;
 
-            if ((events & HeroStepEvents.Whirled) != 0)
+            if (skill.Form == SkillForm.Strike && skill.Arc >= MathF.Tau)
             {
                 Wind.AddBlast(_world, position, 14f, 22f, 1f);
                 Flash(position + Vector3.UnitY * 2.4f, new Colour(0.8f, 0.92f, 1f, 90f), 14f, 0.5f);
@@ -460,6 +665,16 @@ namespace Dino_Defenders.Client
                     float angle = i * (MathF.Tau / 18f);
                     Spark(position + new Vector3(MathF.Cos(angle) * 6f, 2.4f, MathF.Sin(angle) * 6f), ColourOf(SparkKind.Whirl), 1, 2f);
                 }
+            }
+            else if (skill.Form is SkillForm.Strike or SkillForm.Leap)
+            {
+                Spark(position + new Vector3(aim.X * 3f, 3f, aim.Y * 3f), ColourOf(SparkKind.Blade), 3, 4f);
+            }
+            else if (skill.IsSpell)
+            {
+                Colour light = LightOf(skill.Look);
+                Spark(position + new Vector3(aim.X * 1.5f, 3.2f, aim.Y * 1.5f), GlowOf(skill.Look), 5, 3.4f);
+                Flash(position + Vector3.UnitY * 3f, new Colour(light.Red, light.Green, light.Blue, 40f), 8f, 0.2f);
             }
         }
 
@@ -504,17 +719,24 @@ namespace Dino_Defenders.Client
     }
 
     /// <summary>
-    /// The hero under the player's hands. WASD moves, the mouse aims. The left button swings at where the mouse points, space
-    /// dodges, Q spins and R drinks.
+    /// The hero under the player's hands. WASD moves, the mouse aims. The mouse buttons, Q and 1 to 4 use what's in those slots, at
+    /// where the mouse points, for as long as they're held. Space dodges and R drinks.
     /// </summary>
     public static class LocalInput
     {
-        public static HeroIntent Read(Vector3 position)
+        private const int FirstKeySlot = 2;
+        private static readonly Keys[] SlotKeys = { Keys.Q, Keys.D1, Keys.D2, Keys.D3, Keys.D4 };
+
+        public static HeroIntent Read(Vector3 position, in HeroSimState hero)
         {
             var window = Engine.WindowHandler;
             var intent = new HeroIntent { Aim = ReadAim(position) };
 
-            if (!Engine.Gui.WantsMouse) intent.Attack = window.IsMouseButtonDown(MouseButton.Left);
+            if (!Engine.Gui.WantsMouse)
+            {
+                if (window.IsMouseButtonDown(MouseButton.Left)) intent.Use(0);
+                if (window.IsMouseButtonDown(MouseButton.Right)) intent.Use(1);
+            }
             if (Engine.Gui.WantsKeyboard) return intent;
 
             if (window.IsKeyDown(Keys.W)) intent.Move.Y += 1f;
@@ -522,7 +744,11 @@ namespace Dino_Defenders.Client
             if (window.IsKeyDown(Keys.A)) intent.Move.X += 1f;
             if (window.IsKeyDown(Keys.D)) intent.Move.X -= 1f;
             intent.Dash = window.IsKeyPressed(Keys.Space);
-            intent.Whirl = window.IsKeyPressed(Keys.Q);
+            for (int i = 0; i < SlotKeys.Length; i++)
+            {
+                int slot = FirstKeySlot + i;
+                if (HeroRules.KeyPresses(hero, slot, window.IsKeyDown(SlotKeys[i]), window.IsKeyPressed(SlotKeys[i]))) intent.Use(slot);
+            }
             intent.Flask = window.IsKeyPressed(Keys.R);
             intent.Interact = window.IsKeyPressed(Keys.E);
             intent.Guide = window.IsKeyPressed(Keys.F);

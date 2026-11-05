@@ -17,6 +17,8 @@ namespace Dino_Defenders.Client
     /// </summary>
     public sealed class CharacterFactory
     {
+        public const string BoltPrefix = "bolt:";
+
         private const int VillagerLooks = 6;
         private const int BanditLooks = 4;
 
@@ -48,6 +50,11 @@ namespace Dino_Defenders.Client
             if (key == "chest") return Model(key, Chest);
             if (key == "gold") return Model(key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
             if (key == "item") return Model(key, () => Ball(new Colour(1f, 1f, 1f, 2.2f)));
+            if (key.StartsWith(BoltPrefix) && Enum.TryParse(key.AsSpan(BoltPrefix.Length), out Stats.DamageType look))
+            {
+                Colour glow = ClientEffects.GlowOf(look);
+                return Model(key, () => Ball(new Colour(glow.Red, glow.Green, glow.Blue, 3f)));
+            }
             if (key.StartsWith("hero") && int.TryParse(key.AsSpan(4), out int hero)) return Hero(hero);
             if (key.StartsWith("villager") && int.TryParse(key.AsSpan(8), out int villager)) return Villager(villager);
             if (key.StartsWith("bandit"))

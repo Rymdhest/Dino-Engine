@@ -1,101 +1,47 @@
+using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
+using Dino_Defenders.Talents;
+using static Dino_Defenders.Stats.M;
+
 namespace Dino_Defenders.Progression
 {
-    /// <summary>What the hero's gear and attributes add up to.</summary>
-    public struct HeroStats
-    {
-        public float MaxHealth;
-        public float Damage;
-        public float Armour;
-        public float CritChance;    // 0..1
-        public float CritMultiplier;
-        public float AttackSpeed;   // Multiplier.
-        public float MoveSpeed;     // Metres per second.
-        public float Regeneration;
-        public float LifeOnHit;
-        public float GoldFind;      // Multiplier.
-        public float ItemFind;      // Share added to rarity.
-        public float SkillPower;    // Multiplier on the hero's abilities.
-    }
-
     /// <summary>The hero as they carry on from world to world. Saved as it stands.</summary>
     public sealed class HeroState
     {
         public const int MaxLevel = 60;
-        public const int BaseMoveSpeed = 10;
+        public const float BaseMoveSpeed = 10f;
         public const int MaxFlasks = 4;
         public const int InventorySize = 36;
+        public const int SkillSlots = 7;
 
         public int Level { get; set; } = 1;
         public int Experience { get; set; }
         public int Gold { get; set; }
-        public int Might { get; set; } = 5;
-        public int Finesse { get; set; } = 5;
-        public int Spirit { get; set; } = 5;
-        public int UnspentPoints { get; set; }
         public int Flasks { get; set; } = 3;
         public int WorldsCleared { get; set; }
+
+        /// <summary>The nodes taken on the talent tree, by id, in the order they were taken.</summary>
+        public List<string> Talents { get; set; } = new();
+
+        /// <summary>What's in each skill slot, by id. A skill that isn't known at the moment simply sits there doing nothing.</summary>
+        public string?[] Bar { get; set; } = NewBar();
 
         public List<Item> Inventory { get; set; } = new();
         public Dictionary<ItemSlot, Item> Equipped { get; set; } = new();
 
         public int ExperienceToNext => (int)(120f * MathF.Pow(Level, 1.7f));
 
-        public HeroStats Compute()
+        /// <summary>Two a level, and one for each land set free, with three to start out with.</summary>
+        public int TalentPoints => 1 + 2 * Level + WorldsCleared;
+
+        public int UnspentPoints => Math.Max(TalentPoints - Talents.Count, 0);
+
+        private static string?[] NewBar()
         {
-            float weapon = 5f;
-            float flatDamage = 0f;
-            float percentDamage = 0f;
-            float armour = 0f;
-            float health = 0f;
-            float crit = 0f;
-            float critDamage = 0f;
-            float attackSpeed = 0f;
-            float moveSpeed = 0f;
-            float regeneration = 0f;
-            float lifeOnHit = 0f;
-            float goldFind = 0f;
-            float itemFind = 0f;
-
-            foreach (Item item in Equipped.Values)
-            {
-                if (item.Slot == ItemSlot.Weapon) weapon = item.WeaponDamage;
-                armour += item.Armour;
-                foreach (Modifier modifier in item.Modifiers)
-                {
-                    switch (modifier.Stat)
-                    {
-                        case Stat.Damage: flatDamage += modifier.Value; break;
-                        case Stat.DamagePercent: percentDamage += modifier.Value; break;
-                        case Stat.Armour: armour += modifier.Value; break;
-                        case Stat.Health: health += modifier.Value; break;
-                        case Stat.CritChance: crit += modifier.Value; break;
-                        case Stat.CritDamage: critDamage += modifier.Value; break;
-                        case Stat.AttackSpeed: attackSpeed += modifier.Value; break;
-                        case Stat.MoveSpeed: moveSpeed += modifier.Value; break;
-                        case Stat.Regeneration: regeneration += modifier.Value; break;
-                        case Stat.LifeOnHit: lifeOnHit += modifier.Value; break;
-                        case Stat.GoldFind: goldFind += modifier.Value; break;
-                        case Stat.ItemFind: itemFind += modifier.Value; break;
-                    }
-                }
-            }
-
-            return new HeroStats
-            {
-                MaxHealth = 90f + Level * 12f + Might * 5f + health,
-                // Might makes every swing heavier, however good the sword.
-                Damage = (weapon + flatDamage) * (1f + percentDamage / 100f) * (1f + Might * 0.02f),
-                Armour = armour,
-                CritChance = Math.Min(0.05f + Finesse * 0.004f + crit / 100f, 0.75f),
-                CritMultiplier = 1.5f + critDamage / 100f,
-                AttackSpeed = 1f + Finesse * 0.01f + attackSpeed / 100f,
-                MoveSpeed = BaseMoveSpeed * (1f + moveSpeed / 100f),
-                Regeneration = 0.4f + Spirit * 0.1f + regeneration,
-                LifeOnHit = lifeOnHit,
-                GoldFind = 1f + goldFind / 100f,
-                ItemFind = itemFind / 100f,
-                SkillPower = 1f + Spirit * 0.03f,
-            };
+            var bar = new string?[SkillSlots];
+            bar[0] = SkillCatalog.Strike.Id;
+            bar[2] = SkillCatalog.Whirl.Id;
+            return bar;
         }
 
         /// <summary>Adds experience. Returns how many levels it brought.</summary>
@@ -107,7 +53,6 @@ namespace Dino_Defenders.Progression
             {
                 Experience -= ExperienceToNext;
                 Level++;
-                UnspentPoints += 3;
                 levels++;
             }
             return levels;
@@ -125,6 +70,14 @@ namespace Dino_Defenders.Progression
             Inventory.Remove(item);
             if (Equipped.TryGetValue(item.Slot, out Item? old)) Inventory.Add(old);
             Equipped[item.Slot] = item;
+
+            // Two hands are two hands.
+            if (item.IsTwoHanded && Equipped.Remove(ItemSlot.Shield, out Item? shield)) Inventory.Add(shield);
+            if (item.Slot == ItemSlot.Shield && Equipped.TryGetValue(ItemSlot.Weapon, out Item? weapon) && weapon.IsTwoHanded)
+            {
+                Equipped.Remove(ItemSlot.Weapon);
+                Inventory.Add(weapon);
+            }
         }
 
         public void Unequip(ItemSlot slot)
@@ -141,5 +94,93 @@ namespace Dino_Defenders.Progression
             hero.Equipped[ItemSlot.Body] = new Item { Name = "Travelling Tunic", Slot = ItemSlot.Body, Level = 1, Armour = 6f };
             return hero;
         }
+    }
+
+    /// <summary>
+    /// What someone's hero comes to. Both ends of a connection do this from the same record, so they get the same numbers, which is what lets a
+    /// client predict its own hero. Everything is gathered in a fixed order for that reason: the same things have to add up the same way.
+    /// </summary>
+    public static class HeroBuild
+    {
+        /// <summary>What every hero has by being a hero.</summary>
+        public static IEnumerable<Mod> Innate(int level)
+        {
+            yield return Flat(Stat.Health, 100f + 12f * level);
+            yield return Flat(Stat.Mana, 40f + 6f * level);
+            yield return Flat(Stat.HealthRegen, 0.8f + 0.05f * level);
+            yield return Flat(Stat.ManaRegenPercent, 2.2f);
+            yield return Flat(Stat.MoveSpeed, HeroState.BaseMoveSpeed);
+            yield return Flat(Stat.Accuracy, 8f * level);
+            yield return Flat(Stat.Evasion, 10f + 2f * level);
+        }
+
+        public static WeaponProfile WeaponOf(HeroState hero)
+        {
+            return hero.Equipped.TryGetValue(ItemSlot.Weapon, out Item? weapon) ? weapon.Weapon() : WeaponProfile.Fists;
+        }
+
+        private static IEnumerable<Mod> Gather(HeroState hero, IReadOnlyList<ActiveBuff>? buffs)
+        {
+            foreach (Mod mod in Innate(hero.Level)) yield return mod;
+            foreach (Mod mod in TalentTree.Mods(hero)) yield return mod;
+
+            foreach (ItemSlot slot in Enum.GetValues<ItemSlot>())
+            {
+                if (!hero.Equipped.TryGetValue(slot, out Item? item)) continue;
+                foreach (Mod mod in item.Mods()) yield return mod;
+            }
+
+            if (hero.Equipped.ContainsKey(ItemSlot.Shield)) yield return Grant(Condition.HoldingShield);
+            if (!hero.Equipped.ContainsKey(ItemSlot.Weapon)) yield return Grant(Condition.Unarmed);
+            else if (hero.Equipped[ItemSlot.Weapon].IsTwoHanded) yield return Grant(Condition.TwoHanded);
+
+            if (buffs == null) yield break;
+            foreach (ActiveBuff buff in buffs)
+            {
+                for (int stack = 0; stack < buff.Stacks; stack++)
+                {
+                    foreach (Mod mod in buff.Buff.Mods) yield return mod;
+                }
+            }
+        }
+
+        /// <summary>Makes a hero's loadout. <paramref name="stolen"/> is what they've mimicked, if they can.</summary>
+        public static Loadout Compile(HeroState hero, IReadOnlyList<ActiveBuff>? buffs = null, SkillDefinition? stolen = null)
+        {
+            var skills = new List<SkillDefinition> { SkillCatalog.Strike, SkillCatalog.Whirl };
+            if (stolen != null && !skills.Contains(stolen)) skills.Add(stolen);
+            return new Loadout(hero.Level, WeaponOf(hero), Gather(hero, buffs), skills);
+        }
+
+        /// <summary>The place in a loadout of what's in a slot, or -1 if nothing usable is.</summary>
+        public static int SlotIndex(HeroState hero, Loadout loadout, int slot)
+        {
+            if (slot < 0 || slot >= hero.Bar.Length || hero.Bar[slot] is not string id) return -1;
+            SkillDefinition? skill = SkillCatalog.Find(id);
+            return skill == null ? -1 : loadout.IndexOf(skill);
+        }
+
+        /// <summary>Puts a skill that's newly known into the first empty slot, as most people would.</summary>
+        public static void OfferToBar(HeroState hero, SkillDefinition skill)
+        {
+            foreach (string? held in hero.Bar)
+            {
+                if (held == skill.Id) return;
+            }
+            for (int slot = 1; slot < hero.Bar.Length; slot++)
+            {
+                if (hero.Bar[slot] != null) continue;
+                hero.Bar[slot] = skill.Id;
+                return;
+            }
+        }
+    }
+
+    /// <summary>A buff in force on someone, and how much of it.</summary>
+    public struct ActiveBuff
+    {
+        public BuffDefinition Buff;
+        public int Stacks;
+        public float Left;
     }
 }

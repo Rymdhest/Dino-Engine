@@ -8,6 +8,7 @@ namespace Dino_NetLab
     /// by hand so that minutes pass in seconds and every run goes the same way.
     ///   core  [--seed N] [--fuzz N]                 The replication layer on its own.
     ///   game  [--seed N] [--seconds N] [--fuzz N]   The whole game: real server, real clients, every kind of line.
+    ///   build [--seed N]                            Every skill, ailment, reaction and keystone, done for real on a running server.
     /// Exit code 1 on any failure.
     /// </summary>
     internal static class Program
@@ -27,6 +28,8 @@ namespace Dino_NetLab
                     return CoreTests.Run(options);
                 case "game":
                     return GameTests.Run(options);
+                case "build":
+                    return BuildTests.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;
@@ -74,6 +77,11 @@ namespace Dino_NetLab
             if (passed) _passed++;
             else _failed++;
             Console.WriteLine($"  {(passed ? "ok  " : "FAIL")}  {what}{(passed || detail.Length == 0 ? "" : $"  ({detail})")}");
+        }
+
+        public void Near(string what, float actual, float expected, float tolerance = 0.001f)
+        {
+            Check(what, MathF.Abs(actual - expected) <= tolerance * MathF.Max(1f, MathF.Abs(expected)), $"{actual} instead of {expected}");
         }
 
         public void Note(string text) => Console.WriteLine($"        {text}");

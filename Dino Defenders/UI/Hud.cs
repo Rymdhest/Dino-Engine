@@ -1,6 +1,7 @@
 using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Stats;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -109,7 +110,16 @@ namespace Dino_Defenders.UI
 
                     var health = entity.Get<HealthComponent>();
                     Vector3 position = entity.Get<PositionComponent>().value;
-                    float share = Math.Clamp(health.Current / health.Max, 0f, 1f);
+                    float share = Math.Clamp(health.Current / MathF.Max(health.Max, 1f), 0f, 1f);
+
+                    if (enemy.Friendly)
+                    {
+                        if (!Project(position + Vector3.UnitY * 5f, screen, out Vector2 over)) continue;
+                        GuiRect bar = new GuiRect(over.X - 22f, over.Y, 44f, 4f);
+                        draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 170));
+                        draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * share, bar.Height), Ui.Good);
+                        continue;
+                    }
 
                     if (enemy.Rank == EnemyRank.Boss)
                     {
@@ -152,7 +162,7 @@ namespace Dino_Defenders.UI
 
                     GuiRect frame = new GuiRect(Margin, Margin + row, 190f, 34f);
                     Shade(draw, frame);
-                    Ui.Text(Context!, draw, $"{hero.Name}, level {hero.Level}", 14f, new GuiRect(frame.X, frame.Y, frame.Width, 18f), Ui.Parchment);
+                    Ui.Text(Context!, draw, $"{hero.Name}, {hero.Title} {hero.Level}", 14f, new GuiRect(frame.X, frame.Y, frame.Width, 18f), Ui.Parchment);
                     draw.AddRect(new GuiRect(frame.X, frame.Y + 21f, frame.Width, 6f), GuiColors.Rgba(0, 0, 0, 170));
                     draw.AddRect(new GuiRect(frame.X, frame.Y + 21f, frame.Width * share, 6f), Ui.Life);
                     row += 46f;
@@ -232,14 +242,38 @@ namespace Dino_Defenders.UI
         {
             HeroState hero = session.Hero;
             float width = 300f;
-            GuiRect bar = new GuiRect(Margin, screen.Height - Margin - 34f, width, 16f);
+            ActorSheet sheet = session.Sheet;
+            GuiRect bar = new GuiRect(Margin, screen.Height - Margin - 50f, width, 16f);
 
-            float life = Math.Clamp(session.Health / session.Stats.MaxHealth, 0f, 1f);
+            float life = Math.Clamp(session.Health / sheet.MaxHealth, 0f, 1f);
             draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 170), 2f, 1f, GuiColors.Rgba(120, 96, 58));
             draw.AddRect(new GuiRect(bar.X + 1f, bar.Y + 1f, (bar.Width - 2f) * life, bar.Height - 2f), Ui.Life, 1f);
-            Ui.Text(Context!, draw, $"{MathF.Max(session.Health, 0f):0} / {session.Stats.MaxHealth:0}", 12.5f, bar, Ui.Parchment, Alignment.Center);
 
-            GuiRect experience = new GuiRect(bar.X, bar.Bottom + 4f, width, 4f);
+            // What's owed shows as what's about to go.
+            if (session.Debt > 0f)
+            {
+                float owed = Math.Clamp(session.Debt / sheet.MaxHealth, 0f, life);
+                draw.AddRect(new GuiRect(bar.X + 1f + (bar.Width - 2f) * (life - owed), bar.Y + 1f, (bar.Width - 2f) * owed, bar.Height - 2f), GuiColors.Rgba(70, 12, 12), 1f);
+            }
+
+            if (session.Barrier > 0f)
+            {
+                float shield = Math.Clamp(session.Barrier / MathF.Max(sheet.MaxBarrier, session.Barrier), 0f, 1f);
+                draw.AddRect(new GuiRect(bar.X + 1f, bar.Y + 1f, (bar.Width - 2f) * shield, 4f), GuiColors.Rgba(180, 220, 240), 1f);
+            }
+
+            string reading = session.Barrier > 0f ? $"{MathF.Max(session.Health, 0f):0} / {sheet.MaxHealth:0}  +{session.Barrier:0}" : $"{MathF.Max(session.Health, 0f):0} / {sheet.MaxHealth:0}";
+            Ui.Text(Context!, draw, reading, 12.5f, bar, Ui.Parchment, Alignment.Center);
+
+            GuiRect mana = new GuiRect(bar.X, bar.Bottom + 3f, width, 12f);
+            float pool = Math.Clamp(session.Sim.Mana / MathF.Max(sheet.MaxMana, 1f), 0f, 1f);
+            draw.AddRect(mana, GuiColors.Rgba(0, 0, 0, 170), 2f, 1f, GuiColors.Rgba(120, 96, 58));
+            draw.AddRect(new GuiRect(mana.X + 1f, mana.Y + 1f, (mana.Width - 2f) * pool, mana.Height - 2f), GuiColors.Rgba(44, 84, 170), 1f);
+            Ui.Text(Context!, draw, $"{session.Sim.Mana:0} / {sheet.MaxMana:0}", 11f, mana, Ui.Parchment, Alignment.Center);
+
+            DrawBuffs(draw, session, new GuiRect(bar.X, bar.Y - 46f, width, 18f));
+
+            GuiRect experience = new GuiRect(bar.X, mana.Bottom + 4f, width, 4f);
             draw.AddRect(experience, GuiColors.Rgba(0, 0, 0, 170));
             float gained = hero.Level >= HeroState.MaxLevel ? 1f : Math.Clamp((float)hero.Experience / hero.ExperienceToNext, 0f, 1f);
             draw.AddRect(new GuiRect(experience.X, experience.Y, experience.Width * gained, experience.Height), Ui.Experience);
@@ -250,26 +284,43 @@ namespace Dino_Defenders.UI
             Ui.Text(Context!, draw, $"{hero.Gold} gold", 14f, above, Ui.Parchment, Alignment.End);
             if (hero.UnspentPoints > 0)
             {
-                Ui.Text(Context!, draw, $"{hero.UnspentPoints} to spend  [C]", 13f, new GuiRect(bar.Right + 12f, bar.Y, 160f, 16f), Ui.Gold);
+                Ui.Text(Context!, draw, $"{hero.UnspentPoints} to spend  [T]", 13f, new GuiRect(bar.Right + 12f, bar.Y, 160f, 16f), Ui.Gold);
             }
+        }
+
+        private void DrawBuffs(GuiDrawList draw, GameSession session, GuiRect line)
+        {
+            if (session.Client.Buffs.Count == 0) return;
+            var names = new List<string>();
+            foreach (ActiveBuff buff in session.Client.Buffs) names.Add(buff.Stacks > 1 ? $"{buff.Buff.Name} x{buff.Stacks}" : buff.Buff.Name);
+            Ui.Text(Context!, draw, string.Join("   ", names), 13f, line, Ui.Good);
         }
 
         private readonly record struct Ability(string Key, string Name, float Share, bool Ready);
 
         private void DrawAbilities(GuiDrawList draw, GameSession session, GuiRect screen)
         {
-            Ability[] abilities =
+            var abilities = new List<Ability>(HeroState.SkillSlots + 3);
+            HeroSimState sim = session.Sim;
+            for (int slot = 0; slot < HeroState.SkillSlots; slot++)
             {
-                new("LMB", "Strike", session.SwingCooldown / 0.6f, true),
-                new("Space", "Dodge", session.DashCooldown / 2.4f, true),
-                new("Q", "Whirl", session.WhirlCooldown / 8f, true),
-                new("R", $"Flask {session.Hero.Flasks}", 0f, session.Hero.Flasks > 0),
-                new("F", "Wind", session.GuideCooldown / 14f, true),
-            };
+                SkillProfile? skill = session.Client.Kit.Slots[slot];
+                string? held = session.Hero.Bar[slot];
+                if (skill == null && slot > 2 && held == null) continue;
 
-            const float size = 56f;
+                // Something on the bar that can't be used right now still shows, dimmed: a bow skill with a sword in hand.
+                string name = skill?.Skill.Name ?? (held != null ? Skills.SkillCatalog.Find(held)?.Name ?? "" : "");
+                float wait = skill != null && skill.Cooldown > 0f ? sim.Cooldowns[slot] / skill.Cooldown : 0f;
+                bool affordable = skill != null && (skill.CostsHealth ? session.Health > skill.Cost : sim.Mana >= skill.Cost);
+                abilities.Add(new(SkillPanel.Keys[slot], name, wait, affordable));
+            }
+            abilities.Add(new("Space", "Dodge", sim.DodgeCooldown / MathF.Max(session.Sheet.DodgeCooldown, 0.1f), true));
+            abilities.Add(new("R", $"Flask {session.Hero.Flasks}", 0f, session.Hero.Flasks > 0));
+            abilities.Add(new("F", "Wind", session.GuideCooldown / 14f, true));
+
+            const float size = 62f;
             const float gap = 8f;
-            float total = abilities.Length * size + (abilities.Length - 1) * gap;
+            float total = abilities.Count * size + (abilities.Count - 1) * gap;
             float x = (screen.Width - total) * 0.5f;
             float y = screen.Height - Margin - size;
 
@@ -282,7 +333,8 @@ namespace Dino_Defenders.UI
                 if (share > 0f) draw.AddRect(new GuiRect(x, y + size * (1f - share), size, size * share), GuiColors.Rgba(150, 120, 70, 90), 3f);
 
                 Colour colour = !ability.Ready ? Ui.Faded.MultiplyAlpha(0.6f) : share > 0f ? Ui.Faded : Ui.Parchment;
-                Ui.Text(Context!, draw, ability.Name, 13f, new GuiRect(x, y + 8f, size, 22f), colour, Alignment.Center);
+                float nameSize = ability.Name.Length > 8 ? 10.5f : 12.5f;
+                Ui.Text(Context!, draw, ability.Name, nameSize, new GuiRect(x, y + 8f, size, 22f), colour, Alignment.Center);
                 Ui.Text(Context!, draw, ability.Key, 11.5f, new GuiRect(x, y + size - 22f, size, 18f), Ui.Gold, Alignment.Center);
                 x += size + gap;
             }

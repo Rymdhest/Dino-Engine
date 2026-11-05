@@ -1,5 +1,7 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Skills;
+using Dino_Defenders.Talents;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
 
@@ -30,7 +32,10 @@ namespace Dino_Defenders.Net
 
     public enum HeroAction : byte
     {
-        RaiseAttribute,
+        Allocate,
+        Refund,
+        ForgetTalents,
+        AssignSlot,
         Equip,
         Unequip,
         Sell,
@@ -40,13 +45,6 @@ namespace Dino_Defenders.Net
         TravelToPoint,  // Only for scripted runs, where the server allows it.
         Waygate,
         ThankElder,
-    }
-
-    public enum HeroAttribute : byte
-    {
-        Might,
-        Finesse,
-        Spirit,
     }
 
     public enum NoticeKind : byte
@@ -62,7 +60,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 2;
+        public const uint Version = 3;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -75,6 +73,8 @@ namespace Dino_Defenders.Net
         public const int LongestName = 64;
         public const int LongestText = 512;
         public const int MostItems = 128;
+        public const int MostLines = 16;
+        public const int MostBuffs = 64;
         public const int SnapshotBudget = 1150;     // Bytes: inside the smallest MTU worth planning for.
 
         public static BitWriter Begin(Message type)
@@ -106,12 +106,17 @@ namespace Dino_Defenders.Net
             writer.WriteVarInt(hero.Level);
             writer.WriteVarInt(hero.Experience);
             writer.WriteVarInt(hero.Gold);
-            writer.WriteVarInt(hero.Might);
-            writer.WriteVarInt(hero.Finesse);
-            writer.WriteVarInt(hero.Spirit);
-            writer.WriteVarInt(hero.UnspentPoints);
             writer.WriteVarInt(hero.Flasks);
             writer.WriteVarInt(hero.WorldsCleared);
+
+            writer.WriteCount(hero.Talents.Count);
+            foreach (string id in hero.Talents) writer.WriteVarInt(TalentTree.Find(id)?.Index ?? 0);
+
+            for (int slot = 0; slot < HeroState.SkillSlots; slot++)
+            {
+                string? held = slot < hero.Bar.Length ? hero.Bar[slot] : null;
+                writer.WriteVarInt(held != null ? SkillCatalog.Find(held)?.Number ?? 0 : 0);
+            }
         }
 
         public static void ReadHeroSummary(BitReader reader, HeroState hero)
@@ -119,12 +124,54 @@ namespace Dino_Defenders.Net
             hero.Level = Math.Clamp(reader.ReadVarInt(), 1, HeroState.MaxLevel);
             hero.Experience = Math.Max(reader.ReadVarInt(), 0);
             hero.Gold = Math.Max(reader.ReadVarInt(), 0);
-            hero.Might = Math.Max(reader.ReadVarInt(), 0);
-            hero.Finesse = Math.Max(reader.ReadVarInt(), 0);
-            hero.Spirit = Math.Max(reader.ReadVarInt(), 0);
-            hero.UnspentPoints = Math.Max(reader.ReadVarInt(), 0);
             hero.Flasks = Math.Clamp(reader.ReadVarInt(), 0, HeroState.MaxFlasks);
             hero.WorldsCleared = Math.Max(reader.ReadVarInt(), 0);
+
+            int talents = reader.ReadCount(TalentTree.Nodes.Length);
+            var taken = new List<string>(talents);
+            for (int i = 0; i < talents; i++)
+            {
+                int index = reader.ReadVarInt();
+                if (index > 0 && index < TalentTree.Nodes.Length) taken.Add(TalentTree.Nodes[index].Id);
+            }
+            hero.Talents = taken;
+
+            var bar = new string?[HeroState.SkillSlots];
+            for (int slot = 0; slot < HeroState.SkillSlots; slot++)
+            {
+                int number = reader.ReadVarInt();
+                if (SkillCatalog.IsNumber(number)) bar[slot] = SkillCatalog.Get(number).Id;
+            }
+            hero.Bar = bar;
+        }
+
+        /// <summary>What's on a hero that only lasts a while, and what they've picked up from whatever last hit them.</summary>
+        public static void WriteBuffs(BitWriter writer, IReadOnlyList<ActiveBuff> buffs, SkillDefinition? stolen)
+        {
+            writer.WriteCount(buffs.Count);
+            foreach (ActiveBuff buff in buffs)
+            {
+                writer.WriteVarInt(buff.Buff.Number);
+                writer.WriteVarInt(buff.Stacks);
+                writer.WriteFloat(buff.Left);
+            }
+            writer.WriteVarInt(stolen?.Number ?? 0);
+        }
+
+        public static void ReadBuffs(BitReader reader, List<ActiveBuff> buffs, out SkillDefinition? stolen)
+        {
+            buffs.Clear();
+            int count = reader.ReadCount(MostBuffs);
+            for (int i = 0; i < count; i++)
+            {
+                int number = reader.ReadVarInt();
+                int stacks = reader.ReadVarInt();
+                float left = Finite(reader.ReadFloat());
+                if (BuffCatalog.Get(number) is BuffDefinition buff) buffs.Add(new ActiveBuff { Buff = buff, Stacks = Math.Clamp(stacks, 1, buff.MostStacks), Left = left });
+            }
+
+            int skill = reader.ReadVarInt();
+            stolen = SkillCatalog.IsNumber(skill) ? SkillCatalog.Get(skill) : null;
         }
 
         public static void WriteGear(BitWriter writer, HeroState hero)
@@ -187,13 +234,18 @@ namespace Dino_Defenders.Net
             writer.WriteByte((byte)item.Slot);
             writer.WriteByte((byte)item.Rarity);
             writer.WriteVarInt(item.Level);
+            writer.WriteByte((byte)item.Kind);
             writer.WriteFloat(item.WeaponDamage);
             writer.WriteFloat(item.Armour);
-            writer.WriteCount(item.Modifiers.Count);
-            foreach (Modifier modifier in item.Modifiers)
+            writer.WriteFloat(item.Evasion);
+            writer.WriteFloat(item.Barrier);
+            writer.WriteBool(item.Unique != null);
+            if (item.Unique != null) writer.WriteString(item.Unique);
+            writer.WriteCount(item.Lines.Count);
+            foreach (ItemLine line in item.Lines)
             {
-                writer.WriteByte((byte)modifier.Stat);
-                writer.WriteFloat(modifier.Value);
+                writer.WriteString(line.Affix);
+                writer.WriteFloat(line.Value);
             }
         }
 
@@ -205,14 +257,26 @@ namespace Dino_Defenders.Net
                 Slot = Checked<ItemSlot>(reader.ReadByte()),
                 Rarity = Checked<Rarity>(reader.ReadByte()),
                 Level = reader.ReadVarInt(),
+                Kind = Checked<WeaponKind>(reader.ReadByte()),
                 WeaponDamage = Finite(reader.ReadFloat()),
                 Armour = Finite(reader.ReadFloat()),
+                Evasion = Finite(reader.ReadFloat()),
+                Barrier = Finite(reader.ReadFloat()),
             };
 
-            int modifiers = reader.ReadCount(16);
-            for (int i = 0; i < modifiers; i++)
+            if (reader.ReadBool())
             {
-                item.Modifiers.Add(new Modifier { Stat = Checked<Stat>(reader.ReadByte()), Value = Finite(reader.ReadFloat()) });
+                // Anyone may be at the other end. A name that means nothing here just means no such unique.
+                string unique = reader.ReadString(LongestName);
+                if (UniqueCatalog.Find(unique) != null) item.Unique = unique;
+            }
+
+            int lines = reader.ReadCount(MostLines);
+            for (int i = 0; i < lines; i++)
+            {
+                string affix = reader.ReadString(LongestName);
+                float value = Finite(reader.ReadFloat());
+                if (AffixCatalog.Find(affix) != null) item.Lines.Add(new ItemLine(affix, value));
             }
             return item;
         }
