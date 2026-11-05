@@ -442,7 +442,7 @@ namespace Dino_Defenders
             Console.WriteLine($"Hero: level {_hero.Level}, {session.Health:0}/{session.Sheet.MaxHealth:0} health, {_hero.Gold} gold, {_hero.Inventory.Count} items, {fallen} enemies fallen, {cleared} sites cleared at {session.PlayerPosition.X:0},{session.PlayerPosition.Y:0}");
 
             HeroPredictor predictor = _client!.Predictor;
-            Console.WriteLine($"Net: {_client.Party.Count} in the party, {_client.Ghosts.Ghosts.Count} ghosts, round trip {_client.RoundTrip:0} ms, {predictor.Corrections} corrections in {predictor.Compared} checks (worst {predictor.WorstCorrection:0.00} m), {_client.Ghosts.Mismatches} mismatches, {_client.BytesReceived / 1024} KB in, {_client.BytesSent / 1024} KB out");
+            Console.WriteLine($"Net: {_client.Party.Count} in the party, {_client.Ghosts.Ghosts.Count} ghosts, round trip {_client.RoundTrip:0} ms, drawn {_client.DrawnBehind:0} ms behind, {predictor.Corrections} corrections in {predictor.Compared} checks (worst {predictor.WorstCorrection:0.00} m), {_client.Ghosts.Mismatches} mismatches, {_client.BytesReceived / 1024} KB in, {_client.BytesSent / 1024} KB out");
             var grass = Dino_Engine.Core.Engine.RenderEngine._grassRenderer;
             Console.WriteLine($"Grass: {grass.NearBladesDrawn} near, {grass.FarBladesDrawn} far");
             if (Audio.Mixer is Dino_Engine.Sound.Mixing.Mixer mixer) Console.WriteLine($"Sound: {Audio.TakesMade} takes, at most {mixer.MostActiveVoices} voices, {mixer.Dropped} dropped, {mixer.Load * 100f:0.0}% mixing, {Audio.Output?.Underruns ?? 0} underruns on {Audio.Output?.Device ?? "no device"}, music {Music.Mood} at {Music.Intensity:0.00}, {Music.Gaps} gaps, heard {string.Join(" ", Music.Heard)}");

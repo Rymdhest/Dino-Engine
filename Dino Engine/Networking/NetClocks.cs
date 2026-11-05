@@ -93,21 +93,31 @@ namespace Dino_Engine.Networking
     /// The clock everything else is drawn by. It stays behind the newest snapshot by just enough that a next one is almost always
     /// already here to blend towards. That margin is measured, not assumed: it is the send interval plus what arrival times
     /// actually vary by, wider once snapshots have been seen going missing. On one machine it is a few hundredths of a second.
+    /// Everything is measured over the last moment, never the whole game, and a stall on either end doesn't count as the line:
+    /// whatever is learned from one is how far in the past the world is drawn, so every blow and swing shows that late for good.
     /// </summary>
     public sealed class InterpolationClock
     {
         private const double SnapBeyond = 30.0;         // Ticks.
         private const double MostSlew = 0.1;
         private const double SlewGain = 0.1;
-        private const double ForgetFastest = 0.1;       // Ticks a second.
+        private const int Spans = 3;                    // The fastest path is the best of these, the newest still filling.
+        private const double SpanSeconds = 0.5;
         private const double JitterResponse = 0.05;
+        private const double JitterSpread = 1.5;        // From the change between arrivals to how far they run behind the fastest: a third of the range, to a half.
+        private const double MostJitter = 30.0;         // Ticks. A change greater than this is a stall, and waiting for another would cost more than it did.
         private const double LossMemory = 8.0;          // Seconds.
 
+        private readonly double[] _spans = new double[Spans];
+        private int _span;
+        private double _spanAge;
         private double _local;
         private double _fastest;
+        private double _lastOffset;
         private double _jitter;
         private double _interval = 2.0;
         private uint _lastTick;
+        private bool _heard;
         private double _sinceGap = LossMemory;
 
         public bool Started { get; private set; }
@@ -131,6 +141,7 @@ namespace Dino_Engine.Networking
         {
             Started = false;
             _lastTick = 0;
+            _heard = false;
             _jitter = 0.0;
             _sinceGap = LossMemory;
         }
@@ -138,21 +149,39 @@ namespace Dino_Engine.Networking
         public void OnSnapshot(uint tick, int sendInterval)
         {
             _interval = sendInterval;
-            double offset = tick - _local;
 
             if (!Started)
             {
                 Started = true;
-                _fastest = offset;
+                Array.Fill(_spans, double.NegativeInfinity);
+                _lastOffset = tick - _local;
                 RenderTick = tick - Delay;
             }
-            else
+            else if (tick > _lastTick + sendInterval * 1.5)
             {
-                if (tick > _lastTick + sendInterval * 1.5) _sinceGap = 0.0;
-                if (offset > _fastest) _fastest = offset;
-                _jitter += (_fastest - offset - _jitter) * JitterResponse;
+                _sinceGap = 0.0;
             }
             _lastTick = tick;
+            _heard = true;
+        }
+
+        // How the newest snapshot compares to this client's own time. It is measured here, once a frame's time has been counted, and only
+        // for the newest: those that came with it were waiting on this client, not on the line. Taken as they are read, a frame of
+        // three seconds has its snapshots look three seconds early, as they arrive before the time that passed has been counted.
+        private void Measure()
+        {
+            _heard = false;
+            double offset = _lastTick - _local;
+            if (offset > _spans[_span]) _spans[_span] = offset;
+
+            _fastest = double.NegativeInfinity;
+            foreach (double span in _spans) _fastest = Math.Max(_fastest, span);
+
+            // Jitter is how much one arrival differs from the last, not how far behind the fastest it is: when the path moves for good
+            // that's one change, where every arrival would run behind the fastest until the window had forgotten it.
+            double change = Math.Abs(offset - _lastOffset);
+            _lastOffset = offset;
+            if (change <= MostJitter) _jitter += (change * JitterSpread - _jitter) * JitterResponse;
         }
 
         public void Advance(double seconds)
@@ -162,8 +191,17 @@ namespace Dino_Engine.Networking
             _sinceGap += seconds;
             if (!Started) return;
 
-            // The fastest a snapshot has ever come is the best estimate of the path. Paths change, so it is slowly forgotten.
-            _fastest -= seconds * ForgetFastest;
+            // The fastest a snapshot has come lately is the best estimate of the path. Paths change, and when a server loses time the
+            // whole of it moves for good, so this can't remember for long.
+            _spanAge += seconds;
+            if (_spanAge >= SpanSeconds)
+            {
+                _spanAge = 0.0;
+                _span = (_span + 1) % Spans;
+                _spans[_span] = double.NegativeInfinity;
+            }
+
+            if (_heard) Measure();
 
             double target = _local + _fastest - Delay;
             double error = target - RenderTick;

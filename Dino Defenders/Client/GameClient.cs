@@ -104,6 +104,9 @@ namespace Dino_Defenders.Client
         public long BytesReceived { get; private set; }
         public long BytesSent { get; private set; }
 
+        /// <summary>How far behind the newest word from the server the world is being drawn, in milliseconds.</summary>
+        public float DrawnBehind => Render.Started ? (float)((_lastSnapshotTick - Render.RenderTick) * NetTime.TickSeconds * 1000.0) : 0f;
+
         /// <summary>This hero's ghost, once it has one.</summary>
         public Ghost? OwnGhost { get; private set; }
 

@@ -74,6 +74,7 @@ namespace Dino_NetLab
             {
                 ClocksSettle(report, name, conditions);
             }
+            ThePictureFollowsTheServer(report);
 
             return report.Finish();
         }
@@ -498,6 +499,139 @@ namespace Dino_NetLab
             public void Decorate(Ghost ghost, List<IComponent> components) { }
             public void Created(Ghost ghost) { }
             public void Removing(Ghost ghost) { }
+        }
+
+        // A server and the clock that draws it, frame by frame, polling before advancing as the game does.
+        private sealed class PictureRig
+        {
+            private readonly Random _random = new(9);
+            private readonly PriorityQueue<uint, double> _line = new();
+            private double _now;
+            private double _nextTick;
+            private uint _tick = 1000;
+            private uint _newest;
+            private double _total;
+            private int _frames;
+            private int _starved;
+
+            public readonly InterpolationClock Clock = new();
+            public double Path = 0.02;      // Seconds, one way.
+            public double Jitter;
+            public double Speed = 1.0;
+
+            /// <summary>Seconds behind the server, on average, and the share of frames that ran past everything heard.</summary>
+            public double Behind => _total / Math.Max(_frames, 1);
+            public double Starved => (double)_starved / Math.Max(_frames, 1);
+
+            public void Forget() => (_total, _frames, _starved) = (0.0, 0, 0);
+
+            private void Frame(double seconds, bool serverRuns)
+            {
+                _now += seconds;
+                while (serverRuns && _nextTick <= _now)
+                {
+                    // Stamped with when it left, not when this frame ended: through a long frame they pile up, and all arrive at once.
+                    double sent = _nextTick;
+                    _nextTick += NetTime.TickSecondsPrecise / Speed;
+                    _tick++;
+                    if (_tick % 2 == 0) _line.Enqueue(_tick, sent + Path + _random.NextDouble() * Jitter);
+                }
+
+                while (_line.TryPeek(out uint tick, out double due) && due <= _now)
+                {
+                    _line.Dequeue();
+                    if (tick <= _newest) continue;
+                    _newest = tick;
+                    Clock.OnSnapshot(tick, 2);
+                }
+
+                Clock.Advance(seconds);
+                _total += (_tick - Clock.RenderTick) * NetTime.TickSeconds;
+                _frames++;
+                if (Clock.RenderTick > _newest) _starved++;
+            }
+
+            public void Run(double seconds)
+            {
+                for (double done = 0.0; done < seconds; done += 1.0 / 60.0) Frame(1.0 / 60.0, serverRuns: true);
+            }
+
+            public void LongFrame(double seconds) => Frame(seconds, serverRuns: true);
+
+            public void ServerStops(double seconds)
+            {
+                for (double done = 0.0; done < seconds; done += 1.0 / 60.0) Frame(1.0 / 60.0, serverRuns: false);
+                _nextTick = _now;
+            }
+        }
+
+        // Everything here is something the picture has to get over quickly. Measured against the server itself, as a client's own idea of how
+        // far behind it is can be as wrong as the rest of it.
+        private static void ThePictureFollowsTheServer(Report report)
+        {
+            const double settled = 0.2;
+
+            void After(string what, Action<PictureRig> happening, double allowed = settled)
+            {
+                var rig = new PictureRig();
+                rig.Run(5.0);
+                happening(rig);
+                rig.Run(3.0);
+                rig.Forget();
+                rig.Run(3.0);
+                report.Check($"After {what}, the picture is close behind the server", rig.Behind < allowed, $"{rig.Behind * 1000.0:0} ms, of {allowed * 1000.0:0}");
+
+                // Being ahead of it is as wrong, and looks fine by that measure: everything stands on its last state, with nothing to blend towards.
+                report.Check($"After {what}, it isn't ahead of what has been heard either", rig.Starved < 0.02, $"{rig.Starved:P1} of frames");
+            }
+
+            After("one long frame", rig => rig.LongFrame(3.7));
+
+            // The moment it's over counts too: the time that passed has to be seen to pass along with what arrived in it.
+            var stalled = new PictureRig();
+            stalled.Run(5.0);
+            stalled.LongFrame(3.7);
+            stalled.Forget();
+            stalled.Run(1.0);
+            report.Check("Straight after a long frame the picture carries on from where it should", stalled.Starved < 0.02 && stalled.Behind < settled, $"{stalled.Starved:P1} of frames ran out, {stalled.Behind * 1000.0:0} ms behind");
+
+            After("ten long frames", rig =>
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    rig.LongFrame(1.0);
+                    rig.Run(1.0);
+                }
+            });
+            After("the server stalling", rig => rig.ServerStops(3.0));
+            After("the server stalling ten times", rig =>
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    rig.ServerStops(0.4);
+                    rig.Run(1.0);
+                }
+            });
+            After("the line getting slower", rig => rig.Path = 0.2, 0.2 + settled);
+            After("the line getting faster", rig =>
+            {
+                rig.Path = 0.2;
+                rig.Run(5.0);
+                rig.Path = 0.02;
+            });
+
+            var slow = new PictureRig { Speed = 0.9 };
+            slow.Run(30.0);
+            slow.Forget();
+            slow.Run(30.0);
+            report.Check("A server that can't keep up doesn't take the picture with it", slow.Behind < 0.5, $"{slow.Behind * 1000.0:0} ms");
+
+            // Getting over those mustn't cost what the margin is for: on a shaky line a next snapshot is still almost always there to blend towards.
+            var shaky = new PictureRig { Path = 0.03, Jitter = 0.09 };
+            shaky.Run(10.0);
+            shaky.Forget();
+            shaky.Run(60.0);
+            report.Check("On a shaky line there is nearly always a snapshot to blend towards", shaky.Starved < 0.02, $"{shaky.Starved:P1} of frames ran out, {shaky.Behind * 1000.0:0} ms behind");
         }
 
         // The two clocks driven by a fake server over a simulated link: does a client find the right lead and stay there?

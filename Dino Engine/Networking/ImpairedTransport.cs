@@ -54,9 +54,16 @@ namespace Dino_Engine.Networking
             _random = new Random(seed);
         }
 
+        /// <summary>
+        /// Keeps the line running for a program that has stopped reading it. A message's trip is timed from when it gets here, so
+        /// anything sent while nobody polls would otherwise set off when they came back, and a stalled client would never see
+        /// what a real one does: everything sent meanwhile, there at once.
+        /// </summary>
+        public void Carry() => _inner.Poll(this);
+
         public void Poll(INetListener listener)
         {
-            _inner.Poll(this);
+            Carry();
 
             foreach (Action<INetListener> announce in _announcements) announce(listener);
             _announcements.Clear();

@@ -74,6 +74,8 @@ The hero's own data lives on the server during a game and is copied to the clien
 
 The server runs at a fixed 60 ticks a second. A client's clock runs ahead of it, so each command arrives just before its tick. The server reports how much spare time commands arrive with, and the client speeds up or slows down by up to 5% to keep that small. Everything else is drawn behind the newest snapshot, by a margin measured from how the line actually behaves.
 
+That margin is the most dangerous number in the game, as whatever it learns is how late every blow, health bar and enemy swing is seen. So `InterpolationClock` learns only from the last second or so, and a stall on either end must teach it nothing. A long frame delivers everything sent during it at once, and a server that falls behind has lost that time for good: neither says anything about the line. The first frames in a world can take seconds, so this comes up every time someone plays. When it was got wrong the round trip still read 17 ms and the hero still moved perfectly, with the whole world drawn 3 s in the past. `drawn N ms behind` in the `Net:` line of a scripted run shows it.
+
 An arrow is drawn moving from the past into the player's own moment over its first quarter second, so that when it reaches them it really has. A hero's blow is judged against where enemies were on the attacker's screen, up to a quarter of a second back.
 
 ## Inviting friends
@@ -108,7 +110,7 @@ dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" core     # Replication a
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" game     # The whole game, on every kind of line
 ```
 
-Run both after touching anything here. To feel a bad line in the real game, or play across two windows on one machine:
+Run both after touching anything here. A test of timing has to measure against the server itself, as a client's own idea of how far behind it is can be as wrong as the rest of it, and a stalled client needs its line kept running (`ImpairedTransport.Carry`), or what was sent meanwhile doesn't arrive at once as it really does. To feel a bad line in the real game, or play across two windows on one machine:
 
 ```
 "Dino Defenders.exe" --host true --secret test

@@ -36,6 +36,7 @@ namespace Dino_NetLab
         public int HitsSeen;
         public bool Fights = true;
         public Vector2? Heading;        // With nothing to fight: where to walk to, in place of wandering.
+        public Vector2? StrikeAt;       // Swings once at this place.
         public const int WhirlSlot = 2;
         public int WhirlEveryFrames;    // Instead of fighting: a press of whirl, this often.
         public int WhirlsPressed;
@@ -49,6 +50,13 @@ namespace Dino_NetLab
         public double DivergenceWorst;
         public long DivergenceSamples;
         public readonly List<float> DivergenceSorted = new();
+        public double DrawnBehindTotal;     // Seconds behind the server itself, as measured there.
+        public long DrawnBehindSamples;
+        public readonly List<double> FirstBlowsShownAfter = new();
+        private readonly ImpairedTransport? _line;
+        private double _stalled;
+        private double _lastLanded = double.NegativeInfinity;
+        private double _firstLanded = -1.0;
 
         public LabPlayer(string name, INetTransport transport, WorldCache worlds, HeroState hero, double frameSeconds, int seed)
         {
@@ -56,20 +64,36 @@ namespace Dino_NetLab
             _worlds = worlds;
             _random = new Random(seed);
             FrameSeconds = frameSeconds;
+            _line = transport as ImpairedTransport;
             Client = new GameClient(transport, this, Ecs, hero, name);
             Client.Events.On<DamageEvent>(e =>
             {
                 if (!e.ToHero) HitsSeen++;
+
+                // What someone sees when they start on an enemy: the time from their swing to the number coming up.
+                if (e.ToHero || e.Note != HitNote.None || _firstLanded < 0.0) return;
+                FirstBlowsShownAfter.Add(Client.Clock() / 1000.0 - _firstLanded);
+                _firstLanded = -1.0;
             });
+        }
+
+        /// <summary>Holds up this client's next frame: nothing is heard or done until it ends, and it then lasts that long, as a stalled frame does.</summary>
+        public void Stall(double seconds)
+        {
+            _nextFrame += seconds;
+            _stalled += seconds;
         }
 
         /// <summary>Runs a frame if one is due.</summary>
         public void Advance(double now)
         {
+            if (_stalled > 0.0) _line?.Carry();
+
             while (_nextFrame <= now)
             {
                 _nextFrame += FrameSeconds * (0.9 + _random.NextDouble() * 0.2);
-                Client.Update(FrameSeconds);
+                Client.Update(FrameSeconds + _stalled);
+                _stalled = 0.0;
                 if (_wanted is WorldRequest request)
                 {
                     Task<WorldData> world = _worlds.Get(request);
@@ -89,6 +113,14 @@ namespace Dino_NetLab
 
         public HeroIntent ReadIntent()
         {
+            if (StrikeAt is Vector2 target && Client.Session != null)
+            {
+                StrikeAt = null;
+                var strike = new HeroIntent { Aim = target - Client.Predictor.Current.Position };
+                strike.Use(0);
+                return strike;
+            }
+
             if (PressUse)
             {
                 PressUse = false;
@@ -180,6 +212,12 @@ namespace Dino_NetLab
         public void HeroActed(HeroStepEvents events, in HeroSimState hero)
         {
             if ((events & HeroStepEvents.Used) != 0 && hero.Using >= 0) Uses[hero.Using]++;
+            if ((events & HeroStepEvents.Landed) != 0)
+            {
+                double now = Client.Clock() / 1000.0;
+                if (now - _lastLanded > 1.0) _firstLanded = now;
+                _lastLanded = now;
+            }
         }
         public void OpenPanel(InteractKind kind, SiteState site) => PanelsOpened.Add((kind, site));
         public void Disconnected(string reason) => DisconnectReason = reason;
@@ -287,6 +325,9 @@ namespace Dino_NetLab
             }
         }
 
+        /// <summary>How long ago, by the server's own clock, the moment this player is looking at was.</summary>
+        public double DrawnBehind(LabPlayer player) => (Server.Tick - player.Client.Render.RenderTick) * NetTime.TickSeconds;
+
         /// <summary>Stops the server for a while, as a stall would, while clients carry on.</summary>
         public void StallServer(double seconds)
         {
@@ -326,6 +367,9 @@ namespace Dino_NetLab
         private void MeasureDivergence(LabPlayer player)
         {
             if (player.Client.State != ClientState.Playing || !player.Client.Render.Started) return;
+            player.DrawnBehindTotal += DrawnBehind(player);
+            player.DrawnBehindSamples++;
+
             uint moment = (uint)Math.Max(player.Client.Render.RenderTick, 0.0);
             if (moment + History < _recorded + 8 || moment > _recorded) return;
 
@@ -394,6 +438,10 @@ namespace Dino_NetLab
 
             report.Section("Things going wrong");
             ServerStalls(report, worlds, request);
+            foreach ((string name, NetworkConditions conditions) in Scenarios.All)
+            {
+                ThePictureKeepsUp(report, worlds, request, name, conditions);
+            }
             ConnectionDies(report, worlds, request);
             HostileClient(report, worlds, request, options.Int("fuzz", 20000));
 
@@ -509,9 +557,12 @@ namespace Dino_NetLab
             int filledBefore = lab.Server.Players.Sum(p => p.FilledCommands);
             foreach (LabPlayer player in lab.Players) player.Client.Predictor.ForgetWorst();
 
+            foreach (LabPlayer player in lab.Players) (player.DrawnBehindTotal, player.DrawnBehindSamples) = (0.0, 0);
+
             int peakGhosts = 0;
             lab.Run(seconds, () => peakGhosts = Math.Max(peakGhosts, lab.Server.Ghosts.GhostCount));
 
+            double drawnBehind = lab.Players.Max(p => p.DrawnBehindTotal / Math.Max(p.DrawnBehindSamples, 1));
             int mismatches = lab.Players.Sum(p => p.Client.Ghosts.Mismatches);
             int corrections = lab.Players.Sum(p => p.Client.Predictor.Corrections) - correctionsBefore;
             int compared = lab.Players.Sum(p => p.Client.Predictor.Compared) - comparedBefore;
@@ -542,6 +593,7 @@ namespace Dino_NetLab
 
             bool cleanLine = conditions.SpikeChance == 0;
             report.Check($"{name}: the fight really happened", kills > 0 && peakGhosts > 5, $"{kills} kills, {peakGhosts} ghosts");
+            report.Check($"{name}: nobody sees the fight further behind than the line explains", drawnBehind < AllowedBehind(conditions), $"{drawnBehind * 1000.0:0} ms at worst, of {AllowedBehind(conditions) * 1000.0:0}");
             if (cleanLine) report.Check($"{name}: a hero is almost never corrected", corrections <= compared / 500, $"{corrections} of {compared}");
             report.Check($"{name}: no snapshot ever referred to state a client lacked", mismatches == 0, $"{mismatches}");
             report.Check($"{name}: every hero ends exactly where the server has them", positionsAgree);
@@ -797,6 +849,74 @@ namespace Dino_NetLab
             report.Check("After the server stalls for a second, four times over, every hero is back in step", together);
             report.Check("Nobody was dropped", lab.Players.All(p => p.DisconnectReason == null));
             report.Check("And no snapshot was unreadable", lab.Players.All(p => p.Client.Ghosts.Mismatches == 0));
+        }
+
+        private static readonly Vector2 ParadeFirstPlace = new Vector2(-16.5f, -7f);    // From the hero, where the first of a parade stands.
+
+        // Half the trip, the worst the line varies by, and the few ticks of margin that blending needs.
+        private static double AllowedBehind(NetworkConditions conditions) => (conditions.Latency * 0.5 + conditions.Jitter * 1.5) / 1000.0 + 0.2;
+
+        private static double AverageBehind(GameLab lab, LabPlayer player, double seconds)
+        {
+            double total = 0.0;
+            int samples = 0;
+            lab.Run(seconds, () =>
+            {
+                total += lab.DrawnBehind(player);
+                samples++;
+            });
+            return total / samples;
+        }
+
+        // A stall is a moment, and has to cost only that. A client that takes one for what the line is like draws the world that far in the
+        // past from then on, with every blow, health bar and enemy swing that late: a first frame of 3.7 s once made a game of it for good.
+        private static void ThePictureKeepsUp(Report report, WorldCache worlds, WorldRequest request, string name, NetworkConditions conditions)
+        {
+            using var lab = new GameLab(worlds, request);
+            LabPlayer player = lab.AddPlayer("Hero", conditions, 60);
+            double allowed = AllowedBehind(conditions);
+
+            // The first frames in a world are the longest of all, and come just as the clock has begun.
+            while (!player.Client.Render.Started && lab.SecondsRun < 30.0) lab.Run(0.01);
+            player.Stall(3.7);
+            lab.Run(3.7 + 4.0);
+            double afterArriving = AverageBehind(lab, player, 3.0);
+            report.Check($"{name}: a long first frame in a world costs nothing once it is over", afterArriving < allowed, $"{afterArriving * 1000.0:0} ms, of {allowed * 1000.0:0}");
+
+            for (int i = 0; i < 4; i++)
+            {
+                player.Stall(0.5 + i);
+                lab.Run(0.5 + i + 4.0);
+            }
+            double afterFrames = AverageBehind(lab, player, 3.0);
+            report.Check($"{name}: nor do long frames during a game, however many", afterFrames < allowed, $"{afterFrames * 1000.0:0} ms, of {allowed * 1000.0:0}");
+
+            for (int i = 0; i < 4; i++)
+            {
+                lab.StallServer(1.0);
+                lab.Run(4.0);
+            }
+            double afterServer = AverageBehind(lab, player, 3.0);
+            report.Check($"{name}: nor does the server stalling", afterServer < allowed, $"{afterServer * 1000.0:0} ms, of {allowed * 1000.0:0}");
+
+            // The same thing as a player meets it: a swing at something standing in reach, and how long the number takes to come up.
+            player.Fights = false;
+            player.FirstBlowsShownAfter.Clear();
+            ServerPlayer truth = lab.Server.Players.First();
+            for (int i = 0; i < 10; i++)
+            {
+                Vector2 target = truth.Sim.Position + ParadeFirstPlace;
+                lab.Server.Parade("wolf");
+                player.Client.TravelTo(target + new Vector2(2.5f, 0f));
+                lab.Run(1.5);
+                player.StrikeAt = target;
+                lab.Run(2.0);
+            }
+            List<double> blows = player.FirstBlowsShownAfter.OrderBy(b => b).ToList();
+            double blow = blows.Count == 0 ? double.PositiveInfinity : blows[blows.Count / 2];
+            double allowedBlow = allowed + conditions.Latency * 0.5 / 1000.0 + 0.1;
+            report.Check($"{name}: a blow shows as soon as the line allows", blows.Count >= 5 && blow < allowedBlow, $"{blow * 1000.0:0} ms in the middle of {blows.Count}, of {allowedBlow * 1000.0:0}");
+            report.Check($"{name}: and the hero is still in step", player.DisconnectReason == null && player.Client.Ghosts.Mismatches == 0);
         }
 
         private static void ConnectionDies(Report report, WorldCache worlds, WorldRequest request)
