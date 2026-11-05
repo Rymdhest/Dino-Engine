@@ -4,6 +4,9 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common.Input;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 
+using Dino_Engine.Sound;
+using Dino_Engine.Sound.Content;
+
 namespace Dino_Engine.GUI.Widgets
 {
     /// <summary>A box with a check mark followed by a label. Clicking anywhere on it toggles <see cref="Checked"/>.</summary>
@@ -69,7 +72,9 @@ namespace Dino_Engine.GUI.Widgets
 
         protected override void OnClick(GuiMouseEventArgs e)
         {
-            if (e.Button == MouseButton.Left) Checked = !Checked;
+            if (e.Button != MouseButton.Left) return;
+            Audio.Play(Interface.Toggle);
+            Checked = !Checked;
         }
 
         private sealed class CheckBoxGlyph : GuiElement

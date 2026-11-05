@@ -9,6 +9,9 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.ECS.Systems;
 using Dino_Engine.Networking;
+using Dino_Engine.Sound;
+using Dino_Engine.Sound.Content;
+using Dino_Engine.Sound.Music;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
@@ -86,6 +89,14 @@ namespace Dino_Defenders
         public ArpgGame(Engine engine, GameOptions options) : base(engine)
         {
             _options = options;
+
+            // First of all, as the takes are made on threads beside whatever else is going on, and that's what loading is for.
+            Audio.Start(options.Audible);
+            if (options.Record != null) Audio.Record(options.Record);
+            SoundSettings.Load().Apply();
+            if (options.Volume is float volume) Audio.MasterVolume = volume;
+            if (options.Music is float music) Audio.SetVolume(SoundBus.Music, music);
+
             ApplyRenderOptions(options.Render);
             if (options.Film != null)
             {
@@ -138,6 +149,9 @@ namespace Dino_Defenders
             SystemRegistry.InsertBefore<GravitySystem>(new PromptSystem());
             SystemRegistry.InsertBefore<GravitySystem>(new AmbienceSystem());
             SystemRegistry.InsertAfter<VelocitySystem>(new GhostPresentationSystem(() => _client));
+            SystemRegistry.InsertBefore<GravitySystem>(new SoundscapeSystem());
+            SystemRegistry.InsertBefore<GravitySystem>(new MusicDirectorSystem());
+            SystemRegistry.InsertAfter<GhostPresentationSystem>(new CharacterSoundSystem(() => _effects?.Sounds));
         }
 
         // Alone or hosting, the server is here. The world it holds and the hero it is given are the same as they would be anywhere.
@@ -361,6 +375,10 @@ namespace Dino_Defenders
                 case "hero": _ui.Toggle(_ui.Hero); break;
                 case "chronicle": _ui.Toggle(_ui.Chronicle); break;
                 case "pause": _ui.Toggle(_ui.Pause); break;
+                case "sound":
+                    Dino_Engine.Core.Engine.DebugOverlay.Visible = true;
+                    Dino_Engine.Core.Engine.DebugOverlay.SoundWindow.Visible = true;
+                    break;
                 case "friends": _ui.Toggle(_ui.Friends); break;
                 case "waygate": _ui.Open(InteractKind.Waygate, GameSession.Current.Sites[0]); break;
                 case "merchant": _ui.Open(InteractKind.Merchant, GameSession.Current.Sites.First(s => s.Site.Kind == SiteKind.Village)); break;
@@ -389,6 +407,13 @@ namespace Dino_Defenders
             Console.WriteLine($"Net: {_client.Party.Count} in the party, {_client.Ghosts.Ghosts.Count} ghosts, round trip {_client.RoundTrip:0} ms, {predictor.Corrections} corrections in {predictor.Compared} checks (worst {predictor.WorstCorrection:0.00} m), {_client.Ghosts.Mismatches} mismatches, {_client.BytesReceived / 1024} KB in, {_client.BytesSent / 1024} KB out");
             var grass = Dino_Engine.Core.Engine.RenderEngine._grassRenderer;
             Console.WriteLine($"Grass: {grass.NearBladesDrawn} near, {grass.FarBladesDrawn} far");
+            if (Audio.Mixer is Dino_Engine.Sound.Mixing.Mixer mixer) Console.WriteLine($"Sound: {Audio.TakesMade} takes, at most {mixer.MostActiveVoices} voices, {mixer.Dropped} dropped, {mixer.Load * 100f:0.0}% mixing, {Audio.Output?.Underruns ?? 0} underruns on {Audio.Output?.Device ?? "no device"}, music {Music.Mood} at {Music.Intensity:0.00}, {Music.Gaps} gaps, heard {string.Join(" ", Music.Heard)}");
+            if (Audio.Mixer != null)
+            {
+                var reading = Dino_Defenders.Client.SoundscapeSystem.Reading;
+                string steps = string.Join(", ", Dino_Defenders.Client.CharacterSoundSystem.StepsHeard.OrderByDescending(pair => pair.Value).Select(pair => $"{pair.Key} {pair.Value}"));
+                Console.WriteLine($"Land: wind {reading.wind:0.0} m/s, crest {reading.crest:0.00}, sea {reading.sea:0.00}, bank {reading.bank:0.00}, steps on {steps}");
+            }
         }
 
         private void Save()
@@ -428,6 +453,8 @@ namespace Dino_Defenders
             _shutDown = true;
             Save();
             LeaveCurrentGame();
+            Music.End(0f);
+            Audio.Stop();
         }
 
         private void NewJourney()
@@ -467,6 +494,9 @@ namespace Dino_Defenders
         void IClientHost.WorldNeeded(WorldRequest request)
         {
             _ui.CloseAll();
+            Audio.StopWorld(1.2f);
+            Music.End(1.2f);
+            if (GameSession.Current != null) Audio.Play(Treasure.Waygate);
             WorldPlan plan = WorldPlan.Create(request);
             ShowLoading(plan.Name, $"{plan.Archetype.Name}, level {plan.Level}");
 
@@ -533,7 +563,7 @@ namespace Dino_Defenders
 
             if (_options.Bot)
             {
-                var bot = new HeroBot(Engine.world, _options.Sweep, FinishSweep);
+                var bot = new HeroBot(Engine.world, _options.Sweep, _options.Walk, FinishSweep);
                 session.Autopilot = () => bot.Think(session);
             }
         }

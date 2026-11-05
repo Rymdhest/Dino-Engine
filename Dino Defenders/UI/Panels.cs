@@ -5,6 +5,8 @@ using Dino_Defenders.Progression;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Widgets;
+using Dino_Engine.Sound;
+using Dino_Engine.Sound.Content;
 using Dino_Engine.Util;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
@@ -271,6 +273,7 @@ namespace Dino_Defenders.UI
                 row.Add(new ItemCell(() => Hero.Equipped.GetValueOrDefault(worn), item =>
                 {
                     Session.Client.Unequip(item.Slot);
+                    Audio.Play(Interface.Equip);
                     Describe(null);
                 }, Describe, worn));
             }
@@ -291,6 +294,7 @@ namespace Dino_Defenders.UI
         {
             int index = Hero.Inventory.IndexOf(item);
             if (index < 0) return;
+            Audio.Play(_merchant != null ? Interface.Trade : Interface.Equip);
             if (_merchant != null) Session.Client.Sell(index);
             else Session.Client.Equip(index);
             Describe(null);
@@ -299,11 +303,16 @@ namespace Dino_Defenders.UI
         private void Buy(Item item)
         {
             if (_merchant == null || Hero.Gold < item.BuyValue) return;
+            Audio.Play(Interface.Trade);
             Session.Client.Buy(Session.Sites.IndexOf(_merchant), _merchant.Stock.IndexOf(item));
             Describe(null);
         }
 
-        private static void BuyFlasks() => Session.Client.BuyFlasks();
+        private static void BuyFlasks()
+        {
+            Audio.Play(Interface.Trade);
+            Session.Client.BuyFlasks();
+        }
 
         private void Describe(Item? item)
         {
@@ -485,6 +494,7 @@ namespace Dino_Defenders.UI
             body.Add(Ui.Action("Go on", resume));
             body.Add(Ui.Action("The hero (C)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Hero); }));
             body.Add(Ui.Action("Travel with friends", friends));
+            SoundSettings.AddControls(body);
             body.Add(Ui.Action("Leave the road", quit));
             body.Add(Ui.Action("Begin a new journey", () =>
             {
@@ -643,6 +653,7 @@ namespace Dino_Defenders.UI
 
         public void CloseAll()
         {
+            if (AnyOpen) Audio.Play(Interface.Close);
             foreach (GuiElement panel in _panels) panel.Visible = false;
             Pause.Reset();
         }
@@ -653,6 +664,7 @@ namespace Dino_Defenders.UI
             CloseAll();
             if (open) return;
 
+            Audio.Play(Interface.Open);
             panel.Visible = true;
             if (panel == Hero) Hero.Open(null);
             if (panel == Chronicle) Chronicle.Open(null);
@@ -662,6 +674,7 @@ namespace Dino_Defenders.UI
         public void Open(InteractKind kind, SiteState site)
         {
             CloseAll();
+            Audio.Play(Interface.Open);
             switch (kind)
             {
                 case InteractKind.Merchant:

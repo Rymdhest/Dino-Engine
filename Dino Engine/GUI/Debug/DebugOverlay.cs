@@ -28,11 +28,13 @@ namespace Dino_Engine.GUI.Debug
         public GuiWindow EntitiesWindow { get; }
         public GuiWindow ConsoleWindow { get; }
         public GuiWindow ShowcaseWindow { get; }
+        public GuiWindow SoundWindow { get; }
         public GuiElement Toolbar { get; }
 
         private readonly ConsoleWindowController _console;
         private readonly PerformanceWindowController _performance;
         private readonly EntityInspectorController _entities;
+        private readonly AudioWindowController _sound;
 
         public DebugOverlay(GuiContext gui)
         {
@@ -57,12 +59,16 @@ namespace Dino_Engine.GUI.Debug
 
             ShowcaseWindow = _root.Add(ShowcaseWindowBuilder.Build(gui));
 
+            _sound = new AudioWindowController();
+            SoundWindow = _root.Add(_sound.Window);
+
             Toolbar = _root.Add(BuildToolbar());
 
             RenderWindow.Visible = false;
             EntitiesWindow.Visible = false;
             ConsoleWindow.Visible = false;
             ShowcaseWindow.Visible = false;
+            SoundWindow.Visible = false;
 
             // Hidden until F3 is pressed.
             Visible = false;
@@ -106,6 +112,7 @@ namespace Dino_Engine.GUI.Debug
             AddToggle(bar, "Stats", StatsWindow);
             AddToggle(bar, "Performance", PerformanceWindow);
             AddToggle(bar, "Render", RenderWindow);
+            AddToggle(bar, "Sound", SoundWindow);
             AddToggle(bar, "Entities", EntitiesWindow);
             AddToggle(bar, "Console", ConsoleWindow);
             AddToggle(bar, "Widgets", ShowcaseWindow);

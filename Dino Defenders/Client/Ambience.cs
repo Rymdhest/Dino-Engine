@@ -2,6 +2,8 @@ using Dino_Defenders.Gameplay;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Physics;
+using Dino_Engine.Sound;
+using Dino_Engine.Sound.Content;
 using Dino_Engine.Util;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
@@ -79,6 +81,7 @@ namespace Dino_Defenders.Client
 
             if (session.Intent.Guide && session.GuideCooldown <= 0f && session.Guidance is Vector2 target)
             {
+                Audio.Play(Magic.GuidingWind);
                 Vector2 toward = target - session.PlayerPosition;
                 _guideDirection = MathHelper.RadiansToDegrees(MathF.Atan2(toward.X, toward.Y));
                 _guideLeft = GuideTime;
@@ -384,6 +387,7 @@ namespace Dino_Defenders.Client
         private static Entity Flames(ECSWorld world, Vector3 position)
         {
             return world.CreateEntity("Flames",
+                new SoundEmitterComponent(Soundscape.Fire, 0.55f),
                 new ParticleEmitterComponent
                 {
                     particlesPerSecond = 18f,

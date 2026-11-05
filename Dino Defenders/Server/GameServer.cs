@@ -352,6 +352,7 @@ namespace Dino_Defenders.Server
             player.SummaryChanged = true;
             float heal = player.Stats.MaxHealth * HeroRules.FlaskHeal;
             player.Health = Math.Min(player.Health + heal, player.Stats.MaxHealth);
+            Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Flask }, position.Xz);
             Broadcast(new TextEvent
             {
                 Position = position + Vector3.UnitY * 5.4f,

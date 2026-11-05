@@ -15,7 +15,6 @@
   <ItemGroup>
     <Folder Include="GUI\Text\" />
     <Folder Include="Modelling\NewFolder\" />
-    <Folder Include="Sound\" />
 	<Content Include="Shaders\**\*.*">
 		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	</Content>

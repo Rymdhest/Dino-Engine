@@ -11,8 +11,9 @@ namespace Dino_Defenders
     ///   --level N       How dangerous the first world is.
     ///   --bot true      Plays the hero: it fights whatever is near. For watching the game run with nobody at the keyboard.
     ///   --sweep true    With the bot: when nothing is near, goes to the next place still held, until the world is free.
+    ///   --walk x,z      With the bot: runs straight there and does nothing else, for whatever needs someone on foot. It gets about by being moved otherwise.
     ///   --hero N        Starts the hero at level N, with the attributes to match.
-    ///   --panel name    Opens map, hero, chronicle, merchant, elder, waygate, friends or pause once the world is up.
+    ///   --panel name    Opens map, hero, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
     ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one.
     ///   --savefile path Keeps the save here, and uses it even on a scripted run.
     ///   --host true     Opens the game to others straight away. --port N and --secret text say where and with what.
@@ -26,6 +27,10 @@ namespace Dino_Defenders
     ///   --clock s       Starts as if the game had been running s seconds already: some faults only show late in a session.
     ///   --wind f:s:d;f:s:d  From frame f on, the region's wind is s m/s towards d degrees, in place of what the land gives.
     ///   --guide N       Calls the guiding wind after N frames.
+    ///   --record file.wav  Saves everything the mixer sends out, to listen to or measure afterwards.
+    ///   --sound true    Plays on the real device even on a scripted run, which otherwise keeps quiet.
+    ///   --volume v      Overall level from 0 to 1, in place of what the player has chosen.
+    ///   --music v       The music's level from 0 to 1, likewise, which at 0 leaves everything else to be measured.
     /// A scripted run otherwise neither reads nor writes the player's save.
     /// </summary>
     internal sealed class GameOptions
@@ -42,6 +47,7 @@ namespace Dino_Defenders
         public int Level = 1;
         public bool Bot;
         public bool Sweep;
+        public Vector2? Walk;
         public int HeroLevel = 1;
         public string? Panel;
         public int TravelAfterFrames = -1;
@@ -61,9 +67,16 @@ namespace Dino_Defenders
         public float Clock;
         public readonly List<(int frame, float speed, float direction)> Wind = new();
         public int GuideAfterFrames = -1;
+        public string? Record;
+        public bool? Sound;
+        public float? Volume;
+        public float? Music;
 
         /// <summary>Whether this run plays on from a save, as someone playing does, rather than being a throwaway.</summary>
         public bool Saves => SaveFile != null || !(Seed != null || Archetype != null || Tour != null || Shot != null || Film != null || Bot);
+
+        /// <summary>Whether anyone is listening. A script running in the background shouldn't suddenly fill the room.</summary>
+        public bool Audible => Sound ?? !(Tour != null || Shot != null || Film != null || Bot);
 
         public static GameOptions Parse(string[] args)
         {
@@ -88,6 +101,10 @@ namespace Dino_Defenders
                     case "level": options.Level = int.Parse(value); break;
                     case "bot": options.Bot = value == "true"; break;
                     case "sweep": options.Sweep = value == "true"; break;
+                    case "walk":
+                        string[] walk = value.Split(',');
+                        options.Walk = new Vector2(float.Parse(walk[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(walk[1], System.Globalization.CultureInfo.InvariantCulture));
+                        break;
                     case "hero": options.HeroLevel = int.Parse(value); break;
                     case "panel": options.Panel = value; break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
@@ -106,6 +123,10 @@ namespace Dino_Defenders
                     case "filmrate": options.FilmRate = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "clock": options.Clock = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "guide": options.GuideAfterFrames = int.Parse(value); break;
+                    case "record": options.Record = value; break;
+                    case "sound": options.Sound = value == "true"; break;
+                    case "volume": options.Volume = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
+                    case "music": options.Music = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "wind":
                         foreach (string change in value.Split(';'))
                         {

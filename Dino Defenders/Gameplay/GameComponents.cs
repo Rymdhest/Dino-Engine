@@ -49,6 +49,9 @@ namespace Dino_Defenders.Gameplay
         [NotReplicated] public float DeadFor;
         [NotReplicated] public Vector3 DeathScale;
         [NotReplicated] public Quaternion DeathRotation;
+
+        // What its sounds have got to, on the client.
+        [NotReplicated] public EnemyState Heard;
     }
 
     public struct EnemyBrainComponent : IComponent
@@ -84,6 +87,7 @@ namespace Dino_Defenders.Gameplay
         // How its fall is drawn, on the client.
         [NotReplicated] public float DownFor;
         [NotReplicated] public Quaternion FellFrom;
+        [NotReplicated] public bool HeardDown;
     }
 
     /// <summary>A swing, for those watching. Each new one changes the serial, so that one lost update can't lose the blow.</summary>
@@ -93,6 +97,7 @@ namespace Dino_Defenders.Gameplay
         public byte Serial;
         [NetStep(1f / 32f), NetSnap] public float Speed;
         [NotReplicated] public byte Played;
+        [NotReplicated] public byte Heard;
     }
 
     public enum VisualKind
@@ -158,6 +163,15 @@ namespace Dino_Defenders.Gameplay
         [NotReplicated] public Vector3 Rest;
     }
 
+    /// <summary>How far through its sounds an arrow is, on the client.</summary>
+    public enum ArrowHeard : byte
+    {
+        Nothing,
+        Loosed,
+        Passing,
+        Landed,
+    }
+
     /// <summary>
     /// Flies in a straight line from a known start, so clients can work out where it is for themselves. Sent once when it is loosed
     /// and never again, however long it flies: a screen full of these costs almost nothing.
@@ -168,6 +182,7 @@ namespace Dino_Defenders.Gameplay
         public Vector3 Origin;
         public Vector3 Velocity;
         public uint StartTick;
+        [NotReplicated] public ArrowHeard Heard;
 
         public readonly Vector3 PositionAt(double tick) => Origin + Velocity * (float)((tick - StartTick) * NetTime.TickSecondsPrecise);
     }

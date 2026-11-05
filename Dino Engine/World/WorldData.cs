@@ -118,6 +118,26 @@ namespace Dino_Engine.World
             return MathF.Max(WaterLevelAt(position) - Height.Sample(position), 0f);
         }
 
+        /// <summary>
+        /// What the ground is mostly made of at a point, as a foot would find it. Follows the rules of <see cref="TerrainSurface"/>, less its
+        /// blending: what's painted there is a mix, and a sole lands on one thing.
+        /// </summary>
+        public SurfaceMaterial SurfaceAt(Vector2 position)
+        {
+            float x = position.X, z = position.Y;
+            if (PavedRoad.Sample(x, z) > 0.5f) return SurfaceMaterial.Cobble;
+
+            BiomeDefinition biome = BiomeAt(position);
+            if (TrailRoad.Sample(x, z) > 0.5f) return biome.Path;
+            if (Plaza.Sample(x, z) > 0.5f) return SurfaceMaterial.Gravel;
+            if (Yard.Sample(x, z) > 0.5f) return SurfaceMaterial.Dirt;
+            if (Farmland.Sample(x, z) > 0.5f) return SurfaceMaterial.Farmland;
+
+            if (Height.Sample(position) - WaterLevelAt(position) < 1f) return biome.Shore;
+            if (Height.SlopeAt(position) > 0.8f) return biome.Slope;
+            return Canopy.Sample(x, z) > 0.5f ? biome.Understory : biome.Ground;
+        }
+
         public bool InBounds(Vector2 position)
         {
             return position.X >= 0f && position.Y >= 0f && position.X <= Size && position.Y <= Size;

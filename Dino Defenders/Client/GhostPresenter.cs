@@ -6,6 +6,8 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using Dino_Engine.Physics;
+using Dino_Engine.Sound;
+using Dino_Engine.Sound.Content;
 using Dino_Engine.Util;
 using Dino_Engine.World;
 using OpenTK.Mathematics;
@@ -96,6 +98,7 @@ namespace Dino_Defenders.Client
                 components.Add(new GrassDisplaceComponent(3f * scale) { power = 1.4f, exponent = 0.6f });
                 components.Add(new WaterDisturberComponent(0.42f * scale));
                 components.Add(new GhostMotionComponent());
+                components.Add(new FootfallComponent());
                 components.Add(new NetMovedTag());
             }
             else
@@ -107,6 +110,15 @@ namespace Dino_Defenders.Client
                     components.Add(new PointLightTag());
                     components.Add(new LightRangeComponent(PickupLightRadius, 0.2f, lightsFog: false));
                     components.Add(new ColorComponent(glow));
+                }
+
+                // A gate between worlds and a place of power can be heard before they're seen.
+                foreach (IComponent component in components)
+                {
+                    if (component is not InteractableComponent place) continue;
+                    if (place.Kind == InteractKind.Waygate) components.Add(new SoundEmitterComponent(Life.Gate));
+                    else if (place.Kind == InteractKind.Shrine) components.Add(new SoundEmitterComponent(Life.ShrineGlow));
+                    break;
                 }
             }
         }
@@ -389,9 +401,12 @@ namespace Dino_Defenders.Client
         private readonly ECSWorld _world;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
 
+        public readonly GameSounds Sounds;
+
         public ClientEffects(ECSWorld world, GameClient client)
         {
             _world = world;
+            Sounds = new GameSounds(world, client);
 
             client.Events.On<DamageEvent>(e =>
             {
@@ -424,6 +439,7 @@ namespace Dino_Defenders.Client
 
             Vector3 position = new Vector3(hero.Position.X, session.World.Height.Sample(hero.Position), hero.Position.Y);
             Show(events, position, hero.Aim);
+            Sounds.HeroActed(events, position, hero.Aim, client.Stats.AttackSpeed);
         }
 
         private void Show(HeroStepEvents events, Vector3 position, Vector2 aim)

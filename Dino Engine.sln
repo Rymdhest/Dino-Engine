@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dino Release", "Dino Releas
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dino LaunchLab", "Dino LaunchLab\Dino LaunchLab.csproj", "{DA16CEB6-B503-4047-B3E5-EFCB4607C470}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dino SoundLab", "Dino SoundLab\Dino SoundLab.csproj", "{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,18 @@ Global
 		{DA16CEB6-B503-4047-B3E5-EFCB4607C470}.Release|x64.Build.0 = Release|Any CPU
 		{DA16CEB6-B503-4047-B3E5-EFCB4607C470}.Release|x86.ActiveCfg = Release|Any CPU
 		{DA16CEB6-B503-4047-B3E5-EFCB4607C470}.Release|x86.Build.0 = Release|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Debug|x64.Build.0 = Debug|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Debug|x86.Build.0 = Debug|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Release|x64.ActiveCfg = Release|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Release|x64.Build.0 = Release|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Release|x86.ActiveCfg = Release|Any CPU
+		{3220FD86-CA31-4BAE-BB9D-B1F5A19330A5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

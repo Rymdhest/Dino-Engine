@@ -1,4 +1,6 @@
 using Dino_Engine.GUI.Rendering;
+using Dino_Engine.Sound;
+using Dino_Engine.Sound.Content;
 using Dino_Engine.Util;
 using OpenTK.Windowing.Common.Input;
 
@@ -55,7 +57,14 @@ namespace Dino_Engine.GUI.Widgets
 
         protected override void OnClick(GuiMouseEventArgs e)
         {
-            if (e.Button == OpenTK.Windowing.GraphicsLibraryFramework.MouseButton.Left) Pressed?.Invoke();
+            if (e.Button != OpenTK.Windowing.GraphicsLibraryFramework.MouseButton.Left) return;
+            Audio.Play(Interface.Click);
+            Pressed?.Invoke();
+        }
+
+        protected override void OnMouseEnter()
+        {
+            if (IsEnabledInHierarchy) Audio.Play(Interface.Hover);
         }
 
         protected override void OnUpdate(float deltaTime)

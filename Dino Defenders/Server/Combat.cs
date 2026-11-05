@@ -132,7 +132,7 @@ namespace Dino_Defenders.Server
             view.Set(health);
 
             Vector3 head = position + Vector3.UnitY * 5f * view.Get<ScaleComponent>().value.Y;
-            _session.Server.Broadcast(new DamageEvent { Position = head, Amount = damage, Critical = crit }, position.Xz);
+            _session.Server.Broadcast(new DamageEvent { Position = head, Amount = damage, Critical = crit, Body = BodyOf(view) }, position.Xz);
             _session.Server.Broadcast(new SparkEvent { Position = position + Vector3.UnitY * 2.6f, Kind = SparkKind.Blood, Count = 6, Speed = 6f }, position.Xz);
 
             // A hit wakes whoever was struck, even from afar.
@@ -143,6 +143,12 @@ namespace Dino_Defenders.Server
             }
 
             if (health.Current <= 0f) Kill(entity, position, from);
+        }
+
+        private static HitBody BodyOf(in EntityView enemy)
+        {
+            string model = enemy.Get<VisualComponent>().Model;
+            return model == "skeleton" ? HitBody.Bone : model == "warlord" ? HitBody.Armour : HitBody.Flesh;
         }
 
         private void Kill(Entity entity, Vector3 position, Vector2 from)
@@ -213,6 +219,7 @@ namespace Dino_Defenders.Server
 
         public void OpenChest(ServerPlayer opener, Vector3 position, int level)
         {
+            _session.Server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Chest }, position.Xz);
             int gold = (int)(_luck.Range(14f, 30f) * level * opener.Stats.GoldFind);
             SpawnPickup(position, null, gold);
             SpawnPickup(position, ItemGenerator.Roll(level + 1, _luck.Fork(_luck.Int(1 << 30)), opener.Stats.ItemFind + 0.8f, Rarity.Magic), 0);

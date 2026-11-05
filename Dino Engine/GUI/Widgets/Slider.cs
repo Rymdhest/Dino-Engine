@@ -4,6 +4,9 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common.Input;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 
+using Dino_Engine.Sound;
+using Dino_Engine.Sound.Content;
+
 namespace Dino_Engine.GUI.Widgets
 {
     /// <summary>Horizontal value slider. Click or drag to set the value; optionally shows the value text on the right.</summary>
@@ -52,6 +55,7 @@ namespace Dino_Engine.GUI.Widgets
                 float clamped = Math.Clamp(value, MathF.Min(_min, _max), MathF.Max(_min, _max));
                 if (clamped == _value) return;
                 _value = clamped;
+                if (IsPressed) Audio.Play(Interface.Tick);
                 ValueChanged?.Invoke(_value);
             }
         }

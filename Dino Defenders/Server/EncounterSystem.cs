@@ -271,6 +271,7 @@ namespace Dino_Defenders.Server
                     Colour = new Vector3(0.92f, 0.9f, 0.8f),
                     Size = 14f,
                     Life = 3.2f,
+                    Speech = true,
                 }, position.Xz);
                 villager.NextSpeech = session.Time + _random.Range(9f, 18f);
             }
@@ -400,9 +401,11 @@ namespace Dino_Defenders.Server
             if (state.Kindled)
             {
                 _server.Note(hero, "You rest at the shrine.");
+                _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.ShrineRest }, position.Xz);
                 return;
             }
             state.Kindled = true;
+            _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.ShrineKindled }, position.Xz);
             state.Changed = true;
             var interactable = view.Get<InteractableComponent>();
             interactable.Prompt = "Rest at the shrine";
@@ -453,6 +456,7 @@ namespace Dino_Defenders.Server
             {
                 hero.Hero.Gold += pickup.Gold;
                 hero.SummaryChanged = true;
+                _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Coins, Value = pickup.Gold }, position.Xz);
                 _server.Broadcast(new TextEvent
                 {
                     Position = position + Vector3.UnitY * 3f,
@@ -466,6 +470,7 @@ namespace Dino_Defenders.Server
 
             if (!hero.Hero.Pickup(pickup.Item)) return false;
             hero.GearChanged = true;
+            _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Find, Value = (int)pickup.Item.Rarity }, position.Xz);
             _server.Note(hero, $"Found: {pickup.Item.Name}");
             return true;
         }

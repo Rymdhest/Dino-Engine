@@ -42,6 +42,11 @@ namespace Dino_Engine.ECS.Systems
                         // Remove Run layer so Idle takes over again
                         animComp.Layers.Remove(runLayer);
                     }
+                    else if (runLayer != null)
+                    {
+                        // The legs keep up with the body. Set only at the start, a run kept the pace of its first frame, which is nearly always slower than the run: it went at half speed.
+                        runLayer.Speed = speed * 0.1f;
+                    }
 
                     // 3. Write the modified struct back to the component array
                     animArray[i] = animComp;

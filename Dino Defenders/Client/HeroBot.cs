@@ -26,6 +26,7 @@ namespace Dino_Defenders.Client
 
         private readonly ECSWorld _ecs;
         private readonly bool _sweep;
+        private readonly Vector2? _walkTo;
         private readonly Action<HeroBot> _finished;
         private readonly Dictionary<Vector2, int> _attempts = new();
         private int _framesLeft = -1;
@@ -35,10 +36,11 @@ namespace Dino_Defenders.Client
 
         public int Unreachable { get; private set; }
 
-        public HeroBot(ECSWorld ecs, bool sweep, Action<HeroBot> finished)
+        public HeroBot(ECSWorld ecs, bool sweep, Vector2? walkTo, Action<HeroBot> finished)
         {
             _ecs = ecs;
             _sweep = sweep;
+            _walkTo = walkTo;
             _finished = finished;
         }
 
@@ -48,6 +50,14 @@ namespace Dino_Defenders.Client
             if (_arriving > 0)
             {
                 _arriving--;
+                return intent;
+            }
+
+            // Straight there on foot and nothing else, for what only happens to someone actually running over the ground. Getting about otherwise is mostly done by being moved.
+            if (_walkTo is Vector2 goal)
+            {
+                Vector2 way = goal - session.PlayerPosition;
+                if (way.LengthSquared > 1f) intent.Move = way;
                 return intent;
             }
 

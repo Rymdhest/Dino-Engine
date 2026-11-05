@@ -11,6 +11,14 @@ namespace Dino_Defenders.Gameplay
         Shrine,
     }
 
+    /// <summary>What a blow landed on, which is what it sounds like.</summary>
+    public enum HitBody
+    {
+        Flesh,
+        Bone,
+        Armour,
+    }
+
     /// <summary>A number off a blow.</summary>
     [NetEvent]
     public struct DamageEvent
@@ -19,6 +27,7 @@ namespace Dino_Defenders.Gameplay
         [NetStep(1f)] public float Amount;
         public bool Critical;
         public bool ToHero;
+        public HitBody Body;
     }
 
     [NetEvent]
@@ -39,6 +48,30 @@ namespace Dino_Defenders.Gameplay
         [NetStep(1f / 32f)] public Vector3 Colour;
         [NetStep(0.5f)] public float Size;
         [NetStep(0.1f)] public float Life;
+        public bool Speech;     // Someone saying it, and not just a number going up.
+    }
+
+    public enum SoundCue
+    {
+        Coins,
+        Find,
+        Chest,
+        Flask,
+        ShrineKindled,
+        ShrineRest,
+        LevelUp,
+        Objective,
+        Liberated,
+        Discovered,
+    }
+
+    /// <summary>Something that happened that has a sound of its own and no other way of being known. Value is whatever the cue needs: how much gold, what rarity.</summary>
+    [NetEvent]
+    public struct SoundEvent
+    {
+        public Vector3 Position;
+        public SoundCue Cue;
+        public int Value;
     }
 
     /// <summary>A hero's ability going off, for everyone but its owner, who saw it the moment they pressed.</summary>

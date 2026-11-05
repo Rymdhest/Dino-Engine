@@ -66,6 +66,7 @@ namespace Dino_Defenders.Server
 
             hero.RefreshStats();
             hero.Health = hero.Stats.MaxHealth;
+            Server.Broadcast(new SoundEvent { Position = Server.HeroPosition(hero), Cue = SoundCue.LevelUp }, hero.Sim.Position);
             Server.Announce(hero, $"Level {hero.Hero.Level}", "Three points to spend. Press C.");
         }
 
@@ -88,6 +89,7 @@ namespace Dino_Defenders.Server
 
                 state.Discovered = true;
                 state.Changed = true;
+                Server.Broadcast(new SoundEvent { Cue = SoundCue.Discovered }, state.Site.Position);
                 Server.Announce(null, state.Site.Name, Chronicle.Describe(state.Site, World), 4.5f);
                 foreach (ServerPlayer hero in Heroes) GiveExperience(hero, 6 * World.Plan.Level);
             }
@@ -133,6 +135,7 @@ namespace Dino_Defenders.Server
                     hero.Hero.Gold += objective.RewardGold;
                     hero.SummaryChanged = true;
                 }
+                foreach (ServerPlayer hero in Heroes) Server.Broadcast(new SoundEvent { Cue = objective.IsMain ? SoundCue.Liberated : SoundCue.Objective }, hero.Sim.Position);
                 Server.Announce(null, objective.IsMain ? "The land is free" : "Chronicle fulfilled", objective.Text, 5f);
 
                 if (objective.IsMain)
