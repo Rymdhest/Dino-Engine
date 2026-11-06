@@ -16,11 +16,50 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 case GearKind.Dagger:
                     BladeGenerator.Build(mesh, style);
                     break;
+                case GearKind.Axe:
+                    PolearmGenerator.Axe(mesh, style);
+                    break;
+                case GearKind.Mace:
+                    PolearmGenerator.Mace(mesh, style);
+                    break;
+                case GearKind.Spear:
+                    PolearmGenerator.Spear(mesh, style);
+                    break;
+                case GearKind.Staff:
+                    PolearmGenerator.Staff(mesh, style);
+                    break;
+                case GearKind.Wand:
+                    PolearmGenerator.Wand(mesh, style);
+                    break;
+                case GearKind.Bow:
+                    BowGenerator.Build(mesh, style);
+                    break;
+                case GearKind.OffHand:
+                    ShieldGenerator.Build(mesh, style);
+                    break;
+                case GearKind.Finger:
+                    JewelGenerator.Ring(mesh, style);
+                    break;
+                case GearKind.Neck:
+                    JewelGenerator.Amulet(mesh, style);
+                    break;
+                case GearKind.Head:
+                    HeadGenerator.Build(mesh, style);
+                    break;
+                case GearKind.Body:
+                    TorsoGenerator.Build(mesh, style);
+                    break;
+                case GearKind.Legs:
+                    LimbGenerator.Legs(mesh, style);
+                    break;
+                case GearKind.Feet:
+                    LimbGenerator.Feet(mesh, style);
+                    break;
+                case GearKind.Hands:
+                    LimbGenerator.Hands(mesh, style);
+                    break;
             }
             return mesh;
         }
-
-        /// <summary>Everything that has a generator yet.</summary>
-        public static bool CanMake(GearKind kind) => kind is GearKind.Sword or GearKind.Dagger;
     }
 }

@@ -27,6 +27,8 @@ namespace Dino_GearLab
                     return GearCheck.Run(options);
                 case "variety":
                     return GearVariety.Run(options);
+                case "dress":
+                    return Dress(options);
                 case "bench":
                     return Bench();
                 default:
@@ -76,11 +78,45 @@ namespace Dino_GearLab
             return 0;
         }
 
+        // A whole person in a whole family's gear, as heroes are what's really seen.
+        private static int Dress(Options options)
+        {
+            int count = options.Int("count", 24);
+            int seed = options.Int("seed", 1);
+            int columns = options.Int("columns", 8);
+            int rows = (count + columns - 1) / columns;
+            int width = options.Int("tile", 220);
+            int height = (int)(width * 1.25f);
+            const int shrink = 2;
+
+            var sheet = new byte[columns * width * rows * height * 4];
+            var render = new SoftRender(width * shrink, height * shrink);
+            Vector3 background = new Vector3(0.05f, 0.045f, 0.04f);
+            float heavy = options.Float("heavy", 0f), leather = options.Float("leather", 0f), cloth = options.Float("cloth", 0f);
+
+            for (int i = 0; i < count; i++)
+            {
+                var worn = new List<(GearSpec, float)>();
+                foreach (GearKind kind in new[] { GearKind.Head, GearKind.Body, GearKind.Legs, GearKind.Feet, GearKind.Hands })
+                {
+                    var form = new GearForm(options.Float("size", 0.55f), options.Float("slender", 0.45f), options.Float("curve", 0.3f), options.Float("cover", 0.5f), options.Float("fancy", 0.45f), options.Float("worn", 0.15f));
+                    worn.Add((new GearSpec((ulong)(seed * 100000 + i * 16 + (int)kind + 1), kind, heavy, leather, cloth, form, options.Int("grade", 2), GearTheme.None), -1f));
+                }
+                Mesh dressed = Dino_Engine.Modelling.Procedural.Character.Outfit.Dress(new Dino_Engine.Modelling.Procedural.Character.HumanoidLook(), worn);
+                render.Draw(dressed, Matrix3.CreateRotationY(options.Float("turn", 0.35f)) * Matrix3.CreateRotationX(options.Float("look", 0.18f)));
+                render.Blit(sheet, columns * width, i % columns * width, i / columns * height, shrink, background);
+            }
+
+            string path = options.Text("out", "gear-dressed.png");
+            PngWriter.Write(path, sheet, columns * width, rows * height);
+            Console.WriteLine($"Wrote {path}");
+            return 0;
+        }
+
         private static int Bench()
         {
             foreach (GearKind kind in Enum.GetValues<GearKind>())
             {
-                if (!GearForge.CanMake(kind)) continue;
                 for (int i = 0; i < 40; i++) GearForge.Make(GearCheck.Sample(kind, (ulong)i + 1, i)).Build(false);
 
                 int count = 300;

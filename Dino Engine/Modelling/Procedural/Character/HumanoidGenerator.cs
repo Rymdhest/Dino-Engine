@@ -2,7 +2,6 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Architecture;
 using Dino_Engine.Modelling.Procedural.Gear;
-using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 
@@ -54,24 +53,46 @@ namespace Dino_Engine.Modelling.Procedural.Character
         private const float ShoulderY = 1.85f;
         private const float HipX = 0.25f;
 
-        private static VertexMaterial Cloth(Vector3 colour) => new VertexMaterial(TextureGenerator.cloth, new Colour(colour));
-        private static VertexMaterial Hide(Vector3 colour) => new VertexMaterial(TextureGenerator.leather, new Colour(colour));
-        private static VertexMaterial Skin(Vector3 colour) => new VertexMaterial(TextureGenerator.flat, new Colour(colour));
+        private static Matrix4 Turned(float x, float y, float z) => Util.MyMath.createTransformationMatrix(Vector3.Zero, new Vector3(x, y, z), Vector3.One);
 
-        public static Mesh Generate(HumanoidLook look)
+        /// <summary>Where something held in the left hand goes, built facing +z and standing up y, along the arm. On the same bone as the hand.</summary>
+        public static readonly Matrix4 OffHand =
+            Turned(0f, MathF.PI / 2f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.4f, 0f) * Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(ShoulderX, ShoulderY + LegLength, 0f);
+
+        /// <summary>Where a bow goes, which is in the left hand, with its limbs along the arm.</summary>
+        public static readonly Matrix4 BowHand =
+            Matrix4.CreateTranslation(0f, -ArmLength - 0.1f, 0f) * Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(ShoulderX, ShoulderY + LegLength, 0f);
+
+        /// <summary>Where a ring goes, on either hand, for what's built lying around y.</summary>
+        public static Matrix4 RingOn(float side) => Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(side * (ShoulderX + ArmLength + 0.1f), ShoulderY + LegLength, 0f);
+
+        /// <summary>Where something held in the right hand goes, for what's built standing up with the middle of its grip at the origin. On the same bone as the hand.</summary>
+        public static readonly Matrix4 MainHand =
+            Turned(0f, MathF.PI / 2f, 0f) * Turned(MathF.PI / 2f, 0f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.15f, 0f)
+            * Turned(0f, 0f, -MathF.PI / 2f) * Matrix4.CreateTranslation(-ShoulderX, ShoulderY + LegLength, 0f);
+
+        private static VertexMaterial Cloth(Vector3 colour) => new VertexMaterial(GearMaterials.Cloth, new Colour(colour));
+        private static VertexMaterial Hide(Vector3 colour) => new VertexMaterial(GearMaterials.Leather, new Colour(colour));
+        private static VertexMaterial Skin(Vector3 colour) => new VertexMaterial(GearMaterials.Skin, new Colour(colour));
+
+        public static Mesh Generate(HumanoidLook look) => Generate(look, BodyRegions.None);
+
+        /// <param name="covered">What's under something else, and so isn't there at all.</param>
+        public static Mesh Generate(HumanoidLook look, BodyRegions covered)
         {
-            Mesh body = BuildTorso(look).setAllBoneIndices(new Vector2((int)BoneType.Chest, 0f));
-            body += BuildHead(look).setAllBoneIndices(new Vector2((int)BoneType.Head, 0f));
+            Mesh body = new Mesh();
+            if ((covered & BodyRegions.Torso) == 0) body += BuildTorso(look).setAllBoneIndices(new Vector2((int)BoneType.Chest, 0f));
+            body += BuildHead(look, (covered & BodyRegions.Hair) != 0).setAllBoneIndices(new Vector2((int)BoneType.Head, 0f));
 
             for (int side = -1; side <= 1; side += 2)
             {
                 bool left = side > 0;
-                body += BuildUpperArm(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.UpperArmL : BoneType.UpperArmR), 0f));
-                body += BuildLowerArm(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.LowerArmL : BoneType.LowerArmR), 0f));
-                body += BuildHand(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.HandL : BoneType.HandR), 0f));
-                body += BuildUpperLeg(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.UpperLegL : BoneType.UpperLegR), 0f));
-                body += BuildLowerLeg(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.LowerLegL : BoneType.LowerLegR), 0f));
-                body += BuildFoot(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.FootL : BoneType.FootR), 0f));
+                if ((covered & BodyRegions.UpperArms) == 0) body += BuildUpperArm(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.UpperArmL : BoneType.UpperArmR), 0f));
+                if ((covered & BodyRegions.LowerArms) == 0) body += BuildLowerArm(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.LowerArmL : BoneType.LowerArmR), 0f));
+                if ((covered & BodyRegions.Hands) == 0) body += BuildHand(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.HandL : BoneType.HandR), 0f));
+                if ((covered & BodyRegions.UpperLegs) == 0) body += BuildUpperLeg(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.UpperLegL : BoneType.UpperLegR), 0f));
+                if ((covered & BodyRegions.LowerLegs) == 0) body += BuildLowerLeg(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.LowerLegL : BoneType.LowerLegR), 0f));
+                if ((covered & BodyRegions.Feet) == 0) body += BuildFoot(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.FootL : BoneType.FootR), 0f));
             }
 
             AddGear(ref body, look);
@@ -84,7 +105,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
         public static Mesh Bow(Vector3 leftShoulder)
         {
             var b = new MeshBuilder();
-            VertexMaterial wood = new VertexMaterial(TextureGenerator.wood, new Colour(96, 70, 48));
+            VertexMaterial wood = new VertexMaterial(GearMaterials.Wood, new Colour(96, 70, 48));
             Vector3 previous = new Vector3(0f, -1.7f, 0f);
             for (int i = 1; i <= 10; i++)
             {
@@ -93,7 +114,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
                 b.Tube(previous, next, 0.05f, 0.05f, 5, wood, capped: false);
                 previous = next;
             }
-            b.Tube(new Vector3(0f, -1.7f, 0f), new Vector3(0f, 1.7f, 0f), 0.012f, 0.012f, 3, new VertexMaterial(TextureGenerator.cloth, new Colour(190, 180, 160)), capped: false);
+            b.Tube(new Vector3(0f, -1.7f, 0f), new Vector3(0f, 1.7f, 0f), 0.012f, 0.012f, 3, new VertexMaterial(GearMaterials.Cloth, new Colour(190, 180, 160)), capped: false);
             Mesh bow = b.Build();
             bow.translate(new Vector3(0f, -ArmLength - 0.1f, 0f));
             bow.rotate(new Vector3(0f, 0f, MathF.PI / 2f));
@@ -124,7 +145,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
             if (look.Armoured)
             {
-                VertexMaterial plate = new VertexMaterial(TextureGenerator.iron, new Colour(150, 150, 156));
+                VertexMaterial plate = new VertexMaterial(GearMaterials.Metal, new Colour(150, 150, 156));
                 b.Stretch = new Vector3(1f, 1f, 0.72f);
                 b.Tube(new Vector3(0f, 0.68f, 0f), new Vector3(0f, 1.74f, 0f), 0.64f * bulk, 0.72f * bulk, 12, plate);
                 b.Stretch = Vector3.One;
@@ -136,7 +157,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
             return b.Build();
         }
 
-        private static Mesh BuildHead(HumanoidLook look)
+        private static Mesh BuildHead(HumanoidLook look, bool bare)
         {
             var b = new MeshBuilder { TilesPerMetre = 0.5f };
             VertexMaterial skin = Skin(look.Skin);
@@ -144,7 +165,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
             Vector3 centre = new Vector3(0f, 2.46f, 0f);
             b.Add(IcoSphereGenerator.CreateIcosphere(3, skin), centre, new Vector3(0.33f, 0.4f, 0.36f));
 
-            switch (look.Head)
+            switch (bare ? Headwear.None : look.Head)
             {
                 case Headwear.Hair:
                     VertexMaterial hair = Hide(look.HeadColour);
@@ -157,12 +178,12 @@ namespace Dino_Engine.Modelling.Procedural.Character
                     b.Tube(new Vector3(0f, 1.82f, -0.02f), new Vector3(0f, 2.22f, -0.04f), 0.52f, 0.36f, 10, hood, capped: false);
                     break;
                 case Headwear.StrawHat:
-                    VertexMaterial straw = new VertexMaterial(TextureGenerator.thatch, new Colour(214, 190, 138));
+                    VertexMaterial straw = new VertexMaterial(GearMaterials.Straw, new Colour(214, 190, 138));
                     b.Tube(centre + new Vector3(0f, 0.24f, 0f), centre + new Vector3(0f, 0.74f, 0f), 1.02f, 0.05f, 16, straw);
                     b.Tube(centre + new Vector3(0f, 0.22f, 0f), centre + new Vector3(0f, 0.24f, 0f), 1.04f, 1.02f, 16, straw, capped: false);
                     break;
                 case Headwear.Helm:
-                    VertexMaterial iron = new VertexMaterial(TextureGenerator.iron, new Colour(142, 142, 150));
+                    VertexMaterial iron = new VertexMaterial(GearMaterials.Metal, new Colour(142, 142, 150));
                     b.Add(IcoSphereGenerator.CreateIcosphere(2, iron), centre + new Vector3(0f, 0.1f, 0f), new Vector3(0.42f, 0.42f, 0.44f));
                     b.Tube(centre + new Vector3(0f, -0.02f, 0f), centre + new Vector3(0f, 0.04f, 0f), 0.48f, 0.46f, 12, iron);
                     b.Tube(centre + new Vector3(0f, 0.46f, 0f), centre + new Vector3(0f, 0.74f, 0f), 0.06f, 0.02f, 6, iron);
@@ -244,8 +265,8 @@ namespace Dino_Engine.Modelling.Procedural.Character
             else if (look.Held == HeldItem.Spear)
             {
                 var b = new MeshBuilder();
-                b.Tube(new Vector3(0f, -2.4f, 0f), new Vector3(0f, 3.6f, 0f), 0.06f, 0.05f, 6, new VertexMaterial(TextureGenerator.wood, new Colour(106, 80, 58)));
-                b.Tube(new Vector3(0f, 3.6f, 0f), new Vector3(0f, 4.3f, 0f), 0.14f, 0.01f, 4, new VertexMaterial(TextureGenerator.iron));
+                b.Tube(new Vector3(0f, -2.4f, 0f), new Vector3(0f, 3.6f, 0f), 0.06f, 0.05f, 6, new VertexMaterial(GearMaterials.Wood, new Colour(106, 80, 58)));
+                b.Tube(new Vector3(0f, 3.6f, 0f), new Vector3(0f, 4.3f, 0f), 0.14f, 0.01f, 4, new VertexMaterial(GearMaterials.Metal));
                 Mesh spear = b.Build();
                 spear.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
                 spear.translate(new Vector3(0f, -ArmLength - 0.1f, 0f));

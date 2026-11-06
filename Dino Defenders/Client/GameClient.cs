@@ -81,6 +81,9 @@ namespace Dino_Defenders.Client
         public readonly HeroPredictor Predictor = new();
         public readonly List<(int id, string name)> Party = new();
 
+        /// <summary>What each hero has on, by player, as last told.</summary>
+        public readonly Dictionary<int, List<WornLook>> Worn = new();
+
         /// <summary>This player has reached for something on the ground, and whether there was room for it. It's heard at once, as a click that answers late feels broken.</summary>
         public event Action<Item, bool>? Reached;
 
@@ -334,6 +337,10 @@ namespace Dino_Defenders.Client
                         break;
                     case Message.GroundItem:
                         OnGroundItem(reader);
+                        break;
+                    case Message.Worn:
+                        (int wearer, List<WornLook> worn) = Protocol.ReadWorn(reader);
+                        Worn[wearer] = worn;
                         break;
                 }
             }

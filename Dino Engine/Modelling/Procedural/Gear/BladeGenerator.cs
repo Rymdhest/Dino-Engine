@@ -32,7 +32,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Pommel(mesh, style, genes.Part("pommel"), width, -grip * 0.5f);
         }
 
-        private static void Blade(GearMesh mesh, GearStyle style, Genes genes, float length, float width, float baseY)
+        /// <summary>A blade from <paramref name="baseY"/> up, on whatever it's on. It's also what a spear's point is.</summary>
+        internal static void Blade(GearMesh mesh, GearStyle style, Genes genes, float length, float width, float baseY)
         {
             GearForm form = style.Spec.Form;
             GearPalette palette = style.Palette;

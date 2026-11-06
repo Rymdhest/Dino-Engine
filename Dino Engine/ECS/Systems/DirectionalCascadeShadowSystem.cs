@@ -54,8 +54,16 @@ namespace Dino_Engine.ECS.Systems
             entity.Set(shadowCascade);
 
             // 2. Clear state
-            foreach (var list in _models.Values) list.Clear();
-            foreach (var list in _characters.Values) list.Clear(); // Clear character lists
+            foreach (var (model, list) in _models)
+            {
+                if (list.Count == 0) _models.Remove(model);
+                else list.Clear();
+            }
+            foreach (var (model, list) in _characters)
+            {
+                if (list.Count == 0) _characters.Remove(model);
+                else list.Clear();
+            }
             _imposters.Clear();
 
             // 3. Classify Archetypes (Regular Models & Imposters)

@@ -167,7 +167,7 @@ namespace Dino_Defenders.UI
             Colour colour = Ui.GradeColour(Loot.GradeOf(item));
             if (IsHovered) draw.AddRect(Bounds, GuiColors.Rgba(255, 240, 200, 26), 2f);
             draw.AddRect(Bounds, GuiColors.Transparent, 2f, 1.5f, colour.MultiplyAlpha(0.8f));
-            Ui.DrawSlotIcon(draw, item.Slot, Bounds, colour);
+            Ui.DrawItem(draw, item, Bounds, colour);
         }
     }
 
@@ -766,6 +766,7 @@ namespace Dino_Defenders.UI
     {
         public static GameUi Current = null!;
 
+        public readonly Wardrobe Wardrobe;
         public readonly UseMarks Marks = new();
         public readonly Hud Hud = new();
         public readonly LootLabels Labels = new();
@@ -784,6 +785,7 @@ namespace Dino_Defenders.UI
         public GameUi(GuiContext gui, ArpgGame game, Action<WorldRequest, Offering> travel, Action quit, Action newJourney)
         {
             Current = this;
+            Wardrobe = game.Wardrobe;
             Map = new MapPanel(CloseAll);
             Waygate = new WaygatePanel(travel);
             Pause = new PauseMenu(CloseAll, () => Toggle(Friends!), quit, newJourney);

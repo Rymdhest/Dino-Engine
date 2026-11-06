@@ -10,6 +10,12 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public readonly Vector2[] Points;
         public readonly bool[] Hard;
 
+        /// <summary>
+        /// For something thin and bowed, whose outline isn't convex: its ends are closed straight across, from each point to the one facing it, and not from the middle, which can
+        /// lie outside it. The points have to run along one face and back along the other.
+        /// </summary>
+        public bool ClosesAcross;
+
         public Section(Vector2[] points, bool[] hard)
         {
             Points = points;

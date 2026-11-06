@@ -110,6 +110,9 @@ namespace Dino_Engine.Rendering
         /// </summary>
         public FrameBuffer GBuffer { get => _gBuffer; }
         public ScreenQuadRenderer ScreenQuadRenderer { get => _screenQuadRenderer; }
+
+        /// <summary>Takes pictures of models for the interface.</summary>
+        public Renderers.Studio.ItemStudio Studio { get; private set; } = null!;
         /// <summary>Anti-aliasing settings, read each frame.</summary>
         public AntiAliasingSettings AntiAliasing { get; } = new AntiAliasingSettings();
         /// <summary>Lighting and exposure settings, read each frame.</summary>
@@ -176,6 +179,7 @@ namespace Dino_Engine.Rendering
             _waterRenderer = new WaterRenderer();
             _weatherRenderer = new WeatherRenderer();
             _weatherRenderer.SetMaterialPorosity(textureGenerator.Porosity);
+            Studio = new Renderers.Studio.ItemStudio();
             _precipitationRenderer = new PrecipitationRenderer();
             _lightningRenderer = new LightningRenderer();
             _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
@@ -244,6 +248,7 @@ namespace Dino_Engine.Rendering
         {
 
 
+            Studio.RenderPass();
             PrepareFrame();
 
             if (debugView)

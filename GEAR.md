@@ -81,7 +81,7 @@ What the rig decides:
 
 `Client/Workshop` builds meshes on worker threads and uploads them on the main one, as a boss drops ten things at once and a mesh mustn't cost a frame. A hero is one merged mesh, so one draw call, rebuilt when what they wear changes. `CharacterModelComponent` just gets a new model.
 
-`WornComponent` is replicated on a hero, with three integers per slot. Nothing is an event, so a friend who arrives later or comes back into range sees the right thing.
+What a hero has on goes out in a reliable `Worn` message keyed by player, as `GroundItem` is keyed by find, to everyone when it changes and to whoever arrives later. It's two numbers a slot. A component would have needed thirty hand-written fields, as a replicated struct can only hold plain numbers.
 
 Models used to be few and live forever. Now every find has its own, so they need a lifetime: counted while in use, kept for a while in case they come back, then freed a frame late, as commands for this frame may still name them. `ModelRenderSystem` and the shadow systems keep a dictionary entry per model for good, and walk it every frame, so those need pruning or the game slowly gets worse the longer it runs.
 

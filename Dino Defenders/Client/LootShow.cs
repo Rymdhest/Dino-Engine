@@ -61,7 +61,7 @@ namespace Dino_Defenders.Client
 
         public const float LightRadius = 9f;
 
-        public static void Update(ECSWorld world, GameClient client, GameSession session, ClientEffects? effects, float deltaTime)
+        public static void Update(ECSWorld world, GameClient client, GameSession session, ClientEffects? effects, Wardrobe wardrobe, float deltaTime)
         {
             double now = client.Render.RenderTick;
             foreach (Archetype archetype in world.QueryArchetypes(Pickups, BitMask.Empty))
@@ -70,6 +70,7 @@ namespace Dino_Defenders.Client
                 {
                     var pickup = entity.Get<PickupComponent>();
                     bool gold = pickup.Find == 0;
+                    if (!gold) Wear(entity, ref pickup, wardrobe);
                     float age = (float)((now - pickup.Born) * NetTime.TickSecondsPrecise);
                     if (age < 0f)
                     {
@@ -115,7 +116,7 @@ namespace Dino_Defenders.Client
             float arc = gold ? GoldArc : Arcs[(int)pickup.Grade];
             Vector3 at = Vector3.Lerp(pickup.From, pickup.Rest, share) + Vector3.UnitY * (MathF.Sin(share * MathF.PI) * arc);
             entity.Set(new PositionComponent(at));
-            entity.Set(new ScaleComponent(new Vector3(gold ? GoldScale : Sizes[(int)pickup.Grade])));
+            entity.Set(new ScaleComponent(new Vector3(gold ? GoldScale : pickup.Dressed ? Sizes[(int)pickup.Grade] * pickup.Fit : Hidden)));
 
             // A whole number of turns, so that it comes down flat.
             if (!gold) entity.Set(new RotationComponent(Quaternion.FromAxisAngle(new Vector3(0.8f, 0f, 0.6f), share * MathF.Tau * 2f) * Lying(pickup.Find)));
@@ -151,7 +152,7 @@ namespace Dino_Defenders.Client
             float bounce = 0.8f * MathF.Abs(MathF.Sin(landed * 11f)) * MathF.Exp(-landed * 7f);
             entity.Set(new PositionComponent(pickup.Rest + Vector3.UnitY * (0.04f + bounce)));
             entity.Set(new RotationComponent(Lying(pickup.Find)));
-            entity.Set(new ScaleComponent(new Vector3(taken ? Hidden : Sizes[(int)pickup.Grade])));
+            entity.Set(new ScaleComponent(new Vector3(taken || !pickup.Dressed ? Hidden : Sizes[(int)pickup.Grade] * pickup.Fit)));
 
             float burst = MathF.Exp(-landed * BeamFlash);
             if (entity.Has<ColorComponent>())
@@ -176,6 +177,15 @@ namespace Dino_Defenders.Client
             if (pickup.NextMote > 0f) return;
             pickup.NextMote = MoteEvery[(int)pickup.Grade];
             effects?.LootMote(pickup.Grade, pickup.Rest, beam.Height * 0.5f);
+        }
+
+        // What's lying there is the same thing someone would be wearing. It has to keep being asked for, or the wardrobe puts it away.
+        private static void Wear(in EntityView entity, ref PickupComponent pickup, Wardrobe wardrobe)
+        {
+            if (wardrobe.Lying(pickup.Seed, pickup.Traits) is not Dino_Engine.Modelling.Model.glModel model || pickup.Dressed) return;
+            pickup.Dressed = true;
+            pickup.Fit = Dino_Engine.Modelling.Procedural.Gear.GearDisplay.GroundScale(ItemLook.SpecOf(pickup.Seed, pickup.Traits).Kind);
+            entity.Set(new ModelComponent(model));
         }
 
         // Each lies its own way, which it keeps however often it's seen.

@@ -18,6 +18,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public static int Bone = 6;
         public static int Gem = 7;
         public static int Glow = 8;
+        public static int Skin = 9;
+        public static int Straw = 10;
     }
 
     /// <summary>
@@ -28,6 +30,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public readonly VertexMaterial Metal;       // What most of the metal on it is.
         public readonly VertexMaterial Fitting;     // What's on top of that: hilts, rivets, trim.
         public readonly VertexMaterial Dark;        // Metal in shadow, or blued, for grooves and insets.
+        public readonly VertexMaterial Mail;        // The same metal, in rings.
         public readonly VertexMaterial Edge;        // Metal that's been sharpened.
         public readonly VertexMaterial Leather;
         public readonly VertexMaterial Binding;     // Leather that's a different colour to the rest, for wraps and straps.
@@ -47,6 +50,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Vector3 metal = MetalAt(warmth) * (bright * blackened);
             Metal = new VertexMaterial(GearMaterials.Metal, new Colour(metal));
             Dark = new VertexMaterial(GearMaterials.Metal, new Colour(metal * 0.42f));
+            Mail = new VertexMaterial(GearMaterials.Mail, new Colour(metal * 0.8f));
             Edge = new VertexMaterial(GearMaterials.Metal, new Colour(Vector3.Lerp(metal, new Vector3(0.84f, 0.86f, 0.9f), 0.65f * (1f - wear))));
 
             // Fittings are often the other sort of metal to the blade, and finer work gets the better metal.

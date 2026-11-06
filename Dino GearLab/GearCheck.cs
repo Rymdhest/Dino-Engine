@@ -9,7 +9,7 @@ namespace Dino_GearLab
     internal static class GearCheck
     {
         private const int MostTriangles = 9000;
-        private const float BiggestPiece = 8f;
+        private const float BiggestPiece = 9f;
 
         /// <summary>A spec from anywhere in the space of them, as what a game sends can be any mix of these.</summary>
         public static GearSpec Sample(GearKind kind, ulong seed, int index)
@@ -27,7 +27,6 @@ namespace Dino_GearLab
             foreach (GearKind kind in Enum.GetValues<GearKind>())
             {
                 if (options.Has("kind") && !string.Equals(options.Text("kind", ""), kind.ToString(), StringComparison.OrdinalIgnoreCase)) continue;
-                if (!GearForge.CanMake(kind)) continue;
                 failures += CheckKind(kind, count);
             }
 
@@ -69,7 +68,8 @@ namespace Dino_GearLab
                 Vector3 min = new Vector3(float.MaxValue), max = new Vector3(float.MinValue);
                 foreach (MeshVertex vertex in mesh.meshVertices)
                 {
-                    if (!Finite(vertex.position) || !Finite(vertex.normal)) Fail(spec, "a number that isn't one");
+                    if (!Finite(vertex.position)) Fail(spec, $"a position that isn't one, at vertex {vertex.index.index} of {mesh.meshVertices.Count}");
+                    if (!Finite(vertex.normal)) Fail(spec, $"a normal that isn't one, at vertex {vertex.index.index} of {mesh.meshVertices.Count}, at {vertex.position}, with {vertex.faces.Count} faces");
                     if (Finite(vertex.normal) && MathF.Abs(vertex.normal.LengthSquared - 1f) > 0.01f) Fail(spec, $"a normal of length {vertex.normal.Length}");
                     if (vertex.colour.Red < 0f || vertex.colour.Green < 0f || vertex.colour.Blue < 0f) Fail(spec, "a colour below nothing");
                     min = Vector3.ComponentMin(min, vertex.position);

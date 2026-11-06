@@ -167,6 +167,13 @@ namespace Dino_Defenders.Gameplay
         public uint Born;           // The tick it leaves what it came out of.
         public Vector3 From;
 
+        // What it looks like: see ItemLook. A seed is 64 bits and a lane is 32.
+        public uint SeedLow;
+        public uint SeedHigh;
+        public uint Traits;
+
+        [NotReplicated] public bool Dressed;
+        [NotReplicated] public float Fit;
         [NotReplicated] public int Gold;
         [NotReplicated] public Vector3 Rest;
 
@@ -175,6 +182,8 @@ namespace Dino_Defenders.Gameplay
         [NotReplicated] public bool Landed;
         [NotReplicated] public float LandedFor;
         [NotReplicated] public float NextMote;
+
+        public readonly ulong Seed => SeedLow | (ulong)SeedHigh << 32;
     }
 
     /// <summary>How far through its sounds an arrow is, on the client.</summary>

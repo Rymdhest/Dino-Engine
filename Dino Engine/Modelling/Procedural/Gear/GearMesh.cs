@@ -41,6 +41,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         /// <summary>The bone what's built next goes on, until something says otherwise.</summary>
         public int Bone;
 
+        /// <summary>What this hides of a body wearing it.</summary>
+        public BodyRegions Covers;
+
         public int VertexCount => _vertices.Count;
         public int TriangleCount => _indices.Count / 3;
         public IReadOnlyList<Vertex> Vertices => _vertices;
@@ -105,7 +108,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 if (i < points) distance += (first[(i + 1) % points] - first[point]).Length;
             }
 
-            Vector3 axis = rings[^1].Centre - rings[0].Centre;
+            // From the first two, as a loop ends where it started.
+            Vector3 axis = rings[1].Centre - rings[0].Centre;
             bool forwards = Vector3.Dot(Vector3.Cross(rings[0].Side, rings[0].Front), axis) < 0f;
 
             float along = 0f;
@@ -177,13 +181,32 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
         private void Cap(Section section, in Ring ring, int index, Func<int, int, VertexMaterial> material, bool forwards)
         {
-            int centre = AddVertex(ring.Centre, material(index, 0), Vector2.Zero);
+            int centre = section.ClosesAcross ? -1 : AddVertex(ring.Centre, material(index, 0), Vector2.Zero);
             int first = _vertices.Count;
             for (int i = 0; i < section.Count; i++)
             {
                 Vector2 p = (ring.Shape ?? section.Points)[i];
                 AddVertex(PointOn(section, ring, i), material(index, i), new Vector2(p.X * ring.HalfWidth, p.Y * ring.HalfDepth) * TilesPerMetre);
             }
+            if (section.ClosesAcross)
+            {
+                for (int i = 0; i + 1 < section.Count / 2; i++)
+                {
+                    int a = first + i, b = first + i + 1, c = first + section.Count - 2 - i, d = first + section.Count - 1 - i;
+                    if (forwards)
+                    {
+                        AddFace(a, b, c);
+                        AddFace(a, c, d);
+                    }
+                    else
+                    {
+                        AddFace(a, c, b);
+                        AddFace(a, d, c);
+                    }
+                }
+                return;
+            }
+
             for (int i = 0; i < section.Count; i++)
             {
                 int a = first + i, b = first + (i + 1) % section.Count;
@@ -238,6 +261,18 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Loft(section, rings, material, false, false);
         }
 
+        /// <summary>The brim of a hat: a flat ring from one radius to another, drooping a little at its edge.</summary>
+        public void Hoop2(Vector3 at, float outer, float inner, float droop, VertexMaterial material)
+        {
+            Ring[] rings =
+            {
+                new Ring { Centre = at + Vector3.UnitY * 0.012f, Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = inner, HalfDepth = inner },
+                new Ring { Centre = at + Vector3.UnitY * (0.012f - droop * 0.4f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = (inner + outer) * 0.5f, HalfDepth = (inner + outer) * 0.5f },
+                new Ring { Centre = at - Vector3.UnitY * droop, Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = outer, HalfDepth = outer },
+            };
+            Loft(Section.Round(16), rings, material, capStart: false, capEnd: false);
+        }
+
         /// <summary>A cut stone. Its facets stay facets.</summary>
         public void Gem(int sides, float radius, float crown, float pavilion, float table, VertexMaterial material)
         {
@@ -283,6 +318,17 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             {
                 vertex.boneIndices = new Vector2(bone, 0f);
                 vertex.BoneWeights = new Vector2(1f, 0f);
+            }
+        }
+
+        /// <summary>Sets what every vertex built so far is skinned to, from where it is.</summary>
+        public void SkinBy(Func<Vector3, (Vector2 bones, Vector2 weights)> skin, int from = 0)
+        {
+            for (int i = from; i < _vertices.Count; i++)
+            {
+                (Vector2 bones, Vector2 weights) = skin(_vertices[i].position);
+                _vertices[i].boneIndices = bones;
+                _vertices[i].BoneWeights = weights;
             }
         }
 

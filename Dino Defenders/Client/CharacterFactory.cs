@@ -80,11 +80,7 @@ namespace Dino_Defenders.Client
             if (key == "arrow") return Model(key, Arrow);
             if (key == "chest") return Model(key, Chest);
             if (key == Progression.LootModels.Gold) return Model(key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
-            if (key.StartsWith(Progression.LootModels.Prefix))
-            {
-                string[] parts = key.Split(':');
-                if (parts.Length == 3 && Enum.TryParse(parts[1], out Progression.ItemSlot slot) && Enum.TryParse(parts[2], out Progression.LootGrade grade)) return Model(key, () => Find(slot, grade));
-            }
+            if (key == Progression.LootModels.Find) return Model(key, () => Ball(new Colour(0f, 0f, 0f)));
             if (key.StartsWith(BoltPrefix) && Enum.TryParse(key.AsSpan(BoltPrefix.Length), out Stats.DamageType look))
             {
                 Colour glow = ClientEffects.GlowOf(look);
@@ -227,17 +223,17 @@ namespace Dino_Defenders.Client
         private glModel Hero(int index)
         {
             int dye = Math.Abs(index) % HeroDyes.Length;
-            return Model($"hero{dye}", () => HumanoidGenerator.Generate(new HumanoidLook
-            {
-                Tunic = HeroDyes[dye],
-                Legs = new Vector3(0.1f, 0.09f, 0.1f),
-                Trim = new Vector3(0.62f, 0.16f, 0.1f),
-                Head = Headwear.Hair,
-                Held = HeldItem.Sword,
-                Shield = true,
-                Armoured = true,
-            }));
+            return Model($"hero{dye}", () => HumanoidGenerator.Generate(HeroLook(dye)));
         }
+
+        /// <summary>A hero with nothing on but what they wear under everything, which is the only thing that still says whose hero it is.</summary>
+        public static HumanoidLook HeroLook(int index) => new HumanoidLook
+        {
+            Tunic = HeroDyes[Math.Abs(index) % HeroDyes.Length],
+            Legs = new Vector3(0.1f, 0.09f, 0.1f),
+            Trim = new Vector3(0.62f, 0.16f, 0.1f),
+            Head = Headwear.Hair,
+        };
 
         public glModel Skeleton => Model("skeleton", SkeletonGenerator.GenerateSkeleton);
 
@@ -308,79 +304,6 @@ namespace Dino_Defenders.Client
         private static Mesh Ball(Colour colour)
         {
             return IcoSphereGenerator.CreateIcosphere(1, new VertexMaterial(TextureGenerator.flatGlow, colour));
-        }
-
-        // Something lying on the ground, seen from thirty metres up: bold shapes, a size or so bigger than life, with a stone in it that glows in its grade's colour.
-        private static Mesh Find(Progression.ItemSlot slot, Progression.LootGrade grade)
-        {
-            var builder = new MeshBuilder();
-            bool fine = grade >= Progression.LootGrade.Rare;
-            Colour glow = LootShow.GlowOf(grade);
-            VertexMaterial steel = new VertexMaterial(TextureGenerator.iron, new Colour(176, 178, 186));
-            VertexMaterial trim = fine ? new VertexMaterial(TextureGenerator.gold, new Colour(214, 172, 92)) : new VertexMaterial(TextureGenerator.iron, new Colour(120, 116, 110));
-            VertexMaterial hide = new VertexMaterial(TextureGenerator.leather, new Colour(112, 80, 52));
-            VertexMaterial stone = new VertexMaterial(TextureGenerator.flatGlow, new Colour(glow.Red, glow.Green, glow.Blue, grade == Progression.LootGrade.Plain ? 0.6f : 2.4f));
-
-            switch (slot)
-            {
-                case Progression.ItemSlot.MainHand:
-                    builder.Box(new Vector3(0f, 0.12f, -0.35f), new Vector3(0.16f, 0.05f, 1.15f), steel);
-                    builder.Box(new Vector3(0f, 0.14f, 0.82f), new Vector3(0.48f, 0.08f, 0.09f), trim);
-                    builder.Tube(new Vector3(0f, 0.14f, 0.88f), new Vector3(0f, 0.14f, 1.32f), 0.09f, 0.08f, 6, hide);
-                    builder.Tube(new Vector3(0f, 0.14f, 1.32f), new Vector3(0f, 0.14f, 1.46f), 0.15f, 0.12f, 6, stone);
-                    break;
-                case Progression.ItemSlot.OffHand:
-                    builder.Tube(new Vector3(0f, 0.04f, 0f), new Vector3(0f, 0.2f, 0f), 1f, 0.92f, 12, steel);
-                    builder.Tube(new Vector3(0f, 0.2f, 0f), new Vector3(0f, 0.24f, 0f), 0.92f, 0.72f, 12, trim);
-                    builder.Tube(new Vector3(0f, 0.24f, 0f), new Vector3(0f, 0.42f, 0f), 0.26f, 0.08f, 8, stone);
-                    break;
-                case Progression.ItemSlot.Head:
-                    builder.Surface(10, 5, (u, v) =>
-                    {
-                        float around = u * MathF.Tau;
-                        float up = v * MathF.PI * 0.5f;
-                        return new Vector3(MathF.Cos(around) * MathF.Cos(up) * 0.72f, 0.1f + MathF.Sin(up) * 0.78f, MathF.Sin(around) * MathF.Cos(up) * 0.72f);
-                    }, steel);
-                    builder.Tube(new Vector3(0f, 0.04f, 0f), new Vector3(0f, 0.18f, 0f), 0.8f, 0.76f, 10, trim);
-                    builder.Box(new Vector3(0f, 0.92f, 0f), new Vector3(0.1f, 0.1f, 0.1f), stone);
-                    break;
-                case Progression.ItemSlot.Body:
-                    builder.Box(new Vector3(0f, 0.2f, 0f), new Vector3(0.62f, 0.16f, 0.82f), hide);
-                    builder.Box(new Vector3(0f, 0.26f, -0.62f), new Vector3(0.95f, 0.16f, 0.24f), steel);
-                    builder.Box(new Vector3(0f, 0.38f, 0.1f), new Vector3(0.3f, 0.06f, 0.38f), trim);
-                    builder.Box(new Vector3(0f, 0.46f, 0.1f), new Vector3(0.11f, 0.06f, 0.11f), stone);
-                    break;
-                case Progression.ItemSlot.Feet:
-                    foreach (float x in new[] { -0.42f, 0.42f })
-                    {
-                        builder.Box(new Vector3(x, 0.14f, 0.18f), new Vector3(0.28f, 0.14f, 0.62f), hide);
-                        builder.Box(new Vector3(x, 0.5f, -0.24f), new Vector3(0.26f, 0.32f, 0.26f), hide);
-                        builder.Box(new Vector3(x, 0.8f, -0.24f), new Vector3(0.29f, 0.06f, 0.29f), trim);
-                    }
-                    builder.Box(new Vector3(0.42f, 0.3f, 0.5f), new Vector3(0.09f, 0.08f, 0.09f), stone);
-                    break;
-                case Progression.ItemSlot.Finger:
-                    builder.Surface(14, 5, (u, v) =>
-                    {
-                        float around = u * MathF.Tau;
-                        float section = v * MathF.Tau;
-                        float reach = 0.62f + MathF.Cos(section) * 0.14f;
-                        return new Vector3(MathF.Cos(around) * reach, 0.16f + MathF.Sin(section) * 0.14f, MathF.Sin(around) * reach);
-                    }, trim);
-                    builder.Tube(new Vector3(0.62f, 0.2f, 0f), new Vector3(0.62f, 0.52f, 0f), 0.24f, 0.08f, 6, stone);
-                    break;
-                default:
-                    builder.Surface(14, 4, (u, v) =>
-                    {
-                        float around = u * MathF.Tau;
-                        float section = v * MathF.Tau;
-                        float reach = 0.82f + MathF.Cos(section) * 0.05f;
-                        return new Vector3(MathF.Cos(around) * reach, 0.08f + MathF.Sin(section) * 0.05f, MathF.Sin(around) * reach * 0.8f - 0.1f);
-                    }, trim);
-                    builder.Tube(new Vector3(0f, 0.08f, 0.5f), new Vector3(0f, 0.3f, 0.5f), 0.34f, 0.12f, 6, stone);
-                    break;
-            }
-            return builder.Build();
         }
 
         private static Mesh Arrow()

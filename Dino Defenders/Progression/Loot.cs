@@ -136,13 +136,11 @@ namespace Dino_Defenders.Progression
         }
     }
 
-    /// <summary>What a find is drawn as: a name the server gives and <see cref="Client.CharacterFactory"/> knows. There are few, so a table that only grows is fine.</summary>
+    /// <summary>What a find is drawn as, until its own model is ready: a name the server gives and <see cref="Client.CharacterFactory"/> knows. What it really looks like is in <see cref="Gameplay.PickupComponent"/>.</summary>
     public static class LootModels
     {
-        public const string Prefix = "loot:";
+        public const string Find = "find";
         public const string Gold = "gold";
-
-        public static string Key(ItemSlot slot, LootGrade grade) => $"{Prefix}{slot}:{grade}";
     }
 
     public static class Loot

@@ -1,6 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Modelling.Procedural.Gear;
 using Dino_Engine.Modelling.Procedural.Nature;
 using Dino_Engine.Modelling.Procedural.Vegetation;
 using Dino_Engine.Rendering;
@@ -84,6 +85,9 @@ namespace Dino_Engine.Textures
         public static int plaster;
         public static int stoneWall;
         public static int cloth;
+        public static int plate;
+        public static int mail;
+        public static int gem;
         public static int iron;
         public static int gold;
         public static int copper;
@@ -215,7 +219,11 @@ namespace Dino_Engine.Textures
             stoneWall = createStoneWallTexture();
             cloth = createClothTexture();
             leather = createLeatherTexture();
+            plate = createPlateTexture();
+            mail = createMailTexture();
+            gem = createGemTexture();
             SetPorosity();
+            BindGearMaterials();
 
             addAllPreparedTexturesToTexArray(arrayType.material);
            
@@ -243,6 +251,45 @@ namespace Dino_Engine.Textures
             generateOakBranch(leaf_white, out paleOakTwig, out paleOakBranch);
             generateDeadTwig();
         }
+        // White, as what colour gear is goes in its vertices: one metal is every metal.
+        private int createPlateTexture()
+        {
+            var metal = procTextGen.PerlinFBM(new Vector2(14f, 14f), octaves: 4, amplitudePerOctave: 0.5f);
+            metal.setMaterial(new Material(new Colour(255, 255, 255), 0.36f, 0f, 0.8f));
+            metal.scaleHeight(0.2f);
+            metal.addHeight(0.7f);
+            return FinishTexture(metal, normalFlatness: 120f);
+        }
+
+        private int createMailTexture()
+        {
+            var links = procTextGen.TileWeave(new Vector2(72f, 72f), count: 2, smoothness: 0.45f, width: 0.72f);
+            links.setMaterial(new Material(new Colour(255, 255, 255), 0.44f, 0f, 0.8f));
+            links.scaleHeight(0.5f);
+            links.addHeight(0.4f);
+            return FinishTexture(links, normalFlatness: 50f);
+        }
+
+        private int createGemTexture()
+        {
+            return FinishTexture(procTextGen.CreateMaterial(new Material(new Colour(255, 255, 255), 0.08f, 0f, 0.2f, 0.5f)));
+        }
+
+        // Generators can't read these from here, as anything that does has to be able to run with no GPU.
+        private static void BindGearMaterials()
+        {
+            GearMaterials.Metal = plate;
+            GearMaterials.Mail = mail;
+            GearMaterials.Leather = leather;
+            GearMaterials.Cloth = cloth;
+            GearMaterials.Wood = wood;
+            GearMaterials.Bone = bone;
+            GearMaterials.Gem = gem;
+            GearMaterials.Glow = flatGlow;
+            GearMaterials.Skin = flat;
+            GearMaterials.Straw = thatch;
+        }
+
         private void SetPorosity()
         {
             Array.Fill(Porosity, 0.5f);
@@ -253,7 +300,7 @@ namespace Dino_Engine.Textures
                 (rock, 0.35f), (cobble, 0.42f), (stoneWall, 0.45f), (brick, 0.7f), (plaster, 0.75f), (slate, 0.15f), (shingle, 0.5f), (thatch, 0.8f),
                 (wood, 0.65f), (pineBark, 0.7f), (oakBark, 0.7f), (BirchBark, 0.6f), (cloth, 0.9f), (leather, 0.45f), (bone, 0.3f), (wax, 0.04f),
                 (foliage_olive, 0.12f), (foliage_white, 0.12f), (foliage_pine, 0.12f),
-                (ice, 0f), (snow, 0f), (iron, 0f), (metalFloor, 0f), (mirror, 0f), (flat, 0.3f), (flatGlow, 0f),
+                (ice, 0f), (snow, 0f), (iron, 0f), (plate, 0f), (mail, 0.05f), (gem, 0f), (metalFloor, 0f), (mirror, 0f), (flat, 0.3f), (flatGlow, 0f),
             })
             {
                 Porosity[material] = porosity;

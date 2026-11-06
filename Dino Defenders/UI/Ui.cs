@@ -4,6 +4,7 @@ using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Text;
 using Dino_Engine.GUI.Widgets;
+using Dino_Engine.Rendering.Renderers.Studio;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 
@@ -136,6 +137,13 @@ namespace Dino_Defenders.UI
             panel.ShadowSize = 26f;
             panel.ShadowColor = GuiColors.Rgba(0, 0, 0, 170);
             panel.HitTest = HitTestMode.Block;
+        }
+
+        /// <summary>The picture of something, or a drawing of what kind of thing it is until there is one.</summary>
+        public static void DrawItem(GuiDrawList draw, Item item, GuiRect rect, Colour colour)
+        {
+            if (GameUi.Current.Wardrobe.Picture(item, default) is StudioPicture picture) draw.AddImage(picture.Texture, rect, picture.From, picture.To, GuiColors.White);
+            else DrawSlotIcon(draw, item.Slot, rect, colour);
         }
 
         /// <summary>A small drawing of what goes in a slot, for items and the empty places where they go.</summary>

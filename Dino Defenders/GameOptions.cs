@@ -65,6 +65,7 @@ namespace Dino_Defenders
         public string? Parade;
         public string? Loot;
         public string? Panel;
+        public string? Wear;
         public int TravelAfterFrames = -1;
         public readonly Offering Offering = new();
         public int Gold;
@@ -132,6 +133,7 @@ namespace Dino_Defenders
                     case "parade": options.Parade = value; break;
                     case "loot": options.Loot = value; break;
                     case "panel": options.Panel = value; break;
+                    case "wear": options.Wear = value; break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
                     case "peril": options.Offering.Peril = int.Parse(value); break;
                     case "teeming": options.Offering.Teeming = int.Parse(value); break;

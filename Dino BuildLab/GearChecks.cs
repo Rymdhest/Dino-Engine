@@ -24,6 +24,7 @@ namespace Dino_BuildLab
             report.Section("Looks");
             Seeds(report);
             OldLooks(report);
+            Traits(report);
 
             report.Section("Saves from before there were ten places");
             OldPlaces(report);
@@ -251,6 +252,33 @@ namespace Dino_BuildLab
             report.Check("Taking the most it can from the name", ItemGenerator.BaseOf(new Item { Name = "Keen Short Bow of Haste", Slot = ItemSlot.MainHand }) == "Short Bow" && ItemGenerator.BaseOf(new Item { Name = "Silk Slippers of the Road", Slot = ItemSlot.Feet }) == "Silk Slippers");
             report.Check("A name that says nothing is a base of nothing", ItemGenerator.BaseOf(new Item { Name = "Travelling Tunic", Slot = ItemSlot.Body }) == "");
             report.Check("A unique's base is in the catalogue", ItemGenerator.BaseOf(new Item { Name = "Ashen Promise", Slot = ItemSlot.MainHand, Unique = "ashen-promise" }) == "Arming Sword");
+        }
+
+        private static void Traits(Report report)
+        {
+            report.Check("Every base says what it's going for", ItemGenerator.BaseNames.All(ItemLook.HasForm), string.Join(", ", ItemGenerator.BaseNames.Where(b => !ItemLook.HasForm(b))));
+            report.Check("There are few enough bases to send as a byte", ItemGenerator.BaseNames.Count() < 255);
+
+            var random = new WorldRandom(16);
+            int kept = 0, rolled = 3000;
+            var kinds = new HashSet<Dino_Engine.Modelling.Procedural.Gear.GearKind>();
+            for (int i = 0; i < rolled; i++)
+            {
+                Item item = ItemGenerator.Roll(30, random.Fork(i), 1f);
+                Dino_Engine.Modelling.Procedural.Gear.GearSpec spec = ItemLook.SpecOf(item);
+                kinds.Add(spec.Kind);
+
+                FamilyShares shares = item.Shares();
+                bool same = spec.Seed == item.LookSeed() && spec.Grade == (int)Loot.GradeOf(item) && MathF.Abs(spec.Heavy - shares.Heavy) < 0.05f && MathF.Abs(spec.Leather - shares.Leather) < 0.05f && MathF.Abs(spec.Cloth - shares.Cloth) < 0.05f;
+                if (same) kept++;
+            }
+            report.Check("What a look needs survives being packed into one number", kept == rolled, $"{kept} of {rolled}");
+            report.Check("And everything that can drop has a kind of look", kinds.Count == Enum.GetValues<Dino_Engine.Modelling.Procedural.Gear.GearKind>().Length, $"{kinds.Count}");
+
+            Item burning = new Item { Name = "Test", Slot = ItemSlot.MainHand, Lines = { new ItemLine("added-fire", 10f) } };
+            Item frozen = new Item { Name = "Test", Slot = ItemSlot.MainHand, Lines = { new ItemLine("cold-damage", 20f) } };
+            Item plain = new Item { Name = "Test", Slot = ItemSlot.MainHand, Lines = { new ItemLine("attack-speed", 10f) } };
+            report.Check("What burns looks it, and so on", ItemLook.ThemeOf(burning) == Dino_Engine.Modelling.Procedural.Gear.GearTheme.Fire && ItemLook.ThemeOf(frozen) == Dino_Engine.Modelling.Procedural.Gear.GearTheme.Cold && ItemLook.ThemeOf(plain) == Dino_Engine.Modelling.Procedural.Gear.GearTheme.None);
         }
 
         // As saved by 0.1.5. Everything renamed since is in here.

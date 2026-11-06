@@ -38,6 +38,9 @@ namespace Dino_Defenders
         private readonly GameOptions _options;
         private readonly WorldAssetLibrary _assets = new();
         private readonly CharacterFactory _characters = new();
+
+        /// <summary>Where everything that shows gear gets it from.</summary>
+        public readonly Wardrobe Wardrobe = new();
         private readonly GhostPresenter _presenter;
         private readonly WorldCache _worlds = new();
         private readonly GameUi _ui;
@@ -157,6 +160,26 @@ namespace Dino_Defenders
                 hero.Inventory.Add(item);
                 hero.Equip(item);
             }
+
+            if (options.Wear is string family) Wear(hero, Enum.Parse<GearFamily>(family, ignoreCase: true), options.Seed ?? 1);
+        }
+
+        // For a scripted run: something for every place, as much of one family as can be had, to look at.
+        private static void Wear(HeroState hero, GearFamily family, int seed)
+        {
+            var random = new Dino_Engine.World.WorldRandom(seed);
+            foreach (WornSlot place in Enum.GetValues<WornSlot>())
+            {
+                if (place == WornSlot.OffHand && hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? held) && held.IsTwoHanded) continue;
+                for (int attempt = 0; attempt < 300; attempt++)
+                {
+                    Item item = ItemGenerator.Forge(Math.Max(hero.Level, 20), random.Fork((int)place * 1000 + attempt), LootGrade.Rare, 0.5f, WornSlots.Holds(place));
+                    if (item.Shares() != default && item.Shares().Of(family) < 0.6f) continue;
+                    hero.Inventory.Add(item);
+                    hero.Equip(item, place);
+                    break;
+                }
+            }
         }
 
         private static void ApplyRenderOptions(string? render)
@@ -177,7 +200,7 @@ namespace Dino_Defenders
             // What a client does with what it is told. None of the game's rules run here: they're on the server.
             SystemRegistry.InsertBefore<GravitySystem>(new PromptSystem());
             SystemRegistry.InsertBefore<GravitySystem>(new AmbienceSystem());
-            SystemRegistry.InsertAfter<VelocitySystem>(new GhostPresentationSystem(() => _client, () => _effects));
+            SystemRegistry.InsertAfter<VelocitySystem>(new GhostPresentationSystem(() => _client, () => _effects, Wardrobe));
             SystemRegistry.InsertBefore<GravitySystem>(new SoundscapeSystem());
             SystemRegistry.InsertBefore<GravitySystem>(new MusicDirectorSystem());
             SystemRegistry.InsertAfter<GhostPresentationSystem>(new CharacterSoundSystem(() => _effects?.Sounds));

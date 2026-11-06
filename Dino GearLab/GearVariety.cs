@@ -21,7 +21,6 @@ namespace Dino_GearLab
             foreach (GearKind kind in Enum.GetValues<GearKind>())
             {
                 if (options.Has("kind") && !string.Equals(options.Text("kind", ""), kind.ToString(), StringComparison.OrdinalIgnoreCase)) continue;
-                if (!GearForge.CanMake(kind)) continue;
                 failures += Measure(kind, count, options);
             }
 

@@ -244,6 +244,7 @@ namespace Dino_Defenders.Server
             SendHero(player, gear: true);
             SendParty();
             session.Ground.Introduce(player);
+            foreach (ServerPlayer hero in _heroes) SendWorn(hero);
         }
 
         private Vector2 StartPosition(WorldData world, bool first)
@@ -880,9 +881,19 @@ namespace Dino_Defenders.Server
             writer.WriteBool(gear);
             if (gear) Protocol.WriteGear(writer, player.Hero);
             player.Connection.Send(writer.ToArray(), Delivery.Reliable);
+            if (gear) SendWorn(player);
             player.SummaryChanged = false;
             player.GearChanged = false;
             player.BuffsChanged = false;
+        }
+
+        // Everyone sees what a hero has on, and it's rarely said, so everyone is told. Whoever arrives later is told as they arrive.
+        private void SendWorn(ServerPlayer wearer)
+        {
+            BitWriter writer = Protocol.Begin(Message.Worn);
+            Protocol.WriteWorn(writer, wearer.Id, wearer.Hero);
+            byte[] data = writer.ToArray();
+            foreach (ServerPlayer hero in _heroes) hero.Connection.Send(data, Delivery.Reliable);
         }
 
         private void SendChangedProgress()

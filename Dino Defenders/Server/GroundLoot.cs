@@ -71,11 +71,12 @@ namespace Dino_Defenders.Server
             int find = _nextFind++;
             LootGrade grade = Loot.GradeOf(item);
             Vector2 spot = Landing(from.Xz);
+            ulong seed = item.LookSeed();
             Entity entity = Server.Ecs.CreateEntity("Find",
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 1.5f + (int)grade),
                 new PositionComponent(Ground(spot)),
-                new VisualComponent(LootModels.Key(item.Slot, grade), VisualKind.Prop),
-                new PickupComponent { Find = find, Grade = grade, Slot = item.Slot, From = from, Born = Moment(delay) });
+                new VisualComponent(LootModels.Find, VisualKind.Prop),
+                new PickupComponent { Find = find, Grade = grade, Slot = item.Slot, From = from, Born = Moment(delay), SeedLow = (uint)seed, SeedHigh = (uint)(seed >> 32), Traits = ItemLook.Traits(item) });
 
             _lying.Add(find, new Lying(entity, item, spot));
             foreach (ServerPlayer hero in Server.Heroes) Tell(hero, find, item);

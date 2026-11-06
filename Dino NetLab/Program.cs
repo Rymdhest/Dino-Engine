@@ -37,6 +37,8 @@ namespace Dino_NetLab
                     return PaceTests.Run(options);
                 case "loot":
                     return LootTests.Run(options);
+                case "gear":
+                    return GearTests.Run(options);
                 case "offering":
                     return OfferingTests.Run(options);
                 default:

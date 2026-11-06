@@ -22,9 +22,11 @@ namespace Dino_Engine.ECS.Systems
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
             // 1. Clear previous frame state
-            foreach (var list in _characterCommands.Values)
+            // A hero's model changes with what they wear, and the old one is freed.
+            foreach (var (model, list) in _characterCommands)
             {
-                list.Clear();
+                if (list.Count == 0) _characterCommands.Remove(model);
+                else list.Clear();
             }
 
             // 2. Classify Archetypes with SkeletonComponent

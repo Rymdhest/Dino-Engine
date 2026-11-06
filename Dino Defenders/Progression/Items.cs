@@ -669,6 +669,14 @@ namespace Dino_Defenders.Progression
 
         public static bool HasBase(string name) => Bases.Any(b => b.Name == name);
 
+        /// <summary>Every base there is, by name.</summary>
+        public static IEnumerable<string> BaseNames => Bases.Select(b => b.Name);
+
+        /// <summary>A base by number, which only means anything between two copies of one build, and 0 for none.</summary>
+        public static int NumberOf(string baseName) => Array.FindIndex(Bases, b => b.Name == baseName) + 1;
+
+        public static string NameOf(int number) => number > 0 && number <= Bases.Length ? Bases[number - 1].Name : "";
+
         /// <summary>A seed for how something looks. From a fork of its own, so that it takes nothing from what the rest of the item goes on to roll.</summary>
         public static ulong NewSeed(WorldRandom random)
         {

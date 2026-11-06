@@ -30,7 +30,12 @@ namespace Dino_Engine.ECS.Systems
         internal override void UpdateInternal(ECSWorld world, float deltaTime)
         {
             // 1. Clear state
-            foreach (var list in _models.Values) list.Clear();
+            // What wasn't drawn last time goes. Every find has a model of its own, and they come and go all through a session.
+            foreach (var (model, list) in _models)
+            {
+                if (list.Count == 0) _models.Remove(model);
+                else list.Clear();
+            }
             _imposters.Clear();
 
             Vector3 camPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();

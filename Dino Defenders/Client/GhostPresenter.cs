@@ -217,25 +217,30 @@ namespace Dino_Defenders.Client
 
         private readonly Func<GameClient?> _client;
         private readonly Func<ClientEffects?> _effects;
+        private readonly Wardrobe _wardrobe;
         private readonly BitMask _zoneMask = new BitMask(typeof(ZoneComponent), typeof(PositionComponent));
         private readonly BitMask _afflictedMask = new BitMask(typeof(AfflictedComponent), typeof(PositionComponent));
         private readonly BitMask _motionMask = new BitMask(typeof(GhostMotionComponent), typeof(PositionComponent), typeof(VelocityComponent));
         private readonly BitMask _swingMask = new BitMask(typeof(SwingComponent), typeof(AnimationComponent));
         private readonly BitMask _enemyMask = new BitMask(typeof(EnemyComponent), typeof(RotationComponent), typeof(ScaleComponent));
         private readonly BitMask _heroMask = new BitMask(typeof(HeroComponent), typeof(HealthComponent), typeof(RotationComponent));
+        private readonly BitMask _dressedMask = new BitMask(typeof(HeroComponent), typeof(CharacterModelComponent));
         private readonly BitMask _arrowMask = new BitMask(typeof(BallisticComponent), typeof(PositionComponent), typeof(ScaleComponent));
 
-        public GhostPresentationSystem(Func<GameClient?> client, Func<ClientEffects?> effects)
+        public GhostPresentationSystem(Func<GameClient?> client, Func<ClientEffects?> effects, Wardrobe wardrobe)
             : base(new BitMask(typeof(PositionComponent)))
         {
             _client = client;
             _effects = effects;
+            _wardrobe = wardrobe;
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
 
         protected override void UpdateFrame(ECSWorld world, float deltaTime)
         {
+            _wardrobe.Update();
+
             GameClient? client = _client();
             GameSession? session = client?.Session;
             if (client == null || session == null || client.State != ClientState.Playing || !client.Render.Started) return;
@@ -248,8 +253,24 @@ namespace Dino_Defenders.Client
             ToppleFallen(world, deltaTime);
             ToppleHeroes(world, deltaTime);
             FlyArrows(world, client, session);
-            LootShow.Update(world, client, session, _effects(), deltaTime);
+            LootShow.Update(world, client, session, _effects(), _wardrobe, deltaTime);
+            DressHeroes(world, client);
             ShowLasting(world, deltaTime);
+        }
+
+        // A hero is drawn in what they have on, and keeps being asked for by what's drawing them. Whoever hasn't been described yet just stands there as they are.
+        private void DressHeroes(ECSWorld world, GameClient client)
+        {
+            foreach (Archetype archetype in world.QueryArchetypes(_dressedMask, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    int player = entity.Get<HeroComponent>().Player;
+                    if (!client.Worn.TryGetValue(player, out List<WornLook>? worn)) continue;
+                    if (_wardrobe.Dressed(player - 1, worn) is not Dino_Engine.Modelling.Model.glModel model) continue;
+                    if (entity.Get<CharacterModelComponent>().model != model) entity.Set(new CharacterModelComponent(model));
+                }
+            }
         }
 
         // What's going on on the ground and on people, which has no event of its own as it doesn't happen at any one moment.

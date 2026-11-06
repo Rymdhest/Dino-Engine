@@ -29,6 +29,7 @@ namespace Dino_Defenders.Net
         Market,         // Reliable: what a merchant has for you.
         Party,          // Reliable: who else is here.
         GroundItem,     // Reliable: what a find on the ground is.
+        Worn,           // Reliable: what someone has on, for drawing them.
     }
 
     public enum HeroAction : byte
@@ -62,7 +63,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 7;
+        public const uint Version = 8;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -235,6 +236,32 @@ namespace Dino_Defenders.Net
 
             hero.Inventory = carried;
             hero.Equipped = worn;
+        }
+
+        /// <summary>What a hero looks like to everyone else, which is only ever what they're wearing. See GEAR.md.</summary>
+        public static void WriteWorn(BitWriter writer, int player, HeroState hero)
+        {
+            writer.WriteVarInt(player);
+            writer.WriteCount(hero.Equipped.Count);
+            foreach ((WornSlot place, Item item) in hero.Equipped)
+            {
+                writer.WriteByte((byte)place);
+                writer.WriteVarULong(item.LookSeed());
+                writer.WriteUInt(ItemLook.Traits(item));
+            }
+        }
+
+        public static (int player, List<WornLook> worn) ReadWorn(BitReader reader)
+        {
+            int player = reader.ReadVarInt();
+            int count = reader.ReadCount(Enum.GetValues<WornSlot>().Length);
+            var worn = new List<WornLook>(count);
+            for (int i = 0; i < count; i++)
+            {
+                WornSlot place = Checked<WornSlot>(reader.ReadByte());
+                worn.Add(new WornLook(place, reader.ReadVarULong(), reader.ReadUInt()));
+            }
+            return (player, worn);
         }
 
         public static void WriteHero(BitWriter writer, HeroState hero)
