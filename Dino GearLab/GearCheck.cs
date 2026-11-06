@@ -71,6 +71,7 @@ namespace Dino_GearLab
                     if (!Finite(vertex.position)) Fail(spec, $"a position that isn't one, at vertex {vertex.index.index} of {mesh.meshVertices.Count}");
                     if (!Finite(vertex.normal)) Fail(spec, $"a normal that isn't one, at vertex {vertex.index.index} of {mesh.meshVertices.Count}, at {vertex.position}, with {vertex.faces.Count} faces");
                     if (Finite(vertex.normal) && MathF.Abs(vertex.normal.LengthSquared - 1f) > 0.01f) Fail(spec, $"a normal of length {vertex.normal.Length}");
+                    if (!Finite(vertex.tangent) || !Finite(vertex.bitangent)) Fail(spec, $"a tangent that isn't one, at vertex {vertex.index.index} of {mesh.meshVertices.Count}, at {vertex.position}");
                     if (vertex.colour.Red < 0f || vertex.colour.Green < 0f || vertex.colour.Blue < 0f) Fail(spec, "a colour below nothing");
                     min = Vector3.ComponentMin(min, vertex.position);
                     max = Vector3.ComponentMax(max, vertex.position);

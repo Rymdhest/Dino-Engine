@@ -696,6 +696,28 @@ namespace Dino_NetLab
             report.Check("And they're well away", (rules.Hero.Position - from).Length > sheet.DodgeSpeed * HeroRules.DashDuration * 0.7f, $"{(rules.Hero.Position - from).Length} m");
             report.Check("And safety doesn't outlast the dodge by much", rules.Hero.Safe == 0f);
 
+            // Found by pressing real keys: with the button still down, the swing a dodge had just ended started again in the same tick.
+            rules = new Rules(arena);
+            rules.Step(slots: 1);
+            rules.Run(0.05, slots: 1);
+            rules.Step(slots: 1, dash: true, move: West);
+            report.Check("A button still held doesn't swing through a dodge", rules.Hero.Using == HeroSimState.NoSlot && rules.Hero.DashLeft > 0f);
+            bool swungThrough = false;
+            while (rules.Hero.DashLeft > 0f)
+            {
+                rules.Step(slots: 1);
+                if (rules.Hero.DashLeft > 0f && rules.Hero.Using >= 0) swungThrough = true;
+            }
+            report.Check("Not at any point in it", !swungThrough);
+            report.Check("But it goes on the tick it's over", rules.Hero.Using == 0, $"{rules.Hero.Using}");
+
+            rules = new Rules(arena);
+            rules.Step(dash: true, move: West);
+            rules.Run(0.05);
+            rules.Step(slots: 1);
+            report.Check("A click in the middle of a dodge doesn't start anything yet", rules.Hero.Using == HeroSimState.NoSlot);
+            report.Check("But it isn't lost: it comes straight after", (rules.Run(0.25) & HeroStepEvents.Used) != 0);
+
             rules = new Rules(arena);
             HeroStepEvents landing = rules.Step(slots: 1);
             while ((landing & HeroStepEvents.Landed) == 0) landing = rules.Step();

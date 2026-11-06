@@ -62,6 +62,7 @@ namespace Dino_Defenders
         private bool _firstWorldOfThisSession = true;
         private float _nextAutosave;
         private int _frames;
+        private StreamWriter? _trace;
         private readonly List<(string name, Vector2 position)> _tourStops = new();
         private int _tourStop = -1;
         private int _tourWait;
@@ -346,6 +347,7 @@ namespace Dino_Defenders
                 Save();
             }
 
+            if (_options.Trace != null && _client.State == ClientState.Playing) WriteTrace(_options.Trace);
             if (_frames == _options.TravelAfterFrames) StepThroughWaygate();
             if (_frames == 90 && _options.Panel != null) OpenPanel(_options.Panel);
             if (_frames == 30 && _options.Loot is string loot && _server != null)
@@ -446,6 +448,13 @@ namespace Dino_Defenders
             if (window.IsKeyPressed(Keys.J)) _ui.Toggle(_ui.Chronicle);
             if (window.IsKeyPressed(Keys.T)) _ui.Toggle(_ui.Talents);
             if (window.IsKeyPressed(Keys.K)) _ui.Toggle(_ui.Skills);
+        }
+
+        private void WriteTrace(string path)
+        {
+            _trace ??= new StreamWriter(path) { AutoFlush = true };
+            HeroSimState hero = _client!.Predictor.Current;
+            _trace.WriteLine(FormattableString.Invariant($"{_frames} {_client.Commands.Tick} {hero.Position.X:0.00} {hero.Position.Y:0.00} {hero.Using} {hero.ImpactIn:0.000} {hero.BusyFor:0.000} {hero.DashLeft:0.000} {hero.DodgeCooldown:0.000} {hero.Safe:0.000} {hero.Health:0.0}"));
         }
 
         private void OpenPanel(string name)

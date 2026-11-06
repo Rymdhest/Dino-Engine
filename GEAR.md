@@ -69,7 +69,8 @@ It can't touch `TextureGenerator`. Reading any static on that class compiles sha
 What the rig decides:
 
 - **Fourteen bones and two weights a vertex.** The torso is a single bone.
-- **The run swings the legs ±89°.** So anything long has to be skinned to the thighs: the hem belongs to the legs and the waist to the chest, and a skirt twists as cloth does. Bound to the chest, the knees come straight through it.
+- **Legs go a long way in a run.** So anything long has to be skinned to the thighs: the hem belongs to the legs and the waist to what's above it, and a skirt twists as cloth does. Bound to the chest, the knees come straight through it.
+- **What's on the body is skinned by how high it is.** Generators just say "on the chest", and `BodyForm.Spread` shares it out between pelvis, spine and chest by `Back`, and neck and head by `Throat`, so a back can bend under armour.
 - **Limbs are separate rigid pieces.** Whatever a piece covers is left out of the body under it (`BodyRegions`), so skin can't poke through, and there's less to draw. Bare, a hero wears plain undergarments.
 - **Characters are 4.7 m tall**, seen from 33 m up at 67°. What's seen in play is masses and silhouette, so that's what gets designed first. Fine detail is for the icon and the character screen.
 
@@ -148,7 +149,6 @@ All seven phases of the plan were built, in the order rules, kernel, a single sw
 - Bosses don't show what they wear. They fight with real items and drop them, but they're drawn as they were. Every enemy and villager does carry a generated weapon now.
 - Icons for anything that isn't gear, such as flasks. The studio will take any model.
 - Dragging things between places. It's all clicks.
-- A real two-handed grip: see below.
 - Levels of detail for gear. A hero in everything is about 14,000 triangles on one draw call, which is fine for five heroes, and nothing has needed less yet.
 
 ## Decided, and open to change
@@ -158,7 +158,6 @@ Choices made without asking, as none of them block anything. Say if any are wron
 - **The off hand is shields and wards only.** There's no dual wielding in the rules today, and adding it is a build-system change, not a gear one.
 - **A unique has one look**, seeded by its id. It's one of a kind, and it means the boss's sword is the sword you're then holding. Everything else is unique per drop.
 - **Mana comes on top of barrier for cloth.** Barrier is already the third defence, and removing it would break builds.
-- **Two-handed weapons are held in one hand for now.** There's one swing clip, and a real two-handed grip is an animation job of its own.
 - **Friends lose their tunic dyes** as a way to tell each other apart, since gear covers them. Dye stays on undergarments only. If that's not enough in play, it needs something of its own, such as a coloured mark.
 
 ## Where this came from

@@ -22,6 +22,15 @@ namespace Dino_Engine.Modelling.Model
 
         }
 
+        private Vector3 AnyFaceNormal()
+        {
+            foreach (Face face in faces)
+            {
+                if (face.faceNormal.LengthSquared > 0.5f) return face.faceNormal;
+            }
+            return Vector3.UnitY;
+        }
+
         public void calculateNormalAndTangent()
         {
             // Step 1: Initialize vectors
@@ -49,11 +58,13 @@ namespace Dino_Engine.Modelling.Model
             tangent /= faces.Count;
             bitangent /= faces.Count;
 
-            // Step 5: Normalize the normal vector
-            normal.Normalize();
+            // Step 5: Normalize the normal vector. Faces back to back cancel out and slivers add nothing, so there may be nothing to normalize, and a vertex still has to face somewhere.
+            if (normal.LengthSquared > 1e-12f) normal.Normalize();
+            else normal = AnyFaceNormal();
 
             // Step 6: Orthogonalize and normalize the tangent vector
-            tangent = Vector3.Normalize(tangent - normal * Vector3.Dot(normal, tangent));
+            tangent -= normal * Vector3.Dot(normal, tangent);
+            tangent = tangent.LengthSquared > 1e-12f ? tangent.Normalized() : Vector3.Cross(normal, MathF.Abs(normal.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitZ).Normalized();
 
             // Step 7: Properly orthogonalize the bitangent against normal AND tangent (preserving UV orientation)
             bitangent = bitangent - normal * Vector3.Dot(normal, bitangent);

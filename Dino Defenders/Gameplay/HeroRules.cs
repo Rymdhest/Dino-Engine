@@ -444,14 +444,16 @@ namespace Dino_Defenders.Gameplay
             }
 
             // A click made while busy counts as well, and comes straight after. Only the click: a button held down simply goes on going, and letting go of it stops it.
+            // A dodge is a clean break from everything, and that includes what's still held down, which picks up again when it's over.
+            bool dodging = hero.Using < 0 && hero.DashLeft > 0f;
             for (int slot = 1; slot >= 0; slot--)
             {
-                if ((pressed & SlotButton(slot)) == 0 || hero.Using < 0 || hero.QueuedFor > 0f) continue;
+                if ((pressed & SlotButton(slot)) == 0 || (hero.Using < 0 && !dodging) || hero.QueuedFor > 0f) continue;
                 hero.Queued = (sbyte)slot;
                 hero.QueuedFor = QueueTime;
             }
 
-            if (hero.Using < 0)
+            if (hero.Using < 0 && !dodging)
             {
                 if (hero.QueuedFor > 0f && TryUse(ref hero, kit, hero.Queued, ref events))
                 {

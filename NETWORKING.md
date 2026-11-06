@@ -38,6 +38,8 @@ World state is never sent as "this changed". Snapshots are differences from a st
 
 **Something flying in a straight line**: use `BallisticComponent`, not a moving position. It is sent once, and clients work out the rest, so hundreds cost almost nothing.
 
+**Something coming**: `Combat.Warn` puts a `TelegraphComponent` on the ground and `Combat.Perform` says what a body's doing, as an `ActionComponent`. Both are components and not events, as a player can't be allowed to miss them, and both are moments in ticks, so anyone can pick them up part way through. They're read against a client's own clock: see `ANIMATION.md`.
+
 **A spark, a sound, a number**: mark a struct `[NetEvent]`, send it with `GameServer.Broadcast`, and handle it with `client.Events.On<T>`. Events are for show. They can be missed, so nothing that matters may depend on one: put that in a component.
 
 **Something with a name that changes**: a find is the example. Everything that doesn't need the name goes in the component, and what does comes by a reliable message keyed by a number of its own (`GroundItem`), as replicated strings are a table that only grows. Either can arrive first, so nothing can rely on the order.
@@ -114,6 +116,7 @@ dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" core     # Replication a
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" game     # The whole game, on every kind of line
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" loot     # What's on the ground, with real clients on the other end of a line
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" offering # What's paid at a waygate, and that a friend who turns up later is in the same land
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" combat   # What a fight promises: what's marked is what's hit, on the tick it says
 ```
 
 Run both after touching anything here. A test of timing has to measure against the server itself, as a client's own idea of how far behind it is can be as wrong as the rest of it, and a stalled client needs its line kept running (`ImpairedTransport.Carry`), or what was sent meanwhile doesn't arrive at once as it really does. To feel a bad line in the real game, or play across two windows on one machine:

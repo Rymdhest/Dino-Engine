@@ -39,7 +39,6 @@ namespace Dino_Defenders.Server
         public Vector2 Respawn;
         public Entity Entity;
         public uint GhostId;
-        public byte SwingSerial;
         public bool WindingUp;      // A blow's been started and hasn't landed.
         public Entity Mark;         // What friends have been shown of it.
 

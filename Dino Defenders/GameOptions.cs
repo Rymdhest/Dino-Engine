@@ -66,6 +66,9 @@ namespace Dino_Defenders
 
         /// <summary>The same as <see cref="Parade"/>, but they're awake and want a fight.</summary>
         public string? Brawl;
+
+        /// <summary>A file to write the hero's state to, each frame, which is how to read what real input did to a run that has no bot in it.</summary>
+        public string? Trace;
         public string? Loot;
         public string? Panel;
         public string? Wear;
@@ -135,6 +138,7 @@ namespace Dino_Defenders
                     case "equip": options.Equip.AddRange(value.Split(',')); break;
                     case "parade": options.Parade = value; break;
                     case "brawl": options.Brawl = value; break;
+                    case "trace": options.Trace = value; break;
                     case "loot": options.Loot = value; break;
                     case "panel": options.Panel = value; break;
                     case "wear": options.Wear = value; break;

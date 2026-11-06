@@ -39,7 +39,9 @@ namespace Dino_Engine.Modelling.Model
             Vector3 edge1 = b - a;
             Vector3 edge2 = c - a;
             Vector3 normal = Vector3.Cross(edge1, edge2);
-            return normal.Normalized();
+
+            // A sliver has no area and so no direction, and normalizing nothing makes a NaN, which spreads to all it's added to.
+            return normal.LengthSquared > 1e-20f ? normal.Normalized() : Vector3.Zero;
         }
 
         private void CalcFaceTangent(MeshVertex v0, MeshVertex v1, MeshVertex v2)
@@ -79,6 +81,14 @@ namespace Dino_Engine.Modelling.Model
             if (n.LengthSquared < 0.00001f)
             {
                 n = CalcFaceNormal(v0.position, v1.position, v2.position);
+            }
+
+            // A sliver has nothing to add to the vertices it's on.
+            if (n.LengthSquared < 0.00001f)
+            {
+                faceTangent = Vector3.Zero;
+                faceBitanget = Vector3.Zero;
+                return;
             }
 
             // 5. Gram-Schmidt orthogonalize tangent against the normal
