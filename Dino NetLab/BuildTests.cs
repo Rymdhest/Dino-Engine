@@ -64,7 +64,7 @@ namespace Dino_NetLab
             actor.Entity = server.Ecs.CreateEntity("Dummy", Bodies.Walking(server, "skeleton", new Vector3(at.X, height, at.Y), 1f, 1.5f,
                 new EnemyComponent { Name = "Dummy", Level = 1 },
                 new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 60f, LeashRadius = 200f },
-                new HealthComponent(actor.Sheet.MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+                new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
             Run(0.1);
             return actor;
         }
@@ -985,7 +985,7 @@ namespace Dino_NetLab
                 actor.Entity = server.Ecs.CreateEntity(Bodies.Walking(server, "skeleton", new Vector3(at.X, height, at.Y), 1f, 1.5f,
                     new EnemyComponent { Name = kind.Name, Level = 20 },
                     new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 300f, LeashRadius = 900f, KeepsAway = kind.KeepsAway, Cooldown = random.NextSingle() * 2f },
-                    new HealthComponent(actor.Sheet.MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+                    new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
                 actors.Add(actor);
             }
 

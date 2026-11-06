@@ -146,6 +146,12 @@ namespace Dino_Defenders.Server
         public bool Dead;
         public bool LoadoutChanged;
 
+        /// <summary>What blows have done to where it's going, dying away. Metres a second.</summary>
+        public Vector2 Push;
+
+        /// <summary>How long it's still taking a blow for, in seconds.</summary>
+        public float Reeling;
+
         /// <summary>How long until each of its triggers can go off again. Follows the loadout.</summary>
         public float[] TriggerReady;
 

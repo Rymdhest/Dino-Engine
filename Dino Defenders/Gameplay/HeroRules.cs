@@ -152,9 +152,11 @@ namespace Dino_Defenders.Gameplay
         public float BusyFor;
         public SlotTimes Cooldowns;
         public float DodgeCooldown;
+        public float DodgeQueuedFor;    // A dodge pressed a moment too soon, which goes the moment it can.
         public float Safe;              // Nothing can touch them for this long: a dodge's window of safety.
         public sbyte Queued;            // A press made too early, held on to for a moment.
         public float QueuedFor;
+        public HeroButtons Pressing;    // What was held last tick, to tell a click from a button still held.
         public float Mana;
         public bool Down;
         public byte Moves;              // Goes up each time the server puts them somewhere else, so it isn't smoothed over.
@@ -207,9 +209,11 @@ namespace Dino_Defenders.Gameplay
             }
 
             writer.WriteFloat(DodgeCooldown);
+            writer.WriteFloat(DodgeQueuedFor);
             writer.WriteFloat(Safe);
             writer.WriteByte((byte)Queued);
             writer.WriteFloat(QueuedFor);
+            writer.WriteBits((ushort)Pressing, 16);
             writer.WriteFloat(Mana);
             writer.WriteBool(Down);
             writer.WriteByte(Moves);
@@ -250,9 +254,11 @@ namespace Dino_Defenders.Gameplay
             }
 
             state.DodgeCooldown = reader.ReadFloat();
+            state.DodgeQueuedFor = reader.ReadFloat();
             state.Safe = reader.ReadFloat();
             state.Queued = (sbyte)reader.ReadByte();
             state.QueuedFor = reader.ReadFloat();
+            state.Pressing = (HeroButtons)reader.ReadBits(16);
             state.Mana = reader.ReadFloat();
             state.Down = reader.ReadBool();
             state.Moves = reader.ReadByte();
@@ -336,10 +342,19 @@ namespace Dino_Defenders.Gameplay
         public const float DeathDelay = 2.4f;
         public const float Radius = WorldData.CharacterRadius;
         public const float QueueTime = 0.3f;
+        public const float DodgeQueueTime = 0.18f;
 
         private const float TurnSpeed = 14f;
 
         public static HeroButtons SlotButton(int slot) => (HeroButtons)(1 << slot);
+
+        /// <summary>Whether a skill is worth showing on the ground. A plain blow isn't: nobody needs telling what a sword reaches, and there'd be no end of them.</summary>
+        public static bool ShowsArea(SkillProfile skill) => skill.DealsDamage && skill.Skill.Form switch
+        {
+            SkillForm.Strike => skill.Skill.Arc >= 3f || (skill.Skill.Tags & Tags.Area) != 0,
+            SkillForm.Nova or SkillForm.Burst or SkillForm.Zone or SkillForm.Beam => true,
+            _ => false,
+        };
 
         public static HeroStepEvents Step(ref HeroSimState hero, in HeroCommand command, HeroKit kit, CharacterMover mover)
         {
@@ -349,11 +364,17 @@ namespace Dino_Defenders.Gameplay
             ActorSheet sheet = kit.Sheet;
             for (int i = 0; i < HeroState.SkillSlots; i++) hero.Cooldowns[i] = MathF.Max(hero.Cooldowns[i] - deltaTime, 0f);
             hero.DodgeCooldown = MathF.Max(hero.DodgeCooldown - deltaTime, 0f);
+            hero.DodgeQueuedFor = MathF.Max(hero.DodgeQueuedFor - deltaTime, 0f);
             hero.Safe = MathF.Max(hero.Safe - deltaTime, 0f);
             hero.QueuedFor = MathF.Max(hero.QueuedFor - deltaTime, 0f);
             hero.Held = MathF.Max(hero.Held - deltaTime, 0f);
             hero.Mana = MathF.Min(hero.Mana + sheet.ManaRegen * deltaTime, sheet.MaxMana);
             if (hero.Down) return HeroStepEvents.None;
+
+            // Pressed even with no way of acting on it: someone stunned who hits dodge wants to dodge the moment they can.
+            if (command.Has(HeroButtons.Dash)) hero.DodgeQueuedFor = DodgeQueueTime;
+            HeroButtons pressed = command.Buttons & ~hero.Pressing;
+            hero.Pressing = command.Buttons;
 
             var events = HeroStepEvents.None;
             Vector2 aim = command.Aim;
@@ -377,15 +398,20 @@ namespace Dino_Defenders.Gameplay
             if (move.LengthSquared > 0f) move.Normalize();
 
             float speed = sheet.MoveSpeed * hero.MoveRate;
-            if (hero.Using >= 0 && kit.Slots[hero.Using] is SkillProfile inHand) speed *= inHand.Skill.MoveFactor;
+            if (hero.Using >= 0 && kit.Slots[hero.Using] is SkillProfile inHand) speed *= Slowed(hero, inHand);
 
-            if (command.Has(HeroButtons.Dash) && hero.DodgeCooldown <= 0f)
+            // Nothing gets in the way of a dodge. Whatever they were doing is over, and if the blow hadn't landed it doesn't: getting out of there was worth more.
+            if (hero.DodgeQueuedFor > 0f && hero.DodgeCooldown <= 0f)
             {
                 hero.DashDirection = move.LengthSquared > 0f ? move : hero.Aim;
                 hero.DashSpeed = sheet.DodgeSpeed;
                 hero.DashLeft = DashDuration;
                 hero.DodgeCooldown = sheet.DodgeCooldown;
+                hero.DodgeQueuedFor = 0f;
                 hero.Safe = DashDuration + 0.1f;
+                hero.Using = HeroSimState.NoSlot;
+                hero.ImpactIn = -1f;
+                hero.BusyFor = 0f;
                 events |= HeroStepEvents.Dashed;
             }
 
@@ -417,6 +443,14 @@ namespace Dino_Defenders.Gameplay
                 hero.QueuedFor = QueueTime;
             }
 
+            // A click made while busy counts as well, and comes straight after. Only the click: a button held down simply goes on going, and letting go of it stops it.
+            for (int slot = 1; slot >= 0; slot--)
+            {
+                if ((pressed & SlotButton(slot)) == 0 || hero.Using < 0 || hero.QueuedFor > 0f) continue;
+                hero.Queued = (sbyte)slot;
+                hero.QueuedFor = QueueTime;
+            }
+
             if (hero.Using < 0)
             {
                 if (hero.QueuedFor > 0f && TryUse(ref hero, kit, hero.Queued, ref events))
@@ -432,6 +466,15 @@ namespace Dino_Defenders.Gameplay
                 }
             }
             return events;
+        }
+
+        // How much a use slows someone down: all of it while it's going, and less and less once it's landed, so that a hero who's struck can get away at once.
+        private static float Slowed(in HeroSimState hero, SkillProfile skill)
+        {
+            float slowed = skill.Skill.MoveFactor;
+            if (hero.ImpactIn >= 0f) return slowed;
+            float left = hero.BusyFor / MathF.Max(skill.UseTime - skill.ImpactTime, 0.01f);
+            return slowed + (1f - slowed) * (1f - Math.Clamp(left, 0f, 1f));
         }
 
         /// <summary>

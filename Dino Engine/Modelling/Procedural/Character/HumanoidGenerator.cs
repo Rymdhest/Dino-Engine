@@ -59,9 +59,9 @@ namespace Dino_Engine.Modelling.Procedural.Character
         public static readonly Matrix4 OffHand =
             Turned(0f, MathF.PI / 2f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.4f, 0f) * Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(ShoulderX, ShoulderY + LegLength, 0f);
 
-        /// <summary>Where a bow goes, which is in the left hand, with its limbs along the arm.</summary>
+        /// <summary>Where a bow goes, which is in the left hand, across the fist, so that a straight arm has it upright and pointing where the arm points.</summary>
         public static readonly Matrix4 BowHand =
-            Matrix4.CreateTranslation(0f, -ArmLength - 0.1f, 0f) * Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(ShoulderX, ShoulderY + LegLength, 0f);
+            Turned(0f, MathF.PI / 2f, 0f) * Matrix4.CreateTranslation(ShoulderX + ArmLength + 0.1f, ShoulderY + LegLength, 0f);
 
         /// <summary>Where a ring goes, on either hand, for what's built lying around y.</summary>
         public static Matrix4 RingOn(float side) => Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(side * (ShoulderX + ArmLength + 0.1f), ShoulderY + LegLength, 0f);
@@ -97,7 +97,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
             body.translate(new Vector3(0f, LegLength, 0f));
             body.isUsingBones = true;
-            return Armed(body, look.Held, look.Shield, SeedOf(look));
+            return BodyForm.Spread(Armed(body, look.Held, look.Shield, SeedOf(look)));
         }
 
         // Everyone with the same look carries the same thing, and a different look carries something else.

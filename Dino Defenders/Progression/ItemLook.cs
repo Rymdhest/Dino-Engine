@@ -39,6 +39,9 @@ namespace Dino_Defenders.Progression
         /// <summary>What an item is, for making it.</summary>
         public static GearSpec SpecOf(Item item) => SpecOf(item.LookSeed(), Traits(item));
 
+        /// <summary>What kind of weapon something is, for how it's carried.</summary>
+        public static WeaponKind WeaponOf(uint traits) => (WeaponKind)(traits >> KindBits & 7);
+
         /// <summary>What something is that's only known by what was said about it.</summary>
         public static GearSpec SpecOf(ulong seed, uint traits)
         {

@@ -43,6 +43,21 @@ namespace Dino_Defenders.Server
         private const float BurstShare = 0.45f;     // Of an ordinary enemy's blow. They come in numbers.
         private const float RallyReach = 16f;
 
+        // What a blow does to a body. Everything's a share of how much health it took, as that's what a hit means to whoever took it.
+        private const float PushPerHealth = 34f;    // Metres a second, for a blow that takes all there is.
+        private const float MostPush = 11f;
+        private const float BossGive = 0.12f;
+        private const float EliteGive = 0.5f;
+        private const float ReelFrom = 0.05f;       // Seconds a blow stops someone for, at least.
+        private const float ReelPerHealth = 0.5f;
+        private const float MostReel = 0.3f;
+        private const float LeastThrow = 2.5f;      // Metres a second, for what only just died of it.
+        private const float MostThrow = 30f;        // On top, for a blow worth many of them.
+        private const float ThrowRate = 1.15f;      // How quickly that comes, with how far past dead it went.
+        private const float ThrowLift = 0.56f;
+        private const float CriticalForce = 1.25f;
+        private const float BlastForce = 1.15f;
+
         private enum Later : byte
         {
             Release,
@@ -76,6 +91,7 @@ namespace Dino_Defenders.Server
         private readonly WorldRandom _luck = new WorldRandom(Environment.TickCount);
         private readonly List<Actor> _found = new();
         private readonly List<Actor> _chained = new();
+        private readonly List<Actor> _near = new();
         private readonly List<Consequence> _later = new();
         private readonly LootLuck _lootLuck = new();
 
@@ -115,7 +131,6 @@ namespace Dino_Defenders.Server
                     Fire(user, skill, origin, facing, strength);
                     break;
                 case SkillForm.Burst:
-                    Show(new SkillEvent { Position = Ground(target), Skill = skill.Skill.Number, Phase = SkillPhase.Warning, Radius = skill.Radius, Time = skill.Delay }, target);
                     Defer(new Consequence { Kind = Later.Land, At = Now + skill.Delay, Source = user, Skill = skill, Origin = target, Strength = strength });
                     break;
                 case SkillForm.Zone:
@@ -201,6 +216,71 @@ namespace Dino_Defenders.Server
 
         private void Show<T>(in T value, Vector2 near) where T : struct => Server.Broadcast(value, near);
 
+        // Heroes are in an area when they look it, so a foot on the edge of one doesn't count. See GroundShape.HeroBodyShare.
+        private static float BodyOf(Actor target, bool hostile) => hostile && target.IsHero ? target.Radius * GroundShape.HeroBodyShare : target.Radius;
+
+        /// <summary>Everyone on the other side from <paramref name="team"/> that a shape touches, which is the only way anyone is ever found to be in an area.</summary>
+        private void Within(in GroundShape shape, Team team, List<Actor> found)
+        {
+            _near.Clear();
+            Grid.Foes(team, shape.Origin, shape.Extent, _near);
+            foreach (Actor foe in _near)
+            {
+                if (shape.Covers(foe.Position, BodyOf(foe, team == Team.Enemies))) found.Add(foe);
+            }
+        }
+
+        // ---- What's coming.
+
+        /// <summary>Marks a piece of ground for everyone, for as long as there is until it lands. Whoever's doing this can take it back with <see cref="Withdraw"/>.</summary>
+        public Entity Warn(in GroundShape shape, int skill, MarkTier tier, bool hostile, float landsIn, int owner = 0)
+        {
+            uint ticks = Server.Tick + (uint)MathF.Round(landsIn * NetTime.TicksPerSecond);
+            return World.CreateEntity("Warning",
+                new NetIdentityComponent(Server.Ghosts.NextId(), importance: hostile ? 6f : 2f),
+                new PositionComponent(Ground(shape.Origin)),
+                new TelegraphComponent { Kind = shape.Kind, Tier = tier, Hostile = hostile, Owner = owner, Skill = skill, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Start = Server.Tick, Lands = ticks },
+                new TelegraphLifeComponent { Left = landsIn + MarkLingers });
+        }
+
+        /// <summary>It isn't happening after all.</summary>
+        public void Withdraw(Entity mark)
+        {
+            if (mark.IsValid() && World.TryGetEntityLocation(mark, out _, out _)) World.DestroyEntity(mark);
+        }
+
+        private const float MarkLingers = 0.1f;     // Seconds a mark stays after it lands, as the word that it's gone shouldn't overtake it.
+
+        /// <summary>Says what someone is doing, for all who can see them.</summary>
+        public void Perform(Entity who, SkillDefinition skill, float landsIn, float lasts, Vector2 aim)
+        {
+            if (!who.IsValid() || !World.TryGetEntityLocation(who, out _, out _)) return;
+            EntityView view = World.GetEntityView(who);
+            if (!view.Has<ActionComponent>()) return;
+
+            var action = view.Get<ActionComponent>();
+            action.Serial++;
+            action.Skill = skill.Number;
+            action.Start = Server.Tick;
+            action.Lands = Server.Tick + (uint)MathF.Round(landsIn * NetTime.TicksPerSecond);
+            action.Ends = Server.Tick + (uint)MathF.Round(MathF.Max(lasts, landsIn) * NetTime.TicksPerSecond);
+            action.Aim = MathF.Atan2(aim.X, aim.Y);
+            view.Set(action);
+        }
+
+        /// <summary>Whatever they were doing, they aren't any more.</summary>
+        public void Stop(Entity who)
+        {
+            if (!who.IsValid() || !World.TryGetEntityLocation(who, out _, out _)) return;
+            EntityView view = World.GetEntityView(who);
+            if (!view.Has<ActionComponent>()) return;
+
+            var action = view.Get<ActionComponent>();
+            if (action.Ends <= Server.Tick) return;
+            action.Ends = Server.Tick;
+            view.Set(action);
+        }
+
         // ---- Getting there.
 
         private void Strike(Actor user, SkillProfile skill, Vector2 origin, Vector2 facing, float reach, float arc, int viewLag, float strength)
@@ -208,18 +288,16 @@ namespace Dino_Defenders.Server
             _found.Clear();
             Grid.Foes(user.Team, origin, reach + 2f, _found);
 
-            float cosHalfArc = MathF.Cos(arc * 0.5f);
+            GroundShape shape = GroundShape.Sector(origin, facing, reach, arc);
+            bool hostile = user.Team == Team.Enemies;
             int rewind = user.IsHero ? Math.Clamp(viewLag, 0, MostRewind) : 0;
             foreach (Actor foe in _found)
             {
                 // An enemy is where the attacker saw it, which is where it was a moment ago: a client draws others slightly in the past, and a blow
                 // that connects on screen has to connect. This tick's positions aren't recorded until it ends, so with no rewind, where it is now is the answer.
                 Vector2 position = rewind > 0 ? foe.PositionAgo(rewind, Server.Tick) : foe.Position;
-                Vector2 offset = position - origin;
-                float distance = offset.Length;
-                if (distance > reach + foe.Radius) continue;
-                if (arc < MathF.Tau && distance > 0.5f && Vector2.Dot(offset / distance, facing) < cosHalfArc) continue;
-                Hit(user, skill, foe, strength, origin);
+                if (!shape.Covers(position, BodyOf(foe, hostile))) continue;
+                Hit(user, skill, foe, strength, origin, position - origin);
             }
         }
 
@@ -250,6 +328,7 @@ namespace Dino_Defenders.Server
                 Chains = skill.Chains,
                 Strength = strength,
                 Start = from,
+                Way = direction,
                 Returning = parent?.Returning ?? false,
             };
             if (parent != null) projectile.Spent.AddRange(parent.Spent);
@@ -275,7 +354,7 @@ namespace Dino_Defenders.Server
             {
                 if (projectile.Spent.Contains(foe)) continue;
                 projectile.Spent.Add(foe);
-                Hit(projectile.Source, projectile.Skill, foe, projectile.Strength * Flight(projectile, at.Xz), at.Xz);
+                Hit(projectile.Source, projectile.Skill, foe, projectile.Strength * Flight(projectile, at.Xz), at.Xz, projectile.Way);
                 if (projectile.Skill.Radius > 0f) Burst(projectile, at.Xz);
 
                 if (projectile.Chains > 0 && Retarget(projectile, foe, at))
@@ -337,11 +416,11 @@ namespace Dino_Defenders.Server
             Show(new SkillEvent { Position = Ground(at), Skill = skill.Skill.Number, Phase = SkillPhase.Burst, Radius = skill.Radius }, at);
 
             _chained.Clear();
-            Grid.Foes(user.Team, at, skill.Radius, _chained);
+            Within(GroundShape.Circle(at, skill.Radius), user.Team, _chained);
             foreach (Actor foe in _chained)
             {
                 if (already != null && already.Contains(foe)) continue;
-                Hit(user, skill, foe, strength, at);
+                Hit(user, skill, foe, strength, at, foe.Position - at);
             }
         }
 
@@ -392,7 +471,7 @@ namespace Dino_Defenders.Server
 
                 _chained.Add(next);
                 Show(new LinkEvent { From = Ground(from) + Vector3.UnitY * 3f, To = Ground(next.Position) + Vector3.UnitY * 3f, Look = skill.Skill.Look }, from);
-                Hit(user, skill, next, power, from);
+                Hit(user, skill, next, power, from, next.Position - from);
                 power *= growth;
                 from = next.Position;
                 seek = next.Position;
@@ -405,16 +484,8 @@ namespace Dino_Defenders.Server
             Show(new LinkEvent { From = Ground(origin) + Vector3.UnitY * 3f, To = Ground(origin + facing * length) + Vector3.UnitY * 3f, Look = skill.Skill.Look, Wide = true }, origin);
 
             _found.Clear();
-            Vector2 middle = origin + facing * (length * 0.5f);
-            Grid.Foes(user.Team, middle, length * 0.5f + skill.Radius, _found);
-            foreach (Actor foe in _found)
-            {
-                Vector2 offset = foe.Position - origin;
-                float along = Vector2.Dot(offset, facing);
-                if (along < 0f || along > length) continue;
-                if ((offset - facing * along).Length > skill.Radius + foe.Radius) continue;
-                Hit(user, skill, foe, strength, origin);
-            }
+            Within(GroundShape.Line(origin, facing, length, skill.Radius), user.Team, _found);
+            foreach (Actor foe in _found) Hit(user, skill, foe, strength, origin, facing);
         }
 
         private void Lay(Actor user, SkillProfile skill, Vector2 at)
@@ -426,7 +497,7 @@ namespace Dino_Defenders.Server
             World.CreateEntity("Zone",
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 1.5f),
                 new PositionComponent(Ground(at)),
-                new ZoneComponent { Skill = skill.Skill.Number, Radius = skill.Radius, Life = life },
+                new ZoneComponent { Skill = skill.Skill.Number, Hostile = user.Team == Team.Enemies, Radius = skill.Radius, Life = life },
                 new ZoneStateComponent { State = zone });
         }
 
@@ -436,16 +507,19 @@ namespace Dino_Defenders.Server
             if (!zone.Skill.DealsDamage) return;
 
             _chained.Clear();
-            Grid.Foes(zone.Source.Team, zone.At, zone.Skill.Radius, _chained);
-            foreach (Actor foe in _chained) Hit(zone.Source, zone.Skill, foe, 1f, zone.At);
+            Within(GroundShape.Circle(zone.At, zone.Skill.Radius), zone.Source.Team, _chained);
+            foreach (Actor foe in _chained) Hit(zone.Source, zone.Skill, foe, 1f, zone.At, foe.Position - zone.At);
         }
 
         // ---- Landing.
 
         /// <summary>One skill reaching one target. This is the whole of what happens when anything hits anything.</summary>
-        public void Hit(Actor source, SkillProfile skill, Actor target, float strength, Vector2 from)
+        /// <param name="way">Which way the blow is going, however long, if it's not simply away from where it came from.</param>
+        public void Hit(Actor source, SkillProfile skill, Actor target, float strength, Vector2 from, Vector2 way = default)
         {
             if (target.Dead) return;
+            if (way.LengthSquared <= 0.01f) way = target.Position - from;
+            way = way.LengthSquared > 0.01f ? way.Normalized() : Vector2.UnitY;
 
             // Nothing stands idle while someone shoots at it, and it doesn't keep that to itself.
             target.Alarm = EnemyBrainSystem.StruckAlarm;
@@ -463,14 +537,14 @@ namespace Dino_Defenders.Server
             bool attack = (skill.Tags & Tags.Attack) != 0;
             if (attack && _luck.Float() < Hits.EvadeChance(target.Sheet.Evasion, skill.Accuracy))
             {
-                Show(new DamageEvent { Position = point, Note = HitNote.Evaded, ToHero = target.IsHero }, target.Position);
+                Show(new DamageEvent { Position = point, Note = HitNote.Evaded, ToHero = target.IsHero, Target = GhostOf(target) }, target.Position);
                 return;
             }
 
             float block = attack ? target.Sheet.BlockAttacks : (skill.Tags & Tags.Spell) != 0 ? target.Sheet.BlockSpells : 0f;
             if (block > 0f && _luck.Float() * 100f < block)
             {
-                Blocked(source, skill, target, foe, point);
+                Blocked(source, skill, target, foe, point, way);
                 return;
             }
 
@@ -520,10 +594,13 @@ namespace Dino_Defenders.Server
             }
 
             if (Shoulder(target, ref hit)) total = hit.Total;
+            float healthBefore = target.Vitals.Health;
             float lost = hit.Total > 0f ? Hits.Pay(target.Sheet, ref target.Vitals, hit) : 0f;
             target.SinceHit = 0f;
 
-            Show(new DamageEvent { Position = point, Amount = total, Critical = hit.Critical, ToHero = target.IsHero, Body = BodyOf(target), Type = StrongestOf(hit) }, target.Position);
+            float weight = total / MathF.Max(target.Sheet.MaxHealth, 1f);
+            Show(new DamageEvent { Position = point, Amount = total, Critical = hit.Critical, ToHero = target.IsHero, Body = BodyOf(target), Type = StrongestOf(hit), Target = GhostOf(target), Way = way, Weight = weight }, target.Position);
+            Shove(target, skill, way, weight, hit.Critical);
 
             if (hit.Critical) source.SinceCrit = 0f;
             Recover(source, skill, total);
@@ -540,7 +617,39 @@ namespace Dino_Defenders.Server
 
             if (target.Sheet.Has(Rule.Mimic) && target.Player is ServerPlayer mimic && !skill.Skill.Hidden) mimic.Mimic(skill.Skill);
 
-            if (target.Vitals.Health <= 0f) Die(target, source, skill, from);
+            if (target.Vitals.Health <= 0f) Die(target, source, skill, from, Throw(way, (total - healthBefore) / MathF.Max(target.Sheet.MaxHealth, 1f), ForceOf(skill, hit.Critical)));
+        }
+
+        // How much of a blow is behind it: slow ones have more, and whatever went round the whole body has most.
+        private static float ForceOf(SkillProfile? skill, bool critical)
+        {
+            float force = skill == null ? 1f : Math.Clamp(skill.Skill.UseTime / 0.6f, 0.8f, 1.6f);
+            return critical ? force * CriticalForce : force;
+        }
+
+        // What a blow does to someone it doesn't kill. It only ever moves those the rules allow to be moved: a hero's feet are their own, or they couldn't predict them.
+        private static void Shove(Actor target, SkillProfile skill, Vector2 way, float weight, bool critical)
+        {
+            if (target.IsHero || target.Still) return;
+
+            float give = (target.Nature & Condition.Boss) != 0 ? BossGive : (target.Nature & Condition.Elite) != 0 ? EliteGive : 1f;
+            target.Push += way * (MathF.Min(weight * PushPerHealth * ForceOf(skill, critical), MostPush) * give);
+            target.Reeling = MathF.Max(target.Reeling, MathF.Min(ReelFrom + weight * ReelPerHealth, MostReel) * give);
+        }
+
+        // What's left of someone is thrown by however much more than enough it was. A blow that only just did it lets them drop, and one worth many of them sends them across the screen.
+        private static Vector3 Throw(Vector2 way, float pastDead, float force)
+        {
+            float past = MathF.Max(pastDead, 0f);
+            float speed = LeastThrow + MostThrow * (1f - MathF.Exp(-past * ThrowRate)) * force;
+            return new Vector3(way.X * speed, speed * ThrowLift, way.Y * speed);
+        }
+
+        private uint GhostOf(Actor actor)
+        {
+            if (!actor.Entity.IsValid() || !World.TryGetEntityLocation(actor.Entity, out _, out _)) return 0;
+            EntityView view = World.GetEntityView(actor.Entity);
+            return view.Has<NetIdentityComponent>() ? view.Get<NetIdentityComponent>().Id : 0;
         }
 
         // What standing where you are is worth, for those who've arranged that.
@@ -575,14 +684,14 @@ namespace Dino_Defenders.Server
         {
             target.SinceDodge = 0f;
             if (target.Sheet.Has(Rule.DodgeCrit)) target.Critical = true;
-            Show(new DamageEvent { Position = point, Note = HitNote.Dodged, ToHero = true }, target.Position);
+            Show(new DamageEvent { Position = point, Note = HitNote.Dodged, ToHero = true, Target = GhostOf(target) }, target.Position);
             SetOff(target, TriggerEvent.Dodge, target.Position);
         }
 
-        private void Blocked(Actor source, SkillProfile skill, Actor target, Condition foe, Vector3 point)
+        private void Blocked(Actor source, SkillProfile skill, Actor target, Condition foe, Vector3 point, Vector2 way)
         {
             target.SinceBlock = 0f;
-            Show(new DamageEvent { Position = point, Note = HitNote.Blocked, ToHero = target.IsHero }, target.Position);
+            Show(new DamageEvent { Position = point, Note = HitNote.Blocked, ToHero = target.IsHero, Target = GhostOf(target), Way = way, Weight = 0.1f }, target.Position);
             SetOff(target, TriggerEvent.Block, target.Position);
 
             if (!target.Sheet.Has(Rule.BlockReflects)) return;
@@ -592,7 +701,8 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>Damage that isn't a blow: thorns, a blow turned back, a burst of something. It's resisted, but it can't be dodged, and it sets nothing off.</summary>
-        public void Harm(Actor source, Actor target, float amount, DamageType type, Tags tags = Tags.None)
+        /// <param name="from">Where it came from, if not from whoever did it.</param>
+        public void Harm(Actor source, Actor target, float amount, DamageType type, Tags tags = Tags.None, Vector2? from = null)
         {
             if (target.Dead || amount <= 0f) return;
 
@@ -600,14 +710,19 @@ namespace Dino_Defenders.Server
             hit.Damage[(int)type] = amount;
             hit.Tags = tags;
             float total = Hits.Mitigate(target.Sheet, ref hit, source.State, target.Afflictions.ResistanceLost, target.TakenIncrease);
+            float healthBefore = target.Vitals.Health;
             Hits.Pay(target.Sheet, ref target.Vitals, hit);
             target.SinceHit = 0f;
 
+            Vector2 origin = from ?? source.Position;
+            Vector2 way = target.Position - origin;
+            way = way.LengthSquared > 0.01f ? way.Normalized() : Vector2.UnitY;
+
             Vector3 point = new Vector3(target.Position.X, target.Height + 3.4f, target.Position.Y);
-            Show(new DamageEvent { Position = point, Amount = total, ToHero = target.IsHero, Body = BodyOf(target), Type = type }, target.Position);
+            Show(new DamageEvent { Position = point, Amount = total, ToHero = target.IsHero, Body = BodyOf(target), Type = type, Target = GhostOf(target), Way = way, Weight = total / MathF.Max(target.Sheet.MaxHealth, 1f) }, target.Position);
 
             Wake(target);
-            if (target.Vitals.Health <= 0f) Die(target, source, null, source.Position);
+            if (target.Vitals.Health <= 0f) Die(target, source, null, origin, Throw(way, (total - healthBefore) / MathF.Max(target.Sheet.MaxHealth, 1f), BlastForce));
         }
 
         private void Blast(Actor source, Vector2 at, float radius, DamageType type, float amount, Tags tags, Actor? spared)
@@ -616,7 +731,7 @@ namespace Dino_Defenders.Server
             Grid.Foes(source.Team, at, radius, _chained);
             foreach (Actor foe in _chained)
             {
-                if (foe != spared) Harm(source, foe, amount, type, tags);
+                if (foe != spared) Harm(source, foe, amount, type, tags, at);
             }
         }
 
@@ -923,11 +1038,11 @@ namespace Dino_Defenders.Server
             if (dealt > 0f)
             {
                 Hits.Pay(sheet, ref actor.Vitals, dealt, 0f);
-                if (actor.Vitals.Health <= 0f) Die(actor, killer ?? actor, null, actor.Position);
+                if (actor.Vitals.Health <= 0f) Die(actor, killer ?? actor, null, actor.Position, Vector3.Zero);
             }
 
             Hits.Recover(sheet, ref actor.Vitals, seconds, actor.SinceHit);
-            if (actor.Vitals.Health <= 0f && !actor.Dead) Die(actor, actor, null, actor.Position);
+            if (actor.Vitals.Health <= 0f && !actor.Dead) Die(actor, actor, null, actor.Position, Vector3.Zero);
         }
 
         /// <summary>Someone's time is up, through nobody's doing.</summary>
@@ -936,11 +1051,11 @@ namespace Dino_Defenders.Server
             if (actor.Dead) return;
             actor.Dead = true;
             actor.Vitals.Health = 0f;
-            _session.Fell(actor, actor.Position);
+            _session.Fell(actor, Vector3.Zero);
         }
 
         // Whoever dies, this is what it does for them, and for whoever did it.
-        private void Die(Actor actor, Actor killer, SkillProfile? skill, Vector2 from)
+        private void Die(Actor actor, Actor killer, SkillProfile? skill, Vector2 from, Vector3 thrown)
         {
             if (actor.Dead) return;
 
@@ -962,14 +1077,18 @@ namespace Dino_Defenders.Server
             if (actor.Sheet.Has(Rule.BurstsOnDeath)) BeginBurst(actor);
             if (actor.Sheet.Has(Rule.RalliesOnDeath)) Defer(new Consequence { Kind = Later.Rally, At = Now, Source = actor });
 
-            if (actor.Player != null) return;
-            _session.Fell(actor, from);
+            if (actor.Player != null)
+            {
+                _session.HeroThrown(actor, thrown);
+                return;
+            }
+            _session.Fell(actor, thrown);
         }
 
         // It's the ring that's the danger, so there's long enough to see it and get clear. A crowd going up at once can kill whoever stands in the middle of it, and that's the omen working.
         private void BeginBurst(Actor actor)
         {
-            Show(new SkillEvent { Position = Ground(actor.Position), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Warning, Radius = BurstRadius, Time = BurstDelay }, actor.Position);
+            Warn(GroundShape.Circle(actor.Position, BurstRadius), SkillCatalog.Immolate.Number, MarkTier.Grave, actor.Team == Team.Enemies, BurstDelay);
             float amount = Bestiary.DamageAt(actor.Loadout.Level) * BurstShare * _session.Offering.EnemyDamage;
             Defer(new Consequence { Kind = Later.Burst, At = Now + BurstDelay, Source = actor, Origin = actor.Position, Radius = BurstRadius, Type = DamageType.Fire, Amount = amount, Tags = Tags.Reaction });
         }
@@ -985,7 +1104,7 @@ namespace Dino_Defenders.Server
                 AddBuff(ally, BuffCatalog.Rallied, 0f);
                 anyone = true;
             }
-            if (anyone) Show(new SkillEvent { Position = Ground(fallen.Position), Skill = SkillCatalog.Strike.Number, Phase = SkillPhase.Warning, Radius = RallyReach, Time = 0.3f }, fallen.Position);
+            if (anyone) Show(new SkillEvent { Position = Ground(fallen.Position), Skill = SkillCatalog.Strike.Number, Phase = SkillPhase.Burst, Radius = RallyReach }, fallen.Position);
         }
 
         private void Credit(Actor killer, Actor victim, SkillProfile? skill)

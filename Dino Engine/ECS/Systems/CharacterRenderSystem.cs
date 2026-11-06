@@ -42,23 +42,6 @@ namespace Dino_Engine.ECS.Systems
                 {
                     glModel model = modelArray[i].model;
                     Matrix4 modelMatrix = matrixArray[i].value;
-                    var skeleton = skeletonArray[i];
-
-                    var skinningMatrices = skeleton.SkinningMatrices;
-                    int boneCount = skinningMatrices != null ? skinningMatrices.Length : (int)BoneType.Count;
-                    Matrix4[] skinningMatricesCopy = new Matrix4[boneCount];
-
-                    if (skinningMatrices != null && skinningMatrices.Length > 0)
-                    {
-                        Array.Copy(skinningMatrices, skinningMatricesCopy, boneCount);
-                    }
-                    else
-                    {
-                        for (int b = 0; b < boneCount; b++)
-                        {
-                            skinningMatricesCopy[b] = Matrix4.Identity;
-                        }
-                    }
 
                     if (!_characterCommands.TryGetValue(model, out var list))
                     {
@@ -69,7 +52,7 @@ namespace Dino_Engine.ECS.Systems
                     list.Add(new CharacterInstanceData
                     {
                         ModelMatrix = modelMatrix,
-                        SkinningMatrices = skinningMatricesCopy
+                        SkinningMatrices = skeletonArray[i].SkinningMatrices
                     });
                 }
             }

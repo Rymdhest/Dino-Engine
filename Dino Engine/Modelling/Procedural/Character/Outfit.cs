@@ -65,7 +65,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
             }
 
             dressed.Add(HumanoidGenerator.Generate(body, covered));
-            return dressed.Build(bones: true);
+            return BodyForm.Spread(dressed.Build(bones: true));
         }
 
         // How far forward a chest comes, for what lies on it.

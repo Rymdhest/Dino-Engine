@@ -169,8 +169,19 @@ namespace Dino_Defenders.Server
             }
         }
 
+        /// <summary>A hero has been struck down, and how hard, for those watching.</summary>
+        public void HeroThrown(Actor actor, Vector3 thrown)
+        {
+            ECSWorld ecs = Server.Ecs;
+            if (!actor.Entity.IsValid() || !ecs.TryGetEntityLocation(actor.Entity, out _, out _)) return;
+            EntityView view = ecs.GetEntityView(actor.Entity);
+            var hero = view.Get<HeroComponent>();
+            hero.Thrown = thrown;
+            view.Set(hero);
+        }
+
         /// <summary>Someone who isn't a hero has fallen. It stays on the ground a while, and what happens next depends on whose side it was on.</summary>
-        public void Fell(Actor actor, Vector2 from)
+        public void Fell(Actor actor, Vector3 thrown)
         {
             ECSWorld ecs = Server.Ecs;
             if (!actor.Entity.IsValid() || !ecs.TryGetEntityLocation(actor.Entity, out _, out _)) return;
@@ -180,13 +191,14 @@ namespace Dino_Defenders.Server
             var brain = view.Get<EnemyBrainComponent>();
             Vector3 position = view.Get<PositionComponent>().value;
 
-            Vector2 away = position.Xz - from;
-            away = away.LengthSquared > 0.01f ? away.Normalized() : Vector2.UnitX;
+            Combat.Withdraw(brain.Mark);
             enemy.State = EnemyState.Dead;
-            enemy.FallAxis = new Vector3(away.Y, 0f, -away.X);
+            enemy.Thrown = thrown;
             brain.StateTime = 0f;
+            brain.Mark = default;
             view.Set(enemy);
             view.Set(brain);
+            Combat.Stop(actor.Entity);
             view.Set(new VelocityComponent());
             view.Set(new HealthComponent { Current = 0f, Max = actor.Sheet.MaxHealth });
 
@@ -283,7 +295,7 @@ namespace Dino_Defenders.Server
             var enemy = new EnemyComponent { Name = name, Rank = EnemyRank.Normal, Level = owner.Loadout.Level, Friendly = true };
             var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = owner.Position, AggroRadius = aggro, LeashRadius = 45f };
             var position = new Vector3(at.X, height, at.Y);
-            actor.Entity = ecs.CreateEntity(name, Bodies.Walking(Server, model, position, scale, 1.5f, enemy, brain, new HealthComponent(loadout.SheetFor(Condition.None).MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            actor.Entity = ecs.CreateEntity(name, Bodies.Walking(Server, model, position, scale, 1.5f, enemy, brain, new HealthComponent(loadout.SheetFor(Condition.None).MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
             Minions.Add(actor);
             return actor;
         }

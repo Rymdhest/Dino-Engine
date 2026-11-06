@@ -38,7 +38,9 @@ void main() {
 
 	vec3 worldPosition = (invViewMatrix * vec4(viewSpacePos, 1.0)).xyz;
 	// Characters' own shader keeps them whole; for everything else this opens the view to the player.
+#ifndef CHARACTER
 	applyFocusCutout(worldPosition);
+#endif
 
 	vec2 uvDX = dFdx(fragUV);
 	vec2 uvDY = dFdy(fragUV);

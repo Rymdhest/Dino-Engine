@@ -1,7 +1,8 @@
+using Dino_Engine.Animation;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Architecture;
-using Dino_Engine.Textures;
+using Dino_Engine.Modelling.Procedural.Gear;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 
@@ -28,28 +29,42 @@ namespace Dino_Engine.Modelling.Procedural.Character
     /// <summary>
     /// Builds animals on the same fourteen bones as people, so that everything that moves a character moves them. The arms are the forelegs: they're
     /// built out to the side as a person's are in the T-pose, and the same rotation that drops a person's arm stands a foreleg under the shoulder. Only where the
-    /// joints are differs, so each look has a rig of its own, for <see cref="SkeletonComponent(Matrix4[])"/>. Forward is +z, as it is for people.
+    /// joints are differs, so each look has a <see cref="Animation.Rig"/> of its own. Forward is +z, as it is for people.
     /// </summary>
     public static class BeastGenerator
     {
         private const float ShoulderWidth = 0.34f;
+        private const float Ankle = 0.08f;
 
-        private static VertexMaterial Fur(Vector3 colour) => new VertexMaterial(TextureGenerator.leather, new Colour(colour));
-        private static VertexMaterial Flat(Vector3 colour) => new VertexMaterial(TextureGenerator.flat, new Colour(colour));
+        private static VertexMaterial Fur(Vector3 colour) => new VertexMaterial(GearMaterials.Leather, new Colour(colour));
+        private static VertexMaterial Flat(Vector3 colour) => new VertexMaterial(GearMaterials.Skin, new Colour(colour));
 
         private static float FrontZ(BeastLook look) => look.Length * 0.42f;
         private static float BackZ(BeastLook look) => -look.Length * 0.42f;
         private static Vector3 NeckRoot(BeastLook look) => new Vector3(0f, look.Height + look.Girth * 0.3f, look.Length * 0.46f);
 
-        /// <summary>Where this animal's joints are, as the inverse bind matrices of its skeleton.</summary>
-        public static Matrix4[] Rig(BeastLook look)
+        private static Vector3 HeadCentre(BeastLook look) => NeckRoot(look) + new Vector3(0f, look.Neck * 0.42f, look.Neck * 0.82f);
+        private static float BodyHeight(BeastLook look) => look.Height + look.Girth * 0.1f;
+        private static Vector3 TailRoot(BeastLook look) => new Vector3(0f, BodyHeight(look) + look.Girth * 0.3f, -look.Length * 0.52f - look.Girth * 0.5f);
+        private static Vector3 TailBend(BeastLook look) => TailRoot(look) + new Vector3(0f, -look.Tail * 0.3f, -look.Tail * 0.5f);
+
+        /// <summary>Where this animal's joints are.</summary>
+        public static Rig RigOf(BeastLook look)
         {
-            var bones = new Matrix4[(int)BoneType.Count];
-            void Set(BoneType bone, Vector3 pivot) => bones[(int)bone] = Matrix4.CreateTranslation(-pivot);
+            var bones = new Vector3[(int)BoneType.Count];
+            void Set(BoneType bone, Vector3 pivot) => bones[(int)bone] = pivot;
 
             float half = look.Height * 0.5f;
-            Set(BoneType.Chest, new Vector3(0f, look.Height, 0f));
-            Set(BoneType.Head, NeckRoot(look));
+            float back = BodyHeight(look);
+            Set(BoneType.Pelvis, new Vector3(0f, back, BackZ(look)));
+            Set(BoneType.Spine, new Vector3(0f, back, 0f));
+            Set(BoneType.Chest, new Vector3(0f, back, FrontZ(look)));
+            Set(BoneType.Neck, NeckRoot(look));
+            Set(BoneType.Head, HeadCentre(look));
+            Set(BoneType.ClavicleL, new Vector3(0f, back, FrontZ(look)));
+            Set(BoneType.ClavicleR, new Vector3(0f, back, FrontZ(look)));
+            Set(BoneType.TailBase, TailRoot(look));
+            Set(BoneType.TailTip, TailBend(look));
             for (int side = -1; side <= 1; side += 2)
             {
                 bool left = side > 0;
@@ -59,14 +74,56 @@ namespace Dino_Engine.Modelling.Procedural.Character
                 Set(left ? BoneType.HandL : BoneType.HandR, new Vector3(x + look.Height * side, look.Height, FrontZ(look)));
                 Set(left ? BoneType.UpperLegL : BoneType.UpperLegR, new Vector3(x, look.Height, BackZ(look)));
                 Set(left ? BoneType.LowerLegL : BoneType.LowerLegR, new Vector3(x, half, BackZ(look)));
-                Set(left ? BoneType.FootL : BoneType.FootR, new Vector3(x, 0f, BackZ(look)));
+                Set(left ? BoneType.FootL : BoneType.FootR, new Vector3(x, Ankle, BackZ(look)));
             }
-            return bones;
+            return new Rig(BodyPlan.Quadruped, bones, Ankle, 0.14f, 0.1f);
+        }
+
+        // Everything on the body goes along the back, and what's on the head goes up the neck: the same as a person's skin, along another way.
+        private static Mesh Spread(Mesh mesh, BeastLook look)
+        {
+            float hind = BackZ(look);
+            float fore = FrontZ(look);
+            Vector3 neck = NeckRoot(look);
+            Vector3 toHead = HeadCentre(look) - neck;
+            float neckLength = toHead.LengthSquared;
+
+            for (int i = 0; i < mesh.meshVertices.Count; i++)
+            {
+                MeshVertex vertex = mesh.meshVertices[i];
+                Vector3 at = vertex.position;
+                if ((int)vertex.boneIndices.X == (int)BoneType.Chest && vertex.BoneWeights.Y <= 0f)
+                {
+                    float along = (at.Z - hind) / (fore - hind);
+                    float pelvis = (int)BoneType.Pelvis, spine = (int)BoneType.Spine, chest = (int)BoneType.Chest;
+                    if (along < 0.15f) (vertex.boneIndices, vertex.BoneWeights) = (new Vector2(pelvis, 0f), new Vector2(1f, 0f));
+                    else if (along < 0.5f) (vertex.boneIndices, vertex.BoneWeights) = (new Vector2(pelvis, spine), Shared((along - 0.15f) / 0.35f));
+                    else if (along < 0.85f) (vertex.boneIndices, vertex.BoneWeights) = (new Vector2(spine, chest), Shared((along - 0.5f) / 0.35f));
+                    else (vertex.boneIndices, vertex.BoneWeights) = (new Vector2(chest, 0f), new Vector2(1f, 0f));
+                }
+                else if ((int)vertex.boneIndices.X == (int)BoneType.Head && vertex.BoneWeights.Y <= 0f)
+                {
+                    float along = Vector3.Dot(at - neck, toHead) / neckLength;
+                    float neckBone = (int)BoneType.Neck, head = (int)BoneType.Head;
+                    if (along < 0.3f) (vertex.boneIndices, vertex.BoneWeights) = (new Vector2(neckBone, 0f), new Vector2(1f, 0f));
+                    else if (along < 0.85f) (vertex.boneIndices, vertex.BoneWeights) = (new Vector2(neckBone, head), Shared((along - 0.3f) / 0.55f));
+                    else (vertex.boneIndices, vertex.BoneWeights) = (new Vector2(head, 0f), new Vector2(1f, 0f));
+                }
+                mesh.meshVertices[i] = vertex;
+            }
+            return mesh;
+        }
+
+        private static Vector2 Shared(float t)
+        {
+            float eased = t * t * (3f - 2f * t);
+            return new Vector2(1f - eased, eased);
         }
 
         public static Mesh Generate(BeastLook look)
         {
             Mesh body = BuildBody(look).setAllBoneIndices(new Vector2((int)BoneType.Chest, 0f));
+            if (look.Tail > 0f) body += BuildTail(look, BoneType.TailBase, 0f, 0.5f) + BuildTail(look, BoneType.TailTip, 0.5f, 1f);
             body += BuildHead(look).setAllBoneIndices(new Vector2((int)BoneType.Head, 0f));
 
             for (int side = -1; side <= 1; side += 2)
@@ -89,7 +146,18 @@ namespace Dino_Engine.Modelling.Procedural.Character
             }
 
             body.isUsingBones = true;
-            return body;
+            return Spread(body, look);
+        }
+
+        private static Mesh BuildTail(BeastLook look, BoneType bone, float from, float to)
+        {
+            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            Vector3 root = TailRoot(look);
+            Vector3 bend = TailBend(look);
+            Vector3 tip = bend + new Vector3(0f, -look.Tail * 0.35f, -look.Tail * 0.45f);
+            if (from < 0.5f) b.Tube(root, bend, 0.11f, 0.14f, 6, Fur(look.Coat));
+            else b.Tube(bend, tip, 0.14f, 0.03f, 6, Fur(look.Coat));
+            return b.Build().setAllBoneIndices(new Vector2((int)bone, 0f));
         }
 
         private static Mesh Limb(Vector3 from, Vector3 to, float top, float bottom, BeastLook look)
@@ -115,7 +183,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
             float girth = look.Girth;
             float back = -look.Length * 0.52f;
             float front = look.Length * 0.52f;
-            float y = look.Height + girth * 0.1f;
+            float y = BodyHeight(look);
             float high = y + look.Hump;
 
             // Deep at the chest, drawn in at the loin, round at the rump.
@@ -129,15 +197,6 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
             b.Add(IcoSphereGenerator.CreateIcosphere(2, Fur(look.Belly)), new Vector3(0f, y - girth * 0.55f, front * 0.3f), new Vector3(girth * 0.68f, girth * 0.5f, look.Length * 0.34f));
             b.Add(IcoSphereGenerator.CreateIcosphere(2, coat), new Vector3(0f, y, back), new Vector3(girth * 0.76f, girth * 0.82f, girth * 0.76f));
-
-            if (look.Tail > 0f)
-            {
-                var root = new Vector3(0f, y + girth * 0.3f, back - girth * 0.5f);
-                var droop = root + new Vector3(0f, -look.Tail * 0.3f, -look.Tail * 0.5f);
-                var tip = droop + new Vector3(0f, -look.Tail * 0.35f, -look.Tail * 0.45f);
-                b.Tube(root, droop, 0.11f, 0.14f, 6, coat);
-                b.Tube(droop, tip, 0.14f, 0.03f, 6, coat);
-            }
             return b.Build();
         }
 
@@ -146,7 +205,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
             var b = new MeshBuilder { TilesPerMetre = 0.5f };
             VertexMaterial coat = Fur(look.Coat);
             Vector3 root = NeckRoot(look);
-            Vector3 centre = root + new Vector3(0f, look.Neck * 0.42f, look.Neck * 0.82f);
+            Vector3 centre = HeadCentre(look);
             float skull = look.Skull;
 
             b.Tube(root, centre, look.Girth * 0.62f, skull * 0.72f, 8, coat);

@@ -8,16 +8,25 @@ namespace Dino_Engine.Networking
         private readonly record struct Pending(uint Tick, Action Invoke);
 
         private readonly Dictionary<Type, Delegate> _handlers = new();
+        private readonly Dictionary<Type, Delegate> _urgent = new();
         private readonly List<Pending> _pending = new();
 
+        /// <summary>Everyone who asks hears it, in the order they asked.</summary>
         public void On<T>(Action<T> handler) where T : struct
         {
-            _handlers[typeof(T)] = handler;
+            _handlers[typeof(T)] = _handlers.TryGetValue(typeof(T), out Delegate? others) ? Delegate.Combine(others, handler) : handler;
         }
+
+        /// <summary>
+        /// Says which of these can't wait for the moment they happened to come round. What's drawn is a little in the past, and most things are shown then, with everything else. Something that happens to
+        /// this player's own hero is the exception: that hero is drawn in the present, and has already been struck by the time anything else would be seen to happen.
+        /// </summary>
+        public void Urgent<T>(Func<T, bool> whether) where T : struct => _urgent[typeof(T)] = whether;
 
         internal void Queue<T>(T value, uint tick) where T : struct
         {
             if (!_handlers.TryGetValue(typeof(T), out Delegate? handler)) return;
+            if (_urgent.TryGetValue(typeof(T), out Delegate? urgent) && ((Func<T, bool>)urgent)(value)) tick = 0;
             var action = (Action<T>)handler;
             _pending.Add(new Pending(tick, () => action(value)));
         }

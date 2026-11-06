@@ -18,6 +18,7 @@ namespace Dino_Defenders.Server
         public int Chains;
         public float Strength = 1f;
         public Vector2 Start;
+        public Vector2 Way;
         public bool Returning;
         public readonly List<Actor> Spent = new();
     }
@@ -187,6 +188,33 @@ namespace Dino_Defenders.Server
             if (flying && projectile.Skill.Radius > 0f) session.Combat.Burst(projectile, position.Xz);
             session.Combat.Returns(projectile, position);
             world.DestroyEntity(entity.Entity);
+        }
+    }
+
+    /// <summary>How long a mark on the ground has left.</summary>
+    public struct TelegraphLifeComponent : IComponent
+    {
+        public float Left;
+    }
+
+    /// <summary>Clears away marks on the ground once what they were for has happened.</summary>
+    public class TelegraphSystem : SystemBase
+    {
+        private readonly GameServer _server;
+
+        public TelegraphSystem(GameServer server)
+            : base(new BitMask(typeof(TelegraphLifeComponent)))
+        {
+            _server = server;
+        }
+
+        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
+        {
+            if (_server.Session is not { Paused: false }) return;
+            var life = entity.Get<TelegraphLifeComponent>();
+            life.Left -= deltaTime;
+            if (life.Left <= 0f) world.DestroyEntity(entity.Entity);
+            else entity.Set(life);
         }
     }
 

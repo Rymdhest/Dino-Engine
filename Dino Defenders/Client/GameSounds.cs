@@ -2,7 +2,6 @@ using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
-using Dino_Engine.Animation;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -16,10 +15,9 @@ using OpenTK.Mathematics;
 
 namespace Dino_Defenders.Client
 {
-    /// <summary>Where in the run cycle a character was last seen, to know when a foot has come down.</summary>
+    /// <summary>What a body's feet were last in.</summary>
     public struct FootfallComponent : IComponent
     {
-        public float Phase;
         public bool InWater;
     }
 
@@ -301,8 +299,8 @@ namespace Dino_Defenders.Client
         public static Dictionary<Ground, int> StepsHeard { get; } = new();
 
         private readonly Func<GameSounds?> _sounds;
-        private readonly BitMask _feet = new BitMask(typeof(FootfallComponent), typeof(AnimationComponent), typeof(VelocityComponent), typeof(PositionComponent));
-        private readonly BitMask _swings = new BitMask(typeof(SwingComponent), typeof(PositionComponent), typeof(VisualComponent));
+        private readonly BitMask _feet = new BitMask(typeof(FootfallComponent), typeof(AnimatorComponent), typeof(VelocityComponent), typeof(PositionComponent));
+        private readonly BitMask _swings = new BitMask(typeof(ActionComponent), typeof(PositionComponent), typeof(VisualComponent));
         private readonly BitMask _enemies = new BitMask(typeof(EnemyComponent), typeof(PositionComponent), typeof(VisualComponent));
         private readonly BitMask _heroes = new BitMask(typeof(HeroComponent), typeof(HealthComponent), typeof(PositionComponent));
         private readonly BitMask _arrows = new BitMask(typeof(BallisticComponent), typeof(PositionComponent));
@@ -336,22 +334,10 @@ namespace Dino_Defenders.Client
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
+                    // Heard from the feet themselves, so that what's seen and what's heard can't drift apart.
+                    if (entity.Get<AnimatorComponent>().Animator.Footfalls == 0) continue;
+
                     var foot = entity.Get<FootfallComponent>();
-                    AnimationLayer? run = RunLayer(entity.Get<AnimationComponent>());
-                    if (run == null)
-                    {
-                        foot.Phase = 0f;
-                        entity.Set(foot);
-                        continue;
-                    }
-
-                    // The run cycle lands a foot at its start and at its half. Heard from the animation itself, what's seen and heard can't drift apart.
-                    float phase = run.Time / run.Clip.Duration % 1f;
-                    bool landed = (foot.Phase < 0.5f && phase >= 0.5f) || phase < foot.Phase;
-                    foot.Phase = phase;
-                    entity.Set(foot);
-                    if (!landed) continue;
-
                     float speed = entity.Get<VelocityComponent>().value.Length;
                     Vector3 position = entity.Get<PositionComponent>().value;
                     if (speed < SlowestStep || (position.Xz - listener).LengthSquared > FarFootfall * FarFootfall) continue;
@@ -361,15 +347,6 @@ namespace Dino_Defenders.Client
                     entity.Set(foot);
                 }
             }
-        }
-
-        private static AnimationLayer? RunLayer(in AnimationComponent animation)
-        {
-            foreach (AnimationLayer layer in animation.Layers)
-            {
-                if (layer.ClipId == animation.RunClip) return layer;
-            }
-            return null;
         }
 
         // Says whether the foot came down in water.
@@ -436,10 +413,10 @@ namespace Dino_Defenders.Client
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
-                    var swing = entity.Get<SwingComponent>();
-                    if (swing.Serial == swing.Heard) continue;
-                    swing.Heard = swing.Serial;
-                    entity.Set(swing);
+                    var action = entity.Get<ActionComponent>();
+                    if (action.Serial == action.Heard) continue;
+                    action.Heard = action.Serial;
+                    entity.Set(action);
 
                     if (entity.Entity.Id == own) continue;
                     Vector3 position = entity.Get<PositionComponent>().value;

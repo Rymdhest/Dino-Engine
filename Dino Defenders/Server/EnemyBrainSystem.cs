@@ -20,6 +20,13 @@ namespace Dino_Defenders.Server
         private const float PathRefresh = 0.8f;
         private const float WaypointReach = 2.2f;
         private const float ShortestWindUp = 0.45f;     // However quick the skill, there's always a moment to get out of the way.
+        private const float HeavyWindUp = 0.7f;
+        private const float BossWindUp = 1.25f;
+        private const float EscapeSpeed = 12f;          // Metres a second it's taken that someone can get out of an area at. An area gives them that long, near enough.
+        private const float EscapeShare = 0.7f;
+        private const float MostFollowThrough = 0.75f;
+        private const float PushFade = 9f;              // Per second.
+        private const float ReelingSpeed = 0.2f;        // What's left of how fast it was going.
         private const float MeleeSlack = 1.2f;
         private const float FollowDistance = 7f;
         private const float CallReach = 20f;            // How far a cry carries. Less than the gap between packs, so one pack doesn't bring the next.
@@ -60,7 +67,13 @@ namespace Dino_Defenders.Server
             // Frozen or stunned, nothing happens, and what it was winding up is lost.
             if (actor.Afflictions.Held)
             {
-                if (enemy.State == EnemyState.WindingUp) Change(ref enemy, ref brain, EnemyState.Recovering);
+                if (enemy.State == EnemyState.WindingUp)
+                {
+                    session.Combat.Withdraw(brain.Mark);
+                    session.Combat.Stop(entity.Entity);
+                    brain.Mark = default;
+                    Change(ref enemy, ref brain, EnemyState.Recovering);
+                }
                 entity.Set(new VelocityComponent());
                 entity.Set(brain);
                 entity.Set(enemy);
@@ -115,9 +128,8 @@ namespace Dino_Defenders.Server
                     {
                         brain.Skill = ready;
                         SkillProfile chosen = actor.Sheet.Profile(ready);
-                        brain.WindUp = MathF.Max(chosen.ImpactTime, ShortestWindUp);
+                        Commit(session, entity.Entity, actor, ref brain, enemy.Rank, chosen, position, foe, toTarget);
                         Change(ref enemy, ref brain, EnemyState.WindingUp);
-                        PlaySwing(entity, brain);
                     }
                     else if (toTarget > wants * 0.75f)
                     {
@@ -133,10 +145,11 @@ namespace Dino_Defenders.Server
                     break;
 
                 case EnemyState.WindingUp:
-                    Face(entity, foe - position, deltaTime, 6f);
+                    Face(entity, brain.AimWay, deltaTime, 16f);
                     if (brain.StateTime >= brain.WindUp)
                     {
-                        if (target != null) Let(session, actor, brain, enemy, position, target, toTarget);
+                        Let(session, actor, brain);
+                        brain.Mark = default;
                         brain.Cooldown = enemy.Rank == EnemyRank.Boss ? 1.1f : 1.5f;
                         Change(ref enemy, ref brain, EnemyState.Recovering);
                     }
@@ -161,9 +174,53 @@ namespace Dino_Defenders.Server
                     break;
             }
 
+            // A blow takes the legs out of what it was doing for a moment, and the shove carries on regardless.
+            if (actor.Reeling > 0f)
+            {
+                actor.Reeling -= deltaTime;
+                velocity *= ReelingSpeed;
+            }
+            velocity += actor.Push;
+            actor.Push *= MathF.Exp(-PushFade * deltaTime);
+            if (actor.Push.LengthSquared < 0.01f) actor.Push = Vector2.Zero;
+
             entity.Set(new VelocityComponent(new Vector3(velocity.X, 0f, velocity.Y)));
             entity.Set(brain);
             entity.Set(enemy);
+        }
+
+        // Fixes what's going to happen: where from, which way and how far, and says so to all. Nothing is checked again until it lands, so that whatever a player can see is what's coming.
+        private static void Commit(ServerSession session, Entity who, Actor actor, ref EnemyBrainComponent brain, EnemyRank rank, SkillProfile skill, Vector2 position, Vector2 foe, float toTarget)
+        {
+            Vector2 toward = foe - position;
+            brain.AimFrom = position;
+            brain.AimWay = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.UnitY;
+            brain.AimReach = toTarget + MeleeSlack;
+            brain.WindUp = WindUpOf(skill, rank) / MathF.Max(actor.Afflictions.ActionRate, 0.1f);
+
+            float follow = MathF.Min(MathF.Max(skill.UseTime - skill.ImpactTime, 0.35f), MostFollowThrough);
+            session.Combat.Perform(who, skill.Skill, brain.WindUp, brain.WindUp + follow, brain.AimWay);
+
+            // Those on the heroes' side have no need of telling anyone, and there can be a lot of them.
+            if (actor.Team != Team.Enemies) return;
+            GroundShape shape = GroundShape.Of(skill, position, brain.AimWay, brain.AimReach);
+            brain.Mark = session.Combat.Warn(shape, skill.Skill.Number, TierOf(rank, skill), true, brain.WindUp + skill.Delay);
+        }
+
+        // Long enough to see it, and for anything with an area, long enough for someone in the middle of it to get to the edge.
+        private static float WindUpOf(SkillProfile skill, EnemyRank rank)
+        {
+            float windUp = MathF.Max(skill.ImpactTime, ShortestWindUp);
+            if (skill.Skill.Form is SkillForm.Nova or SkillForm.Burst or SkillForm.Zone) windUp = MathF.Max(windUp, skill.Radius / EscapeSpeed * EscapeShare + 0.2f);
+            if (skill.Skill.Arc >= MathF.Tau || skill.Skill.UseTime >= 0.95f) windUp = MathF.Max(windUp, HeavyWindUp);
+            return rank == EnemyRank.Boss ? windUp * BossWindUp : windUp;
+        }
+
+        // A hero's eye goes to what can really hurt them, and a crowd of cuts from fodder would drown that out.
+        private static MarkTier TierOf(EnemyRank rank, SkillProfile skill)
+        {
+            if (rank != EnemyRank.Normal || skill.Skill.UseTime >= 0.95f || skill.Skill.Arc >= MathF.Tau) return MarkTier.Grave;
+            return skill.Skill.Form is SkillForm.Strike or SkillForm.Bolt ? MarkTier.Slight : MarkTier.Plain;
         }
 
         // What's near hears it too. A pack is one thing to a hero who walks up to it, however far its members happen to be from them.
@@ -242,15 +299,13 @@ namespace Dino_Defenders.Server
             return -1;
         }
 
-        private static void Let(ServerSession session, Actor actor, in EnemyBrainComponent brain, in EnemyComponent enemy, Vector2 position, Actor target, float distance)
+        private static void Let(ServerSession session, Actor actor, in EnemyBrainComponent brain)
         {
             SkillProfile skill = actor.Sheet.Profile(brain.Skill);
             actor.Cooldowns[brain.Skill] = skill.Cooldown;
 
-            // Reach is checked now, when the blow lands: stepping back during the wind-up makes it miss.
-            Vector2 toward = target.Position - position;
-            Vector2 facing = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.UnitY;
-            session.Combat.Release(actor, skill, position, facing, distance + MeleeSlack);
+            // It goes where it said it would. Whether anyone's still there is their business: that's the whole of how a blow gets dodged.
+            session.Combat.Release(actor, skill, brain.AimFrom, brain.AimWay, brain.AimReach);
         }
 
         public static void Face(EntityView entity, Vector2 direction, float deltaTime, float speed = 14f)
@@ -312,22 +367,14 @@ namespace Dino_Defenders.Server
             Vector2 offset = brain.Path[brain.PathStep] - position;
             return offset.LengthSquared > 0.01f ? offset.Normalized() : Vector2.Zero;
         }
-
-        private static void PlaySwing(EntityView entity, in EnemyBrainComponent brain)
-        {
-            var swing = entity.Get<SwingComponent>();
-            swing.Serial++;
-            swing.Speed = 0.4f / MathF.Max(brain.WindUp, 0.1f);
-            entity.Set(swing);
-        }
     }
 
     /// <summary>Clears away the fallen once they have had their time on the ground. How they fall is drawn on the client.</summary>
     public class DyingSystem : SystemBase
     {
         public const float FallTime = 0.5f;
-        public const float LieTime = 2.6f;
-        public const float FadeTime = 0.6f;
+        public const float LieTime = 5f;
+        public const float FadeTime = 1f;
 
         public DyingSystem()
             : base(new BitMask(typeof(EnemyComponent), typeof(EnemyBrainComponent)))

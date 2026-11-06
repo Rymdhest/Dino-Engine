@@ -1,9 +1,13 @@
-﻿using Dino_Engine.ECS.ECS_Architecture;
-using Dino_Engine.Modelling.Procedural.Indoor;
+﻿using Dino_Engine.Animation;
+using Dino_Engine.ECS.ECS_Architecture;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Components
 {
+    /// <summary>
+    /// Every bone there is, whoever it's on. Meshes hold these by number, and what isn't on anything in particular is on 0, so a new bone goes on the end and nothing has to move. An animal uses the
+    /// same ones, with its arms as forelegs.
+    /// </summary>
     public enum BoneType
     {
         Chest = 0,
@@ -12,91 +16,24 @@ namespace Dino_Engine.ECS.Components
         UpperArmR, LowerArmR, HandR,
         UpperLegL, LowerLegL, FootL,
         UpperLegR, LowerLegR, FootR,
+        Pelvis,
+        Spine,
+        Neck,
+        ClavicleL, ClavicleR,
+        TailBase, TailTip,
         Count
     }
 
+    /// <summary>What's drawn: how a body is built, and where its bones are this frame, as <see cref="CharacterAnimator"/> left them.</summary>
     public struct SkeletonComponent : IComponent
     {
-        public int[] ParentIndices;
-
-        public Vector3[] LocalRestPositions;
-        public Quaternion[] LocalRestRotations;
-
-        public Vector3[] LocalPositions;
-        public Quaternion[] LocalRotations;
-
-        public Matrix4[] ModelTransforms;
-        public Matrix4[] BindPoseInverse;
+        public Rig Rig;
         public Matrix4[] SkinningMatrices;
 
-        public SkeletonComponent() : this(SkeletonGenerator.GetInverseBindMatrices())
+        public SkeletonComponent(Rig rig, Matrix4[] skinningMatrices)
         {
-        }
-
-        /// <summary>A body with its joints elsewhere: see <see cref="Modelling.Procedural.Character.BeastGenerator"/>.</summary>
-        public SkeletonComponent(Matrix4[] inverseBind)
-        {
-            int boneCount = (int)BoneType.Count;
-
-            ParentIndices = new int[boneCount];
-            LocalRestPositions = new Vector3[boneCount];
-            LocalRestRotations = new Quaternion[boneCount];
-
-            LocalPositions = new Vector3[boneCount];
-            LocalRotations = new Quaternion[boneCount];
-
-            ModelTransforms = new Matrix4[boneCount];
-            BindPoseInverse = new Matrix4[boneCount];
-            SkinningMatrices = new Matrix4[boneCount];
-
-            InitializeBindPose(inverseBind);
-        }
-
-        public void InitializeBindPose(Matrix4[] invBind)
-        {
-            ParentIndices[(int)BoneType.Chest] = -1;
-            ParentIndices[(int)BoneType.Head] = (int)BoneType.Chest;
-
-            ParentIndices[(int)BoneType.UpperArmR] = (int)BoneType.Chest;
-            ParentIndices[(int)BoneType.LowerArmR] = (int)BoneType.UpperArmR;
-            ParentIndices[(int)BoneType.HandR] = (int)BoneType.LowerArmR;
-
-            ParentIndices[(int)BoneType.UpperArmL] = (int)BoneType.Chest;
-            ParentIndices[(int)BoneType.LowerArmL] = (int)BoneType.UpperArmL;
-            ParentIndices[(int)BoneType.HandL] = (int)BoneType.LowerArmL;
-
-            ParentIndices[(int)BoneType.UpperLegR] = (int)BoneType.Chest;
-            ParentIndices[(int)BoneType.LowerLegR] = (int)BoneType.UpperLegR;
-            ParentIndices[(int)BoneType.FootR] = (int)BoneType.LowerLegR;
-
-            ParentIndices[(int)BoneType.UpperLegL] = (int)BoneType.Chest;
-            ParentIndices[(int)BoneType.LowerLegL] = (int)BoneType.UpperLegL;
-            ParentIndices[(int)BoneType.FootL] = (int)BoneType.LowerLegL;
-
-            for (int i = 0; i < (int)BoneType.Count; i++)
-            {
-                BindPoseInverse[i] = invBind[i];
-
-                Matrix4 childGlobalRest = Matrix4.Invert(invBind[i]);
-                int parentIdx = ParentIndices[i];
-
-                Matrix4 childLocalRest;
-                if (parentIdx == -1)
-                {
-                    childLocalRest = childGlobalRest;
-                }
-                else
-                {
-                    Matrix4 parentGlobalRest = Matrix4.Invert(invBind[parentIdx]);
-                    childLocalRest = childGlobalRest * Matrix4.Invert(parentGlobalRest);
-                }
-
-                LocalRestPositions[i] = childLocalRest.ExtractTranslation();
-                LocalRestRotations[i] = childLocalRest.ExtractRotation();
-
-                LocalPositions[i] = LocalRestPositions[i];
-                LocalRotations[i] = LocalRestRotations[i];
-            }
+            Rig = rig;
+            SkinningMatrices = skinningMatrices;
         }
     }
 }

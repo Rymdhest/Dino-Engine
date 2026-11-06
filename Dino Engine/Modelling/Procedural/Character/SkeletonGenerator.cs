@@ -44,12 +44,12 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             skeleton.translate(new Vector3(0f, legLength, 0f));
             skeleton.isUsingBones = true;
-            return Character.HumanoidGenerator.Armed(skeleton, archer ? Character.HeldItem.Bow : Character.HeldItem.Sword, !archer, archer ? 11ul : 12ul);
+            return BodyForm.Spread(Character.HumanoidGenerator.Armed(skeleton, archer ? Character.HeldItem.Bow : Character.HeldItem.Sword, !archer, archer ? 11ul : 12ul));
         }
 
         public static Mesh GenerateUpperBody(out Vector3 leftArmAchnor, out Vector3 rightArmAchnor, out Vector3 leftLegAchnor, out Vector3 RightLegAchnor, out Vector3 headAnchor)
         {
-            VertexMaterial boneMaterial = new VertexMaterial(TextureGenerator.bone);
+            VertexMaterial boneMaterial = new VertexMaterial(GearMaterials.Bone);
             Mesh body = new Mesh();
             Mesh hip = IcoSphereGenerator.CreateIcosphere(3, boneMaterial);
             for (int i = 0; i < hip.meshVertices.Count; i++)
@@ -139,7 +139,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
         public static Mesh GenerateRibPart()
         {
-            VertexMaterial boneMaterial = new VertexMaterial(TextureGenerator.bone);
+            VertexMaterial boneMaterial = new VertexMaterial(GearMaterials.Bone);
             TreeBuilder spineBuilder = new TreeBuilder(boneMaterial);
             TreeBuilder.StemBuildSettings spineSettings = new TreeBuilder.StemBuildSettings();
             spineSettings.baseRadiusFactor = 0.0f;
@@ -180,7 +180,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             Vector3 scale = new Vector3(0.25f, 0.4f, 0.3f);
 
-            VertexMaterial boneMaterial = new VertexMaterial(TextureGenerator.bone);
+            VertexMaterial boneMaterial = new VertexMaterial(GearMaterials.Bone);
             Mesh head = IcoSphereGenerator.CreateIcosphere(4, boneMaterial);
             head.FlatRandomness(0.005f);
 
@@ -224,7 +224,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
                 new Vector2(0.2f, 0.54f)
             };
 
-            Mesh hat = MeshGenerator.generateCylinder(rings, 8, new VertexMaterial(TextureGenerator.leather, new Colour(0.02f, 0.02f, 0.02f)), sealTop:0.1f);
+            Mesh hat = MeshGenerator.generateCylinder(rings, 8, new VertexMaterial(GearMaterials.Leather, new Colour(0.02f, 0.02f, 0.02f)), sealTop:0.1f);
 
             head += hat.scaled(new Vector3(0.5f)).translated(new Vector3(0f, scale.Y*2.0f-scale.Y*0.4f, 0f));
 
@@ -373,57 +373,9 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
                 new Vector2(r, h-knobHeight*0.3f),
                 new Vector2(r*0.1f, h-knobHeight*0.0f)
             };
-            Mesh mesh = MeshGenerator.generateCylinder(layers, 8, new VertexMaterial(TextureGenerator.bone), sealTop:0.001f, sealBot:-0.001f);
+            Mesh mesh = MeshGenerator.generateCylinder(layers, 8, new VertexMaterial(GearMaterials.Bone), sealTop:0.001f, sealBot:-0.001f);
 
             return mesh;
-        }
-
-        public static Matrix4[] GetInverseBindMatrices()
-        {
-            float legLength = 2.0f;
-            float armLength = 1.7f;
-            float legSegment = legLength / 2.0f; // 1.0f
-            float armSegment = armLength / 2.0f; // 0.85f
-
-            Matrix4[] invBindMatrices = new Matrix4[14];
-
-            void SetInvBind(BoneType bone, Vector3 worldPivot)
-            {
-                invBindMatrices[(int)bone] = Matrix4.CreateTranslation(-worldPivot);
-            }
-
-            // --- Chest (Chest mesh vertices sit centered around Y = 2.0 in world space) ---
-            SetInvBind(BoneType.Chest, new Vector3(0f, 2.0f, 0f));
-
-            // --- Head ---
-            // rawHeadAnchor (1.85) + globalMeshOffset (2.0) = 3.85
-            SetInvBind(BoneType.Head, new Vector3(0f, 3.85f, -0.03f));
-
-            // --- Arms ---
-            // Right Arm (extends in -X)
-            SetInvBind(BoneType.UpperArmR, new Vector3(-0.45f, 3.85f, 0f));
-            SetInvBind(BoneType.LowerArmR, new Vector3(-0.45f - armSegment, 3.85f, 0f));
-            SetInvBind(BoneType.HandR, new Vector3(-0.45f - armLength, 3.85f, 0f));
-
-            // Left Arm (extends in +X)
-            SetInvBind(BoneType.UpperArmL, new Vector3(0.45f, 3.85f, 0f));
-            SetInvBind(BoneType.LowerArmL, new Vector3(0.45f + armSegment, 3.85f, 0f));
-            SetInvBind(BoneType.HandL, new Vector3(0.45f + armLength, 3.85f, 0f));
-
-            // --- Legs ---
-            // UpperLeg vertices live at Y = 1.0 to 2.0 -> Hip pivot at Y = 2.0
-            SetInvBind(BoneType.UpperLegR, new Vector3(-0.25f, 2.0f, 0f));
-            SetInvBind(BoneType.UpperLegL, new Vector3(0.25f, 2.0f, 0f));
-
-            // LowerLeg vertices live at Y = 0.0 to 1.0 -> Knee pivot at Y = 1.0
-            SetInvBind(BoneType.LowerLegR, new Vector3(-0.25f, 1.0f, 0f));
-            SetInvBind(BoneType.LowerLegL, new Vector3(0.25f, 1.0f, 0f));
-
-            // Foot vertices live at Y = 0.0 -> Ankle pivot at Y = 0.0
-            SetInvBind(BoneType.FootR, new Vector3(-0.25f, 0.0f, 0f));
-            SetInvBind(BoneType.FootL, new Vector3(0.25f, 0.0f, 0f));
-
-            return invBindMatrices;
         }
     }
 }

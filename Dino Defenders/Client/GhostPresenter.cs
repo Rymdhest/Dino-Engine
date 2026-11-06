@@ -71,9 +71,9 @@ namespace Dino_Defenders.Client
                         position = found.Origin;
                         hostileBolt = !found.FromHeroes;
                         break;
-                    case SwingComponent found:
+                    case ActionComponent found:
                         // Whatever it was last doing happened before this client was there to see it.
-                        found.Played = found.Serial;
+                        found.Heard = found.Serial;
                         components[i] = found;
                         break;
                 }
@@ -120,16 +120,13 @@ namespace Dino_Defenders.Client
             if (visual.Value.Kind == VisualKind.Character)
             {
                 components.Add(new CharacterModelComponent(_characters.Resolve(visual.Value.Model)));
-                if (CharacterFactory.BeastOf(visual.Value.Model) != null)
-                {
-                    components.Add(new AnimationComponent { RunClip = AnimationId.Gallop, AttackClip = AnimationId.Bite, Cadence = BeastCadence });
-                    components.Add(new SkeletonComponent(CharacterFactory.RigOf(visual.Value.Model)));
-                }
-                else
-                {
-                    components.Add(new AnimationComponent());
-                    components.Add(new SkeletonComponent());
-                }
+
+                // Who this is decides how they differ from everyone else of their kind, so that no two in a pack are in step.
+                CharacterFactory.Bearing bearing = CharacterFactory.BearingOf(visual.Value.Model);
+                var animator = new CharacterAnimator(bearing.Rig, bearing.Style, (int)ghost.Id);
+                animator.Hold(bearing.Carry, bearing.Shield);
+                components.Add(new AnimatorComponent(animator));
+                components.Add(new SkeletonComponent(bearing.Rig, animator.Skinning));
                 components.Add(new VelocityComponent());
                 components.Add(new FixToTerrainHeightComponent());
                 components.Add(new GrassDisplaceComponent(3f * scale) { power = 1.4f, exponent = 0.6f });
@@ -189,7 +186,6 @@ namespace Dino_Defenders.Client
         private const float ChestLightRadius = 9f;
         private const float ChestLight = 14f;
         private const float BoltLightRadius = 11f;
-        private const float BeastCadence = 2.1f;
         private const int HostileBoltsPerLight = 3;
 
         public void Created(Ghost ghost)
@@ -210,7 +206,11 @@ namespace Dino_Defenders.Client
     {
         private const float OpeningRadius = 9f;
         private const float CharacterHeight = 4.7f;
-        private const float FallingStart = 0.5f;
+        private const float BuriedDepth = 2.6f;     // How far under the ground a body goes as it's cleared away.
+        private const float AlertFor = 3.5f;        // Seconds someone stays ready after doing something.
+        private const float DashSpeed = 18f;        // Faster than this, what's seen going by isn't running.
+        private const float ChilledRate = 0.65f;
+        private const float LookReach = 34f;
         private const double ArrowCatchUp = 15.0;   // Ticks over which an arrow moves up into the player's own moment.
         private const float ArrowHitReach = 2.4f;
         private const float BoltSize = 0.42f;
@@ -221,9 +221,9 @@ namespace Dino_Defenders.Client
         private readonly BitMask _zoneMask = new BitMask(typeof(ZoneComponent), typeof(PositionComponent));
         private readonly BitMask _afflictedMask = new BitMask(typeof(AfflictedComponent), typeof(PositionComponent));
         private readonly BitMask _motionMask = new BitMask(typeof(GhostMotionComponent), typeof(PositionComponent), typeof(VelocityComponent));
-        private readonly BitMask _swingMask = new BitMask(typeof(SwingComponent), typeof(AnimationComponent));
-        private readonly BitMask _enemyMask = new BitMask(typeof(EnemyComponent), typeof(RotationComponent), typeof(ScaleComponent));
-        private readonly BitMask _heroMask = new BitMask(typeof(HeroComponent), typeof(HealthComponent), typeof(RotationComponent));
+        private readonly BitMask _bodyMask = new BitMask(typeof(ActionComponent), typeof(AnimatorComponent));
+        private readonly BitMask _enemyMask = new BitMask(typeof(EnemyComponent), typeof(AnimatorComponent));
+        private readonly BitMask _heroMask = new BitMask(typeof(HeroComponent), typeof(HealthComponent), typeof(AnimatorComponent));
         private readonly BitMask _dressedMask = new BitMask(typeof(HeroComponent), typeof(CharacterModelComponent));
         private readonly BitMask _arrowMask = new BitMask(typeof(BallisticComponent), typeof(PositionComponent), typeof(ScaleComponent));
 
@@ -249,9 +249,9 @@ namespace Dino_Defenders.Client
 
             MoveOwnHero(world, client, session);
             if (deltaTime > 0f) ReadMotion(world, deltaTime);
-            PlaySwings(world, client);
-            ToppleFallen(world, deltaTime);
-            ToppleHeroes(world, deltaTime);
+            DriveBodies(world, client, session);
+            LayDownFallen(world, deltaTime);
+            LayDownHeroes(world);
             FlyArrows(world, client, session);
             LootShow.Update(world, client, session, _effects(), _wardrobe, deltaTime);
             DressHeroes(world, client);
@@ -268,7 +268,17 @@ namespace Dino_Defenders.Client
                     int player = entity.Get<HeroComponent>().Player;
                     if (!client.Worn.TryGetValue(player, out List<WornLook>? worn)) continue;
                     if (_wardrobe.Dressed(player - 1, worn) is not Dino_Engine.Modelling.Model.glModel model) continue;
-                    if (entity.Get<CharacterModelComponent>().model != model) entity.Set(new CharacterModelComponent(model));
+                    if (entity.Get<CharacterModelComponent>().model == model) continue;
+
+                    entity.Set(new CharacterModelComponent(model));
+                    Carry carry = Carry.Nothing;
+                    bool shield = false;
+                    foreach (WornLook look in worn)
+                    {
+                        if (look.Place == WornSlot.MainHand) carry = SkillMotions.CarryOf(ItemLook.WeaponOf(look.Traits));
+                        else if (look.Place == WornSlot.OffHand) shield = true;
+                    }
+                    if (entity.Has<AnimatorComponent>()) entity.Get<AnimatorComponent>().Animator.Hold(carry, shield);
                 }
             }
         }
@@ -355,28 +365,117 @@ namespace Dino_Defenders.Client
             }
         }
 
-        private void PlaySwings(ECSWorld world, GameClient client)
+        // What each body has been told. A hero is doing what the player is doing right now. Everyone else is doing what the server said, and all of that's a start and an end and a clock to read them by: enemies by this
+        // player's own clock, the one the hero moves by, so that their blows are seen to land on the tick they land on and a dodge that looked in time was.
+        private void DriveBodies(ECSWorld world, GameClient client, GameSession session)
         {
+            double past = client.Render.RenderTick;
+            double present = client.Commands.Tick + client.Commands.Alpha;
             uint own = client.OwnGhost?.Entity.Id ?? 0;
-            foreach (Archetype archetype in world.QueryArchetypes(_swingMask, BitMask.Empty))
+
+            foreach (Archetype archetype in world.QueryArchetypes(_bodyMask, BitMask.Empty))
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
-                    var swing = entity.Get<SwingComponent>();
-                    if (swing.Serial == swing.Played) continue;
-                    swing.Played = swing.Serial;
-                    entity.Set(swing);
+                    CharacterAnimator animator = entity.Get<AnimatorComponent>().Animator;
+                    if (entity.Entity.Id == own)
+                    {
+                        DriveOwnHero(animator, client, session, present);
+                        continue;
+                    }
 
-                    // This player's own swing started when they pressed.
-                    if (entity.Entity.Id == own) continue;
-                    var animation = entity.Get<AnimationComponent>();
-                    animation.PlayLayer(animation.AttackClip, loop: false, speed: swing.Speed);
-                    entity.Set(animation);
+                    var action = entity.Get<ActionComponent>();
+                    bool hero = entity.Has<HeroComponent>();
+                    double clock = hero ? past : present;
+                    animator.Orders.Action = Reading(action, clock, animator);
+
+                    double since = (clock - action.Ends) * NetTime.TickSecondsPrecise;
+                    float alert = action.Skill != 0 && since < AlertFor ? 1f : 0f;
+                    bool looking = false;
+                    if (entity.Has<EnemyComponent>())
+                    {
+                        var enemy = entity.Get<EnemyComponent>();
+                        if (enemy.State is EnemyState.Chasing or EnemyState.WindingUp or EnemyState.Recovering)
+                        {
+                            alert = 1f;
+                            Vector2 at = session.PlayerPosition;
+                            if (!enemy.Friendly && (entity.Get<PositionComponent>().value.Xz - at).LengthSquared < LookReach * LookReach)
+                            {
+                                animator.Orders.LookAt = new Vector3(at.X, entity.Get<PositionComponent>().value.Y + 3f, at.Y);
+                                looking = true;
+                            }
+                        }
+                    }
+                    animator.Orders.Looking = looking;
+                    animator.Orders.Alert = alert;
+                    Afflict(animator, entity);
+
+                    // Nothing's sent to say someone else is dodging: it can be seen.
+                    Vector3 velocity = entity.Has<VelocityComponent>() ? entity.Get<VelocityComponent>().value : Vector3.Zero;
+                    animator.Orders.Dash = velocity.LengthSquared > DashSpeed * DashSpeed ? velocity.Xz.Normalized() : Vector2.Zero;
                 }
             }
         }
 
-        private void ToppleFallen(ECSWorld world, float deltaTime)
+        private static ActionInput Reading(in ActionComponent action, double clock, CharacterAnimator animator)
+        {
+            if (action.Skill == 0 || clock < action.Start || clock >= action.Ends) return default;
+
+            SkillDefinition skill = SkillCatalog.Named(action.Skill);
+            return new ActionInput
+            {
+                Gesture = SkillMotions.Of(skill, animator.Carrying, animator.Rig.Plan == BodyPlan.Quadruped, action.Serial),
+                Elapsed = (float)((clock - action.Start) * NetTime.TickSecondsPrecise),
+                Impact = (action.Lands - action.Start) * NetTime.TickSeconds,
+                Length = (action.Ends - action.Start) * NetTime.TickSeconds,
+                Aim = action.Aim,
+                Serial = action.Serial,
+            };
+        }
+
+        private void DriveOwnHero(CharacterAnimator animator, GameClient client, GameSession session, double present)
+        {
+            HeroSimState sim = client.Predictor.Current;
+            ClientEffects? effects = _effects();
+            OwnAction? doing = effects?.Doing;
+
+            animator.Orders.Action = default;
+            if (doing is OwnAction action && sim.Using >= 0)
+            {
+                float elapsed = (float)((present - action.Start) * NetTime.TickSecondsPrecise) * sim.ActionRate;
+                animator.Orders.Action = new ActionInput
+                {
+                    Gesture = SkillMotions.Of(action.Skill, animator.Carrying, false, action.Serial),
+                    Elapsed = elapsed,
+                    Impact = action.Impact,
+                    Length = action.Length,
+                    Aim = action.Aim,
+                    Serial = action.Serial,
+                };
+            }
+
+            double since = doing is OwnAction last ? (present - last.Start) * NetTime.TickSecondsPrecise - last.Length : double.MaxValue;
+            animator.Orders.Alert = since < AlertFor ? 1f : 0f;
+
+            float reach = MathF.Max(sim.AimReach, 4f);
+            Vector2 at = session.PlayerPosition;
+            animator.Orders.LookAt = new Vector3(at.X + sim.Aim.X * reach, session.World.Height.Sample(at) + 3f, at.Y + sim.Aim.Y * reach);
+            animator.Orders.Looking = sim.Using >= 0;
+            animator.Orders.Dash = sim.DashLeft > 0f ? sim.DashDirection : Vector2.Zero;
+            animator.Orders.Rate = (sim.State & Condition.Frozen) != 0 ? 0f : (sim.State & Condition.Chilled) != 0 ? ChilledRate : 1f;
+            animator.Orders.Dazed = (sim.State & Condition.Stunned) != 0;
+        }
+
+        private static void Afflict(CharacterAnimator animator, in EntityView entity)
+        {
+            if (!entity.Has<AfflictedComponent>()) return;
+            var afflicted = entity.Get<AfflictedComponent>();
+            animator.Orders.Rate = afflicted.Has(Condition.Frozen) ? 0f : afflicted.Has(Condition.Chilled) ? ChilledRate : 1f;
+            animator.Orders.Dazed = afflicted.Has(Condition.Stunned);
+        }
+
+        // Whoever falls stays where they fall, and goes down into the ground when their time's up.
+        private void LayDownFallen(ECSWorld world, float deltaTime)
         {
             foreach (Archetype archetype in world.QueryArchetypes(_enemyMask, BitMask.Empty))
             {
@@ -385,50 +484,27 @@ namespace Dino_Defenders.Client
                     var enemy = entity.Get<EnemyComponent>();
                     if (enemy.State != EnemyState.Dead) continue;
 
-                    if (enemy.DeadFor == 0f)
-                    {
-                        enemy.DeathScale = entity.Get<ScaleComponent>().value;
-                        enemy.DeathRotation = entity.Get<RotationComponent>().quaternion;
-                    }
+                    CharacterAnimator animator = entity.Get<AnimatorComponent>().Animator;
+                    if (!animator.Dead) animator.Die(enemy.Thrown);
+
                     enemy.DeadFor += deltaTime;
                     entity.Set(enemy);
-
-                    float fall = WorldMath.Smoothstep(0f, DyingSystem.FallTime, enemy.DeadFor);
-                    var rotation = entity.Get<RotationComponent>();
-                    rotation.quaternion = Quaternion.FromAxisAngle(enemy.FallAxis, fall * MathF.PI * 0.5f) * enemy.DeathRotation;
-                    entity.Set(rotation);
-
                     float end = DyingSystem.FallTime + DyingSystem.LieTime;
-                    float fade = 1f - WorldMath.Smoothstep(end, end + DyingSystem.FadeTime, enemy.DeadFor);
-                    entity.Set(new ScaleComponent(enemy.DeathScale * MathF.Max(fade, 0.01f)));
+                    animator.Sink = WorldMath.Smoothstep(end, end + DyingSystem.FadeTime, enemy.DeadFor) * BuriedDepth;
                 }
             }
         }
 
-        private void ToppleHeroes(ECSWorld world, float deltaTime)
+        private void LayDownHeroes(ECSWorld world)
         {
             foreach (Archetype archetype in world.QueryArchetypes(_heroMask, BitMask.Empty))
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
-                    var hero = entity.Get<HeroComponent>();
-                    if (entity.Get<HealthComponent>().Current > 0f)
-                    {
-                        if (hero.DownFor > 0f)
-                        {
-                            hero.DownFor = 0f;
-                            entity.Set(hero);
-                            entity.Set(new RotationComponent(hero.FellFrom));
-                        }
-                        continue;
-                    }
-
-                    if (hero.DownFor == 0f) hero.FellFrom = entity.Get<RotationComponent>().quaternion;
-                    hero.DownFor += deltaTime;
-                    entity.Set(hero);
-
-                    float fall = MathF.Min(hero.DownFor / FallingStart, 1f);
-                    entity.Set(new RotationComponent(hero.FellFrom * Quaternion.FromAxisAngle(Vector3.UnitX, -MathF.PI * 0.5f * fall * fall)));
+                    CharacterAnimator animator = entity.Get<AnimatorComponent>().Animator;
+                    bool down = entity.Get<HealthComponent>().Current <= 0f;
+                    if (down && !animator.Dead) animator.Die(entity.Get<HeroComponent>().Thrown);
+                    else if (!down && animator.Dead) animator.Revive();
                 }
             }
         }
@@ -506,10 +582,18 @@ namespace Dino_Defenders.Client
         }
     }
 
+    /// <summary>What this player's hero is doing, from the tick they pressed.</summary>
+    public readonly record struct OwnAction(SkillDefinition Skill, uint Start, float Impact, float Length, float Aim, int Serial);
+
     /// <summary>Sparks, numbers and gusts: what things look like happening, whether told by the server or done by this player a moment ago.</summary>
     public sealed class ClientEffects
     {
         private const int MostCallouts = 2;
+
+        /// <summary>The last thing this player's hero started.</summary>
+        public OwnAction? Doing { get; private set; }
+
+        private int _serial;
 
         private static readonly Vector3 HitColour = new Vector3(1f, 0.92f, 0.7f);
         private static readonly Vector3 CritColour = new Vector3(1f, 0.55f, 0.15f);
@@ -665,12 +749,6 @@ namespace Dino_Defenders.Client
             SkillDefinition skill = SkillCatalog.Named(e.Skill);
             Colour light = LightOf(skill.Look);
 
-            if (e.Phase == SkillPhase.Warning)
-            {
-                Ring(e.Position + Vector3.UnitY * 0.4f, e.Radius, light, 24);
-                return;
-            }
-
             Sounds.Burst(skill, e.Position);
             Flash(e.Position + Vector3.UnitY * 2f, new Colour(light.Red, light.Green, light.Blue, 200f), MathF.Max(e.Radius * 2f, 8f), 0.4f);
             Ring(e.Position + Vector3.UnitY * 1.2f, e.Radius, GlowOf(skill.Look), 26);
@@ -737,12 +815,9 @@ namespace Dino_Defenders.Client
             if (session == null) return;
 
             SkillProfile? skill = hero.Using >= 0 ? client.Kit.Slots[hero.Using] : null;
-            if ((events & HeroStepEvents.Used) != 0 && skill != null && client.OwnGhost != null && _world.TryGetEntityLocation(client.OwnGhost.Entity, out _, out _))
+            if ((events & HeroStepEvents.Used) != 0 && skill != null)
             {
-                EntityView view = _world.GetEntityView(client.OwnGhost.Entity);
-                var animation = view.Get<AnimationComponent>();
-                animation.PlayLayer(AnimationId.Swing, loop: false, speed: 1.2f / MathF.Max(skill.UseTime, 0.05f));
-                view.Set(animation);
+                Doing = new OwnAction(skill.Skill, client.Commands.Tick, hero.ImpactIn, hero.BusyFor, MathF.Atan2(hero.Aim.X, hero.Aim.Y), ++_serial);
             }
 
             Vector3 position = new Vector3(hero.Position.X, session.World.Height.Sample(hero.Position), hero.Position.Y);

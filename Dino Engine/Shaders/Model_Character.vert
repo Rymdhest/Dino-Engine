@@ -19,7 +19,7 @@ out float textureIndex;
 
 uniform mat4 modelMatrix;
 uniform mat4 normalModelViewMatrix;
-uniform mat4 u_Bones[14];
+uniform mat4 u_Bones[24];
 
 void main() {
     // 1. Calculate combined weight and normalize

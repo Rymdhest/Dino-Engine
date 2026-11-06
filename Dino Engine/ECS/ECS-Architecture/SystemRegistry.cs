@@ -40,7 +40,6 @@ namespace Dino_Engine.ECS.ECS_Architecture
             // update
 
             Systems.Add(new GravitySystem());
-            Systems.Add(new CharacterAnimationControlSystem());
             Systems.Add(new ParticleEmitterSystem());
             Systems.Add(new SelfDestroySystem());
             Systems.Add(new PhysicsSystem());
@@ -49,7 +48,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             Systems.Add(new FixToTerrainHeightSystem());
             Systems.Add(new FollowCameraSystem());
 
-            Systems.Add(new SkeletalAnimationSystem());
+            Systems.Add(new CharacterAnimationSystem());
 
             Systems.Add(new LocalToWorldTransformRootSystem());
             Systems.Add(new LocalToWorldTransformChildSystem());

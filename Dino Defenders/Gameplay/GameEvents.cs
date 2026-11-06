@@ -41,11 +41,13 @@ namespace Dino_Defenders.Gameplay
         public HitBody Body;
         public DamageType Type;
         public HitNote Note;
+        public uint Target;                     // Whose body it landed on, by ghost.
+        [NetStep(1f / 16f)] public Vector2 Way; // Which way it was going.
+        [NetStep(1f / 16f)] public float Weight;// How much of them it took, as a share of all they have.
     }
 
     public enum SkillPhase : byte
     {
-        Warning,    // It's coming down here in a moment.
         Burst,      // It's gone off here.
     }
 

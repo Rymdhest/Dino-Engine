@@ -60,7 +60,7 @@ namespace Dino_Engine.ECS.Systems
                     glModel model = modelArray[i].model;
                     if (model == null || (matrix.ExtractTranslation() - position).LengthSquared > radius * radius) continue;
 
-                    var instance = new CharacterInstanceData { ModelMatrix = matrix, SkinningMatrices = Skinning(skeletonArray[i]) };
+                    var instance = new CharacterInstanceData { ModelMatrix = matrix, SkinningMatrices = skeletonArray[i].SkinningMatrices };
                     _characters.Add((model, instance, AABB.Transform(new AABB(model.box.Min, model.box.Max), matrix)));
                 }
             }
@@ -71,16 +71,6 @@ namespace Dino_Engine.ECS.Systems
             return point.X >= bounds.Min.X && point.X <= bounds.Max.X
                 && point.Y >= bounds.Min.Y && point.Y <= bounds.Max.Y
                 && point.Z >= bounds.Min.Z && point.Z <= bounds.Max.Z;
-        }
-
-        private static Matrix4[] Skinning(SkeletonComponent skeleton)
-        {
-            Matrix4[]? source = skeleton.SkinningMatrices;
-            int bones = source != null ? source.Length : (int)BoneType.Count;
-            var matrices = new Matrix4[bones];
-            if (source != null && source.Length > 0) Array.Copy(source, matrices, bones);
-            else Array.Fill(matrices, Matrix4.Identity);
-            return matrices;
         }
 
         /// <summary>Queues what <paramref name="frustum"/> can see for drawing into <paramref name="shadow"/>.</summary>

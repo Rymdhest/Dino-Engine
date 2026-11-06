@@ -24,7 +24,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     }
     public class CharacterRenderer : GeometryCommandDrivenRenderer<CharacterRenderCommand>
     {
-        private ShaderProgram _characterShader = new ShaderProgram("Model_Character.vert", "Model.frag");
+        private ShaderProgram _characterShader = new ShaderProgram("Model_Character.vert", "Model.frag", new[] { "CHARACTER" });
         private ShaderProgram _characterShadowShader = new ShaderProgram("Model_Character_Shadow.vert", "Shadow.frag");
 
         public CharacterRenderer() : base("Character")

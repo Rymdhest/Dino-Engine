@@ -1,3 +1,4 @@
+using Dino_Engine.Animation;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
@@ -103,17 +104,51 @@ namespace Dino_Defenders.Client
         public static BeastLook? BeastOf(string key) => Beasts.GetValueOrDefault(key);
 
         /// <summary>The joints of an animal, shared by everyone of its kind.</summary>
-        public static Matrix4[] RigOf(string key)
+        public static Rig RigOf(string key)
         {
-            if (!Rigs.TryGetValue(key, out Matrix4[]? rig))
+            if (!Rigs.TryGetValue(key, out Rig? rig))
             {
-                rig = BeastGenerator.Rig(Beasts[key]);
+                rig = BeastGenerator.RigOf(Beasts[key]);
                 Rigs.Add(key, rig);
             }
             return rig;
         }
 
-        private static readonly Dictionary<string, Matrix4[]> Rigs = new();
+        private static readonly Dictionary<string, Rig> Rigs = new();
+
+        /// <summary>How something a server names carries itself: what it's built like, how it moves and what's in its hands.</summary>
+        public readonly record struct Bearing(Rig Rig, MotionStyle Style, Carry Carry, bool Shield);
+
+        public static Bearing BearingOf(string key)
+        {
+            if (BeastOf(key) != null)
+            {
+                MotionStyle moves = key == "boar" ? MotionStyle.Boar : key == "bear" ? MotionStyle.Bear : MotionStyle.Hound;
+                return new Bearing(RigOf(key), moves, Carry.Nothing, false);
+            }
+
+            Rig person = Rig.Humanoid;
+            if (key == "skeleton") return new Bearing(person, MotionStyle.Dead, Carry.Sword, true);
+            if (key == "skeleton:bow") return new Bearing(person, MotionStyle.Dead, Carry.Bow, false);
+            if (key is "warlord" or "revenant") return new Bearing(person, MotionStyle.Armoured, Carry.Sword, true);
+            if (key.StartsWith("robed:")) return new Bearing(person, MotionStyle.Robed, Carry.Staff, false);
+            if (key.StartsWith("acolyte:")) return new Bearing(person, MotionStyle.Outlaw, Carry.Sword, false);
+            if (key.StartsWith("cutthroat")) return new Bearing(person, MotionStyle.Cutthroat, Carry.Sword, false);
+            if (key.StartsWith("brute")) return new Bearing(person, MotionStyle.Brute, key == "brute2" ? Carry.Spear : Carry.Sword, false);
+            if (key.StartsWith("hero")) return new Bearing(person, MotionStyle.Hero, Carry.Nothing, false);
+            if (key.StartsWith("villager")) return new Bearing(person, MotionStyle.Villager, Carry.Nothing, false);
+            if (key.StartsWith("bandit"))
+            {
+                int colon = key.IndexOf(':');
+                if (colon > 6 && int.TryParse(key.AsSpan(6, colon - 6), out int bandit))
+                {
+                    int look = Math.Abs(bandit) % BanditLooks;
+                    if (key.EndsWith("True")) return new Bearing(person, MotionStyle.Outlaw, Carry.Bow, false);
+                    return new Bearing(person, MotionStyle.Outlaw, look % 2 == 0 ? Carry.Sword : Carry.Spear, look == 1);
+                }
+            }
+            return new Bearing(person, MotionStyle.Villager, Carry.Nothing, false);
+        }
 
         private static readonly Dictionary<string, BeastLook> Beasts = new()
         {

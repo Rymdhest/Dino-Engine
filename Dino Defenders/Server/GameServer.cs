@@ -95,6 +95,7 @@ namespace Dino_Defenders.Server
             _systems.Add(new VillagerSystem(this));
             _systems.Add(new ProjectileSystem(this));
             _systems.Add(new ZoneSystem(this));
+            _systems.Add(new TelegraphSystem(this));
             _systems.Add(new DyingSystem());
             _systems.Add(_interaction);
             _systems.Add(_encounters = new EncounterSystem(this));
@@ -224,7 +225,7 @@ namespace Dino_Defenders.Server
                 new FixToTerrainHeightComponent(),
                 new HeroComponent { Name = player.Name, Title = TalentTree.TitleOf(player.Hero), Player = player.Id, Level = player.Hero.Level },
                 new HealthComponent(actor.Sheet.MaxHealth) { Current = actor.Vitals.Health },
-                new SwingComponent(),
+                new ActionComponent(),
                 new AfflictedComponent(),
                 new ActorComponent(actor));
             actor.Entity = player.Entity;
@@ -353,12 +354,11 @@ namespace Dino_Defenders.Server
 
             if ((events & HeroStepEvents.Used) != 0 && skill != null)
             {
-                EntityView view = Ecs.GetEntityView(player.Entity);
-                var swing = view.Get<SwingComponent>();
-                swing.Serial++;
-                swing.Speed = 1.2f / MathF.Max(skill.UseTime, 0.05f);
-                view.Set(swing);
+                float rate = MathF.Max(player.Sim.ActionRate, 0.1f);
+                session.Combat.Perform(player.Entity, skill.Skill, player.Sim.ImpactIn / rate, player.Sim.BusyFor / rate, player.Sim.Aim);
+                MarkForFriends(session, player, skill, rate);
             }
+            if ((events & HeroStepEvents.Dashed) != 0) session.Combat.Stop(player.Entity);
 
             if ((events & HeroStepEvents.Landed) != 0 && skill != null)
             {
@@ -375,6 +375,14 @@ namespace Dino_Defenders.Server
             if (command.Has(HeroButtons.Flask)) DrinkFlask(player, position);
             if (command.Has(HeroButtons.Interact)) _interaction.Interact(Ecs, session, player);
             session.Ground.Serve(player);
+        }
+
+        // Whoever's casting has seen this since they pressed. Their friends are told, as anything of a hero's is worth knowing about if you're standing nearby.
+        private void MarkForFriends(ServerSession session, ServerPlayer player, SkillProfile skill, float rate)
+        {
+            if (_heroes.Count < 2 || !HeroRules.ShowsArea(skill)) return;
+            GroundShape shape = GroundShape.Of(skill, player.Sim.Position, player.Sim.Aim, player.Sim.AimReach);
+            session.Combat.Warn(shape, skill.Skill.Number, MarkTier.Plain, false, player.Sim.ImpactIn / rate + skill.Delay, player.Id);
         }
 
         private void DrinkFlask(ServerPlayer player, Vector3 position)

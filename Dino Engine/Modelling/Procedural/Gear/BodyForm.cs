@@ -64,9 +64,55 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public static BoneType Foot(float side) => side > 0f ? BoneType.FootL : BoneType.FootR;
 
         /// <summary>
+        /// What anything on the body is skinned to, by how high it is. Generators just say "on the chest", and <see cref="Spread"/> turns that into this afterwards, so everything on a torso bends with the back,
+        /// whatever it is and whoever made it. There are two weights to a vertex, and at any height there are only ever two bones to share out.
+        /// </summary>
+        public static (Vector2 bones, Vector2 weights) Back(float y)
+        {
+            var pelvis = (float)BoneType.Pelvis;
+            var spine = (float)BoneType.Spine;
+            var chest = (float)BoneType.Chest;
+            if (y < 2.26f) return (new Vector2(pelvis, 0f), new Vector2(1f, 0f));
+            if (y < 2.78f) return (new Vector2(pelvis, spine), Share((y - 2.26f) / 0.52f));
+            if (y < 3.04f) return (new Vector2(spine, 0f), new Vector2(1f, 0f));
+            if (y < 3.46f) return (new Vector2(spine, chest), Share((y - 3.04f) / 0.42f));
+            return (new Vector2(chest, 0f), new Vector2(1f, 0f));
+        }
+
+        private static Vector2 Share(float t)
+        {
+            float eased = t * t * (3f - 2f * t);
+            return new Vector2(1f - eased, eased);
+        }
+
+        /// <summary>What's on the head is on the head, but its neck turns less than it does.</summary>
+        public static (Vector2 bones, Vector2 weights) Throat(float y)
+        {
+            var neck = (float)BoneType.Neck;
+            var head = (float)BoneType.Head;
+            if (y < 4.02f) return (new Vector2(neck, 0f), new Vector2(1f, 0f));
+            if (y < 4.3f) return (new Vector2(neck, head), Share((y - 4.02f) / 0.28f));
+            return (new Vector2(head, 0f), new Vector2(1f, 0f));
+        }
+
+        /// <summary>Everything on the chest or head goes on the bones they've become. Doing this twice changes nothing.</summary>
+        public static Model.Mesh Spread(Model.Mesh mesh)
+        {
+            for (int i = 0; i < mesh.meshVertices.Count; i++)
+            {
+                Model.MeshVertex vertex = mesh.meshVertices[i];
+                if (vertex.BoneWeights.Y > 0f) continue;
+                if ((int)vertex.boneIndices.X == (int)BoneType.Chest) (vertex.boneIndices, vertex.BoneWeights) = Back(vertex.position.Y);
+                else if ((int)vertex.boneIndices.X == (int)BoneType.Head) (vertex.boneIndices, vertex.BoneWeights) = Throat(vertex.position.Y);
+                mesh.meshVertices[i] = vertex;
+            }
+            return mesh;
+        }
+
+        /// <summary>
         /// What anything hanging below the hips is skinned to. The run swings a leg nearly level, and a robe bound to the chest has knees coming through it, so the further down the more it
         /// belongs to the legs, each side to its own: a skirt then twists as cloth does. Only some of the way, or a hem flies up with the leg. There are two weights to a vertex, so it goes
-        /// from the chest to the nearer leg, and then from the nearer leg to both.
+        /// from the hips to the nearer leg, and then from the nearer leg to both.
         /// </summary>
         public static (Vector2 bones, Vector2 weights) Skirt(Vector3 at)
         {
@@ -79,7 +125,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float onLegs = below * MostOnLegs;
             float nearer = side > 0.5f ? left : right;
             float share = MathF.Max(side, 1f - side);
-            if (share > 0.82f || below < 0.5f) return (new Vector2((int)BoneType.Chest, nearer), new Vector2(1f - onLegs, onLegs));
+            if (share > 0.82f || below < 0.5f) return (new Vector2((int)BoneType.Pelvis, nearer), new Vector2(1f - onLegs, onLegs));
 
             // Down the middle there's no nearer leg, and it stays between the two.
             return (new Vector2(left, right), new Vector2(side, 1f - side));

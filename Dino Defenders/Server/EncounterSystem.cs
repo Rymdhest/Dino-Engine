@@ -182,7 +182,7 @@ namespace Dino_Defenders.Server
             };
 
             float importance = boss ? 4f : elite ? 2f : 1.5f;
-            actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, importance, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, importance, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
             state.Live.Add(actor.Entity);
         }
 
@@ -201,7 +201,7 @@ namespace Dino_Defenders.Server
                 var actor = new Actor(Team.Enemies, loadout, spot, WorldData.CharacterRadius) { Body = kind.Look, Height = position.Y, Still = true };
                 var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = spot };
                 IComponent[] body = Bodies.Walking(_server, Bestiary.ModelOf(kind, random), position, kind.Scale, 2f,
-                    new EnemyComponent { Name = kind.Name, Level = 1 }, brain, new HealthComponent(actor.Sheet.MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor));
+                    new EnemyComponent { Name = kind.Name, Level = 1 }, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor));
                 for (int part = 0; part < body.Length; part++)
                 {
                     if (body[part] is RotationComponent) body[part] = new RotationComponent(new Vector3(0f, MathF.PI * 0.8f, 0f));

@@ -45,12 +45,12 @@ namespace Dino_Defenders.Gameplay
         public int Level;
         public EnemyState State;
         public bool Friendly;       // Someone's minion: the same creature, on the other side.
-        [NetStep(1f / 64f), NetSnap] public Vector3 FallAxis;
 
-        // How its fall is drawn, on the client.
+        /// <summary>How hard it was thrown as it died, in metres a second. A blow that was far too much for it sends it flying.</summary>
+        [NetStep(1f / 8f), NetSnap] public Vector3 Thrown;
+
+        // How long it's been down, on the client.
         [NotReplicated] public float DeadFor;
-        [NotReplicated] public Vector3 DeathScale;
-        [NotReplicated] public Quaternion DeathRotation;
 
         // What its sounds have got to, on the client.
         [NotReplicated] public EnemyState Heard;
@@ -68,6 +68,12 @@ namespace Dino_Defenders.Gameplay
         public bool KeepsAway;
         public int Skill;           // Which of its skills it's winding up.
         public float WindUp;
+
+        // What it has committed to. All of this is fixed when the wind-up starts: what's on the ground is what lands, and walking out of it is what it's there for.
+        public Vector2 AimFrom;
+        public Vector2 AimWay;
+        public float AimReach;
+        public Entity Mark;
         public int Experience;
         public Vector2 Wander;
         public Vector2 Apart;       // Which way it's being crowded, as last worked out.
@@ -85,20 +91,10 @@ namespace Dino_Defenders.Gameplay
         public int Player;
         public int Level;
 
-        // How its fall is drawn, on the client.
-        [NotReplicated] public float DownFor;
-        [NotReplicated] public Quaternion FellFrom;
-        [NotReplicated] public bool HeardDown;
-    }
+        /// <summary>How hard they were thrown as they fell, in metres a second.</summary>
+        [NetStep(1f / 8f), NetSnap] public Vector3 Thrown;
 
-    /// <summary>A swing, for those watching. Each new one changes the serial, so that one lost update can't lose the blow.</summary>
-    [Replicated]
-    public struct SwingComponent : IComponent
-    {
-        public byte Serial;
-        [NetStep(1f / 32f), NetSnap] public float Speed;
-        [NotReplicated] public byte Played;
-        [NotReplicated] public byte Heard;
+        [NotReplicated] public bool HeardDown;
     }
 
     public enum VisualKind
@@ -227,6 +223,7 @@ namespace Dino_Defenders.Gameplay
     public struct ZoneComponent : IComponent
     {
         public int Skill;
+        public bool Hostile;
         [NetStep(0.25f)] public float Radius;
         [NetStep(0.25f)] public float Life;
 

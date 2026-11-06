@@ -672,7 +672,7 @@ namespace Dino_NetLab
                 actor.Entity = server.Ecs.CreateEntity(Bodies.Walking(server, "skeleton", new Vector3(at.X, 0f, at.Y), 1f, 1.5f,
                     new EnemyComponent { Name = "Restless Dead", Level = 1 },
                     new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 200f, LeashRadius = 500f, Experience = 0 },
-                    new HealthComponent(actor.Sheet.MaxHealth), new SwingComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+                    new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
             }
 
             var archer = new Actor(Team.Enemies, horde, centre, 1.1f) { Body = "skeleton" };
