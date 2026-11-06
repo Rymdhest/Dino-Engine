@@ -6,6 +6,7 @@ using Dino_Defenders.Server;
 using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
@@ -141,6 +142,9 @@ namespace Dino_NetLab
 
             report.Section("Buffs");
             Buffs(report, worlds, request);
+
+            report.Section("What a tooltip says is what happens");
+            Promises(report, worlds, request);
 
             report.Section("On a bad line");
             Prediction(report, worlds, request);
@@ -622,7 +626,7 @@ namespace Dino_NetLab
             using (Arena arena = new Arena(worlds, request, Wearing("mantle-of-cinders")))
             {
                 Actor foe = arena.Dummy(East * 3f, 1000f, Convert(DamageType.Physical, DamageType.Fire, 100f), More(Stat.Damage, 500f));
-                arena.Hero.Vitals.Health = 200f;
+                arena.Hero.Vitals.Health = arena.Hero.Sheet.MaxHealth;
                 float before = arena.Hero.Vitals.Health;
                 float hit = BlowFrom(foe, arena.Hero);
                 arena.Combat.Hit(foe, foe.Sheet.Profile(0), arena.Hero, 1f, foe.Position);
@@ -949,6 +953,105 @@ namespace Dino_NetLab
             report.Check("A buff on one enemy doesn't touch another of its kind", one.Sheet.MoveSpeed > two.Sheet.MoveSpeed);
             arena.Run(2.5);
             report.Check("And that one goes back to sharing when it's over", ReferenceEquals(one.Loadout, shared));
+        }
+
+        // Someone on the hero's side with exactly what's asked for, using exactly one skill.
+        private static Actor Caster(Arena arena, SkillDefinition skill, params Mod[] mods)
+        {
+            var all = new List<Mod> { Flat(Stat.Health, 1000f), Flat(Stat.Mana, 1000f) };
+            all.AddRange(mods);
+            return arena.Place(new Loadout(10, WeaponProfile.Fists, all, new[] { skill }), West * 2f, Team.Heroes);
+        }
+
+        private static string? Row(Card card, string name) => card.Lines.FirstOrDefault(line => line.Text == name).Value;
+
+        // Each of these was a line a tooltip could say that the rules didn't do. Every number here is read off a card, and what's compared with it is what a fight really did.
+        private static void Promises(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using (Arena arena = Enter(worlds, request))
+            {
+                Actor target = arena.Dummy(East * 4f);
+                Actor caster = Caster(arena, SkillCatalog.Tidepool, Chance(Tags.Hex, 100f));
+                SkillProfile pool = caster.Sheet.Profile(0);
+                arena.Combat.Release(caster, pool, target.Position, East, 0f);
+                arena.Run(0.5);
+                report.Check("A Zone that deals nothing Hits nothing, whatever the Chance: Tidepool's card has no Hex on it, and there's none on the target", target.Afflictions.HexStacks == 0 && !Cards.Skill(pool).Lines.Any(line => line.Text.Contains("Hex")));
+                report.Check("And it does what the card says instead: the ground is Water", arena.Combat.Land.InWater(target.Position));
+                arena.Run(pool.Duration + 0.6);
+                arena.Combat.Land.Forget((float)arena.Session.Time);
+                report.Check("For as long as its Duration says", !arena.Combat.Land.InWater(target.Position) || arena.Session.World.WaterDepthAt(target.Position) > Rulebook.WaterDepth);
+            }
+
+            using (Arena arena = Enter(worlds, request))
+            {
+                Actor target = arena.Dummy(East * 3f);
+                Actor caster = Caster(arena, SkillCatalog.ArcaneDart, Chance(Tags.Hex, 100f), Inc(Stat.AilmentEffect, 100f, Tags.Hex));
+                arena.Combat.Hit(caster, caster.Sheet.Profile(0), target, 1f, caster.Position);
+                report.Near("Effect of Hex does what it says: twice the Effect takes twice the Resistance", target.Afflictions.ResistanceLost, 2f * AilmentRules.HexPerStack);
+                report.Check("And the card says so", Cards.Skill(caster.Sheet.Profile(0)).Lines.Any(line => line.Text.Contains($"{Say.Amount(2f * AilmentRules.HexPerStack)} Resistance per Stack")));
+            }
+
+            using (Arena arena = Enter(worlds, request))
+            {
+                Actor caster = Caster(arena, SkillCatalog.StoneSkinCast, Inc(Stat.SkillDuration, 100f));
+                SkillProfile skin = caster.Sheet.Profile(0);
+                arena.Combat.Release(caster, skin, caster.Position, East, 0f);
+                arena.Run(0.1);
+                report.Near("Skill Duration reaches a Buff from a Skill", caster.Buffs[0].Left, BuffCatalog.StoneSkin.Duration * 2f - 0.1f, 0.03f);
+                report.Check("And the card shows what it comes to", Row(Cards.Skill(skin), "Duration") == Say.Seconds(BuffCatalog.StoneSkin.Duration * 2f), Row(Cards.Skill(skin), "Duration") ?? "");
+            }
+
+            using (Arena arena = Enter(worlds, request))
+            {
+                Actor target = arena.Dummy(East * 3f);
+                Actor caster = Caster(arena, SkillCatalog.Stormcall, Rules(Rule.SpellEcho));
+                arena.Combat.Release(caster, caster.Sheet.Profile(0), target.Position, East, 0f);
+                arena.Run(Rulebook.EchoDelay + 0.1);
+
+                var strengths = new List<float>();
+                foreach (Archetype archetype in arena.Lab.Server.Ecs.QueryArchetypes(new BitMask(typeof(ZoneStateComponent)), BitMask.Empty))
+                {
+                    foreach (EntityView zone in new ComponentAccessor(archetype)) strengths.Add(zone.Get<ZoneStateComponent>().State.Strength);
+                }
+                report.Check("A Spell's echo is the share of it the words say, even a Zone's", strengths.Count == 2 && strengths.Contains(1f) && strengths.Contains(Rulebook.EchoStrength), string.Join(", ", strengths));
+            }
+
+            using (Arena arena = Enter(worlds, request))
+            {
+                Actor target = arena.Dummy(East * 3f);
+                Actor caster = Caster(arena, SkillCatalog.Stormcall);
+                SkillProfile storm = caster.Sheet.Profile(0);
+                arena.Combat.Release(caster, storm, target.Position, East, 0f);
+
+                int pulses = 0;
+                float last = 0f;
+                for (float time = 0f; time < storm.Duration + 0.5f; time += 0.02f)
+                {
+                    arena.Run(0.02);
+                    if (Arena.Lost(target) <= last) continue;
+                    last = Arena.Lost(target);
+                    pulses++;
+                }
+                report.Check("A Zone Pulses as often as its card counts, which is what Damage per Second goes by", pulses == storm.Pulses, $"{pulses} Pulses, card counts {storm.Pulses}");
+            }
+
+            using (Arena arena = Enter(worlds, request))
+            {
+                Actor target = arena.Dummy(East * 3f, 1000000f, Flat(Stat.AilmentAvoid, 100f));
+                Actor caster = Caster(arena, SkillCatalog.FrostShards);
+                arena.Combat.Hit(caster, caster.Sheet.Profile(0), target, 1f, caster.Position);
+                report.Check("Chance to Avoid Ailments means all of them, Chill included", target.Afflictions.ChillLeft <= 0f);
+            }
+
+            using (Arena arena = Enter(worlds, request))
+            {
+                Actor target = arena.Dummy(East * 3f);
+                Actor caster = Caster(arena, SkillCatalog.Sap);
+                SkillProfile sap = caster.Sheet.Profile(0);
+                caster.Vitals.Health = 100f;
+                arena.Combat.Hit(caster, sap, target, 1f, caster.Position);
+                report.Near("Leech comes all at once, on the Hit, as the words say", caster.Vitals.Health - 100f, Arena.Lost(target) * sap.HealthLeech, 0.01f);
+            }
         }
 
         // What all of this is for: a screenful of different enemies, each with spells of their own, against five heroes with spells of theirs.

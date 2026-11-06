@@ -104,7 +104,7 @@ namespace Dino_Defenders.Skills
         public static readonly SkillDefinition Sunder = Add(new SkillDefinition
         {
             Id = "sunder", Name = "Sunder", Form = SkillForm.Strike, Tags = Tags.Attack | Tags.Melee, Look = DamageType.Physical,
-            Text = "A slow, heavy blow. It ignores a share of armour, and stuns what it doesn't kill.",
+            Text = "A slow, heavy blow, from high overhead.",
             UseTime = 1.05f, ImpactAt = 0.55f, MoveFactor = 0.25f, WeaponShare = 2.4f, Reach = 6.8f, Arc = 1.5f, Cost = 5f,
             Mods = new[] { Flat(Stat.ArmourIgnore, 40f), Chance(Tags.Stun, 60f) },
         });
@@ -112,7 +112,7 @@ namespace Dino_Defenders.Skills
         public static readonly SkillDefinition Rend = Add(new SkillDefinition
         {
             Id = "rend", Name = "Rend", Form = SkillForm.Strike, Tags = Tags.Attack | Tags.Melee, Look = DamageType.Physical,
-            Text = "A dragging cut that leaves the target bleeding.",
+            Text = "A long, dragging cut.",
             UseTime = 0.55f, WeaponShare = 0.75f, Arc = 2f, Cost = 3f,
             Mods = new[] { Chance(Tags.Bleed, 70f) },
         });
@@ -272,7 +272,7 @@ namespace Dino_Defenders.Skills
         public static readonly SkillDefinition Bloodburst = Add(new SkillDefinition
         {
             Id = "bloodburst", Name = "Bloodburst", Form = SkillForm.Nova, Tags = Tags.Spell | Tags.Area, Look = DamageType.Physical,
-            Text = "Whatever is bleeding nearby comes open all at once.",
+            Text = "Every open wound nearby gives way at once.",
             UseTime = 0.7f, ImpactAt = 0.55f, Radius = 9f, Cooldown = 4f, Cost = 8f, Range = 8f,
             Damage = new[] { new BaseDamage(DamageType.Physical, 14f, 20f) },
             Mods = new[] { Chance(Tags.Bleed, 40f), More(Stat.Damage, 60f).Against(Condition.Bleeding) },
@@ -310,7 +310,7 @@ namespace Dino_Defenders.Skills
         public static readonly SkillDefinition ShieldBash = Add(new SkillDefinition
         {
             Id = "shield-bash", Name = "Shield Bash", Form = SkillForm.Strike, Tags = Tags.Attack | Tags.Melee, Look = DamageType.Physical,
-            Text = "Your whole weight behind whatever you're carrying. The more armour you have, the harder it lands.",
+            Text = "Your whole weight behind whatever you're carrying.",
             UseTime = 0.6f, ImpactAt = 0.4f, Cooldown = 2f, WeaponShare = 0.9f, Reach = 5.6f, Arc = 2.2f, Cost = 3f,
             Mods = new[] { Chance(Tags.Stun, 50f), Inc(Stat.Damage, 2f).For(Per.Armour, 50f, 200f) },
         });
@@ -327,8 +327,8 @@ namespace Dino_Defenders.Skills
         public static readonly SkillDefinition Tidepool = Add(new SkillDefinition
         {
             Id = "tidepool", Name = "Tidepool", Form = SkillForm.Zone, Tags = Tags.Spell | Tags.Area | Tags.Zone, Look = DamageType.Cold,
-            Text = "Water wells up out of the ground. It counts as water for everyone standing in it, for better or worse.",
-            UseTime = 0.5f, ImpactAt = 0.6f, Radius = 8f, Duration = 10f, Interval = 1f, Cooldown = 10f, Range = 20f, Cost = 8f,
+            Text = "Water wells up out of the ground, for better or worse.",
+            UseTime = 0.5f, ImpactAt = 0.6f, Radius = 8f, Duration = 10f, Interval = 1f, Cooldown = 10f, Range = 20f, Cost = 8f, MakesWater = true,
         });
 
         // Others.
@@ -358,7 +358,7 @@ namespace Dino_Defenders.Skills
         public static readonly SkillDefinition Puddle = Add(new SkillDefinition
         {
             Id = "puddle", Name = "Standing Water", Form = SkillForm.Zone, Tags = Tags.Spell | Tags.Area | Tags.Zone | Tags.Triggered, Look = DamageType.Cold, Hidden = true,
-            Radius = 5f, Duration = 8f, Interval = 1f,
+            Radius = 5f, Duration = 8f, Interval = 1f, MakesWater = true,
         });
 
         public static readonly SkillDefinition VenomCloud = Add(new SkillDefinition

@@ -35,8 +35,6 @@ namespace Dino_Defenders.Stats
     public sealed class SkillProfile
     {
         private const int MostFlows = 24;
-        private const float ShortestUse = 0.07f;
-        private const float AddedSpread = 0.2f;     // Flat damage is a range this far either side of what it says.
 
         private readonly DamageFlow[] _flows;
 
@@ -89,6 +87,16 @@ namespace Dino_Defenders.Stats
         /// <summary>What lingering damage gets on top of the hit it came from, for each ailment that does any.</summary>
         public readonly float[] LingerScale = new float[AilmentRules.Count];
 
+        /// <summary>What it starts from, by type, before flat damage is added to it: its share of the weapon, or what a spell has at this level.</summary>
+        public DamageTable BaseMin;
+        public DamageTable BaseMax;
+
+        /// <summary>Flat damage it gets, by type, after its own share of that.</summary>
+        public DamageTable Added;
+
+        /// <summary>The level a spell's damage is read at, with any levels of skills.</summary>
+        public float SkillLevel;
+
         public ReadOnlySpan<DamageFlow> Flows => _flows;
         public bool DealsDamage => _flows.Length > 0;
 
@@ -129,14 +137,14 @@ namespace Dino_Defenders.Stats
             {
                 useTime /= MathF.Max(sheet.Total(Stat.CastSpeed, 1f, all, skill), 0.05f);
             }
-            UseTime = MathF.Max(useTime, ShortestUse);
+            UseTime = MathF.Max(useTime, Rulebook.ShortestUse);
             ImpactTime = UseTime * skill.ImpactAt;
 
             float cost = sheet.Total(Stat.SkillCost, skill.Cost * CostAtLevel(sheet.Loadout.Level), all, skill);
-            float cooldown = skill.Cooldown / MathF.Max(1f + sheet.Total(Stat.CooldownRecovery, 0f, all, skill) / 100f, 0.05f);
+            float cooldown = skill.Cooldown / MathF.Max(sheet.Total(Stat.CooldownRecovery, 100f, all, skill) / 100f, 0.05f);
             if (sheet.Has(Rule.NoCooldowns) && (skill.Tags & Tags.Movement) == 0)
             {
-                cost *= 1f + 0.25f * cooldown;
+                cost *= 1f + Rulebook.NoCooldownCost * cooldown;
                 cooldown = 0f;
             }
             Cost = MathF.Max(cost, 0f);
@@ -149,7 +157,7 @@ namespace Dino_Defenders.Stats
             Reach = (skill.Reach + ((all & Tags.Melee) != 0 ? sheet.Total(Stat.MeleeReach, 0f, all, skill) : 0f)) * ((all & Tags.Area) != 0 ? areaScale : 1f);
             Range = skill.Range;
             Speed = sheet.Total(Stat.ProjectileSpeed, skill.Speed, all, skill);
-            Duration = sheet.Total(Stat.SkillDuration, skill.Duration, all, skill);
+            Duration = sheet.Total(Stat.SkillDuration, skill.Buff?.Duration ?? skill.Duration, all, skill);
             Interval = skill.Interval;
             Delay = skill.Delay;
             Projectiles = Math.Clamp((int)MathF.Round(sheet.Total(Stat.ProjectileCount, skill.Projectiles, all, skill)), 1, 32);
@@ -161,7 +169,7 @@ namespace Dino_Defenders.Stats
             float baseCrit = skill.IsAttack ? weapon.CritChance : skill.CritChance;
             CritChance = sheet.Has(Rule.NeverCrit) ? 0f : Math.Clamp(sheet.Total(Stat.CritChance, baseCrit, all, skill), 0f, 100f);
             CritMultiplier = MathF.Max(sheet.Total(Stat.CritMultiplier, ActorSheet.BaseCritMultiplier, all, skill), 100f);
-            Accuracy = MathF.Max(sheet.Total(Stat.Accuracy, ActorSheet.BaseAccuracy, all, skill), 1f);
+            Accuracy = MathF.Max(sheet.Total(Stat.Accuracy, 0f, all, skill), 0f);
             ArmourIgnore = Math.Clamp(sheet.Total(Stat.ArmourIgnore, 0f, all, skill), 0f, 100f);
             for (int i = 0; i < DamageKinds.Count; i++)
             {
@@ -196,7 +204,7 @@ namespace Dino_Defenders.Stats
             }
         }
 
-        public static float CostAtLevel(int level) => 1f + 0.03f * Math.Max(level - 1, 0);
+        public static float CostAtLevel(int level) => 1f + Rulebook.CostPerLevel * Math.Max(level - 1, 0);
 
         // A lingering ailment feeds on the hit that caused it, so whatever made that stronger has done its work already. What's left to add
         // is whatever names lingering damage or the ailment itself, which never touched the hit. That way nothing counts twice.
@@ -214,7 +222,7 @@ namespace Dino_Defenders.Stats
             return sum.Scale;
         }
 
-        private static DamageFlow[] BuildFlows(ActorSheet sheet, SkillDefinition skill, Tags tags, in WeaponProfile weapon)
+        private DamageFlow[] BuildFlows(ActorSheet sheet, SkillDefinition skill, Tags tags, in WeaponProfile weapon)
         {
             if (sheet.Has(Rule.NoOwnDamage) || !skill.DealsDamage) return Array.Empty<DamageFlow>();
 
@@ -227,19 +235,27 @@ namespace Dino_Defenders.Stats
                 max[(int)DamageType.Physical] = weapon.Max * skill.WeaponShare;
             }
 
-            float power = SkillDefinition.SkillPower(sheet.Loadout.Level + sheet.Total(Stat.SkillLevel, 0f, tags, skill));
+            // Nothing is known yet of what it might turn into, but what it starts as is, and levels can be for that.
+            Tags starts = tags;
+            foreach (BaseDamage part in skill.Damage) starts |= DamageKinds.TagsOf(part.Type);
+            SkillLevel = sheet.Loadout.Level + sheet.Total(Stat.SkillLevel, 0f, starts, skill);
+            float power = SkillDefinition.SkillPower(SkillLevel);
             foreach (BaseDamage part in skill.Damage)
             {
                 min[(int)part.Type] += part.Min * power;
                 max[(int)part.Type] += part.Max * power;
             }
 
+            BaseMin = min;
+            BaseMax = max;
+
             for (int i = 0; i < DamageKinds.Count; i++)
             {
                 var type = (DamageType)i;
                 float added = sheet.Total(M.AddedStat(type), 0f, tags | DamageKinds.TagsOf(type), skill) * skill.AddedEffect;
-                min[i] += added * (1f - AddedSpread);
-                max[i] += added * (1f + AddedSpread);
+                Added[i] = added;
+                min[i] += added * (1f - Rulebook.AddedSpread);
+                max[i] += added * (1f + Rulebook.AddedSpread);
             }
 
             var flows = new List<DamageFlow>(8);
@@ -380,7 +396,13 @@ namespace Dino_Defenders.Stats
             }
         }
 
-        /// <summary>What it comes to in a second of use, for a tooltip.</summary>
-        public float DamagePerSecond => AverageHit / MathF.Max(UseTime, Cooldown);
+        /// <summary>How many times one use reaches something standing in it the whole time.</summary>
+        public int Pulses => Skill.Form == SkillForm.Zone ? 1 + (int)((MathF.Max(Duration, Rulebook.ShortestZone) - Rulebook.FirstPulse) / MathF.Max(Interval, 0.01f)) : 1;
+
+        /// <summary>What it comes to in a second of use on one target, for a tooltip.</summary>
+        public float DamagePerSecond => AverageHit * Pulses / MathF.Max(UseTime, Cooldown);
+
+        /// <summary>What a share of a blow comes to as it leaves, before any critical hit.</summary>
+        public static float Scale(in DamageFlow flow) => MathF.Max(1f + flow.Increased / 100f, 0f) * MathF.Max(flow.More, 0f);
     }
 }

@@ -42,6 +42,49 @@ namespace Dino_Defenders.Stats
         public const int MostHex = 5;
         public const float StunSeconds = 0.35f;
         public const float StunThreshold = 0.2f;    // Share of what the target can bear, in one blow.
+        public const float BleedMoving = 0.5f;      // Onto a bleed's damage, while the bleeder moves.
+        public const float ChillPerHealth = 2f;     // Onto a chill's effect, for each share of health the cold dealt.
+        public const float ShockPerHealth = 2f;     // The same, for a shock.
+        public const float ChillEffectLimit = 0.75f;    // Off action speed, however much has been done for it.
+
+        /// <summary>What a hit of this much feeding an ailment comes to, a second, before anything makes the ailment itself stronger.</summary>
+        public static float PerSecond(Ailment ailment, float damage) => ailment switch
+        {
+            Ailment.Burn => damage * BurnShare / BurnSeconds,
+            Ailment.Bleed => damage * BleedShare / BleedSeconds,
+            Ailment.Venom => damage * VenomShare / VenomSeconds,
+            _ => 0f,
+        };
+
+        /// <param name="share">Of the target's maximum health, in cold.</param>
+        public static float ChillEffect(float share, float effect) => MathF.Min(Math.Clamp(LeastChill + share * ChillPerHealth, LeastChill, MostChill) * effect, ChillEffectLimit);
+
+        /// <param name="share">Of the target's maximum health, in lightning.</param>
+        public static float ShockEffect(float share, float effect) => Math.Clamp(LeastShock + share * ShockPerHealth, LeastShock, MostShock) * effect;
+
+        /// <summary>How long an ailment lasts on someone with nothing changing it.</summary>
+        public static float SecondsOf(Ailment ailment) => ailment switch
+        {
+            Ailment.Burn => BurnSeconds,
+            Ailment.Bleed => BleedSeconds,
+            Ailment.Venom => VenomSeconds,
+            Ailment.Chill => ChillSeconds,
+            Ailment.Freeze => FreezeSeconds,
+            Ailment.Shock => ShockSeconds,
+            Ailment.Hex => HexSeconds,
+            _ => StunSeconds,
+        };
+
+        /// <summary>The types of damage that can cause an ailment. It takes a hit with some of one of these in it, or nothing happens however good the chance is.</summary>
+        public static Tags Causes(Ailment ailment) => ailment switch
+        {
+            Ailment.Burn => Tags.Fire,
+            Ailment.Venom => Tags.Physical | Tags.Poison,
+            Ailment.Chill or Ailment.Freeze => Tags.Cold,
+            Ailment.Shock => Tags.Lightning,
+            Ailment.Hex => Tags.Magic,
+            _ => Tags.Physical,
+        };
 
         public static Tags Tag(Ailment ailment) => ailment switch
         {
@@ -119,6 +162,7 @@ namespace Dino_Defenders.Stats
         public const float LeastResistance = -200f;
         public const float MostEvasion = 0.85f;
         public const float EvasionFactor = 3f;
+        public const float EvasionMargin = 300f;    // What evasion is measured against with no accuracy at all, or someone with none could hit nothing.
         public const float DebtSeconds = 4f;
         public const float LowShare = 0.35f;
 
@@ -195,7 +239,7 @@ namespace Dino_Defenders.Stats
         public static float EvadeChance(float evasion, float accuracy)
         {
             if (evasion <= 0f) return 0f;
-            return MathF.Min(evasion / (evasion + EvasionFactor * accuracy), MostEvasion);
+            return MathF.Min(evasion / (evasion + EvasionFactor * accuracy + EvasionMargin), MostEvasion);
         }
 
         public static float ArmourReduction(float armour, float hit)
@@ -335,7 +379,7 @@ namespace Dino_Defenders.Stats
 
             if (sheet.Has(Rule.OverhealBarrier) && amount > room)
             {
-                vitals.Barrier = MathF.Min(vitals.Barrier + amount - room, sheet.MaxBarrier + sheet.MaxHealth * 0.5f);
+                vitals.Barrier = MathF.Min(vitals.Barrier + amount - room, sheet.MaxBarrier + sheet.MaxHealth * Rulebook.OverhealMost);
             }
             return healed;
         }
@@ -347,7 +391,7 @@ namespace Dino_Defenders.Stats
 
             if (vitals.Debt > 0f)
             {
-                float due = MathF.Min(vitals.Debt, MathF.Max(vitals.Debt / DebtSeconds, sheet.MaxHealth * 0.02f) * seconds);
+                float due = MathF.Min(vitals.Debt, MathF.Max(vitals.Debt / DebtSeconds, sheet.MaxHealth * Rulebook.DebtLeast) * seconds);
                 vitals.Debt -= due;
                 vitals.Health -= due;
                 if (vitals.Health <= 0f) return;

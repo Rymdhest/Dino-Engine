@@ -1,4 +1,6 @@
+using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.Core;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
@@ -15,7 +17,10 @@ namespace Dino_Defenders.UI
     {
         public static readonly Colour Ink = GuiColors.Rgba(15, 12, 10, 232);
         public static readonly Colour InkLight = GuiColors.Rgba(38, 31, 25, 235);
+        public static readonly Colour Paper = GuiColors.Rgba(15, 12, 10, 246);
         public static readonly Colour Parchment = GuiColors.Rgba(228, 214, 186);
+        public static readonly Colour Bright = GuiColors.Rgba(255, 248, 232);
+        public static readonly Colour TermInk = GuiColors.Rgba(238, 196, 120);
         public static readonly Colour Faded = GuiColors.Rgba(164, 150, 126);
         public static readonly Colour Gold = GuiColors.Rgba(214, 172, 92);
         public static readonly Colour Blood = GuiColors.Rgba(172, 40, 30);
@@ -72,6 +77,69 @@ namespace Dino_Defenders.UI
             GuiRect shadow = new GuiRect(rect.X + 1f, rect.Y + 1f, rect.Width, rect.Height);
             GuiText.Draw(context, draw, text, Face, size, shadow, GuiColors.Rgba(0, 0, 0, (int)(190 * colour.Alpha)), horizontal, vertical);
             GuiText.Draw(context, draw, text, Face, size, rect, colour, horizontal, vertical);
+        }
+
+        private static readonly List<TermMark> Marks = new();
+        private static readonly List<(int start, int length, Term? term, Card? card)> Hot = new();
+
+        /// <summary>One line of a tooltip, with each word that means something marked and each number standing out.</summary>
+        /// <param name="links">Cards whose names in this line open them.</param>
+        /// <param name="spots">Gets where each marked word ended up, so that it can be rested on.</param>
+        public static void Rich(GuiContext context, GuiDrawList draw, string text, float size, float x, float y, Colour colour, IReadOnlyList<Card> links, List<HotSpot> spots)
+        {
+            Lexicon.Find(text, Marks);
+            Hot.Clear();
+            foreach (TermMark mark in Marks)
+            {
+                if (!mark.Term.Basic && mark.Length > 1) Hot.Add((mark.Start, mark.Length, mark.Term, null));
+            }
+
+            foreach (Card card in links)
+            {
+                int found = text.IndexOf(card.Title, StringComparison.Ordinal);
+                if (found < 0) continue;
+                int end = found + card.Title.Length;
+                Hot.RemoveAll(hot => hot.start < end && hot.start + hot.length > found);
+                Hot.Add((found, card.Title.Length, null, card));
+            }
+            Hot.Sort((a, b) => a.start.CompareTo(b.start));
+
+            int at = 0;
+            foreach ((int start, int length, Term? term, Card? card) in Hot)
+            {
+                x = Numbered(context, draw, text, at, start, size, x, y, colour);
+                float from = x;
+                x = Piece(context, draw, text.Substring(start, length), size, x, y, TermInk);
+                spots.Add(new HotSpot(new GuiRect(from, y, x - from, size + 5f), term, card));
+                at = start + length;
+            }
+            Numbered(context, draw, text, at, text.Length, size, x, y, colour);
+        }
+
+        private static float Numbered(GuiContext context, GuiDrawList draw, string text, int start, int end, float size, float x, float y, Colour colour)
+        {
+            int at = start;
+            for (int i = start; i < end; i++)
+            {
+                if (!char.IsDigit(text[i])) continue;
+
+                int first = i > start && text[i - 1] is '+' or '-' ? i - 1 : i;
+                int last = i;
+                while (last + 1 < end && (char.IsDigit(text[last + 1]) || text[last + 1] is '.' or '%' or '\u2013')) last++;
+                x = Piece(context, draw, text.Substring(at, first - at), size, x, y, colour);
+                x = Piece(context, draw, text.Substring(first, last - first + 1), size, x, y, Bright);
+                at = last + 1;
+                i = last;
+            }
+            return Piece(context, draw, text.Substring(at, end - at), size, x, y, colour);
+        }
+
+        private static float Piece(GuiContext context, GuiDrawList draw, string text, float size, float x, float y, Colour colour)
+        {
+            if (text.Length == 0) return x;
+            float width = GuiText.MeasureWidth(context, text, Face, size);
+            GuiText.Draw(context, draw, text, Face, size, new GuiRect(x, y, width + 2f, size + 5f), colour, Alignment.Start, Alignment.Start);
+            return x + width;
         }
 
         /// <summary>Breaks text into lines no wider than <paramref name="width"/>.</summary>
@@ -155,66 +223,28 @@ namespace Dino_Defenders.UI
             return new Colour(glow.Red, glow.Green, glow.Blue, 1f, 0.55f);
         }
 
-        private const float TooltipWidth = 340f;
-        private const float TooltipPicture = 84f;
-
         /// <summary>What something is, beside whatever's showing it, set against what's worn in its place. Everything that shows an item shows it the same way.</summary>
         /// <param name="beside">What it's showing beside.</param>
         /// <param name="price">What it's worth here, if anything.</param>
         /// <param name="compare">Whether to set it against what it would replace.</param>
-        public static void DrawTooltip(GuiContext context, GuiDrawList draw, HeroState hero, Item item, GuiRect beside, GuiRect screen, string? price, bool compare)
+        public static void DrawTooltip(HeroState hero, Item item, GuiRect beside, string? price, bool compare)
         {
-            Colour colour = GradeColour(Loot.GradeOf(item));
-            float textWidth = TooltipWidth - 24f;
-
-            var lines = new List<(string text, float size, Colour colour, bool indent)>();
-            void Add(string text, float size, Colour shade, bool beneathPicture = true)
+            GameUi.Current.Tips.Show(() =>
             {
-                float width = beneathPicture ? textWidth : textWidth - TooltipPicture - 8f;
-                foreach (string line in Wrap(context, text, size, width)) lines.Add((line, size, shade, !beneathPicture));
-            }
-
-            Add(item.Name, 18f, colour, beneathPicture: false);
-            Add($"{GradeName(item)} {SlotName(item)}", 13f, Faded, beneathPicture: false);
-            Add($"Level {item.Level}", 13f, Faded, beneathPicture: false);
-            float head = 18f;
-            foreach ((_, float size, _, _) in lines) head += size + 6f;
-            float gap = MathF.Max(TooltipPicture + 16f - head, 0f);
-
-            foreach (string line in item.DescribeBase()) Add(line, 14f, Parchment);
-            foreach (string line in item.Describe()) Add(line, 14f, colour);
-            if (item.Unique != null && UniqueCatalog.Find(item.Unique) is UniqueDefinition unique) Add(unique.Lore, 13f, Faded);
-            if (price != null) Add(price, 14f, Gold);
-
-            if (compare && hero.Equipped.TryGetValue(hero.PlaceFor(item), out Item? worn) && worn != item)
-            {
-                Add($"Instead of {worn.Name}", 13f, Faded);
-                foreach ((string name, float difference) in Differences(item, worn)) Add($"{(difference > 0f ? "+" : "")}{difference:0.#} {name}", 13f, difference > 0f ? Good : Blood);
-            }
-
-            float height = 18f + gap;
-            foreach ((_, float size, _, _) in lines) height += size + 6f;
-
-            float x = beside.Right + 10f;
-            if (x + TooltipWidth > screen.Width - 8f) x = beside.X - TooltipWidth - 10f;
-            x = Math.Clamp(x, 8f, screen.Width - TooltipWidth - 8f);
-            float y = Math.Clamp(beside.Center.Y - height * 0.5f, 8f, MathF.Max(screen.Height - height - 8f, 8f));
-
-            draw.AddRect(new GuiRect(x, y, TooltipWidth, height), Ink, 3f, 1f, colour.MultiplyAlpha(0.8f));
-            DrawItem(draw, item, new GuiRect(x + TooltipWidth - TooltipPicture - 10f, y + 8f, TooltipPicture, TooltipPicture), colour, GuiColors.White);
-
-            float top = y + 9f;
-            bool passedPicture = false;
-            foreach ((string text, float size, Colour shade, bool indent) in lines)
-            {
-                if (!indent && !passedPicture)
+                Card card = Cards.Item(item, GameSession.Current?.Sheet, $"{GradeName(item)} {SlotName(item)}");
+                if (price != null)
                 {
-                    top += gap;
-                    passedPicture = true;
+                    card.Gap();
+                    card.Text(price, LineLook.Price);
                 }
-                Text(context, draw, text, size, new GuiRect(x + 12f, top, textWidth, size + 5f), shade);
-                top += size + 6f;
-            }
+
+                if (compare && hero.Equipped.TryGetValue(hero.PlaceFor(item), out Item? worn) && worn != item)
+                {
+                    card.Heading($"Compared to {worn.Name}");
+                    foreach ((string name, float difference) in Differences(item, worn)) card.Text($"{Say.Signed(difference)} {name}", difference > 0f ? LineLook.Good : LineLook.Bad);
+                }
+                return card;
+            }, beside);
         }
 
         private static IEnumerable<(string name, float difference)> Differences(Item item, Item worn)

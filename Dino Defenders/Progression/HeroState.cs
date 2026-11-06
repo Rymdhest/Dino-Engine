@@ -36,8 +36,10 @@ namespace Dino_Defenders.Progression
 
         public int ExperienceToNext => (int)(120f * MathF.Pow(Level, 1.7f));
 
+        public const int PointsPerLevel = 2;
+
         /// <summary>Two a level, and one for each land set free, with three to start out with.</summary>
-        public int TalentPoints => 1 + 2 * Level + WorldsCleared;
+        public int TalentPoints => 1 + PointsPerLevel * Level + WorldsCleared;
 
         public int UnspentPoints => Math.Max(TalentPoints - Talents.Count, 0);
 
@@ -143,16 +145,12 @@ namespace Dino_Defenders.Progression
     /// </summary>
     public static class HeroBuild
     {
-        /// <summary>What every hero has by being a hero.</summary>
-        public static IEnumerable<Mod> Innate(int level)
+        /// <summary>What every hero has by being a hero: base life and mana, and the walk that the sheet's Movement Speed is a bonus on. Nothing else, at any level.</summary>
+        public static IEnumerable<Mod> Innate()
         {
-            yield return Flat(Stat.Health, 100f + 12f * level);
-            yield return Flat(Stat.Mana, 40f + 6f * level);
-            yield return Flat(Stat.HealthRegen, 0.8f + 0.05f * level);
-            yield return Flat(Stat.ManaRegenPercent, 2.2f);
+            yield return Flat(Stat.Health, Rulebook.BaseHealth);
+            yield return Flat(Stat.Mana, Rulebook.BaseMana);
             yield return Flat(Stat.MoveSpeed, HeroState.BaseMoveSpeed);
-            yield return Flat(Stat.Accuracy, 8f * level);
-            yield return Flat(Stat.Evasion, 10f + 2f * level);
         }
 
         public static WeaponProfile WeaponOf(HeroState hero)
@@ -162,7 +160,7 @@ namespace Dino_Defenders.Progression
 
         private static IEnumerable<Mod> Gather(HeroState hero, IReadOnlyList<ActiveBuff>? buffs)
         {
-            foreach (Mod mod in Innate(hero.Level)) yield return mod;
+            foreach (Mod mod in Innate()) yield return mod;
             foreach (Mod mod in TalentTree.Mods(hero)) yield return mod;
 
             foreach (WornSlot place in Enum.GetValues<WornSlot>())

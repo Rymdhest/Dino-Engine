@@ -5,6 +5,7 @@ using Dino_Defenders.Progression;
 using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Widgets;
@@ -210,12 +211,13 @@ namespace Dino_Defenders.UI
 
         private readonly StackPanel _cards;
         private readonly Label _note;
-        private readonly Label _about;
         private readonly Label _cost;
         private readonly Action<WorldRequest, Offering> _travel;
         private readonly Offering _offering = new();
         private readonly List<(OmenDefinition omen, Button button)> _omens = new();
         private int _level = 1;
+        private OmenDefinition? _lookingAt;
+        private GuiRect _lookingFrom;
 
         private static HeroState Hero => GameSession.Current.Hero;
 
@@ -255,7 +257,7 @@ namespace Dino_Defenders.UI
             body.Add(Ui.Line("", 14f, Ui.Gold).Bind(() => $"Omens: {_offering.Omens.Count} of {Offering.OmenSlots(_offering.Peril)}. More peril carries more."));
             var grid = body.Add(new GridPanel(OmenColumns, 6f, 6f));
             foreach (OmenDefinition omen in Omens.All) _omens.Add((omen, grid.Add(OmenButton(omen))));
-            _about = body.Add(Ui.Paragraph(OmenHelp, 14f, Ui.Parchment));
+            body.Add(Ui.Paragraph(OmenHelp, 14f, Ui.Faded));
 
             body.Add(Ui.Line("", 14f).Bind(DescribeRewards));
             _cost = body.Add(Ui.Line("", 15f, Ui.Gold).Bind(() => $"Costs {_offering.Price(_level)} gold of your {Hero.Gold}"));
@@ -303,9 +305,20 @@ namespace Dino_Defenders.UI
         {
             Button button = Ui.Action(omen.Name, () => Toggle(omen));
             button.Height = 28f;
-            button.MouseEnter += () => _about.Text = $"{omen.Name}. {omen.Describe()}";
-            button.MouseLeave += () => _about.Text = OmenHelp;
+            button.MouseEnter += () =>
+            {
+                _lookingAt = omen;
+                _lookingFrom = button.Bounds;
+            };
+            button.MouseLeave += () => _lookingAt = null;
             return button;
+        }
+
+        protected override void OnDrawOverlay(GuiDrawList draw)
+        {
+            base.OnDrawOverlay(draw);
+            if (_lookingAt is not OmenDefinition omen) return;
+            GameUi.Current.Tips.Show(() => Cards.Omen(omen, GameSession.Current.Sheet), _lookingFrom);
         }
 
         private void Toggle(OmenDefinition omen)
@@ -384,6 +397,48 @@ namespace Dino_Defenders.UI
         }
     }
 
+    /// <summary>Every word that means something, with what it means, for looking up what's on a card or anything else. Typing narrows it down.</summary>
+    internal sealed class GlossaryPanel : GuiElement
+    {
+        private readonly List<(Term term, GuiElement entry)> _entries = new();
+        private readonly TextBox _search;
+
+        public GlossaryPanel()
+        {
+            Anchor = Anchor.Center;
+            Width = 720f;
+            Height = 660f;
+            Padding = new Thickness(22f);
+            Ui.Dress(this);
+            Visible = false;
+
+            var body = Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill });
+            body.Add(Ui.Heading("Glossary", 24f));
+            _search = body.Add(new TextBox("", "Search") { Width = UIValue.Fill, Height = 30f });
+            _search.TextChanged += _ => Narrow();
+
+            var scroll = body.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
+            var list = scroll.Content.Add(new StackPanel(Orientation.Vertical, 7f) { Width = UIValue.Fill, Height = UIValue.Auto });
+            foreach (Term term in Lexicon.All.OrderBy(term => term.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var entry = list.Add(new StackPanel(Orientation.Vertical, 1f) { Width = UIValue.Fill, Height = UIValue.Auto });
+                entry.Add(Ui.Line(term.Name, 15f, Ui.Gold));
+                entry.Add(Ui.Paragraph(term.Says, 14f));
+                _entries.Add((term, entry));
+            }
+            body.Add(Ui.Line("G to close", 13f, Ui.Faded));
+        }
+
+        private void Narrow()
+        {
+            string wanted = _search.Text.Trim();
+            foreach ((Term term, GuiElement entry) in _entries)
+            {
+                entry.Visible = wanted.Length == 0 || term.Forms.Any(form => form.Contains(wanted, StringComparison.OrdinalIgnoreCase)) || term.Says.Contains(wanted, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
     /// <summary>The game held still: go on, or leave the road for now.</summary>
     internal sealed class PauseMenu : GuiElement
     {
@@ -405,6 +460,7 @@ namespace Dino_Defenders.UI
             body.Add(Ui.Action("The hero (C)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Hero); }));
             body.Add(Ui.Action("The tree (T)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Talents); }));
             body.Add(Ui.Action("Skills (K)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Skills); }));
+            body.Add(Ui.Action("Glossary (G)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Glossary); }));
             body.Add(Ui.Action("Travel with friends", friends));
             SoundSettings.AddControls(body);
             body.Add(Ui.Action("Leave the road", quit));
@@ -423,7 +479,7 @@ namespace Dino_Defenders.UI
 
             body.Add(Ui.Line("WASD move, mouse aims, skills on LMB, RMB, Q, 1 to 4", 13f, Ui.Faded));
             body.Add(Ui.Line("Space dodge, R flask, E use, F guiding wind once a land is free", 13f, Ui.Faded));
-            body.Add(Ui.Line("M map, C hero, T tree, K skills, J chronicle, wheel zoom", 13f, Ui.Faded));
+            body.Add(Ui.Line("M map, C hero, T tree, K skills, J chronicle, G glossary, wheel zoom", 13f, Ui.Faded));
         }
 
         public void Reset()
@@ -544,11 +600,13 @@ namespace Dino_Defenders.UI
         public readonly HeroPanel Hero = new();
         public readonly TalentPanel Talents = new();
         public readonly SkillPanel Skills = new();
+        public readonly GlossaryPanel Glossary = new();
         public readonly ChroniclePanel Chronicle = new();
         public readonly WaygatePanel Waygate;
         public readonly PauseMenu Pause;
         public readonly FriendsPanel Friends;
         public readonly LoadingScreen Loading = new();
+        public readonly TipLayer Tips = new();
 
         private readonly GuiElement[] _panels;
 
@@ -560,12 +618,13 @@ namespace Dino_Defenders.UI
             Waygate = new WaygatePanel(travel);
             Pause = new PauseMenu(CloseAll, () => Toggle(Friends!), quit, newJourney);
             Friends = new FriendsPanel(game);
-            _panels = new GuiElement[] { Map, Hero, Talents, Skills, Chronicle, Waygate, Pause, Friends };
+            _panels = new GuiElement[] { Map, Hero, Talents, Skills, Glossary, Chronicle, Waygate, Pause, Friends };
 
             gui.Root.Add(Marks);
             gui.Root.Add(Hud);
             gui.Root.Add(Labels);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
+            gui.Root.Add(Tips);
             gui.Root.Add(Loading);
         }
 
@@ -575,6 +634,7 @@ namespace Dino_Defenders.UI
         {
             if (AnyOpen) Audio.Play(Interface.Close);
             foreach (GuiElement panel in _panels) panel.Visible = false;
+            Tips.Clear();
             Pause.Reset();
         }
 

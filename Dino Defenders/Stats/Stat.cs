@@ -2,11 +2,16 @@ namespace Dino_Defenders.Stats
 {
     /// <summary>
     /// Everything a modifier can change. Every one of these is read somewhere, and BuildLab fails if one stops being. A new stat is a line
-    /// here and a line in <see cref="StatNames"/>, then whatever reads it. Stats take scopes, so one entry covers everything it can be
+    /// here, a line in <see cref="Tooltips.StatNames"/> and a term in <see cref="Tooltips.Lexicon"/>, then whatever reads it. Stats take scopes, so one entry covers everything it can be
     /// narrowed to: Damage is also fire damage, spell damage and fire spell damage with staves.
     /// </summary>
     public enum Stat : ushort
     {
+        // What gives other stats: see Attributes.
+        Strength,
+        Dexterity,
+        Intellect,
+
         // The pools.
         Health,
         Mana,

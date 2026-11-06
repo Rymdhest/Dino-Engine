@@ -80,6 +80,9 @@ namespace Dino_Defenders.Stats
                 }
             }
 
+            // Before anything is diverted, as what an attribute gives is as much a part of a stat as anything else.
+            if (numbers.Exists(mod => Attributes.Is(mod.Stat)) && !numbers.Contains(Attributes.Mods[0])) numbers.AddRange(Attributes.Mods);
+
             ApplyDiversions(numbers, diverted);
 
             // Triggered skills have to be somewhere for a profile to be made of them, though nobody picks them from a list.

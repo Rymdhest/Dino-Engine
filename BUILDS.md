@@ -31,6 +31,12 @@ Everything that changes a number is a `Mod`. Talents, items, buffs and enemy tra
 
 **Stats pointed at other stats.** `Divert` sends a stat's increases to another stat instead, and `Echo` sends them to both. `Per` measures one total against another. Both read what a total was *before* such things are counted, so they can't feed each other, and two pointed at each other swap rather than loop. It doesn't matter what order anything was picked up in.
 
+### What a hero starts with
+
+**A naked hero with no talents has 100 Life, 100 Mana and nothing else, at any level** (`HeroBuild.Innate`, and `check` holds it). Levels give talent points and nothing more. Where something can't be nothing, it's a rule and not a stat: everyone walks at `BaseMoveSpeed`, dodges the same way, crits for 150%, refills `ManaRefill` and stops at the same limits, and what's on the sheet is the bonus on top of that.
+
+Power comes from attributes. **Strength** gives Health and increased Physical Damage, **Dexterity** Accuracy, Evasion and increased Attack Speed, and **Intellect** Mana, Mana Regeneration and increased Spell Damage (`Attributes`, numbers in the `Rulebook`). They're ordinary modifiers counted per point, added to any loadout with an attribute on it, so an enemy with Strength gets them too. Every node on the tree gives `NodeAttribute` points of its sector's attribute (`TalentContent.AttributesOf`) and `NodeHealth`, and gear can roll them. `NodeHealth` is there because Life is what levels used to give, and only Strength gives it now: without it a caster at level 60 dies in two hits.
+
 ### Why it's fast
 
 Modifiers are read when something changes, never when a blow lands.
@@ -71,7 +77,7 @@ It comes in, in this order:
 | Chill | Cold, always | Slows everything they do |
 | Freeze | Cold | Stops them |
 | Shock | Lightning | They take more damage |
-| Hex | Magic | Takes away resistance, in stacks |
+| Hex | Magic | Takes away resistance, in stacks. Effect scales each stack |
 | Stun | Physical | Stops them for a moment |
 
 An ailment feeds on the hit that caused it, so whatever made that hit stronger has done its work. What's added on top is whatever names lingering damage or the ailment itself, which never touched the hit. So nothing counts twice.
@@ -140,8 +146,8 @@ Node ids are saved in heroes and come from where a node stands in a sector's tab
 ### Adding to it
 
 - **A notable or a keystone**: a line in `TalentContent`.
-- **A new rule**: a value in `Rule`, its text in `ModText`, and the code where it matters. `Combat` is where most belong.
-- **A new stat**: a value in `Stat`, a line in `StatNames`, and read it. `check` fails on a stat that changes nothing, or that nothing gives.
+- **A new rule**: a value in `Rule`, its words in `ModText` with its numbers in the `Rulebook`, and the code where it matters. `Combat` is where most belong.
+- **A new stat**: a value in `Stat`, a line in `StatNames`, a term in `Lexicon`, a line in `StatBook`, and read it. `check` fails on a stat that changes nothing, that nothing gives, or that nothing explains. `TOOLTIPS.md` says how all of that has to read.
 
 ## Items
 
@@ -235,7 +241,7 @@ What a blow does is the server's business. What a client sees of it comes as `Da
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" check      # The sums, the tree, items, skills, old saves
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" bench      # What it costs, and that blows allocate nothing
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" balance    # How a fight goes at each level
-dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list       # Everything there is, with its text as the player reads it
+dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list       # Everything there is, with its text as the player reads it. --what cards, sheet or terms for what TOOLTIPS.md covers
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" density    # How much there is to fight in a world, and how long between fights
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" loot       # What each source gives, what a whole world comes to, and the longest dry spells
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" offering   # What each step of peril costs and pays, and what more enemies come to

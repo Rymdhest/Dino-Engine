@@ -7,6 +7,7 @@ using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
 using OpenTK.Mathematics;
+using static Dino_Defenders.Stats.Rulebook;
 
 namespace Dino_Defenders.Server
 {
@@ -21,27 +22,6 @@ namespace Dino_Defenders.Server
     {
         private const int MostRewind = 15;      // A quarter of a second: past this, what a player saw is too old to hold against anyone else.
         private const int MostPerStep = 256;    // Consequences dealt with in a tick. What's over waits for the next one.
-        private const float ChainFade = 0.85f;
-        private const float ChainGrowth = 1.25f;
-        private const float EchoDelay = 0.6f;
-        private const float EchoStrength = 0.5f;
-        private const float TrailSpacing = 3.2f;
-        private const float CarrierInterval = 1f;
-        private const float RebirthCooldown = 90f;
-        private const float StoredBonus = 1.6f;
-        private const float ChillReach = 25f;
-        private const float GuardianReach = 20f;
-        private const float GuardianShare = 0.7f;
-        private const float ConductReach = 12f;
-        private const float ReactionShare = 0.6f;
-        private const float ReactionRadius = 5f;
-        private const float FireHealShare = 0.25f;
-        private const float DebtForgiven = 0.15f;
-        private const float ReadBusy = 0.1f;
-        private const float BurstDelay = 0.9f;      // Seconds from a body falling to its going up. A dodge is half that.
-        private const float BurstRadius = 4.5f;
-        private const float BurstShare = 0.45f;     // Of an ordinary enemy's blow. They come in numbers.
-        private const float RallyReach = 16f;
 
         // What a blow does to a body. Everything's a share of how much health it took, as that's what a hit means to whoever took it.
         private const float PushPerHealth = 34f;    // Metres a second, for a blow that takes all there is.
@@ -134,7 +114,7 @@ namespace Dino_Defenders.Server
                     Defer(new Consequence { Kind = Later.Land, At = Now + skill.Delay, Source = user, Skill = skill, Origin = target, Strength = strength });
                     break;
                 case SkillForm.Zone:
-                    Lay(user, skill, target);
+                    Lay(user, skill, target, strength);
                     break;
                 case SkillForm.Chain:
                     Chain(user, skill, origin, facing, reach, strength);
@@ -339,7 +319,7 @@ namespace Dino_Defenders.Server
             {
                 Source = user,
                 Skill = skill,
-                Life = skill.Range / MathF.Max(skill.Speed, 1f) + 0.25f,
+                Life = skill.Range / MathF.Max(skill.Speed, 1f) + FlightGrace,
                 Pierce = skill.Pierce,
                 Chains = skill.Chains,
                 Strength = strength,
@@ -395,13 +375,13 @@ namespace Dino_Defenders.Server
         {
             if (!projectile.Source.Sheet.Has(Rule.LongShot)) return 1f;
             float metres = (at - projectile.Start).Length;
-            return metres < 10f ? 0.6f : 1f + MathF.Min(metres * 0.015f, 0.9f);
+            return metres < LongShotNear ? 1f - LongShotNearLess : 1f + MathF.Min(metres * LongShotPerMetre, LongShotMost);
         }
 
         private bool Retarget(Projectile projectile, Actor from, Vector3 at)
         {
             _chained.Clear();
-            Grid.Foes(projectile.Source.Team, at.Xz, 18f, _chained);
+            Grid.Foes(projectile.Source.Team, at.Xz, ProjectileChainReach, _chained);
 
             Actor? next = null;
             float best = float.PositiveInfinity;
@@ -505,11 +485,11 @@ namespace Dino_Defenders.Server
             foreach (Actor foe in _found) Hit(user, skill, foe, strength, origin, facing);
         }
 
-        private void Lay(Actor user, SkillProfile skill, Vector2 at)
+        private void Lay(Actor user, SkillProfile skill, Vector2 at, float strength = 1f)
         {
-            float life = MathF.Max(skill.Duration, 0.5f);
-            var zone = new ZoneState { Source = user, Skill = skill, Left = life, NextPulse = 0.1f, At = at };
-            if (skill.Skill == SkillCatalog.Tidepool || skill.Skill == SkillCatalog.Puddle) Land.AddPool(at, skill.Radius, (float)Now + life);
+            float life = MathF.Max(skill.Duration, ShortestZone);
+            var zone = new ZoneState { Source = user, Skill = skill, Left = life, NextPulse = FirstPulse, At = at, Strength = strength };
+            if (skill.Skill.MakesWater) Land.AddPool(at, skill.Radius, (float)Now + life);
 
             World.CreateEntity("Zone",
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 1.5f),
@@ -525,7 +505,7 @@ namespace Dino_Defenders.Server
 
             _chained.Clear();
             Within(GroundShape.Circle(zone.At, zone.Skill.Radius), zone.Source.Team, _chained);
-            foreach (Actor foe in _chained) Hit(zone.Source, zone.Skill, foe, 1f, zone.At, foe.Position - zone.At);
+            foreach (Actor foe in _chained) Hit(zone.Source, zone.Skill, foe, zone.Strength, zone.At, foe.Position - zone.At);
         }
 
         // ---- Landing.
@@ -572,7 +552,7 @@ namespace Dino_Defenders.Server
             float power = strength * Advantage(source, target);
             if (source.Static > 0f && source.Sheet.Has(Rule.StaticCharge))
             {
-                power *= 1f + source.Static / 100f;
+                power *= 1f + source.Static * StaticPerCharge;
                 source.Static = 0f;
             }
             Hits.Roll(skill, foe, _luck, ref hit, power, sureCrit);
@@ -674,7 +654,7 @@ namespace Dino_Defenders.Server
         {
             if (!source.Sheet.Has(Rule.HighGround)) return 1f;
             float above = source.Height - target.Height;
-            return above >= 0f ? 1f + MathF.Min(above * 0.04f, 0.6f) : MathF.Max(1f + above * 0.02f, 0.4f);
+            return above >= 0f ? 1f + MathF.Min(above * HighGroundPerMetre, HighGroundMost) : 1f - MathF.Min(-above * LowGroundPerMetre, LowGroundMost);
         }
 
         // The rest of a party takes some of it, if one of them has sworn to.
@@ -688,9 +668,9 @@ namespace Dino_Defenders.Server
                 if (guardian == target || guardian.Dead || !guardian.Sheet.Has(Rule.Guardian)) continue;
                 if ((guardian.Position - target.Position).LengthSquared > GuardianReach * GuardianReach) continue;
 
-                float taken = hit.Total * (1f - GuardianShare);
-                for (int i = 0; i < DamageKinds.Count; i++) hit.Dealt[i] *= GuardianShare;
-                hit.Total *= GuardianShare;
+                float taken = hit.Total * GuardianShare;
+                for (int i = 0; i < DamageKinds.Count; i++) hit.Dealt[i] *= 1f - GuardianShare;
+                hit.Total *= 1f - GuardianShare;
                 Hits.Pay(guardian.Sheet, ref guardian.Vitals, taken, 0f);
                 return true;
             }
@@ -881,7 +861,7 @@ namespace Dino_Defenders.Server
             a.FreezeLeft = 0f;
             if (a.Stored <= 0f || a.StoredBy == null) return;
 
-            float stored = a.Stored * StoredBonus;
+            float stored = a.Stored * (1f + StoredBonus);
             Actor source = a.StoredBy;
             a.Stored = 0f;
             a.StoredBy = null;
@@ -916,7 +896,7 @@ namespace Dino_Defenders.Server
             if (flame > 0f && !sheet.Has(Rule.ImmuneToBurn) && Lands(Ailment.Burn, burnFuel > 0f))
             {
                 float seconds = Length(Ailment.Burn, AilmentRules.BurnSeconds);
-                float perSecond = flame * AilmentRules.BurnShare / AilmentRules.BurnSeconds * Strength(Ailment.Burn);
+                float perSecond = AilmentRules.PerSecond(Ailment.Burn, flame) * Strength(Ailment.Burn);
                 if (seconds > 0f && (perSecond >= a.BurnPerSecond || a.BurnLeft <= 0f))
                 {
                     a.BurnPerSecond = perSecond;
@@ -928,7 +908,7 @@ namespace Dino_Defenders.Server
             if (physical > 0f && Lands(Ailment.Bleed))
             {
                 float seconds = Length(Ailment.Bleed, AilmentRules.BleedSeconds);
-                float perSecond = physical * AilmentRules.BleedShare / AilmentRules.BleedSeconds * Strength(Ailment.Bleed);
+                float perSecond = AilmentRules.PerSecond(Ailment.Bleed, physical) * Strength(Ailment.Bleed);
                 if (seconds > 0f && (perSecond >= a.BleedPerSecond || a.BleedLeft <= 0f))
                 {
                     a.BleedPerSecond = perSecond;
@@ -940,17 +920,16 @@ namespace Dino_Defenders.Server
             if (physical + poison > 0f && !sheet.Has(Rule.Carrier) && Lands(Ailment.Venom))
             {
                 float seconds = Length(Ailment.Venom, AilmentRules.VenomSeconds);
-                float perSecond = (physical + poison) * AilmentRules.VenomShare / AilmentRules.VenomSeconds * Strength(Ailment.Venom);
+                float perSecond = AilmentRules.PerSecond(Ailment.Venom, physical + poison) * Strength(Ailment.Venom);
                 int most = source.Sheet.Has(Rule.EndlessVenom) ? AilmentRules.MostEndlessVenom : AilmentRules.MostVenom;
                 a.Venom ??= new List<VenomStack>();
                 if (a.Venom.Count >= most) a.Venom.RemoveAt(0);
                 if (seconds > 0f) a.Venom.Add(new VenomStack { PerSecond = perSecond, Left = seconds, Source = source });
             }
 
-            if (cold > 0f && !sheet.Has(Rule.CannotBeChilled))
+            if (cold > 0f && !sheet.Has(Rule.CannotBeChilled) && Lands(Ailment.Chill, sure: true))
             {
-                float effect = Math.Clamp(AilmentRules.LeastChill + cold / health * 2f, AilmentRules.LeastChill, AilmentRules.MostChill) * skill.Ailments[(int)Ailment.Chill].Effect;
-                effect = MathF.Min(effect, 0.75f);
+                float effect = AilmentRules.ChillEffect(cold / health, skill.Ailments[(int)Ailment.Chill].Effect);
                 if (effect >= a.ChillEffect || a.ChillLeft <= 0f)
                 {
                     a.ChillEffect = effect;
@@ -966,7 +945,7 @@ namespace Dino_Defenders.Server
 
             if (lightning > 0f && Lands(Ailment.Shock))
             {
-                float effect = Math.Clamp(AilmentRules.LeastShock + lightning / health * 2f, AilmentRules.LeastShock, AilmentRules.MostShock) * skill.Ailments[(int)Ailment.Shock].Effect;
+                float effect = AilmentRules.ShockEffect(lightning / health, skill.Ailments[(int)Ailment.Shock].Effect);
                 if (effect >= a.ShockEffect || a.ShockLeft <= 0f)
                 {
                     a.ShockEffect = effect;
@@ -977,6 +956,7 @@ namespace Dino_Defenders.Server
             if (magic > 0f && Lands(Ailment.Hex))
             {
                 a.HexStacks = Math.Min(a.HexStacks + 1, AilmentRules.MostHex);
+                a.HexEffect = MathF.Max(a.HexEffect, skill.Ailments[(int)Ailment.Hex].Effect);
                 a.HexLeft = Length(Ailment.Hex, AilmentRules.HexSeconds);
             }
 
@@ -1014,7 +994,7 @@ namespace Dino_Defenders.Server
             if (a.BleedLeft > 0f)
             {
                 a.BleedLeft -= seconds;
-                dealt += Through(DamageType.Physical, a.BleedPerSecond * (actor.Moving ? 1.5f : 1f));
+                dealt += Through(DamageType.Physical, a.BleedPerSecond * (actor.Moving ? 1f + AilmentRules.BleedMoving : 1f));
                 killer ??= a.BleedSource;
                 if (a.BleedLeft <= 0f) a.BleedPerSecond = 0f;
             }
@@ -1079,10 +1059,10 @@ namespace Dino_Defenders.Server
             if (actor.Sheet.Has(Rule.Rebirth) && actor.RebirthIn <= 0f)
             {
                 actor.RebirthIn = RebirthCooldown;
-                actor.Vitals.Health = actor.Sheet.MaxHealth * 0.5f;
+                actor.Vitals.Health = actor.Sheet.MaxHealth * RebirthHealth;
                 actor.Vitals.Debt = 0f;
-                Show(new SkillEvent { Position = Ground(actor.Position), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Burst, Radius = 12f }, actor.Position);
-                Defer(new Consequence { Kind = Later.Blast, At = Now, Source = actor, Origin = actor.Position, Radius = 12f, Type = DamageType.Fire, Amount = actor.Sheet.MaxHealth * 0.5f, Tags = Tags.Reaction });
+                Show(new SkillEvent { Position = Ground(actor.Position), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Burst, Radius = RebirthRadius }, actor.Position);
+                Defer(new Consequence { Kind = Later.Blast, At = Now, Source = actor, Origin = actor.Position, Radius = RebirthRadius, Type = DamageType.Fire, Amount = actor.Sheet.MaxHealth * RebirthBlast, Tags = Tags.Reaction });
                 return;
             }
 
@@ -1141,8 +1121,8 @@ namespace Dino_Defenders.Server
             if (sheet.ExplodeOnKill > 0f)
             {
                 float amount = victim.Sheet.MaxHealth * sheet.ExplodeOnKill / 100f;
-                Show(new SkillEvent { Position = Ground(victim.Position), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Burst, Radius = 6f }, victim.Position);
-                Defer(new Consequence { Kind = Later.Blast, At = Now, Source = killer, Origin = victim.Position, Radius = 6f, Type = DamageType.Fire, Amount = amount, Tags = Tags.Reaction, Victim = victim });
+                Show(new SkillEvent { Position = Ground(victim.Position), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Burst, Radius = ExplosionRadius }, victim.Position);
+                Defer(new Consequence { Kind = Later.Blast, At = Now, Source = killer, Origin = victim.Position, Radius = ExplosionRadius, Type = DamageType.Fire, Amount = amount, Tags = Tags.Reaction, Victim = victim });
             }
 
             if (sheet.Has(Rule.AilmentsLeap) && (victim.Afflictions.Current & Condition.Afflicted) != 0)
@@ -1152,7 +1132,7 @@ namespace Dino_Defenders.Server
 
             if (sheet.RaiseFallen > 0f && victim.Team == Team.Enemies && (victim.Nature & Condition.Boss) == 0 && _luck.Float() * 100f < sheet.RaiseFallen)
             {
-                Defer(new Consequence { Kind = Later.Raise, At = Now + 0.8f, Source = killer, Victim = victim });
+                Defer(new Consequence { Kind = Later.Raise, At = Now + RisenDelay, Source = killer, Victim = victim });
             }
 
             SetOff(killer, TriggerEvent.Kill, victim.Position);
@@ -1162,7 +1142,7 @@ namespace Dino_Defenders.Server
         {
             Afflictions from = victim.Afflictions;
             _chained.Clear();
-            Grid.Foes(source.Team, victim.Position, 10f, _chained);
+            Grid.Foes(source.Team, victim.Position, AilmentLeapReach, _chained);
             foreach (Actor foe in _chained)
             {
                 Afflictions to = foe.Afflictions;
@@ -1214,7 +1194,7 @@ namespace Dino_Defenders.Server
                 SkillDefinition skill = SkillCatalog.Get(trigger.Skill);
                 if (actor.Sheet.Profile(skill) is not SkillProfile profile) continue;
 
-                actor.TriggerReady[i] = MathF.Max(profile.Cooldown, ReadBusy);
+                actor.TriggerReady[i] = MathF.Max(profile.Cooldown, TriggerGap);
                 Defer(new Consequence { Kind = Later.Release, At = Now, Source = actor, Skill = profile, Origin = at, Facing = Vector2.UnitY, Reach = 0f, Strength = 1f });
             }
         }

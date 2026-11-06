@@ -134,7 +134,7 @@ namespace Dino_Defenders.UI
 
             foreach (Label label in _labels)
             {
-                if (label.Find == _hovered) Ui.DrawTooltip(Context!, draw, session.Hero, label.Item, label.Rect, screen, null, compare: true);
+                if (label.Find == _hovered) Ui.DrawTooltip(session.Hero, label.Item, label.Rect, null, compare: true);
             }
         }
 

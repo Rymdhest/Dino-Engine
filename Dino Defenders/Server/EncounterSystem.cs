@@ -20,8 +20,6 @@ namespace Dino_Defenders.Server
         private const float ChestScale = 1.35f;     // A size bigger than life, like anything else that matters seen from up where the camera is.
         private const float WakeDistance = 100f;
         private const float SleepDistance = 160f;
-        private const float EliteChance = 0.14f;
-        private const float WarhostEliteChance = 0.35f;
         private const float GuardArcherChance = 0.45f;
         private const float CheckInterval = 0.25f;
         private const int MostWakings = 4;      // At a check. A hero stepping out of a waygate is surrounded by places, and they needn't all arrive in one tick.
@@ -139,7 +137,7 @@ namespace Dino_Defenders.Server
             else (kind, rank, trait) = orders.Draw(spawnIndex, kinds);
 
             // The people of a place have their hard cases, where a pack has its leader.
-            if (!boss && !state.Wild && kinds.Chance(session.Offering.Has(Omens.Warhost) ? WarhostEliteChance : EliteChance))
+            if (!boss && !state.Wild && kinds.Chance(session.Offering.Has(Omens.Warhost) ? Rulebook.WarhostEliteChance : Rulebook.EliteChance))
             {
                 rank = EnemyRank.Elite;
                 trait = kinds.Int(Bestiary.Traits.Length);

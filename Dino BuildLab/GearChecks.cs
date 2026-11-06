@@ -96,7 +96,7 @@ namespace Dino_BuildLab
             hero.Equip(sword);
             report.Check("A sword goes back beside it", hero.Equipped[WornSlot.MainHand] == sword && hero.Equipped[WornSlot.OffHand] == shield);
 
-            report.Check("Whatever's in the off hand counts as a shield to the rules", HeroBuild.Compile(hero).SheetFor(Condition.None).Evasion > 0f);
+            report.Check("Whatever's in the off hand counts as a shield to the rules", (HeroBuild.Compile(hero).Granted & Condition.HoldingShield) != 0);
         }
 
         private static void FullPack(Report report)
@@ -146,7 +146,7 @@ namespace Dino_BuildLab
             dressed.Equipped[WornSlot.Body] = robe;
             float extra = HeroBuild.Compile(dressed).SheetFor(Condition.None).MaxMana - HeroBuild.Compile(bare).SheetFor(Condition.None).MaxMana;
             report.Check("Cloth holds mana", MathF.Abs(extra - robe.Barrier * Item.ManaPerBarrier) < 0.01f, $"{extra}");
-            report.Check("And says so", robe.DescribeBase().Any(line => line.EndsWith("Mana")));
+            report.Check("And says so", robe.BaseRows().Any(row => row.name == "Mana"));
             report.Check("Heavy and leather don't", !Base("Plate Harness").Mods().Any(m => m.Stat == Stat.Mana) && !Base("Hunter's Coat").Mods().Any(m => m.Stat == Stat.Mana));
         }
 

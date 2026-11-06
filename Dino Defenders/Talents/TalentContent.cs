@@ -370,6 +370,26 @@ namespace Dino_Defenders.Talents
             },
         };
 
+        /// <summary>What every node in a sector gives on top of what it says, as strength, dexterity and intellect. Each adds up to the same, so that no way of fighting is worth more points.</summary>
+        public static Mod[] AttributesOf(string sector)
+        {
+            (int strength, int dexterity, int intellect) = sector switch
+            {
+                "forge" or "bulwark" or "marrow" => (Rulebook.NodeAttribute, 0, 0),
+                "hunt" or "knave" => (0, Rulebook.NodeAttribute, 0),
+                "host" or "pyre" or "arcanum" or "winter" => (0, 0, Rulebook.NodeAttribute),
+                "mire" => (0, Rulebook.NodeAttribute - 2, 2),
+                "storm" => (0, 2, Rulebook.NodeAttribute - 2),
+                _ => (2, Rulebook.NodeAttribute - 2, 0),
+            };
+
+            var mods = new List<Mod>();
+            if (strength > 0) mods.Add(Flat(Stat.Strength, strength));
+            if (dexterity > 0) mods.Add(Flat(Stat.Dexterity, dexterity));
+            if (intellect > 0) mods.Add(Flat(Stat.Intellect, intellect));
+            return mods.ToArray();
+        }
+
         /// <summary>The middle of each ring between one sector and the next, in the order of <see cref="Sectors"/>.</summary>
         public static readonly BridgeEntry[] InnerBridges =
         {

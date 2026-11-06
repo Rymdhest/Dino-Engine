@@ -1,4 +1,5 @@
 using Dino_Defenders.Stats;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using static Dino_Defenders.Stats.M;
@@ -214,16 +215,7 @@ namespace Dino_Defenders.Progression
                 foreach (Mod mod in WeaponKinds.Of(Kind).Mods) yield return mod;
             }
 
-            foreach (ItemLine line in Lines)
-            {
-                if (AffixCatalog.Find(line.Affix) is not Affix affix) continue;
-                foreach (Mod mod in affix.Build(line.Value)) yield return mod;
-            }
-
-            if (Unique != null && UniqueCatalog.Find(Unique) is UniqueDefinition unique)
-            {
-                foreach (Mod mod in unique.Mods) yield return mod;
-            }
+            foreach (Mod mod in RolledMods()) yield return mod;
         }
 
         /// <summary>This item in a hand, as far as an attack goes.</summary>
@@ -234,35 +226,37 @@ namespace Dino_Defenders.Progression
             return new WeaponProfile(WeaponDamage * (1f - WeaponSpread), WeaponDamage * (1f + WeaponSpread), traits.AttackTime, traits.CritChance, tags);
         }
 
-        /// <summary>What it is before anything has been rolled on it.</summary>
-        public IEnumerable<string> DescribeBase()
+        /// <summary>What it is before anything has been rolled on it, as names and numbers.</summary>
+        public IEnumerable<(string name, string value)> BaseRows()
         {
             if (WeaponDamage > 0f)
             {
                 WeaponProfile weapon = Weapon();
-                yield return $"{weapon.Min:0} to {weapon.Max:0} Damage, {1f / weapon.AttackTime:0.##} attacks a second";
+                yield return ("Weapon Damage", Say.Range(weapon.Min, weapon.Max));
+                yield return ("Attacks per Second", Say.N(1f / weapon.AttackTime));
+                yield return ("Critical Chance", Say.Percent(weapon.CritChance));
             }
-            if (Armour > 0f) yield return $"{Armour:0} Armour";
-            if (Evasion > 0f) yield return $"{Evasion:0} Evasion";
+            if (Armour > 0f) yield return ("Armour", Say.Whole(Armour));
+            if (Evasion > 0f) yield return ("Evasion", Say.Whole(Evasion));
             if (Barrier > 0f)
             {
-                yield return $"{Barrier:0} Barrier";
-                yield return $"{Barrier * ManaPerBarrier:0} Mana";
+                yield return ("Barrier", Say.Whole(Barrier));
+                yield return ("Mana", Say.Whole(Barrier * ManaPerBarrier));
             }
         }
 
-        /// <summary>The lines a player reads, in the order they should read them.</summary>
-        public IEnumerable<string> Describe()
+        /// <summary>Its lines, in the order they should be read: everything on it that was rolled, or that's its own for being what it is.</summary>
+        public IEnumerable<Mod> RolledMods()
         {
             foreach (ItemLine line in Lines)
             {
                 if (AffixCatalog.Find(line.Affix) is not Affix affix) continue;
-                foreach (Mod mod in affix.Build(line.Value)) yield return mod.Describe();
+                foreach (Mod mod in affix.Build(line.Value)) yield return mod;
             }
 
             if (Unique != null && UniqueCatalog.Find(Unique) is UniqueDefinition unique)
             {
-                foreach (Mod mod in unique.Mods) yield return mod.Describe();
+                foreach (Mod mod in unique.Mods) yield return mod;
             }
         }
     }
@@ -414,6 +408,10 @@ namespace Dino_Defenders.Progression
             Add("health-on-kill", false, new[] { "of Harvest", "of Reaping" }, new[] { ItemSlot.MainHand, ItemSlot.Finger, ItemSlot.Neck }, Pool, v => Flat(Stat.HealthOnKill, v * 0.5f));
             Add("mana-on-kill", false, new[] { "of Gleaning", "of Absorption" }, new[] { ItemSlot.MainHand, ItemSlot.Finger, ItemSlot.Neck }, Pool, v => Flat(Stat.ManaOnKill, v * 0.3f));
 
+            Add("strength", false, new[] { "of the Brute", "of Might", "of Iron", "of the Giant", "of Titans", "of the Mountain King" }, Worn, Rating, v => Flat(Stat.Strength, v));
+            Add("dexterity", false, new[] { "of the Fox", "of Grace", "of the Dancer", "of the Cat", "of Quicksilver", "of the Wind" }, Worn, Rating, v => Flat(Stat.Dexterity, v));
+            Add("intellect", false, new[] { "of the Student", "of Wit", "of the Scholar", "of the Sage's Eye", "of Genius", "of the Oracle" }, Worn, Rating, v => Flat(Stat.Intellect, v));
+
             // Staying alive.
             Add("health", false, new[] { "of the Ox", "of the Bear", "of the Oak", "of the Mountain", "of the Titan", "of the Colossus" }, new[] { ItemSlot.Head, ItemSlot.Body, ItemSlot.Legs, ItemSlot.OffHand, ItemSlot.Finger, ItemSlot.Neck }, Pool, v => Flat(Stat.Health, v));
             Add("health-percent", true, new[] { "Hale", "Robust", "Stalwart", "Hearty" }, Clothes, Ladder((8, 3, 5), (18, 6, 9), (30, 10, 14)), v => Inc(Stat.Health, v));
@@ -458,11 +456,11 @@ namespace Dino_Defenders.Progression
             Add("stealth", true, new[] { "Muffled", "Hushed", "Silent" }, new[] { ItemSlot.Feet, ItemSlot.Legs, ItemSlot.Head }, Ladder((4, 5, 10), (14, 11, 18), (26, 19, 28)), v => Flat(Stat.Stealth, v));
 
             // What each family is good for. Weapons lean the same way as what they're carried with, so a staff tends to be a caster's.
-            Suit(GearFamily.Heavy, "armour", "armour-percent", "health", "health-percent", "block", "flat-reduction", "physical-reduction", "reflect", "stun-threshold", "health-regen",
+            Suit(GearFamily.Heavy, "strength", "armour", "armour-percent", "health", "health-percent", "block", "flat-reduction", "physical-reduction", "reflect", "stun-threshold", "health-regen",
                 "health-regen-percent", "physical-damage", "attack-damage", "stun-chance");
-            Suit(GearFamily.Leather, "evasion", "evasion-percent", "attack-speed", "crit-chance", "crit-increased", "crit-multiplier", "accuracy", "move-speed", "dodge-cooldown", "stealth",
+            Suit(GearFamily.Leather, "dexterity", "evasion", "evasion-percent", "attack-speed", "crit-chance", "crit-increased", "crit-multiplier", "accuracy", "move-speed", "dodge-cooldown", "stealth",
                 "ailment-avoid", "projectile-speed", "bleed-chance", "venom-chance");
-            Suit(GearFamily.Cloth, "mana", "mana-percent", "mana-regen", "barrier", "barrier-percent", "barrier-recharge", "spell-damage", "cast-speed", "cooldown", "cost", "skill-level",
+            Suit(GearFamily.Cloth, "intellect", "mana", "mana-percent", "mana-regen", "barrier", "barrier-percent", "barrier-recharge", "spell-damage", "cast-speed", "cooldown", "cost", "skill-level",
                 "taken-from-mana", "duration", "minion-damage", "mana-on-hit", "mana-leech", "mana-on-kill");
         }
     }

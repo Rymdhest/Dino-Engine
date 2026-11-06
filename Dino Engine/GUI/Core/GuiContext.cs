@@ -152,6 +152,8 @@ namespace Dino_Engine.GUI
 
         public string Clipboard { get => _input.Clipboard; set => _input.Clipboard = value; }
         public KeyModifiers Modifiers => _input.Modifiers;
+        public bool IsMouseDown(MouseButton button) => _input.IsMouseButtonDown(button);
+        public bool IsKeyDown(Keys key) => _input.IsKeyDown(key);
         public GlyphAtlas Atlas => _atlas;
 
         // Statistics for debugging the GUI itself.

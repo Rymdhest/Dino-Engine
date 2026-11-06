@@ -448,6 +448,7 @@ namespace Dino_Defenders
             if (window.IsKeyPressed(Keys.J)) _ui.Toggle(_ui.Chronicle);
             if (window.IsKeyPressed(Keys.T)) _ui.Toggle(_ui.Talents);
             if (window.IsKeyPressed(Keys.K)) _ui.Toggle(_ui.Skills);
+            if (window.IsKeyPressed(Keys.G)) _ui.Toggle(_ui.Glossary);
         }
 
         private void WriteTrace(string path)
@@ -465,6 +466,7 @@ namespace Dino_Defenders
                 case "hero": _ui.Toggle(_ui.Hero); break;
                 case "talents": _ui.Toggle(_ui.Talents); break;
                 case "skills": _ui.Toggle(_ui.Skills); break;
+                case "glossary": _ui.Toggle(_ui.Glossary); break;
                 case "chronicle": _ui.Toggle(_ui.Chronicle); break;
                 case "pause": _ui.Toggle(_ui.Pause); break;
                 case "sound":

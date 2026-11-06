@@ -18,7 +18,7 @@ namespace Dino_Defenders
     ///   --equip a,b     Puts these uniques on the hero, by id.
     ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar.
     ///   --loot all      Drops one find of every grade in front of the hero, or everything a tier gives, as boss, elite, chest or hoard.
-    ///   --panel name    Opens map, hero, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
+    ///   --panel name    Opens map, hero, talents, skills, glossary, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
     ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one, with whatever offering is below.
     ///   --peril N  --teeming N  --overrun N  --omens a,b   What's been paid on the first world, or on the way through a waygate with --travel.
     ///   --gold N        Starts the hero with this much gold.

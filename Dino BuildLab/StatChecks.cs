@@ -1,5 +1,6 @@
 using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.World;
 using System.Reflection;
 using static Dino_Defenders.Stats.M;
@@ -277,7 +278,7 @@ namespace Dino_BuildLab
 
             report.Near("Being shocked scales what gets through", MitigatedWith(Sheet(), 0f, 0.3f), 130f);
             report.Near("Being hexed takes resistance away", MitigatedWith(Sheet(Resist(Tags.None, 50f)), 30f, 0f), 80f);
-            report.Check("Evasion is a chance, and has a ceiling", Hits.EvadeChance(1e9f, 1f) <= Hits.MostEvasion && Hits.EvadeChance(0f, 100f) == 0f && Hits.EvadeChance(300f, 100f) == 0.5f);
+            report.Check("Evasion is a chance, and has a ceiling", Hits.EvadeChance(1e9f, 1f) <= Hits.MostEvasion && Hits.EvadeChance(0f, 100f) == 0f && Hits.EvadeChance(600f, 100f) == 0.5f);
 
             ActorSheet block = Sheet(Flat(Stat.BlockChance, 30f), Flat(Stat.BlockChance, 20f, Tags.Spell), Flat(Stat.BlockChance, 100f, Tags.Attack));
             report.Near("Block against attacks stops at its cap", block.BlockAttacks, 75f);

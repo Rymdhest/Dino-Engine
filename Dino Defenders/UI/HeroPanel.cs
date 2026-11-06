@@ -3,6 +3,7 @@ using Dino_Defenders.Progression;
 using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -26,7 +27,7 @@ namespace Dino_Defenders.UI
 
         private readonly Func<Item?> _item;
         private readonly ItemSlot? _slot;
-        private readonly Action<Item?> _hover;
+        private readonly Action<Item?, GuiRect> _hover;
 
         /// <summary>What's keeping this place from being used, and shows in it, faintly: something two-handed, in the off hand.</summary>
         public Func<Item?>? TakenBy;
@@ -34,7 +35,7 @@ namespace Dino_Defenders.UI
         /// <summary>Whether what's being looked at could go here.</summary>
         public Func<bool>? Wanted;
 
-        public ItemCell(Func<Item?> item, Action<Item, GuiMouseEventArgs> pressed, Action<Item?> hover, ItemSlot? slot = null)
+        public ItemCell(Func<Item?> item, Action<Item, GuiMouseEventArgs> pressed, Action<Item?, GuiRect> hover, ItemSlot? slot = null)
         {
             _item = item;
             _hover = hover;
@@ -50,8 +51,8 @@ namespace Dino_Defenders.UI
                 Item? held = _item();
                 if (held != null) pressed(held, e);
             };
-            MouseEnter += () => _hover(_item() ?? TakenBy?.Invoke());
-            MouseLeave += () => _hover(null);
+            MouseEnter += () => _hover(_item() ?? TakenBy?.Invoke(), Bounds);
+            MouseLeave += () => _hover(null, Bounds);
         }
 
         protected override void OnDraw(GuiDrawList draw)
@@ -78,6 +79,40 @@ namespace Dino_Defenders.UI
             if (IsHovered) draw.AddRect(Bounds, GuiColors.Rgba(255, 240, 200, 26), 2f);
             Ui.DrawItem(draw, item, Bounds, colour, GuiColors.White);
             draw.AddRect(Bounds, GuiColors.Transparent, 2f, 1.5f, colour.MultiplyAlpha(0.8f));
+        }
+    }
+
+    /// <summary>One line of the hero's sheet: a name and what it comes to, and everything about it on a card when the mouse rests on it.</summary>
+    internal sealed class StatLine : GuiElement
+    {
+        private const float Size = 13.5f;
+
+        private readonly Func<string> _name;
+        private readonly Func<string> _value;
+
+        public readonly Func<Card?> Card;
+
+        public StatLine(Func<string> name, Func<string> value, Func<Card?> card, Action<StatLine?> hover)
+        {
+            _name = name;
+            _value = value;
+            Card = card;
+            Width = UIValue.Fill;
+            Height = 19f;
+            HitTest = HitTestMode.Block;
+            MouseEnter += () => hover(this);
+            MouseLeave += () => hover(null);
+        }
+
+        protected override void OnDraw(GuiDrawList draw)
+        {
+            base.OnDraw(draw);
+            if (Context == null || GameSession.Current == null) return;
+
+            if (IsHovered) draw.AddRect(Bounds, GuiColors.Rgba(255, 240, 200, 22), 2f);
+            GuiRect text = new GuiRect(Bounds.X + 4f, Bounds.Y, Bounds.Width - 8f, Bounds.Height);
+            Ui.Text(Context, draw, _name(), Size, text, IsHovered ? Ui.Parchment : Ui.Faded);
+            Ui.Text(Context, draw, _value(), Size, text, Ui.Parchment, Alignment.End);
         }
     }
 
@@ -129,6 +164,8 @@ namespace Dino_Defenders.UI
         private readonly Label _title;
         private SiteState? _merchant;
         private Item? _looking;
+        private GuiRect _lookingFrom;
+        private StatLine? _lookingAt;
 
         private static GameSession Session => GameSession.Current;
         private static HeroState Hero => Session.Hero;
@@ -151,7 +188,7 @@ namespace Dino_Defenders.UI
             left.Add(Ui.Line("", 14f, Ui.Gold).Bind(() => Hero.UnspentPoints > 0 ? $"{Hero.UnspentPoints} talents to spend  [T]" : " "));
             left.Add(new Spacer(height: 6f));
             var sheet = left.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
-            AddStats(sheet.Content.Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Auto }));
+            AddStats(sheet.Content.Add(new StackPanel(Orientation.Vertical, 1f) { Width = UIValue.Fill, Height = UIValue.Auto }));
 
             columns.Add(BuildStage());
 
@@ -217,35 +254,34 @@ namespace Dino_Defenders.UI
             return _merchant != null && index < _merchant.Stock.Count ? _merchant.Stock[index] : null;
         }
 
-        private static void AddStats(GuiElement parent)
+        // Every line can be looked at, and only what touches this hero shows, so that what's on the sheet is what's in the build.
+        private void AddStats(StackPanel parent)
         {
-            void Group(string name) => parent.Add(Ui.Line(name, 14f, Ui.Gold));
-            void Line(Func<ActorSheet, string> text) => parent.Add(Ui.Line("", 14f, Ui.Faded).Bind(() => text(Session.Sheet)));
+            GuiElement Line(Func<string> name, Func<string> value, Func<Card?> card) => parent.Add(new StatLine(name, value, card, line => _lookingAt = line));
 
-            Group("Your main skill");
-            Line(s => Session.Client.Kit.Slots[0] is SkillProfile main ? main.Skill.Name : "Nothing");
-            Line(s => Session.Client.Kit.Slots[0] is SkillProfile main ? $"{main.AverageHit:0.#} a hit, {main.DamagePerSecond:0.#} a second" : " ");
-            Line(s => Session.Client.Kit.Slots[0] is SkillProfile main ? $"Critical {main.CritChance:0.#}% for {main.CritMultiplier:0}%" : " ");
-            Line(s => Session.Client.Kit.Slots[0] is SkillProfile main ? $"Used in {main.UseTime:0.##} seconds" : " ");
+            parent.Add(Ui.Line("Your main skill", 14f, Ui.Gold));
+            static SkillProfile? Main() => Session.Client.Kit.Slots[0];
+            Line(() => Main()?.Skill.Name ?? "Nothing", () => Main() is SkillProfile main && main.DealsDamage ? Say.N(main.DamagePerSecond) : "", () => Main() is SkillProfile main ? Cards.Skill(main) : null);
 
-            Group("Pools");
-            Line(s => $"Health {s.MaxHealth:0}, {s.HealthRegen:0.#} a second");
-            Line(s => $"Mana {s.MaxMana:0}, {s.ManaRegen:0.#} a second");
-            Line(s => s.MaxBarrier > 0f ? $"Barrier {s.MaxBarrier:0}" : "No barrier");
+            var lines = new List<(GuiElement line, StatRow row)>();
+            var groups = new List<(GuiElement heading, string name)>();
+            foreach (string group in StatBook.Rows.Select(row => row.Group).Distinct())
+            {
+                groups.Add((parent.Add(Ui.Line(group, 14f, Ui.Gold)), group));
+                foreach (StatRow row in StatBook.Rows.Where(row => row.Group == group))
+                {
+                    lines.Add((Line(() => row.Name, () => row.Reads(Session.Sheet), () => Cards.OfRow(row, Session.Sheet)), row));
+                }
+            }
 
-            Group("Defence");
-            Line(s => $"Armour {s.Armour:0}");
-            Line(s => $"Evasion {s.Evasion:0}");
-            Line(s => s.BlockAttacks > 0f || s.BlockSpells > 0f ? $"Block {s.BlockAttacks:0}% of attacks, {s.BlockSpells:0}% of spells" : "No block");
-            Line(s => $"Fire {s.Resistance[1]:0}%  Cold {s.Resistance[2]:0}%  Lightning {s.Resistance[3]:0}%");
-            Line(s => $"Magic {s.Resistance[4]:0}%  Poison {s.Resistance[5]:0}%");
-            Line(s => s.TakenFromMana > 0f ? $"{s.TakenFromMana:0}% taken from mana first" : " ");
-
-            Group("Going about");
-            Line(s => $"Movement {s.MoveSpeed:0.#} m/s");
-            Line(s => $"Dodge every {s.DodgeCooldown:0.#} seconds");
-            Line(s => s.ItemRarity != 0f ? $"Item rarity {s.ItemRarity:0}%" : " ");
-            Line(s => s.GoldFind != 0f ? $"Gold found {s.GoldFind:0}%" : " ");
+            // Decided here rather than by each of them, as a hidden element isn't updated and could never show itself again.
+            parent.Updated += _ =>
+            {
+                if (GameSession.Current == null) return;
+                ActorSheet sheet = Session.Sheet;
+                foreach ((GuiElement line, StatRow row) in lines) line.Visible = row.Shows(sheet);
+                foreach ((GuiElement heading, string name) in groups) heading.Visible = StatBook.Rows.Any(row => row.Group == name && row.Shows(sheet));
+            };
         }
 
         /// <summary>Shows the panel, with a merchant's table if it was opened at one.</summary>
@@ -255,9 +291,14 @@ namespace Dino_Defenders.UI
             _market.Visible = merchant != null;
             _title.Text = merchant != null ? merchant.Site.Name : "The Hero";
             _looking = null;
+            _lookingAt = null;
         }
 
-        private void Look(Item? item) => _looking = item;
+        private void Look(Item? item, GuiRect from)
+        {
+            _looking = item;
+            _lookingFrom = from;
+        }
 
         private void TakeOff(WornSlot place)
         {
@@ -294,14 +335,16 @@ namespace Dino_Defenders.UI
         protected override void OnDrawOverlay(GuiDrawList draw)
         {
             base.OnDrawOverlay(draw);
-            if (_looking is not Item item || Context == null) return;
+            if (Context == null) return;
+
+            if (_lookingAt is StatLine line) GameUi.Current.Tips.Show(line.Card, line.Bounds);
+            if (_looking is not Item item) return;
 
             string? price = null;
             bool carried = Hero.Inventory.Contains(item);
             if (_merchant != null) price = carried ? $"Sells for {item.SellValue} gold" : $"Costs {item.BuyValue} gold";
 
-            Vector2 mouse = Context.MousePosition;
-            Ui.DrawTooltip(Context, draw, Hero, item, new GuiRect(mouse.X - 4f, mouse.Y - 4f, 8f, 8f), Context.Root.Bounds, price, compare: carried || _merchant != null);
+            Ui.DrawTooltip(Hero, item, _lookingFrom, price, compare: carried || _merchant != null);
         }
     }
 }

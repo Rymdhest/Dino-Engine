@@ -164,9 +164,6 @@ namespace Dino_Defenders.Stats
         WetLand = 1ul << 28,
         HighLand = 1ul << 29,
 
-        Alone = 1ul << 30,
-        WithAllies = 1ul << 31,
-
         Elite = 1ul << 32,
         Boss = 1ul << 33,
 
@@ -196,6 +193,9 @@ namespace Dino_Defenders.Stats
         MaxBarrier,
         MoveSpeedAboveBase,     // Percent.
         Level,
+        Strength,
+        Dexterity,
+        Intellect,
 
         // Counters.
         Gold,

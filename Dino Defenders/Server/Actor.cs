@@ -42,6 +42,7 @@ namespace Dino_Defenders.Server
         public float ShockEffect;       // Onto damage taken.
         public float ShockLeft;
         public int HexStacks;
+        public float HexEffect = 1f;    // What each stack is worth, as a multiple of normal.
         public float HexLeft;
         public float StunLeft;
 
@@ -71,10 +72,11 @@ namespace Dino_Defenders.Server
             BurnLeft = BleedLeft = ChillLeft = FreezeLeft = ShockLeft = HexLeft = StunLeft = 0f;
             BurnPerSecond = BleedPerSecond = ChillEffect = ShockEffect = Stored = 0f;
             HexStacks = 0;
+            HexEffect = 1f;
             Venom?.Clear();
         }
 
-        public float ResistanceLost => HexLeft > 0f ? HexStacks * AilmentRules.HexPerStack : 0f;
+        public float ResistanceLost => HexLeft > 0f ? HexStacks * AilmentRules.HexPerStack * HexEffect : 0f;
         public float TakenIncrease => ShockLeft > 0f ? ShockEffect : 0f;
         public bool Held => FreezeLeft > 0f || StunLeft > 0f;
         public float ActionRate => ChillLeft > 0f ? 1f - ChillEffect : 1f;
@@ -86,12 +88,8 @@ namespace Dino_Defenders.Server
     /// </summary>
     public sealed class Actor
     {
-        public const float Recently = 4f;
-        private const float HeatFade = 0.25f;           // Kills a second that "recently" forgets.
-        private const float SpentFade = 15f;            // Percent of health a second.
         private const float LongAgo = 1000f;
         private const int TrailTicks = 32;
-        private const float AlwaysShocked = 0.2f;
 
         public readonly Team Team;
         public readonly Afflictions Afflictions = new();
@@ -184,7 +182,7 @@ namespace Dino_Defenders.Server
         public void Advance(float seconds, uint tick, Vector2 position)
         {
             Moving = (position - Position).LengthSquared > 1e-5f;
-            if (Sheet.Has(Rule.StaticCharge)) Static = MathF.Min(Static + (position - Position).Length, 100f);
+            if (Sheet.Has(Rule.StaticCharge)) Static = MathF.Min(Static + (position - Position).Length, Rulebook.MostStatic);
             Position = position;
             Trail[tick % TrailTicks] = position;
 
@@ -194,8 +192,8 @@ namespace Dino_Defenders.Server
             SinceBlock += seconds;
             SinceDodge += seconds;
             SinceUse += seconds;
-            KillHeat = MathF.Max(KillHeat - HeatFade * seconds, 0f);
-            HealthSpent = MathF.Max(HealthSpent - SpentFade * seconds, 0f);
+            KillHeat = MathF.Max(KillHeat - Rulebook.RecentKillFade * seconds, 0f);
+            HealthSpent = MathF.Max(HealthSpent - Rulebook.HealthSpentFade * seconds, 0f);
             RebirthIn = MathF.Max(RebirthIn - seconds, 0f);
             for (int i = 0; i < Cooldowns.Length; i++) Cooldowns[i] = MathF.Max(Cooldowns[i] - seconds, 0f);
             for (int i = 0; i < TriggerReady.Length; i++) TriggerReady[i] = MathF.Max(TriggerReady[i] - seconds, 0f);
@@ -219,12 +217,12 @@ namespace Dino_Defenders.Server
         {
             Condition state = Nature | land | Afflictions.Current | Hits.PoolState(Sheet, Vitals);
             state |= Moving ? Condition.Moving : Condition.Stationary;
-            if (SinceHit < Recently) state |= Condition.RecentlyHit;
-            if (SinceKill < Recently) state |= Condition.RecentlyKilled;
-            if (SinceCrit < Recently) state |= Condition.RecentlyCrit;
-            if (SinceBlock < Recently) state |= Condition.RecentlyBlocked;
-            if (SinceDodge < Recently) state |= Condition.RecentlyDodged;
-            if (SinceUse < Recently) state |= Condition.RecentlyUsedSkill;
+            if (SinceHit < Rulebook.Recently) state |= Condition.RecentlyHit;
+            if (SinceKill < Rulebook.Recently) state |= Condition.RecentlyKilled;
+            if (SinceCrit < Rulebook.Recently) state |= Condition.RecentlyCrit;
+            if (SinceBlock < Rulebook.Recently) state |= Condition.RecentlyBlocked;
+            if (SinceDodge < Rulebook.Recently) state |= Condition.RecentlyDodged;
+            if (SinceUse < Rulebook.Recently) state |= Condition.RecentlyUsedSkill;
             if (Sheet.Has(Rule.AlwaysShocked)) state |= Condition.Shocked;
             State = state | Loadout.Granted;
 
@@ -261,7 +259,7 @@ namespace Dino_Defenders.Server
             get
             {
                 float taken = Afflictions.TakenIncrease;
-                return Sheet.Has(Rule.AlwaysShocked) ? MathF.Max(taken, AlwaysShocked) : taken;
+                return Sheet.Has(Rule.AlwaysShocked) ? MathF.Max(taken, Rulebook.AlwaysShockedTaken) : taken;
             }
         }
 
@@ -368,9 +366,6 @@ namespace Dino_Defenders.Server
     /// </summary>
     public sealed class LandReader
     {
-        private const float WaterDepth = 0.3f;
-        private const float DarknessReach = 90f;
-
         private readonly WorldData _world;
         private readonly bool _endlessNight;
         private readonly Condition[] _biomes;
@@ -387,10 +382,10 @@ namespace Dino_Defenders.Server
             {
                 BiomeDefinition biome = world.Plan.Biomes[i];
                 Condition land = Condition.None;
-                if (biome.Temperature >= 0.7f && biome.Moisture < 0.4f) land |= Condition.HotLand;
-                if (biome.Temperature <= 0.3f) land |= Condition.ColdLand;
-                if (biome.Moisture >= 0.75f) land |= Condition.WetLand;
-                if (biome.Altitude >= 0.5f) land |= Condition.HighLand;
+                if (biome.Temperature >= Rulebook.HotFrom && biome.Moisture < Rulebook.HotDrierThan) land |= Condition.HotLand;
+                if (biome.Temperature <= Rulebook.ColdFrom) land |= Condition.ColdLand;
+                if (biome.Moisture >= Rulebook.WetFrom) land |= Condition.WetLand;
+                if (biome.Altitude >= Rulebook.HighFrom) land |= Condition.HighLand;
                 _biomes[i] = land;
             }
 
@@ -407,7 +402,7 @@ namespace Dino_Defenders.Server
 
         public bool InWater(Vector2 position)
         {
-            if (_world.WaterDepthAt(position) > WaterDepth) return true;
+            if (_world.WaterDepthAt(position) > Rulebook.WaterDepth) return true;
             foreach ((Vector2 at, float radius, _) in _pools)
             {
                 if ((at - position).LengthSquared <= radius * radius) return true;
@@ -423,13 +418,13 @@ namespace Dino_Defenders.Server
             if (InWater(position)) land |= Condition.InWater;
 
             float x = position.X, z = position.Y;
-            if (_world.Canopy.Sample(x, z) > 0.5f) land |= Condition.UnderTrees;
-            if (_world.PavedRoad.Sample(x, z) > 0.5f || _world.TrailRoad.Sample(x, z) > 0.5f) land |= Condition.OnRoad;
+            if (_world.Canopy.Sample(x, z) > Rulebook.CanopyCover) land |= Condition.UnderTrees;
+            if (_world.PavedRoad.Sample(x, z) > Rulebook.RoadCover || _world.TrailRoad.Sample(x, z) > Rulebook.RoadCover) land |= Condition.OnRoad;
             if (_endlessNight) return land | Condition.InDarkness;
 
             foreach (WorldSite site in _graveyards)
             {
-                float reach = site.Radius + DarknessReach;
+                float reach = site.Radius + Rulebook.DarknessReach;
                 if ((site.Position - position).LengthSquared > reach * reach) continue;
                 land |= Condition.InDarkness;
                 break;

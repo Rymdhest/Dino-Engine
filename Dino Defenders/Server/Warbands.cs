@@ -1,5 +1,6 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Stats;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 
@@ -24,8 +25,6 @@ namespace Dino_Defenders.Server
         private const float LedAtFirst = 0.15f;
         private const float LedPerLevel = 0.04f;
         private const float MostLed = 0.5f;
-        private const float WarhostElites = 2.5f;
-        private const float MostWarhostElites = 0.8f;
 
         private readonly Recipe _recipe;
         private readonly bool _led;
@@ -50,7 +49,7 @@ namespace Dino_Defenders.Server
             if (!_led) return;
 
             float elites = MathF.Min(EliteLeaderAtFirst + EliteLeaderPerLevel * level, MostEliteLeaders);
-            if (random.Chance(warhost ? MathF.Min(elites * WarhostElites, MostWarhostElites) : elites))
+            if (random.Chance(warhost ? MathF.Min(elites * Rulebook.WarhostLeaderElites, Rulebook.MostWarhostLeaderElites) : elites))
             {
                 _leaderRank = EnemyRank.Elite;
                 _leaderTrait = random.Int(traits);

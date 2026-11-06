@@ -8,7 +8,7 @@ namespace Dino_BuildLab
     ///   check [--rounds N]   Everything that can be right or wrong, then N random builds. Exit code 1 on any failure.
     ///   bench     What it costs, on this machine.
     ///   balance   How a fight goes at each level, for a few sample builds.
-    ///   list [--what keystones|uniques|notables|affixes|skills]   Everything a player can read.
+    ///   list [--what keystones|uniques|notables|affixes|skills|cards|terms|sheet]   Everything a player can read.
     ///   density [--seed N] [--count N] [--level N] [--archetype id]   How much there is to fight in a world, and how long it is between fights.
     ///   loot [--level N]   What each source gives, what a whole world comes to, and the longest dry spells.
     ///   offering [--level N] [--worlds N]   What each step of peril costs and pays.
@@ -96,6 +96,7 @@ namespace Dino_BuildLab
             var report = new Report();
             StatChecks.Run(report);
             ContentChecks.Run(report);
+            TooltipChecks.Run(report);
             OfferingLab.Checks(report);
             LootLab.Check(report);
             FuzzChecks.Run(report, options.Int("rounds", 3000));

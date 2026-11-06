@@ -92,6 +92,9 @@ namespace Dino_Defenders.Skills
         /// <summary>What has to be in the hands to use it, if anything.</summary>
         public Tags Needs;
 
+        /// <summary>Whether the ground it covers counts as water for as long as it lasts.</summary>
+        public bool MakesWater;
+
         /// <summary>A place a skill can't be learned, only seen: for what's meant for beasts and for what other skills call on.</summary>
         public bool Hidden;
 
@@ -103,6 +106,6 @@ namespace Dino_Defenders.Skills
         public bool DealsDamage => WeaponShare > 0f && IsAttack || Damage.Length > 0;
 
         /// <summary>What a spell's base damage is multiplied by, at a level. Weapons do this for attacks, by getting better.</summary>
-        public static float SkillPower(float level) => 1f + 0.38f * MathF.Max(level - 1f, 0f);
+        public static float SkillPower(float level) => 1f + Rulebook.PowerPerLevel * MathF.Max(level - 1f, 0f);
     }
 }

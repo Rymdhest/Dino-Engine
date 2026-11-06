@@ -59,11 +59,10 @@ namespace Dino_Defenders.Stats
         public const float BaseBarrierDelay = 3f;
         public const float BaseDodgeCooldown = 2.4f;
         public const float BaseDodgeSpeed = 34f;
-        public const float BaseAccuracy = 60f;
         public const float BaseStunThreshold = 100f;
 
         private readonly SkillProfile?[] _profiles;
-        private readonly float[] _per = new float[16];
+        private readonly float[] _per = new float[(int)Per.AlliesNear + 1];
         private bool _perReady;
 
         public readonly Loadout Loadout;
@@ -77,6 +76,9 @@ namespace Dino_Defenders.Stats
 
         public readonly float HealthRegen;
         public readonly float ManaRegen;
+
+        /// <summary>What a build adds to the mana everyone gets back.</summary>
+        public readonly float ManaRegenBonus;
         public readonly float BarrierRecharge;
         public readonly float BarrierDelay;
         public readonly float RecoveryScale;
@@ -143,6 +145,9 @@ namespace Dino_Defenders.Stats
             StatSum speed = Collect(Stat.MoveSpeed, Tags.None);
             _per[(int)Per.MoveSpeedAboveBase] = MathF.Max(speed.Scale - 1f, 0f) * 100f;
             _per[(int)Per.Level] = loadout.Level;
+            _per[(int)Per.Strength] = Total(Stat.Strength);
+            _per[(int)Per.Dexterity] = Total(Stat.Dexterity);
+            _per[(int)Per.Intellect] = Total(Stat.Intellect);
             for (Per per = Per.Gold; per <= Per.AlliesNear; per++) _per[(int)per] = counters.Read(per);
             _perReady = true;
 
@@ -154,18 +159,19 @@ namespace Dino_Defenders.Stats
             FlaskScale = Total(Stat.FlaskEffect, 1f);
             float healthRegen = Total(Stat.HealthRegen) + MaxHealth * Total(Stat.HealthRegenPercent) / 100f;
             HealthRegen = Has(Rule.NoRegen) ? 0f : healthRegen * RecoveryScale;
-            ManaRegen = (Total(Stat.ManaRegen) + MaxMana * Total(Stat.ManaRegenPercent) / 100f) * RecoveryScale;
+            ManaRegenBonus = (Total(Stat.ManaRegen) + MaxMana * Total(Stat.ManaRegenPercent) / 100f) * RecoveryScale;
+            ManaRegen = ManaRegenBonus + MaxMana * Rulebook.ManaRefill / 100f * RecoveryScale;
             BarrierRecharge = MaxBarrier * Total(Stat.BarrierRecharge, BaseBarrierRecharge) / 100f * RecoveryScale;
             BarrierDelay = MathF.Max(Total(Stat.BarrierDelay, BaseBarrierDelay), 0f);
 
-            MoveSpeed = MathF.Max(Total(Stat.MoveSpeed), 0.5f);
-            DodgeCooldown = MathF.Max(Total(Stat.DodgeCooldown, BaseDodgeCooldown), 0.2f);
+            MoveSpeed = MathF.Max(Total(Stat.MoveSpeed), Rulebook.LeastMoveSpeed);
+            DodgeCooldown = MathF.Max(Total(Stat.DodgeCooldown, BaseDodgeCooldown), Rulebook.LeastDodgeCooldown);
             DodgeSpeed = Total(Stat.DodgeSpeed, BaseDodgeSpeed);
 
             Armour = MathF.Max(Total(Stat.Armour), 0f);
             PhysicalReduction = Total(Stat.PhysicalReduction);
             Evasion = Has(Rule.CannotEvade) ? 0f : MathF.Max(Total(Stat.Evasion), 0f);
-            float maxBlock = MathF.Min(Total(Stat.MaxBlock, BaseMaxBlock), 90f);
+            float maxBlock = MathF.Min(Total(Stat.MaxBlock, BaseMaxBlock), Rulebook.MostBlock);
             BlockAttacks = Math.Clamp(Total(Stat.BlockChance, 0f, Tags.Attack), 0f, maxBlock);
             BlockSpells = Math.Clamp(Total(Stat.BlockChance, 0f, Tags.Spell), 0f, maxBlock);
             TakenFromMana = Math.Clamp(Total(Stat.TakenFromMana), 0f, 100f);
@@ -176,7 +182,7 @@ namespace Dino_Defenders.Stats
             {
                 var type = (DamageType)i;
                 Tags tags = DamageKinds.TagsOf(type);
-                MaxResistance[i] = MathF.Min(Total(Stat.MaxResistance, BaseMaxResistance, tags), 90f);
+                MaxResistance[i] = MathF.Min(Total(Stat.MaxResistance, BaseMaxResistance, tags), Rulebook.MostResistance);
                 Resistance[i] = type == DamageType.Physical ? 0f : MathF.Min(Total(Stat.Resistance, 0f, tags), MaxResistance[i]);
                 ArmourApplies[i] = (type == DamageType.Physical ? 100f : 0f) + Total(Stat.ArmourApplies, 0f, tags);
                 FlatReduction[i] = TotalNaming(Stat.FlatReduction, tags);
@@ -196,7 +202,7 @@ namespace Dino_Defenders.Stats
             ItemRarity = Bonus(Stat.ItemRarity);
             GoldFind = Bonus(Stat.GoldFind);
             ExperienceGain = Bonus(Stat.ExperienceGain);
-            Stealth = Math.Clamp(Total(Stat.Stealth), 0f, 90f);
+            Stealth = Math.Clamp(Total(Stat.Stealth), 0f, Rulebook.MostStealth);
             MinionDuration = Total(Stat.MinionDuration, 1f);
             RaiseFallen = Math.Clamp(Total(Stat.RaiseFallen), 0f, 100f);
             ExplodeOnKill = MathF.Max(Total(Stat.ExplodeOnKill), 0f);
@@ -324,5 +330,8 @@ namespace Dino_Defenders.Stats
             int index = Loadout.IndexOf(skill);
             return index < 0 ? null : Profile(index);
         }
+
+        /// <summary>What a skill would come to in this actor's hands, known or not: what a talent would teach, or an item would set off. Nothing that happens in a fight asks this.</summary>
+        public SkillProfile Preview(SkillDefinition skill) => Profile(skill) ?? new SkillProfile(this, skill, -1);
     }
 }

@@ -36,6 +36,7 @@ namespace Dino_Defenders.Server
         public Vector2 At;
         public float Left;
         public float NextPulse;
+        public float Strength = 1f;
     }
 
     public struct ZoneStateComponent : IComponent
@@ -50,7 +51,6 @@ namespace Dino_Defenders.Server
     public sealed class ActorSystem : SystemBase
     {
         private const float LandInterval = 0.25f;
-        private const float AlliesReach = 24f;
 
         private static readonly BitMask Mask = new BitMask(typeof(ActorComponent), typeof(PositionComponent), typeof(HealthComponent));
 
@@ -140,7 +140,7 @@ namespace Dino_Defenders.Server
             int allies = 0;
             foreach (ServerPlayer hero in session.Heroes)
             {
-                if (hero.Actor != actor && (hero.Actor.Position - actor.Position).LengthSquared < AlliesReach * AlliesReach) allies++;
+                if (hero.Actor != actor && (hero.Actor.Position - actor.Position).LengthSquared < Rulebook.AlliesReach * Rulebook.AlliesReach) allies++;
             }
 
             int minions = 0;

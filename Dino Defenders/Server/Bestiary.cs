@@ -44,6 +44,11 @@ namespace Dino_Defenders.Server
         // Measured against sample heroes in BuildLab's balance table, who know nothing of keystones and don't choose their gear. A hero gains most
         // early, as gear comes in tiers, so these climb the same way, and what's exponential in them is what keeps lands past the level cap getting harder.
         // Against these a sample hero needs about three hits and survives about ten. Anything a real build does better than that is the build working.
+        public const float AccuracyPerLevel = 8f;
+        public const float AccuracyAtFirst = 60f;
+
+        public static float AccuracyAt(int level) => AccuracyAtFirst + AccuracyPerLevel * level;
+
         public static float HealthAt(int level) => (26f + 0.75f * level * level) * MathF.Pow(1.02f, level) * Outfitted(level, 0.06f);
         public static float DamageAt(int level) => (7f + 1.6f * level + 0.01f * level * level) * MathF.Pow(1.006f, level) * Outfitted(level, 0.13f);
 
@@ -245,7 +250,7 @@ namespace Dino_Defenders.Server
             yield return Flat(Stat.MoveSpeed, kind.MoveSpeed);
             yield return Flat(Stat.Armour, 6f * level);
             yield return Flat(Stat.Evasion, 5f * level);
-            yield return Flat(Stat.Accuracy, 8f * level);
+            yield return Flat(Stat.Accuracy, AccuracyAt(level));
             yield return Inc(Stat.Damage, -35f, Tags.Spell);
             foreach (Mod mod in kind.Mods) yield return mod;
         }
@@ -354,7 +359,7 @@ namespace Dino_Defenders.Server
         {
             var mods = new List<Mod>(enemy.Mods.Length + 1);
             mods.AddRange(enemy.Mods);
-            mods.Add(More(Stat.Health, -40f));
+            mods.Add(More(Stat.Health, -Rulebook.RisenHealthLess));
             return new Loadout(level, enemy.Weapon, mods, enemy.Skills);
         }
     }

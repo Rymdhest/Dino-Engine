@@ -1,4 +1,5 @@
 using Dino_Defenders.Stats;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.World;
 using System.Text.Json.Serialization;
 using static Dino_Defenders.Stats.M;
@@ -52,32 +53,30 @@ namespace Dino_Defenders.Progression
         public static readonly OmenDefinition Volatile = Add(new OmenDefinition
         {
             Id = "volatile", Name = "Volatile", Toll = 0.5f, Quantity = 0.18f, Rarity = 0.18f, Mods = new[] { Rules(Rule.BurstsOnDeath) },
-            Text = "Enemies burst into flame a moment after they die. Get clear of the ring.",
         });
 
         public static readonly OmenDefinition Rallying = Add(new OmenDefinition
         {
             Id = "rallying", Name = "Rallying", Toll = 0.5f, Quantity = 0.18f, Rarity = 0.18f, Mods = new[] { Rules(Rule.RalliesOnDeath) },
-            Text = "When an enemy dies, those around it fight harder for a while. Finish a pack together, or it finishes you.",
         });
 
         // What changes the land itself.
         public static readonly OmenDefinition Night = Add(new OmenDefinition
         {
             Id = "night", Name = "Endless Night", Toll = 0.45f, Quantity = 0.12f, Rarity = 0.15f,
-            Text = "Night never lifts. All the land counts as Darkness, for you and for them, and enemies notice you from much further off.",
+            Text = $"The whole land counts as Darkness. Enemies notice you from {Say.Share(Rulebook.NightNotice - 1f)} further away.",
         });
 
         public static readonly OmenDefinition Warhost = Add(new OmenDefinition
         {
             Id = "warhost", Name = "Warhost", Toll = 0.7f,
-            Text = "Every pack has a leader, far more of them are elite, and so are more of those who hold a place. They drop what such things drop.",
+            Text = $"Every pack has a leader if it can. Leaders are {Say.N(Rulebook.WarhostLeaderElites)} times as likely to be Elite, up to {Say.Share(Rulebook.MostWarhostLeaderElites)}. Site guards are Elite {Say.Share(Rulebook.WarhostEliteChance)} of the time instead of {Say.Share(Rulebook.EliteChance)}.",
         });
 
         public static readonly OmenDefinition Gilded = Add(new OmenDefinition
         {
             Id = "gilded", Name = "Gilded", Toll = 0.6f,
-            Text = "Every chest is worth one step more: what would have been a camp's box holds what a keep's would. It makes nothing harder, so it costs.",
+            Text = "Every chest holds the loot of the next tier up.",
         });
 
         public static OmenDefinition? Find(string id) => Everything.FirstOrDefault(omen => omen.Id == id);
@@ -136,7 +135,7 @@ namespace Dino_Defenders.Progression
         [JsonIgnore] public float MorePacks => PackShares[Overrun];
 
         /// <summary>How much further enemies notice a hero from.</summary>
-        [JsonIgnore] public float Notice => Has(Progression.Omens.Night) ? 1.4f : 1f;
+        [JsonIgnore] public float Notice => Has(Progression.Omens.Night) ? Rulebook.NightNotice : 1f;
 
         /// <summary>How many omens this much peril can carry.</summary>
         public static int OmenSlots(int peril) => Math.Min(1 + peril / PerilPerOmen, MostOmens);

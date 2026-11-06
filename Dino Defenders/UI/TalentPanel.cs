@@ -3,6 +3,7 @@ using Dino_Defenders.Progression;
 using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Widgets;
@@ -28,7 +29,6 @@ namespace Dino_Defenders.UI
         private const float SmallestDot = 2.4f;
         private const float LabelsFrom = 0.8f;
         private const float SectorRadius = 980f;
-        private const float TipWidth = 340f;
 
         private const string ForgetText = "Forget all";
         private const double ForgetWindow = 4.0;    // Seconds to press again.
@@ -219,7 +219,7 @@ namespace Dino_Defenders.UI
             DrawSectorNames(draw);
             DrawLinks(draw);
             DrawNodes(draw);
-            if (_hover >= 0) DrawTip(draw, TalentTree.Nodes[_hover]);
+            if (_hover >= 0) DrawTip(TalentTree.Nodes[_hover]);
             Ui.Text(Context, draw, "Drag to move, wheel to zoom. Click to take the lit path, right click to give a node back. T to close.", 14f,
                 new GuiRect(0f, Bounds.Height - 30f, Bounds.Width, 20f), Ui.Faded, Alignment.Center);
             draw.PopClip();
@@ -324,57 +324,26 @@ namespace Dino_Defenders.UI
             }
         }
 
-        private void DrawTip(GuiDrawList draw, TalentNode node)
+        private void DrawTip(TalentNode node)
         {
-            var lines = new List<(string text, float size, Colour colour)>
+            float radius = MathF.Max(SizeOf(node.Kind) * _zoom, SmallestDot);
+            Vector2 at = ToScreen(node.Position);
+            bool taken = _taken[node.Index];
+            int cost = _path.Count;
+            GameUi.Current.Tips.Show(() =>
             {
-                (node.Name, 19f, node.Kind == TalentKind.Keystone ? Ui.Gold : Ui.Parchment),
-                (node.Kind switch
+                Card card = Cards.Talent(node, Session.Sheet);
+                if (taken)
                 {
-                    TalentKind.Keystone => "Keystone",
-                    TalentKind.Skill => "Teaches a skill",
-                    TalentKind.Notable => "Notable",
-                    TalentKind.Gate => "Waygate",
-                    TalentKind.Root => "Where every hero starts",
-                    _ => node.Sector >= 0 ? TalentContent.Sectors[node.Sector].Name : "",
-                }, 13f, Ui.Faded),
-            };
-
-            foreach (Mod mod in node.Mods)
-            {
-                foreach (string line in Ui.Wrap(Context!, mod.Describe(), 15f, TipWidth - 24f)) lines.Add((line, 15f, Ui.Parchment));
-            }
-
-            if (node.Lore != null)
-            {
-                foreach (string line in Ui.Wrap(Context!, node.Lore, 14f, TipWidth - 24f)) lines.Add((line, 14f, Ui.Faded));
-            }
-
-            if (_taken[node.Index])
-            {
-                if (node.Index != TalentTree.Root.Index) lines.Add((TalentTree.CanRefund(Hero, node.Index) ? "Right click to give it back" : "Other talents depend on this", 13f, Ui.Faded));
-            }
-            else if (_path.Count > 0)
-            {
-                bool enough = _path.Count <= Hero.UnspentPoints;
-                string cost = _path.Count == 1 ? "1 point" : $"{_path.Count} points by this path";
-                lines.Add((enough ? $"Click to take: {cost}" : $"Needs {cost}", 13f, enough ? Ui.Gold : Ui.Blood));
-            }
-
-            float height = 18f;
-            foreach ((_, float size, _) in lines) height += size + 6f;
-
-            Vector2 mouse = Context!.MousePosition;
-            float x = mouse.X + TipWidth + 24f > Bounds.Right ? mouse.X - TipWidth - 16f : mouse.X + 16f;
-            float y = MathF.Min(mouse.Y + 12f, Bounds.Bottom - height - 12f);
-            draw.AddRect(new GuiRect(x, y, TipWidth, height), Ui.Ink, 3f, 1f, GuiColors.Rgba(120, 96, 58), 4f);
-
-            float line_y = y + 9f;
-            foreach ((string text, float size, Colour colour) in lines)
-            {
-                Ui.Text(Context!, draw, text, size, new GuiRect(x + 12f, line_y, TipWidth - 24f, size + 4f), colour);
-                line_y += size + 6f;
-            }
+                    if (node.Index != TalentTree.Root.Index) card.Text(TalentTree.CanRefund(Hero, node.Index) ? "Right click to refund" : "Other talents depend on this", LineLook.Detail);
+                }
+                else if (cost > 0)
+                {
+                    string points = cost == 1 ? "1 point" : $"{cost} points";
+                    card.Text(cost <= Hero.UnspentPoints ? $"Click to take: {points}" : $"Needs {points}", cost <= Hero.UnspentPoints ? LineLook.Price : LineLook.Bad);
+                }
+                return card;
+            }, new GuiRect(at.X - radius, at.Y - radius, radius * 2f, radius * 2f));
         }
     }
 
@@ -385,7 +354,8 @@ namespace Dino_Defenders.UI
 
         private readonly StackPanel _slots;
         private readonly StackPanel _known;
-        private readonly StackPanel _details;
+        private readonly Label _empty;
+        private SkillDefinition? _showing;
         private int _chosen;
 
         private static GameSession Session => GameSession.Current;
@@ -411,7 +381,12 @@ namespace Dino_Defenders.UI
             var scroll = middle.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
             _known = scroll.Content.Add(new StackPanel(Orientation.Vertical, 5f) { Width = UIValue.Fill, Height = UIValue.Auto });
 
-            _details = columns.Add(new StackPanel(Orientation.Vertical, 3f) { Width = UIValue.Fill, Height = UIValue.Fill });
+            var details = columns.Add(new StackPanel(Orientation.Vertical, 3f) { Width = UIValue.Fill, Height = UIValue.Fill });
+            _empty = details.Add(Ui.Paragraph("Pick a slot, then a skill to go in it. New skills are learned on the tree, and from what you wear.", 14f, Ui.Faded));
+            details.Add(new CardView(() => _showing != null && GameSession.Current != null ? Cards.Skill(Session.Sheet.Preview(_showing)) : null) { Width = UIValue.Fill, Height = UIValue.Fill });
+
+            // Decided here rather than by it, as a hidden element isn't updated and could never show itself again.
+            details.Updated += _ => _empty.Visible = _showing == null;
         }
 
         public void Open()
@@ -463,57 +438,6 @@ namespace Dino_Defenders.UI
             Describe(skill);
         }
 
-        private void Describe(SkillDefinition? skill)
-        {
-            _details.ClearChildren();
-            if (skill == null)
-            {
-                _details.Add(Ui.Paragraph("Pick a slot, then a skill to go in it. New skills are learned on the tree, and from what you wear.", 14f, Ui.Faded));
-                return;
-            }
-
-            _details.Add(Ui.Paragraph(skill.Name, 20f, Ui.Gold));
-            _details.Add(Ui.Paragraph(skill.Text, 14f, Ui.Faded));
-            if (Session.Sheet.Profile(skill) is not SkillProfile profile) return;
-
-            _details.Add(new Spacer(height: 6f));
-            foreach (string line in SkillText.Describe(profile)) _details.Add(Ui.Paragraph(line, 14f));
-        }
-    }
-
-    /// <summary>What a skill comes to for someone, in words.</summary>
-    internal static class SkillText
-    {
-        public static List<string> Describe(SkillProfile skill)
-        {
-            var lines = new List<string>();
-            string kind = skill.Skill.IsAttack ? "Attacks" : "Casts";
-            if (skill.DealsDamage)
-            {
-                lines.Add($"{skill.AverageHit:0.#} a hit, {skill.DamagePerSecond:0.#} a second");
-                foreach (DamageFlow flow in skill.Flows)
-                {
-                    float scale = MathF.Max(1f + flow.Increased / 100f, 0f) * flow.More;
-                    lines.Add($"  {flow.Min * scale:0.#} to {flow.Max * scale:0.#} {flow.Type}");
-                }
-                lines.Add($"Critical {skill.CritChance:0.#}% for {skill.CritMultiplier:0}%");
-            }
-
-            lines.Add($"{kind} in {skill.UseTime:0.##} seconds");
-            if (skill.Cost > 0f) lines.Add($"Costs {skill.Cost:0.#} {(skill.CostsHealth ? "health" : "mana")}");
-            if (skill.Cooldown > 0f) lines.Add($"Cooldown {skill.Cooldown:0.#} seconds");
-            if (skill.Skill.Needs != Tags.None) lines.Add("Needs a bow in hand");
-            if (skill.Radius > 0f) lines.Add($"Reaches {skill.Radius:0.#} metres around");
-            if (skill.Projectiles > 1) lines.Add($"{skill.Projectiles} projectiles");
-            if (skill.Pierce > 0) lines.Add($"Pierces {skill.Pierce}");
-            if (skill.Chains > 0) lines.Add($"Chains {skill.Chains} times");
-            if (skill.Duration > 0f) lines.Add($"Lasts {skill.Duration:0.#} seconds");
-
-            for (int i = 0; i < AilmentRules.Count; i++)
-            {
-                if (skill.Ailments[i].Chance > 0f) lines.Add($"{skill.Ailments[i].Chance:0}% chance of {(Ailment)i}");
-            }
-            return lines;
-        }
+        private void Describe(SkillDefinition? skill) => _showing = skill;
     }
 }

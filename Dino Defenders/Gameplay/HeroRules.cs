@@ -408,7 +408,7 @@ namespace Dino_Defenders.Gameplay
                 hero.DashLeft = DashDuration;
                 hero.DodgeCooldown = sheet.DodgeCooldown;
                 hero.DodgeQueuedFor = 0f;
-                hero.Safe = DashDuration + 0.1f;
+                hero.Safe = DashDuration + Rulebook.DodgeSafeExtra;
                 hero.Using = HeroSimState.NoSlot;
                 hero.ImpactIn = -1f;
                 hero.BusyFor = 0f;

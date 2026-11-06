@@ -18,7 +18,6 @@ namespace Dino_Defenders.Server
     public sealed class ServerSession : WorldProgress
     {
         private const float DiscoverRadius = 60f;
-        private const float SharedExperienceReach = 80f;
         private const float MinionSight = 28f;
 
         private const int PaidHoards = 1;
@@ -138,17 +137,17 @@ namespace Dino_Defenders.Server
         {
             foreach (ServerPlayer hero in Heroes)
             {
-                if ((hero.Sim.Position - position).LengthSquared <= SharedExperienceReach * SharedExperienceReach) GiveExperience(hero, amount);
+                if ((hero.Sim.Position - position).LengthSquared <= Rulebook.FlaskReach * Rulebook.FlaskReach) GiveExperience(hero, amount);
             }
         }
 
         // A fight goes on far from any shrine now, so flasks have to come back from fighting.
         private void ChargeFlasks(Vector2 position, EnemyRank rank)
         {
-            float worth = rank switch { EnemyRank.Boss => 30f, EnemyRank.Elite => 4f, _ => 1f };
+            float worth = rank switch { EnemyRank.Boss => Rulebook.FlaskFromBoss, EnemyRank.Elite => Rulebook.FlaskFromElite, _ => 1f };
             foreach (ServerPlayer hero in Heroes)
             {
-                if ((hero.Sim.Position - position).LengthSquared > SharedExperienceReach * SharedExperienceReach) continue;
+                if ((hero.Sim.Position - position).LengthSquared > Rulebook.FlaskReach * Rulebook.FlaskReach) continue;
                 if (hero.Hero.ChargeFlask(worth)) hero.SummaryChanged = true;
             }
         }
@@ -283,7 +282,7 @@ namespace Dino_Defenders.Server
         public void RaiseFallen(Actor killer, Actor victim)
         {
             Actor risen = Raise(killer, Bestiary.Risen(victim.Loadout, killer.Loadout.Level), "Risen", victim.Body, victim.Position, 1f, 26f);
-            risen.MinionLeft = 20f * killer.Sheet.MinionDuration;
+            risen.MinionLeft = Rulebook.RisenSeconds * killer.Sheet.MinionDuration;
         }
 
         private Actor Raise(Actor owner, Loadout loadout, string name, string model, Vector2 at, float scale, float aggro)

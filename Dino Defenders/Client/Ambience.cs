@@ -1,5 +1,6 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
@@ -25,7 +26,6 @@ namespace Dino_Defenders.Client
         private const float RegionResponse = 0.5f;      // Per second.
         private const float MoteRadius = 26f;
         private const float GuideTime = 9f;
-        private const float GuideCooldown = 14f;
         private const float GuideSpeed = 9f;
         private const float LiberationTime = 7f;
         private const float LiberatedFog = 0.35f;
@@ -87,7 +87,7 @@ namespace Dino_Defenders.Client
                 Vector2 toward = target - session.PlayerPosition;
                 _guideDirection = MathHelper.RadiansToDegrees(MathF.Atan2(toward.X, toward.Y));
                 _guideLeft = GuideTime;
-                session.GuideCooldown = GuideCooldown;
+                session.GuideCooldown = Rulebook.GuideCooldown;
             }
 
             UpdateWeather(world, session);

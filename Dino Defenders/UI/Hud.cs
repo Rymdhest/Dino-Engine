@@ -2,13 +2,16 @@ using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
+using Dino_Engine.GUI.Widgets;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Dino_Defenders.UI
 {
@@ -84,6 +87,14 @@ namespace Dino_Defenders.UI
             DrawLog(draw, session, screen);
             DrawBanner(draw, session, screen);
             DrawConnection(draw, session);
+        }
+
+        // Nothing here stops the mouse, as it's also what's aimed with: a card comes up for what it's resting on, and never while it's being used for anything.
+        private bool Resting(GuiRect rect)
+        {
+            if (Context == null || GameUi.Current.AnyOpen) return false;
+            if (Context.IsMouseDown(MouseButton.Left) || Context.IsMouseDown(MouseButton.Right)) return false;
+            return rect.Contains(Context.MousePosition);
         }
 
         // World to screen, in the same convention the renderer uses (row vectors).
@@ -289,13 +300,23 @@ namespace Dino_Defenders.UI
 
         private void DrawBuffs(GuiDrawList draw, GameSession session, GuiRect line)
         {
-            if (session.Client.Buffs.Count == 0) return;
-            var names = new List<string>();
-            foreach (ActiveBuff buff in session.Client.Buffs) names.Add(buff.Stacks > 1 ? $"{buff.Buff.Name} x{buff.Stacks}" : buff.Buff.Name);
-            Ui.Text(Context!, draw, string.Join("   ", names), 13f, line, Ui.Good);
+            float x = line.X;
+            foreach (ActiveBuff buff in session.Client.Buffs)
+            {
+                string name = buff.Stacks > 1 ? $"{buff.Buff.Name} x{buff.Stacks}" : buff.Buff.Name;
+                float width = GuiText.MeasureWidth(Context!, name, Ui.Face, 13f);
+                GuiRect place = new GuiRect(x, line.Y, width, line.Height);
+                Ui.Text(Context!, draw, name, 13f, place, Ui.Good);
+                if (Resting(place))
+                {
+                    ActiveBuff shown = buff;
+                    GameUi.Current.Tips.Show(() => Cards.Buff(shown.Buff, session.Sheet, shown.Stacks, shown.Left), place, above: true);
+                }
+                x += width + 14f;
+            }
         }
 
-        private readonly record struct Ability(string Key, string Name, float Share, bool Ready);
+        private readonly record struct Ability(string Key, string Name, float Share, bool Ready, Func<Card?> Card);
 
         private void DrawAbilities(GuiDrawList draw, GameSession session, GuiRect screen)
         {
@@ -311,11 +332,12 @@ namespace Dino_Defenders.UI
                 string name = skill?.Skill.Name ?? (held != null ? Skills.SkillCatalog.Find(held)?.Name ?? "" : "");
                 float wait = skill != null && skill.Cooldown > 0f ? sim.Cooldowns[slot] / skill.Cooldown : 0f;
                 bool affordable = skill != null && (skill.CostsHealth ? session.Health > skill.Cost : sim.Mana >= skill.Cost);
-                abilities.Add(new(SkillPanel.Keys[slot], name, wait, affordable));
+                Skills.SkillDefinition? known = skill?.Skill ?? (held != null ? Skills.SkillCatalog.Find(held) : null);
+                abilities.Add(new(SkillPanel.Keys[slot], name, wait, affordable, () => known != null ? Cards.Skill(session.Sheet.Preview(known)) : null));
             }
-            abilities.Add(new("Space", "Dodge", sim.DodgeCooldown / MathF.Max(session.Sheet.DodgeCooldown, 0.1f), true));
-            abilities.Add(new("R", $"Flask {session.Hero.Flasks}", 0f, session.Hero.Flasks > 0));
-            if (session.Hero.HasGuidingWind) abilities.Add(new("F", "Wind", session.GuideCooldown / 14f, true));
+            abilities.Add(new("Space", "Dodge", sim.DodgeCooldown / MathF.Max(session.Sheet.DodgeCooldown, 0.1f), true, () => Cards.Dodge(session.Sheet)));
+            abilities.Add(new("R", $"Flask {session.Hero.Flasks}", 0f, session.Hero.Flasks > 0, () => Cards.Flask(session.Hero, session.Sheet)));
+            if (session.Hero.HasGuidingWind) abilities.Add(new("F", "Wind", session.GuideCooldown / Rulebook.GuideCooldown, true, Cards.Wind));
 
             const float size = 62f;
             const float gap = 8f;
@@ -335,6 +357,7 @@ namespace Dino_Defenders.UI
                 float nameSize = ability.Name.Length > 8 ? 10.5f : 12.5f;
                 Ui.Text(Context!, draw, ability.Name, nameSize, new GuiRect(x, y + 8f, size, 22f), colour, Alignment.Center);
                 Ui.Text(Context!, draw, ability.Key, 11.5f, new GuiRect(x, y + size - 22f, size, 18f), Ui.Gold, Alignment.Center);
+                if (Resting(slot)) GameUi.Current.Tips.Show(ability.Card, slot, above: true);
                 x += size + gap;
             }
         }

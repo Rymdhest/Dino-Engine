@@ -97,6 +97,9 @@ namespace Dino_Defenders.Talents
 
         private static TalentNode Add(TalentNode node)
         {
+            // Levels give nothing but points, so it's the tree that makes a hero strong, and each sector does it in its own way.
+            if (node.Sector >= 0 && node.Kind != TalentKind.Gate) node.Mods = node.Mods.Concat(TalentContent.AttributesOf(TalentContent.Sectors[node.Sector].Id)).Append(M.Flat(Stat.Health, Rulebook.NodeHealth)).ToArray();
+
             node.Index = Built.Count;
             Built.Add(node);
             ById.Add(node.Id, node.Index);

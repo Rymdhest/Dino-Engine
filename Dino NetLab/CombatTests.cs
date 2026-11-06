@@ -31,6 +31,9 @@ namespace Dino_NetLab
         {
             HeroState hero = HeroState.CreateNew();
             hero.Level = 60;
+
+            // Levels give no life, and these stand and take a great many blows in a row. One that dies part way through ignores all the rest.
+            hero.Equipped[WornSlot.Neck] = new Item { Name = "Lab Charm", Slot = ItemSlot.Neck, Level = 60, Lines = { new ItemLine("health", 100000f) } };
             GameLab.Learn(hero, talents);
             return hero;
         }
