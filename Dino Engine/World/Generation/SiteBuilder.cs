@@ -12,6 +12,8 @@ namespace Dino_Engine.World.Generation
     {
         private const float HighestBuildSlope = 0.42f;
         private const float MinGroundAboveWater = 0.4f;
+        private const float PropHeight = 3f;        // How far up these go, for what flies past. A person is 4.7 m tall, so most of them come to the chest.
+        private const float FenceHeight = 3f;
         private const PlacementLayer Blockers = PlacementLayer.Built | PlacementLayer.Road;
         private const float NearStep = 1.5f;
 
@@ -116,7 +118,7 @@ namespace Dino_Engine.World.Generation
         private void Commit(StructureDefinition definition, Vector2 position, float yaw, float scale, in Footprint footprint)
         {
             PlacementLayer layer = definition.SpansRoad ? PlacementLayer.Keepout : definition.OnPad ? PlacementLayer.Structure : PlacementLayer.Prop;
-            World.Placement.Add(footprint, layer, definition.Solid);
+            World.Placement.Add(footprint, layer, definition.Solid, layer == PlacementLayer.Prop ? PropHeight : PlacementIndex.Tall);
 
             float? padHeight = null;
             if (definition.OnPad)
@@ -169,7 +171,7 @@ namespace Dino_Engine.World.Generation
             Footprint footprint = Footprint.Segment(from, to, thickness);
             if (World.Placement.Overlaps(footprint, PlacementLayer.Structure | PlacementLayer.Prop | PlacementLayer.Road, 0.4f)) return false;
 
-            World.Placement.Add(footprint, PlacementLayer.Fence, solid: true);
+            World.Placement.Add(footprint, PlacementLayer.Fence, solid: true, height: FenceHeight);
             World.Walls.Add(new WallRun(definition.Id, from, to, segmentLength, scale));
             return true;
         }

@@ -393,6 +393,7 @@ namespace Dino_Defenders.Client
                     bool hero = entity.Has<HeroComponent>();
                     double clock = hero ? past : present;
                     animator.Orders.Action = Reading(action, clock, animator);
+                    if (animator.Orders.Action.Gesture == null && _effects() is ClientEffects doing) animator.Orders.Action = doing.FlourishOf(entity.Entity, animator.Orders.Yaw);
 
                     double since = (clock - action.Ends) * NetTime.TickSecondsPrecise;
                     float alert = action.Skill != 0 && since < AlertFor ? 1f : 0f;
@@ -447,7 +448,9 @@ namespace Dino_Defenders.Client
             animator.Orders.Action = default;
             if (doing is OwnAction action && sim.Using >= 0)
             {
-                float elapsed = (float)((present - action.Start) * NetTime.TickSecondsPrecise) * sim.ActionRate;
+                // Their own rules say how far through it they are, which stops with the world and slows with them. The clock only says how far on from the last tick this moment is.
+                float betweenTicks = session.Paused && client.Alone ? 1f : (float)(present - client.Commands.Tick) + 1f;
+                float elapsed = action.Length - sim.BusyFor + betweenTicks * NetTime.TickSeconds * sim.ActionRate;
                 animator.Orders.Action = new ActionInput
                 {
                     Gesture = SkillMotions.Of(action.Skill, animator.Carrying, false, action.Serial),
@@ -458,6 +461,8 @@ namespace Dino_Defenders.Client
                     Serial = action.Serial,
                 };
             }
+
+            if (animator.Orders.Action.Gesture == null && effects != null) animator.Orders.Action = effects.FlourishOf(client.OwnGhost!.Entity, animator.Orders.Yaw);
 
             double since = doing is OwnAction last ? (present - last.Start) * NetTime.TickSecondsPrecise - last.Length : double.MaxValue;
             animator.Orders.Alert = since < AlertFor ? 1f : 0f;
@@ -613,6 +618,34 @@ namespace Dino_Defenders.Client
         /// <summary>The last thing this player's hero started.</summary>
         public OwnAction? Doing { get; private set; }
 
+        private const float DrinkTime = 0.9f;
+        private const float UseTime = 0.7f;
+        private const float FlourishImpact = 0.4f;  // Of the way through, that it's at its height.
+
+        private readonly Dictionary<uint, (Gesture Gesture, float Start, float Length, int Serial)> _flourishes = new();
+        private int _flourished = 1 << 20;          // Clear of what a skill's serial can be.
+
+        private void Flourished(GameClient client, in FlourishEvent e)
+        {
+            if (!client.Ghosts.Ghosts.TryGetValue(e.Who, out Ghost? ghost) || !ghost.Entity.IsValid()) return;
+            bool drink = e.Kind == Flourish.Drink;
+            _flourishes[ghost.Entity.Id] = (drink ? Gestures.Drink : Gestures.Use, Engine.Time, drink ? DrinkTime : UseTime, ++_flourished);
+        }
+
+        /// <summary>What someone with nothing else to do is doing for show, if anything. They go on facing as they are: it's only their hands.</summary>
+        public ActionInput FlourishOf(Entity who, float facing)
+        {
+            if (_flourishes.Count == 0 || !_flourishes.TryGetValue(who.Id, out var flourish)) return default;
+
+            float elapsed = Engine.Time - flourish.Start;
+            if (elapsed >= flourish.Length)
+            {
+                _flourishes.Remove(who.Id);
+                return default;
+            }
+            return new ActionInput { Gesture = flourish.Gesture, Elapsed = elapsed, Impact = flourish.Length * FlourishImpact, Length = flourish.Length, Aim = facing, Serial = flourish.Serial };
+        }
+
         private int _serial;
 
         private static readonly Vector3 HitColour = new Vector3(1f, 0.92f, 0.7f);
@@ -632,6 +665,8 @@ namespace Dino_Defenders.Client
 
             // What happens to this hero happens now, however far behind everything else is drawn.
             client.Events.Urgent<DamageEvent>(e => e.Target != 0 && e.Target == client.OwnGhost?.Id);
+            client.Events.Urgent<FlourishEvent>(e => e.Who == client.OwnGhost?.Id);
+            client.Events.On<FlourishEvent>(e => Flourished(client, e));
 
             client.Events.On<DamageEvent>(e =>
             {
@@ -909,8 +944,8 @@ namespace Dino_Defenders.Client
                 // What it covers, for as long as it takes to land.
                 if (HeroRules.ShowsArea(skill))
                 {
-                    double lands = client.Commands.Tick + (hero.ImpactIn / MathF.Max(hero.ActionRate, 0.1f) + skill.Delay) * NetTime.TicksPerSecond;
-                    Marks.Own(GroundShape.Of(skill, hero.Position, hero.Aim, hero.AimReach), client.Commands.Tick, lands);
+                    double leaves = client.Commands.Tick + hero.ImpactIn / MathF.Max(hero.ActionRate, 0.1f) * NetTime.TicksPerSecond;
+                    Marks.Own(skill, hero, client.Commands.Tick, leaves, leaves + skill.Delay * NetTime.TicksPerSecond);
                 }
             }
 

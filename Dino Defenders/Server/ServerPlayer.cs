@@ -40,6 +40,8 @@ namespace Dino_Defenders.Server
         public Entity Entity;
         public uint GhostId;
         public byte SwingSerial;
+        public bool WindingUp;      // A blow's been started and hasn't landed.
+        public Entity Mark;         // What friends have been shown of it.
 
         public bool Greeted;        // Has said hello, and been let in.
         public bool InWorld;        // Has a hero standing in the current world.

@@ -308,6 +308,10 @@ namespace Dino_Engine.Animation
         }
 
         private bool _steppedOnce;
+        private bool _posed;
+
+        private const float FrozenShine = 0.16f;
+        private static readonly Vector3 FrozenColour = new Vector3(0.35f, 0.72f, 1f);
 
         private void StepDead(in AnimationInput input, float deltaTime, IGround ground)
         {
@@ -345,10 +349,22 @@ namespace Dino_Engine.Animation
 
             if (input.Rate <= 0f)
             {
-                // Frozen, and everything stops where it is. Only what was already happening to the ice goes on.
-                Solve(input);
-                return;
+                // Frozen, and everything stops where it is. Only what was already happening to the ice goes on, and it has to be plain that it's ice.
+                if (Flash < FrozenShine)
+                {
+                    Flash = FrozenShine;
+                    FlashColour = FrozenColour;
+                }
+
+                // Someone first seen like this has no way of standing to stop in, so they're given one.
+                if (_posed)
+                {
+                    Solve(input);
+                    return;
+                }
+                life = deltaTime;
             }
+            _posed = true;
 
             _clock += life;
             _alert = Spring.Damp(_alert, input.Alert, 0.14f, deltaTime);
@@ -730,7 +746,7 @@ namespace Dino_Engine.Animation
                 float bladeTurn = chestYaw + MathHelper.DegreesToRadians(key.BladeTurn);
                 float bladeRise = MathHelper.DegreesToRadians(key.BladeRise);
 
-                bool told = main ? gesture.HasMain : gesture.HasOff;
+                bool told = main ? gesture.HasMain : gesture.HasOff && !(gesture.FreeHand && _shield);
                 if (told && weight > 0f)
                 {
                     // Both are angles around the body, measured from the front. So going from one to the other stays in front of the body and can't flip: the short way round would be through it.
@@ -864,6 +880,12 @@ namespace Dino_Engine.Animation
             float roll = Math.Clamp(-accel.X / Rig.Gravity, -0.5f, 0.5f) * 0.3f * _style.Lean;
             float turnBend = Math.Clamp(_turnRate * 0.09f, -0.45f, 0.45f);
 
+            // Stunned, the head hangs and the body goes round in a slow loop, on four legs as on two.
+            _dazed = Spring.Damp(_dazed, input.Dazed ? 1f : 0f, 0.09f, life);
+            float reel = _clock * 4.1f + _seed;
+            pitch += _dazed * (0.1f + MathF.Sin(reel) * 0.05f);
+            roll += _dazed * MathF.Cos(reel) * 0.13f;
+
             Vector3 hips = pelvisRest + new Vector3(0f, 0f, 0f);
             hips.Y = _hipHeight + bob;
             hips += _lurch + Vector3.UnitZ * (body.Push * leg * weight);
@@ -886,7 +908,7 @@ namespace Dino_Engine.Animation
             Chain(BoneType.Chest, BoneType.Spine);
 
             PoseHead(input, chestSmooth, 0f, life, deltaTime, transition, -MathF.Sin(phase) * 0.08f * run);
-            Vector3 lunge = Vector3.UnitZ * (body.Head * leg * weight) + Vector3.UnitY * (-MathF.Abs(body.Head) * 0.3f * leg * weight);
+            Vector3 lunge = Vector3.UnitZ * (body.Head * leg * weight) + Vector3.UnitY * (-(MathF.Abs(body.Head) * 0.3f * weight + _dazed * 0.22f) * leg);
             _joints[(int)BoneType.Neck] += lunge * 0.5f;
             _joints[(int)BoneType.Head] += lunge;
 

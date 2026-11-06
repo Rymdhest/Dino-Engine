@@ -42,6 +42,7 @@ namespace Dino_NetLab
         public int WhirlsPressed;
         public bool PressUse;           // Presses use, once.
         public int HeldSlots;           // Instead of fighting: the keys on these slots held down.
+        public Func<HeroIntent>? Script;    // Instead of everything: exactly what's pressed, frame by frame.
         private int _heldLastFrame;
         public readonly int[] Uses = new int[HeroState.SkillSlots];
         public readonly List<(InteractKind kind, SiteState site)> PanelsOpened = new();
@@ -113,6 +114,8 @@ namespace Dino_NetLab
 
         public HeroIntent ReadIntent()
         {
+            if (Script != null) return Script();
+
             if (Client.Session is { Fetch.Active: true } fetching)
             {
                 var fetch = new HeroIntent();

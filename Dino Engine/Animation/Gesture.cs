@@ -63,6 +63,9 @@ namespace Dino_Engine.Animation
         /// <summary>How much of the hips goes with it, and so how much the legs get involved.</summary>
         public float Weight = 1f;
 
+        /// <summary>It's done with an empty hand, so an arm with a shield on it stays where it is.</summary>
+        public bool FreeHand;
+
         /// <summary>Both feet leave the ground, as in a spin.</summary>
         public bool Airborne;
 
@@ -79,6 +82,7 @@ namespace Dino_Engine.Animation
         public BodyKey Body;
         public bool HasMain;
         public bool HasOff;
+        public bool FreeHand;
         public bool Airborne;
 
         /// <summary>From cock at 0 to through at 1, with contact at <see cref="Gesture"/>'s middle key. It's the same time the sample was taken at, as the eye saw it.</summary>
@@ -104,7 +108,7 @@ namespace Dino_Engine.Animation
         /// <param name="length">Seconds it takes.</param>
         public static GestureSample Sample(Gesture gesture, float elapsed, float impact, float length)
         {
-            var sample = new GestureSample { HasMain = gesture.Main != null, HasOff = gesture.Off != null, Airborne = gesture.Airborne };
+            var sample = new GestureSample { HasMain = gesture.Main != null, HasOff = gesture.Off != null, FreeHand = gesture.FreeHand, Airborne = gesture.Airborne };
 
             impact = MathF.Max(impact, 0.02f);
             length = MathF.Max(length, impact + 0.02f);
@@ -663,6 +667,29 @@ namespace Dino_Engine.Animation
             Snap = 0.14f,
             Follow = 0.3f,
             Weight = 0.15f,
+            FreeHand = true,
+        };
+
+        /// <summary>A hand put out to something, which is all that using anything takes.</summary>
+        public static readonly Gesture Use = new Gesture
+        {
+            Name = "use",
+            Off = new[]
+            {
+                new HandKey(28f, -0.15f, 0.55f),
+                new HandKey(6f, 0.06f, 0.92f),
+                new HandKey(10f, 0f, 0.82f),
+            },
+            Body = new[]
+            {
+                new BodyKey(),
+                new BodyKey(Bend: 10f, Turn: -6f),
+                new BodyKey(Bend: 7f),
+            },
+            Snap = 0.16f,
+            Follow = 0.25f,
+            Weight = 0.2f,
+            FreeHand = true,
         };
 
         // What fights with its teeth: a body that's all behind its head.

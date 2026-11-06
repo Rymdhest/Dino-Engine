@@ -133,6 +133,21 @@ namespace Dino_Defenders.Gameplay
         public int Value;
     }
 
+    /// <summary>What a body can do that isn't a skill.</summary>
+    public enum Flourish : byte
+    {
+        Drink,
+        Use,
+    }
+
+    /// <summary>Someone doing something that changes nothing about how they stand in a fight. It's only there to be seen, so it can go missing.</summary>
+    [NetEvent]
+    public struct FlourishEvent
+    {
+        public uint Who;
+        public Flourish Kind;
+    }
+
     /// <summary>A hero's ability going off, for everyone but its owner, who saw it the moment they pressed.</summary>
     [NetEvent]
     public struct HeroMoveEvent

@@ -36,6 +36,7 @@ namespace Dino_Engine.Animation
 
         public readonly Rig Rig;
         public readonly bool HasTail;
+        public readonly float Span;         // The furthest any part of it is from its hips.
         public readonly bool[] Used = new bool[PointCount];
         public readonly float[] InverseMass = new float[PointCount];
         public readonly float[] Radius = new float[PointCount];
@@ -91,6 +92,11 @@ namespace Dino_Engine.Animation
             {
                 Use(BoneType.TailBase, 0.6f, 0.08f);
                 Use(BoneType.TailTip, 0.4f, 0.06f);
+            }
+
+            for (int i = 0; i < PointCount; i++)
+            {
+                if (Used[i]) Span = MathF.Max(Span, (Rest[i] - Rest[(int)BoneType.Pelvis]).Length);
             }
 
             var sticks = new List<Stick>();
@@ -176,6 +182,9 @@ namespace Dino_Engine.Animation
         private const float StillSpeed = 0.012f;    // Metres in a step.
         private const float StillFor = 0.5f;        // Seconds before it's left alone.
         private const float FastestPoint = 2.4f;    // Metres in a step, or about 140 m/s. It's only here so that nothing can leave the world.
+        private const float Thud = 0.2f;            // How much of what took it into something solid it comes back with.
+        private const float Scrape = 0.85f;         // What's left of its speed along what it hit.
+        private const int MostLooks = 8;
 
         private static readonly Dictionary<Rig, RagdollPlan> Plans = new();
 
@@ -262,11 +271,14 @@ namespace Dino_Engine.Animation
                 steps++;
                 for (int i = 0; i < _at.Length; i++) _drawnFrom[i] = _at[i];
                 Integrate();
+
+                // Once for the whole body, as there's nearly always nothing there.
+                bool solids = ground.LookAround(Centre.Xz, _plan.Span * _scale + FastestPoint);
                 for (int pass = 0; pass < Passes; pass++)
                 {
                     Rods();
                     Hinges();
-                    Collide(ground);
+                    Collide(ground, solids);
                 }
                 CheckStill();
             }
@@ -346,11 +358,12 @@ namespace Dino_Engine.Animation
             }
         }
 
-        private void Collide(IGround ground)
+        private void Collide(IGround ground, bool solids)
         {
             for (int i = 0; i < _at.Length; i++)
             {
                 if (!_plan.Used[i]) continue;
+                if (solids) Stop(ground, i);
                 ref Vector3 at = ref _at[i];
                 float floor = ground.HeightAt(at.X, at.Z) + _plan.Radius[i] * _scale;
                 if (at.Y >= floor) continue;
@@ -367,6 +380,39 @@ namespace Dino_Engine.Animation
                 Vector2 kept = slid * (1f - taken / slide);
                 was.X = at.X - kept.X;
                 was.Z = at.Z - kept.Y;
+            }
+        }
+
+        // What's standing stops what runs into it. A body thrown hard goes further in a step than a fence is thick, so it's the way it came that's looked along, and not only where it's got to.
+        private void Stop(IGround ground, int point)
+        {
+            ref Vector3 at = ref _at[point];
+            Vector3 from = _drawnFrom[point];
+            Vector3 moved = at - from;
+            float radius = _plan.Radius[point] * _scale;
+
+            int looks = Math.Clamp((int)(moved.Xz.Length / MathF.Max(radius, 0.05f)) + 1, 1, MostLooks);
+            for (int look = 1; look <= looks; look++)
+            {
+                Vector3 reached = from + moved * ((float)look / looks);
+                if (!ground.TryPushOut(reached, radius, out Vector2 push)) continue;
+
+                // Going by what it was doing, as with the ground: what took it in is gone, bar a little that comes back, and rubbing along it takes some of the rest.
+                ref Vector3 was = ref _was[point];
+                Vector2 speed = at.Xz - was.Xz;
+                float depth = push.Length;
+                if (depth > 1e-6f)
+                {
+                    Vector2 outward = push / depth;
+                    float into = Vector2.Dot(speed, outward);
+                    if (into < 0f) speed -= outward * (into * (1f + Thud));
+                }
+                speed *= Scrape;
+
+                at = reached + new Vector3(push.X, 0f, push.Y);
+                was.X = at.X - speed.X;
+                was.Z = at.Z - speed.Y;
+                return;
             }
         }
 

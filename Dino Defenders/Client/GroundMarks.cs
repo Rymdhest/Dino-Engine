@@ -1,5 +1,6 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Skills;
+using Dino_Defenders.Stats;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -37,18 +38,43 @@ namespace Dino_Defenders.Client
             public uint Ghost;
             public float Withdrawn = -1f;
             public float Strength = 1f;
+            public SkillProfile? Skill;     // A hero's own, which goes with them until it leaves their hands.
+            public double Leaves;
         }
 
         private readonly List<Mark> _marks = new();
-        private readonly HashSet<uint> _seen = new();
+        private readonly Dictionary<uint, Mark?> _seen = new();     // By serial. Those a hero is already showing themselves have nothing here.
         private readonly HashSet<uint> _live = new();
+        private readonly List<uint> _gone = new();
         private readonly BitMask _telegraphs = new BitMask(typeof(TelegraphComponent), typeof(PositionComponent));
         private readonly BitMask _zones = new BitMask(typeof(ZoneComponent), typeof(PositionComponent));
+        private double _then;
 
-        /// <summary>Something this hero has just started, which they can see at once.</summary>
-        public void Own(in GroundShape shape, double start, double lands)
+        /// <summary>What's being shown just now, and when it lands.</summary>
+        public IEnumerable<(GroundShape Shape, double Lands)> Showing => _marks.Select(mark => (mark.Shape, mark.Lands));
+
+        /// <summary>How many of those are on their way out.</summary>
+        public int Withdrawing => _marks.Count(mark => mark.Withdrawn >= 0f);
+
+        /// <summary>Something this hero has just started, which they can see at once. It's their hands it comes from, so until it leaves them it's wherever they are and whichever way they're aiming.</summary>
+        /// <param name="leaves">The tick it leaves their hands.</param>
+        /// <param name="lands">The tick it does anything, which is later for what has a way to go.</param>
+        public void Own(SkillProfile skill, in HeroSimState hero, double start, double leaves, double lands)
         {
-            _marks.Add(new Mark { Shape = shape, Start = start, Lands = lands, Tier = MarkTier.Plain });
+            _marks.Add(new Mark { Shape = GroundShape.Of(skill, hero.Position, hero.Aim, hero.AimReach), Skill = skill, Start = start, Leaves = leaves, Lands = lands, Tier = MarkTier.Plain });
+        }
+
+        /// <summary>
+        /// Keeps a hero's own marks true. The server lets a blow go from wherever they are when it lands, so that's what has to be shown until then. And if they stop before it does, by a dodge or being stunned, it isn't coming.
+        /// </summary>
+        public void Follow(in HeroSimState hero, double now, float deltaTime)
+        {
+            foreach (Mark mark in _marks)
+            {
+                if (mark.Skill == null || mark.Withdrawn >= 0f || now >= mark.Leaves) continue;
+                if (hero.Using < 0) mark.Withdrawn = 0f;
+                else mark.Shape = GroundShape.Of(mark.Skill, hero.Position, hero.Aim, hero.AimReach);
+            }
         }
 
         /// <summary>A blow that's already landed: it's only there to show where it went.</summary>
@@ -64,7 +90,11 @@ namespace Dino_Defenders.Client
             GroundMarkRenderer renderer = Engine.RenderEngine._groundMarkRenderer;
             renderer.Focus = new Vector3(hero.X, session.World.Height.Sample(hero), hero.Y);
 
-            ReadTelegraphs(world, client);
+            if (session.Paused && client.Alone) Hold(now - _then);
+            _then = now;
+
+            Read(world, client.PlayerId);
+            Follow(client.Predictor.Current, now, deltaTime);
 
             int drawn = 0;
             for (int i = _marks.Count - 1; i >= 0; i--)
@@ -78,7 +108,6 @@ namespace Dino_Defenders.Client
                 if (mark.Withdrawn >= 0f) mark.Withdrawn += deltaTime;
                 if (past > LandFor || mark.Withdrawn > WithdrawFor)
                 {
-                    _seen.Remove(mark.Ghost);
                     _marks.RemoveAt(i);
                     continue;
                 }
@@ -91,33 +120,63 @@ namespace Dino_Defenders.Client
             DrawZones(world, renderer, deltaTime, hero);
         }
 
-        private void ReadTelegraphs(ECSWorld world, GameClient client)
+        // The world has stood still for this long while the clock went on. The server moves what it's marked along by the same, and what's only here has to be moved by hand.
+        private void Hold(double ticks)
+        {
+            foreach (Mark mark in _marks)
+            {
+                if (mark.Ghost != 0) continue;
+                mark.Start += ticks;
+                mark.Leaves += ticks;
+                mark.Lands += ticks;
+            }
+        }
+
+        /// <summary>Picks up what the server has marked, and any change in when it lands.</summary>
+        public void Read(ECSWorld world, int player)
         {
             _live.Clear();
             foreach (Archetype archetype in world.QueryArchetypes(_telegraphs, BitMask.Empty))
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
-                    uint id = entity.Entity.Id;
-                    _live.Add(id);
-                    if (!_seen.Add(id)) continue;
-
                     var telegraph = entity.Get<TelegraphComponent>();
+                    _live.Add(telegraph.Serial);
+                    if (_seen.TryGetValue(telegraph.Serial, out Mark? known))
+                    {
+                        if (known == null) continue;
+                        known.Start = telegraph.Start;
+                        known.Lands = telegraph.Lands;
+                        continue;
+                    }
 
                     // Whoever did this has been showing it since they pressed.
-                    if (telegraph.Owner != 0 && telegraph.Owner == client.PlayerId) continue;
-                    _marks.Add(new Mark
+                    if (telegraph.Owner != 0 && telegraph.Owner == player)
+                    {
+                        _seen.Add(telegraph.Serial, null);
+                        continue;
+                    }
+
+                    var mark = new Mark
                     {
                         Shape = telegraph.ShapeAt(entity.Get<PositionComponent>().value.Xz),
                         Start = telegraph.Start,
                         Lands = telegraph.Lands,
                         Hostile = telegraph.Hostile,
                         Tier = telegraph.Tier,
-                        Ghost = id,
-                    });
+                        Ghost = telegraph.Serial,
+                    };
+                    _seen.Add(telegraph.Serial, mark);
+                    _marks.Add(mark);
                 }
             }
-            _seen.IntersectWith(_live);
+
+            _gone.Clear();
+            foreach (uint serial in _seen.Keys)
+            {
+                if (!_live.Contains(serial)) _gone.Add(serial);
+            }
+            foreach (uint serial in _gone) _seen.Remove(serial);
         }
 
         private static GroundMarkCommand Command(Mark mark, double now, float past, Vector2 hero)

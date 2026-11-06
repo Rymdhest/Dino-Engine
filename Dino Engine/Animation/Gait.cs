@@ -6,6 +6,16 @@ namespace Dino_Engine.Animation
     public interface IGround
     {
         float HeightAt(float x, float z);
+
+        /// <summary>Gets ready to be asked about what's standing around here, and says whether anything is. Most ground has nothing on it.</summary>
+        bool LookAround(Vector2 centre, float reach) => false;
+
+        /// <summary>How far something this wide, here, has to go to be clear of what <see cref="LookAround"/> found. False if it's touching nothing.</summary>
+        bool TryPushOut(Vector3 at, float radius, out Vector2 push)
+        {
+            push = default;
+            return false;
+        }
     }
 
     /// <summary>A floor with no end, for anything that doesn't care about a world.</summary>

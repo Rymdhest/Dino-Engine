@@ -219,6 +219,7 @@ namespace Dino_Defenders.Server
         protected override void UpdateFrame(ECSWorld world, float deltaTime)
         {
             bool paused = _server.Session is not { Paused: false };
+            if (paused) _server.Session?.Combat.Wait();
             foreach (Archetype archetype in world.QueryArchetypes(Marks, BitMask.Empty))
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))

@@ -432,6 +432,7 @@ namespace Dino_Defenders.Server
 
             if (!nearest.IsValid()) return;
             EntityView view = world.GetEntityView(nearest);
+            _server.Broadcast(new FlourishEvent { Who = hero.GhostId, Kind = Flourish.Use }, hero.Sim.Position);
             Use(world, session, hero, view, view.Get<InteractableComponent>());
         }
 

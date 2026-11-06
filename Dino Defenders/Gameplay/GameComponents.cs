@@ -67,7 +67,7 @@ namespace Dino_Defenders.Gameplay
         public float LeashRadius;
         public bool KeepsAway;
         public int Skill;           // Which of its skills it's winding up.
-        public float WindUp;
+        public int WindUpTicks;     // Until it lets go. A mark has said when, so nothing that happens to it after that changes this.
 
         // What it has committed to. All of this is fixed when the wind-up starts: what's on the ground is what lands, and walking out of it is what it's there for.
         public Vector2 AimFrom;

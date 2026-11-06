@@ -173,10 +173,21 @@ namespace Dino_Defenders.Server
             for (int i = 0; i < _later.Count && done < MostPerStep; i++)
             {
                 Consequence consequence = _later[i];
-                if (consequence.At > Now) continue;
+                if (consequence.At > Now + NetTime.TickSecondsPrecise * 0.5) continue;
                 _later.RemoveAt(i--);
                 done++;
                 Carry(consequence);
+            }
+        }
+
+        /// <summary>The world has stood still for a tick, though the clock hasn't. What's waiting goes on waiting for just as long.</summary>
+        public void Wait()
+        {
+            for (int i = 0; i < _later.Count; i++)
+            {
+                Consequence consequence = _later[i];
+                consequence.At += NetTime.TickSecondsPrecise;
+                _later[i] = consequence;
             }
         }
 
@@ -239,17 +250,22 @@ namespace Dino_Defenders.Server
             return World.CreateEntity("Warning",
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: hostile ? 6f : 2f),
                 new PositionComponent(Ground(shape.Origin)),
-                new TelegraphComponent { Kind = shape.Kind, Tier = tier, Hostile = hostile, Owner = owner, Skill = skill, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Start = Server.Tick, Lands = ticks },
+                new TelegraphComponent { Serial = ++_marksMade, Kind = shape.Kind, Tier = tier, Hostile = hostile, Owner = owner, Skill = skill, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Start = Server.Tick, Lands = ticks },
                 new TelegraphLifeComponent { Left = landsIn + MarkLingers });
         }
 
         /// <summary>It isn't happening after all.</summary>
         public void Withdraw(Entity mark)
         {
-            if (mark.IsValid() && World.TryGetEntityLocation(mark, out _, out _)) World.DestroyEntity(mark);
+            if (!mark.IsValid() || !World.TryGetEntityLocation(mark, out _, out _)) return;
+
+            // One that's outlived its time has left its id to whatever came next.
+            if (World.GetEntityView(mark).Has<TelegraphComponent>()) World.DestroyEntity(mark);
         }
 
         private const float MarkLingers = 0.1f;     // Seconds a mark stays after it lands, as the word that it's gone shouldn't overtake it.
+
+        private uint _marksMade;
 
         /// <summary>Says what someone is doing, for all who can see them.</summary>
         public void Perform(Entity who, SkillDefinition skill, float landsIn, float lasts, Vector2 aim)
@@ -347,7 +363,7 @@ namespace Dino_Defenders.Server
         public bool Touch(Projectile projectile, Vector3 at)
         {
             _found.Clear();
-            Grid.Foes(projectile.Source.Team, at.Xz, 1.3f, _found);
+            Within(GroundShape.Circle(at.Xz, GroundShape.FlightWidth), projectile.Source.Team, _found);
 
             bool flying = true;
             foreach (Actor foe in _found)

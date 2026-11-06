@@ -19,7 +19,7 @@ namespace Dino_Defenders.Server
         private const float RecoverTime = 0.75f;
         private const float PathRefresh = 0.8f;
         private const float WaypointReach = 2.2f;
-        private const float ShortestWindUp = 0.45f;     // However quick the skill, there's always a moment to get out of the way.
+        private const float ShortestWindUp = 0.6f;      // However quick the skill, there's always a moment to get out of the way. A mark reaches a player's clock some 0.13 s late on the best of lines, and what's left has to be enough to act on.
         private const float HeavyWindUp = 0.7f;
         private const float BossWindUp = 1.25f;
         private const float EscapeSpeed = 12f;          // Metres a second it's taken that someone can get out of an area at. An area gives them that long, near enough.
@@ -74,7 +74,7 @@ namespace Dino_Defenders.Server
                     brain.Mark = default;
                     Change(ref enemy, ref brain, EnemyState.Recovering);
                 }
-                entity.Set(new VelocityComponent());
+                entity.Set(new VelocityComponent(Carried(actor, Vector2.Zero, deltaTime)));
                 entity.Set(brain);
                 entity.Set(enemy);
                 return;
@@ -146,7 +146,7 @@ namespace Dino_Defenders.Server
 
                 case EnemyState.WindingUp:
                     Face(entity, brain.AimWay, deltaTime, 16f);
-                    if (brain.StateTime >= brain.WindUp)
+                    if (--brain.WindUpTicks <= 0)
                     {
                         Let(session, actor, brain);
                         brain.Mark = default;
@@ -180,13 +180,19 @@ namespace Dino_Defenders.Server
                 actor.Reeling -= deltaTime;
                 velocity *= ReelingSpeed;
             }
-            velocity += actor.Push;
-            actor.Push *= MathF.Exp(-PushFade * deltaTime);
-            if (actor.Push.LengthSquared < 0.01f) actor.Push = Vector2.Zero;
 
-            entity.Set(new VelocityComponent(new Vector3(velocity.X, 0f, velocity.Y)));
+            entity.Set(new VelocityComponent(Carried(actor, velocity, deltaTime)));
             entity.Set(brain);
             entity.Set(enemy);
+        }
+
+        // A blow carries someone along whatever they're doing, and however little they can do about it. The heaviest stun what they hit, and those above all have to be seen to land.
+        private static Vector3 Carried(Actor actor, Vector2 walking, float deltaTime)
+        {
+            Vector2 velocity = walking + actor.Push;
+            actor.Push *= MathF.Exp(-PushFade * deltaTime);
+            if (actor.Push.LengthSquared < 0.01f) actor.Push = Vector2.Zero;
+            return new Vector3(velocity.X, 0f, velocity.Y);
         }
 
         // Fixes what's going to happen: where from, which way and how far, and says so to all. Nothing is checked again until it lands, so that whatever a player can see is what's coming.
@@ -196,15 +202,16 @@ namespace Dino_Defenders.Server
             brain.AimFrom = position;
             brain.AimWay = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.UnitY;
             brain.AimReach = toTarget + MeleeSlack;
-            brain.WindUp = WindUpOf(skill, rank) / MathF.Max(actor.Afflictions.ActionRate, 0.1f);
+            brain.WindUpTicks = (int)MathF.Round(WindUpOf(skill, rank) / MathF.Max(actor.Afflictions.ActionRate, 0.1f) * NetTime.TicksPerSecond);
+            float windUp = brain.WindUpTicks * NetTime.TickSeconds;
 
             float follow = MathF.Min(MathF.Max(skill.UseTime - skill.ImpactTime, 0.35f), MostFollowThrough);
-            session.Combat.Perform(who, skill.Skill, brain.WindUp, brain.WindUp + follow, brain.AimWay);
+            session.Combat.Perform(who, skill.Skill, windUp, windUp + follow, brain.AimWay);
 
             // Those on the heroes' side have no need of telling anyone, and there can be a lot of them.
             if (actor.Team != Team.Enemies) return;
             GroundShape shape = GroundShape.Of(skill, position, brain.AimWay, brain.AimReach);
-            brain.Mark = session.Combat.Warn(shape, skill.Skill.Number, TierOf(rank, skill), true, brain.WindUp + skill.Delay);
+            brain.Mark = session.Combat.Warn(shape, skill.Skill.Number, TierOf(rank, skill), true, windUp + skill.Delay);
         }
 
         // Long enough to see it, and for anything with an area, long enough for someone in the middle of it to get to the edge.

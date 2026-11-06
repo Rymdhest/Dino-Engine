@@ -313,7 +313,11 @@ namespace Dino_Defenders.Server
                 if (!Paused)
                 {
                     if (actor.Vitals.Health > 0f) Act(session, player, command, events);
-                    else UpdateDown(player);
+                    else
+                    {
+                        CutShort(session, player);
+                        UpdateDown(player);
+                    }
                 }
 
                 EntityView view = Ecs.GetEntityView(player.Entity);
@@ -351,16 +355,27 @@ namespace Dino_Defenders.Server
             Vector3 position = HeroPosition(player);
             Vector2 at = player.Sim.Position;
             SkillProfile? skill = player.Sim.Using >= 0 ? player.Kit.Slots[player.Sim.Using] : null;
+            bool landed = (events & HeroStepEvents.Landed) != 0;
+            bool dashed = (events & HeroStepEvents.Dashed) != 0;
+
+            // What's stopped comes first, as a dodge and a press in the same breath are a dodge and then a blow.
+            if (landed)
+            {
+                player.WindingUp = false;
+                player.Mark = default;
+            }
+            else if (dashed || player.Sim.ImpactIn < 0f) CutShort(session, player);
+            if (dashed) session.Combat.Stop(player.Entity);
 
             if ((events & HeroStepEvents.Used) != 0 && skill != null)
             {
                 float rate = MathF.Max(player.Sim.ActionRate, 0.1f);
                 session.Combat.Perform(player.Entity, skill.Skill, player.Sim.ImpactIn / rate, player.Sim.BusyFor / rate, player.Sim.Aim);
-                MarkForFriends(session, player, skill, rate);
+                player.Mark = MarkForFriends(session, player, skill, rate);
+                player.WindingUp = true;
             }
-            if ((events & HeroStepEvents.Dashed) != 0) session.Combat.Stop(player.Entity);
 
-            if ((events & HeroStepEvents.Landed) != 0 && skill != null)
+            if (landed && skill != null)
             {
                 session.Combat.Release(player.Actor, skill, at, player.Sim.Aim, player.Sim.AimReach, command.ViewLag);
             }
@@ -377,12 +392,22 @@ namespace Dino_Defenders.Server
             session.Ground.Serve(player);
         }
 
-        // Whoever's casting has seen this since they pressed. Their friends are told, as anything of a hero's is worth knowing about if you're standing nearby.
-        private void MarkForFriends(ServerSession session, ServerPlayer player, SkillProfile skill, float rate)
+        // A blow that was on its way and now won't land, for whatever reason: a dodge, a stun, or the end of them. Nobody should go on thinking it's coming.
+        private static void CutShort(ServerSession session, ServerPlayer player)
         {
-            if (_heroes.Count < 2 || !HeroRules.ShowsArea(skill)) return;
+            if (!player.WindingUp) return;
+            player.WindingUp = false;
+            session.Combat.Withdraw(player.Mark);
+            session.Combat.Stop(player.Entity);
+            player.Mark = default;
+        }
+
+        // Whoever's casting has seen this since they pressed. Their friends are told, as anything of a hero's is worth knowing about if you're standing nearby.
+        private Entity MarkForFriends(ServerSession session, ServerPlayer player, SkillProfile skill, float rate)
+        {
+            if (_heroes.Count < 2 || !HeroRules.ShowsArea(skill)) return default;
             GroundShape shape = GroundShape.Of(skill, player.Sim.Position, player.Sim.Aim, player.Sim.AimReach);
-            session.Combat.Warn(shape, skill.Skill.Number, MarkTier.Plain, false, player.Sim.ImpactIn / rate + skill.Delay, player.Id);
+            return session.Combat.Warn(shape, skill.Skill.Number, MarkTier.Plain, false, player.Sim.ImpactIn / rate + skill.Delay, player.Id);
         }
 
         private void DrinkFlask(ServerPlayer player, Vector3 position)
@@ -396,6 +421,7 @@ namespace Dino_Defenders.Server
             Hits.Heal(sheet, ref actor.Vitals, heal);
             Session!.Combat.SetOff(actor, TriggerEvent.Flask, actor.Position);
             Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Flask }, position.Xz);
+            Broadcast(new FlourishEvent { Who = player.GhostId, Kind = Flourish.Drink }, position.Xz);
             Broadcast(new TextEvent
             {
                 Position = position + Vector3.UnitY * 5.4f,

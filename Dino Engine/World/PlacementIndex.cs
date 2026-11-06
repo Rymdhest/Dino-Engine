@@ -172,17 +172,22 @@ namespace Dino_Engine.World
     {
         private const float CellSize = 8f;
 
+        /// <summary>Metres above the ground that something solid goes up to, for whatever's taller than anything could be thrown.</summary>
+        public const float Tall = 40f;
+
         private readonly struct Entry
         {
             public readonly Footprint Footprint;
             public readonly PlacementLayer Layer;
             public readonly bool Solid;
+            public readonly float Height;
 
-            public Entry(in Footprint footprint, PlacementLayer layer, bool solid)
+            public Entry(in Footprint footprint, PlacementLayer layer, bool solid, float height)
             {
                 Footprint = footprint;
                 Layer = layer;
                 Solid = solid;
+                Height = height;
             }
         }
 
@@ -215,10 +220,11 @@ namespace Dino_Engine.World
 
         public int Count => _entries.Count;
 
-        public void Add(in Footprint footprint, PlacementLayer layer, bool solid = false)
+        /// <param name="height">How far up something solid goes. Nothing that walks cares, but what's flying can go over it.</param>
+        public void Add(in Footprint footprint, PlacementLayer layer, bool solid = false, float height = Tall)
         {
             int index = _entries.Count;
-            _entries.Add(new Entry(footprint, layer, solid));
+            _entries.Add(new Entry(footprint, layer, solid, height));
 
             float reach = footprint.BoundingRadius;
             CellRange(footprint.Centre, reach, out int minX, out int minZ, out int maxX, out int maxZ);
@@ -302,6 +308,29 @@ namespace Dino_Engine.World
                         visits.Stamps[index] = visits.Stamp;
                         Entry entry = _entries[index];
                         if (entry.Solid) results.Add(entry.Footprint);
+                    }
+                }
+            }
+        }
+
+        /// <summary>Adds every solid footprint near <paramref name="centre"/> to <paramref name="results"/>, with how far up each goes.</summary>
+        public void CollectSolids(Vector2 centre, float radius, List<(Footprint Shape, float Height)> results)
+        {
+            Visits visits = BeginQuery();
+            CellRange(centre, radius, out int minX, out int minZ, out int maxX, out int maxZ);
+            for (int z = minZ; z <= maxZ; z++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    List<int>? cell = _cells[z * _cellsPerSide + x];
+                    if (cell == null) continue;
+                    for (int i = 0; i < cell.Count; i++)
+                    {
+                        int index = cell[i];
+                        if (visits.Stamps[index] == visits.Stamp) continue;
+                        visits.Stamps[index] = visits.Stamp;
+                        Entry entry = _entries[index];
+                        if (entry.Solid) results.Add((entry.Footprint, entry.Height));
                     }
                 }
             }

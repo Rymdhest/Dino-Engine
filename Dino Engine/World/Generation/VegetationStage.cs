@@ -18,6 +18,7 @@ namespace Dino_Engine.World.Generation
         private const float ShrubSpacing = 3.2f;
         private const float DeadwoodSpacing = 11f;
         private const float BoulderSpacing = 7f;
+        private const float LowSolidHeight = 1.6f;  // How tall a boulder or a fallen trunk is, for its width.
         private const float MinAboveWater = 0.55f;
         private const float MaxTreeSlope = 0.8f;
 
@@ -232,7 +233,7 @@ namespace Dino_Engine.World.Generation
                 if (TouchesSolid(placement, point, asset.Footprint * scale)) continue;
 
                 placement.Add(footprint, PlacementLayer.Deadwood);
-                if (asset.SolidRadius > 0f) placement.Add(Footprint.Circle(point, asset.SolidRadius * scale), PlacementLayer.None, solid: true);
+                if (asset.SolidRadius > 0f) placement.Add(Footprint.Circle(point, asset.SolidRadius * scale), PlacementLayer.None, solid: true, height: asset.SolidRadius * scale * LowSolidHeight);
                 AddPlant(world, objects, asset, point, scale, random, sink: 0.1f);
             }
         }
@@ -263,7 +264,7 @@ namespace Dino_Engine.World.Generation
                 if (TouchesSolid(placement, point, asset.Footprint * scale)) continue;
 
                 placement.Add(footprint, PlacementLayer.Rock);
-                placement.Add(Footprint.Circle(point, asset.SolidRadius * scale * 0.85f), PlacementLayer.None, solid: true);
+                placement.Add(Footprint.Circle(point, asset.SolidRadius * scale * 0.85f), PlacementLayer.None, solid: true, height: asset.SolidRadius * scale * LowSolidHeight);
 
                 float height = world.Height.Sample(point) - 0.25f * scale;
                 Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, random.Float() * MathF.Tau);

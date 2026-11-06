@@ -1,4 +1,6 @@
 using Dino_Engine.Animation;
+using Dino_Engine.World;
+using Dino_Engine.World.Generation;
 using Dino_Engine.ECS.Components;
 using OpenTK.Mathematics;
 using System.Diagnostics;
@@ -32,6 +34,8 @@ namespace Dino_AnimLab
             Hostile();
             Actions();
             Falling();
+            FirstSeenFrozen();
+            Standing();
 
             Console.WriteLine();
             Console.WriteLine($"{_passed} passed, {_failed} failed");
@@ -259,6 +263,7 @@ namespace Dino_AnimLab
                         (Vector3 position, float yaw) = script.Path(time);
                         var input = AnimationInput.At(position, yaw);
                         input.Alert = script.Alert;
+                        input.Dazed = script.Dazed;
                         animator.Step(input, Step, script.Ground);
                         if (Sound(animator, out string problem))
                         {
@@ -334,7 +339,7 @@ namespace Dino_AnimLab
 
                         if (random.NextDouble() < 0.03)
                         {
-                            Gesture[] all = { Gestures.Forehand, Gestures.Backhand, Gestures.Sweep, Gestures.Overhead, Gestures.Thrust, Gestures.Whirl, Gestures.Bash, Gestures.Shoot, Gestures.Throw, Gestures.Push, Gestures.Call, Gestures.Burst, Gestures.Gather, Gestures.Summon, Gestures.Lunge, Gestures.Drink, Gestures.Bite, Gestures.Maul };
+                            Gesture[] all = { Gestures.Forehand, Gestures.Backhand, Gestures.Sweep, Gestures.Overhead, Gestures.Thrust, Gestures.Whirl, Gestures.Bash, Gestures.Shoot, Gestures.Throw, Gestures.Push, Gestures.Call, Gestures.Burst, Gestures.Gather, Gestures.Summon, Gestures.Lunge, Gestures.Drink, Gestures.Use, Gestures.Bite, Gestures.Maul };
                             float impact = 0.01f + random.NextSingle() * 1.4f;
                             action = new ActionInput { Gesture = all[random.Next(all.Length)], Elapsed = 0f, Impact = impact, Length = impact + random.NextSingle() * 1.2f, Aim = random.NextSingle() * 12f - 6f, Serial = ++serial };
                             actionFor = 0f;
@@ -569,6 +574,238 @@ namespace Dino_AnimLab
                 float launched = Distance(new Vector3(0f, 17f, 30f));
                 Check("How far a body goes is how hard it was hit", dropped < shoved && shoved < launched && launched > 18f, $"{dropped:0} m, {shoved:0} m and {launched:0} m");
             }
+
+            // What's standing is in the way. The hardest of these goes further in a step than the wall is thick.
+            foreach (Body body in Body.All)
+            {
+                foreach ((string name, float speed) in new[] { ("thrown at a wall", 9f), ("thrown hard at a wall", 30f), ("hurled at a wall", 90f) })
+                {
+                    var wall = new Wall { Z = 7f, Thickness = 0.2f, Height = PlacementTall };
+                    CharacterAnimator animator = Thrown(body, wall, new Vector3(0f, speed * 0.2f, speed));
+                    bool sound = true;
+                    string problem = "";
+                    float furthest = float.MinValue;
+                    for (int i = 0; i < 1500; i++)
+                    {
+                        animator.Step(AnimationInput.At(Vector3.Zero, 0f), Step, wall);
+                        if (sound && !Sound(animator, out problem)) sound = false;
+                        for (int bone = 0; bone < Rig.BoneCount; bone++)
+                        {
+                            if (animator.Rig.Parents[bone] >= 0 || bone == (int)BoneType.Pelvis) furthest = MathF.Max(furthest, animator.JointOf((BoneType)bone).Z);
+                        }
+                    }
+                    Check($"{body.Name} {name}: stops at it", furthest <= wall.Z && sound && animator.Resting, sound ? (animator.Resting ? $"reached {furthest:0.00} m of {wall.Z} m" : "still going") : problem);
+                }
+            }
+
+            {
+                float Landed(Vector3 push, float height)
+                {
+                    var wall = new Wall { Z = 7f, Thickness = 0.2f, Height = height };
+                    CharacterAnimator animator = Thrown(Body.Named("bare"), wall, push);
+                    for (int i = 0; i < 900; i++) animator.Step(AnimationInput.At(Vector3.Zero, 0f), Step, wall);
+                    return animator.JointOf(BoneType.Pelvis).Z;
+                }
+
+                Vector3 high = new Vector3(0f, 22f, 22f);
+                Check("What goes over something isn't stopped by it", Landed(high, 1.2f) > 7f, $"came down at {Landed(high, 1.2f):0.0} m");
+                Check("But the same throw is stopped by something tall", Landed(high, PlacementTall) < 7f, $"came down at {Landed(high, PlacementTall):0.0} m");
+
+                Vector3 low = new Vector3(0f, 4f, 22f);
+                Check("And something low stops what's thrown low", Landed(low, 2.4f) < 7f, $"came down at {Landed(low, 2.4f):0.0} m");
+
+                // How fast it arrives against how fast it leaves.
+                var solid = new Wall { Z = 7f, Thickness = 0.2f, Height = PlacementTall };
+                CharacterAnimator bounced = Thrown(Body.Named("bare"), solid, new Vector3(0f, 4f, 30f));
+                float arrived = 0f;
+                float left = 0f;
+                float before = bounced.JointOf(BoneType.Pelvis).Z;
+                for (int i = 0; i < 240; i++)
+                {
+                    bounced.Step(AnimationInput.At(Vector3.Zero, 0f), Step, solid);
+                    float now = bounced.JointOf(BoneType.Pelvis).Z;
+                    float speed = (now - before) / Step;
+                    before = now;
+                    arrived = MathF.Max(arrived, speed);
+                    left = MathF.Max(left, -speed);
+                }
+                Check("A wall takes the speed out of a body rather than sending it back", arrived > 15f && left < arrived * 0.35f, $"arrived at {arrived:0.0} m/s, left at {left:0.0} m/s");
+            }
+
+            // Something falling right up against a wall can start inside it.
+            {
+                var wall = new Wall { Z = 0.4f, Thickness = 2f, Height = PlacementTall };
+                CharacterAnimator animator = Thrown(Body.Named("bare"), wall, new Vector3(0f, 2f, 1f));
+                bool sound = true;
+                string problem = "";
+                for (int i = 0; i < 1500; i++)
+                {
+                    animator.Step(AnimationInput.At(Vector3.Zero, 0f), Step, wall);
+                    if (sound && !Sound(animator, out problem)) sound = false;
+                }
+                Check("Dying inside a wall comes out of it without any fuss", sound && animator.Resting, problem);
+            }
+        }
+
+        // Someone can come into view frozen solid, or be there already when a player arrives, and there's no earlier moment to have been standing in.
+        private static void FirstSeenFrozen()
+        {
+            Console.WriteLine("First seen frozen");
+            var flat = new FlatGround();
+            foreach (Body body in Body.All)
+            {
+                float WorstAgainstAlive(float rate)
+                {
+                    CharacterAnimator frozen = body.NewAnimator();
+                    CharacterAnimator alive = body.NewAnimator();
+                    AnimationInput input = AnimationInput.At(Vector3.Zero, 0f);
+                    AnimationInput still = input;
+                    still.Rate = rate;
+                    for (int i = 0; i < 3; i++)
+                    {
+                        frozen.Step(still, Step, flat);
+                        if (i == 0) alive.Step(input, Step, flat);
+                    }
+
+                    float worst = 0f;
+                    for (int bone = 0; bone < Rig.BoneCount; bone++) worst = MathF.Max(worst, (frozen.JointOf((BoneType)bone) - alive.JointOf((BoneType)bone)).Length);
+                    return worst;
+                }
+
+                float off = WorstAgainstAlive(0f);
+                Check($"{body.Name}: stands the way anyone stands", off < 0.05f, $"a joint is {off:0.00} m from where it should be");
+            }
+        }
+
+        private const float PlacementTall = PlacementIndex.Tall;
+
+        // ---- What a world really has in it, by the same road a game takes.
+
+        private static void Standing()
+        {
+            Console.WriteLine("Against what a world has in it");
+
+            WorldData world = new WorldGenerator().Generate(new WorldRequest(303, "isle"));
+            var ground = new WorldGround(world);
+
+            var near = new List<(Footprint Shape, float Height)>();
+            var seen = new HashSet<Vector2>();
+            var buildings = new List<Footprint>();
+            var trunks = new List<Footprint>();
+            var random = new Random(1);
+            for (int look = 0; look < 400; look++)
+            {
+                near.Clear();
+                world.Placement.CollectSolids(new Vector2(random.NextSingle(), random.NextSingle()) * world.Size, 40f, near);
+                foreach ((Footprint shape, float height) in near)
+                {
+                    if (height < PlacementIndex.Tall || !seen.Add(shape.Centre)) continue;
+                    (shape.IsCircle ? trunks : buildings).Add(shape);
+                }
+            }
+
+            // A clear run at it across level ground, and how far past the middle of it a body ends up.
+            bool RunUp(in Footprint shape, out Vector2 start, out Vector2 way)
+            {
+                for (int tries = 0; tries < 12; tries++)
+                {
+                    float angle = tries * MathF.Tau / 12f;
+                    way = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+                    start = shape.Centre - way * (shape.BoundingRadius + 8f);
+                    bool clear = world.InBounds(start);
+                    for (float at = 0f; clear && at < 6f; at += 1f)
+                    {
+                        Vector2 point = start + way * at;
+                        clear = !world.Placement.OverlapsSolid(Footprint.Circle(point, 1.6f)) && MathF.Abs(world.Height.Sample(point) - world.Height.Sample(start)) < 1f;
+                    }
+                    if (clear) return true;
+                }
+                start = default;
+                way = default;
+                return false;
+            }
+
+            float Thrown(Vector2 start, Vector2 way, Vector2 past, out bool sound, out string problem)
+            {
+                var input = AnimationInput.At(new Vector3(start.X, world.Height.Sample(start), start.Y), 0f);
+                CharacterAnimator animator = Body.Named("bare").NewAnimator();
+                for (int i = 0; i < 30; i++) animator.Step(input, Step, ground);
+                animator.Die(new Vector3(way.X * 30f, 6f, way.Y * 30f));
+
+                sound = true;
+                problem = "";
+                for (int i = 0; i < 360; i++)
+                {
+                    animator.Step(input, Step, ground);
+                    if (sound && !Sound(animator, out problem)) sound = false;
+                }
+                Vector2 rests = input.Position.Xz + animator.JointOf(BoneType.Pelvis).Xz;
+                return Vector2.Dot(rests - past, way);
+            }
+
+            int tried = 0;
+            int through = 0;
+            int unsound = 0;
+            string first = "";
+            foreach (Footprint shape in buildings.Take(60))
+            {
+                if (!RunUp(shape, out Vector2 start, out Vector2 way)) continue;
+                float beyond = Thrown(start, way, shape.Centre, out bool sound, out string problem);
+                tried++;
+                if (!sound)
+                {
+                    unsound++;
+                    first = problem;
+                }
+                if (beyond > 0f)
+                {
+                    through++;
+                    first = $"{beyond:0.0} m past the middle of one {shape.BoundingRadius:0.0} m across";
+                }
+            }
+            Check($"Thrown hard at a building, nobody goes through it", tried >= 20 && through == 0 && unsound == 0, $"{tried} thrown, {through} went through, {unsound} came apart {first}");
+
+            tried = 0;
+            through = 0;
+            foreach (Footprint shape in trunks.Take(120))
+            {
+                if (!RunUp(shape, out Vector2 start, out Vector2 way)) continue;
+                float beyond = Thrown(start, way, shape.Centre, out bool sound, out string problem);
+                tried++;
+                if (beyond > shape.BoundingRadius + 2f) through++;
+                if (!sound) unsound++;
+            }
+            Check("Nor does a tree stop being there", tried >= 30 && through <= tried / 5 && unsound == 0, $"{tried} thrown, {through} carried on past, {unsound} came apart");
+        }
+
+        private static CharacterAnimator Thrown(Body body, IGround ground, Vector3 push)
+        {
+            CharacterAnimator animator = body.NewAnimator();
+            for (int i = 0; i < 30; i++) animator.Step(AnimationInput.At(Vector3.Zero, 0f), Step, ground);
+            animator.Die(push);
+            return animator;
+        }
+
+        /// <summary>A floor with a wall across it.</summary>
+        private sealed class Wall : IGround
+        {
+            public float Z;
+            public float Thickness;
+            public float Height;
+
+            public float HeightAt(float x, float z) => 0f;
+
+            public bool LookAround(Vector2 centre, float reach) => MathF.Abs(centre.Y - Z) < reach + Thickness;
+
+            public bool TryPushOut(Vector3 at, float radius, out Vector2 push)
+            {
+                push = default;
+                float half = Thickness * 0.5f + radius;
+                float gap = at.Z - Z;
+                if (at.Y > Height || MathF.Abs(gap) >= half) return false;
+                push = new Vector2(0f, gap < 0f ? -half - gap : half - gap);
+                return true;
+            }
         }
 
         /// <summary>What a body costs, and that it costs no memory.</summary>
@@ -621,6 +858,28 @@ namespace Dino_AnimLab
                 watch.Stop();
                 double each = watch.Elapsed.TotalMilliseconds * 1000.0 / (frames * crowd.Length);
                 Console.WriteLine($"falling  {each,6:0.0} us a body a frame, {each * 60.0 / 1000.0:0.00} ms for sixty in the air at once");
+            }
+
+            {
+                var wall = new Wall { Z = 3f, Thickness = 1f, Height = PlacementTall };
+                CharacterAnimator[] crowd = new CharacterAnimator[60];
+                for (int i = 0; i < crowd.Length; i++)
+                {
+                    crowd[i] = Body.Named("sword").NewAnimator(i);
+                    for (int j = 0; j < 20; j++) crowd[i].Step(AnimationInput.At(new Vector3(i * 2f, 0f, 0f), 0f), Step, wall);
+                    crowd[i].Die(new Vector3(0f, 14f, 20f));
+                }
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                var watch = Stopwatch.StartNew();
+                const int frames = 90;
+                for (int f = 0; f < frames; f++)
+                {
+                    for (int i = 0; i < crowd.Length; i++) crowd[i].Step(AnimationInput.At(new Vector3(i * 2f, 0f, 0f), 0f), Step, wall);
+                }
+                watch.Stop();
+                long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                double each = watch.Elapsed.TotalMilliseconds * 1000.0 / (frames * crowd.Length);
+                Console.WriteLine($"by a wall{each,6:0.0} us a body a frame, {each * 60.0 / 1000.0:0.00} ms for sixty at once, {allocated / (frames * crowd.Length)} bytes allocated each");
             }
             return 0;
         }

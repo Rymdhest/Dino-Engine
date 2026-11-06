@@ -186,18 +186,52 @@ namespace Dino_Engine.Modelling.Procedural.Character
             float y = BodyHeight(look);
             float high = y + look.Hump;
 
-            // Deep at the chest, drawn in at the loin, round at the rump.
+            // Deep at the chest, drawn in at the loin, round at the rump. It's one skin, as lengths of tube each end square to themselves, and open up where the back changes angle.
+            (float Z, float Y, float Radius)[] spine =
+            {
+                (back - girth * 0.74f, y, girth * 0.02f),
+                (back - girth * 0.72f, y, girth * 0.22f),
+                (back - girth * 0.57f, y, girth * 0.54f),
+                (back - girth * 0.31f, y, girth * 0.76f),
+                (back, y, girth * 0.84f),
+                (-look.Length * 0.12f, y, girth * 0.72f),
+                (front * 0.5f, high, girth * 0.96f),
+                (front * 0.82f, high + 0.02f, girth * 0.9f),
+                (front * 1.08f, high, girth * 0.4f),
+                (front * 1.08f + girth * 0.16f, high, girth * 0.02f),
+            };
             b.Stretch = new Vector3(0.82f, 1.08f, 1f);
-            b.Tube(new Vector3(0f, y, back), new Vector3(0f, y, -look.Length * 0.12f), girth * 0.76f, girth * 0.72f, 10, coat);
-            b.Tube(new Vector3(0f, y, -look.Length * 0.12f), new Vector3(0f, high, front * 0.5f), girth * 0.72f, girth * 0.96f, 10, coat, capped: false);
-            b.Tube(new Vector3(0f, high, front * 0.5f), new Vector3(0f, high + 0.02f, front * 0.82f), girth * 0.96f, girth * 0.9f, 10, coat, capped: false);
-            b.Tube(new Vector3(0f, high + 0.02f, front * 0.82f), new Vector3(0f, high, front * 1.08f), girth * 0.9f, girth * 0.4f, 10, coat);
+            b.Surface(32, 14, (u, v) => BodyPoint(spine, u, v), coat);
             b.ResetPlacement();
             b.Stretch = Vector3.One;
 
             b.Add(IcoSphereGenerator.CreateIcosphere(2, Fur(look.Belly)), new Vector3(0f, y - girth * 0.55f, front * 0.3f), new Vector3(girth * 0.68f, girth * 0.5f, look.Length * 0.34f));
-            b.Add(IcoSphereGenerator.CreateIcosphere(2, coat), new Vector3(0f, y, back), new Vector3(girth * 0.76f, girth * 0.82f, girth * 0.76f));
             return b.Build();
+        }
+
+        // Around a line through those points. The join in the skin runs along the belly, where nothing sees it.
+        private static Vector3 BodyPoint((float Z, float Y, float Radius)[] spine, float u, float v)
+        {
+            float along = u * (spine.Length - 1);
+            int at = Math.Min((int)along, spine.Length - 2);
+            float t = along - at;
+            var before = spine[Math.Max(at - 1, 0)];
+            var from = spine[at];
+            var to = spine[at + 1];
+            var after = spine[Math.Min(at + 2, spine.Length - 1)];
+
+            float z = Through(before.Z, from.Z, to.Z, after.Z, t);
+            float height = Through(before.Y, from.Y, to.Y, after.Y, t);
+            float radius = MathF.Max(Through(before.Radius, from.Radius, to.Radius, after.Radius, t), 0f);
+
+            float around = MathF.PI + v * MathF.Tau;
+            return new Vector3(MathF.Sin(around) * radius, height + MathF.Cos(around) * radius, z);
+        }
+
+        // A smooth way through b and c, going by the points either side of them.
+        private static float Through(float a, float b, float c, float d, float t)
+        {
+            return 0.5f * (2f * b + (c - a) * t + (2f * a - 5f * b + 4f * c - d) * t * t + (3f * b - a - 3f * c + d) * t * t * t);
         }
 
         private static Mesh BuildHead(BeastLook look)

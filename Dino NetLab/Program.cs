@@ -12,6 +12,7 @@ namespace Dino_NetLab
     ///   pace  [--seed N] [--level N] [--hero N] [--minutes N] [--archetype id] [--peril N] [--teeming N] [--overrun N] [--omens a,b]   How playing goes: time in fights, kills, falls, and what's dropped.
     ///   loot  [--seed N]                            What's on the ground: who sees it, who gets it, and that nobody gets it without asking.
     ///   offering                                    What's paid at a waygate: who pays, what it does to the land, what falling costs, and what it pays out.
+    ///   combat                                      What a fight promises: what's marked is what's hit, on the tick it says, what's called off is seen to be, and a dodge is there when it's asked for.
     /// Exit code 1 on any failure.
     /// </summary>
     internal static class Program
@@ -41,6 +42,8 @@ namespace Dino_NetLab
                     return GearTests.Run(options);
                 case "offering":
                     return OfferingTests.Run(options);
+                case "combat":
+                    return CombatTests.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

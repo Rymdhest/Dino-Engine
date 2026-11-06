@@ -58,6 +58,7 @@ namespace Dino_AnimLab
         public Func<float, (Vector3 position, float yaw)> Path = _ => (Vector3.Zero, 0f);
         public Func<float, ActionInput>? Action;
         public float Alert;
+        public bool Dazed;
         public float DiesAt = -1f;
         public Vector3 Push;
         public IGround Ground = new FlatGround();
@@ -93,6 +94,7 @@ namespace Dino_AnimLab
             {
                 "idle" => new Script { Length = 6f, Warmup = 0.5f },
                 "guard" => new Script { Length = 3f, Warmup = 1f, Alert = 1f },
+                "dazed" => new Script { Length = 1.6f, Warmup = 1f, Alert = 1f, Dazed = true },
                 "walk" => Along(3.6f),
                 "jog" => Along(6.8f),
                 "run" => Along(10f),
@@ -122,6 +124,8 @@ namespace Dino_AnimLab
                 "burst" => Doing(Gestures.Burst, 0.45f, 0.75f),
                 "gather" => Doing(Gestures.Gather, 0.24f, 0.4f),
                 "summon" => Doing(Gestures.Summon, 0.63f, 0.9f),
+                "drink" => Doing(Gestures.Drink, 0.36f, 0.9f),
+                "use" => Doing(Gestures.Use, 0.28f, 0.7f),
                 "bite" => Doing(Gestures.Bite, 0.45f, 0.75f),
                 "maul" => Doing(Gestures.Maul, 0.6f, 1f),
                 _ => null,

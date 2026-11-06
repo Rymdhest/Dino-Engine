@@ -24,12 +24,6 @@ namespace Dino_AnimLab
                     return AnimCheck.Run(options);
                 case "bench":
                     return AnimCheck.Bench();
-                case "grips":
-                    foreach ((string name, Matrix4 m) in new[] { ("main", Dino_Engine.Modelling.Procedural.Character.HumanoidGenerator.MainHand), ("off", Dino_Engine.Modelling.Procedural.Character.HumanoidGenerator.OffHand), ("bow", Dino_Engine.Modelling.Procedural.Character.HumanoidGenerator.BowHand) })
-                    {
-                        Console.WriteLine($"{name}: origin {Vector3.TransformPosition(Vector3.Zero, m)}  x {Vector3.TransformVector(Vector3.UnitX, m)}  y {Vector3.TransformVector(Vector3.UnitY, m)}  z {Vector3.TransformVector(Vector3.UnitZ, m)}");
-                    }
-                    return 0;
                 default:
                     Console.WriteLine($"No command called {command}.");
                     return 1;
@@ -75,6 +69,7 @@ namespace Dino_AnimLab
                 (Vector3 position, float yaw) = script.Path(time);
                 var input = AnimationInput.At(position, yaw);
                 input.Alert = script.Alert;
+                input.Dazed = script.Dazed;
                 if (script.Action != null) input.Action = script.Action(time);
                 if (script.DiesAt >= 0f && time >= script.DiesAt && !animator.Dead) animator.Die(script.Push);
                 animator.Step(input, step, script.Ground);
