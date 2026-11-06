@@ -161,7 +161,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
             if (look.Armoured)
             {
-                VertexMaterial plate = new VertexMaterial(GearMaterials.Metal, new Colour(150, 150, 156));
+                VertexMaterial plate = new VertexMaterial(GearMaterials.Metal, new Colour(66, 66, 70));
                 b.Stretch = new Vector3(1f, 1f, 0.72f);
                 b.Tube(new Vector3(0f, 0.68f, 0f), new Vector3(0f, 1.74f, 0f), 0.64f * bulk, 0.72f * bulk, 12, plate);
                 b.Stretch = Vector3.One;
@@ -199,7 +199,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
                     b.Tube(centre + new Vector3(0f, 0.22f, 0f), centre + new Vector3(0f, 0.24f, 0f), 1.04f, 1.02f, 16, straw, capped: false);
                     break;
                 case Headwear.Helm:
-                    VertexMaterial iron = new VertexMaterial(GearMaterials.Metal, new Colour(142, 142, 150));
+                    VertexMaterial iron = new VertexMaterial(GearMaterials.Metal, new Colour(62, 62, 66));
                     b.Add(IcoSphereGenerator.CreateIcosphere(2, iron), centre + new Vector3(0f, 0.1f, 0f), new Vector3(0.42f, 0.42f, 0.44f));
                     b.Tube(centre + new Vector3(0f, -0.02f, 0f), centre + new Vector3(0f, 0.04f, 0f), 0.48f, 0.46f, 12, iron);
                     b.Tube(centre + new Vector3(0f, 0.46f, 0f), centre + new Vector3(0f, 0.74f, 0f), 0.06f, 0.02f, 6, iron);
