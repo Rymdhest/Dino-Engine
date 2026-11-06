@@ -346,7 +346,7 @@ namespace Dino_AnimLab
                         if (random.NextDouble() < 0.04)
                         {
                             Vector3 way = new Vector3(random.NextSingle() - 0.5f, 0f, random.NextSingle() - 0.5f);
-                            animator.Struck(way, random.NextSingle() * 3f, random.NextSingle() * 0.1f);
+                            animator.Struck(way, random.NextSingle() * 3f, random.NextSingle() * 0.1f, Vector3.One);
                         }
                         if (random.NextDouble() < 0.01) animator.Hold(body.Carry == Carry.Nothing ? Carry.Sword : Carry.Nothing, random.NextDouble() < 0.5);
 
@@ -492,7 +492,7 @@ namespace Dino_AnimLab
                 var flat = new FlatGround();
                 for (int i = 0; i < 40; i++) animator.Step(AnimationInput.At(Vector3.Zero, 0f), Step, flat);
                 Vector3 rest = animator.JointOf(BoneType.Pelvis);
-                animator.Struck(Vector3.UnitZ, 1f, 0f);
+                animator.Struck(Vector3.UnitZ, 1f, 0f, Vector3.One);
                 float most = 0f;
                 for (int i = 0; i < 60; i++)
                 {

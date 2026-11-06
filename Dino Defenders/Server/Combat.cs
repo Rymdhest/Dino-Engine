@@ -137,7 +137,7 @@ namespace Dino_Defenders.Server
                     Lay(user, skill, target);
                     break;
                 case SkillForm.Chain:
-                    Chain(user, skill, origin, target, strength);
+                    Chain(user, skill, origin, facing, reach, strength);
                     break;
                 case SkillForm.Beam:
                     Beam(user, skill, origin, facing, strength);
@@ -437,20 +437,21 @@ namespace Dino_Defenders.Server
             Launch(source, projectile.Skill, at.Xz, toward.Normalized(), at.Y, projectile.Strength, projectile);
         }
 
-        private void Chain(Actor user, SkillProfile skill, Vector2 origin, Vector2 target, float strength)
+        private void Chain(Actor user, SkillProfile skill, Vector2 origin, Vector2 facing, float aimed, float strength)
         {
             _chained.Clear();
             Vector2 from = origin;
             float power = strength;
             float growth = user.Sheet.Has(Rule.ChainsGrow) ? ChainGrowth : ChainFade;
 
-            // The first leap goes for what's nearest the aim, and each after that for whatever is nearest the last.
-            Vector2 seek = target;
-            float reach = skill.Radius;
+            // The first leap goes for what's nearest the aim on the ground that was marked, and each after that for whatever is nearest the last.
+            GroundShape start = GroundShape.Of(skill, origin, facing, aimed);
+            Vector2 seek = start.Origin;
             for (int leap = 0; leap <= skill.Chains; leap++)
             {
                 _found.Clear();
-                Grid.Foes(user.Team, seek, reach, _found);
+                if (leap == 0) Within(start, user.Team, _found);
+                else Grid.Foes(user.Team, seek, skill.Radius, _found);
 
                 Actor? next = null;
                 float best = float.PositiveInfinity;

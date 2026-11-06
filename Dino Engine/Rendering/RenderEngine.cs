@@ -87,6 +87,8 @@ namespace Dino_Engine.Rendering
         public SpotLightRenderer _spotLightRenderer;
         public ParticleRenderer _particleRenderer;
         public BeamRenderer _beamRenderer;
+        public GroundMarkRenderer _groundMarkRenderer;
+        public TrailRenderer _trailRenderer;
         public GrassRenderer _grassRenderer;
         public CelestialBodyRenderer _sunRenderer;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
@@ -188,6 +190,8 @@ namespace Dino_Engine.Rendering
             _spotLightRenderer = new SpotLightRenderer();
             _particleRenderer = new ParticleRenderer();
             _beamRenderer = new BeamRenderer();
+            _groundMarkRenderer = new GroundMarkRenderer();
+            _trailRenderer = new TrailRenderer();
             _depthOfFieldRenderer = new DepthOfFieldRenderer();
             _grassRenderer = new GrassRenderer();
             _sunRenderer = new CelestialBodyRenderer();
@@ -363,11 +367,14 @@ namespace Dino_Engine.Rendering
             _skyRenderer.RenderPass(this);
             _particleRenderer.RenderPass(this);
             _beamRenderer.RenderPass(this);
+            _trailRenderer.RenderPass(this);
         }
         private void PostProcessPass()
         {
             // The fog's composite is the last pass over the multisampled scene, which is then resolved into the dual buffer.
             _volumetricFogRenderer.RenderPass(this);
+            // What's about to hit someone comes over the fog: it isn't atmosphere, and nothing is allowed to hide it.
+            _groundMarkRenderer.RenderPass(this);
             // What falls comes in front of the fog, and is lit by what it falls through.
             _precipitationRenderer.RenderPass(this);
             _lightningRenderer.RenderPass(this);

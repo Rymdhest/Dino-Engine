@@ -187,7 +187,7 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>One of everything, standing still in rows, for looking at. They don't belong anywhere, so nothing is kept of them.</summary>
-        public void Parade(ECSWorld world, ServerSession session, Vector2 at, string which)
+        public void Parade(ECSWorld world, ServerSession session, Vector2 at, string which, bool fighting = false)
         {
             const int perRow = 7;
             var random = new WorldRandom(1);
@@ -198,8 +198,8 @@ namespace Dino_Defenders.Server
                 Vector2 spot = at + new Vector2((i % perRow - (perRow - 1) * 0.5f) * 5.5f, -7f - i / perRow * 7f);
                 Vector3 position = new Vector3(spot.X, session.World.Height.Sample(spot), spot.Y);
                 Loadout loadout = session.Bestiary.Shared(kind, 1, EnemyRank.Normal, Bestiary.NoTrait);
-                var actor = new Actor(Team.Enemies, loadout, spot, WorldData.CharacterRadius) { Body = kind.Look, Height = position.Y, Still = true };
-                var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = spot };
+                var actor = new Actor(Team.Enemies, loadout, spot, WorldData.CharacterRadius) { Body = kind.Look, Height = position.Y, Still = !fighting };
+                var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = spot, AggroRadius = 60f, LeashRadius = 200f, KeepsAway = kind.KeepsAway };
                 IComponent[] body = Bodies.Walking(_server, Bestiary.ModelOf(kind, random), position, kind.Scale, 2f,
                     new EnemyComponent { Name = kind.Name, Level = 1 }, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor));
                 for (int part = 0; part < body.Length; part++)

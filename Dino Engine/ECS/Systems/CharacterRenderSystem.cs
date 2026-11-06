@@ -35,6 +35,7 @@ namespace Dino_Engine.ECS.Systems
                 var modelArray = archetype.GetComponentArray<CharacterModelComponent>();
                 var matrixArray = archetype.GetComponentArray<LocalToWorldMatrixComponent>();
                 var skeletonArray = archetype.GetComponentArray<SkeletonComponent>();
+                var animatorArray = archetype.GetComponentArray<AnimatorComponent>();
 
                 int count = archetype.EntityCount;
 
@@ -52,7 +53,8 @@ namespace Dino_Engine.ECS.Systems
                     list.Add(new CharacterInstanceData
                     {
                         ModelMatrix = modelMatrix,
-                        SkinningMatrices = skeletonArray[i].SkinningMatrices
+                        SkinningMatrices = skeletonArray[i].SkinningMatrices,
+                        Flash = animatorArray != null ? new Vector4(animatorArray[i].Animator.FlashColour, animatorArray[i].Animator.Flash) : Vector4.Zero,
                     });
                 }
             }

@@ -197,24 +197,61 @@ namespace Dino_Defenders.Server
         public float Left;
     }
 
-    /// <summary>Clears away marks on the ground once what they were for has happened.</summary>
+    /// <summary>
+    /// Clears away marks on the ground once what they were for has happened. Everything that's coming is a tick it comes on, and ticks go on while someone alone has stopped the world to look at a panel. So while it's
+    /// stopped those moments move along with them, or everything would be over by the time they came back.
+    /// </summary>
     public class TelegraphSystem : SystemBase
     {
+        private static readonly BitMask Marks = new BitMask(typeof(TelegraphLifeComponent), typeof(TelegraphComponent));
+        private static readonly BitMask Actions = new BitMask(typeof(ActionComponent));
+
         private readonly GameServer _server;
 
         public TelegraphSystem(GameServer server)
-            : base(new BitMask(typeof(TelegraphLifeComponent)))
+            : base(Marks)
         {
             _server = server;
         }
 
-        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime)
+        protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
+
+        protected override void UpdateFrame(ECSWorld world, float deltaTime)
         {
-            if (_server.Session is not { Paused: false }) return;
-            var life = entity.Get<TelegraphLifeComponent>();
-            life.Left -= deltaTime;
-            if (life.Left <= 0f) world.DestroyEntity(entity.Entity);
-            else entity.Set(life);
+            bool paused = _server.Session is not { Paused: false };
+            foreach (Archetype archetype in world.QueryArchetypes(Marks, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    if (paused)
+                    {
+                        var telegraph = entity.Get<TelegraphComponent>();
+                        telegraph.Start++;
+                        telegraph.Lands++;
+                        entity.Set(telegraph);
+                        continue;
+                    }
+
+                    var life = entity.Get<TelegraphLifeComponent>();
+                    life.Left -= deltaTime;
+                    if (life.Left <= 0f) world.DestroyEntity(entity.Entity);
+                    else entity.Set(life);
+                }
+            }
+
+            if (!paused) return;
+            foreach (Archetype archetype in world.QueryArchetypes(Actions, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var action = entity.Get<ActionComponent>();
+                    if (action.Ends <= _server.Tick) continue;
+                    action.Start++;
+                    action.Lands++;
+                    action.Ends++;
+                    entity.Set(action);
+                }
+            }
         }
     }
 

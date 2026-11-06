@@ -28,6 +28,8 @@ namespace Dino_Defenders.Gameplay
     public readonly record struct GroundShape(ShapeKind Kind, Vector2 Origin, Vector2 Facing, float Length, float Width)
     {
         private const float LineWidth = 1.3f;       // Half of how wide what flies is, as far as hitting anything goes. It's Combat's reach for a projectile.
+        private const float BeyondTarget = 7f;      // Metres what flies is shown past whoever it's aimed at. It goes on further, but that's nobody's concern yet.
+        private const float ChainStart = 4f;        // Metres from where it's aimed that a chain can begin. How far it goes from there is its own affair, but what's marked has to be something a person can step out of.
 
         /// <summary>A body is this near the middle of an area before it's over what's going to hit it. Heroes get the benefit of the doubt: if a foot looks out of it, it is.</summary>
         public const float HeroBodyShare = 0.4f;
@@ -82,13 +84,15 @@ namespace Dino_Defenders.Gameplay
                     return Circle(origin, skill.Radius);
                 case SkillForm.Burst:
                 case SkillForm.Zone:
-                case SkillForm.Chain:
                     return Circle(target, skill.Radius);
+                case SkillForm.Chain:
+                    return Circle(target, MathF.Min(skill.Radius, ChainStart));
                 case SkillForm.Beam:
                     return Line(origin, facing, skill.Reach, skill.Radius);
                 case SkillForm.Bolt:
-                    if (skill.Projectiles <= 1) return Line(origin, facing, skill.Range, LineWidth);
-                    return Sector(origin, facing, skill.Range, skill.Skill.Spread * (skill.Projectiles - 1) + 0.1f);
+                    float length = MathF.Min(skill.Range, reach + BeyondTarget);
+                    if (skill.Projectiles <= 1) return Line(origin, facing, length, LineWidth);
+                    return Sector(origin, facing, length, skill.Skill.Spread * (skill.Projectiles - 1) + 0.1f);
                 case SkillForm.Leap:
                     return Sector(target, facing, skill.Reach, skill.Skill.Arc);
                 default:

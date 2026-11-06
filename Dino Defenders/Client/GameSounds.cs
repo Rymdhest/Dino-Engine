@@ -31,21 +31,24 @@ namespace Dino_Defenders.Client
         private const float PredictionLife = 0.3f;      // Seconds the server has to agree with a hit heard early.
         private const float Effort = 0.3f;              // Share of swings that get a grunt.
         private const float OwnReach = 6f;              // Metres from this hero within which something happened to them.
+        private const float HeavyBlow = 0.5f;           // Of what something has, for the camera to feel it.
 
         private readonly ECSWorld _world;
         private readonly GameClient _client;
+        private readonly ClientEffects _effects;
         private readonly SoundRandom _random = new((ulong)Environment.TickCount64);
-        private readonly BitMask _enemyMask = new BitMask(typeof(EnemyComponent), typeof(PositionComponent), typeof(ScaleComponent));
+        private readonly BitMask _enemyMask = new BitMask(typeof(EnemyComponent), typeof(PositionComponent), typeof(ScaleComponent), typeof(AnimatorComponent));
         private readonly List<(float at, SoundDefinition sound, Vector3 position, float decibels)> _later = new();
         private int _predicted;
         private float _predictedUntil;
 
         private static float Now => Engine.Time;
 
-        public GameSounds(ECSWorld world, GameClient client)
+        public GameSounds(ECSWorld world, GameClient client, ClientEffects effects)
         {
             _world = world;
             _client = client;
+            _effects = effects;
 
             client.Events.On<DamageEvent>(Hit);
             client.Events.On<HeroMoveEvent>(e => Moves(e.Move, e.Position, e.Skill > 0 && SkillCatalog.IsNumber(e.Skill) ? SkillCatalog.Get(e.Skill) : null, 1f));
@@ -84,7 +87,7 @@ namespace Dino_Defenders.Client
 
             if ((events & HeroStepEvents.Landed) != 0 && skill != null && skill.Skill.Form is SkillForm.Strike or SkillForm.Leap && skill.DealsDamage)
             {
-                Predict(position, aim, skill.Reach, skill.Skill.Arc);
+                Predict(position, aim, skill);
             }
         }
 
@@ -169,9 +172,9 @@ namespace Dino_Defenders.Client
         }
 
         // The hero's own stroke, tested against what's on this screen, the same test the server is about to make.
-        private void Predict(Vector3 origin, Vector2 facing, float reach, float arc)
+        private void Predict(Vector3 origin, Vector2 facing, SkillProfile skill)
         {
-            float cosHalfArc = MathF.Cos(arc * 0.5f);
+            GroundShape shape = GroundShape.Sector(origin.Xz, facing, skill.Reach, skill.Skill.Arc);
             int hits = 0;
             foreach (Archetype archetype in _world.QueryArchetypes(_enemyMask, BitMask.Empty))
             {
@@ -180,13 +183,16 @@ namespace Dino_Defenders.Client
                     var enemy = entity.Get<EnemyComponent>();
                     if (enemy.State == EnemyState.Dead || enemy.Friendly) continue;
                     Vector3 position = entity.Get<PositionComponent>().value;
-                    Vector2 offset = position.Xz - origin.Xz;
-                    float distance = offset.Length;
-                    if (distance > reach + entity.Get<ScaleComponent>().value.X) continue;
-                    if (arc < MathF.Tau && distance > 0.5f && Vector2.Dot(offset / distance, facing) < cosHalfArc) continue;
+                    if (!shape.Covers(position.Xz, WorldData.CharacterRadius * entity.Get<ScaleComponent>().value.X)) continue;
 
                     Audio.Play(BodyHit(BodyOf(entity)), position + Vector3.UnitY * 2.6f);
                     hits++;
+
+                    // How much of them it took is a guess until the server says, but a good enough one to show the moment it lands.
+                    Vector2 way = position.Xz - origin.Xz;
+                    float health = entity.Has<HealthComponent>() ? MathF.Max(entity.Get<HealthComponent>().Max, 1f) : 100f;
+                    float weight = skill.AverageHit / health;
+                    _effects.Connected(entity, way.LengthSquared > 0.01f ? way.Normalized() : facing, weight, weight >= HeavyBlow, position + Vector3.UnitY * 3.2f);
                 }
             }
 

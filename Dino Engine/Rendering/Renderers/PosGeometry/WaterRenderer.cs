@@ -105,6 +105,12 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private readonly ShaderProgram _captureOceanShader = new ShaderProgram("Water/Water_Ocean.vert", "Water/Water_Capture_Ocean.frag");
 
         private readonly WaterShoreField _shoreField = new WaterShoreField();
+
+        /// <summary>The ground around the camera, as a top-down depth: see <see cref="WaterShoreField.HeightTexture"/>. Whatever else needs to know where the ground is can read it with these.</summary>
+        public int TerrainHeightTexture => _shoreField.HeightTexture;
+        public Vector4 TerrainRegion => _shoreField.Valid ? new Vector4(_shoreField.Corner.X, _shoreField.Corner.Y, _shoreField.Size, _shoreField.Size) : Vector4.Zero;
+        public Vector2 TerrainHeightRange => new Vector2(_shoreField.CaptureTop + TerrainRenderer.SurfaceOffset, _shoreField.CaptureRange);
+        public float SeaLevel { get; private set; }
         private readonly WaterRippleSimulation _rippleSimulation = new WaterRippleSimulation();
 
         private readonly int _rippleTexture;
@@ -287,6 +293,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             Engine.PerformanceMonitor.startGPUTask("Water Simulation");
             Engine.PerformanceMonitor.startCPUTask("Water Simulation RENDER");
 
+            SeaLevel = command.settings.SeaLevel;
             if (command.shoreSignature != _shoreField.Signature)
             {
                 if (command.shoreChunks == null || command.shoreChunks.Length == 0) _shoreField.Invalidate();

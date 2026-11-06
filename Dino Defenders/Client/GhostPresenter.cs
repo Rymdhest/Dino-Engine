@@ -252,6 +252,11 @@ namespace Dino_Defenders.Client
             DriveBodies(world, client, session);
             LayDownFallen(world, deltaTime);
             LayDownHeroes(world);
+            if (_effects() is ClientEffects shown)
+            {
+                shown.Marks.Update(world, client, session, deltaTime);
+                shown.Trails.Update(world, deltaTime);
+            }
             FlyArrows(world, client, session);
             LootShow.Update(world, client, session, _effects(), _wardrobe, deltaTime);
             DressHeroes(world, client);
@@ -590,6 +595,21 @@ namespace Dino_Defenders.Client
     {
         private const int MostCallouts = 2;
 
+        // How a blow lands. It's all in terms of how much of whoever it hit it took: a little is a flinch, and a lot stops everything for a moment. Sakurai's rule is that both sides stop for the same time, longer for a
+        // bigger hit, and never long: these are the longest a fight can stand still and still be a fight. Time only stops for bodies here. The rules don't wait for this, or for anything.
+        private const float LeastFlinch = 0.26f;
+        private const float FlinchPerHealth = 2.2f;
+        private const float CriticalFlinch = 0.35f;
+        private const float LeastHeld = 0.03f;
+        private const float HeldPerHealth = 0.14f;
+        private const float MostHeld = 0.085f;
+        private const float HeroHeld = 0.02f;
+        private const float BigBlow = 0.4f;         // Of what they had. Past this the camera feels it.
+        private const float JoltSpeed = 4.2f;
+
+        public readonly GroundMarks Marks = new GroundMarks();
+        public readonly WeaponTrails Trails = new WeaponTrails();
+
         /// <summary>The last thing this player's hero started.</summary>
         public OwnAction? Doing { get; private set; }
 
@@ -608,10 +628,14 @@ namespace Dino_Defenders.Client
         public ClientEffects(ECSWorld world, GameClient client)
         {
             _world = world;
-            Sounds = new GameSounds(world, client);
+            Sounds = new GameSounds(world, client, this);
+
+            // What happens to this hero happens now, however far behind everything else is drawn.
+            client.Events.Urgent<DamageEvent>(e => e.Target != 0 && e.Target == client.OwnGhost?.Id);
 
             client.Events.On<DamageEvent>(e =>
             {
+                Landed(client, e);
                 if (e.Note != HitNote.None)
                 {
                     client.Session?.Say(e.Position, e.Note.ToString(), new Vector3(0.8f, 0.8f, 0.75f), 14f, 0.7f);
@@ -640,6 +664,69 @@ namespace Dino_Defenders.Client
             client.Events.On<HeroMoveEvent>(e => Show(e.Move, e.Position, e.Aim, e.Skill));
             client.Reached += (item, room) => Sounds.Reached(item, room);
             _client = client;
+        }
+
+        // A blow arriving on someone's body, as far as it's still news.
+        private void Landed(GameClient client, in DamageEvent e)
+        {
+            if (e.Note is HitNote.Evaded or HitNote.Dodged || !client.Ghosts.Ghosts.TryGetValue(e.Target, out Ghost? ghost) || !ghost.Entity.IsValid()) return;
+            if (!_world.TryGetEntityLocation(ghost.Entity, out _, out _)) return;
+
+            EntityView view = _world.GetEntityView(ghost.Entity);
+            if (!view.Has<AnimatorComponent>()) return;
+
+            CharacterAnimator body = view.Get<AnimatorComponent>().Animator;
+            bool own = ghost == client.OwnGhost;
+            Vector3 way = new Vector3(e.Way.X, 0f, e.Way.Y);
+
+            // This player's own blow was shown the moment it landed. All that's left to say is whether it turned out to be a good one.
+            if (body.JustStruck && !own)
+            {
+                if (e.Critical) Jolt(e.Way, JoltSpeed);
+                return;
+            }
+
+            Vector3 colour = e.Note == HitNote.Blocked ? new Vector3(0.9f, 0.9f, 0.85f) : own ? new Vector3(1f, 0.16f, 0.1f) : FlashOf(e.Type);
+            Strike(body, way, e.Weight, e.Critical, colour, own ? HeroHeld : HeldBy(e.Weight, e.Critical));
+            if (own || e.Weight >= BigBlow) Jolt(e.Way, own ? JoltSpeed * 0.6f : JoltSpeed);
+        }
+
+        /// <summary>This player has just struck something, as far as can be seen from here.</summary>
+        public void Connected(EntityView target, Vector2 way, float weight, bool heavy, Vector3 at)
+        {
+            CharacterAnimator body = target.Get<AnimatorComponent>().Animator;
+            float held = HeldBy(weight, false);
+            Strike(body, new Vector3(way.X, 0f, way.Y), weight, false, new Vector3(1f, 0.95f, 0.85f), held);
+            Spark(at, ColourOf(SparkKind.Blade), 4, 6f);
+
+            if (_client.OwnGhost is not Ghost own || !_world.TryGetEntityLocation(own.Entity, out _, out _)) return;
+            _world.GetEntityView(own.Entity).Get<AnimatorComponent>().Animator.Connected(held);
+            if (heavy) Jolt(way, JoltSpeed);
+        }
+
+        private static void Strike(CharacterAnimator body, Vector3 way, float weight, bool critical, Vector3 colour, float held)
+        {
+            float strength = LeastFlinch + MathF.Min(weight * FlinchPerHealth, 1.1f) + (critical ? CriticalFlinch : 0f);
+            body.Struck(way, strength, held, colour);
+        }
+
+        private static float HeldBy(float weight, bool critical) => MathF.Min(LeastHeld + weight * HeldPerHealth + (critical ? 0.02f : 0f), MostHeld);
+
+        // What a hit looks like going through someone. It's the same colour as the number that comes up off it.
+        private static Vector3 FlashOf(DamageType type)
+        {
+            if (type == DamageType.Physical) return new Vector3(1f, 0.95f, 0.85f);
+            Colour light = LightOf(type);
+            return new Vector3(light.Red, light.Green, light.Blue);
+        }
+
+        private void Jolt(Vector2 way, float speed)
+        {
+            if (!_world.GameCamera.IsValid() || !_world.TryGetEntityLocation(_world.GameCamera, out _, out _)) return;
+            EntityView camera = _world.GetEntityView(_world.GameCamera);
+            var follow = camera.Get<FollowCameraComponent>();
+            follow.JoltSpeed += new Vector3(way.X, -0.3f, way.Y) * speed;
+            camera.Set(follow);
         }
 
         /// <summary>Something has just left what it came out of. A legendary's whole sound starts here, and breaks as it lands.</summary>
@@ -818,6 +905,19 @@ namespace Dino_Defenders.Client
             if ((events & HeroStepEvents.Used) != 0 && skill != null)
             {
                 Doing = new OwnAction(skill.Skill, client.Commands.Tick, hero.ImpactIn, hero.BusyFor, MathF.Atan2(hero.Aim.X, hero.Aim.Y), ++_serial);
+
+                // What it covers, for as long as it takes to land.
+                if (HeroRules.ShowsArea(skill))
+                {
+                    double lands = client.Commands.Tick + (hero.ImpactIn / MathF.Max(hero.ActionRate, 0.1f) + skill.Delay) * NetTime.TicksPerSecond;
+                    Marks.Own(GroundShape.Of(skill, hero.Position, hero.Aim, hero.AimReach), client.Commands.Tick, lands);
+                }
+            }
+
+            // A blow nobody marked still shows where it went, for a moment.
+            if ((events & HeroStepEvents.Landed) != 0 && skill != null && skill.Skill.Form is SkillForm.Strike or SkillForm.Leap && !HeroRules.ShowsArea(skill) && skill.DealsDamage)
+            {
+                Marks.Struck(GroundShape.Sector(hero.Position, hero.Aim, skill.Reach, skill.Skill.Arc), client.Commands.Tick);
             }
 
             Vector3 position = new Vector3(hero.Position.X, session.World.Height.Sample(hero.Position), hero.Position.Y);

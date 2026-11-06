@@ -10,6 +10,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     {
         public Matrix4 ModelMatrix;
         public Matrix4[] SkinningMatrices;
+
+        /// <summary>What a blow has lit them up with: its colour, and how much of them.</summary>
+        public Vector4 Flash;
     }
     public struct CharacterRenderCommand : IRenderCommand
     {
@@ -58,6 +61,13 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
+
+            // So that what lies on the ground can go under them.
+            GL.Enable(EnableCap.StencilTest);
+            GL.StencilMask(AntiAliasing.MsaaRenderer.CharacterStencilBit);
+            GL.StencilFunc(StencilFunction.Always, AntiAliasing.MsaaRenderer.CharacterStencilBit, AntiAliasing.MsaaRenderer.CharacterStencilBit);
+            GL.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.Replace);
+
             _characterShader.bind();
 
             _characterShader.loadUniformFloat("parallaxDepth", 0.0f);
@@ -82,6 +92,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void FinishGeometry(RenderEngine renderEngine)
         {
+            GL.StencilMask(0xFF);
+            GL.Disable(EnableCap.StencilTest);
             
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);
@@ -150,11 +162,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
                 _characterShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
                 _characterShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
-
-                for (int j = 0; j< instance.SkinningMatrices.Length; j++)
-                {
-                    //instance.SkinningMatrices[j] = instance.SkinningMatrices[0];
-                }
+                _characterShader.loadUniformVector4f("hitFlash", instance.Flash);
 
                 // Upload array of skinning matrices: uniform mat4 u_Bones[14];
                 _characterShader.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);

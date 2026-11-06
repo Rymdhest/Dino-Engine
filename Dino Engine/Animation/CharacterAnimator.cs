@@ -67,6 +67,7 @@ namespace Dino_Engine.Animation
         private const float RunLean = 0.14f;
         private const float BreathRate = 1.45f;
         private const float ChainWithin = 0.4f;         // Seconds. Any longer and the hand has gone back to where it was.
+        private const float StruckFor = 0.3f;
 
         private readonly MotionStyle _style;
         private readonly Gait _gait;
@@ -94,6 +95,7 @@ namespace Dino_Engine.Animation
         private float _hipHeightSpeed;
         private float _bounce;
         private float _sway;
+        private float _dazed;
         private float _stride;
         private float _clock;
         private float _lookYaw;
@@ -120,6 +122,7 @@ namespace Dino_Engine.Animation
         private float _shake;
         private float _held;
         private float _lost;
+        private float _sinceStruck = float.MaxValue;
 
         // Once nobody's in it.
         private Ragdoll? _ragdoll;
@@ -141,8 +144,15 @@ namespace Dino_Engine.Animation
 
         public Gait Gait => _gait;
 
-        /// <summary>How bright a blow has left them, from 1 down to nothing.</summary>
+        /// <summary>How bright a blow has left them, from 1 down to nothing, and in what.</summary>
         public float Flash { get; private set; }
+        public Vector3 FlashColour { get; private set; } = Vector3.One;
+
+        /// <summary>Whether a blow is going through, from the moment it leaves to the end of its swing.</summary>
+        public bool Swinging { get; private set; }
+
+        /// <summary>Whether something's just landed on them, and so needn't be shown again by word that it did.</summary>
+        public bool JustStruck => _sinceStruck < StruckFor;
 
         /// <summary>Where a held weapon starts and ends in the world, for whatever draws what it leaves in the air.</summary>
         public Vector3 WeaponBase { get; private set; }
@@ -237,8 +247,11 @@ namespace Dino_Engine.Animation
 
         /// <summary>A blow landing on them, going the way it's going in the world. 0 is a scratch and 1 a good hard hit: past that it's all the same to a body.</summary>
         /// <param name="held">Seconds to stay stopped for, as someone struck is: the blow's own weight, shown.</param>
-        public void Struck(Vector3 direction, float strength, float held)
+        /// <param name="colour">What it shows as, going through them.</param>
+        public void Struck(Vector3 direction, float strength, float held, Vector3 colour)
         {
+            _sinceStruck = 0f;
+            FlashColour = colour;
             float give = MathF.Min(strength, 1.6f) * _style.Give;
             Quaternion toBody = Frames.Yaw(-_yaw);
             Vector3 way = Vector3.Transform(new Vector3(direction.X, 0f, direction.Z), toBody);
@@ -246,7 +259,7 @@ namespace Dino_Engine.Animation
 
             _lurchSpeed += way * (give * 7f);
             _kickSpeed += Vector3.Cross(Vector3.UnitY, way) * (give * 15f);
-            Flash = MathF.Max(Flash, MathF.Min(0.45f + strength, 1f));
+            Flash = MathF.Max(Flash, MathF.Min(0.3f + strength * 0.4f, 0.72f));
             _shake = MathF.Max(_shake, give);
             _held = MathF.Max(_held, held);
         }
@@ -299,6 +312,8 @@ namespace Dino_Engine.Animation
         private void StepDead(in AnimationInput input, float deltaTime, IGround ground)
         {
             _deadFor += deltaTime;
+            Flash = Spring.Damp(Flash, 0f, 0.05f, deltaTime);
+            Swinging = false;
             _ragdoll!.Step(deltaTime, ground);
             _ragdoll.Pose(input.Position, input.Yaw, input.Scale, _sunk, _joints, _rotations);
             WriteSkin();
@@ -326,6 +341,7 @@ namespace Dino_Engine.Animation
             float life = deltaTime * input.Rate;
             ReadMotion(input, deltaTime);
             Flash = Spring.Damp(Flash, 0f, 0.05f, deltaTime);
+            _sinceStruck += deltaTime;
 
             if (input.Rate <= 0f)
             {
@@ -400,6 +416,7 @@ namespace Dino_Engine.Animation
                 gesture = GesturePlayer.Sample(_playing ?? action.Gesture!, MathF.Max(action.Elapsed - _lost, 0f), action.Impact, action.Length);
                 _aim = Spring.Shortest(action.Aim - input.Yaw);
             }
+            Swinging = acting && gesture.Swing > 0f && gesture.Swing < 1f;
             _shake = Spring.Damp(_shake, 0f, 0.07f, deltaTime);
         }
 
@@ -529,6 +546,8 @@ namespace Dino_Engine.Animation
             float wantedSway = (down > 0 ? over / down * SwayShare * _style.Sway : 0f) + (moving ? 0f : idleShift);
             _sway = Spring.Damp(_sway, wantedSway, 0.075f, life);
 
+            _dazed = Spring.Damp(_dazed, input.Dazed ? 1f : 0f, 0.09f, life);
+
             float bounceWanted = down == 0 ? 1f : -0.35f * run;
             _bounce = Spring.Damp(_bounce, bounceWanted * run, 0.05f, life);
 
@@ -566,6 +585,11 @@ namespace Dino_Engine.Animation
 
             float bend = lean * 0.72f + _style.Hunch + MathHelper.DegreesToRadians(body.Bend) * weight + 0.09f * _alert;
             float tilt = bank + MathHelper.DegreesToRadians(body.Tilt) * weight - list * 0.5f;
+
+            // Stunned, the head goes down and the body goes round in a slow loop, and it's plain from anywhere that this one isn't going to do anything.
+            float reel = _clock * 4.1f + _seed;
+            bend += _dazed * (0.32f + MathF.Sin(reel) * 0.14f);
+            tilt += _dazed * MathF.Cos(reel) * 0.2f;
 
             // Blows land on top of everything, and go straight into the shaking of whoever took one.
             AdvanceKicks(life);

@@ -19,6 +19,7 @@ uniform sampler2DArray materialMapTextureArray;
 uniform sampler2DArray albedoMapModelTextureArray;
 uniform sampler2DArray normalMapModelTextureArray;
 uniform sampler2DArray materialMapModelTextureArray;
+uniform vec4 hitFlash;
 
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gNormal;
@@ -33,6 +34,8 @@ layout (location = 2) out vec4 gMaterials;
 #include Weather/SurfaceMap.glsl
 #include Weather/RainShadow.glsl
 #include Weather/Wetness.glsl
+
+const float HIT_SHINE = 7.0;
 
 void main() {
 
@@ -90,7 +93,14 @@ void main() {
 	gNormal.xyz = compressNormal(normal);
 
 	gMaterials.r = weatherFilterRoughness(roughness, normal);
-	gMaterials.g = encodeEmission(material.emission * EMISSION_GAIN * overbright);
+	float shine = material.emission * EMISSION_GAIN * overbright;
+
+	// A blow goes through a body as light, from the inside, whatever it's wearing and whatever the sun is doing.
+#ifdef CHARACTER
+	gAlbedo.rgb = mix(gAlbedo.rgb, hitFlash.rgb, hitFlash.a);
+	shine += hitFlash.a * HIT_SHINE;
+#endif
+	gMaterials.g = encodeEmission(shine);
 	gMaterials.b = material.metalic;
     gMaterials.a = material.height;
 

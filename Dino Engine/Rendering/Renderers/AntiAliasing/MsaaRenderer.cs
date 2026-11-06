@@ -27,6 +27,8 @@ namespace Dino_Engine.Rendering.Renderers.AntiAliasing
         public const int UniformBinding = 8;
         /// <summary>Stencil bit set on the edge pixels, which <see cref="DrawSplit"/> shades per sample.</summary>
         public const int EdgeStencilBit = 1;
+        /// <summary>Stencil bit set wherever a character is, for what goes on the ground under them.</summary>
+        public const int CharacterStencilBit = 2;
         /// <summary>Colour attachment of the single-sample G-buffer holding the edge flags (1 on edge pixels).</summary>
         public const int EdgeAttachment = 3;
         /// <summary>Texture unit the light passes read the screen-space ambient occlusion from (Lighting/gBufferSample.glsl).</summary>

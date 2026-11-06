@@ -211,7 +211,7 @@ namespace Dino_Defenders.Server
         private static float WindUpOf(SkillProfile skill, EnemyRank rank)
         {
             float windUp = MathF.Max(skill.ImpactTime, ShortestWindUp);
-            if (skill.Skill.Form is SkillForm.Nova or SkillForm.Burst or SkillForm.Zone) windUp = MathF.Max(windUp, skill.Radius / EscapeSpeed * EscapeShare + 0.2f);
+            if (skill.Skill.Form is SkillForm.Nova or SkillForm.Burst or SkillForm.Zone or SkillForm.Chain) windUp = MathF.Max(windUp, GroundShape.Of(skill, Vector2.Zero, Vector2.UnitY, 0f).Length / EscapeSpeed * EscapeShare + 0.2f);
             if (skill.Skill.Arc >= MathF.Tau || skill.Skill.UseTime >= 0.95f) windUp = MathF.Max(windUp, HeavyWindUp);
             return rank == EnemyRank.Boss ? windUp * BossWindUp : windUp;
         }

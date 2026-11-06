@@ -63,6 +63,9 @@ namespace Dino_Defenders
         public readonly List<string> Talents = new();
         public readonly List<string> Equip = new();
         public string? Parade;
+
+        /// <summary>The same as <see cref="Parade"/>, but they're awake and want a fight.</summary>
+        public string? Brawl;
         public string? Loot;
         public string? Panel;
         public string? Wear;
@@ -131,6 +134,7 @@ namespace Dino_Defenders
                     case "talents": options.Talents.AddRange(value.Split(',')); break;
                     case "equip": options.Equip.AddRange(value.Split(',')); break;
                     case "parade": options.Parade = value; break;
+                    case "brawl": options.Brawl = value; break;
                     case "loot": options.Loot = value; break;
                     case "panel": options.Panel = value; break;
                     case "wear": options.Wear = value; break;

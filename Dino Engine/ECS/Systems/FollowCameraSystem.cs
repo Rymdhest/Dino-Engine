@@ -8,6 +8,9 @@ namespace Dino_Engine.ECS.Systems
     /// <summary>Moves cameras with a <see cref="FollowCameraComponent"/> after their targets; the mouse wheel zooms.</summary>
     public class FollowCameraSystem : SystemBase
     {
+        private const float JoltFrequency = 6f;
+        private const float JoltDamping = 0.55f;
+
         public FollowCameraSystem()
             : base(new BitMask(typeof(FollowCameraComponent), typeof(PositionComponent)))
         {
@@ -37,7 +40,10 @@ namespace Dino_Engine.ECS.Systems
                 camera.Focus.Y + (target.Y - camera.Focus.Y) * up,
                 camera.Focus.Z + (target.Z - camera.Focus.Z) * side);
 
-            entity.Set(new PositionComponent(camera.Focus + camera.Offset * camera.Zoom));
+            // A jolt is gone in a moment, and it moves the whole view, so that nothing's hidden and nothing's blurred by it.
+            Dino_Engine.Animation.Spring.Ring(ref camera.Jolt, ref camera.JoltSpeed, JoltFrequency, JoltDamping, deltaTime);
+
+            entity.Set(new PositionComponent(camera.Focus + camera.Offset * camera.Zoom + camera.Jolt));
             entity.Set(camera);
         }
     }

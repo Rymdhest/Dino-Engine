@@ -34,6 +34,10 @@ namespace Dino_Engine.ECS.Components
         public Vector3 Focus;       // The smoothed point the camera is placed from.
         public bool Initialized;
 
+        /// <summary>How far a blow has knocked the view, and how fast. It rings and dies away by itself.</summary>
+        public Vector3 Jolt;
+        public Vector3 JoltSpeed;
+
         public FollowCameraComponent(Entity target, Vector3 offset)
         {
             Target = target;

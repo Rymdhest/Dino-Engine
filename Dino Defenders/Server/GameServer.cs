@@ -971,10 +971,10 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>Writes the world, and where the first hero stands in it, into a save. The hero's own record is added on their machine.</summary>
-        /// <summary>For a scripted run: one of everything, in front of the first hero.</summary>
-        public void Parade(string which)
+        /// <summary>For a scripted run: one of everything, in front of the first hero, standing still or not.</summary>
+        public void Parade(string which, bool fighting = false)
         {
-            if (Session != null && _heroes.Count > 0) _encounters.Parade(Ecs, Session, _heroes[0].Sim.Position, which);
+            if (Session != null && _heroes.Count > 0) _encounters.Parade(Ecs, Session, _heroes[0].Sim.Position, which, fighting);
         }
 
         /// <summary>For a scripted run: loot in front of the first hero.</summary>

@@ -364,6 +364,14 @@ namespace Dino_Defenders
                     return true;
                 });
             }
+            if (_frames == 30 && _options.Brawl is string brawl && _server != null)
+            {
+                _server.Ask(server =>
+                {
+                    server.Parade(brawl, fighting: true);
+                    return true;
+                });
+            }
             if (_options.Shot != null && _frames == _options.ShotAfterFrames)
             {
                 Engine.RequestScreenshot(_options.Shot, () =>
