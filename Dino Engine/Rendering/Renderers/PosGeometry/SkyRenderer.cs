@@ -16,7 +16,9 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
         public SkyRenderer() : base("sky")
         {
-
+            skyShader.bind();
+            skyShader.loadUniformInt("skyMap", 0);
+            skyShader.unBind();
         }
         internal override void Prepare(RenderEngine renderEngine)
         {
@@ -25,7 +27,8 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             // against the sky are anti-aliased.
             renderEngine.Msaa.SceneBuffer.bind();
             GL.DepthFunc(DepthFunction.Lequal);
-            skyShader.loadUniformFloat("skyStrength", SkyStrength);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._weatherRenderer.SkyMapTexture);
 
 
             GL.Enable(EnableCap.Blend);

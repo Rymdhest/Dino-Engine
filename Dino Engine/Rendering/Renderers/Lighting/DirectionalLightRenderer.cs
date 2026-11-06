@@ -21,6 +21,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private ShaderProgram _directionalLightShader = new ShaderProgram("Simple.vert", "Directional_Light.frag");
         private ShaderProgram _directionalLightSampleShader = new ShaderProgram("Simple.vert", "Directional_Light.frag", new[] { "PER_SAMPLE" });
 
+        private const int CloudShadowUnit = 9;
+
         private int shadowSampler;
 
         public DirectionalLightRenderer() : base("Directional Light")
@@ -34,6 +36,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("gDepth", 3);
                 shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
                 shader.loadUniformInt("pcfRadius", 3);
+                shader.loadUniformInt("cloudShadowMap", CloudShadowUnit);
                 shader.unBind();
             }
 
@@ -77,6 +80,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 BindTexture(TextureTarget.Texture2D, cascade.shadowFrameBuffer.getDepthAttachment());
                 BindSampler(CASCADETEXTURESINDEXSTART + i, shadowSampler);
             }
+            ActiveTexture(TextureUnit.Texture0 + CloudShadowUnit);
+            BindTexture(TextureTarget.Texture2D, renderEngine._weatherRenderer.CloudShadowTexture);
             ActiveTexture(TextureUnit.Texture0);
 
             Vector4 lightDirectionViewSpace = new Vector4(-command.direction, 0.0f)* Matrix4.Transpose(renderEngine.context.invViewMatrix);

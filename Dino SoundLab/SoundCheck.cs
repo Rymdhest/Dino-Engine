@@ -47,6 +47,8 @@ namespace Dino_SoundLab
             {
                 Console.WriteLine("The land");
                 CheckWind();
+                CheckRain();
+                CheckDrips();
                 CheckGrounds();
                 CheckWater();
                 Console.WriteLine("Loot");
@@ -271,6 +273,74 @@ namespace Dino_SoundLab
             (float[] crest, float[] crestRight) = Heard(Soundscape.Wind, 8f, 5f, 0.5f, 0.4f, 0.8f, 0.5f, 1f);
             float swell = Loudness.Integrated(crest, crestRight) - Loudness.Integrated(calm, calmRight);
             Expect(swell > 3f, $"wind: a crest going by adds only {swell:0.0} dB");
+        }
+
+        // Rain has to sit under everything that matters and still be plainly rain, and it has the same trap as wind: a noise with its top left in is a hiss at any level.
+        private static void CheckRain()
+        {
+            float[] intensities = { 0.15f, 0.4f, 0.7f, 1f };
+            var levels = new float[intensities.Length];
+            for (int i = 0; i < intensities.Length; i++)
+            {
+                (float[] left, float[] right) = Heard(Soundscape.Rain, 8f, intensities[i], 0.15f, 0.05f);
+                levels[i] = Loudness.Integrated(left, right);
+                if (i > 0) Expect(levels[i] > levels[i - 1] + 2f, $"rain: no louder at {intensities[i]} than at {intensities[i - 1]} ({levels[i]:0.0} and {levels[i - 1]:0.0} LUFS)");
+
+                float body = Octave(left, 1000f);
+                Expect(Octave(left, 8000f) < body - 4f, $"rain: hisses at {intensities[i]} ({Octave(left, 8000f) - body:0.0} dB at 8 kHz against 1 kHz)");
+            }
+            Console.WriteLine($"  Rain at 0.15, 0.4, 0.7 and 1: {levels[0]:0.0}, {levels[1]:0.0}, {levels[2]:0.0} and {levels[3]:0.0} LUFS.");
+            Expect(levels[0] < -44f, $"rain: a drizzle is {levels[0]:0.0} LUFS, which is more than it should say");
+            Expect(levels[3] < -25f, $"rain: a downpour is {levels[3]:0.0} LUFS, and would bury the fight going on in it");
+            Expect(levels[3] - levels[0] > 12f, $"rain: only {levels[3] - levels[0]:0.0} dB between a drizzle and a downpour");
+
+            // On leaves and on water it's another sound, not the same one quieter.
+            (float[] onGround, _) = Heard(Soundscape.Rain, 8f, 0.7f, 0f, 0f);
+            (float[] onLeaves, _) = Heard(Soundscape.Rain, 8f, 0.7f, 0.9f, 0f);
+            (float[] onWater, _) = Heard(Soundscape.Rain, 8f, 0.7f, 0f, 0.9f);
+            float[] bands = { 500f, 1000f, 2000f, 4000f, 8000f };
+            float leaves = 0f, water = 0f;
+            foreach (float band in bands)
+            {
+                leaves += MathF.Abs(Octave(onLeaves, band) - Octave(onGround, band));
+                water += MathF.Abs(Octave(onWater, band) - Octave(onGround, band));
+            }
+            Expect(leaves / bands.Length > 0.5f, $"rain: on leaves it's only {leaves / bands.Length:0.0} dB from rain on the ground");
+            Expect(water / bands.Length > 0.5f, $"rain: on water it's only {water / bands.Length:0.0} dB from rain on the ground");
+        }
+
+        // What's left once the rain stops: small, nothing at all when nothing's wet, a few separate drops and never a wash, and in standing water something else again.
+        private static void CheckDrips()
+        {
+            (float[] dry, _) = Heard(Soundscape.Drips, 8f, 0f, 0f);
+            Expect(dry.All(sample => sample == 0f), "drips: heard with nothing wet");
+
+            (float[] few, float[] fewRight) = Heard(Soundscape.Drips, 16f, 0.3f, 0.2f);
+            (float[] many, float[] manyRight) = Heard(Soundscape.Drips, 16f, 1f, 0.2f);
+            float quiet = Loudness.Integrated(few, fewRight);
+            float busy = Loudness.Integrated(many, manyRight);
+            Console.WriteLine($"  Drips at 0.3 and 1: {quiet:0.0} and {busy:0.0} LUFS.");
+            Expect(busy > quiet + 1f, $"drips: no louder at full rate ({busy:0.0} and {quiet:0.0} LUFS)");
+            Expect(busy < -30f, $"drips: {busy:0.0} LUFS, which is more than a few drops should say");
+            Expect(Octave(many, 8000f) < Octave(many, 1000f) - 4f, "drips: they hiss");
+
+            // Separate events with quiet between them: a wash would never fall back.
+            int block = AudioFormat.SampleRate / 50;
+            int silent = 0, blocks = 0;
+            for (int at = 0; at + block <= many.Length; at += block, blocks++)
+            {
+                float peak = 0f;
+                for (int i = at; i < at + block; i++) peak = MathF.Max(peak, MathF.Abs(many[i]));
+                if (peak < 1e-4f) silent++;
+            }
+            Expect(silent > blocks / 3, $"drips: only {silent} of {blocks} moments are quiet, so they've run together");
+
+            (float[] onGround, _) = Heard(Soundscape.Drips, 16f, 1f, 0f);
+            (float[] inWater, _) = Heard(Soundscape.Drips, 16f, 1f, 1f);
+            float[] bands = { 500f, 1000f, 2000f, 4000f };
+            float apart = 0f;
+            foreach (float band in bands) apart += MathF.Abs(Octave(inWater, band) - Octave(onGround, band));
+            Expect(apart / bands.Length > 1f, $"drips: in water only {apart / bands.Length:0.0} dB from on the ground");
         }
 
         // A foot on one thing has to sound unlike a foot on another, and like a foot: most of what's heard of a step is its middle.

@@ -187,12 +187,7 @@ namespace Dino_Defenders.UI
                 Label label = _labels[i];
                 for (int other = 0; other < i; other++)
                 {
-                    GuiRect placed = _labels[other].Rect;
-                    bool overlaps = label.Rect.X < placed.Right + Gap && label.Rect.Right + Gap > placed.X && label.Rect.Y < placed.Bottom + Gap && label.Rect.Bottom + Gap > placed.Y;
-                    if (!overlaps) continue;
-
-                    label.Rect = new GuiRect(label.Rect.X, placed.Y - label.Rect.Height - Gap, label.Rect.Width, label.Rect.Height);
-                    other = -1;
+                    if (LabelStack.Lift(ref label.Rect, _labels[other].Rect, Gap)) other = -1;
                 }
                 _labels[i] = label;
             }

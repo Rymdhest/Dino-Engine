@@ -32,6 +32,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _modelShader.loadUniformInt("albedoMapModelTextureArray", 3);
             _modelShader.loadUniformInt("normalMapModelTextureArray", 4);
             _modelShader.loadUniformInt("materialMapModelTextureArray", 5);
+            Simulation.WeatherRenderer.LinkSurfaceSamplers(_modelShader);
             _modelShader.unBind();
 
             _modelShadowShader.bind();

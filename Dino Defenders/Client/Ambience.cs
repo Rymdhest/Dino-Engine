@@ -2,6 +2,7 @@ using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Networking;
 using Dino_Engine.Physics;
 using Dino_Engine.Sound;
 using Dino_Engine.Sound.Content;
@@ -75,7 +76,7 @@ namespace Dino_Defenders.Client
             if (_nextRegion <= 0f)
             {
                 _nextRegion = RegionInterval;
-                ReadRegion(session);
+                ReadRegion(world, session);
                 session.UpdateGuidance();
                 UpdateSiteLights(world, session);
             }
@@ -89,6 +90,7 @@ namespace Dino_Defenders.Client
                 session.GuideCooldown = GuideCooldown;
             }
 
+            UpdateWeather(world, session);
             UpdateAir(world, session, deltaTime);
             UpdateNight(world, session, deltaTime);
             UpdateLiberation(world, session, deltaTime);
@@ -122,7 +124,7 @@ namespace Dino_Defenders.Client
             _guideLeft = 0f;
             _liberation = session.Liberated ? 1f : 0f;
             _sunColour = world.GetComponent<ColorComponent>(world.sun).value;
-            ReadRegion(session);
+            ReadRegion(world, session);
 
             // Whoever starts in a churchyard is already in its night.
             EntityView nightView = world.GetEntityView(world.GetSingleton<NightfallSingleton>());
@@ -181,7 +183,7 @@ namespace Dino_Defenders.Client
         }
 
         // What the air should be like here: the biomes underfoot, weighted, in the proportions the world's weather was set from.
-        private void ReadRegion(GameSession session)
+        private void ReadRegion(ECSWorld ecs, GameSession session)
         {
             WorldData world = session.World;
             WorldMood mood = world.Plan.Mood;
@@ -213,7 +215,7 @@ namespace Dino_Defenders.Client
             averageWind /= world.Plan.Biomes.Count;
 
             _fogTarget = fog / MathF.Max(averageFog, 1e-4f) * mood.FogDensity;
-            _windTarget = wind / MathF.Max(averageWind, 1e-4f) * mood.WindSpeed;
+            _windTarget = wind / MathF.Max(averageWind, 1e-4f) * mood.WindSpeed * Weather.Here(ecs).Gale;
             _fogColourTarget = colour.LengthSquared > 0.01f ? colour : mood.FogColour;
 
             _nightTarget = NightAt(session);
@@ -221,6 +223,17 @@ namespace Dino_Defenders.Client
             _fogColourTarget = Vector3.Lerp(_fogColourTarget, ChurchyardFogColour, _nightTarget);
             if (_nightTarget > WispsFrom) _motes = AmbientMotes.Wisps;
             if (session.ScriptedWind is (float speed, _)) _windTarget = speed;
+        }
+
+        // The weather runs on the server's clock, so that everyone in a world looks up at the same sky with nothing sent. Every machine works it out from the seed.
+        private static void UpdateWeather(ECSWorld world, GameSession session)
+        {
+            EntityView view = world.GetEntityView(world.GetSingleton<WeatherSingleton>());
+            var weather = view.Get<WeatherSingleton>();
+            weather.Clock = session.Client.Render.RenderTick * NetTime.TickSeconds + session.WeatherClockOffset;
+            weather.ClockGiven = true;
+            weather.Forced = session.ScriptedWeather;
+            view.Set(weather);
         }
 
         private void UpdateAir(ECSWorld world, GameSession session, float deltaTime)
@@ -268,12 +281,12 @@ namespace Dino_Defenders.Client
             if (kind == AmbientMotes.None || session.Paused) return;
 
             MoteStyle style = StyleOf(kind);
-            _moteDebt += (guiding ? 45f : style.Rate) * deltaTime;
+            _moteDebt += (guiding ? 45f : style.Rate * LeftInTheAir(world, kind)) * deltaTime;
             Vector3 centre = new Vector3(session.PlayerPosition.X, session.World.Height.Sample(session.PlayerPosition), session.PlayerPosition.Y);
 
             Vector2 drift = guiding
                 ? new Vector2(MathF.Sin(MathHelper.DegreesToRadians(_guideDirection)), MathF.Cos(MathHelper.DegreesToRadians(_guideDirection))) * 12f
-                : world.GetComponent<WindSingleton>(world.GetSingleton<WindSingleton>()).Velocity * style.Drift;
+                : Carried(world.GetComponent<WindSingleton>(world.GetSingleton<WindSingleton>()).Velocity) * style.Drift;
 
             while (_moteDebt >= 1f)
             {
@@ -291,6 +304,21 @@ namespace Dino_Defenders.Client
             }
         }
 
+        // Motes ride the wind's patterns, whose speed levels off, as a speck going by at the speed of a gale is a line across the screen.
+        private static Vector2 Carried(Vector2 wind)
+        {
+            float speed = wind.Length;
+            return speed < 1e-3f ? wind : wind * (WindField.PatternSpeed(speed) / speed);
+        }
+
+        // Rain washes dust and pollen out of the air, and what's wet doesn't lift again until it has dried.
+        private static float LeftInTheAir(ECSWorld world, AmbientMotes kind)
+        {
+            if (kind is not (AmbientMotes.Dust or AmbientMotes.Pollen)) return 1f;
+            WeatherSample here = Weather.Here(world);
+            return 1f - MathF.Max(here.Wet, here.Rain);
+        }
+
         private readonly record struct MoteStyle(float Rate, float Size, float Life, float LowestHeight, float HighestHeight, float Rise, float Drift, Colour Colour, bool Glows = false);
 
         private static MoteStyle StyleOf(AmbientMotes kind) => kind switch
@@ -301,7 +329,7 @@ namespace Dino_Defenders.Client
             AmbientMotes.Snow => new(34f, 0.07f, 6f, 4f, 15f, -1.5f, 0.5f, new Colour(0.95f, 0.97f, 1f, 1.2f)),
             AmbientMotes.Embers => new(16f, 0.06f, 3.2f, 0.3f, 4f, 1.4f, 0.4f, new Colour(1f, 0.4f, 0.1f, 4f), Glows: true),
             AmbientMotes.Fireflies => new(9f, 0.06f, 3.5f, 0.6f, 3.5f, 0.1f, 0.05f, new Colour(0.75f, 1f, 0.35f, 4f), Glows: true),
-            AmbientMotes.Dust => new(12f, 0.1f, 3.4f, 0.2f, 3f, 0.05f, 0.8f, new Colour(0.8f, 0.68f, 0.48f, 0.7f)),
+            AmbientMotes.Dust => new(12f, 0.1f, 3.4f, 0.2f, 3f, 0.05f, 0.5f, new Colour(0.8f, 0.68f, 0.48f, 0.7f)),
             AmbientMotes.Wisps => new(2.5f, 0.13f, 7f, 0.6f, 3f, 0.1f, 0.05f, new Colour(0.3f, 1f, 0.6f, 4f), Glows: true),
             _ => default,
         };

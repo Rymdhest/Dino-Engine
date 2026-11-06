@@ -46,6 +46,10 @@ layout (depth_greater) out float gl_FragDepth;
 #include gBufferUtil.glsl
 #include procedural/fastHash.glsl
 #include Grass/GrassField.glsl
+#include Weather/Weather.glsl
+#include Weather/SurfaceMap.glsl
+#include Weather/RainShadow.glsl
+#include Weather/Wetness.glsl
 
 // parallaxDepth * PARALLAX_DEPTH_SCALE is the height field depth in texture tiles.
 const float PARALLAX_DEPTH_SCALE = 0.04;
@@ -254,11 +258,17 @@ void main() {
     if (!gl_FrontFacing) normalTangentSpace.z *= -1.0;
     normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
 
-    mat3 pixelNormalTBN = mat3(transpose(invViewMatrix)) * TBN;
-    vec3 normal = normalize(pixelNormalTBN * normalTangentSpace.xyz);
+    // The hollows of the ground are in the grass map's alpha (TerrainSurface), for the rain to fill.
+    vec3 worldNormal = normalize(TBN * normalTangentSpace.xyz);
+    float roughness = material.roughness;
+    vec3 albedo = gAlbedo.rgb;
+    weatherWetten(fragWorldPos, N, weatherPorosity(winningMat, numberOfMaterials), material.metalic, tintGrass.a, material.height, albedo, roughness, worldNormal);
+    gAlbedo.rgb = albedo;
+
+    vec3 normal = normalize(mat3(viewMatrix) * worldNormal);
     gNormal.xyz = compressNormal(normal);
 
-    gMaterials.r = material.roughness;
+    gMaterials.r = weatherFilterRoughness(roughness, normal);
     gMaterials.g = encodeEmission(material.emission * EMISSION_GAIN);
     gMaterials.b = material.metalic;
     gMaterials.a = material.height;

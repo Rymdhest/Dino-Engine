@@ -128,6 +128,12 @@ namespace Dino_Engine.Textures
 
         public List<MaterialMapsTextures> preparedTextures = new List<MaterialMapsTextures>();
 
+        /// <summary>
+        /// How much water each material takes in, 0..1, by its place in the material arrays (Weather/Wetness.glsl). Sand, cloth and bare earth drink it up and go dark. Stone and tile take a
+        /// little, and shine. Metal, glass and ice take none and only carry a film. A material nobody has said anything about behaves like packed earth.
+        /// </summary>
+        public readonly float[] Porosity = new float[Rendering.Renderers.Simulation.WeatherRenderer.MaxMaterials];
+
         public static MaterialLayersManipulator MaterialLayersCombiner = new MaterialLayersManipulator();
 
         public static MaterialLayerHandler MaterialLayerHandler = new MaterialLayerHandler();
@@ -209,6 +215,7 @@ namespace Dino_Engine.Textures
             stoneWall = createStoneWallTexture();
             cloth = createClothTexture();
             leather = createLeatherTexture();
+            SetPorosity();
 
             addAllPreparedTexturesToTexArray(arrayType.material);
            
@@ -236,6 +243,23 @@ namespace Dino_Engine.Textures
             generateOakBranch(leaf_white, out paleOakTwig, out paleOakBranch);
             generateDeadTwig();
         }
+        private void SetPorosity()
+        {
+            Array.Fill(Porosity, 0.5f);
+            foreach ((int material, float porosity) in new[]
+            {
+                (sand, 0.9f), (sandDunes, 0.85f), (soil, 0.8f), (farmland, 0.85f), (dirtPath, 0.75f), (grassy_soil, 0.7f), (moss, 0.7f), (grain, 0.7f),
+                (crackedDesert, 0.85f), (crackedLava, 0.6f), (mud, 0.4f), (gravel, 0.5f), (grass, 0.35f),
+                (rock, 0.35f), (cobble, 0.42f), (stoneWall, 0.45f), (brick, 0.7f), (plaster, 0.75f), (slate, 0.15f), (shingle, 0.5f), (thatch, 0.8f),
+                (wood, 0.65f), (pineBark, 0.7f), (oakBark, 0.7f), (BirchBark, 0.6f), (cloth, 0.9f), (leather, 0.45f), (bone, 0.3f), (wax, 0.04f),
+                (foliage_olive, 0.12f), (foliage_white, 0.12f), (foliage_pine, 0.12f),
+                (ice, 0f), (snow, 0f), (iron, 0f), (metalFloor, 0f), (mirror, 0f), (flat, 0.3f), (flatGlow, 0f),
+            })
+            {
+                Porosity[material] = porosity;
+            }
+        }
+
         private void generateOakBranch(int leaf, out int twig, out int branch)
         {
             float leafSize = 20f;

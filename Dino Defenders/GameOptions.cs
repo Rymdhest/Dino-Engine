@@ -39,6 +39,9 @@ namespace Dino_Defenders
     ///   --sound true    Plays on the real device even on a scripted run, which otherwise keeps quiet.
     ///   --volume v      Overall level from 0 to 1, in place of what the player has chosen.
     ///   --music v       The music's level from 0 to 1, likewise, which at 0 leaves everything else to be measured.
+    ///   --hidden true   Draws with no window on screen and never takes the focus, for a scripted run beside someone playing.
+    ///   --weather name  Holds the weather everywhere: clear, cloudy, overcast, wet, drizzle, rain, storm, snow, blizzard, dust, ash or fog.
+    ///   --weatherclock s  Starts this many seconds into the world's own weather.
     /// A scripted run otherwise neither reads nor writes the player's save.
     /// </summary>
     internal sealed class GameOptions
@@ -74,6 +77,9 @@ namespace Dino_Defenders
         public string? Name;
         public string? NetSim;
         public bool Dedicated;
+        public bool Hidden;
+        public string? Weather;
+        public double WeatherClock;
         public string? Render;
         public string? Film;
         public int FilmStart = 120;
@@ -141,6 +147,9 @@ namespace Dino_Defenders
                     case "name": options.Name = value; break;
                     case "netsim": options.NetSim = value; break;
                     case "dedicated": options.Dedicated = value == "true"; break;
+                    case "hidden": options.Hidden = value == "true"; break;
+                    case "weather": options.Weather = value; break;
+                    case "weatherclock": options.WeatherClock = double.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "render": options.Render = value; break;
                     case "film": options.Film = value; break;
                     case "filmstart": options.FilmStart = int.Parse(value); break;

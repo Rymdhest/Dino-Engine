@@ -10,7 +10,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
     {
         /// <summary>Material weights of the world's <see cref="TerrainSurface.Palette"/>, four per texel in each of three maps.</summary>
         public readonly float[][] Weights = new float[3][];
-        /// <summary>Per texel: cover (r, which the grass carve erases under objects), height (g), dryness (b).</summary>
+        /// <summary>Per texel: cover (r, which the grass carve erases under objects), height (g), dryness (b), and how soon water stands here (a).</summary>
         public readonly float[] Grass;
         /// <summary>Per texel: the grass's colour (rgb) and the share of its tufts in seed (a).</summary>
         public readonly float[] GrassColour;
@@ -58,6 +58,9 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             float hU = World.Height.SampleCubic(x, z + NormalStep);
             return new Vector3(hL - hR, 2f * NormalStep, hD - hU).Normalized();
         }
+
+        /// <summary>How soon water stands here, 0..1. See <see cref="TerrainSurface.HollowAt"/>.</summary>
+        public float HollowAt(Vector2 position) => _surface.HollowAt(position);
 
         public float getRoadMaskAt(Vector2 position)
         {
@@ -124,6 +127,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     surface.Grass[texel] = grass.Cover;
                     surface.Grass[texel + 1] = grass.Height;
                     surface.Grass[texel + 2] = grass.Dryness;
+                    surface.Grass[texel + 3] = grass.Hollow;
                     surface.GrassColour[texel] = grass.Colour.X;
                     surface.GrassColour[texel + 1] = grass.Colour.Y;
                     surface.GrassColour[texel + 2] = grass.Colour.Z;

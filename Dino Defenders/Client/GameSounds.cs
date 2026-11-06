@@ -294,6 +294,8 @@ namespace Dino_Defenders.Client
         private const float ShinDepth = 0.28f;      // Metres of water at which a leg is pushing through it, not stepping in it.
         private const float WetSandHeight = 0.4f;   // Metres above the water that the sand stays wet.
         private const float BareGround = 0.4f;      // How little grass there is before a foot lands on the ground under it.
+        private const float WetGround = 0.55f;      // How wet the ground has to be before it gives underfoot.
+        private const float PuddleLevel = 1.2f;     // As Weather/Wetness.glsl has it, so that a puddle that's seen is one that's heard.
 
         /// <summary>How many steps were heard on what, for a scripted run's report.</summary>
         public static Dictionary<Ground, int> StepsHeard { get; } = new();
@@ -355,7 +357,7 @@ namespace Dino_Defenders.Client
                     if (speed < SlowestStep || (position.Xz - listener).LengthSquared > FarFootfall * FarFootfall) continue;
 
                     float size = entity.Has<ScaleComponent>() ? entity.Get<ScaleComponent>().value.Y : 1f;
-                    foot.InWater = Step(session.World, position, speed, size, foot.InWater);
+                    foot.InWater = Step(world, session.World, position, speed, size, foot.InWater);
                     entity.Set(foot);
                 }
             }
@@ -371,11 +373,11 @@ namespace Dino_Defenders.Client
         }
 
         // Says whether the foot came down in water.
-        private static bool Step(WorldData world, Vector3 position, float speed, float size, bool wasInWater)
+        private static bool Step(ECSWorld ecs, WorldData world, Vector3 position, float speed, float size, bool wasInWater)
         {
             Vector2 at = position.Xz;
             float depth = world.WaterDepthAt(at);
-            Ground ground = GroundUnder(world, at, depth);
+            Ground ground = RainedOn(ecs, GroundUnder(world, at, depth), at);
             bool inWater = ground is Ground.Shallows or Ground.Water;
             StepsHeard[ground] = StepsHeard.GetValueOrDefault(ground) + 1;
 
@@ -385,6 +387,25 @@ namespace Dino_Defenders.Client
 
             if (inWater && !wasInWater) Audio.Play(Splashes.Wade, position, AudioFormat.GainToDecibels(MathF.Sqrt(scale)), 1f / MathF.Sqrt(scale));
             return inWater;
+        }
+
+        // Rain changes what's underfoot: earth goes to mud, sand packs down, and a foot that lands where a puddle has filled lands in water, by the rule the ground is painted with.
+        private static Ground RainedOn(ECSWorld ecs, Ground ground, Vector2 at)
+        {
+            if (ground is Ground.Shallows or Ground.Water) return ground;
+            WeatherSample weather = Weather.At(ecs, at);
+            if (weather.Flood > 0.05f && ecs.TryGetSingleton<TerrainGeneratorSingleton>(out Entity terrain))
+            {
+                float hollow = ecs.GetComponent<TerrainGeneratorSingleton>(terrain).Generator.HollowAt(at);
+                if (weather.Flood * PuddleLevel - (1f - hollow) > 0f) return Ground.Shallows;
+            }
+            if (weather.Wet < WetGround) return ground;
+            return ground switch
+            {
+                Ground.Dirt => Ground.Mud,
+                Ground.Sand => Ground.WetSand,
+                _ => ground,
+            };
         }
 
         private static Ground GroundUnder(WorldData world, Vector2 at, float depth)
@@ -535,14 +556,24 @@ namespace Dino_Defenders.Client
         private const float FarthestBank = 46f;         // Metres from which small water can be heard lapping.
         private const float NearestBell = 170f;
         private const int ShoreRays = 12;
+        private const float SpeedOfSound = 343f;
+        private const float CloudHeight = 180f;         // Metres up that thunder seems to come from.
+        private const float CrackReach = 280f;          // Metres within which the strike itself is heard, and not only what's left of it.
+        private const float RollReach = 1300f;
+        private const float FarthestThunder = 3000f;
 
         private static readonly float[] ShoreRanges = { 4f, 8f, 14f, 22f, 30f, 45f, 60f, 90f, 140f, 210f };
 
         /// <summary>What was last read off the land, for a scripted run's report.</summary>
-        public static (float wind, float crest, float sea, float bank) Reading;
+        public static (float wind, float crest, float sea, float bank, float rain, float drips) Reading;
 
         private GameSession? _session;
-        private SoundHandle _wind, _ocean, _lapping, _birds, _crickets, _frogs, _haunting;
+        private const float DripHearing = 8f;   // Metres that something has to stand within for its drips to be heard.
+
+        private SoundHandle _wind, _ocean, _lapping, _rain, _drips, _birds, _crickets, _frogs, _haunting;
+        private readonly List<(float at, LightningStrike strike, float distance)> _thunder = new();
+        private float _trees;
+        private float _nearWater;
         private int _shoreWave;
         private float _waveCount;
         private float _nextPlace;
@@ -565,6 +596,7 @@ namespace Dino_Defenders.Client
 
             UpdateListener(session, deltaTime);
             Audio.Muffle(session.Paused ? 0.8f : 0f);
+            UpdateThunder(world, session);
 
             _nextPlace -= deltaTime;
             if (_nextPlace > 0f) return;
@@ -572,6 +604,8 @@ namespace Dino_Defenders.Client
 
             ReadWind(world, session);
             ReadShore(world, session);
+            ReadRain(world);
+            ReadDrips(world, session);
             ReadLife(world, session);
             ReadPlace(world, session);
         }
@@ -582,6 +616,9 @@ namespace Dino_Defenders.Client
             _wind.Stop(1f);
             _ocean.Stop(1f);
             _lapping.Stop(1f);
+            _rain.Stop(1f);
+            _drips.Stop(1f);
+            _thunder.Clear();
             _birds.Stop(1f);
             _crickets.Stop(1f);
             _frogs.Stop(1f);
@@ -592,6 +629,8 @@ namespace Dino_Defenders.Client
             _wind = Audio.Start(Soundscape.Wind, seed: seed);
             _ocean = Audio.Start(Soundscape.Ocean, gain: 0f, seed: seed + 1UL);
             _lapping = Audio.Start(Soundscape.Lapping, gain: 0f, seed: seed + 6UL);
+            _rain = Audio.Start(Soundscape.Rain, gain: 0f, seed: seed + 7UL);
+            _drips = Audio.Start(Soundscape.Drips, gain: 0f, seed: seed + 8UL);
             _birds = Audio.Start(Life.Birds, seed: seed + 2UL);
             _crickets = Audio.Start(Life.Crickets, seed: seed + 3UL);
             _frogs = Audio.Start(Life.Frogs, seed: seed + 4UL);
@@ -644,6 +683,7 @@ namespace Dino_Defenders.Client
                 trees += land.Canopy.Sample(at.X + MathF.Cos(angle) * 18f, at.Y + MathF.Sin(angle) * 18f);
             }
             trees = Math.Clamp(trees / 8f * 1.4f, 0f, 1f);
+            _trees = trees;
 
             BiomeDefinition biome = land.BiomeAt(at);
             _wind.Set(WindSound.Trees, trees);
@@ -691,6 +731,7 @@ namespace Dino_Defenders.Client
             _ocean.Set(OceanSound.Near, near);
 
             float bank = 1f - nearestBank / FarthestBank;
+            _nearWater = bank;
             Reading.sea = near;
             Reading.bank = bank;
             _lapping.SetGain(bank <= 0f ? 0f : 1f);
@@ -720,6 +761,55 @@ namespace Dino_Defenders.Client
             if (bankSide.LengthSquared > 1e-6f) _lapping.Set(LappingSound.Side, Math.Clamp(Vector2.Dot(bankSide.Normalized(), right), -1f, 1f));
         }
 
+        // The rain that's falling on screen, on whatever's there for it to fall on.
+        private void ReadRain(ECSWorld world)
+        {
+            WeatherSample here = Weather.Here(world);
+            float rain = here.Rain;
+            Reading.rain = rain;
+            _rain.SetGain(rain > 0.003f ? 1f : 0f);
+            _rain.Set(RainSound.Intensity, rain);
+            _rain.Set(RainSound.Trees, _trees * 0.85f);
+            _rain.Set(RainSound.Water, _nearWater * _nearWater * (1f - _trees * 0.5f));
+        }
+
+        // Water coming off whatever's around, by the rule it's drawn by (Weather/Drip.glsl): under trees and beside anything solid, and for as long as things stay wet after the rain has gone.
+        private void ReadDrips(ECSWorld world, GameSession session)
+        {
+            WeatherSample here = Weather.Here(world);
+            float soaked = Math.Clamp(here.Rain * 1.2f + here.Wet * here.Wet * 0.6f, 0f, 1f);
+            float beside = session.World.Placement.OverlapsSolid(Footprint.Circle(session.PlayerPosition, DripHearing)) ? 0.7f : 0f;
+            float drips = soaked * MathF.Max(_trees, beside);
+            Reading.drips = drips;
+            _drips.SetGain(drips > 0.003f ? 1f : 0f);
+            _drips.Set(DripSound.Rate, drips);
+            _drips.Set(DripSound.Water, here.Flood);
+        }
+
+        // Light gets here at once, and sound takes three seconds a kilometre. The further off, the less is left of it but the low roll.
+        private void UpdateThunder(ECSWorld world, GameSession session)
+        {
+            if (Weather.TryGet(world, out WeatherSingleton weather))
+            {
+                foreach (LightningStrike strike in weather.Struck)
+                {
+                    float distance = (strike.Position - session.PlayerPosition).Length;
+                    if (distance < FarthestThunder) _thunder.Add((Engine.Time + distance / SpeedOfSound, strike, distance));
+                }
+            }
+
+            for (int i = _thunder.Count - 1; i >= 0; i--)
+            {
+                (float at, LightningStrike strike, float distance) = _thunder[i];
+                if (at > Engine.Time) continue;
+                _thunder.RemoveAt(i);
+
+                var from = new Vector3(strike.Position.X, session.World.Height.Sample(strike.Position) + CloudHeight, strike.Position.Y);
+                float loudness = AudioFormat.GainToDecibels(0.55f + 0.45f * strike.Power);
+                Audio.Play(distance < CrackReach ? Cataclysm.LightningNear : distance < RollReach ? Cataclysm.ThunderNear : Cataclysm.ThunderFar, from, loudness);
+            }
+        }
+
         private void ReadLife(ECSWorld world, GameSession session)
         {
             WorldData land = session.World;
@@ -734,15 +824,18 @@ namespace Dino_Defenders.Client
             bool barren = biome.Ground is SurfaceMaterial.Snow or SurfaceMaterial.Ice or SurfaceMaterial.Ash or SurfaceMaterial.Dunes or SurfaceMaterial.Sand;
 
             float dusk = land.Plan.Mood.Name.Contains("evening") || land.Plan.Mood.Name.Contains("dawn") ? 0.5f : 0f;
-            float birds = barren ? 0f : (0.25f + 0.75f * canopy) * (0.5f + 0.5f * wet) * (1f - night) * (1f - dusk * 0.4f);
-            float crickets = barren ? 0f : Math.Clamp(biome.GrassCover * warmth * (dusk + night * 1.2f + 0.12f), 0f, 1f);
+            // Birds shelter and crickets stop for rain, and it's what frogs have been waiting for.
+            WeatherSample weather = Weather.Here(world);
+            float downpour = Math.Clamp(weather.Fall * 2.2f, 0f, 1f);
+            float birds = barren ? 0f : (0.25f + 0.75f * canopy) * (0.5f + 0.5f * wet) * (1f - night) * (1f - dusk * 0.4f) * (1f - downpour);
+            float crickets = barren ? 0f : Math.Clamp(biome.GrassCover * warmth * (dusk + night * 1.2f + 0.12f), 0f, 1f) * (1f - downpour);
 
             float water = land.WaterLevelAt(at);
             float frogs = biome.Id == "marsh" ? 0.85f : land.Height.Sample(at) - water < 2.5f && !barren && water > WorldPlan.SeaLevel ? 0.5f : 0f;
 
             _birds.Set(BirdsongSound.Activity, birds);
             _crickets.Set(CricketSound.Activity, crickets);
-            _frogs.Set(FrogSound.Activity, frogs * (0.4f + 0.6f * night + dusk * 0.5f));
+            _frogs.Set(FrogSound.Activity, Math.Clamp(frogs * (0.4f + 0.6f * night + dusk * 0.5f + weather.Rain * 0.5f), 0f, 1f));
             _haunting.Set(HauntingSound.Depth, night);
 
             // There's a bell somewhere near a churchyard, heard now and then, that nobody's seen ring.

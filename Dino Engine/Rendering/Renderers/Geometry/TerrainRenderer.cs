@@ -82,6 +82,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _terrainShader.loadUniformInt("surfaceWeightsA", 9);
             _terrainShader.loadUniformInt("surfaceWeightsB", 10);
             _terrainShader.loadUniformInt("surfaceWeightsC", 11);
+            Simulation.WeatherRenderer.LinkSurfaceSamplers(_terrainShader);
 
             _terrainShader.unBind();
 

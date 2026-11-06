@@ -6,6 +6,7 @@ using Dino_Engine.GUI.Widgets;
 using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.AntiAliasing;
 using Dino_Engine.Rendering.Renderers.Lighting;
+using Dino_Engine.World;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.GUI.Debug
@@ -16,6 +17,8 @@ namespace Dino_Engine.GUI.Debug
         private static readonly string[] BufferNames = { "Final image", "Albedo", "Normals", "Materials", "Depth" };
         private static readonly string[] MsaaModes = { "Off", "2x", "4x", "8x" };
         private static readonly int[] MsaaSamples = { 1, 2, 4, 8 };
+        private static readonly string[] WeatherNames = { "The world's own", "clear", "cloudy", "overcast", "wet", "drizzle", "rain", "storm", "snow", "blizzard", "dust", "ash", "fog" };
+        private static readonly string[] ReflectionViews = { "Final image", "Rays that found something", "Sky a ray can see", "Everything reflected", "The sky map" };
 
         public static GuiWindow Build()
         {
@@ -263,6 +266,70 @@ namespace Dino_Engine.GUI.Debug
                 Water.AddSplash(world, position, radius: 1.2f, strength: 0.06f);
             }));
 
+            // ---------------------------------------------------------------- weather
+            var weather = window.Content.Add(new Foldout("Weather"));
+            weather.Content.Add(new Checkbox("Enabled").Bind(
+                () => Weather.TryGet(Engine.Instance?.world, out var w) && w.Enabled,
+                value => EditWeather((ref WeatherSingleton w) => w.Enabled = value)));
+            weather.Content.Add(DebugUi.Muted("Hold one weather everywhere, or leave it to the world's own.", wrap: true));
+            var ordered = new Dropdown(WeatherNames, 0);
+            ordered.SelectionChanged += index =>
+            {
+                WeatherSample? chosen = index > 0 && WeatherSample.TryNamed(WeatherNames[index], out WeatherSample named) ? named : null;
+                EditWeather((ref WeatherSingleton w) => w.Forced = chosen);
+            };
+            weather.Content.Add(DebugUi.LabeledRow("Hold", ordered));
+            var weatherGrid = weather.Content.Add(DebugUi.KeyValueGrid(0.3f));
+            DebugUi.AddRow(weatherGrid, "Here", () => Weather.TryGet(Engine.Instance?.world, out var w)
+                ? DebugUi.Inv($"cloud {w.Here.Cloud:0.00}, falling {w.Here.Fall:0.00}, storm {w.Here.Storm:0.00}")
+                : "no weather singleton");
+            DebugUi.AddRow(weatherGrid, "Ground", () => Weather.TryGet(Engine.Instance?.world, out var w)
+                ? DebugUi.Inv($"wet {w.Here.Wet:0.00}, puddles {w.Here.Flood:0.00}, snow {w.Here.SnowCover:0.00}")
+                : "");
+            weather.Content.Add(DebugUi.Heading("Clouds"));
+            weather.Content.Add(WeatherSlider("Altitude", 100f, 1500f, "0 m", w => w.CloudAltitude, (ref WeatherSingleton w, float v) => w.CloudAltitude = v, step: 10f));
+            weather.Content.Add(WeatherSlider("Thickness", 50f, 800f, "0 m", w => w.CloudThickness, (ref WeatherSingleton w, float v) => w.CloudThickness = v, step: 10f));
+            weather.Content.Add(WeatherSlider("Size", 200f, 4000f, "0 m", w => w.CloudSize, (ref WeatherSingleton w, float v) => w.CloudSize = v, step: 20f));
+            weather.Content.Add(WeatherSlider("Speed", 0f, 8f, "0.0", w => w.CloudSpeed, (ref WeatherSingleton w, float v) => w.CloudSpeed = v));
+            weather.Content.Add(WeatherSlider("Sun through", 0f, 1f, "0.00", w => w.CloudShadow, (ref WeatherSingleton w, float v) => w.CloudShadow = v));
+            weather.Content.Add(DebugUi.Heading("Light"));
+            weather.Content.Add(WeatherSlider("Rain gloom", 0.1f, 1f, "0.00", w => w.RainGloom, (ref WeatherSingleton w, float v) => w.RainGloom = v));
+            weather.Content.Add(WeatherSlider("Storm gloom", 0.1f, 1f, "0.00", w => w.StormGloom, (ref WeatherSingleton w, float v) => w.StormGloom = v));
+            weather.Content.Add(WeatherSlider("Flash", 0f, 30f, "0.0", w => w.FlashPower, (ref WeatherSingleton w, float v) => w.FlashPower = v));
+            weather.Content.Add(DebugUi.Heading("Air"));
+            weather.Content.Add(WeatherSlider("Mist", 0f, 1.5f, "0.00", w => w.MistFog, (ref WeatherSingleton w, float v) => w.MistFog = v));
+            weather.Content.Add(WeatherSlider("Steam", 0f, 1.5f, "0.00", w => w.SteamFog, (ref WeatherSingleton w, float v) => w.SteamFog = v));
+            weather.Content.Add(WeatherSlider("Dust", 0f, 1.5f, "0.00", w => w.DustFog, (ref WeatherSingleton w, float v) => w.DustFog = v));
+            weather.Content.Add(WeatherSlider("Snow drift", 0f, 1.5f, "0.00", w => w.DriftFog, (ref WeatherSingleton w, float v) => w.DriftFog = v));
+            weather.Content.Add(WeatherSlider("Ash", 0f, 1.5f, "0.00", w => w.AshFog, (ref WeatherSingleton w, float v) => w.AshFog = v));
+            weather.Content.Add(WeatherSlider("Clearing", 0f, 30f, "0.0 m", w => w.FogClearing, (ref WeatherSingleton w, float v) => w.FogClearing = v));
+            weather.Content.Add(WeatherSlider("Pooling", 0f, 1f, "0.00", w => w.FogPooling, (ref WeatherSingleton w, float v) => w.FogPooling = v));
+            weather.Content.Add(DebugUi.Heading("Rain"));
+            weather.Content.Add(WeatherSlider("Drops", 0f, 200000f, "0", w => w.RainDrops, (ref WeatherSingleton w, float v) => w.RainDrops = (int)v, step: 1000f));
+            weather.Content.Add(WeatherSlider("Splashes", 0f, 20000f, "0", w => w.Splashes, (ref WeatherSingleton w, float v) => w.Splashes = (int)v, step: 100f));
+            weather.Content.Add(WeatherSlider("Fall speed", 2f, 20f, "0.0 m/s", w => w.RainSpeed, (ref WeatherSingleton w, float v) => w.RainSpeed = v));
+            weather.Content.Add(WeatherSlider("Streak", 0f, 0.2f, "0.000 s", w => w.RainExposure, (ref WeatherSingleton w, float v) => w.RainExposure = v));
+            weather.Content.Add(WeatherSlider("Opacity", 0f, 1f, "0.00", w => w.RainOpacity, (ref WeatherSingleton w, float v) => w.RainOpacity = v));
+            weather.Content.Add(DebugUi.Heading("Wet surfaces"));
+            weather.Content.Add(WeatherSlider("Drip rate", 0f, 1f, "0.00", w => w.DripRate, (ref WeatherSingleton w, float v) => w.DripRate = v));
+            weather.Content.Add(WeatherSlider("Drip opacity", 0f, 1f, "0.00", w => w.DripOpacity, (ref WeatherSingleton w, float v) => w.DripOpacity = v));
+            weather.Content.Add(WeatherSlider("Darkening", 0f, 1f, "0.00", w => w.WetDarkening, (ref WeatherSingleton w, float v) => w.WetDarkening = v));
+            weather.Content.Add(WeatherSlider("Gloss", 0f, 1f, "0.00", w => w.WetGloss, (ref WeatherSingleton w, float v) => w.WetGloss = v));
+            weather.Content.Add(WeatherSlider("Puddles", 0f, 2f, "0.00", w => w.PuddleLevel, (ref WeatherSingleton w, float v) => w.PuddleLevel = v));
+            weather.Content.Add(WeatherSlider("Ring size", 0.5f, 10f, "0.0 m", w => w.RippleSize, (ref WeatherSingleton w, float v) => w.RippleSize = v));
+            weather.Content.Add(WeatherSlider("Rings", 0f, 3f, "0.00", w => w.RippleStrength, (ref WeatherSingleton w, float v) => w.RippleStrength = v));
+
+            // ---------------------------------------------------------------- reflections
+            var reflections = window.Content.Add(new Foldout("Reflections"));
+            ReflectionSettings reflect = Engine.RenderEngine.Reflections;
+            reflections.Content.Add(new Checkbox("Rays on screen").Bind(() => reflect.ScreenRays, value => reflect.ScreenRays = value));
+            reflections.Content.Add(LightingSlider("Steps", 8f, 128f, "0", () => reflect.MaxSteps, v => reflect.MaxSteps = (int)v, step: 1f));
+            reflections.Content.Add(LightingSlider("Thickness", 0.05f, 3f, "0.00 m", () => reflect.ThicknessBase, v => reflect.ThicknessBase = v));
+            reflections.Content.Add(LightingSlider("History", 0f, 0.98f, "0.00", () => reflect.History, v => reflect.History = v));
+            var reflectionView = new Dropdown(ReflectionViews, 0);
+            reflectionView.SelectionChanged += index => { if (index >= 0) reflect.Debug = index; };
+            reflections.Content.Add(DebugUi.LabeledRow("Show", reflectionView));
+
             // ---------------------------------------------------------------- camera
             var camera = window.Content.Add(new Foldout("Camera"));
             camera.Content.Add(DebugUi.LabeledRow("Field of view", new Slider(20f, 120f) { Format = "0°", Step = 1f, FormatProvider = DebugUi.Culture }.Bind(
@@ -429,6 +496,25 @@ namespace Dino_Engine.GUI.Debug
             var water = world.GetComponent<WaterSingleton>(entity);
             edit(ref water);
             world.GetEntityView(entity).Set(water);
+        }
+
+        private delegate void WeatherSetter(ref WeatherSingleton weather, float value);
+        private delegate void WeatherEdit(ref WeatherSingleton weather);
+
+        private static GuiElement WeatherSlider(string caption, float min, float max, string format, Func<WeatherSingleton, float> get, WeatherSetter set, float step = 0f)
+        {
+            return DebugUi.LabeledRow(caption, new Slider(min, max) { Format = format, Step = step, FormatProvider = DebugUi.Culture }.Bind(
+                () => Weather.TryGet(Engine.Instance?.world, out var weather) ? get(weather) : min,
+                value => EditWeather((ref WeatherSingleton w) => set(ref w, value))));
+        }
+
+        private static void EditWeather(WeatherEdit edit)
+        {
+            var world = Engine.Instance?.world;
+            if (world == null || !world.TryGetSingleton<WeatherSingleton>(out Entity entity)) return;
+            var weather = world.GetComponent<WeatherSingleton>(entity);
+            edit(ref weather);
+            world.GetEntityView(entity).Set(weather);
         }
 
         private static bool TryGetSun<T>(out T component) where T : struct, IComponent

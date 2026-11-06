@@ -37,6 +37,9 @@ namespace Dino_WorldLab
                     return Packs(options);
                 case "wind":
                     return WindCheck.Run();
+                case "weather":
+                    if (options.Text("out") is string path) return WeatherCheck.Map(options.Int("seed", 1), options.Text("archetype"), path, options.Int("clock", 0), options.Int("every", 4), options.Int("maps", 5));
+                    return WeatherCheck.Run(options.Int("count", 3));
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

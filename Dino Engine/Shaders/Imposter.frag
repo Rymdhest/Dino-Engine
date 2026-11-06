@@ -31,6 +31,10 @@ int numberOfMaterials = 0;
 #include gBufferUtil.glsl
 #include AntiAliasing/Msaa.glsl
 #include FocusCutout.glsl
+#include Weather/Weather.glsl
+#include Weather/SurfaceMap.glsl
+#include Weather/RainShadow.glsl
+#include Weather/Wetness.glsl
 
 void main() {
 
@@ -42,17 +46,25 @@ void main() {
     if (coverage == 0) discard;
     gl_SampleMask[0] = coverage;
 
-	gAlbedo.rgb = material.albedo;
 	vec3 normal = material.normal;
     if (!gl_FrontFacing) normal.z *= -1.0;
 	normal = normalize(viewTBN * normal);
-	normal = compressNormal(normal);
-	gNormal.xyz = normal;
+
+	// Far off, a tree in the rain. Imposters are all crowns.
+	vec3 albedo = material.albedo;
+	float roughness = material.roughness;
+	mat3 viewToWorld = mat3(invViewMatrix);
+	vec3 worldNormal = viewToWorld * normal;
+	weatherWetten(fragWorldPos, worldNormal, WEATHER_FOLIAGE_POROSITY, material.metalic, 0.0, material.height, albedo, roughness, worldNormal);
+	normal = mat3(viewMatrix) * worldNormal;
+
+	gAlbedo.rgb = albedo;
+	gNormal.xyz = compressNormal(normal);
 
     gAlbedo.a = material.subSurface;
 	//gAlbedo.a = 0.0;
     gNormal.a = material.ambient;
-	gMaterials.r = material.roughness;
+	gMaterials.r = roughness;
 	gMaterials.g = encodeEmission(material.emission * EMISSION_GAIN);
 	gMaterials.b = material.metalic;
     gMaterials.a = material.height;

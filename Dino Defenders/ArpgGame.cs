@@ -165,7 +165,8 @@ namespace Dino_Defenders
             foreach (string setting in render.Split(','))
             {
                 string[] parts = setting.Split('=');
-                if (parts.Length != 2 || !Dino_Engine.Core.Engine.RenderEngine.Lighting.Set(parts[0], parts[1])) Console.WriteLine($"No render setting '{setting}'.");
+                var render_ = Dino_Engine.Core.Engine.RenderEngine;
+                if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
             }
         }
 
@@ -354,6 +355,8 @@ namespace Dino_Defenders
             {
                 if (_frames == frame) session.ScriptedWind = (speed, direction);
             }
+            session.WeatherClockOffset = _options.WeatherClock;
+            if (_options.Weather != null && WeatherSample.TryNamed(_options.Weather, out WeatherSample ordered)) session.ScriptedWeather = ordered;
             if (_frames == _options.GuideAfterFrames) session.Intent.Guide = true;
         }
 
@@ -460,8 +463,13 @@ namespace Dino_Defenders
             if (Audio.Mixer != null)
             {
                 var reading = Dino_Defenders.Client.SoundscapeSystem.Reading;
+                if (Dino_Engine.Physics.Weather.TryGet(Dino_Engine.Core.Engine.Instance!.world, out var weather))
+                {
+                    var here = weather.Here;
+                    Console.WriteLine($"Weather: clock {weather.Clock:0}, cloud {here.Cloud:0.00}, fall {here.Fall:0.00} ({here.Snow:0.00} snow, {here.Ash:0.00} ash), storm {here.Storm:0.00}, dust {here.Dust:0.00}, wet {here.Wet:0.00}, flood {here.Flood:0.00}, gale {here.Gale:0.00}");
+                }
                 string steps = string.Join(", ", Dino_Defenders.Client.CharacterSoundSystem.StepsHeard.OrderByDescending(pair => pair.Value).Select(pair => $"{pair.Key} {pair.Value}"));
-                Console.WriteLine($"Land: wind {reading.wind:0.0} m/s, crest {reading.crest:0.00}, sea {reading.sea:0.00}, bank {reading.bank:0.00}, steps on {steps}");
+                Console.WriteLine($"Land: wind {reading.wind:0.0} m/s, crest {reading.crest:0.00}, sea {reading.sea:0.00}, bank {reading.bank:0.00}, drips {reading.drips:0.00}, steps on {steps}");
             }
         }
 

@@ -14,6 +14,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
     public struct VolumetricFogRenderCommand : IRenderCommand
     {
         public VolumetricFogSingleton settings;
+        public float sunThrough;    // How much of the sun gets past the clouds here, for the fog to scatter.
 
         // Noise-space scroll offsets, accumulated and wrapped by VolumetricFogSystem.
         public Vector3 baseOffset;
@@ -86,6 +87,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private readonly List<PointlightRenderCommand> _pointLights = new();
         private readonly List<SpotlightRenderCommand> _spotLights = new();
         private readonly List<(float distance, int index)> _lightCandidates = new();
+
+        /// <summary>The tiling noise fog and clouds are made of: r billows, g and b detail, a broad swells.</summary>
+        public int NoiseTexture => _noiseTexture;
 
         public VolumetricFogRenderer() : base("Volumetric Fog")
         {
@@ -294,7 +298,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.ActiveTexture(TextureUnit.Texture0 + WindMapUnit);
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.WindMapTexture);
 
-            UploadDirectionalLights(settings);
+            UploadDirectionalLights(settings, command.sunThrough);
             UploadLocalLights(settings, renderEngine);
 
             _marchShader.loadUniformVector3f("scatteringAlbedo", settings.Albedo);
@@ -308,6 +312,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _marchShader.loadUniformFloat("baseHeight", settings.BaseHeight);
             _marchShader.loadUniformFloat("coverage", Math.Clamp(settings.Coverage, 0f, 1f));
             _marchShader.loadUniformFloat("edgeSoftness", Math.Max(settings.EdgeSoftness, 0.01f));
+            _marchShader.loadUniformFloat("clearingRadius", Math.Max(settings.ClearingRadius, 0.1f));
+            _marchShader.loadUniformFloat("clearingDepth", Math.Clamp(settings.ClearingDepth, 0f, 1f));
+            _marchShader.loadUniformFloat("pooling", Math.Clamp(settings.Pooling, 0f, 1f));
+            _marchShader.loadUniformFloat("banks", Math.Clamp(settings.Banks, 0f, 1f));
 
             _marchShader.loadUniformFloat("invNoiseScale", 1f / Math.Max(settings.NoiseScale, 0.1f));
             _marchShader.loadUniformFloat("noiseTexelSize", 1f / NoiseResolution);
@@ -350,18 +358,19 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             return history;
         }
 
-        private void UploadDirectionalLights(VolumetricFogSingleton settings)
+        private void UploadDirectionalLights(VolumetricFogSingleton settings, float sunThrough)
         {
             int count = 0;
             int cascadeSlot = 0;
             foreach (DirectionallightRenderCommand light in _directionalLights)
             {
                 if (count == MaxDirectionalLights) break;
-                Vector3 colour = light.colour * settings.DirectionalScattering;
+                Shadow[] cascades = light.cascades ?? Array.Empty<Shadow>();
+                // A light with cascades is the sun, and has clouds to get past. Lightning is under them.
+                Vector3 colour = light.colour * settings.DirectionalScattering * (cascades.Length > 0 ? sunThrough : 1f);
                 if (colour == Vector3.Zero || !(light.direction.LengthSquared > 0f)) continue;
 
                 // Cascades are sorted finest first. Lights past the free slots get fewer (or no) shadow cascades.
-                Shadow[] cascades = light.cascades ?? Array.Empty<Shadow>();
                 int cascadeCount = Math.Min(cascades.Length, MaxCascadeSlots - cascadeSlot);
                 _marchShader.loadUniformVector3f(DirectionalColourNames[count], colour);
                 _marchShader.loadUniformVector3f(DirectionalDirectionNames[count], -light.direction.Normalized());

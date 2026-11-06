@@ -225,6 +225,36 @@ namespace Dino_Engine.ECS.Systems
             // 6. Terrain & Grass
             var quadtreeComp = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
 
+            // The rain falls on the same things the sun does, and now and then needs to know what they are. Characters come and go too quickly to matter.
+            var focusPoint = Engine.RenderEngine.context.focusPoint;
+            Vector3 rainFocus = focusPoint.W > 0f ? focusPoint.Xyz : cameraPos;
+            if (Engine.RenderEngine._weatherRenderer.WantsRainShadow(rainFocus, deltaTime, out Shadow rainShadow))
+            {
+                foreach (var cmd in prebuiltModelCommands) Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, rainShadow);
+                if (imposterCommand.HasValue) Engine.RenderEngine._imposterRenderer.SubmitShadowCommand(imposterCommand.Value, rainShadow);
+
+                // And while anything is wet, the same things from straight above, for what drips off them.
+                if (Engine.RenderEngine._weatherRenderer.WantsDripDepth(rainFocus, out Shadow dripDepth))
+                {
+                    foreach (var cmd in prebuiltModelCommands) Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, dripDepth);
+                    if (imposterCommand.HasValue) Engine.RenderEngine._imposterRenderer.SubmitShadowCommand(imposterCommand.Value, dripDepth);
+                }
+
+                _visibleChunks.Clear();
+                _terrainCommands.Clear();
+                TerrainChunkSystem.CollectVisibleChunks(quadtreeComp, new Util.Frustum(rainShadow.lightViewMatrix * rainShadow.shadowProjectionMatrix), _visibleChunks);
+                foreach (Entity chunkEntity in _visibleChunks)
+                {
+                    _terrainCommands.Add(new TerrainChunkRenderData
+                    {
+                        chunkPos = world.GetComponent<LocalToWorldMatrixComponent>(chunkEntity).value.ExtractTranslation(),
+                        size = world.GetComponent<ScaleComponent>(chunkEntity).value,
+                        arrayID = world.GetComponent<TerrainChunkComponent>(chunkEntity).normalHeightTextureArrayID,
+                    });
+                }
+                Engine.RenderEngine._weatherRenderer.SubmitRainShadowTerrain(_terrainCommands.ToArray());
+            }
+
             for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
                 Shadow shadow = shadowCascade.cascades[i];

@@ -29,11 +29,16 @@ layout (location = 2) out vec4 gMaterials;
 #include gBufferUtil.glsl
 #include AntiAliasing/Msaa.glsl
 #include FocusCutout.glsl
+#include Weather/Weather.glsl
+#include Weather/SurfaceMap.glsl
+#include Weather/RainShadow.glsl
+#include Weather/Wetness.glsl
 
 void main() {
 
+	vec3 worldPosition = (invViewMatrix * vec4(viewSpacePos, 1.0)).xyz;
 	// Characters' own shader keeps them whole; for everything else this opens the view to the player.
-	applyFocusCutout((invViewMatrix * vec4(viewSpacePos, 1.0)).xyz);
+	applyFocusCutout(worldPosition);
 
 	vec2 uvDX = dFdx(fragUV);
 	vec2 uvDY = dFdy(fragUV);
@@ -67,9 +72,22 @@ void main() {
     if (!gl_FrontFacing) normalTangentSpace.z *= -1.0;
     normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
     vec3 normal = normalize(normalTBN*normalTangentSpace.xyz);
+	float roughness = material.roughness;
+
+	// Whatever glows goes on glowing in the rain, at the same strength.
+	if (material.emission <= 0.0)
+	{
+		mat3 viewToWorld = mat3(invViewMatrix);
+		vec3 geometryNormal = normalize(viewToWorld * normalTBN[2]) * (gl_FrontFacing ? 1.0 : -1.0);
+		vec3 worldNormal = viewToWorld * normal;
+		vec3 albedo = gAlbedo.rgb;
+		weatherWetten(worldPosition, geometryNormal, weatherPorosity(textureIndex, numberOfMaterials), material.metalic, 0.0, material.height, albedo, roughness, worldNormal);
+		gAlbedo.rgb = albedo;
+		normal = mat3(viewMatrix) * worldNormal;
+	}
 	gNormal.xyz = compressNormal(normal);
 
-	gMaterials.r = material.roughness;
+	gMaterials.r = weatherFilterRoughness(roughness, normal);
 	gMaterials.g = encodeEmission(material.emission * EMISSION_GAIN * overbright);
 	gMaterials.b = material.metalic;
     gMaterials.a = material.height;

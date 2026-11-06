@@ -26,6 +26,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _instancedModelShader.loadUniformInt("bendMap", BendMapUnit);
             _instancedModelShader.loadUniformInt("windMap", WindMapUnit);
+            Simulation.WeatherRenderer.LinkSurfaceSamplers(_instancedModelShader);
             _instancedModelShader.unBind();
 
             _instancedModelShadowShader.bind();

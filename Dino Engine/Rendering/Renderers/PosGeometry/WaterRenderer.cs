@@ -4,6 +4,7 @@ using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.AntiAliasing;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
+using Dino_Engine.Rendering.Renderers.Simulation;
 using Dino_Engine.Util;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
@@ -65,7 +66,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
         // Light limits; array sizes must match WaterCommon.glsl.
         private const int MaxDirectionalLights = 4;
-        private const int MaxCascadeSlots = 5;
+        private const int MaxCascadeSlots = 2;
         private const int MaxPointLights = 8;
         private const int MaxSpotLights = 8;
 
@@ -81,6 +82,10 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private const int GNormalUnit = 8;
         private const int CascadeUnitStart = 9;
         private const int TerrainHeightUnit = CascadeUnitStart + MaxCascadeSlots;
+        private const int SkyMapUnit = TerrainHeightUnit + 1;
+        private const int CloudShadowUnit = SkyMapUnit + 1;
+        private const int RainRingUnit = CloudShadowUnit + 1;
+        private const int WeatherMapUnit = RainRingUnit + 1;
 
         private static readonly string[] DirectionalColourNames = UniformNames("directionalColours", MaxDirectionalLights);
         private static readonly string[] DirectionalDirectionNames = UniformNames("directionalDirections", MaxDirectionalLights);
@@ -152,6 +157,10 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
                 shader.loadUniformInt("patternTexture", PatternUnit);
                 shader.loadUniformInt("rippleSimulation", RippleSimulationUnit);
                 shader.loadUniformInt("terrainHeights", TerrainHeightUnit);
+                shader.loadUniformInt("skyMap", SkyMapUnit);
+                shader.loadUniformInt("cloudShadowMap", CloudShadowUnit);
+                shader.loadUniformInt("rainRipples", RainRingUnit);
+                shader.loadUniformInt("weatherMapA", WeatherMapUnit);
                 for (int i = 0; i < MaxCascadeSlots; i++) shader.loadUniformInt("cascadeShadowMaps[" + i + "]", CascadeUnitStart + i);
             }
             _oceanShader.loadUniformInt("shoreField", ShoreFieldUnit);
@@ -439,6 +448,15 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             GL.BindTexture(TextureTarget.Texture2D, _rippleSimulation.Texture);
             GL.ActiveTexture(TextureUnit.Texture0 + TerrainHeightUnit);
             GL.BindTexture(TextureTarget.Texture2D, _shoreField.HeightTexture);
+            WeatherRenderer weather = renderEngine._weatherRenderer;
+            GL.ActiveTexture(TextureUnit.Texture0 + SkyMapUnit);
+            GL.BindTexture(TextureTarget.Texture2D, weather.SkyMapTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + CloudShadowUnit);
+            GL.BindTexture(TextureTarget.Texture2D, weather.CloudShadowTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + RainRingUnit);
+            GL.BindTexture(TextureTarget.Texture2D, weather.RippleTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + WeatherMapUnit);
+            GL.BindTexture(TextureTarget.Texture2D, weather.SurfaceMapTexture);
         }
 
         private void UploadShared(ShaderProgram shader, WaterRenderCommand command, Matrix4 viewProjection, Vector4 sceneRect)

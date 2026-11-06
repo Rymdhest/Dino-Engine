@@ -21,6 +21,11 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private readonly ShaderProgram _shader = new ShaderProgram("Simple.vert", "Ambient_Light.frag");
         private readonly ShaderProgram _sampleShader = new ShaderProgram("Simple.vert", "Ambient_Light.frag", new[] { "PER_SAMPLE" });
 
+        private const int SkyMapUnit = 4;
+
+        /// <summary>What the ground throws back up, this frame. It's what a reflection pointing down sees.</summary>
+        public Vector3 GroundLight { get; private set; }
+
         public AmbientLightRenderer() : base("Ambient Light")
         {
             foreach (ShaderProgram shader in new[] { _shader, _sampleShader })
@@ -31,6 +36,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("gMaterials", 2);
                 shader.loadUniformInt("gDepth", 3);
                 shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
+                shader.loadUniformInt("skyMap", SkyMapUnit);
                 shader.unBind();
             }
         }
@@ -42,6 +48,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.BlendEquation(BlendEquationMode.FuncAdd);
 
             renderEngine.Msaa.BindGeometrySamples(renderEngine.AmbientOcclusionTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + SkyMapUnit);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._weatherRenderer.SkyMapTexture);
+            GL.ActiveTexture(TextureUnit.Texture0);
         }
 
         internal override void Finish(RenderEngine renderEngine)
@@ -58,6 +67,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public override void PerformCommand(AmbientLightRenderCommand command, RenderEngine renderEngine)
         {
             LightingSettings lighting = renderEngine.Lighting;
+            GroundLight = command.ground;
             renderEngine.Msaa.DrawSplit(_shader, _sampleShader, shader =>
             {
                 shader.loadUniformVector3f("skyLight", command.sky);

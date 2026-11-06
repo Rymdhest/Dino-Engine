@@ -2,7 +2,7 @@
 #define DINO_WATER_COMMON_GLSL
 
 // Shading shared by every water surface (Water_Still.frag, Water_Ocean.frag). Those include Globals.glsl,
-// gBufferUtil.glsl, Lighting/lightingCalc.glsl and Wind.glsl before this file.
+// gBufferUtil.glsl, Lighting/lightingCalc.glsl and Wind.glsl before this file, which brings in the weather itself.
 //
 // Water is drawn after the deferred lighting, over a copy of the lit scene (WaterRenderer):
 // - what lies under the water is the scene seen through the surface, shifted by the surface slope as refraction
@@ -13,6 +13,13 @@
 // - the sun and the other lights leave GGX glints; ripples too small to see on screen widen them (LEAN mapping),
 // - waves focus sunlight into caustics on the bottom.
 // Everything is in metres and the engine's light units, so water sits with the deferred lighting.
+
+#include Weather/Weather.glsl
+#include Weather/SurfaceMap.glsl
+#include Weather/Sky.glsl
+#include Weather/Sun_Visibility.glsl
+
+uniform sampler2D rainRipples;
 
 const float WATER_PI = 3.14159265359;
 const float WATER_IOR = 1.333;
@@ -27,7 +34,7 @@ const float CAUSTIC_SCALE = 1.37;                                               
 
 // Array sizes must match WaterRenderer.
 const int WATER_MAX_DIRECTIONAL_LIGHTS = 4;
-const int WATER_MAX_CASCADE_SLOTS = 5;
+const int WATER_MAX_CASCADE_SLOTS = 2;
 const int WATER_MAX_POINT_LIGHTS = 8;
 const int WATER_MAX_SPOT_LIGHTS = 8;
 
@@ -75,8 +82,8 @@ uniform vec3 directionalColours[4];
 uniform vec3 directionalDirections[4];
 uniform int directionalCascadeStart[4];
 uniform int directionalCascadeCount[4];
-uniform mat4 cascadeMatrices[5];
-uniform sampler2DShadow cascadeShadowMaps[5];
+uniform mat4 cascadeMatrices[2];
+uniform sampler2DShadow cascadeShadowMaps[2];
 
 uniform int pointLightCount;
 uniform vec4 pointPositionRadius[8];
@@ -101,10 +108,10 @@ float waterDirectionalShadow(int light, vec3 position)
         vec3 shadowCoord = (cascadeMatrices[c] * vec4(position, 1.0)).xyz * 0.5 + 0.5;
         if (all(greaterThan(shadowCoord, vec3(0.0))) && all(lessThan(shadowCoord, vec3(1.0))))
         {
-            return textureLod(cascadeShadowMaps[c], vec3(shadowCoord.xy, shadowCoord.z - 0.0002), 0.0);
+            return textureLod(cascadeShadowMaps[c], vec3(shadowCoord.xy, shadowCoord.z - 0.0002), 0.0) * weatherSunVisibility(position.xz);
         }
     }
-    return 1.0;
+    return weatherSunVisibility(position.xz);
 }
 
 // Same cone falloff as Spot_Light.frag.
@@ -154,10 +161,10 @@ vec3 waterDirectionalSpecular(vec3 position, vec3 N, vec3 V, float roughness)
     return specular;
 }
 
-// The sky as sky.frag draws it, seen in direction `direction`.
+// The sky as sky.frag draws it, clouds and all, seen in direction `direction`.
 vec3 waterSkyRadiance(vec3 direction)
 {
-    return skyColour * skyStrength * (1.0 - pow(max(direction.y, 0.0), 0.7) * 0.9);
+    return skyEnvironment(direction, 0.03, skyColour * skyStrength);
 }
 
 // ---------------------------------------------------------------- surface detail
@@ -191,13 +198,21 @@ vec3 waterRipples(vec2 xz, vec2 xzDx, vec2 xzDy, float windSpeed, out float mean
     return vec3(slope, (a.z * 0.6 + b.z * 0.4) * meanSquareSlope);
 }
 
-// Slope of the ripples things moving through the water have left (WaterRenderer's ripple simulation).
+// Slope of the rings rain is making here (Weather/Rain_Ripples.frag).
+vec2 waterRainSlope(vec2 xz)
+{
+    if (weatherKind.w < 0.5) return vec2(0.0);
+    return textureLod(rainRipples, xz * wetLook.w, 0.0).xy * (rippleLook.x * weatherSurfaceAt(xz).w * 1.4);
+}
+
+// Slope of the ripples things moving through the water have left (WaterRenderer's ripple simulation), and of the rain's.
 vec2 waterInteractionSlope(vec2 xz)
 {
-    if (rippleSimRegion.z <= 0.0) return vec2(0.0);
+    vec2 rain = waterRainSlope(xz);
+    if (rippleSimRegion.z <= 0.0) return rain;
     vec2 uv = (xz - rippleSimRegion.xy) / rippleSimRegion.zw;
-    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return vec2(0.0);
-    return textureLod(rippleSimulation, uv, 0.0).zw * rippleSimStrength;
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return rain;
+    return textureLod(rippleSimulation, uv, 0.0).zw * rippleSimStrength + rain;
 }
 
 // Foam lace coverage 0..1 for an amount of foam: little foam shows only the strongest strands of the lace, a lot covers it.

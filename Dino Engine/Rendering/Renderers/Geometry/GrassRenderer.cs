@@ -109,6 +109,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _generateShader.loadUniformInt("grassBloomMaps", GrassBloomMapUnit);
             _generateShader.loadUniformInt("bendMap", BendMapUnit);
             _generateShader.loadUniformInt("windMap", WindMapUnit);
+            _generateShader.loadUniformInt("weatherMapA", Simulation.WeatherRenderer.SurfaceMapUnit);
             _generateShader.loadUniformInt("nearCapacity", NearCapacity);
             _generateShader.loadUniformInt("farCapacity", FarCapacity);
             _generateShader.loadUniformFloat("textureMapOffset", 1f / TerrainRenderer.CHUNK_RESOLUTION);

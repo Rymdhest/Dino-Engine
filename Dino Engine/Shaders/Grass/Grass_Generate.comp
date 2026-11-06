@@ -19,6 +19,8 @@ layout(local_size_x = 64) in;
 #include Wind.glsl
 #include Grass/GrassField.glsl
 #include Grass/GrassBlade.glsl
+#include Weather/Weather.glsl
+#include Weather/SurfaceMap.glsl
 
 layout(std140, binding = 5) uniform ChunkDataBuffer {
     vec4 chunkData[1024];   // xy chunk origin (world xz), z chunk size, w height map layer
@@ -265,6 +267,9 @@ void main()
     float tilt = max(grassShape.x + (grassRandom(seed) * 2.0 - 1.0) * grassShape.y, 0.0);
     // Long blades flop over further than short ones. Flowers hold their heads up, and seed heads nod.
     float droop = grassShape.z * (0.5 + grassRandom(seed)) * clamp(bladeLength / max(grassBlade.x * 0.5, 0.01), 0.3, 1.5);
+    // Water weighs a blade down, and snow lays it over.
+    vec4 weatherHere = weatherKind.w > 0.5 ? weatherSurfaceAt(root.xz) : vec4(0.0);
+    droop *= 1.0 + 0.55 * weatherHere.x + 0.9 * weatherHere.z;
     if (kind == GRASS_BLOOM)
     {
         tilt *= 0.5;
@@ -377,14 +382,19 @@ void main()
         // Each tuft is its own green, some leaning cool and some warm.
         colour *= mix(vec3(1.0), mix(vec3(0.7, 0.95, 1.15), vec3(1.36, 1.08, 0.66), tuftHue), variation);
         colour = mix(colour, grassDryColour.rgb, dryness * (0.75 + 0.25 * grassRandom(seed)));
+        // Wet grass goes deep and rich, a good way darker than it was, and the straw most of all.
+        colour *= mix(1.0, 0.62 - 0.14 * dryness, weatherHere.x);
 
         blade.colour = clamp(colour, 0.0, 1.0);
         blade.tipColour = clamp(grassTipOf(colour), 0.0, 1.0);
+        // Snow lies on the top of a field, and that's what's seen of it.
+        blade.tipColour = mix(blade.tipColour, vec3(0.86, 0.88, 0.92), weatherHere.z * 0.9);
         blade.tipBleach = clamp(0.35 + 0.5 * grassRandom(seed) + 0.3 * dryness, 0.0, 1.0);
         blade.groundNormal = groundNormal.xz;
         // Roots in thick grass, and in the middle of tufts, see less sky.
         blade.rootAO = clamp(mix(0.7, 0.2, clamp(fertility * 1.2, 0.0, 1.0)) - 0.1 * (1.0 - clamp(tuftDistance * 1.5, 0.0, 1.0)), 0.08, 1.0);
-        blade.gloss = grassRandom(seed);
+        // Every blade carries beads of water, and shines with them.
+        blade.gloss = mix(grassRandom(seed), 1.0, weatherHere.x * 0.85);
         // Grass pressed down lies on top of the field, in the light, not deep inside it.
         blade.canopy = max(canopy, 0.1) * (1.0 - 0.7 * min(length(bend) * (1.0 / VEGETATION_MAX_TOTAL_BEND), 1.0));
         blade.sheen = grassWave.w * clamp(windCrest(root.xz) * 0.8 + smoothstep(0.5, 0.9, windHere.w) * 0.6, 0.0, 1.0);

@@ -2,8 +2,10 @@ using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
+using Dino_Defenders.UI;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.GUI;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
 using OpenTK.Mathematics;
@@ -85,7 +87,51 @@ namespace Dino_NetLab
             TheFallenTakeNothing(report, worlds, request);
             ABadLineLosesNothing(report, worlds, request);
             AnotherWorldStartsClean(report, worlds, request);
+            LabelsAlwaysSettle(report);
             return report.Finish();
+        }
+
+        // Labels go up past each other, and the numbers here are from a game that froze doing it: lifted clear of this one, a label still touched it by a rounding error,
+        // and lifting it again left it where it was, for as long as anyone would wait. Only near the top of the screen, where a pile of finds ends up.
+        private static void LabelsAlwaysSettle(Report report)
+        {
+            report.Section("Labels piled up settle");
+            const float Gap = 2f;
+
+            var placed = new GuiRect(100f, BitConverter.UInt32BitsToSingle(0xc0c8a6e4), 85f, 24f);
+            var box = new GuiRect(100f, 10f, 85f, 24f);
+            report.Check("One in the way goes up past it", LabelStack.Lift(ref box, placed, Gap) && box.Bottom < placed.Y);
+            report.Check("And is then done with it", !LabelStack.Lift(ref box, placed, Gap), $"at {box.Y}");
+
+            var random = new Random(1);
+            int stuck = 0, onTop = 0;
+            for (int pile = 0; pile < 20000; pile++)
+            {
+                var boxes = new GuiRect[random.Next(2, 25)];
+                for (int i = 0; i < boxes.Length; i++)
+                {
+                    boxes[i] = new GuiRect(400f + random.NextSingle() * 60f, random.NextSingle() * 180f - 60f, 60f + random.NextSingle() * 120f, 24f + random.Next(0, 6) * 1.5f);
+                }
+
+                // As LootLabels and UseMarks go round them, with a limit of what going up can take: past each of the others once.
+                for (int i = 1; i < boxes.Length; i++)
+                {
+                    int lifts = 0;
+                    for (int other = 0; other < i && lifts <= i; other++)
+                    {
+                        if (!LabelStack.Lift(ref boxes[i], boxes[other], Gap)) continue;
+                        lifts++;
+                        other = -1;
+                    }
+                    if (lifts > i) stuck++;
+                    for (int other = 0; other < i; other++)
+                    {
+                        if (boxes[i].Intersects(boxes[other])) onTop++;
+                    }
+                }
+            }
+            report.Check("Every pile comes to rest", stuck == 0, $"{stuck} never did");
+            report.Check("With nothing left on top of anything", onTop == 0, $"{onTop} overlaps");
         }
 
         private static void NothingIsPickedUpByWalking(Report report, WorldCache worlds, WorldRequest request)

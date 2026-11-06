@@ -20,17 +20,18 @@ namespace Dino_Engine.World.Content
         public float FogDensity;
         public float FogHeight;
         public Vector3 FogColour;
+        public float Unsettled;         // How much wetter than the climate alone the world's weather runs. See WeatherField.
 
-        private sealed record Weather(string Name, FloatRange SunHeight, Vector3 Sun, float SunStrength, Vector3 Sky, float SkyStrength, float Fog, float Wind);
+        private sealed record Weather(string Name, FloatRange SunHeight, Vector3 Sun, float SunStrength, Vector3 Sky, float SkyStrength, float Fog, float Wind, float Unsettled);
 
         private static readonly Weather[] Weathers =
         {
-            new("Clear morning", new FloatRange(0.45f, 0.65f), new Vector3(1f, 0.92f, 0.8f), 15f, new Vector3(0.36f, 0.6f, 1f), 0.75f, 0.8f, 3f),
-            new("High summer", new FloatRange(0.8f, 1f), new Vector3(1f, 0.96f, 0.88f), 17f, new Vector3(0.38f, 0.62f, 1f), 0.8f, 0.5f, 2.5f),
-            new("Golden evening", new FloatRange(0.2f, 0.32f), new Vector3(1f, 0.68f, 0.38f), 13f, new Vector3(0.62f, 0.52f, 0.72f), 0.65f, 1.1f, 2f),
-            new("Misty dawn", new FloatRange(0.16f, 0.26f), new Vector3(1f, 0.74f, 0.58f), 8f, new Vector3(0.58f, 0.64f, 0.82f), 0.8f, 2.4f, 1.2f),
-            new("Grey overcast", new FloatRange(0.55f, 0.8f), new Vector3(0.82f, 0.86f, 0.92f), 5.5f, new Vector3(0.62f, 0.68f, 0.76f), 1.25f, 1.5f, 5f),
-            new("Windswept", new FloatRange(0.4f, 0.6f), new Vector3(1f, 0.9f, 0.76f), 13f, new Vector3(0.42f, 0.6f, 0.92f), 0.8f, 0.5f, 8f),
+            new("Clear morning", new FloatRange(0.45f, 0.65f), new Vector3(1f, 0.92f, 0.8f), 15f, new Vector3(0.36f, 0.6f, 1f), 0.75f, 0.8f, 3f, -0.1f),
+            new("High summer", new FloatRange(0.8f, 1f), new Vector3(1f, 0.96f, 0.88f), 17f, new Vector3(0.38f, 0.62f, 1f), 0.8f, 0.5f, 2.5f, -0.22f),
+            new("Golden evening", new FloatRange(0.2f, 0.32f), new Vector3(1f, 0.68f, 0.38f), 13f, new Vector3(0.62f, 0.52f, 0.72f), 0.65f, 1.1f, 2f, -0.12f),
+            new("Misty dawn", new FloatRange(0.16f, 0.26f), new Vector3(1f, 0.74f, 0.58f), 8f, new Vector3(0.58f, 0.64f, 0.82f), 0.8f, 2.4f, 1.2f, -0.02f),
+            new("Grey overcast", new FloatRange(0.55f, 0.8f), new Vector3(0.82f, 0.86f, 0.92f), 5.5f, new Vector3(0.62f, 0.68f, 0.76f), 1.25f, 1.5f, 5f, 0.2f),
+            new("Windswept", new FloatRange(0.4f, 0.6f), new Vector3(1f, 0.9f, 0.76f), 13f, new Vector3(0.42f, 0.6f, 0.92f), 0.8f, 0.5f, 8f, 0.04f),
         };
 
         public static WorldMood Draw(IReadOnlyList<BiomeDefinition> biomes, WorldRandom random)
@@ -67,6 +68,7 @@ namespace Dino_Engine.World.Content
                 FogDensity = fog / count * weather.Fog,
                 FogHeight = random.Range(5f, 11f),
                 FogColour = fogColour / count,
+                Unsettled = weather.Unsettled,
             };
         }
     }

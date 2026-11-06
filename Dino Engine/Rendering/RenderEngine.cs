@@ -30,6 +30,9 @@ namespace Dino_Engine.Rendering
         public Vector3 skyColour;
         public Vector4 focusPoint;  // xyz a point to keep in view, w the radius of the opening; see Shaders/FocusCutout.glsl.
         public float daylight;      // How bright the day is, 1 in full sun: for what's lit without going through the light passes.
+        public Vector3 sunDirection;    // Unit vector towards the sun.
+        public Vector3 sunColour;       // Its radiance by this hour, above whatever clouds there are.
+        public Vector3 clearSkyColour;  // What the sky would be with no weather at all: the gaps between the clouds.
     }
     public struct ShaderGlobals2
     {
@@ -75,6 +78,9 @@ namespace Dino_Engine.Rendering
         public VolumetricFogRenderer _volumetricFogRenderer;
         public WindRenderer _windRenderer;
         public WaterRenderer _waterRenderer;
+        public WeatherRenderer _weatherRenderer;
+        private PrecipitationRenderer _precipitationRenderer;
+        private LightningRenderer _lightningRenderer;
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
         private DepthBasedBlurRenderer _depthBasedBlurRenderer;
@@ -108,10 +114,14 @@ namespace Dino_Engine.Rendering
         public AntiAliasingSettings AntiAliasing { get; } = new AntiAliasingSettings();
         /// <summary>Lighting and exposure settings, read each frame.</summary>
         public LightingSettings Lighting { get; } = new LightingSettings();
+        /// <summary>How reflections are traced, read each frame.</summary>
+        public ReflectionSettings Reflections { get; } = new ReflectionSettings();
         /// <summary>The multisampled G-buffer and scene, and the passes that resolve them.</summary>
         public MsaaRenderer Msaa { get => _msaa; }
         /// <summary>This frame's screen-space ambient occlusion, for the light passes.</summary>
         public int AmbientOcclusionTexture { get => _sSAORenderer.OcclusionTexture; }
+        /// <summary>This frame's lit scene as a soft mip chain, once the light passes have run.</summary>
+        public int SceneBlurTexture { get => _screenSpaceReflectionRenderer.SceneBlurTexture; }
 
         public RenderEngine()
         {
@@ -164,6 +174,10 @@ namespace Dino_Engine.Rendering
             _volumetricFogRenderer = new VolumetricFogRenderer();
             _windRenderer = new WindRenderer();
             _waterRenderer = new WaterRenderer();
+            _weatherRenderer = new WeatherRenderer();
+            _weatherRenderer.SetMaterialPorosity(textureGenerator.Porosity);
+            _precipitationRenderer = new PrecipitationRenderer();
+            _lightningRenderer = new LightningRenderer();
             _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
             _gaussianBlurRenderer = new GaussianBlurRenderer();
             _depthBasedBlurRenderer = new DepthBasedBlurRenderer();
@@ -238,7 +252,8 @@ namespace Dino_Engine.Rendering
             } else
             {
 
-                // Wind first: geometry, shadows, water and fog all read this frame's wind.
+                // Weather and wind first: geometry, shadows, water and fog all read this frame's.
+                _weatherRenderer.RenderPass(this);
                 _windRenderer.RenderPass(this);
                 _waterRenderer.SimulationPass(this);
                 GeometryPass();
@@ -289,6 +304,7 @@ namespace Dino_Engine.Rendering
 
         private void ShadowPass()
         {
+            _weatherRenderer.BeginRainShadow();
 
             _terrainRenderer.ShadowRenderPass(this);
             _grassRenderer.ShadowRenderPass(this);
@@ -300,11 +316,13 @@ namespace Dino_Engine.Rendering
             _instancedModelRenderer.ShadowRenderPass(this);
             _imposterRenderer.ShadowRenderPass(this);
 
+            _weatherRenderer.FinishRainShadow(this);
         }
 
         private void GeometryPass()
         {
             _msaa.BeginGeometry();
+            _weatherRenderer.BindSurfaceMaps();
 
             _modelRenderer.GeometryRenderPass(this);
             _characterRenderer.GeometryRenderPass(this);
@@ -345,6 +363,9 @@ namespace Dino_Engine.Rendering
         {
             // The fog's composite is the last pass over the multisampled scene, which is then resolved into the dual buffer.
             _volumetricFogRenderer.RenderPass(this);
+            // What falls comes in front of the fog, and is lit by what it falls through.
+            _precipitationRenderer.RenderPass(this);
+            _lightningRenderer.RenderPass(this);
             _msaa.ResolveScene(this);
             // The sun's depth test reads the dual buffer's depth.
             _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);

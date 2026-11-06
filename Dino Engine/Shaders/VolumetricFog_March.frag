@@ -70,6 +70,10 @@ uniform float terrainFollow;
 uniform float baseHeight;
 uniform float coverage;
 uniform float edgeSoftness;
+uniform float clearingRadius;
+uniform float clearingDepth;
+uniform float pooling;
+uniform float banks;
 
 uniform float invNoiseScale;
 uniform float noiseTexelSize;
@@ -96,6 +100,15 @@ const float WARP_FREQUENCY = 0.5;
 const float DETAIL_FREQUENCY = 3.0;
 const float MIN_STEP_LENGTH = 0.15;
 const int LIGHT_SAMPLES = 2;
+const float HOLLOW_REACH = 14.0;    // Metres to the ground a place is compared with to call it a hollow.
+const float HOLLOW_DEPTH = 2.5;     // Metres below that which count as all the hollow there is.
+const float POOL_COVERAGE = 0.3;    // How much a hollow's fog closes up, and a rise's opens out.
+const float POOL_HEIGHT = 0.6;      // And how much higher it stands in one, as a share of the layer.
+const vec2 BANK_EDGES = vec2(0.4, 0.58);    // Where in the noise's broad swells the ground between banks ends and a bank begins.
+
+// Set once per ray, as what the land does to the fog changes far more slowly than a ray crosses it.
+float rayCoverage;
+float rayHeight;
 
 float interleavedGradientNoise(vec2 pixel)
 {
@@ -127,17 +140,38 @@ float multipleScattering(vec3 phases, float opticalDepth)
          + phases.z * 0.25 * exp(-opticalDepth * 0.25);
 }
 
-// Height of the fog layer's floor below this point.
-float groundHeight(vec2 xz)
+// Height of the fog layer's floor below this point, or `otherwise` past what was captured.
+float groundHeightOr(vec2 xz, float otherwise)
 {
-    if (terrainHeightValid == 0 || terrainFollow <= 0.0) return baseHeight;
+    if (terrainHeightValid == 0 || terrainFollow <= 0.0) return otherwise;
 
     vec2 uv = (terrainHeightMatrix * vec4(xz.x, 0.0, xz.y, 1.0)).xy * 0.5 + 0.5;
-    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return baseHeight;
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return otherwise;
 
     float depth = textureLod(terrainHeightMap, uv, 0.0).r;
-    if (depth >= 1.0) return baseHeight; // nothing captured here
+    if (depth >= 1.0) return otherwise; // nothing captured here
     return mix(baseHeight, terrainEyeY - depth * terrainDepthRange, terrainFollow);
+}
+
+float groundHeight(vec2 xz)
+{
+    return groundHeightOr(xz, baseHeight);
+}
+
+// How far the ground here lies below the ground around it, from -1 up on a rise to 1 down in a hollow.
+float hollowAt(vec2 xz)
+{
+    float here = groundHeight(xz);
+    float around = groundHeightOr(xz + vec2(HOLLOW_REACH, 0.0), here) + groundHeightOr(xz - vec2(HOLLOW_REACH, 0.0), here)
+                 + groundHeightOr(xz + vec2(0.0, HOLLOW_REACH), here) + groundHeightOr(xz - vec2(0.0, HOLLOW_REACH), here);
+    return clamp((around * 0.25 - here) / HOLLOW_DEPTH, -1.0, 1.0);
+}
+
+// How much of the layer's height is left here: the weather's fog sinks to the ankles around what's being looked at, so a fight is never lost in it.
+float clearedHeight(vec2 xz)
+{
+    if (clearingDepth <= 0.0 || focusPoint.w <= 0.0) return 1.0;
+    return 1.0 - clearingDepth * (1.0 - smoothstep(clearingRadius * 0.35, clearingRadius, distance(xz, focusPoint.xz)));
 }
 
 // ---------------------------------------------------------------- shadows
@@ -229,6 +263,7 @@ struct FogSample
     vec3 warp;
     float top;      // local height of the layer's top above its floor
     float ground;
+    float cover;    // local coverage: broad swells of the noise part the fog into banks
 };
 
 FogSample prepareSample(vec3 position)
@@ -244,19 +279,20 @@ FogSample prepareSample(vec3 position)
     s.noisePosition = (position - s.push) * invNoiseScale * NOISE_STRETCH;
     vec4 low = textureLod(noiseTexture, s.noisePosition * WARP_FREQUENCY + warpOffset, 0.0);
     s.warp = (low.agb - 0.5) * turbulence;
-    s.top = layerHeight * max(1.0 + (low.a - 0.5) * 2.0 * topVariation, 0.05);
+    s.top = layerHeight * rayHeight * clearedHeight(position.xz) * max(1.0 + (low.a - 0.5) * 2.0 * topVariation, 0.05);
     s.ground = groundHeight(position.xz);
+    s.cover = rayCoverage * mix(1.0, smoothstep(BANK_EDGES.x, BANK_EDGES.y, low.a), banks);
     return s;
 }
 
 // Coverage-shaped billows; the layer thins out towards its top so only the tallest billows reach it.
-float shapeDensity(vec3 noisePosition, vec3 warp, float heightAboveGround, float top)
+float shapeDensity(vec3 noisePosition, vec3 warp, float heightAboveGround, float top, float cover)
 {
     float profile = pow(clamp(1.0 - heightAboveGround / top, 0.0, 1.0), heightFalloff);
     if (profile <= 0.0) return 0.0;
 
     float billows = textureLod(noiseTexture, noisePosition + warp + baseOffset, 0.0).r;
-    return clamp((billows - (1.0 - coverage * profile)) / edgeSoftness, 0.0, 1.0);
+    return clamp((billows - (1.0 - cover * profile)) / edgeSoftness, 0.0, 1.0);
 }
 
 float erode(float shape, vec3 noisePosition, float detailLod)
@@ -271,7 +307,7 @@ float erode(float shape, vec3 noisePosition, float detailLod)
 bool clipToFogSlab(vec3 rayOrigin, vec3 rayDirection, float surfaceDistance, out float tStart, out float tEnd)
 {
     float tFar = min(surfaceDistance, maxDistance);
-    float maxTop = layerHeight * (1.0 + topVariation);
+    float maxTop = layerHeight * rayHeight * (1.0 + topVariation);
 
     // The floor is sampled where the ray ends and where it would enter the layer above that,
     // which brackets the terrain under the (mostly downward) ray.
@@ -329,6 +365,15 @@ void main(void)
     vec3 rayDirection = (surfaceWorld - rayOrigin) / max(surfaceDistance, 1e-5);
     out_Distance = surfaceDistance;
 
+    rayCoverage = coverage;
+    rayHeight = 1.0;
+    if (pooling > 0.0 && density > 0.0)
+    {
+        float hollow = hollowAt((rayOrigin + rayDirection * min(surfaceDistance, maxDistance)).xz) * pooling;
+        rayCoverage = clamp(coverage + hollow * POOL_COVERAGE, 0.0, 1.0);
+        rayHeight = 1.0 + max(hollow, -0.5) * POOL_HEIGHT;
+    }
+
     float tStart, tEnd;
     if (density <= 0.0 || !clipToFogSlab(rayOrigin, rayDirection, surfaceDistance, tStart, tEnd))
     {
@@ -366,7 +411,7 @@ void main(void)
         FogSample s = prepareSample(position);
         float heightAboveGround = position.y - s.ground;
 
-        float shape = shapeDensity(s.noisePosition, s.warp, heightAboveGround, s.top);
+        float shape = shapeDensity(s.noisePosition, s.warp, heightAboveGround, s.top, s.cover);
         if (shape <= 0.0) continue;
         shape = erode(shape, s.noisePosition, detailLod);
         float extinction = shape * density;
@@ -387,7 +432,7 @@ void main(void)
             {
                 vec3 lightPosition = position + directionalDirections[l] * (lightStep * (float(k) + 0.5));
                 vec3 lightNoisePosition = (lightPosition - s.push) * invNoiseScale * NOISE_STRETCH;
-                opticalDepth += shapeDensity(lightNoisePosition, s.warp, lightPosition.y - s.ground, s.top) * density * lightStep;
+                opticalDepth += shapeDensity(lightNoisePosition, s.warp, lightPosition.y - s.ground, s.top, s.cover) * density * lightStep;
             }
             inScattered += directionalColours[l] * (visibility * multipleScattering(directionalPhases[l], opticalDepth));
         }

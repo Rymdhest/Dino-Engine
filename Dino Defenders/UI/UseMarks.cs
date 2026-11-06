@@ -214,12 +214,7 @@ namespace Dino_Defenders.UI
                 Mark mark = _marks[i];
                 for (int other = 0; other < i; other++)
                 {
-                    GuiRect placed = _marks[other].Rect;
-                    bool overlaps = mark.Rect.X < placed.Right + Gap && mark.Rect.Right + Gap > placed.X && mark.Rect.Y < placed.Bottom + Gap && mark.Rect.Bottom + Gap > placed.Y;
-                    if (!overlaps) continue;
-
-                    mark.Rect = new GuiRect(mark.Rect.X, placed.Y - mark.Rect.Height - Gap, mark.Rect.Width, mark.Rect.Height);
-                    other = -1;
+                    if (LabelStack.Lift(ref mark.Rect, _marks[other].Rect, Gap)) other = -1;
                 }
                 _marks[i] = mark;
             }

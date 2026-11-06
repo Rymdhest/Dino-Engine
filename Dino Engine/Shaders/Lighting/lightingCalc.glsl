@@ -5,6 +5,7 @@ const float LIGHT_PI = 3.14159265359;
 const float LIGHT_SOURCE_RADIUS = 0.4;      // Metres: how close a local light behaves as a point. Keeps it finite up close.
 const float MIN_ROUGHNESS = 0.045;          // Below this the highlight is narrower than half floats can hold.
 const float TRANSMISSION_GAIN = 1.2;        // How much brighter a backlit leaf reads than the same leaf lit from the front.
+const float WATER_SHEEN = 0.09;             // What a film of water adds to a surface's reflectance. See surfaceF0.
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -42,6 +43,20 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+// How much a surface reflects head-on. A film of water would add almost nothing to this: seen from a low camera it's the grazing angle that makes wet ground shine, and this camera looks
+// nearly straight down at it, where water reflects 2%. So anything as smooth as water gets more than physics gives it, as Ghost of Tsushima lets its look override what's correct. Smoothness
+// is the sign of it, as the G-buffer has nowhere else to say so, and little that's dry is this smooth.
+vec3 surfaceF0(vec3 albedo, float metallic, float roughness)
+{
+    return mix(vec3(0.04 + WATER_SHEEN * smoothstep(0.3, 0.07, roughness)), albedo, metallic);
+}
+
+// How much of what a surface reflects its own shape hides from it, from its ambient occlusion (Lagarde and de Rousiers, "Moving Frostbite to PBR").
+float specularOcclusion(float NdotV, float ambient, float roughness)
+{
+    return clamp(pow(NdotV + ambient, exp2(-16.0 * roughness - 1.0)) - 1.0 + ambient, 0.0, 1.0);
 }
 
 // What reaches a point from a local light of intensity 1: inverse square from a source of some size, windowed to reach
@@ -87,7 +102,7 @@ vec3 lightSurface(Surface s, vec3 L, vec3 radiance)
     float roughness = max(s.roughness, MIN_ROUGHNESS);
     float NdotL = max(dot(N, L), 0.0);
 
-    vec3 F0 = mix(vec3(0.04), s.albedo, s.metallic);
+    vec3 F0 = surfaceF0(s.albedo, s.metallic, s.roughness);
     vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
     float NDF = DistributionGGX(N, H, roughness);
     float G = GeometrySmith(N, V, L, roughness);

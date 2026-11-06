@@ -41,6 +41,12 @@ namespace Dino_Engine.ECS.Components
         // --- Distance haze (cheap analytic fog over the whole view, replaces the old distance fog) ---
         public float HazeDensity;     // Extinction per metre.
 
+        // --- Set each frame by the weather (VolumetricFogSystem), and none with it on no fog of its own. ---
+        public float ClearingRadius;  // Metres around what's being looked at that the fog sinks away, so whatever's happening there stays in plain view.
+        public float ClearingDepth;   // How far it sinks there, 0..1 of its height.
+        public float Pooling;         // 0..1, how much fog runs down into the land's hollows and off what stands above them.
+        public float Banks;           // 0..1, how far the fog breaks up into separate banks with clear ground between them.
+
         // --- Quality ---
         public int MaxSteps;          // Ray-march steps through the fog layer.
         public float TemporalBlend;   // History weight, higher = smoother but more smearing of fast motion.

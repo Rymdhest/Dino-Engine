@@ -14,6 +14,7 @@ namespace Dino_Engine.World
         public float Plumes;    // 0..1, share of its tufts carrying seed heads.
         public float Bloom;     // 0..1, share of its blades that are flowers.
         public Vector3 BloomColour;
+        public float Hollow;    // 0..1, how soon water stands here: the last places to fill are near 0.
     }
 
     /// <summary>
@@ -166,6 +167,8 @@ namespace Dino_Engine.World
             // Grass thins out over the last of the dry ground and stops at the water.
             grows *= Smoothstep(0.02f, 0.5f, above);
 
+            float hollow = Hollow(position, height, slope, MathF.Max(road, MathF.Max(MathF.Max(yard, plaza), farm)), shore);
+
             // Broad drifts of lighter and darker grass, so that a field has an ebb and flow to it.
             float tint = 1f + drift * 0.14f;
             grass = new GrassCell
@@ -177,7 +180,39 @@ namespace Dino_Engine.World
                 Plumes = Saturate(plumes),
                 Bloom = Saturate(bloom * Smoothstep(0.42f, 0.62f, _noise.Fbm01(x - 57f, z + 133f, 31f, 2)) * (1f - canopy)),
                 BloomColour = bloomColour,
+                Hollow = hollow,
             };
+        }
+
+        /// <summary>How soon water stands at a point of the ground, 0..1, the last places to fill being near 0. It's what the terrain is painted with, for anything that has to agree with it.</summary>
+        public float HollowAt(Vector2 position)
+        {
+            float x = position.X, z = position.Y;
+            float height = _world.Height.Sample(position);
+            float slope = _world.Height.SlopeAt(position);
+            float trodden = MathF.Max(MathF.Max(_world.PavedRoad.Sample(x, z), _world.TrailRoad.Sample(x, z)), MathF.Max(MathF.Max(_world.Yard.Sample(x, z), _world.Plaza.Sample(x, z)), _world.Farmland.Sample(x, z)));
+            float shore = 1f - Smoothstep(0.3f, 1.8f, height - _world.WaterLevelAt(position));
+            return Hollow(position, height, slope, trodden, shore);
+        }
+
+        // Trodden ground dips and ruts and holds water, and the ground's own hollows do too, wherever it doesn't drain away.
+        private float Hollow(Vector2 position, float height, float slope, float trodden, float shore)
+        {
+            float x = position.X, z = position.Y;
+            float blotches = Smoothstep(0.42f, 0.74f, _noise.Fbm01(x + 613f, z - 271f, 7f, 3)) + Smoothstep(0.5f, 0.8f, _noise.Fbm01(x - 77f, z + 401f, 2.6f, 2)) * 0.35f;
+            float drains = Saturate(slope * 3.5f) + shore * 0.5f;
+            return Saturate((Saturate(trodden) * 0.72f + 0.16f) * blotches + Hollowness(position, height)) * (1f - Saturate(drains));
+        }
+
+        // How far the ground here lies below what's around it, as a share of what would make a real pool.
+        private float Hollowness(Vector2 position, float height)
+        {
+            const float Reach = 3.5f;
+            const float Pool = 0.22f;
+            ScalarField ground = _world.Height;
+            float around = ground.Sample(position + new Vector2(Reach, 0f)) + ground.Sample(position - new Vector2(Reach, 0f))
+                + ground.Sample(position + new Vector2(0f, Reach)) + ground.Sample(position - new Vector2(0f, Reach));
+            return Saturate((around * 0.25f - height) / Pool);
         }
     }
 }

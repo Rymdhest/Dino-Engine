@@ -10,20 +10,25 @@ namespace Dino_Defenders
 {
     internal class Program
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
+            if (args.Length == 3 && args[0] == HangWatch.DumpArgument) return HangWatch.WriteDump(int.Parse(args[1]), args[2]);
+
             GameLog.Start();
             GameOptions options = GameOptions.Parse(args);
             if (options.Dedicated)
             {
                 RunDedicated(options);
-                return;
+                return 0;
             }
 
-            Engine engine = new Engine(new EngineLaunchSettings(BuildInfo.Title));
+            Engine engine = new Engine(new EngineLaunchSettings(BuildInfo.Title) { _hidden = options.Hidden });
             Console.WriteLine($"{GL.GetString(StringName.Renderer)}, OpenGL {GL.GetString(StringName.Version)}");
             ArpgGame game = new ArpgGame(engine, options);
+            Engine.WindowHandler.UpdateFrame += _ => HangWatch.Beat();
+            HangWatch.Start();
             engine.Run();
+            return 0;
         }
 
         // A server with no window and no hero of its own, for anyone with a machine to leave running.

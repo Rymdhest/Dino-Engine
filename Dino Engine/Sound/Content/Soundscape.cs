@@ -24,6 +24,12 @@ namespace Dino_Engine.Sound.Content
             Defaults = new[] { 0.6f, 0.2f, 0.1f },
         });
 
+        public static readonly LiveDefinition Drips = SoundCatalog.Add(new LiveDefinition("live.drips", seed => new DripSound(seed))
+        {
+            Parameters = new[] { "Rate", "Water" },
+            Defaults = new[] { 0.5f, 0.3f },
+        });
+
         public static readonly LiveDefinition Fire = SoundCatalog.Add(new LiveDefinition("live.fire", seed => new FireSound(seed))
         {
             Positional = true,
@@ -188,8 +194,9 @@ namespace Dino_Engine.Sound.Content
     }
 
     /// <summary>
-    /// Rain is a texture of a great many small impacts, so it's a stationary hiss of the ones too many to count, with the near drops
-    /// laid over it one at a time. The hiss is shaped to the long-term spectrum of recordings: almost flat up to 2 kHz, then falling.
+    /// Rain is a texture of a great many small impacts, so it's a steady wash of the ones too many to count, with the near drops laid over it one at a time. What's heard of it is what it lands on, as
+    /// the wind is what's in its way: a low, wide patter on the ground, a brighter one with more separate ticks on leaves, and on water a softer rush with bubbles in it. The top of the spectrum is
+    /// kept down, as a noise with its top left in is a hiss, and this has to sit under a whole fight.
     /// </summary>
     public sealed class RainSound : LiveSound
     {
@@ -200,12 +207,12 @@ namespace Dino_Engine.Sound.Content
         private readonly float[][] _hardDrops;
         private readonly float[][] _leafDrops;
         private readonly float[][] _waterDrops;
-        private readonly GrainCloud _cloud = new(128);
+        private readonly GrainCloud _cloud = new(160);
         private PinkNoise _pinkLeft, _pinkRight;
-        private Biquad _toneLeft, _toneRight, _airLeft, _airRight;
-        private Svf _lowLeft, _lowRight;
+        private Svf _groundLeft, _groundRight, _leafLeft, _leafRight, _waterLeft, _waterRight, _lowLeft, _lowRight;
+        private OnePole _topLeft, _topRight;
         private Wander _swell;
-        private float _hiss, _low, _hardRate, _leafRate, _waterRate, _dropGain;
+        private float _onGround, _onLeaves, _onWater, _low, _hardRate, _leafRate, _waterRate, _dropGain;
 
         public RainSound(ulong seed) : base(3, seed, 1.5f)
         {
@@ -213,24 +220,30 @@ namespace Dino_Engine.Sound.Content
             _leafDrops = GrainCloud.Make(seed + 1, 16, LeafDrop);
             _waterDrops = GrainCloud.Make(seed + 2, 24, WaterDrop);
             _swell.Set(4f, ControlRate);
-            _toneLeft = _toneRight = Biquad.HighShelf(3000f, -4f);
-            _airLeft = _airRight = Biquad.Peak(130f, 0.8f, 7f);
+            _groundLeft.Set(620f, 0.42f);
+            _groundRight.Set(700f, 0.42f);
+            _leafLeft.Set(2300f, 0.55f);
+            _leafRight.Set(2700f, 0.55f);
+            _waterLeft.Set(1150f, 0.7f);
+            _waterRight.Set(1300f, 0.7f);
             _lowLeft.Set(160f, 0.7f);
             _lowRight.Set(180f, 0.7f);
+            _topLeft.SetCutoff(5200f);
+            _topRight.SetCutoff(5600f);
         }
 
         private static void HardDrop(Take take)
         {
             SoundRandom random = take.Random;
-            float decay = random.LogRange(0.0006f, 0.0035f);
-            take.Mix(take.White(decay * 7f).Bandpass(random.LogRange(1400f, 9000f), 1.1f).Percussive(0.00008f, decay));
+            float decay = random.LogRange(0.0008f, 0.004f);
+            take.Mix(take.White(decay * 7f).Bandpass(random.LogRange(800f, 3400f), 1.1f).Lowpass(5200f).Percussive(0.00008f, decay));
         }
 
         private static void LeafDrop(Take take)
         {
             SoundRandom random = take.Random;
             float decay = random.LogRange(0.002f, 0.009f);
-            take.Mix(take.White(decay * 7f).Bandpass(random.LogRange(500f, 2600f), 1.5f).Percussive(0.0002f, decay));
+            take.Mix(take.White(decay * 7f).Bandpass(random.LogRange(1200f, 5200f), 1.5f).Percussive(0.0002f, decay));
         }
 
         private static void WaterDrop(Take take)
@@ -246,20 +259,22 @@ namespace Dino_Engine.Sound.Content
         {
             const float Step = 1f / ControlRate;
             float intensity = Value(Intensity);
-            float swell = 1f + _swell.Next(Random, Step) * 0.55f;
-            float level = MathF.Pow(intensity, 1.4f) * swell;
+            float swell = 1f + _swell.Next(Random, Step) * 0.3f;
+            float level = MathF.Pow(intensity, 1.55f) * swell * 0.26f;
 
-            _hiss = 0.34f * level;
-            _low = 0.2f * MathF.Pow(intensity, 2f) * swell;
-            _dropGain = 0.009f + 0.02f * intensity;
-
-            float count = 90f + 1900f * intensity * intensity;
             float trees = Value(Trees);
             float water = Value(Water);
             float ground = MathF.Max(1f - trees - water, 0f);
+            _onGround = level * ground;
+            _onLeaves = level * trees * 0.8f;
+            _onWater = level * water * 0.9f;
+            _low = 0.06f * MathF.Pow(intensity, 2f) * swell;
+            _dropGain = 0.006f + 0.011f * intensity;
+
+            float count = 90f + 1900f * intensity * intensity;
             _hardRate = count * ground;
-            _leafRate = count * trees * 0.8f;
-            _waterRate = count * water * 0.6f;
+            _leafRate = count * trees * 1.2f;
+            _waterRate = count * water * 0.8f;
         }
 
         protected override void Process(Span<float> left, Span<float> right)
@@ -268,10 +283,10 @@ namespace Dino_Engine.Sound.Content
             {
                 float l = _pinkLeft.Next(Random.Bipolar());
                 float r = _pinkRight.Next(Random.Bipolar());
-                float lowLeft = _lowLeft.Lowpass(l) * _low;
-                float lowRight = _lowRight.Lowpass(r) * _low;
-                left[i] = _toneLeft.Process(_airLeft.Process(l)) * _hiss + lowLeft;
-                right[i] = _toneRight.Process(_airRight.Process(r)) * _hiss + lowRight;
+                float washLeft = _groundLeft.BandpassNormal(l) * _onGround + _leafLeft.BandpassNormal(l) * _onLeaves + _waterLeft.BandpassNormal(l) * _onWater;
+                float washRight = _groundRight.BandpassNormal(r) * _onGround + _leafRight.BandpassNormal(r) * _onLeaves + _waterRight.BandpassNormal(r) * _onWater;
+                left[i] = _topLeft.Lowpass(washLeft) + _lowLeft.Lowpass(l) * _low;
+                right[i] = _topRight.Lowpass(washRight) + _lowRight.Lowpass(r) * _low;
             }
 
             float seconds = left.Length / (float)AudioFormat.SampleRate;
@@ -295,6 +310,82 @@ namespace Dino_Engine.Sound.Content
                 }
                 expected -= 1f;
             }
+        }
+    }
+
+    /// <summary>
+    /// Water coming off things, as it's drawn (Weather/Drip.glsl): a few places nearby, each with a beat of its own that it keeps to, as a drip does, so it's heard as this one and that one rather than as
+    /// a texture. Most of what lands, lands on something and only taps. What lands in standing water plinks, as the drop drags a bubble under with it, which is why those carry so much further. This is
+    /// what's left to hear when the rain stops, so it has to stay small.
+    /// </summary>
+    public sealed class DripSound : LiveSound
+    {
+        public const int Rate = 0;      // 0..1 how many of their turns come to a drop.
+        public const int Water = 1;     // 0..1 how much of it lands in standing water.
+
+        private const int Places = 7;
+
+        private readonly float[][] _plinks;
+        private readonly float[][] _taps;
+        private readonly GrainCloud _cloud = new(16);
+        private readonly float[] _period = new float[Places];
+        private readonly float[] _until = new float[Places];
+        private readonly float[] _pan = new float[Places];
+        private readonly float[] _gain = new float[Places];
+        private readonly int[] _grain = new int[Places];
+        private float _rate, _water;
+
+        public DripSound(ulong seed) : base(2, seed, 1.5f)
+        {
+            _plinks = GrainCloud.Make(seed, 12, Plink);
+            _taps = GrainCloud.Make(seed + 1, 12, Tap);
+            for (int i = 0; i < Places; i++)
+            {
+                _period[i] = Random.Range(0.6f, 2.8f);
+                _until[i] = Random.Range(0f, _period[i]);
+                _pan[i] = Random.Bipolar() * 0.8f;
+                _gain[i] = Random.LogRange(0.025f, 0.1f);
+                _grain[i] = Random.Int(12);
+            }
+        }
+
+        private static void Plink(Take take)
+        {
+            SoundRandom random = take.Random;
+            Signal drop = take.Track(0.12f);
+            take.Mix(take.White(0.003f).Highpass(1500f).Percussive(0.00005f, 0.0005f), 0f, -10f);
+            Liquid.Bubble(drop, random.Range(0.001f, 0.004f), random.LogRange(0.001f, 0.0035f), 1f, random.Range(0.15f, 0.5f));
+            take.Mix(drop);
+        }
+
+        private static void Tap(Take take)
+        {
+            SoundRandom random = take.Random;
+            float decay = random.LogRange(0.004f, 0.012f);
+            take.Mix(take.White(decay * 6f).Bandpass(random.LogRange(450f, 1500f), 1.4f).Lowpass(3800f).Percussive(0.0002f, decay));
+        }
+
+        protected override void Control()
+        {
+            _rate = Value(Rate);
+            _water = Value(Water);
+        }
+
+        protected override void Process(Span<float> left, Span<float> right)
+        {
+            left.Clear();
+            right.Clear();
+            float seconds = left.Length / (float)AudioFormat.SampleRate;
+            for (int i = 0; i < Places; i++)
+            {
+                _until[i] -= seconds;
+                if (_until[i] > 0f) continue;
+                _until[i] += _period[i];
+                if (Random.Float() >= _rate) continue;
+                float[][] drops = Random.Float() < _water ? _plinks : _taps;
+                _cloud.Trigger(drops[_grain[i]], _gain[i], _pan[i]);
+            }
+            _cloud.Process(left, right);
         }
     }
 

@@ -119,6 +119,8 @@ namespace Dino_Engine.Core
             nws.Location = new Vector2i(0, 0);
             nws.WindowState = WindowState.Normal;
             nws.WindowBorder = WindowBorder.Resizable;
+            nws.StartVisible = !settings._hidden;
+            nws.StartFocused = !settings._hidden;
             gws.UpdateFrequency = 60;
             return new WindowHandler(gws, nws);
         }

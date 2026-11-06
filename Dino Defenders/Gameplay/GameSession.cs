@@ -68,6 +68,8 @@ namespace Dino_Defenders.Gameplay
         public Entity Player;
         public HeroIntent Intent;
         public (float speed, float direction)? ScriptedWind;    // What a scripted run has the wind do, in place of what the land gives.
+        public WeatherSample? ScriptedWeather;                  // Weather a scripted run has everywhere, in place of what the world's would be.
+        public double WeatherClockOffset;                       // Seconds a scripted run starts into the world's weather.
         public Func<HeroIntent>? Autopilot;
         public bool Paused;
         public Vector2? Guidance;

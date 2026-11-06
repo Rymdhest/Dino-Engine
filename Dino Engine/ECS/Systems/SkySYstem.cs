@@ -1,6 +1,7 @@
 ﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
@@ -9,7 +10,8 @@ namespace Dino_Engine.ECS.Systems
 {
     /// <summary>
     /// The light that isn't any one light. The sky shines down from the colour of its entity, the ground throws back what falls
-    /// on it, and the air scatters a little of the sun everywhere. Together they are all there is in the shade.
+    /// on it, and the air scatters a little of the sun everywhere. Together they are all there is in the shade. Cloud takes the
+    /// sun away and greys the sky, and is applied here as light is read, as night is: nothing writes to the sun or sky.
     /// </summary>
     public class SkySYstem : SystemBase
     {
@@ -27,18 +29,33 @@ namespace Dino_Engine.ECS.Systems
         {
             LightingSettings lighting = Engine.RenderEngine.Lighting;
             NightfallSingleton night = NightOf(world);
-            Vector3 sky = lighting.Sky ? NightfallSingleton.Blend(entity.Get<ColorComponent>().value.ToVector3(), night.Sky, night.Amount) : Vector3.Zero;
+            Vector3 sky = entity.Get<ColorComponent>().value.ToVector3();
+            Vector3 clear = lighting.Sky ? NightfallSingleton.Blend(sky, night.Sky, night.Amount) : Vector3.Zero;
             Vector3 sun = Sun(world);
+            Vector3 sunThrough = sun;
+            Vector3 flash = Vector3.Zero;
+            if (Weather.TryGet(world, out WeatherSingleton weather) && weather.Enabled)
+            {
+                sky = Weather.Sky(sky, weather);
+                sunThrough = sun * Weather.SunThrough(weather, weather.Here.Cloud);
+                flash = weather.Flash;
+            }
+            sky = lighting.Sky ? NightfallSingleton.Blend(sky, night.Sky, night.Amount) : Vector3.Zero;
+            if (!lighting.Sky) flash = Vector3.Zero;
+
             float sunHeight = sun == Vector3.Zero ? 0f : MathF.Max(-world.GetComponent<DirectionNormalizedComponent>(world.sun).value.Y, 0f);
-            Vector3 sunOnGround = sun * (sunHeight / MathF.PI);
-            Vector3 scattered = sun * lighting.SunFill;
+            Vector3 sunOnGround = sunThrough * (sunHeight / MathF.PI);
+            Vector3 scattered = sunThrough * lighting.SunFill;
 
             Engine.RenderEngine.context.skyColour = sky;
+            Engine.RenderEngine.context.clearSkyColour = clear;
+            Engine.RenderEngine.context.sunColour = sun;
+            if (world.HasComponent<DirectionNormalizedComponent>(world.sun)) Engine.RenderEngine.context.sunDirection = -world.GetComponent<DirectionNormalizedComponent>(world.sun).value;
             Engine.RenderEngine.context.daylight = Vector3.Dot(sky + sunOnGround, new Vector3(0.2126f, 0.7152f, 0.0722f)) / FullDaylight;
             Engine.RenderEngine._ambientLightRenderer.SubmitCommand(new AmbientLightRenderCommand
             {
-                sky = sky * lighting.SkyFill + scattered,
-                ground = (sky + sunOnGround) * lighting.GroundAlbedo + scattered,
+                sky = (sky + flash) * lighting.SkyFill + scattered,
+                ground = (sky + flash + sunOnGround) * lighting.GroundAlbedo + scattered,
             });
         }
 
