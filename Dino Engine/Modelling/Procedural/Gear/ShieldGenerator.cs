@@ -22,17 +22,22 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             GearPalette palette = style.Palette;
 
             // How tall and how wide, and what the outline does on the way down.
-            float wide = genes.Around("wide", 0.62f + form.Size * 0.42f + (1f - form.Slender) * 0.14f, 0.05f);
-            float tall = wide * 2f * genes.Around("tall", 0.95f + form.Size * 0.75f, 0.09f);
+            float wide = genes.Around("wide", 0.62f + form.Size * 0.42f + (1f - form.Slender) * 0.14f, 0.09f);
+            float tall = wide * 2f * genes.Around("tall", 0.95f + form.Size * 0.75f, 0.19f);
 
             // The outline is a widest point and two falls from it. A fall of 1/2 is a circle's edge, nearer nothing is a flat end, and above 1 it runs in to a point.
-            float belly = genes.Around("belly", 0.6f, 0.1f);
-            float fallBelow = MathF.Pow(2f, genes.Around("fall.below", -0.4f + form.Size * 0.9f, 0.6f));
-            float fallAbove = MathF.Pow(2f, genes.Around("fall.above", -1.2f - form.Size * 1.6f, 0.7f));
+            float belly = genes.Around("belly", 0.6f, 0.13f);
+            float fallBelow = MathF.Pow(2f, genes.Around("fall.below", -0.4f + form.Size * 0.9f, 0.85f));
+            float fallAbove = MathF.Pow(2f, genes.Around("fall.above", -1.2f - form.Size * 1.6f, 1f));
+
+            // A waist drawn in, or a bite out of one side for a lance to rest in.
+            float waistAt = genes.Range("waist.at", 0.3f, 0.75f);
+            float waistBy = genes.Chance("waisted", 0.3f) ? genes.Range("waist.by", 0.08f, 0.28f) : 0f;
             float WidthAt(float t)
             {
                 float s = t < belly ? MathF.Sin(t / belly * MathF.PI * 0.5f) : MathF.Cos((t - belly) / (1f - belly) * MathF.PI * 0.5f);
-                return wide * MathF.Pow(MathF.Max(s, 0f), t < belly ? fallBelow : fallAbove);
+                float d = (t - waistAt) / 0.2f;
+                return wide * MathF.Pow(MathF.Max(s, 0f), t < belly ? fallBelow : fallAbove) * (1f - waistBy * MathF.Exp(-d * d));
             }
 
             float bow = form.Curve * genes.Range("bow", 0.1f, 0.42f) * wide;

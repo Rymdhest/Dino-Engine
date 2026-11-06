@@ -43,19 +43,23 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         {
             int steps = 10;
             var rings = new Ring[steps + 1];
-            float top = Top + gap + peak;
+            float top = Top + gap + peak + genes.Range("crown.tall", -0.04f, 0.24f);
+
+            // What the crown does on the way up: swelling out, coming straight up, or drawing in early.
+            Profile crown = new Profile((0f, 1f), (0.4f, genes.Range("crown.mid", 0.82f, 1.14f)), (0.75f, genes.Range("crown.high", 0.62f, 1.05f)), (1f, genes.Range("crown.top", 0.04f, 0.6f)));
+            float power = 2.2f - 1f * MathF.Min(peak / 0.3f, 1f);
+            float flat = genes.Range("crown.flat", 0f, 0.5f);
             for (int i = 0; i <= steps; i++)
             {
                 float t = (float)i / steps;
                 float y = from + (top - from) * MathF.Sin(t * MathF.PI * 0.5f);
 
-                // Within the head's own height it follows it. Above that it runs up to a peak.
                 float s = (y - from) / (top - from);
-                float along = MathF.Sqrt(MathF.Max(1f - MathF.Pow(s, 2.2f - 1f * MathF.Min(peak / 0.3f, 1f)), 0f));
+                float along = MathF.Sqrt(MathF.Max(1f - MathF.Pow(s, power), 0f));
+                along = (along * (1f - flat) + crown.At(s) * flat) * (0.9f + 0.1f * crown.At(s));
                 float half = BodyForm.HeadHalfWidth + gap;
                 float halfDepth = BodyForm.HeadHalfDepth + gap;
-                float widest = y <= Centre ? 1f : 1f;
-                rings[i] = new Ring { Centre = new Vector3(0f, y, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = half * along * widest, HalfDepth = halfDepth * along * widest };
+                rings[i] = new Ring { Centre = new Vector3(0f, y, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = half * along, HalfDepth = halfDepth * along };
             }
             mesh.Loft(section, rings, (ring, _) => colour?.Invoke(ring) ?? material, capStart: false, capEnd: true);
         }
@@ -108,12 +112,18 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 mesh.Loft(Section.Round(14), skirt, cut.Heavy > 0.3f ? cut.Under : cut.Second, capStart: false, capEnd: false);
             }
 
-            Dome(mesh, cut, genes, brow, gap, peak, cut.Main, section, ring => ribs > 0 && ring % Math.Max(10 / Math.Max(ribs, 1), 2) == 0 ? cut.Second : cut.Main);
+            Func<float, float, VertexMaterial> pattern = cut.Pattern(genes.Part("pattern"));
+            Dome(mesh, cut, genes, brow, gap, peak, cut.Main, section, ring => ribs > 0 && ring % Math.Max(10 / Math.Max(ribs, 1), 2) == 0 ? cut.Second : pattern(ring / 10f, 0.25f));
 
             // A band round the brow.
             float browRadius = BodyForm.HeadHalfWidth + gap;
             ArmourCut.Band(mesh, new Vector3(0f, brow, -0.015f), browRadius, BodyForm.HeadHalfDepth + gap, genes.Range("band", 0.02f, 0.05f), 0.012f, cut.Second);
 
+            if (cover <= 0.75f && genes.Chance("brim", 0.3f))
+            {
+                float reach = genes.Range("brim.reach", 0.08f, 0.34f);
+                mesh.Hoop2(new Vector3(0f, brow - 0.02f, -0.015f), browRadius + reach, browRadius - 0.02f, genes.Range("brim.droop", -0.02f, 0.16f), cut.Second);
+            }
             if (cover <= 0.75f && cut.Likely("nasal", 0.6f, 0.08f, 0f)) Nasal(mesh, cut, genes.Part("nasal"), brow, gap);
             if (cover <= 0.75f && cut.Likely("cheeks", 0.45f, 0.25f, 0f)) Cheeks(mesh, cut, genes.Part("cheeks"), brow, gap);
             Crest(mesh, cut, genes.Part("crest"), brow, gap, peak);
@@ -231,10 +241,32 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
             mesh.Bone = (int)BoneType.Head;
             int first = mesh.VertexCount;
-            mesh.Loft(Section.Round(16), rings, (ring, _) => ring == 0 ? cut.Second : cut.Main, capStart: false, capEnd: true);
+            Func<float, float, VertexMaterial> pattern = cut.Pattern(genes.Part("pattern"));
+            mesh.Loft(Section.Round(16), rings, (ring, point) => ring == 0 ? cut.Second : pattern((float)ring / steps, point / 16f), capStart: false, capEnd: true);
 
             // What hangs on the shoulders stays with the body.
             mesh.SkinBy(at => at.Y < BodyForm.Neck + 0.1f ? (new Vector2((int)BoneType.Chest, 0f), new Vector2(1f, 0f)) : (new Vector2((int)BoneType.Head, 0f), new Vector2(1f, 0f)), first);
+
+            // A long tail down the back, or a flap on each side: a hood is a simple thing, and these are what give it a shape.
+            if (genes.Chance("tail", 0.55f))
+            {
+                float length = genes.Range("tail.length", 0.5f, 1.7f);
+                float wide = genes.Range("tail.wide", 0.1f, 0.2f);
+                float lift = genes.Range("tail.lift", -0.1f, 0.3f);
+                var keys = new[] { new Vector3(0f, top - 0.1f, -pull - 0.1f), new Vector3(0f, top + lift, -pull - length * 0.32f), new Vector3(0f, top - length * 0.28f, -pull - length * 0.56f), new Vector3(0f, top - length * 0.7f, -pull - length * 0.62f) };
+                mesh.Sweep(Section.Round(8), Spine.Through(keys, 10), t => new Vector2(wide * (1f - t * 0.92f)), cut.Main, Vector3.UnitX);
+            }
+            if (genes.Chance("flaps", 0.35f))
+            {
+                float length = genes.Range("flaps.length", 0.28f, 0.7f);
+                float wide = genes.Range("flaps.wide", 0.1f, 0.2f);
+                foreach (float side in new[] { 1f, -1f })
+                {
+                    float x = side * (BodyForm.HeadHalfWidth + gap);
+                    var keys = new[] { new Vector3(x, Centre + 0.06f, 0.04f), new Vector3(x * 1.08f, Centre - length * 0.5f, 0.06f), new Vector3(x * 1.12f, Centre - length, 0.03f) };
+                    mesh.Sweep(Section.Slab(0.4f), Spine.Through(keys, 5), t => new Vector2(wide * (1f - t * 0.4f), 0.022f), cut.Second, Vector3.UnitX);
+                }
+            }
 
             // Round the face.
             float rim = BodyForm.HeadHalfWidth + gap * 0.5f;

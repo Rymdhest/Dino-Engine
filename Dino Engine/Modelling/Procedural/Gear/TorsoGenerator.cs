@@ -88,7 +88,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float panel = cut.Likely("panel", 0.1f, 0.3f, 0.75f) ? genes.Range("panel.width", 0.5f, 1.3f) : 0f;
             int hemBands = genes.Count("hem.bands", 1, 2 + (int)(style.Ornate * 2f));
             bool mailSkirt = cut.Heavy > 0.5f;
-            var cloth = new VertexMaterial[rings.Count];
+            Func<float, float, VertexMaterial> pattern = cut.Pattern(genes.Part("pattern"));
 
             mesh.Bone = (int)BoneType.Chest;
             int first = mesh.VertexCount;
@@ -100,7 +100,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 if (y < lamesTop && lames > 0 && ring % 2 == 1) return cut.Second;
 
                 float front = MathF.Abs(point * (MathF.Tau / Around) - MathF.PI / 2f);
-                return panel > 0f && front < panel * 0.4f ? cut.Second : cut.Main;
+                return panel > 0f && front < panel * 0.4f ? cut.Second : pattern((float)ring / rings.Count, (float)point / Around);
             }, capStart: false, capEnd: false);
             if (skirted) mesh.SkinBy(BodyForm.Skirt, first);
 

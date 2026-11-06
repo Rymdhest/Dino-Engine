@@ -27,7 +27,6 @@ namespace Dino_Defenders.UI
         private const float Gap = 2f;
         private const float EdgeMargin = 40f;
         private const float ShiftedFar = 6f;        // Pixels a label can move before it needs a line back to its find.
-        private const float TooltipWidth = 330f;
         private const float CalloutLife = 4.2f;
         private const float CalloutTop = 66f;
         private const float CalloutStep = 44f;
@@ -135,7 +134,7 @@ namespace Dino_Defenders.UI
 
             foreach (Label label in _labels)
             {
-                if (label.Find == _hovered) DrawTooltip(draw, session, label, screen);
+                if (label.Find == _hovered) Ui.DrawTooltip(Context!, draw, session.Hero, label.Item, label.Rect, screen, null, compare: true);
             }
         }
 
@@ -249,42 +248,6 @@ namespace Dino_Defenders.UI
                 Ui.Text(Context!, draw, text, size, new GuiRect(0f, y, screen.Width, CalloutStep - 6f), colour, Alignment.Center);
                 draw.PopOpacity();
                 y += CalloutStep;
-            }
-        }
-
-        private void DrawTooltip(GuiDrawList draw, GameSession session, in Label label, GuiRect screen)
-        {
-            Item item = label.Item;
-            Colour colour = Ui.GradeColour(label.Grade);
-            string slot = Ui.SlotName(item);
-
-            var lines = new List<(string text, float size, Colour colour)>();
-            void Add(string text, float size, Colour shade)
-            {
-                foreach (string line in Ui.Wrap(Context!, text, size, TooltipWidth - 24f)) lines.Add((line, size, shade));
-            }
-
-            Add(item.Name, 18f, colour);
-            Add($"{Ui.GradeName(item)} {slot}, level {item.Level}", 13f, Ui.Faded);
-            foreach (string line in item.DescribeBase()) Add(line, 14f, Ui.Parchment);
-            foreach (string line in item.Describe()) Add(line, 14f, colour);
-            if (item.Unique != null && UniqueCatalog.Find(item.Unique) is UniqueDefinition unique) Add(unique.Lore, 13f, Ui.Faded);
-            if (session.Hero.Equipped.TryGetValue(session.Hero.PlaceFor(item), out Item? worn)) Add($"Now worn: {worn.Name}", 13f, Ui.Faded);
-
-            float height = 18f;
-            foreach ((_, float size, _) in lines) height += size + 6f;
-
-            float x = Math.Clamp(label.Rect.Center.X - TooltipWidth * 0.5f, 8f, screen.Width - TooltipWidth - 8f);
-            float y = label.Rect.Y - height - 8f;
-            if (y < 8f) y = MathF.Min(label.Rect.Bottom + 8f, screen.Height - height - 8f);
-
-            GuiRect panel = new GuiRect(x, y, TooltipWidth, height);
-            draw.AddRect(panel, Ui.Ink, 3f, 1f, colour.MultiplyAlpha(0.8f));
-            float top = y + 9f;
-            foreach ((string text, float size, Colour shade) in lines)
-            {
-                Ui.Text(Context!, draw, text, size, new GuiRect(x + 12f, top, TooltipWidth - 24f, size + 5f), shade);
-                top += size + 6f;
             }
         }
     }

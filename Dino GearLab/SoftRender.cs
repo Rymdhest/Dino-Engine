@@ -31,6 +31,30 @@ namespace Dino_GearLab
 
         public bool Covered(int x, int y) => _covered[y * Width + x];
 
+        /// <summary>The picture, as a few big squares of colour, with nothing where there's nothing.</summary>
+        public Vector3[] Grid(int cells)
+        {
+            var grid = new Vector3[cells * cells];
+            var counts = new int[cells * cells];
+            for (int y = 0; y < Height; y++)
+            {
+                for (int x = 0; x < Width; x++)
+                {
+                    if (!_covered[y * Width + x]) continue;
+                    int cell = y * cells / Height * cells + x * cells / Width;
+                    // As it's seen and not as it's lit: deep colours are all near nothing in linear light.
+                    Vector3 c = _colour[y * Width + x];
+                    grid[cell] += new Vector3(MathF.Pow(MathF.Max(c.X, 0f), 1f / 2.2f), MathF.Pow(MathF.Max(c.Y, 0f), 1f / 2.2f), MathF.Pow(MathF.Max(c.Z, 0f), 1f / 2.2f));
+                    counts[cell]++;
+                }
+            }
+            for (int i = 0; i < grid.Length; i++)
+            {
+                if (counts[i] > 0) grid[i] /= counts[i];
+            }
+            return grid;
+        }
+
         /// <summary>Fits a mesh to the picture as seen through <paramref name="view"/>, and draws it. Supersampling is left to whoever reads this.</summary>
         public void Draw(in Mesh mesh, Matrix3 view)
         {

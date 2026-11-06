@@ -60,12 +60,12 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Fitting = new VertexMaterial(GearMaterials.Metal, new Colour(fitting));
 
             float hide = genes.Unit("leather.tone");
-            float dyed = genes.Chance("leather.dyed", 0.22f) ? 1f : 0f;
+            float dyed = genes.Chance("leather.dyed", 0.34f) ? 1f : 0f;
             Vector3 leather = dyed > 0f
                 ? Hsv(genes.Unit("leather.hue"), genes.Range("leather.sat", 0.4f, 0.7f), genes.Range("leather.value", 0.1f, 0.24f))
-                : Hsv(Lerp(14f, 32f, hide) / 360f, genes.Range("leather.sat.plain", 0.5f, 0.74f), genes.Range("leather.value.plain", 0.1f, 0.34f));
+                : Hsv(Lerp(8f, 40f, hide) / 360f, genes.Range("leather.sat.plain", 0.38f, 0.8f), genes.Range("leather.value.plain", 0.08f, 0.42f));
             Leather = new VertexMaterial(GearMaterials.Leather, new Colour(leather));
-            Binding = new VertexMaterial(GearMaterials.Leather, new Colour(genes.Chance("binding.contrast", 0.4f)
+            Binding = new VertexMaterial(GearMaterials.Leather, new Colour(genes.Chance("binding.contrast", 0.65f)
                 ? Hsv(genes.Unit("binding.hue"), genes.Range("binding.sat", 0.45f, 0.8f), genes.Range("binding.value", 0.12f, 0.3f))
                 : leather * genes.Range("binding.shade", 0.45f, 0.8f)));
 

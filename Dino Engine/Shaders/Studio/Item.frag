@@ -35,8 +35,8 @@ float stepped(float light) {
 vec3 paintedSky(vec3 direction) {
 	float up = direction.y;
 	vec3 ground = vec3(0.1, 0.075, 0.06);
-	vec3 horizon = vec3(0.78, 0.74, 0.68);
-	vec3 sky = vec3(0.34, 0.42, 0.56);
+	vec3 horizon = vec3(0.72, 0.68, 0.62);
+	vec3 sky = vec3(0.24, 0.3, 0.42);
 	vec3 colour = mix(ground, horizon, smoothstep(-0.32, -0.02, up));
 	return mix(colour, sky, smoothstep(0.02, 0.5, up));
 }
@@ -75,7 +75,7 @@ void main() {
 		float fresnel = 0.04 + 0.96 * pow(facing, 5.0);
 		float highlight = smoothstep(0.86 - gloss * 0.08, 0.92, dot(normalize(KEY + V), N)) * (0.3 + gloss);
 
-		vec3 metal = albedo * (sheen * 1.5 + 0.18) + albedo * highlight * 1.4;
+		vec3 metal = albedo * (sheen * 0.8 + 0.06) + albedo * highlight * 1.1;
 		vec3 plain = diffuse + sheen * fresnel * gloss * 0.6 + vec3(highlight * gloss * 0.3);
 		lit = mix(plain, metal, material.metalic) + vec3(0.85, 0.9, 1.0) * rim * (0.16 + 0.4 * material.metalic);
 	}

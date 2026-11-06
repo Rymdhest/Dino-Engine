@@ -15,10 +15,10 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             GearPalette palette = style.Palette;
 
             float radius = FingerRadius * genes.Range("radius", 1f, 1.14f);
-            float wide = FingerRadius * genes.Range("wide", 0.18f, 0.5f) * (0.8f + 0.6f * style.Heft);
+            float wide = FingerRadius * genes.Range("wide", 0.14f, 0.85f) * (0.8f + 0.6f * style.Heft);
             float thick = wide * genes.Range("thick", 0.3f, 0.7f);
             int bands = genes.Chance("twin", 0.22f) ? 2 : 1;
-            float twist = genes.Chance("twisted", 0.3f) ? genes.Range("twist", 0.15f, 0.5f) : 0f;
+            float twist = genes.Chance("twisted", 0.4f) ? genes.Range("twist", 0.15f, 0.8f) : 0f;
             int waves = genes.Count("waves", 2, 7);
             Section section = style.Angular > 0.5f ? Section.Slab(genes.Range("bevel", 0.2f, 0.5f)) : Section.Super(8, genes.Range("round", 1.8f, 3.2f));
 
@@ -41,7 +41,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
             // The better a ring the likelier it holds something, and a plain one is just a band.
             if (style.Spec.Grade == 0 && !genes.Chance("plain.stone", 0.2f)) return;
-            mesh.At(Matrix4.CreateRotationZ(-MathF.PI / 2f) * Matrix4.CreateTranslation(radius + thick, 0f, 0f), () => Setting(mesh, style, genes.Part("setting"), wide * genes.Range("stone", 1.05f, 1.9f)));
+            mesh.At(Matrix4.CreateRotationZ(-MathF.PI / 2f) * Matrix4.CreateTranslation(radius + thick, 0f, 0f), () => Setting(mesh, style, genes.Part("setting"), FingerRadius * genes.Range("stone", 0.26f, 1.05f)));
         }
 
         // A stone in a seat of its own, standing up y from where it's put.

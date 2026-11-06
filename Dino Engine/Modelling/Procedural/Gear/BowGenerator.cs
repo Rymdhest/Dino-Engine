@@ -16,8 +16,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             GearPalette palette = style.Palette;
 
             float reach = genes.Around("reach", 1.5f + form.Size * 1.3f, 0.09f);
-            float arc = reach * genes.Around("arc", 0.34f - form.Size * 0.12f, 0.04f);
-            float recurve = reach * form.Curve * genes.Range("recurve", 0.2f, 0.42f);
+            float arc = reach * genes.Around("arc", 0.34f - form.Size * 0.12f, 0.075f);
+            float recurve = reach * (form.Curve * genes.Range("recurve", 0.2f, 0.42f) + genes.Range("recurve.own", 0f, 0.16f));
             float width = genes.Range("width", 0.055f, 0.09f) * (0.8f + 0.5f * style.Heft) * (0.75f + 0.5f * (1f - form.Slender));
             float depth = width * genes.Range("depth", 0.5f, 0.85f);
             float tipShare = genes.Range("tip", 0.22f, 0.55f);

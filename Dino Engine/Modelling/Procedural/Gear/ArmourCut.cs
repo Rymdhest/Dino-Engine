@@ -64,6 +64,34 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
         public static Colour Shade(Colour colour, float by) => new Colour(colour.Red * by, colour.Green * by, colour.Blue * by);
 
+        /// <summary>
+        /// How something's surface is divided, from 0 to 1 along it and 0 to 1 around it, with the front at a quarter. All of it is drawn, so bands land where they land. It costs no geometry, and
+        /// it's most of what sets one close-fitting piece apart from another: armour has to follow a body, so only so much of it can show in its outline.
+        /// </summary>
+        public Func<float, float, VertexMaterial> Pattern(Genes genes)
+        {
+            VertexMaterial main = Main;
+            VertexMaterial second = Second;
+            VertexMaterial third = genes.Chance("third.under", 0.5f) ? Under : Strap;
+            int kind = genes.Pick("kind", 2.5f, 2.5f, 2f, 2f, 1.5f + Style.Ornate, 1.5f);
+            int bands = genes.Count("bands", 2, 6);
+            float width = genes.Range("width", 0.16f, 0.5f);
+            float at = genes.Range("at", 0.2f, 0.8f);
+            int stripes = genes.Count("stripes", 2, 7);
+            float fade = genes.Range("fade", 0f, 0.5f);
+            bool alternate = genes.Chance("alternate", 0.4f);
+
+            return kind switch
+            {
+                1 => (along, around) => (int)(along * bands) % 2 == 0 ? main : alternate ? third : second,                                      // Bands.
+                2 => (along, around) => (int)(around * stripes * 2f) % 2 == 0 ? main : second,                                                  // Stripes.
+                3 => (along, around) => along > at ? second : main,                                                                             // A yoke.
+                4 => (along, around) => around is > 0.25f and < 0.75f ? main : second,                                                          // Parti-coloured.
+                5 => (along, around) => (int)(along * bands) % 2 == 0 == ((int)(around * stripes * 2f) % 2 == 0) ? main : third,                // Chequered.
+                _ => (along, around) => MathF.Abs(around - 0.25f) < width * 0.25f && along > fade ? second : main,                              // A panel down the front.
+            };
+        }
+
         /// <summary>Whether it has something, going by how likely each family is to.</summary>
         public bool Likely(string name, float heavy, float leather, float cloth) => Genes.Chance(name, Heavy * heavy + Leather * leather + Cloth * cloth);
 

@@ -140,10 +140,93 @@ namespace Dino_Defenders.UI
         }
 
         /// <summary>The picture of something, or a drawing of what kind of thing it is until there is one.</summary>
-        public static void DrawItem(GuiDrawList draw, Item item, GuiRect rect, Colour colour)
+        public static void DrawItem(GuiDrawList draw, Item item, GuiRect rect, Colour colour, Colour tint)
         {
-            if (GameUi.Current.Wardrobe.Picture(item, default) is StudioPicture picture) draw.AddImage(picture.Texture, rect, picture.From, picture.To, GuiColors.White);
+            if (GameUi.Current.Wardrobe.Picture(item, Halo(item)) is StudioPicture picture) draw.AddImage(picture.Texture, rect, picture.From, picture.To, tint);
             else DrawSlotIcon(draw, item.Slot, rect, colour);
+        }
+
+        // What's behind a picture of something, for what's worth noticing. It's part of the picture, so it has to go by what's in the picture's key.
+        private static Colour Halo(Item item)
+        {
+            LootGrade grade = Loot.GradeOf(item);
+            if (grade < LootGrade.Rare) return default;
+            Colour glow = GradeColour(grade);
+            return new Colour(glow.Red, glow.Green, glow.Blue, 1f, 0.55f);
+        }
+
+        private const float TooltipWidth = 340f;
+        private const float TooltipPicture = 84f;
+
+        /// <summary>What something is, beside whatever's showing it, set against what's worn in its place. Everything that shows an item shows it the same way.</summary>
+        /// <param name="beside">What it's showing beside.</param>
+        /// <param name="price">What it's worth here, if anything.</param>
+        /// <param name="compare">Whether to set it against what it would replace.</param>
+        public static void DrawTooltip(GuiContext context, GuiDrawList draw, HeroState hero, Item item, GuiRect beside, GuiRect screen, string? price, bool compare)
+        {
+            Colour colour = GradeColour(Loot.GradeOf(item));
+            float textWidth = TooltipWidth - 24f;
+
+            var lines = new List<(string text, float size, Colour colour, bool indent)>();
+            void Add(string text, float size, Colour shade, bool beneathPicture = true)
+            {
+                float width = beneathPicture ? textWidth : textWidth - TooltipPicture - 8f;
+                foreach (string line in Wrap(context, text, size, width)) lines.Add((line, size, shade, !beneathPicture));
+            }
+
+            Add(item.Name, 18f, colour, beneathPicture: false);
+            Add($"{GradeName(item)} {SlotName(item)}", 13f, Faded, beneathPicture: false);
+            Add($"Level {item.Level}", 13f, Faded, beneathPicture: false);
+            float head = 18f;
+            foreach ((_, float size, _, _) in lines) head += size + 6f;
+            float gap = MathF.Max(TooltipPicture + 16f - head, 0f);
+
+            foreach (string line in item.DescribeBase()) Add(line, 14f, Parchment);
+            foreach (string line in item.Describe()) Add(line, 14f, colour);
+            if (item.Unique != null && UniqueCatalog.Find(item.Unique) is UniqueDefinition unique) Add(unique.Lore, 13f, Faded);
+            if (price != null) Add(price, 14f, Gold);
+
+            if (compare && hero.Equipped.TryGetValue(hero.PlaceFor(item), out Item? worn) && worn != item)
+            {
+                Add($"Instead of {worn.Name}", 13f, Faded);
+                foreach ((string name, float difference) in Differences(item, worn)) Add($"{(difference > 0f ? "+" : "")}{difference:0.#} {name}", 13f, difference > 0f ? Good : Blood);
+            }
+
+            float height = 18f + gap;
+            foreach ((_, float size, _, _) in lines) height += size + 6f;
+
+            float x = beside.Right + 10f;
+            if (x + TooltipWidth > screen.Width - 8f) x = beside.X - TooltipWidth - 10f;
+            x = Math.Clamp(x, 8f, screen.Width - TooltipWidth - 8f);
+            float y = Math.Clamp(beside.Center.Y - height * 0.5f, 8f, MathF.Max(screen.Height - height - 8f, 8f));
+
+            draw.AddRect(new GuiRect(x, y, TooltipWidth, height), Ink, 3f, 1f, colour.MultiplyAlpha(0.8f));
+            DrawItem(draw, item, new GuiRect(x + TooltipWidth - TooltipPicture - 10f, y + 8f, TooltipPicture, TooltipPicture), colour, GuiColors.White);
+
+            float top = y + 9f;
+            bool passedPicture = false;
+            foreach ((string text, float size, Colour shade, bool indent) in lines)
+            {
+                if (!indent && !passedPicture)
+                {
+                    top += gap;
+                    passedPicture = true;
+                }
+                Text(context, draw, text, size, new GuiRect(x + 12f, top, textWidth, size + 5f), shade);
+                top += size + 6f;
+            }
+        }
+
+        private static IEnumerable<(string name, float difference)> Differences(Item item, Item worn)
+        {
+            float damage = item.WeaponDamage - worn.WeaponDamage;
+            if (MathF.Abs(damage) >= 0.05f) yield return ("Damage", damage);
+            float armour = item.Armour - worn.Armour;
+            if (MathF.Abs(armour) >= 0.05f) yield return ("Armour", armour);
+            float evasion = item.Evasion - worn.Evasion;
+            if (MathF.Abs(evasion) >= 0.05f) yield return ("Evasion", evasion);
+            float barrier = item.Barrier - worn.Barrier;
+            if (MathF.Abs(barrier) >= 0.05f) yield return ("Barrier", barrier);
         }
 
         /// <summary>A small drawing of what goes in a slot, for items and the empty places where they go.</summary>
