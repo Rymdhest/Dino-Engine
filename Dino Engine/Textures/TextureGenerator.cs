@@ -89,14 +89,8 @@ namespace Dino_Engine.Textures
         public static int mail;
         public static int gem;
         public static int iron;
-        public static int gold;
-        public static int copper;
-        public static int crystal;
-        public static int rustyMetal;
         public static int mirror;
         public static int wax;
-        public static int plastic;
-        public static int glass;
 
 
         public static int fernLeaf;

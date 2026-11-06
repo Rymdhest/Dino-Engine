@@ -42,41 +42,9 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             Mesh head = GenerateHead();
             skeleton += head.translated(headAnchor);
 
-            if (archer)
-            {
-                skeleton += Character.HumanoidGenerator.Bow(leftArmAchnor);
-                skeleton.translate(new Vector3(0f, legLength, 0f));
-                skeleton.isUsingBones = true;
-                return skeleton;
-            }
-
-            Mesh sword = WeaponGenerator.GenerateSword();
-            sword.translate(new Vector3(0f, - 0.25f, 0f));
-            sword.rotate(new Vector3(0f, MathF.PI / 2f, 0f));
-            sword.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
-            sword.translate(new Vector3(0f, -armLength-0.15f, 0f));
-            sword.rotate(rightArmRotation);
-            sword.translate(rightArmAchnor);
-            sword.setAllBoneIndices(new Vector2((int)BoneType.HandR, 0f));
-            skeleton += sword;
-
-
-            Mesh shield = ArmourGenerator.GenerateShield();
-            shield.rotate(new Vector3(0f, MathF.PI/2f, 0f));
-            shield.translate(new Vector3(0f, -0.25f, 0f));
-            //shield.rotate(new Vector3(0f, 0f, MathF.PI / 2f));
-            shield.translate(new Vector3(0f, -armLength - 0.15f, 0f));
-            shield.rotate(leftArmRotation);
-            shield.translate(leftArmAchnor);
-            shield.setAllBoneIndices(new Vector2((int)BoneType.HandL, 0f));
-            skeleton += shield;
-
-
             skeleton.translate(new Vector3(0f, legLength, 0f));
-
-
             skeleton.isUsingBones = true;
-            return skeleton;
+            return Character.HumanoidGenerator.Armed(skeleton, archer ? Character.HeldItem.Bow : Character.HeldItem.Sword, !archer, archer ? 11ul : 12ul);
         }
 
         public static Mesh GenerateUpperBody(out Vector3 leftArmAchnor, out Vector3 rightArmAchnor, out Vector3 leftLegAchnor, out Vector3 RightLegAchnor, out Vector3 headAnchor)

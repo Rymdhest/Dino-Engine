@@ -18,7 +18,18 @@ namespace Dino_Defenders.Client
 
         public int Models => _workshop.Count;
 
-        public void Update() => _workshop.Update();
+        /// <summary>How many there have been, for telling a leak from a busy session.</summary>
+        public int Made => _workshop.Made;
+
+        /// <summary>The most the main thread has spent on gear in one frame, as all of the making is meant to happen elsewhere.</summary>
+        public double WorstFrameMilliseconds { get; private set; }
+
+        public void Update()
+        {
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            _workshop.Update();
+            WorstFrameMilliseconds = Math.Max(WorstFrameMilliseconds, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        }
 
         /// <summary>Something as it lies on the ground, or nothing yet.</summary>
         public glModel? Lying(ulong seed, uint traits)

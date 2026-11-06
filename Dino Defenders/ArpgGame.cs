@@ -482,6 +482,7 @@ namespace Dino_Defenders
             Console.WriteLine($"Net: {_client.Party.Count} in the party, {_client.Ghosts.Ghosts.Count} ghosts, round trip {_client.RoundTrip:0} ms, drawn {_client.DrawnBehind:0} ms behind, {predictor.Corrections} corrections in {predictor.Compared} checks (worst {predictor.WorstCorrection:0.00} m), {_client.Ghosts.Mismatches} mismatches, {_client.BytesReceived / 1024} KB in, {_client.BytesSent / 1024} KB out");
             var grass = Dino_Engine.Core.Engine.RenderEngine._grassRenderer;
             Console.WriteLine($"Grass: {grass.NearBladesDrawn} near, {grass.FarBladesDrawn} far");
+            Console.WriteLine($"Gear: {Wardrobe.Models} models alive, {Wardrobe.Made} made in all, worst frame's work {Wardrobe.WorstFrameMilliseconds:0.00} ms");
             if (Audio.Mixer is Dino_Engine.Sound.Mixing.Mixer mixer) Console.WriteLine($"Sound: {Audio.TakesMade} takes, at most {mixer.MostActiveVoices} voices, {mixer.Dropped} dropped, {mixer.Load * 100f:0.0}% mixing, {Audio.Output?.Underruns ?? 0} underruns on {Audio.Output?.Device ?? "no device"}, music {Music.Mood} at {Music.Intensity:0.00}, {Music.Gaps} gaps, heard {string.Join(" ", Music.Heard)}");
             if (Audio.Mixer != null)
             {

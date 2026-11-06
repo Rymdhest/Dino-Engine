@@ -30,6 +30,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
         public int Count => _entries.Count;
 
+        /// <summary>How many have been asked for, ever.</summary>
+        public int Made { get; private set; }
+
         /// <summary>The model for this, or nothing yet. Keep asking every frame for as long as it's in use: that's what keeps it.</summary>
         public glModel? Get(GearKey key, Func<Mesh> make)
         {
@@ -37,6 +40,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             {
                 entry = new Entry { Making = Task.Run(make) };
                 _entries.Add(key, entry);
+                Made++;
             }
             entry.LastAsked = _frame;
             return entry.Model;

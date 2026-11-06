@@ -147,13 +147,15 @@ Node ids are saved in heroes and come from where a node stands in a sector's tab
 
 An item holds lines of an affix id and a rolled value, never modifiers. What a line means is the affix's business, so rebalancing an affix reaches old items, and a stranger can't send a modifier that doesn't exist. Affix ids are saved, so they stay. Unknown ones are ignored, so a removed affix costs a line, not a hero.
 
-Uniques (`UniqueCatalog`) are items with lines of their own, and should change what a build *is*: `check` fails if most of them only add to it. Bases come in kinds: weapons by `WeaponKind`, armour by which of armour, evasion and barrier it gives. Two-handed weapons and shields don't mix.
+Uniques (`UniqueCatalog`) are items with lines of their own, and should change what a build *is*: `check` fails if most of them only add to it. Bases come in kinds: weapons by `WeaponKind`, armour by which of armour, evasion and barrier it gives. A hero has ten places: `ItemSlot` is what something is worn as, and `WornSlot` where it's worn, so a ring goes on either of two. Two-handed weapons and the off hand don't mix.
+
+**Families.** Armour is heavy, evasion is leather, and barrier is cloth, which holds `ManaPerBarrier` mana as well, and something giving two of those is that much of each (`Item.Shares`). Weapons go by their kind. A family leans what can roll, so that what something looks like says what it's for: over half of a piece's lines suit it, whichever family it is, and anything can still roll anywhere. It's a share of the draw and not a weight on each affix, as more affixes suit heavy armour on a body than suit leather (`AffixCatalog.Weigh`). How all of this looks is in `GEAR.md`.
 
 ## Enemies
 
 `Bestiary` holds what creatures are: skills, mods, and how strength grows with level. Elites get a trait, which is the same modifiers gear is made of. A boss wears real items and takes a real keystone, fights with them, and drops what it wore, so a player has usually seen a unique used before they ever hold it.
 
-`HealthAt` and `DamageAt` are fitted to the `balance` table: a sample hero who knows nothing of keystones and doesn't choose their gear needs about three hits and survives about ten. Anything a real build does better is the build working. They climb the way a hero does, fast early on, and what's exponential in them keeps lands past the level cap getting harder. That's an ordinary enemy, which a pack is mostly not: its core has about half the health and under half the damage, so a build that's working goes through them.
+`HealthAt` and `DamageAt` are fitted to the `balance` table: a sample hero who knows nothing of keystones and doesn't choose their gear needs about three hits and survives about ten. `Outfitted` is what keeps that true with legs, hands and a second ring on the sample hero, and comes in as they fill those places. Anything a real build does better is the build working. They climb the way a hero does, fast early on, and what's exponential in them keeps lands past the level cap getting harder. That's an ordinary enemy, which a pack is mostly not: its core has about half the health and under half the damage, so a build that's working goes through them.
 
 ### Packs
 

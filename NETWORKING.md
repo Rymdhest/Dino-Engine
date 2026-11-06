@@ -68,6 +68,7 @@ Everything is one message on a connection, reliable or not.
 | `Hello` `Welcome` `WorldReady` `Arrived` | reliable | Joining |
 | `HeroUpdate` `Progress` `Notice` `Market` | reliable | Things said once and meant, including talents, the skill bar and what's buffing a hero |
 | `GroundItem` | reliable | What a find on the ground is, and that it's gone. Sent to everyone as it drops, and to whoever arrives later |
+| `Worn` | reliable | What a hero has on: a seed and traits for each place. Sent to everyone when it changes, and to whoever arrives later. No mesh is ever sent: see `GEAR.md` |
 
 Worlds are never sent: the seed is, with the `Offering` paid on it, and each machine grows its own. An offering decides how many stand on the land, so `Offering.Shape` has to be what makes the request on both ends. Both ends compare a hash of the result. Sites and spawns must match exactly. Ground only has to match closely, as worlds are grown with floating point and the C runtime can round differently from one machine to the next, which at worst costs a correction.
 

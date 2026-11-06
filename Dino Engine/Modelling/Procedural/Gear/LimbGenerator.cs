@@ -23,6 +23,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float ankle = cut.Blend("ankle", new Vector2(0.28f, 0.4f), new Vector2(0.24f, 0.46f), new Vector2(0.18f, 0.38f));
             float seat = genes.Range("seat", 0.02f, 0.08f);
             int lames = cut.Likely("lames", 0.75f, 0.08f, 0f) ? genes.Count("lames", 2, 5) : 0;
+            float lameStep = genes.Range("lame.step", 0.015f, 0.075f);
 
             // How it fits on the way down, drawn: gathered at the knee and full below it, tight to the shin, wide at the thigh and anything between.
             float fit = cut.Blend("fit", new Vector2(0.05f, 0.22f), new Vector2(0.04f, 0.2f), new Vector2(0.06f, 0.17f));
@@ -31,6 +32,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             VertexMaterial back = cut.Heavy > 0.5f ? cut.Under : cut.Main;
             VertexMaterial hemCloth = cut.Second;
             float seam = cut.Likely("seam", 0.1f, 0.7f, 0.5f) ? genes.Range("seam.width", 0.1f, 0.3f) : 0f;
+            bool patternBehind = genes.Chance("pattern.behind", 0.5f);
             Func<float, float, VertexMaterial> pattern = cut.Pattern(genes.Part("pattern"));
 
             foreach (float side in new[] { 1f, -1f })
@@ -43,7 +45,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     float t = (float)i / steps;
                     float y = top + (ankle - top) * t;
                     float drape = loose * MathF.Sin(MathF.Min(t * 1.25f, 1f) * MathF.PI * 0.5f) * (1f - MathF.Pow(t, 6f) * 0.7f);
-                    float step = lames > 0 && y > BodyForm.Knee + 0.1f && y < BodyForm.Hip - 0.1f && (int)(t * lames * 3f) % 2 == 0 ? 0.02f : 0f;
+                    float step = lames > 0 && y > BodyForm.Knee + 0.1f && y < BodyForm.Hip - 0.1f && (int)(t * lames * 3f) % 2 == 0 ? lameStep : 0f;
                     float r = BodyForm.Leg(MathF.Min(y, BodyForm.Hip)) + gap + drape + step + fit * outline.At(t);
                     rings[i] = new Ring { Centre = new Vector3(side * BodyForm.HipX * (1f + 0.08f * t), y, 0f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = r, HalfDepth = r * (y > BodyForm.Knee ? 1.05f : 1f) };
                 }
@@ -55,7 +57,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     bool outer = MathF.Abs(MathF.Cos(point * (MathF.Tau / 14f)) - side) < seam;
                     if (outer) return cut.Second;
                     float z = MathF.Sin(point * (MathF.Tau / 14f));
-                    return z > -0.1f ? pattern((float)ring / steps, point / 14f) : back;
+                    return z > -0.1f || patternBehind ? pattern((float)ring / steps, point / 14f) : back;
                 }, capStart: false, capEnd: false);
                 float s = side;
                 mesh.SkinBy(at => Leg(at, s), first);

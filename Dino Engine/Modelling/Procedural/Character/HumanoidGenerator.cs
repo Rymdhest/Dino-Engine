@@ -95,32 +95,48 @@ namespace Dino_Engine.Modelling.Procedural.Character
                 if ((covered & BodyRegions.Feet) == 0) body += BuildFoot(look, side).setAllBoneIndices(new Vector2((int)(left ? BoneType.FootL : BoneType.FootR), 0f));
             }
 
-            AddGear(ref body, look);
             body.translate(new Vector3(0f, LegLength, 0f));
             body.isUsingBones = true;
-            return body;
+            return Armed(body, look.Held, look.Shield, SeedOf(look));
         }
 
-        /// <summary>A bow in the left hand of a body on this rig, whose left shoulder is at <paramref name="leftShoulder"/>.</summary>
-        public static Mesh Bow(Vector3 leftShoulder)
+        // Everyone with the same look carries the same thing, and a different look carries something else.
+        private static ulong SeedOf(HumanoidLook look)
         {
-            var b = new MeshBuilder();
-            VertexMaterial wood = new VertexMaterial(GearMaterials.Wood, new Colour(96, 70, 48));
-            Vector3 previous = new Vector3(0f, -1.7f, 0f);
-            for (int i = 1; i <= 10; i++)
+            ulong hash = 0xCBF29CE484222325UL;
+            foreach (Vector3 colour in new[] { look.Tunic, look.Legs, look.Trim, look.HeadColour })
             {
-                float t = i / 10f * 2f - 1f;
-                Vector3 next = new Vector3(0f, t * 1.7f, (1f - t * t) * 0.62f);
-                b.Tube(previous, next, 0.05f, 0.05f, 5, wood, capped: false);
-                previous = next;
+                hash = (hash ^ BitConverter.SingleToUInt32Bits(colour.X)) * 0x100000001B3UL;
+                hash = (hash ^ BitConverter.SingleToUInt32Bits(colour.Y)) * 0x100000001B3UL;
+                hash = (hash ^ BitConverter.SingleToUInt32Bits(colour.Z)) * 0x100000001B3UL;
             }
-            b.Tube(new Vector3(0f, -1.7f, 0f), new Vector3(0f, 1.7f, 0f), 0.012f, 0.012f, 3, new VertexMaterial(GearMaterials.Cloth, new Colour(190, 180, 160)), capped: false);
-            Mesh bow = b.Build();
-            bow.translate(new Vector3(0f, -ArmLength - 0.1f, 0f));
-            bow.rotate(new Vector3(0f, 0f, MathF.PI / 2f));
-            bow.translate(leftShoulder);
-            bow.setAllBoneIndices(new Vector2((int)BoneType.HandL, 0f));
-            return bow;
+            return (hash ^ (ulong)look.Held ^ BitConverter.SingleToUInt32Bits(look.Bulk)) * 0x100000001B3UL;
+        }
+
+        /// <summary>A body on this rig with what it holds in its hands, which comes from the same place as a hero's. These are nobody's best work.</summary>
+        public static Mesh Armed(Mesh body, HeldItem held, bool shield, ulong seed)
+        {
+            if (held == HeldItem.None && !shield) return body;
+
+            var armed = new GearMesh();
+            armed.Add(body);
+            var form = new GearForm(0.45f, 0.5f, 0.15f, 0.4f, 0.12f, 0.45f);
+
+            if (held != HeldItem.None)
+            {
+                GearKind kind = held == HeldItem.Spear ? GearKind.Spear : held == HeldItem.Bow ? GearKind.Bow : GearKind.Sword;
+                GearMesh weapon = GearForge.Make(new GearSpec(seed, kind, 1f, 0f, 0f, form, 0, GearTheme.None));
+                weapon.SetBone((int)(kind == GearKind.Bow ? BoneType.HandL : BoneType.HandR));
+                armed.At(kind == GearKind.Bow ? BowHand : MainHand, () => armed.Add(weapon));
+            }
+
+            if (shield)
+            {
+                GearMesh guard = GearForge.Make(new GearSpec(seed + 1, GearKind.OffHand, 1f, 0f, 0f, form, 0, GearTheme.None));
+                guard.SetBone((int)BoneType.HandL);
+                armed.At(OffHand, () => armed.Add(guard));
+            }
+            return armed.Build(bones: true);
         }
 
         private static Mesh BuildTorso(HumanoidLook look)
@@ -241,56 +257,6 @@ namespace Dino_Engine.Modelling.Procedural.Character
             Vector3 ankle = new Vector3(side * HipX, -LegLength, 0f);
             b.Box(ankle + new Vector3(0f, 0.13f, 0.12f), new Vector3(0.17f, 0.15f, 0.34f), Hide(look.Boots));
             return b.Build();
-        }
-
-        private static void AddGear(ref Mesh body, HumanoidLook look)
-        {
-            Vector3 rightArmRotation = new Vector3(0f, 0f, -MathF.PI / 2f);
-            Vector3 leftArmRotation = new Vector3(0f, 0f, MathF.PI / 2f);
-            Vector3 rightShoulder = new Vector3(-ShoulderX, ShoulderY, 0f);
-            Vector3 leftShoulder = new Vector3(ShoulderX, ShoulderY, 0f);
-
-            if (look.Held == HeldItem.Sword)
-            {
-                Mesh sword = WeaponGenerator.GenerateSword();
-                sword.translate(new Vector3(0f, -0.25f, 0f));
-                sword.rotate(new Vector3(0f, MathF.PI / 2f, 0f));
-                sword.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
-                sword.translate(new Vector3(0f, -ArmLength - 0.15f, 0f));
-                sword.rotate(rightArmRotation);
-                sword.translate(rightShoulder);
-                sword.setAllBoneIndices(new Vector2((int)BoneType.HandR, 0f));
-                body += sword;
-            }
-            else if (look.Held == HeldItem.Spear)
-            {
-                var b = new MeshBuilder();
-                b.Tube(new Vector3(0f, -2.4f, 0f), new Vector3(0f, 3.6f, 0f), 0.06f, 0.05f, 6, new VertexMaterial(GearMaterials.Wood, new Colour(106, 80, 58)));
-                b.Tube(new Vector3(0f, 3.6f, 0f), new Vector3(0f, 4.3f, 0f), 0.14f, 0.01f, 4, new VertexMaterial(GearMaterials.Metal));
-                Mesh spear = b.Build();
-                spear.rotate(new Vector3(MathF.PI / 2f, 0f, 0f));
-                spear.translate(new Vector3(0f, -ArmLength - 0.1f, 0f));
-                spear.rotate(rightArmRotation);
-                spear.translate(rightShoulder);
-                spear.setAllBoneIndices(new Vector2((int)BoneType.HandR, 0f));
-                body += spear;
-            }
-            else if (look.Held == HeldItem.Bow)
-            {
-                body += Bow(leftShoulder);
-            }
-
-            if (look.Shield)
-            {
-                Mesh shield = ArmourGenerator.GenerateShield();
-                shield.rotate(new Vector3(0f, MathF.PI / 2f, 0f));
-                shield.translate(new Vector3(0f, -0.25f, 0f));
-                shield.translate(new Vector3(0f, -ArmLength - 0.15f, 0f));
-                shield.rotate(leftArmRotation);
-                shield.translate(leftShoulder);
-                shield.setAllBoneIndices(new Vector2((int)BoneType.HandL, 0f));
-                body += shield;
-            }
         }
     }
 }
