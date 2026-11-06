@@ -26,12 +26,14 @@ It takes under a minute. It refuses uncommitted changes, builds a self-contained
 
 | | |
 |---|---|
-| `publish --notes "text"` | Say what changed. Otherwise the notes are the commit subjects since the last release. |
+| `publish --notes "text"` | Say what changed, for the people playing. Otherwise the notes are the commit subjects since the last release. |
 | `publish --dry-run` | Everything except the upload. The result is in `out/release/`. |
 | `publish --version 0.2.0` | Jump to a version. Otherwise the last number counts up by itself. |
 | `publish --allow-dirty` | Release uncommitted work. The manifest records that it was. |
 | `rollback --to 0.1.7` | Send everyone back to an older build, as a new release. |
 | `status` | What's out there now. |
+
+**Notes are always a list of changes**, a line each, on GitHub and in the launcher. Each line of `--notes` is a change, and so is each sentence, so a paragraph comes apart by itself, and that goes for older notes still being carried along too. Keep a line short enough to fit the launcher's box: about 110 characters.
 
 The GitHub token is the one git already pushes with, so there's nothing to set up. Set `GITHUB_TOKEN` to use another; it needs `contents: write`.
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Text.RegularExpressions;
 using Dino_Launcher.Update;
 
 namespace Dino_Release
@@ -21,6 +22,7 @@ namespace Dino_Release
         private const int SmokeSeconds = 180;
 
         private static readonly DateTimeOffset ZipTime = new(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        private static readonly Regex SentenceEnd = new(@"(?<=[.!?])\s+(?=\p{Lu})");
 
         private readonly Options _options;
         private readonly IReleaseStore _store;
@@ -89,7 +91,7 @@ namespace Dino_Release
             List<FileEntry> files = ListFiles(game);
             if (!files.Any(f => f.Path == Executable) && real) throw new ReleaseException($"{Executable} isn't in the build.");
 
-            string notes = _options.Text("notes") ?? NotesFromCommits(live);
+            string notes = AsList(_options.Text("notes") ?? NotesFromCommits(live));
             var manifest = new Manifest
             {
                 Sequence = (live?.Sequence ?? 0) + 1,
@@ -159,7 +161,7 @@ namespace Dino_Release
 
             string version = NextVersion(live);
             string tag = $"v{version}";
-            string notes = _options.Text("notes") ?? $"Back to the build of {to} while something is put right.";
+            string notes = AsList(_options.Text("notes") ?? $"Back to the build of {to} while something is put right.");
 
             manifest.Sequence = live.Sequence + 1;
             manifest.Version = version;
@@ -224,10 +226,22 @@ namespace Dino_Release
             return string.Join('\n', subjects.Select(s => $"- {s}"));
         }
 
+        /// <summary>
+        /// Notes are always a list of changes, a line each, whatever they were given as: a paragraph comes apart at its sentences. A launcher
+        /// shows them as plain text in a small box, where a list gets read and a wall of words doesn't.
+        /// </summary>
+        private static string AsList(string notes)
+        {
+            IEnumerable<string> changes = notes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .SelectMany(line => SentenceEnd.Split(line.StartsWith("- ", StringComparison.Ordinal) ? line.Substring(2) : line));
+            return string.Join('\n', changes.Select(change => $"- {change.Trim()}"));
+        }
+
+        // Older releases still being carried along may be paragraphs, and they're shown right under this one.
         private static ReleaseNote[] NotesWith(Manifest? live, string version, string notes)
         {
             var all = new List<ReleaseNote> { new() { Version = version, Text = notes } };
-            if (live?.Notes != null) all.AddRange(live.Notes);
+            if (live?.Notes != null) all.AddRange(live.Notes.Select(note => new ReleaseNote { Version = note.Version, Text = AsList(note.Text) }));
             return all.Take(NotesKept).ToArray();
         }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Dino_Launcher.Update;
@@ -48,6 +49,9 @@ namespace Dino_LaunchLab
             report.Section("Into a stand-in for GitHub");
             ThroughGitHub(report, tool, folder.Path, key, trust, launcher);
 
+            report.Section("Notes are a list, however they're given");
+            AlwaysAList(report, tool, folder.Path, key, trust, launcher);
+
             return report.Finish();
         }
 
@@ -90,7 +94,7 @@ namespace Dino_LaunchLab
             Manifest? first = result.Build;
             report.Check("The launcher's code reads what the tool wrote, on its own framework", first?.Version == "0.1.0" && result.Problem == null, result.Problem ?? "");
             report.Check("The game unpacks whole", first != null && GameInstall.FindWrong(paths.Game, first, CancellationToken.None).Count == 0);
-            report.Check("Notes come through", first?.Notes.FirstOrDefault()?.Text == "The first one");
+            report.Check("Notes come through", first?.Notes.FirstOrDefault()?.Text == "- The first one");
 
             ReleaseTool.WriteBuild(game, TestFeed.Build(2));
             server.ClearRequests();
@@ -103,7 +107,7 @@ namespace Dino_LaunchLab
             Manifest? second = result.Build;
             report.Check("Players get it", second?.Version == "0.1.1" && second.Sequence == 2, result.Problem ?? "");
             report.Check("Fetching only the game pack", server.CountOf("game.zip") == 1 && server.CountOf("runtime.zip") == 0);
-            report.Check("With the old notes kept for anyone who was away", second?.Notes.Length == 2 && second.Notes[0].Text == "The second one", $"{second?.Notes.Length}");
+            report.Check("With the old notes kept for anyone who was away", second?.Notes.Length == 2 && second.Notes[0].Text == "- The second one", $"{second?.Notes.Length}");
 
             Dictionary<string, byte[]> newRuntime = TestFeed.Build(3);
             newRuntime["System.Private.CoreLib.dll"] = new byte[] { 9, 9, 9 };
@@ -162,6 +166,7 @@ namespace Dino_LaunchLab
             tool.GitHubToken = FakeGitHub.Token;
             code = tool.Run(Publish("First"));
             report.Check("The first release goes up", code == 0, tool.Output);
+            report.Check("GitHub shows the same list as a launcher", github.Latest?.Body == "- First", github.Latest?.Body ?? "");
 
             List<string> calls = github.Calls;
             int created = calls.IndexOf("create v0.1.0");
@@ -203,6 +208,50 @@ namespace Dino_LaunchLab
             result = Update();
             report.Check("Launchers follow that too", result.Build?.Version == "0.1.3", result.Problem ?? "");
             report.Check("GitHub still had nothing to complain about", github.Complaints.Count == 0, string.Join("; ", github.Complaints));
+        }
+
+        private static void AlwaysAList(Report report, ReleaseTool tool, string work, string key, string trust, string launcher)
+        {
+            string feed = Path.Combine(work, "list-feed");
+            string game = Path.Combine(work, "list-build");
+            string live = Path.Combine(feed, "latest", "download", Feed.ManifestName);
+            ReleaseTool.WriteBuild(game, TestFeed.Build(1));
+
+            Manifest Live() => Manifest.Parse(SignedFile.Open(File.ReadAllBytes(live), trust));
+            string[] Release(string notes) => Common(key, trust, game, launcher, "--folder", feed, "--notes", notes);
+
+            int code = tool.Run(Release("Rain falls. Puddles form! Is it wet? It is, at 0.5 mm, and more."));
+            report.Check("A paragraph comes out as a line to a sentence", code == 0 && Live().Notes[0].Text == "- Rain falls.\n- Puddles form!\n- Is it wet?\n- It is, at 0.5 mm, and more.", Live().Notes[0].Text);
+
+            code = tool.Run(Release("- Rain falls\n\nPuddles form\r\n- Drips drip"));
+            report.Check("Lines are changes, marked or not", code == 0 && Live().Notes[0].Text == "- Rain falls\n- Puddles form\n- Drips drip", Live().Notes[0].Text);
+
+            Manifest old = Live();
+            old.Notes[0].Text = "Inviting friends works now. Windows asks once: say Yes. The way back shows up too.";
+            byte[] payload = old.ToBytes();
+            using (ECDsa signer = KeyFrom(key)) File.WriteAllBytes(live, SignedFile.Wrap(payload, signer.SignData(payload, HashAlgorithmName.SHA256)));
+
+            code = tool.Run(Release("- Next"));
+            report.Check("An older release's paragraph comes apart too, as it's shown right under the new one", code == 0 && Live().Notes[1].Text == "- Inviting friends works now.\n- Windows asks once: say Yes.\n- The way back shows up too.", Live().Notes[1].Text);
+
+            string carried = Live().Notes[1].Text;
+            code = tool.Run(Release("- After that"));
+            report.Check("Carrying a list along again leaves it as it was", code == 0 && Live().Notes[2].Text == carried, Live().Notes[2].Text);
+
+            code = tool.Run("rollback", "--to", "0.1.0", "--key", key, "--trust", trust, "--folder", feed);
+            report.Check("A rollback's own note is a list as well", code == 0 && Live().Notes[0].Text == "- Back to the build of 0.1.0 while something is put right.", Live().Notes[0].Text);
+        }
+
+        // A release from before notes were lists can't be made any more, so one is signed here. The key is SEC1 for P-256, so everything's where it always is.
+        private static ECDsa KeyFrom(string path)
+        {
+            byte[] der = Convert.FromBase64String(Regex.Replace(File.ReadAllText(path), "-----[^-]+-----|\\s", ""));
+            return ECDsa.Create(new ECParameters
+            {
+                Curve = ECCurve.NamedCurves.nistP256,
+                D = der.Skip(7).Take(32).ToArray(),
+                Q = new ECPoint { X = der.Skip(57).Take(32).ToArray(), Y = der.Skip(89).Take(32).ToArray() },
+            });
         }
     }
 }
