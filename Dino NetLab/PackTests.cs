@@ -80,7 +80,7 @@ namespace Dino_NetLab
         private static void Crowding(Report report, WorldCache worlds, WorldRequest request)
         {
             HeroState hero = GameLab.StrongHero();
-            hero.Equipped[ItemSlot.Amulet].Lines.Add(new ItemLine("health", 60000f));
+            hero.Equipped[WornSlot.Neck].Lines.Add(new ItemLine("health", 60000f));
             using var arena = new Arena(worlds, request, hero);
             ServerSession session = arena.Lab.Server.Session!;
             (SiteState pack, Vector2 spot) = Lookout(session, 12f);

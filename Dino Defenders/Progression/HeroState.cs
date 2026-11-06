@@ -32,7 +32,7 @@ namespace Dino_Defenders.Progression
         public string?[] Bar { get; set; } = NewBar();
 
         public List<Item> Inventory { get; set; } = new();
-        public Dictionary<ItemSlot, Item> Equipped { get; set; } = new();
+        public Dictionary<WornSlot, Item> Equipped { get; set; } = new();
 
         public int ExperienceToNext => (int)(120f * MathF.Pow(Level, 1.7f));
 
@@ -88,33 +88,51 @@ namespace Dino_Defenders.Progression
             return true;
         }
 
-        public void Equip(Item item)
+        /// <summary>Where something would go: where it was asked to, if it fits there, or else the first free place for it, or else the first place.</summary>
+        public WornSlot PlaceFor(Item item, WornSlot? asked = null)
         {
-            Inventory.Remove(item);
-            if (Equipped.TryGetValue(item.Slot, out Item? old)) Inventory.Add(old);
-            Equipped[item.Slot] = item;
+            IReadOnlyList<WornSlot> places = WornSlots.For(item.Slot);
+            if (asked is WornSlot wanted && places.Contains(wanted)) return wanted;
+            foreach (WornSlot place in places)
+            {
+                if (!Equipped.ContainsKey(place)) return place;
+            }
+            return places[0];
+        }
+
+        /// <summary>Puts on something from the pack, and takes off whatever it has to replace. Says whether it could, as all of that has to fit in the pack.</summary>
+        public bool Equip(Item item, WornSlot? asked = null)
+        {
+            WornSlot place = PlaceFor(item, asked);
 
             // Two hands are two hands.
-            if (item.IsTwoHanded && Equipped.Remove(ItemSlot.Shield, out Item? shield)) Inventory.Add(shield);
-            if (item.Slot == ItemSlot.Shield && Equipped.TryGetValue(ItemSlot.Weapon, out Item? weapon) && weapon.IsTwoHanded)
-            {
-                Equipped.Remove(ItemSlot.Weapon);
-                Inventory.Add(weapon);
-            }
+            WornSlot? displaced = null;
+            if (item.IsTwoHanded) displaced = WornSlot.OffHand;
+            else if (place == WornSlot.OffHand && Equipped.TryGetValue(WornSlot.MainHand, out Item? held) && held.IsTwoHanded) displaced = WornSlot.MainHand;
+
+            int comingOff = (Equipped.ContainsKey(place) ? 1 : 0) + (displaced is WornSlot other && Equipped.ContainsKey(other) ? 1 : 0);
+            if (Inventory.Count - 1 + comingOff > InventorySize) return false;
+
+            Inventory.Remove(item);
+            if (Equipped.Remove(place, out Item? old)) Inventory.Add(old);
+            if (displaced is WornSlot second && Equipped.Remove(second, out Item? taken)) Inventory.Add(taken);
+            Equipped[place] = item;
+            return true;
         }
 
-        public void Unequip(ItemSlot slot)
+        public void Unequip(WornSlot place)
         {
             if (Inventory.Count >= InventorySize) return;
-            if (Equipped.Remove(slot, out Item? item)) Inventory.Add(item);
+            if (Equipped.Remove(place, out Item? item)) Inventory.Add(item);
         }
 
-        /// <summary>A plain start: a poor sword and a poor coat.</summary>
+        /// <summary>A plain start: a poor sword and a poor coat. Everyone starts in these, but no two the same ones.</summary>
         public static HeroState CreateNew()
         {
             var hero = new HeroState();
-            hero.Equipped[ItemSlot.Weapon] = new Item { Name = "Rusted Blade", Slot = ItemSlot.Weapon, Level = 1, WeaponDamage = 7f };
-            hero.Equipped[ItemSlot.Body] = new Item { Name = "Travelling Tunic", Slot = ItemSlot.Body, Level = 1, Armour = 6f };
+            var looks = new Dino_Engine.World.WorldRandom((ulong)Random.Shared.NextInt64());
+            hero.Equipped[WornSlot.MainHand] = new Item { Name = "Rusted Blade", Base = "Rusted Blade", Seed = ItemGenerator.NewSeed(looks.Fork(0)), Slot = ItemSlot.MainHand, Level = 1, WeaponDamage = 7f };
+            hero.Equipped[WornSlot.Body] = new Item { Name = "Travelling Tunic", Base = "Leather Tunic", Seed = ItemGenerator.NewSeed(looks.Fork(1)), Slot = ItemSlot.Body, Level = 1, Evasion = 8f };
             return hero;
         }
     }
@@ -139,7 +157,7 @@ namespace Dino_Defenders.Progression
 
         public static WeaponProfile WeaponOf(HeroState hero)
         {
-            return hero.Equipped.TryGetValue(ItemSlot.Weapon, out Item? weapon) ? weapon.Weapon() : WeaponProfile.Fists;
+            return hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? weapon) ? weapon.Weapon() : WeaponProfile.Fists;
         }
 
         private static IEnumerable<Mod> Gather(HeroState hero, IReadOnlyList<ActiveBuff>? buffs)
@@ -147,15 +165,15 @@ namespace Dino_Defenders.Progression
             foreach (Mod mod in Innate(hero.Level)) yield return mod;
             foreach (Mod mod in TalentTree.Mods(hero)) yield return mod;
 
-            foreach (ItemSlot slot in Enum.GetValues<ItemSlot>())
+            foreach (WornSlot place in Enum.GetValues<WornSlot>())
             {
-                if (!hero.Equipped.TryGetValue(slot, out Item? item)) continue;
+                if (!hero.Equipped.TryGetValue(place, out Item? item)) continue;
                 foreach (Mod mod in item.Mods()) yield return mod;
             }
 
-            if (hero.Equipped.ContainsKey(ItemSlot.Shield)) yield return Grant(Condition.HoldingShield);
-            if (!hero.Equipped.ContainsKey(ItemSlot.Weapon)) yield return Grant(Condition.Unarmed);
-            else if (hero.Equipped[ItemSlot.Weapon].IsTwoHanded) yield return Grant(Condition.TwoHanded);
+            if (hero.Equipped.ContainsKey(WornSlot.OffHand)) yield return Grant(Condition.HoldingShield);
+            if (!hero.Equipped.ContainsKey(WornSlot.MainHand)) yield return Grant(Condition.Unarmed);
+            else if (hero.Equipped[WornSlot.MainHand].IsTwoHanded) yield return Grant(Condition.TwoHanded);
 
             if (buffs == null) yield break;
             foreach (ActiveBuff buff in buffs)

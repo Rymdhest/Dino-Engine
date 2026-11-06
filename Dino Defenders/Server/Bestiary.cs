@@ -44,8 +44,11 @@ namespace Dino_Defenders.Server
         // Measured against sample heroes in BuildLab's balance table, who know nothing of keystones and don't choose their gear. A hero gains most
         // early, as gear comes in tiers, so these climb the same way, and what's exponential in them is what keeps lands past the level cap getting harder.
         // Against these a sample hero needs about three hits and survives about ten. Anything a real build does better than that is the build working.
-        public static float HealthAt(int level) => (26f + 0.75f * level * level) * MathF.Pow(1.02f, level);
-        public static float DamageAt(int level) => (7f + 1.6f * level + 0.01f * level * level) * MathF.Pow(1.006f, level);
+        public static float HealthAt(int level) => (26f + 0.75f * level * level) * MathF.Pow(1.02f, level) * Outfitted(level, 0.06f);
+        public static float DamageAt(int level) => (7f + 1.6f * level + 0.01f * level * level) * MathF.Pow(1.006f, level) * Outfitted(level, 0.13f);
+
+        // Heroes wear legs, hands and a second ring as well, and the table stood without them. That only tells once they've found them, so it comes in over the first dozen levels.
+        private static float Outfitted(int level, float most) => 1f + most * level * level / (level * level + 100f);
 
         // Worked out for a world of a thousand enemies, of which a player meets a good part, and a hero who should come out of it a few levels up. A
         // kill is worth what it took, so a pack's followers are worth less than what leads them.
@@ -289,7 +292,7 @@ namespace Dino_Defenders.Server
             var mods = new List<Mod>(Base(kind, level, 11f));
             WorldRandom gearDraw = random.Fork("gear");
 
-            ItemSlot[] slots = { ItemSlot.Amulet, ItemSlot.Body, ItemSlot.Ring };
+            ItemSlot[] slots = { ItemSlot.Neck, ItemSlot.Body, ItemSlot.Finger };
             var worn = new List<Item>();
             int pieces = gearDraw.Int(1, 2);
             for (int i = 0; i < pieces; i++)

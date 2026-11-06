@@ -323,13 +323,13 @@ namespace Dino_Defenders.Client
 
             switch (slot)
             {
-                case Progression.ItemSlot.Weapon:
+                case Progression.ItemSlot.MainHand:
                     builder.Box(new Vector3(0f, 0.12f, -0.35f), new Vector3(0.16f, 0.05f, 1.15f), steel);
                     builder.Box(new Vector3(0f, 0.14f, 0.82f), new Vector3(0.48f, 0.08f, 0.09f), trim);
                     builder.Tube(new Vector3(0f, 0.14f, 0.88f), new Vector3(0f, 0.14f, 1.32f), 0.09f, 0.08f, 6, hide);
                     builder.Tube(new Vector3(0f, 0.14f, 1.32f), new Vector3(0f, 0.14f, 1.46f), 0.15f, 0.12f, 6, stone);
                     break;
-                case Progression.ItemSlot.Shield:
+                case Progression.ItemSlot.OffHand:
                     builder.Tube(new Vector3(0f, 0.04f, 0f), new Vector3(0f, 0.2f, 0f), 1f, 0.92f, 12, steel);
                     builder.Tube(new Vector3(0f, 0.2f, 0f), new Vector3(0f, 0.24f, 0f), 0.92f, 0.72f, 12, trim);
                     builder.Tube(new Vector3(0f, 0.24f, 0f), new Vector3(0f, 0.42f, 0f), 0.26f, 0.08f, 8, stone);
@@ -359,7 +359,7 @@ namespace Dino_Defenders.Client
                     }
                     builder.Box(new Vector3(0.42f, 0.3f, 0.5f), new Vector3(0.09f, 0.08f, 0.09f), stone);
                     break;
-                case Progression.ItemSlot.Ring:
+                case Progression.ItemSlot.Finger:
                     builder.Surface(14, 5, (u, v) =>
                     {
                         float around = u * MathF.Tau;

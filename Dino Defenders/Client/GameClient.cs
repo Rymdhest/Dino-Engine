@@ -601,14 +601,17 @@ namespace Dino_Defenders.Client
             Send(writer);
         }
 
-        public void Equip(int index)
+        /// <param name="place">Where to put it, for what could go in more than one place. Otherwise the server finds it room.</param>
+        public void Equip(int index, WornSlot? place = null)
         {
             BitWriter writer = Action(HeroAction.Equip);
             writer.WriteVarInt(index);
+            writer.WriteBool(place != null);
+            if (place != null) writer.WriteByte((byte)place.Value);
             Send(writer);
         }
 
-        public void Unequip(ItemSlot slot)
+        public void Unequip(WornSlot slot)
         {
             BitWriter writer = Action(HeroAction.Unequip);
             writer.WriteByte((byte)slot);

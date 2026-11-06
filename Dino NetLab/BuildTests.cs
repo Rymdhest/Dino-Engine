@@ -684,14 +684,14 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request))
             {
                 Actor weak = arena.Dummy(East * 3f, 1f);
-                Item item = new Item { Name = "Test", Slot = ItemSlot.Ring, Level = 1, Unique = "knot-of-regret" };
-                arena.Truth.Hero.Equipped[ItemSlot.Ring] = item;
+                Item item = new Item { Name = "Test", Slot = ItemSlot.Finger, Level = 1, Unique = "knot-of-regret" };
+                arena.Truth.Hero.Equipped[WornSlot.Finger1] = item;
                 arena.Truth.RefreshLoadout();
                 report.Check("Wearing something changes what a hero is at once", arena.Hero.Sheet.RaiseFallen == 25f);
 
                 // Triggers and skills go by place, so a hero who gains some mid-fight has more of them than they started with.
                 Item ember = UniqueCatalog.Make(UniqueCatalog.Find("first-ember")!, 30, new WorldRandom(1));
-                arena.Truth.Hero.Equipped[ItemSlot.Amulet] = ember;
+                arena.Truth.Hero.Equipped[WornSlot.Neck] = ember;
                 arena.Truth.RefreshLoadout();
                 bool survived = true;
                 try
@@ -929,7 +929,10 @@ namespace Dino_NetLab
 
         private static void Buffs(Report report, WorldCache worlds, WorldRequest request)
         {
-            using Arena arena = Enter(worlds, request, "forge.stone-skin");
+            // Something for it to work on: a hero starts out in leather, with no armour at all.
+            HeroState hero = Hero("forge.stone-skin");
+            hero.Equipped[WornSlot.Body] = new Item { Name = "Lab Plate", Slot = ItemSlot.Body, Level = 1, Armour = 40f };
+            using var arena = new Arena(worlds, request, hero);
             float armour = arena.Hero.Sheet.Armour;
             arena.Release(SkillCatalog.StoneSkinCast, East);
             arena.Run(0.3);
@@ -955,7 +958,7 @@ namespace Dino_NetLab
             for (int i = 0; i < Protocol.MaxPlayers; i++)
             {
                 HeroState hero = GameLab.StrongHero();
-                hero.Equipped[ItemSlot.Ring] = new Item { Name = "Lab Ring", Slot = ItemSlot.Ring, Level = 1, Lines = { new ItemLine("health", 100000000f), new ItemLine("mana-regen", 1000f) } };
+                hero.Equipped[WornSlot.Finger1] = new Item { Name = "Lab Ring", Slot = ItemSlot.Finger, Level = 1, Lines = { new ItemLine("health", 100000000f), new ItemLine("mana-regen", 1000f) } };
                 lab.AddPlayer($"Hero {i + 1}", new NetworkConditions { Latency = 40, Jitter = 8 }, 300 + i, hero: hero);
             }
             lab.Run(6);
@@ -1018,7 +1021,7 @@ namespace Dino_NetLab
             const int OnOne = 3, OnTwo = 4;
             using var lab = new GameLab(worlds, request);
             HeroState hero = GameLab.StrongHero();
-            hero.Equipped[ItemSlot.Ring] = new Item { Name = "Lab Ring", Slot = ItemSlot.Ring, Level = 1, Lines = { new ItemLine("mana-regen", 1000f) } };
+            hero.Equipped[WornSlot.Finger1] = new Item { Name = "Lab Ring", Slot = ItemSlot.Finger, Level = 1, Lines = { new ItemLine("mana-regen", 1000f) } };
             hero.Bar[OnOne] = SkillCatalog.Firebolt.Id;
             hero.Bar[OnTwo] = SkillCatalog.FrostNova.Id;
             LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 80, Jitter = 10, LossChance = 0.01 }, 9, hero: hero);

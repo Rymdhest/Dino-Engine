@@ -54,6 +54,16 @@ namespace Dino_Defenders.UI
             _ => "Legendary",
         };
 
+        /// <summary>What kind of thing something is, in a word or two.</summary>
+        public static string SlotName(Item item) => item.Slot switch
+        {
+            ItemSlot.MainHand => item.IsTwoHanded ? $"Two-handed {item.Kind}" : item.Kind.ToString(),
+            ItemSlot.OffHand => "Off hand",
+            ItemSlot.Finger => "Ring",
+            ItemSlot.Neck => "Amulet",
+            _ => item.Slot.ToString(),
+        };
+
         /// <summary>One line of text with a soft shadow, so it reads over anything the world puts behind it.</summary>
         public static void Text(GuiContext context, GuiDrawList draw, string text, float size, GuiRect rect, Colour colour,
             Alignment horizontal = Alignment.Start, Alignment vertical = Alignment.Center)
@@ -135,11 +145,11 @@ namespace Dino_Defenders.UI
             float s = MathF.Min(rect.Width, rect.Height) * 0.3f;
             switch (slot)
             {
-                case ItemSlot.Weapon:
+                case ItemSlot.MainHand:
                     draw.AddLine(c + new Vector2(-s, s), c + new Vector2(s, -s), colour, 2.4f);
                     draw.AddLine(c + new Vector2(-s * 0.85f, s * 0.2f), c + new Vector2(-s * 0.2f, s * 0.85f), colour, 2.4f);
                     break;
-                case ItemSlot.Shield:
+                case ItemSlot.OffHand:
                     draw.AddLine(c + new Vector2(-s, -s), c + new Vector2(s, -s), colour, 2.2f);
                     draw.AddLine(c + new Vector2(-s, -s), c + new Vector2(0f, s * 1.2f), colour, 2.2f);
                     draw.AddLine(c + new Vector2(s, -s), c + new Vector2(0f, s * 1.2f), colour, 2.2f);
@@ -154,14 +164,25 @@ namespace Dino_Defenders.UI
                     draw.AddLine(c + new Vector2(s * 0.7f, -s), c + new Vector2(s * 0.7f, s), colour, 2.2f);
                     draw.AddLine(c + new Vector2(-s * 0.7f, s), c + new Vector2(s * 0.7f, s), colour, 2.2f);
                     break;
+                case ItemSlot.Legs:
+                    draw.AddLine(c + new Vector2(-s * 0.7f, -s), c + new Vector2(s * 0.7f, -s), colour, 2.2f);
+                    draw.AddLine(c + new Vector2(-s * 0.7f, -s), c + new Vector2(-s * 0.6f, s), colour, 2.2f);
+                    draw.AddLine(c + new Vector2(s * 0.7f, -s), c + new Vector2(s * 0.6f, s), colour, 2.2f);
+                    draw.AddLine(c + new Vector2(0f, -s * 0.3f), c + new Vector2(-s * 0.15f, s), colour, 2.2f);
+                    draw.AddLine(c + new Vector2(0f, -s * 0.3f), c + new Vector2(s * 0.15f, s), colour, 2.2f);
+                    break;
+                case ItemSlot.Hands:
+                    draw.AddLine(c + new Vector2(-s * 0.6f, s), c + new Vector2(s * 0.6f, s), colour, 2.4f);
+                    for (int finger = -1; finger <= 2; finger++) draw.AddLine(c + new Vector2(finger * s * 0.32f - s * 0.16f, s), c + new Vector2(finger * s * 0.32f - s * 0.16f, -s * 0.7f), colour, 2f);
+                    break;
                 case ItemSlot.Feet:
                     draw.AddLine(c + new Vector2(-s * 0.3f, -s), c + new Vector2(-s * 0.3f, s * 0.7f), colour, 2.6f);
                     draw.AddLine(c + new Vector2(-s * 0.3f, s * 0.7f), c + new Vector2(s, s * 0.7f), colour, 2.6f);
                     break;
-                case ItemSlot.Ring:
+                case ItemSlot.Finger:
                     draw.AddCircle(c, s * 0.75f, GuiColors.Transparent, 2.4f, colour);
                     break;
-                case ItemSlot.Amulet:
+                case ItemSlot.Neck:
                     draw.AddLine(c + new Vector2(-s, -s), c + new Vector2(0f, s * 0.3f), colour, 1.6f);
                     draw.AddLine(c + new Vector2(s, -s), c + new Vector2(0f, s * 0.3f), colour, 1.6f);
                     draw.AddCircle(c + new Vector2(0f, s * 0.6f), s * 0.34f, colour);

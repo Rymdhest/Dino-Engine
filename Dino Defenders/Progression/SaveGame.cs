@@ -21,7 +21,10 @@ namespace Dino_Defenders.Progression
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
+
+        /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
+        private const int SlotsVersion = 4;
 
         public int Version { get; set; } = CurrentVersion;
         public HeroState Hero { get; set; } = HeroState.CreateNew();
@@ -72,7 +75,8 @@ namespace Dino_Defenders.Progression
                 SaveGame? save = Read(json);
 
                 // Bringing a save up to date can't be undone, and the first thing that happens next is that it gets written over.
-                if (save != null && !json.Contains("\"Version\"")) KeepOldCopy(path);
+                if (save != null && !json.Contains("\"Version\"")) KeepOldCopy(path, ".before-talents");
+                else if (save != null && VersionOf(json) < SlotsVersion) KeepOldCopy(path, ".before-gear");
                 return save;
             }
             catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -85,11 +89,11 @@ namespace Dino_Defenders.Progression
 
         // The first copy is the one worth having, and a backup put back by hand finds it already there. Failing here must not count as
         // failing to read the save, or the hero it was meant to protect is written over.
-        private static void KeepOldCopy(string path)
+        private static void KeepOldCopy(string path, string suffix)
         {
             try
             {
-                string copy = path + ".before-talents";
+                string copy = path + suffix;
                 if (!File.Exists(copy)) File.Copy(path, copy);
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -105,13 +109,60 @@ namespace Dino_Defenders.Progression
             int version = root["Version"]?.GetValue<int>() ?? 1;
             if (version < 2) Upgrade(root);
 
+            // Has to be before anything is read: an enum name that's gone throws, and a save that can't be read starts a new journey.
+            if (version < SlotsVersion) RenameSlots(root);
+
             SaveGame? save = root.Deserialize<SaveGame>(Options);
             if (save == null) return null;
+            save.Version = CurrentVersion;
             FixBar(save.Hero);
             TalentTree.Sanitize(save.Hero);
             save.Offering.Sanitize();
             return save;
         }
+
+        private static int VersionOf(string json)
+        {
+            return JsonNode.Parse(json) is JsonObject root ? root["Version"]?.GetValue<int>() ?? 1 : 1;
+        }
+
+        // Before there were ten places on a hero, what an item was worn as and where it was worn were the same word, and some of those words have gone. Any place that's already
+        // called something else is left alone, so doing this twice does nothing.
+        private static void RenameSlots(JsonObject root)
+        {
+            if (root["Hero"] is not JsonObject hero) return;
+            if (hero["Inventory"] is JsonArray carried)
+            {
+                foreach (JsonNode? item in carried) RenameSlot(item as JsonObject);
+            }
+            if (hero["Equipped"] is not JsonObject worn) return;
+
+            var renamed = new JsonObject();
+            foreach (string place in worn.Select(pair => pair.Key).ToList())
+            {
+                JsonNode? item = worn[place];
+                worn.Remove(place);
+                RenameSlot(item as JsonObject);
+                renamed[NewPlace(place)] = item;
+            }
+            hero["Equipped"] = renamed;
+        }
+
+        private static void RenameSlot(JsonObject? item)
+        {
+            if (item?["Slot"] is JsonValue slot && slot.TryGetValue(out string? name)) item["Slot"] = NewSlot(name);
+        }
+
+        private static string NewSlot(string old) => old switch
+        {
+            "Weapon" => nameof(ItemSlot.MainHand),
+            "Shield" => nameof(ItemSlot.OffHand),
+            "Ring" => nameof(ItemSlot.Finger),
+            "Amulet" => nameof(ItemSlot.Neck),
+            _ => old,
+        };
+
+        private static string NewPlace(string old) => old == "Ring" ? nameof(WornSlot.Finger1) : NewSlot(old);
 
         // A bar of the wrong length, from a hand or an older build, shouldn't be anyone's problem later on.
         private static void FixBar(HeroState hero)

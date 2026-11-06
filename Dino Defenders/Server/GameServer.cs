@@ -702,16 +702,21 @@ namespace Dino_Defenders.Server
 
                 case HeroAction.Equip:
                     int equip = reader.ReadVarInt();
+                    WornSlot? place = reader.ReadBool() ? (WornSlot)reader.ReadByte() : null;
                     if (equip < 0 || equip >= hero.Inventory.Count) break;
-                    hero.Equip(hero.Inventory[equip]);
+                    if (!hero.Equip(hero.Inventory[equip], place))
+                    {
+                        Note(player, "Your pack is full.");
+                        break;
+                    }
                     player.RefreshLoadout();
                     player.GearChanged = true;
                     break;
 
                 case HeroAction.Unequip:
                     int slot = reader.ReadByte();
-                    if (!Enum.IsDefined((ItemSlot)slot)) break;
-                    hero.Unequip((ItemSlot)slot);
+                    if (!Enum.IsDefined((WornSlot)slot)) break;
+                    hero.Unequip((WornSlot)slot);
                     player.RefreshLoadout();
                     player.GearChanged = true;
                     break;

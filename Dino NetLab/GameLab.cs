@@ -282,8 +282,8 @@ namespace Dino_NetLab
         {
             HeroState hero = HeroState.CreateNew();
             hero.Level = 12;
-            hero.Equipped[ItemSlot.Weapon].WeaponDamage = 34f;
-            hero.Equipped[ItemSlot.Amulet] = new Item { Name = "Lab Charm", Slot = ItemSlot.Amulet, Level = 12, Lines = { new ItemLine("health", 400f) } };
+            hero.Equipped[WornSlot.MainHand].WeaponDamage = 34f;
+            hero.Equipped[WornSlot.Neck] = new Item { Name = "Lab Charm", Slot = ItemSlot.Neck, Level = 12, Lines = { new ItemLine("health", 400f) } };
             Learn(hero, "pyre.firebolt", "forge.whirl", "winter.frost-nova", "storm.spark");
             return hero;
         }
@@ -724,7 +724,7 @@ namespace Dino_NetLab
         private static HeroState StrongHeroForHorde()
         {
             HeroState hero = GameLab.StrongHero();
-            hero.Equipped[ItemSlot.Amulet] = new Item { Name = "Test Charm", Slot = ItemSlot.Amulet, Level = 1, Lines = { new ItemLine("health", 1000000f) } };
+            hero.Equipped[WornSlot.Neck] = new Item { Name = "Test Charm", Slot = ItemSlot.Neck, Level = 1, Lines = { new ItemLine("health", 1000000f) } };
             return hero;
         }
 
@@ -1091,7 +1091,7 @@ namespace Dino_NetLab
             int carried = truth.Hero.Inventory.Count;
             player.Client.Equip(0);
             lab.Run(0.5);
-            report.Check("Equipping moves the item, on both ends", truth.Hero.Equipped.ContainsKey(ItemSlot.Ring) && player.Client.Hero.Equipped.ContainsKey(ItemSlot.Ring) && truth.Hero.Inventory.Count == carried - 1);
+            report.Check("Equipping moves the item, on both ends", truth.Hero.Equipped.ContainsKey(WornSlot.Finger1) && player.Client.Hero.Equipped.ContainsKey(WornSlot.Finger1) && truth.Hero.Inventory.Count == carried - 1);
 
             int gold = truth.Hero.Gold;
             player.Client.Sell(0);
@@ -1233,6 +1233,9 @@ namespace Dino_NetLab
             using var lab = new GameLab(worlds, request, startSite: "Landing");
             HeroState hero = LabHero();
             hero.Gold = 1000000;
+
+            // Using things is what's on trial here, and a fall in a camp costs gold, which reads as a chest giving none.
+            hero.Equipped[WornSlot.Neck] = new Item { Name = "Test Charm", Slot = ItemSlot.Neck, Level = 1, Lines = { new ItemLine("health", 1000000f) } };
             LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 60, Jitter = 10 }, 90, hero: hero);
             player.Fights = false;
             lab.Run(4);
@@ -1341,7 +1344,7 @@ namespace Dino_NetLab
         {
             HeroState hero = HeroState.CreateNew();
             hero.Gold = 500;
-            hero.Inventory.Add(new Item { Name = "A Ring", Slot = ItemSlot.Ring, Level = 3 });
+            hero.Inventory.Add(new Item { Name = "A Ring", Slot = ItemSlot.Finger, Level = 3 });
             hero.Inventory.Add(new Item { Name = "Spare Boots", Slot = ItemSlot.Feet, Level = 3, Armour = 2f });
             return hero;
         }

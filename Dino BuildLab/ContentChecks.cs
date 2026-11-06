@@ -33,6 +33,7 @@ namespace Dino_BuildLab
             Rolling(report);
             Uniques(report);
             Wires(report);
+            GearChecks.Run(report);
 
             report.Section("Saves from before all this");
             OldSaves(report);
@@ -290,7 +291,7 @@ namespace Dino_BuildLab
                 Item item = ItemGenerator.Roll(level, random.Fork(i));
                 rarity[(int)item.Rarity]++;
                 if (string.IsNullOrEmpty(item.Name) || !float.IsFinite(item.WeaponDamage) || !float.IsFinite(item.Armour)) odd++;
-                if (item.Slot == ItemSlot.Weapon && item.WeaponDamage <= 0f) odd++;
+                if (item.Slot == ItemSlot.MainHand && item.WeaponDamage <= 0f) odd++;
                 foreach (ItemLine line in item.Lines)
                 {
                     seen.Add(line.Affix);
@@ -349,7 +350,7 @@ namespace Dino_BuildLab
                 if (left.Count != right.Count) return false;
                 for (int i = 0; i < left.Count; i++)
                 {
-                    if (left[i].Name != right[i].Name || left[i].Unique != right[i].Unique || left[i].Kind != right[i].Kind || left[i].WeaponDamage != right[i].WeaponDamage || left[i].Evasion != right[i].Evasion || left[i].Barrier != right[i].Barrier) return false;
+                    if (left[i].Name != right[i].Name || left[i].Seed != right[i].Seed || left[i].Base != right[i].Base || left[i].Unique != right[i].Unique || left[i].Kind != right[i].Kind || left[i].WeaponDamage != right[i].WeaponDamage || left[i].Evasion != right[i].Evasion || left[i].Barrier != right[i].Barrier) return false;
                     if (left[i].Lines.Count != right[i].Lines.Count) return false;
                     for (int j = 0; j < left[i].Lines.Count; j++)
                     {
@@ -368,7 +369,7 @@ namespace Dino_BuildLab
             var random = new WorldRandom(8);
             HeroState hero = Hero(30, "pyre.firebolt", "key.slow-burn");
             hero.Bar[3] = "firebolt";
-            hero.Equipped[ItemSlot.Weapon] = UniqueCatalog.Make(UniqueCatalog.Find("ashen-promise")!, 20, random);
+            hero.Equipped[WornSlot.MainHand] = UniqueCatalog.Make(UniqueCatalog.Find("ashen-promise")!, 20, random);
             for (int i = 0; i < 30; i++) hero.Inventory.Add(ItemGenerator.Roll(30, random.Fork(i), 2f));
 
             var writer = new BitWriter();
@@ -392,10 +393,12 @@ namespace Dino_BuildLab
 
             var forged = new BitWriter();
             forged.WriteString("Forged");
-            forged.WriteByte((byte)ItemSlot.Ring);
+            forged.WriteByte((byte)ItemSlot.Finger);
             forged.WriteByte((byte)Rarity.Rare);
             forged.WriteVarInt(1);
             forged.WriteByte(0);
+            forged.WriteVarULong(7);
+            forged.WriteString("not-a-base");
             for (int i = 0; i < 4; i++) forged.WriteFloat(0f);
             forged.WriteBool(true);
             forged.WriteString("not-a-unique");
@@ -406,7 +409,7 @@ namespace Dino_BuildLab
             items.WriteCount(1);
             items.Append(forged);
             List<Item> arrived = Protocol.ReadItems(new BitReader(items.ToArray()));
-            report.Check("An affix or a unique that doesn't exist does nothing, whatever a stranger sends", arrived.Count == 1 && arrived[0].Unique == null && arrived[0].Lines.Count == 0);
+            report.Check("An affix, a unique or a base that doesn't exist does nothing, whatever a stranger sends", arrived.Count == 1 && arrived[0].Unique == null && arrived[0].Lines.Count == 0 && arrived[0].Base.Length == 0);
         }
 
         // As saved by 0.1.3: attributes, and items with a stat and a value. The sword is one someone's edited by hand, which is a thing people do.
@@ -466,7 +469,7 @@ namespace Dino_BuildLab
             report.Check("With the hero as they were", hero.Level == 3 && hero.Gold == 368 && hero.Experience == 76 && hero.Inventory.Count == 2 && hero.Equipped.Count == 2);
             report.Check("With the world as it was", save.WorldSeed == 12345 && save.Sites.Count == 1 && save.Sites[0].Kindled && save.Objectives[0] == 1);
             report.Check("Every point goes back into talents", hero.Talents.Count == 0 && hero.UnspentPoints == 7, $"{hero.UnspentPoints}");
-            report.Check("A sword someone edited by hand stays as it was", hero.Equipped[ItemSlot.Weapon].WeaponDamage == 700f);
+            report.Check("A sword someone edited by hand stays as it was", hero.Equipped[WornSlot.MainHand].WeaponDamage == 700f);
 
             Item hood = hero.Inventory[0];
             report.Check("Item lines come across, value for value", hood.Lines.Count == 2 && hood.Lines[0].Affix == "armour" && MathF.Abs(hood.Lines[0].Value - 4.534136f) < 1e-4f && hood.Lines[1].Affix == "health");

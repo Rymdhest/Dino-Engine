@@ -148,8 +148,8 @@ namespace Dino_Defenders.Client
 
             Audio.Play(slot switch
             {
-                ItemSlot.Ring or ItemSlot.Amulet => Treasure.LandJewel,
-                ItemSlot.Body or ItemSlot.Feet => Treasure.LandCloth,
+                ItemSlot.Finger or ItemSlot.Neck => Treasure.LandJewel,
+                ItemSlot.Body or ItemSlot.Legs or ItemSlot.Feet or ItemSlot.Hands => Treasure.LandCloth,
                 _ => Treasure.LandMetal,
             }, position);
             if (grade == LootGrade.Masterwork) Audio.Play(Treasure.DropMasterwork);

@@ -62,7 +62,7 @@ namespace Dino_NetLab
 
         private static Item Blade(string name = "Test Blade") => new Item
         {
-            Name = name, Slot = ItemSlot.Weapon, Rarity = Rarity.Rare, Level = 5, WeaponDamage = 20f, Lines = { new ItemLine("health", 40f) },
+            Name = name, Slot = ItemSlot.MainHand, Rarity = Rarity.Rare, Level = 5, WeaponDamage = 20f, Lines = { new ItemLine("health", 40f) },
         };
 
         public static int Run(Options options)
@@ -164,7 +164,7 @@ namespace Dino_NetLab
                 EntityView view = scene.Player.Ecs.GetEntityView(entity);
                 var pickup = view.Get<PickupComponent>();
                 if (pickup.Find != find) continue;
-                seen = pickup.Grade == LootGrade.Rare && pickup.Slot == ItemSlot.Weapon && (pickup.From.Xz - from).Length < 0.1f && pickup.Born > 0 && (view.Get<PositionComponent>().value.Xz - at).Length < 0.1f;
+                seen = pickup.Grade == LootGrade.Rare && pickup.Slot == ItemSlot.MainHand && (pickup.From.Xz - from).Length < 0.1f && pickup.Born > 0 && (view.Get<PositionComponent>().value.Xz - at).Length < 0.1f;
             }
             report.Check("And has all it needs to show it falling", seen);
         }

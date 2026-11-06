@@ -62,7 +62,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 6;
+        public const uint Version = 7;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -210,7 +210,11 @@ namespace Dino_Defenders.Net
             writer.WriteCount(hero.Inventory.Count);
             foreach (Item item in hero.Inventory) WriteItem(writer, item);
             writer.WriteCount(hero.Equipped.Count);
-            foreach (Item item in hero.Equipped.Values) WriteItem(writer, item);
+            foreach ((WornSlot place, Item item) in hero.Equipped)
+            {
+                writer.WriteByte((byte)place);
+                WriteItem(writer, item);
+            }
         }
 
         public static void ReadGear(BitReader reader, HeroState hero)
@@ -219,12 +223,14 @@ namespace Dino_Defenders.Net
             int count = reader.ReadCount(MostItems);
             for (int i = 0; i < count; i++) carried.Add(ReadItem(reader));
 
-            var worn = new Dictionary<ItemSlot, Item>();
+            var worn = new Dictionary<WornSlot, Item>();
             count = reader.ReadCount(MostItems);
             for (int i = 0; i < count; i++)
             {
+                WornSlot place = Checked<WornSlot>(reader.ReadByte());
                 Item item = ReadItem(reader);
-                worn[item.Slot] = item;
+                if (WornSlots.Holds(place) != item.Slot) throw new NetReadException($"{item.Slot} worn on {place}.");
+                worn[place] = item;
             }
 
             hero.Inventory = carried;
@@ -266,6 +272,8 @@ namespace Dino_Defenders.Net
             writer.WriteByte((byte)item.Rarity);
             writer.WriteVarInt(item.Level);
             writer.WriteByte((byte)item.Kind);
+            writer.WriteVarULong(item.Seed);
+            writer.WriteString(item.Base);
             writer.WriteFloat(item.WeaponDamage);
             writer.WriteFloat(item.Armour);
             writer.WriteFloat(item.Evasion);
@@ -289,15 +297,20 @@ namespace Dino_Defenders.Net
                 Rarity = Checked<Rarity>(reader.ReadByte()),
                 Level = reader.ReadVarInt(),
                 Kind = Checked<WeaponKind>(reader.ReadByte()),
+                Seed = reader.ReadVarULong(),
+                Base = reader.ReadString(LongestName),
                 WeaponDamage = Finite(reader.ReadFloat()),
                 Armour = Finite(reader.ReadFloat()),
                 Evasion = Finite(reader.ReadFloat()),
                 Barrier = Finite(reader.ReadFloat()),
             };
 
+            // Anyone may be at the other end. A base that means nothing here is only somewhere for a look to start from, and one has to be found some other way.
+            if (!ItemGenerator.HasBase(item.Base)) item.Base = "";
+
             if (reader.ReadBool())
             {
-                // Anyone may be at the other end. A name that means nothing here just means no such unique.
+                // A name that means nothing here just means no such unique.
                 string unique = reader.ReadString(LongestName);
                 if (UniqueCatalog.Find(unique) != null) item.Unique = unique;
             }

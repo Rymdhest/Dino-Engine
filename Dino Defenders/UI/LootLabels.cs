@@ -256,7 +256,7 @@ namespace Dino_Defenders.UI
         {
             Item item = label.Item;
             Colour colour = Ui.GradeColour(label.Grade);
-            string slot = item.Slot == ItemSlot.Weapon ? item.Kind.ToString() : item.Slot.ToString();
+            string slot = Ui.SlotName(item);
 
             var lines = new List<(string text, float size, Colour colour)>();
             void Add(string text, float size, Colour shade)
@@ -269,7 +269,7 @@ namespace Dino_Defenders.UI
             foreach (string line in item.DescribeBase()) Add(line, 14f, Ui.Parchment);
             foreach (string line in item.Describe()) Add(line, 14f, colour);
             if (item.Unique != null && UniqueCatalog.Find(item.Unique) is UniqueDefinition unique) Add(unique.Lore, 13f, Ui.Faded);
-            if (session.Hero.Equipped.TryGetValue(item.Slot, out Item? worn)) Add($"Now worn: {worn.Name}", 13f, Ui.Faded);
+            if (session.Hero.Equipped.TryGetValue(session.Hero.PlaceFor(item), out Item? worn)) Add($"Now worn: {worn.Name}", 13f, Ui.Faded);
 
             float height = 18f;
             foreach ((_, float size, _) in lines) height += size + 6f;

@@ -238,7 +238,7 @@ namespace Dino_BuildLab
             report.Check("Nobody goes a thousand kills without a rare", dryRare < 1000, $"{dryRare}");
             report.Check("Nobody goes twenty thousand kills without a legendary", dryLegend < 20000, $"{dryLegend}");
 
-            var saved = new Item { Name = "Old Rare", Rarity = Rarity.Rare, Slot = ItemSlot.Ring };
+            var saved = new Item { Name = "Old Rare", Rarity = Rarity.Rare, Slot = ItemSlot.Finger };
             for (int i = 0; i < 5; i++) saved.Lines.Add(new ItemLine("health", 10f));
             report.Check("Rares from before this are still rares", Loot.GradeOf(saved) == LootGrade.Rare);
         }

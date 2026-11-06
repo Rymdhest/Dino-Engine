@@ -96,6 +96,22 @@ namespace Dino_Defenders.Progression
             Add("tidewalkers", "Tidewalkers", "Silk Slippers", 8, "They were never once dry.",
                 Inc(Stat.MoveSpeed, 30f).While(Condition.InWater), Rules(Rule.WaterTrail), Inc(Stat.Barrier, 25f));
 
+            // Legs.
+            Add("forced-march", "The Forced March", "Iron Cuisses", 10, "Left, right. Left, right. Left.",
+                Inc(Stat.Damage, 30f).While(Condition.Moving), Rules(Rule.CannotBeStunned), Inc(Stat.MoveSpeed, 8f));
+            Add("waders", "The Waders", "Hide Trousers", 5, "Wet to the knee, and glad of it.",
+                Inc(Stat.Evasion, 60f).While(Condition.InWater), Inc(Stat.MoveSpeed, 20f).While(Condition.InWater), Resist(Tags.Lightning, 20f));
+            Add("penitents-sackcloth", "Penitent's Sackcloth", "Linen Trousers", 6, "It itches, and that's the point.",
+                Inc(Stat.Barrier, 60f), Rules(Rule.NoRegen), Inc(Stat.BarrierRecharge, 40f));
+
+            // Hands.
+            Add("thunder-grip", "The Thunder Grip", "Iron Gauntlets", 9, "Nobody has shaken hands with it twice.",
+                Convert(DamageType.Physical, DamageType.Lightning, 100f, Tags.Attack), Chance(Tags.Shock, 25f), Inc(Stat.Damage, 25f, Tags.Lightning));
+            Add("sleight-of-hand", "Sleight of Hand", "Silk Gloves", 10, "Watch closely. No, closer.",
+                Echo(Stat.CastSpeed, Stat.AttackSpeed), Inc(Stat.CastSpeed, 20f));
+            Add("cutpurses-fingers", "Cutpurse's Fingers", "Leather Gloves", 4, "What's yours is anyone's.",
+                Inc(Stat.GoldFind, 40f), Inc(Stat.ItemRarity, 20f), Inc(Stat.AttackSpeed, 1f).For(Per.RecentKills, 1f, 20f));
+
             // Rings.
             Add("understudy", "The Understudy", "Ring", 6, "It has learned all your lines.",
                 Flat(Stat.MinionCount, 1f), Inc(Stat.Damage, 40f, Tags.Minion), Inc(Stat.Health, 30f, Tags.Minion));

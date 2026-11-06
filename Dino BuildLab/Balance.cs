@@ -56,20 +56,21 @@ namespace Dino_BuildLab
         private static void Dress(HeroState hero, Sample sample, WorldRandom random)
         {
             hero.Equipped.Clear();
-            foreach (ItemSlot slot in Enum.GetValues<ItemSlot>())
+            foreach (WornSlot place in Enum.GetValues<WornSlot>())
             {
+                ItemSlot slot = WornSlots.Holds(place);
                 Item? best = null;
                 for (int attempt = 0; attempt < 12 && best == null; attempt++)
                 {
-                    Item item = ItemGenerator.Roll(hero.Level, random.Fork(attempt * 16 + (int)slot), 1f, Rarity.Magic, slot);
+                    Item item = ItemGenerator.Roll(hero.Level, random.Fork(attempt * 16 + (int)place), 1f, Rarity.Magic, slot);
                     if (item.Unique != null) continue;
-                    if (slot == ItemSlot.Weapon && sample.Weapon != item.Kind) continue;
+                    if (slot == ItemSlot.MainHand && sample.Weapon != item.Kind) continue;
                     best = item;
                 }
-                if (best != null) hero.Equipped[slot] = best;
+                if (best != null) hero.Equipped[place] = best;
             }
 
-            if (hero.Equipped.TryGetValue(ItemSlot.Weapon, out Item? weapon) && weapon.IsTwoHanded) hero.Equipped.Remove(ItemSlot.Shield);
+            if (hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? weapon) && weapon.IsTwoHanded) hero.Equipped.Remove(WornSlot.OffHand);
         }
 
         private static (float dealt, float taken) Exchange(ActorSheet hero, SkillProfile skill, Loadout enemy, int blows = 2000)

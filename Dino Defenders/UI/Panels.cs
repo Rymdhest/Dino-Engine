@@ -275,16 +275,16 @@ namespace Dino_Defenders.UI
 
         private GuiElement BuildEquipment()
         {
-            var row = new GridPanel(Enum.GetValues<ItemSlot>().Length, 8f, 8f);
-            foreach (ItemSlot slot in Enum.GetValues<ItemSlot>())
+            var row = new GridPanel(5, 8f, 8f);
+            foreach (WornSlot slot in Enum.GetValues<WornSlot>())
             {
-                ItemSlot worn = slot;
+                WornSlot worn = slot;
                 row.Add(new ItemCell(() => Hero.Equipped.GetValueOrDefault(worn), item =>
                 {
-                    Session.Client.Unequip(item.Slot);
+                    Session.Client.Unequip(worn);
                     Audio.Play(Interface.Equip);
                     Describe(null);
-                }, Describe, worn));
+                }, Describe, WornSlots.Holds(worn)));
             }
             return row;
         }
@@ -334,8 +334,7 @@ namespace Dino_Defenders.UI
 
             Colour colour = Ui.GradeColour(Loot.GradeOf(item));
             _details.Add(Ui.Paragraph(item.Name, 18f, colour));
-            string slot = item.Slot == ItemSlot.Weapon ? item.Kind.ToString() : item.Slot.ToString();
-            _details.Add(Ui.Line($"{Ui.GradeName(item)} {slot}, level {item.Level}", 13f, Ui.Faded));
+            _details.Add(Ui.Line($"{Ui.GradeName(item)} {Ui.SlotName(item)}, level {item.Level}", 13f, Ui.Faded));
             AddBase(item, 14f, Ui.Parchment);
             foreach (string line in item.Describe()) _details.Add(Ui.Paragraph(line, 14f, colour));
             if (item.Unique != null && UniqueCatalog.Find(item.Unique) is UniqueDefinition unique) _details.Add(Ui.Paragraph(unique.Lore, 13f, Ui.Faded));
@@ -343,7 +342,7 @@ namespace Dino_Defenders.UI
             bool carried = Hero.Inventory.Contains(item);
             if (_merchant != null) _details.Add(Ui.Line(carried ? $"Sells for {item.SellValue} gold" : $"Costs {item.BuyValue} gold", 14f, Ui.Gold));
 
-            if (carried && Hero.Equipped.TryGetValue(item.Slot, out Item? worn))
+            if (carried && Hero.Equipped.TryGetValue(Hero.PlaceFor(item), out Item? worn))
             {
                 _details.Add(new Spacer(height: 6f));
                 _details.Add(Ui.Line($"Now worn: {worn.Name}", 13f, Ui.Faded));
