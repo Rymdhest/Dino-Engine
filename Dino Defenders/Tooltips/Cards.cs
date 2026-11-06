@@ -456,6 +456,27 @@ namespace Dino_Defenders.Tooltips
         }
 
         /// <param name="kind">What it is, in a word or two.</param>
+        /// <summary>What grade of what something is, in a few words.</summary>
+        public static string KindOf(Item item) => $"{GradeName(item)} {SlotName(item)}";
+
+        public static string GradeName(Item item) => item.Unique != null ? "Unique" : Loot.GradeOf(item) switch
+        {
+            LootGrade.Plain => "Common",
+            LootGrade.Magic => "Magic",
+            LootGrade.Rare => "Rare",
+            LootGrade.Masterwork => "Masterwork",
+            _ => "Legendary",
+        };
+
+        private static string SlotName(Item item) => item.Slot switch
+        {
+            ItemSlot.MainHand => item.IsTwoHanded ? $"Two-handed {item.Kind}" : item.Kind.ToString(),
+            ItemSlot.OffHand => "Off hand",
+            ItemSlot.Finger => "Ring",
+            ItemSlot.Neck => "Amulet",
+            _ => item.Slot.ToString(),
+        };
+
         public static Card Item(Item item, ActorSheet? viewer, string kind)
         {
             var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Grade = Loot.GradeOf(item), Picture = item, Tags = TagsOf(item.Mods()) };

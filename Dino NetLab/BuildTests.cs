@@ -101,7 +101,7 @@ namespace Dino_NetLab
         {
             HeroState hero = Hero(talents);
             Item item = UniqueCatalog.Make(UniqueCatalog.Find(unique)!, 60, new WorldRandom(1));
-            hero.Inventory.Add(item);
+            hero.Pickup(item);
             hero.Equip(item);
             return hero;
         }

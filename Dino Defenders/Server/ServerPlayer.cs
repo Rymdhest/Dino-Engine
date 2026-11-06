@@ -52,7 +52,8 @@ namespace Dino_Defenders.Server
         public long LastClientTimeArrived;
         public int SendInterval = 2;
         public int RoundTrip;
-        public readonly Dictionary<int, List<Item>> Stocks = new();
+        public int GearAnswered;    // The last change to what they carry that's been heard from them. Their client has already made it, and won't take the server's word until the server has heard them out.
+        public readonly Dictionary<int, MerchantTable> Tables = new();
         public readonly List<(int find, uint until)> Asked = new();     // What's been asked for on the ground, and how long they have to get to it.
 
         /// <summary>The newest command received, and commands that came too late to use.</summary>
@@ -71,6 +72,13 @@ namespace Dino_Defenders.Server
         {
             Actor.Adopt(HeroBuild.Compile(Hero, Actor.Buffs, Stolen));
             Kit = new HeroKit(Hero, Actor.Sheet);
+        }
+
+        /// <summary>A change to what they carry has come in. Their client gets the truth back whether it was allowed or not, and that's what puts right one that wasn't.</summary>
+        public void Heard(int gearAsked)
+        {
+            GearAnswered = gearAsked;
+            GearChanged = true;
         }
 
         /// <summary>Takes up the last skill that hit them, for those who can.</summary>

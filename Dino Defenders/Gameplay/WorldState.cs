@@ -21,7 +21,7 @@ namespace Dino_Defenders.Gameplay
         public readonly HashSet<int> Opened = new();
         public readonly List<Entity> Live = new();
         public readonly List<SiteFeature> Features = new();
-        public readonly List<Item> Stock = new();
+        public readonly MerchantTable Table = new();    // What a merchant has out for this player, as far as they've been told.
         public int ThreatIndex = -1;    // For settlements: the hostile site that preys on it.
         public bool Changed;        // Clients haven't heard the latest yet.
     }

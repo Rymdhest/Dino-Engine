@@ -11,6 +11,7 @@ namespace Dino_NetLab
     ///   build [--seed N]                            Every skill, ailment, reaction and keystone, done for real on a running server.
     ///   pace  [--seed N] [--level N] [--hero N] [--minutes N] [--archetype id] [--peril N] [--teeming N] [--overrun N] [--omens a,b]   How playing goes: time in fights, kills, falls, and what's dropped.
     ///   loot  [--seed N]                            What's on the ground: who sees it, who gets it, and that nobody gets it without asking.
+    ///   pack  [--seed N]                            What a pack does across a line: shown at once, the server has the last word, and nothing is lost or doubled however bad the line.
     ///   offering                                    What's paid at a waygate: who pays, what it does to the land, what falling costs, and what it pays out.
     ///   combat                                      What a fight promises: what's marked is what's hit, on the tick it says, what's called off is seen to be, and a dodge is there when it's asked for.
     /// Exit code 1 on any failure.
@@ -38,6 +39,8 @@ namespace Dino_NetLab
                     return PaceTests.Run(options);
                 case "loot":
                     return LootTests.Run(options);
+                case "pack":
+                    return PackHandlingTests.Run(options);
                 case "gear":
                     return GearTests.Run(options);
                 case "offering":

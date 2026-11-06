@@ -138,13 +138,13 @@ namespace Dino_NetLab
         {
             report.Section("Nothing comes by itself");
             using var scene = new Scene(worlds, request);
-            int carried = scene.Truth.Hero.Inventory.Count;
+            int carried = scene.Truth.Hero.Carried().Count();
             (_, Vector2 at) = scene.Lay(Blade());
             scene.Lab.Run(1.5);
 
             scene.Go(at);
             scene.Lab.Run(3);
-            report.Check("A hero standing on a find doesn't get it", scene.Truth.Hero.Inventory.Count == carried, $"carrying {scene.Truth.Hero.Inventory.Count}");
+            report.Check("A hero standing on a find doesn't get it", scene.Truth.Hero.Carried().Count() == carried, $"carrying {scene.Truth.Hero.Carried().Count()}");
             report.Check("And it's still there", scene.Session.Ground.Count == 1);
         }
 
@@ -173,14 +173,14 @@ namespace Dino_NetLab
         {
             report.Section("Reach");
             using var scene = new Scene(worlds, request);
-            int carried = scene.Truth.Hero.Inventory.Count;
+            int carried = scene.Truth.Hero.Carried().Count();
             (int find, Vector2 at) = scene.Lay(Blade());
             scene.Lab.Run(1);
 
             scene.Go(at + new Vector2(40f, 0f));
             scene.Player.Client.PickUp(find);
             scene.Lab.Run(2);
-            report.Check("Asking from across a field gets nothing", scene.Truth.Hero.Inventory.Count == carried);
+            report.Check("Asking from across a field gets nothing", scene.Truth.Hero.Carried().Count() == carried);
             report.Check("And it stays on the ground for whoever does go", scene.Session.Ground.Count == 1);
             report.Check("Asking is forgotten, and doesn't wait for them to wander past", scene.Truth.Asked.Count == 0);
 
@@ -188,8 +188,8 @@ namespace Dino_NetLab
             scene.Seen.Taken.Clear();
             scene.Player.Client.PickUp(find);
             scene.Lab.Run(1);
-            report.Check("Asking from close by gets it", scene.Truth.Hero.Inventory.Count == carried + 1);
-            report.Check("And the client's own record says so", scene.Player.Client.Hero.Inventory.Any(i => i.Name == "Test Blade"));
+            report.Check("Asking from close by gets it", scene.Truth.Hero.Carried().Count() == carried + 1);
+            report.Check("And the client's own record says so", scene.Player.Client.Hero.Carried().Any(i => i.Name == "Test Blade"));
             report.Check("And it's gone from the ground, for the client too", scene.Session.Ground.Count == 0 && !scene.Seen.Ground.ContainsKey(find));
         }
 
@@ -197,7 +197,7 @@ namespace Dino_NetLab
         {
             report.Section("Clicking");
             using var scene = new Scene(worlds, request);
-            int carried = scene.Truth.Hero.Inventory.Count;
+            int carried = scene.Truth.Hero.Carried().Count();
             (int find, Vector2 at) = scene.Lay(Blade());
             scene.Lab.Run(1);
 
@@ -205,7 +205,7 @@ namespace Dino_NetLab
             Vector2 start = scene.Truth.Sim.Position;
             scene.Seen.Fetch.Begin(find, at);
             scene.Lab.Run(6);
-            report.Check("Clicking a find walks the hero to it and takes it", scene.Truth.Hero.Inventory.Count == carried + 1, $"carrying {scene.Truth.Hero.Inventory.Count}, {(scene.Truth.Sim.Position - at).Length:0.0} m away");
+            report.Check("Clicking a find walks the hero to it and takes it", scene.Truth.Hero.Carried().Count() == carried + 1, $"carrying {scene.Truth.Hero.Carried().Count()}, {(scene.Truth.Sim.Position - at).Length:0.0} m away");
             report.Check("Having really walked there", (scene.Truth.Sim.Position - start).Length > 15f);
             report.Check("And that's the end of it", !scene.Seen.Fetch.Active);
 
@@ -230,7 +230,7 @@ namespace Dino_NetLab
                 scene.Seen.Fetch.Begin(behind, lying);
                 scene.Lab.Run(14);
                 tried++;
-                if (scene.Truth.Hero.Inventory.Any(i => i.Name == name)) reached++;
+                if (scene.Truth.Hero.Carried().Any(i => i.Name == name)) reached++;
                 else report.Note($"from {a} to {lying}: stopped {(scene.Truth.Sim.Position - lying).Length:0.0} m short at {scene.Truth.Sim.Position}, clear line {WorldPathfinder.HasClearLine(world, a, lying)}, path {paths.Find(world, a, lying)?.Count ?? -1}, still going {scene.Seen.Fetch.Active}");
             }
             report.Check("Heroes get around what's in the way", tried >= Walls && reached == tried, $"{reached} of {tried}");
@@ -258,13 +258,13 @@ namespace Dino_NetLab
                 return used;
             }
 
-            int carried = scene.Truth.Hero.Inventory.Count;
+            int carried = scene.Truth.Hero.Carried().Count();
             scene.Go(at + new Vector2(25f, 0f));
             scene.Seen.Fetch.Begin(find, at);
             scene.Lab.Run(0.3);
             scene.Seen.Fetch.Cancel();
             scene.Lab.Run(3);
-            report.Check("And a walk called off takes nothing", scene.Truth.Hero.Inventory.Count == carried);
+            report.Check("And a walk called off takes nothing", scene.Truth.Hero.Carried().Count() == carried);
             report.Check("And goes no further", (scene.Truth.Sim.Position - at).Length > Loot.ServerReach);
         }
 
@@ -276,8 +276,8 @@ namespace Dino_NetLab
             friend.Fights = false;
             scene.Lab.Run(4);
             ServerPlayer other = scene.Lab.Server.Heroes[1];
-            int mine = scene.Truth.Hero.Inventory.Count;
-            int theirs = other.Hero.Inventory.Count;
+            int mine = scene.Truth.Hero.Carried().Count();
+            int theirs = other.Hero.Carried().Count();
 
             (int find, Vector2 at) = scene.Lay(Blade());
             scene.Lab.Run(1);
@@ -290,7 +290,7 @@ namespace Dino_NetLab
             friend.Client.PickUp(find);
             scene.Lab.Run(1);
 
-            int gained = scene.Truth.Hero.Inventory.Count - mine + other.Hero.Inventory.Count - theirs;
+            int gained = scene.Truth.Hero.Carried().Count() - mine + other.Hero.Carried().Count() - theirs;
             report.Check("Reaching for it together, exactly one gets it", gained == 1, $"{gained} did");
             report.Check("And neither client thinks it's still there", !scene.Seen.Ground.ContainsKey(find) && !friend.Client.Session!.Ground.ContainsKey(find));
             report.Check("Nobody's drawn it as taken for ever", scene.Seen.Taken.Count == 0 && friend.Client.Session!.Taken.Count == 0);
@@ -323,7 +323,7 @@ namespace Dino_NetLab
             scene.Lab.Run(0.8);
             late.Client.PickUp(find);
             scene.Lab.Run(1);
-            report.Check("And can take it", late.Client.Hero.Inventory.Any(i => i.Name == "Waiting For You"));
+            report.Check("And can take it", late.Client.Hero.Carried().Any(i => i.Name == "Waiting For You"));
         }
 
         private static void AFullPackLeavesItThere(Report report, WorldCache worlds, WorldRequest request)
@@ -335,10 +335,10 @@ namespace Dino_NetLab
             scene.Go(at);
 
             // Filled on the server alone, as when two things are taken in a moment and the client has yet to hear of the first.
-            while (scene.Truth.Hero.Inventory.Count < HeroState.InventorySize) scene.Truth.Hero.Inventory.Add(Blade("Filler"));
+            while (scene.Truth.Hero.Carried().Count() < HeroState.InventorySize) scene.Truth.Hero.Pickup(Blade("Filler"));
             scene.Player.Client.PickUp(find);
             scene.Lab.Run(1);
-            report.Check("With no room, it stays on the ground", scene.Session.Ground.Count == 1 && scene.Truth.Hero.Inventory.Count == HeroState.InventorySize);
+            report.Check("With no room, it stays on the ground", scene.Session.Ground.Count == 1 && scene.Truth.Hero.Carried().Count() == HeroState.InventorySize);
             report.Check("And the player is told why", scene.Seen.Log.Any(l => l.Text.Contains("full")));
             report.Check("And nothing's been lost", scene.Seen.Ground.ContainsKey(find));
 
@@ -351,7 +351,7 @@ namespace Dino_NetLab
             report.Check("A client that knows it's full says so at once", room == false);
             report.Check("And doesn't hide what it couldn't take", !scene.Seen.Taken.ContainsKey(find));
 
-            scene.Truth.Hero.Inventory.RemoveAt(0);
+            scene.Truth.Hero.Inventory[0] = null;
             scene.Truth.GearChanged = true;
             scene.Lab.Run(1);
             scene.Player.Client.PickUp(find);
@@ -459,7 +459,7 @@ namespace Dino_NetLab
         {
             report.Section("The fallen");
             using var scene = new Scene(worlds, request);
-            int carried = scene.Truth.Hero.Inventory.Count;
+            int carried = scene.Truth.Hero.Carried().Count();
             (int find, Vector2 at) = scene.Lay(Blade());
             scene.Lab.Run(1);
             scene.Go(at);
@@ -468,7 +468,7 @@ namespace Dino_NetLab
             scene.Lab.Run(0.2);
             scene.Session.Ground.Ask(scene.Truth, find);
             scene.Lab.Run(0.5);
-            report.Check("Nobody picks anything up while they're down", scene.Truth.Hero.Inventory.Count == carried);
+            report.Check("Nobody picks anything up while they're down", scene.Truth.Hero.Carried().Count() == carried);
             scene.Lab.Run(8);
             report.Check("And what they fell beside waits for them", scene.Session.Ground.Count == 1);
         }
@@ -478,7 +478,7 @@ namespace Dino_NetLab
             report.Section("On the worst line there is");
             NetworkConditions awful = Scenarios.All.First(s => s.name == "Awful").conditions;
             using var scene = new Scene(worlds, request, awful);
-            int carried = scene.Truth.Hero.Inventory.Count;
+            int carried = scene.Truth.Hero.Carried().Count();
 
             var finds = new List<(int find, Vector2 at)>();
             for (int i = 0; i < 6; i++) finds.Add(scene.Lay(Blade($"Blade {i}")));
@@ -491,8 +491,8 @@ namespace Dino_NetLab
                 scene.Lab.Run(6);
             }
             scene.Lab.Run(3);
-            report.Check("And walked to and taken, all of them", scene.Truth.Hero.Inventory.Count == carried + finds.Count, $"{scene.Truth.Hero.Inventory.Count - carried} of {finds.Count}");
-            report.Check("And the client ends up with what the server has", scene.Player.Client.Hero.Inventory.Count == scene.Truth.Hero.Inventory.Count);
+            report.Check("And walked to and taken, all of them", scene.Truth.Hero.Carried().Count() == carried + finds.Count, $"{scene.Truth.Hero.Carried().Count() - carried} of {finds.Count}");
+            report.Check("And the client ends up with what the server has", scene.Player.Client.Hero.Carried().Count() == scene.Truth.Hero.Carried().Count());
         }
 
         private static void AnotherWorldStartsClean(Report report, WorldCache worlds, WorldRequest request)
@@ -517,7 +517,7 @@ namespace Dino_NetLab
             scene.Go(at);
             scene.Player.Client.PickUp(fresh);
             scene.Lab.Run(1);
-            report.Check("And can be taken", scene.Truth.Hero.Inventory.Any(i => i.Name == "New World"));
+            report.Check("And can be taken", scene.Truth.Hero.Carried().Any(i => i.Name == "New World"));
         }
     }
 }

@@ -58,6 +58,10 @@ A person read the first version of this and called it unreadable: every word was
 
 **Nothing opens by itself, and nothing sticks.** A card shows what it says, only while the mouse is on the thing itself, and it never stops the mouse. Holding left Ctrl holds it still: only then does a marked word or a tag open that one word's meaning when the mouse rests on it, the name of a skill or buff open its card, and `Details` open the rest (`TipLayer.Held`). Anything calling `Show` has to pass the rect of the thing itself, never the mouse: a card that follows the mouse can't be reached.
 
+Ctrl is also what a click in a pack is held down with, and a held card stops the mouse, so a hand going along a row with Ctrl down would find the last card sitting on the next thing. A card there is `loose`: it's only held by a Ctrl that went down while it was showing, and `TipLayer.LetGo` ends that the moment such a click has done something. So Ctrl pressed on a card still reads it, and Ctrl held down the whole way still clicks.
+
+Holding Alt sets whatever an item would replace beside it, in full (`alongside`), to read the two against each other: both rings for a ring, and both hands for something that needs two. Those are only there to be read, and have nothing to rest on.
+
 **Say it plainly.** A definition is a line or two, in the words any ARPG would use: "Reduces Physical Hits", not an explanation of how the sum goes. Short and ordinary beats complete. What's left out of a definition can be on a stat's card, in `Details`, or in the numbers themselves, and `check` fails past `LongestTerm` and `MostLinesOnACard`.
 
 ## Terms

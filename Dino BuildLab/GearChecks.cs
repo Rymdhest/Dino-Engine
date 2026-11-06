@@ -44,7 +44,7 @@ namespace Dino_BuildLab
         private static HeroState Carrying(params Item[] items)
         {
             var hero = new HeroState();
-            hero.Inventory.AddRange(items);
+            foreach (Item item in items) hero.Pickup(item);
             return hero;
         }
 
@@ -55,17 +55,17 @@ namespace Dino_BuildLab
 
             hero.Equip(first);
             hero.Equip(second);
-            report.Check("Two rings fill two fingers", hero.Equipped[WornSlot.Finger1] == first && hero.Equipped[WornSlot.Finger2] == second && hero.Inventory.Count == 2);
+            report.Check("Two rings fill two fingers", hero.Equipped[WornSlot.Finger1] == first && hero.Equipped[WornSlot.Finger2] == second && hero.Carried().Count() == 2);
             report.Check("And both of them count", HeroBuild.Compile(hero).SheetFor(Condition.None).GoldFind == 30f);
 
             hero.Equip(third);
-            report.Check("A third goes on the first finger, and takes that ring off", hero.Equipped[WornSlot.Finger1] == third && hero.Equipped[WornSlot.Finger2] == second && hero.Inventory.Contains(first));
+            report.Check("A third goes on the first finger, and takes that ring off", hero.Equipped[WornSlot.Finger1] == third && hero.Equipped[WornSlot.Finger2] == second && hero.Carried().Contains(first));
 
             hero.Equip(fourth, WornSlot.Finger2);
-            report.Check("Or on the one it's asked to go on", hero.Equipped[WornSlot.Finger1] == third && hero.Equipped[WornSlot.Finger2] == fourth && hero.Inventory.Contains(second));
+            report.Check("Or on the one it's asked to go on", hero.Equipped[WornSlot.Finger1] == third && hero.Equipped[WornSlot.Finger2] == fourth && hero.Carried().Contains(second));
 
             Item wandering = Ring("Wandering", "gold-find", 1f);
-            hero.Inventory.Add(wandering);
+            hero.Pickup(wandering);
             hero.Equip(wandering, WornSlot.Head);
             report.Check("Asking for somewhere it can't go is the same as not asking", !hero.Equipped.ContainsKey(WornSlot.Head) && hero.Equipped.ContainsValue(wandering));
 
@@ -88,10 +88,10 @@ namespace Dino_BuildLab
             report.Check("One hand leaves the other free", hero.Equipped[WornSlot.MainHand] == sword && hero.Equipped[WornSlot.OffHand] == shield);
 
             hero.Equip(staff);
-            report.Check("Two hands take the off hand with them", hero.Equipped[WornSlot.MainHand] == staff && !hero.Equipped.ContainsKey(WornSlot.OffHand) && hero.Inventory.Contains(shield) && hero.Inventory.Contains(sword));
+            report.Check("Two hands take the off hand with them", hero.Equipped[WornSlot.MainHand] == staff && !hero.Equipped.ContainsKey(WornSlot.OffHand) && hero.Carried().Contains(shield) && hero.Carried().Contains(sword));
 
             hero.Equip(shield);
-            report.Check("And something in the off hand puts down what needs two", hero.Equipped[WornSlot.OffHand] == shield && !hero.Equipped.ContainsKey(WornSlot.MainHand) && hero.Inventory.Contains(staff));
+            report.Check("And something in the off hand puts down what needs two", hero.Equipped[WornSlot.OffHand] == shield && !hero.Equipped.ContainsKey(WornSlot.MainHand) && hero.Carried().Contains(staff));
 
             hero.Equip(sword);
             report.Check("A sword goes back beside it", hero.Equipped[WornSlot.MainHand] == sword && hero.Equipped[WornSlot.OffHand] == shield);
@@ -105,12 +105,12 @@ namespace Dino_BuildLab
             HeroState hero = Carrying(sword, shield, staff);
             hero.Equip(sword);
             hero.Equip(shield);
-            while (hero.Inventory.Count < HeroState.InventorySize) hero.Inventory.Add(Ring("Filler", "gold-find", 1f));
+            while (hero.Carried().Count() < HeroState.InventorySize) hero.Pickup(Ring("Filler", "gold-find", 1f));
 
-            report.Check("Two things can't come off into room for one", !hero.Equip(staff) && hero.Equipped[WornSlot.MainHand] == sword && hero.Equipped[WornSlot.OffHand] == shield && hero.Inventory.Contains(staff));
+            report.Check("Two things can't come off into room for one", !hero.Equip(staff) && hero.Equipped[WornSlot.MainHand] == sword && hero.Equipped[WornSlot.OffHand] == shield && hero.Carried().Contains(staff));
 
-            hero.Inventory.RemoveAt(hero.Inventory.Count - 1);
-            report.Check("But can into room for two", hero.Equip(staff) && hero.Equipped[WornSlot.MainHand] == staff && hero.Inventory.Count == HeroState.InventorySize);
+            hero.Inventory[^1] = null;
+            report.Check("But can into room for two", hero.Equip(staff) && hero.Equipped[WornSlot.MainHand] == staff && hero.Carried().Count() == HeroState.InventorySize);
         }
 
         private static void Families(Report report)
@@ -311,12 +311,12 @@ namespace Dino_BuildLab
             if (save == null) return;
 
             HeroState hero = save.Hero;
-            report.Check("With the hero as they were", hero.Level == 20 && hero.Gold == 368 && save.WorldSeed == 777 && hero.Inventory.Count == 2 && hero.Equipped.Count == 5);
+            report.Check("With the hero as they were", hero.Level == 20 && hero.Gold == 368 && save.WorldSeed == 777 && hero.Carried().Count() == 2 && hero.Equipped.Count == 5);
             report.Check("Each thing worn is where it should be", hero.Equipped[WornSlot.MainHand].Name.Contains("Longsword") && hero.Equipped[WornSlot.OffHand].Name == "Round Shield" && hero.Equipped[WornSlot.Finger1].Unique == "understudy" && hero.Equipped[WornSlot.Neck].Name == "Amulet" && hero.Equipped[WornSlot.Body].Name == "Tunic");
             report.Check("And is what it should be", hero.Equipped[WornSlot.MainHand].Slot == ItemSlot.MainHand && hero.Equipped[WornSlot.OffHand].Slot == ItemSlot.OffHand && hero.Equipped[WornSlot.Finger1].Slot == ItemSlot.Finger && hero.Equipped[WornSlot.Neck].Slot == ItemSlot.Neck);
-            report.Check("What's carried comes across too", hero.Inventory[0].Slot == ItemSlot.Finger && hero.Inventory[1].Slot == ItemSlot.MainHand && hero.Inventory[1].Kind == WeaponKind.Axe);
-            report.Check("Lines mean what they meant", hero.Equipped[WornSlot.MainHand].Lines.Count == 1 && hero.Inventory[0].Lines[0].Value == 12f);
-            report.Check("A second finger is free", hero.PlaceFor(hero.Inventory[0]) == WornSlot.Finger2);
+            report.Check("What's carried comes across too", hero.Inventory[0]!.Slot == ItemSlot.Finger && hero.Inventory[1]!.Slot == ItemSlot.MainHand && hero.Inventory[1]!.Kind == WeaponKind.Axe);
+            report.Check("Lines mean what they meant", hero.Equipped[WornSlot.MainHand].Lines.Count == 1 && hero.Inventory[0]!.Lines[0].Value == 12f);
+            report.Check("A second finger is free", hero.PlaceFor(hero.Inventory[0]!) == WornSlot.Finger2);
             report.Check("It knows it's up to date", save.Version == SaveGame.CurrentVersion);
 
             string path = Path.Combine(Path.GetTempPath(), $"buildlab-gear-{Environment.ProcessId}.json");
@@ -334,7 +334,7 @@ namespace Dino_BuildLab
 
             report.Check("The old save is kept beside it", kept);
             report.Check("It's written out in the new words", written.Contains("\"MainHand\"") && written.Contains("\"Finger1\"") && written.Contains("\"Slot\": \"Neck\"") && !written.Contains("\"Slot\": \"Weapon\"") && !written.Contains("\"Slot\": \"Amulet\""));
-            report.Check("And loads again as it was, with nothing to keep this time", again != null && again.Hero.Equipped.Count == 5 && again.Hero.Inventory.Count == 2 && again.Version == SaveGame.CurrentVersion && noCopyOfNew);
+            report.Check("And loads again as it was, with nothing to keep this time", again != null && again.Hero.Equipped.Count == 5 && again.Hero.Carried().Count() == 2 && again.Version == SaveGame.CurrentVersion && noCopyOfNew);
             report.Check("With every old item keeping the look it found", again != null && again.Hero.Equipped[WornSlot.MainHand].LookSeed() == hero.Equipped[WornSlot.MainHand].LookSeed());
         }
 
@@ -357,10 +357,10 @@ namespace Dino_BuildLab
                     continue;
                 }
 
-                int items = save.Hero.Inventory.Count + save.Hero.Equipped.Count;
+                int items = save.Hero.Carried().Count() + save.Hero.Equipped.Count;
                 int before = CountOf(json, "\"Slot\"");
                 report.Check($"{name} loads with all {before} of its items", items == before, $"{items}");
-                report.Check($"{name} has a look for everything", save.Hero.Inventory.Concat(save.Hero.Equipped.Values).All(i => i.LookSeed() != 0));
+                report.Check($"{name} has a look for everything", save.Hero.Carried().Concat(save.Hero.Equipped.Values).All(i => i.LookSeed() != 0));
                 report.Check($"{name} has everything worn where it fits", save.Hero.Equipped.All(pair => WornSlots.Holds(pair.Key) == pair.Value.Slot));
             }
             if (files.Count == 0) report.Note("No real saves on this machine to try");

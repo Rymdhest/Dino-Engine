@@ -158,11 +158,14 @@ namespace Dino_Defenders
             {
                 if (UniqueCatalog.Find(id) is not UniqueDefinition unique) continue;
                 Item item = UniqueCatalog.Make(unique, hero.Level, new Dino_Engine.World.WorldRandom(1));
-                hero.Inventory.Add(item);
+                hero.Pickup(item);
                 hero.Equip(item);
             }
 
             if (options.Wear is string family) Wear(hero, Enum.Parse<GearFamily>(family, ignoreCase: true), options.Seed ?? 1);
+
+            var carried = new Dino_Engine.World.WorldRandom(options.Seed ?? 1).Fork("carried");
+            for (int i = 0; i < options.Carry; i++) hero.Pickup(ItemGenerator.Roll(Math.Max(hero.Level, 10), carried.Fork(i), rarityBonus: 2f));
         }
 
         // For a scripted run: something for every place, as much of one family as can be had, to look at.
@@ -176,7 +179,7 @@ namespace Dino_Defenders
                 {
                     Item item = ItemGenerator.Forge(Math.Max(hero.Level, 20), random.Fork((int)place * 1000 + attempt), LootGrade.Rare, 0.5f, WornSlots.Holds(place));
                     if (item.Shares() != default && item.Shares().Of(family) < 0.6f) continue;
-                    hero.Inventory.Add(item);
+                    hero.Pickup(item);
                     hero.Equip(item, place);
                     break;
                 }
@@ -382,6 +385,12 @@ namespace Dino_Defenders
                     Quit();
                 });
             }
+            if (_options.Snap != null && File.Exists(_options.Snap))
+            {
+                string picture = File.ReadAllText(_options.Snap).Trim();
+                File.Delete(_options.Snap);
+                Engine.RequestScreenshot(picture);
+            }
             if (_options.Tour != null) UpdateTour();
             if (_options.Film != null) UpdateFilm();
             foreach (var (frame, speed, direction) in _options.Wind)
@@ -440,9 +449,11 @@ namespace Dino_Defenders
 
             if (window.IsKeyPressed(Keys.Escape))
             {
+                if (_ui.Hero.Visible && _ui.Hero.StepBack()) return;
                 if (_ui.AnyOpen) _ui.CloseAll();
                 else _ui.Toggle(_ui.Pause);
             }
+            if (_ui.Hero.Visible && window.IsKeyPressed(Keys.F) && window.IsKeyDown(Keys.LeftControl)) _ui.Hero.FocusSearch();
             if (window.IsKeyPressed(Keys.M)) _ui.Toggle(_ui.Map);
             if (window.IsKeyPressed(Keys.C) || window.IsKeyPressed(Keys.I)) _ui.Toggle(_ui.Hero);
             if (window.IsKeyPressed(Keys.J)) _ui.Toggle(_ui.Chronicle);
@@ -475,7 +486,15 @@ namespace Dino_Defenders
                     break;
                 case "friends": _ui.Toggle(_ui.Friends); break;
                 case "waygate": _ui.Open(InteractKind.Waygate, GameSession.Current.Sites[0]); break;
-                case "merchant": _ui.Open(InteractKind.Merchant, GameSession.Current.Sites.First(s => s.Site.Kind == SiteKind.Village)); break;
+                case "merchant":
+                    // Through the server, as what's on a table is its to say.
+                    int village = GameSession.Current.Sites.FindIndex(s => s.Site.Kind == SiteKind.Village);
+                    _server?.Ask(server =>
+                    {
+                        server.OpenPanel(server.Heroes[0], InteractKind.Merchant, village);
+                        return true;
+                    });
+                    break;
                 case "elder": _ui.Open(InteractKind.Elder, GameSession.Current.Sites.First(s => s.Site.Kind == SiteKind.Village)); break;
             }
         }
@@ -495,7 +514,7 @@ namespace Dino_Defenders
             int found = session.Sites.Count(s => s.Discovered);
             string objectives = string.Join(", ", session.Chronicle.Objectives.Select(o => $"{o.Progress}/{o.Goal}"));
             Console.WriteLine($"World: {session.World.Plan.Name}, level {session.World.Plan.Level}, {found} sites found, objectives {objectives}, liberated {session.Liberated}");
-            Console.WriteLine($"Hero: level {_hero.Level}, {session.Health:0}/{session.Sheet.MaxHealth:0} health, {_hero.Gold} gold, {_hero.Inventory.Count} items, {fallen} enemies fallen, {cleared} sites cleared at {session.PlayerPosition.X:0},{session.PlayerPosition.Y:0}");
+            Console.WriteLine($"Hero: level {_hero.Level}, {session.Health:0}/{session.Sheet.MaxHealth:0} health, {_hero.Gold} gold, {_hero.Carried().Count()} items, {fallen} enemies fallen, {cleared} sites cleared at {session.PlayerPosition.X:0},{session.PlayerPosition.Y:0}");
 
             HeroPredictor predictor = _client!.Predictor;
             Console.WriteLine($"Net: {_client.Party.Count} in the party, {_client.Ghosts.Ghosts.Count} ghosts, round trip {_client.RoundTrip:0} ms, drawn {_client.DrawnBehind:0} ms behind, {predictor.Corrections} corrections in {predictor.Compared} checks (worst {predictor.WorstCorrection:0.00} m), {_client.Ghosts.Mismatches} mismatches, {_client.BytesReceived / 1024} KB in, {_client.BytesSent / 1024} KB out");

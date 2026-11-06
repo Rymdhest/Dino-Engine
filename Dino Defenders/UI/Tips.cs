@@ -30,6 +30,7 @@ namespace Dino_Defenders.UI
         private const float ChipHeight = 17f;
         private const string DetailsLink = "Details";
         private const string HoldHint = "Hold Ctrl for keywords and details";
+        private const string ItemHint = "Hold Ctrl for keywords, Alt to compare";
 
         public readonly List<Piece> Pieces = new();
         public readonly List<Chip> Chips = new();
@@ -42,7 +43,8 @@ namespace Dino_Defenders.UI
         public static Colour TitleColour(Card card) => card.Grade is LootGrade grade ? Ui.GradeColour(grade) : card.Gilded ? Ui.Gold : Ui.Parchment;
 
         /// <param name="held">Whether it's being held still to be read, which is when there's anything to rest on.</param>
-        public static LaidCard Of(GuiContext context, Card card, float width, bool held)
+        /// <param name="comparable">Whether there's something to set it against with Alt.</param>
+        public static LaidCard Of(GuiContext context, Card card, float width, bool held, bool comparable = false)
         {
             var laid = new LaidCard { Width = width, Picture = card.Picture, Links = card.Attached, Edge = card.Grade is LootGrade grade ? Ui.GradeColour(grade).MultiplyAlpha(0.8f) : GuiColors.Rgba(120, 96, 58) };
             float inner = width - Pad * 2f;
@@ -107,7 +109,7 @@ namespace Dino_Defenders.UI
             else if (!held)
             {
                 y += 4f;
-                laid.Pieces.Add(new Piece(HoldHint, "", Pad, y, inner, 11.5f, Ui.Faded.MultiplyAlpha(0.7f), default));
+                laid.Pieces.Add(new Piece(comparable ? ItemHint : HoldHint, "", Pad, y, inner, 11.5f, Ui.Faded.MultiplyAlpha(0.7f), default));
                 y += 16f;
             }
 
@@ -185,6 +187,8 @@ namespace Dino_Defenders.UI
     /// <summary>
     /// Where every tooltip is drawn, on top of everything. Whatever is being looked at hands over a way of making its card each frame, so it can't go stale, and only that card shows, for as long as the mouse is
     /// on the thing itself. Holding left Ctrl holds it still, and only then does it stop the mouse and can a marked word or a tag on it be rested on, which explains that one word in a small card of its own.
+    /// Ctrl is also what a click on something in a pack is held down with, so a card that's loose only stays for a Ctrl pressed while it's showing, and lets go the moment that click comes: a hand going down a
+    /// row of things with Ctrl held has to see each of them, and never find the last one's card in its way.
     /// </summary>
     internal sealed class TipLayer : GuiElement
     {
@@ -205,6 +209,12 @@ namespace Dino_Defenders.UI
         private GuiRect _askedBeside;
         private bool _above;
         private bool _askedAbove;
+        private bool _loose;
+        private bool _askedLoose;
+        private Func<List<Card>>? _alongside;
+        private Func<List<Card>>? _askedAlongside;
+        private bool _ctrlDown;
+        private bool _pinned;       // Ctrl went down on the card showing, and hasn't been used for anything else.
         private List<HotSpot>? _placedSpots;
         private GuiRect _placed;
         private string _looking = "";
@@ -220,7 +230,7 @@ namespace Dino_Defenders.UI
         }
 
         /// <summary>Whether the card on show is being held still to be read.</summary>
-        public bool Held => Context != null && Context.IsKeyDown(Keys.LeftControl);
+        public bool Held => Context != null && Context.IsKeyDown(Keys.LeftControl) && (_pinned || !_loose);
 
         // Only a card being held stops the mouse, and it has to then, or whatever is underneath would take over as the mouse crossed it.
         public override bool HitTestSelf(Vector2 point)
@@ -235,11 +245,23 @@ namespace Dino_Defenders.UI
 
         /// <summary>Shows a card beside something, for as long as this keeps being called.</summary>
         /// <param name="above">Over it rather than to one side, for what stands in a row along the bottom of the screen.</param>
-        public void Show(Func<Card?> card, GuiRect beside, bool above = false)
+        /// <param name="loose">Whether it's something a click with Ctrl held does something to.</param>
+        /// <param name="alongside">Other cards to set beside this one while Alt is held.</param>
+        public void Show(Func<Card?> card, GuiRect beside, bool above = false, bool loose = false, Func<List<Card>>? alongside = null)
         {
             _asked = card;
             _askedBeside = beside;
             _askedAbove = above;
+            _askedLoose = loose;
+            _askedAlongside = alongside;
+        }
+
+        /// <summary>A click with Ctrl held has done what it was for, so nothing is being held to be read, and won't be until Ctrl comes up.</summary>
+        public void LetGo()
+        {
+            _pinned = false;
+            _source = null;
+            _open.Clear();
         }
 
         /// <summary>For a card drawn where it is, in a panel: its words can be rested on all the same.</summary>
@@ -253,6 +275,8 @@ namespace Dino_Defenders.UI
         {
             _source = null;
             _asked = null;
+            _alongside = null;
+            _askedAlongside = null;
             _open.Clear();
             _rects.Clear();
         }
@@ -264,19 +288,27 @@ namespace Dino_Defenders.UI
 
             double now = Engine.Time;
             Vector2 mouse = Context.MousePosition;
-            bool held = Held;
             GuiRect screen = Bounds;
             Func<Card?>? asked = _asked;
             List<HotSpot>? placedSpots = _placedSpots;
             _asked = null;
             _placedSpots = null;
 
-            if (!held || _source == null)
+            bool ctrl = Context.IsKeyDown(Keys.LeftControl);
+            if (ctrl && !_ctrlDown) _pinned = _source != null;
+            if (!ctrl) _pinned = false;
+            _ctrlDown = ctrl;
+
+            if (!Held || _source == null)
             {
                 _source = asked;
                 _beside = _askedBeside;
                 _above = _askedAbove;
+                _loose = asked != null && _askedLoose;
+                _alongside = _askedAlongside;
             }
+
+            bool held = Held;
             if (!held) _open.Clear();
 
             _rects.Clear();
@@ -294,7 +326,7 @@ namespace Dino_Defenders.UI
             if (card != null)
             {
                 var spots = new List<HotSpot>();
-                LaidCard laid = LaidCard.Of(Context, card, CardWidth, held);
+                LaidCard laid = LaidCard.Of(Context, card, CardWidth, held, _alongside != null);
                 float x = _above ? _beside.Center.X - CardWidth * 0.5f : _beside.Right + Gap;
                 if (!_above && x + CardWidth > screen.Width - Margin) x = _beside.X - CardWidth - Gap;
                 x = Math.Clamp(x, Margin, MathF.Max(screen.Width - CardWidth - Margin, Margin));
@@ -304,6 +336,7 @@ namespace Dino_Defenders.UI
                 parent = new GuiRect(x, y, CardWidth, laid.Height);
                 _rects.Add(parent);
                 _layers.Add(spots);
+                if (_alongside != null && Context.Modifiers.HasFlag(KeyModifiers.Alt)) DrawAlongside(draw, _alongside(), parent, screen);
             }
             else if (placedSpots != null)
             {
@@ -319,6 +352,30 @@ namespace Dino_Defenders.UI
             if (!held) return;
             DrawOpen(draw, parent, screen);
             Follow(draw, mouse, now, card == null);
+        }
+
+        // Beside a card and level with it, for reading the two against each other. They go on whichever side has room, keeping clear of the thing itself and of each other, and are only there to be read.
+        private void DrawAlongside(GuiDrawList draw, List<Card> cards, GuiRect card, GuiRect screen)
+        {
+            float right = MathF.Max(card.Right, _beside.Right);
+            float left = MathF.Min(card.X, _beside.X);
+            foreach (Card other in cards)
+            {
+                LaidCard laid = LaidCard.Of(Context!, other, CardWidth, held: true);
+                float x;
+                if (right + Gap + CardWidth <= screen.Width - Margin)
+                {
+                    x = right + Gap;
+                    right = x + CardWidth;
+                }
+                else
+                {
+                    x = MathF.Max(left - Gap - CardWidth, Margin);
+                    left = x;
+                }
+                float y = Math.Clamp(card.Y, Margin, MathF.Max(screen.Height - laid.Height - Margin, Margin));
+                laid.Draw(Context!, draw, x, y, framed: true, new List<HotSpot>());
+            }
         }
 
         // Each card opened from the one before it, level with what opened it.

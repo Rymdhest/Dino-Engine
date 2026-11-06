@@ -34,6 +34,7 @@ namespace Dino_BuildLab
             Uniques(report);
             Wires(report);
             GearChecks.Run(report);
+            PackChecks.Run(report);
 
             report.Section("Saves from before all this");
             OldSaves(report);
@@ -332,7 +333,7 @@ namespace Dino_BuildLab
 
             Item shell = UniqueCatalog.Make(UniqueCatalog.Find("drowned-king")!, 20, random);
             var hero = HeroState.CreateNew();
-            hero.Inventory.Add(shell);
+            hero.Pickup(shell);
             hero.Equip(shell);
             hero.Talents.AddRange(TalentTree.PathTo(hero, TalentTree.Find("key.tidewalker")!.Index).Select(i => TalentTree.Nodes[i].Id));
             hero.Level = 40;
@@ -361,7 +362,7 @@ namespace Dino_BuildLab
             }
 
             return a.Level == b.Level && a.Gold == b.Gold && a.Talents.SequenceEqual(b.Talents) && a.Bar.SequenceEqual(b.Bar)
-                && Items(a.Inventory, b.Inventory) && Items(a.Equipped.OrderBy(p => p.Key).Select(p => p.Value), b.Equipped.OrderBy(p => p.Key).Select(p => p.Value));
+                && Items(a.Carried(), b.Carried()) && Items(a.Equipped.OrderBy(p => p.Key).Select(p => p.Value), b.Equipped.OrderBy(p => p.Key).Select(p => p.Value));
         }
 
         private static void Wires(Report report)
@@ -370,7 +371,7 @@ namespace Dino_BuildLab
             HeroState hero = Hero(30, "pyre.firebolt", "key.slow-burn");
             hero.Bar[3] = "firebolt";
             hero.Equipped[WornSlot.MainHand] = UniqueCatalog.Make(UniqueCatalog.Find("ashen-promise")!, 20, random);
-            for (int i = 0; i < 30; i++) hero.Inventory.Add(ItemGenerator.Roll(30, random.Fork(i), 2f));
+            for (int i = 0; i < 30; i++) hero.Pickup(ItemGenerator.Roll(30, random.Fork(i), 2f));
 
             var writer = new BitWriter();
             Protocol.WriteHero(writer, hero);
@@ -405,10 +406,7 @@ namespace Dino_BuildLab
             forged.WriteCount(1);
             forged.WriteString("not-an-affix");
             forged.WriteFloat(99999f);
-            var items = new BitWriter();
-            items.WriteCount(1);
-            items.Append(forged);
-            List<Item> arrived = Protocol.ReadItems(new BitReader(items.ToArray()));
+            List<Item> arrived = new List<Item> { Protocol.ReadItem(new BitReader(forged.ToArray())) };
             report.Check("An affix, a unique or a base that doesn't exist does nothing, whatever a stranger sends", arrived.Count == 1 && arrived[0].Unique == null && arrived[0].Lines.Count == 0 && arrived[0].Base.Length == 0);
         }
 
@@ -466,17 +464,17 @@ namespace Dino_BuildLab
             if (save == null) return;
 
             HeroState hero = save.Hero;
-            report.Check("With the hero as they were", hero.Level == 3 && hero.Gold == 368 && hero.Experience == 76 && hero.Inventory.Count == 2 && hero.Equipped.Count == 2);
+            report.Check("With the hero as they were", hero.Level == 3 && hero.Gold == 368 && hero.Experience == 76 && hero.Carried().Count() == 2 && hero.Equipped.Count == 2);
             report.Check("With the world as it was", save.WorldSeed == 12345 && save.Sites.Count == 1 && save.Sites[0].Kindled && save.Objectives[0] == 1);
             report.Check("Every point goes back into talents", hero.Talents.Count == 0 && hero.UnspentPoints == 7, $"{hero.UnspentPoints}");
             report.Check("A sword someone edited by hand stays as it was", hero.Equipped[WornSlot.MainHand].WeaponDamage == 700f);
 
-            Item hood = hero.Inventory[0];
+            Item hood = hero.Inventory[0]!;
             report.Check("Item lines come across, value for value", hood.Lines.Count == 2 && hood.Lines[0].Affix == "armour" && MathF.Abs(hood.Lines[0].Value - 4.534136f) < 1e-4f && hood.Lines[1].Affix == "health");
-            report.Check("Every old stat has somewhere to go", hero.Inventory[1].Lines.Count == 10 && hero.Inventory[1].Lines.All(l => AffixCatalog.Find(l.Affix) != null));
+            report.Check("Every old stat has somewhere to go", hero.Inventory[1]!.Lines.Count == 10 && hero.Inventory[1]!.Lines.All(l => AffixCatalog.Find(l.Affix) != null));
 
             ActorSheet sheet = HeroBuild.Compile(hero).SheetFor(Condition.None);
-            hero.Equip(hero.Inventory[1]);
+            hero.Equip(1);
             ActorSheet ringed = HeroBuild.Compile(hero).SheetFor(Condition.None);
             report.Check("And mean what they meant", ringed.MoveSpeed > sheet.MoveSpeed && ringed.HealthRegen > sheet.HealthRegen && ringed.ItemRarity == 12f && ringed.GoldFind == 30f && ringed.Profile(SkillCatalog.Strike)!.AverageHit > sheet.Profile(SkillCatalog.Strike)!.AverageHit);
             report.Check("A new hero has a bar with one thing on it", hero.Bar[0] == "strike" && hero.Bar.Skip(1).All(s => s == null));
@@ -510,7 +508,7 @@ namespace Dino_BuildLab
 
             string? damaged = OldSave.Replace("\"Stat\": \"Armour\"", "\"Stat\": \"SomethingWeNeverHad\"");
             SaveGame? survived = SaveGame.Read(damaged);
-            report.Check("A stat nobody has heard of costs a line, not the hero", survived != null && survived.Hero.Inventory[0].Lines.Count == 1);
+            report.Check("A stat nobody has heard of costs a line, not the hero", survived != null && survived.Hero.Inventory[0]!.Lines.Count == 1);
 
             string? folder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string backups = Path.Combine(folder, "DinoDefenders", "backups");

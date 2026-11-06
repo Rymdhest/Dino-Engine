@@ -66,7 +66,13 @@ namespace Dino_Defenders.Server
             }
         }
 
-        private void Drop(Vector3 from, Item item, float delay)
+        /// <summary>Something a hero has put down. It lands beside them, for anyone to pick up, and it's only something being put down: what's found has all the noise of being found, and this has none.</summary>
+        public void Lay(ServerPlayer hero, Item item)
+        {
+            Drop(Ground(hero.Sim.Position) + Vector3.UnitY * Height, item, 0f, laid: true);
+        }
+
+        private void Drop(Vector3 from, Item item, float delay, bool laid = false)
         {
             int find = _nextFind++;
             LootGrade grade = Loot.GradeOf(item);
@@ -76,7 +82,7 @@ namespace Dino_Defenders.Server
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 1.5f + (int)grade),
                 new PositionComponent(Ground(spot)),
                 new VisualComponent(LootModels.Find, VisualKind.Prop),
-                new PickupComponent { Find = find, Grade = grade, Slot = item.Slot, From = from, Born = Moment(delay), SeedLow = (uint)seed, SeedHigh = (uint)(seed >> 32), Traits = ItemLook.Traits(item) });
+                new PickupComponent { Find = find, Grade = grade, Slot = item.Slot, From = from, Born = Moment(delay), SeedLow = (uint)seed, SeedHigh = (uint)(seed >> 32), Traits = ItemLook.Traits(item), Laid = laid });
 
             _lying.Add(find, new Lying(entity, item, spot));
             foreach (ServerPlayer hero in Server.Heroes) Tell(hero, find, item);

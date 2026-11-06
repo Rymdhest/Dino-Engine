@@ -8,6 +8,7 @@ namespace Dino_Defenders
     /// What the game was started with. Playing needs none of it; these jump straight to a world for development, and let a
     /// scripted run look at one spot, take a screenshot and quit.
     ///   --seed N  --archetype id  --site Kind  --at x,z  --look distance  --angle degrees  --shot file.png  --frames N
+    ///   --snap file     Whenever this file appears, takes a picture to the path written in it and deletes it, for looking at a run from outside as it goes.
     ///   --tour folder   Visits one of every kind of site, and a wood, a road and a shore, photographing each.
     ///   --level N       How dangerous the first world is.
     ///   --bot true      Plays the hero: it fights whatever is near. For watching the game run with nobody at the keyboard.
@@ -16,6 +17,7 @@ namespace Dino_Defenders
     ///   --hero N        Starts the hero at level N.
     ///   --talents a,b   Walks the talent tree to these nodes, by id, taking everything on the way. Skills they teach go on the bar.
     ///   --equip a,b     Puts these uniques on the hero, by id.
+    ///   --carry N       Fills N cells of the pack with things rolled from the seed, to try anything to do with a pack.
     ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar.
     ///   --loot all      Drops one find of every grade in front of the hero, or everything a tier gives, as boss, elite, chest or hoard.
     ///   --panel name    Opens map, hero, talents, skills, glossary, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
@@ -53,6 +55,7 @@ namespace Dino_Defenders
         public float? Look;         // Metres above the player for a high look at a place.
         public float? Angle;        // Degrees above the horizon the camera looks down from, for a low look at a place.
         public string? Shot;
+        public string? Snap;
         public string? Tour;
         public int ShotAfterFrames = 150;
         public int Level = 1;
@@ -62,6 +65,7 @@ namespace Dino_Defenders
         public int HeroLevel = 1;
         public readonly List<string> Talents = new();
         public readonly List<string> Equip = new();
+        public int Carry;
         public string? Parade;
 
         /// <summary>The same as <see cref="Parade"/>, but they're awake and want a fight.</summary>
@@ -124,6 +128,7 @@ namespace Dino_Defenders
                     case "look": options.Look = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "angle": options.Angle = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "shot": options.Shot = value; break;
+                    case "snap": options.Snap = value; break;
                     case "tour": options.Tour = value; break;
                     case "frames": options.ShotAfterFrames = int.Parse(value); break;
                     case "level": options.Level = int.Parse(value); break;
@@ -136,6 +141,7 @@ namespace Dino_Defenders
                     case "hero": options.HeroLevel = int.Parse(value); break;
                     case "talents": options.Talents.AddRange(value.Split(',')); break;
                     case "equip": options.Equip.AddRange(value.Split(',')); break;
+                    case "carry": options.Carry = int.Parse(value); break;
                     case "parade": options.Parade = value; break;
                     case "brawl": options.Brawl = value; break;
                     case "trace": options.Trace = value; break;

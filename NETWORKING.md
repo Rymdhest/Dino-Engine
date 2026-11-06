@@ -30,6 +30,14 @@ Other ARPGs desync because the client keeps its own running idea of the world an
 
 World state is never sent as "this changed". Snapshots are differences from a state the client has *confirmed holding*, so a lost packet is simply covered by the next one. Nothing depends on any one packet arriving, including ghosts appearing and leaving.
 
+**What a hero carries is the other thing a client does ahead of being told**, as a pack that waits for the server at every click is no pleasure to use. `GameClient` makes each change at once, by the same rules the server will use (`HeroState`, `MerchantTable`), and sends it whatever those rules said, as the server has the last word. Each one carries a running number, which comes back with every gear update and market:
+
+- A gear update is only believed if it has heard everything asked so far. An earlier one says the pack is as it was, and showing that would make things jump back for a moment.
+- A market goes by the last thing asked of a table rather than the last thing asked at all, or a move right behind a refused purchase would hold up the one message that puts it right.
+- The server answers every one of these with the truth, allowed or not (`ServerPlayer.Heard`). That's the whole of what corrects a client that was wrong, so a client can only be wrong for a moment here too.
+
+Everyone else only ever hears what the server decided. `Dino NetLab pack` holds all of this.
+
 ## Adding things
 
 **A new component clients should see**: mark it `[Replicated]`, and put a `NetIdentityComponent` on the entity. That's all. It reaches every client it's relevant to, as the same component type, and goes when it's removed. Fields go unless marked `[NotReplicated]`. `[NetStep(x)]` sets how finely a number is sent, and `[NetSnap]` stops it being blended.
@@ -57,6 +65,7 @@ World state is never sent as "this changed". Snapshots are differences from a st
 - **Adding up a hero's modifiers in a different order on one end.** Floats don't add up the same way in every order, so `HeroBuild` gathers them in a fixed one.
 - **Changing a component's fields on one build only.** The schema hash is compared at the door, so two builds refuse each other, with a clear message. So is the build's version (`Protocol.Build`): releases go out often, and different rules with the same components would otherwise connect and disagree about every step. Builds made by hand all count as the same one.
 - **Dynamic text in a replicated string field.** Those go through a table that only grows. Use a number, or an event.
+- **Changing what's carried on the client any other way than `AskGear`, or on the server without `Heard`.** The first is never put right, and the second leaves the client ignoring every answer from then on.
 - **Touching anything on the server from the client's thread** without `ServerHost.Post`.
 
 ## What crosses the network
@@ -115,6 +124,7 @@ Cheating isn't prevented. A host controls their own server, and a player's hero 
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" core     # Replication alone, and fuzzing
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" game     # The whole game, on every kind of line
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" loot     # What's on the ground, with real clients on the other end of a line
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" pack     # What's carried: shown at once, the server has the last word, and nothing lost or doubled on an awful line
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" offering # What's paid at a waygate, and that a friend who turns up later is in the same land
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" combat   # What a fight promises: what's marked is what's hit, on the tick it says
 ```

@@ -167,6 +167,7 @@ namespace Dino_Defenders.Gameplay
         public uint SeedLow;
         public uint SeedHigh;
         public uint Traits;
+        public bool Laid;           // A hero put it down, so it's nothing to get excited about.
 
         [NotReplicated] public bool Dressed;
         [NotReplicated] public float Fit;

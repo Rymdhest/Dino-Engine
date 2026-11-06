@@ -145,7 +145,7 @@ namespace Dino_Defenders.Server
             foreach (ServerPlayer player in _players.Values)
             {
                 player.InWorld = false;
-                player.Stocks.Clear();
+                player.Tables.Clear();
                 player.Asked.Clear();
             }
 
@@ -525,24 +525,28 @@ namespace Dino_Defenders.Server
         }
 
         // Each hero has their own table: what one buys isn't taken from another, and it turns over as they free more lands.
-        private List<Item> StockFor(ServerPlayer hero, int siteIndex)
+        private MerchantTable TableFor(ServerPlayer hero, int siteIndex)
         {
-            if (hero.Stocks.TryGetValue(siteIndex, out List<Item>? stock)) return stock;
+            if (hero.Tables.TryGetValue(siteIndex, out MerchantTable? table)) return table;
 
             ServerSession session = Session!;
-            stock = new List<Item>();
+            var stock = new Item?[StockSize];
             var random = new WorldRandom(session.World.Plan.Seed).Fork("market").Fork(session.Sites[siteIndex].Site.Id).Fork(hero.Hero.WorldsCleared);
             int level = session.World.Plan.Level + 1;
-            for (int i = 0; i < StockSize; i++) stock.Add(ItemGenerator.Roll(level, random.Fork(i), rarityBonus: 0.4f));
-            hero.Stocks[siteIndex] = stock;
-            return stock;
+            for (int i = 0; i < StockSize; i++) stock[i] = ItemGenerator.Roll(level, random.Fork(i), rarityBonus: 0.4f);
+            table = new MerchantTable { Stock = stock };
+            hero.Tables[siteIndex] = table;
+            return table;
         }
 
         private void SendMarket(ServerPlayer hero, int siteIndex)
         {
+            MerchantTable table = TableFor(hero, siteIndex);
             BitWriter writer = Protocol.Begin(Message.Market);
             writer.WriteVarInt(siteIndex);
-            Protocol.WriteItems(writer, StockFor(hero, siteIndex));
+            writer.WriteVarInt(hero.GearAnswered);
+            Protocol.WriteCells(writer, table.Stock);
+            Protocol.WriteCells(writer, table.Sold);
             hero.Connection.Send(writer.ToArray(), Delivery.Reliable);
         }
 
@@ -735,48 +739,70 @@ namespace Dino_Defenders.Server
                     player.SummaryChanged = true;
                     break;
 
+                // What comes next all changes what's carried, which a client has already done by these same rules: see NETWORKING.md.
                 case HeroAction.Equip:
+                    player.Heard(reader.ReadVarInt());
                     int equip = reader.ReadVarInt();
                     WornSlot? place = reader.ReadBool() ? (WornSlot)reader.ReadByte() : null;
-                    if (equip < 0 || equip >= hero.Inventory.Count) break;
-                    if (!hero.Equip(hero.Inventory[equip], place))
+                    if (!ItemPlace.Cell(equip).IsCell || hero.Inventory[equip] == null) break;
+                    if (!hero.Equip(equip, place))
                     {
                         Note(player, "Your pack is full.");
                         break;
                     }
                     player.RefreshLoadout();
-                    player.GearChanged = true;
                     break;
 
                 case HeroAction.Unequip:
-                    int slot = reader.ReadByte();
-                    if (!Enum.IsDefined((WornSlot)slot)) break;
-                    hero.Unequip((WornSlot)slot);
+                    player.Heard(reader.ReadVarInt());
+                    var slot = (WornSlot)reader.ReadByte();
+                    if (hero.At(ItemPlace.Worn(slot)) == null) break;
+                    if (!hero.Unequip(slot))
+                    {
+                        Note(player, "Your pack is full.");
+                        break;
+                    }
                     player.RefreshLoadout();
-                    player.GearChanged = true;
+                    break;
+
+                case HeroAction.Move:
+                    player.Heard(reader.ReadVarInt());
+                    var moving = new ItemPlace(reader.ReadVarInt());
+                    var movingTo = new ItemPlace(reader.ReadVarInt());
+                    if (hero.Move(moving, movingTo) && !(moving.IsCell && movingTo.IsCell)) player.RefreshLoadout();
+                    break;
+
+                case HeroAction.Sort:
+                    player.Heard(reader.ReadVarInt());
+                    hero.Sort();
+                    break;
+
+                case HeroAction.Drop:
+                    player.Heard(reader.ReadVarInt());
+                    var dropping = new ItemPlace(reader.ReadVarInt());
+                    if (hero.Take(dropping) is not Item dropped) break;
+                    Session!.Ground.Lay(player, dropped);
+                    if (dropping.IsWorn) player.RefreshLoadout();
                     break;
 
                 case HeroAction.Sell:
-                    int sell = reader.ReadVarInt();
-                    if (sell < 0 || sell >= hero.Inventory.Count) break;
-                    Item sold = hero.Inventory[sell];
-                    hero.Inventory.RemoveAt(sell);
-                    hero.Gold += sold.SellValue;
-                    player.GearChanged = true;
+                    player.Heard(reader.ReadVarInt());
+                    int sellingAt = reader.ReadVarInt();
+                    var selling = new ItemPlace(reader.ReadVarInt());
+                    if (sellingAt < 0 || sellingAt >= Session!.Sites.Count) break;
+                    if (TableFor(player, sellingAt).Sell(hero, selling) && selling.IsWorn) player.RefreshLoadout();
                     player.SummaryChanged = true;
+                    SendMarket(player, sellingAt);
                     break;
 
                 case HeroAction.Buy:
+                    player.Heard(reader.ReadVarInt());
                     int site = reader.ReadVarInt();
+                    bool buyingBack = reader.ReadBool();
                     int buy = reader.ReadVarInt();
+                    int? into = reader.ReadBool() ? reader.ReadVarInt() : null;
                     if (site < 0 || site >= Session!.Sites.Count) break;
-                    List<Item> stock = StockFor(player, site);
-                    if (buy < 0 || buy >= stock.Count) break;
-                    Item bought = stock[buy];
-                    if (hero.Gold < bought.BuyValue || !hero.Pickup(bought)) break;
-                    hero.Gold -= bought.BuyValue;
-                    stock.RemoveAt(buy);
-                    player.GearChanged = true;
+                    TableFor(player, site).Buy(hero, buyingBack, buy, into);
                     player.SummaryChanged = true;
                     SendMarket(player, site);
                     break;
@@ -913,7 +939,11 @@ namespace Dino_Defenders.Server
             Protocol.WriteHeroSummary(writer, player.Hero);
             Protocol.WriteBuffs(writer, player.Actor.Buffs, player.Stolen);
             writer.WriteBool(gear);
-            if (gear) Protocol.WriteGear(writer, player.Hero);
+            if (gear)
+            {
+                writer.WriteVarInt(player.GearAnswered);
+                Protocol.WriteGear(writer, player.Hero);
+            }
             player.Connection.Send(writer.ToArray(), Delivery.Reliable);
             if (gear) SendWorn(player);
             player.SummaryChanged = false;

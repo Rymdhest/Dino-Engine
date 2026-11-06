@@ -72,6 +72,8 @@ namespace Dino_Defenders.Client
         private Loadout _loadout;
         private Condition _state;
         private Counters _counters;
+        private int _gearAsked;     // How many changes to what's carried have been made here and asked of the server.
+        private int _tableAsked;    // The last of those that touched a merchant's table.
 
         public readonly NetEventHandlers Events = new();
         public readonly GhostClient Ghosts;
@@ -459,8 +461,17 @@ namespace Dino_Defenders.Client
             Protocol.ReadHeroSummary(reader, Hero);
             Protocol.ReadBuffs(reader, Buffs, out SkillDefinition? stolen);
             Stolen = stolen;
-            if (reader.ReadBool()) Protocol.ReadGear(reader, Hero);
+            if (reader.ReadBool())
+            {
+                // Sent before the server had heard all that's been done here, this would only undo it for a moment. Whatever it's missing is on its way.
+                int answered = reader.ReadVarInt();
+                Protocol.ReadGear(reader, answered == _gearAsked ? Hero : new HeroState());
+            }
+            Recompile();
+        }
 
+        private void Recompile()
+        {
             _loadout = HeroBuild.Compile(Hero, Buffs, Stolen);
             Sheet = _loadout.SheetFor(_state, _counters);
             Kit = new HeroKit(Hero, Sheet);
@@ -545,12 +556,15 @@ namespace Dino_Defenders.Client
         private void OnMarket(BitReader reader)
         {
             int site = reader.ReadVarInt();
-            List<Item> items = Protocol.ReadItems(reader);
-            if (Session == null || site < 0 || site >= Session.Sites.Count) return;
-            List<Item> stock = Session.Sites[site].Stock;
-            stock.Clear();
-            stock.AddRange(items);
+            int answered = reader.ReadVarInt();
+            Item?[] stock = Protocol.ReadCells(reader, Protocol.MostItems);
+            Item?[] sold = Protocol.ReadCells(reader, MerchantTable.MostSold);
+            if (TableAt(site) is not MerchantTable table || answered < _tableAsked) return;
+            table.Stock = stock;
+            sold.CopyTo(table.Sold, 0);
         }
+
+        private MerchantTable? TableAt(int site) => Session != null && site >= 0 && site < Session.Sites.Count ? Session.Sites[site].Table : null;
 
         private void OnParty(BitReader reader)
         {
@@ -608,35 +622,88 @@ namespace Dino_Defenders.Client
             Send(writer);
         }
 
+        // What a hero carries is the one thing here that's changed before the server has said so, by the same rules it will use, as a pack that takes a moment to answer every click is
+        // no pleasure to use. All of it is sent whatever the rules said here, as the server has the last word, and it answers each of these with the truth.
+        private BitWriter AskGear(HeroAction action)
+        {
+            BitWriter writer = Action(action);
+            writer.WriteVarInt(++_gearAsked);
+            return writer;
+        }
+
+        /// <param name="index">The cell it's in. What comes off goes into that same cell.</param>
         /// <param name="place">Where to put it, for what could go in more than one place. Otherwise the server finds it room.</param>
         public void Equip(int index, WornSlot? place = null)
         {
-            BitWriter writer = Action(HeroAction.Equip);
+            Hero.Equip(index, place);
+            BitWriter writer = AskGear(HeroAction.Equip);
             writer.WriteVarInt(index);
             writer.WriteBool(place != null);
             if (place != null) writer.WriteByte((byte)place.Value);
             Send(writer);
+            Recompile();
         }
 
         public void Unequip(WornSlot slot)
         {
-            BitWriter writer = Action(HeroAction.Unequip);
+            Hero.Unequip(slot);
+            BitWriter writer = AskGear(HeroAction.Unequip);
             writer.WriteByte((byte)slot);
             Send(writer);
+            Recompile();
         }
 
-        public void Sell(int index)
+        /// <summary>Moves something, and whatever's there changes places with it.</summary>
+        public void Move(ItemPlace from, ItemPlace to)
         {
-            BitWriter writer = Action(HeroAction.Sell);
-            writer.WriteVarInt(index);
+            Hero.Move(from, to);
+            BitWriter writer = AskGear(HeroAction.Move);
+            writer.WriteVarInt(from.Number);
+            writer.WriteVarInt(to.Number);
             Send(writer);
+            Recompile();
         }
 
-        public void Buy(int site, int index)
+        /// <summary>Tidies the pack, which is the only thing that ever moves what's in it without being told where.</summary>
+        public void SortPack()
         {
-            BitWriter writer = Action(HeroAction.Buy);
+            Hero.Sort();
+            Send(AskGear(HeroAction.Sort));
+        }
+
+        /// <summary>Puts something on the ground beside the hero, for anyone to pick up.</summary>
+        public void Drop(ItemPlace place)
+        {
+            Hero.Take(place);
+            BitWriter writer = AskGear(HeroAction.Drop);
+            writer.WriteVarInt(place.Number);
+            Send(writer);
+            Recompile();
+        }
+
+        public void Sell(int site, ItemPlace place)
+        {
+            TableAt(site)?.Sell(Hero, place);
+            BitWriter writer = AskGear(HeroAction.Sell);
+            _tableAsked = _gearAsked;
             writer.WriteVarInt(site);
+            writer.WriteVarInt(place.Number);
+            Send(writer);
+            Recompile();
+        }
+
+        /// <param name="buyingBack">Whether it's from what they've sold there, rather than what's for sale.</param>
+        /// <param name="cell">Where in the pack it should go, if anywhere in particular.</param>
+        public void Buy(int site, int index, bool buyingBack = false, int? cell = null)
+        {
+            TableAt(site)?.Buy(Hero, buyingBack, index, cell);
+            BitWriter writer = AskGear(HeroAction.Buy);
+            _tableAsked = _gearAsked;
+            writer.WriteVarInt(site);
+            writer.WriteBool(buyingBack);
             writer.WriteVarInt(index);
+            writer.WriteBool(cell != null);
+            if (cell != null) writer.WriteVarInt(cell.Value);
             Send(writer);
         }
 
@@ -672,7 +739,7 @@ namespace Dino_Defenders.Client
             GameSession? session = Session;
             if (session == null || !session.Ground.TryGetValue(find, out Item? item)) return;
 
-            if (Hero.Inventory.Count >= HeroState.InventorySize)
+            if (!Hero.HasRoom())
             {
                 session.Note("Your pack is full.");
                 Reached?.Invoke(item, false);

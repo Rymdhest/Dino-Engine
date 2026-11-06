@@ -20,47 +20,71 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Dino_Defenders.UI
 {
+    /// <summary>Which row of places something is in.</summary>
+    internal enum Shelf
+    {
+        Pack,
+        Worn,
+        Stock,
+        Sold,
+    }
+
+    /// <summary>A place something can be in this panel: on the hero, or on a merchant's table.</summary>
+    internal readonly record struct Spot(Shelf Shelf, int Index)
+    {
+        public bool OnHero => Shelf is Shelf.Pack or Shelf.Worn;
+        public ItemPlace Place => Shelf == Shelf.Pack ? ItemPlace.Cell(Index) : ItemPlace.Worn((WornSlot)Index);
+    }
+
+    /// <summary>How a place should look at the moment.</summary>
+    internal enum CellMood
+    {
+        Plain,
+        Lifted,     // What's in it is on the cursor.
+        Wanted,     // It's where what's being looked at could go.
+        Refused,    // What's on the cursor can't go here.
+        Missed,     // It isn't what's being looked for.
+    }
+
     /// <summary>One place for an item: a place on the hero, a cell in the pack, or something on a merchant's table. What's in it is a picture of the thing itself.</summary>
     internal sealed class ItemCell : GuiElement
     {
         public const float Size = 56f;
 
-        private readonly Func<Item?> _item;
+        private readonly HeroPanel _panel;
         private readonly ItemSlot? _slot;
-        private readonly Action<Item?, GuiRect> _hover;
+
+        public readonly Spot Spot;
 
         /// <summary>What's keeping this place from being used, and shows in it, faintly: something two-handed, in the off hand.</summary>
         public Func<Item?>? TakenBy;
 
-        /// <summary>Whether what's being looked at could go here.</summary>
-        public Func<bool>? Wanted;
-
-        public ItemCell(Func<Item?> item, Action<Item, GuiMouseEventArgs> pressed, Action<Item?, GuiRect> hover, ItemSlot? slot = null)
+        public ItemCell(HeroPanel panel, Spot spot, float size = Size, ItemSlot? slot = null)
         {
-            _item = item;
-            _hover = hover;
+            _panel = panel;
+            Spot = spot;
             _slot = slot;
-            Width = Size;
-            Height = Size;
+            Width = size;
+            Height = size;
             BackgroundColor = Ui.InkLight;
             BorderColor = GuiColors.Rgba(84, 68, 46);
             BorderWidth = 1f;
             CornerRadius = 2f;
-            Clicked += e =>
-            {
-                Item? held = _item();
-                if (held != null) pressed(held, e);
-            };
-            MouseEnter += () => _hover(_item() ?? TakenBy?.Invoke(), Bounds);
-            MouseLeave += () => _hover(null, Bounds);
+            MouseDown += e => _panel.Press(this, e);
+            Clicked += e => _panel.Click(this, e);
+            DragStarted += e => _panel.DragBegun(this, e);
+            DragEnded += e => _panel.DragEnded(this, e);
+            MouseEnter += () => _panel.Look(Spot, Bounds);
+            MouseLeave += () => _panel.Look(null, Bounds);
         }
 
         protected override void OnDraw(GuiDrawList draw)
         {
             base.OnDraw(draw);
-            Item? item = _item();
-            bool wanted = Wanted?.Invoke() == true;
-            if (wanted) draw.AddRect(Bounds, GuiColors.Rgba(214, 172, 92, 44), 2f, 1.5f, Ui.Gold);
+            Item? item = _panel.ItemAt(Spot);
+            CellMood mood = _panel.MoodOf(this, item);
+            if (mood == CellMood.Wanted) draw.AddRect(Bounds, GuiColors.Rgba(214, 172, 92, 44), 2f, 1.5f, Ui.Gold);
+            if (mood == CellMood.Refused) draw.AddRect(Bounds, GuiColors.Rgba(172, 40, 30, 60), 2f, 1.5f, Ui.Blood);
 
             if (item == null)
             {
@@ -75,10 +99,28 @@ namespace Dino_Defenders.UI
             }
 
             Colour colour = Ui.GradeColour(Loot.GradeOf(item));
+            if (mood == CellMood.Lifted)
+            {
+                Ui.DrawItem(draw, item, Bounds, colour, GuiColors.Rgba(255, 255, 255, 46));
+                return;
+            }
+            if (mood == CellMood.Missed)
+            {
+                Ui.DrawItem(draw, item, Bounds, colour, GuiColors.Rgba(255, 255, 255, 40));
+                draw.AddRect(Bounds, GuiColors.Transparent, 2f, 1f, colour.MultiplyAlpha(0.18f));
+                return;
+            }
+
             draw.AddRect(Bounds, colour.MultiplyAlpha(0.1f), 2f);
             if (IsHovered) draw.AddRect(Bounds, GuiColors.Rgba(255, 240, 200, 26), 2f);
             Ui.DrawItem(draw, item, Bounds, colour, GuiColors.White);
             draw.AddRect(Bounds, GuiColors.Transparent, 2f, 1.5f, colour.MultiplyAlpha(0.8f));
+
+            if (Context != null && _panel.PriceOn(Spot, item) is int price)
+            {
+                GuiRect tag = new GuiRect(Bounds.X, Bounds.Bottom - 18f, Bounds.Width - 4f, 16f);
+                Ui.Text(Context, draw, price.ToString(), 12.5f, tag, price > GameSession.Current.Hero.Gold ? Ui.Blood : Ui.Gold, Alignment.End);
+            }
         }
     }
 
@@ -149,23 +191,40 @@ namespace Dino_Defenders.UI
 
     /// <summary>
     /// The hero and what they carry. They stand in the middle in everything they have on, with a place for each thing around them, what they've got beside them, and what they come to down
-    /// the side. At a merchant there's a table too. Whatever the mouse is over is described beside it, set against what's worn in its place.
+    /// the side, which is where a merchant's table goes when there is one. Whatever the mouse is over is described beside it, set against what's worn in its place.
+    ///
+    /// Everything here stays where it was put. What's on the cursor has only been picked up as far as this panel knows: it's still where it was until it's put somewhere, so closing
+    /// the panel, falling or losing the server can't lose it. All a click can do is in <see cref="PlanFor"/>, which is also what the cursor says it will do, so the two can't disagree.
     /// </summary>
     internal sealed class HeroPanel : GuiElement
     {
         private const int Columns = 6;
-        private const int StockColumns = 6;
+        private const int MarketColumns = 4;
         private const int StockSize = 12;
         private const int FlaskPrice = 12;  // Shown here; the server is what charges it.
         private const float CellGap = 6f;
+        private const float MarketCell = 68f;
+        private const float MarketGap = 8f;
         private const float StageWidth = 450f;
 
+        private readonly GuiElement _sheet;
         private readonly GuiElement _market;
         private readonly Label _title;
+        private readonly TextBox _search;
+        private readonly Button _clear;
+        private readonly SlotPicker _picker;
         private SiteState? _merchant;
-        private Item? _looking;
+        private Spot? _looking;
         private GuiRect _lookingFrom;
         private StatLine? _lookingAt;
+        private string[] _words = Array.Empty<string>();
+        private Spot? _hand;            // Where what's on the cursor really is.
+        private bool _dragging;
+        private bool _pressUsed;        // This press has done all it's going to, so what comes of it when it's let go is nothing.
+        private bool _mouseWasDown;
+        private bool _wasTyping;
+        private bool _leftSearch;       // The search box has only just been left, by the same press of Escape that's about to be seen here.
+        private GuiRect _pickerFrom;
 
         private static GameSession Session => GameSession.Current;
         private static HeroState Hero => Session.Hero;
@@ -189,47 +248,80 @@ namespace Dino_Defenders.UI
             left.Add(new Spacer(height: 6f));
             var sheet = left.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
             AddStats(sheet.Content.Add(new StackPanel(Orientation.Vertical, 1f) { Width = UIValue.Fill, Height = UIValue.Auto }));
+            _sheet = sheet;
+            _market = left.Add(BuildMarket());
 
             columns.Add(BuildStage());
 
             var right = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill });
-            right.Add(Ui.Line("Carried", 15f, Ui.Gold));
-            var bag = right.Add(new GridPanel(Columns, CellGap, CellGap));
-            for (int i = 0; i < HeroState.InventorySize; i++)
-            {
-                int index = i;
-                bag.Add(new ItemCell(() => index < Hero.Inventory.Count ? Hero.Inventory[index] : null, UseCarried, Look));
-            }
-            right.Add(Ui.Paragraph("Click what you carry to wear it, and what you wear to take it off. Shift puts a ring on your other hand.", 13f, Ui.Faded));
+            var heading = right.Add(new StackPanel(Orientation.Horizontal, 8f) { Width = UIValue.Fill, Height = 26f });
+            heading.Stack!.CrossAlignment = Alignment.Center;
+            heading.Add(Ui.Line("Carried", 15f, Ui.Gold));
+            heading.Add(Ui.Line("", 14f, Ui.Faded).Bind(Tally));
+            heading.Add(new Spacer(height: 1f));
+            Button sort = heading.Add(Ui.Action("Sort", SortPack));
+            sort.Width = 64f;
+            sort.Height = 26f;
 
-            _market = right.Add(new StackPanel(Orientation.Vertical, 6f) { Width = UIValue.Fill, Height = UIValue.Auto });
-            _market.Add(Ui.Line("For sale", 15f, Ui.Gold));
-            var table = _market.Add(new GridPanel(StockColumns, CellGap, CellGap));
-            for (int i = 0; i < StockSize; i++)
-            {
-                int index = i;
-                table.Add(new ItemCell(() => StockAt(index), (item, _) => Buy(item), Look));
-            }
-            _market.Add(Ui.Action($"Fill flasks ({FlaskPrice} gold each)", BuyFlasks));
+            var find = right.Add(new GuiElement { Width = UIValue.Fill, Height = 28f });
+            _search = find.Add(new TextBox("", "Search names and stats") { Width = UIValue.Fill, Height = 28f, MaxLength = 64 });
+            _search.TextChanged += text => _words = ItemSearch.Words(text);
+            _search.Submitted += _ => _search.Unfocus();
+            _clear = find.Add(Ui.Action("x", () => _search.Text = ""));
+            _clear.Anchor = Anchor.Right;
+            _clear.X = 3f;
+            _clear.Width = 22f;
+            _clear.Height = 22f;
+            _clear.Padding = new Thickness(0f);
+            _clear.MinWidth = 0f;
+            _clear.Visible = false;
+
+            var bag = right.Add(new GridPanel(Columns, CellGap, CellGap));
+            for (int i = 0; i < HeroState.InventorySize; i++) bag.Add(new ItemCell(this, new Spot(Shelf.Pack, i)));
+
+            var help = right.Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Auto, Margin = new Thickness(0f, 6f, 0f, 0f) });
+            help.Add(Ui.Line("Click to pick up and put down, or drag", 13f, Ui.Faded));
+            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => _merchant != null ? "Ctrl-click to sell, right-click to wear" : "Ctrl-click or right-click to wear"));
+            help.Add(Ui.Line("Drag off the panel to drop on the ground", 13f, Ui.Faded));
+            help.Add(Ui.Line("Click a place on the hero to see what fits it", 13f, Ui.Faded));
+            help.Add(Ui.Line("Hold Alt to compare with what's worn", 13f, Ui.Faded));
+
+            _picker = Add(new SlotPicker(this));
+        }
+
+        // Where what's on the table stays, and where anything from the hero is sold by being brought to it.
+        private GuiElement BuildMarket()
+        {
+            var market = new StackPanel(Orientation.Vertical, 6f) { Width = UIValue.Fill, Height = UIValue.Fill, Visible = false };
+            market.MouseDown += e => PressOn(market, e);
+
+            market.Add(Ui.Line("For sale", 15f, Ui.Gold));
+            var stock = market.Add(new GridPanel(MarketColumns, MarketGap, MarketGap));
+            for (int i = 0; i < StockSize; i++) stock.Add(new ItemCell(this, new Spot(Shelf.Stock, i), MarketCell));
+
+            market.Add(new Spacer(height: 2f));
+            market.Add(Ui.Line("Sold here, to buy back", 15f, Ui.Gold));
+            var sold = market.Add(new GridPanel(MarketColumns, MarketGap, MarketGap));
+            for (int i = 0; i < MerchantTable.MostSold; i++) sold.Add(new ItemCell(this, new Spot(Shelf.Sold, i), MarketCell));
+
+            market.Add(new Spacer(height: 2f));
+            Button flasks = market.Add(Ui.Action($"Fill flasks ({FlaskPrice} gold each)", BuyFlasks));
+            flasks.Height = 28f;
+            return market;
         }
 
         // Head to toe down one side, what's on them down the other, and both hands below.
         private GuiElement BuildStage()
         {
             var stage = new HeroStage { Width = StageWidth, Height = UIValue.Fill };
+            stage.MouseDown += e => PressOn(stage, e);
             float step = ItemCell.Size + 22f;
             float right = StageWidth - ItemCell.Size;
 
             void Place(WornSlot slot, float x, float y)
             {
-                WornSlot worn = slot;
-                var cell = new ItemCell(() => Hero.Equipped.GetValueOrDefault(worn), (_, _) => TakeOff(worn), Look, WornSlots.Holds(worn))
-                {
-                    X = x,
-                    Y = y,
-                    Wanted = () => _looking is Item item && Hero.Inventory.Contains(item) && WornSlots.For(item.Slot).Contains(worn),
-                };
-                if (worn == WornSlot.OffHand) cell.TakenBy = () => Hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? held) && held.IsTwoHanded ? held : null;
+                var cell = new ItemCell(this, new Spot(Shelf.Worn, (int)slot), slot: WornSlots.Holds(slot)) { X = x, Y = y };
+                if (slot == WornSlot.OffHand) cell.TakenBy = TwoHandedHeld;
                 stage.Add(cell);
             }
 
@@ -249,10 +341,7 @@ namespace Dino_Defenders.UI
             return stage;
         }
 
-        private Item? StockAt(int index)
-        {
-            return _merchant != null && index < _merchant.Stock.Count ? _merchant.Stock[index] : null;
-        }
+        private static Item? TwoHandedHeld() => Hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? held) && held.IsTwoHanded ? held : null;
 
         // Every line can be looked at, and only what touches this hero shows, so that what's on the sheet is what's in the build.
         private void AddStats(StackPanel parent)
@@ -289,41 +378,332 @@ namespace Dino_Defenders.UI
         {
             _merchant = merchant;
             _market.Visible = merchant != null;
+            _sheet.Visible = merchant == null;
             _title.Text = merchant != null ? merchant.Site.Name : "The Hero";
             _looking = null;
             _lookingAt = null;
+            Forget();
         }
 
-        private void Look(Item? item, GuiRect from)
+        /// <summary>Puts down whatever's been picked up, which is only to say it was never anywhere else.</summary>
+        public void Forget()
         {
-            _looking = item;
+            _hand = null;
+            _dragging = false;
+            _picker.Visible = false;
+        }
+
+        /// <summary>What Escape means here before it means closing the panel. Says whether it meant anything.</summary>
+        public bool StepBack()
+        {
+            if (_leftSearch) return true;
+            if (_hand == null && !_picker.Visible) return false;
+            Forget();
+            return true;
+        }
+
+        public void FocusSearch()
+        {
+            _search.Focus();
+            _search.SelectAll();
+        }
+
+        protected override void OnUpdate(float deltaTime)
+        {
+            if (GameSession.Current == null || Context == null) return;
+
+            // Nothing can be held that's no longer there, as when the server has had the last word.
+            if (_hand is Spot held && ItemAt(held) == null) _hand = null;
+            _clear.Visible = _search.Text.Length > 0;
+
+            _leftSearch = _wasTyping && !_search.IsFocused;
+            _wasTyping = _search.IsFocused;
+
+            bool down = Context.IsMouseDown(MouseButton.Left) || Context.IsMouseDown(MouseButton.Right);
+            if (down && !_mouseWasDown && _picker.Visible && !_picker.Bounds.Contains(Context.MousePosition) && !_pickerFrom.Contains(Context.MousePosition)) _picker.Visible = false;
+            _mouseWasDown = down;
+        }
+
+        private string Tally()
+        {
+            if (_words.Length == 0) return $"{Hero.Carried().Count()} of {HeroState.InventorySize}";
+
+            IEnumerable<Item> looking = Hero.Carried();
+            if (_merchant != null) looking = looking.Concat(_merchant.Table.Stock.OfType<Item>()).Concat(_merchant.Table.Sold.OfType<Item>());
+            return $"{looking.Count(item => ItemSearch.Finds(item, _words))} found";
+        }
+
+        /// <summary>What's in a place in this panel.</summary>
+        public Item? ItemAt(Spot spot) => spot.Shelf switch
+        {
+            Shelf.Stock => OnShelf(_merchant?.Table.Stock, spot.Index),
+            Shelf.Sold => OnShelf(_merchant?.Table.Sold, spot.Index),
+            _ => Hero.At(spot.Place),
+        };
+
+        private static Item? OnShelf(Item?[]? shelf, int index) => shelf != null && index < shelf.Length ? shelf[index] : null;
+
+        /// <summary>What something on the table costs, to show on it.</summary>
+        public int? PriceOn(Spot spot, Item item) => spot.OnHero ? null : MerchantTable.PriceOf(item, spot.Shelf == Shelf.Sold);
+
+        public CellMood MoodOf(ItemCell cell, Item? item)
+        {
+            Spot spot = cell.Spot;
+            if (_hand == spot) return CellMood.Lifted;
+
+            Item? moving = _hand is Spot held ? ItemAt(held) : _looking is Spot looking && looking.Shelf != Shelf.Worn ? ItemAt(looking) : null;
+            if (spot.Shelf == Shelf.Worn && moving != null && WornSlots.For(moving.Slot).Contains((WornSlot)spot.Index) && (_hand == null || _hand.Value.OnHero)) return CellMood.Wanted;
+            if (_hand != null && cell.IsHovered && PlanFor(cell).Refused) return CellMood.Refused;
+
+            if (item == null) return CellMood.Plain;
+            if (_picker.Visible && spot.Shelf == Shelf.Pack) return WornSlots.For(item.Slot).Contains(_picker.Slot) ? CellMood.Wanted : CellMood.Missed;
+            return ItemSearch.Finds(item, _words) ? CellMood.Plain : CellMood.Missed;
+        }
+
+        /// <summary>The mouse has come to a place or left one.</summary>
+        public void Look(Spot? spot, GuiRect from)
+        {
+            _looking = spot;
             _lookingFrom = from;
         }
 
-        private void TakeOff(WornSlot place)
+        /// <summary>What a click would do with what's on the cursor, if it came down here.</summary>
+        private readonly record struct Plan(string Says, Action? Does, bool Refused = false)
         {
-            Session.Client.Unequip(place);
+            public static readonly Plan Nothing = new("", null);
+
+            public static Plan Refuse(string why) => new(why, null, true);
+        }
+
+        private Plan PlanFor(GuiElement? under)
+        {
+            if (_hand is not Spot from || ItemAt(from) is not Item item) return Plan.Nothing;
+
+            var cell = under as ItemCell;
+            if (cell != null && cell.Spot == from) return new Plan("", () => Audio.Play(Interface.Click));
+
+            // From the table, the only place it can go is the pack.
+            if (!from.OnHero)
+            {
+                if (cell == null || cell.Spot.Shelf != Shelf.Pack) return Plan.Nothing;
+                int price = MerchantTable.PriceOf(item, from.Shelf == Shelf.Sold);
+                if (Hero.Gold < price) return Plan.Refuse("You can't afford that");
+                if (!Hero.HasRoom()) return Plan.Refuse("Your pack is full");
+                int into = cell.Spot.Index;
+                return new Plan($"Buy for {price} gold", () => Buy(from, into));
+            }
+
+            if (_merchant != null && _market.Contains(under)) return new Plan($"Sell for {item.SellValue} gold", () => Sell(from));
+            if (under is GroundCatcher) return new Plan("Drop on the ground", () => Drop(from));
+            if (under is HeroStage && from.Shelf == Shelf.Pack) return new Plan("Wear", () => Wear(from.Index, null));
+            if (cell == null) return Plan.Nothing;
+
+            ItemPlace to = cell.Spot.Place;
+            if (!Hero.CanMove(from.Place, to)) return Plan.Refuse(cell.Spot.Shelf == Shelf.Worn && WornSlots.For(item.Slot).Contains((WornSlot)cell.Spot.Index) ? "Your pack is full" : "That doesn't go there");
+
+            string says = cell.Spot.Shelf == Shelf.Worn ? "Wear" : Hero.At(to) != null ? "Swap" : "";
+            return new Plan(says, () => Move(from.Place, to));
+        }
+
+        // A plan that can't be done leaves what's on the cursor there, to be put somewhere that it can go.
+        private void Carry(Plan plan)
+        {
+            if (plan.Refused) Refuse(plan.Says);
+            if (plan.Does == null) return;
+            _hand = null;
+            plan.Does();
+        }
+
+        private static void Refuse(string why)
+        {
+            Audio.Play(Interface.Refuse);
+            Session.Note($"{why}.");
+        }
+
+        /// <summary>What's on the cursor, if anything.</summary>
+        public Item? Holding => _hand is Spot held ? ItemAt(held) : null;
+
+        /// <summary>What the cursor should say it's about to do.</summary>
+        public (string says, bool refused) Intent()
+        {
+            Plan plan = PlanFor(Context?.HoveredElement);
+            return (plan.Says, plan.Refused);
+        }
+
+        private bool Control => Context != null && (Context.Modifiers & KeyModifiers.Control) != 0;
+        private bool Shift => Context != null && (Context.Modifiers & KeyModifiers.Shift) != 0;
+
+        /// <summary>The mouse has come down on a place. Picking up and all the quick ways of doing things happen on the press, as a run of them shouldn't have to wait for each to be let go.</summary>
+        public void Press(ItemCell cell, GuiMouseEventArgs e)
+        {
+            Item? item = ItemAt(cell.Spot);
+            _pressUsed = true;
+
+            if (e.Button == MouseButton.Right)
+            {
+                if (_hand != null) _hand = null;
+                else if (item != null) Use(cell.Spot, item, rightClick: true);
+                return;
+            }
+            if (e.Button != MouseButton.Left) return;
+
+            if (_hand != null) Carry(PlanFor(cell));
+            else if (item != null && Control) Use(cell.Spot, item, rightClick: false);
+            else
+            {
+                _pressUsed = false;
+
+                // What's worn can be dragged off, but a click on it is for seeing what else could go there.
+                if (item != null && cell.Spot.Shelf != Shelf.Worn) Lift(cell.Spot);
+            }
+        }
+
+        /// <summary>The mouse has come down on something that isn't a place, but that something can be brought to.</summary>
+        public void PressOn(GuiElement element, GuiMouseEventArgs e)
+        {
+            if (_hand == null) return;
+            if (e.Button == MouseButton.Right) _hand = null;
+            else if (e.Button == MouseButton.Left) Carry(PlanFor(element));
+        }
+
+        /// <summary>A press has come back up on the same place, without going anywhere.</summary>
+        public void Click(ItemCell cell, GuiMouseEventArgs e)
+        {
+            if (_pressUsed || e.Button != MouseButton.Left || cell.Spot.Shelf != Shelf.Worn) return;
+
+            var place = (WornSlot)cell.Spot.Index;
+            if (_picker.Visible && _picker.Slot == place)
+            {
+                _picker.Visible = false;
+                return;
+            }
+            _pickerFrom = cell.Bounds;
+            _picker.Open(place, cell.Bounds, ContentBounds);
+        }
+
+        public void DragBegun(ItemCell cell, GuiDragEventArgs e)
+        {
+            if (_pressUsed || e.Button != MouseButton.Left) return;
+            if (_hand == null && cell.Spot.Shelf == Shelf.Worn && ItemAt(cell.Spot) != null) Lift(cell.Spot);
+            _dragging = _hand != null;
+        }
+
+        public void DragEnded(ItemCell cell, GuiDragEventArgs e)
+        {
+            if (!_dragging) return;
+            _dragging = false;
+            if (_hand == null || Context == null) return;
+
+            // A click that wandered a little. What's worn has nowhere to wait, as a click on it means something else.
+            GuiElement? under = Context.HitTestAll(e.Position);
+            if (under == cell)
+            {
+                if (cell.Spot.Shelf == Shelf.Worn) _hand = null;
+                return;
+            }
+
+            // Letting go is the end of it, unlike a click, which can be tried again somewhere else.
+            Carry(PlanFor(under));
+            _hand = null;
+        }
+
+        private void Lift(Spot spot)
+        {
+            _hand = spot;
+            _picker.Visible = false;
+            Audio.Play(Interface.Click);
+        }
+
+        // The quick ways of doing things: whatever's most likely wanted of something, without carrying it anywhere.
+        private void Use(Spot spot, Item item, bool rightClick)
+        {
+            switch (spot.Shelf)
+            {
+                case Shelf.Pack when _merchant != null && !rightClick:
+                    Sell(spot);
+                    break;
+                case Shelf.Pack:
+                    Wear(spot.Index, item.Slot == ItemSlot.Finger && Shift ? WornSlot.Finger2 : null);
+                    break;
+                case Shelf.Worn:
+                    TakeOff((WornSlot)spot.Index);
+                    break;
+                default:
+                    Buy(spot, null);
+                    break;
+            }
+            GameUi.Current.Tips.LetGo();
+        }
+
+        // All of these are done here at once and asked of the server, which has the last word: see GameClient.AskGear.
+        private static void Move(ItemPlace from, ItemPlace to)
+        {
+            Audio.Play(from.IsCell && to.IsCell ? Interface.Click : Interface.Equip);
+            Session.Client.Move(from, to);
+        }
+
+        /// <summary>Puts on what's in a cell, and what comes off takes its place.</summary>
+        public void Wear(int cell, WornSlot? place)
+        {
+            if (Hero.Inventory[cell] is not Item item) return;
+            if (!Hero.CanMove(ItemPlace.Cell(cell), ItemPlace.Worn(Hero.PlaceFor(item, place))))
+            {
+                Refuse("Your pack is full");
+                return;
+            }
             Audio.Play(Interface.Equip);
-            _looking = null;
+            Session.Client.Equip(cell, place);
         }
 
-        // All of these ask, and the server answers: what the hero has changes when it says so, a moment later.
-        private void UseCarried(Item item, GuiMouseEventArgs e)
+        /// <summary>Takes something off, into the first free cell.</summary>
+        public void TakeOff(WornSlot place)
         {
-            int index = Hero.Inventory.IndexOf(item);
-            if (index < 0) return;
-            Audio.Play(_merchant != null ? Interface.Trade : Interface.Equip);
-            if (_merchant != null) Session.Client.Sell(index);
-            else Session.Client.Equip(index, item.Slot == ItemSlot.Finger && (e.Modifiers & OpenTK.Windowing.GraphicsLibraryFramework.KeyModifiers.Shift) != 0 ? WornSlot.Finger2 : null);
-            _looking = null;
+            if (!Hero.HasRoom())
+            {
+                Refuse("Your pack is full");
+                return;
+            }
+            Audio.Play(Interface.Equip);
+            Session.Client.Unequip(place);
         }
 
-        private void Buy(Item item)
+        private void Sell(Spot from)
         {
-            if (_merchant == null || Hero.Gold < item.BuyValue) return;
+            if (_merchant == null) return;
             Audio.Play(Interface.Trade);
-            Session.Client.Buy(Session.Sites.IndexOf(_merchant), _merchant.Stock.IndexOf(item));
-            _looking = null;
+            Session.Client.Sell(Session.Sites.IndexOf(_merchant), from.Place);
+        }
+
+        private void Buy(Spot from, int? cell)
+        {
+            if (_merchant == null || ItemAt(from) is not Item item) return;
+
+            bool buyingBack = from.Shelf == Shelf.Sold;
+            if (Hero.Gold < MerchantTable.PriceOf(item, buyingBack))
+            {
+                Refuse("You can't afford that");
+                return;
+            }
+            if (!Hero.HasRoom())
+            {
+                Refuse("Your pack is full");
+                return;
+            }
+            Audio.Play(Interface.Trade);
+            Session.Client.Buy(Session.Sites.IndexOf(_merchant), from.Index, buyingBack, cell);
+        }
+
+        private static void Drop(Spot from)
+        {
+            Audio.Play(Interface.Click);
+            Session.Client.Drop(from.Place);
+        }
+
+        private void SortPack()
+        {
+            // What's on the cursor is known by where it is, and that's about to mean something else.
+            Forget();
+            Session.Client.SortPack();
         }
 
         private static void BuyFlasks()
@@ -337,14 +717,26 @@ namespace Dino_Defenders.UI
             base.OnDrawOverlay(draw);
             if (Context == null) return;
 
+            // Where it can be sold is all of the merchant's side.
+            if (_merchant != null && _hand is Spot held && held.OnHero) draw.AddRect(_market.Bounds.Inflate(5f), GuiColors.Rgba(214, 172, 92, 18), 3f, 1.5f, Ui.Gold.MultiplyAlpha(0.8f));
+
             if (_lookingAt is StatLine line) GameUi.Current.Tips.Show(line.Card, line.Bounds);
-            if (_looking is not Item item) return;
+            if (_hand != null || _looking is not Spot spot) return;
+
+            // The list opened from a place goes right where that place's card would.
+            if (_picker.Visible && spot.Shelf == Shelf.Worn) return;
+
+            Item? item = ItemAt(spot) ?? (spot == new Spot(Shelf.Worn, (int)WornSlot.OffHand) ? TwoHandedHeld() : null);
+            if (item == null) return;
 
             string? price = null;
-            bool carried = Hero.Inventory.Contains(item);
-            if (_merchant != null) price = carried ? $"Sells for {item.SellValue} gold" : $"Costs {item.BuyValue} gold";
-
-            Ui.DrawTooltip(Hero, item, _lookingFrom, price, compare: carried || _merchant != null);
+            if (_merchant != null) price = spot.Shelf switch
+            {
+                Shelf.Stock => $"Costs {item.BuyValue} gold",
+                Shelf.Sold => $"Buy back for {item.SellValue} gold",
+                _ => $"Sells for {item.SellValue} gold",
+            };
+            Ui.DrawTooltip(Hero, item, _lookingFrom, price, compare: spot.Shelf != Shelf.Worn, loose: true);
         }
     }
 }

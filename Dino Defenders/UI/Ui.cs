@@ -51,25 +51,6 @@ namespace Dino_Defenders.UI
             _ => GuiColors.Rgba(12, 10, 8, 180),
         };
 
-        public static string GradeName(Item item) => item.Unique != null ? "Unique" : Loot.GradeOf(item) switch
-        {
-            LootGrade.Plain => "Common",
-            LootGrade.Magic => "Magic",
-            LootGrade.Rare => "Rare",
-            LootGrade.Masterwork => "Masterwork",
-            _ => "Legendary",
-        };
-
-        /// <summary>What kind of thing something is, in a word or two.</summary>
-        public static string SlotName(Item item) => item.Slot switch
-        {
-            ItemSlot.MainHand => item.IsTwoHanded ? $"Two-handed {item.Kind}" : item.Kind.ToString(),
-            ItemSlot.OffHand => "Off hand",
-            ItemSlot.Finger => "Ring",
-            ItemSlot.Neck => "Amulet",
-            _ => item.Slot.ToString(),
-        };
-
         /// <summary>One line of text with a soft shadow, so it reads over anything the world puts behind it.</summary>
         public static void Text(GuiContext context, GuiDrawList draw, string text, float size, GuiRect rect, Colour colour,
             Alignment horizontal = Alignment.Start, Alignment vertical = Alignment.Center)
@@ -226,28 +207,39 @@ namespace Dino_Defenders.UI
         /// <summary>What something is, beside whatever's showing it, set against what's worn in its place. Everything that shows an item shows it the same way.</summary>
         /// <param name="beside">What it's showing beside.</param>
         /// <param name="price">What it's worth here, if anything.</param>
-        /// <param name="compare">Whether to set it against what it would replace.</param>
-        public static void DrawTooltip(HeroState hero, Item item, GuiRect beside, string? price, bool compare)
+        /// <param name="compare">Whether to set it against what it would replace, in a line or two, and in full beside it while Alt is held.</param>
+        /// <param name="loose">Whether it's in a pack, where Ctrl is for clicking: see <see cref="TipLayer"/>.</param>
+        public static void DrawTooltip(HeroState hero, Item item, GuiRect beside, string? price, bool compare, bool loose = false)
         {
             GameUi.Current.Tips.Show(() =>
             {
-                Card card = Cards.Item(item, GameSession.Current?.Sheet, $"{GradeName(item)} {SlotName(item)}");
+                Card card = Cards.Item(item, GameSession.Current?.Sheet, Cards.KindOf(item));
                 if (price != null)
                 {
                     card.Gap();
                     card.Text(price, LineLook.Price);
                 }
 
-                if (compare && hero.Equipped.TryGetValue(hero.PlaceFor(item), out Item? worn) && worn != item)
+                if (compare && hero.Equipped.TryGetValue(hero.PlaceFor(item), out Item? worn) && worn != item && Differences(item, worn).Any())
                 {
                     card.Heading($"Compared to {worn.Name}");
                     foreach ((string name, float difference) in Differences(item, worn)) card.Text($"{Say.Signed(difference)} {name}", difference > 0f ? LineLook.Good : LineLook.Bad);
                 }
                 return card;
-            }, beside);
+            }, beside, loose: loose, alongside: compare ? () => WornCards(hero, item) : null);
         }
 
-        private static IEnumerable<(string name, float difference)> Differences(Item item, Item worn)
+        // What's on the hero in its place, each as a card of its own, for setting side by side.
+        private static List<Card> WornCards(HeroState hero, Item item)
+        {
+            var cards = new List<Card>();
+            foreach (Item worn in hero.WornInPlaceOf(item)) cards.Add(Cards.Item(worn, GameSession.Current?.Sheet, $"Equipped: {Cards.KindOf(worn)}"));
+            if (cards.Count == 0) cards.Add(new Card { Title = "Nothing equipped", Kind = "This place is empty" });
+            return cards;
+        }
+
+        /// <summary>What's different about something from what it would replace, in what they're made of.</summary>
+        public static IEnumerable<(string name, float difference)> Differences(Item item, Item worn)
         {
             float damage = item.WeaponDamage - worn.WeaponDamage;
             if (MathF.Abs(damage) >= 0.05f) yield return ("Damage", damage);

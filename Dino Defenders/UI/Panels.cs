@@ -607,6 +607,8 @@ namespace Dino_Defenders.UI
         public readonly FriendsPanel Friends;
         public readonly LoadingScreen Loading = new();
         public readonly TipLayer Tips = new();
+        public readonly GroundCatcher Ground = new();
+        public readonly HandLayer Hand = new();
 
         private readonly GuiElement[] _panels;
 
@@ -623,8 +625,10 @@ namespace Dino_Defenders.UI
             gui.Root.Add(Marks);
             gui.Root.Add(Hud);
             gui.Root.Add(Labels);
+            gui.Root.Add(Ground);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
             gui.Root.Add(Tips);
+            gui.Root.Add(Hand);
             gui.Root.Add(Loading);
         }
 
@@ -635,6 +639,7 @@ namespace Dino_Defenders.UI
             if (AnyOpen) Audio.Play(Interface.Close);
             foreach (GuiElement panel in _panels) panel.Visible = false;
             Tips.Clear();
+            Hero.Forget();
             Pause.Reset();
         }
 

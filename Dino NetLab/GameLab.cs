@@ -621,7 +621,7 @@ namespace Dino_NetLab
         private static bool HeroesMatch(HeroState a, HeroState b)
         {
             return a.Level == b.Level && a.Experience == b.Experience && a.Gold == b.Gold && a.Flasks == b.Flasks
-                && a.Inventory.Count == b.Inventory.Count && a.Equipped.Count == b.Equipped.Count && a.WorldsCleared == b.WorldsCleared
+                && a.Carried().Count() == b.Carried().Count() && a.Equipped.Count == b.Equipped.Count && a.WorldsCleared == b.WorldsCleared
                 && a.Talents.SequenceEqual(b.Talents) && a.Bar.SequenceEqual(b.Bar);
         }
 
@@ -1091,18 +1091,21 @@ namespace Dino_NetLab
             report.Check("Forgetting everything gives it all back", truth.Hero.Talents.Count == 0 && player.Client.Hero.UnspentPoints == points);
             report.Check("And the numbers follow, the same on both ends", SheetsAgree(truth, player));
 
-            int carried = truth.Hero.Inventory.Count;
+            int carried = truth.Hero.Carried().Count();
             player.Client.Equip(0);
             lab.Run(0.5);
-            report.Check("Equipping moves the item, on both ends", truth.Hero.Equipped.ContainsKey(WornSlot.Finger1) && player.Client.Hero.Equipped.ContainsKey(WornSlot.Finger1) && truth.Hero.Inventory.Count == carried - 1);
+            report.Check("Equipping moves the item, on both ends", truth.Hero.Equipped.ContainsKey(WornSlot.Finger1) && player.Client.Hero.Equipped.ContainsKey(WornSlot.Finger1) && truth.Hero.Carried().Count() == carried - 1);
 
             int gold = truth.Hero.Gold;
-            player.Client.Sell(0);
+            player.Client.Sell(0, ItemPlace.Cell(1));
             lab.Run(0.5);
             report.Check("Selling pays, on both ends", truth.Hero.Gold > gold && player.Client.Hero.Gold == truth.Hero.Gold);
 
             player.Client.Equip(999);
-            player.Client.Sell(-5);
+            player.Client.Sell(-5, ItemPlace.Cell(1));
+            player.Client.Sell(0, new ItemPlace(-5));
+            player.Client.Move(new ItemPlace(-1), new ItemPlace(9999));
+            player.Client.Drop(new ItemPlace(9999));
             player.Client.Buy(999, 0);
             player.Client.TravelToSite(99999);
             player.Client.Allocate(99999);
@@ -1276,16 +1279,16 @@ namespace Dino_NetLab
                 {
                     SiteState market = player.PanelsOpened.First(p => p.kind == InteractKind.Merchant).site;
                     int siteIndex = player.Client.Session!.Sites.IndexOf(market);
-                    int stock = market.Stock.Count;
+                    int stock = market.Table.Stock.Count(i => i != null);
                     report.Check("And the server sends what's on it", stock > 0, $"{stock}");
 
                     int gold = truth.Hero.Gold;
-                    int carried = truth.Hero.Inventory.Count;
-                    Item wanted = market.Stock[0];
+                    int carried = truth.Hero.Carried().Count();
+                    Item wanted = market.Table.Stock[0]!;
                     player.Client.Buy(siteIndex, 0);
                     lab.Run(1);
-                    report.Check("Buying takes the gold, gives the item and clears it from the table", truth.Hero.Gold == gold - wanted.BuyValue && truth.Hero.Inventory.Count == carried + 1 && market.Stock.Count == stock - 1, $"gold {gold}->{truth.Hero.Gold}, table {stock}->{market.Stock.Count}");
-                    report.Check("The hero the client holds shows it", player.Client.Hero.Gold == truth.Hero.Gold && player.Client.Hero.Inventory.Count == truth.Hero.Inventory.Count);
+                    report.Check("Buying takes the gold, gives the item and clears it from the table", truth.Hero.Gold == gold - wanted.BuyValue && truth.Hero.Carried().Count() == carried + 1 && market.Table.Stock.Count(i => i != null) == stock - 1 && market.Table.Stock[0] == null, $"gold {gold}->{truth.Hero.Gold}, table {stock}->{market.Table.Stock.Count(i => i != null)}");
+                    report.Check("The hero the client holds shows it", player.Client.Hero.Gold == truth.Hero.Gold && player.Client.Hero.Carried().Count() == truth.Hero.Carried().Count());
                 }
             }
 
@@ -1332,12 +1335,12 @@ namespace Dino_NetLab
                 if (chest == null) continue;
 
                 int siteIndex = session.Sites.IndexOf(state);
-                int carried = truth.Hero.Inventory.Count;
+                int carried = truth.Hero.Carried().Count();
                 int goldBefore = truth.Hero.Gold;
                 Use(chest.Value);
                 report.Check("Opening a chest leaves it open", state.Opened.Count > 0);
                 lab.Run(3);
-                report.Check("And what's in it can be collected", truth.Hero.Gold > goldBefore || truth.Hero.Inventory.Count > carried, $"gold {goldBefore}->{truth.Hero.Gold}, items {carried}->{truth.Hero.Inventory.Count}");
+                report.Check("And what's in it can be collected", truth.Hero.Gold > goldBefore || truth.Hero.Carried().Count() > carried, $"gold {goldBefore}->{truth.Hero.Gold}, items {carried}->{truth.Hero.Carried().Count()}");
                 report.Check("The chest has gone from the client's world", Find(InteractKind.Chest) == null || (Find(InteractKind.Chest)!.Value - chest.Value).Length > 0.1f);
                 break;
             }
@@ -1347,8 +1350,8 @@ namespace Dino_NetLab
         {
             HeroState hero = HeroState.CreateNew();
             hero.Gold = 500;
-            hero.Inventory.Add(new Item { Name = "A Ring", Slot = ItemSlot.Finger, Level = 3 });
-            hero.Inventory.Add(new Item { Name = "Spare Boots", Slot = ItemSlot.Feet, Level = 3, Armour = 2f });
+            hero.Pickup(new Item { Name = "A Ring", Slot = ItemSlot.Finger, Level = 3 });
+            hero.Pickup(new Item { Name = "Spare Boots", Slot = ItemSlot.Feet, Level = 3, Armour = 2f });
             return hero;
         }
 

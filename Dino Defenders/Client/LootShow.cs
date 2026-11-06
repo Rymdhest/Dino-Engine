@@ -78,13 +78,13 @@ namespace Dino_Defenders.Client
                         continue;
                     }
 
-                    float flight = gold ? Loot.GoldFlight : FlightOf(pickup.Grade);
+                    float flight = gold ? Loot.GoldFlight : FlightOf(pickup.Laid ? LootGrade.Plain : pickup.Grade);
                     if (!pickup.Launched)
                     {
                         pickup.Launched = true;
 
-                        // Each find is announced once to a player, however many times it goes out of sight and comes back. One that's found lying there was never seen to fall.
-                        bool news = gold || session.Heard.Add(pickup.Find);
+                        // Each find is announced once to a player, however many times it goes out of sight and comes back. One that's found lying there was never seen to fall, and nothing a hero put down is news.
+                        bool news = (gold || session.Heard.Add(pickup.Find)) && !pickup.Laid;
                         if (age < flight && news) effects?.LootLaunched(pickup.Grade, gold, entity.Get<PositionComponent>().value);
                         else if (age >= flight)
                         {
@@ -100,7 +100,7 @@ namespace Dino_Defenders.Client
                         if (!pickup.Landed)
                         {
                             pickup.Landed = true;
-                            effects?.LootLanded(pickup.Find, pickup.Grade, pickup.Slot, gold, pickup.Rest);
+                            effects?.LootLanded(pickup.Find, pickup.Laid ? LootGrade.Plain : pickup.Grade, pickup.Slot, gold, pickup.Rest);
                         }
                         pickup.LandedFor += deltaTime;
                         if (gold) Settle(entity, session);
@@ -113,7 +113,7 @@ namespace Dino_Defenders.Client
 
         private static void Fly(in EntityView entity, ref PickupComponent pickup, float share, bool gold, ClientEffects? effects, float deltaTime)
         {
-            float arc = gold ? GoldArc : Arcs[(int)pickup.Grade];
+            float arc = gold ? GoldArc : pickup.Laid ? Arcs[0] : Arcs[(int)pickup.Grade];
             Vector3 at = Vector3.Lerp(pickup.From, pickup.Rest, share) + Vector3.UnitY * (MathF.Sin(share * MathF.PI) * arc);
             entity.Set(new PositionComponent(at));
             entity.Set(new ScaleComponent(new Vector3(gold ? GoldScale : pickup.Dressed ? Sizes[(int)pickup.Grade] * pickup.Fit : Hidden)));
@@ -121,7 +121,7 @@ namespace Dino_Defenders.Client
             // A whole number of turns, so that it comes down flat.
             if (!gold) entity.Set(new RotationComponent(Quaternion.FromAxisAngle(new Vector3(0.8f, 0f, 0.6f), share * MathF.Tau * 2f) * Lying(pickup.Find)));
 
-            if (gold || pickup.Grade < LootGrade.Rare) return;
+            if (gold || pickup.Laid || pickup.Grade < LootGrade.Rare) return;
             pickup.NextMote -= deltaTime;
             if (pickup.NextMote > 0f) return;
             pickup.NextMote = 0.03f;

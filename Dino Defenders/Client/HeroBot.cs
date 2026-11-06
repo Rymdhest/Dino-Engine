@@ -127,7 +127,7 @@ namespace Dino_Defenders.Client
         // It clicks on what's on the ground as anyone would, and goes for each thing once, as there's no telling a find it can't reach from one it hasn't got to yet.
         private bool Fetch(GameSession session)
         {
-            if (session.Hero.Inventory.Count >= Progression.HeroState.InventorySize) return false;
+            if (!session.Hero.HasRoom()) return false;
 
             foreach (Entity entity in _ecs.QueryEntities(LootMask, BitMask.Empty))
             {

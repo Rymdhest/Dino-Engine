@@ -102,9 +102,38 @@ The same studio draws the hero for the character screen (`Doll`), with the skinn
 
 ## The character screen
 
-`UI/HeroPanel.cs`. The hero stands in the middle in everything they're wearing, drag to turn them, with the ten places around them head to toe, the pack beside them and stats to the side. Things show as their pictures. `Ui.DrawTooltip` is the one description of an item, at the cursor here and over a label on the ground: a picture, what it is, and what it would change. With something two-handed held the off hand shows it, crossed out, and places an item could go light up as it's looked at. Click to wear and to take off, and shift puts a ring on the second finger. A merchant's table goes below the pack.
+`UI/HeroPanel.cs`. The hero stands in the middle in everything they're wearing, drag to turn them, with the ten places around them head to toe, the pack beside them and stats to the side. Things show as their pictures. `Ui.DrawTooltip` is the one description of an item, at the cursor here and over a label on the ground: a picture, what it is, and what it would change. With something two-handed held the off hand shows it, crossed out, and places an item could go light up as it's looked at. A merchant's table takes the place of the sheet.
 
-Nothing about this can be proved by a bot. To drive it with real mouse messages on a hidden run, post `WM_SETFOCUS` to the window first: the interface ignores the mouse unless it thinks it has the focus, and a hidden window never does.
+Nothing about this can be proved by a bot. To drive it with real mouse messages on a hidden run, post `WM_SETFOCUS` to the window first: the interface ignores the mouse unless it thinks it has the focus, and a hidden window never does. Read modifiers from `Context.Modifiers`, never from the mouse event: GLFW asks Windows for those, and a posted key doesn't reach it.
+
+## The pack
+
+**Everything stays where it was put.** `HeroState.Inventory` is `InventorySize` cells with gaps in them, and the only thing that ever moves what's in one without being told where is `HeroState.Sort`, which is only done when asked. Selling leaves a gap. Whatever comes off when something's put on goes into the cell it came from, so the two change places: the one exception is something two-handed taking both hands, where the second thing needs a cell of its own and goes in the first that's free. `HeroState.Move` is how anything moves by hand. It says no and changes nothing if a swap can't go both ways, and `CanMove` tries it on a copy, so what's shown of a move can't disagree with it.
+
+**What's on the cursor is only something the panel has noticed.** `HeroPanel._hand` is where the item really is, and it stays there until it's put somewhere, so closing the panel, falling or losing the server can't lose it. The source cell shows it faintly. `PlanFor` says what a click would do with it on anything under the mouse, and it's both what the caption by the cursor says and what's carried out, so the two can't disagree. A plan that's refused leaves it on the cursor, and letting go of a drag ends it either way.
+
+| On a thing | What it does |
+|---|---|
+| Left click | Picks it up. Clicking something else puts it there, and whatever's there changes places with it. Dragging does the same |
+| Left click on a place on the hero | Lists what could go there, by `SlotPicker`, and dims the rest of the pack. Dragging takes it off |
+| Ctrl-click | Wears it, or sells it at a merchant. Takes off what's worn. Buys what's on a table |
+| Right click | Wears it, even at a merchant. Takes off what's worn. Buys what's on a table. With something on the cursor, puts it back |
+| Shift with either of those | Puts a ring on the second finger |
+| Over the hero | Wears it |
+| Over a merchant's side | Sells it, from anywhere in it |
+| Off the panel | Puts it on the ground beside the hero, by `GroundLoot.Lay` |
+| Escape | Puts back what's on the cursor, or closes the list, before it means anything else |
+| Ctrl+F | The search box |
+
+Ctrl-clicks and right clicks happen on the press, so a run of them needn't wait for each to be let go. A card in the pack is `loose`, for why: read `TOOLTIPS.md`.
+
+**A merchant's table** (`MerchantTable`) is one per hero and site, and stays as it is too: what's bought leaves a gap, so a double click buys one thing. What's sold goes on it to be bought back at what it paid, so a slip costs nothing. The oldest goes once it's full. It lasts as long as `ServerPlayer.Tables`, which is until they leave the land or the game: what's for sale has always worked that way, and nothing about a table is saved.
+
+**Something put down** has `PickupComponent.Laid`, which leaves out everything that says a find is exciting: the long flight, the sting, the flash, the callout. It can be picked up by anyone like anything else, and is lost on leaving the world like anything else. The drop catcher is `GroundCatcher`, which only stops the mouse with something on the cursor, and only really over the game: losing the focus part way through a drag mustn't count as bringing it to the ground.
+
+**Searching** is `ItemSearch`, which reads an item's own card, so whatever can be read on one can be typed, in any order. It goes by the start of each word, or "ring" finds everything of the Spring. What doesn't match dims where it is, as nothing moves for a search either, and it covers what's worn and what's on a table.
+
+`Dino BuildLab check` holds the rules, including 200,000 random moves with everything counted, and `Dino NetLab pack` holds what reaches a client. To try it in the real game: `--carry N` fills that many cells, `--panel merchant` opens a real table, and `--snap file` takes a picture whenever the file appears, as the window can't be read from outside.
 
 ## Saves
 
@@ -127,6 +156,7 @@ dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" sheet --kind sword  # 
 dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" dress --heavy 1  # Whole people in one family's gear
 dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" bench            # What a mesh costs to make
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" gear               # That everyone sees the same thing, with clients on the other end of a line
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" pack               # What's carried, across a line: see The pack
 ```
 
 `Dino BuildLab check` holds the rules: places, families, leaning, what a look is packed into, and that old saves come across, real ones included if there are any on the machine. To see it in the real game: `--wear heavy` (or `leather`, `cloth`) puts something of one family in every place, and `--panel hero` opens the screen.

@@ -83,9 +83,9 @@ namespace Dino_NetLab
             using var lab = new GameLab(worlds, request, "Landing");
             HeroState kitted = HeroState.CreateNew();
             Item extra = ItemGenerator.Forge(20, new WorldRandom(6), LootGrade.Magic, 0.5f, ItemSlot.MainHand);
-            kitted.Inventory.Add(extra);
+            kitted.Pickup(extra);
             Item carried = ItemGenerator.Forge(20, new WorldRandom(7), LootGrade.Magic, 0.5f, ItemSlot.Finger);
-            kitted.Inventory.Add(carried);
+            kitted.Pickup(carried);
 
             LabPlayer first = lab.AddPlayer("First", Line, 1, hero: kitted);
             first.Fights = false;
@@ -104,7 +104,7 @@ namespace Dino_NetLab
             report.Check("And the first hero is told what they've arrived in", Look(first, friend.Id, WornSlot.MainHand)?.Seed == friend.Hero.Equipped[WornSlot.MainHand].LookSeed());
 
             // What the server holds is a copy that came over the line, so it's found by what it is.
-            int Place(Item wanted) => truth.Hero.Inventory.FindIndex(i => i.Seed == wanted.Seed);
+            int Place(Item wanted) => Array.FindIndex(truth.Hero.Inventory, i => i?.Seed == wanted.Seed);
 
             first.Client.Equip(Place(extra));
             lab.Run(1.5);
@@ -117,7 +117,7 @@ namespace Dino_NetLab
 
             first.Client.Unequip(WornSlot.Finger2);
             lab.Run(1.5);
-            report.Check("And so does taking it off", Look(second, truth.Id, WornSlot.Finger2) == null && truth.Hero.Inventory.Any(i => i.Seed == carried.Seed));
+            report.Check("And so does taking it off", Look(second, truth.Id, WornSlot.Finger2) == null && truth.Hero.Carried().Any(i => i.Seed == carried.Seed));
 
             WornLook? seen = Look(second, truth.Id, WornSlot.MainHand);
             report.Check("Both machines would dress them alike", seen != null && ItemLook.SpecOf(seen.Value.Seed, seen.Value.Traits) == ItemLook.SpecOf(extra));

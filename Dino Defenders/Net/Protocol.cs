@@ -48,6 +48,9 @@ namespace Dino_Defenders.Net
         Waygate,
         ThankElder,
         PickUp,
+        Move,
+        Drop,
+        Sort,
     }
 
     public enum NoticeKind : byte
@@ -63,7 +66,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 8;
+        public const uint Version = 9;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -208,8 +211,7 @@ namespace Dino_Defenders.Net
 
         public static void WriteGear(BitWriter writer, HeroState hero)
         {
-            writer.WriteCount(hero.Inventory.Count);
-            foreach (Item item in hero.Inventory) WriteItem(writer, item);
+            WriteCells(writer, hero.Inventory);
             writer.WriteCount(hero.Equipped.Count);
             foreach ((WornSlot place, Item item) in hero.Equipped)
             {
@@ -220,12 +222,12 @@ namespace Dino_Defenders.Net
 
         public static void ReadGear(BitReader reader, HeroState hero)
         {
-            var carried = new List<Item>();
-            int count = reader.ReadCount(MostItems);
-            for (int i = 0; i < count; i++) carried.Add(ReadItem(reader));
+            var carried = new Item?[HeroState.InventorySize];
+            Item?[] sent = ReadCells(reader, HeroState.InventorySize);
+            sent.CopyTo(carried, 0);
 
             var worn = new Dictionary<WornSlot, Item>();
-            count = reader.ReadCount(MostItems);
+            int count = reader.ReadCount(MostItems);
             for (int i = 0; i < count; i++)
             {
                 WornSlot place = Checked<WornSlot>(reader.ReadByte());
@@ -278,18 +280,22 @@ namespace Dino_Defenders.Net
             return hero;
         }
 
-        public static void WriteItems(BitWriter writer, IReadOnlyCollection<Item> items)
+        /// <summary>A row of places that things stay in, so that which are empty is as much a part of it as what's in the others.</summary>
+        public static void WriteCells(BitWriter writer, Item?[] cells)
         {
-            writer.WriteCount(items.Count);
-            foreach (Item item in items) WriteItem(writer, item);
+            writer.WriteCount(cells.Length);
+            foreach (Item? item in cells)
+            {
+                writer.WriteBool(item != null);
+                if (item != null) WriteItem(writer, item);
+            }
         }
 
-        public static List<Item> ReadItems(BitReader reader)
+        public static Item?[] ReadCells(BitReader reader, int most)
         {
-            var items = new List<Item>();
-            int count = reader.ReadCount(MostItems);
-            for (int i = 0; i < count; i++) items.Add(ReadItem(reader));
-            return items;
+            var cells = new Item?[reader.ReadCount(most)];
+            for (int i = 0; i < cells.Length; i++) cells[i] = reader.ReadBool() ? ReadItem(reader) : null;
+            return cells;
         }
 
         public static void WriteItem(BitWriter writer, Item item)

@@ -21,7 +21,7 @@ namespace Dino_Defenders.Progression
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 5;
 
         /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
         private const int SlotsVersion = 4;
@@ -116,6 +116,7 @@ namespace Dino_Defenders.Progression
             if (save == null) return null;
             save.Version = CurrentVersion;
             FixBar(save.Hero);
+            FixPack(save.Hero);
             TalentTree.Sanitize(save.Hero);
             save.Offering.Sanitize();
             return save;
@@ -171,6 +172,18 @@ namespace Dino_Defenders.Progression
             var bar = new string?[HeroState.SkillSlots];
             Array.Copy(hero.Bar, bar, Math.Min(hero.Bar.Length, bar.Length));
             hero.Bar = bar;
+        }
+
+        // Before a pack had cells it was a list of what was in it, so that's what fills the first of them, in the order they were carried. A pack that's the right size is left as it is, gaps and all.
+        private static void FixPack(HeroState hero)
+        {
+            if (hero.Inventory?.Length == HeroState.InventorySize) return;
+            Item?[] carried = hero.Inventory ?? Array.Empty<Item?>();
+            hero.Inventory = new Item?[HeroState.InventorySize];
+            foreach (Item? item in carried)
+            {
+                if (item != null) hero.Pickup(item);
+            }
         }
 
         // Before talents there were attributes, and items held a stat and a value. Attributes are simply gone, and every point
