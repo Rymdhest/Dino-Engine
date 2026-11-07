@@ -807,8 +807,11 @@ namespace Dino_NetLab
             {
                 arena.Run(0.5);
                 report.Check("A book that costs what can be regenerated or more", arena.Truth.Kit.Slots[1]!.Cost >= arena.Hero.Sheet.ManaRegen, $"{arena.Truth.Kit.Slots[1]!.Cost} against {arena.Hero.Sheet.ManaRegen}");
-                Press(arena, 1);
+                Actor target = arena.Dummy(East * 3f);
+                float health = target.Vitals.Health;
+                for (int i = 0; i < 3; i++) Press(arena, 1);
                 report.Check("Can't be turned on", !HeroRules.IsOn(arena.Truth.Sim, 1) && !HeroRules.IsOn(arena.Player.Client.Predictor.Current, 1));
+                report.Check("Not even for a moment, or pressing it over and over would be free", target.Vitals.Health == health, $"{health - target.Vitals.Health}");
             }
 
             HeroState moving = Hero();
