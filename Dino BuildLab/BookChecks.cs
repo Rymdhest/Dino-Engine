@@ -290,6 +290,9 @@ namespace Dino_BuildLab
             report.Check("A sword makes an Attack", Profile(cone, Sword).First.IsAttack);
             report.Check("Which is Melee by hand", (Profile(cone, Sword).First.Tags & Tags.Melee) != 0);
             report.Check("And not when it's thrown", (Profile(bolt, Sword).First.Tags & Tags.Melee) == 0 && (Profile(bolt, Sword).First.Tags & Tags.Projectile) != 0);
+            Book away = Scribe.Starter();
+            away.Pages[0].From = "from-cursor";
+            report.Check("Nor when it happens somewhere other than where they stand", (Profile(away, Sword).First.Tags & Tags.Melee) == 0);
             report.Check("A wand makes a Spell", !Profile(cone, Wand).First.IsAttack && (Profile(cone, Wand).First.Tags & Tags.Spell) != 0);
             report.Check("And so does a staff", !Profile(cone, Staff).First.IsAttack && (Profile(cone, Staff).First.Tags & Tags.Spell) != 0);
             report.Check("A bow makes an Attack that's no sort of Melee", Profile(cone, Bow).First.IsAttack && (Profile(cone, Bow).First.Tags & Tags.Melee) == 0);
@@ -349,6 +352,8 @@ namespace Dino_BuildLab
             report.Check("Nothing that's on the bar is carried", !hero.Carried().Contains(hero.Bar[2]!));
             report.Check("A book can't be worn", !hero.Equip(4) && !hero.CanMove(ItemPlace.Cell(4), ItemPlace.Worn(WornSlot.Finger2)) && !hero.CanMove(ItemPlace.OnBar(2), ItemPlace.Worn(WornSlot.Finger2)));
             report.Check("Nor can a ring go in its place by being moved there", WornSlots.For(ItemSlot.Book).Count == 0);
+            report.Check("A book is set beside nothing, as hovering over one has to ask", HeroState.CreateNew().WornBeside(Book("Hovered")) == null);
+            report.Check("And nothing comes off for it", !HeroState.CreateNew().WornInPlaceOf(Book("Hovered")).Any());
             report.Check("It can be taken off the bar for good", hero.Take(ItemPlace.OnBar(2)) != null && hero.Bar[2] == null);
 
             var writer = new HeroState();

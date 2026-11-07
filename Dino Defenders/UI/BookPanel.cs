@@ -81,12 +81,14 @@ namespace Dino_Defenders.UI
                 var rect = new GuiRect(x, y, width, LineHeight);
                 if (place is PagePlace at)
                 {
-                    GuiRect hit = new GuiRect(x - 2f, y, width + space + 2f, LineHeight);
+                    bool more = i < words.Length - 1;
+                    GuiRect hit = new GuiRect(x - 2f, y, width + (more ? space + 2f : 4f), LineHeight);
                     _spots.Add((hit, at));
                     if (open) draw.AddRect(hit, Vellum.Lit, 2f);
                     else if (hit.Contains(mouse) && IsHovered) draw.AddRect(hit, Vellum.Lit.MultiplyAlpha(0.6f), 2f);
-                    float end = x + width + (i < words.Length - 1 ? space : 0f);
-                    draw.AddLine(new Vector2(x, y + LineHeight - 5f), new Vector2(end, y + LineHeight - 5f), (faint ? Vellum.Pale : Vellum.Rubric).MultiplyAlpha(0.5f), 1f);
+                    float end = x + width + (more ? space : 0f);
+                    float under = MathF.Floor(y + LineHeight - 5f) + 0.5f;
+                    draw.AddLine(new Vector2(x, under), new Vector2(end, under), (faint ? Vellum.Pale : Vellum.Rubric).MultiplyAlpha(0.5f), 1f);
                 }
 
                 Colour colour = faint ? Vellum.Pale : place != null ? Vellum.Rubric : Vellum.Ink;

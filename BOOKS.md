@@ -75,7 +75,7 @@ These are hard limits, as balance numbers can't stop a book branching out of con
 
 ## The bar
 
-Six slots: both mouse buttons, Q, 1, 2 and 3, and `HeroState.BarSlots` is all it takes to have more. A book moves onto the bar and out of the pack, as a ring goes on a finger, so it can't be sold by mistake. `HeroState.Bar` holds the items, and `ItemPlace.OnBar` is where they are. Everything that moves one goes through `HeroState.Move`, like anything else that's carried: read the part about that in `NETWORKING.md`.
+Six slots: both mouse buttons, Q, 1, 2 and 3. Another is `HeroState.BarSlots`, a value in `HeroButtons`, and its key in `SlotKeys` and `ActionBar.Keys`. A book moves onto the bar and out of the pack, as a ring goes on a finger, so it can't be sold by mistake. `HeroState.Bar` holds the items, and `ItemPlace.OnBar` is where they are. Everything that moves one goes through `HeroState.Move`, like anything else that's carried: read the part about that in `NETWORKING.md`.
 
 ## What the tree and items do with it
 

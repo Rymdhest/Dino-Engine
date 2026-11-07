@@ -220,13 +220,13 @@ namespace Dino_Defenders.UI
                     card.Text(price, LineLook.Price);
                 }
 
-                if (compare && hero.Equipped.TryGetValue(hero.PlaceFor(item), out Item? worn) && worn != item && Differences(item, worn).Any())
+                if (compare && hero.WornBeside(item) is Item worn && Differences(item, worn).Any())
                 {
                     card.Heading($"Compared to {worn.Name}");
                     foreach ((string name, float difference) in Differences(item, worn)) card.Text($"{Say.Signed(difference)} {name}", difference > 0f ? LineLook.Good : LineLook.Bad);
                 }
                 return card;
-            }, beside, loose: loose, alongside: compare ? () => WornCards(hero, item) : null);
+            }, beside, loose: loose, alongside: compare && !item.IsBook ? () => WornCards(hero, item) : null);
         }
 
         // What's on the hero in its place, each as a card of its own, for setting side by side.
