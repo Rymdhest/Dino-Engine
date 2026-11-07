@@ -67,8 +67,10 @@ namespace Dino_Defenders.UI
             bool open = place != null && place == _panel.Open;
             float space = GuiText.MeasureWidth(Context, " ", Ui.Face, Size);
 
-            foreach (string word in text.Split(' '))
+            string[] words = text.Split(' ');
+            for (int i = 0; i < words.Length; i++)
             {
+                string word = words[i];
                 float width = GuiText.MeasureWidth(Context, word, Ui.Face, Size);
                 if (x + width > right && x > left)
                 {
@@ -83,7 +85,8 @@ namespace Dino_Defenders.UI
                     _spots.Add((hit, at));
                     if (open) draw.AddRect(hit, Vellum.Lit, 2f);
                     else if (hit.Contains(mouse) && IsHovered) draw.AddRect(hit, Vellum.Lit.MultiplyAlpha(0.6f), 2f);
-                    draw.AddLine(new Vector2(x, y + LineHeight - 5f), new Vector2(x + width, y + LineHeight - 5f), (faint ? Vellum.Pale : Vellum.Rubric).MultiplyAlpha(0.5f), 1f);
+                    float end = x + width + (i < words.Length - 1 ? space : 0f);
+                    draw.AddLine(new Vector2(x, y + LineHeight - 5f), new Vector2(end, y + LineHeight - 5f), (faint ? Vellum.Pale : Vellum.Rubric).MultiplyAlpha(0.5f), 1f);
                 }
 
                 Colour colour = faint ? Vellum.Pale : place != null ? Vellum.Rubric : Vellum.Ink;
@@ -235,6 +238,7 @@ namespace Dino_Defenders.UI
         private const float ShelfWidth = 210f;
 
         private static readonly Colour Leather = GuiColors.Rgba(44, 26, 18, 248);
+        private static readonly Colour Chosen = GuiColors.Rgba(136, 34, 18);
 
         private readonly StackPanel _shelf;
         private readonly TextBox _name;
@@ -361,6 +365,8 @@ namespace Dino_Defenders.UI
             _where.Text = $"Page {PageIndex + 1} of {book.Pages.Length}";
             _last.Visible = PageIndex > 0;
             _next.Visible = PageIndex < book.Pages.Length - 1;
+            _projectile.NormalColor = page.Page.Kind == PageKind.Projectile ? Chosen : Ui.InkLight;
+            _area.NormalColor = page.Page.Kind == PageKind.Area ? Chosen : Ui.InkLight;
             _heading.Text = Open is PagePlace open ? BookText.NameOf(open.Blank) : "What it comes to";
         }
 
@@ -611,6 +617,12 @@ namespace Dino_Defenders.UI
         }
 
         public override bool HitTestSelf(Vector2 point) => GameUi.Current.Hero.Visible && base.HitTestSelf(point);
+
+        // Nothing else that's always showing has a hero to read from before there is one.
+        protected override void OnDraw(GuiDrawList draw)
+        {
+            if (GameSession.Current != null) base.OnDraw(draw);
+        }
     }
 
     /// <summary>
@@ -678,8 +690,10 @@ namespace Dino_Defenders.UI
 
                 if (item != null)
                 {
-                    float nameSize = item.Name.Length > 9 ? 10.5f : 12f;
+                    float nameSize = item.Name.Length > 8 ? 10.5f : 12f;
+                    draw.PushClip(cell);
                     Ui.Text(Context, draw, item.Name, nameSize, new GuiRect(cell.X + 2f, cell.Y + 2f, cell.Width - 4f, 16f), affordable ? Ui.Parchment : Ui.Faded, Alignment.Center);
+                    draw.PopClip();
                 }
                 Ui.Text(Context, draw, Keys[slot], 11.5f, new GuiRect(cell.X, cell.Bottom - 20f, cell.Width, 18f), Ui.Gold, Alignment.Center);
 

@@ -172,10 +172,12 @@ namespace Dino_Defenders.Progression
             ["Horn Recurve"] = F(0.6f, 0.4f, 0.95f, 0.5f, 0.75f, 0.1f),
 
             ["Walking Staff"] = F(0.5f, 0.7f, 0.1f, 0.15f, 0.05f, 0.45f),
+            ["Ash Staff"] = F(0.55f, 0.6f, 0.2f, 0.3f, 0.2f, 0.35f),
             ["Bound Staff"] = F(0.65f, 0.5f, 0.3f, 0.5f, 0.45f, 0.2f),
             ["Runed Staff"] = F(0.85f, 0.4f, 0.2f, 0.7f, 0.9f, 0.05f),
 
             ["Twig"] = F(0.25f, 0.8f, 0.6f, 0.05f, 0f, 0.5f),
+            ["Carved Wand"] = F(0.35f, 0.7f, 0.4f, 0.2f, 0.2f, 0.35f),
             ["Bone Wand"] = F(0.5f, 0.6f, 0.25f, 0.4f, 0.45f, 0.2f),
             ["Sceptre"] = F(0.8f, 0.35f, 0.05f, 0.8f, 0.9f, 0.05f),
 
