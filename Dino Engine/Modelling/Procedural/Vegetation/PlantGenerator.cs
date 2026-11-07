@@ -18,14 +18,18 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
         {
             float cos = MathF.Cos(yaw);
             float sin = MathF.Sin(yaw);
-            b.Surface(1, 5, (u, v) =>
+            Vector3 Point(float u, float v)
             {
                 float taper = width * (1f - v * v) + 0.002f;
                 float across = (u * 2f - 1f) * taper;
                 float reach = arch * v * v;
                 float rise = height * (v - 0.35f * arch / MathF.Max(height, 0.01f) * v * v);
                 return root + new Vector3(reach * cos - across * sin, rise, reach * sin + across * cos);
-            }, material);
+            }
+
+            int first = b.VertexCount;
+            b.Surface(1, 5, Point, material);
+            b.BindChain(first, PlantJoint.Blade, -1, Point(0.5f, 0f), Point(0.5f, 0.45f), Point(0.5f, 0.75f), Point(0.5f, 1f));
         }
 
         public static Mesh GenerateBamboo()
@@ -34,7 +38,7 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
             var b = new MeshBuilder();
             VertexMaterial stem = new VertexMaterial(TextureGenerator.wood, new Colour(120, 150, 74));
             VertexMaterial node = new VertexMaterial(TextureGenerator.wood, new Colour(74, 96, 52));
-            Mesh leaf = TreeGenerator.GenerateLeafMesh(new Vector2(0.2f, -0.3f), new Vector2i(1, 3), new VertexMaterial(TextureGenerator.leaf_olive));
+            Mesh leaf = TreeGenerator.GenerateLeafMesh(new Vector2(0.2f, -0.3f), new Vector2i(1, 3), new VertexMaterial(TextureGenerator.leaf_olive), PlantJoint.Spray);
 
             int stalks = random.Int(9, 13);
             for (int s = 0; s < stalks; s++)
@@ -48,6 +52,8 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
 
                 int sections = (int)(height / 2.2f);
                 Vector3 at = foot;
+                int firstVertex = b.VertexCount;
+                int cane = b.AddJoint(PlantJoint.Cane.Between(foot + lean * 0.3f, foot + lean * height));
                 for (int i = 0; i < sections; i++)
                 {
                     Vector3 next = at + lean * (height / sections);
@@ -63,11 +69,12 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                         {
                             float yaw = random.Float() * MathF.Tau;
                             b.Add(leaf, next + new Vector3(MathF.Cos(yaw), random.Range(-0.1f, 0.1f), MathF.Sin(yaw)) * random.Range(0.2f, 0.6f),
-                                new Vector3(random.Range(1.1f, 1.9f), 1f, random.Range(0.32f, 0.5f)), yaw);
+                                new Vector3(random.Range(1.1f, 1.9f), 1f, random.Range(0.32f, 0.5f)), yaw, parent: cane);
                         }
                     }
                     at = next;
                 }
+                b.BindFrom(firstVertex, cane);
             }
             return b.Build();
         }
@@ -85,12 +92,14 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                 Vector3 root = new Vector3(random.Range(-0.9f, 0.9f), -0.1f, random.Range(-0.9f, 0.9f));
                 float height = random.Range(2.6f, 4.6f);
                 Vector3 tip = root + new Vector3(random.Range(-0.3f, 0.3f), height, random.Range(-0.3f, 0.3f));
+                int first = b.VertexCount;
                 b.Tube(root, tip, 0.05f, 0.02f, 3, stem, capped: false);
                 if (i % 3 == 0)
                 {
                     Vector3 from = Vector3.Lerp(root, tip, 0.74f);
                     b.Tube(from, Vector3.Lerp(root, tip, 0.94f), 0.11f, 0.1f, 5, head);
                 }
+                b.BindFrom(first, b.AddJoint(PlantJoint.Stem.Between(root, tip)));
                 Blade(b, root, height * 0.74f, 0.09f, random.Range(0.4f, 1.1f), random.Float() * MathF.Tau, blade);
             }
             return b.Build();
@@ -114,10 +123,14 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                 Vector3 root = new Vector3(random.Range(-0.3f, 0.3f), 0f, random.Range(-0.3f, 0.3f));
                 float height = random.Range(4.4f, 6.2f);
                 Vector3 top = root + new Vector3(random.Range(-0.5f, 0.5f), height, random.Range(-0.5f, 0.5f));
+                int firstOfStem = b.VertexCount;
                 b.Tube(root, top, 0.05f, 0.02f, 3, stem, capped: false);
+                int stalk = b.AddJoint(PlantJoint.Stem.Between(root, top));
+                b.BindFrom(firstOfStem, stalk);
 
                 // The plume is a spray of fine strands falling away from the stem's tip, not one solid shape.
                 Vector3 lean = (top - root).Normalized();
+                int firstOfPlume = b.VertexCount;
                 for (int strand = 0; strand < 16; strand++)
                 {
                     float along = random.Range(0f, 1.1f);
@@ -126,6 +139,7 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                     Vector3 to = from + (lean * 0.5f + spread * 0.22f) * random.Range(0.6f, 1.2f);
                     b.Tube(from, to, 0.022f, 0.004f, 3, plume, capped: false);
                 }
+                b.BindFrom(firstOfPlume, b.AddJoint(PlantJoint.Head.Between(top - lean * 1.1f, top + lean * 0.7f, stalk)));
             }
             return b.Build();
         }
@@ -144,8 +158,10 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                 Vector3 at = new Vector3(MathF.Cos(angle) * distance, 0f, MathF.Sin(angle) * distance);
                 float height = random.Range(0.5f, 1.05f) * (1.2f - distance * 0.5f);
                 Vector3 tip = at + new Vector3(random.Range(-0.12f, 0.12f), height, random.Range(-0.12f, 0.12f));
+                int first = b.VertexCount;
                 b.Tube(at - Vector3.UnitY * 0.1f, tip, 0.1f, 0.03f, 3, leaves, capped: false);
                 b.Tube(Vector3.Lerp(at, tip, 0.45f), tip + Vector3.UnitY * 0.1f, 0.12f, 0.02f, 4, blossom);
+                b.BindFrom(first, b.AddJoint(PlantJoint.Stem.Between(at, tip)));
             }
             return b.Build();
         }
@@ -164,11 +180,14 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                 Vector3 direction = new Vector3(MathF.Cos(yaw) * random.Range(0.4f, 0.9f), random.Range(0.5f, 1f), MathF.Sin(yaw) * random.Range(0.4f, 0.9f)).Normalized();
                 float length = random.Range(1.2f, 2.3f);
                 Vector3 tip = direction * length;
+                int first = b.VertexCount;
                 b.Tube(Vector3.Zero - Vector3.UnitY * 0.1f, tip, 0.07f, 0.02f, 3, twig, capped: false);
+                int branch = b.AddJoint((PlantJoint.Stem with { Give = 0.6f }).Between(Vector3.Zero, tip));
+                b.BindFrom(first, branch);
                 for (int l = 0; l < 4; l++)
                 {
                     Vector3 at = direction * length * random.Range(0.4f, 1f);
-                    b.Add(sprig, at, new Vector3(random.Range(0.32f, 0.5f)), random.Float() * MathF.Tau);
+                    b.Add(sprig, at, new Vector3(random.Range(0.32f, 0.5f)), random.Float() * MathF.Tau, parent: branch);
                 }
             }
             return b.Build();
@@ -210,8 +229,10 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                 Vector3 root = new Vector3(random.Range(-1.1f, 1.1f), -0.05f, random.Range(-1.1f, 1.1f));
                 float height = random.Range(2f, 2.9f);
                 Vector3 tip = root + new Vector3(random.Range(-0.14f, 0.14f), height, random.Range(-0.14f, 0.14f));
+                int first = b.VertexCount;
                 b.Tube(root, tip, 0.035f, 0.02f, 3, stem, capped: false);
                 b.Tube(Vector3.Lerp(root, tip, 0.8f), tip + Vector3.UnitY * 0.12f, 0.07f, 0.02f, 4, head);
+                b.BindFrom(first, b.AddJoint(PlantJoint.Stem.Between(root, tip)));
             }
             return b.Build();
         }

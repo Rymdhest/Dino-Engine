@@ -34,6 +34,7 @@ namespace Dino_Defenders
             if (options.FrameRateLimit is int limit) launch._frameRateLimit = limit;
             Engine engine = new Engine(launch);
             Console.WriteLine($"{GL.GetString(StringName.Renderer)}, OpenGL {GL.GetString(StringName.Version)}");
+            if (options.PlantCheck) return Client.PlantCheck.Run();
             if (ownSettings) video.Apply();
             ArpgGame game = new ArpgGame(engine, options);
             Engine.WindowHandler.UpdateFrame += _ => HangWatch.Beat();

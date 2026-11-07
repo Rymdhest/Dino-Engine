@@ -129,7 +129,7 @@ namespace Dino_Defenders.Client
                 components.Add(new SkeletonComponent(bearing.Rig, animator.Skinning));
                 components.Add(new VelocityComponent());
                 components.Add(new FixToTerrainHeightComponent());
-                components.Add(new GrassDisplaceComponent(3f * scale) { power = 1.4f, exponent = 0.6f });
+                components.Add(new PlantContactComponent(2.7f * scale));
                 components.Add(new WaterDisturberComponent(0.42f * scale));
                 components.Add(new GhostMotionComponent());
                 components.Add(new FootfallComponent());

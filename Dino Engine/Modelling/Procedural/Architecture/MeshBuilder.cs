@@ -13,6 +13,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
     {
         private readonly List<Vertex> _vertices = new();
         private readonly List<int> _indices = new();
+        private readonly List<PlantJoint> _joints = new();
 
         /// <summary>Texture repeats per metre.</summary>
         public float TilesPerMetre = 0.2f;
@@ -217,7 +218,43 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             }
         }
 
-        public void Add(Mesh mesh, Vector3 offset, Vector3 scale, float yaw = 0f)
+        /// <summary>A joint for a plant. Nothing's tied to it until <see cref="BindFrom"/>.</summary>
+        public int AddJoint(PlantJoint joint)
+        {
+            joint.Base = Transform(joint.Base);
+            joint.Tip = Transform(joint.Tip);
+            _joints.Add(joint);
+            return _joints.Count - 1;
+        }
+
+        /// <summary>Ties every vertex from <paramref name="firstVertex"/> on that nothing holds yet to a joint.</summary>
+        public void BindFrom(int firstVertex, int joint)
+        {
+            for (int i = firstVertex; i < _vertices.Count; i++)
+            {
+                if (_vertices[i].joint < 0) _vertices[i].joint = joint;
+            }
+        }
+
+        /// <summary>A chain of joints through <paramref name="points"/>, with every vertex from <paramref name="firstVertex"/> on tied to the link it's nearest. See <see cref="Mesh.BindChain"/>.</summary>
+        public int BindChain(int firstVertex, PlantJoint like, int parent, params Vector3[] points)
+        {
+            int first = _joints.Count;
+            foreach (PlantJoint link in like.Chain(points))
+            {
+                PlantJoint joint = link;
+                joint.Parent = _joints.Count > first ? _joints.Count - 1 : parent;
+                parent = AddJoint(joint);
+            }
+            for (int i = firstVertex; i < _vertices.Count; i++)
+            {
+                if (_vertices[i].joint < 0) _vertices[i].joint = PlantRig.Nearest(_joints, first, parent, _vertices[i].position);
+            }
+            return parent;
+        }
+
+        /// <param name="parent">The joint of this builder that the mesh's own hang from, if it has any.</param>
+        public void Add(Mesh mesh, Vector3 offset, Vector3 scale, float yaw = 0f, int parent = -1)
         {
             Vector3 savedOrigin = Origin;
             float savedYaw = Yaw;
@@ -229,11 +266,22 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             Vertex[] vertices = mesh.getAllVerticesArray();
             vIndex[] indices = mesh.getAllIndicesArray();
             int first = _vertices.Count;
+            int firstJoint = _joints.Count;
             foreach (Vertex vertex in vertices)
             {
-                _vertices.Add(new Vertex(Transform(vertex.position), vertex.materialTextureIndex, vertex.colour, vertex.boneIndices, vertex.BoneWeights, vertex.UVs));
+                int joint = vertex.joint >= 0 ? vertex.joint + firstJoint : -1;
+                _vertices.Add(new Vertex(Transform(vertex.position), vertex.materialTextureIndex, vertex.colour, vertex.boneIndices, vertex.BoneWeights, vertex.UVs) { joint = joint });
             }
             foreach (vIndex index in indices) _indices.Add(first + index.index);
+            if (mesh.joints != null)
+            {
+                foreach (PlantJoint joint in mesh.joints)
+                {
+                    PlantJoint added = joint;
+                    added.Parent = joint.Parent >= 0 ? joint.Parent + firstJoint : parent;
+                    AddJoint(added);
+                }
+            }
 
             Origin = savedOrigin;
             Yaw = savedYaw;
@@ -242,7 +290,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
 
         public Mesh Build()
         {
-            return new Mesh(_vertices, _indices);
+            return new Mesh(_vertices, _indices) { joints = _joints.Count > 0 ? _joints : null };
         }
     }
 }

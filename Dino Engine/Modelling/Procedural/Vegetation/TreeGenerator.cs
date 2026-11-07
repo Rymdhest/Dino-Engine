@@ -32,6 +32,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             settings.sinkAmount = 0f;
             settings.baseRadiusFactor = 0.1f;
             settings.stemBaseHeight = 0.01f;
+            settings.joint = PlantJoint.Stem;
             builder.BuildStem(settings);
 
 
@@ -54,7 +55,8 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             return mesh;
         }
 
-        public static Mesh GenerateLeafMesh(Vector2 bend, Vector2i resolution, VertexMaterial material)
+        /// <param name="joint">What holds it. Null: a leaf.</param>
+        public static Mesh GenerateLeafMesh(Vector2 bend, Vector2i resolution, VertexMaterial material, PlantJoint? joint = null)
         {
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(1f, 1f), resolution, material, centerX: true, centerY: false);
             for (int i = 0; i < leafMesh.meshVertices.Count; i++)
@@ -64,6 +66,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 leafMesh.meshVertices[i].position.Y += MathF.Pow(width, 2.0f) * bend.X;
                 leafMesh.meshVertices[i].position.Y += MathF.Pow(ratioZ, 2.0f) * bend.Y;
             }
+            leafMesh.Bind((joint ?? PlantJoint.Leaf).Between(Vector3.Zero, Vector3.UnitZ));
             leafMesh.translate(new Vector3(0f, 0.0f, -0.05f));
             leafMesh.rotate(new Vector3(0f, MathF.PI / 2f, 0.0f));
             return leafMesh;
@@ -101,6 +104,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             Curve3D curve = spline.GenerateCurve(1);
             curve.LERPWidth(0.03f, 0.02f);
             Mesh stem = MeshGenerator.generateCurvedTube(curve, 3, new VertexMaterial(TextureGenerator.foliage_olive), textureRepeats: 1, flatStart: true);
+            stem.Bind(PlantJoint.Stem.Between(curve.getPointAt(0f).pos, curve.getPointAt(1f).pos));
             flowerPlant += stem;
 
 
@@ -118,12 +122,14 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 newBranch.translate(curvePoint.pos);
                 flowerPlant += newBranch;
             }
+            flowerPlant.Hang(1, 0);
             Mesh flower = new Mesh();
 
             int leavesAroundFlower = 7;
             CurvePoint curvePointTop = curve.getPointAt(1.0f);
 
             Mesh leafFlowerMesh = GenerateLeafMesh(new Vector2(0.3f, 0.6f), new Vector2i(2, 2), new VertexMaterial(TextureGenerator.leaf_white, new Colour(flowerColour)));
+            leafFlowerMesh.Still();
             leafFlowerMesh.scale(new Vector3(0.15f));
             leafFlowerMesh.rotate(new Vector3(0f, 0f, MathF.PI/4f));
 
@@ -135,7 +141,11 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 flower += newBranch;
             }
 
+            // The flower nods as one: its petals are far too small to be worth a joint each.
+            flower.Bind(PlantJoint.Head.Between(Vector3.Zero, Vector3.UnitY * 0.2f));
+            int firstOfHead = flowerPlant.JointCount;
             flowerPlant += flower.rotated(curvePointTop.rotation).translated(curvePointTop.pos);
+            flowerPlant.Hang(firstOfHead, 0);
 
             Mesh flowerBush = new Mesh();
 
@@ -180,6 +190,11 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
                     //leafMesh.meshVertices[i].position.Y = MathF.Pow(ratioY, 0.5f) * bendyness.Y;
                 }
+
+                // A frond arches further the nearer its tip, so its links get shorter along it.
+                float rise = 0.3f + (1f - scale / 3f) * 2f;
+                Vector3 FrondAt(float along) => new Vector3(0f, along * leafSize.Y, rise - MathF.Pow(1f - along, 0.5f) * rise);
+                leafMesh.BindChain(PlantJoint.Frond, -1, FrondAt(0f), FrondAt(0.5f), FrondAt(0.8f), FrondAt(1f));
 
                 fern += leafMesh.rotated(new Vector3(0f, ratio*MathF.Tau, 0f)).scaled(new Vector3(scale));
             }
@@ -323,6 +338,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.sinkAmount = 0.5f;
             branchSettings.stemBendRadiusEnd = 0.4f;
             branchSettings.textureRepeats = 1;
+            branchSettings.joint = PlantJoint.Bough;
             BranchBuilder.BuildStem(branchSettings);
 
             float branchSize = alive ? 10f : 8f;
@@ -334,6 +350,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 leafMesh.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(leafMesh.meshVertices[i].position.X, 2.0f)) * 0.1f;
                 leafMesh.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(leafMesh.meshVertices[i].position.Z, 2.0f)) * 0.05f;
             }
+            leafMesh.Bind(PlantJoint.Spray.Between(Vector3.Zero, Vector3.UnitZ * branchSize));
             //leafMesh += leafMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
             TreeBuilder.SpreadAroundStemSettings twigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
             twigSpawnSettings.BranchRandomRotation.Z = .0f;
@@ -364,6 +381,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 deadTwigMesh.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(deadTwigMesh.meshVertices[i].position.Z, 2.0f)) * 0.4f;
             }
             deadTwigMesh += deadTwigMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
+            deadTwigMesh.Bind(PlantJoint.Spray.Between(Vector3.Zero, Vector3.UnitZ * 2f));
 
             TreeBuilder.SpreadAroundStemSettings deadTwigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
             deadTwigSpawnSettings.BranchRandomRotation.Z = 0.0f;
@@ -481,6 +499,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
                 deadTwigMesh.meshVertices[i].position.Y += MathF.Abs(MathF.Pow(deadTwigMesh.meshVertices[i].position.Z, 2.0f)) * 0.4f;
             }
             deadTwigMesh += deadTwigMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
+            deadTwigMesh.Bind(PlantJoint.Spray.Between(Vector3.Zero, Vector3.UnitZ * 2f));
 
             TreeBuilder.SpreadAroundStemSettings deadTwigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
             deadTwigSpawnSettings.BranchRandomRotation.Z = 0.0f;
@@ -514,6 +533,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             stemSettings.stemWavePatternAmount = 0.0f;
             stemSettings.baseRadiusFactor = 1.5f;
             stemSettings.baseColor = new Colour(160, 130, 45);
+            stemSettings.joint.Give = 0.07f;
             builder.BuildStem(stemSettings);
 
             TreeBuilder BranchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.oakBark, new Colour(255, 255, 255)));
@@ -529,9 +549,11 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.sinkAmount = 0.5f;
             branchSettings.stemBendRadiusEnd = 0.4f;
             branchSettings.textureRepeats = 1;
+            branchSettings.joint = PlantJoint.Bough;
             BranchBuilder.BuildStem(branchSettings);
 
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(10f, 10f), new Vector2i(1, 1), new VertexMaterial(branchTexture ?? TextureGenerator.oakBranch, branchTint ?? new Colour(255, 255, 255)), centerY: false);
+            leafMesh.Bind(PlantJoint.Spray.Between(Vector3.Zero, Vector3.UnitZ * 10f));
             //leafMesh += leafMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
             TreeBuilder.SpreadAroundStemSettings twigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
             twigSpawnSettings.BranchRandomRotation.Z = .0f;
@@ -576,6 +598,7 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             stemSettings.stemWavePatternAmount = 0.0f;
             stemSettings.baseRadiusFactor = 0.8f;
             stemSettings.baseColor = new Colour(115, 115,115);
+            stemSettings.joint.Give = 0.14f;
             builder.BuildStem(stemSettings);
 
             TreeBuilder BranchBuilder = new TreeBuilder(new VertexMaterial(TextureGenerator.BirchBark, new Colour(255, 255, 255)));
@@ -591,9 +614,11 @@ namespace Dino_Engine.Modelling.Procedural.Nature
             branchSettings.sinkAmount = 0.5f;
             branchSettings.stemBendRadiusEnd = 0.4f;
             branchSettings.textureRepeats = 1;
+            branchSettings.joint = PlantJoint.Bough;
             BranchBuilder.BuildStem(branchSettings);
 
             Mesh leafMesh = MeshGenerator.generatePlane(new Vector2(6f, 6f), new Vector2i(1, 1), new VertexMaterial(branchTexture ?? TextureGenerator.birchBranch, branchTint ?? new Colour(255, 255, 255)), centerY: false);
+            leafMesh.Bind(PlantJoint.Spray.Between(Vector3.Zero, Vector3.UnitZ * 6f));
             //leafMesh += leafMesh.rotated(new Vector3(0f, 0f, MathF.PI / 2f));
             TreeBuilder.SpreadAroundStemSettings twigSpawnSettings = new TreeBuilder.SpreadAroundStemSettings();
             twigSpawnSettings.BranchRandomRotation.Z = .0f;

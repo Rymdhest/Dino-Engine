@@ -69,7 +69,7 @@ namespace Dino_Engine.ECS.Systems
         public static AABB ComputeWorldBounds(glModel? model, Matrix4 localToWorld)
         {
             AABB localBounds = model != null
-                ? new AABB(model.box.Min, model.box.Max)
+                ? new AABB(model.box.Min - new Vector3(model.PlantReach), model.box.Max + new Vector3(model.PlantReach))
                 : new AABB(new Vector3(-1f), new Vector3(1f));
 
             return AABB.Transform(localBounds, localToWorld);

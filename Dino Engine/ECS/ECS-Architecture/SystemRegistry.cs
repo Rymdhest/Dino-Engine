@@ -61,7 +61,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             Systems.Add(new SoundEmitterSystem());
 
             Systems.Add(new GrassCollisionDisplaceSystem());
-            Systems.Add(new GrassDisplaceSystem());
+            Systems.Add(new PlantContactSystem());
             Systems.Add(new RenderSpatialGridSystem());
 
             // render

@@ -15,6 +15,7 @@ namespace Dino_Engine.Modelling.Model
         public bool finishedBaking = false;
         public static bool scaleUV = false;
         public bool isUsingBones = false;
+        public List<PlantJoint>? joints = null;
         public Mesh()
         {
             meshVertices = new List<MeshVertex>();
@@ -372,9 +373,9 @@ namespace Dino_Engine.Modelling.Model
             for (int i = 0; i < oldVertices.Length; i++)
             {
                 Vector3 newPosition = Vector3.Transform(oldVertices[i].position, rotation);
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, oldVertices[i].UVs); // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, oldVertices[i].UVs) { joint = oldVertices[i].joint }; // TODO  potential uses same UVs
             }
-            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>());
+            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>()) { joints = MovedJoints(p => Vector3.Transform(p, rotation)) };
         }
 
         public void rotate(Quaternion rotation)
@@ -386,6 +387,7 @@ namespace Dino_Engine.Modelling.Model
                 //if (scaleUV) meshVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
                 meshVertices[i] = vertex;
             }
+            joints = MovedJoints(p => Vector3.Transform(p, rotation));
             calculateAllNormals();
         }
 
@@ -462,6 +464,7 @@ namespace Dino_Engine.Modelling.Model
                 //if (scaleUV) meshVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
                 meshVertices[i] = vertex;
             }
+            joints = MovedJoints(p => (new Vector4(p, 1.0f) * transformationMatrix).Xyz);
             calculateAllNormals();
         }
         public Mesh Transformed(Transformation transformation)
@@ -477,10 +480,86 @@ namespace Dino_Engine.Modelling.Model
                 {
                     newUVs[j] = new Vector2( oldVertices[i].UVs[j].X, oldVertices[i].UVs[j].Y);
                 }
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, newUVs); // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, newUVs) { joint = oldVertices[i].joint }; // TODO  potential uses same UVs
                 //if (scaleUV) newVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
             }
-            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>());
+            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>()) { joints = MovedJoints(p => (new Vector4(p, 1.0f) * transformationMatrix).Xyz) };
+        }
+
+        // A plant's joints go wherever its vertices go. A new list, as a mesh's copies share theirs and each goes its own way.
+        private readonly List<PlantJoint>? MovedJoints(Func<Vector3, Vector3> move)
+        {
+            if (joints == null) return null;
+            var moved = new List<PlantJoint>(joints.Count);
+            foreach (PlantJoint joint in joints)
+            {
+                PlantJoint next = joint;
+                next.Base = move(joint.Base);
+                next.Tip = move(joint.Tip);
+                moved.Add(next);
+            }
+            return moved;
+        }
+
+        public readonly int JointCount => joints?.Count ?? 0;
+
+        /// <summary>Adds a joint to the plant, tying nothing to it yet. Returns its number.</summary>
+        public int AddJoint(PlantJoint joint)
+        {
+            joints ??= new List<PlantJoint>();
+            joints.Add(joint);
+            return joints.Count - 1;
+        }
+
+        /// <summary>Ties everything that nothing holds yet to a new joint. Returns its number.</summary>
+        public int Bind(PlantJoint joint)
+        {
+            int number = AddJoint(joint);
+            foreach (MeshVertex vertex in meshVertices)
+            {
+                if (vertex.joint < 0) vertex.joint = number;
+            }
+            return number;
+        }
+
+        /// <summary>
+        /// Ties everything nothing holds yet to a chain of joints through <paramref name="points"/>, each vertex to the link it's nearest. A shape that arches has
+        /// to be a chain, as one straight joint would bend everything to the side of it like the outside of a bend. Returns the number of the last link.
+        /// </summary>
+        public int BindChain(PlantJoint like, int parent, params Vector3[] points)
+        {
+            int first = JointCount;
+            foreach (PlantJoint link in like.Chain(points))
+            {
+                PlantJoint joint = link;
+                joint.Parent = JointCount > first ? JointCount - 1 : parent;
+                parent = AddJoint(joint);
+            }
+            foreach (MeshVertex vertex in meshVertices)
+            {
+                if (vertex.joint < 0) vertex.joint = PlantRig.Nearest(joints!, first, parent, vertex.position);
+            }
+            return parent;
+        }
+
+        /// <summary>Hangs every joint from <paramref name="firstJoint"/> on that stands on nothing from <paramref name="parent"/>.</summary>
+        public void Hang(int firstJoint, int parent)
+        {
+            if (joints == null) return;
+            for (int i = firstJoint; i < joints.Count; i++)
+            {
+                if (joints[i].Parent >= 0) continue;
+                PlantJoint joint = joints[i];
+                joint.Parent = parent;
+                joints[i] = joint;
+            }
+        }
+
+        /// <summary>Stills a plant, for what's built like one but doesn't move.</summary>
+        public void Still()
+        {
+            joints = null;
+            foreach (MeshVertex vertex in meshVertices) vertex.joint = -1;
         }
 
 
@@ -489,7 +568,12 @@ namespace Dino_Engine.Modelling.Model
             List<Vertex> vertices= new List<Vertex>();
             vertices.AddRange(a.getAllVerticesArray());
             int offset = vertices.Count;
-            vertices.AddRange(b.getAllVerticesArray());
+            Vertex[] added = b.getAllVerticesArray();
+            foreach (Vertex vertex in added)
+            {
+                if (vertex.joint >= 0) vertex.joint += a.JointCount;
+            }
+            vertices.AddRange(added);
 
 
             List<vIndex> indices = new List<vIndex>();
@@ -502,6 +586,20 @@ namespace Dino_Engine.Modelling.Model
             indices.AddRange(secondIndices);
 
             Mesh mesh =new Mesh(vertices, indices);
+            if (a.joints != null || b.joints != null)
+            {
+                mesh.joints = new List<PlantJoint>(a.JointCount + b.JointCount);
+                if (a.joints != null) mesh.joints.AddRange(a.joints);
+                if (b.joints != null)
+                {
+                    foreach (PlantJoint joint in b.joints)
+                    {
+                        PlantJoint next = joint;
+                        if (next.Parent >= 0) next.Parent += a.JointCount;
+                        mesh.joints.Add(next);
+                    }
+                }
+            }
             if (a.finishedNormals && b.finishedNormals) mesh.finishedNormals = true;
             mesh.calculateAllNormals(); 
             return mesh;

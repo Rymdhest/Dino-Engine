@@ -11,6 +11,7 @@ namespace Dino_Engine.Modelling.Model
         public Vector2 BoneWeights;
         public int materialTextureIndex;
         public Colour colour;
+        public int joint = -1;  // The PlantJoint of its mesh that holds it, or -1 if nothing does.
 
         public Vertex(Vector3 position, VertexMaterial vertexMaterial, params Vector2[] UVs)        {
             this.position = position;
@@ -39,6 +40,7 @@ namespace Dino_Engine.Modelling.Model
 
             this.boneIndices = v.boneIndices;
             this.BoneWeights = v.BoneWeights;
+            this.joint = v.joint;
         }
     }
 }

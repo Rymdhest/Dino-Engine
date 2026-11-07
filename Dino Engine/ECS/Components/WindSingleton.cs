@@ -31,7 +31,14 @@ namespace Dino_Engine.ECS.Components
         public float VegetationMaxBend;        // Radians plants lean at most in a strong steady wind.
         public float VegetationReferenceSpeed; // Wind speed in m/s at which plants lean about 63% of VegetationMaxBend.
         public float VegetationFlutter;        // Radians tufts of grass flutter at VegetationReferenceSpeed.
-        public float FlattenRecoveryTime;      // Seconds trampled plants take to stand back up (to about 37%).
+        public float FlattenRecoveryTime;      // Seconds the trail through plants takes to fade (to about 37%).
+        public float PressRecoveryTime;        // Seconds plants take to rise from under a foot (to about 37%).
+        public float TouchFrequency;           // Hz at which plants swing back and forth when something has gone through them.
+        public float TouchDamping;             // Damping ratio of that swing. Nothing but touch drives it, so it can ring as gusts must not.
+
+        // --- How trees respond: as vegetation, on a slower spring, as a trunk has too much mass to answer a gust at once. ---
+        public float CanopyFrequency;          // Natural sway frequency of a trunk in Hz.
+        public float CanopyDamping;            // Damping ratio.
 
         // --- Live state, advanced by WindSystem. ---
         public bool Initialized;
@@ -69,7 +76,12 @@ namespace Dino_Engine.ECS.Components
             VegetationMaxBend = 1.3f;
             VegetationReferenceSpeed = 8f;
             VegetationFlutter = 0.035f;
-            FlattenRecoveryTime = 12f;
+            FlattenRecoveryTime = 9f;
+            PressRecoveryTime = 5f;
+            TouchFrequency = 1.5f;
+            TouchDamping = 0.2f;
+            CanopyFrequency = 0.32f;
+            CanopyDamping = 0.45f;
 
             Initialized = false;
             Heading = 0f;

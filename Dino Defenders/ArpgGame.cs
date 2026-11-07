@@ -483,6 +483,39 @@ namespace Dino_Defenders
             _loading = null;
         }
 
+        // Plants thick along the way the hero's walking, as there's no telling where a world has put them. The plants are this end's own business, so nothing else need know.
+        private void PlantGarden(string plants)
+        {
+            GameSession? session = GameSession.Current;
+            if (session == null) return;
+
+            string[] ids = plants.Split(',');
+            Vector2 from = session.PlayerPosition;
+            Vector2 to = _options.Walk ?? from + Vector2.UnitX * 30f;
+            float length = (to - from).Length;
+            Vector2 along = (to - from) / MathF.Max(length, 1f);
+            Vector2 across = new Vector2(-along.Y, along.X);
+            var random = new WorldRandom(1).Fork("garden");
+            for (float travelled = 3f; travelled < length; travelled += 1.6f)
+            {
+                for (float side = -7f; side <= 7f; side += 1.6f)
+                {
+                    Vector2 at = from + along * travelled + across * side + new Vector2(random.Range(-0.6f, 0.6f), random.Range(-0.6f, 0.6f));
+                    string id = ids[random.Int(0, ids.Length - 1)];
+                    Vector3 position = new Vector3(at.X, session.World.Height.SampleCubic(at.X, at.Y), at.Y);
+                    Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, random.Float() * MathF.Tau);
+                    Vector3 scale = new Vector3(random.Range(0.9f, 1.25f));
+                    Engine.world.CreateEntity(
+                        new PositionComponent(position),
+                        new RotationComponent(rotation),
+                        new ScaleComponent(scale),
+                        new ModelComponent(_assets.Get(id)),
+                        new ModelRenderTag(),
+                        new LocalToWorldMatrixComponent { value = Dino_Engine.Util.MyMath.createTransformationMatrix(position, rotation, scale) });
+                }
+            }
+        }
+
         /// <summary>Back to this player's own world.</summary>
         public void ReturnHome(string? why)
         {
@@ -533,6 +566,7 @@ namespace Dino_Defenders
                     return true;
                 });
             }
+            if (_frames == 30 && _options.Garden is string garden) PlantGarden(garden);
             if (_frames == 30 && _options.Parade is string parade && _server != null)
             {
                 _server.Ask(server =>

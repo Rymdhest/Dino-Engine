@@ -30,9 +30,10 @@ namespace Dino_Engine.ECS.Systems
                 Engine.RenderEngine._windRenderer.AddVegetationContact(new VegetationContact
                 {
                     center = collisionEvent.ContactPoint.Xz,
+                    previous = collisionEvent.ContactPoint.Xz,
                     radius = 1.33f,
-                    power = 1.6f,
-                    exponent = 0.6f,
+                    lean = 1.2f,
+                    press = 1.1f,
                 });
             }
 

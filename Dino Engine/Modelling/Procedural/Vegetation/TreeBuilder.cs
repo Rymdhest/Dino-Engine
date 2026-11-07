@@ -80,7 +80,10 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
                 newBranch.rotate(curvePoint.rotation);
                 newBranch.translate(curvePoint.pos);
 
+                // A branch hangs from the stem it grew on: the stem's bend carries it, whole, and what it does itself comes on top.
+                int firstJoint = mesh.JointCount;
                 mesh += newBranch;
+                mesh.Hang(firstJoint, 0);
             }
 
             return mesh;
@@ -103,6 +106,7 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
             public int wavePatternFrequenzy = 8;
             public int textureRepeats = 1;
             public Colour? baseColor = null;
+            public PlantJoint joint = PlantJoint.Trunk;
         }
 
         public Mesh BuildStem(StemBuildSettings settings, Curve3D curve = null)
@@ -140,6 +144,10 @@ namespace Dino_Engine.Modelling.Procedural.Vegetation
             }
             //poleMesh.translate(new Vector3(0f, -settings.sinkAmount, 0f));
             //poleMesh.FlatRandomness(new Vector3(.05f, 0f, .05f));
+
+            // It bends from where it comes out of the ground, or out of its parent: what's sunk in there stays put.
+            float sunk = settings.sinkAmount / MathF.Max(settings.height + settings.sinkAmount, 1e-3f);
+            poleMesh.Bind(settings.joint.Between(curve3D.getPointAt(sunk).pos, curve3D.getPointAt(1f).pos));
 
             this.mesh = poleMesh;
 

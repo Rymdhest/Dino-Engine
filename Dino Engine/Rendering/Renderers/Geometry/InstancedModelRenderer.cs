@@ -25,8 +25,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelShader.loadUniformInt("normalMapModelTextureArray", 4);
             _instancedModelShader.loadUniformInt("materialMapModelTextureArray", 5);
 
-            _instancedModelShader.loadUniformInt("bendMap", BendMapUnit);
-            _instancedModelShader.loadUniformInt("windMap", WindMapUnit);
+            LinkPlantSamplers(_instancedModelShader);
             Simulation.WeatherRenderer.LinkSurfaceSamplers(_instancedModelShader);
             _instancedModelShader.unBind();
 
@@ -34,8 +33,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelShadowShader.loadUniformInt("albedoMapTextureArray", 0);
             _instancedModelShadowShader.loadUniformInt("albedoMapModelTextureArray", 3);
 
-            _instancedModelShadowShader.loadUniformInt("bendMap", BendMapUnit);
-            _instancedModelShadowShader.loadUniformInt("windMap", WindMapUnit);
+            LinkPlantSamplers(_instancedModelShadowShader);
             _instancedModelShadowShader.unBind();
 
             _instanceVBO = GL.GenBuffer();
@@ -79,9 +77,22 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             BindWindTextures(renderEngine);
         }
 
-        // Plants sway with the engine's wind (WindRenderer): bendMap is the vegetation state, windMap the wind field.
+        // What moves plants (WindRenderer, read through Plant.glsl): bendMap and canopyMap are the wind's springs, touchMap what's walking through, windMap the
+        // wind field, and plantJoints the joints of the model being drawn.
         private const int BendMapUnit = 6;
         private const int WindMapUnit = 7;
+        private const int CanopyMapUnit = 8;
+        private const int TouchMapUnit = 9;
+        private const int JointsUnit = 10;
+
+        private static void LinkPlantSamplers(ShaderProgram shader)
+        {
+            shader.loadUniformInt("bendMap", BendMapUnit);
+            shader.loadUniformInt("windMap", WindMapUnit);
+            shader.loadUniformInt("canopyMap", CanopyMapUnit);
+            shader.loadUniformInt("touchMap", TouchMapUnit);
+            shader.loadUniformInt("plantJoints", JointsUnit);
+        }
 
         private static void BindWindTextures(RenderEngine renderEngine)
         {
@@ -89,6 +100,19 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.VegetationBendTexture);
             GL.ActiveTexture(TextureUnit.Texture0 + WindMapUnit);
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.WindMapTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + CanopyMapUnit);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.CanopyTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + TouchMapUnit);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.VegetationTouchTexture);
+        }
+
+        private static void BindPlant(ShaderProgram shader, glModel model)
+        {
+            bool plant = model.JointTexture != 0;
+            shader.loadUniformInt("plant", plant ? 1 : 0);
+            if (!plant) return;
+            GL.ActiveTexture(TextureUnit.Texture0 + JointsUnit);
+            GL.BindTexture(TextureTarget.TextureBuffer, model.JointTexture);
         }
 
         internal override void FinishGeometry(RenderEngine renderEngine)
@@ -154,7 +178,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             glModel glmodel = command.model;
             int instanceCount = command.matrices.Count;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
-            _instancedModelShader.loadUniformFloat("swayAmount", glmodel.swayAmount);
+            BindPlant(_instancedModelShader, glmodel);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);
@@ -216,7 +240,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
 
             _instancedModelShadowShader.loadUniformMatrix4f("viewpPojectionMatrix", shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
-            _instancedModelShadowShader.loadUniformFloat("swayAmount", glmodel.swayAmount);
+            BindPlant(_instancedModelShadowShader, glmodel);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);

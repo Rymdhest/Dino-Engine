@@ -44,13 +44,12 @@ namespace Dino_Engine.World
             if (_models.TryGetValue(id, out glModel? model)) return model;
 
             float imposterDistance;
-            float sway = 0f;
             Mesh mesh;
             if (NatureCatalog.TryGet(id, out WorldAsset asset))
             {
                 mesh = BuildNature(id);
                 imposterDistance = asset.ImposterDistance;
-                sway = asset.Sway;
+                if (!asset.Sways) mesh.Still();
             }
             else
             {
@@ -62,7 +61,6 @@ namespace Dino_Engine.World
             }
 
             model = glLoader.loadToVAO(mesh);
-            model.swayAmount = sway;
             if (UseImposters && imposterDistance > 0f) Engine.RenderEngine.textureGenerator.AddImposterToModel(model, imposterDistance);
             _models.Add(id, model);
             return model;
@@ -88,6 +86,9 @@ namespace Dino_Engine.World
                 if (!ids.Contains(species.Asset.Id)) ids.Add(species.Asset.Id);
             }
         }
+
+        /// <summary>A plant's mesh as it's built, before any of it reaches the GPU.</summary>
+        public static Mesh BuildPlant(string id) => BuildNature(id);
 
         private static Mesh BuildNature(string id)
         {

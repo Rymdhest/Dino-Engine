@@ -183,7 +183,7 @@ namespace Dino_Defenders.Client
                 new CharacterModelComponent(_characters.Resolve(Model)),
                 new AnimatorComponent(animator),
                 new SkeletonComponent(bearing.Rig, animator.Skinning),
-                new GrassDisplaceComponent(3f) { power = 1.4f, exponent = 0.6f });
+                new PlantContactComponent(2.7f));
         }
 
         /// <summary>Goes on every frame: the camera breathes, and what the hero's wearing keeps being asked for, which is what keeps it alive.</summary>

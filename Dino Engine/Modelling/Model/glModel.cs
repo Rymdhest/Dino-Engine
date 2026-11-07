@@ -6,6 +6,8 @@ namespace Dino_Engine.Modelling.Model;
 
 public class glModel
 {
+    /// <summary>Where a vertex's joint is, on a plant. Above the instance matrix, which takes 6 to 9.</summary>
+    public const int JointAttribute = 10;
 
     public class ImposterData
     {
@@ -38,12 +40,10 @@ public class glModel
     private int vaoID;
     private int[] VBOS;
     private int vertexCount;
-    public float swayAmount;
-    // What Wind.glsl's VEGETATION_MAX_TOTAL_BEND holds a plant to.
-    private const float MostBend = 1.5f;
     private Vector3 _boundsCentre;
     private float _boundsRadius;
-    private float _boundsSway = float.NaN;
+    private bool _boundsKnown;
+    private int _jointBuffer;
     public AABB box;
     public ImposterData? Imposter { get; set; } = null;
 
@@ -53,7 +53,22 @@ public class glModel
         this.VBOS = VBOS;
         this.vertexCount = vertexCount;
         this.box = box;
-        swayAmount = 0.0f;
+    }
+
+    /// <summary>The buffer texture of a plant's joints (Plant.glsl), or 0 for whatever doesn't bend.</summary>
+    public int JointTexture { get; private set; }
+
+    /// <summary>How far a plant can reach from where it rests.</summary>
+    public float PlantReach { get; private set; }
+
+    public void SetPlant(int vertexJointBuffer, int jointBuffer, int jointTexture, float reach)
+    {
+        Array.Resize(ref VBOS, VBOS.Length + 1);
+        VBOS[^1] = vertexJointBuffer;
+        _jointBuffer = jointBuffer;
+        JointTexture = jointTexture;
+        PlantReach = reach;
+        _boundsKnown = false;
     }
 
     public int getVAOID()
@@ -73,10 +88,10 @@ public class glModel
     /// </summary>
     public void WorldBounds(in Matrix4 localToWorld, out Vector3 centre, out float radius)
     {
-        if (_boundsSway != swayAmount)
+        if (!_boundsKnown)
         {
             FindLocalBounds();
-            _boundsSway = swayAmount;
+            _boundsKnown = true;
         }
 
         centre = Vector3.TransformPosition(_boundsCentre, localToWorld);
@@ -94,12 +109,7 @@ public class glModel
         }
 
         _boundsCentre = (box.Min + box.Max) * 0.5f;
-        _boundsRadius = (box.Max - box.Min).Length * 0.5f;
-
-        // Wind turns a model about its own origin, by the amount Model_Instanced.vert works out for its furthest vertex.
-        Vector3 furthest = Vector3.ComponentMax(Vector3.ComponentMax(box.Min, -box.Min), Vector3.ComponentMax(box.Max, -box.Max));
-        float turn = MostBend * (furthest.Y * 0.001f + furthest.Xz.Length * 0.01f) * swayAmount;
-        _boundsRadius += MathF.Min(turn * MathF.Sqrt(2f), 2f) * furthest.Length;
+        _boundsRadius = (box.Max - box.Min).Length * 0.5f + PlantReach;
     }
 
     public override string ToString()
@@ -113,6 +123,11 @@ public class glModel
         for (int i = 0; i < VBOS.Length; i++)
         {
             GL.DeleteBuffer(VBOS[i]);
+        }
+        if (JointTexture != 0)
+        {
+            GL.DeleteTexture(JointTexture);
+            GL.DeleteBuffer(_jointBuffer);
         }
     }
 }

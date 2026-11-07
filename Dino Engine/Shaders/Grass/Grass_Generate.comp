@@ -48,6 +48,7 @@ uniform sampler2DArray grassColourMaps;
 uniform sampler2DArray grassBloomMaps;
 uniform sampler2D bendMap;
 uniform sampler2D windMap;
+uniform sampler2D touchMap;
 
 uniform vec4 frustumPlanes[6];
 uniform int bladesPerAxis;
@@ -65,6 +66,9 @@ const float DROOP_SOFTNESS = 0.15;      // Radians of lean over which the droop 
 const float FACE_HOLD = 0.25;           // How much a blade's face keeps to the way it grew, as the square of a lean in radians.
 const float FLUTTER_KINDS = 4.0;        // Rates a quarter apart, so that every kind lands on a whole flutter at the wrap.
 const float FURTHEST_PULL = 2.5;        // The furthest a blade's tuft can draw it, in tuft spacings: tufts sit one to a cell, and the search takes the nearest.
+const float TOUCH_SCATTER = 0.55;       // Metres a tuft can feel what's walking through from off its true place, so that the edge of a wake is tufts and not a line.
+const float TOUCH_ROOT = 0.75;          // How much of a push a blade takes from its root: a foot lays a blade over, where the wind only curls its top.
+const float TOUCH_FLUTTER = 0.5;        // How much a tuft shivers as it's let go, for each radian a second it's moving.
 
 vec4 readChunkMap(sampler2DArray map, vec2 uv, float layer)
 {
@@ -292,7 +296,12 @@ bool growBlade(int index, out GrassBladeData blade, out bool near)
     float tuftStiffness = grassRandom(tuftState);
     float tuftFlutterPhase = grassRandom(tuftState);
     float tuftFlutterKind = floor(grassRandom(tuftState) * FLUTTER_KINDS);
-    vec2 bend = limitBend(vegetationBend(bendMap, windMap, root.xz) * (grassWave.x * (0.8 + 0.4 * tuftStiffness)));
+    vec2 windBend = vegetationBend(bendMap, windMap, root.xz) * (grassWave.x * (0.8 + 0.4 * tuftStiffness));
+    // What's walking through reaches a tuft as a whole: its blades go over together, at the tuft's own pace, some sooner and some further than their neighbours.
+    vec2 scatter = (vec2(grassRandom(tuftState), grassRandom(tuftState)) - 0.5) * (2.0 * TOUCH_SCATTER);
+    vec4 touch = vegetationTouch(touchMap, tuftCentre + scatter);
+    vec2 pushed = (touch.xy + leanDir * touch.z) * (grassWave.x * (0.65 + 0.7 * tuftStiffness));
+    vec2 bend = limitBend(windBend + pushed);
     vec2 flutterMid = vec2(0.0);
     vec2 flutterTip = vec2(0.0);
     vec4 windHere = sampleWindMap(windMap, root.xz);
@@ -305,7 +314,7 @@ bool growBlade(int index, out GrassBladeData blade, out bool near)
         vec2 along = wind / speed;
         vec2 acrossWind = vec2(-along.y, along.x);
         // Most in the gusts, and least in the lulls.
-        float amplitude = vegetationParams.z * min(speed / vegetationParams.y, 1.5) * (0.4 + 1.2 * windHere.w) * (0.7 + 0.6 * flutterRandom);
+        float amplitude = vegetationParams.z * (min(speed / vegetationParams.y, 1.5) * (0.4 + 1.2 * windHere.w) + touch.w * TOUCH_FLUTTER) * (0.7 + 0.6 * flutterRandom);
         float phase = (vegetationParams.w * (1.0 + 0.25 * tuftFlutterKind) + tuftFlutterPhase) * TAU + flutterPhase * 0.15;
         // The bob runs up the blade like a wave along a whip: the tip lags behind the middle, and traces a narrow ellipse. The
         // phase wraps at a whole number of flutters, so anything read from it has to go round a whole number of times too.
@@ -324,7 +333,7 @@ bool growBlade(int index, out GrassBladeData blade, out bool near)
     vec2 droopPull = leanDir * (tilt + DROOP_HOLD) + bend;
     vec2 droopDir = droopPull * inversesqrt(dot(droopPull, droopPull) + DROOP_SOFTNESS * DROOP_SOFTNESS);
     vec2 tipLean = steadyLean + flutterTip + droopDir * droop;
-    vec2 rootLean = leanDir * (tilt * 0.3) + bend * 0.4;
+    vec2 rootLean = leanDir * (tilt * 0.3) + windBend * 0.4 + pushed * TOUCH_ROOT;
     vec2 midLean = mix(rootLean, tipLean, 0.45) + flutterMid;
 
     // A curve whose direction sweeps from the root's lean through the middle's to the tip's: the tip is where that

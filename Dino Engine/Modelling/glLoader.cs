@@ -28,8 +28,36 @@ public class glLoader
         }
 
         model.box = mesh.createAABB();
+        if (mesh.joints != null) LoadPlant(model, mesh);
         return model;
     }
+
+    // What a plant adds: which joint holds each vertex, and the joints themselves, which Plant.glsl walks up from there.
+    private static void LoadPlant(glModel model, Mesh mesh)
+    {
+        float[] vertexJoints = new float[mesh.meshVertices.Count];
+        for (int i = 0; i < vertexJoints.Length; i++)
+        {
+            vertexJoints[i] = mesh.meshVertices[i].joint;
+        }
+        GL.BindVertexArray(model.getVAOID());
+        int vertexBuffer = storeDataInAttributeList(glModel.JointAttribute, 1, vertexJoints);
+        GL.EnableVertexAttribArray(glModel.JointAttribute);
+        unbindVAO();
+
+        float[] joints = PlantRig.Pack(mesh.joints!);
+        int buffer = GL.GenBuffer();
+        GL.BindBuffer(BufferTarget.TextureBuffer, buffer);
+        GL.BufferData(BufferTarget.TextureBuffer, joints.Length * sizeof(float), joints, BufferUsageHint.StaticDraw);
+        int texture = GL.GenTexture();
+        GL.BindTexture(TextureTarget.TextureBuffer, texture);
+        GL.TexBuffer(TextureBufferTarget.TextureBuffer, SizedInternalFormat.Rgba32f, buffer);
+        GL.BindTexture(TextureTarget.TextureBuffer, 0);
+        GL.BindBuffer(BufferTarget.TextureBuffer, 0);
+
+        model.SetPlant(vertexBuffer, buffer, texture, PlantRig.Reach(mesh));
+    }
+
     public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, int[] indices)
     {
         int vaoID = createVAO();

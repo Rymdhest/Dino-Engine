@@ -118,7 +118,14 @@ namespace Dino_Engine.GUI.Debug
             wind.Content.Add(WindSlider("Max bend", 0f, 1.5f, "0.00 rad", w => w.VegetationMaxBend, (ref WindSingleton w, float v) => w.VegetationMaxBend = v));
             wind.Content.Add(WindSlider("Ref. speed", 1f, 30f, "0.0 m/s", w => w.VegetationReferenceSpeed, (ref WindSingleton w, float v) => w.VegetationReferenceSpeed = v));
             wind.Content.Add(WindSlider("Flutter", 0f, 0.5f, "0.00 rad", w => w.VegetationFlutter, (ref WindSingleton w, float v) => w.VegetationFlutter = v));
-            wind.Content.Add(WindSlider("Trample rec.", 0.5f, 60f, "0.0 s", w => w.FlattenRecoveryTime, (ref WindSingleton w, float v) => w.FlattenRecoveryTime = v));
+            wind.Content.Add(DebugUi.Heading("Touch"));
+            wind.Content.Add(WindSlider("Swing freq.", 0.3f, 4f, "0.00 Hz", w => w.TouchFrequency, (ref WindSingleton w, float v) => w.TouchFrequency = v));
+            wind.Content.Add(WindSlider("Swing damping", 0.05f, 0.9f, "0.00", w => w.TouchDamping, (ref WindSingleton w, float v) => w.TouchDamping = v));
+            wind.Content.Add(WindSlider("Trail fades", 0.5f, 60f, "0.0 s", w => w.FlattenRecoveryTime, (ref WindSingleton w, float v) => w.FlattenRecoveryTime = v));
+            wind.Content.Add(WindSlider("Press fades", 0.2f, 20f, "0.0 s", w => w.PressRecoveryTime, (ref WindSingleton w, float v) => w.PressRecoveryTime = v));
+            wind.Content.Add(DebugUi.Heading("Trees"));
+            wind.Content.Add(WindSlider("Trunk freq.", 0.05f, 1.5f, "0.00 Hz", w => w.CanopyFrequency, (ref WindSingleton w, float v) => w.CanopyFrequency = v));
+            wind.Content.Add(WindSlider("Trunk damping", 0.05f, 1.5f, "0.00", w => w.CanopyDamping, (ref WindSingleton w, float v) => w.CanopyDamping = v));
             var windGrid = wind.Content.Add(DebugUi.KeyValueGrid(0.3f));
             DebugUi.AddRow(windGrid, "Live wind", () => Wind.TryGet(Engine.Instance?.world, out var live)
                 ? DebugUi.Inv($"{live.Velocity.Length:0.0} m/s towards {MathHelper.RadiansToDegrees(MathF.Atan2(live.Velocity.X, live.Velocity.Y)):0}°")

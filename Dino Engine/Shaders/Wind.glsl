@@ -7,6 +7,8 @@
 // - sampleWindMap(): the baked wind map, which is what shaders should normally read.
 // - windCrest(): the waves rolling down the wind.
 // - vegetationBend(): the swaying state of vegetation from Wind_Vegetation.frag.
+// - canopyState(): the same for trees, from Wind_Canopy.frag, on a slower spring.
+// - vegetationTouch(): what's walking through plants, from Wind_Vegetation.frag. Nothing up in a tree reads this.
 //
 // Like the wind of Ghost of Tsushima, it is a steady vector with slow noise on it. What moves with the wind must only ever
 // read phases WindSystem has accumulated (never time multiplied by a live speed), and what plants read has to stay broad and
@@ -26,6 +28,7 @@ layout(std140, binding = 6) uniform WindData {
     vec4 vegetationRegion;  // xy world xz of the vegetation map's corner, zw its size in metres
     vec4 vegetationParams;  // x max bend (radians), y reference speed (m/s), z flutter (radians), w flutter phase (cycles)
     vec4 windWave;          // x lean of a crest at this speed (radians), y strength of the waves (0..1), z wavering of their fronts (cycles), w unused
+    vec4 canopyRegion;      // xy world xz of the canopy map's corner, zw its size in metres
     vec4 windWaves[4];      // A train each: xy wave vector (cycles per metre), z phase (cycles), w height
     vec4 windEmitters[96];  // 3 per emitter: (position, radius), (direction, strength), (type, age, duration, unused)
 };
@@ -250,19 +253,65 @@ vec2 vegetationTargetBend(sampler2D windMap, vec2 xz)
     return vegetationRestBend(sampleWindMap(windMap, xz).xz) + windHeading.xy * (windWave.x * windCrest(xz));
 }
 
-// How far vegetation leans (radians) towards +x / +z at a point. Inside the vegetation simulation this is the
+// How far vegetation leans (radians) towards +x / +z at a point, and how fast that's changing. Inside the vegetation simulation this is the
 // simulated, springy state; outside it falls back to what the spring would be heading for.
-vec2 vegetationBend(sampler2D bendMap, sampler2D windMap, vec2 xz)
+vec4 vegetationState(sampler2D bendMap, sampler2D windMap, vec2 xz)
 {
     if (vegetationRegion.z > 0.0)
     {
         vec2 uv = (xz - vegetationRegion.xy) / vegetationRegion.zw;
         if (all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0))))
         {
-            return textureLod(bendMap, uv, 0.0).xy;
+            return textureLod(bendMap, uv, 0.0);
         }
     }
-    return vegetationTargetBend(windMap, xz);
+    return vec4(vegetationTargetBend(windMap, xz), 0.0, 0.0);
+}
+
+vec2 vegetationBend(sampler2D bendMap, sampler2D windMap, vec2 xz)
+{
+    return vegetationState(bendMap, windMap, xz).xy;
+}
+
+// The same for what has too much mass to answer a gust at once.
+vec4 canopyState(sampler2D canopyMap, sampler2D windMap, vec2 xz)
+{
+    if (canopyRegion.z > 0.0)
+    {
+        vec2 uv = (xz - canopyRegion.xy) / canopyRegion.zw;
+        if (all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0))))
+        {
+            return textureLod(canopyMap, uv, 0.0);
+        }
+    }
+    return vec4(vegetationTargetBend(windMap, xz), 0.0, 0.0);
+}
+
+// What's walking through plants at a point: (lean towards +x / +z in radians, pressed flat in radians, how fast it's moving in rad/s). Further out than
+// the simulation goes nobody's there to see it.
+vec4 vegetationTouch(sampler2D touchMap, vec2 xz)
+{
+    if (vegetationRegion.z <= 0.0) return vec4(0.0);
+    vec2 uv = (xz - vegetationRegion.xy) / vegetationRegion.zw;
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return vec4(0.0);
+    return textureLod(touchMap, uv, 0.0);
+}
+
+float vegetationCornerRandom(ivec2 cell)
+{
+    return float(windHash(uint(cell.x) + windHash(uint(cell.y))) & 0xffffu) / 65535.0;
+}
+
+// Smooth noise, 0..1, fixed to the world: how stiff the plants are here, in patches `patchSize` metres across.
+float vegetationStiffness(vec2 xz, float patchSize)
+{
+    vec2 p = xz / patchSize;
+    vec2 i = floor(p);
+    vec2 f = p - i;
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    ivec2 c = ivec2(i);
+    return mix(mix(vegetationCornerRandom(c), vegetationCornerRandom(c + ivec2(1, 0)), u.x),
+               mix(vegetationCornerRandom(c + ivec2(0, 1)), vegetationCornerRandom(c + ivec2(1, 1)), u.x), u.y);
 }
 
 #endif

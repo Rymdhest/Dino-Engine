@@ -73,6 +73,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private const int GrassBloomMapUnit = 3;
         private const int BendMapUnit = 8;
         private const int WindMapUnit = 9;
+        private const int TouchMapUnit = 10;
 
         // The two DrawArraysIndirect commands (count, instanceCount, first, baseInstance) as each generate pass starts.
         private static readonly uint[] EmptyCommands = { NearSegments * 2 + 1, 0, 0, 0, FarSegments * 2 + 1, 0, 0, 0 };
@@ -114,6 +115,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _generateShader.loadUniformInt("grassBloomMaps", GrassBloomMapUnit);
             _generateShader.loadUniformInt("bendMap", BendMapUnit);
             _generateShader.loadUniformInt("windMap", WindMapUnit);
+            _generateShader.loadUniformInt("touchMap", TouchMapUnit);
             _generateShader.loadUniformInt("weatherMapA", Simulation.WeatherRenderer.SurfaceMapUnit);
             _generateShader.loadUniformInt("nearCapacity", NearCapacity);
             _generateShader.loadUniformInt("farCapacity", FarCapacity);
@@ -263,6 +265,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.VegetationBendTexture);
             GL.ActiveTexture(TextureUnit.Texture0 + WindMapUnit);
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.WindMapTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + TouchMapUnit);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._windRenderer.VegetationTouchTexture);
             GL.ActiveTexture(TextureUnit.Texture0);
 
             ExtractFrustumPlanes(viewProjection);
