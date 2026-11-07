@@ -153,7 +153,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public GearStyle(in GearSpec spec)
         {
             Spec = spec;
-            Genes = new Genes(spec.Seed).Part(spec.Kind.ToString());
+            // A book being read is that book, so it has to come out of the same genes.
+            Genes = new Genes(spec.Seed).Part((spec.Kind == GearKind.OpenBook ? GearKind.Book : spec.Kind).ToString());
             Genes style = Genes.Part("style");
 
             Heft = Clamp01(style.Around("heft", 0.5f + (0.5f - spec.Form.Slender) * 0.7f, 0.17f));

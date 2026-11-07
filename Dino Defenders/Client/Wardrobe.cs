@@ -41,6 +41,16 @@ namespace Dino_Defenders.Client
             });
         }
 
+        // A book as someone's reading it, which is the same seed made the other way.
+        private glModel? LyingOpen(ulong seed, uint traits)
+        {
+            return _workshop.Get(new GearKey(seed, traits | 1ul << 62), () =>
+            {
+                GearSpec spec = ItemLook.SpecOf(seed, traits) with { Kind = GearKind.OpenBook };
+                return GearDisplay.Lying(GearForge.Make(spec), spec.Kind).Build(bones: false);
+            });
+        }
+
         /// <summary>A hero in what they have on, or nothing yet.</summary>
         public glModel? Dressed(int dye, IReadOnlyList<WornLook> worn)
         {
@@ -60,12 +70,15 @@ namespace Dino_Defenders.Client
         }
 
         /// <summary>The picture of something, or nothing until it's been taken.</summary>
-        public StudioPicture? Picture(Item item, Colour halo)
+        /// <param name="open">Whether it's a book that's being read, which shows shut until there's a picture of it open.</param>
+        public StudioPicture? Picture(Item item, Colour halo, bool open = false)
         {
             ulong seed = item.LookSeed();
             uint traits = ItemLook.Traits(item);
             GearKind kind = ItemLook.SpecOf(seed, traits).Kind;
-            return Engine.RenderEngine.Studio.Picture(seed ^ (ulong)traits * 0x9E3779B97F4A7C15UL, () => Lying(seed, traits), GearDisplay.PictureOf(kind), halo);
+            ulong key = seed ^ (ulong)traits * 0x9E3779B97F4A7C15UL;
+            if (open && Engine.RenderEngine.Studio.Picture(~key, () => LyingOpen(seed, traits), GearDisplay.PictureOf(GearKind.OpenBook), halo) is StudioPicture reading) return reading;
+            return Engine.RenderEngine.Studio.Picture(key, () => Lying(seed, traits), GearDisplay.PictureOf(kind), halo);
         }
     }
 }

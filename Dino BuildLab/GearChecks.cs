@@ -273,7 +273,7 @@ namespace Dino_BuildLab
                 if (same) kept++;
             }
             report.Check("What a look needs survives being packed into one number", kept == rolled, $"{kept} of {rolled}");
-            report.Check("And everything that can drop has a kind of look, which a book doesn't, for now", kinds.Count == Enum.GetValues<Dino_Engine.Modelling.Procedural.Gear.GearKind>().Length - 1, $"{kinds.Count}");
+            report.Check("And everything that can drop has a kind of look, which a book doesn't, shut or open, for now", kinds.Count == Enum.GetValues<Dino_Engine.Modelling.Procedural.Gear.GearKind>().Length - 2, $"{kinds.Count}");
 
             Item burning = new Item { Name = "Test", Slot = ItemSlot.MainHand, Lines = { new ItemLine("added-fire", 10f) } };
             Item frozen = new Item { Name = "Test", Slot = ItemSlot.MainHand, Lines = { new ItemLine("cold-damage", 20f) } };

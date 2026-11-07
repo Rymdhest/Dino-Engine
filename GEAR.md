@@ -202,6 +202,8 @@ Choices made without asking, as none of them block anything. Say if any are wron
 
 A book is gear like anything else: one mesh from `BookGenerator`, by `GearKind.Book`, in the pack, on the bar and on the ground. `Item.LookSeed` says how it looks, and nothing written in it does.
 
+The one that's being read shows open, wherever it shows (`BookPanel.IsOpen`, `Ui.DrawItem`). That's the only other mesh anything has: `GearKind.OpenBook` draws from the genes of `Book`, by the same names, so it's the same book laid open and `check` fails if it isn't. No item is ever that kind, so nothing but `Wardrobe.Picture` asks for it, and until there's a picture of it the shut one shows.
+
 A hero with nothing that shoots throws what's in their hand, and that's the same mesh again: `ThrownComponent` carries the weapon's seed and traits, and `GhostPresenter.Tumble` keeps asking for it, as anything using a model from `GearWorkshop` has to. Something with no item to show, such as an enemy whose sword is only a word, is thrown as `Thrown.Of` says, from one model for each kind of weapon (`CharacterFactory.ThrownThing`).
 
 ## Adding to it

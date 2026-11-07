@@ -29,6 +29,7 @@ namespace Dino_GearLab
                 if (options.Has("kind") && !string.Equals(options.Text("kind", ""), kind.ToString(), StringComparison.OrdinalIgnoreCase)) continue;
                 failures += CheckKind(kind, count);
             }
+            failures += CheckOpening(count);
 
             Console.WriteLine(failures == 0 ? "All passed" : $"{failures} failed");
             return failures == 0 ? 0 : 1;
@@ -90,6 +91,31 @@ namespace Dino_GearLab
 
             Console.WriteLine($"  {(failed == 0 ? "ok  " : "FAIL")}  {kind,-10} {count} made, {triangles / count} triangles on average, {largest} at most, biggest {biggest:0.0} m{(first != null ? $". {failed} faults, first: {first}" : "")}");
             return failed == 0 ? 0 : 1;
+        }
+
+        // A book being read has to be that book and not a stranger's, which comes down to its boards being the same size. Each of an open book's is as wide as a shut one, give or take what's on the spine and the clasp.
+        private static int CheckOpening(int count)
+        {
+            const float Allowed = 0.35f;
+            int strangers = 0;
+            for (int i = 0; i < count; i++)
+            {
+                GearSpec shut = Sample(GearKind.Book, (ulong)i * 2654435761UL + 1, i);
+                if (MathF.Abs(Across(GearForge.Make(shut with { Kind = GearKind.OpenBook })) - Across(GearForge.Make(shut)) * 2f) > Allowed) strangers++;
+            }
+            Console.WriteLine($"  {(strangers == 0 ? "ok  " : "FAIL")}  Opened     {count} opened, {strangers} came out a different book");
+            return strangers == 0 ? 0 : 1;
+        }
+
+        private static float Across(GearMesh mesh)
+        {
+            float least = float.MaxValue, most = float.MinValue;
+            foreach (Vertex vertex in mesh.Vertices)
+            {
+                least = MathF.Min(least, vertex.position.X);
+                most = MathF.Max(most, vertex.position.X);
+            }
+            return most - least;
         }
 
         private static bool Same(GearMesh a, GearMesh b)

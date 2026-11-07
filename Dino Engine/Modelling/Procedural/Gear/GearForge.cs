@@ -61,6 +61,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 case GearKind.Book:
                     BookGenerator.Build(mesh, style);
                     break;
+                case GearKind.OpenBook:
+                    BookGenerator.Open(mesh, style);
+                    break;
             }
             return mesh;
         }

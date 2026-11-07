@@ -106,4 +106,6 @@ dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" books        # Every sen
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build        # Everything the tree and items do to one
 ```
 
-In the real game `--books a,b` puts books from `Shelf` on the bar, by id, `--panel book` opens the first one, and K does the same for a person. A right click on a book in the pack opens it, and Ctrl and a click puts it on the bar. Nothing about writing one can be proved by a bot: post real mouse messages.
+In the real game `--books a,b` puts books from `Shelf` on the bar, by id, `--panel book` opens the first one, and K does the same for a person. A right click on a book in the pack or on the bar opens it, and another on the same one shuts it. The bar takes that right click with nothing else open, but only a press that starts on a book (`BarCell`), as otherwise the mouse is what's aimed with, so a held attack dragged across the bar has to stay an attack and a left click on it has to attack. Ctrl and a click puts a book on the bar.
+
+An open book is two pages with a rule to them: the left is the page turned to and everything about it, and the right is the whole book. Each part of a page that was chosen is one box however many lines it runs to (`PageView.Flow`), lit as a whole, so a part of it is never lit alone. What could go in a box comes on a slip over the left page, beside the box (`ChoiceSlip`), and not on the right, which always says what the book comes to. Nothing about writing one can be proved by a bot: post real mouse messages.

@@ -24,6 +24,10 @@ namespace Dino_GearLab
             foreach (GearKind kind in Enum.GetValues<GearKind>())
             {
                 if (options.Has("kind") && !string.Equals(options.Text("kind", ""), kind.ToString(), StringComparison.OrdinalIgnoreCase)) continue;
+
+                // There's only ever one of these on screen, beside the shut book it is, so what could make it a twin of another is what makes that book one: see CheckOpening.
+                if (kind == GearKind.OpenBook) continue;
+
                 failures += Measure(kind, count, options);
             }
 

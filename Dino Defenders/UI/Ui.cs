@@ -191,7 +191,7 @@ namespace Dino_Defenders.UI
         /// <summary>The picture of something, or a drawing of what kind of thing it is until there is one.</summary>
         public static void DrawItem(GuiDrawList draw, Item item, GuiRect rect, Colour colour, Colour tint)
         {
-            if (GameUi.Current.Wardrobe.Picture(item, Halo(item)) is StudioPicture picture) draw.AddImage(picture.Texture, rect, picture.From, picture.To, tint);
+            if (GameUi.Current.Wardrobe.Picture(item, Halo(item), GameUi.Current.Book.IsOpen(item)) is StudioPicture picture) draw.AddImage(picture.Texture, rect, picture.From, picture.To, tint);
             else DrawSlotIcon(draw, item.Slot, rect, colour);
         }
 

@@ -659,10 +659,13 @@ namespace Dino_Defenders.UI
             if (panel == Chronicle) Chronicle.Open(null);
         }
 
-        /// <summary>Opens a book, in place of whatever else is open.</summary>
+        /// <summary>Opens a book, in place of whatever else is open, or shuts it if it's the one that's open.</summary>
         public void Read(ItemPlace place)
         {
+            bool reading = Book.Visible && Book.IsOpen(Book.At(place));
             CloseAll();
+            if (reading) return;
+
             Audio.Play(Interface.Open);
             Book.Visible = true;
             Book.Show(place);
