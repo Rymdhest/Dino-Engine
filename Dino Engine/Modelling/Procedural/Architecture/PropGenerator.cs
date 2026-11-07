@@ -90,6 +90,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
             stemSettings.radiusBase = poleRadius;
             stemSettings.radiusTop = poleRadius;
+            stemSettings.detailPerRing = 6;
+            stemSettings.detailsHeight = 1;
             stemSettings.height = fenceHeight;
             stemSettings.sinkAmount = 0f;
             stemSettings.stemBendRadiusStart = 0.008f;

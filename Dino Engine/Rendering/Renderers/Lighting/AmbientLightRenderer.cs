@@ -12,8 +12,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
     }
 
     /// <summary>
-    /// The first of the light passes: the sky and the ground around every surface, and the light surfaces give off
-    /// themselves (Ambient_Light.frag). It stands apart from the lights, so that each of them is only what it looks like.
+    /// The first of the light passes: the sky and the ground around every surface, the light surfaces give off themselves,
+    /// and the sun (Ambient_Light.frag). Whatever else lights the scene is added on top of this.
     /// </summary>
     public class AmbientLightRenderer : CommandDrivenRenderer<AmbientLightRenderCommand>
     {
@@ -21,12 +21,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private readonly ShaderProgram _shader = new ShaderProgram("Simple.vert", "Ambient_Light.frag");
         private readonly ShaderProgram _sampleShader = new ShaderProgram("Simple.vert", "Ambient_Light.frag", new[] { "PER_SAMPLE" });
 
-        private const int SkyMapUnit = 4;
+        private const int SkyMapUnit = 10;
 
         /// <summary>What the ground throws back up, this frame. It's what a reflection pointing down sees.</summary>
         public Vector3 GroundLight { get; private set; }
 
-        public AmbientLightRenderer() : base("Ambient Light")
+        public AmbientLightRenderer() : base("Ambient and Sun")
         {
             foreach (ShaderProgram shader in new[] { _shader, _sampleShader })
             {
@@ -37,16 +37,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("gDepth", 3);
                 shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
                 shader.loadUniformInt("skyMap", SkyMapUnit);
+                DirectionalLightRenderer.LinkShadows(shader);
                 shader.unBind();
             }
         }
 
         internal override void Prepare(RenderEngine renderEngine)
         {
-            GL.Enable(EnableCap.Blend);
-            GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
-            GL.BlendEquation(BlendEquationMode.FuncAdd);
-
             renderEngine.Msaa.BindGeometrySamples(renderEngine.AmbientOcclusionTexture);
             GL.ActiveTexture(TextureUnit.Texture0 + SkyMapUnit);
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._weatherRenderer.SkyMapTexture);
@@ -68,13 +65,27 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         {
             LightingSettings lighting = renderEngine.Lighting;
             GroundLight = command.ground;
+
+            DirectionalLightRenderer directional = renderEngine._directionalLightRenderer;
+            bool sunUp = directional.TakeSun(out DirectionallightRenderCommand sun);
+            if (sunUp) directional.BindShadows(sun, renderEngine);
+
+            // The first thing to touch the scene, so that there's nothing to add to: it only has to be written.
             renderEngine.Msaa.DrawSplit(_shader, _sampleShader, shader =>
             {
                 shader.loadUniformVector3f("skyLight", command.sky);
                 shader.loadUniformVector3f("groundLight", command.ground);
                 shader.loadUniformFloat("emissionScale", lighting.Emission ? lighting.EmissionScale : 0f);
-                renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
+                shader.loadUniformVector3f("sunColour", sunUp ? sun.colour : Vector3.Zero);
+                if (sunUp)
+                {
+                    shader.loadUniformVector3f("sunDirectionViewSpace", DirectionalLightRenderer.ViewSpaceDirection(sun, renderEngine).Normalized());
+                    DirectionalLightRenderer.LoadShadows(shader, sun, renderEngine);
+                }
+                renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: false);
             });
+
+            if (sunUp) directional.ReleaseShadows(sun);
         }
 
         public override void CleanUp()

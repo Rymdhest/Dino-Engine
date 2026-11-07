@@ -65,12 +65,13 @@ float calcShadow(vec3 fragPosViewSpace, vec3 normalViewSpace) {
 }
 
 void main(void) {
-    GBufferSample g = readGBufferSample();
+    GBufferSample g = locateGBufferSample();
     vec3 toLight = lightPositionViewSpace - g.position;
     float distanceToLight = length(toLight);
     float falloff = lightFalloff(distanceToLight, lightRadius);
     if (falloff <= 0.0) discard;
 
+    finishGBufferSample(g);
     Surface s = surfaceOf(g);
     vec3 radiance = lightColor * falloff;
     float visibility = isShadow ? mix(1.0, calcShadow(g.position, s.normal), shadowStrength) : 1.0;

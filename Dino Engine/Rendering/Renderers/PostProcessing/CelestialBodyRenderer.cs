@@ -60,8 +60,28 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.DepthFunc(DepthFunction.Lequal);
         }
 
+        /// <summary>Whether this frame's pass draws anything at all.</summary>
+        public bool Shows(RenderEngine renderEngine)
+        {
+            foreach (CelestialBodyRenderCommand command in commands)
+            {
+                if (Faces(command, renderEngine)) return true;
+            }
+            return false;
+        }
+
+        // SunFilter.frag gives nothing when the camera faces away from a body, and neither does anything made from that. This camera mostly looks at the ground.
+        private static bool Faces(CelestialBodyRenderCommand command, RenderEngine renderEngine)
+        {
+            Matrix4 view = renderEngine.context.viewMatrix;
+            Vector3 cameraForward = new Vector3(view.M14 - view.M13, view.M24 - view.M23, view.M34 - view.M33);
+            return Vector3.Dot(cameraForward, -command.direction) >= 0f;
+        }
+
         public override void PerformCommand(CelestialBodyRenderCommand command, RenderEngine renderEngine)
         {
+            if (!Faces(command, renderEngine)) return;
+
             ScreenQuadRenderer renderer = renderEngine.ScreenQuadRenderer;
             DualBuffer buffer = renderEngine.lastUsedBuffer;
             _sunFilterShader.bind();

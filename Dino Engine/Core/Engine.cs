@@ -92,8 +92,7 @@ namespace Dino_Engine.Core
             {
                 OnResize(eventArgs);
             };
-            GL.Enable(EnableCap.DebugOutput);
-            //GL.DebugMessageCallback(debugProcCallback, IntPtr.Zero); // Assign the delegate
+            // To see the driver's messages: GL.Enable(EnableCap.DebugOutput) and GL.DebugMessageCallback(debugProcCallback, IntPtr.Zero). Left on with nothing listening, it only costs.
 
 
 
@@ -120,7 +119,8 @@ namespace Dino_Engine.Core
             nws.WindowBorder = WindowBorder.Resizable;
             nws.StartVisible = !settings._hidden;
             nws.StartFocused = !settings._hidden;
-            gws.UpdateFrequency = 60;
+            // The rules keep their own tick whatever the frame rate, and this paces drawing too: it's the frame rate limit, nothing more.
+            gws.UpdateFrequency = settings._frameRateLimit;
             return new WindowHandler(gws, nws);
         }
 
@@ -156,7 +156,9 @@ namespace Dino_Engine.Core
             }
             */
             _renderEngine.Update();
+            _performanceMonitor.startCPUTask("Game");
             game.update();
+            _performanceMonitor.finishCPUTask("Game");
 
             if (WorldReady) world.Update(Engine.Delta);
 

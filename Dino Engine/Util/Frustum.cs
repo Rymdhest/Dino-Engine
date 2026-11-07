@@ -39,10 +39,10 @@ namespace Dino_Engine.Util
                 projectionMatrix.M34 - projectionMatrix.M32,
                 projectionMatrix.M44 - projectionMatrix.M42);
             Planes[4] = new Plane(  // Near
-                projectionMatrix.M13,
-                projectionMatrix.M23,
-                projectionMatrix.M33,
-                projectionMatrix.M43);
+                projectionMatrix.M14 + projectionMatrix.M13,
+                projectionMatrix.M24 + projectionMatrix.M23,
+                projectionMatrix.M34 + projectionMatrix.M33,
+                projectionMatrix.M44 + projectionMatrix.M43);
             Planes[5] = new Plane(  // Far
                 projectionMatrix.M14 - projectionMatrix.M13,
                 projectionMatrix.M24 - projectionMatrix.M23,
@@ -54,6 +54,28 @@ namespace Dino_Engine.Util
                 Planes[i] = Plane.Normalize(Planes[i]);
             }
         }
+
+        /// <summary>Whether any of a sphere is inside. An infinite radius always is.</summary>
+        public bool IntersectsSphere(Vector3 centre, float radius)
+        {
+            foreach (Plane plane in Planes)
+            {
+                if (Vector3.Dot(plane.Normal, centre) + plane.D < -radius) return false;
+            }
+            return true;
+        }
+
+        /// <summary>Whether any of the path of a sphere moved along <paramref name="sweep"/> is inside: where something can throw a shadow, for one.</summary>
+        public bool IntersectsSweptSphere(Vector3 centre, float radius, Vector3 sweep)
+        {
+            foreach (Plane plane in Planes)
+            {
+                float distance = Vector3.Dot(plane.Normal, centre) + plane.D;
+                if (distance + MathF.Max(Vector3.Dot(plane.Normal, sweep), 0f) < -radius) return false;
+            }
+            return true;
+        }
+
         public IntersectionResult IntersectsAABB(AABB box)
         {
 

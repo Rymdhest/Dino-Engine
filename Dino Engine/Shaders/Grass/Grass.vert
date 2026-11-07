@@ -1,7 +1,8 @@
 #version 430
 
 // Draws the blades Grass_Generate.comp left in the bound list: one instance per blade, a triangle strip of `segments`
-// rows plus the tip, built from gl_VertexID alone (no vertex buffers).
+// rows plus the tip, built from gl_VertexID alone (no vertex buffers). Every blade is drawn twice, by Grass_Depth.frag and
+// then Grass.frag, and the second time has to land on exactly the same depth: hence invariant.
 
 #include Globals.glsl
 #include Grass/GrassField.glsl
@@ -13,6 +14,8 @@ layout(std430, binding = 1) readonly buffer GrassBlades {
 
 uniform int segments;
 uniform float minPixelWidth;    // blades are drawn at least this many pixels wide, at partial coverage (0 for off)
+
+invariant gl_Position;
 
 out vec3 fragNormal;
 out vec3 fragAcross;

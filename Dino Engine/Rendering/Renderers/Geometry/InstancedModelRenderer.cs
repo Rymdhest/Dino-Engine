@@ -1,6 +1,7 @@
 ﻿using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Common;
+using Dino_Engine.Core;
 using Dino_Engine.Modelling.Model;
 using System.Runtime.InteropServices;
 using Dino_Engine.Rendering.Renderers.Lighting;
@@ -186,6 +187,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 
+            Engine.PerformanceMonitor.Count("Model draws", 1);
+            Engine.PerformanceMonitor.Count("Model instances", instanceCount);
+            Engine.PerformanceMonitor.Count("Model triangles", (long)instanceCount * glmodel.getVertexCount() / 3);
             GL.DrawElementsInstanced(
                 PrimitiveType.Triangles,
                 glmodel.getVertexCount(),
@@ -240,6 +244,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 
+            Engine.PerformanceMonitor.Count("Model shadow draws", 1);
+            Engine.PerformanceMonitor.Count("Model shadow instances", instanceCount);
+            Engine.PerformanceMonitor.Count("Model shadow triangles", (long)instanceCount * glmodel.getVertexCount() / 3);
             GL.DrawElementsInstanced(
                 PrimitiveType.Triangles,
                 glmodel.getVertexCount(),

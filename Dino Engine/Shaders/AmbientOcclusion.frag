@@ -11,7 +11,7 @@ uniform sampler2D gNormal;
 uniform sampler2D texNoise;
 
 uniform vec3 samples[16];
-int kernelSize = 16;
+const int kernelSize = 16;
 
 uniform float radius;
 uniform float strength;
@@ -46,14 +46,11 @@ void main()
         vec3 samplePos = TBN * samples[i]; // From tangent to view-space
         samplePos = fragPos + samplePos * radius; 
         
-        // project sample position (to sample texture) (to get position on screen/texture)
-        vec4 offset = vec4(samplePos, 1.0);
-        offset = projectionMatrix*offset; // from view to clip-space
-        offset.xyz /= offset.w; // perspective divide
-        offset.xyz = offset.xyz * 0.5 + 0.5; // transform to range 0.0 - 1.0
-        
+        // project sample position (to sample texture) (to get position on screen/texture): a perspective projection only scales x and y, and divides by -z
+        vec2 offset = vec2(projectionMatrix[0][0], projectionMatrix[1][1]) * samplePos.xy / -samplePos.z * 0.5 + 0.5;
+
         // get sample depth
-        float sampleDepth =ReconstructViewSpacePosition(offset.xy * resolutionSSAO, texture(gDepth, offset.xy).r, invProjectionMatrix, resolutionSSAO).z;
+        float sampleDepth = ReconstructViewSpaceZ(texture(gDepth, offset).r, invProjectionMatrix);
         
         // range check & accumulate
         float rangeCheck = smoothstep(0.0, 1.0, radius / abs(fragPos.z - sampleDepth ));

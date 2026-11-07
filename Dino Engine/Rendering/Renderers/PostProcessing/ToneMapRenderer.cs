@@ -9,6 +9,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
     {
         private ShaderProgram HDRMapShader = new ShaderProgram("Simple.vert", "HDR_Mapper.frag");
 
+        /// <summary>Draws onto the screen itself, for when this is the last thing that happens to the picture.</summary>
+        public bool ToScreen { get; set; }
+
         public ToneMapRenderer() : base("Tonemapping")
         {
             HDRMapShader.bind();
@@ -33,7 +36,15 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             // A whole step of the 8 bits it ends up in: anything less leaves bands in the slow fades of a dark scene.
             HDRMapShader.loadUniformFloat("dithering", 1f);
 
-            buffer.RenderTextureToNextFrameBuffer(buffer.GetLastOutputTexture());
+            if (ToScreen)
+            {
+                Engine.WindowHandler.refreshViewport();
+                buffer.RenderTextureToScreen(buffer.GetLastOutputTexture());
+            }
+            else
+            {
+                buffer.RenderTextureToNextFrameBuffer(buffer.GetLastOutputTexture());
+            }
 
             HDRMapShader.unBind();
         }

@@ -5,6 +5,7 @@
 // the spread of the current neighbourhood (variance clipping) so moving fog and disocclusions don't ghost.
 
 #include Globals.glsl
+#include VolumetricFog_Tiles.glsl
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Fog;
@@ -15,6 +16,7 @@ uniform sampler2D historyFog;
 
 uniform mat4 previousViewProjection;
 uniform float historyWeight;
+uniform int restingTiles;
 
 vec4 clipToBox(vec4 boxCenter, vec4 boxExtents, vec4 value)
 {
@@ -29,18 +31,24 @@ void main(void)
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     ivec2 maxPixel = textureSize(currentFog, 0) - 1;
     vec4 current = texelFetch(currentFog, pixel, 0);
+    bool resting = fogTileRests(pixel, restingTiles);
 
+    // Only what was marched this frame says anything about the neighbourhood.
     vec4 mean = vec4(0.0);
     vec4 meanSquared = vec4(0.0);
+    float neighbours = 0.0;
     for (int y = -1; y <= 1; y++)
     for (int x = -1; x <= 1; x++)
     {
-        vec4 neighbour = texelFetch(currentFog, clamp(pixel + ivec2(x, y), ivec2(0), maxPixel), 0);
+        ivec2 place = clamp(pixel + ivec2(x, y), ivec2(0), maxPixel);
+        if (fogTileRests(place, restingTiles)) continue;
+        vec4 neighbour = texelFetch(currentFog, place, 0);
         mean += neighbour;
         meanSquared += neighbour * neighbour;
+        neighbours += 1.0;
     }
-    mean /= 9.0;
-    vec4 deviation = sqrt(max(meanSquared / 9.0 - mean * mean, vec4(0.0)));
+    mean /= max(neighbours, 1.0);
+    vec4 deviation = sqrt(max(meanSquared / max(neighbours, 1.0) - mean * mean, vec4(0.0)));
 
     // Reproject the surface point this pixel's fog lies in front of.
     vec2 ndc = textureCoords * 2.0 - 1.0;
@@ -54,6 +62,14 @@ void main(void)
     if (previousClip.w <= 0.0 || any(lessThan(previousUV, vec2(0.0))) || any(greaterThan(previousUV, vec2(1.0))))
     {
         weight = 0.0;
+    }
+
+    // A tile with this frame off has only what it had. It only rests while there is a history, so this can't read one that was never written.
+    if (resting)
+    {
+        vec4 kept = textureLod(historyFog, clamp(previousUV, vec2(0.0), vec2(1.0)), 0.0);
+        out_Fog = neighbours > 0.0 ? clipToBox(mean, deviation * 1.25 + vec4(0.002), kept) : kept;
+        return;
     }
 
     // Branch rather than mix with weight 0: a never-written history may hold NaNs.

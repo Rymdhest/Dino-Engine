@@ -1,7 +1,8 @@
 #version 430
 
-// Grass blades into the multisampled G-buffer. No discard and no textures; the sample mask decides which samples a blade
-// widened to the least width covers (Grass.vert).
+// Grass blades into the multisampled G-buffer. No discard and no textures. Which samples each blade owns has already been
+// settled by Grass_Depth.frag, so this runs with the depth test first, for the blades that can be seen and nothing else: a
+// field is blades on blades, and shading them all and keeping the nearest costs several times as much.
 //
 // A field is painted in masses, not blades. Each blade runs from a deep shaded root through its own colour to a lit tip,
 // but what it shows also depends on how deep in the field it stands (fragCanopy), and its normal leans towards the top of
@@ -10,14 +11,14 @@
 #include gBufferUtil.glsl
 #include Grass/GrassField.glsl
 #include Grass/GrassBlade.glsl
-#include AntiAliasing/Msaa.glsl
+
+layout(early_fragment_tests) in;
 
 in vec3 fragNormal;
 in vec3 fragAcross;
 in float fragAcrossCoord;
 in float fragT;
 in float fragViewDepth;
-in float fragCoverage;
 in float fragCanopy;
 flat in vec3 fragFieldNormal;
 flat in vec3 fragColour;
@@ -69,7 +70,6 @@ void main()
     float roughness = grassDryColour.w * mix(1.0, 0.6, streak * (1.0 - far));
     float translucency = grassTipColour.w * mix(0.4, 1.0, along);
     float thickness = mix(0.35, 0.05, along);
-    float coverage = fragCoverage;
 
     if (fragKind == GRASS_PLUME)
     {
@@ -83,18 +83,13 @@ void main()
         thickness = mix(thickness, 0.03, head);
         roughness = mix(roughness, 0.8, head);
         ao = mix(ao, 1.0, head);
-        coverage *= mix(1.0, 1.0 - 0.75 * smoothstep(0.25, 1.0, abs(u)) * (0.65 + 0.35 * sin(t * 90.0)), head);
     }
     else if (flower)
     {
-        // Petals around a darker, warmer eye, deepening towards their tips. The disc is cut to their shape by the sample
-        // mask, which needs no discard.
-        vec2 disc = vec2(u, (t - 1.5) * 2.0);
-        float radius = length(disc);
-        float petals = 0.74 + 0.26 * abs(cos(atan(disc.y, disc.x) * 2.5 + float(fragCoverageSeed & 7u)));
+        // Petals around a darker, warmer eye, deepening towards their tips.
+        float radius = length(vec2(u, (t - 1.5) * 2.0));
         vec3 eye = mix(vec3(0.5, 0.26, 0.02), fragHeadColour * 0.4, 0.3);
         colour = mix(eye, fragHeadColour * mix(1.0, 0.75, radius * radius), smoothstep(0.18, 0.36, radius));
-        coverage *= radius < petals ? 1.0 : 0.0;
         translucency = 0.35;
         thickness = 0.1;
         roughness = 0.6;
@@ -108,18 +103,6 @@ void main()
     float kernel = min(0.5 * (dot(normalDx, normalDx) + dot(normalDy, normalDy)), 0.18);
     float alpha = roughness * roughness;    // GGX alpha as lightingCalc.glsl squares it
     roughness = sqrt(sqrt(min(alpha * alpha + kernel, 1.0)));
-
-    // Of the samples a blade's triangles touch, it covers the share fragCoverage says (all of them, unless it was
-    // widened to the least width). The count is rounded up or down by the blade's own threshold, so the field comes out
-    // as dense as it should on average while each blade looks the same from frame to frame, and the samples it takes
-    // are a rotation of the set that differs from blade to blade, so overlapping thin blades don't hide one another.
-    int sampleCount = msaaSampleCount();
-    // Never quite 0: full coverage interpolates to a hair under 1 and must still round to every sample.
-    float threshold = (float(fragCoverageSeed & 0xffffu) + 0.5) * (1.0 / 65536.0);
-    int covered = clamp(int(coverage * float(sampleCount) + threshold), 0, sampleCount);
-    int rotation = int((fragCoverageSeed >> 16u) % uint(sampleCount));
-    int coveredMask = (1 << covered) - 1;
-    gl_SampleMask[0] = msaaCoverage((coveredMask << rotation) | (coveredMask >> (sampleCount - rotation)));
 
     gAlbedo = vec4(colour, translucency);
     gNormal = vec4(compressNormal(normal), ao);

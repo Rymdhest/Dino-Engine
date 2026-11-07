@@ -12,10 +12,14 @@ namespace Dino_Engine.ECS.Components
         public int normalHeightTextureArrayID;
         public FloatGrid heightGrid;
         public Vector3Grid normalGrid;
+        /// <summary>The lowest the ground in this chunk goes.</summary>
+        public float LowestHeight;
         public TerrainChunkComponent(FloatGrid heightGrid, Vector3Grid normalGrid, TerrainChunkSurface surface, Vector2 chunkPos, Vector2 chunkSize)
         {
             this.heightGrid = heightGrid;
             this.normalGrid = normalGrid;
+            LowestHeight = float.MaxValue;
+            foreach (float height in heightGrid.Values) LowestHeight = MathF.Min(LowestHeight, height);
 
             ECSWorld world = Engine.Instance.world;
             Entity gridEntity = world.GetSingleton<RenderSpatialGridSingleton>();

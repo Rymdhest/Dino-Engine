@@ -18,8 +18,12 @@ namespace Dino_Engine.ECS.Systems
         // How far along the view the centre of a cascade lies, in cascade widths.
         private const float LookAhead = 0.25f;
 
+        // A shadow can land a little outside the view and still be read, by the edge of the shadow filter.
+        private const float ShadowEdgeMargin = 1f;
+
         // Persistent structures to avoid per-frame allocations
-        private readonly Dictionary<glModel, List<Matrix4>> _models = new();
+        private readonly List<(glModel model, Matrix4 matrix, Vector3 centre, float radius)> _casters = new();
+        private readonly Dictionary<Shadow, Dictionary<glModel, List<Matrix4>>> _batches = new(ShadowViews.Instance);
         private readonly Dictionary<glModel, List<CharacterInstanceData>> _characters = new(); // Added for characters
         private readonly List<ImposterInstanceData> _imposters = new();
 
@@ -54,11 +58,7 @@ namespace Dino_Engine.ECS.Systems
             entity.Set(shadowCascade);
 
             // 2. Clear state
-            foreach (var (model, list) in _models)
-            {
-                if (list.Count == 0) _models.Remove(model);
-                else list.Clear();
-            }
+            _casters.Clear();
             foreach (var (model, list) in _characters)
             {
                 if (list.Count == 0) _characters.Remove(model);
@@ -117,12 +117,8 @@ namespace Dino_Engine.ECS.Systems
                     }
                     else
                     {
-                        if (!_models.TryGetValue(model, out var list))
-                        {
-                            list = new List<Matrix4>();
-                            _models[model] = list;
-                        }
-                        list.Add(mat);
+                        model.WorldBounds(mat, out Vector3 centre, out float radius);
+                        _casters.Add((model, mat, centre, radius));
                     }
                 }
             }
@@ -161,16 +157,7 @@ namespace Dino_Engine.ECS.Systems
                 }
             }
 
-                // 4. Pre-build Commands ONCE per frame
-                var prebuiltModelCommands = new List<ModelRenderCommand>(_models.Count);
-            foreach (var kvp in _models)
-            {
-                if (kvp.Value.Count > 0)
-                {
-                    prebuiltModelCommands.Add(new ModelRenderCommand(kvp.Key, kvp.Value));
-                }
-            }
-
+            // 4. Pre-build Commands ONCE per frame
             var prebuiltCharacterCommands = new List<CharacterRenderCommand>(_characters.Count);
             foreach (var kvp in _characters)
             {
@@ -186,13 +173,19 @@ namespace Dino_Engine.ECS.Systems
                 imposterCommand = new ImposterRenderCommand { instances = _imposters.ToArray() };
             }
 
+            // A shadow is only worth drawing if it lands on something the camera sees: the sun's maps are read for nothing else. It goes no
+            // further than the lowest ground around, and the lit passes only ever ask about what's in view.
+            var quadtreeComp = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
+            var view = new Util.Frustum(world.GetComponent<ViewMatrixComponent>(world.Camera).value * world.GetComponent<PerspectiveProjectionComponent>(world.Camera).ProjectionMatrix);
+            float lowestGround = LowestGround(world, quadtreeComp);
+
             // 5. Submit Models, Characters & Imposters to each Cascade
             for (int j = 0; j < shadowCascade.cascades.Length; j++)
             {
                 Shadow cascade = shadowCascade.cascades[j];
 
                 // Standard Models
-                foreach (var cmd in prebuiltModelCommands)
+                foreach (var cmd in CastersInto(cascade, view, direction, lowestGround))
                 {
                     if (cmd.matrices.Count > minCountForInstanced)
                         Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, cascade);
@@ -214,20 +207,18 @@ namespace Dino_Engine.ECS.Systems
             }
 
             // 6. Terrain & Grass
-            var quadtreeComp = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
-
             // The rain falls on the same things the sun does, and now and then needs to know what they are. Characters come and go too quickly to matter.
             var focusPoint = Engine.RenderEngine.context.focusPoint;
             Vector3 rainFocus = focusPoint.W > 0f ? focusPoint.Xyz : cameraPos;
             if (Engine.RenderEngine._weatherRenderer.WantsRainShadow(rainFocus, deltaTime, out Shadow rainShadow))
             {
-                foreach (var cmd in prebuiltModelCommands) Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, rainShadow);
+                foreach (var cmd in CastersInto(rainShadow, null, direction, lowestGround)) Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, rainShadow);
                 if (imposterCommand.HasValue) Engine.RenderEngine._imposterRenderer.SubmitShadowCommand(imposterCommand.Value, rainShadow);
 
                 // And while anything is wet, the same things from straight above, for what drips off them.
                 if (Engine.RenderEngine._weatherRenderer.WantsDripDepth(rainFocus, out Shadow dripDepth))
                 {
-                    foreach (var cmd in prebuiltModelCommands) Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, dripDepth);
+                    foreach (var cmd in CastersInto(dripDepth, null, direction, lowestGround)) Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(cmd, dripDepth);
                     if (imposterCommand.HasValue) Engine.RenderEngine._imposterRenderer.SubmitShadowCommand(imposterCommand.Value, dripDepth);
                 }
 
@@ -275,6 +266,50 @@ namespace Dino_Engine.ECS.Systems
                 Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(_grassCommands.ToArray()), shadow);
                 Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(_terrainCommands.ToArray(), 0.0f), shadow);
             }
+        }
+
+        // What falls within a shadow map, and with a view given, whose shadow can reach what's in it. Commands are drawn later in the frame, so each map has lists of its own.
+        private List<ModelRenderCommand> CastersInto(Shadow shadow, Util.Frustum? view, Vector3 direction, float lowestGround)
+        {
+            if (!_batches.TryGetValue(shadow, out var batch)) _batches[shadow] = batch = new Dictionary<glModel, List<Matrix4>>();
+            foreach (var (model, list) in batch)
+            {
+                if (list.Count == 0) batch.Remove(model);
+                else list.Clear();
+            }
+
+            var frustum = new Util.Frustum(shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
+            float fall = MathF.Max(-direction.Y, 0.02f);
+            foreach (var (model, matrix, centre, radius) in _casters)
+            {
+                if (!frustum.IntersectsSphere(centre, radius)) continue;
+                if (view != null && !view.IntersectsSweptSphere(centre, radius + ShadowEdgeMargin, direction * (MathF.Max(centre.Y + radius - lowestGround, 0f) / fall))) continue;
+
+                if (!batch.TryGetValue(model, out var list)) batch[model] = list = new List<Matrix4>();
+                list.Add(matrix);
+            }
+
+            var commands = new List<ModelRenderCommand>(batch.Count);
+            foreach (var (model, list) in batch)
+            {
+                if (list.Count > 0) commands.Add(new ModelRenderCommand(model, list));
+            }
+            return commands;
+        }
+
+        private static float LowestGround(ECSWorld world, TerrainQuadTreeSingleton terrain)
+        {
+            float lowest = float.MaxValue;
+            foreach (Entity chunk in terrain.Chunks.Values) lowest = MathF.Min(lowest, world.GetComponent<TerrainChunkComponent>(chunk).LowestHeight);
+            return lowest;
+        }
+
+        // Shadow is a struct: maps are told apart by the buffer they draw into.
+        private sealed class ShadowViews : IEqualityComparer<Shadow>
+        {
+            public static readonly ShadowViews Instance = new();
+            public bool Equals(Shadow a, Shadow b) => ReferenceEquals(a.shadowFrameBuffer, b.shadowFrameBuffer);
+            public int GetHashCode(Shadow shadow) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(shadow.shadowFrameBuffer);
         }
 
         private static Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 center, float size, int resolution)

@@ -18,6 +18,14 @@ vec3 ReconstructViewSpacePosition(vec2 fragCoord, float depth, mat4 invProjectio
     return viewPos.xyz / viewPos.w;
 }
 
+// The z of ReconstructViewSpacePosition, for the many taps of a pass that needs nothing else. A perspective projection's
+// depth doesn't depend on x and y.
+float ReconstructViewSpaceZ(float depth, mat4 invProjection)
+{
+    float ndcZ = depth * 2.0 - 1.0;
+    return (invProjection[2][2] * ndcZ + invProjection[3][2]) / (invProjection[2][3] * ndcZ + invProjection[3][3]);
+}
+
 vec3 ReconstructWorldSpacePosition(vec2 fragCoord, float depth, mat4 invProjection, mat4 invView, vec2 resolution)
 {
     vec3 viewPos = ReconstructViewSpacePosition(fragCoord, depth, invProjection, resolution);

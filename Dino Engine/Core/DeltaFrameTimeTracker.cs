@@ -15,9 +15,9 @@ namespace Dino_Engine.Core
         private float _delta = 0f;
         private int _framesLastSecond = 0;
         private int _framesCurrentSecond = 0;
-        private float _totalTime = 0f;
+        private double _totalTime = 0.0;
         public float Delta { get => _delta; }
-        public float TotalTime { get => _totalTime; }
+        public float TotalTime { get => (float)_totalTime; }
         public int FramesLastSecond { get => _framesLastSecond; }
 
         /// <summary>When set, every frame lasts exactly this long, however long it really took.</summary>

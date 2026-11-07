@@ -13,7 +13,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
     public sealed class GearWorkshop
     {
         private const int MostUploadsAFrame = 2;
-        private const int KeptFrames = 600;
+        private const float KeptSeconds = 10f;
         private const int FreedFramesLate = 4;
 
         private sealed class Entry
@@ -21,12 +21,14 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             public Task<Mesh>? Making;
             public glModel? Model;
             public long LastAsked;
+            public double LastAskedSeconds;
         }
 
         private readonly Dictionary<GearKey, Entry> _entries = new();
         private readonly List<GearKey> _expired = new();
         private readonly List<(glModel model, long frame)> _dying = new();
         private long _frame;
+        private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
 
         public int Count => _entries.Count;
 
@@ -43,6 +45,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 Made++;
             }
             entry.LastAsked = _frame;
+            entry.LastAskedSeconds = _clock.Elapsed.TotalSeconds;
             return entry.Model;
         }
 
@@ -68,7 +71,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             _expired.Clear();
             foreach ((GearKey key, Entry entry) in _entries)
             {
-                if (entry.Making == null && _frame - entry.LastAsked > KeptFrames) _expired.Add(key);
+                if (entry.Making == null && _clock.Elapsed.TotalSeconds - entry.LastAskedSeconds > KeptSeconds) _expired.Add(key);
             }
             foreach (GearKey key in _expired)
             {

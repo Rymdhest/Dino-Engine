@@ -23,43 +23,38 @@ uniform sampler2D windMap;
 
 uniform float swayAmount;
 
-mat4 rotXMatrix(float a) {
-	return mat4(
-	1, 0, 0, 0,
-	0, cos(a), -sin(a), 0,
-	0,sin(a),cos(a), 0,
-	0, 0, 0, 1);
+mat3 rotXMatrix(float a) {
+	return mat3(
+	1, 0, 0,
+	0, cos(a), -sin(a),
+	0,sin(a),cos(a));
 }
-mat4 rotYMatrix(float a) {
-	return mat4(
-	cos(a), 0, sin(a), 0,
-	0, 1, 0, 0,
-	-sin(a),0,cos(a), 0,
-	0, 0, 0, 1);
-}
-mat4 rotZMatrix(float a) {
-	return mat4(
-	cos(a), -sin(a), 0, 0,
-	sin(a), cos(a), 0, 0,
-	0,0,1, 0,
-	0,0,0, 1); 
+mat3 rotZMatrix(float a) {
+	return mat3(
+	cos(a), -sin(a), 0,
+	sin(a), cos(a), 0,
+	0,0,1);
 }
 void main() {
-	vec3 modelPosWorldSpace = (modelMatrix*vec4(position, 1.0)).xyz;
-	vec2 bendMapValue = vegetationBend(bendMap, windMap, modelPosWorldSpace.xz).yx;
-	bendMapValue.x *= -1.0;
-	bendMapValue *= (position.y*0.001+length(position.xz)*0.01)*swayAmount;
-	float rotX = bendMapValue.x;
-	float rotZ = bendMapValue.y;
-	
-	mat4 localRotMatrix = rotZMatrix(0.0)*rotXMatrix(0.0)*rotYMatrix(0.0);
-	localRotMatrix = rotXMatrix(rotX)*rotZMatrix(rotZ)*localRotMatrix;
+	// Only what the wind moves has any business reading it: everything else stands as it was built.
+	mat3 bendRotation = mat3(1.0);
+	if (swayAmount > 0.0) {
+		vec3 modelPosWorldSpace = (modelMatrix*vec4(position, 1.0)).xyz;
+		vec2 bendMapValue = vegetationBend(bendMap, windMap, modelPosWorldSpace.xz).yx;
+		bendMapValue.x *= -1.0;
+		bendMapValue *= (position.y*0.001+length(position.xz)*0.01)*swayAmount;
+		bendRotation = rotXMatrix(bendMapValue.x)*rotZMatrix(bendMapValue.y);
+	}
 
-	mat4 modelView = viewMatrix*modelMatrix*localRotMatrix;
-	vec4 viewPos = modelView*vec4(position, 1.0);
+	vec4 viewPos = viewMatrix*(modelMatrix*vec4(bendRotation*position, 1.0));
 	viewSpacePos = viewPos.xyz;
 	gl_Position =  projectionMatrix*viewPos;
-	mat4 normalModelViewMatrix = transpose(inverse(modelView));
+
+	// The cofactors are the inverse transpose times the determinant, and everything that reads the frame normalises it, so that
+	// scale goes away. Only its sign matters, on what's mirrored. A rotation is its own inverse transpose.
+	mat3 modelView = mat3(viewMatrix)*mat3(modelMatrix);
+	mat3 normalMatrix = mat3(cross(modelView[1], modelView[2]), cross(modelView[2], modelView[0]), cross(modelView[0], modelView[1]));
+	if (dot(modelView[0], normalMatrix[0]) < 0.0) normalMatrix = -normalMatrix;
 	fragUV = uv;
 	textureIndex = materialIndex;
 	worldNormal = normal;
@@ -69,7 +64,7 @@ void main() {
     vec3 B = normalize( cross(T, N));
     mat3 TBN =  mat3(T, B, N);
 
-	normalTBN = mat3(normalModelViewMatrix)*TBN;
+	normalTBN = normalMatrix*bendRotation*TBN;
 
 	fragColor = color;
 }

@@ -9,6 +9,9 @@
 // point lights (cube shadows) and spotlights (cone + shadow map). Point and spot attenuation, cones and
 // shadow lookups match the deferred light shaders so fog and surfaces are lit by the same light.
 //
+// Fog is slow and is averaged over many frames, so at a high frame rate each frame need only march half of it, in tiles
+// that take turns: it then gets as many rays a second as it would at a lower rate, and the others keep what they have.
+//
 // out_Fog:      rgb = in-scattered light, a = transmittance along the ray
 // out_Distance: camera distance of the full-resolution depth sample this pixel represents
 
@@ -16,6 +19,7 @@
 #include Globals.glsl
 #include Lighting/lightingCalc.glsl
 #include Wind.glsl
+#include VolumetricFog_Tiles.glsl
 
 layout (location = 0) out vec4 out_Fog;
 layout (location = 1) out float out_Distance;
@@ -27,6 +31,7 @@ const int MAX_POINT_LIGHTS = 16;
 const int MAX_SPOT_LIGHTS = 16;
 
 uniform sampler2D gDepth;
+uniform int restingTiles;       // 0 or 1, which of the tiles have this frame off, and -1 for none. Must match VolumetricFog_Temporal.frag.
 uniform sampler3D noiseTexture;
 uniform sampler2D terrainHeightMap;
 uniform sampler2D windMap;
@@ -106,9 +111,10 @@ const float POOL_COVERAGE = 0.3;    // How much a hollow's fog closes up, and a 
 const float POOL_HEIGHT = 0.6;      // And how much higher it stands in one, as a share of the layer.
 const vec2 BANK_EDGES = vec2(0.4, 0.58);    // Where in the noise's broad swells the ground between banks ends and a bank begins.
 
-// Set once per ray, as what the land does to the fog changes far more slowly than a ray crosses it.
+// Set once per ray, as what the land does to the fog changes far more slowly than a ray crosses it, and so do gusts.
 float rayCoverage;
 float rayHeight;
+vec3 rayPush;       // how far gusts have pushed the fog here (world metres)
 
 float interleavedGradientNoise(vec2 pixel)
 {
@@ -258,7 +264,6 @@ float localLightOpticalDepth(float extinction, vec3 position, vec3 lightPosition
 
 struct FogSample
 {
-    vec3 push;      // how far gusts have pushed the fog here (world metres)
     vec3 noisePosition;
     vec3 warp;
     float top;      // local height of the layer's top above its floor
@@ -269,20 +274,23 @@ struct FogSample
 FogSample prepareSample(vec3 position)
 {
     FogSample s;
-    // The fog drifts with the mean wind (baseOffset); where the wind locally runs ahead of or against the mean
-    // (gusts, blasts) it is pushed further. Capped at a quarter noise tile so blasts shove it rather than tear it.
-    vec4 localWind = sampleWindMap(windMap, position.xz);
-    s.push = (localWind.xyz - vec3(windMean.x, 0.0, windMean.y)) * gustResponse;
-    float pushLength = length(s.push);
-    float maxPush = 0.25 / invNoiseScale;
-    if (pushLength > maxPush) s.push *= maxPush / pushLength;
-    s.noisePosition = (position - s.push) * invNoiseScale * NOISE_STRETCH;
+    s.noisePosition = (position - rayPush) * invNoiseScale * NOISE_STRETCH;
     vec4 low = textureLod(noiseTexture, s.noisePosition * WARP_FREQUENCY + warpOffset, 0.0);
     s.warp = (low.agb - 0.5) * turbulence;
     s.top = layerHeight * rayHeight * clearedHeight(position.xz) * max(1.0 + (low.a - 0.5) * 2.0 * topVariation, 0.05);
     s.ground = groundHeight(position.xz);
     s.cover = rayCoverage * mix(1.0, smoothstep(BANK_EDGES.x, BANK_EDGES.y, low.a), banks);
     return s;
+}
+
+// The fog drifts with the mean wind (baseOffset); where the wind locally runs ahead of or against the mean (gusts, blasts)
+// it is pushed further. Capped at a quarter noise tile so blasts shove it rather than tear it.
+vec3 windPush(vec2 xz)
+{
+    vec3 push = (sampleWindMap(windMap, xz).xyz - vec3(windMean.x, 0.0, windMean.y)) * gustResponse;
+    float pushLength = length(push);
+    float maxPush = 0.25 / invNoiseScale;
+    return pushLength > maxPush ? push * (maxPush / pushLength) : push;
 }
 
 // Coverage-shaped billows; the layer thins out towards its top so only the tallest billows reach it.
@@ -365,6 +373,13 @@ void main(void)
     vec3 rayDirection = (surfaceWorld - rayOrigin) / max(surfaceDistance, 1e-5);
     out_Distance = surfaceDistance;
 
+    // VolumetricFog_Temporal.frag knows which tiles these are, and reads nothing from them.
+    if (fogTileRests(ivec2(gl_FragCoord.xy), restingTiles))
+    {
+        out_Fog = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+
     rayCoverage = coverage;
     rayHeight = 1.0;
     if (pooling > 0.0 && density > 0.0)
@@ -385,6 +400,7 @@ void main(void)
     int steps = clamp(int(ceil(segment / MIN_STEP_LENGTH)), 4, maxSteps);
     float stepLength = segment / float(steps);
     float jitter = interleavedGradientNoise(gl_FragCoord.xy);
+    rayPush = windPush((rayOrigin + rayDirection * ((tStart + tEnd) * 0.5)).xz);
 
     // Mip for the detail noise so the high-frequency wisps don't alias at a distance.
     float pixelFootprint = (tStart + tEnd) * 0.5 * 2.0 / (resolution.y * projectionMatrix[1][1]);
@@ -431,7 +447,7 @@ void main(void)
             for (int k = 0; k < LIGHT_SAMPLES; k++)
             {
                 vec3 lightPosition = position + directionalDirections[l] * (lightStep * (float(k) + 0.5));
-                vec3 lightNoisePosition = (lightPosition - s.push) * invNoiseScale * NOISE_STRETCH;
+                vec3 lightNoisePosition = (lightPosition - rayPush) * invNoiseScale * NOISE_STRETCH;
                 opticalDepth += shapeDensity(lightNoisePosition, s.warp, lightPosition.y - s.ground, s.top, s.cover) * density * lightStep;
             }
             inScattered += directionalColours[l] * (visibility * multipleScattering(directionalPhases[l], opticalDepth));

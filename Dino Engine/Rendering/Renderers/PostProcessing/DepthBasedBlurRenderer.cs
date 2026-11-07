@@ -42,7 +42,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _depthBasedBlurShader.bind();
             _depthBasedBlurShader.loadUniformVector2f("resolutionInput", textureSize);
             _depthBasedBlurShader.loadUniformFloat("depthStrength", 200f);
-            _depthBasedBlurShader.loadUniformInt("blurRange", 3);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, sourceBuffer.GetAttachment(attachment));
             GL.ActiveTexture(TextureUnit.Texture1);

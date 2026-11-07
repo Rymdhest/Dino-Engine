@@ -74,6 +74,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             Vector3 reach = new Vector3(command.radius);
             if (_view.IntersectsAABB(new AABB(command.positionWorld - reach, command.positionWorld + reach)) == IntersectionResult.Outside) return;
 
+            Engine.PerformanceMonitor.Count("Point lights drawn", 1);
+            if (command.shadow != null) Engine.PerformanceMonitor.Count("Shadowed point lights drawn", 1);
             Matrix4 transformationMatrix = MyMath.createTransformationMatrix(command.positionWorld, command.radius * 1.1f);
             Vector4 lightPosView = new Vector4(command.positionWorld, 1.0f) * renderEngine.context.viewMatrix;
             if (command.shadow != null)

@@ -31,7 +31,7 @@ namespace Dino_Defenders
     ///   --name text     What this hero is called in company.
     ///   --netsim l,j,p  Plays through a bad line: l ms round trip, up to j ms of jitter, p percent of packets lost.
     ///   --dedicated true  Runs a server with no window, for as long as it's left running.
-    ///   --render a=b,c=d  Sets values of the engine's LightingSettings, such as sun=0,bloom=0,exposure=0.8.
+    ///   --render a=b,c=d  Sets values of the engine's LightingSettings, such as sun=0,bloom=0,exposure=0.8, and samples=N for the MSAA.
     ///   --film folder   Saves a numbered run of frames, for anything that has to be judged moving. Each frame lasts exactly 1 / --filmrate
     ///                   seconds, however long saving it takes. --filmstart N and --filmframes N say which frames.
     ///   --clock s       Starts as if the game had been running s seconds already: some faults only show late in a session.
@@ -44,6 +44,11 @@ namespace Dino_Defenders
     ///   --hidden true   Draws with no window on screen and never takes the focus, for a scripted run beside someone playing.
     ///   --weather name  Holds the weather everywhere: clear, cloudy, overcast, wet, drizzle, rain, storm, snow, blizzard, dust, ash or fog.
     ///   --weatherclock s  Starts this many seconds into the world's own weather.
+    ///   --size WxH      The window's size, for measuring at the size someone else plays at.
+    ///   --maxfps N      The most frames a second, 0 for no limit. A scripted run keeps to 60, as --frames is how long one lasts.
+    ///   --meshseed N    Seeds what otherwise grows differently in every run, so that two builds can be compared picture by picture.
+    ///   --perf file     Measures --perfframes N frames from frame --perfstart N, writes the report to this file and quits. Timing each pass slows the
+    ///                   GPU down a little: --perfgpu false measures what a player really gets, with no passes in the report.
     /// A scripted run otherwise neither reads nor writes the player's save.
     /// </summary>
     internal sealed class GameOptions
@@ -103,12 +108,22 @@ namespace Dino_Defenders
         public bool? Sound;
         public float? Volume;
         public float? Music;
+        public Vector2i? Size;
+        public int? MeshSeed;
+        public int? MaxFps;
+        public string? Perf;
+        public int PerfStart = 300;
+        public int PerfFrames = 600;
+        public bool PerfGpu = true;
 
         /// <summary>Whether this run plays on from a save, as someone playing does, rather than being a throwaway.</summary>
-        public bool Saves => SaveFile != null || !(Seed != null || Archetype != null || Tour != null || Shot != null || Film != null || Bot);
+        public bool Saves => SaveFile != null || !(Seed != null || Archetype != null || Tour != null || Shot != null || Film != null || Perf != null || Bot);
+
+        /// <summary>The frame rate limit for this run, if not the engine's own.</summary>
+        public int? FrameRateLimit => MaxFps ?? (Perf != null ? 0 : Tour != null || Shot != null || Film != null || Bot ? 60 : null);
 
         /// <summary>Whether anyone is listening. A script running in the background shouldn't suddenly fill the room.</summary>
-        public bool Audible => Sound ?? !(Tour != null || Shot != null || Film != null || Bot);
+        public bool Audible => Sound ?? !(Tour != null || Shot != null || Film != null || Perf != null || Bot);
 
         public static GameOptions Parse(string[] args)
         {
@@ -177,6 +192,16 @@ namespace Dino_Defenders
                     case "sound": options.Sound = value == "true"; break;
                     case "volume": options.Volume = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "music": options.Music = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
+                    case "size":
+                        string[] size = value.Split('x');
+                        options.Size = new Vector2i(int.Parse(size[0]), int.Parse(size[1]));
+                        break;
+                    case "meshseed": options.MeshSeed = int.Parse(value); break;
+                    case "maxfps": options.MaxFps = int.Parse(value); break;
+                    case "perf": options.Perf = value; break;
+                    case "perfstart": options.PerfStart = int.Parse(value); break;
+                    case "perfframes": options.PerfFrames = int.Parse(value); break;
+                    case "perfgpu": options.PerfGpu = value == "true"; break;
                     case "wind":
                         foreach (string change in value.Split(';'))
                         {

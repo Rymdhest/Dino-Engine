@@ -26,6 +26,8 @@ namespace Dino_Engine.ECS.Systems
         // How far past the terrain ring sectors stay alive, in metres. Trees are tall: they show before the ground under them.
         private const float SectorMargin = 24f;
         private const int SectorsPerFrame = 3;
+        private const int ChunksPerFrame = 3;
+        private const int MostToSpreadOut = 80;
 
         // Reusable scratch buffers (avoid per-frame allocations)
         private readonly List<Vector2i> _toCreate = new();
@@ -71,6 +73,14 @@ namespace Dino_Engine.ECS.Systems
                 for (int cz = camCz - radius; cz <= camCz + radius; cz++)
                     if (!chunks.ContainsKey(new Vector2i(cx, cz)))
                         _toCreate.Add(new Vector2i(cx, cz));
+
+            // Crossing into a new chunk brings a whole row of them, and every one means a run of small uploads the driver has to fit in around what's being drawn.
+            // Taken a few a frame, nearest first, they cost nothing anyone can feel. A jump has nothing to show yet, so it gets everything at once.
+            if (_toCreate.Count > ChunksPerFrame && _toCreate.Count <= MostToSpreadOut)
+            {
+                _toCreate.Sort((a, b) => ((a - new Vector2i(camCx, camCz)).EuclideanLengthSquared).CompareTo((b - new Vector2i(camCx, camCz)).EuclideanLengthSquared));
+                _toCreate.RemoveRange(ChunksPerFrame, _toCreate.Count - ChunksPerFrame);
+            }
 
             // 3. Stream the objects. They have to exist before their chunks are created, because a chunk carves the
             // grass under whatever is in the spatial grid at creation time.

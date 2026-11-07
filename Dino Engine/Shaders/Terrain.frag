@@ -113,9 +113,10 @@ TerrainMaterialSample GatherSurface(vec2 macroCoord, vec2 macroDX, vec2 macroDY)
 // The heights of this pixel's materials at a tile UV. Derivatives are passed in because this runs inside the parallax
 // loop, where implicit derivatives are undefined.
 TerrainMaterialSample SampleTerrainMaterials(TerrainMaterialSample s, vec2 uv, vec2 uvDX, vec2 uvDY) {
+    // Most ground is one material or two, and a share of nothing counts for nothing whatever its height.
     s.heights.x = textureGrad(materialMapTextureArray, vec3(uv, s.mats.x), uvDX, uvDY).a;
-    s.heights.y = textureGrad(materialMapTextureArray, vec3(uv, s.mats.y), uvDX, uvDY).a;
-    s.heights.z = textureGrad(materialMapTextureArray, vec3(uv, s.mats.z), uvDX, uvDY).a;
+    if (s.weights.y > 0.0) s.heights.y = textureGrad(materialMapTextureArray, vec3(uv, s.mats.y), uvDX, uvDY).a;
+    if (s.weights.z > 0.0) s.heights.z = textureGrad(materialMapTextureArray, vec3(uv, s.mats.z), uvDX, uvDY).a;
     return s;
 }
 

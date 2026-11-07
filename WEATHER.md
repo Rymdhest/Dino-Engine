@@ -64,7 +64,7 @@ Everything that looks at or reflects the sky reads this map (`Weather/Sky.glsl`)
 
 Clouds are `Weather/Clouds.glsl`: the weather map says how much of the sky is covered, tiling noise says what that cover looks like. `Cloud_Shadow.frag` looks through the same clouds along the sun's rays for the shadows on the land, so what's overhead is what's shading the ground. From this camera those shadows sliding across the land are the first sign of a change.
 
-**Cloud is applied as light is read**, as night is: nothing writes to the sun or sky. `SkySYstem` works out the sky and ambient, `Directional_Light.frag` multiplies the sun by the cloud shadow per pixel, and fog and god rays take `Weather.SunThrough` at the focus. Two tests of this: with sun, sky, lights and emission off the frame must still be black, weather or not, and a light with cascades is taken to be the sun, so lightning, which has none, doesn't get dimmed by the clouds it's under.
+**Cloud is applied as light is read**, as night is: nothing writes to the sun or sky. `SkySYstem` works out the sky and ambient, `Ambient_Light.frag` multiplies the sun by the cloud shadow per pixel, and fog and god rays take `Weather.SunThrough` at the focus. Two tests of this: with sun, sky, lights and emission off the frame must still be black, weather or not, and a light with cascades is taken to be the sun, so lightning, which has none, doesn't get dimmed by the clouds it's under.
 
 Exposure is fixed, so `OvercastSky` has to be bright. Real overcast is about a tenth of a clear day, and at that level this game reads as night. It's about a third.
 

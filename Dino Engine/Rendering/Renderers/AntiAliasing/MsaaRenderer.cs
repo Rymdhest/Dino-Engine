@@ -10,9 +10,9 @@ namespace Dino_Engine.Rendering.Renderers.AntiAliasing
     /// Multisample anti-aliasing for the deferred pipeline. Geometry renders into a multisampled G-buffer
     /// (<see cref="GeometryBuffer"/>); lighting, sky, particles, water and the fog composite render into a multisampled
     /// HDR scene buffer (<see cref="SceneBuffer"/>) that shares its depth and stencil. Each frame:
-    /// 1. <see cref="ResolveGeometry"/> writes the single-sample G-buffer (<see cref="RenderEngine.GBuffer"/>) that the
-    ///    screen-space passes read, from each pixel's farthest sample, and marks the edge pixels, whose samples show
-    ///    different surfaces, in the stencil buffer.
+    /// 1. <see cref="ResolveGeometry"/> writes the single-sample G-buffer (<see cref="RenderEngine.GBuffer"/>) and marks the
+    ///    edge pixels, whose samples are on different things, in the stencil buffer. Everywhere else the samples can be lit
+    ///    as one, and it holds their average; on edge pixels their farthest sample, for the screen-space passes.
     /// 2. Passes that shade from the G-buffer are built twice and drawn with <see cref="DrawSplit"/>: per pixel where a
     ///    pixel's samples agree, per sample on the edge pixels, so every surface in an edge pixel is lit on its own.
     ///    Forward passes (sky, particles, water) draw straight into the scene buffer, where the hardware's per-sample depth
@@ -184,8 +184,8 @@ namespace Dino_Engine.Rendering.Renderers.AntiAliasing
         }
 
         /// <summary>
-        /// After the geometry pass: the single-sample G-buffer (colour attachments, edge flags and depth) from each pixel's
-        /// farthest sample, and the edge pixels' stencil bit.
+        /// After the geometry pass: the single-sample G-buffer (colour attachments, edge flags and depth) and the edge pixels'
+        /// stencil bit. See Msaa_Resolve_GBuffer.frag.
         /// </summary>
         public void ResolveGeometry(RenderEngine renderEngine)
         {
@@ -206,6 +206,8 @@ namespace Dino_Engine.Rendering.Renderers.AntiAliasing
             renderEngine.ScreenQuadRenderer.DrawQuad();
             GL.DepthFunc(DepthFunction.Less);
 
+            Engine.PerformanceMonitor.finishGPUTask("MSAA G-buffer resolve");
+            Engine.PerformanceMonitor.startGPUTask("MSAA mark edges");
             if (Samples > 1)
             {
                 _geometryBuffer.bind();
@@ -226,18 +228,23 @@ namespace Dino_Engine.Rendering.Renderers.AntiAliasing
 
             GL.UseProgram(0);
             gBuffer.unbind();
-            Engine.PerformanceMonitor.finishGPUTask("MSAA G-buffer resolve");
+            Engine.PerformanceMonitor.finishGPUTask("MSAA mark edges");
         }
 
         /// <summary>
-        /// Binds the multisampled G-buffer to texture units 0..3 (albedo, normal, materials, depth) and the screen-space
-        /// ambient occlusion to <see cref="AmbientOcclusionUnit"/>, as Lighting/gBufferSample.glsl reads them.
+        /// Binds the G-buffer to texture units 0..3 (albedo, normal, materials, depth) and the screen-space ambient occlusion
+        /// to <see cref="AmbientOcclusionUnit"/>, as Lighting/gBufferSample.glsl reads them: units 0..2 hold both the
+        /// multisampled G-buffer and the resolved one, as a pass's two variants each read their own.
         /// </summary>
         public void BindGeometrySamples(int ambientOcclusionTexture)
         {
-            BindTexture(0, _geometryBuffer.GetAttachment(0));
-            BindTexture(1, _geometryBuffer.GetAttachment(1));
-            BindTexture(2, _geometryBuffer.GetAttachment(2));
+            FrameBuffer resolved = Engine.RenderEngine.GBuffer;
+            for (int unit = 0; unit < 3; unit++)
+            {
+                BindTexture(unit, _geometryBuffer.GetAttachment(unit));
+                GL.ActiveTexture(TextureUnit.Texture0 + unit);
+                GL.BindTexture(TextureTarget.Texture2D, resolved.GetAttachment(unit));
+            }
             BindTexture(3, _geometryBuffer.getDepthAttachment());
             GL.ActiveTexture(TextureUnit.Texture0 + AmbientOcclusionUnit);
             GL.BindTexture(TextureTarget.Texture2D, ambientOcclusionTexture);

@@ -13,6 +13,11 @@ namespace Dino_Engine.Debug
         private int framesThisSecond = 0;
 
         public long averageTimePerTaskLastSecond = 0;
+        /// <summary>Time and frames since <see cref="ResetTotals"/>, for a report over a whole run.</summary>
+        public long TotalTime { get; private set; }
+        public long TotalFrames { get; private set; }
+        /// <summary>Time in the last finished frame, for finding out what a slow one was doing.</summary>
+        public long LastFrameTime { get; private set; }
 
         public TaskTracker(string name)
         {
@@ -30,6 +35,9 @@ namespace Dino_Engine.Debug
         public virtual void FinishFrame()
         {
             timeSpentThisSecond += timeSpentThisFrame;
+            LastFrameTime = timeSpentThisFrame;
+            TotalTime += timeSpentThisFrame;
+            TotalFrames++;
             timeSpentThisFrame = 0;
             framesThisSecond++;
         }
@@ -43,6 +51,12 @@ namespace Dino_Engine.Debug
 
             timeSpentThisSecond = 0;
             framesThisSecond = 0;
+        }
+
+        public void ResetTotals()
+        {
+            TotalTime = 0;
+            TotalFrames = 0;
         }
 
         public virtual void Cleanup() { }

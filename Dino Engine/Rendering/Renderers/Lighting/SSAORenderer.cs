@@ -25,6 +25,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         internal SSAORenderer() : base("SSAO")
         {
+            // Timed in parts, which can't nest inside a timer of the whole.
+            trackPerformance = false;
+
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformInt("texNoise", 0);
             ambientOcclusionShader.loadUniformInt("gNormal", 1);
@@ -86,6 +89,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             //GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
             DepthBasedBlurRenderer depthBasedBlurRenderer = renderEngine.DepthBasedBlurRenderer;
 
+            Engine.PerformanceMonitor.startGPUTask("SSAO Samples");
             ambientOcclusionShader.bind();
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
@@ -106,8 +110,11 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             Engine.RenderEngine.ScreenQuadRenderer.Render();
             ambientOcclusionShader.unBind();
 
+            Engine.PerformanceMonitor.finishGPUTask("SSAO Samples");
+            Engine.PerformanceMonitor.startGPUTask("SSAO Blur");
             //gaussianBlurRenderer.Render(_SSAOFramebuffer, 1, renderEngine.ScreenQuadRenderer, 0);
             depthBasedBlurRenderer.Render(_SSAOFramebuffer, gBuffer.getDepthAttachment(), 1, renderEngine.ScreenQuadRenderer, 0);
+            Engine.PerformanceMonitor.finishGPUTask("SSAO Blur");
             //_SSAOFramebuffer.resolveToScreen();
             //gaussianBlurRenderer.GetLastResultFrameBuffer().resolveToScreen();
             //depthBasedBlurRenderer.GetLastResultFrameBuffer().resolveToScreen();

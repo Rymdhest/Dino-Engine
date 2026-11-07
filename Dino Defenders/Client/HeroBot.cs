@@ -19,7 +19,7 @@ namespace Dino_Defenders.Client
         private const float SiteReach = 30f;
         private const float UseReach = 3f;
         private const int MostAttempts = 4;
-        private const int MostFramesHeld = 120;
+        private const int MostFramesHeld = 120;     // At the 60 frames a second a scripted run keeps to.
         private const int FramesToArrive = 30;      // Being moved goes by way of the server, so it isn't done the moment it's asked.
 
         private const float LootReach = 16f;

@@ -45,9 +45,10 @@ namespace Dino_Engine.Modelling.Procedural.Nature
 
             return RockMesh;
         }
-        public static Mesh GenerateRock(float floorWeight)
+        /// <param name="detail">How many times the sphere is divided. A pebble has no use for what a boulder does.</param>
+        public static Mesh GenerateRock(float floorWeight, int detail = 4)
         {
-            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(4, new VertexMaterial(TextureGenerator.rock), 16);
+            Mesh RockMesh = IcoSphereGenerator.CreateIcosphere(detail, new VertexMaterial(TextureGenerator.rock), 16);
 
             OpenSimplexNoise noise = new OpenSimplexNoise();
             for (int i = 0; i < RockMesh.meshVertices.Count; i++)

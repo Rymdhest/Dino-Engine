@@ -62,6 +62,7 @@ namespace Dino_Defenders
         private bool _firstWorldOfThisSession = true;
         private float _nextAutosave;
         private int _frames;
+        private readonly PerfRecorder? _perf;
         private StreamWriter? _trace;
         private readonly List<(string name, Vector2 position)> _tourStops = new();
         private int _tourStop = -1;
@@ -102,6 +103,12 @@ namespace Dino_Defenders
             if (options.Music is float music) Audio.SetVolume(SoundBus.Music, music);
 
             ApplyRenderOptions(options.Render);
+            if (options.Perf != null)
+            {
+                _perf = new PerfRecorder(options.Perf, options.PerfStart, options.PerfFrames);
+                Dino_Engine.Core.Engine.PerformanceMonitor.AlwaysMeasureGPU = options.PerfGpu;
+                Dino_Engine.Core.Engine.PerformanceMonitor.Counting = true;
+            }
             if (options.Film != null)
             {
                 Directory.CreateDirectory(options.Film);
@@ -193,6 +200,11 @@ namespace Dino_Defenders
             {
                 string[] parts = setting.Split('=');
                 var render_ = Dino_Engine.Core.Engine.RenderEngine;
+                if (parts.Length == 2 && parts[0] == "samples")
+                {
+                    render_.AntiAliasing.Samples = int.Parse(parts[1]);
+                    continue;
+                }
                 if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
             }
         }
@@ -384,6 +396,11 @@ namespace Dino_Defenders
                     Report();
                     Quit();
                 });
+            }
+            if (_perf != null)
+            {
+                _perf.Frame(_frames, Dino_Engine.Core.Engine.Delta);
+                if (_perf.Finished) Quit();
             }
             if (_options.Snap != null && File.Exists(_options.Snap))
             {
@@ -777,6 +794,7 @@ namespace Dino_Defenders
 
             _tourPhotographed = false;
             _tourStop++;
+            if (_tourStop < _tourStops.Count) Console.WriteLine($"Tour: {_tourStops[_tourStop].name} at {_tourStops[_tourStop].position.X:0},{_tourStops[_tourStop].position.Y:0}");
             if (_tourStop >= _tourStops.Count)
             {
                 Dino_Engine.Core.Engine.WindowHandler.Close();

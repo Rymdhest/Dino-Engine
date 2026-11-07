@@ -38,6 +38,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
     public class VolumetricFogRenderer : CommandDrivenRenderer<VolumetricFogRenderCommand>
     {
         private const int NoiseResolution = 128;
+        private const int TilesRestFromFrameRate = 75;
         private const int TerrainHeightResolution = 512;
         private const float TerrainDepthRange = 1000f;
 
@@ -93,6 +94,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
         public VolumetricFogRenderer() : base("Volumetric Fog")
         {
+            // Timed in parts, which can't nest inside a timer of the whole.
+            trackPerformance = false;
+
             _marchShader.bind();
             _marchShader.loadUniformInt("gDepth", 0);
             _marchShader.loadUniformInt("noiseTexture", 1);
@@ -246,9 +250,15 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             VolumetricFogSingleton settings = command.settings;
 
+            Engine.PerformanceMonitor.startGPUTask("Fog Ground Capture");
             bool terrainHeightValid = CaptureTerrainHeights(command, renderEngine, out Matrix4 terrainMatrix, out float terrainEyeY);
+            Engine.PerformanceMonitor.finishGPUTask("Fog Ground Capture");
+            Engine.PerformanceMonitor.startGPUTask("Fog March");
             FrameBuffer history = MarchAndAccumulate(command, renderEngine, terrainHeightValid, terrainMatrix, terrainEyeY);
+            Engine.PerformanceMonitor.finishGPUTask("Fog March");
+            Engine.PerformanceMonitor.startGPUTask("Fog Composite");
             Composite(settings, history, renderEngine);
+            Engine.PerformanceMonitor.finishGPUTask("Fog Composite");
 
             _previousViewProjection = renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix;
             _historyIndex = 1 - _historyIndex;
@@ -331,6 +341,11 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _marchShader.loadUniformFloat("maxDistance", settings.MaxDistance);
             _marchShader.loadUniformInt("frameIndex", _frameIndex);
 
+            // At a rate like this the fog settles about as fast with half the rays a frame as it does at 60 with all of them. Anything slower gets every ray it can. Read from the last whole second, as a rate that's changing every frame would have it flicker between the two.
+            bool takeTurns = _historyValid && Engine.FramesLastSecond >= TilesRestFromFrameRate;
+            int restingTiles = takeTurns ? _frameIndex & 1 : -1;
+            _marchShader.loadUniformInt("restingTiles", restingTiles);
+
             _marchShader.loadUniformInt("terrainHeightValid", terrainHeightValid ? 1 : 0);
             _marchShader.loadUniformMatrix4f("terrainHeightMatrix", terrainMatrix);
             _marchShader.loadUniformFloat("terrainEyeY", terrainEyeY);
@@ -353,6 +368,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             _temporalShader.loadUniformMatrix4f("previousViewProjection", _previousViewProjection);
             _temporalShader.loadUniformFloat("historyWeight", _historyValid ? Math.Clamp(settings.TemporalBlend, 0f, 0.98f) : 0f);
+            _temporalShader.loadUniformInt("restingTiles", restingTiles);
 
             renderEngine.ScreenQuadRenderer.Render(clearColor: false);
             return history;

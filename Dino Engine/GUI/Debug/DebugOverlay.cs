@@ -84,6 +84,7 @@ namespace Dino_Engine.GUI.Debug
         public void Update(float deltaTime)
         {
             if (Engine.WindowHandler.IsKeyPressed(ToggleKey) && !_gui.WantsKeyboard) Visible = !Visible;
+            Engine.PerformanceMonitor.MeasureGPU = Engine.PerformanceMonitor.AlwaysMeasureGPU || (Visible && PerformanceWindow.Visible);
 
             // Recorded even while hidden so the history is there when the overlay is opened.
             // The first frames include engine start-up (texture generation etc.) and would dwarf everything else.

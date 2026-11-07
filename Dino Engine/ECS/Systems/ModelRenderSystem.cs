@@ -3,6 +3,7 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering.Renderers.Geometry;
+using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using System.Collections.Generic;
 using static Dino_Engine.Modelling.Model.glModel;
@@ -39,6 +40,7 @@ namespace Dino_Engine.ECS.Systems
             _imposters.Clear();
 
             Vector3 camPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
+            var frustum = new Frustum(world.GetComponent<ViewMatrixComponent>(world.Camera).value * world.GetComponent<PerspectiveProjectionComponent>(world.Camera).ProjectionMatrix);
 
             // 2. Classify Archetypes
             foreach (var archetype in world.QueryArchetypes(WithMask, WithoutMask))
@@ -55,10 +57,15 @@ namespace Dino_Engine.ECS.Systems
                 for (int i = 0; i < count; i++)
                 {
                     Matrix4 mat = matrixArray[i].value;
+                    glModel model = modelArray[i].model;
+
+                    // What the camera can't see never reaches the GPU, whose vertex work is most of what a forest costs.
+                    model.WorldBounds(mat, out Vector3 centre, out float radius);
+                    if (!frustum.IntersectsSphere(centre, radius)) continue;
+
                     Vector3 pos = posArray[i].value;
                     float distSq = (pos - camPos).LengthSquared;
 
-                    glModel model = modelArray[i].model;
                     bool useImposter = false;
 
                     if (model.Imposter != null)

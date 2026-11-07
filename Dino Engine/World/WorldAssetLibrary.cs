@@ -126,7 +126,7 @@ namespace Dino_Engine.World
                 case "mushrooms": return PlantGenerator.GenerateMushrooms();
                 case "rock.boulder": return RockGenerator.GenerateRock(0.75f);
                 case "rock.brown": return RockGenerator.GenerateRockBrown();
-                case "rock.small": return RockGenerator.GenerateRock(0f).scaled(new OpenTK.Mathematics.Vector3(0.55f));
+                case "rock.small": return RockGenerator.GenerateRock(0f, detail: 3).scaled(new OpenTK.Mathematics.Vector3(0.55f));
                 case "log.pine": return TreeGenerator.GenerateFallenPineTree();
                 case "stump.pine": return TreeGenerator.GeneratePineTrunk();
                 default: throw new ArgumentException($"No model for nature asset '{id}'.");

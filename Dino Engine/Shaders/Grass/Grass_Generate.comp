@@ -64,6 +64,7 @@ const float DROOP_HOLD = 0.25;          // Radians of its own lean a blade's dro
 const float DROOP_SOFTNESS = 0.15;      // Radians of lean over which the droop swings across, when the wind does win.
 const float FACE_HOLD = 0.25;           // How much a blade's face keeps to the way it grew, as the square of a lean in radians.
 const float FLUTTER_KINDS = 4.0;        // Rates a quarter apart, so that every kind lands on a whole flutter at the wrap.
+const float FURTHEST_PULL = 2.5;        // The furthest a blade's tuft can draw it, in tuft spacings: tufts sit one to a cell, and the search takes the nearest.
 
 vec4 readChunkMap(sampler2DArray map, vec2 uv, float layer)
 {
@@ -134,11 +135,8 @@ vec2 asLine(vec2 v)
     return vec2(v.x * v.x - v.y * v.y, 2.0 * v.x * v.y);
 }
 
-void main()
+bool growBlade(int index, out GrassBladeData blade, out bool near)
 {
-    int index = int(gl_GlobalInvocationID.x);
-    if (index >= bladesPerAxis * bladesPerAxis) return;
-
     vec4 chunk = chunkData[gl_WorkGroupID.y];
     vec2 chunkOrigin = chunk.xy;
     float chunkSize = chunk.z;
@@ -149,6 +147,18 @@ void main()
     uint seed = grassHash(cell, 0x9e3779b9u);
     vec2 xz = (vec2(cell) + vec2(grassRandom(seed), grassRandom(seed))) * spacing;
 
+    // --- Where grass grows ---
+    vec4 grassCell = readChunkMap(grassMaps, clamp((xz - chunkOrigin) / chunkSize, 0.0, 1.0), layer);    // r cover, g height, b dryness
+    float grassMap = grassCell.r;
+    if (grassMap <= 0.02) return false;
+
+    // --- A blade's place in the thinning, and whether it can stay by any reckoning: it can't end up nearer than this ---
+    float rank = grassRandom(seed);
+    float nearest = max(length(xz - viewPosWorld.xz) - grassClump.x * FURTHEST_PULL, 0.0);
+    float mostKept = keepFraction(nearest);
+    if (shadowPass == 1) mostKept *= clamp(grassLod.z, 0.05, 1.0) * (1.0 - smoothstep(grassLod.y * 0.8, grassLod.y, nearest));
+    if (rank >= mostKept) return false;
+
     // --- Tuft ---
     vec2 tuftCentre;
     uint tuft;
@@ -156,10 +166,6 @@ void main()
     vec2 fromCentre = xz - tuftCentre;
     float tuftDistance = length(fromCentre) / max(grassClump.x, 0.05);
 
-    // --- Where grass grows ---
-    vec4 grassCell = readChunkMap(grassMaps, clamp((xz - chunkOrigin) / chunkSize, 0.0, 1.0), layer);    // r cover, g height, b dryness
-    float grassMap = grassCell.r;
-    if (grassMap <= 0.02) return;
     // The less the ground grows, the tighter a tuft draws together.
     xz = mix(xz, tuftCentre, mix(max(grassClump.y, 0.65), grassClump.y, smoothstep(0.1, 0.4, grassMap)));
 
@@ -172,7 +178,7 @@ void main()
     vec2 overshoot = (local - inside) * chunkSize;
     vec3 root = vec3(xz.x, terrain.w - dot(groundNormal.xz, overshoot) / max(groundNormal.y, 0.2), xz.y);
     float fertility = grassFertility(grassMap, groundNormal.y, terrain.z);
-    if (fertility <= 0.0) return;
+    if (fertility <= 0.0) return false;
 
     // --- Distance thinning: every blade has a fixed rank and leaves when the kept fraction drops below it ---
     float viewDistance = length(root - viewPosWorld);
@@ -186,8 +192,7 @@ void main()
         keep *= shadowDensity * (1.0 - smoothstep(grassLod.y * 0.8, grassLod.y, viewDistance));
         widen /= shadowDensity;
     }
-    float rank = grassRandom(seed);
-    if (rank >= keep) return;
+    if (rank >= keep) return false;
     float fade = clamp((keep - rank) / (0.3 * min(keep, 1.0)), 0.0, 1.0);
 
     // --- View culling, roughly: no blade reaches further from its root than the longest a blade can grow ---
@@ -195,7 +200,7 @@ void main()
     float widest = grassBlade.z * widen * 2.5 + grassPaint.w;
     for (int i = 0; i < 6; i++)
     {
-        if (dot(frustumPlanes[i].xyz, root) + frustumPlanes[i].w < -(longest + widest)) return;
+        if (dot(frustumPlanes[i].xyz, root) + frustumPlanes[i].w < -(longest + widest)) return false;
     }
 
     // --- Does this tuft live here? The ground decides for the whole tuft, so that sparse grass stands in bunches ---
@@ -205,7 +210,7 @@ void main()
     // Thin ground doesn't grow its tufts evenly, but in scattered colonies, and each tuft is a wiry handful of blades.
     float colonies = 0.25 + 1.5 * grassValueNoise(root.xz * (1.0 / 7.0) + 11.0);
     float alive = smoothstep(tuftRoll - 0.15, tuftRoll + 0.15, supported * mix(colonies, 1.15, smoothstep(0.45, 0.9, supported)));
-    if (grassRandom(seed) >= alive * mix(0.4, 1.0, smoothstep(0.25, 0.7, supported))) return;
+    if (grassRandom(seed) >= alive * mix(0.4, 1.0, smoothstep(0.25, 0.7, supported))) return false;
 
     // --- Size ---
     float tuftHeight = 1.0 + (grassRandom(tuftState) * 2.0 - 1.0) * grassClump.z;
@@ -245,13 +250,13 @@ void main()
         bladeLength = max(canopy, 0.3) * (0.85 + 0.3 * grassRandom(seed)) * fade;
         width *= 0.7;
     }
-    if (bladeLength < 0.04) return;
+    if (bladeLength < 0.04) return false;
 
     // --- View culling, now that the blade's own length is known ---
     float reach = bladeLength * 1.1 + widest;
     for (int i = 0; i < 6; i++)
     {
-        if (dot(frustumPlanes[i].xyz, root) + frustumPlanes[i].w < -reach) return;
+        if (dot(frustumPlanes[i].xyz, root) + frustumPlanes[i].w < -reach) return false;
     }
 
     // --- Shape ---
@@ -350,7 +355,6 @@ void main()
     vec2 side = vec2(-faceDir.y, faceDir.x);
     side = vec2(side.x * cos(twist) - side.y * sin(twist), side.x * sin(twist) + side.y * cos(twist));
 
-    GrassBladeData blade;
     blade.root = root;
     blade.width = width;
     blade.p1 = p1;
@@ -415,26 +419,59 @@ void main()
         blade.headColour = clamp(head, 0.0, 1.0);
     }
 
-    // --- Append. A full list drops the blade (the count is put back, so the draw never reads past the buffer) ---
-    bool near = shadowPass == 0 && viewDistance < grassLod.x;
+    near = shadowPass == 0 && viewDistance < grassLod.x;
+    return true;
+}
+
+// The two lists' counters are the one thing every blade in the field writes to. A group adds up what it grew and takes its places in one go, as
+// a thread each would have them all queueing on one address.
+shared uint groupNear;
+shared uint groupFar;
+shared uint firstNear;
+shared uint firstFar;
+
+// Takes `count` places in a list, and puts back any past its end, so that the draw never reads past the buffer. What doesn't fit is dropped.
+uint takePlaces(int list, uint count, uint capacity)
+{
+    uint first = atomicAdd(drawCommands[list].instanceCount, count);
+    uint end = first + count;
+    if (end > capacity) atomicAdd(drawCommands[list].instanceCount, 0u - (end - max(first, capacity)));
+    return first;
+}
+
+void main()
+{
+    if (gl_LocalInvocationIndex == 0u)
+    {
+        groupNear = 0u;
+        groupFar = 0u;
+    }
+    barrier();
+
+    int index = int(gl_GlobalInvocationID.x);
+    GrassBladeData blade;
+    bool near = false;
+    bool grown = index < bladesPerAxis * bladesPerAxis && growBlade(index, blade, near);
+    uint place = 0u;
+    if (grown) place = near ? atomicAdd(groupNear, 1u) : atomicAdd(groupFar, 1u);
+    barrier();
+
+    if (gl_LocalInvocationIndex == 0u)
+    {
+        if (groupNear > 0u) firstNear = takePlaces(0, groupNear, uint(nearCapacity));
+        if (groupFar > 0u) firstFar = takePlaces(1, groupFar, uint(farCapacity));
+    }
+    barrier();
+
+    if (!grown) return;
     if (near)
     {
-        uint slot = atomicAdd(drawCommands[0].instanceCount, 1u);
-        if (slot >= uint(nearCapacity))
-        {
-            atomicAdd(drawCommands[0].instanceCount, 0xffffffffu);
-            return;
-        }
-        nearBlades[slot] = packGrassBlade(blade);
+        uint slot = firstNear + place;
+        if (slot < uint(nearCapacity)) nearBlades[slot] = packGrassBlade(blade);
     }
     else
     {
-        uint slot = atomicAdd(drawCommands[1].instanceCount, 1u);
-        if (slot >= uint(farCapacity))
-        {
-            atomicAdd(drawCommands[1].instanceCount, 0xffffffffu);
-            return;
-        }
-        farBlades[slot] = packGrassBlade(blade);
+        uint slot = firstFar + place;
+        if (slot < uint(farCapacity)) farBlades[slot] = packGrassBlade(blade);
     }
 }

@@ -54,7 +54,7 @@ float calcSoftEdge(vec3 lightDir, vec3 lightDirectionViewSpace, float cutoff)
 }
 
 void main(void){
-	GBufferSample g = readGBufferSample();
+	GBufferSample g = locateGBufferSample();
 	vec3 toLight = lightPositionViewSpace - g.position;
 	float distanceToLight = length(toLight);
 	vec3 lightDir = toLight / max(distanceToLight, 1e-4);
@@ -62,6 +62,7 @@ void main(void){
 	float strength = lightFalloff(distanceToLight, lightRadius) * calcSoftEdge(lightDir, lightDirectionViewSpace, cutoffCosine);
 	if (strength <= 0.0) discard;
 
+	finishGBufferSample(g);
 	Surface s = surfaceOf(g);
 	vec3 radiance = lightColor * strength;
 	float visibility = isShadow ? clamp(1.0 - calcShadow(g.position), 0.0, 1.0) : 1.0;

@@ -36,7 +36,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     /// GPU grass after Ghost of Tsushima. For every view (the camera, and each light that casts grass shadows)
     /// Grass/Grass_Generate.comp scatters blades over the submitted chunks, gathers them into tufts, thins them with
     /// distance, culls them and appends the survivors, as finished Bézier curves, to a near list (15 vertex blades) and a
-    /// far list (7 vertices). Both are drawn with indirect draws, the vertices built from gl_VertexID alone. Some blades are
+    /// far list (7 vertices). Both are drawn with indirect draws, the vertices built from gl_VertexID alone, twice: once for
+    /// the depth of what owns each sample, and once for the colour of only that. Some blades are
     /// plumes or blooms, which the same strips draw differently; where they grow is in the terrain's bloom and colour maps.
     /// Settings come from <see cref="GrassSingleton"/> and reach the shaders as the GrassData uniform block (binding
     /// <see cref="UniformBinding"/>, Grass/GrassField.glsl), which Terrain.frag also reads to tint the ground under the grass.
@@ -78,6 +79,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         private readonly ShaderProgram _generateShader = new ShaderProgram("Grass/Grass_Generate.comp");
         private readonly ShaderProgram _grassShader = new ShaderProgram("Grass/Grass.vert", "Grass/Grass.frag");
+        private readonly ShaderProgram _grassDepthShader = new ShaderProgram("Grass/Grass.vert", "Grass/Grass_Depth.frag");
         private readonly ShaderProgram _grassShadowShader = new ShaderProgram("Grass/Grass_Shadow.vert", "Grass/Grass_Shadow.frag");
 
         private readonly int _chunkBuffer;
@@ -102,6 +104,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public GrassRenderer() : base("Grass")
         {
+            // Timed in parts, which can't nest inside a timer of the whole.
+            trackPerformance = false;
+
             _generateShader.bind();
             _generateShader.loadUniformInt("heightmaps", HeightMapUnit);
             _generateShader.loadUniformInt("grassMaps", GrassMapUnit);
@@ -152,6 +157,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             _generateShader.cleanUp();
             _grassShader.cleanUp();
+            _grassDepthShader.cleanUp();
             _grassShadowShader.cleanUp();
             GL.DeleteBuffer(_chunkBuffer);
             GL.DeleteBuffer(_settingsBuffer);
@@ -294,6 +300,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 2 * sizeof(uint), _stats);
                 NearBladesDrawn = (int)_stats[0];
                 FarBladesDrawn = (int)_stats[1];
+                Engine.PerformanceMonitor.Count("Grass near blades", NearBladesDrawn);
+                Engine.PerformanceMonitor.Count("Grass far blades", FarBladesDrawn);
             }
             GL.BindBuffer(BufferTarget.CopyReadBuffer, 0);
             GL.BindBuffer(BufferTarget.CopyWriteBuffer, 0);
@@ -309,7 +317,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             UploadSettings(_settings);
 
             Matrix4 viewProjection = renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix;
-            if (!Generate(command.chunks, viewProjection, shadowPass: false))
+            Engine.PerformanceMonitor.startGPUTask("Grass Generate");
+            bool grown = Generate(command.chunks, viewProjection, shadowPass: false);
+            Engine.PerformanceMonitor.finishGPUTask("Grass Generate");
+            if (!grown)
             {
                 NearBladesDrawn = 0;
                 FarBladesDrawn = 0;
@@ -317,6 +328,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             }
             UpdateStats();
 
+            Engine.PerformanceMonitor.startGPUTask("Grass Depth");
             renderEngine.Msaa.GeometryBuffer.bind();
             GL.Enable(EnableCap.DepthTest);
             GL.DepthMask(true);
@@ -324,16 +336,35 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             // Blades are seen from both sides.
             GL.Disable(EnableCap.CullFace);
 
-            _grassShader.bind();
             // Blades thinner than a pixel cover part of the samples instead; with one sample there is nothing to share.
             bool coverage = renderEngine.AntiAliasing.GrassCoverage && renderEngine.Msaa.Samples > 1;
-            _grassShader.loadUniformFloat("minPixelWidth", coverage ? MinPixelWidth : 0f);
+            float minPixelWidth = coverage ? MinPixelWidth : 0f;
             GL.BindVertexArray(_emptyVao);
             GL.BindBuffer(BufferTarget.DrawIndirectBuffer, _commandBuffer);
+
+            // First who owns each sample. A sample mask means every fragment has to run before depth can be tested, so that's kept to the least a fragment can be, with
+            // no colour to write. Then only the blades that won are shaded, with the depth test first, on the samples they won.
+            GL.ColorMask(false, false, false, false);
+            _grassDepthShader.bind();
+            _grassDepthShader.loadUniformFloat("minPixelWidth", minPixelWidth);
+            DrawList(_grassDepthShader, _nearBuffer, NearSegments, 0);
+            DrawList(_grassDepthShader, _farBuffer, FarSegments, 1);
+
+            Engine.PerformanceMonitor.finishGPUTask("Grass Depth");
+            Engine.PerformanceMonitor.startGPUTask("Grass Colour");
+            GL.ColorMask(true, true, true, true);
+            GL.DepthMask(false);
+            GL.DepthFunc(DepthFunction.Equal);
+            _grassShader.bind();
+            _grassShader.loadUniformFloat("minPixelWidth", minPixelWidth);
             DrawList(_grassShader, _nearBuffer, NearSegments, 0);
             DrawList(_grassShader, _farBuffer, FarSegments, 1);
+            GL.DepthFunc(DepthFunction.Less);
+            GL.DepthMask(true);
+
             GL.BindBuffer(BufferTarget.DrawIndirectBuffer, 0);
             GL.BindVertexArray(0);
+            Engine.PerformanceMonitor.finishGPUTask("Grass Colour");
         }
 
         internal override void FinishGeometry(RenderEngine renderEngine)
@@ -369,8 +400,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             }
 
             Matrix4 viewProjection = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
-            if (!Generate(_shadowChunks, viewProjection, shadowPass: true)) return;
+            Engine.PerformanceMonitor.startGPUTask("Grass Shadow Generate");
+            bool grown = Generate(_shadowChunks, viewProjection, shadowPass: true);
+            Engine.PerformanceMonitor.finishGPUTask("Grass Shadow Generate");
+            if (!grown) return;
 
+            Engine.PerformanceMonitor.startGPUTask("Grass Shadow");
             if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
             {
                 shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
@@ -397,6 +432,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             DrawList(_grassShadowShader, _farBuffer, FarSegments, 1);
             GL.BindBuffer(BufferTarget.DrawIndirectBuffer, 0);
             GL.BindVertexArray(0);
+            Engine.PerformanceMonitor.finishGPUTask("Grass Shadow");
         }
     }
 }

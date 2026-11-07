@@ -22,6 +22,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private ShaderProgram _directionalLightSampleShader = new ShaderProgram("Simple.vert", "Directional_Light.frag", new[] { "PER_SAMPLE" });
 
         private const int CloudShadowUnit = 9;
+        private const int FirstCascadeUnit = 4;
+        private const int MostCascades = 5;
 
         private int shadowSampler;
 
@@ -35,8 +37,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("gMaterials", 2);
                 shader.loadUniformInt("gDepth", 3);
                 shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
-                shader.loadUniformInt("pcfRadius", 3);
-                shader.loadUniformInt("cloudShadowMap", CloudShadowUnit);
+                LinkShadows(shader);
                 shader.unBind();
             }
 
@@ -67,47 +68,81 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.DeleteSampler(shadowSampler);
         }
 
-        public override void PerformCommand(DirectionallightRenderCommand command, RenderEngine renderEngine)
+        /// <summary>
+        /// Takes the sun out of this frame's lights, for <see cref="AmbientLightRenderer"/>, which draws it along with the sky. The sun is
+        /// the light with cascades: lightning has none, and stays here.
+        /// </summary>
+        public bool TakeSun(out DirectionallightRenderCommand sun)
         {
-            int CASCADETEXTURESINDEXSTART = 4;
-            int numberCascades = command.cascades.Length;
+            sun = default;
+            int index = commands.FindLastIndex(command => command.cascades.Length > 0);
+            if (index < 0) return false;
 
-            for (int i = 0; i < numberCascades; i++)
+            sun = commands[index];
+            commands.RemoveAll(command => command.cascades.Length > 0);
+            return true;
+        }
+
+        /// <summary>Points a shader's shadow samplers (Lighting/SunShadow.glsl) at the units <see cref="BindShadows"/> fills.</summary>
+        public static void LinkShadows(ShaderProgram shader)
+        {
+            for (int i = 0; i < MostCascades; i++) shader.loadUniformInt("shadowMaps[" + i + "]", FirstCascadeUnit + i);
+            shader.loadUniformInt("pcfRadius", 3);
+            shader.loadUniformInt("cloudShadowMap", CloudShadowUnit);
+        }
+
+        /// <summary>Binds what a light's shadow is read from, until <see cref="ReleaseShadows"/>.</summary>
+        public void BindShadows(DirectionallightRenderCommand command, RenderEngine renderEngine)
+        {
+            for (int i = 0; i < command.cascades.Length; i++)
             {
-                Shadow cascade = command.cascades[i];
-
-                ActiveTexture(TextureUnit.Texture4 + i);
-                BindTexture(TextureTarget.Texture2D, cascade.shadowFrameBuffer.getDepthAttachment());
-                BindSampler(CASCADETEXTURESINDEXSTART + i, shadowSampler);
+                ActiveTexture(TextureUnit.Texture0 + FirstCascadeUnit + i);
+                BindTexture(TextureTarget.Texture2D, command.cascades[i].shadowFrameBuffer.getDepthAttachment());
+                BindSampler(FirstCascadeUnit + i, shadowSampler);
             }
             ActiveTexture(TextureUnit.Texture0 + CloudShadowUnit);
             BindTexture(TextureTarget.Texture2D, renderEngine._weatherRenderer.CloudShadowTexture);
             ActiveTexture(TextureUnit.Texture0);
+        }
 
-            Vector4 lightDirectionViewSpace = new Vector4(-command.direction, 0.0f)* Matrix4.Transpose(renderEngine.context.invViewMatrix);
+        /// <summary>Loads where a light's cascades lie, for a shader that's bound.</summary>
+        public static void LoadShadows(ShaderProgram shader, DirectionallightRenderCommand command, RenderEngine renderEngine)
+        {
+            shader.loadUniformInt("numberOfCascades", command.cascades.Length);
+            for (int i = 0; i < command.cascades.Length; i++)
+            {
+                Shadow cascade = command.cascades[i];
+                Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * cascade.lightViewMatrix * cascade.shadowProjectionMatrix;
+                shader.loadUniformMatrix4f("sunSpaceMatrices[" + i + "]", shadowMatrix);
+            }
+        }
+
+        public void ReleaseShadows(DirectionallightRenderCommand command)
+        {
+            for (int i = 0; i < command.cascades.Length; i++) BindSampler(FirstCascadeUnit + i, 0);
+        }
+
+        /// <summary>The way to a light from what it shines on, as the shaders want it.</summary>
+        public static Vector3 ViewSpaceDirection(DirectionallightRenderCommand command, RenderEngine renderEngine)
+        {
+            return (new Vector4(-command.direction, 0.0f) * Matrix4.Transpose(renderEngine.context.invViewMatrix)).Xyz;
+        }
+
+        public override void PerformCommand(DirectionallightRenderCommand command, RenderEngine renderEngine)
+        {
+            BindShadows(command, renderEngine);
+            Vector3 lightDirectionViewSpace = ViewSpaceDirection(command, renderEngine);
 
             renderEngine.Msaa.DrawSplit(_directionalLightShader, _directionalLightSampleShader, shader =>
             {
-                shader.loadUniformInt("numberOfCascades", numberCascades);
-                for (int i = 0; i < numberCascades; i++)
-                {
-                    Shadow cascade = command.cascades[i];
-                    shader.loadUniformInt("shadowMaps[" + i + "]", CASCADETEXTURESINDEXSTART + i);
-                    Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * cascade.lightViewMatrix * cascade.shadowProjectionMatrix;
-                    shader.loadUniformMatrix4f("sunSpaceMatrices[" + i + "]", shadowMatrix);
-                }
-                shader.loadUniformVector3f("LightDirectionViewSpace", lightDirectionViewSpace.Xyz);
+                LoadShadows(shader, command, renderEngine);
+                shader.loadUniformVector3f("LightDirectionViewSpace", lightDirectionViewSpace);
                 shader.loadUniformVector3f("lightColour", command.colour);
 
                 renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
             });
 
-
-            //// TODO. BETTER CLEANER WAY PUT THIS SOMEWHERE ELSE....................
-            for (int i = 0; i < numberCascades; i++)
-            {
-                BindSampler(CASCADETEXTURESINDEXSTART + i, 0);
-            }
+            ReleaseShadows(command);
         }
 
     }

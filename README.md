@@ -76,7 +76,7 @@ Up to five heroes can share a world, with no server to run: in the pause menu, *
 - **GPU-driven grass** in the style of Ghost of Tsushima: a compute pass grows, clumps, thins and culls the blades every frame, drawn as curved Bézier blades with indirect draws; nothing per blade is stored
 
 ### Anti-aliasing
-- **Deferred MSAA** (2x/4x/8x): multisampled G-buffer, lights and composites shaded per sample only on edge pixels, sky/water/particles multisampled in hardware, tone-mapped-weighted resolve; no temporal accumulation, so no ghosting
+- **Deferred MSAA** (2x/4x/8x): multisampled G-buffer, lights and composites shaded per sample only where a pixel's samples are on different things and once from their average elsewhere, sky/water/particles multisampled in hardware, tone-mapped-weighted resolve; no temporal accumulation, so no ghosting
 - **Coverage anti-aliasing for sub-pixel grass**: blades thinner than a pixel draw a pixel wide over a matching share of the samples, so swaying grass doesn't shimmer
 - **Analytic alpha-to-coverage** for cutout foliage: the cutout edge is placed between samples like a polygon edge
 - **Geometric specular anti-aliasing** on grass

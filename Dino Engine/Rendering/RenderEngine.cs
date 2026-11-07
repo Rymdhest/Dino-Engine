@@ -106,8 +106,8 @@ namespace Dino_Engine.Rendering
         public GaussianBlurRenderer GaussianBlurRenderer { get => _gaussianBlurRenderer; }
         public DepthBasedBlurRenderer DepthBasedBlurRenderer { get => _depthBasedBlurRenderer; }
         /// <summary>
-        /// The single-sample G-buffer the screen-space passes read, resolved from the multisampled one each frame (each
-        /// pixel's farthest sample; attachment <see cref="MsaaRenderer.EdgeAttachment"/> flags the edge pixels).
+        /// The single-sample G-buffer the light and screen-space passes read, resolved from the multisampled one each frame (the
+        /// average of a pixel's samples, or the farthest on edge pixels, which attachment <see cref="MsaaRenderer.EdgeAttachment"/> flags).
         /// Geometry renders into <see cref="MsaaRenderer.GeometryBuffer"/>.
         /// </summary>
         public FrameBuffer GBuffer { get => _gBuffer; }
@@ -257,6 +257,7 @@ namespace Dino_Engine.Rendering
 
             if (debugView)
             {
+                _dualBufferFull.clearBothBuffers();
                 _debugRenderer.render(_dualBufferFull);
             } else
             {
@@ -276,8 +277,11 @@ namespace Dino_Engine.Rendering
 
                 //_debugRenderer.RenderNormals(_dualBufferFull);
 
-                _simpleShader.bind();
-                lastUsedBuffer.GetLastFrameBuffer().resolveToScreen();
+                if (!_toneMapRenderer.ToScreen)
+                {
+                    _simpleShader.bind();
+                    lastUsedBuffer.GetLastFrameBuffer().resolveToScreen();
+                }
 
                 //_screenQuadRenderer.RenderTextureToScreen(TextureGenerator.testTexture.textures[0]);
 
@@ -380,11 +384,13 @@ namespace Dino_Engine.Rendering
             _lightningRenderer.RenderPass(this);
             _msaa.ResolveScene(this);
             // The sun's depth test reads the dual buffer's depth.
-            _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);
+            if (_sunRenderer.Shows(this)) _dualBufferFull.blitBothDepthBufferFrom(_gBuffer);
 
             _depthOfFieldRenderer.RenderPass(this);
             _sunRenderer.RenderPass(this);
             _bloomRenderer.RenderPass(this);
+            // Straight onto the screen, unless something is still to come or the F3 tools might want to look at it.
+            _toneMapRenderer.ToScreen = !AntiAliasing.Fxaa && !AntiAliasing.ShowEdgePixels && !Engine.DebugOverlay.Visible;
             _toneMapRenderer.RenderPass(this);
             // FXAA works on the image as it will be seen: tone mapped, gamma encoded.
             if (AntiAliasing.Fxaa) _fXAARenderer.RenderPass(this);
@@ -394,7 +400,6 @@ namespace Dino_Engine.Rendering
         private void PrepareFrame()
         {
             _msaa.BeginFrame(AntiAliasing);
-            _dualBufferFull.clearBothBuffers();
 
             /*
             Vector3 viewPos = new Vector3(500, 500, 500);
@@ -429,7 +434,9 @@ namespace Dino_Engine.Rendering
         {
 
             Engine.Instance?.CaptureFrame();
+            Engine.PerformanceMonitor.startCPUTask("Waiting for the GPU");
             Engine.WindowHandler.SwapBuffers();
+            Engine.PerformanceMonitor.finishCPUTask("Waiting for the GPU");
         }
 
 
