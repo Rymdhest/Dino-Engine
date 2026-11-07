@@ -17,6 +17,9 @@ namespace Dino_Defenders.Server
         public float Strength = 1f;
         public int ViewLag;
 
+        /// <summary>Whether it's a Toggle Book going off by itself, which nobody's hands show.</summary>
+        public bool Pulsing;
+
         /// <summary>How much it's made so far, which has a limit.</summary>
         public int Made;
 

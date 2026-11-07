@@ -859,8 +859,21 @@ namespace Dino_Defenders.UI
                 float wait = book != null && book.Cooldown > 0f ? Math.Clamp(sim.Cooldowns[slot] / book.Cooldown, 0f, 1f) : 0f;
                 if (wait > 0f) draw.AddRect(new GuiRect(cell.X, cell.Y + cell.Height * (1f - wait), cell.Width, cell.Height * wait), GuiColors.Rgba(20, 16, 12, 170), 2f);
 
-                bool affordable = book == null || (book.CostsHealth ? session.Health > book.Cost : sim.Mana >= book.Cost);
+                bool on = HeroRules.IsOn(sim, slot);
+                bool affordable = book == null || book.Mode switch
+                {
+                    BookMode.Toggle => on || HeroRules.CanTurnOn(sim, session.Client.Kit, book),
+                    _ => book.CostsHealth ? session.Health > book.Cost : sim.Mana >= book.Cost,
+                };
                 if (!affordable) draw.AddRect(cell, GuiColors.Rgba(20, 24, 70, 150), 2f);
+
+                // What goes by itself shows how far it's got, and what's on shows that it is.
+                if (book is { Mode: BookMode.Trigger })
+                {
+                    float charged = Math.Clamp(sim.Charged[slot], 0f, 1f);
+                    draw.AddRect(new GuiRect(cell.X, cell.Y + cell.Height * (1f - charged), cell.Width, cell.Height * charged), GuiColors.Rgba(214, 172, 92, charged >= 1f ? 90 : 46), 2f);
+                }
+                if (on) draw.AddRect(cell.Inflate(1f), GuiColors.Rgba(214, 172, 92, 40), 3f, 2f, Ui.Gold);
 
                 if (item != null)
                 {

@@ -318,6 +318,13 @@ namespace Dino_Defenders.Net
             if (item.Page != null) WritePage(writer, item.Page);
             writer.WriteBool(item.Sticker != null);
             if (item.Sticker != null) WriteSticker(writer, item.Sticker);
+            writer.WriteByte((byte)item.Mode);
+            writer.WriteBool(item.When != null);
+            if (item.When != null)
+            {
+                writer.WriteByte((byte)item.When.When);
+                writer.WriteFloat(item.When.Amount);
+            }
 
             writer.WriteCount(item.Places);
             foreach (Item? held in item.Held ?? Array.Empty<Item?>())
@@ -450,6 +457,14 @@ namespace Dino_Defenders.Net
             Sticker? sticker = reader.ReadBool() ? ReadSticker(reader) : null;
             if (item.IsPage) item.Page = page ?? Scribe.NewPage(PageKind.Projectile);
             if (item.IsSticker) item.Sticker = sticker ?? new Sticker();
+
+            BookMode mode = Checked<BookMode>(reader.ReadByte());
+            BookTrigger? when = reader.ReadBool() ? new BookTrigger { When = Checked<BookWhen>(reader.ReadByte()), Amount = Finite(reader.ReadFloat()) } : null;
+            if (item.IsBook)
+            {
+                item.Mode = mode;
+                if (mode == BookMode.Trigger) item.When = BookTriggers.Fix(when);
+            }
 
             int places = reader.ReadCount(Rulebook.MostPages);
             var held = new Item?[places];

@@ -215,6 +215,22 @@ namespace Dino_Defenders.UI
                 }
             }
 
+            if (item.IsBook && item.Mode != BookMode.Active)
+            {
+                Vector2 corner = new Vector2(rect.Right - 9f, rect.Y + 9f);
+                if (item.Mode == BookMode.Toggle)
+                {
+                    draw.AddCircle(corner, 5f, GuiColors.Transparent, 1.5f, Gold);
+                    draw.AddCircle(corner, 2f, Gold);
+                }
+                else
+                {
+                    draw.AddLine(corner + new Vector2(2f, -6f), corner + new Vector2(-3f, 0.5f), Gold, 1.5f);
+                    draw.AddLine(corner + new Vector2(-3f, 0.5f), corner + new Vector2(3f, 0.5f), Gold, 1.5f);
+                    draw.AddLine(corner + new Vector2(3f, 0.5f), corner + new Vector2(-2f, 6f), Gold, 1.5f);
+                }
+            }
+
             for (int i = 0; i < item.Places; i++)
             {
                 var pip = new GuiRect(rect.X + 3f + i * (Pip + Gap), rect.Bottom - Pip - 3f, Pip, Pip);

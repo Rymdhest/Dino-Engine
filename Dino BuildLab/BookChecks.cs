@@ -40,6 +40,7 @@ namespace Dino_BuildLab
             report.Section("Books: carrying them");
             Carrying(report);
             Stickered(report);
+            Moded(report);
             Carried(report);
             Slotting(report);
 
@@ -410,6 +411,88 @@ namespace Dino_BuildLab
 
             report.Check("Everything already written has what a sticker can say", Stickers.Names.All(name => BookText.Good(Stickers.Written(name)!).Length > 0));
             report.Check("Nothing written says more than a sticker can", Stickers.Names.All(name => Stickers.Written(name)!.GoodBy <= Rulebook.MostStickerGood && Stickers.Written(name)!.BadBy <= Rulebook.MostStickerBad));
+        }
+
+        // What makes one book go off and another not.
+        private static void Moded(Report report)
+        {
+            var random = new Dino_Engine.World.WorldRandom(44);
+            var modes = new HashSet<BookMode>();
+            var whens = new HashSet<BookWhen>();
+            int wrong = 0;
+            for (int i = 0; i < 4000; i++)
+            {
+                Item found = ItemGenerator.Folio(20, random.Fork(i), (LootGrade)(i % 5));
+                if (!found.IsBook)
+                {
+                    if (found.Mode != BookMode.Active || found.When != null) wrong++;
+                    continue;
+                }
+                modes.Add(found.Mode);
+                if (found.When != null) whens.Add(found.When.When);
+                if ((found.Mode == BookMode.Trigger) != (found.When != null)) wrong++;
+            }
+            report.Check("Books are found of every kind", modes.Count == 3, string.Join(", ", modes));
+            report.Check("Only a Trigger Book waits for anything, and every one does", wrong == 0, $"{wrong}");
+            report.Check("And everything that can be waited for turns up", whens.SetEquals(BookTriggers.All), string.Join(", ", whens));
+            report.Check("With words for all of it", BookTriggers.All.All(when => BookText.Waits(new BookTrigger { When = when, Amount = 3f }).Length > 0));
+
+            float Waited(LootGrade grade) => Enumerable.Range(0, 2000).Select(i => BookTriggers.Roll(grade, random.Fork(50000 + i))).Where(t => t.When == BookWhen.Hit).Average(t => t.Amount);
+            report.Check("A rarer book waits for less", Waited(LootGrade.Legendary) < Waited(LootGrade.Plain) * 0.6f);
+            report.Check("What everyone starts with is pressed", ItemGenerator.Book(1).Mode == BookMode.Active);
+
+            var aura = new Book { Mode = BookMode.Toggle, Pages = { Scribe.NewPage(PageKind.Area), Scribe.NewPage(PageKind.Projectile), Scribe.NewPage(PageKind.Area) } };
+            aura.Pages[0].Timing = "lingering";
+            Scribe.Fix(aura);
+            report.Check("A Toggle Book reads only Area Pages, however many", aura.Pages.Count == 2 && aura.Pages.All(page => page.Kind == PageKind.Area));
+            report.Check("And nothing on it lingers, as pulsing is all it does", aura.Pages[0].Timing == Sentences.PlainTiming);
+            BookPlan read = Scribe.Read(aura);
+            report.Check("Every Page of one is its own last, with nothing to turn to", read.Pages.All(page => page.Last));
+
+            Page twoAreas = Scribe.NewPage(PageKind.Area);
+            var pressed = new Book { Pages = { Scribe.NewPage(PageKind.Area), twoAreas } };
+            Scribe.Fix(pressed);
+            report.Check("A book that's pressed still stops at its first Area", pressed.Pages.Count == 1);
+
+            BookProfile free = Profile(new Book { Mode = BookMode.Toggle, Pages = { Scribe.NewPage(PageKind.Area) } }, Sword);
+            report.Near("A page that costs nothing still can't be left on for nothing", free.Cost, Rulebook.LeastToggleCost);
+            report.Check("What it does in a second is a share of what it does by hand", free.DamagePerSecond < Profile(new Book { Pages = { Scribe.NewPage(PageKind.Area) } }, Sword).DamagePerSecond);
+
+            Page quick = Scribe.NewPage(PageKind.Area);
+            quick.Stickers.Add(Stickers.Written("hasty")!);
+            Page rested = Scribe.NewPage(PageKind.Area);
+            rested.Stickers.Add(Stickers.Written("rest")!);
+            report.Check("Stickers count on a pulse: what quickens it does", Profile(new Book { Mode = BookMode.Toggle, Pages = { quick } }, Sword).Pulse < free.Pulse);
+            report.Near("And what makes it rest holds it back", Profile(new Book { Mode = BookMode.Toggle, Pages = { rested } }, Sword).Pulse, Rulebook.RestShort);
+
+            HeroState hero = HeroState.CreateNew();
+            Item toggle = new Item { Name = "Aura", Slot = ItemSlot.Book, Level = 1, Seed = 2, Mode = BookMode.Toggle, Held = new Item?[2] };
+            hero.Pickup(toggle, 0);
+            hero.Pickup(Leaf(PageKind.Projectile, 1), 1);
+            hero.Pickup(Leaf(PageKind.Area, 1), 2);
+            hero.Pickup(Leaf(PageKind.Area, 1), 3);
+            ItemPlace book = ItemPlace.Cell(0);
+            report.Check("A Projectile Page can't go in a Toggle Book", !hero.CanMove(ItemPlace.Cell(1), book.In(0)));
+            report.Check("An Area Page can", hero.Move(ItemPlace.Cell(2), book.In(0)));
+            report.Check("And another after it", hero.Move(ItemPlace.Cell(3), book.In(1)));
+            report.Check("Which reads as both", toggle.Written() is { Pages.Count: 2, Mode: BookMode.Toggle });
+
+            Item waiting = new Item { Name = "Watcher", Slot = ItemSlot.Book, Level = 1, Seed = 2, Mode = BookMode.Trigger, When = new BookTrigger { When = BookWhen.Moved, Amount = 40f }, Held = new Item?[1] };
+            var wire = new BitWriter();
+            Protocol.WriteItem(wire, waiting);
+            Item arrived = Protocol.ReadItem(new BitReader(wire.ToArray()));
+            report.Check("What a book is and what it waits for come through the wire", arrived.Mode == BookMode.Trigger && arrived.When is { When: BookWhen.Moved, Amount: 40f });
+
+            var sword = new Item { Name = "Sword", Slot = ItemSlot.MainHand, Mode = BookMode.Toggle, When = new BookTrigger() };
+            var armed = new BitWriter();
+            Protocol.WriteItem(armed, sword);
+            Item plain = Protocol.ReadItem(new BitReader(armed.ToArray()));
+            report.Check("A sword can't arrive as one", plain.Mode == BookMode.Active && plain.When == null);
+
+            string edited = JsonSerializer.Serialize(new { Version = SaveGame.CurrentVersion, Hero = new { Level = 5, Bar = new object?[] { new { Name = "Greedy", Slot = "Book", Mode = "Trigger", When = new { When = "Hit", Amount = 0.001f }, Held = new object?[] { null } }, new { Name = "Blind", Slot = "Book", Mode = "Trigger", Held = new object?[] { null } } } } });
+            SaveGame? hand = SaveGame.Read(edited);
+            report.Check("A save can't make a book wait for next to nothing", hand?.Hero.Bar[0]?.When?.Amount >= 8f, $"{hand?.Hero.Bar[0]?.When?.Amount}");
+            report.Check("Or wait for nothing at all", hand?.Hero.Bar[1]?.When != null);
         }
 
         // Potency goes on from page to page, as a person asked for.

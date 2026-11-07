@@ -57,9 +57,9 @@ namespace Dino_Defenders.Books
         private static string[] Say(params string[] stickers) => stickers;
 
         // What's set off by something else counts as that, and everything that isn't a hero's own can have numbers a sentence couldn't get to.
-        private static BookPlan Write(string id, string name, Page[] pages, Action<PagePlan>? tune = null, bool triggered = false)
+        private static BookPlan Write(string id, string name, Page[] pages, Action<PagePlan>? tune = null, bool triggered = false, BookMode mode = BookMode.Active, BookTrigger? when = null)
         {
-            var book = new Book { Pages = pages.ToList() };
+            var book = new Book { Pages = pages.ToList(), Mode = mode, When = when };
             Scribe.Fix(book);
             BookPlan plan = Scribe.Read(book, name);
             plan.Id = id;
@@ -119,5 +119,7 @@ namespace Dino_Defenders.Books
         public static readonly BookPlan Sap = Write("sap", "Sap", new[] { Area("line", Say("tight"), Deal("magic")) }, page => page.Mods = new[] { Flat(Stat.HealthLeech, 12f), Flat(Stat.ManaLeech, 6f) });
         public static readonly BookPlan Tidepool = Write("tidepool", "Tidepool", new[] { Area("circle", Plain, Do("water")).At("from-cursor").Lasting("lingering-long") });
         public static readonly BookPlan Split = Write("split", "Splitting Shot", new[] { Bolt(Plain, Deal()), Bolt(Say("three-at-once"), Deal()).Going("onward") });
+        public static readonly BookPlan Inferno = Write("inferno", "Inferno", new[] { Area("circle", Plain, Deal("fire")) }, mode: BookMode.Toggle);
+        public static readonly BookPlan Retort = Write("retort", "Retort", new[] { Area("circle", Plain, Deal("lightning")) }, mode: BookMode.Trigger, when: new BookTrigger { When = BookWhen.Moved, Amount = 20f });
     }
 }

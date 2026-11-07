@@ -153,6 +153,8 @@ namespace Dino_Defenders.Tooltips
             Basic("Book", "What you fight with: anything on your Bar, or anything that Triggers. It holds Pages. Right click one to read it.", "Books");
             Basic("Page", "Goes in a Book, and holds Stickers. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
             Basic("Sticker", "Goes on a Page. Always does one thing for it and one thing against it.", "Stickers");
+            Basic("Trigger Book", "Can't be used by hand. Goes off by itself on your Bar, paying its Cost, each time what it waits for has happened.", "Trigger Books");
+            Basic("Toggle Book", $"Press it on your Bar to turn it on or off. While on, each Pulse does {Share(AuraStrength)} of what it would by hand, and its Cost comes off your Mana Regeneration.", "Toggle Books");
             On(Stat.Potency, Word("Potency", $"How strong everything a Page does is, up to {Share(MostPotency)}. Each Page starts from where the last left off. Counts for healing too."));
             On(Tags.Opening, Word("Opening Page", "The first Page of a Book."));
             On(Tags.Turned, Word("Turned Page", "Any Page after the first."));

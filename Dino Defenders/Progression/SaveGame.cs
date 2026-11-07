@@ -219,6 +219,9 @@ namespace Dino_Defenders.Progression
             }
             item.Book = null;
 
+            if (!item.IsBook || !Enum.IsDefined(item.Mode)) item.Mode = BookMode.Active;
+            item.When = item.Mode == BookMode.Trigger ? BookTriggers.Fix(item.When) : null;
+
             if (!item.IsFolio)
             {
                 item.Page = null;
@@ -227,7 +230,7 @@ namespace Dino_Defenders.Progression
                 return;
             }
 
-            if (item.IsBook) item.Held = Held(item.Held, 1, Rulebook.MostPages, held => held.IsPage);
+            if (item.IsBook) item.Held = Held(item.Held, 1, Rulebook.MostPages, held => held.IsPage && (item.Mode != BookMode.Toggle || held.Page?.Kind == PageKind.Area));
             else if (item.IsPage)
             {
                 item.Page ??= Scribe.NewPage(PageKind.Projectile);

@@ -86,6 +86,8 @@ namespace Dino_Defenders.Books
         public const ushort None = 0;
 
         public ushort Number;           // Its place on the shelf, for those that are named by something else.
+        public BookMode Mode;
+        public BookTrigger? When;
         public string Id = "";
         public string Name = "";
         public PagePlan[] Pages = Array.Empty<PagePlan>();
@@ -124,7 +126,7 @@ namespace Dino_Defenders.Books
         /// <summary>What an item comes to as a book: the pages it holds, in order, each with what's stuck on it. A page on its own reads as a book of one. Nothing if there's nothing in it to read.</summary>
         public static Book? Bind(Progression.Item item)
         {
-            var book = new Book();
+            var book = new Book { Mode = item.Mode, When = item.When };
             if (item.IsPage) AddPage(book, item);
             else if (item.IsBook)
             {
@@ -161,11 +163,23 @@ namespace Dino_Defenders.Books
             if (book.Pages.Count == 0) book.Pages.Add(NewPage(PageKind.Area));
             if (book.Pages.Count > Rulebook.MostPages) book.Pages.RemoveRange(Rulebook.MostPages, book.Pages.Count - Rulebook.MostPages);
 
-            // An area has no impact to turn from.
-            int firstArea = book.Pages.FindIndex(page => page.Kind == PageKind.Area);
-            if (firstArea >= 0 && firstArea < book.Pages.Count - 1) book.Pages.RemoveRange(firstArea + 1, book.Pages.Count - firstArea - 1);
+            // An area has no impact to turn from. What's left on goes by nothing but pulses, so that's all it can hold, every one of them going at once.
+            if (book.Mode == BookMode.Toggle)
+            {
+                book.Pages.RemoveAll(page => page.Kind != PageKind.Area);
+                if (book.Pages.Count == 0) book.Pages.Add(NewPage(PageKind.Area));
+            }
+            else
+            {
+                int firstArea = book.Pages.FindIndex(page => page.Kind == PageKind.Area);
+                if (firstArea >= 0 && firstArea < book.Pages.Count - 1) book.Pages.RemoveRange(firstArea + 1, book.Pages.Count - firstArea - 1);
+            }
 
-            for (int i = 0; i < book.Pages.Count; i++) Fix(book.Pages[i], i > 0);
+            for (int i = 0; i < book.Pages.Count; i++)
+            {
+                Fix(book.Pages[i], i > 0);
+                if (book.Mode == BookMode.Toggle) book.Pages[i].Timing = Sentences.PlainTiming;
+            }
         }
 
         /// <summary>The same for one page.</summary>
@@ -243,13 +257,13 @@ namespace Dino_Defenders.Books
         /// <summary>What a book says. It's read as it stands, so it has to have been through <see cref="Fix"/>.</summary>
         public static BookPlan Read(Book book, string name = "")
         {
-            var plan = new BookPlan { Name = name, Source = book, Pages = new PagePlan[book.Pages.Count] };
+            var plan = new BookPlan { Name = name, Source = book, Pages = new PagePlan[book.Pages.Count], Mode = book.Mode, When = book.When };
 
             // Strength goes on from page to page: what's left at the end of one is where the next starts from.
             float carried = 1f;
             for (int i = 0; i < plan.Pages.Length; i++)
             {
-                plan.Pages[i] = Read(book.Pages[i], i, i == plan.Pages.Length - 1, carried);
+                plan.Pages[i] = Read(book.Pages[i], i, i == plan.Pages.Length - 1 || book.Mode == BookMode.Toggle, carried);
                 carried = plan.Pages[i].Potency;
             }
             return plan;

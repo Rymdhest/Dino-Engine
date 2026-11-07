@@ -171,6 +171,12 @@ namespace Dino_Defenders.Progression
         /// <summary>What's in it, a place each, with gaps: a book holds pages and a page holds stickers. How many places there are is what makes one better than another. See BOOKS.md.</summary>
         public Item?[]? Held { get; set; }
 
+        /// <summary>How it goes off, if it's a book.</summary>
+        public BookMode Mode { get; set; }
+
+        /// <summary>What it's waiting for, if it's a Trigger Book.</summary>
+        public BookTrigger? When { get; set; }
+
         /// <summary>What was written in a book before pages were items, which only a save that old has.</summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public Book? Book { get; set; }
@@ -742,6 +748,8 @@ namespace Dino_Defenders.Progression
         public static Item Copied(Book book, string name, ulong seed, int level = 1)
         {
             Item item = EmptyBook(Math.Max(book.Pages.Count, 1), name, seed, level, Rarity.Common);
+            item.Mode = book.Mode;
+            item.When = book.When?.Copy();
             for (int i = 0; i < book.Pages.Count; i++)
             {
                 seed = NextSeed(seed);
@@ -781,13 +789,22 @@ namespace Dino_Defenders.Progression
                 PageKind pageKind = random.Chance(0.5f) ? PageKind.Projectile : PageKind.Area;
                 return Leaf(Scribe.NewPage(pageKind), random.Int(LeastStickers[table], MostStickers[table]), $"{FolioWords[table]} {pageKind} Page", seed, level, rarity);
             }
-            return EmptyBook(random.Int(LeastPages[table], MostPages[table]), $"{FolioWords[table]} Book", seed, level, rarity);
+
+            float mode = random.Float();
+            BookMode bookMode = mode < TriggerShare ? BookMode.Trigger : mode < TriggerShare + ToggleShare ? BookMode.Toggle : BookMode.Active;
+            string word = bookMode == BookMode.Active ? "" : $"{bookMode} ";
+            Item book = EmptyBook(random.Int(LeastPages[table], MostPages[table]), $"{FolioWords[table]} {word}Book", seed, level, rarity);
+            book.Mode = bookMode;
+            if (bookMode == BookMode.Trigger) book.When = BookTriggers.Roll(grade, random);
+            return book;
         }
 
         private const int StarterPlaces = 2;
         private const int StarterStickers = 1;
         private const float StickerShare = 0.55f;   // Of what's found that isn't worn. What's left after pages is books.
         private const float PageShare = 0.33f;
+        private const float TriggerShare = 0.3f;    // Of books. What's left after toggles is pressed by hand.
+        private const float ToggleShare = 0.2f;
 
         // By grade, from plain to legendary. A book of more places than a page has stickers is the rarer thing, as it's worth more.
         private static readonly int[] LeastPages = { 1, 2, 3, 5, 6 };

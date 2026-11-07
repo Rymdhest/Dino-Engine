@@ -25,6 +25,16 @@ namespace Dino_Defenders.Server
         public Actor? Source;
     }
 
+    /// <summary>A Trigger Book, waiting.</summary>
+    public sealed class BookWatch
+    {
+        public int Slot;
+        public Item Book = null!;
+        public BookWhen When;
+        public float Amount;
+        public float Progress;
+    }
+
     /// <summary>What's been done to someone and hasn't worn off.</summary>
     public sealed class Afflictions
     {
@@ -155,6 +165,9 @@ namespace Dino_Defenders.Server
 
         /// <summary>How long until each of its triggers can go off again. Follows the loadout.</summary>
         public float[] TriggerReady;
+
+        /// <summary>The Trigger Books it has, and how far each has got. Most have none.</summary>
+        public BookWatch[] Watches = Array.Empty<BookWatch>();
 
         /// <summary>How long each of its books has left to cool. A hero's are in their step; everyone else's are here.</summary>
         public float[] Cooldowns;

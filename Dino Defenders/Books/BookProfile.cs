@@ -109,7 +109,13 @@ namespace Dino_Defenders.Books
                 Cooldown += Pages[i].Cooldown;
             }
             CostsHealth = sheet.Has(Rule.CostsHealth);
+            if (Mode == BookMode.Toggle) Cost = MathF.Max(Cost, Rulebook.LeastToggleCost);
         }
+
+        public BookMode Mode => Book.Mode;
+
+        /// <summary>Seconds between a Toggle Book's pulses. Whatever quickens a use quickens it, and whatever makes a book rest holds it back.</summary>
+        public float Pulse => MathF.Max(MathF.Max(Rulebook.AuraPulse * UseTime / Rulebook.PageUseTime, Cooldown), Rulebook.FastestAura);
 
         /// <summary>Whether anything on it is worth drawing on the ground before it lands. A plain blow isn't: nobody needs telling what a sword reaches, and there'd be no end of them.</summary>
         public bool ShowsArea
@@ -131,7 +137,7 @@ namespace Dino_Defenders.Books
             {
                 float total = 0f;
                 foreach (PageProfile page in Pages) total += page.AverageHit * page.PulseShare * page.Pulses;
-                return total / MathF.Max(UseTime, Cooldown);
+                return Mode == BookMode.Toggle ? total * Rulebook.AuraStrength / Pulse : total / MathF.Max(UseTime, Cooldown);
             }
         }
     }

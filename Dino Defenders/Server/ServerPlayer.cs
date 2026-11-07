@@ -1,3 +1,4 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
@@ -32,6 +33,9 @@ namespace Dino_Defenders.Server
         public HeroState Hero = null!;
         public Actor Actor = null!;
         public HeroKit Kit = null!;
+
+        /// <summary>How long until each Toggle Book that's on pulses again.</summary>
+        public readonly float[] Pulses = new float[HeroState.BarSlots];
         public HeroSimState Sim;
         public float DownFor;
         public Vector2 Respawn;
@@ -70,6 +74,20 @@ namespace Dino_Defenders.Server
         {
             Actor.Adopt(HeroBuild.Compile(Hero, Actor.Buffs));
             Kit = new HeroKit(Hero, Actor.Sheet);
+            WatchBooks();
+        }
+
+        /// <summary>Looks at what's on the bar. A book that's stayed where it was keeps how far it's got, and one that's been taken off has lost it.</summary>
+        public void WatchBooks()
+        {
+            var watches = new List<BookWatch>();
+            for (int slot = 0; slot < HeroState.BarSlots; slot++)
+            {
+                if (Hero.Bar[slot] is not { Mode: BookMode.Trigger, When: BookTrigger when } book || book.Written() == null) continue;
+                float progress = Array.Find(Actor.Watches, watch => watch.Book == book)?.Progress ?? 0f;
+                watches.Add(new BookWatch { Slot = slot, Book = book, When = when.When, Amount = when.Amount, Progress = progress });
+            }
+            Actor.Watches = watches.ToArray();
         }
 
         /// <summary>A change to what they carry has come in. Their client gets the truth back whether it was allowed or not, and that's what puts right one that wasn't.</summary>

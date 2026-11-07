@@ -536,6 +536,7 @@ namespace Dino_Defenders.UI
         {
             if (to.Shelf == Shelf.Worn && WornSlots.For(item.Slot).Contains((WornSlot)to.Index)) return "Your pack is full";
             if (to.Shelf != Shelf.Held) return "That doesn't go there";
+            if (item.IsPage && Hero.At(to.Place.Holder) is { Mode: BookMode.Toggle }) return "A Toggle Book holds only Area Pages";
             if (item.IsPage && Hero.At(to.Place.Holder) is { IsBook: true }) return "Nothing can come after an Area Page";
             return item.IsSticker && Hero.At(to.Place.Holder) is { IsPage: true } ? "That Sticker is for another kind of Page" : "That doesn't go there";
         }

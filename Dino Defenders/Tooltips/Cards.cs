@@ -189,8 +189,14 @@ namespace Dino_Defenders.Tooltips
             bool used = (book.First.Tags & Tags.Triggered) == 0;
             var card = new Card { Title = plan.Name, Kind = used ? "Book" : "", Tags = TagsOn(book) };
 
-            if (used) card.Cell("Use Time", Seconds(book.UseTime));
-            if (used && book.Cost > 0f) card.Cell("Cost", $"{Amount(book.Cost)} {(book.CostsHealth ? "Health" : "Mana")}");
+            if (BookText.Mode(plan.Mode, plan.When) is { Length: > 0 } mode) card.Text(mode);
+            if (used && book.Mode == BookMode.Active) card.Cell("Use Time", Seconds(book.UseTime));
+            if (book.Mode == BookMode.Toggle)
+            {
+                card.Cell("Pulse", Seconds(book.Pulse));
+                card.Cell("Cost", $"{Amount(book.Cost)} Mana Regeneration");
+            }
+            else if (used && book.Cost > 0f) card.Cell("Cost", $"{Amount(book.Cost)} {(book.CostsHealth ? "Health" : "Mana")}");
             if (book.Cooldown > 0f) card.Cell("Cooldown", Seconds(book.Cooldown));
             if (used && book.Pages.Any(page => page.DealsDamage)) card.Row("Damage per Second", Amount(book.DamagePerSecond));
 
@@ -511,6 +517,7 @@ namespace Dino_Defenders.Tooltips
         {
             Book? written = item.Written();
             Card card = written != null && viewer != null ? Book(viewer.Preview(Scribe.Read(written, item.Name))) : new Card { Title = item.Name };
+            if (written == null && BookText.Mode(item.Mode, item.When) is { Length: > 0 } mode) card.Text(mode);
             card.Kind = $"{kind}, Level {item.Level}";
             card.Grade = Loot.GradeOf(item);
             card.Picture = item;

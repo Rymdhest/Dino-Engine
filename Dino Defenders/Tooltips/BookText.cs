@@ -94,6 +94,29 @@ namespace Dino_Defenders.Tooltips
             return $"{char.ToUpperInvariant(way[0])}{way.Substring(1)}. On Impact, {outcomes}";
         }
 
+        /// <summary>What a Trigger Book waits for.</summary>
+        public static string Waits(BookTrigger trigger) => trigger.When switch
+        {
+            BookWhen.Hit => $"After {N(trigger.Amount)} Hits",
+            BookWhen.Critical => $"After {N(trigger.Amount)} Critical Hits",
+            BookWhen.Kill => $"After {N(trigger.Amount)} Kills",
+            BookWhen.Struck => $"After you're Hit {N(trigger.Amount)} times",
+            BookWhen.Block => $"After you Block {N(trigger.Amount)} times",
+            BookWhen.Dodge => $"After you Dodge {N(trigger.Amount)} Hits",
+            BookWhen.Flask => $"After {N(trigger.Amount)} Flasks",
+            BookWhen.Damaged => $"After Hits take {N(trigger.Amount)}% of your Maximum Health",
+            BookWhen.Moved => $"After you move {Metres(trigger.Amount)}",
+            _ => $"After you use {N(trigger.Amount)} Books",
+        };
+
+        /// <summary>How a book goes off, in a line, for any that aren't simply pressed.</summary>
+        public static string Mode(BookMode mode, BookTrigger? when) => mode switch
+        {
+            BookMode.Trigger => $"Trigger Book: {(when != null ? Waits(when) : "")}",
+            BookMode.Toggle => "Toggle Book: holds Area Pages, every one going at once while it's on",
+            _ => "",
+        };
+
         /// <summary>What's good about a sticker, in the words those things are always said in.</summary>
         public static string Good(Sticker sticker) => sticker.Good switch
         {

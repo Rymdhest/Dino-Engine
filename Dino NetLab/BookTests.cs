@@ -123,6 +123,7 @@ namespace Dino_NetLab
 
             report.Section("Writing, on both ends");
             Writing(report, worlds, request);
+            Modes(report, worlds, request);
 
             return report.Finish();
         }
@@ -718,6 +719,160 @@ namespace Dino_NetLab
         }
 
         private static string Text(Item? item) => item == null ? "" : JsonSerializer.Serialize(item);
+
+        private static void Press(Arena arena, int slot)
+        {
+            arena.Player.Script = () => { var press = new HeroIntent { Aim = East * 6f }; press.Use(slot); return press; };
+            arena.Run(0.06);
+            arena.Player.Script = () => new HeroIntent { Aim = East * 6f };
+            arena.Run(0.3);
+        }
+
+        // Books that nobody presses, as what happens on a real server.
+        private static void Modes(Report report, WorldCache worlds, WorldRequest request)
+        {
+            HeroState aura = Hero();
+            aura.Bar[1] = ItemGenerator.Copied(Shelf.Inferno.Source!, "Inferno", 4);
+            aura.Bar[2] = ItemGenerator.Copied(Shelf.Inferno.Source!, "Inferno Too", 5);
+            aura.Equipped[WornSlot.Finger1] = new Item { Name = "Lab Ring", Slot = ItemSlot.Finger, Level = 30, Lines = { new ItemLine("mana-regen", 10f) } };
+            using (var arena = new Arena(worlds, request, aura))
+            {
+                arena.Run(0.5);
+                BookProfile book = arena.Truth.Kit.Slots[1]!;
+                float regen = arena.Hero.Sheet.ManaRegen;
+                Actor target = arena.Dummy(East * 3f);
+                float before = target.Vitals.Health;
+                arena.Run(1.5);
+                report.Check("A Toggle Book does nothing while it's off", target.Vitals.Health == before);
+
+                arena.Hero.Vitals.Mana = 50f;
+                arena.Run(0.1);
+                float mana = arena.Truth.Sim.Mana;
+                arena.Run(2);
+                report.Near("And costs nothing", (arena.Truth.Sim.Mana - mana) / 2f, regen, 0.3f);
+
+                Press(arena, 1);
+                report.Check("A press turns it on, on the server", HeroRules.IsOn(arena.Truth.Sim, 1));
+                report.Check("And on the client", HeroRules.IsOn(arena.Player.Client.Predictor.Current, 1));
+                report.Check("Using nothing, and taking no Mana by the press", arena.Truth.Sim.Using < 0);
+
+                arena.Hero.Vitals.Mana = 50f;
+                arena.Run(0.1);
+                mana = arena.Truth.Sim.Mana;
+                float health = target.Vitals.Health;
+                arena.Run(3);
+                report.Near("While it's on, its Cost comes off Mana Regeneration", (arena.Truth.Sim.Mana - mana) / 3f, regen - book.Cost, 0.3f);
+                report.Check("And it goes on by itself, with nobody pressing anything", target.Vitals.Health < health);
+                int corrected = arena.Player.Client.Predictor.Corrections;
+                arena.Run(2);
+                report.Check("Which the client predicts", arena.Player.Client.Predictor.Corrections == corrected, $"{arena.Player.Client.Predictor.Corrections - corrected}");
+
+                float byHand = target.Vitals.Health;
+                arena.Combat.Release(arena.Hero, arena.Skill(Shelf.Inferno), arena.At, East, 0f);
+                arena.Run(0.05);
+                float handHit = byHand - target.Vitals.Health;
+                float beforePulse = target.Vitals.Health;
+                arena.Combat.Pulse(arena.Hero, book, arena.At, East, 0f);
+                arena.Run(0.05);
+                float pulseHit = beforePulse - target.Vitals.Health;
+                report.Check("A pulse does a share of what the same page does by hand", pulseHit < handHit * 0.8f && pulseHit > 0f, $"{pulseHit} of {handHit}");
+
+                arena.Player.Script = () => { var hold = new HeroIntent { Aim = East * 6f }; hold.Use(1); return hold; };
+                arena.Run(1);
+                arena.Player.Script = () => new HeroIntent { Aim = East * 6f };
+                arena.Run(0.2);
+                report.Check("A press is a press: held down it doesn't flicker, and ends up off", !HeroRules.IsOn(arena.Truth.Sim, 1));
+
+                health = target.Vitals.Health;
+                arena.Run(1.5);
+                report.Check("Off again, it stops", target.Vitals.Health == health);
+
+                Press(arena, 1);
+                Press(arena, 2);
+                report.Check("Two can be on at once, if there's enough to give up", HeroRules.IsOn(arena.Truth.Sim, 1) && HeroRules.IsOn(arena.Truth.Sim, 2), $"{arena.Truth.Sim.Toggled}");
+                arena.Player.Client.Unequip(WornSlot.Finger1);
+                arena.Run(0.5);
+                report.Check("Taking off what paid for them turns off the last, until what's left can be kept up", HeroRules.IsOn(arena.Truth.Sim, 1) && !HeroRules.IsOn(arena.Truth.Sim, 2), $"{arena.Truth.Sim.Toggled}");
+                report.Check("And the client agrees", arena.Player.Client.Predictor.Current.Toggled == arena.Truth.Sim.Toggled);
+                arena.Player.Client.Move(ItemPlace.OnBar(1), ItemPlace.Cell(7));
+                arena.Run(0.5);
+                report.Check("Taking one off the bar turns it off", !HeroRules.IsOn(arena.Truth.Sim, 1) && !HeroRules.IsOn(arena.Player.Client.Predictor.Current, 1));
+            }
+
+            HeroState poor = HeroState.CreateNew();
+            poor.Level = 30;
+            var dear = new Book { Mode = BookMode.Toggle, Pages = { Area("circle").With(Deal("fire"), new Outcome { Deed = "afflict", Ailment = "burn" }) } };
+            poor.Bar[1] = ItemGenerator.Copied(dear, "Too Dear", 4);
+            using (var arena = new Arena(worlds, request, poor))
+            {
+                arena.Run(0.5);
+                report.Check("A book that costs what can be regenerated or more", arena.Truth.Kit.Slots[1]!.Cost >= arena.Hero.Sheet.ManaRegen, $"{arena.Truth.Kit.Slots[1]!.Cost} against {arena.Hero.Sheet.ManaRegen}");
+                Press(arena, 1);
+                report.Check("Can't be turned on", !HeroRules.IsOn(arena.Truth.Sim, 1) && !HeroRules.IsOn(arena.Player.Client.Predictor.Current, 1));
+            }
+
+            HeroState moving = Hero();
+            moving.Bar[1] = ItemGenerator.Copied(Shelf.Retort.Source!, "Retort", 4);
+            using (var arena = new Arena(worlds, request, moving))
+            {
+                arena.Run(0.5);
+                float mana = arena.Truth.Sim.Mana;
+                Press(arena, 1);
+                report.Check("A Trigger Book can't be pressed", arena.Truth.Sim.Using < 0 && arena.Truth.Sim.Mana >= mana);
+
+                BookWatch watch = arena.Hero.Watches[0];
+                report.Check("It knows what it's waiting for", watch.When == BookWhen.Moved && watch.Amount == 20f);
+                arena.Player.Script = () => new HeroIntent { Move = East, Aim = East };
+                arena.Run(0.8);
+                arena.Player.Script = () => new HeroIntent { Aim = East };
+                arena.Run(0.2);
+                report.Check("Moving counts towards it", watch.Progress > 3f && watch.Progress < 20f, $"{watch.Progress}");
+                report.Check("And the client sees how far it's got", arena.Player.Client.Predictor.Current.Charged[1] > 0.1f, $"{arena.Player.Client.Predictor.Current.Charged[1]}");
+
+                arena.Hero.Vitals.Mana = 0f;
+                watch.Progress = 20f;
+                arena.Run(0.02);
+                report.Check("With nothing to pay with, it waits", watch.Progress == 20f);
+
+                Actor target = arena.Dummy(East * 3f);
+                float health = target.Vitals.Health;
+                arena.Run(0.1);
+                arena.Hero.Vitals.Mana = 200f;
+                arena.Run(0.3);
+                report.Check("And goes the moment there is", watch.Progress < 20f && target.Vitals.Health < health, $"{watch.Progress}");
+                report.Check("Paying its Cost", arena.Truth.Sim.Mana < 200f + arena.Hero.Sheet.ManaRegen * 0.3f - arena.Truth.Kit.Slots[1]!.Cost + 0.1f, $"{arena.Truth.Sim.Mana}, {arena.Hero.Sheet.ManaRegen}, {arena.Truth.Kit.Slots[1]!.Cost}");
+            }
+
+            foreach ((BookWhen when, Action<Arena> happen, string words) in new (BookWhen, Action<Arena>, string)[]
+            {
+                (BookWhen.Block, arena => arena.Combat.SetOff(arena.Hero, TriggerEvent.Block, arena.At), "a Block"),
+                (BookWhen.Kill, arena => arena.Combat.SetOff(arena.Hero, TriggerEvent.Kill, arena.At), "a Kill"),
+                (BookWhen.Struck, arena => arena.Combat.SetOff(arena.Hero, TriggerEvent.Struck, arena.At), "being Hit"),
+                (BookWhen.Damaged, arena => arena.Combat.Harm(arena.Dummy(East * 30f), arena.Hero, arena.Hero.Sheet.MaxHealth * 0.1f, DamageType.Physical), "Damage"),
+            })
+            {
+                HeroState hero = Hero();
+                var trigger = new Book { Mode = BookMode.Trigger, When = new BookTrigger { When = when, Amount = when == BookWhen.Damaged ? 15f : 3f }, Pages = { Area("circle").With(Deal("cold")) } };
+                hero.Bar[2] = ItemGenerator.Copied(trigger, "Waiter", 4);
+                using var arena = new Arena(worlds, request, hero);
+                arena.Run(0.3);
+                happen(arena);
+                report.Check($"{words} counts towards what's waiting for it", arena.Hero.Watches[0].Progress > 0f, $"{arena.Hero.Watches[0].Progress}");
+            }
+
+            HeroState spending = Hero();
+            spending.Bar[1] = ItemGenerator.Copied(new Book { Mode = BookMode.Trigger, When = new BookTrigger { When = BookWhen.Used, Amount = 2f }, Pages = { Area("circle").With(Deal("cold")) } }, "Echo", 4);
+            using (var arena = new Arena(worlds, request, spending))
+            {
+                arena.Run(0.3);
+                arena.Player.Script = () => { var press = new HeroIntent { Aim = East * 6f }; press.Use(0); return press; };
+                arena.Run(0.2);
+                arena.Player.Script = () => new HeroIntent { Aim = East * 6f };
+                arena.Run(0.2);
+                report.Check("A Book used by hand counts towards one waiting for that", arena.Hero.Watches[0].Progress >= 1f, $"{arena.Hero.Watches[0].Progress}");
+                report.Check("And what goes off by itself doesn't count, or it would never stop", arena.Hero.Watches[0].Progress <= 1f);
+            }
+        }
 
         // A hero with something to put in a book, as nobody can write one out of nothing now.
         private static HeroState Stocked()

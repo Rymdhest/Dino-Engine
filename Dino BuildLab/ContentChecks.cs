@@ -418,6 +418,8 @@ namespace Dino_BuildLab
             forged.WriteFloat(99999f);
             forged.WriteBool(false);
             forged.WriteBool(false);
+            forged.WriteByte(0);
+            forged.WriteBool(false);
             forged.WriteCount(0);
             List<Item> arrived = new List<Item> { Protocol.ReadItem(new BitReader(forged.ToArray())) };
             report.Check("An affix, a unique or a base that doesn't exist does nothing, whatever a stranger sends", arrived.Count == 1 && arrived[0].Unique == null && arrived[0].Lines.Count == 0 && arrived[0].Base.Length == 0);

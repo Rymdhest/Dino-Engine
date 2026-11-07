@@ -293,14 +293,14 @@ namespace Dino_Defenders.Progression
         {
             if (!place.IsHeld) return place.IsCell || place.IsBar && item.IsBook;
             if (At(place.Holder) is not Item holder || place.Index < 0 || place.Index >= holder.Places) return false;
-            if (holder.IsBook) return item.IsPage;
+            if (holder.IsBook) return item.IsPage && (holder.Mode != BookMode.Toggle || item.Page?.Kind == PageKind.Area);
             return holder.IsPage && item.Sticker is Sticker sticker && holder.Page != null && Stickers.GoesOn(sticker, holder.Page.Kind);
         }
 
         // A book reads to its first Area and no further, so nothing may end up after one.
         private bool Reads(ItemPlace place, Item? item, ItemPlace other, Item? leaving)
         {
-            if (!place.IsHeld || At(place.Holder) is not { IsBook: true } book) return true;
+            if (!place.IsHeld || At(place.Holder) is not { IsBook: true, Mode: not BookMode.Toggle } book) return true;
 
             bool ended = false;
             for (int i = 0; i < book.Places; i++)

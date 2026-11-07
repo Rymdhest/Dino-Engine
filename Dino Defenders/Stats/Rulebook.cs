@@ -78,6 +78,10 @@ namespace Dino_Defenders.Stats
         public const int MostPages = 6;
         public const int MostOutcomes = 3;
         public const int MostStickers = 5;              // On a page.
+        public const float AuraPulse = 1f;              // Seconds between a Toggle Book's pulses, at bare hands' pace.
+        public const float FastestAura = 0.25f;         // Seconds. However it's quickened, it goes no faster than this.
+        public const float AuraStrength = 0.4f;         // Of what its pages would do if they were used by hand.
+        public const float LeastToggleCost = 1f;        // Mana Regeneration. A page that costs nothing can't be left on for nothing.
         public const int MostProjectiles = 12;          // From a page, whatever's been stuck on it.
         public const float MostStickerGood = 130f;      // What any sticker can say, which is also what a save can claim.
         public const float MostStickerBad = 60f;

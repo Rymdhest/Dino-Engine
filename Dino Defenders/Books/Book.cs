@@ -67,6 +67,12 @@ namespace Dino_Defenders.Books
     {
         public List<Page> Pages { get; set; } = new();
 
-        public Book Copy() => new Book { Pages = Pages.Select(page => page.Copy()).ToList() };
+        /// <summary>How it goes off.</summary>
+        public BookMode Mode { get; set; }
+
+        /// <summary>What it's waiting for, if it's a Trigger Book.</summary>
+        public BookTrigger? When { get; set; }
+
+        public Book Copy() => new Book { Pages = Pages.Select(page => page.Copy()).ToList(), Mode = Mode, When = When?.Copy() };
     }
 }

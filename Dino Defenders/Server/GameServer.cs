@@ -202,6 +202,7 @@ namespace Dino_Defenders.Server
             var actor = new Actor(Team.Heroes, HeroBuild.Compile(player.Hero), start, HeroRules.Radius) { Player = player, Body = "hero" };
             player.Actor = actor;
             player.Kit = new HeroKit(player.Hero, actor.Sheet);
+            player.WatchBooks();
             player.Respawn = session.World.Sites[0].Position;
             if (first && _saved != null)
             {
@@ -305,6 +306,8 @@ namespace Dino_Defenders.Server
                 Brief(player);
 
                 float healthBefore = player.Sim.Health;
+                Vector2 wasAt = player.Sim.Position;
+                byte wasMoved = player.Sim.Moves;
                 HeroStepEvents events = HeroRules.Step(ref player.Sim, command, player.Kit, _mover!);
                 actor.Vitals.Mana = player.Sim.Mana;
                 actor.Vitals.Health = player.Sim.Health;
@@ -312,7 +315,12 @@ namespace Dino_Defenders.Server
 
                 if (!Paused)
                 {
-                    if (actor.Vitals.Health > 0f) Act(session, player, command, events);
+                    if (actor.Vitals.Health > 0f)
+                    {
+                        if (player.Sim.Moves == wasMoved) session.Combat.Watch(actor, BookWhen.Moved, (player.Sim.Position - wasAt).Length);
+                        Act(session, player, command, events);
+                        GoOff(session, player);
+                    }
                     else
                     {
                         CutShort(session, player);
@@ -336,6 +344,34 @@ namespace Dino_Defenders.Server
             }
         }
 
+        // What goes off with nobody pressing it: Trigger Books that have got there, and Toggle Books that are on. It's here and not in a blow, as a blow can't be what sets off the next.
+        private static void GoOff(ServerSession session, ServerPlayer player)
+        {
+            Actor actor = player.Actor;
+            Vector2 at = player.Sim.Position;
+            foreach (BookWatch watch in actor.Watches)
+            {
+                if (watch.Progress < watch.Amount || player.Sim.Cooldowns[watch.Slot] > 0f || player.Kit.Slots[watch.Slot] is not BookProfile book) continue;
+
+                // Nothing to pay with, it waits, and goes the moment there is.
+                if (book.CostsHealth ? actor.Vitals.Health <= book.Cost : actor.Vitals.Mana < book.Cost) continue;
+                if (book.CostsHealth) actor.Vitals.Health -= book.Cost;
+                else actor.Vitals.Mana -= book.Cost;
+
+                player.Sim.Cooldowns[watch.Slot] = book.Cooldown;
+                watch.Progress = 0f;
+                session.Combat.Release(actor, book, at, player.Sim.Aim, player.Sim.AimReach);
+            }
+
+            for (int slot = 0; slot < HeroState.BarSlots; slot++)
+            {
+                player.Pulses[slot] = HeroRules.IsOn(player.Sim, slot) ? player.Pulses[slot] - NetTime.TickSeconds : 0f;
+                if (player.Pulses[slot] > 0f || !HeroRules.IsOn(player.Sim, slot) || player.Kit.Slots[slot] is not BookProfile aura) continue;
+                session.Combat.Pulse(actor, aura, at, player.Sim.Aim, player.Sim.AimReach);
+                player.Pulses[slot] = aura.Pulse;
+            }
+        }
+
         // What's happened to a hero since their last step that their step has to know about: only the server can say.
         private static void Brief(ServerPlayer player)
         {
@@ -348,6 +384,8 @@ namespace Dino_Defenders.Server
             player.Sim.MoveRate = afflictions.ActionRate;
             player.Sim.State = actor.State;
             player.Sim.Counters = actor.Counters;
+            player.Sim.Charged = default;
+            foreach (BookWatch watch in actor.Watches) player.Sim.Charged[watch.Slot] = watch.Progress / MathF.Max(watch.Amount, 0.01f);
         }
 
         private void Act(ServerSession session, ServerPlayer player, in HeroCommand command, HeroStepEvents events)
@@ -369,6 +407,7 @@ namespace Dino_Defenders.Server
 
             if ((events & HeroStepEvents.Used) != 0 && book != null)
             {
+                session.Combat.Watch(player.Actor, BookWhen.Used, 1f);
                 float rate = MathF.Max(player.Sim.ActionRate, 0.1f);
                 session.Combat.Perform(player.Entity, book.Sign, player.Sim.ImpactIn / rate, player.Sim.BusyFor / rate, player.Sim.Aim);
                 player.Mark = MarkForFriends(session, player, book, rate);

@@ -150,6 +150,7 @@ namespace Dino_Defenders.Gameplay
         public float ImpactIn;          // Below 0 when no blow is on its way.
         public float BusyFor;
         public SlotTimes Cooldowns;
+        public byte Toggled;            // A bit for each place on the bar whose Toggle Book is on.
         public float DodgeCooldown;
         public float DodgeQueuedFor;    // A dodge pressed a moment too soon, which goes the moment it can.
         public float Safe;              // Nothing can touch them for this long: a dodge's window of safety.
@@ -166,6 +167,7 @@ namespace Dino_Defenders.Gameplay
         public float ActionRate;
         public Condition State;
         public Counters Counters;
+        public SlotTimes Charged;       // How far each Trigger Book has got, from 0 to 1. Only the server sees what they're waiting for.
 
         public static HeroSimState At(Vector2 position, float mana) => new HeroSimState
         {
@@ -205,6 +207,18 @@ namespace Dino_Defenders.Gameplay
             for (int i = 0; i < HeroState.BarSlots; i++)
             {
                 if ((running & (1u << i)) != 0) writer.WriteFloat(Cooldowns[i]);
+            }
+            writer.WriteByte(Toggled);
+
+            uint charging = 0;
+            for (int i = 0; i < HeroState.BarSlots; i++)
+            {
+                if (Charged[i] > 0f) charging |= 1u << i;
+            }
+            writer.WriteBits(charging, HeroState.BarSlots);
+            for (int i = 0; i < HeroState.BarSlots; i++)
+            {
+                if ((charging & (1u << i)) != 0) writer.WriteFloat(Charged[i]);
             }
 
             writer.WriteFloat(DodgeCooldown);
@@ -251,6 +265,13 @@ namespace Dino_Defenders.Gameplay
             {
                 if ((running & (1u << i)) != 0) state.Cooldowns[i] = reader.ReadFloat();
             }
+            state.Toggled = reader.ReadByte();
+
+            uint charging = reader.ReadBits(HeroState.BarSlots);
+            for (int i = 0; i < HeroState.BarSlots; i++)
+            {
+                if ((charging & (1u << i)) != 0) state.Charged[i] = reader.ReadFloat();
+            }
 
             state.DodgeCooldown = reader.ReadFloat();
             state.DodgeQueuedFor = reader.ReadFloat();
@@ -282,7 +303,7 @@ namespace Dino_Defenders.Gameplay
         /// <summary>Whether a prediction landed on the same place as what the server says. How they face doesn't affect anything, so it isn't counted.</summary>
         public readonly bool Matches(in HeroSimState other)
         {
-            if ((Position - other.Position).LengthSquared >= 1e-6f || Down != other.Down || Moves != other.Moves || Using != other.Using) return false;
+            if ((Position - other.Position).LengthSquared >= 1e-6f || Down != other.Down || Moves != other.Moves || Using != other.Using || Toggled != other.Toggled) return false;
             if (MathF.Abs(DashLeft - other.DashLeft) >= 1e-3f || MathF.Abs(ImpactIn - other.ImpactIn) >= 1e-3f || MathF.Abs(BusyFor - other.BusyFor) >= 1e-3f) return false;
             if (MathF.Abs(DodgeCooldown - other.DodgeCooldown) >= 1e-3f || MathF.Abs(Mana - other.Mana) >= 0.05f) return false;
             for (int i = 0; i < HeroState.BarSlots; i++)
@@ -301,6 +322,7 @@ namespace Dino_Defenders.Gameplay
             ActionRate = truth.ActionRate;
             State = truth.State;
             Counters = truth.Counters;
+            Charged = truth.Charged;
         }
     }
 
@@ -355,13 +377,15 @@ namespace Dino_Defenders.Gameplay
             hero.Safe = MathF.Max(hero.Safe - deltaTime, 0f);
             hero.QueuedFor = MathF.Max(hero.QueuedFor - deltaTime, 0f);
             hero.Held = MathF.Max(hero.Held - deltaTime, 0f);
-            hero.Mana = MathF.Min(hero.Mana + sheet.ManaRegen * deltaTime, sheet.MaxMana);
+            Settle(ref hero, kit);
+            hero.Mana = MathF.Min(hero.Mana + (sheet.ManaRegen - Reserved(hero, kit)) * deltaTime, sheet.MaxMana);
             if (hero.Down) return HeroStepEvents.None;
 
             // Pressed even with no way of acting on it: someone stunned who hits dodge wants to dodge the moment they can.
             if (command.Has(HeroButtons.Dash)) hero.DodgeQueuedFor = DodgeQueueTime;
             HeroButtons pressed = command.Buttons & ~hero.Pressing;
             hero.Pressing = command.Buttons;
+            Flip(ref hero, kit, pressed);
 
             var events = HeroStepEvents.None;
             Vector2 aim = command.Aim;
@@ -425,7 +449,7 @@ namespace Dino_Defenders.Gameplay
 
             for (int slot = 2; slot < HeroState.BarSlots; slot++)
             {
-                if (!command.Has(SlotButton(slot))) continue;
+                if (!command.Has(SlotButton(slot)) || !ByHand(kit, slot)) continue;
                 hero.Queued = (sbyte)slot;
                 hero.QueuedFor = QueueTime;
             }
@@ -435,7 +459,7 @@ namespace Dino_Defenders.Gameplay
             bool dodging = hero.Using < 0 && hero.DashLeft > 0f;
             for (int slot = 1; slot >= 0; slot--)
             {
-                if ((pressed & SlotButton(slot)) == 0 || (hero.Using < 0 && !dodging) || hero.QueuedFor > 0f) continue;
+                if ((pressed & SlotButton(slot)) == 0 || (hero.Using < 0 && !dodging) || hero.QueuedFor > 0f || !ByHand(kit, slot)) continue;
                 hero.Queued = (sbyte)slot;
                 hero.QueuedFor = QueueTime;
             }
@@ -476,7 +500,7 @@ namespace Dino_Defenders.Gameplay
 
         private static bool TryUse(ref HeroSimState hero, HeroKit kit, int slot, ref HeroStepEvents events)
         {
-            if (slot < 0 || slot >= HeroState.BarSlots || kit.Slots[slot] is not BookProfile book || hero.Cooldowns[slot] > 0f) return false;
+            if (slot < 0 || slot >= HeroState.BarSlots || kit.Slots[slot] is not BookProfile { Mode: BookMode.Active } book || hero.Cooldowns[slot] > 0f) return false;
 
             if (book.CostsHealth)
             {
@@ -507,6 +531,47 @@ namespace Dino_Defenders.Gameplay
                 hero.BusyFor = MathF.Max(hero.DashLeft, book.UseTime);
             }
             return true;
+        }
+
+        // Whether a place on the bar is something a press uses. Nothing is, with nothing there, but that's for the press to find out.
+        private static bool ByHand(HeroKit kit, int slot) => kit.Slots[slot] is not { Mode: not BookMode.Active };
+
+        public static bool IsOn(in HeroSimState hero, int slot) => (hero.Toggled & 1 << slot) != 0;
+
+        /// <summary>The Mana Regeneration given up to what's turned on.</summary>
+        public static float Reserved(in HeroSimState hero, HeroKit kit)
+        {
+            float reserved = 0f;
+            for (int slot = 0; slot < HeroState.BarSlots; slot++)
+            {
+                if (IsOn(hero, slot) && kit.Slots[slot] is BookProfile book) reserved += book.Cost;
+            }
+            return reserved;
+        }
+
+        /// <summary>Whether a Toggle Book could be turned on as things stand: there has to be more left to give up than it asks for.</summary>
+        public static bool CanTurnOn(in HeroSimState hero, HeroKit kit, BookProfile book) => kit.Sheet.ManaRegen - Reserved(hero, kit) > book.Cost;
+
+        // A press on a Toggle Book. It's only ever the press, as a button held down would otherwise go on and off with every tick.
+        private static void Flip(ref HeroSimState hero, HeroKit kit, HeroButtons pressed)
+        {
+            for (int slot = 0; slot < HeroState.BarSlots; slot++)
+            {
+                if ((pressed & SlotButton(slot)) == 0 || kit.Slots[slot] is not BookProfile { Mode: BookMode.Toggle } book) continue;
+                if (IsOn(hero, slot)) hero.Toggled &= (byte)~(1 << slot);
+                else if (CanTurnOn(hero, kit, book)) hero.Toggled |= (byte)(1 << slot);
+            }
+        }
+
+        // What's on has to be there and has to be paid for. Taking off what gave the regeneration turns things off, the last first, until what's left can be kept up.
+        private static void Settle(ref HeroSimState hero, HeroKit kit)
+        {
+            for (int slot = HeroState.BarSlots - 1; slot >= 0; slot--)
+            {
+                if (!IsOn(hero, slot)) continue;
+                bool gone = kit.Slots[slot] is not { Mode: BookMode.Toggle };
+                if (gone || Reserved(hero, kit) >= kit.Sheet.ManaRegen) hero.Toggled &= (byte)~(1 << slot);
+            }
         }
 
         private static void Turn(ref HeroSimState hero, Vector2 direction, float deltaTime)

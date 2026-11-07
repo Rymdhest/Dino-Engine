@@ -94,6 +94,23 @@ namespace Dino_Defenders.Server
         private double Now => _session.Time;
 
         /// <summary>A book going off, from wherever and in whatever direction. <paramref name="reach"/> is how far off it was aimed.</summary>
+        /// <summary>A Toggle Book's pulse: every page at once, for a share of what they'd do by hand.</summary>
+        public void Pulse(Actor user, BookProfile book, Vector2 origin, Vector2 facing, float reach)
+        {
+            if (facing.LengthSquared < 1e-4f) facing = Vector2.UnitY;
+            var cast = new Cast { Source = user, Book = book, Cursor = origin + facing * MathF.Min(reach, book.First.Range), Strength = Rulebook.AuraStrength, Pulsing = true };
+            for (int page = 0; page < book.Pages.Length; page++) Open(cast, page, origin, facing);
+        }
+
+        /// <summary>Something has happened that a Trigger Book of someone's might be waiting for. It only counts here: what's ready goes off between blows, from <see cref="GameServer"/>.</summary>
+        public void Watch(Actor actor, BookWhen when, float amount)
+        {
+            foreach (BookWatch watch in actor.Watches)
+            {
+                if (watch.When == when) watch.Progress = MathF.Min(watch.Progress + amount, watch.Amount);
+            }
+        }
+
         public void Release(Actor user, BookProfile book, Vector2 origin, Vector2 facing, float reach, int viewLag = 0, float strength = 1f)
         {
             user.SinceUse = 0f;
@@ -368,8 +385,8 @@ namespace Dino_Defenders.Server
                 return;
             }
 
-            // A plain blow shows for itself, in the hands of whoever made it.
-            if (page.Sign.Form != PageForm.Strike) Announce(page, shape);
+            // A plain blow shows for itself, in the hands of whoever made it, which a pulse isn't.
+            if (page.Sign.Form != PageForm.Strike || cast.Pulsing) Announce(page, shape);
             Cover(cast, page, shape, cast.Strength);
         }
 
@@ -829,6 +846,7 @@ namespace Dino_Defenders.Server
 
             if (target.Sheet.Reflect > 0f && (skill.Tags & Tags.Melee) != 0 && total > 0f) Harm(target, source, total * target.Sheet.Reflect / 100f, DamageType.Physical);
 
+            Watch(target, BookWhen.Damaged, total / MathF.Max(target.Sheet.MaxHealth, 1f) * 100f);
             Wake(target);
             SetOff(source, TriggerEvent.Hit, source.Position);
             if (hit.Critical) SetOff(source, TriggerEvent.Critical, source.Position);
@@ -939,6 +957,7 @@ namespace Dino_Defenders.Server
             Vector3 point = new Vector3(target.Position.X, target.Height + 3.4f, target.Position.Y);
             Show(new DamageEvent { Position = point, Amount = total, ToHero = target.IsHero, Body = BodyOf(target), Type = type, Target = GhostOf(target), Way = way, Weight = total / MathF.Max(target.Sheet.MaxHealth, 1f) }, target.Position);
 
+            Watch(target, BookWhen.Damaged, total / MathF.Max(target.Sheet.MaxHealth, 1f) * 100f);
             Wake(target);
             if (target.Vitals.Health <= 0f) Die(target, source, null, origin, Throw(way, (total - healthBefore) / MathF.Max(target.Sheet.MaxHealth, 1f), BlastForce));
         }
@@ -1414,6 +1433,7 @@ namespace Dino_Defenders.Server
         /// <summary>Something has happened to someone; anything of theirs waiting for that goes off.</summary>
         public void SetOff(Actor actor, TriggerEvent on, Vector2 at)
         {
+            Watch(actor, (BookWhen)on, 1f);
             Mod[] triggers = actor.Loadout.Triggers;
             for (int i = 0; i < triggers.Length; i++)
             {
