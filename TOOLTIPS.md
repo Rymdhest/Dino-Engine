@@ -1,6 +1,6 @@
 # Tooltips
 
-What a player reads about how the game works: skills, items, talents, buffs, omens, every line of the hero's sheet. Read this before changing any of them, or before adding a stat, a rule, a skill or anything else that a player will want to understand.
+What a player reads about how the game works: books, items, talents, buffs, omens, every line of the hero's sheet. Read this before changing any of them, or before adding a stat, a rule, a sentence or anything else that a player will want to understand.
 
 ## The one idea
 
@@ -22,7 +22,7 @@ So when something reads wrong, the fix is almost never in the text. Either the n
 
 `Tooltips/` is headless, so BuildLab reads what a player reads. Nothing in it decides how the game works.
 
-A `Card` is built fresh every frame it's shown, from the live `ActorSheet` and `SkillProfile`. That's the whole of why tooltips update live: there's nothing to go stale. A skill's card reads the same `SkillProfile` a blow reads, so what's on it is what lands. `ActorSheet.Preview` gives the same for a skill a hero doesn't know yet, for what a talent would teach or an item would set off.
+A `Card` is built fresh every frame it's shown, from the live `ActorSheet` and `BookProfile`. That's the whole of why tooltips update live: there's nothing to go stale. A book's card reads the same `BookProfile` a blow reads, so what's on it is what lands. `ActorSheet.Preview` gives the same for a book that isn't on the bar, for what's being written or what an item would set off.
 
 ## The language
 
@@ -44,7 +44,7 @@ A sentence names everything its modifier is narrowed to: every tag in its scope,
 
 **Capitals are the rule.** A capitalised word is a defined term, always. Anything that shows text finds them with `Lexicon.Find`, so nobody marks a term up and a sentence can't forget to. `check` reads every sentence the game can show and fails on:
 
-- a capitalised word that isn't a term (the start of a sentence and the names of skills and buffs aside), which is what a magic word is
+- a capitalised word that isn't a term (the start of a sentence and the names of books and buffs aside), which is what a magic word is
 - a term written in lower case, which is a magic word in disguise: it means something and nothing says so
 - a digit typed into a string in `Tooltips/` or `Offering.cs`
 - a number in the code of a fight that isn't in the `Rulebook`
@@ -72,19 +72,18 @@ A `Basic` term is plain enough to leave unmarked: Health, Cooldown, Radius. Ever
 
 A card is what's wanted at a glance, and `Details` is the rest.
 
-- **A skill's card** has what it deals, how it's used, what it can leave behind and what it has of its own, and nothing it doesn't really do. A Hit with no fire in it can't Burn, so no Chance to Burn is shown, whatever the sheet says: that's `AilmentRules.Causes`. `UseCells` goes by form, and says what `Combat` reads for that form.
+- **A book's card** has what each page deals, how it's used, what it can leave behind and what it has of its own, and nothing it doesn't really do. A Hit with no fire in it can't Burn, so no Chance to Burn is shown, whatever the sheet says: that's `AilmentRules.Causes`. `PageCells` goes by kind of page, and says what `Combat` reads for that kind.
 - **Its `Details`** have what the rest of the build gives it, the rules that touch it, the reactions it can set off, and `Breakdown`, which is everything between what it starts from and what it deals. A hero's Health on Kill is not a fact about Bone Spear, so it never goes on the card itself.
 - **A stat** shows its total, what it does, what that means against a normal enemy, then the sum: all the flat added up, all the increased and reduced added up, each more and less on its own line, and the sum written out. What scales with something is under `Scaling`, and what only counts for some skills or at some times is under `Situational`, as neither is part of the sum.
 - **What's set off** goes in `Card.Attached` by `Attach`, from a trigger, `RuleInfo.Casts` or `RuleInfo.Gives`, and opens from its name in the sentence. The number a reader needs most goes in the sentence as well: Carrier says "within 8 m".
-- **A talent that teaches a skill** is that skill's card, not a card about a card.
-- **Flavour** (`SkillDefinition.Text`, lore) says nothing about what something does. `check` fails a skill whose flavour mentions armour, damage and so on. A claim belongs on the card, where a number can back it.
+- **Flavour** (lore) says nothing about what something does. A claim belongs on the card, where a number can back it.
 
 ## Adding to it
 
 - **A stat**: a value in `Stat`, a line in `StatNames`, a term in `Lexicon` by `On`, and a line in `StatBook`. `check` fails on any of them missing.
 - **A rule**: a value in `Rule`, and a `RuleInfo` in `ModText`, whose numbers come from the `Rulebook`. `Touches` says which skills it shows on, and `Casts` or `Gives` what goes beside it.
 - **A condition, a tag, an ailment**: a term by `On`, and for a condition its lines in `ModText.Conditions`.
-- **A skill**: nothing, unless it has a new form or does something a stat can't say, such as `MakesWater`. Then that's a field on `SkillDefinition`, which both `Combat` and `Cards` read.
+- **A sentence**: a line in `Sentences`. Its words are its text, and `BookText.Trade` says what it comes to from its `Weights`. Something a stat can't say, such as making water, is a `Deed`, which both `Combat` and `Cards` read.
 - **A number in a rule**: a name in the `Rulebook`, never a literal in the code that uses it.
 - **Something new to look at**: a method in `Cards`, then `GameUi.Current.Tips.Show(() => card, rect)` each frame it's looked at, with the rect of the thing itself. Never draw one by hand.
 
@@ -93,7 +92,7 @@ A card is what's wanted at a glance, and `Details` is the rest.
 ```
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" check               # All of the above
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build                   # "What a tooltip says is what happens": cards against what a running server does
-dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list --what cards   # Every skill's card, to read
+dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list --what cards   # Every book's card, to read
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list --what sheet   # Every line of the sheet
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list --what terms   # The whole lexicon
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list --what tree    # Where every node is, for hovering one with real mouse messages

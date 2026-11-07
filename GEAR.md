@@ -42,7 +42,7 @@ Variety is measured, not claimed: see Testing.
 | Head, Neck, Body, Legs, Feet, Hands | One thing each | Legs and Hands are new |
 | Finger1, Finger2 | Rings | A ring is the same item on either |
 
-So there are two enums. `ItemSlot` is what an item is worn as (nine values, with one `Finger`), and it's what affixes and bases talk about. `WornSlot` is a place on a hero (ten values), and it's what `HeroState.Equipped` is keyed by. `Weapon`, `Shield`, `Ring` and `Amulet` are renamed to match the words above.
+So there are two enums. `ItemSlot` is what an item is worn as (nine values, with one `Finger`, and `Book`, which isn't worn at all and goes on the bar), and it's what affixes and bases talk about. `WornSlot` is a place on a hero (ten values), and it's what `HeroState.Equipped` is keyed by. `Weapon`, `Shield`, `Ring` and `Amulet` are renamed to match the words above.
 
 ## Families
 
@@ -197,6 +197,12 @@ Choices made without asking, as none of them block anything. Say if any are wron
 - [Path of Exile 2's armour bases](https://www.poe2wiki.net/wiki/List_of_body_armours): the same split of armour, evasion and a magical defence, with hybrids between. Nothing found covers how PoE ties that to looks, so the visual rules here are our own.
 - [Guilty Gear's toon line techniques](https://docswell.com/s/ASW_Academy/5LVY67-GG-Toonline-Eng): why an inverted hull needs a second set of normals on hard edges, which is why icons find their outline another way.
 - Nothing useful was found on fitting procedural armour to a body: what turned up was forum advice about shrinkwrapping in modelling tools. `BodyForm` is our own design, made possible by the body already being analytic.
+
+## Books and what's thrown
+
+A book is gear like anything else: one mesh from `BookGenerator`, by `GearKind.Book`, in the pack, on the bar and on the ground. `Item.LookSeed` says how it looks, and nothing written in it does.
+
+A hero with nothing that shoots throws what's in their hand, and that's the same mesh again: `ThrownComponent` carries the weapon's seed and traits, and `GhostPresenter.Tumble` keeps asking for it, as anything using a model from `GearWorkshop` has to. Something with no item to show, such as an enemy whose sword is only a word, is thrown as `Thrown.Of` says, from one model for each kind of weapon (`CharacterFactory.ThrownThing`).
 
 ## Adding to it
 

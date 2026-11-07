@@ -54,7 +54,7 @@ Everyone else only ever hears what the server decided. `Dino NetLab pack` holds 
 
 **A new rule**: write it as a system under `Server/`. It runs on the server and its results replicate. It must not touch `GameSession`, `Engine` or anything GL.
 
-**A new skill**: it's data, in `SkillCatalog`, and needs no networking. `HeroRules.Step` already handles anything on the bar: cost, cooldown, timing and moving. What it does to the world happens in `Combat`, on the server. See `BUILDS.md`.
+**A new sentence**: it's data, in `Sentences`, and needs no networking. A book goes over the wire as sentence numbers (`Protocol.WriteBook`), and `Scribe.Fix` makes sense of whatever comes in. `HeroRules.Step` already handles anything on the bar: cost, cooldown, timing and moving. What it does to the world happens in `Combat`, on the server. See `BOOKS.md`.
 
 **A new stat, or one that depends on something**: needs nothing either. Both ends compile the same sheet from the same hero, and `HeroSimState` carries the state and counters that pick which sheet is in force.
 
@@ -77,7 +77,7 @@ Everything is one message on a connection, reliable or not.
 | `Commands` | unreliable, every tick | Inputs not yet confirmed, and which snapshots arrived |
 | `Snapshot` | unreliable, 30 Hz | Your hero exactly, then differences for what's near you, within one packet |
 | `Hello` `Welcome` `WorldReady` `Arrived` | reliable | Joining |
-| `HeroUpdate` `Progress` `Notice` `Market` | reliable | Things said once and meant, including talents, the skill bar and what's buffing a hero |
+| `HeroUpdate` `Progress` `Notice` `Market` | reliable | Things said once and meant, including talents and what's buffing a hero |
 | `GroundItem` | reliable | What a find on the ground is, and that it's gone. Sent to everyone as it drops, and to whoever arrives later |
 | `Worn` | reliable | What a hero has on: a seed and traits for each place. Sent to everyone when it changes, and to whoever arrives later. No mesh is ever sent: see `GEAR.md` |
 

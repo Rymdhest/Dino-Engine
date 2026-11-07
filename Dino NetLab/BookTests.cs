@@ -351,6 +351,19 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
+                Actor first = arena.Dummy(East * 6f);
+                Actor corner = arena.Dummy(East * 6f - North * 8f);
+                Actor last = arena.Dummy(West * 3f - North * 8f);
+                Page Seeking() => Flight().Going("towards-nearest").With(Deal());
+                Cast(arena, Read(arena, Seeking(), Seeking(), Seeking()), East, 6f);
+                arena.Run(2f);
+                bool open = Enumerable.Range(0, 10).All(metre => !arena.Session.World.Placement.OverlapsSolid(Footprint.Circle(arena.At + new Vector2(6f - metre, -8f), 0.3f)));
+                report.Check("With nothing standing in the way of that", open);
+                report.Check("Round a corner, past someone it's been to that's nearer than anyone it hasn't", Arena.Lost(corner) > 0f && Arena.Lost(last) > 0f, $"{Arena.Lost(first)}, {Arena.Lost(corner)}, {Arena.Lost(last)}");
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
                 BookProfile missing = Read(arena, Flight("short").With(Deal()), Area("circle", "tight").With(Deal()));
                 Actor end = arena.Dummy(East * (missing.First.Range + 1f));
                 Cast(arena, missing, East, 30f);
@@ -609,6 +622,15 @@ namespace Dino_NetLab
                 for (int i = 0; i < 4; i++) Cast(arena, bones, East, 4f);
                 arena.Run(1.5);
                 report.Check($"Nor more than {Rulebook.MostMinions} minions of a kind", arena.Session.Minions.Count(m => !m.Dead) <= Rulebook.MostMinions, $"{arena.Session.Minions.Count(m => !m.Dead)}");
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                BookPlan bones = Scribe.Read(new Book { Pages = { Flight().With(new Outcome { Deed = "raise", Kin = "bones" }) } }, "Crowd");
+                var crowded = new Loadout(30, arena.Hero.Loadout.Weapon, new[] { Flat(Stat.MinionCount, 40f) }, Array.Empty<BookPlan>()).SheetFor(Condition.None).Preview(bones);
+                report.Check("A build can ask for more than that", crowded.First.MinionCount > Rulebook.MostMinions, $"{crowded.First.MinionCount}");
+                arena.Session.Summon(arena.Hero, crowded.First, arena.At);
+                report.Check("And doesn't get them", arena.Session.Minions.Count(m => !m.Dead) == Rulebook.MostMinions, $"{arena.Session.Minions.Count(m => !m.Dead)}");
             }
         }
 

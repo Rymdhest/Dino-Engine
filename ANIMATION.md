@@ -51,11 +51,11 @@ The hips go as low as the feet need them to, so nothing stretches. Arm swing com
 
 A `Gesture` is three keys: **Cock, Contact, Through**. `GesturePlayer.Sample` is a pure function of how long it's been and when it lands, so the Contact key is exactly on the tick the rules say, whatever else happens.
 
-The blow itself always takes the same time (`Snap`), and what changes is how long the wind-up has. With little time it doesn't go all the way back (`drawn`), as moving a long way quickly would be faster than the blow, and it's the blow that's meant to be fast. So a skill made quicker by a stat, or an enemy with a long telegraph, needs nothing new: the same gesture fits.
+The blow itself always takes the same time (`Snap`), and what changes is how long the wind-up has. With little time it doesn't go all the way back (`drawn`), as moving a long way quickly would be faster than the blow, and it's the blow that's meant to be fast. So a book made quicker by a stat, or an enemy with a long telegraph, needs nothing new: the same gesture fits.
 
-`Gesture.Next` is what a blow turns into if another follows within `ChainWithin`, which is how forehand and backhand alternate without anyone counting. `SkillMotions.Of` picks a gesture from what a skill is, so a new skill looks right with nothing added. `FreeHand` says a gesture is done with an empty hand, so an arm with a shield on it stays where it is.
+`Gesture.Next` is what a blow turns into if another follows within `ChainWithin`, which is how forehand and backhand alternate without anyone counting. `SkillMotions.Of` picks a gesture from a page's `PageSign`, so a new book looks right with nothing added. `FreeHand` says a gesture is done with an empty hand, so an arm with a shield on it stays where it is.
 
-What isn't a skill goes by `FlourishEvent`: drinking, and putting a hand out to use something. It's for show, so it can go missing.
+What isn't a book goes by `FlourishEvent`: drinking, and putting a hand out to use something. It's for show, so it can go missing.
 
 ## Falling
 
@@ -101,7 +101,7 @@ A dodge goes the tick it's pressed, and nothing gets in its way. Whatever was go
 
 **A new way of moving**: one more `MotionStyle`. **A new way of holding something**: one more `Carry`. Say which in `CharacterFactory.BearingOf`.
 
-**A new gesture**: three keys in `Gestures`, and a line in `SkillMotions.Of` if it's for a skill. Add it to the list in `AnimCheck.Hostile`, and to `Script.Named` to look at it. If it isn't a skill, add to `Flourish`.
+**A new gesture**: three keys in `Gestures`, and a line in `SkillMotions.Of` if it's for a page. Add it to the list in `AnimCheck.Hostile`, and to `Script.Named` to look at it. If it isn't for a page, add to `Flourish`.
 
 **A new kind of animal**: a `BeastLook`. Its rig, its gait and how it falls all come from that. It needs a line in `CharacterFactory.Resolve` and `BearingOf`.
 

@@ -19,6 +19,7 @@ namespace Dino_BuildLab
         private static readonly WeaponProfile Sword = new WeaponProfile(20f, 30f, 0.6f, 5f, Tags.Sword | Tags.OneHanded);
         private static readonly WeaponProfile Wand = new WeaponProfile(20f, 30f, 0.6f, 5f, Tags.Wand | Tags.OneHanded);
         private static readonly WeaponProfile Bow = new WeaponProfile(20f, 30f, 0.6f, 5f, Tags.Bow | Tags.TwoHanded);
+        private static readonly WeaponProfile Staff = new WeaponProfile(20f, 30f, 0.6f, 5f, Tags.Staff | Tags.TwoHanded);
 
         public static void Run(Report report)
         {
@@ -290,6 +291,7 @@ namespace Dino_BuildLab
             report.Check("Which is Melee by hand", (Profile(cone, Sword).First.Tags & Tags.Melee) != 0);
             report.Check("And not when it's thrown", (Profile(bolt, Sword).First.Tags & Tags.Melee) == 0 && (Profile(bolt, Sword).First.Tags & Tags.Projectile) != 0);
             report.Check("A wand makes a Spell", !Profile(cone, Wand).First.IsAttack && (Profile(cone, Wand).First.Tags & Tags.Spell) != 0);
+            report.Check("And so does a staff", !Profile(cone, Staff).First.IsAttack && (Profile(cone, Staff).First.Tags & Tags.Spell) != 0);
             report.Check("A bow makes an Attack that's no sort of Melee", Profile(cone, Bow).First.IsAttack && (Profile(cone, Bow).First.Tags & Tags.Melee) == 0);
 
             report.Near("Attack Speed hurries an Attack", Profile(cone, Sword, Inc(Stat.AttackSpeed, 100f)).UseTime, Profile(cone, Sword).UseTime / 2f);

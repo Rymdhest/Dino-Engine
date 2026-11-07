@@ -1,10 +1,10 @@
 # Builds
 
-How heroes and enemies add up: stats, skills, the talent tree, items, and the fights they all end in. This is the game's main idea, so read it before changing any of them.
+How heroes and enemies add up: stats, books, the talent tree, items, and the fights they all end in. This is the game's main idea, so read it before changing any of them.
 
 ## The one idea
 
-**There is one kind of fighter.** A hero, an enemy and somebody's skeleton are each an `Actor`: a `Loadout` of modifiers, a compiled `ActorSheet`, and `Vitals`. `Combat` works on Actors and doesn't know which it has. A hero is just an Actor with a player on the other end, and an enemy is a list of stats in `Bestiary`. Anything a hero can do, an enemy can do, so every new skill, rule and item is at once something the world can do to a player.
+**There is one kind of fighter.** A hero, an enemy and somebody's skeleton are each an `Actor`: a `Loadout` of modifiers, a compiled `ActorSheet`, and `Vitals`. `Combat` works on Actors and doesn't know which it has. A hero is just an Actor with a player on the other end, and an enemy is a list of stats in `Bestiary`. Anything a hero can do, an enemy can do, so every new sentence, rule and item is at once something the world can do to a player.
 
 That is why bosses can wear what they drop and walk the same tree, why a slain enemy can get up and fight for you with everything it had, and why a mimic can use what hit it.
 
@@ -43,7 +43,7 @@ Modifiers are read when something changes, never when a blow lands.
 
 - `Loadout` sorts an actor's modifiers by stat, once.
 - `ActorSheet` is finished numbers for one state of things, and never changes. A loadout hands out one per combination of the conditions it actually cares about, and most actors care about none, so they have exactly one.
-- `SkillProfile` is one actor's finished numbers for one skill. A blow reads these and adds nothing up.
+- `BookProfile` is one actor's finished numbers for one book, with a `PageProfile` for each page. A blow reads these and adds nothing up.
 - Enemies of one kind, level and trait share a single loadout, so three hundred skeletons are one set of numbers.
 - `Hits` is the whole of what happens per blow. It allocates nothing, and `bench` proves it.
 
@@ -100,30 +100,17 @@ Two things meeting on someone do what neither does alone. Anyone can set one off
 
 **This is the idea other ARPGs don't have.** The world is generated, and a build can be made for what it's standing on. `LandReader` turns the same fields a world is made of into `Condition`s: `InWater`, `UnderTrees`, `OnRoad`, `InDarkness` (near a graveyard), `HotLand`, `ColdLand`, `WetLand`, `HighLand`. Biomes are classified from their own temperature, moisture and altitude, so a new biome needs nothing here.
 
-So choosing a land at a waygate is a build decision, and a skill or an item can change the answer: a Tidepool makes water for a Tidewalker, and the Drowned King's shell keeps them in it wherever they go. Height counts too, for Peakborn.
+So choosing a land at a waygate is a build decision, and a book or an item can change the answer: a Tidepool makes water for a Tidewalker, and the Drowned King's shell keeps them in it wherever they go. Height counts too, for Peakborn.
 
-## Skills
+## Books
 
-`SkillCatalog` holds every skill, used by heroes and enemies alike. A `SkillDefinition` is the start of a calculation: its form, its tags, its base damage at level 1 or its share of the weapon, and its own mods. New skills need no code unless they have a new form.
+There are no skills. Everything anyone does in a fight is a book written out of sentences: read `BOOKS.md` before changing anything an actor can do. This is only how a book joins the sums.
 
-| Form | Is |
-|---|---|
-| Strike | A sweep in front. A full circle if `Arc` is tau |
-| Nova | A ring around the user |
-| Bolt | Projectiles: pierce, chain and burst all follow from stats |
-| Burst | A blast at a place, a moment later |
-| Zone | Ground that pulses for a while |
-| Chain | Leaps from one target to the next |
-| Beam | A line, at once |
-| Buff | On the user, from `BuffCatalog` |
-| Summon | Minions, from `Bestiary` |
-| Leap | Carries the user, and strikes on landing. Done in `HeroRules.Step`, as moving always is |
+`Scribe.Read` turns a book into a `BookPlan`, the same whoever holds it, and `ActorSheet.Profile` turns that into a `BookProfile` for one actor, with a `PageProfile` for each page. Your Damage is the weapon's, for every book. A wand or a staff makes a book a Spell and anything else an Attack, so a weapon's base damage is all a caster has to start from, and wands and staves are priced for that. On top of that a page's `Potency` scales everything it does.
 
-Attacks use the weapon, and spells use `SkillDefinition.SkillPower` of the actor's level plus any `SkillLevel`. `AddedEffect` is how much flat damage a skill gets: quick skills get less.
+Heroes carry books on a bar of six: the mouse buttons, Q, 1, 2 and 3. A book on the bar isn't in the pack (`HeroState.Bar`), as a ring on a finger isn't. Every hero has one from the start, on the left mouse button: a Cone of Your Damage that costs nothing. Books can also go off by themselves (`M.Trigger`). Those are on `Shelf`, and what sets them off comes from the tree or from what's worn.
 
-Heroes learn skills from the tree and from what they wear (`M.Skill`), and put them on a bar of seven: the mouse buttons, Q and 1 to 4. A newly learned one goes in the first empty slot. Skills can also go off by themselves (`M.Trigger`).
-
-A skill works the same on any slot. The mouse buttons are held, and what the other keys send is a press, so that a quick tap is never lost and one made late in a cast waits for it. `HeroRules.KeyPresses` has a held key press again whenever its skill could go, which is what makes them match. It waits for the cooldown as well as the hero, as there's one queue, and a key on cooldown would otherwise keep it from a second key held down.
+A book works the same on any slot. The mouse buttons are held, and what the other keys send is a press, so that a quick tap is never lost and one made late in a cast waits for it. `HeroRules.KeyPresses` has a held key press again whenever its book could go, which is what makes them match. It waits for the cooldown as well as the hero, as there's one queue, and a key on cooldown would otherwise keep it from a second key held down.
 
 ## The tree
 
@@ -159,7 +146,7 @@ Uniques (`UniqueCatalog`) are items with lines of their own, and should change w
 
 ## Enemies
 
-`Bestiary` holds what creatures are: skills, mods, and how strength grows with level. Elites get a trait, which is the same modifiers gear is made of. A boss wears real items and takes a real keystone, fights with them, and drops what it wore, so a player has usually seen a unique used before they ever hold it.
+`Bestiary` holds what creatures are: books, mods, and how strength grows with level. Elites get a trait, which is the same modifiers gear is made of. A boss wears real items and takes a real keystone, fights with them, and drops what it wore, so a player has usually seen a unique used before they ever hold it.
 
 `HealthAt` and `DamageAt` are fitted to the `balance` table: a sample hero who knows nothing of keystones and doesn't choose their gear needs about three hits and survives about ten. `Outfitted` is what keeps that true with legs, hands and a second ring on the sample hero, and comes in as they fill those places. Anything a real build does better is the build working. They climb the way a hero does, fast early on, and what's exponential in them keeps lands past the level cap getting harder. That's an ordinary enemy, which a pack is mostly not: its core has about half the health and under half the damage, so a build that's working goes through them.
 
@@ -231,17 +218,18 @@ An omen's id is saved, and the order of `Omens` is what's sent, so a new one goe
 
 `HeroRules.Step` is still a pure function of the command, the hero's kit and the world. Both ends compile the same `ActorSheet` from the same `HeroState`, so they agree on every number without sending any.
 
-What only the server can know reaches the client in `HeroSimState`: the `State` and `Counters` that pick which sheet is in force, and `MoveRate`, `ActionRate` and `Held` for what's being done to the hero. So a new conditional stat needs no networking at all. Buffs and a mimicked skill come with `HeroUpdate`.
+What only the server can know reaches the client in `HeroSimState`: the `State` and `Counters` that pick which sheet is in force, and `MoveRate`, `ActionRate` and `Held` for what's being done to the hero. So a new conditional stat needs no networking at all. Buffs come with `HeroUpdate`.
 
-What a blow does is the server's business. What a client sees of it comes as `DamageEvent`, `SkillEvent`, `LinkEvent` and `ReactionEvent`.
+What a blow does is the server's business. What a client sees of it comes as `DamageEvent`, `PageEvent`, `HealEvent`, `LinkEvent` and `ReactionEvent`.
 
 ## Testing
 
 ```
-dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" check      # The sums, the tree, items, skills, old saves
+dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" check      # The sums, the tree, items, books, old saves
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" bench      # What it costs, and that blows allocate nothing
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" balance    # How a fight goes at each level
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list       # Everything there is, with its text as the player reads it. --what cards, sheet or terms for what TOOLTIPS.md covers
+dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" books      # What every sentence comes to on a plain page, and what's on the shelf comes to
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" density    # How much there is to fight in a world, and how long between fights
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" loot       # What each source gives, what a whole world comes to, and the longest dry spells
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" offering   # What each step of peril costs and pays, and what more enemies come to
@@ -249,7 +237,8 @@ dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" pace           # A real 
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" loot           # What's on the ground: who sees it, who gets it, and that nobody gets it without asking
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" offering       # What's paid at a waygate, for real: who pays, what it does to the land, what falling costs, what's paid out
 dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" packs      # Who stands where, as a map
-dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build          # Every skill, ailment, reaction and keystone, for real on a running server
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build          # Every ailment, reaction and keystone, for real on a running server
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" books          # Every sentence, for real on a running server
 ```
 
 Run `check` and `build` after any change here, `game` if the hero's step or the protocol moved, `loot` and `pace` if anything about drops did, and `offering` if anything about a waygate or what's paid at one did. A bot proves nothing about clicking: post real mouse messages for that. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.
