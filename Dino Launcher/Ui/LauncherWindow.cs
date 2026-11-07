@@ -19,16 +19,25 @@ namespace Dino_Launcher.Ui
     internal sealed class LauncherWindow : Form
     {
         private const int RecheckMilliseconds = 10 * 60 * 1000;
-        private const int ScaledWidth = 880;
-        private const int ScaledHeight = 560;
-        private const int BannerHeight = 280;
+        private const int ScaledWidth = 1000;
+        private const int ScaledHeight = 720;
+        private const int SmallestWidth = 760;
+        private const int SmallestHeight = 520;
+        private const int Gutter = 28;
+        private const int WidestColumn = 1400;
+        private const int FootHeight = 118;
+        private const int ActionWidth = 190;
+        private const int LowestBanner = 130;
+        private const int TallestBanner = 240;
+        private const float BannerShare = 0.27f;
+        private const float BannerCrop = 0.15f;
 
         // The game's own colours, from its Ui class.
-        private static readonly Color Ink = Color.FromArgb(15, 12, 10);
-        private static readonly Color InkLight = Color.FromArgb(38, 31, 25);
-        private static readonly Color Parchment = Color.FromArgb(228, 214, 186);
-        private static readonly Color Faded = Color.FromArgb(164, 150, 126);
-        private static readonly Color Gold = Color.FromArgb(214, 172, 92);
+        internal static readonly Color Ink = Color.FromArgb(15, 12, 10);
+        internal static readonly Color InkLight = Color.FromArgb(38, 31, 25);
+        internal static readonly Color Parchment = Color.FromArgb(228, 214, 186);
+        internal static readonly Color Faded = Color.FromArgb(164, 150, 126);
+        internal static readonly Color Gold = Color.FromArgb(214, 172, 92);
         private static readonly Color Blood = Color.FromArgb(214, 84, 66);
 
         private readonly InstallPaths _paths;
@@ -40,7 +49,7 @@ namespace Dino_Launcher.Ui
         private readonly float _scale;
 
         private readonly Image? _banner;
-        private readonly RichTextBox _notes;
+        private readonly NotesPanel _notes;
         private readonly Label _status;
         private readonly ProgressStrip _progress;
         private readonly Button _play;
@@ -52,6 +61,8 @@ namespace Dino_Launcher.Ui
         private Process? _game;
         private bool _working;
         private long _shownSequence;
+        private int _bannerHeight;
+        private int _left;
 
         public int ExitCode { get; private set; }
 
@@ -70,44 +81,30 @@ namespace Dino_Launcher.Ui
 
             Text = "Dino Defenders";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.Sizable;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(Scaled(ScaledWidth), Scaled(ScaledHeight));
             BackColor = Ink;
             ForeColor = Parchment;
             DoubleBuffered = true;
+            ResizeRedraw = true;
             Font = new Font("Segoe UI", 10f);
 
             _banner = LoadBanner();
 
-            _notes = new RichTextBox
-            {
-                Bounds = Box(28, BannerHeight + 12, 824, 136),
-                BackColor = Ink,
-                ForeColor = Parchment,
-                BorderStyle = BorderStyle.None,
-                ReadOnly = true,
-                TabStop = false,
-                ScrollBars = RichTextBoxScrollBars.Vertical,
-                DetectUrls = false,
-                Cursor = Cursors.Arrow,
-            };
+            _notes = new NotesPanel(_scale);
 
             _status = new Label
             {
-                Bounds = Box(28, 442, 610, 44),
                 ForeColor = Parchment,
                 BackColor = Ink,
                 TextAlign = ContentAlignment.BottomLeft,
                 Font = new Font("Segoe UI", 10.5f),
             };
 
-            _progress = new ProgressStrip(InkLight, Gold) { Bounds = Box(28, 492, 610, 8), Visible = false };
+            _progress = new ProgressStrip(InkLight, Gold) { Visible = false };
 
             _play = new Button
             {
-                Bounds = Box(662, 444, 190, 60),
                 Text = "PLAY",
                 Font = new Font("Georgia", 18f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
@@ -125,7 +122,6 @@ namespace Dino_Launcher.Ui
 
             _tryAgain = new Button
             {
-                Bounds = Box(662, 508, 190, 28),
                 Text = "Try again",
                 FlatStyle = FlatStyle.Flat,
                 BackColor = InkLight,
@@ -138,7 +134,6 @@ namespace Dino_Launcher.Ui
 
             _about = new Label
             {
-                Bounds = Box(28, 518, 480, 24),
                 ForeColor = Faded,
                 BackColor = Ink,
                 Font = new Font("Segoe UI", 9f),
@@ -148,7 +143,6 @@ namespace Dino_Launcher.Ui
 
             _logs = new LinkLabel
             {
-                Bounds = Box(520, 518, 118, 24),
                 Text = "Open logs",
                 Font = new Font("Segoe UI", 9f),
                 TextAlign = ContentAlignment.MiddleRight,
@@ -162,6 +156,7 @@ namespace Dino_Launcher.Ui
 
             Controls.AddRange(new Control[] { _notes, _status, _progress, _play, _tryAgain, _about, _logs });
             AcceptButton = _play;
+            SetUpSize();
 
             _recheck = new System.Windows.Forms.Timer { Interval = RecheckMilliseconds };
             _recheck.Tick += (_, __) => { if (Visible && _game == null) Check(); };
@@ -174,7 +169,78 @@ namespace Dino_Launcher.Ui
 
         private int Scaled(int value) => (int)Math.Round(value * _scale);
 
-        private Rectangle Box(int x, int y, int width, int height) => new Rectangle(Scaled(x), Scaled(y), Scaled(width), Scaled(height));
+        /// <summary>The size it was left at, or a size with room to read, but never more than the screen it's opening on.</summary>
+        private void SetUpSize()
+        {
+            WindowMemory? remembered = WindowMemory.Read(_paths.WindowSize);
+            Size wanted = remembered != null ? new Size(Scaled(remembered.Width), Scaled(remembered.Height)) : new Size(Scaled(ScaledWidth), Scaled(ScaledHeight));
+            Size smallest = new Size(Scaled(SmallestWidth), Scaled(SmallestHeight));
+
+            Size frame = SizeFromClientSize(Size.Empty);
+            Rectangle screen = Screen.FromPoint(MousePosition).WorkingArea;
+            Size room = new Size(screen.Width - frame.Width, screen.Height - frame.Height);
+
+            smallest = new Size(Math.Min(smallest.Width, room.Width), Math.Min(smallest.Height, room.Height));
+            MinimumSize = smallest + frame;
+            ClientSize = new Size(Math.Max(smallest.Width, Math.Min(wanted.Width, room.Width)), Math.Max(smallest.Height, Math.Min(wanted.Height, room.Height)));
+            if (remembered?.Maximized == true) WindowState = FormWindowState.Maximized;
+            Arrange();
+        }
+
+        private void RememberSize()
+        {
+            Size size = (WindowState == FormWindowState.Normal ? Bounds : RestoreBounds).Size - SizeFromClientSize(Size.Empty);
+            new WindowMemory { Width = (int)Math.Round(size.Width / _scale), Height = (int)Math.Round(size.Height / _scale), Maximized = WindowState == FormWindowState.Maximized }.Write(_paths.WindowSize);
+        }
+
+        /// <summary>The foot stays as it is, the banner gives up what it can, and everything else goes to the notes.</summary>
+        private void Arrange()
+        {
+            int width = ClientSize.Width;
+            int height = ClientSize.Height;
+            if (height == 0) return; // Minimized.
+
+            // On a very wide screen everything stays together in the middle, or Play and the scroll bar end up a long way from what's being read.
+            int column = Math.Min(width - Scaled(Gutter) * 2, Scaled(WidestColumn));
+            int foot = height - Scaled(FootHeight);
+            _left = (width - column) / 2;
+            int action = _left + column - Scaled(ActionWidth);
+            int status = action - Scaled(24) - _left;
+            _bannerHeight = Math.Max(Scaled(LowestBanner), Math.Min(Scaled(TallestBanner), (int)(height * BannerShare)));
+
+            int notes = _bannerHeight + Scaled(8);
+            _notes.Bounds = new Rectangle(_left, notes, column, Math.Max(0, foot - Scaled(14) - notes));
+            _status.Bounds = new Rectangle(_left, foot, status, Scaled(44));
+            _progress.Bounds = new Rectangle(_left, foot + Scaled(50), status, Scaled(8));
+            _play.Bounds = new Rectangle(action, foot + Scaled(2), Scaled(ActionWidth), Scaled(60));
+            _tryAgain.Bounds = new Rectangle(action, foot + Scaled(66), Scaled(ActionWidth), Scaled(28));
+            _about.Bounds = new Rectangle(_left, foot + Scaled(76), status - Scaled(130), Scaled(24));
+            _logs.Bounds = new Rectangle(_left + status - Scaled(118), foot + Scaled(76), Scaled(118), Scaled(24));
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            if (_notes != null) Arrange(); // This also comes while the window is being built.
+        }
+
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            base.OnMouseWheel(e);
+            _notes.Wheel(e.Delta);
+        }
+
+        protected override bool ProcessCmdKey(ref Message message, Keys key)
+        {
+            if (_notes.Typing && key == Keys.Enter) return true; // It would press Play, on someone only meaning to finish a search.
+            if (_notes.Typing && key == Keys.Escape)
+            {
+                _notes.EndSearch();
+                if (_play.Enabled) _play.Focus();
+                return true;
+            }
+            return _notes.Press(key) || base.ProcessCmdKey(ref message, key);
+        }
 
         private static Image? LoadBanner()
         {
@@ -200,14 +266,6 @@ namespace Dino_Launcher.Ui
             base.OnShown(e);
             if (_options.Handoff != null) Program.Prove(_options.Handoff);
 
-            try
-            {
-                SetWindowTheme(_notes.Handle, "DarkMode_Explorer", null); // A scroll bar to match, for a long list of notes.
-            }
-            catch (Exception missing) when (missing is DllNotFoundException || missing is EntryPointNotFoundException)
-            {
-            }
-
             // Someone coming back sees what they have straight away, rather than an empty page until the network answers.
             Manifest? installed = _updater.Install.ReadInstalled(Feed.PublicKey);
             if (installed != null) ShowBuild(installed);
@@ -216,6 +274,7 @@ namespace Dino_Launcher.Ui
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
+            RememberSize();
             _closing.Cancel();
             base.OnFormClosed(e);
         }
@@ -224,7 +283,7 @@ namespace Dino_Launcher.Ui
         {
             base.OnPaint(e);
             Graphics g = e.Graphics;
-            var area = new Rectangle(0, 0, ClientSize.Width, Scaled(BannerHeight));
+            var area = new Rectangle(0, 0, ClientSize.Width, _bannerHeight);
 
             if (_banner != null)
             {
@@ -232,19 +291,21 @@ namespace Dino_Launcher.Ui
                 float zoom = Math.Max((float)area.Width / _banner.Width, (float)area.Height / _banner.Height);
                 float width = area.Width / zoom;
                 float height = area.Height / zoom;
-                var source = new RectangleF((_banner.Width - width) / 2f, (_banner.Height - height) / 2f, width, height);
+                // A wide window sees a strip of the picture. Its top is what's worth seeing, as the fade covers the bottom.
+                var source = new RectangleF((_banner.Width - width) / 2f, (_banner.Height - height) * BannerCrop, width, height);
                 g.DrawImage(_banner, area, source, GraphicsUnit.Pixel);
             }
 
             // The picture sinks into the page, and the name stands on the dark.
             var fade = new Rectangle(0, area.Height / 3, area.Width, area.Height - area.Height / 3 + 1);
-            using (var brush = new LinearGradientBrush(fade, Color.FromArgb(0, Ink), Ink, LinearGradientMode.Vertical)) g.FillRectangle(brush, fade);
+            var gradient = Rectangle.Inflate(fade, 0, 1); // A brush tiles, and its exact size leaves a dark line where the last row wraps to the first.
+            using (var brush = new LinearGradientBrush(gradient, Color.FromArgb(0, Ink), Ink, LinearGradientMode.Vertical)) g.FillRectangle(brush, fade);
 
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
             using var title = new Font("Georgia", 32f, FontStyle.Bold);
             using var shadow = new SolidBrush(Color.FromArgb(200, 0, 0, 0));
             using var ink = new SolidBrush(Parchment);
-            var place = new PointF(Scaled(24), area.Height - Scaled(66));
+            var place = new PointF(_left - Scaled(4), area.Height - Scaled(66));
             g.DrawString("Dino Defenders", title, shadow, place.X + Scaled(2), place.Y + Scaled(2));
             g.DrawString("Dino Defenders", title, ink, place);
         }
@@ -374,7 +435,7 @@ namespace Dino_Launcher.Ui
             }
 
             _play.Enabled = true;
-            _play.Focus();
+            if (!_notes.Typing) _play.Focus();
 
             if (_options.Play) Play();
             else if (_options.QuitWhenReady) Close();
@@ -386,21 +447,7 @@ namespace Dino_Launcher.Ui
             if (build.Sequence == _shownSequence) return;
             _shownSequence = build.Sequence;
 
-            _notes.Clear();
-            using var heading = new Font("Georgia", 11f, FontStyle.Bold);
-            using var body = new Font("Segoe UI", 10f);
-            foreach (ReleaseNote note in build.Notes ?? new ReleaseNote[0])
-            {
-                if (_notes.TextLength > 0) _notes.AppendText("\n\n");
-                _notes.SelectionFont = heading;
-                _notes.SelectionColor = Gold;
-                _notes.AppendText(note.Version + "\n");
-                _notes.SelectionFont = body;
-                _notes.SelectionColor = Parchment;
-                _notes.AppendText(note.Text.TrimEnd());
-            }
-            _notes.SelectionStart = 0;
-            _notes.ScrollToCaret();
+            _notes.Fill(build.Notes);
         }
 
         private void Play()
@@ -469,9 +516,6 @@ namespace Dino_Launcher.Ui
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
-
-        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
-        private static extern int SetWindowTheme(IntPtr window, string name, string? list);
     }
 
     /// <summary>A plain bar. The Windows one can't be told what colour to be.</summary>

@@ -33,7 +33,7 @@ It takes under a minute. It refuses uncommitted changes, builds a self-contained
 | `rollback --to 0.1.7` | Send everyone back to an older build, as a new release. |
 | `status` | What's out there now. |
 
-**Notes are always a list of changes**, a line each, on GitHub and in the launcher. Each line of `--notes` is a change, and so is each sentence, so a paragraph comes apart by itself, and that goes for older notes still being carried along too. Keep a line short enough to fit the launcher's box: about 110 characters.
+**Notes are always a list of changes**, a line each, on GitHub and in the launcher. Each line of `--notes` is a change, and so is each sentence, so a paragraph comes apart by itself, and that goes for older notes still being carried along too. Keep a line to about 110 characters: a longer one wraps under its own words, but a list is read by skimming it. There's no limit on how many lines a release has, and a manifest carries the last 40 releases (`NotesKept`), so a big patch only makes the page longer.
 
 The GitHub token is the one git already pushes with, so there's nothing to set up. Set `GITHUB_TOKEN` to use another; it needs `contents: write`.
 
@@ -66,6 +66,10 @@ If a tester has **Smart App Control** on, there's no Run anyway button. It block
 **Updating** (`GameInstall`): hash every file, fetch the packs holding wrong ones, build a complete new folder beside the old, hash that too, and swap the two with two renames. Those renames are the only moment anything changes. A crash at any point leaves the old game or the new one, and `Recover` sorts out which. The folder keeps the same path for good, as Windows Firewall remembers a program by its path, and a folder per version would ask again after every update.
 
 **The launcher replaces itself** (`LauncherUpdate`) before anything else, by renaming itself aside and starting the new one. This is the one update that can't be repaired afterwards, so the new one has to prove it works by opening its window, within 30 seconds. If it doesn't, the old one puts itself back, remembers never to try that build again, and carries on. A release with a broken launcher costs nobody anything.
+
+**The notes** (`Ui/NotesPanel.cs`) are one page of every release, drawn by hand, as a text box can't hang a wrapped line under its own words or scroll smoothly. The heading of the release being read stays at the top, the list beside it marks that release and jumps to any other, and the search (Ctrl+F, Escape to leave) keeps the lines holding every word typed, or a version number. The wheel moves the page from anywhere in the window, as do the arrows, Page Up and Down, Home and End. `Update/PatchNotes.cs` is the reading and searching, with no UI. Enter in the search box must never press Play, which `live` holds.
+
+**The window** can be resized and maximized, and everything is placed from its size in `Arrange`: the foot stays as it is, the banner gives up what it can, the notes get the rest, and on a very wide screen it all stays in a column in the middle. The size it was left at is in `launcher.window`, beside the launcher (`WindowMemory`). Where it stood isn't kept, as that monitor may be gone.
 
 **Nothing stops someone playing what they have.** No connection, a bad release, a full disk or a failed update all end with the installed game playable and a sentence saying what happened.
 

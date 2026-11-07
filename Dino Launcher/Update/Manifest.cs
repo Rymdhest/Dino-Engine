@@ -160,7 +160,7 @@ namespace Dino_Launcher.Update
         [DataMember(Name = "sha256", Order = 2)] public string Sha256 = "";
     }
 
-    /// <summary>What changed in one release. A manifest carries the last few, for anyone who has been away.</summary>
+    /// <summary>What changed in one release. A manifest carries a long run of these, for anyone who has been away.</summary>
     [DataContract]
     public sealed class ReleaseNote
     {

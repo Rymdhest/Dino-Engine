@@ -18,7 +18,7 @@ namespace Dino_Release
         private const string FirstVersion = "0.1.0";
         private const string GamePack = "game";
         private const string RuntimePack = "runtime";
-        private const int NotesKept = 8;
+        private const int NotesKept = 40;
         private const int SmokeSeconds = 180;
 
         private static readonly DateTimeOffset ZipTime = new(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
@@ -228,7 +228,7 @@ namespace Dino_Release
 
         /// <summary>
         /// Notes are always a list of changes, a line each, whatever they were given as: a paragraph comes apart at its sentences. A launcher
-        /// shows them as plain text in a small box, where a list gets read and a wall of words doesn't.
+        /// shows each line as a bullet of its own, where a list gets read and a wall of words doesn't.
         /// </summary>
         private static string AsList(string notes)
         {

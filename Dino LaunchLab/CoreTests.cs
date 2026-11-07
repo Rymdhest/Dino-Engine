@@ -53,6 +53,11 @@ namespace Dino_LaunchLab
             Rules(report);
             Signatures(report);
 
+            report.Section("Reading the notes");
+            NotesAsLines(report);
+            SearchingTheNotes(report);
+            RememberingTheWindow(report);
+
             report.Section("Installing and updating");
             FreshInstall(report);
             UpdatingFetchesOnlyWhatChanged(report);
@@ -103,6 +108,65 @@ namespace Dino_LaunchLab
             ACopyKeptAfterInstalling(report);
 
             return report.Finish();
+        }
+
+        private static void NotesAsLines(Report report)
+        {
+            NoteSection[] sections = PatchNotes.Read(new[]
+            {
+                new ReleaseNote { Version = "0.2.0", Text = "- Rain falls\r\n\r\n* Puddles form\n• Drips drip\n  - Indented\nNo mark at all\n-5% Mana on everything\n" },
+                new ReleaseNote { Version = "0.1.9", Text = "  \n\n" },
+                new ReleaseNote { Version = "0.1.8", Text = null! },
+                null!,
+                new ReleaseNote { Version = "0.1.7", Text = "- A & B" },
+            });
+
+            report.Check("Only releases with something to say are shown", sections.Length == 2 && sections[0].Version == "0.2.0" && sections[1].Version == "0.1.7", $"{sections.Length}");
+            string lines = string.Join("|", sections[0].Changes);
+            report.Check("A line is a change, however it was marked", lines == "Rain falls|Puddles form|Drips drip|Indented|No mark at all|-5% Mana on everything", lines);
+            report.Check("Having no notes at all is nothing to fall over", PatchNotes.Read(null).Length == 0);
+        }
+
+        private static void SearchingTheNotes(Report report)
+        {
+            NoteSection[] all = PatchNotes.Read(new[]
+            {
+                new ReleaseNote { Version = "0.1.7", Text = "- Fixed: Chill now lasts\n- New wolves\n- Fixed: wolves stop howling" },
+                new ReleaseNote { Version = "0.1.6", Text = "- Rain falls" },
+            });
+
+            NoteSection[] Find(string search) => PatchNotes.Matching(all, search);
+            int Count(NoteSection[] found) => found.Sum(section => section.Changes.Length);
+
+            report.Check("Nothing typed shows everything", Count(Find("   ")) == 4 && Find("").Length == 2);
+            report.Check("A word finds its lines, in any case", Count(Find("WOLVES")) == 2);
+            report.Check("Every word has to be there, in any order", Count(Find("wolves fixed")) == 1 && Find("wolves fixed")[0].Changes[0] == "Fixed: wolves stop howling");
+            report.Check("A release with nothing found isn't shown", Find("wolves").Length == 1 && Find("wolves")[0].Version == "0.1.7");
+            report.Check("A version finds that release", Count(Find("0.1.7")) == 3 && Find("0.1.7")[0].Version == "0.1.7");
+            report.Check("And a version with a word what it says about it", Count(Find("0.1.7 fixed")) == 2);
+            report.Check("Finding nothing is an answer", Find("zzz").Length == 0);
+            report.Check("A search leaves the notes as they were", Count(all) == 4);
+        }
+
+        private static void RememberingTheWindow(Report report)
+        {
+            using var folder = new TemporaryFolder();
+            string path = Path.Combine(folder.Path, "launcher.window");
+
+            report.Check("Nothing remembered yet is nothing", WindowMemory.Read(path) == null);
+
+            new WindowMemory { Width = 1184, Height = 761, Maximized = true }.Write(path);
+            WindowMemory? read = WindowMemory.Read(path);
+            report.Check("A size comes back as it was left", read != null && read.Width == 1184 && read.Height == 761 && read.Maximized);
+
+            foreach (string junk in new[] { "", "garbage", "1000 700", "1000 700 0 9", "-5 700 0", "0 700 0", "1000 0 0", "1000 99999999999 0", "1000 700000 0", "1e3 700 0" })
+            {
+                File.WriteAllText(path, junk);
+                report.Check($"A file saying \"{junk}\" is started over from", WindowMemory.Read(path) == null);
+            }
+
+            new WindowMemory { Width = 1000, Height = 700 }.Write(Path.Combine(folder.Path, "no such folder", "launcher.window"));
+            report.Check("Failing to remember is nothing to stop for", true);
         }
 
         private static void Rules(Report report)

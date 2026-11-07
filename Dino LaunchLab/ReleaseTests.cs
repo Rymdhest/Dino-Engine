@@ -238,6 +238,14 @@ namespace Dino_LaunchLab
             code = tool.Run(Release("- After that"));
             report.Check("Carrying a list along again leaves it as it was", code == 0 && Live().Notes[2].Text == carried, Live().Notes[2].Text);
 
+            Manifest many = Live();
+            many.Notes = Enumerable.Range(0, 60).Select(i => new ReleaseNote { Version = $"0.0.{i}", Text = "- Something" }).ToArray();
+            payload = many.ToBytes();
+            using (ECDsa signer = KeyFrom(key)) File.WriteAllBytes(live, SignedFile.Wrap(payload, signer.SignData(payload, HashAlgorithmName.SHA256)));
+
+            code = tool.Run(Release("- The newest"));
+            report.Check("A long history is carried, as the launcher has room for it", code == 0 && Live().Notes.Length == 40 && Live().Notes[1].Version == "0.0.0" && Live().Notes[39].Version == "0.0.38", $"{Live().Notes.Length}");
+
             code = tool.Run("rollback", "--to", "0.1.0", "--key", key, "--trust", trust, "--folder", feed);
             report.Check("A rollback's own note is a list as well", code == 0 && Live().Notes[0].Text == "- Back to the build of 0.1.0 while something is put right.", Live().Notes[0].Text);
         }

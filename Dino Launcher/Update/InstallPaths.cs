@@ -20,6 +20,7 @@ namespace Dino_Launcher.Update
         public readonly string InstanceLock;
         public readonly string RefusedLaunchers;
         public readonly string LauncherDied;
+        public readonly string WindowSize;
 
         /// <summary>Where the game keeps its save. Updates leave it alone.</summary>
         public string SaveFolder;
@@ -37,6 +38,7 @@ namespace Dino_Launcher.Update
             InstanceLock = Path.Combine(Root, "launcher.lock");
             RefusedLaunchers = Path.Combine(Root, "launcher.refused");
             LauncherDied = Path.Combine(Root, "launcher.died");
+            WindowSize = Path.Combine(Root, "launcher.window");
             SaveFolder = root != null ? Path.Combine(Root, "saves") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DinoDefenders");
         }
 

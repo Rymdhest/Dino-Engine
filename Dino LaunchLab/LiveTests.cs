@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using Dino_Launcher.Update;
@@ -77,6 +80,10 @@ namespace Dino_LaunchLab
                 report.Section("One at a time");
                 OneAtATime(report);
 
+                report.Section("The window");
+                Resizing(report);
+                ReadingTheNotes(report);
+
                 report.Section("What's believed");
                 ForgedFeed(report);
 
@@ -97,7 +104,7 @@ namespace Dino_LaunchLab
             return report.Finish();
         }
 
-        private static void Release(int build, string launcher, int exitCode = 0)
+        private static void Release(int build, string launcher, int exitCode = 0, string? notes = null)
         {
             Dictionary<string, byte[]> game = TestFeed.Build(build);
             game["Dino Defenders.exe"] = File.ReadAllBytes(Process.GetCurrentProcess().MainModule!.FileName);
@@ -105,7 +112,7 @@ namespace Dino_LaunchLab
             game["Shaders/Build.txt"] = Encoding.ASCII.GetBytes($"{build}");
             ReleaseTool.WriteBuild(_gameFolder, game);
 
-            int code = _tool.Run("publish", "--key", _keyPath, "--game", _gameFolder, "--launcher", launcher, "--executable", "Dino Defenders.exe", "--folder", _feed, "--notes", $"Build {build}");
+            int code = _tool.Run("publish", "--key", _keyPath, "--game", _gameFolder, "--launcher", launcher, "--executable", "Dino Defenders.exe", "--folder", _feed, "--notes", notes ?? $"Build {build}");
             if (code != 0) throw new InvalidOperationException(_tool.Output);
         }
 
@@ -315,6 +322,186 @@ namespace Dino_LaunchLab
             first.CloseMainWindow();
             report.Check("Closing the window ends it", first.WaitForExit(10000));
             if (!first.HasExited) first.Kill();
+        }
+
+        private static Process OpenWindow()
+        {
+            var start = new ProcessStartInfo(_paths.LauncherExe, $"--root \"{_root}\" --feed \"{_server.Url}\"") { UseShellExecute = false };
+            Process process = Process.Start(start)!;
+            DateTime giveUp = DateTime.UtcNow.AddSeconds(20);
+            while (process.MainWindowHandle == IntPtr.Zero && DateTime.UtcNow < giveUp)
+            {
+                Thread.Sleep(50);
+                process.Refresh();
+            }
+            return process;
+        }
+
+        private static void CloseWindow(Process process)
+        {
+            process.CloseMainWindow();
+            if (!process.WaitForExit(10000)) process.Kill();
+            process.Dispose();
+            WaitForLauncherToClose(10);
+        }
+
+        private static Size SizeOf(IntPtr window)
+        {
+            Native.GetWindowRect(window, out Native.Rect rect);
+            return new Size(rect.Right - rect.Left, rect.Bottom - rect.Top);
+        }
+
+        private static void SetSize(IntPtr window, int width, int height)
+        {
+            Native.SetWindowPos(window, IntPtr.Zero, 0, 0, width, height, Native.NoMove | Native.NoZOrder | Native.NoActivate);
+            Thread.Sleep(300);
+        }
+
+        /// <summary>What the window looks like now, as something to compare. Only the message that asks a window to draw itself can be read.</summary>
+        private static string Picture(IntPtr window)
+        {
+            Size size = SizeOf(window);
+            using var bitmap = new Bitmap(size.Width, size.Height);
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                IntPtr context = graphics.GetHdc();
+                Native.PrintWindow(window, context, 2);
+                graphics.ReleaseHdc(context);
+            }
+            using var stream = new MemoryStream();
+            bitmap.Save(stream, ImageFormat.Png);
+            return Hashing.OfBytes(stream.ToArray());
+        }
+
+        private static void Resizing(Report report)
+        {
+            Process process = OpenWindow();
+            IntPtr window = process.MainWindowHandle;
+            long style = Native.GetWindowLongPtr(window, Native.Style).ToInt64();
+            report.Check("It has edges to drag and a button to maximize it", (style & Native.ThickFrame) != 0 && (style & Native.MaximizeBox) != 0, $"{style:X}");
+
+            SetSize(window, 100, 100);
+            Size smallest = SizeOf(window);
+            report.Check("It won't go smaller than Play and the notes can sit in", smallest.Width >= 760 && smallest.Height >= 520, $"{smallest}");
+
+            SetSize(window, 1234, 777);
+            report.Check("It takes a size it's given", SizeOf(window) == new Size(1234, 777), $"{SizeOf(window)}");
+            CloseWindow(process);
+            report.Check("Closing it leaves that size behind", WindowMemory.Read(_paths.WindowSize) != null, "nothing written");
+
+            process = OpenWindow();
+            report.Check("And it opens at that size", SizeOf(process.MainWindowHandle) == new Size(1234, 777), $"{SizeOf(process.MainWindowHandle)}");
+            CloseWindow(process);
+
+            new WindowMemory { Width = 99999, Height = 99999 }.Write(_paths.WindowSize);
+            process = OpenWindow();
+            Size opened = SizeOf(process.MainWindowHandle);
+            var screens = new Size(Native.GetSystemMetrics(Native.VirtualWidth), Native.GetSystemMetrics(Native.VirtualHeight));
+            report.Check("A size from a bigger screen doesn't leave it hanging off this one", opened.Width <= screens.Width && opened.Height <= screens.Height, $"{opened} on {screens}");
+            CloseWindow(process);
+
+            new WindowMemory { Width = 1000, Height = 720, Maximized = true }.Write(_paths.WindowSize);
+            process = OpenWindow();
+            report.Check("Left maximized, it opens maximized", Native.IsZoomed(process.MainWindowHandle), $"{SizeOf(process.MainWindowHandle)}");
+            CloseWindow(process);
+            File.Delete(_paths.WindowSize);
+        }
+
+        private static void ReadingTheNotes(Report report)
+        {
+            Release(8, Path.Combine(_work, "good-launcher.exe"), notes: string.Join("\n", Enumerable.Range(1, 300).Select(i => $"- Change number {i}")));
+
+            Process process = OpenWindow();
+            IntPtr window = process.MainWindowHandle;
+            DateTime giveUp = DateTime.UtcNow.AddSeconds(20);
+            while (Installed()?.Notes[0].Text.Contains("Change number 300") != true && DateTime.UtcNow < giveUp) Thread.Sleep(100);
+            Thread.Sleep(1500);
+
+            string first = Picture(window);
+            Native.PostMessage(window, Native.MouseWheel, new IntPtr(unchecked((short)-360) << 16), IntPtr.Zero);
+            Thread.Sleep(800);
+            string scrolled = Picture(window);
+            report.Check("The wheel moves the notes, wherever the mouse is", scrolled != first);
+
+            Native.PostMessage(window, Native.KeyDown, new IntPtr(Native.Home), new IntPtr(1));
+            Thread.Sleep(800);
+            report.Check("Home goes back to exactly the top", Picture(window) == first);
+
+            IntPtr search = Native.FindChild(window, "EDIT");
+            report.Check("There's a search box", search != IntPtr.Zero);
+            string played = _paths.GameFile("played.txt");
+            File.Delete(played);
+
+            Native.PostMessage(search, Native.ButtonDown, new IntPtr(1), new IntPtr(5 << 16 | 5));
+            Native.PostMessage(search, Native.ButtonUp, IntPtr.Zero, new IntPtr(5 << 16 | 5));
+            Thread.Sleep(200);
+            foreach (char letter in "number 123") Native.PostMessage(search, Native.Char, new IntPtr(letter), new IntPtr(1));
+            Thread.Sleep(400);
+            report.Check("Typing cuts the page down", Picture(window) != first);
+
+            Native.PostMessage(search, Native.KeyDown, new IntPtr(Native.Enter), new IntPtr(1));
+            Thread.Sleep(1500);
+            report.Check("Enter in the search box doesn't start the game", !File.Exists(played) && Native.IsWindowVisible(window));
+
+            Native.PostMessage(search, Native.KeyDown, new IntPtr(Native.Escape), new IntPtr(1));
+            Thread.Sleep(600);
+            Native.PostMessage(window, Native.KeyDown, new IntPtr(Native.Enter), new IntPtr(1));
+            report.Check("Escape ends the search, and then Enter does", process.WaitForExit(10000) && File.Exists(played), File.Exists(played) ? "" : "never played");
+            if (!process.HasExited) process.Kill();
+            process.Dispose();
+            WaitForLauncherToClose(10);
+        }
+
+        private static class Native
+        {
+            public const int Style = -16;
+            public const long ThickFrame = 0x00040000;
+            public const long MaximizeBox = 0x00010000;
+            public const uint NoMove = 0x2;
+            public const uint NoZOrder = 0x4;
+            public const uint NoActivate = 0x10;
+            public const int VirtualWidth = 78;
+            public const int VirtualHeight = 79;
+            public const uint KeyDown = 0x100;
+            public const uint Char = 0x102;
+            public const uint ButtonDown = 0x201;
+            public const uint ButtonUp = 0x202;
+            public const uint MouseWheel = 0x20A;
+            public const int Enter = 0x0D;
+            public const int Escape = 0x1B;
+            public const int Home = 0x24;
+
+            [StructLayout(LayoutKind.Sequential)]
+            public struct Rect
+            {
+                public int Left, Top, Right, Bottom;
+            }
+
+            public delegate bool EachWindow(IntPtr window, IntPtr data);
+
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+            [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+            [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
+            [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr context, uint flags);
+            [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+            [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr window);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+            [DllImport("user32.dll", EntryPoint = "PostMessageW")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+            [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr window, EachWindow each, IntPtr data);
+            [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr window, StringBuilder name, int size);
+
+            public static IntPtr FindChild(IntPtr window, string kind)
+            {
+                IntPtr found = IntPtr.Zero;
+                EnumChildWindows(window, (child, _) =>
+                {
+                    var name = new StringBuilder(256);
+                    GetClassName(child, name, name.Capacity);
+                    if (name.ToString().IndexOf(kind, StringComparison.OrdinalIgnoreCase) >= 0) found = child;
+                    return found == IntPtr.Zero;
+                }, IntPtr.Zero);
+                return found;
+            }
         }
 
         private static void ForgedFeed(Report report)
