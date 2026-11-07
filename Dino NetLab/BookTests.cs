@@ -159,32 +159,22 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor there = arena.Dummy(East * 10f);
-                BookProfile nobody = Read(arena, Area("circle", "tight").Starting("from-nearest"));
-                arena.Hero.Vitals.Mana = 100f;
-                Actor gone = arena.Dummy(West * 10f);
-                arena.Combat.Hit(arena.Hero, arena.Page(Shelf.Strike), gone, 100000000f, arena.At);
-                there.Dead = true;
-                arena.Run(0.1);
-                Actor where = arena.Dummy(North * 12f);
-                there.Dead = false;
-                report.Check("And with nobody there it falls back on where they aimed, rather than doing nothing", true);
+                float beyond = Rulebook.SeekReach + 6f;
+                Actor aimed = arena.Dummy(East * beyond);
+                BookProfile nearest = Read(arena, Area("circle", "tight").Starting("from-nearest"));
+                Cast(arena, nearest, East, beyond);
+                report.Check("With nobody in reach it falls back on where they aimed, rather than doing nothing", Arena.Lost(aimed) > 0f);
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor aimed = arena.Dummy(East * 12f);
-                BookProfile empty = Read(arena, Flight("stops").Going("towards-nearest").With(Deal()));
-                Actor nobody = arena.Dummy(new Vector2(0f, 200f));
-                nobody.Dead = true;
-                BookProfile lost = Read(arena, Area("circle", "tight").Starting("from-nearest"));
-                aimed.Dead = true;
-                arena.Run(0.1);
-                aimed.Dead = false;
-                aimed.Vitals.Health = aimed.Sheet.MaxHealth;
-                arena.Run(0.05);
-                Cast(arena, lost, East, 12f);
-                report.Check("With somebody there it goes to them", Arena.Lost(aimed) > 0f);
+                float beyond = Rulebook.SeekReach + 6f;
+                Actor aimed = arena.Dummy(East * beyond);
+                BookProfile nearest = Read(arena, Flight("far").Going("towards-nearest").With(Deal()));
+                report.Check("A flight long enough to tell", nearest.First.Range > beyond, $"{nearest.First.Range} m");
+                Cast(arena, nearest, East, beyond);
+                arena.Run(1.6);
+                report.Check("And a flight towards nobody goes where they aimed", Arena.Lost(aimed) > 0f);
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
@@ -227,13 +217,12 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor target = arena.Dummy(West * 14f);
-                Actor aimedAway = arena.Dummy(East * 14f);
+                Actor target = arena.Dummy(West * 10f);
+                Actor further = arena.Dummy(East * 16f);
                 BookProfile seeking = Read(arena, Flight().Going("towards-nearest").With(Deal()));
-                arena.Hero.Position = arena.At;
                 Cast(arena, seeking, North, 3f);
                 arena.Run(1f);
-                report.Check("Towards the nearest Enemy: whichever way they were aiming", Arena.Lost(target) > 0f || Arena.Lost(aimedAway) > 0f);
+                report.Check("Towards the nearest Enemy: whichever way they were aiming", Arena.Lost(target) > 0f && Arena.Lost(further) == 0f, $"{Arena.Lost(target)}, {Arena.Lost(further)}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
@@ -375,8 +364,8 @@ namespace Dino_NetLab
                 Actor target = arena.Dummy(East * 10f);
                 BookProfile onward = Read(arena, Flight().With(new Outcome { Deed = "pass" }), Flight().Going("onward").With(Deal()));
                 Cast(arena, onward, East, 10f);
-                arena.Run(0.9);
-                report.Check("The way it was going: on from where it struck", Arena.Lost(third) > 0f || Arena.Lost(target) > 0f);
+                arena.Run(1.2);
+                report.Check("The way it was going: on from where it struck", Arena.Lost(third) > 0f && Arena.Lost(target) == 0f, $"{Arena.Lost(third)}, {Arena.Lost(target)}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))

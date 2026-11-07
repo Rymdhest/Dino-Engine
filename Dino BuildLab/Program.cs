@@ -12,6 +12,7 @@ namespace Dino_BuildLab
     ///   density [--seed N] [--count N] [--level N] [--archetype id]   How much there is to fight in a world, and how long it is between fights.
     ///   loot [--level N]   What each source gives, what a whole world comes to, and the longest dry spells.
     ///   offering [--level N] [--worlds N]   What each step of peril costs and pays.
+    ///   books [--level N] [--weapon sword|wand|bow]   What every sentence comes to on a plain page, and what's on the shelf comes to.
     /// </summary>
     internal static class Program
     {
@@ -39,6 +40,8 @@ namespace Dino_BuildLab
                     return LootLab.Run(options);
                 case "offering":
                     return OfferingLab.Run(options);
+                case "books":
+                    return BookLab.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;
