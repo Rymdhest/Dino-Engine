@@ -484,7 +484,7 @@ namespace Dino_BuildLab
 
             var writer = HeroState.CreateNew();
             Page written = Scribe.NewPage(PageKind.Projectile);
-            written.Stickers.Add(Stickers.Written("swift")!);
+            written.Stickers.Add(Stickers.Written("hasty")!);
             report.Check("A Page can be written on where it is", writer.Write(bar.In(0), written));
             report.Check("But it stays the kind it was found as", writer.At(bar.In(0))!.Page!.Kind == PageKind.Area);
             report.Check("And nothing can be stuck on by writing it", writer.At(bar.In(0))!.Page!.Stickers.Count == 0);
