@@ -23,42 +23,6 @@ namespace Dino_Defenders.UI
         void Quit();
     }
 
-    /// <summary>Text that's a button, as everything on this screen is: it brightens when it's looked at, and there's nothing else to it.</summary>
-    internal sealed class MenuWord : GuiElement
-    {
-        private readonly float _size;
-        private readonly Colour _colour;
-        private readonly Action _pressed;
-        private readonly Alignment _align;
-
-        public string Text;
-
-        public MenuWord(string text, float size, Colour colour, Action pressed, float height, Alignment align = Alignment.Start)
-        {
-            Text = text;
-            _size = size;
-            _colour = colour;
-            _pressed = pressed;
-            _align = align;
-            Width = UIValue.Fill;
-            Height = height;
-            HitTest = HitTestMode.Block;
-            Cursor = MouseCursor.Hand;
-            Clicked += e =>
-            {
-                if (e.Button != MouseButton.Left) return;
-                Audio.Play(Interface.Click);
-                _pressed();
-            };
-        }
-
-        protected override void OnDraw(GuiDrawList draw)
-        {
-            base.OnDraw(draw);
-            if (Context != null) Ui.Text(Context, draw, Text, _size, Bounds, IsHovered ? Ui.Gold : _colour, _align);
-        }
-    }
-
     /// <summary>One hero on the list: their name and how far they've come, and a line beside whoever's chosen.</summary>
     internal sealed class MenuHero : GuiElement
     {
@@ -104,7 +68,7 @@ namespace Dino_Defenders.UI
     internal sealed class MenuScreen : GuiElement
     {
         private const float ColumnWidth = 320f;
-        private const float Edge = 64f;
+        private const float Edge = Kit.Edge;
         private const float MostRows = 8f;
         private const float ShadeWidth = 620f;
 
@@ -142,6 +106,7 @@ namespace Dino_Defenders.UI
             _name.Submitted += text => FinishNaming(text);
 
             column.Add(new Spacer(height: 14f));
+            column.Add(new MenuWord("Settings", 16f, Ui.Parchment.MultiplyAlpha(0.8f), () => GameUi.Current.Into(GameUi.Current.Settings), 28f));
             column.Add(new MenuWord("Quit", 16f, Ui.Parchment.MultiplyAlpha(0.8f), host.Quit, 28f));
 
             _action = Add(new StackPanel(Orientation.Vertical, 2f) { Anchor = Anchor.BottomRight, Width = ColumnWidth, Height = UIValue.Auto, Margin = new Thickness(0f, 0f, Edge, Edge) });

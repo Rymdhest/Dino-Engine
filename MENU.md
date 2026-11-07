@@ -28,12 +28,36 @@ They look away from the camera, out over the land. That's what third person is, 
 
 Text on the picture, and a shade that fades to nothing well before the hero. Nothing has a box round it but what's being typed in. The menu's root is `HitTestMode.PassThrough`: `None` looks the same and stops the mouse reaching anything under it.
 
+## The pages
+
+Everything that isn't the game itself is one thing (`UI/MenuKit.cs`): words on a scrim, a rail of them down the left at the same place as the main menu's, and rows of a name and a control. There's one size for each kind of text in `Kit`, gold for what's chosen and parchment for what isn't, and nothing has an edge but what takes typing or a key. A new page is a `MenuPage` with rows on it, and a new setting is a `MenuRow`. Don't reach for `Ui.Action` or a dressed panel here: that's what the old pause menu was.
+
+`GameUi.Into` opens a page from wherever this is, and `Back` goes to that. The game's HUD, the marks on things and the labels on finds all go while a page is up (`GameUi.Clear`), as a page is all there should be to read.
+
+## Settings
+
+Everything takes effect at once and is kept at once, so nothing has to be confirmed. They're in `sound.json`, `video.json` and `keys.json` beside the heroes (`SettingsStore`). A scripted run has the defaults and writes nothing, unless it's given `--settings folder`, so it can't read or change anyone's.
+
+**Graphics quality is the only graphics setting**, on purpose. `GraphicsPresets` is what it comes to, and what goes in it is what buys frames for what can't be seen from the game's camera. Measured at 3440x1369 on a 7900 XTX: High 120 FPS, Medium 177, Low 207, with pictures from the game's camera hard to tell apart. Most of it is multisampling and grass. A world's own settings go with the world, so `WorldScene.Enter` applies it again, and the sun's map is remade when it changes. Multisampling doesn't go below two: grass leans on it. Another level is a value in `GraphicsQuality`, a line in `Presets` and a word on the page.
+
+`DisplayMode` is `WindowHandler.ApplyDisplay`. Borderless is always the monitor's size, so Resolution has nothing to say there. A screen of its own is entered and left by hand, as OpenTK only remembers where a window was for what it did itself.
+
+## Keys
+
+Nothing reads a key but through `Bindings`, and nothing shows one but by asking it, so a change reaches everything at once: the bar, the mark on a thing that can be used, every hint and card. **Never write a key in a string, and never read `Keys` directly.** The server doesn't know what anyone's keys are, so it can't say them.
+
+A key means one thing, so taking one swaps the two and nothing is ever left with none. Menu starts on Escape, which nobody else can have, so whatever it takes a key from moves to where it started, or else to a free key, and the page says where. Anything can be on the keyboard or the mouse, and what's on the mouse asks the interface first (`Bindings.Asked`), so a press on a window never swings or opens anything. The first two places on the bar repeat while held (`HeroRules.HeldSlots`), whichever key they're on, and the rest are presses.
+
+Three things aren't anyone's: Escape always goes back, as someone has to be able to get out; F3 is the developer's; and Ctrl and F is the pack's search, by habit from everywhere else. Clicking in the interface is always left to pick and right to open. A new action is a value in `GameAction`, a default, and a row in `Bindings.Page`, which `check` holds.
+
 ## Testing
 
-`Dino BuildLab check` holds the roster. Nothing else about this can be proved by a bot: post real mouse messages to a hidden run.
+`Dino BuildLab check` holds the roster and the keys. Nothing else about this can be proved by a bot: post real mouse messages to a hidden run.
 
 ```
 "Dino Defenders.exe" --menu true --heroes folder --hidden true --size 1720x960 --snap file --sound false
 ```
+
+`--quality low` runs at a level, for `--perf`, and `--panel settings` or `pause` opens a page. Exclusive fullscreen can't be tried beside someone playing: even a hidden window comes to the front for it.
 
 **`--heroes` is not optional.** Without it a run with `--menu true` is working on that person's own heroes, and it moves their old save. Any other scripted run skips the menu, and `--seed N` shows the spot in another world.

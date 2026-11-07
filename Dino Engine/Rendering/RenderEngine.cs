@@ -53,6 +53,9 @@ namespace Dino_Engine.Rendering
     public class RenderEngine
     {
         public ShaderGlobals context = new ShaderGlobals();
+
+        /// <summary>The one graphics setting, which <see cref="GraphicsPresets"/> turns into all the others.</summary>
+        public GraphicsQuality Quality = GraphicsQuality.High;
         private ShaderGlobals2 globals = new ShaderGlobals2();
 
         private List<BaseRenderer> _renderers = new List<BaseRenderer>();

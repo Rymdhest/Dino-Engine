@@ -1,3 +1,4 @@
+using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
@@ -219,7 +220,7 @@ namespace Dino_Defenders.UI
             DrawLinks(draw);
             DrawNodes(draw);
             if (_hover >= 0) DrawTip(TalentTree.Nodes[_hover]);
-            Ui.Text(Context, draw, "Drag to move, wheel to zoom. Click to take the lit path, right click to give a node back. T to close.", 14f,
+            Ui.Text(Context, draw, $"Drag to move, wheel to zoom. Click to take the lit path, right click to give a node back. {Bindings.Label(GameAction.Talents)} to close.", 14f,
                 new GuiRect(0f, Bounds.Height - 30f, Bounds.Width, 20f), Ui.Faded, Alignment.Center);
             draw.PopClip();
         }

@@ -1,3 +1,4 @@
+using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Books;
@@ -259,7 +260,7 @@ namespace Dino_Defenders.UI
             _title = left.Add(Ui.Heading("The Hero"));
             left.Add(Ui.Line("", 15f, Ui.Parchment).Bind(() => TalentTree.TitleOf(Hero)));
             left.Add(Ui.Line().Bind(() => $"Level {Hero.Level}, {Hero.Gold} gold"));
-            left.Add(Ui.Line("", 14f, Ui.Gold).Bind(() => Hero.UnspentPoints > 0 ? $"{Hero.UnspentPoints} talents to spend  [T]" : " "));
+            left.Add(Ui.Line("", 14f, Ui.Gold).Bind(() => Hero.UnspentPoints > 0 ? $"{Hero.UnspentPoints} talents to spend  [{Bindings.Label(GameAction.Talents)}]" : " "));
             left.Add(new Spacer(height: 6f));
             var sheet = left.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
             AddStats(sheet.Content.Add(new StackPanel(Orientation.Vertical, 1f) { Width = UIValue.Fill, Height = UIValue.Auto }));
@@ -296,11 +297,11 @@ namespace Dino_Defenders.UI
 
             var help = right.Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Auto, Margin = new Thickness(0f, 6f, 0f, 0f) });
             help.Add(Ui.Line("Click to pick up and put down, or drag", 13f, Ui.Faded));
-            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => _merchant != null ? "Ctrl-click to sell, right-click to wear" : "Ctrl-click or right-click to wear"));
+            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => _merchant != null ? $"{Bindings.Label(GameAction.Details)}-click to sell, right-click to wear" : $"{Bindings.Label(GameAction.Details)}-click or right-click to wear"));
             help.Add(Ui.Line("Right-click a Book or a Page to open it, and drag a Book to the bar to use it", 13f, Ui.Faded));
             help.Add(Ui.Line("Drag off the panel to drop on the ground", 13f, Ui.Faded));
             help.Add(Ui.Line("Click a place on the hero to see what fits it", 13f, Ui.Faded));
-            help.Add(Ui.Line("Hold Alt to compare with what's worn", 13f, Ui.Faded));
+            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => $"Hold {Bindings.Label(GameAction.Compare)} to compare with what's worn"));
 
             _picker = Add(new SlotPicker(this));
         }
@@ -566,8 +567,8 @@ namespace Dino_Defenders.UI
             return (plan.Says, plan.Refused);
         }
 
-        private bool Control => Context != null && (Context.Modifiers & KeyModifiers.Control) != 0;
-        private bool Shift => Context != null && (Context.Modifiers & KeyModifiers.Shift) != 0;
+        private static bool Control => Bindings.Down(GameAction.Details);
+        private static bool Shift => Bindings.Down(GameAction.ForceAttack);
 
         /// <summary>The mouse has come down on a place. Picking up and all the quick ways of doing things happen on the press, as a run of them shouldn't have to wait for each to be let go.</summary>
         public void Press(ItemCell cell, GuiMouseEventArgs e)

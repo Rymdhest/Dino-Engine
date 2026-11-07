@@ -1,3 +1,4 @@
+using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Engine.Core;
@@ -67,7 +68,7 @@ namespace Dino_Defenders.UI
                 GameSession session = GameSession.Current;
                 if (session == null || session.Paused || session.Health <= 0f || _heldElsewhere) return false;
                 if (Engine.WindowHandler.IsMouseButtonDown(MouseButton.Right)) return false;
-                return Context == null || (Context.Modifiers & KeyModifiers.Shift) == 0;
+                return !Bindings.Down(GameAction.ForceAttack);
             }
         }
 

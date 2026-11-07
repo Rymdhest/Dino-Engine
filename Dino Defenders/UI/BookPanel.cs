@@ -1,4 +1,5 @@
 using Dino_Defenders.Books;
+using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
@@ -431,7 +432,7 @@ namespace Dino_Defenders.UI
             var bag = side.Add(new GridPanel(PackColumns, PackGap, PackGap));
             for (int i = 0; i < HeroState.InventorySize; i++) bag.Add(new ItemCell(hands, new Spot(Shelf.Pack, i), PackCell));
             side.Add(new Spacer(height: 4f));
-            side.Add(Ui.Paragraph("Drag Pages into the Book and Stickers onto the Page, or Ctrl-click them.", 12.5f, Ui.Faded));
+            side.Add(Ui.Paragraph("", 12.5f, Ui.Faded).Bind(() => $"Drag Pages into the Book and Stickers onto the Page, or {Bindings.Label(GameAction.Details)}-click them."));
             side.Add(Ui.Paragraph("Right click another Book or Page to open that instead.", 12.5f, Ui.Faded));
             side.Add(Ui.Paragraph("Drag a Book onto the bar to use it.", 12.5f, Ui.Faded));
 
@@ -809,8 +810,6 @@ namespace Dino_Defenders.UI
         private const float Gap = 8f;
         private const float Bottom = 26f;
 
-        public static readonly string[] Keys = { "LMB", "RMB", "Q", "1", "2", "3" };
-
         private readonly BarCell[] _cells = new BarCell[HeroState.BarSlots];
 
         private readonly record struct Ability(string Key, string Name, float Share, bool Ready, Func<Card?> Card);
@@ -838,9 +837,9 @@ namespace Dino_Defenders.UI
         {
             var abilities = new List<Ability>(3);
             HeroSimState sim = session.Sim;
-            abilities.Add(new("Space", "Dodge", sim.DodgeCooldown / MathF.Max(session.Sheet.DodgeCooldown, 0.1f), true, () => Cards.Dodge(session.Sheet)));
-            abilities.Add(new("R", $"Flask {session.Hero.Flasks}", 0f, session.Hero.Flasks > 0, () => Cards.Flask(session.Hero, session.Sheet)));
-            if (session.Hero.HasGuidingWind) abilities.Add(new("F", "Wind", session.GuideCooldown / Rulebook.GuideCooldown, true, Cards.Wind));
+            abilities.Add(new(Bindings.Label(GameAction.Dodge), "Dodge", sim.DodgeCooldown / MathF.Max(session.Sheet.DodgeCooldown, 0.1f), true, () => Cards.Dodge(session.Sheet)));
+            abilities.Add(new(Bindings.Label(GameAction.Flask), $"Flask {session.Hero.Flasks}", 0f, session.Hero.Flasks > 0, () => Cards.Flask(session.Hero, session.Sheet)));
+            if (session.Hero.HasGuidingWind) abilities.Add(new(Bindings.Label(GameAction.Guide), "Wind", session.GuideCooldown / Rulebook.GuideCooldown, true, Cards.Wind));
             return abilities;
         }
 
@@ -882,7 +881,7 @@ namespace Dino_Defenders.UI
                     Ui.Text(Context, draw, item.Name, nameSize, new GuiRect(cell.X + 2f, cell.Y + 2f, cell.Width - 4f, 16f), affordable ? Ui.Parchment : Ui.Faded, Alignment.Center);
                     draw.PopClip();
                 }
-                Ui.Text(Context, draw, Keys[slot], 11.5f, new GuiRect(cell.X, cell.Bottom - 20f, cell.Width, 18f), Ui.Gold, Alignment.Center);
+                Ui.Text(Context, draw, Bindings.Label(Bindings.Slot(slot)), 11.5f, new GuiRect(cell.X, cell.Bottom - 20f, cell.Width, 18f), Ui.Gold, Alignment.Center);
 
                 if (book != null && Resting(Context, cell))
                 {

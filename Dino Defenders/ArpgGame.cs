@@ -107,6 +107,7 @@ namespace Dino_Defenders
             if (options.Volume is float volume) Audio.MasterVolume = volume;
             if (options.Music is float music) Audio.SetVolume(SoundBus.Music, music);
 
+            if (options.Quality is Dino_Engine.Rendering.GraphicsQuality quality) Dino_Engine.Rendering.GraphicsPresets.Apply(Dino_Engine.Core.Engine.RenderEngine, quality);
             ApplyRenderOptions(options.Render);
             if (options.Perf != null)
             {
@@ -613,24 +614,42 @@ namespace Dino_Defenders
             float scale = Math.Clamp(Dino_Engine.Core.Engine.Resolution.Y / InterfaceHeight, 0.75f, 3f);
             if (MathF.Abs(gui.Scale - scale) > 0.01f) gui.Scale = scale;
 
-            if (_ui.Loading.Visible || _ui.Menu.Visible) return;
+            _ui.Clear();
+            if (_ui.Loading.Visible) return;
 
             var window = Dino_Engine.Core.Engine.WindowHandler;
-            if (Dino_Engine.Core.Engine.Gui.WantsKeyboard) return;
+            if (Dino_Engine.Core.Engine.Gui.WantsKeyboard || _ui.Settings.Busy) return;
 
-            if (window.IsKeyPressed(Keys.Escape))
+            // Escape always goes back, whatever else has been given that job, as someone has to be able to get out.
+            bool back = window.IsKeyPressed(Keys.Escape) || Bindings.Asked(GameAction.Menu);
+            if (_ui.AtMenu)
+            {
+                if (back && _ui.OnPage) _ui.Back();
+                return;
+            }
+
+            if (back)
             {
                 if (_ui.Hero.Active && _ui.Hero.StepBack()) return;
-                if (_ui.AnyOpen) _ui.CloseAll();
+                if (_ui.OnPage && !_ui.Pause.Visible) _ui.Back();
+                else if (_ui.AnyOpen) _ui.CloseAll();
                 else _ui.Toggle(_ui.Pause);
+                return;
             }
+            if (_ui.OnPage)
+            {
+                if (_ui.Glossary.Visible && Bindings.Asked(GameAction.Glossary)) _ui.Back();
+                return;
+            }
+
+            // The one key that's only a habit from everywhere else, and isn't anybody's to rebind.
             if (_ui.Hero.Visible && window.IsKeyPressed(Keys.F) && window.IsKeyDown(Keys.LeftControl)) _ui.Hero.FocusSearch();
-            if (window.IsKeyPressed(Keys.M)) _ui.Toggle(_ui.Map);
-            if (window.IsKeyPressed(Keys.C) || window.IsKeyPressed(Keys.I)) _ui.Toggle(_ui.Hero);
-            if (window.IsKeyPressed(Keys.J)) _ui.Toggle(_ui.Chronicle);
-            if (window.IsKeyPressed(Keys.T)) _ui.Toggle(_ui.Talents);
-            if (window.IsKeyPressed(Keys.K)) _ui.Toggle(_ui.Book);
-            if (window.IsKeyPressed(Keys.G)) _ui.Toggle(_ui.Glossary);
+            if (Bindings.Asked(GameAction.Map)) _ui.Toggle(_ui.Map);
+            if (Bindings.Asked(GameAction.Hero)) _ui.Toggle(_ui.Hero);
+            if (Bindings.Asked(GameAction.Chronicle)) _ui.Toggle(_ui.Chronicle);
+            if (Bindings.Asked(GameAction.Talents)) _ui.Toggle(_ui.Talents);
+            if (Bindings.Asked(GameAction.Books)) _ui.Toggle(_ui.Book);
+            if (Bindings.Asked(GameAction.Glossary)) _ui.Toggle(_ui.Glossary);
         }
 
         private void WriteTrace(string path)
@@ -650,12 +669,13 @@ namespace Dino_Defenders
                 case "book": _ui.Toggle(_ui.Book); break;
                 case "glossary": _ui.Toggle(_ui.Glossary); break;
                 case "chronicle": _ui.Toggle(_ui.Chronicle); break;
-                case "pause": _ui.Toggle(_ui.Pause); break;
                 case "sound":
                     Dino_Engine.Core.Engine.DebugOverlay.Visible = true;
                     Dino_Engine.Core.Engine.DebugOverlay.SoundWindow.Visible = true;
                     break;
-                case "friends": _ui.Toggle(_ui.Friends); break;
+                case "friends": _ui.Toggle(_ui.Multiplayer); break;
+                case "pause": _ui.Toggle(_ui.Pause); break;
+                case "settings": _ui.Toggle(_ui.Pause); _ui.Into(_ui.Settings); break;
                 case "waygate": _ui.Open(InteractKind.Waygate, GameSession.Current.Sites[0]); break;
                 case "merchant":
                     // Through the server, as what's on a table is its to say.
@@ -709,7 +729,7 @@ namespace Dino_Defenders
         private void Save()
         {
             // At the main menu nobody's being played, and whoever's on the spot is only being looked at.
-            if (!_options.Saves || _hero == null || _ui.Menu.Visible) return;
+            if (!_options.Saves || _hero == null || _ui.AtMenu) return;
 
             // A friend's world isn't this player's to keep, but the hero who went there is.
             if (_server != null)

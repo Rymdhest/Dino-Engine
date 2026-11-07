@@ -129,7 +129,7 @@ namespace Dino_Defenders.Server
             hero.RefreshLoadout();
             hero.Actor.Vitals = Vitals.Full(hero.Actor.Sheet);
             Server.Broadcast(new SoundEvent { Position = Server.HeroPosition(hero), Cue = SoundCue.LevelUp }, hero.Sim.Position);
-            Server.Announce(hero, $"Level {hero.Hero.Level}", $"{hero.Hero.UnspentPoints} talents to spend. Press T.");
+            Server.Announce(hero, $"Level {hero.Hero.Level}", $"{hero.Hero.UnspentPoints} talents to spend.");
         }
 
         /// <summary>A fight shared is a reward shared: everyone close enough to have been in it gets the whole of it.</summary>

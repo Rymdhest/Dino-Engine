@@ -1,3 +1,4 @@
+using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
@@ -29,8 +30,8 @@ namespace Dino_Defenders.UI
         private const float TagSize = 11.5f;
         private const float ChipHeight = 17f;
         private const string DetailsLink = "Details";
-        private const string HoldHint = "Hold Ctrl for keywords and details";
-        private const string ItemHint = "Hold Ctrl for keywords, Alt to compare";
+        private static string HoldHint => $"Hold {Bindings.Label(GameAction.Details)} for keywords and details";
+        private static string ItemHint => $"Hold {Bindings.Label(GameAction.Details)} for keywords, {Bindings.Label(GameAction.Compare)} to compare";
 
         public readonly List<Piece> Pieces = new();
         public readonly List<Chip> Chips = new();
@@ -230,7 +231,7 @@ namespace Dino_Defenders.UI
         }
 
         /// <summary>Whether the card on show is being held still to be read.</summary>
-        public bool Held => Context != null && Context.IsKeyDown(Keys.LeftControl) && (_pinned || !_loose);
+        public bool Held => Context != null && Bindings.Down(GameAction.Details) && (_pinned || !_loose);
 
         // Only a card being held stops the mouse, and it has to then, or whatever is underneath would take over as the mouse crossed it.
         public override bool HitTestSelf(Vector2 point)
@@ -294,7 +295,7 @@ namespace Dino_Defenders.UI
             _asked = null;
             _placedSpots = null;
 
-            bool ctrl = Context.IsKeyDown(Keys.LeftControl);
+            bool ctrl = Bindings.Down(GameAction.Details);
             if (ctrl && !_ctrlDown) _pinned = _source != null;
             if (!ctrl) _pinned = false;
             _ctrlDown = ctrl;
@@ -336,7 +337,7 @@ namespace Dino_Defenders.UI
                 parent = new GuiRect(x, y, CardWidth, laid.Height);
                 _rects.Add(parent);
                 _layers.Add(spots);
-                if (_alongside != null && Context.Modifiers.HasFlag(KeyModifiers.Alt)) DrawAlongside(draw, _alongside(), parent, screen);
+                if (_alongside != null && Bindings.Down(GameAction.Compare)) DrawAlongside(draw, _alongside(), parent, screen);
             }
             else if (placedSpots != null)
             {

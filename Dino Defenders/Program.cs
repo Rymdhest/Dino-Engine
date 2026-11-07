@@ -23,11 +23,18 @@ namespace Dino_Defenders
             }
 
             if (options.MeshSeed is int meshSeed) Dino_Engine.Util.MyMath.rand = new Random(meshSeed);
+            Client.SettingsStore.Use(options.Settings, options.Scripted);
+            Client.Bindings.Load();
+            UI.VideoSettings video = UI.VideoSettings.Load();
+
             var launch = new EngineLaunchSettings(BuildInfo.Title) { _hidden = options.Hidden };
+            bool ownSettings = !options.Scripted || options.Settings != null;
+            if (ownSettings) video.Launching(launch);
             if (options.Size is OpenTK.Mathematics.Vector2i size) launch._resolution = size;
             if (options.FrameRateLimit is int limit) launch._frameRateLimit = limit;
             Engine engine = new Engine(launch);
             Console.WriteLine($"{GL.GetString(StringName.Renderer)}, OpenGL {GL.GetString(StringName.Version)}");
+            if (ownSettings) video.Apply();
             ArpgGame game = new ArpgGame(engine, options);
             Engine.WindowHandler.UpdateFrame += _ => HangWatch.Beat();
             HangWatch.Start();

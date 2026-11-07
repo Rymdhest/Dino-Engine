@@ -1,10 +1,13 @@
 using Dino_Defenders.Books;
+using Dino_Defenders.Client;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Tooltips;
 using Dino_Engine.Networking;
+using Dino_Engine.Rendering;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Text.Json;
 using static Dino_Defenders.Stats.M;
 
@@ -40,6 +43,7 @@ namespace Dino_BuildLab
             report.Section("Books: carrying them");
             Carrying(report);
             Rostered(report);
+            Keyed(report);
             Stickered(report);
             Moded(report);
             Carried(report);
@@ -412,6 +416,84 @@ namespace Dino_BuildLab
 
             report.Check("Everything already written has what a sticker can say", Stickers.Names.All(name => BookText.Good(Stickers.Written(name)!).Length > 0));
             report.Check("Nothing written says more than a sticker can", Stickers.Names.All(name => Stickers.Written(name)!.GoodBy <= Rulebook.MostStickerGood && Stickers.Written(name)!.BadBy <= Rulebook.MostStickerBad));
+        }
+
+        // What's pressed for what, which everything a player does goes through.
+        private static void Keyed(Report report)
+        {
+            string folder = Path.Combine(Path.GetTempPath(), $"buildlab-keys-{Environment.ProcessId}");
+            SettingsStore.Use(folder, scripted: false);
+            Bindings.Load();
+
+            GameAction[] every = Enum.GetValues<GameAction>();
+            var shown = Bindings.Page.SelectMany(group => group.Rows).Select(row => row.Action).ToList();
+            report.Check("Everything that can be pressed is on the Input page, once", shown.Count == every.Length && shown.Distinct().Count() == every.Length, $"{shown.Count} of {every.Length}");
+            report.Check("Every place on the bar has a key", Enumerable.Range(0, HeroState.BarSlots).All(slot => Bindings.Label(Bindings.Slot(slot)).Length > 0));
+            report.Check("No two start on the same key", every.Select(Bindings.Of).Distinct().Count() == every.Length);
+            report.Check("And they're the ones people expect", Bindings.Label(GameAction.Interact) == "E" && Bindings.Label(GameAction.Slot0) == "LMB" && Bindings.Label(GameAction.Slot3) == "1" && Bindings.Label(GameAction.Dodge) == "Space");
+
+            GameAction? swapped = Bindings.Set(GameAction.Interact, new Bound(Keys.A));
+            report.Check("Taking a key someone has swaps the two", swapped == GameAction.MoveLeft && Bindings.Label(GameAction.Interact) == "A" && Bindings.Label(GameAction.MoveLeft) == "E");
+            report.Check("Nothing's left with no key", every.All(action => Bindings.Label(action).Length > 0) && every.Select(Bindings.Of).Distinct().Count() == every.Length);
+            report.Check("Giving something the key it has does nothing", Bindings.Set(GameAction.Interact, new Bound(Keys.A)) == null);
+
+            // Menu is the one thing on a key nobody can have, so what it takes from can't be given that.
+            GameAction? moved = Bindings.Set(GameAction.Menu, new Bound(Keys.M));
+            report.Check("Moving Menu onto a key doesn't hand anyone Esc", moved == GameAction.Map && Bindings.Label(GameAction.Menu) == "M" && every.Where(action => action != GameAction.Menu).All(action => Bindings.CanBind(Bindings.Of(action))) && every.Select(Bindings.Of).Distinct().Count() == every.Length, Bindings.Label(GameAction.Map));
+            Bindings.Set(GameAction.Map, new Bound(Keys.M));
+            Bindings.Set(GameAction.Menu, new Bound(Keys.P));
+
+            Bindings.Set(GameAction.Slot2, Bound.Mouse(MouseButton.Middle));
+            report.Check("Anything can be on the mouse", Bindings.OnMouse(GameAction.Slot2) && Bindings.Label(GameAction.Slot2) == "MMB");
+            Bindings.Set(GameAction.Slot3, Bound.Mouse(MouseButton.Button4));
+            report.Check("Even the buttons with no name", Bindings.Label(GameAction.Slot3) == "Mouse 4");
+
+            Bindings.Set(GameAction.Compare, new Bound(Keys.RightShift));
+            report.Check("The two Shifts are one key", Bindings.Label(GameAction.Compare) == "Shift" && Bindings.Label(GameAction.ForceAttack) == "Alt");
+
+            Bindings.Load();
+            report.Check("It's all there next time", Bindings.Label(GameAction.Interact) == "A" && Bindings.Label(GameAction.Slot2) == "MMB" && Bindings.Label(GameAction.Slot3) == "Mouse 4");
+
+            report.Check("Escape can't be taken", !Bindings.CanBind(Keys.Escape) && !Bindings.CanBind(Keys.F3) && Bindings.CanBind(Keys.F4));
+
+            Bindings.Reset();
+            report.Check("Resetting puts everything back", Bindings.Label(GameAction.Interact) == "E" && Bindings.Label(GameAction.MoveLeft) == "A" && Bindings.Label(GameAction.Slot2) == "Q");
+
+            File.WriteAllText(Path.Combine(folder, "keys.json"), "{ \"Interact\": \"Q\", \"Slot2\": \"Q\", \"Nonsense\": \"E\", \"Dodge\": \"NoSuchKey\" }");
+            Bindings.Load();
+            report.Check("A file edited by hand can't put two on one key", every.Select(Bindings.Of).Distinct().Count() == every.Length, $"{every.Select(Bindings.Of).Distinct().Count()}");
+            report.Check("Or take one away", Bindings.Label(GameAction.Dodge) == "Space");
+
+            File.WriteAllText(Path.Combine(folder, "keys.json"), "{ \"Slot2\": \"E\", \"Flask\": \"E\" }");
+            Bindings.Load();
+            report.Check("Nor when what someone started on has gone too", every.Select(Bindings.Of).Distinct().Count() == every.Length, $"{every.Select(Bindings.Of).Distinct().Count()}");
+
+            File.WriteAllText(Path.Combine(folder, "keys.json"), "{ \"Interact\": \"Escape\", \"Flask\": \"F3\", \"Hero\": \"Mouse99\", \"Compare\": \"RightAlt\" }");
+            Bindings.Load();
+            report.Check("Or give anyone what can't be taken", Bindings.Label(GameAction.Interact) == "E" && Bindings.Label(GameAction.Flask) == "R" && Bindings.Label(GameAction.Hero) == "C" && Bindings.Of(GameAction.Compare) == new Bound(Keys.LeftAlt));
+
+            File.WriteAllText(Path.Combine(folder, "keys.json"), "{ this isn't anything");
+            Bindings.Load();
+            report.Check("And one that can't be read is the defaults", Bindings.Label(GameAction.Interact) == "E");
+
+            string theirs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DinoDefenders", "keys.json");
+            DateTime before = File.GetLastWriteTimeUtc(theirs);
+            SettingsStore.Use(null, scripted: true);
+            Bindings.Load();
+            report.Check("A scripted run has the defaults", Bindings.Label(GameAction.Interact) == "E");
+            Bindings.Set(GameAction.Interact, new Bound(Keys.Z));
+            report.Check("And writes nothing", File.GetLastWriteTimeUtc(theirs) == before);
+            Bindings.Reset();
+            Directory.Delete(folder, true);
+
+            foreach (GraphicsQuality quality in Enum.GetValues<GraphicsQuality>())
+            {
+                QualityPreset preset = GraphicsPresets.Of(quality);
+                report.Check($"{quality} keeps grass edges, which lean on multisampling", preset.Samples >= 2);
+            }
+            QualityPreset low = GraphicsPresets.Of(GraphicsQuality.Low), mid = GraphicsPresets.Of(GraphicsQuality.Medium), high = GraphicsPresets.Of(GraphicsQuality.High);
+            report.Check("Each level asks for less than the next", low.GrassDensity < mid.GrassDensity && mid.GrassDensity < high.GrassDensity && low.ShadowMap < mid.ShadowMap && mid.ShadowMap < high.ShadowMap && low.FogSteps < mid.FogSteps && mid.FogSteps < high.FogSteps);
+            report.Check("And the field still reaches past the camera at every one", low.GrassDistance > 60f);
         }
 
         // Everyone someone has made, which is more than anything else in the game worth not losing.

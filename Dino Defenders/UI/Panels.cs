@@ -123,7 +123,7 @@ namespace Dino_Defenders.UI
             Vector2 hero = ToMap(map, session.PlayerPosition, size);
             draw.AddCircle(hero, 5f, Ui.Parchment, 2f, GuiColors.Rgba(150, 30, 24));
 
-            string help = "M to close.  Click a kindled shrine or the landing to travel there.";
+            string help = $"{Bindings.Label(GameAction.Map)} to close.  Click a kindled shrine or the landing to travel there.";
             Ui.Text(Context, draw, help, 14f, new GuiRect(0f, map.Bottom + 6f, Bounds.Width, 20f), Ui.Faded, Alignment.Center);
         }
     }
@@ -169,7 +169,7 @@ namespace Dino_Defenders.UI
 
             if (elder != null) AddElder(session, elder);
             _body.Add(new Spacer(height: 4f));
-            _body.Add(Ui.Line("J to close", 13f, Ui.Faded));
+            _body.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => $"{Bindings.Label(GameAction.Chronicle)} to close"));
         }
 
         private void AddElder(GameSession session, SiteState elder)
@@ -397,141 +397,6 @@ namespace Dino_Defenders.UI
         }
     }
 
-    /// <summary>Every word that means something, with what it means, for looking up what's on a card or anything else. Typing narrows it down.</summary>
-    internal sealed class GlossaryPanel : GuiElement
-    {
-        private readonly List<(Term term, GuiElement entry)> _entries = new();
-        private readonly TextBox _search;
-
-        public GlossaryPanel()
-        {
-            Anchor = Anchor.Center;
-            Width = 720f;
-            Height = 660f;
-            Padding = new Thickness(22f);
-            Ui.Dress(this);
-            Visible = false;
-
-            var body = Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill });
-            body.Add(Ui.Heading("Glossary", 24f));
-            _search = body.Add(new TextBox("", "Search") { Width = UIValue.Fill, Height = 30f });
-            _search.TextChanged += _ => Narrow();
-
-            var scroll = body.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
-            var list = scroll.Content.Add(new StackPanel(Orientation.Vertical, 7f) { Width = UIValue.Fill, Height = UIValue.Auto });
-            foreach (Term term in Lexicon.All.OrderBy(term => term.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                var entry = list.Add(new StackPanel(Orientation.Vertical, 1f) { Width = UIValue.Fill, Height = UIValue.Auto });
-                entry.Add(Ui.Line(term.Name, 15f, Ui.Gold));
-                entry.Add(Ui.Paragraph(term.Says, 14f));
-                _entries.Add((term, entry));
-            }
-            body.Add(Ui.Line("G to close", 13f, Ui.Faded));
-        }
-
-        private void Narrow()
-        {
-            string wanted = _search.Text.Trim();
-            foreach ((Term term, GuiElement entry) in _entries)
-            {
-                entry.Visible = wanted.Length == 0 || term.Forms.Any(form => form.Contains(wanted, StringComparison.OrdinalIgnoreCase)) || term.Says.Contains(wanted, StringComparison.OrdinalIgnoreCase);
-            }
-        }
-    }
-
-    /// <summary>The game held still: go on, or leave the road for now.</summary>
-    internal sealed class PauseMenu : GuiElement
-    {
-
-        public PauseMenu(Action resume, Action friends, Action quit, Action newJourney)
-        {
-            Anchor = Anchor.Center;
-            Width = 340f;
-            Height = UIValue.Auto;
-            Padding = new Thickness(22f);
-            Ui.Dress(this);
-            Visible = false;
-
-            var body = Add(new StackPanel(Orientation.Vertical, 10f) { Width = UIValue.Fill, Height = UIValue.Auto });
-            body.Add(Ui.Heading("Rest a While", 24f));
-            body.Add(Ui.Action("Go on", resume));
-            body.Add(Ui.Action("The hero (C)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Hero); }));
-            body.Add(Ui.Action("The tree (T)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Talents); }));
-            body.Add(Ui.Action("Books (K)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Book); }));
-            body.Add(Ui.Action("Glossary (G)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Glossary); }));
-            body.Add(Ui.Action("Travel with friends", friends));
-            SoundSettings.AddControls(body);
-            body.Add(Ui.Action("Leave the road", quit));
-            body.Add(Ui.Action("Choose another hero", newJourney));
-
-            body.Add(Ui.Line("WASD move, mouse aims, books on LMB, RMB, Q, 1 to 3", 13f, Ui.Faded));
-            body.Add(Ui.Line("Space dodge, R flask, E use, F guiding wind once a land is free", 13f, Ui.Faded));
-            body.Add(Ui.Line("M map, C hero, T tree, K books, J chronicle, G glossary, wheel zoom", 13f, Ui.Faded));
-        }
-    }
-
-    /// <summary>
-    /// Playing together. A game is open to friends from here, with a code to send them, and the code one has been sent goes in here.
-    /// </summary>
-    internal sealed class FriendsPanel : GuiElement
-    {
-        private readonly ArpgGame _game;
-        private readonly TextBox _code;
-        private readonly Label _problem;
-
-        public FriendsPanel(ArpgGame game)
-        {
-            _game = game;
-            Anchor = Anchor.Center;
-            Width = 620f;
-            Height = UIValue.Auto;
-            Padding = new Thickness(24f);
-            Ui.Dress(this);
-            Visible = false;
-
-            var body = Add(new StackPanel(Orientation.Vertical, 10f) { Width = UIValue.Fill, Height = UIValue.Auto });
-            body.Add(Ui.Heading("Travel with Friends", 24f));
-
-            var hosting = body.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Auto });
-            var open = hosting.Add(Ui.Action("Open this world to friends", () => _game.OpenToFriends()));
-            var invite = hosting.Add(Ui.Line("", 16f, Ui.Gold).Bind(() => _game.InviteText ?? ""));
-            var copy = hosting.Add(Ui.Action("Copy the invite", () => Context!.Clipboard = _game.InviteText ?? ""));
-            var status = hosting.Add(Ui.Paragraph("", 14f, Ui.Faded).Bind(() => _game.InviteStatus));
-
-            body.Add(new Spacer(height: 6f));
-            var joining = body.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Auto });
-            joining.Add(Ui.Line("Join a friend", 15f, Ui.Gold));
-            var name = joining.Add(new TextBox(_game.HeroName, "Your name, for them to see") { Width = UIValue.Fill, Height = 32f, MaxLength = 24 });
-            name.TextChanged += text => _game.HeroName = text;
-            _code = joining.Add(new TextBox("", "Paste the invite here") { Width = UIValue.Fill, Height = 32f });
-            _code.Submitted += _ => Join();
-            joining.Add(Ui.Action("Join", Join));
-            _problem = joining.Add(Ui.Paragraph("", 14f, Ui.Blood));
-
-            var leave = body.Add(Ui.Action("Go back to your own world", () => _game.ReturnHome(null)));
-
-            // Decided here rather than by each of them, as a hidden element isn't updated and could never show itself again.
-            Updated += _ =>
-            {
-                open.Visible = !_game.Hosting && !_game.InFriendsGame;
-                invite.Visible = _game.Hosting;
-                copy.Visible = _game.Hosting;
-                status.Visible = _game.Hosting;
-                joining.Visible = !_game.Hosting;
-                leave.Visible = _game.InFriendsGame;
-            };
-
-            body.Add(new Spacer(height: 6f));
-            body.Add(Ui.Line("", 15f).Bind(() => $"In this game: {string.Join(", ", (_game.Client?.Party ?? new()).Select(p => p.name))}"));
-            body.Add(Ui.Line($"Up to {Protocol.MaxPlayers} heroes can share a world. Your hero and what they find come home with you.", 13f, Ui.Faded));
-        }
-
-        private void Join()
-        {
-            _problem.Text = _game.Join(_code.Text) ? "" : "That doesn't look like an invite.";
-        }
-    }
-
     /// <summary>Shown while a new land takes shape.</summary>
     internal sealed class LoadingScreen : GuiElement
     {
@@ -581,11 +446,12 @@ namespace Dino_Defenders.UI
         public readonly HeroPanel Hero = new();
         public readonly TalentPanel Talents = new();
         public readonly BookPanel Book;
-        public readonly GlossaryPanel Glossary = new();
+        public readonly GlossaryPage Glossary = new();
+        public readonly SettingsPage Settings = new();
         public readonly ChroniclePanel Chronicle = new();
         public readonly WaygatePanel Waygate;
         public readonly PauseMenu Pause;
-        public readonly FriendsPanel Friends;
+        public readonly MultiplayerPage Multiplayer;
         public readonly LoadingScreen Loading = new();
         public readonly TipLayer Tips = new();
         public readonly GroundCatcher Ground = new();
@@ -595,18 +461,18 @@ namespace Dino_Defenders.UI
 
         private readonly GuiElement[] _panels;
 
-        public GameUi(GuiContext gui, ArpgGame game, Action<WorldRequest, Offering> travel, Action quit, Action newJourney)
+        public GameUi(GuiContext gui, ArpgGame game, Action<WorldRequest, Offering> travel, Action quit, Action heroSelect)
         {
             Current = this;
             Wardrobe = game.Wardrobe;
             Book = new BookPanel(Hero);
             Map = new MapPanel(CloseAll);
             Waygate = new WaygatePanel(travel);
-            Pause = new PauseMenu(CloseAll, () => Toggle(Friends!), quit, newJourney);
-            Friends = new FriendsPanel(game);
+            Pause = new PauseMenu(CloseAll, () => Into(Settings), () => Into(Glossary), () => Into(Multiplayer!), heroSelect, quit);
+            Multiplayer = new MultiplayerPage(game);
             Bar = new ActionBar(Hero);
             Menu = new MenuScreen(game);
-            _panels = new GuiElement[] { Map, Hero, Talents, Book, Glossary, Chronicle, Waygate, Pause, Friends };
+            _panels = new GuiElement[] { Map, Hero, Talents, Book, Glossary, Chronicle, Waygate, Pause, Multiplayer, Settings };
 
             gui.Root.Add(Marks);
             gui.Root.Add(Hud);
@@ -615,21 +481,66 @@ namespace Dino_Defenders.UI
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
             gui.Root.Add(Bar);
             gui.Root.Add(Menu);
+            Lift(gui);
             gui.Root.Add(Tips);
             gui.Root.Add(Hand);
             gui.Root.Add(Loading);
         }
 
+        // Pages cover everything, the bar and the main menu among them.
+        private void Lift(GuiContext gui)
+        {
+            foreach (GuiElement page in new GuiElement[] { Pause, Glossary, Multiplayer, Settings }) gui.Root.Add(page);
+        }
+
+        /// <summary>Whether it's the main menu that's showing, and nobody is being played.</summary>
+        public bool AtMenu { get; private set; }
+
+        /// <summary>Whether one of the screens that cover everything is open.</summary>
+        public bool OnPage => Pause.Visible || Glossary.Visible || Multiplayer.Visible || Settings.Visible;
+
+        private GuiElement? _cameFrom;
+
+        /// <summary>Goes to a page from wherever this is, which is what Back goes to.</summary>
+        public void Into(GuiElement page)
+        {
+            _cameFrom = Pause.Visible ? Pause : AtMenu ? Menu : null;
+            CloseAll();
+            Menu.Visible = false;
+            Audio.Play(Interface.Open);
+            page.Visible = true;
+            if (page == Settings) Settings.Open();
+            if (page == Multiplayer) Multiplayer.Open();
+        }
+
+        /// <summary>Back from a page, to whatever it was opened from.</summary>
+        public void Back()
+        {
+            GuiElement? to = _cameFrom;
+            _cameFrom = null;
+            CloseAll();
+            if (to == null) return;
+            to.Visible = true;
+        }
+
         /// <summary>Whether there's a game going on, as everything that's part of one goes when the main menu comes.</summary>
         public void Playing(bool playing)
         {
+            AtMenu = !playing;
             CloseAll();
-            Hud.Visible = playing;
-            Bar.Visible = playing;
-            Marks.Visible = playing;
-            Labels.Visible = playing;
-            Ground.Visible = playing;
             Menu.Visible = !playing;
+            Clear();
+        }
+
+        /// <summary>What's on the world goes while a page is over it, as a page is all there should be to read. It's asked every frame, as anything can open one.</summary>
+        public void Clear()
+        {
+            bool showing = !AtMenu && !OnPage;
+            Hud.Visible = showing;
+            Bar.Visible = showing;
+            Marks.Visible = showing;
+            Labels.Visible = showing;
+            Ground.Visible = showing;
         }
 
         public bool AnyOpen => _panels.Any(p => p.Visible);
@@ -652,6 +563,7 @@ namespace Dino_Defenders.UI
             panel.Visible = true;
             if (panel == Hero || panel == Book) Hero.Open(null);
             if (panel == Book) Book.OpenAny();
+            _cameFrom = null;
             if (panel == Chronicle) Chronicle.Open(null);
         }
 

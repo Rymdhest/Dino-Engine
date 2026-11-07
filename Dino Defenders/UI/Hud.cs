@@ -293,7 +293,7 @@ namespace Dino_Defenders.UI
             Ui.Text(Context!, draw, $"{hero.Gold} gold", 14f, above, Ui.Parchment, Alignment.End);
             if (hero.UnspentPoints > 0)
             {
-                Ui.Text(Context!, draw, $"{hero.UnspentPoints} to spend  [T]", 13f, new GuiRect(bar.Right + 12f, bar.Y, 160f, 16f), Ui.Gold);
+                Ui.Text(Context!, draw, $"{hero.UnspentPoints} to spend  [{Bindings.Label(GameAction.Talents)}]", 13f, new GuiRect(bar.Right + 12f, bar.Y, 160f, 16f), Ui.Gold);
             }
         }
 

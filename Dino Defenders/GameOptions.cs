@@ -77,6 +77,15 @@ namespace Dino_Defenders
         /// <summary>Whether to start at the main menu: --menu true or false. Without being told it's for anyone just starting the game, and no scripted run.</summary>
         public bool? Menu;
 
+        /// <summary>What graphics quality to run at, for measuring one: --quality low, medium or high.</summary>
+        public Dino_Engine.Rendering.GraphicsQuality? Quality;
+
+        /// <summary>Where a scripted run keeps settings of its own: --settings folder. Without it, it has the defaults and changes nothing.</summary>
+        public string? Settings;
+
+        /// <summary>Whether this is a run nobody's sitting at, which has no business with anyone's settings.</summary>
+        public bool Scripted => Hidden || Bot || Shot != null || Film != null || Perf != null || Tour != null;
+
         /// <summary>Where the main menu keeps its heroes, for a scripted run: --heroes folder.</summary>
         public string? Heroes;
 
@@ -173,6 +182,8 @@ namespace Dino_Defenders
                     case "carry": options.Carry = int.Parse(value); break;
                     case "menu": options.Menu = value == "true"; break;
                     case "heroes": options.Heroes = value; break;
+                    case "settings": options.Settings = value; break;
+                    case "quality": options.Quality = Enum.Parse<Dino_Engine.Rendering.GraphicsQuality>(value, ignoreCase: true); break;
                     case "folios": options.Folios = int.Parse(value); break;
                     case "parade": options.Parade = value; break;
                     case "brawl": options.Brawl = value; break;

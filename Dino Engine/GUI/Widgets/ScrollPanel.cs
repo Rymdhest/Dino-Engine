@@ -26,6 +26,10 @@ namespace Dino_Engine.GUI.Widgets
         public GuiElement Content { get; }
         public float ScrollSpeed { get; set; } = 48f;
         public float ScrollbarWidth { get; set; }
+
+        /// <summary>The thumb's colours, for anything that isn't dressed in the theme.</summary>
+        public Colour? ThumbColor { get; set; }
+        public Colour? ThumbHoverColor { get; set; }
         /// <summary>Keeps the view pinned to the bottom while the user is at the bottom (logs, consoles).</summary>
         public bool AutoScrollToBottom
         {
@@ -205,7 +209,7 @@ namespace Dino_Engine.GUI.Widgets
             GuiRect thumb = ThumbRect;
             bool hot = _draggingThumb || (IsHovered && TrackRect.Inflate(2f).Contains(Context?.MousePosition ?? Vector2.Zero));
             drawList.AddRect(TrackRect, GuiColors.Rgba(0, 0, 0, 40), ScrollbarWidth * 0.5f);
-            drawList.AddRect(thumb, hot ? theme.ScrollbarThumbHover : theme.ScrollbarThumb, ScrollbarWidth * 0.5f);
+            drawList.AddRect(thumb, hot ? ThumbHoverColor ?? theme.ScrollbarThumbHover : ThumbColor ?? theme.ScrollbarThumb, ScrollbarWidth * 0.5f);
         }
     }
 }

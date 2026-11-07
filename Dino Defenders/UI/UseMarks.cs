@@ -1,3 +1,4 @@
+using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
@@ -78,6 +79,9 @@ namespace Dino_Defenders.UI
             Cursor = MouseCursor.Hand;
         }
 
+        // A key is square until what it says is longer than that.
+        private float KeyWidth() => MathF.Max(KeySize, WidthOf(Bindings.Label(GameAction.Interact), 15f) + 10f);
+
         // Whether a mark under the mouse should have it. A button held since before it got here belongs to the fight, or the attack would stop every time the mouse crossed one.
         private bool Open
         {
@@ -86,7 +90,7 @@ namespace Dino_Defenders.UI
                 GameSession session = GameSession.Current;
                 if (session == null || session.Paused || session.Health <= 0f || _heldElsewhere) return false;
                 if (Engine.WindowHandler.IsMouseButtonDown(MouseButton.Right)) return false;
-                return Context == null || (Context.Modifiers & KeyModifiers.Shift) == 0;
+                return !Bindings.Down(GameAction.ForceAttack);
             }
         }
 
@@ -164,7 +168,7 @@ namespace Dino_Defenders.UI
                     bool offered = entity.Entity.Id == session.OfferedThing.Id;
                     bool rested = place.Kind == InteractKind.Shrine && (uint)place.SiteIndex < (uint)session.Sites.Count && session.Sites[place.SiteIndex].Kindled;
                     bool named = offered || distance < NameReach;
-                    float width = IconRoom + (offered ? KeySize + 7f + WidthOf(session.InteractPrompt ?? "", PromptSize) + PillEnd : named ? WidthOf(NameOf(place.Kind), NameSize) + PillEnd : 0f);
+                    float width = IconRoom + (offered ? KeyWidth() + 7f + WidthOf(session.InteractPrompt ?? "", PromptSize) + PillEnd : named ? WidthOf(NameOf(place.Kind), NameSize) + PillEnd : 0f);
 
                     _marks.Add(new Mark
                     {
@@ -249,10 +253,10 @@ namespace Dino_Defenders.UI
             float x = rect.X + IconRoom;
             if (offered)
             {
-                GuiRect key = new GuiRect(x, rect.Y + (PillHeight - KeySize) * 0.5f, KeySize, KeySize);
+                GuiRect key = new GuiRect(x, rect.Y + (PillHeight - KeySize) * 0.5f, KeyWidth(), KeySize);
                 draw.AddRect(key, colour, 4f);
-                GuiText.Draw(Context!, draw, "E", Ui.Face, 15f, new GuiRect(key.X, key.Y + TextDrop, key.Width, key.Height), GuiColors.Rgba(14, 10, 8), Alignment.Center, Alignment.Center);
-                x += KeySize + 7f;
+                GuiText.Draw(Context!, draw, Bindings.Label(GameAction.Interact), Ui.Face, 15f, new GuiRect(key.X, key.Y + TextDrop, key.Width, key.Height), GuiColors.Rgba(14, 10, 8), Alignment.Center, Alignment.Center);
+                x += key.Width + 7f;
                 Ui.Text(Context!, draw, mark.Prompt!, PromptSize, new GuiRect(x, rect.Y + TextDrop, rect.Right - x, PillHeight), Ui.Parchment);
             }
             else if (mark.Named) Ui.Text(Context!, draw, NameOf(mark.Kind), NameSize, new GuiRect(x, rect.Y + TextDrop, rect.Right - x, PillHeight), Ui.Parchment);

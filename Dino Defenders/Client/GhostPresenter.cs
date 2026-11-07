@@ -1072,34 +1072,30 @@ namespace Dino_Defenders.Client
     /// </summary>
     public static class LocalInput
     {
-        private const int FirstKeySlot = 2;
-        private static readonly Keys[] SlotKeys = { Keys.Q, Keys.D1, Keys.D2, Keys.D3 };
-
         public static HeroIntent Read(Vector3 position, in HeroSimState hero)
         {
-            var window = Engine.WindowHandler;
             var intent = new HeroIntent { Aim = ReadAim(position) };
 
-            if (!Engine.Gui.WantsMouse)
+            // Anything can be on anything: what's on the mouse asks the interface first, and what's on the keyboard whether someone's typing. The first two places are held, and the rest pressed.
+            for (int slot = 0; slot < HeroState.BarSlots; slot++)
             {
-                if (window.IsMouseButtonDown(MouseButton.Left)) intent.Use(0);
-                if (window.IsMouseButtonDown(MouseButton.Right)) intent.Use(1);
+                GameAction action = Bindings.Slot(slot);
+                if (Bindings.OnMouse(action) ? Engine.Gui.WantsMouse : Engine.Gui.WantsKeyboard) continue;
+                if (slot < HeroRules.HeldSlots ? Bindings.Down(action) : HeroRules.KeyPresses(hero, slot, Bindings.Down(action), Bindings.Pressed(action))) intent.Use(slot);
             }
-            if (Engine.Gui.WantsKeyboard) return intent;
 
-            if (window.IsKeyDown(Keys.W)) intent.Move.Y += 1f;
-            if (window.IsKeyDown(Keys.S)) intent.Move.Y -= 1f;
-            if (window.IsKeyDown(Keys.A)) intent.Move.X += 1f;
-            if (window.IsKeyDown(Keys.D)) intent.Move.X -= 1f;
-            intent.Dash = window.IsKeyPressed(Keys.Space);
-            for (int i = 0; i < SlotKeys.Length; i++)
-            {
-                int slot = FirstKeySlot + i;
-                if (HeroRules.KeyPresses(hero, slot, window.IsKeyDown(SlotKeys[i]), window.IsKeyPressed(SlotKeys[i]))) intent.Use(slot);
-            }
-            intent.Flask = window.IsKeyPressed(Keys.R);
-            intent.Interact = window.IsKeyPressed(Keys.E);
-            intent.Guide = window.IsKeyPressed(Keys.F) && GameSession.Current.Hero.HasGuidingWind;
+            bool Usable(GameAction action) => Bindings.OnMouse(action) ? !Engine.Gui.WantsMouse : !Engine.Gui.WantsKeyboard;
+            bool Held(GameAction action) => Usable(action) && Bindings.Down(action);
+            bool Pressed(GameAction action) => Usable(action) && Bindings.Pressed(action);
+
+            if (Held(GameAction.MoveUp)) intent.Move.Y += 1f;
+            if (Held(GameAction.MoveDown)) intent.Move.Y -= 1f;
+            if (Held(GameAction.MoveLeft)) intent.Move.X += 1f;
+            if (Held(GameAction.MoveRight)) intent.Move.X -= 1f;
+            intent.Dash = Pressed(GameAction.Dodge);
+            intent.Flask = Pressed(GameAction.Flask);
+            intent.Interact = Pressed(GameAction.Interact);
+            intent.Guide = Pressed(GameAction.Guide) && GameSession.Current.Hero.HasGuidingWind;
             return intent;
         }
 

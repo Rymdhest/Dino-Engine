@@ -361,6 +361,9 @@ namespace Dino_Defenders.Gameplay
         public const float QueueTime = 0.3f;
         public const float DodgeQueueTime = 0.18f;
 
+        /// <summary>How many places on the bar go on for as long as they're held, rather than once for each press.</summary>
+        public const int HeldSlots = 2;
+
         private const float TurnSpeed = 14f;
 
         public static HeroButtons SlotButton(int slot) => (HeroButtons)(1 << slot);
