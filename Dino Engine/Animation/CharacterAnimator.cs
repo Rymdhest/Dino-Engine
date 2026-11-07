@@ -76,6 +76,8 @@ namespace Dino_Engine.Animation
         private readonly Quaternion[] _rotations = new Quaternion[Rig.BoneCount];
         private readonly Vector3[] _ankles;
         private readonly Quaternion[] _soles;
+        private readonly Quaternion[] _toes;
+        private readonly TurnContinuity[] _toeTurn;
         private readonly Continuity[] _footMotion;
         private readonly Continuity[] _handMotion;
         private readonly Quaternion[] _gripRests;
@@ -177,6 +179,8 @@ namespace Dino_Engine.Animation
             _gait = new Gait(rig, _style);
             _ankles = new Vector3[rig.Legs.Length];
             _soles = new Quaternion[rig.Legs.Length];
+            _toes = new Quaternion[rig.Legs.Length];
+            _toeTurn = new TurnContinuity[rig.Legs.Length];
             _footMotion = new Continuity[rig.Legs.Length];
             _handMotion = new Continuity[rig.Arms.Length];
             _gripRests = new Quaternion[rig.Arms.Length];
@@ -230,8 +234,15 @@ namespace Dino_Engine.Animation
             _chestTurn.Reset();
             _headTurn.Reset();
             for (int i = 0; i < _footMotion.Length; i++) _footMotion[i].Reset();
+            for (int i = 0; i < _toeTurn.Length; i++) _toeTurn[i].Reset();
             for (int i = 0; i < _handMotion.Length; i++) _handMotion[i].Reset();
             for (int i = 0; i < _gripTurn.Length; i++) _gripTurn[i].Reset();
+            _neckTurn.Reset();
+            _neckTopTurn.Reset();
+            Array.Clear(_tailYaw);
+            Array.Clear(_tailYawSpeed);
+            Array.Clear(_tailPitch);
+            Array.Clear(_tailPitchSpeed);
 
             _gait.Stand(Walking(input, 0f, 0f, false, 0f), ground);
         }
@@ -385,7 +396,8 @@ namespace Dino_Engine.Animation
 
             ReadFeet(input, life);
 
-            if (Rig.Plan == BodyPlan.Biped) PoseBiped(input, gesture, spin, dashing, life, deltaTime, transition);
+            if (Rig.Saurian && Rig.Plan == BodyPlan.Biped) PoseSaurian(input, gesture, spin, life, deltaTime, transition);
+            else if (Rig.Plan == BodyPlan.Biped) PoseBiped(input, gesture, spin, dashing, life, deltaTime, transition);
             else PoseQuadruped(input, gesture, life, deltaTime, transition);
 
             Solve(input);
@@ -496,7 +508,7 @@ namespace Dino_Engine.Animation
             for (int i = 0; i < _gait.Feet.Length; i++)
             {
                 ref Foot foot = ref _gait.Feet[i];
-                float pitch = foot.Swinging ? foot.Pitch : StandingPitch(foot);
+                float pitch = foot.Swinging ? foot.Pitch * (Rig.Saurian ? 0.8f : 1f) : StandingPitch(foot);
                 float ankleHeight = Rig.AnkleHeight * scale;
 
                 Vector3 forward = Frames.Forward(foot.Yaw);
@@ -523,13 +535,37 @@ namespace Dino_Engine.Animation
                 _ankles[i] = Vector3.Transform(smooth - input.Position, toBody) * inverse;
                 float groundPitch = foot.Swinging ? 0f : foot.GroundPitch;
                 float groundRoll = foot.Swinging ? 0f : foot.GroundRoll;
-                _soles[i] = Frames.Yaw(Spring.Shortest(foot.Yaw - input.Yaw)) * Frames.Pitch(-pitch - groundPitch) * Frames.Roll(groundRoll);
+                float yaw = Spring.Shortest(foot.Yaw - input.Yaw) - Rig.Legs[i].Side * _style.ToeIn;
+                _soles[i] = Frames.Yaw(yaw) * Frames.Pitch(-pitch - groundPitch) * Frames.Roll(groundRoll);
+                _toes[i] = Rig.Saurian ? Toes(i, foot, yaw, groundPitch, groundRoll, life) : _soles[i];
             }
+        }
+
+        // A dinosaur walks on its toes, and they have a bone of their own. Down, they lie on the ground however the foot above them turns, so the foot rolls over them as a bird's does.
+        // Off the ground they curl under, and open out again to land.
+        private Quaternion Toes(int i, in Foot foot, float yaw, float groundPitch, float groundRoll, float life)
+        {
+            Quaternion toes;
+            if (foot.Swinging)
+            {
+                float through = Math.Clamp(1f - foot.SwingLeft / MathF.Max(foot.SwingTime, 1e-3f), 0f, 1f);
+                float curl = 0.95f * MathF.Sin(MathF.PI * MathF.Min(through * 1.25f, 1f));
+                toes = _soles[i] * Frames.Pitch(curl);
+            }
+            else toes = Frames.Yaw(yaw) * Frames.Pitch(-groundPitch) * Frames.Roll(groundRoll);
+            return _toeTurn[i].Follow(toes, BlendHalfLife, FastestTurn, life);
         }
 
         private float StandingPitch(in Foot foot)
         {
             if (foot.StandFor >= 0.99f && !_gait.Moving) return 0f;
+
+            // On the toes from the moment it lands, and over the ball of the foot at the end, which is all the heel a dinosaur has.
+            if (Rig.Saurian)
+            {
+                float rolled = Math.Clamp(foot.Planted / MathF.Max(foot.StandFor, 0.02f), 0f, 1f);
+                return -(0.5f + 0.35f * _gait.Run) * Gait.Smooth(0.5f, 1f, rolled);
+            }
 
             // Coming down on the heel, flat for the middle of it, and off the toes at the end. A runner lands flatter.
             float through = Math.Clamp(foot.Planted / MathF.Max(foot.StandFor, 0.02f), 0f, 1f);
@@ -702,9 +738,13 @@ namespace Dino_Engine.Animation
             head = _headTurn.Follow(head, BlendHalfLife, FastestTurn, deltaTime, transition);
 
             _rotations[(int)BoneType.Neck] = Quaternion.Slerp(chest, head, 0.5f);
+            _rotations[(int)BoneType.NeckTop] = head;
             _rotations[(int)BoneType.Head] = head;
+            _rotations[(int)BoneType.Jaw] = head;
             Chain(BoneType.Neck, BoneType.Chest);
-            Chain(BoneType.Head, BoneType.Neck);
+            Chain(BoneType.NeckTop, BoneType.Neck);
+            Chain(BoneType.Head, BoneType.NeckTop);
+            Chain(BoneType.Jaw, BoneType.Head);
         }
 
         private void PoseHands(in AnimationInput input, in GestureSample gesture, float chestYaw, float life, float deltaTime, bool transition, float speed, float run)
@@ -872,7 +912,7 @@ namespace Dino_Engine.Animation
             float slope = MathF.Atan2(foreHeight - wantedHeight - (chestRest.Y - pelvisRest.Y), length);
 
             float phase = _gait.Phase * MathF.Tau;
-            float gallop = Gait.Smooth(0.55f, 1f, run);
+            float gallop = Gait.Smooth(0.55f, 1f, run) * _style.Gallop;
             float flex = MathF.Sin(phase) * 0.22f * gallop * _style.Bounce;
             float rock = MathF.Cos(phase) * 0.07f * gallop * _style.Bounce;
             float bob = MathF.Sin(phase * 2f) * 0.03f * leg * run * _style.Bounce * (1f - gallop);
@@ -910,10 +950,20 @@ namespace Dino_Engine.Animation
             Chain(BoneType.Spine, BoneType.Pelvis);
             Chain(BoneType.Chest, BoneType.Spine);
 
+            if (Rig.Saurian)
+            {
+                // A heavy head on a short neck, carried low, and a tail that answers whatever the front end does.
+                PoseSaurianHead(input, gesture, chestSmooth, 0f, life, deltaTime, transition, -MathF.Sin(phase) * 0.05f * run + _dazed * 0.25f);
+                PoseSaurianTail(pelvisSmooth, pitch, body.Tail * weight, life);
+                return;
+            }
+
             PoseHead(input, chestSmooth, 0f, life, deltaTime, transition, -MathF.Sin(phase) * 0.08f * run);
             Vector3 lunge = Vector3.UnitZ * (body.Head * leg * weight) + Vector3.UnitY * (-(MathF.Abs(body.Head) * 0.3f * weight + _dazed * 0.22f) * leg);
             _joints[(int)BoneType.Neck] += lunge * 0.5f;
+            _joints[(int)BoneType.NeckTop] += lunge;
             _joints[(int)BoneType.Head] += lunge;
+            _joints[(int)BoneType.Jaw] += lunge;
 
             PoseTail(pelvisSmooth, speed, life);
         }
@@ -929,9 +979,251 @@ namespace Dino_Engine.Animation
             float droop = 0.25f - Gait.Smooth(2f, 10f, speed) * 0.5f;
 
             _rotations[(int)BoneType.TailBase] = pelvis * Frames.Yaw(_tailSwing) * Frames.Pitch(droop * 0.5f);
+            _rotations[(int)BoneType.Tail1] = _rotations[(int)BoneType.TailBase];
+            _rotations[(int)BoneType.Tail2] = _rotations[(int)BoneType.TailBase];
+            _rotations[(int)BoneType.Tail3] = _rotations[(int)BoneType.TailBase];
             _rotations[(int)BoneType.TailTip] = _rotations[(int)BoneType.TailBase] * Frames.Yaw(_tailSwing * 1.3f) * Frames.Pitch(droop * 0.5f);
             Chain(BoneType.TailBase, BoneType.Pelvis);
-            Chain(BoneType.TailTip, BoneType.TailBase);
+            Chain(BoneType.Tail1, BoneType.TailBase);
+            Chain(BoneType.Tail2, BoneType.Tail1);
+            Chain(BoneType.Tail3, BoneType.Tail2);
+            Chain(BoneType.TailTip, BoneType.Tail3);
+        }
+
+        // ---- Dinosaurs.
+
+        private const int TailBones = 5;
+        private static readonly BoneType[] TailChain = { BoneType.TailBase, BoneType.Tail1, BoneType.Tail2, BoneType.Tail3, BoneType.TailTip };
+        private static readonly float[] LashShares = { 0.12f, 0.18f, 0.22f, 0.24f, 0.24f };
+        private const float BiteHeight = 2.6f;     // Metres. About a person's chest, which is what anything with teeth is going for.
+
+        private readonly float[] _tailYaw = new float[TailBones];
+        private readonly float[] _tailYawSpeed = new float[TailBones];
+        private readonly float[] _tailPitch = new float[TailBones];
+        private readonly float[] _tailPitchSpeed = new float[TailBones];
+        private TurnContinuity _neckTurn;
+        private TurnContinuity _neckTopTurn;
+        private float _jaw;
+        private float _jawSpeed;
+        private float _glance;
+        private float _glanceLeft;
+
+        // How far down the front end has to come to bite someone standing, as a share of how high its head is: next to nothing for something a person's size, and a long way for a tyrant.
+        private float DipFor(float scale)
+        {
+            float head = Rig.Pivots[(int)BoneType.Head].Y * scale;
+            return Math.Clamp((head - BiteHeight) / MathF.Max(head, 0.1f), 0f, 0.8f);
+        }
+
+        // A theropod is a beam balanced on its hips: trunk, neck and head out in front, the tail behind, and both held clear of the ground. Its feet go down near the line it walks, the beam rocks over
+        // them, and its head stays level and steady while all of that goes on beneath it, as a bird's does.
+        private void PoseSaurian(in AnimationInput input, in GestureSample gesture, float spin, float life, float deltaTime, bool transition)
+        {
+            float leg = Rig.LegLength;
+            float size = leg * 0.5f;    // In a person's legs, which is what the numbers that were first set for a person were set by.
+            float weight = gesture.Weight;
+            BodyKey body = gesture.Body;
+            float speed = _velocity.Xz.Length / input.Scale;
+            float run = _gait.Run;
+            bool moving = _gait.Moving;
+
+            float strideNow = moving ? (_ankles[0].Z - _ankles[1].Z) / (leg * 1.2f) : 0f;
+            _stride = Spring.Damp(_stride, Math.Clamp(strideNow, -1f, 1f), 0.03f, life);
+
+            float over = 0f;
+            int down = 0;
+            for (int i = 0; i < 2; i++)
+            {
+                if (_gait.Feet[i].Swinging) continue;
+                over += _ankles[i].X;
+                down++;
+            }
+            float idleShift = MathF.Sin(_clock * 0.29f + _seed) * 0.03f * size * _style.Liveliness * (1f - run);
+            float wantedSway = (down > 0 ? over / down * SwayShare * _style.Sway : 0f) + (moving ? 0f : idleShift);
+            _sway = Spring.Damp(_sway, wantedSway, 0.09f, life);
+            _dazed = Spring.Damp(_dazed, input.Dazed ? 1f : 0f, 0.09f, life);
+
+            float bounceWanted = down == 0 ? 1f : -0.35f * run;
+            _bounce = Spring.Damp(_bounce, bounceWanted * run, 0.05f, life);
+
+            // Breathing slows as bodies grow, as everything else about them does.
+            float breathRate = BreathRate / MathF.Sqrt(MathF.Max(size, 0.2f));
+            float breath = MathF.Sin(_clock * breathRate) * 0.012f * size * _style.Liveliness;
+            float stand = Rig.HipHeight - leg * (_style.Crouch + 0.04f * _alert + 0.03f * run + body.Sink * weight) + _bounce * BounceHeight * leg * _style.Bounce + breath * (1f - run);
+            Spring.Step(ref _hipHeight, ref _hipHeightSpeed, HeightFeetAllow(stand, _sway, leg), StepHeightHalfLife, life);
+
+            // The beam tips forward into speed and into starting off, and back as it stops: that's all a body balanced on its hips can do. Going for someone, it comes down as far as it has to
+            // to reach them, and rearing it goes back on its tail.
+            Vector3 accel = Vector3.Transform(_acceleration, Frames.Yaw(-input.Yaw)) / input.Scale;
+            float forwardAccel = Math.Clamp(accel.Z / Rig.Gravity, -1f, 1f);
+            float sideAccel = Math.Clamp(accel.X / Rig.Gravity, -1f, 1f);
+            float lean = Math.Clamp(RunLean * 0.6f * Gait.Smooth(1f, 12f, speed) * (0.6f + 0.6f * run) + forwardAccel * 0.3f, -HardestLean, HardestLean) * _style.Lean;
+            float bank = Math.Clamp(-sideAccel * 0.3f, -HardestLean, HardestLean) * _style.Lean;
+            float strike = MathF.Max(body.Head, 0f) * weight;
+            float reel = _clock * 3.1f + _seed;
+            float pitch = lean + MathHelper.DegreesToRadians(body.Bend) * weight + strike * DipFor(input.Scale) * 0.9f - body.Rise * weight * 1.2f + 0.04f * _alert
+                + _dazed * (0.12f + MathF.Sin(reel) * 0.06f);
+            float roll = bank - _sway / leg * 0.6f + _dazed * MathF.Cos(reel) * 0.1f;
+
+            Vector3 aimWay = Frames.Forward(_aim);
+            Vector3 hips = Rig.Pivots[(int)BoneType.Pelvis] + new Vector3(_sway, 0f, -forwardAccel * 0.1f * leg);
+            hips.Y = _hipHeight;
+            hips += aimWay * (body.Push * leg * weight);
+
+            float hipYaw = _hipTurn - _stride * HipTurnFromStride * _style.Twist * 0.6f + spin;
+            Quaternion pelvis = Frames.Yaw(hipYaw) * Frames.Pitch(pitch * 0.6f) * Frames.Roll(roll);
+
+            // The chest swings against the hips, and turns to whatever it's going for.
+            float chestYaw = _stride * ChestTurnFromStride * _style.Twist * 0.4f;
+            float attackYaw = _aim + MathHelper.DegreesToRadians(body.Turn) + spin;
+            chestYaw += Spring.Shortest(attackYaw - chestYaw) * weight;
+            float twist = Spring.Shortest(chestYaw - hipYaw);
+            float tilt = MathHelper.DegreesToRadians(body.Tilt) * weight;
+            float heave = MathF.Sin(_clock * breathRate) * 0.012f * (1f - run);
+
+            AdvanceKicks(life);
+            float tremor = _held > 0f ? _shake : 0f;
+            hips += _lurch + new Vector3(MathF.Sin(_clock * 97f), 0f, MathF.Cos(_clock * 83f)) * (0.05f * tremor);
+
+            Quaternion spine = Frames.Yaw(twist * 0.5f) * Frames.Pitch(pitch * 0.2f + heave) * Frames.Roll(tilt * 0.5f);
+            Quaternion chestFrom = Frames.Yaw(twist * 0.5f) * Frames.Pitch(pitch * 0.2f - heave) * Frames.Roll(tilt * 0.5f);
+
+            Vector3 hipsSmooth = _pelvisMotion.Follow(hips, BlendHalfLife, FastestBody, deltaTime, transition);
+            Quaternion pelvisSmooth = _pelvisTurn.Follow(pelvis, BlendHalfLife, FastestTurn, deltaTime, transition);
+            Quaternion spineSmooth = _spineTurn.Follow(pelvisSmooth * spine, BlendHalfLife, FastestTurn, deltaTime, transition);
+            Quaternion chest = _chestTurn.Follow(spineSmooth * chestFrom, BlendHalfLife, FastestTurn, deltaTime, transition);
+            chest = (Spring.ToRotation(_kick) * chest).Normalized();
+
+            _joints[(int)BoneType.Pelvis] = hipsSmooth;
+            _rotations[(int)BoneType.Pelvis] = pelvisSmooth;
+            _rotations[(int)BoneType.Spine] = spineSmooth;
+            _rotations[(int)BoneType.Chest] = chest;
+            Chain(BoneType.Spine, BoneType.Pelvis);
+            Chain(BoneType.Chest, BoneType.Spine);
+
+            PoseSaurianHead(input, gesture, chest, chestYaw, life, deltaTime, transition, 0f);
+            PoseSaurianArms(chest, strike, run);
+            PoseSaurianTail(pelvisSmooth, pitch, body.Tail * weight, life);
+        }
+
+        // The head looks where it's going, or at what it means to hurt, in quick turns held still between, as a bird's does, and it's kept level whatever the body under it is doing: the neck takes up
+        // the difference. A strike is that neck straightening and throwing the head forward, and the jaw goes with whatever the blow says.
+        private void PoseSaurianHead(in AnimationInput input, in GestureSample gesture, Quaternion chest, float chestYaw, float life, float deltaTime, bool transition, float nod)
+        {
+            float weight = gesture.Weight;
+            BodyKey body = gesture.Body;
+
+            float wantedYaw;
+            float wantedPitch = _style.HeadLow;
+            if (input.Looking)
+            {
+                Vector3 toward = Vector3.Transform(input.LookAt - input.Position, Frames.Yaw(-input.Yaw)) / MathF.Max(input.Scale, 0.01f);
+                wantedYaw = MathF.Atan2(toward.X, toward.Z) - chestYaw;
+                wantedPitch += Math.Clamp(-MathF.Atan2(toward.Y - Rig.Pivots[(int)BoneType.Head].Y, MathF.Max(toward.Xz.Length, 1f)), -0.5f, 0.5f) * 0.6f;
+            }
+            else
+            {
+                // Somewhere new to look every so often, gone to at once and held.
+                _glanceLeft -= life;
+                if (_glanceLeft <= 0f)
+                {
+                    uint hash = ((uint)_seed * 747796405u) ^ ((uint)(_clock * 13.7f) * 2891336453u);
+                    hash ^= hash >> 15;
+                    hash *= 2246822519u;
+                    float where = (hash & 0xFFFF) / 65535f;
+                    float wait = (hash >> 16) / 65535f;
+                    _glance = (where * 2f - 1f) * 0.55f * _style.Liveliness * (1f - _gait.Run);
+                    _glanceLeft = 0.5f + wait * 2.5f / MathF.Max(_style.Liveliness, 0.2f);
+                }
+                wantedYaw = -chestYaw * 0.8f + _glance;
+            }
+
+            _lookYaw = Spring.Damp(_lookYaw, Math.Clamp(Spring.Shortest(wantedYaw), -LookLimit, LookLimit), input.Looking ? 0.07f : 0.045f, life);
+            _lookPitch = Spring.Damp(_lookPitch, wantedPitch, 0.09f, life);
+
+            float strike = body.Head * weight;
+            float rear = body.Rise * weight;
+            Quaternion level = Frames.Yaw(chestYaw + _lookYaw) * Frames.Pitch(_lookPitch + nod - rear * 0.6f + MathF.Max(strike, 0f) * 0.2f);
+            Quaternion head = _headTurn.Follow(level, BlendHalfLife, FastestTurn, deltaTime, transition);
+
+            // Most of the turn is at the root of the neck and the rest near the head, and a strike pitches the root forward while the top holds the head up.
+            Quaternion neck = Quaternion.Slerp(chest, head, 0.4f) * Frames.Pitch(strike * 0.85f + nod * 0.5f);
+            Quaternion neckTop = Quaternion.Slerp(chest, head, 0.75f) * Frames.Pitch(-strike * 0.35f + nod * 0.5f);
+            neck = _neckTurn.Follow(neck, BlendHalfLife, FastestTurn, deltaTime, transition);
+            neckTop = _neckTopTurn.Follow(neckTop, BlendHalfLife, FastestTurn, deltaTime, transition);
+
+            float pant = _style.Pant * (0.25f + 0.75f * _alert) * (0.5f + 0.5f * MathF.Sin(_clock * 7.5f)) * 0.09f;
+            float open = Math.Clamp(body.Jaw * weight + pant + _dazed * 0.3f, 0f, 1.05f);
+            Spring.Step(ref _jaw, ref _jawSpeed, open, 0.022f, life);
+            float gape = Math.Clamp(_jaw, 0f, 1.1f) * _style.Gape;
+
+            _rotations[(int)BoneType.Neck] = neck;
+            _rotations[(int)BoneType.NeckTop] = neckTop;
+            _rotations[(int)BoneType.Head] = head;
+            _rotations[(int)BoneType.Jaw] = head * Frames.Pitch(gape);
+            Chain(BoneType.Neck, BoneType.Chest);
+            Chain(BoneType.NeckTop, BoneType.Neck);
+            Chain(BoneType.Head, BoneType.NeckTop);
+            Chain(BoneType.Jaw, BoneType.Head);
+        }
+
+        // Small arms, carried folded with the palms towards each other, as a theropod's could only be. They swing a little with the stride and reach out for whatever the mouth goes for.
+        private void PoseSaurianArms(Quaternion chest, float strike, float run)
+        {
+            for (int i = 0; i < Rig.Arms.Length; i++)
+            {
+                Limb arm = Rig.Arms[i];
+                float swing = arm.Side * _stride * 0.14f * (0.35f + 0.65f * run);
+                float reach = strike * 1.3f + _alert * 0.08f;
+                Quaternion upper = chest * Frames.Pitch(-reach - swing);
+                Quaternion lower = upper * Frames.Pitch(-strike * 0.5f + swing * 0.5f);
+
+                _rotations[(int)arm.Parent] = chest;
+                _rotations[(int)arm.Upper] = upper;
+                _rotations[(int)arm.Lower] = lower;
+                _rotations[(int)arm.End] = lower * Frames.Pitch(-strike * 0.3f);
+                Chain(arm.Parent, BoneType.Chest);
+                Chain(arm.Upper, arm.Parent);
+                Chain(arm.Lower, arm.Upper);
+                Chain(arm.End, arm.Lower);
+            }
+        }
+
+        // The tail swings from side to side in time with the legs, as the muscle that pulls each thigh back runs down it from the hips, and the swing travels down it as a wave: Bishop and others found
+        // just that when they made a theropod walk from its muscles. It trails out on the outside of a turn, straightens and lifts with speed, and rises further as the front end comes down. Each joint
+        // follows on a spring of its own, slower towards the tip, which is all it takes for a lash to come off the end.
+        private void PoseSaurianTail(Quaternion pelvis, float lean, float lash, float life)
+        {
+            float run = _gait.Run;
+            float phase = _gait.Phase * MathF.Tau;
+            float stiff = _style.TailStiff;
+            float swing = _gait.Moving ? _style.TailSway * (0.07f + 0.05f * run) : 0f;
+            float carry = 1f - stiff * 0.8f;
+            float lag = 0.75f - 0.5f * stiff;
+            float lashBy = MathHelper.DegreesToRadians(lash);
+
+            Quaternion parent = pelvis;
+            BoneType parentBone = BoneType.Pelvis;
+            for (int i = 0; i < TailBones; i++)
+            {
+                float down = MathF.Pow(carry, i);
+                float wave = MathF.Sin(phase - i * lag) * swing * down;
+                float idle = MathF.Sin(_clock * 0.9f - i * 0.8f + _seed) * 0.035f * _style.Liveliness * (1f - run) * (0.4f + 0.6f * down);
+                float trail = -_turnRate * (0.025f + 0.02f * i) * (1f - stiff * 0.5f);
+                float yaw = Math.Clamp(wave + idle + trail + lashBy * LashShares[i], -1.2f, 1.2f);
+                float rise = (0.05f * run + lean * 0.25f - 0.03f * (1f - run)) / TailBones + MathF.Sin(_clock * 0.7f - i) * 0.01f * _style.Liveliness;
+
+                float halfLife = 0.045f + 0.03f * i * (1f - stiff * 0.6f);
+                Spring.Step(ref _tailYaw[i], ref _tailYawSpeed[i], yaw, halfLife, life);
+                Spring.Step(ref _tailPitch[i], ref _tailPitchSpeed[i], rise, halfLife, life);
+
+                Quaternion here = parent * Frames.Yaw(_tailYaw[i]) * Frames.Pitch(_tailPitch[i]);
+                BoneType bone = TailChain[i];
+                _rotations[(int)bone] = here;
+                Chain(bone, parentBone);
+                parent = here;
+                parentBone = bone;
+            }
         }
 
         // A bone's joint from its parent's: where it was in the pose it was built in, carried along by how the parent has turned.
@@ -969,6 +1261,11 @@ namespace Dino_Engine.Animation
                 _rotations[(int)limb.Upper] = upper;
                 _rotations[(int)limb.Lower] = lower;
                 _rotations[(int)limb.End] = _soles[i];
+
+                BoneType toe = Rig.ToeOf(limb.End);
+                if (toe == BoneType.Count) continue;
+                _rotations[(int)toe] = _toes[i];
+                Chain(toe, limb.End);
             }
 
             if (_carry != Carry.Nothing) ReadWeapon(input);

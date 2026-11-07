@@ -149,13 +149,14 @@ namespace Dino_Engine.Rendering
         {
             GL.UniformMatrix4(uniforms[variableName],false, ref value);
         }
+        // All in one call, from where the array starts. A body's bones were once a call and a new name each, for every character in every pass.
         public void loadUniformMatrix4fArray(string variableName, Matrix4[] values)
         {
-            for (int i = 0; i < values.Length; i++)
-            {
-                GL.UniformMatrix4(uniforms[variableName + "[" + i + "]"],false, ref values[i]);
-            }
+            if (values.Length == 0 || !_arrayStarts.TryGetValue(variableName, out int start) || start < 0) return;
+            GL.UniformMatrix4(start, values.Length, false, ref values[0].Row0.X);
         }
+
+        private readonly Dictionary<string, int> _arrayStarts = new Dictionary<string, int>();
 
         private int CreateShader(string shaderString, ShaderType type)
         {
@@ -202,6 +203,7 @@ namespace Dino_Engine.Rendering
                             {
                                 loadUniform(variableName + "[" + i + "]", fileNameDebugPrint);
                             }
+                            _arrayStarts.TryAdd(variableName, uniforms[variableName + "[0]"]);
                         }
                         else
                         {

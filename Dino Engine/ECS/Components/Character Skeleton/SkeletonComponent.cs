@@ -6,7 +6,8 @@ namespace Dino_Engine.ECS.Components
 {
     /// <summary>
     /// Every bone there is, whoever it's on. Meshes hold these by number, and what isn't on anything in particular is on 0, so a new bone goes on the end and nothing has to move. An animal uses the
-    /// same ones, with its arms as forelegs.
+    /// same ones, with its arms as forelegs. A dinosaur uses them all: a jaw, a neck in two, a tail in five and toes of their own. On anyone who has none of those they sit where the bone they'd
+    /// continue does, with nothing on them, so a person is posed exactly as before.
     /// </summary>
     public enum BoneType
     {
@@ -21,6 +22,10 @@ namespace Dino_Engine.ECS.Components
         Neck,
         ClavicleL, ClavicleR,
         TailBase, TailTip,
+        Jaw,
+        NeckTop,
+        Tail1, Tail2, Tail3,
+        ToeL, ToeR,
         Count
     }
 

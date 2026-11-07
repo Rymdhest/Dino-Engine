@@ -19,7 +19,7 @@ out mat3 normalTBN;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
 #ifdef SKINNED
-uniform mat4 u_Bones[24];
+uniform mat4 u_Bones[32];
 #endif
 
 void main() {

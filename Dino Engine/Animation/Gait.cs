@@ -205,7 +205,7 @@ namespace Dino_Engine.Animation
             if (wasMoving && !Moving) _settling = SettleFor;
             _settling = MathF.Max(_settling - deltaTime, 0f);
 
-            Duty = _quadruped ? Lerp(WalkDuty, GallopDuty, Run) : Lerp(WalkDuty, RunDuty, Run);
+            Duty = _quadruped ? Lerp(WalkDuty, Lerp(RunDuty, GallopDuty, _style.Gallop), Run) : Lerp(WalkDuty, RunDuty, Run);
             ReadTriggers();
 
             float stepsASecond = CadenceAt(pace) * MathF.Sqrt(Rig.Gravity / leg) * _style.Cadence;
@@ -440,8 +440,9 @@ namespace Dino_Engine.Animation
                 return;
             }
 
+            // Something too heavy to gallop goes on trotting, however fast it's going.
             float trot = Smooth(0f, 0.5f, Run);
-            float gallop = Smooth(0.6f, 1f, Run);
+            float gallop = Smooth(0.6f, 1f, Run) * _style.Gallop;
             _triggers[0] = 0f;
             _triggers[1] = Lerp(0.5f, 0.1f, gallop);
             _triggers[2] = Lerp(Lerp(0.25f, 0.5f, trot), 0.5f, gallop);

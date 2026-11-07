@@ -164,7 +164,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 _characterShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
                 _characterShader.loadUniformVector4f("hitFlash", instance.Flash);
 
-                // Upload array of skinning matrices: uniform mat4 u_Bones[14];
+                // Every bone a rig has (Rig.BoneCount), into uniform mat4 u_Bones[32], which leaves room for a few more.
                 _characterShader.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);
 
                 GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);

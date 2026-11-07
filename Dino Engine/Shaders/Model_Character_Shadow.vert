@@ -7,7 +7,7 @@ layout(location = 6) in vec2 boneIndices;
 layout(location = 7) in vec2 boneWeights;
 
 uniform mat4 modelViewProjectionMatrix;
-uniform mat4 u_Bones[24];
+uniform mat4 u_Bones[32];
 
 out float textureIndex;
 out vec2 fragUV;

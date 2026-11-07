@@ -26,13 +26,15 @@ namespace Dino_Engine.Animation
     /// <param name="Step">How far the front foot goes out, as a share of a leg.</param>
     /// <param name="Head">How far the head goes towards the aim, as a share of a leg. For what fights with its teeth.</param>
     /// <param name="Rise">How far the chest comes up, as a share of a leg. For what rears.</param>
-    public readonly record struct BodyKey(float Turn = 0f, float Bend = 0f, float Tilt = 0f, float Sink = 0f, float Push = 0f, float Spin = 0f, float Step = 0f, float Head = 0f, float Rise = 0f)
+    /// <param name="Jaw">How far open the mouth is, from shut at 0 to all it can at 1. Only what has a jaw of its own shows it.</param>
+    /// <param name="Tail">How far round the tail is thrown, to the left, in degrees, most of it at the tip.</param>
+    public readonly record struct BodyKey(float Turn = 0f, float Bend = 0f, float Tilt = 0f, float Sink = 0f, float Push = 0f, float Spin = 0f, float Step = 0f, float Head = 0f, float Rise = 0f, float Jaw = 0f, float Tail = 0f)
     {
         public static BodyKey Lerp(in BodyKey a, in BodyKey b, float t) => new BodyKey(
             a.Turn + (b.Turn - a.Turn) * t, a.Bend + (b.Bend - a.Bend) * t, a.Tilt + (b.Tilt - a.Tilt) * t, a.Sink + (b.Sink - a.Sink) * t, a.Push + (b.Push - a.Push) * t,
-            a.Spin + (b.Spin - a.Spin) * t, a.Step + (b.Step - a.Step) * t, a.Head + (b.Head - a.Head) * t, a.Rise + (b.Rise - a.Rise) * t);
+            a.Spin + (b.Spin - a.Spin) * t, a.Step + (b.Step - a.Step) * t, a.Head + (b.Head - a.Head) * t, a.Rise + (b.Rise - a.Rise) * t, a.Jaw + (b.Jaw - a.Jaw) * t, a.Tail + (b.Tail - a.Tail) * t);
 
-        public BodyKey Mirrored => new BodyKey(-Turn, Bend, -Tilt, Sink, Push, -Spin, Step, Head, Rise);
+        public BodyKey Mirrored => new BodyKey(-Turn, Bend, -Tilt, Sink, Push, -Spin, Step, Head, Rise, Jaw, -Tail);
     }
 
     /// <summary>
@@ -184,7 +186,7 @@ namespace Dino_Engine.Animation
             float Curve(float p, float q, float r) => Through(p, q, r, swing);
 
             var key = new BodyKey(Curve(a.Turn, b.Turn, c.Turn), Curve(a.Bend, b.Bend, c.Bend), Curve(a.Tilt, b.Tilt, c.Tilt), Curve(a.Sink, b.Sink, c.Sink), Curve(a.Push, b.Push, c.Push),
-                Curve(a.Spin, b.Spin, c.Spin), Curve(a.Step, b.Step, c.Step), Curve(a.Head, b.Head, c.Head), Curve(a.Rise, b.Rise, c.Rise));
+                Curve(a.Spin, b.Spin, c.Spin), Curve(a.Step, b.Step, c.Step), Curve(a.Head, b.Head, c.Head), Curve(a.Rise, b.Rise, c.Rise), Curve(a.Jaw, b.Jaw, c.Jaw), Curve(a.Tail, b.Tail, c.Tail));
             return creep <= 0f ? key : key with { Turn = key.Turn + (a.Turn - b.Turn) * creep, Bend = key.Bend + (a.Bend - b.Bend) * creep };
         }
 
@@ -720,10 +722,142 @@ namespace Dino_Engine.Animation
             Follow = 0.16f,
         };
 
+        // ---- Dinosaurs, whose weapons are a mouth and the body behind it. On two legs the trunk is a beam on the hips, so what the head does the tail answers.
+
+        /// <summary>Drawn back with the mouth wide, and the whole body behind the head as it shuts.</summary>
+        public static readonly Gesture Chomp = new Gesture
+        {
+            Name = "chomp",
+            Body = new[]
+            {
+                new BodyKey(Turn: -6f, Bend: -8f, Sink: 0.06f, Push: -0.12f, Head: -0.2f, Rise: 0.05f, Jaw: 0.85f, Tail: 8f),
+                new BodyKey(Turn: 4f, Bend: 14f, Sink: 0.08f, Push: 0.3f, Step: 0.25f, Head: 0.55f, Jaw: 0.06f, Tail: -6f),
+                new BodyKey(Turn: 6f, Bend: 9f, Sink: 0.06f, Push: 0.22f, Step: 0.25f, Head: 0.35f, Jaw: 0.2f, Tail: -2f),
+            },
+            Snap = 0.1f,
+            Follow = 0.16f,
+        };
+
+        /// <summary>The same from the other side, so that bite after bite the head comes in from either way.</summary>
+        public static readonly Gesture ChompBack = new Gesture
+        {
+            Name = "chomp-back",
+            Body = new[]
+            {
+                new BodyKey(Turn: 6f, Bend: -6f, Sink: 0.06f, Push: -0.1f, Head: -0.16f, Rise: 0.04f, Jaw: 0.8f, Tail: -8f),
+                new BodyKey(Turn: -4f, Bend: 13f, Sink: 0.08f, Push: 0.28f, Step: 0.25f, Head: 0.52f, Jaw: 0.06f, Tail: 6f),
+                new BodyKey(Turn: -6f, Bend: 8f, Sink: 0.06f, Push: 0.2f, Step: 0.25f, Head: 0.33f, Jaw: 0.22f, Tail: 2f),
+            },
+            Snap = 0.1f,
+            Follow = 0.16f,
+        };
+
+        /// <summary>Turned away, and back round hard, so the tail goes through everything near. It's the tail that's the blow, and most of the turn is in it.</summary>
+        public static readonly Gesture TailSweep = new Gesture
+        {
+            Name = "tail-sweep",
+            Body = new[]
+            {
+                new BodyKey(Bend: 6f, Sink: 0.08f, Spin: -35f, Head: -0.05f, Jaw: 0.3f, Tail: 40f),
+                new BodyKey(Bend: 10f, Sink: 0.12f, Spin: 85f, Step: 0.2f, Jaw: 0.5f, Tail: -75f),
+                new BodyKey(Bend: 6f, Sink: 0.08f, Spin: 110f, Jaw: 0.2f, Tail: -45f),
+            },
+            Snap = 0.16f,
+            Follow = 0.22f,
+        };
+
+        /// <summary>Up on the hips with the jaws open, and down with a foot and the whole weight behind it.</summary>
+        public static readonly Gesture Stomp = new Gesture
+        {
+            Name = "stomp",
+            Body = new[]
+            {
+                new BodyKey(Bend: -16f, Sink: -0.02f, Push: -0.12f, Head: -0.1f, Rise: 0.4f, Jaw: 0.55f),
+                new BodyKey(Bend: 18f, Sink: 0.16f, Push: 0.3f, Step: 0.5f, Head: 0.2f, Jaw: 1f),
+                new BodyKey(Bend: 12f, Sink: 0.12f, Push: 0.25f, Step: 0.5f, Head: 0.12f, Jaw: 0.5f),
+            },
+            Snap = 0.14f,
+            Follow = 0.2f,
+        };
+
+        /// <summary>Down low, and off the ground at them, feet first and mouth open.</summary>
+        public static readonly Gesture Pounce = new Gesture
+        {
+            Name = "pounce",
+            Body = new[]
+            {
+                new BodyKey(Bend: 12f, Sink: 0.26f, Push: -0.1f, Head: -0.1f, Jaw: 0.2f),
+                new BodyKey(Bend: -8f, Sink: -0.05f, Push: 0.45f, Step: 0.6f, Head: 0.35f, Jaw: 0.95f),
+                new BodyKey(Bend: 10f, Sink: 0.12f, Push: 0.3f, Head: 0.25f, Jaw: 0.3f),
+            },
+            Snap = 0.1f,
+            Follow = 0.16f,
+            Airborne = true,
+        };
+
+        /// <summary>Head back and up, and thrown forward with the mouth open as it lets go.</summary>
+        public static readonly Gesture Spit = new Gesture
+        {
+            Name = "spit",
+            Body = new[]
+            {
+                new BodyKey(Turn: -4f, Bend: -12f, Head: -0.28f, Rise: 0.12f, Jaw: 0.25f),
+                new BodyKey(Bend: 8f, Push: 0.1f, Head: 0.4f, Jaw: 0.9f),
+                new BodyKey(Bend: 4f, Head: 0.22f, Jaw: 0.45f),
+            },
+            Snap = 0.09f,
+            Follow = 0.18f,
+            Weight = 0.8f,
+        };
+
+        /// <summary>Head down, and up and out with everything it has, held while it lasts.</summary>
+        public static readonly Gesture Roar = new Gesture
+        {
+            Name = "roar",
+            Body = new[]
+            {
+                new BodyKey(Bend: 14f, Sink: 0.1f, Head: -0.15f, Jaw: 0.1f),
+                new BodyKey(Bend: -22f, Sink: 0.02f, Head: 0.18f, Rise: 0.3f, Jaw: 1f),
+                new BodyKey(Bend: -18f, Head: 0.15f, Rise: 0.26f, Jaw: 0.95f),
+            },
+            Snap = 0.22f,
+            Follow = 0.55f,
+        };
+
+        /// <summary>Head down so the horns lead, and tossed up through whatever's in front.</summary>
+        public static readonly Gesture Gore = new Gesture
+        {
+            Name = "gore",
+            Body = new[]
+            {
+                new BodyKey(Bend: 16f, Sink: 0.12f, Push: -0.14f, Head: 0.05f, Rise: -0.05f),
+                new BodyKey(Bend: -4f, Push: 0.38f, Step: 0.3f, Head: 0.4f, Rise: 0.18f),
+                new BodyKey(Bend: 2f, Push: 0.28f, Head: 0.25f, Rise: 0.06f),
+            },
+            Snap = 0.12f,
+            Follow = 0.18f,
+        };
+
+        /// <summary>The front end up off the ground, and down on whatever's under it.</summary>
+        public static readonly Gesture Trample = new Gesture
+        {
+            Name = "trample",
+            Body = new[]
+            {
+                new BodyKey(Bend: -10f, Sink: 0.06f, Push: -0.12f, Head: -0.05f, Rise: 0.35f, Jaw: 0.2f),
+                new BodyKey(Bend: 12f, Sink: 0.14f, Push: 0.25f, Head: 0.2f, Jaw: 0.4f),
+                new BodyKey(Bend: 8f, Sink: 0.1f, Push: 0.2f, Head: 0.12f, Jaw: 0.15f),
+            },
+            Snap = 0.14f,
+            Follow = 0.18f,
+        };
+
         static Gestures()
         {
             Forehand.Next = Backhand;
             Backhand.Next = Forehand;
+            Chomp.Next = ChompBack;
+            ChompBack.Next = Chomp;
         }
     }
 }

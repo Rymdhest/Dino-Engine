@@ -33,7 +33,13 @@ namespace Dino_Engine.Animation
         /// <summary>Which way the middle joint goes when it bends, in the body's own frame, once the limb is hanging as it hangs.</summary>
         public readonly Vector3 Bends;
 
+        /// <summary>The whole limb's frame as it was built, from root to end.</summary>
         internal readonly Quaternion RestFrameInverse;
+
+        /// <summary>Each bone's own frame as it was built. A person's limbs are built straight, and these are the same as the whole limb's. A dinosaur's legs are built folded, as they stand, which
+        /// is where a skin bends best from, so each bone keeps the way it really pointed.</summary>
+        internal readonly Quaternion RestUpperInverse;
+        internal readonly Quaternion RestLowerInverse;
 
         public Limb(Vector3[] pivots, BoneType parent, BoneType upper, BoneType lower, BoneType end, float side, Vector3 restBend, Vector3 bends)
         {
@@ -52,8 +58,44 @@ namespace Dino_Engine.Animation
             Length = UpperLength + LowerLength;
 
             Vector3 direction = (tip - root).Normalized();
-            RestFrameInverse = Quaternion.Invert(Frames.Of(direction, Frames.Across(restBend, direction, Vector3.UnitZ)));
+            Vector3 across = Frames.Across(restBend, direction, Vector3.UnitZ);
+            RestFrameInverse = Quaternion.Invert(Frames.Of(direction, across));
+
+            // Folded, the way the middle joint stands off the line is the way it bends, and the hinge is square to both. That's how Reach.Solve frames each bone, so the pose it was built in comes back unturned.
+            Vector3 toMiddle = middle - root;
+            Vector3 off = toMiddle - direction * Vector3.Dot(toMiddle, direction);
+            if (off.Length > Length * 0.01f) across = off.Normalized();
+            Vector3 hinge = Vector3.Cross(direction, across);
+            Vector3 upperWay = toMiddle / MathF.Max(UpperLength, 1e-6f);
+            Vector3 lowerWay = (tip - middle) / MathF.Max(LowerLength, 1e-6f);
+            RestUpperInverse = Quaternion.Invert(Frames.Of(upperWay, Vector3.Cross(hinge, upperWay)));
+            RestLowerInverse = Quaternion.Invert(Frames.Of(lowerWay, Vector3.Cross(hinge, lowerWay)));
         }
+
+        /// <summary>Where the limb is folded in the pose it was built in, as a share of being straight: 0 for a person's.</summary>
+        public float RestFold(Vector3[] pivots) => 1f - (pivots[(int)End] - pivots[(int)Upper]).Length / Length;
+    }
+
+    /// <summary>
+    /// What a dinosaur's rig has that a person's doesn't. Its neck, jaw, tail and toes are real bones with skin on them, its snout is a long way from where its head turns, and it's far thicker in
+    /// places than anyone the fall of a body was first worked out for, so a body falls as what it's made of.
+    /// </summary>
+    public sealed class SaurianFrame
+    {
+        /// <summary>Where the snout ends, in the pose it was built in.</summary>
+        public Vector3 HeadTip;
+
+        /// <summary>How far out from each bone its body goes, by bone, for falling. Nothing there means it isn't part of how it falls.</summary>
+        public float[] Thickness = new float[Rig.BoneCount];
+
+        /// <summary>The tail's bones that have any length, from the hips out.</summary>
+        public BoneType[] Tail = { BoneType.TailBase, BoneType.Tail1, BoneType.Tail2, BoneType.Tail3, BoneType.TailTip };
+
+        /// <summary>Where the tail ends, past its last joint.</summary>
+        public Vector3 TailEnd;
+
+        /// <summary>How long its toes are, from the ball of the foot, which the toes turn about.</summary>
+        public float ToeLength;
     }
 
     /// <summary>
@@ -93,13 +135,31 @@ namespace Dino_Engine.Animation
 
         public float ArmLength => Arms.Length > 0 ? Arms[0].Length : 0f;
 
-        public Rig(BodyPlan plan, Vector3[] pivots, float ankleHeight, float footForward, float footBack)
+        /// <summary>A dinosaur's, with a jaw, a neck in two, a long tail and toes, which are all moved. Anyone else's are where they'd be and stay out of it.</summary>
+        public bool Saurian => Frame != null;
+
+        public readonly SaurianFrame? Frame;
+
+        public Rig(BodyPlan plan, Vector3[] pivots, float ankleHeight, float footForward, float footBack, SaurianFrame? frame = null)
         {
             Plan = plan;
             Pivots = pivots;
             AnkleHeight = ankleHeight;
             FootForward = footForward;
             FootBack = footBack;
+            Frame = frame;
+
+            // Bones a body hasn't got sit on the joint they'd come from, so that everything hung from them is where it always was.
+            if (frame == null)
+            {
+                pivots[(int)BoneType.NeckTop] = pivots[(int)BoneType.Head];
+                pivots[(int)BoneType.Jaw] = pivots[(int)BoneType.Head];
+                pivots[(int)BoneType.Tail1] = pivots[(int)BoneType.TailTip];
+                pivots[(int)BoneType.Tail2] = pivots[(int)BoneType.TailTip];
+                pivots[(int)BoneType.Tail3] = pivots[(int)BoneType.TailTip];
+                pivots[(int)BoneType.ToeL] = pivots[(int)BoneType.FootL];
+                pivots[(int)BoneType.ToeR] = pivots[(int)BoneType.FootR];
+            }
 
             Parents = new int[BoneCount];
             Array.Fill(Parents, -1);
@@ -108,7 +168,9 @@ namespace Dino_Engine.Animation
             Join(BoneType.Spine, BoneType.Pelvis);
             Join(BoneType.Chest, BoneType.Spine);
             Join(BoneType.Neck, BoneType.Chest);
-            Join(BoneType.Head, BoneType.Neck);
+            Join(BoneType.NeckTop, BoneType.Neck);
+            Join(BoneType.Head, BoneType.NeckTop);
+            Join(BoneType.Jaw, BoneType.Head);
             Join(BoneType.ClavicleL, BoneType.Chest);
             Join(BoneType.ClavicleR, BoneType.Chest);
             Join(BoneType.UpperArmL, BoneType.ClavicleL);
@@ -124,19 +186,26 @@ namespace Dino_Engine.Animation
             Join(BoneType.LowerLegR, BoneType.UpperLegR);
             Join(BoneType.FootR, BoneType.LowerLegR);
             Join(BoneType.TailBase, BoneType.Pelvis);
-            Join(BoneType.TailTip, BoneType.TailBase);
+            Join(BoneType.Tail1, BoneType.TailBase);
+            Join(BoneType.Tail2, BoneType.Tail1);
+            Join(BoneType.Tail3, BoneType.Tail2);
+            Join(BoneType.TailTip, BoneType.Tail3);
+            Join(BoneType.ToeL, BoneType.FootL);
+            Join(BoneType.ToeR, BoneType.FootR);
 
             InverseBind = new Matrix4[BoneCount];
             for (int i = 0; i < BoneCount; i++) InverseBind[i] = Matrix4.CreateTranslation(-pivots[i]);
 
-            Limb hindLeft = new Limb(pivots, BoneType.Pelvis, BoneType.UpperLegL, BoneType.LowerLegL, BoneType.FootL, 1f, Vector3.UnitZ, plan == BodyPlan.Biped ? Vector3.UnitZ : -Vector3.UnitZ);
-            Limb hindRight = new Limb(pivots, BoneType.Pelvis, BoneType.UpperLegR, BoneType.LowerLegR, BoneType.FootR, -1f, Vector3.UnitZ, plan == BodyPlan.Biped ? Vector3.UnitZ : -Vector3.UnitZ);
+            // A dinosaur's knees go forward whether it stands on two legs or four, as a person's do. A furred animal's hind legs bend back at the hock.
+            Vector3 knees = plan == BodyPlan.Biped || frame != null ? Vector3.UnitZ : -Vector3.UnitZ;
+            Limb hindLeft = new Limb(pivots, BoneType.Pelvis, BoneType.UpperLegL, BoneType.LowerLegL, BoneType.FootL, 1f, Vector3.UnitZ, knees);
+            Limb hindRight = new Limb(pivots, BoneType.Pelvis, BoneType.UpperLegR, BoneType.LowerLegR, BoneType.FootR, -1f, Vector3.UnitZ, knees);
 
             if (plan == BodyPlan.Biped)
             {
                 Legs = new[] { hindLeft, hindRight };
 
-                // An arm is built out sideways, and folds as if it were hanging: the elbow goes back.
+                // An arm is built out sideways, and folds as if it were hanging: the elbow goes back. A dinosaur's are built folded, and go the same way.
                 Arms = new[]
                 {
                     new Limb(pivots, BoneType.ClavicleL, BoneType.UpperArmL, BoneType.LowerArmL, BoneType.HandL, 1f, -Vector3.UnitZ, -Vector3.UnitZ),
@@ -145,13 +214,15 @@ namespace Dino_Engine.Animation
             }
             else
             {
-                // On an animal the same bones are forelegs. They're built out to the side all the same, but they carry weight, and the middle joint goes forward.
+                // On an animal the same bones are forelegs. They're built out to the side all the same, but they carry weight, and the middle joint goes forward. A dinosaur stands on its
+                // forelegs as an elephant does, built hanging under the shoulder with the elbow back.
+                Vector3 elbows = frame != null ? -Vector3.UnitZ : Vector3.UnitZ;
                 Legs = new[]
                 {
                     hindLeft,
                     hindRight,
-                    new Limb(pivots, BoneType.Chest, BoneType.UpperArmL, BoneType.LowerArmL, BoneType.HandL, 1f, Vector3.UnitZ, Vector3.UnitZ),
-                    new Limb(pivots, BoneType.Chest, BoneType.UpperArmR, BoneType.LowerArmR, BoneType.HandR, -1f, Vector3.UnitZ, Vector3.UnitZ),
+                    new Limb(pivots, BoneType.Chest, BoneType.UpperArmL, BoneType.LowerArmL, BoneType.HandL, 1f, elbows, elbows),
+                    new Limb(pivots, BoneType.Chest, BoneType.UpperArmR, BoneType.LowerArmR, BoneType.HandR, -1f, elbows, elbows),
                 };
                 Arms = Array.Empty<Limb>();
             }
@@ -159,6 +230,14 @@ namespace Dino_Engine.Animation
             HipHeight = pivots[(int)BoneType.Pelvis].Y;
             LegLength = HipHeight;
         }
+
+        /// <summary>The toe bone on the end of a leg, if it has one of its own.</summary>
+        public static BoneType ToeOf(BoneType foot) => foot switch
+        {
+            BoneType.FootL => BoneType.ToeL,
+            BoneType.FootR => BoneType.ToeR,
+            _ => BoneType.Count,
+        };
 
         /// <summary>Where a person's joints are. The meshes in <see cref="Modelling.Procedural.Character.HumanoidGenerator"/> and the armour around <see cref="Modelling.Procedural.Gear.BodyForm"/> are built around these.</summary>
         public static readonly Rig Humanoid = BuildHumanoid();
@@ -307,8 +386,8 @@ namespace Dino_Engine.Animation
             Vector3 upperDirection = (middle - root) / a;
             Vector3 lowerDirection = (end - middle) / b;
             Vector3 hinge = Vector3.Cross(direction, across);
-            upper = Frames.Of(upperDirection, Vector3.Cross(hinge, upperDirection)) * limb.RestFrameInverse;
-            lower = Frames.Of(lowerDirection, Vector3.Cross(hinge, lowerDirection)) * limb.RestFrameInverse;
+            upper = Frames.Of(upperDirection, Vector3.Cross(hinge, upperDirection)) * limb.RestUpperInverse;
+            lower = Frames.Of(lowerDirection, Vector3.Cross(hinge, lowerDirection)) * limb.RestLowerInverse;
         }
     }
 }

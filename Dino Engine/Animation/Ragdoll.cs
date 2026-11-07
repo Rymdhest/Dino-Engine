@@ -36,6 +36,8 @@ namespace Dino_Engine.Animation
 
         public readonly Rig Rig;
         public readonly bool HasTail;
+        public readonly BoneType[] Tail = Array.Empty<BoneType>();     // From the hips out, the tail's bones that fall.
+        public readonly int[] Carried;      // Bones that are no part of how it falls, each after what it hangs from.
         public readonly float Span;         // The furthest any part of it is from its hips.
         public readonly bool[] Used = new bool[PointCount];
         public readonly float[] InverseMass = new float[PointCount];
@@ -54,12 +56,19 @@ namespace Dino_Engine.Animation
         {
             Rig = rig;
             bool biped = rig.Plan == BodyPlan.Biped;
+            SaurianFrame? frame = rig.Frame;
             Array.Copy(rig.Pivots, Rest, Rig.BoneCount);
-            Vector3 headTop = rig.Pivots[(int)BoneType.Head] + (biped ? Vector3.UnitY * 0.72f : Vector3.UnitZ * 0.7f);
+            Vector3 headTop = frame != null ? frame.HeadTip : rig.Pivots[(int)BoneType.Head] + (biped ? Vector3.UnitY * 0.72f : Vector3.UnitZ * 0.7f);
             Rest[HeadTop] = headTop;
 
+            // A dinosaur is as thick at each bone as its body is there, and as heavy as that thickness goes, which is the only way a tyrant and a little hunter can fall alike.
             void Use(BoneType bone, float mass, float radius)
             {
+                if (frame != null && frame.Thickness[(int)bone] > 0f)
+                {
+                    radius = frame.Thickness[(int)bone];
+                    mass = MathF.Max(radius * radius * 30f, 0.2f);
+                }
                 Used[(int)bone] = true;
                 InverseMass[(int)bone] = 1f / mass;
                 Radius[(int)bone] = radius;
@@ -69,10 +78,11 @@ namespace Dino_Engine.Animation
             Use(BoneType.Spine, 8f, 0.5f);
             Use(BoneType.Chest, 9f, 0.56f);
             Use(BoneType.Neck, 2f, 0.2f);
+            if (frame != null) Use(BoneType.NeckTop, 2f, 0.2f);
             Use(BoneType.Head, 2.5f, 0.32f);
             Used[HeadTop] = true;
-            InverseMass[HeadTop] = 1f / 2.5f;
-            Radius[HeadTop] = 0.34f;
+            InverseMass[HeadTop] = InverseMass[(int)BoneType.Head];
+            Radius[HeadTop] = frame != null ? Radius[(int)BoneType.Head] * 0.6f : 0.34f;
 
             foreach (Limb limb in rig.Legs)
             {
@@ -87,12 +97,18 @@ namespace Dino_Engine.Animation
                 Use(limb.Lower, 1.3f, 0.12f);
                 Use(limb.End, 1f, 0.1f);
             }
-            HasTail = !biped && (Rest[(int)BoneType.TailBase] - Rest[(int)BoneType.TailTip]).LengthSquared > 1e-4f;
-            if (HasTail)
+            if (frame != null)
             {
+                Tail = frame.Tail;
+                foreach (BoneType bone in Tail) Use(bone, 0.6f, 0.08f);
+            }
+            else if (!biped && (Rest[(int)BoneType.TailBase] - Rest[(int)BoneType.TailTip]).LengthSquared > 1e-4f)
+            {
+                Tail = new[] { BoneType.TailBase, BoneType.TailTip };
                 Use(BoneType.TailBase, 0.6f, 0.08f);
                 Use(BoneType.TailTip, 0.4f, 0.06f);
             }
+            HasTail = Tail.Length > 0;
 
             for (int i = 0; i < PointCount; i++)
             {
@@ -103,12 +119,33 @@ namespace Dino_Engine.Animation
             void Join(int a, int b) => sticks.Add(new Stick(a, b, (Rest[a] - Rest[b]).Length, InverseMass[a], InverseMass[b]));
             void Bones(BoneType a, BoneType b) => Join((int)a, (int)b);
 
+            // Each point hangs from the nearest thing above it that's a point too: a person's head from their neck, past a bone at the top of the neck that only a dinosaur moves.
             for (int bone = 0; bone < Rig.BoneCount; bone++)
             {
+                if (!Used[bone]) continue;
                 int parent = rig.Parents[bone];
-                if (parent >= 0 && Used[bone] && Used[parent]) Join(bone, parent);
+                while (parent >= 0 && !Used[parent]) parent = rig.Parents[parent];
+                if (parent >= 0) Join(bone, parent);
             }
             Join((int)BoneType.Head, HeadTop);
+
+            // Bones that aren't part of how it falls are carried by what they hang from, in the order they hang, as a jaw goes with a head and toes with a foot. Only a dinosaur has skin on any of
+            // those: anyone else's are left be, as they always were.
+            var carried = new List<int>();
+            var placed = new bool[Rig.BoneCount];
+            for (int i = 0; i < Rig.BoneCount; i++) placed[i] = Used[i] || rig.Parents[i] < 0 || frame == null;
+            for (bool more = true; more;)
+            {
+                more = false;
+                for (int i = 0; i < Rig.BoneCount; i++)
+                {
+                    if (placed[i] || !placed[rig.Parents[i]]) continue;
+                    placed[i] = true;
+                    carried.Add(i);
+                    more = true;
+                }
+            }
+            Carried = carried.ToArray();
 
             // Forelegs hang from the chest, where a person's arms hang from a collarbone.
             if (!biped)
@@ -144,6 +181,15 @@ namespace Dino_Engine.Animation
                 if (biped) Apart((int)limb.Lower, (int)BoneType.Chest, 0.62f);
             }
             foreach (Limb limb in rig.Arms) Apart((int)limb.Upper, (int)limb.End, 0.32f);
+
+            // A long neck and tail can curl, but not fold back on themselves.
+            if (frame != null)
+            {
+                Apart((int)BoneType.Chest, (int)BoneType.NeckTop, 0.8f);
+                Apart((int)BoneType.Neck, (int)BoneType.Head, 0.8f);
+                Apart((int)BoneType.Pelvis, (int)Tail[1], 0.8f);
+                for (int i = 0; i + 2 < Tail.Length; i++) Apart((int)Tail[i], (int)Tail[i + 2], 0.85f);
+            }
             Spacers = spacers.ToArray();
 
             var hinges = new List<Hinge>();
@@ -161,7 +207,12 @@ namespace Dino_Engine.Animation
             Bone(BoneType.Pelvis, (int)BoneType.Spine, hipL, hipR);
             Bone(BoneType.Spine, (int)BoneType.Chest, hipL, hipR);
             Bone(BoneType.Chest, (int)BoneType.Neck, shoulderL, shoulderR);
-            Bone(BoneType.Neck, (int)BoneType.Head, shoulderL, shoulderR);
+            if (frame != null)
+            {
+                Bone(BoneType.Neck, (int)BoneType.NeckTop, shoulderL, shoulderR);
+                Bone(BoneType.NeckTop, (int)BoneType.Head, shoulderL, shoulderR);
+            }
+            else Bone(BoneType.Neck, (int)BoneType.Head, shoulderL, shoulderR);
             Bone(BoneType.Head, HeadTop, shoulderL, shoulderR);
             Trunk = trunk.ToArray();
         }
@@ -196,6 +247,8 @@ namespace Dino_Engine.Animation
         private readonly Quaternion[] _rotations = new Quaternion[Rig.BoneCount];
         private readonly Quaternion[] _handsOnArms = new Quaternion[Rig.BoneCount];
         private readonly Quaternion[] _limbTwist = new Quaternion[Rig.BoneCount];
+        private readonly Quaternion[] _onParent = new Quaternion[Rig.BoneCount];   // How each bone was turned on what it hangs from, when it fell.
+        private readonly Vector3[] _carried = new Vector3[Rig.BoneCount];
         private float _time;
         private float _still;
 
@@ -241,7 +294,12 @@ namespace Dino_Engine.Animation
                 _drawnFrom[i] = at;
             }
 
-            for (int i = 0; i < Rig.BoneCount; i++) _rotations[i] = rotations[i];
+            for (int i = 0; i < Rig.BoneCount; i++)
+            {
+                _rotations[i] = rotations[i];
+                int parent = rig.Parents[i];
+                _onParent[i] = parent >= 0 ? Quaternion.Invert(rotations[parent]) * rotations[i] : Quaternion.Identity;
+            }
             ReadTwists(rotations);
         }
 
@@ -329,7 +387,9 @@ namespace Dino_Engine.Animation
             Vector3 hipsUp = _at[(int)BoneType.Spine] - _at[(int)BoneType.Pelvis];
             Vector3 shouldersLeft = _at[(int)BoneType.UpperArmL] - _at[(int)BoneType.UpperArmR];
             Vector3 shouldersUp = _at[(int)BoneType.Neck] - _at[(int)BoneType.Chest];
-            if (_plan.Rig.Plan == BodyPlan.Quadruped)
+
+            // Anything whose back runs level, a dinosaur on two legs as much as anything on four, finds its up square to its back.
+            if (_plan.Rig.Plan == BodyPlan.Quadruped || _plan.Rig.Saurian)
             {
                 hipsUp = Vector3.Cross(_at[(int)BoneType.Spine] - _at[(int)BoneType.Pelvis], hipsLeft);
                 shouldersUp = hipsUp;
@@ -442,6 +502,19 @@ namespace Dino_Engine.Animation
             {
                 if (!_plan.Used[i]) continue;
                 Vector3 at = Vector3.Lerp(_drawnFrom[i], _at[i], alpha) - Vector3.UnitY * sunk;
+                _carried[i] = at;
+                joints[i] = Vector3.Transform(at - position, toBody) * inverse;
+                rotations[i] = toBody * _rotations[i];
+            }
+
+            // What isn't a point goes with what it hangs from, turned on it as it was when it fell.
+            Rig rig = _plan.Rig;
+            foreach (int i in _plan.Carried)
+            {
+                int parent = rig.Parents[i];
+                _rotations[i] = _rotations[parent] * _onParent[i];
+                Vector3 at = _carried[parent] + Vector3.Transform(rig.Pivots[i] - rig.Pivots[parent], _rotations[parent]) * _scale;
+                _carried[i] = at;
                 joints[i] = Vector3.Transform(at - position, toBody) * inverse;
                 rotations[i] = toBody * _rotations[i];
             }
@@ -461,13 +534,17 @@ namespace Dino_Engine.Animation
             }
 
             foreach (Limb limb in rig.Legs) ReadLimb(limb, _rotations[limb.Parent == BoneType.Chest ? (int)BoneType.Chest : (int)BoneType.Pelvis]);
-            if (_plan.HasTail)
+
+            // Each piece of a tail points at the next, and the last one goes on the way the one before it went.
+            BoneType[] tail = _plan.Tail;
+            for (int i = 0; i + 1 < tail.Length; i++)
             {
-                Vector3 restTail = (rig.Pivots[(int)BoneType.TailTip] - rig.Pivots[(int)BoneType.TailBase]).Normalized();
-                Vector3 tail = _at[(int)BoneType.TailTip] - _at[(int)BoneType.TailBase];
-                if (tail.LengthSquared > 1e-8f) _rotations[(int)BoneType.TailBase] = Frames.Between(restTail, tail.Normalized());
-                _rotations[(int)BoneType.TailTip] = _rotations[(int)BoneType.TailBase];
+                int from = (int)tail[i], to = (int)tail[i + 1];
+                Vector3 rest = (rig.Pivots[to] - rig.Pivots[from]).Normalized();
+                Vector3 now = _at[to] - _at[from];
+                if (now.LengthSquared > 1e-8f) _rotations[from] = Frames.Between(rest, now.Normalized());
             }
+            if (tail.Length > 1) _rotations[(int)tail[^1]] = _rotations[(int)tail[^2]];
             foreach (Limb limb in rig.Arms)
             {
                 _rotations[(int)limb.Parent] = _rotations[(int)BoneType.Chest];
@@ -493,8 +570,8 @@ namespace Dino_Engine.Animation
             hinge.Normalize();
 
             // Each bone's own frame is a direction along it and the way its middle joint goes.
-            _rotations[(int)limb.Upper] = Frames.Of(upperWay, Vector3.Cross(hinge, upperWay)) * limb.RestFrameInverse;
-            _rotations[(int)limb.Lower] = Frames.Of(lowerWay, Vector3.Cross(hinge, lowerWay)) * limb.RestFrameInverse;
+            _rotations[(int)limb.Upper] = Frames.Of(upperWay, Vector3.Cross(hinge, upperWay)) * limb.RestUpperInverse;
+            _rotations[(int)limb.Lower] = Frames.Of(lowerWay, Vector3.Cross(hinge, lowerWay)) * limb.RestLowerInverse;
             _rotations[(int)limb.End] = _rotations[(int)limb.Lower] * _handsOnArms[(int)limb.End];
         }
     }
