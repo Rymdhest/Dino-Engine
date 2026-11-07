@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using System.Text;
 using static Dino_Defenders.Stats.Rulebook;
@@ -65,10 +65,10 @@ namespace Dino_Defenders.Tooltips
             Name(Stat.ProjectileCount, "Projectiles");
             Name(Stat.Pierce, "Pierce");
             Name(Stat.Chain, "Chains");
-            Name(Stat.SkillDuration, "Skill Duration");
+            Name(Stat.PageDuration, "Page Duration");
             Name(Stat.CooldownRecovery, "Cooldown Recovery");
-            Name(Stat.SkillCost, "Skill Cost");
-            Name(Stat.SkillLevel, "Levels of Skills");
+            Name(Stat.BookCost, "Book Cost");
+            Name(Stat.Potency, "Potency");
             Name(Stat.AilmentChance, "Chance", true);
             Name(Stat.AilmentDuration, "Duration");
             Name(Stat.AilmentEffect, "Effect");
@@ -105,9 +105,9 @@ namespace Dino_Defenders.Tooltips
 
     /// <summary>A change to how the game works, in words. Numbers in <see cref="Text"/> come from where the rule reads them.</summary>
     /// <param name="Touches">What it's about: it shows on anything with all of these, and among a talent's tags.</param>
-    /// <param name="Casts">A skill it sets off, shown beside it with that skill's own numbers.</param>
+    /// <param name="Casts">A book it sets off, shown beside it with that book's own numbers.</param>
     /// <param name="Gives">A buff it hands out, shown the same way.</param>
-    public sealed record RuleInfo(Rule Rule, string Text, Tags Touches = Tags.None, SkillDefinition? Casts = null, BuffDefinition? Gives = null);
+    public sealed record RuleInfo(Rule Rule, string Text, Tags Touches = Tags.None, BookPlan? Casts = null, BuffDefinition? Gives = null);
 
     /// <summary>
     /// Turns a modifier into a line of text by the rules in TOOLTIPS.md, so that nobody has to write one out by hand and have it drift from what the numbers do. Each part of a modifier has one
@@ -118,7 +118,7 @@ namespace Dino_Defenders.Tooltips
         private static readonly (Tags tag, string word)[] Adjectives =
         {
             (Tags.Melee, "Melee"), (Tags.Projectile, "Projectile"), (Tags.Area, "Area"), (Tags.Zone, "Zone"), (Tags.Chaining, "Chaining"), (Tags.Movement, "Movement"), (Tags.Buff, "Buff"),
-            (Tags.Triggered, "Triggered"), (Tags.Reaction, "Reaction"),
+            (Tags.Triggered, "Triggered"), (Tags.Reaction, "Reaction"), (Tags.Opening, "Opening Page"), (Tags.Turned, "Turned Page"), (Tags.Closing, "Closing Page"), (Tags.Wild, "Wild"), (Tags.Falling, "Falling"),
             (Tags.Elemental, "Elemental"), (Tags.Physical, "Physical"), (Tags.Fire, "Fire"), (Tags.Cold, "Cold"), (Tags.Lightning, "Lightning"), (Tags.Magic, "Magic"), (Tags.Poison, "Poison"),
             (Tags.Attack, "Attack"), (Tags.Spell, "Spell"), (Tags.Hit, "Hit"),
             (Tags.Burn, "Burn"), (Tags.Bleed, "Bleed"), (Tags.Venom, "Venom"), (Tags.Chill, "Chill"), (Tags.Freeze, "Freeze"), (Tags.Shock, "Shock"), (Tags.Hex, "Hex"), (Tags.Stun, "Stun"),
@@ -145,7 +145,7 @@ namespace Dino_Defenders.Tooltips
             (Condition.RecentlyCrit, "if you've dealt a Critical Hit Recently", "that have dealt a Critical Hit Recently"),
             (Condition.RecentlyBlocked, "if you've Blocked Recently", "that have Blocked Recently"),
             (Condition.RecentlyDodged, "if you've Dodged a Hit Recently", "that have Dodged a Hit Recently"),
-            (Condition.RecentlyUsedSkill, "if you've used a Skill Recently", "that have used a Skill Recently"),
+            (Condition.RecentlyUsedBook, "if you've used a Book Recently", "that have used a Book Recently"),
             (Condition.Burning, "while Burning", "that are Burning"),
             (Condition.Bleeding, "while Bleeding", "that are Bleeding"),
             (Condition.Envenomed, "while Envenomed", "that are Envenomed"),
@@ -171,29 +171,29 @@ namespace Dino_Defenders.Tooltips
 
         private static readonly RuleInfo[] RuleTable =
         {
-            new(Rule.CostsHealth, "Skills Cost Health instead of Mana"),
+            new(Rule.CostsHealth, "Books Cost Health instead of Mana"),
             new(Rule.DeferredDamage, $"Damage you take becomes Debt, which drains your Health by {Say.Share(1f / Hits.DebtSeconds)} of itself a second, at least {Say.Share(DebtLeast)} of Maximum Health. Each Kill removes {Say.Share(DebtForgiven)} of it"),
             new(Rule.OverhealBarrier, $"Healing above Maximum Health becomes Barrier, up to {Say.Share(OverhealMost)} of Maximum Health over your Maximum Barrier"),
             new(Rule.BlockReflects, "Hits you Block are sent back as Physical Indirect Damage"),
             new(Rule.Guardian, $"Other Heroes within {Say.Metres(GuardianReach)} take {Say.Share(GuardianShare)} less Damage from Hits. You take that share instead"),
             new(Rule.Puppeteer, "Your Minions also get your Damage, Attack Speed, Cast Speed, Critical Chance and Critical Multiplier modifiers", Tags.Minion),
             new(Rule.EndlessVenom, $"Your Venom can have {AilmentRules.MostEndlessVenom} Stacks instead of {AilmentRules.MostVenom}", Tags.Venom),
-            new(Rule.Carrier, $"You can't be Envenomed. Every {Say.Seconds(CarrierInterval)}, Trigger Contagion within {Say.Metres(SkillCatalog.VenomCloud.Radius)}", Tags.Venom, Casts: SkillCatalog.VenomCloud),
+            new(Rule.Carrier, $"You can't be Envenomed. Every {Say.Seconds(CarrierInterval)}, Trigger Contagion within {Say.Metres(Shelf.VenomCloud.First.Length)}", Tags.Venom, Casts: Shelf.VenomCloud),
             new(Rule.AilmentsLeap, $"Enemies you Kill pass their Burn, Bleed, Venom, Chill and Shock to Enemies within {Say.Metres(AilmentLeapReach)}"),
             new(Rule.FireFeedsBurn, "Your Fire Hits deal no Damage. All of it becomes a guaranteed Burn", Tags.Fire | Tags.Burn),
-            new(Rule.BurningTrail, $"Leave Burning Ground every {Say.Metres(TrailSpacing)} you move", Tags.Fire, Casts: SkillCatalog.CinderTrail),
+            new(Rule.BurningTrail, $"Leave Burning Ground every {Say.Metres(TrailSpacing)} you move", Tags.Fire, Casts: Shelf.CinderTrail),
             new(Rule.Rebirth, $"Once every {Say.Seconds(RebirthCooldown)}, when you would die, return with {Say.Share(RebirthHealth)} of Maximum Health and deal Fire Indirect Damage equal to {Say.Share(RebirthBlast)} of Maximum Health within {Say.Metres(RebirthRadius)}", Tags.Fire),
             new(Rule.SpellEcho, $"Spells repeat after {Say.Seconds(EchoDelay)} at {Say.Share(EchoStrength)} Damage, with no Cost. Triggered Spells don't repeat", Tags.Spell),
-            new(Rule.NoCooldowns, $"Skills have no Cooldown, and Cost {Say.Share(NoCooldownCost)} more per second of Cooldown removed. Movement Skills keep theirs"),
+            new(Rule.OneCost, "Only the first Page of a Book has a Cost"),
             new(Rule.StaticCharge, $"Moving builds one charge per metre, up to {Say.Whole(MostStatic)}. Your next Hit uses all of them for {Say.Share(StaticPerCharge)} more Damage each", Tags.Hit),
             new(Rule.ChainsGrow, $"Each Chain deals {Say.Share(ChainGrowth - 1f)} more Damage instead of {Say.Share(1f - ChainFade)} less", Tags.Chaining),
             new(Rule.FreezeStores, $"Damage to Frozen Enemies is stored. When the Freeze ends it lands as Cold Indirect Damage with {Say.Share(StoredBonus)} more", Tags.Cold),
             new(Rule.HighGround, $"{Say.Share(HighGroundPerMetre)} more Damage per metre above your target, up to {Say.Share(HighGroundMost)}. {Say.Share(LowGroundPerMetre)} less per metre below, up to {Say.Share(LowGroundMost)}"),
             new(Rule.LongShot, $"Projectiles deal {Say.Share(LongShotPerMetre)} more Damage per metre flown, up to {Say.Share(LongShotMost)}, and {Say.Share(LongShotNearLess)} less within {Say.Metres(LongShotNear)}", Tags.Projectile),
             new(Rule.ProjectilesReturn, "Projectiles fly back to you when spent, and can Hit everything again", Tags.Projectile),
-            new(Rule.Mimic, "The last Skill that Hit you goes in the last slot of your Bar, using your Stats"),
+            new(Rule.Steady, "Nothing on your Pages is left to chance: they find the nearest Enemy and go where they're aimed, and pay as if they hadn't", Tags.Wild),
             new(Rule.DodgeCrit, "After you Dodge a Hit, your next Hit is a Critical Hit"),
-            new(Rule.WaterTrail, "Spells leave Standing Water where aimed. Triggered Spells don't", Tags.Spell, Casts: SkillCatalog.Puddle),
+            new(Rule.WaterTrail, "Spells leave Standing Water where aimed. Triggered Spells don't", Tags.Spell, Casts: Shelf.Puddle),
             new(Rule.NoLeech, "You can't Leech"),
             new(Rule.NoRegen, "You can't Regenerate Health"),
             new(Rule.NeverCrit, "You can't deal Critical Hits"),
@@ -205,7 +205,7 @@ namespace Dino_Defenders.Tooltips
             new(Rule.AlwaysShocked, $"You are always Shocked, taking at least {Say.Share(AlwaysShockedTaken)} more Damage", Tags.Shock),
             new(Rule.ChillNeverFades, $"Your Chill doesn't fade while the Enemy is within {Say.Metres(ChillReach)}", Tags.Chill),
             new(Rule.FireHeals, $"{Say.Share(FireHealShare)} of Fire Damage from Hits heals you instead", Tags.Fire),
-            new(Rule.NoOwnDamage, "Your Skills deal no Damage"),
+            new(Rule.NoOwnDamage, "Your Books deal no Damage"),
             new(Rule.LuckyHits, "Damage is rolled twice, keeping the better roll"),
             new(Rule.BurstsOnDeath, $"Bursts {Say.Seconds(BurstDelay)} after death for Fire Indirect Damage within {Say.Metres(BurstRadius)}, worth {Say.Share(BurstShare)} of a normal Enemy Hit", Tags.Fire),
             new(Rule.RalliesOnDeath, $"On death, gives Rallied to allies within {Say.Metres(RallyReach)}", Gives: BuffCatalog.Rallied),
@@ -273,7 +273,6 @@ namespace Dino_Defenders.Tooltips
         {
             var tail = new StringBuilder();
             tail.Append(WeaponWords(mod.Scope));
-            if (mod.Skill != SkillDefinition.None && mod.Kind is ModKind.Flat or ModKind.Increased or ModKind.More) tail.Append(" with ").Append(SkillCatalog.Get(mod.Skill).Name);
             tail.Append(Foes(mod.Foe));
             tail.Append(Own(mod.Need));
             if (mod.Without != Condition.None) tail.Append(" unless").Append(Own(mod.Without).Replace(" while ", " ").Replace(" if ", " "));
@@ -318,11 +317,10 @@ namespace Dino_Defenders.Tooltips
                 ModKind.Flat => DescribeFlat(mod),
                 ModKind.Increased => DescribeScaled(mod, "increased", "reduced"),
                 ModKind.More => DescribeScaled(mod, "more", "less"),
-                ModKind.Override when mod.Stat == Stat.MinionCount => $"Minion Skills raise only {Say.Whole(mod.Value)} of their Minions{Tail(mod)}",
+                ModKind.Override when mod.Stat == Stat.MinionCount => $"Pages raise only {Say.Whole(mod.Value)} of their Minions{Tail(mod)}",
                 ModKind.Override => $"{Subject(mod)}is set to {Number(mod.Value)}{(StatNames.Of(mod.Stat).Percent ? "%" : "")}{Tail(mod)}",
                 ModKind.Rule => DescribeRule(mod),
                 ModKind.Grant => DescribeGrant(mod),
-                ModKind.GrantSkill => $"Grants the Skill {SkillCatalog.Get(mod.Skill).Name}",
                 ModKind.Divert => $"increased, reduced, more and less {StatNames.Of(mod.Stat).Name} apply to {Adjective(mod.Scope)}{StatNames.Of(mod.Into).Name} instead{Rate(mod)}",
                 ModKind.Echo => $"increased, reduced, more and less {StatNames.Of(mod.Stat).Name} also apply to {Adjective(mod.Scope)}{StatNames.Of(mod.Into).Name}{Rate(mod)}",
                 ModKind.Trigger => DescribeTrigger(mod),
@@ -367,7 +365,7 @@ namespace Dino_Defenders.Tooltips
                 _ => "When you use a Flask",
             };
             string chance = mod.Value >= 100f ? ", Trigger" : $", {Number(mod.Value)}% Chance to Trigger";
-            return $"{when}{chance} {SkillCatalog.Get(mod.Skill).Name}";
+            return $"{when}{chance} {Shelf.Get(mod.Book).Name}";
         }
 
         // Damage narrowed to what lingers has a name of its own, and "Damage over Time Damage" isn't it.
@@ -437,9 +435,6 @@ namespace Dino_Defenders.Tooltips
 
                 case Stat.BarrierDelay or Stat.MeleeReach:
                     return $"{sign}{number} {name.Name}{Tail(mod)}";
-
-                case Stat.SkillLevel:
-                    return $"{sign}{number} Level{(MathF.Abs(mod.Value) == 1f ? "" : "s")} of {Adjective(scope)}Skills{Tail(mod)}";
             }
 
             return $"{sign}{number} {Adjective(scope)}{name.Name}{Tail(mod)}";
@@ -452,7 +447,7 @@ namespace Dino_Defenders.Tooltips
             if (rest == Tags.None) return "";
             if (rest == Tags.Attack) return " with Attacks";
             if (rest == Tags.Spell) return " with Spells";
-            return $" with {Adjective(rest)}Skills";
+            return $" with {Adjective(rest)}Pages";
         }
 
         private static string SingularOf(string name) => name switch
@@ -460,7 +455,6 @@ namespace Dino_Defenders.Tooltips
             "Minions" => "Minion",
             "Projectiles" => "Projectile",
             "Chains" => "Chain",
-            "Levels of Skills" => "Level of Skills",
             _ => name,
         };
 

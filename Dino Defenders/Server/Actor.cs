@@ -1,6 +1,6 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -96,6 +96,9 @@ namespace Dino_Defenders.Server
         public readonly Vector2[] Trail = new Vector2[TrailTicks];
         public readonly List<ActiveBuff> Buffs = new();
 
+        /// <summary>What it has lingering on the ground, oldest first.</summary>
+        public readonly List<ZoneState> Zones = new();
+
         /// <summary>What it is with nothing on it.</summary>
         public readonly Loadout Innate;
 
@@ -153,12 +156,12 @@ namespace Dino_Defenders.Server
         /// <summary>How long until each of its triggers can go off again. Follows the loadout.</summary>
         public float[] TriggerReady;
 
-        /// <summary>How long each of its skills has left to cool. A hero's are in their step; everyone else's are here.</summary>
+        /// <summary>How long each of its books has left to cool. A hero's are in their step; everyone else's are here.</summary>
         public float[] Cooldowns;
 
         public Item[]? Gear;            // What it's wearing, and will drop.
         public float MinionLeft = float.PositiveInfinity;
-        public SkillDefinition? MinionOf;
+        public string? MinionOf;        // What kind of minion it is, which is how many of a kind are counted.
 
         public bool IsHero => Player != null;
 
@@ -172,7 +175,7 @@ namespace Dino_Defenders.Server
             Position = position;
             Radius = radius;
             Array.Fill(Trail, position);
-            Cooldowns = new float[loadout.Skills.Length];
+            Cooldowns = new float[loadout.Books.Length];
             TriggerReady = new float[loadout.Triggers.Length];
         }
 
@@ -222,7 +225,7 @@ namespace Dino_Defenders.Server
             if (SinceCrit < Rulebook.Recently) state |= Condition.RecentlyCrit;
             if (SinceBlock < Rulebook.Recently) state |= Condition.RecentlyBlocked;
             if (SinceDodge < Rulebook.Recently) state |= Condition.RecentlyDodged;
-            if (SinceUse < Rulebook.Recently) state |= Condition.RecentlyUsedSkill;
+            if (SinceUse < Rulebook.Recently) state |= Condition.RecentlyUsedBook;
             if (Sheet.Has(Rule.AlwaysShocked)) state |= Condition.Shocked;
             State = state | Loadout.Granted;
 
@@ -249,7 +252,7 @@ namespace Dino_Defenders.Server
             Vitals.Mana = MathF.Min(Vitals.Mana, Sheet.MaxMana);
 
             // These go by place in the loadout, and a new one can hold more or less.
-            if (Cooldowns.Length != loadout.Skills.Length) Cooldowns = new float[loadout.Skills.Length];
+            if (Cooldowns.Length != loadout.Books.Length) Cooldowns = new float[loadout.Books.Length];
             if (TriggerReady.Length != loadout.Triggers.Length) TriggerReady = new float[loadout.Triggers.Length];
         }
 

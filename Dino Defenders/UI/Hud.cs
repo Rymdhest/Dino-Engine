@@ -82,7 +82,6 @@ namespace Dino_Defenders.UI
             DrawFloatingTexts(draw, session, screen);
             DrawGuidance(draw, session, screen);
             DrawVitals(draw, session, screen);
-            DrawAbilities(draw, session, screen);
             DrawChronicle(draw, session, screen);
             DrawLog(draw, session, screen);
             DrawBanner(draw, session, screen);
@@ -313,52 +312,6 @@ namespace Dino_Defenders.UI
                     GameUi.Current.Tips.Show(() => Cards.Buff(shown.Buff, session.Sheet, shown.Stacks, shown.Left), place, above: true);
                 }
                 x += width + 14f;
-            }
-        }
-
-        private readonly record struct Ability(string Key, string Name, float Share, bool Ready, Func<Card?> Card);
-
-        private void DrawAbilities(GuiDrawList draw, GameSession session, GuiRect screen)
-        {
-            var abilities = new List<Ability>(HeroState.SkillSlots + 3);
-            HeroSimState sim = session.Sim;
-            for (int slot = 0; slot < HeroState.SkillSlots; slot++)
-            {
-                SkillProfile? skill = session.Client.Kit.Slots[slot];
-                string? held = session.Hero.Bar[slot];
-                if (skill == null && slot > 2 && held == null) continue;
-
-                // Something on the bar that can't be used right now still shows, dimmed: a bow skill with a sword in hand.
-                string name = skill?.Skill.Name ?? (held != null ? Skills.SkillCatalog.Find(held)?.Name ?? "" : "");
-                float wait = skill != null && skill.Cooldown > 0f ? sim.Cooldowns[slot] / skill.Cooldown : 0f;
-                bool affordable = skill != null && (skill.CostsHealth ? session.Health > skill.Cost : sim.Mana >= skill.Cost);
-                Skills.SkillDefinition? known = skill?.Skill ?? (held != null ? Skills.SkillCatalog.Find(held) : null);
-                abilities.Add(new(SkillPanel.Keys[slot], name, wait, affordable, () => known != null ? Cards.Skill(session.Sheet.Preview(known)) : null));
-            }
-            abilities.Add(new("Space", "Dodge", sim.DodgeCooldown / MathF.Max(session.Sheet.DodgeCooldown, 0.1f), true, () => Cards.Dodge(session.Sheet)));
-            abilities.Add(new("R", $"Flask {session.Hero.Flasks}", 0f, session.Hero.Flasks > 0, () => Cards.Flask(session.Hero, session.Sheet)));
-            if (session.Hero.HasGuidingWind) abilities.Add(new("F", "Wind", session.GuideCooldown / Rulebook.GuideCooldown, true, Cards.Wind));
-
-            const float size = 62f;
-            const float gap = 8f;
-            float total = abilities.Count * size + (abilities.Count - 1) * gap;
-            float x = (screen.Width - total) * 0.5f;
-            float y = screen.Height - Margin - size;
-
-            foreach (Ability ability in abilities)
-            {
-                GuiRect slot = new GuiRect(x, y, size, size);
-                draw.AddRect(slot, Ui.Ink, 3f, 1f, GuiColors.Rgba(120, 96, 58));
-
-                float share = Math.Clamp(ability.Share, 0f, 1f);
-                if (share > 0f) draw.AddRect(new GuiRect(x, y + size * (1f - share), size, size * share), GuiColors.Rgba(150, 120, 70, 90), 3f);
-
-                Colour colour = !ability.Ready ? Ui.Faded.MultiplyAlpha(0.6f) : share > 0f ? Ui.Faded : Ui.Parchment;
-                float nameSize = ability.Name.Length > 8 ? 10.5f : 12.5f;
-                Ui.Text(Context!, draw, ability.Name, nameSize, new GuiRect(x, y + 8f, size, 22f), colour, Alignment.Center);
-                Ui.Text(Context!, draw, ability.Key, 11.5f, new GuiRect(x, y + size - 22f, size, 18f), Ui.Gold, Alignment.Center);
-                if (Resting(slot)) GameUi.Current.Tips.Show(ability.Card, slot, above: true);
-                x += size + gap;
             }
         }
 

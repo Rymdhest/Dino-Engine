@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 
 namespace Dino_Defenders.Stats
 {
@@ -32,7 +32,7 @@ namespace Dino_Defenders.Stats
         public readonly Mod[] Triggers;
 
         /// <summary>What it can use. Slot numbers and profiles refer to places in this.</summary>
-        public readonly SkillDefinition[] Skills;
+        public readonly BookPlan[] Books;
 
         /// <summary>Conditions that are always true of this actor.</summary>
         public readonly Condition Granted;
@@ -43,7 +43,7 @@ namespace Dino_Defenders.Stats
         /// <summary>Whether a counter changing means a new sheet.</summary>
         public readonly bool ReadsCounters;
 
-        public Loadout(int level, WeaponProfile weapon, IEnumerable<Mod> mods, IEnumerable<SkillDefinition> skills)
+        public Loadout(int level, WeaponProfile weapon, IEnumerable<Mod> mods, IEnumerable<BookPlan> books)
         {
             Level = level;
             Weapon = weapon;
@@ -52,7 +52,7 @@ namespace Dino_Defenders.Stats
             var rules = new List<Mod>();
             var triggers = new List<Mod>();
             var diverted = new List<Mod>();
-            var known = new List<SkillDefinition>(skills);
+            var known = new List<BookPlan>(books);
             foreach (Mod mod in mods)
             {
                 switch (mod.Kind)
@@ -62,10 +62,6 @@ namespace Dino_Defenders.Stats
                         break;
                     case ModKind.Grant:
                         Granted |= mod.Grants;
-                        break;
-                    case ModKind.GrantSkill:
-                        SkillDefinition granted = SkillCatalog.Get(mod.Skill);
-                        if (!known.Contains(granted)) known.Add(granted);
                         break;
                     case ModKind.Trigger:
                         triggers.Add(mod);
@@ -85,21 +81,21 @@ namespace Dino_Defenders.Stats
 
             ApplyDiversions(numbers, diverted);
 
-            // Triggered skills have to be somewhere for a profile to be made of them, though nobody picks them from a list.
+            // What goes off by itself has to be somewhere for a profile to be made of it, though nobody picks it from a list.
             foreach (Mod trigger in triggers)
             {
-                SkillDefinition skill = SkillCatalog.Get(trigger.Skill);
-                if (!known.Contains(skill)) known.Add(skill);
+                BookPlan book = Shelf.Get(trigger.Book);
+                if (!known.Contains(book)) known.Add(book);
             }
 
             foreach (Mod rule in rules)
             {
-                if ((rule.Rule & Rule.BurningTrail) != 0 && !known.Contains(SkillCatalog.CinderTrail)) known.Add(SkillCatalog.CinderTrail);
-                if ((rule.Rule & Rule.WaterTrail) != 0 && !known.Contains(SkillCatalog.Puddle)) known.Add(SkillCatalog.Puddle);
-                if ((rule.Rule & Rule.Carrier) != 0 && !known.Contains(SkillCatalog.VenomCloud)) known.Add(SkillCatalog.VenomCloud);
+                if ((rule.Rule & Rule.BurningTrail) != 0 && !known.Contains(Shelf.CinderTrail)) known.Add(Shelf.CinderTrail);
+                if ((rule.Rule & Rule.WaterTrail) != 0 && !known.Contains(Shelf.Puddle)) known.Add(Shelf.Puddle);
+                if ((rule.Rule & Rule.Carrier) != 0 && !known.Contains(Shelf.VenomCloud)) known.Add(Shelf.VenomCloud);
             }
 
-            Skills = known.ToArray();
+            Books = known.ToArray();
             RuleMods = rules.ToArray();
             Triggers = triggers.ToArray();
             Mods = SortByStat(numbers, _first);
@@ -114,9 +110,12 @@ namespace Dino_Defenders.Stats
 
             foreach (Mod mod in Mods) Note(mod);
             foreach (Mod mod in RuleMods) Note(mod);
-            foreach (SkillDefinition skill in Skills)
+            foreach (BookPlan book in Books)
             {
-                foreach (Mod mod in skill.Mods) Note(mod);
+                foreach (PagePlan page in book.Pages)
+                {
+                    foreach (Mod mod in page.Mods) Note(mod);
+                }
             }
             Relevant = relevant;
             ReadsCounters = readsCounters;
@@ -181,6 +180,6 @@ namespace Dino_Defenders.Stats
             return sheet;
         }
 
-        public int IndexOf(SkillDefinition skill) => Array.IndexOf(Skills, skill);
+        public int IndexOf(BookPlan book) => Array.IndexOf(Books, book);
     }
 }

@@ -115,11 +115,11 @@ namespace Dino_Defenders.Client
             intent.Dash = best is > 10f and < 18f;
 
             // Whatever else is on the bar gets used whenever it could reach, so that a scripted run exercises a build and not only its first skill.
-            for (int slot = 1; slot < Progression.HeroState.SkillSlots; slot++)
+            for (int slot = 1; slot < Progression.HeroState.BarSlots; slot++)
             {
-                if (session.Client.Kit.Slots[slot] is not Stats.SkillProfile skill) continue;
-                float reach = MathF.Max(skill.Range, skill.Reach);
-                if (skill.Skill.Form == Skills.SkillForm.Strike && skill.Skill.Arc >= MathF.Tau ? close >= 2 : best < reach) intent.Use(slot);
+                if (session.Client.Kit.Slots[slot] is not Books.BookProfile book) continue;
+                float reach = MathF.Max(book.First.Range, book.First.Length);
+                if (book.Sign.Form == Books.PageForm.Nova && !book.Sign.Spell ? close >= 2 : best < reach) intent.Use(slot);
             }
             return intent;
         }

@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 
 namespace Dino_Defenders.Stats
 {
@@ -61,7 +61,7 @@ namespace Dino_Defenders.Stats
         public const float BaseDodgeSpeed = 34f;
         public const float BaseStunThreshold = 100f;
 
-        private readonly SkillProfile?[] _profiles;
+        private readonly BookProfile?[] _profiles;
         private readonly float[] _per = new float[(int)Per.AlliesNear + 1];
         private bool _perReady;
 
@@ -128,7 +128,7 @@ namespace Dino_Defenders.Stats
             Loadout = loadout;
             State = state;
             Counters = counters;
-            _profiles = new SkillProfile?[loadout.Skills.Length];
+            _profiles = new BookProfile?[loadout.Books.Length];
 
             foreach (Mod mod in loadout.RuleMods)
             {
@@ -225,18 +225,17 @@ namespace Dino_Defenders.Stats
         public float? WorthIfHeld(in Mod mod) => Holds(mod) ? Worth(mod) : null;
 
         /// <summary>Adds up what applies to something with these <paramref name="tags"/>, ignoring what only counts against particular foes.</summary>
-        public StatSum Collect(Stat stat, Tags tags, SkillDefinition? skill = null)
+        public StatSum Collect(Stat stat, Tags tags, PagePlan? page = null)
         {
             StatSum sum = StatSum.Empty;
             foreach (ref readonly Mod mod in Loadout.On(stat))
             {
                 if (mod.Foe != Condition.None || (mod.Scope & ~tags) != 0 || !Holds(mod)) continue;
-                if (mod.Skill != SkillDefinition.None && mod.Skill != skill?.Number) continue;
                 if (Worth(mod) is float value) sum.Add(mod, value);
             }
 
-            if (skill == null) return sum;
-            foreach (ref readonly Mod mod in skill.Mods.AsSpan())
+            if (page == null) return sum;
+            foreach (ref readonly Mod mod in page.Mods.AsSpan())
             {
                 if (mod.Stat != stat || mod.Kind > ModKind.Override || mod.Foe != Condition.None || (mod.Scope & ~tags) != 0 || !Holds(mod)) continue;
                 if (Worth(mod) is float value) sum.Add(mod, value);
@@ -245,7 +244,7 @@ namespace Dino_Defenders.Stats
         }
 
         /// <summary>What a stat comes to for something with these tags.</summary>
-        public float Total(Stat stat, float start = 0f, Tags tags = Tags.None, SkillDefinition? skill = null) => Collect(stat, tags, skill).Apply(start);
+        public float Total(Stat stat, float start = 0f, Tags tags = Tags.None, PagePlan? page = null) => Collect(stat, tags, page).Apply(start);
 
         // Some stats are nothing but a percentage on top of something else, so there's no base for an increase to multiply.
         private float Bonus(Stat stat)
@@ -322,16 +321,16 @@ namespace Dino_Defenders.Stats
             return table;
         }
 
-        /// <summary>This actor's own numbers for a skill, by its place in the loadout. Worked out the first time it's asked for.</summary>
-        public SkillProfile Profile(int index) => _profiles[index] ??= new SkillProfile(this, Loadout.Skills[index], index);
+        /// <summary>This actor's own numbers for a book, by its place in the loadout. Worked out the first time it's asked for.</summary>
+        public BookProfile Profile(int index) => _profiles[index] ??= new BookProfile(this, Loadout.Books[index]);
 
-        public SkillProfile? Profile(SkillDefinition skill)
+        public BookProfile? Profile(BookPlan book)
         {
-            int index = Loadout.IndexOf(skill);
+            int index = Loadout.IndexOf(book);
             return index < 0 ? null : Profile(index);
         }
 
-        /// <summary>What a skill would come to in this actor's hands, known or not: what a talent would teach, or an item would set off. Nothing that happens in a fight asks this.</summary>
-        public SkillProfile Preview(SkillDefinition skill) => Profile(skill) ?? new SkillProfile(this, skill, -1);
+        /// <summary>What a book would come to in this actor's hands, on the bar or not: what's being written, or what an item would set off. Nothing that happens in a fight asks this.</summary>
+        public BookProfile Preview(BookPlan book) => Profile(book) ?? new BookProfile(this, book);
     }
 }

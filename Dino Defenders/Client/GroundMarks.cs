@@ -1,5 +1,5 @@
 using Dino_Defenders.Gameplay;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
@@ -38,7 +38,7 @@ namespace Dino_Defenders.Client
             public uint Ghost;
             public float Withdrawn = -1f;
             public float Strength = 1f;
-            public SkillProfile? Skill;     // A hero's own, which goes with them until it leaves their hands.
+            public BookProfile? Book;       // A hero's own, which goes with them until it leaves their hands.
             public double Leaves;
         }
 
@@ -59,9 +59,9 @@ namespace Dino_Defenders.Client
         /// <summary>Something this hero has just started, which they can see at once. It's their hands it comes from, so until it leaves them it's wherever they are and whichever way they're aiming.</summary>
         /// <param name="leaves">The tick it leaves their hands.</param>
         /// <param name="lands">The tick it does anything, which is later for what has a way to go.</param>
-        public void Own(SkillProfile skill, in HeroSimState hero, double start, double leaves, double lands)
+        public void Own(BookProfile book, in HeroSimState hero, double start, double leaves, double lands)
         {
-            _marks.Add(new Mark { Shape = GroundShape.Of(skill, hero.Position, hero.Aim, hero.AimReach), Skill = skill, Start = start, Leaves = leaves, Lands = lands, Tier = MarkTier.Plain });
+            _marks.Add(new Mark { Shape = GroundShape.Of(book, hero.Position, hero.Aim, hero.AimReach), Book = book, Start = start, Leaves = leaves, Lands = lands, Tier = MarkTier.Plain });
         }
 
         /// <summary>
@@ -71,9 +71,9 @@ namespace Dino_Defenders.Client
         {
             foreach (Mark mark in _marks)
             {
-                if (mark.Skill == null || mark.Withdrawn >= 0f || now >= mark.Leaves) continue;
+                if (mark.Book == null || mark.Withdrawn >= 0f || now >= mark.Leaves) continue;
                 if (hero.Using < 0) mark.Withdrawn = 0f;
-                else mark.Shape = GroundShape.Of(mark.Skill, hero.Position, hero.Aim, hero.AimReach);
+                else mark.Shape = GroundShape.Of(mark.Book, hero.Position, hero.Aim, hero.AimReach);
             }
         }
 
@@ -230,7 +230,7 @@ namespace Dino_Defenders.Client
                     float shown = Math.Clamp(left / 0.4f, 0f, 1f) * Math.Clamp(zone.Age / 0.2f, 0f, 1f);
                     float strength = (zone.Hostile ? 0.62f : 0.22f) * shown;
                     if (strength <= 0.01f) continue;
-                    renderer.SubmitCommand(new GroundMarkCommand { Kind = MarkKind.Circle, Origin = at, Facing = Vector2.UnitY, Length = zone.Radius, Fill = 0f, Strength = strength, Hostile = zone.Hostile });
+                    renderer.SubmitCommand(new GroundMarkCommand { Kind = (MarkKind)zone.Kind, Origin = at, Facing = zone.Facing, Length = zone.Length, Width = zone.Width, Fill = 0f, Strength = strength, Hostile = zone.Hostile });
                 }
             }
         }
@@ -273,7 +273,7 @@ namespace Dino_Defenders.Client
                     }
 
                     var action = entity.Get<ActionComponent>();
-                    Dino_Engine.Util.Colour glow = ClientEffects.GlowOf(SkillCatalog.Named(action.Skill).Look);
+                    Dino_Engine.Util.Colour glow = ClientEffects.GlowOf(PageSign.Read(action.Sign).Look);
                     trail.Colour = new Vector3(glow.Red, glow.Green, glow.Blue);
                     Add(trail, animator.WeaponBase, animator.WeaponTip, now);
                 }

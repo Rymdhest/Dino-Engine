@@ -1,6 +1,6 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -13,7 +13,7 @@ namespace Dino_Defenders.Server
 {
     /// <summary>
     /// The rules of a fight. Everything in here works on <see cref="Actor"/>s and has no idea whether one is a hero, an enemy or somebody's skeleton: a
-    /// skill is released the same way, a blow lands the same way, and anything that can happen to one can happen to any of them.
+    /// book is used the same way, a blow lands the same way, and anything that can happen to one can happen to any of them.
     ///
     /// What a blow sets off is never done inside the blow. It goes on a list and happens on the next pass. An explosion that kills something that explodes
     /// would otherwise go as deep as the crowd is large, and be working through a list that was being changed under it.
@@ -41,7 +41,8 @@ namespace Dino_Defenders.Server
         private enum Later : byte
         {
             Release,
-            Land,
+            Turn,
+            Fall,
             Blast,
             Conduct,
             Raise,
@@ -55,7 +56,9 @@ namespace Dino_Defenders.Server
             public Later Kind;
             public double At;
             public Actor Source;
-            public SkillProfile? Skill;
+            public BookProfile? Book;
+            public Cast? Cast;
+            public int Page;
             public Vector2 Origin;
             public Vector2 Facing;
             public float Reach;
@@ -72,6 +75,7 @@ namespace Dino_Defenders.Server
         private readonly List<Actor> _found = new();
         private readonly List<Actor> _chained = new();
         private readonly List<Actor> _near = new();
+        private readonly List<Actor> _friends = new();
         private readonly List<Consequence> _later = new();
         private readonly LootLuck _lootLuck = new();
 
@@ -89,56 +93,23 @@ namespace Dino_Defenders.Server
         private ECSWorld World => Server.Ecs;
         private double Now => _session.Time;
 
-        /// <summary>A skill going off, from wherever and in whatever direction. <paramref name="reach"/> is how far off it was aimed.</summary>
-        public void Release(Actor user, SkillProfile skill, Vector2 origin, Vector2 facing, float reach, int viewLag = 0, float strength = 1f)
+        /// <summary>A book going off, from wherever and in whatever direction. <paramref name="reach"/> is how far off it was aimed.</summary>
+        public void Release(Actor user, BookProfile book, Vector2 origin, Vector2 facing, float reach, int viewLag = 0, float strength = 1f)
         {
             user.SinceUse = 0f;
             if (facing.LengthSquared < 1e-4f) facing = Vector2.UnitY;
-            Vector2 target = origin + facing * MathF.Min(reach, skill.Range);
 
-            switch (skill.Skill.Form)
-            {
-                case SkillForm.Strike:
-                case SkillForm.Leap:
-                    if (!skill.DealsDamage) break;
-                    Strike(user, skill, origin, facing, skill.Reach, skill.Skill.Arc, viewLag, strength);
-                    break;
-                case SkillForm.Nova:
-                    Strike(user, skill, origin, facing, skill.Radius, MathF.Tau, viewLag, strength);
-                    Show(new SkillEvent { Position = Ground(origin), Skill = skill.Skill.Number, Phase = SkillPhase.Burst, Radius = skill.Radius }, origin);
-                    break;
-                case SkillForm.Bolt:
-                    Fire(user, skill, origin, facing, strength);
-                    break;
-                case SkillForm.Burst:
-                    Defer(new Consequence { Kind = Later.Land, At = Now + skill.Delay, Source = user, Skill = skill, Origin = target, Strength = strength });
-                    break;
-                case SkillForm.Zone:
-                    Lay(user, skill, target, strength);
-                    break;
-                case SkillForm.Chain:
-                    Chain(user, skill, origin, facing, reach, strength);
-                    break;
-                case SkillForm.Beam:
-                    Beam(user, skill, origin, facing, strength);
-                    break;
-                case SkillForm.Buff:
-                    if (skill.Skill.Buff != null) AddBuff(user, skill.Skill.Buff, skill.Duration);
-                    Show(new SkillEvent { Position = Ground(origin), Skill = skill.Skill.Number, Phase = SkillPhase.Burst, Radius = 3f }, origin);
-                    break;
-                case SkillForm.Summon:
-                    _session.Summon(user, skill, origin);
-                    break;
-            }
+            var cast = new Cast { Source = user, Book = book, Cursor = origin + facing * MathF.Min(reach, book.First.Range), Strength = strength, ViewLag = viewLag };
+            Open(cast, 0, origin, facing);
 
-            if ((skill.Tags & Tags.Spell) == 0 || (skill.Tags & Tags.Triggered) != 0) return;
+            if ((book.First.Tags & Tags.Spell) == 0 || (book.First.Tags & Tags.Triggered) != 0) return;
 
             if (user.Sheet.Has(Rule.SpellEcho) && strength >= 1f)
             {
-                Defer(new Consequence { Kind = Later.Release, At = Now + EchoDelay, Source = user, Skill = skill, Origin = origin, Facing = facing, Reach = reach, Strength = EchoStrength });
+                Defer(new Consequence { Kind = Later.Release, At = Now + EchoDelay, Source = user, Book = book, Origin = origin, Facing = facing, Reach = reach, Strength = EchoStrength });
             }
 
-            if (user.Sheet.Has(Rule.WaterTrail) && user.Sheet.Profile(SkillCatalog.Puddle) is SkillProfile puddle) Lay(user, puddle, target);
+            if (user.Sheet.Has(Rule.WaterTrail) && user.Sheet.Profile(Shelf.Puddle) is BookProfile puddle) Release(user, puddle, cast.Cursor, facing, 0f);
         }
 
         private void Defer(in Consequence consequence)
@@ -176,10 +147,13 @@ namespace Dino_Defenders.Server
             switch (c.Kind)
             {
                 case Later.Release:
-                    if (c.Skill != null) Release(c.Source, c.Skill, c.Origin, c.Facing, c.Reach, 0, c.Strength);
+                    if (c.Book != null) Release(c.Source, c.Book, c.Origin, c.Facing, c.Reach, 0, c.Strength);
                     break;
-                case Later.Land:
-                    if (c.Skill != null) LandBurst(c.Source, c.Skill, c.Origin, c.Strength);
+                case Later.Turn:
+                    if (c.Cast != null) Open(c.Cast, c.Page, c.Origin, c.Facing);
+                    break;
+                case Later.Fall:
+                    if (c.Cast != null) Fell(c.Cast, c.Cast.Book.Pages[c.Page], c.Origin, c.Facing, c.Strength);
                     break;
                 case Later.Blast:
                     Blast(c.Source, c.Origin, c.Radius, c.Type, c.Amount, c.Tags, c.Victim);
@@ -194,7 +168,7 @@ namespace Dino_Defenders.Server
                     if (c.Victim != null) SpreadAilments(c.Source, c.Victim);
                     break;
                 case Later.Burst:
-                    Show(new SkillEvent { Position = Ground(c.Origin), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Burst, Radius = c.Radius }, c.Origin);
+                    Show(PageEvent.Round(Ground(c.Origin), PageSign.Blast(DamageType.Fire), c.Radius), c.Origin);
                     Blast(c.Source, c.Origin, c.Radius, c.Type, c.Amount, c.Tags, null);
                     break;
                 case Later.Rally:
@@ -224,13 +198,13 @@ namespace Dino_Defenders.Server
         // ---- What's coming.
 
         /// <summary>Marks a piece of ground for everyone, for as long as there is until it lands. Whoever's doing this can take it back with <see cref="Withdraw"/>.</summary>
-        public Entity Warn(in GroundShape shape, int skill, MarkTier tier, bool hostile, float landsIn, int owner = 0)
+        public Entity Warn(in GroundShape shape, MarkTier tier, bool hostile, float landsIn, int owner = 0)
         {
             uint ticks = Server.Tick + (uint)MathF.Round(landsIn * NetTime.TicksPerSecond);
             return World.CreateEntity("Warning",
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: hostile ? 6f : 2f),
                 new PositionComponent(Ground(shape.Origin)),
-                new TelegraphComponent { Serial = ++_marksMade, Kind = shape.Kind, Tier = tier, Hostile = hostile, Owner = owner, Skill = skill, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Start = Server.Tick, Lands = ticks },
+                new TelegraphComponent { Serial = ++_marksMade, Kind = shape.Kind, Tier = tier, Hostile = hostile, Owner = owner, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Start = Server.Tick, Lands = ticks },
                 new TelegraphLifeComponent { Left = landsIn + MarkLingers });
         }
 
@@ -248,7 +222,7 @@ namespace Dino_Defenders.Server
         private uint _marksMade;
 
         /// <summary>Says what someone is doing, for all who can see them.</summary>
-        public void Perform(Entity who, SkillDefinition skill, float landsIn, float lasts, Vector2 aim)
+        public void Perform(Entity who, PageSign sign, float landsIn, float lasts, Vector2 aim)
         {
             if (!who.IsValid() || !World.TryGetEntityLocation(who, out _, out _)) return;
             EntityView view = World.GetEntityView(who);
@@ -256,7 +230,7 @@ namespace Dino_Defenders.Server
 
             var action = view.Get<ActionComponent>();
             action.Serial++;
-            action.Skill = skill.Number;
+            action.Sign = sign.Number;
             action.Start = Server.Tick;
             action.Lands = Server.Tick + (uint)MathF.Round(landsIn * NetTime.TicksPerSecond);
             action.Ends = Server.Tick + (uint)MathF.Round(MathF.Max(lasts, landsIn) * NetTime.TicksPerSecond);
@@ -279,49 +253,297 @@ namespace Dino_Defenders.Server
 
         // ---- Getting there.
 
-        private void Strike(Actor user, SkillProfile skill, Vector2 origin, Vector2 facing, float reach, float arc, int viewLag, float strength)
+        // A page comes to something. Whatever's over the limit doesn't happen, which is what keeps a book that branches at every impact from going on for ever.
+        private static bool Spend(Cast cast)
         {
-            _found.Clear();
-            Grid.Foes(user.Team, origin, reach + 2f, _found);
-
-            GroundShape shape = GroundShape.Sector(origin, facing, reach, arc);
-            bool hostile = user.Team == Team.Enemies;
-            int rewind = user.IsHero ? Math.Clamp(viewLag, 0, MostRewind) : 0;
-            foreach (Actor foe in _found)
-            {
-                // An enemy is where the attacker saw it, which is where it was a moment ago: a client draws others slightly in the past, and a blow
-                // that connects on screen has to connect. This tick's positions aren't recorded until it ends, so with no rewind, where it is now is the answer.
-                Vector2 position = rewind > 0 ? foe.PositionAgo(rewind, Server.Tick) : foe.Position;
-                if (!shape.Covers(position, BodyOf(foe, hostile))) continue;
-                Hit(user, skill, foe, strength, origin, position - origin);
-            }
+            if (cast.Made >= MostMade) return false;
+            cast.Made++;
+            return true;
         }
 
-        private void Fire(Actor user, SkillProfile skill, Vector2 origin, Vector2 facing, float strength)
+        /// <summary>Goes to a page of a book: the first, or the next one from where the last struck. A book that's run out of pages is over.</summary>
+        private void Open(Cast cast, int index, Vector2 at, Vector2 way)
         {
-            float height = user.Height + 3.2f;
-            float start = -(skill.Projectiles - 1) * 0.5f * skill.Skill.Spread;
-            for (int i = 0; i < skill.Projectiles; i++)
+            if (index >= cast.Book.Pages.Length) return;
+
+            PageProfile page = cast.Book.Pages[index];
+            if (page.Page.Kind == PageKind.Area) Spread(cast, page, at, way);
+            else Fire(cast, page, at, way);
+        }
+
+        private void Turn(Cast cast, PageProfile page, Vector2 at, Vector2 way)
+        {
+            if (page.Page.Last) return;
+            Defer(new Consequence { Kind = Later.Turn, At = Now, Source = cast.Source, Cast = cast, Page = page.Page.Index + 1, Origin = at, Facing = way });
+        }
+
+        // Somewhere within so far of a place, evenly over the circle.
+        private Vector2 Scattered(Vector2 around, float radius)
+        {
+            if (radius <= 0f) return around;
+            float angle = _luck.Float() * MathF.Tau;
+            float reach = MathF.Sqrt(_luck.Float()) * radius;
+            return around + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * reach;
+        }
+
+        // Who a page is after: never anyone this cast has already been to, as that's what makes a chain go on to someone new.
+        private Actor? Seek(Cast cast, Vector2 around, bool nearest)
+        {
+            _near.Clear();
+            Grid.Foes(cast.Source.Team, around, SeekReach, _near);
+            for (int i = _near.Count - 1; i >= 0; i--)
             {
-                float angle = start + i * skill.Skill.Spread;
+                if (cast.Struck.Contains(_near[i])) _near.RemoveAt(i);
+            }
+            if (_near.Count == 0) return null;
+            if (!nearest) return _near[_luck.Int(_near.Count)];
+
+            Actor? best = null;
+            float closest = float.PositiveInfinity;
+            foreach (Actor foe in _near)
+            {
+                float distance = (foe.Position - around).LengthSquared;
+                if (distance >= closest) continue;
+                closest = distance;
+                best = foe;
+            }
+            return best;
+        }
+
+        // Where a page begins. With nobody to begin from, it's where they aimed.
+        private Vector2 Where(Cast cast, PageProfile page, Vector2 at)
+        {
+            PagePlan plan = page.Page;
+            bool steady = cast.Source.Sheet.Has(Rule.Steady);
+            Vector2 from = plan.From switch
+            {
+                Start.Cursor => cast.Cursor,
+                Start.Nearest => Seek(cast, cast.Source.Position, true)?.Position ?? cast.Cursor,
+                Start.Random => Seek(cast, cast.Source.Position, steady)?.Position ?? cast.Cursor,
+                _ => at,
+            };
+            return Scattered(from, steady ? 0f : plan.FromWithin);
+        }
+
+        // Where a projectile is going, from where it starts.
+        private Vector2 Aimed(Cast cast, PageProfile page, Vector2 from, Vector2 way)
+        {
+            PagePlan plan = page.Page;
+            bool steady = cast.Source.Sheet.Has(Rule.Steady);
+            Vector2 target;
+            switch (plan.To)
+            {
+                case Bearing.You:
+                    target = cast.Source.Position;
+                    break;
+                case Bearing.Nearest:
+                    target = Seek(cast, from, true)?.Position ?? cast.Cursor;
+                    break;
+                case Bearing.Random:
+                    target = Seek(cast, from, steady)?.Position ?? cast.Cursor;
+                    break;
+                case Bearing.Anywhere when !steady:
+                    float angle = _luck.Float() * MathF.Tau;
+                    target = from + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * page.Range;
+                    break;
+                case Bearing.Onward:
+                    target = from + way * page.Range;
+                    break;
+                default:
+                    target = cast.Cursor;
+                    break;
+            }
+            return Scattered(target, steady ? 0f : plan.ToWithin);
+        }
+
+        private void Spread(Cast cast, PageProfile page, Vector2 at, Vector2 way)
+        {
+            if (!Spend(cast)) return;
+
+            GroundShape shape = GroundShape.Of(page, Where(cast, page, at), way);
+            if (page.Page.Lingers)
+            {
+                Lay(cast, page, shape);
+                return;
+            }
+
+            // A plain blow shows for itself, in the hands of whoever made it.
+            if (page.Sign.Form != PageForm.Strike) Announce(page, shape);
+            Cover(cast, page, shape, cast.Strength);
+        }
+
+        private void Announce(PageProfile page, in GroundShape shape)
+        {
+            Vector2 at = shape.Origin;
+            Show(new PageEvent { Position = Ground(at), Sign = page.Sign.Number, Kind = shape.Kind, Facing = shape.Facing, Length = shape.Length, Width = shape.Width }, at);
+            if (page.Sign.Form == PageForm.Beam) Show(new LinkEvent { From = Ground(at) + Vector3.UnitY * 3f, To = Ground(at + shape.Facing * shape.Length) + Vector3.UnitY * 3f, Look = page.Page.Look, Wide = true }, at);
+        }
+
+        // Everything a shape has in it. An enemy is where the attacker saw it, which is where it was a moment ago: a client draws others slightly in the past, and a blow that connects on
+        // screen has to connect. This tick's positions aren't recorded until it ends, so with no rewind, where it is now is the answer.
+        private void Cover(Cast cast, PageProfile page, in GroundShape shape, float strength, bool pulsing = false)
+        {
+            Actor user = cast.Source;
+            if (page.Page.Hostile)
+            {
+                _found.Clear();
+                int rewind = user.IsHero && page.Page.Index == 0 ? Math.Clamp(cast.ViewLag, 0, MostRewind) : 0;
+                if (rewind == 0) Within(shape, user.Team, _found);
+                else Grid.Foes(user.Team, shape.Origin, shape.Extent + 2f, _found);
+
+                bool hostile = user.Team == Team.Enemies;
+                bool line = shape.Kind == ShapeKind.Line;
+                foreach (Actor foe in _found)
+                {
+                    Vector2 position = rewind > 0 ? foe.PositionAgo(rewind, Server.Tick) : foe.Position;
+                    if (rewind > 0 && !shape.Covers(position, BodyOf(foe, hostile))) continue;
+                    Strike(cast, page, foe, strength, shape.Origin, line ? shape.Facing : position - shape.Origin);
+                }
+            }
+            Do(cast, page, shape, strength, pulsing);
+        }
+
+        // One page reaching one Enemy.
+        private void Strike(Cast cast, PageProfile page, Actor foe, float strength, Vector2 from, Vector2 way)
+        {
+            if (!cast.Struck.Contains(foe)) cast.Struck.Add(foe);
+            if (page.DealsDamage || page.Page.Ailments.Length > 0) Hit(cast.Source, page, foe, strength, from, way);
+            if (page.Page.Push != 0f) Thrust(foe, page.Page.Push, from);
+        }
+
+        // A page that throws or drags, by how much it gives: the heaviest barely move, and a hero's feet are their own.
+        private static void Thrust(Actor target, float speed, Vector2 from)
+        {
+            if (target.IsHero || target.Still || target.Dead) return;
+            Vector2 away = target.Position - from;
+            if (away.LengthSquared < 0.01f) return;
+            float give = (target.Nature & Condition.Boss) != 0 ? BossGive : (target.Nature & Condition.Elite) != 0 ? EliteGive : 1f;
+            target.Push += away.Normalized() * (speed * give);
+        }
+
+        // Everything a page does that isn't to an Enemy, at a place. What can only happen once doesn't happen again with each pulse.
+        private void Do(Cast cast, PageProfile page, in GroundShape shape, float strength, bool pulsing)
+        {
+            PagePlan plan = page.Page;
+            Actor user = cast.Source;
+            ActorSheet sheet = user.Sheet;
+
+            if (plan.Heals.Length > 0 || plan.Gifts.Length > 0)
+            {
+                _friends.Clear();
+                Within(shape, user.Team == Team.Enemies ? Team.Heroes : Team.Enemies, _friends);
+
+                for (int i = 0; i < plan.Heals.Length; i++)
+                {
+                    float amount = page.Heals[i] * strength * sheet.RecoveryScale;
+                    if (plan.Heals[i].Whom == Whom.You) Restore(user, plan.Heals[i].Pool, amount);
+                    else
+                    {
+                        foreach (Actor friend in _friends) Restore(friend, plan.Heals[i].Pool, amount);
+                    }
+                }
+
+                foreach (GiftPart gift in plan.Gifts)
+                {
+                    float lasts = sheet.Total(Stat.PageDuration, gift.Buff.Duration, page.Tags, plan);
+                    if (gift.Whom == Whom.You) AddBuff(user, gift.Buff, lasts);
+                    else
+                    {
+                        foreach (Actor friend in _friends) AddBuff(friend, gift.Buff, lasts);
+                    }
+                }
+            }
+
+            if (pulsing) return;
+            Vector2 at = shape.Origin;
+            if (plan.Minion != null) _session.Summon(user, page, at);
+            if (plan.MakesWater) Land.AddPool(at, shape.Kind == ShapeKind.Circle ? shape.Length : GroundShape.FlightWidth * 2f, (float)Now + MathF.Max(page.Duration, WaterStays));
+            if (plan.Moves) _session.Carry(user, at);
+        }
+
+        // Back into a pool, for whoever. It's what's said on the page and a friend's own recovery doesn't come into it.
+        private void Restore(Actor who, Pool pool, float amount)
+        {
+            if (who.Dead || amount <= 0f) return;
+            ActorSheet sheet = who.Sheet;
+            switch (pool)
+            {
+                case Pool.Mana:
+                    who.Vitals.Mana = MathF.Min(who.Vitals.Mana + amount, sheet.MaxMana);
+                    break;
+                case Pool.Barrier:
+                    who.Vitals.Barrier = MathF.Min(who.Vitals.Barrier + amount, sheet.MaxBarrier);
+                    break;
+                default:
+                    Hits.Heal(sheet, ref who.Vitals, amount);
+                    break;
+            }
+            Show(new HealEvent { Position = new Vector3(who.Position.X, who.Height + 3.4f, who.Position.Y), Amount = amount, Pool = pool }, who.Position);
+        }
+
+        private void Fire(Cast cast, PageProfile page, Vector2 at, Vector2 way)
+        {
+            PagePlan plan = page.Page;
+
+            // Whoever's ridden it has arrived, which is the whole of its flight.
+            if (plan.Rides)
+            {
+                Reached(cast, page, at, way, cast.Strength);
+                return;
+            }
+
+            int count = page.Projectiles;
+            float start = -(count - 1) * 0.5f * plan.Spread;
+            for (int i = 0; i < count; i++)
+            {
+                if (!Spend(cast)) return;
+                Vector2 from = Where(cast, page, at);
+
+                if (plan.To == Bearing.Down)
+                {
+                    Drop(cast, page, count > 1 && plan.FromWithin <= 0f ? Scattered(from, RainScatter) : from, way);
+                    continue;
+                }
+
+                Vector2 target = Aimed(cast, page, from, way);
+                Vector2 toward = target - from;
+                float distance = toward.Length;
+                Vector2 aimed = distance > 0.01f ? toward / distance : way;
+
+                float angle = start + i * plan.Spread;
                 float cos = MathF.Cos(angle);
                 float sin = MathF.Sin(angle);
-                var direction = new Vector2(facing.X * cos - facing.Y * sin, facing.X * sin + facing.Y * cos);
-                Launch(user, skill, origin + direction * 1.5f, direction, height, strength, null);
+                var direction = new Vector2(aimed.X * cos - aimed.Y * sin, aimed.X * sin + aimed.Y * cos);
+
+                // What flies from someone's hands starts ahead of them, and at the height they let it go.
+                bool hands = plan.From == Start.You && plan.Index == 0;
+                float height = (hands ? cast.Source.Height : Ground(from).Y) + FlightHeight;
+                float length = plan.Stops ? MathF.Min(distance, page.Range) : page.Range;
+                Launch(cast, page, hands ? from + direction * FlightOffset : from, direction, height, cast.Strength, length, null);
             }
         }
 
-        private void Launch(Actor user, SkillProfile skill, Vector2 from, Vector2 direction, float height, float strength, Projectile? parent)
+        private static string ModelOf(Actor user, PageProfile page)
         {
+            Tags weapon = user.Loadout.Weapon.Tags;
+            if ((weapon & Tags.Bow) != 0) return "arrow";
+            if ((weapon & (Tags.Wand | Tags.Staff)) != 0) return $"bolt:{page.Page.Look}";
+            return Thrown.Prefix + Thrown.Of(weapon);
+        }
+
+        private void Launch(Cast cast, PageProfile page, Vector2 from, Vector2 direction, float height, float strength, float length, Projectile? parent)
+        {
+            Actor user = cast.Source;
+            float speed = MathF.Max(page.Speed, 1f);
             float yaw = MathF.Atan2(direction.X, direction.Y);
             var origin = new Vector3(from.X, height, from.Y);
             var projectile = new Projectile
             {
-                Source = user,
-                Skill = skill,
-                Life = skill.Range / MathF.Max(skill.Speed, 1f) + FlightGrace,
-                Pierce = skill.Pierce,
-                Chains = skill.Chains,
+                Cast = cast,
+                Page = page,
+                Life = length / speed + (page.Page.Stops ? 0f : FlightGrace),
+                Pierce = page.Pierce,
+                Chains = page.Chains,
                 Strength = strength,
                 Start = from,
                 Way = direction,
@@ -329,29 +551,70 @@ namespace Dino_Defenders.Server
             };
             if (parent != null) projectile.Spent.AddRange(parent.Spent);
 
-            bool arrow = (skill.Tags & Tags.Attack) != 0;
             World.CreateEntity("Projectile",
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 2f),
                 new PositionComponent(origin),
                 new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, yaw)),
-                new VisualComponent(arrow ? "arrow" : $"bolt:{skill.Skill.Look}", VisualKind.Prop),
-                new BallisticComponent { Origin = origin, Velocity = new Vector3(direction.X, 0f, direction.Y) * skill.Speed, StartTick = Server.Tick, FromHeroes = user.Team == Team.Heroes },
+                new VisualComponent(ModelOf(user, page), VisualKind.Prop),
+                new BallisticComponent { Origin = origin, Velocity = new Vector3(direction.X, 0f, direction.Y) * speed, StartTick = Server.Tick, FromHeroes = user.Team == Team.Heroes },
                 new ProjectileComponent { State = projectile });
+        }
+
+        // Out of the sky. What it does happens when it says it will, for what's on the ground to be true, so what's in the air is only there to be seen.
+        private void Drop(Cast cast, PageProfile page, Vector2 at, Vector2 way)
+        {
+            float speed = MathF.Max(page.Speed, 1f);
+            float fall = SkyHeight / speed;
+            Vector3 ground = Ground(at);
+            var origin = new Vector3(ground.X, ground.Y + SkyHeight, ground.Z);
+            Actor user = cast.Source;
+
+            World.CreateEntity("Projectile",
+                new NetIdentityComponent(Server.Ghosts.NextId(), importance: 2f),
+                new PositionComponent(origin),
+                new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitX, MathF.PI * 0.5f)),
+                new VisualComponent(ModelOf(user, page), VisualKind.Prop),
+                new BallisticComponent { Origin = origin, Velocity = -Vector3.UnitY * speed, StartTick = Server.Tick, FromHeroes = user.Team == Team.Heroes },
+                new ProjectileComponent { State = new Projectile { Cast = cast, Page = page, Life = fall, Falling = true, Start = at, Way = way } });
+
+            Defer(new Consequence { Kind = Later.Fall, At = Now + fall, Source = user, Cast = cast, Page = page.Page.Index, Origin = at, Facing = way, Strength = cast.Strength });
+        }
+
+        private void Fell(Cast cast, PageProfile page, Vector2 at, Vector2 way, float strength) => Reached(cast, page, at, way, strength);
+
+        // Whatever's where it came to an end, for what doesn't fly into anyone: what fell, and whoever's ridden there.
+        private void Reached(Cast cast, PageProfile page, Vector2 at, Vector2 way, float strength)
+        {
+            GroundShape spot = GroundShape.Circle(at, GroundShape.FlightWidth);
+            Cover(cast, page, spot, strength);
+            Turn(cast, page, at, way);
         }
 
         /// <summary>A projectile has reached something, or the end of its strength. Returns whether it flies on.</summary>
         public bool Touch(Projectile projectile, Vector3 at)
         {
+            if (projectile.Falling) return true;
+
+            PageProfile page = projectile.Page;
+            Cast cast = projectile.Cast;
+            Actor source = cast.Source;
+            bool friends = page.Page.SeeksFriends;
+
             _found.Clear();
-            Within(GroundShape.Circle(at.Xz, GroundShape.FlightWidth), projectile.Source.Team, _found);
+            Within(GroundShape.Circle(at.Xz, GroundShape.FlightWidth), friends ? (source.Team == Team.Enemies ? Team.Heroes : Team.Enemies) : source.Team, _found);
 
             bool flying = true;
             foreach (Actor foe in _found)
             {
                 if (projectile.Spent.Contains(foe)) continue;
+
+                // Nothing stops at whoever it's only just left.
+                if (foe == source && page.Page.Index == 0) continue;
                 projectile.Spent.Add(foe);
-                Hit(projectile.Source, projectile.Skill, foe, projectile.Strength * Flight(projectile, at.Xz), at.Xz, projectile.Way);
-                if (projectile.Skill.Radius > 0f) Burst(projectile, at.Xz);
+                float strength = projectile.Strength * Flight(projectile, at.Xz);
+                if (!friends) Strike(cast, page, foe, strength, at.Xz, projectile.Way);
+                Do(cast, page, GroundShape.Circle(at.Xz, GroundShape.FlightWidth), strength, false);
+                Turn(cast, page, at.Xz, projectile.Way);
 
                 if (projectile.Chains > 0 && Retarget(projectile, foe, at))
                 {
@@ -370,18 +633,27 @@ namespace Dino_Defenders.Server
             return flying;
         }
 
+        /// <summary>A flight has come to an end against something that isn't a body, or at the end of its range. That's an impact as well: only there's nobody to take it.</summary>
+        public void Ended(Projectile projectile, Vector3 at)
+        {
+            if (projectile.Falling) return;
+            Do(projectile.Cast, projectile.Page, GroundShape.Circle(at.Xz, GroundShape.FlightWidth), projectile.Strength, false);
+            Turn(projectile.Cast, projectile.Page, at.Xz, projectile.Way);
+        }
+
         // How a shot gets stronger as it goes, for those who've arranged that.
         private static float Flight(Projectile projectile, Vector2 at)
         {
-            if (!projectile.Source.Sheet.Has(Rule.LongShot)) return 1f;
+            if (!projectile.Cast.Source.Sheet.Has(Rule.LongShot)) return 1f;
             float metres = (at - projectile.Start).Length;
             return metres < LongShotNear ? 1f - LongShotNearLess : 1f + MathF.Min(metres * LongShotPerMetre, LongShotMost);
         }
 
         private bool Retarget(Projectile projectile, Actor from, Vector3 at)
         {
+            Cast cast = projectile.Cast;
             _chained.Clear();
-            Grid.Foes(projectile.Source.Team, at.Xz, ProjectileChainReach, _chained);
+            Grid.Foes(cast.Source.Team, at.Xz, ProjectileChainReach, _chained);
 
             Actor? next = null;
             float best = float.PositiveInfinity;
@@ -393,126 +665,63 @@ namespace Dino_Defenders.Server
                 best = distance;
                 next = foe;
             }
-            if (next == null) return false;
+            if (next == null || !Spend(cast)) return false;
 
             projectile.Chains--;
             Vector2 direction = (next.Position - at.Xz).Normalized();
-            float growth = projectile.Source.Sheet.Has(Rule.ChainsGrow) ? ChainGrowth : ChainFade;
-            Launch(projectile.Source, projectile.Skill, at.Xz, direction, at.Y, projectile.Strength * growth, projectile);
+            float growth = cast.Source.Sheet.Has(Rule.ChainsGrow) ? ChainGrowth : ChainFade;
+            Launch(cast, projectile.Page, at.Xz, direction, at.Y, projectile.Strength * growth, projectile.Page.Range, projectile);
             return true;
-        }
-
-        public void Burst(Projectile projectile, Vector2 at)
-        {
-            LandBurst(projectile.Source, projectile.Skill, at, projectile.Strength, projectile.Spent);
-        }
-
-        private void LandBurst(Actor user, SkillProfile skill, Vector2 at, float strength, List<Actor>? already = null)
-        {
-            Show(new SkillEvent { Position = Ground(at), Skill = skill.Skill.Number, Phase = SkillPhase.Burst, Radius = skill.Radius }, at);
-
-            _chained.Clear();
-            Within(GroundShape.Circle(at, skill.Radius), user.Team, _chained);
-            foreach (Actor foe in _chained)
-            {
-                if (already != null && already.Contains(foe)) continue;
-                Hit(user, skill, foe, strength, at, foe.Position - at);
-            }
         }
 
         /// <summary>A projectile that's done coming back to whoever threw it, if they're someone who does that.</summary>
         public void Returns(Projectile projectile, Vector3 at)
         {
-            Actor source = projectile.Source;
-            if (!source.Sheet.Has(Rule.ProjectilesReturn) || projectile.Returning || source.Dead) return;
+            Actor source = projectile.Cast.Source;
+            if (!source.Sheet.Has(Rule.ProjectilesReturn) || projectile.Returning || projectile.Falling || source.Dead) return;
 
             Vector2 toward = source.Position - at.Xz;
-            if (toward.LengthSquared < 4f) return;
+            if (toward.LengthSquared < 4f || !Spend(projectile.Cast)) return;
             projectile.Returning = true;
             projectile.Spent.Clear();
-            Launch(source, projectile.Skill, at.Xz, toward.Normalized(), at.Y, projectile.Strength, projectile);
+            Launch(projectile.Cast, projectile.Page, at.Xz, toward.Normalized(), at.Y, projectile.Strength, toward.Length, projectile);
         }
 
-        private void Chain(Actor user, SkillProfile skill, Vector2 origin, Vector2 facing, float aimed, float strength)
+        private void Lay(Cast cast, PageProfile page, in GroundShape shape)
         {
-            _chained.Clear();
-            Vector2 from = origin;
-            float power = strength;
-            float growth = user.Sheet.Has(Rule.ChainsGrow) ? ChainGrowth : ChainFade;
+            Actor user = cast.Source;
+            float life = MathF.Max(page.Duration, ShortestZone);
+            var zone = new ZoneState { Cast = cast, Page = page, Left = life, NextPulse = FirstPulse, Shape = shape, Strength = cast.Strength };
 
-            // The first leap goes for what's nearest the aim on the ground that was marked, and each after that for whatever is nearest the last.
-            GroundShape start = GroundShape.Of(skill, origin, facing, aimed);
-            Vector2 seek = start.Origin;
-            for (int leap = 0; leap <= skill.Chains; leap++)
+            // Each new one past what anyone can keep up is paid for by the oldest.
+            user.Zones.Add(zone);
+            user.Zones.RemoveAll(held => held.Left <= 0f);
+            if (user.Zones.Count > MostZones)
             {
-                _found.Clear();
-                if (leap == 0) Within(start, user.Team, _found);
-                else Grid.Foes(user.Team, seek, skill.Radius, _found);
-
-                Actor? next = null;
-                float best = float.PositiveInfinity;
-                foreach (Actor foe in _found)
-                {
-                    if (_chained.Contains(foe)) continue;
-                    float distance = (foe.Position - seek).LengthSquared;
-                    if (distance >= best) continue;
-                    best = distance;
-                    next = foe;
-                }
-
-                if (next == null)
-                {
-                    if (leap == 0) Show(new LinkEvent { From = Ground(from) + Vector3.UnitY * 3f, To = Ground(seek) + Vector3.UnitY * 1f, Look = skill.Skill.Look }, from);
-                    return;
-                }
-
-                _chained.Add(next);
-                Show(new LinkEvent { From = Ground(from) + Vector3.UnitY * 3f, To = Ground(next.Position) + Vector3.UnitY * 3f, Look = skill.Skill.Look }, from);
-                Hit(user, skill, next, power, from, next.Position - from);
-                power *= growth;
-                from = next.Position;
-                seek = next.Position;
+                user.Zones[0].Left = 0f;
+                user.Zones.RemoveAt(0);
             }
-        }
-
-        private void Beam(Actor user, SkillProfile skill, Vector2 origin, Vector2 facing, float strength)
-        {
-            float length = skill.Reach;
-            Show(new LinkEvent { From = Ground(origin) + Vector3.UnitY * 3f, To = Ground(origin + facing * length) + Vector3.UnitY * 3f, Look = skill.Skill.Look, Wide = true }, origin);
-
-            _found.Clear();
-            Within(GroundShape.Line(origin, facing, length, skill.Radius), user.Team, _found);
-            foreach (Actor foe in _found) Hit(user, skill, foe, strength, origin, facing);
-        }
-
-        private void Lay(Actor user, SkillProfile skill, Vector2 at, float strength = 1f)
-        {
-            float life = MathF.Max(skill.Duration, ShortestZone);
-            var zone = new ZoneState { Source = user, Skill = skill, Left = life, NextPulse = FirstPulse, At = at, Strength = strength };
-            if (skill.Skill.MakesWater) Land.AddPool(at, skill.Radius, (float)Now + life);
 
             World.CreateEntity("Zone",
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 1.5f),
-                new PositionComponent(Ground(at)),
-                new ZoneComponent { Skill = skill.Skill.Number, Hostile = user.Team == Team.Enemies, Radius = skill.Radius, Life = life },
+                new PositionComponent(Ground(shape.Origin)),
+                new ZoneComponent { Sign = page.Sign.Number, Hostile = user.Team == Team.Enemies, Kind = shape.Kind, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Life = life },
                 new ZoneStateComponent { State = zone });
+
+            Do(cast, page, shape, 0f, false);
         }
 
-        /// <summary>A zone's moment comes round: everything standing in it is struck.</summary>
+        /// <summary>A zone's moment comes round: everything standing in it gets its share.</summary>
         public void Pulse(ZoneState zone)
         {
-            if (!zone.Skill.DealsDamage) return;
-
-            _chained.Clear();
-            Within(GroundShape.Circle(zone.At, zone.Skill.Radius), zone.Source.Team, _chained);
-            foreach (Actor foe in _chained) Hit(zone.Source, zone.Skill, foe, zone.Strength, zone.At, foe.Position - zone.At);
+            Cover(zone.Cast, zone.Page, zone.Shape, zone.Strength * zone.Page.PulseShare, pulsing: true);
         }
 
         // ---- Landing.
 
-        /// <summary>One skill reaching one target. This is the whole of what happens when anything hits anything.</summary>
+        /// <summary>One page reaching one target. This is the whole of what happens when anything hits anything.</summary>
         /// <param name="way">Which way the blow is going, however long, if it's not simply away from where it came from.</param>
-        public void Hit(Actor source, SkillProfile skill, Actor target, float strength, Vector2 from, Vector2 way = default)
+        public void Hit(Actor source, PageProfile skill, Actor target, float strength, Vector2 from, Vector2 way = default)
         {
             if (target.Dead) return;
             if (way.LengthSquared <= 0.01f) way = target.Position - from;
@@ -596,12 +805,12 @@ namespace Dino_Defenders.Server
             target.SinceHit = 0f;
 
             float weight = total / MathF.Max(target.Sheet.MaxHealth, 1f);
-            Show(new DamageEvent { Position = point, Amount = total, Critical = hit.Critical, ToHero = target.IsHero, Body = BodyOf(target), Type = StrongestOf(hit), Target = GhostOf(target), Way = way, Weight = weight }, target.Position);
+            if (skill.DealsDamage) Show(new DamageEvent { Position = point, Amount = total, Critical = hit.Critical, ToHero = target.IsHero, Body = BodyOf(target), Type = StrongestOf(hit), Target = GhostOf(target), Way = way, Weight = weight }, target.Position);
             Shove(target, skill, way, weight, hit.Critical);
 
             if (hit.Critical) source.SinceCrit = 0f;
             Recover(source, skill, total);
-            Afflict(source, skill, target, raw, burnFuel, hit.Total);
+            Afflict(source, skill, target, raw, burnFuel, hit.Total, strength);
 
             if (hit.Critical && skill.Execute > 0f && target.Vitals.Health < target.Sheet.MaxHealth * skill.Execute / 100f) target.Vitals.Health = 0f;
 
@@ -612,20 +821,19 @@ namespace Dino_Defenders.Server
             if (hit.Critical) SetOff(source, TriggerEvent.Critical, source.Position);
             SetOff(target, TriggerEvent.Struck, target.Position);
 
-            if (target.Sheet.Has(Rule.Mimic) && target.Player is ServerPlayer mimic && !skill.Skill.Hidden) mimic.Mimic(skill.Skill);
 
             if (target.Vitals.Health <= 0f) Die(target, source, skill, from, Throw(way, (total - healthBefore) / MathF.Max(target.Sheet.MaxHealth, 1f), ForceOf(skill, hit.Critical)));
         }
 
         // How much of a blow is behind it: slow ones have more, and whatever went round the whole body has most.
-        private static float ForceOf(SkillProfile? skill, bool critical)
+        private static float ForceOf(PageProfile? skill, bool critical)
         {
-            float force = skill == null ? 1f : Math.Clamp(skill.Skill.UseTime / 0.6f, 0.8f, 1.6f);
+            float force = skill == null ? 1f : Math.Clamp(skill.Page.UseTime / PageUseTime, 0.8f, 1.6f);
             return critical ? force * CriticalForce : force;
         }
 
         // What a blow does to someone it doesn't kill. It only ever moves those the rules allow to be moved: a hero's feet are their own, or they couldn't predict them.
-        private static void Shove(Actor target, SkillProfile skill, Vector2 way, float weight, bool critical)
+        private static void Shove(Actor target, PageProfile skill, Vector2 way, float weight, bool critical)
         {
             if (target.IsHero || target.Still) return;
 
@@ -685,7 +893,7 @@ namespace Dino_Defenders.Server
             SetOff(target, TriggerEvent.Dodge, target.Position);
         }
 
-        private void Blocked(Actor source, SkillProfile skill, Actor target, Condition foe, Vector3 point, Vector2 way)
+        private void Blocked(Actor source, PageProfile skill, Actor target, Condition foe, Vector3 point, Vector2 way)
         {
             target.SinceBlock = 0f;
             Show(new DamageEvent { Position = point, Note = HitNote.Blocked, ToHero = target.IsHero, Target = GhostOf(target), Way = way, Weight = 0.1f }, target.Position);
@@ -749,7 +957,7 @@ namespace Dino_Defenders.Server
             return actor.Body is "warlord" or "revenant" ? HitBody.Armour : HitBody.Flesh;
         }
 
-        private void Recover(Actor source, SkillProfile skill, float dealt)
+        private void Recover(Actor source, PageProfile skill, float dealt)
         {
             if (dealt <= 0f) return;
             ActorSheet sheet = source.Sheet;
@@ -777,7 +985,7 @@ namespace Dino_Defenders.Server
         // ---- Reactions. Two things meeting on someone, which neither does alone.
 
         // What's already on someone meets what's just arrived. Returns what the blow itself is worth now.
-        private float React(Actor source, SkillProfile skill, Actor target, ref HitPacket hit)
+        private float React(Actor source, PageProfile skill, Actor target, ref HitPacket hit)
         {
             if ((skill.Tags & Tags.Reaction) != 0) return 1f;
 
@@ -870,7 +1078,7 @@ namespace Dino_Defenders.Server
 
         // ---- What stays behind.
 
-        private void Afflict(Actor source, SkillProfile skill, Actor target, in DamageTable raw, float burnFuel, float dealt)
+        private void Afflict(Actor source, PageProfile skill, Actor target, in DamageTable raw, float burnFuel, float dealt, float strength)
         {
             float physical = raw[(int)DamageType.Physical];
             float fire = raw[(int)DamageType.Fire];
@@ -878,6 +1086,9 @@ namespace Dino_Defenders.Server
             float lightning = raw[(int)DamageType.Lightning];
             float magic = raw[(int)DamageType.Magic];
             float poison = raw[(int)DamageType.Poison];
+
+            // What a page inflicts outright isn't down to what the hit had in it, or to any chance. It's as strong as a hit of that much would have left.
+            float Inflicted(Ailment ailment) => skill.Inflicts[(int)ailment] * strength;
             float health = target.Sheet.MaxHealth;
             ActorSheet sheet = target.Sheet;
             Afflictions a = target.Afflictions;
@@ -892,8 +1103,8 @@ namespace Dino_Defenders.Server
             float Length(Ailment ailment, float seconds) => seconds * skill.Ailments[(int)ailment].Duration * sheet.AilmentTaken[(int)ailment];
             float Strength(Ailment ailment) => skill.Ailments[(int)ailment].Effect * skill.LingerScale[(int)ailment];
 
-            float flame = fire + burnFuel;
-            if (flame > 0f && !sheet.Has(Rule.ImmuneToBurn) && Lands(Ailment.Burn, burnFuel > 0f))
+            float flame = fire + burnFuel + Inflicted(Ailment.Burn);
+            if (flame > 0f && !sheet.Has(Rule.ImmuneToBurn) && Lands(Ailment.Burn, burnFuel > 0f || Inflicted(Ailment.Burn) > 0f))
             {
                 float seconds = Length(Ailment.Burn, AilmentRules.BurnSeconds);
                 float perSecond = AilmentRules.PerSecond(Ailment.Burn, flame) * Strength(Ailment.Burn);
@@ -905,10 +1116,11 @@ namespace Dino_Defenders.Server
                 }
             }
 
-            if (physical > 0f && Lands(Ailment.Bleed))
+            float wound = physical + Inflicted(Ailment.Bleed);
+            if (wound > 0f && Lands(Ailment.Bleed, Inflicted(Ailment.Bleed) > 0f))
             {
                 float seconds = Length(Ailment.Bleed, AilmentRules.BleedSeconds);
-                float perSecond = AilmentRules.PerSecond(Ailment.Bleed, physical) * Strength(Ailment.Bleed);
+                float perSecond = AilmentRules.PerSecond(Ailment.Bleed, wound) * Strength(Ailment.Bleed);
                 if (seconds > 0f && (perSecond >= a.BleedPerSecond || a.BleedLeft <= 0f))
                 {
                     a.BleedPerSecond = perSecond;
@@ -917,19 +1129,21 @@ namespace Dino_Defenders.Server
                 }
             }
 
-            if (physical + poison > 0f && !sheet.Has(Rule.Carrier) && Lands(Ailment.Venom))
+            float toxin = physical + poison + Inflicted(Ailment.Venom);
+            if (toxin > 0f && !sheet.Has(Rule.Carrier) && Lands(Ailment.Venom, Inflicted(Ailment.Venom) > 0f))
             {
                 float seconds = Length(Ailment.Venom, AilmentRules.VenomSeconds);
-                float perSecond = AilmentRules.PerSecond(Ailment.Venom, physical + poison) * Strength(Ailment.Venom);
+                float perSecond = AilmentRules.PerSecond(Ailment.Venom, toxin) * Strength(Ailment.Venom);
                 int most = source.Sheet.Has(Rule.EndlessVenom) ? AilmentRules.MostEndlessVenom : AilmentRules.MostVenom;
                 a.Venom ??= new List<VenomStack>();
                 if (a.Venom.Count >= most) a.Venom.RemoveAt(0);
                 if (seconds > 0f) a.Venom.Add(new VenomStack { PerSecond = perSecond, Left = seconds, Source = source });
             }
 
-            if (cold > 0f && !sheet.Has(Rule.CannotBeChilled) && Lands(Ailment.Chill, sure: true))
+            float frost = cold + Inflicted(Ailment.Chill);
+            if (frost > 0f && !sheet.Has(Rule.CannotBeChilled) && Lands(Ailment.Chill, sure: true))
             {
-                float effect = AilmentRules.ChillEffect(cold / health, skill.Ailments[(int)Ailment.Chill].Effect);
+                float effect = AilmentRules.ChillEffect(frost / health, skill.Ailments[(int)Ailment.Chill].Effect);
                 if (effect >= a.ChillEffect || a.ChillLeft <= 0f)
                 {
                     a.ChillEffect = effect;
@@ -938,14 +1152,16 @@ namespace Dino_Defenders.Server
                 }
             }
 
-            if (cold > 0f && !sheet.Has(Rule.CannotBeFrozen) && Lands(Ailment.Freeze, cold / health >= AilmentRules.FreezeThreshold))
+            float ice = cold + Inflicted(Ailment.Freeze);
+            if (ice > 0f && !sheet.Has(Rule.CannotBeFrozen) && Lands(Ailment.Freeze, ice / health >= AilmentRules.FreezeThreshold || Inflicted(Ailment.Freeze) > 0f))
             {
                 a.FreezeLeft = MathF.Max(a.FreezeLeft, Length(Ailment.Freeze, AilmentRules.FreezeSeconds));
             }
 
-            if (lightning > 0f && Lands(Ailment.Shock))
+            float charge = lightning + Inflicted(Ailment.Shock);
+            if (charge > 0f && Lands(Ailment.Shock, Inflicted(Ailment.Shock) > 0f))
             {
-                float effect = AilmentRules.ShockEffect(lightning / health, skill.Ailments[(int)Ailment.Shock].Effect);
+                float effect = AilmentRules.ShockEffect(charge / health, skill.Ailments[(int)Ailment.Shock].Effect);
                 if (effect >= a.ShockEffect || a.ShockLeft <= 0f)
                 {
                     a.ShockEffect = effect;
@@ -953,7 +1169,7 @@ namespace Dino_Defenders.Server
                 }
             }
 
-            if (magic > 0f && Lands(Ailment.Hex))
+            if (magic + Inflicted(Ailment.Hex) > 0f && Lands(Ailment.Hex, Inflicted(Ailment.Hex) > 0f))
             {
                 a.HexStacks = Math.Min(a.HexStacks + 1, AilmentRules.MostHex);
                 a.HexEffect = MathF.Max(a.HexEffect, skill.Ailments[(int)Ailment.Hex].Effect);
@@ -961,7 +1177,8 @@ namespace Dino_Defenders.Server
             }
 
             float bearable = health * sheet.StunThreshold / 100f;
-            if (!sheet.Has(Rule.CannotBeStunned) && physical > 0f && Lands(Ailment.Stun, dealt / bearable >= AilmentRules.StunThreshold))
+            float blow = dealt + Inflicted(Ailment.Stun);
+            if (!sheet.Has(Rule.CannotBeStunned) && physical + Inflicted(Ailment.Stun) > 0f && Lands(Ailment.Stun, blow / bearable >= AilmentRules.StunThreshold || Inflicted(Ailment.Stun) > 0f))
             {
                 a.StunLeft = MathF.Max(a.StunLeft, Length(Ailment.Stun, AilmentRules.StunSeconds));
             }
@@ -1052,7 +1269,7 @@ namespace Dino_Defenders.Server
         }
 
         // Whoever dies, this is what it does for them, and for whoever did it.
-        private void Die(Actor actor, Actor killer, SkillProfile? skill, Vector2 from, Vector3 thrown)
+        private void Die(Actor actor, Actor killer, PageProfile? skill, Vector2 from, Vector3 thrown)
         {
             if (actor.Dead) return;
 
@@ -1061,7 +1278,7 @@ namespace Dino_Defenders.Server
                 actor.RebirthIn = RebirthCooldown;
                 actor.Vitals.Health = actor.Sheet.MaxHealth * RebirthHealth;
                 actor.Vitals.Debt = 0f;
-                Show(new SkillEvent { Position = Ground(actor.Position), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Burst, Radius = RebirthRadius }, actor.Position);
+                Show(PageEvent.Round(Ground(actor.Position), PageSign.Blast(DamageType.Fire), RebirthRadius), actor.Position);
                 Defer(new Consequence { Kind = Later.Blast, At = Now, Source = actor, Origin = actor.Position, Radius = RebirthRadius, Type = DamageType.Fire, Amount = actor.Sheet.MaxHealth * RebirthBlast, Tags = Tags.Reaction });
                 return;
             }
@@ -1085,7 +1302,7 @@ namespace Dino_Defenders.Server
         // It's the ring that's the danger, so there's long enough to see it and get clear. A crowd going up at once can kill whoever stands in the middle of it, and that's the omen working.
         private void BeginBurst(Actor actor)
         {
-            Warn(GroundShape.Circle(actor.Position, BurstRadius), SkillCatalog.Immolate.Number, MarkTier.Grave, actor.Team == Team.Enemies, BurstDelay);
+            Warn(GroundShape.Circle(actor.Position, BurstRadius), MarkTier.Grave, actor.Team == Team.Enemies, BurstDelay);
             float amount = Bestiary.DamageAt(actor.Loadout.Level) * BurstShare * _session.Offering.EnemyDamage;
             Defer(new Consequence { Kind = Later.Burst, At = Now + BurstDelay, Source = actor, Origin = actor.Position, Radius = BurstRadius, Type = DamageType.Fire, Amount = amount, Tags = Tags.Reaction });
         }
@@ -1101,10 +1318,10 @@ namespace Dino_Defenders.Server
                 AddBuff(ally, BuffCatalog.Rallied, 0f);
                 anyone = true;
             }
-            if (anyone) Show(new SkillEvent { Position = Ground(fallen.Position), Skill = SkillCatalog.Strike.Number, Phase = SkillPhase.Burst, Radius = RallyReach }, fallen.Position);
+            if (anyone) Show(PageEvent.Round(Ground(fallen.Position), PageSign.Blast(DamageType.Physical), RallyReach), fallen.Position);
         }
 
-        private void Credit(Actor killer, Actor victim, SkillProfile? skill)
+        private void Credit(Actor killer, Actor victim, PageProfile? skill)
         {
             killer.SinceKill = 0f;
             killer.KillHeat += 1f;
@@ -1121,7 +1338,7 @@ namespace Dino_Defenders.Server
             if (sheet.ExplodeOnKill > 0f)
             {
                 float amount = victim.Sheet.MaxHealth * sheet.ExplodeOnKill / 100f;
-                Show(new SkillEvent { Position = Ground(victim.Position), Skill = SkillCatalog.Immolate.Number, Phase = SkillPhase.Burst, Radius = ExplosionRadius }, victim.Position);
+                Show(PageEvent.Round(Ground(victim.Position), PageSign.Blast(DamageType.Fire), ExplosionRadius), victim.Position);
                 Defer(new Consequence { Kind = Later.Blast, At = Now, Source = killer, Origin = victim.Position, Radius = ExplosionRadius, Type = DamageType.Fire, Amount = amount, Tags = Tags.Reaction, Victim = victim });
             }
 
@@ -1191,11 +1408,10 @@ namespace Dino_Defenders.Server
                 if (trigger.On != on || actor.TriggerReady[i] > 0f) continue;
                 if (trigger.Value < 100f && _luck.Float() * 100f >= trigger.Value) continue;
 
-                SkillDefinition skill = SkillCatalog.Get(trigger.Skill);
-                if (actor.Sheet.Profile(skill) is not SkillProfile profile) continue;
+                if (actor.Sheet.Profile(Shelf.Get(trigger.Book)) is not BookProfile book) continue;
 
-                actor.TriggerReady[i] = MathF.Max(profile.Cooldown, TriggerGap);
-                Defer(new Consequence { Kind = Later.Release, At = Now, Source = actor, Skill = profile, Origin = at, Facing = Vector2.UnitY, Reach = 0f, Strength = 1f });
+                actor.TriggerReady[i] = MathF.Max(book.Cooldown, TriggerGap);
+                Defer(new Consequence { Kind = Later.Release, At = Now, Source = actor, Book = book, Origin = at, Facing = Vector2.UnitY, Reach = 0f, Strength = 1f });
             }
         }
 
@@ -1206,20 +1422,20 @@ namespace Dino_Defenders.Server
             if (sheet.Has(Rule.BurningTrail) && actor.Moving)
             {
                 actor.TrailStep += sheet.MoveSpeed * seconds;
-                if (actor.TrailStep >= TrailSpacing && sheet.Profile(SkillCatalog.CinderTrail) is SkillProfile cinders)
+                if (actor.TrailStep >= TrailSpacing && sheet.Profile(Shelf.CinderTrail) is BookProfile cinders)
                 {
                     actor.TrailStep = 0f;
-                    Lay(actor, cinders, actor.Position);
+                    Release(actor, cinders, actor.Position, Vector2.UnitY, 0f);
                 }
             }
 
             if (sheet.Has(Rule.Carrier))
             {
                 actor.CarrierClock += seconds;
-                if (actor.CarrierClock >= CarrierInterval && sheet.Profile(SkillCatalog.VenomCloud) is SkillProfile cloud)
+                if (actor.CarrierClock >= CarrierInterval && sheet.Profile(Shelf.VenomCloud) is BookProfile cloud)
                 {
                     actor.CarrierClock = 0f;
-                    Defer(new Consequence { Kind = Later.Release, At = Now, Source = actor, Skill = cloud, Origin = actor.Position, Facing = Vector2.UnitY, Strength = 1f });
+                    Defer(new Consequence { Kind = Later.Release, At = Now, Source = actor, Book = cloud, Origin = actor.Position, Facing = Vector2.UnitY, Strength = 1f });
                 }
             }
         }

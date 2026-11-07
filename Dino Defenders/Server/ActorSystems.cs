@@ -1,5 +1,5 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -8,11 +8,27 @@ using OpenTK.Mathematics;
 
 namespace Dino_Defenders.Server
 {
+    /// <summary>One use of a book, from when it's let go until everything it set off is over. It's what its pages have in common, however many places they've got to.</summary>
+    public sealed class Cast
+    {
+        public Actor Source = null!;
+        public BookProfile Book = null!;
+        public Vector2 Cursor;
+        public float Strength = 1f;
+        public int ViewLag;
+
+        /// <summary>How much it's made so far, which has a limit.</summary>
+        public int Made;
+
+        /// <summary>Everyone it's reached so far, whom nothing goes looking for again.</summary>
+        public readonly List<Actor> Struck = new();
+    }
+
     /// <summary>Something in flight. Who threw it and with what numbers go with it, so it still counts if they've died or moved on.</summary>
     public sealed class Projectile
     {
-        public Actor Source = null!;
-        public SkillProfile Skill = null!;
+        public Cast Cast = null!;
+        public PageProfile Page = null!;
         public float Life;
         public int Pierce;
         public int Chains;
@@ -20,6 +36,7 @@ namespace Dino_Defenders.Server
         public Vector2 Start;
         public Vector2 Way;
         public bool Returning;
+        public bool Falling;        // Only there to be seen: it does what it does when it said it would.
         public readonly List<Actor> Spent = new();
     }
 
@@ -31,9 +48,9 @@ namespace Dino_Defenders.Server
     /// <summary>A patch of ground that's doing something to whoever stands on it.</summary>
     public sealed class ZoneState
     {
-        public Actor Source = null!;
-        public SkillProfile Skill = null!;
-        public Vector2 At;
+        public Cast Cast = null!;
+        public PageProfile Page = null!;
+        public GroundShape Shape;
         public float Left;
         public float NextPulse;
         public float Strength = 1f;
@@ -182,10 +199,12 @@ namespace Dino_Defenders.Server
             bool blocked = position.Y < session.World.Height.Sample(position.Xz) || session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f));
             bool flying = session.Combat.Touch(projectile, position);
 
+            // What's falling isn't stopped by anything: it comes down where it said it would.
+            if (projectile.Falling) blocked = false;
             if (flying && !blocked && projectile.Life > 0f) return;
 
-            // It ended on something other than a body, so what it does at the end of its flight hasn't happened yet.
-            if (flying && projectile.Skill.Radius > 0f) session.Combat.Burst(projectile, position.Xz);
+            // It ended on something other than a body, which is an impact all the same.
+            if (flying) session.Combat.Ended(projectile, position);
             session.Combat.Returns(projectile, position);
             world.DestroyEntity(entity.Entity);
         }
@@ -277,7 +296,7 @@ namespace Dino_Defenders.Server
             zone.NextPulse -= deltaTime;
             if (zone.NextPulse <= 0f)
             {
-                zone.NextPulse += zone.Skill.Interval;
+                zone.NextPulse += zone.Page.Interval;
                 session.Combat.Pulse(zone);
             }
             if (zone.Left <= 0f) world.DestroyEntity(entity.Entity);

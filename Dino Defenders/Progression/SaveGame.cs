@@ -1,3 +1,4 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Talents;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -21,10 +22,13 @@ namespace Dino_Defenders.Progression
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 5;
+        public const int CurrentVersion = 6;
 
         /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
         private const int SlotsVersion = 4;
+
+        /// <summary>The version that replaced skills with books, which needs a copy of the old save kept. Nothing a tree held means anything now, so everyone starts it again.</summary>
+        private const int BooksVersion = 6;
 
         public int Version { get; set; } = CurrentVersion;
         public HeroState Hero { get; set; } = HeroState.CreateNew();
@@ -77,6 +81,7 @@ namespace Dino_Defenders.Progression
                 // Bringing a save up to date can't be undone, and the first thing that happens next is that it gets written over.
                 if (save != null && !json.Contains("\"Version\"")) KeepOldCopy(path, ".before-talents");
                 else if (save != null && VersionOf(json) < SlotsVersion) KeepOldCopy(path, ".before-gear");
+                else if (save != null && VersionOf(json) < BooksVersion) KeepOldCopy(path, ".before-books");
                 return save;
             }
             catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -111,15 +116,26 @@ namespace Dino_Defenders.Progression
 
             // Has to be before anything is read: an enum name that's gone throws, and a save that can't be read starts a new journey.
             if (version < SlotsVersion) RenameSlots(root);
+            if (version < BooksVersion) ForgetSkills(root);
 
             SaveGame? save = root.Deserialize<SaveGame>(Options);
             if (save == null) return null;
             save.Version = CurrentVersion;
             FixBar(save.Hero);
             FixPack(save.Hero);
+            FixBooks(save.Hero);
+            if (version < BooksVersion) save.Hero.Bar[0] ??= ItemGenerator.Book(ItemGenerator.NewSeed(new Dino_Engine.World.WorldRandom((ulong)Random.Shared.NextInt64())));
             TalentTree.Sanitize(save.Hero);
             save.Offering.Sanitize();
             return save;
+        }
+
+        // A bar used to be a list of skills, and the tree was made of them. What's carried comes through it all, and the talents are all there to be spent again.
+        private static void ForgetSkills(JsonObject root)
+        {
+            if (root["Hero"] is not JsonObject hero) return;
+            hero.Remove("Bar");
+            hero["Talents"] = new JsonArray();
         }
 
         private static int VersionOf(string json)
@@ -168,10 +184,24 @@ namespace Dino_Defenders.Progression
         // A bar of the wrong length, from a hand or an older build, shouldn't be anyone's problem later on.
         private static void FixBar(HeroState hero)
         {
-            if (hero.Bar.Length == HeroState.SkillSlots) return;
-            var bar = new string?[HeroState.SkillSlots];
-            Array.Copy(hero.Bar, bar, Math.Min(hero.Bar.Length, bar.Length));
+            if (hero.Bar?.Length == HeroState.BarSlots) return;
+            var bar = new Item?[HeroState.BarSlots];
+            if (hero.Bar != null) Array.Copy(hero.Bar, bar, Math.Min(hero.Bar.Length, bar.Length));
             hero.Bar = bar;
+        }
+
+        // Anything written can have had a sentence taken away since, and only a book goes on the bar.
+        private static void FixBooks(HeroState hero)
+        {
+            for (int slot = 0; slot < hero.Bar.Length; slot++)
+            {
+                if (hero.Bar[slot] is { IsBook: false }) hero.Bar[slot] = null;
+                if (hero.Bar[slot]?.Book is Book book) Scribe.Fix(book);
+            }
+            foreach (Item item in hero.Carried())
+            {
+                if (item.Book != null) Scribe.Fix(item.Book);
+            }
         }
 
         // Before a pack had cells it was a list of what was in it, so that's what fills the first of them, in the order they were carried. A pack that's the right size is left as it is, gaps and all.

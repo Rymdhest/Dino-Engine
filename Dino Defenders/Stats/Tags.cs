@@ -60,6 +60,11 @@ namespace Dino_Defenders.Stats
         Hex = 1ul << 27,
         Stun = 1ul << 28,
 
+        // Where it is in a book, and what's written on it.
+        Opening = 1ul << 29,        // The first page.
+        Turned = 1ul << 30,         // Any page after that.
+        Closing = 1ul << 31,        // The last page.
+
         // What it's done with.
         Sword = 1ul << 32,
         Axe = 1ul << 33,
@@ -72,6 +77,9 @@ namespace Dino_Defenders.Stats
         Unarmed = 1ul << 40,
         OneHanded = 1ul << 41,
         TwoHanded = 1ul << 42,
+
+        Wild = 1ul << 43,           // Something on it is left to chance.
+        Falling = 1ul << 44,        // It comes down out of the sky.
 
         DamageTypes = Physical | Fire | Cold | Lightning | Magic | Poison,
         Ailments = Burn | Bleed | Venom | Chill | Freeze | Shock | Hex | Stun,
@@ -144,7 +152,7 @@ namespace Dino_Defenders.Stats
         RecentlyCrit = 1ul << 10,
         RecentlyBlocked = 1ul << 11,
         RecentlyDodged = 1ul << 12,
-        RecentlyUsedSkill = 1ul << 13,
+        RecentlyUsedBook = 1ul << 13,
 
         Burning = 1ul << 14,
         Bleeding = 1ul << 15,

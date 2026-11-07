@@ -1,6 +1,5 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Defenders.Tooltips;
@@ -125,7 +124,7 @@ namespace Dino_Defenders.UI
             TalentKind.Keystone => 34f,
             TalentKind.Root => 26f,
             TalentKind.Gate => 24f,
-            TalentKind.Notable or TalentKind.Skill => 21f,
+            TalentKind.Notable => 21f,
             _ => 11f,
         };
 
@@ -299,9 +298,6 @@ namespace Dino_Defenders.UI
 
                 switch (node.Kind)
                 {
-                    case TalentKind.Skill:
-                        draw.AddRect(new GuiRect(at.X - radius, at.Y - radius, radius * 2f, radius * 2f), fill, 3f, thickness, edge);
-                        break;
                     case TalentKind.Gate:
                         draw.AddCircle(at, radius, GuiColors.Rgba(10, 14, 24), thickness, GuiColors.Rgba(150, 200, 255));
                         draw.AddCircle(at, radius * 0.58f, fill, 1f, edge);
@@ -315,7 +311,7 @@ namespace Dino_Defenders.UI
                         break;
                 }
 
-                bool named = node.Kind is TalentKind.Keystone or TalentKind.Skill or TalentKind.Notable or TalentKind.Root;
+                bool named = node.Kind is TalentKind.Keystone or TalentKind.Notable or TalentKind.Root;
                 if (named && (_zoom >= LabelsFrom || node.Kind == TalentKind.Keystone && _zoom >= 0.42f))
                 {
                     Colour text = _taken[i] ? Ui.Parchment : Ui.Faded;
@@ -345,99 +341,5 @@ namespace Dino_Defenders.UI
                 return card;
             }, new GuiRect(at.X - radius, at.Y - radius, radius * 2f, radius * 2f));
         }
-    }
-
-    /// <summary>What's on the bar, and everything that could be. A slot is picked, then a skill to go in it.</summary>
-    internal sealed class SkillPanel : GuiElement
-    {
-        public static readonly string[] Keys = { "LMB", "RMB", "Q", "1", "2", "3", "4" };
-
-        private readonly StackPanel _slots;
-        private readonly StackPanel _known;
-        private readonly Label _empty;
-        private SkillDefinition? _showing;
-        private int _chosen;
-
-        private static GameSession Session => GameSession.Current;
-
-        public SkillPanel()
-        {
-            Anchor = Anchor.Center;
-            Width = 980f;
-            Height = 640f;
-            Padding = new Thickness(20f);
-            Ui.Dress(this);
-            Visible = false;
-
-            var columns = Add(new StackPanel(Orientation.Horizontal, 18f) { Width = UIValue.Fill, Height = UIValue.Fill });
-
-            var left = columns.Add(new StackPanel(Orientation.Vertical, 6f) { Width = 230f, Height = UIValue.Fill });
-            left.Add(Ui.Heading("Skills"));
-            left.Add(Ui.Line("The bar", 15f, Ui.Gold));
-            _slots = left.Add(new StackPanel(Orientation.Vertical, 6f) { Width = UIValue.Fill, Height = UIValue.Auto });
-
-            var middle = columns.Add(new StackPanel(Orientation.Vertical, 6f) { Width = 300f, Height = UIValue.Fill });
-            middle.Add(Ui.Line("What you know", 15f, Ui.Gold));
-            var scroll = middle.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
-            _known = scroll.Content.Add(new StackPanel(Orientation.Vertical, 5f) { Width = UIValue.Fill, Height = UIValue.Auto });
-
-            var details = columns.Add(new StackPanel(Orientation.Vertical, 3f) { Width = UIValue.Fill, Height = UIValue.Fill });
-            _empty = details.Add(Ui.Paragraph("Pick a slot, then a skill to go in it. New skills are learned on the tree, and from what you wear.", 14f, Ui.Faded));
-            details.Add(new CardView(() => _showing != null && GameSession.Current != null ? Cards.Skill(Session.Sheet.Preview(_showing)) : null) { Width = UIValue.Fill, Height = UIValue.Fill });
-
-            // Decided here rather than by it, as a hidden element isn't updated and could never show itself again.
-            details.Updated += _ => _empty.Visible = _showing == null;
-        }
-
-        public void Open()
-        {
-            Rebuild();
-            Describe(SkillIn(_chosen));
-        }
-
-        private static SkillDefinition? SkillIn(int slot)
-        {
-            string? id = Session.Hero.Bar[slot];
-            return id != null ? SkillCatalog.Find(id) : null;
-        }
-
-        private void Rebuild()
-        {
-            _slots.ClearChildren();
-            for (int i = 0; i < HeroState.SkillSlots; i++)
-            {
-                int slot = i;
-                string name = SkillIn(slot)?.Name ?? "Empty";
-                Button button = _slots.Add(Ui.Action($"{(slot == _chosen ? "> " : "")}{Keys[slot]}: {name}", () =>
-                {
-                    _chosen = slot;
-                    Audio.Play(Interface.Open);
-                    Rebuild();
-                    Describe(SkillIn(slot));
-                }));
-                button.Height = 34f;
-            }
-
-            _known.ClearChildren();
-            _known.Add(Ui.Action("Nothing", () => Assign(null)));
-            foreach (SkillDefinition skill in Session.Sheet.Loadout.Skills)
-            {
-                if (skill.Hidden) continue;
-                SkillDefinition known = skill;
-                Button button = _known.Add(Ui.Action(skill.Name, () => Assign(known)));
-                button.MouseEnter += () => Describe(known);
-            }
-        }
-
-        private void Assign(SkillDefinition? skill)
-        {
-            Audio.Play(Interface.Equip);
-            Session.Hero.Bar[_chosen] = skill?.Id;
-            Session.Client.AssignSlot(_chosen, skill);
-            Rebuild();
-            Describe(skill);
-        }
-
-        private void Describe(SkillDefinition? skill) => _showing = skill;
     }
 }

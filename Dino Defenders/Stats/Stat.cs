@@ -57,17 +57,17 @@ namespace Dino_Defenders.Stats
         Penetration,            // Percentage points of resistance ignored.
         ArmourIgnore,           // Percent of the target's armour ignored.
 
-        // How a skill reaches.
+        // How a page reaches.
         AreaOfEffect,
         MeleeReach,
         ProjectileSpeed,
         ProjectileCount,
         Pierce,
         Chain,
-        SkillDuration,
+        PageDuration,
         CooldownRecovery,
-        SkillCost,
-        SkillLevel,
+        BookCost,
+        Potency,                // Everything a page does.
 
         // What it leaves behind.
         AilmentChance,
@@ -119,13 +119,12 @@ namespace Dino_Defenders.Stats
         Override,       // Sets the stat outright. Where there are several, the lowest stands.
         Rule,           // Changes how something works, rather than a number.
         Grant,          // Makes a condition true.
-        GrantSkill,     // A skill to use.
         Divert,         // Increases and mores of one stat apply to another instead.
         Echo,           // As Divert, but they apply to both.
-        Trigger,        // When something happens, a skill goes off.
+        Trigger,        // When something happens, a book goes off.
     }
 
-    /// <summary>What can set off a skill by itself.</summary>
+    /// <summary>What can set off a book by itself.</summary>
     public enum TriggerEvent : byte
     {
         Hit,
@@ -146,7 +145,7 @@ namespace Dino_Defenders.Stats
     {
         None = 0,
 
-        CostsHealth = 1ul << 0,             // Skills cost health instead of mana.
+        CostsHealth = 1ul << 0,             // Books cost health instead of mana.
         DeferredDamage = 1ul << 1,          // Damage taken is paid over time.
         OverhealBarrier = 1ul << 2,         // Healing past full becomes barrier.
         BlockReflects = 1ul << 3,           // A blocked hit goes back at whoever threw it.
@@ -159,14 +158,14 @@ namespace Dino_Defenders.Stats
         BurningTrail = 1ul << 10,           // The ground burns behind you.
         Rebirth = 1ul << 11,                // Death is put off, now and then.
         SpellEcho = 1ul << 12,              // Spells go off twice.
-        NoCooldowns = 1ul << 13,            // Cooldowns become cost.
+        OneCost = 1ul << 13,                // Only a book's first page has a cost.
         StaticCharge = 1ul << 14,           // Moving builds a charge the next hit spends.
         ChainsGrow = 1ul << 15,             // Chains strengthen as they go.
         FreezeStores = 1ul << 16,           // Damage to the frozen is saved up for when the ice breaks.
         HighGround = 1ul << 17,             // Height over a target is damage.
         LongShot = 1ul << 18,               // Projectiles strengthen with distance.
         ProjectilesReturn = 1ul << 19,      // Projectiles come back.
-        Mimic = 1ul << 20,                  // The last skill that hit you is yours to use.
+        Steady = 1ul << 20,                 // What's left to chance isn't, and pays the same.
         DodgeCrit = 1ul << 21,              // A dodge makes the next hit critical.
         WaterTrail = 1ul << 22,             // Spells leave water behind.
         NoLeech = 1ul << 23,

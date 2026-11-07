@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 
 namespace Dino_Defenders.Stats
 {
@@ -16,10 +16,10 @@ namespace Dino_Defenders.Stats
         public float More;
     }
 
-    /// <summary>Something that only counts against certain foes, so it has to wait for a blow to land. Most skills have none of these.</summary>
+    /// <summary>Something that only counts against certain foes, so it has to wait for a blow to land. Most pages have none of these.</summary>
     public readonly record struct FoeBonus(Stat Stat, ModKind Kind, Condition Foe, float Value, uint Flows);
 
-    /// <summary>What a skill does about one ailment.</summary>
+    /// <summary>What a page does about one ailment.</summary>
     public struct AilmentProfile
     {
         public float Chance;        // Percent.
@@ -28,40 +28,43 @@ namespace Dino_Defenders.Stats
     }
 
     /// <summary>
-    /// One actor's numbers for one skill. This is the point of the whole system: everything that can be worked out ahead of a blow is worked out
-    /// here, once, so a blow itself is a few multiplications however many modifiers went into it. Sheets are shared, and so these are too,
-    /// so a hundred archers of one kind are one of these.
+    /// One actor's numbers for one page. This is the point of the whole system: everything that can be worked out ahead of a blow is worked out here, once, so a blow itself is a few multiplications however many
+    /// modifiers went into it. Sheets are shared, and so these are too, so a hundred archers of one kind are one of these.
     /// </summary>
-    public sealed class SkillProfile
+    public sealed class PageProfile
     {
         private const int MostFlows = 24;
 
         private readonly DamageFlow[] _flows;
 
         public readonly ActorSheet Sheet;
-        public readonly SkillDefinition Skill;
-        public readonly int Index;
+        public readonly PagePlan Page;
 
-        /// <summary>Everything this skill counts as, including every type of damage it turns out to deal.</summary>
+        /// <summary>Everything this page counts as, including every type of damage it turns out to deal.</summary>
         public readonly Tags Tags;
+
+        /// <summary>What it looks like to anyone watching.</summary>
+        public readonly PageSign Sign;
 
         public readonly float UseTime;
         public readonly float ImpactTime;
         public readonly float Cooldown;
         public readonly float Cost;
-        public readonly bool CostsHealth;
 
-        public readonly float Reach;
-        public readonly float Radius;
+        /// <summary>How far a shape reaches, or its radius, and how wide it is: radians for a cone, and otherwise metres either side of the middle.</summary>
+        public readonly float Length;
+        public readonly float Width;
         public readonly float Range;
         public readonly float Speed;
         public readonly float Duration;
         public readonly float Interval;
-        public readonly float Delay;
         public readonly int Projectiles;
         public readonly int Pierce;
         public readonly int Chains;
         public readonly int MinionCount;
+
+        /// <summary>What sentences and the rest of a build have made of everything it does.</summary>
+        public readonly float Potency;
 
         public readonly float CritChance;
         public readonly float CritMultiplier;
@@ -87,31 +90,40 @@ namespace Dino_Defenders.Stats
         /// <summary>What lingering damage gets on top of the hit it came from, for each ailment that does any.</summary>
         public readonly float[] LingerScale = new float[AilmentRules.Count];
 
-        /// <summary>What it starts from, by type, before flat damage is added to it: its share of the weapon, or what a spell has at this level.</summary>
+        /// <summary>What it puts on someone outright, each as strong as a hit of this much would have left. Nothing means it doesn't.</summary>
+        public readonly float[] Inflicts = new float[AilmentRules.Count];
+
+        /// <summary>What each of its heals comes to, in the order of <see cref="PagePlan.Heals"/>.</summary>
+        public readonly float[] Heals;
+
+        /// <summary>What it starts from, by type, before flat damage is added to it.</summary>
         public DamageTable BaseMin;
         public DamageTable BaseMax;
 
-        /// <summary>Flat damage it gets, by type, after its own share of that.</summary>
+        /// <summary>Flat damage it gets, by type.</summary>
         public DamageTable Added;
-
-        /// <summary>The level a spell's damage is read at, with any levels of skills.</summary>
-        public float SkillLevel;
 
         public ReadOnlySpan<DamageFlow> Flows => _flows;
         public bool DealsDamage => _flows.Length > 0;
 
-        internal SkillProfile(ActorSheet sheet, SkillDefinition skill, int index)
+        /// <summary>Whether it's an Attack, which is what's in the hands and not what's on the page.</summary>
+        public bool IsAttack => (Tags & Tags.Attack) != 0;
+
+        internal PageProfile(ActorSheet sheet, PagePlan page)
         {
             Sheet = sheet;
-            Skill = skill;
-            Index = index;
+            Page = page;
             WeaponProfile weapon = sheet.Loadout.Weapon;
 
-            // A weapon's kind only says anything about what's done with it.
-            Tags tags = skill.Tags;
-            if (skill.IsAttack) tags |= weapon.Tags;
+            // A wand or a staff makes it a Spell, and anything else an Attack. What's thrown or shot is no more Melee than a Spell is.
+            bool spell = (weapon.Tags & (Tags.Wand | Tags.Staff)) != 0;
+            Tags tags = page.Tags | weapon.Tags | (spell ? Tags.Spell : Tags.Attack);
+            if (!spell && page.Kind == PageKind.Area && page.From == Start.You && (weapon.Tags & Tags.Bow) == 0) tags |= Tags.Melee;
 
-            _flows = BuildFlows(sheet, skill, tags, weapon);
+            // It's the same in everything it does, so it has to be known before any of them.
+            Potency = Math.Clamp(page.Potency * sheet.Collect(Stat.Potency, tags, page).Scale, Rulebook.LeastPotency, Rulebook.MostPotency);
+
+            _flows = BuildFlows(sheet, page, tags, weapon);
 
             int lineage = 0;
             foreach (ref readonly DamageFlow flow in _flows.AsSpan()) lineage |= flow.Lineage;
@@ -121,74 +133,57 @@ namespace Dino_Defenders.Stats
             for (int i = 0; i < _flows.Length; i++)
             {
                 ref DamageFlow flow = ref _flows[i];
-                StatSum sum = sheet.Collect(Stat.Damage, tags | Tags.Hit | DamageKinds.TagsOf(flow.Lineage), skill);
+                StatSum sum = sheet.Collect(Stat.Damage, tags | Tags.Hit | DamageKinds.TagsOf(flow.Lineage), page);
                 flow.Increased = sum.Increased;
-                flow.More = sum.More;
+                flow.More = sum.More * Potency;
             }
 
-            // Using it.
-            float useTime = skill.UseTime;
-            if (skill.IsAttack)
-            {
-                useTime *= weapon.AttackTime / WeaponProfile.BareTime;
-                useTime /= MathF.Max(sheet.Total(Stat.AttackSpeed, 1f, all, skill), 0.05f);
-            }
-            else if (skill.IsSpell)
-            {
-                useTime /= MathF.Max(sheet.Total(Stat.CastSpeed, 1f, all, skill), 0.05f);
-            }
+            // Using it. It's the weapon that sets the pace, whichever of the two this is.
+            float useTime = page.UseTime * weapon.AttackTime / WeaponProfile.BareTime;
+            useTime /= MathF.Max(sheet.Total(spell ? Stat.CastSpeed : Stat.AttackSpeed, 1f, all, page), 0.05f);
             UseTime = MathF.Max(useTime, Rulebook.ShortestUse);
-            ImpactTime = UseTime * skill.ImpactAt;
+            ImpactTime = UseTime * page.ImpactAt;
 
-            float cost = sheet.Total(Stat.SkillCost, skill.Cost * CostAtLevel(sheet.Loadout.Level), all, skill);
-            float cooldown = skill.Cooldown / MathF.Max(sheet.Total(Stat.CooldownRecovery, 100f, all, skill) / 100f, 0.05f);
-            if (sheet.Has(Rule.NoCooldowns) && (skill.Tags & Tags.Movement) == 0)
-            {
-                cost *= 1f + Rulebook.NoCooldownCost * cooldown;
-                cooldown = 0f;
-            }
-            Cost = MathF.Max(cost, 0f);
-            Cooldown = cooldown;
-            CostsHealth = sheet.Has(Rule.CostsHealth);
+            Cost = MathF.Max(sheet.Total(Stat.BookCost, page.Cost * CostAtLevel(sheet.Loadout.Level), all, page), 0f);
+            Cooldown = page.Cooldown / MathF.Max(sheet.Total(Stat.CooldownRecovery, 100f, all, page) / 100f, 0.05f);
 
             // Reaching.
-            float areaScale = MathF.Sqrt(MathF.Max(sheet.Collect(Stat.AreaOfEffect, all, skill).Scale, 0.01f));
-            Radius = skill.Radius * areaScale;
-            Reach = (skill.Reach + ((all & Tags.Melee) != 0 ? sheet.Total(Stat.MeleeReach, 0f, all, skill) : 0f)) * ((all & Tags.Area) != 0 ? areaScale : 1f);
-            Range = skill.Range;
-            Speed = sheet.Total(Stat.ProjectileSpeed, skill.Speed, all, skill);
-            Duration = sheet.Total(Stat.SkillDuration, skill.Buff?.Duration ?? skill.Duration, all, skill);
-            Interval = skill.Interval;
-            Delay = skill.Delay;
-            Projectiles = Math.Clamp((int)MathF.Round(sheet.Total(Stat.ProjectileCount, skill.Projectiles, all, skill)), 1, 32);
-            Pierce = Math.Max((int)MathF.Round(sheet.Total(Stat.Pierce, skill.Pierce, all, skill)), 0);
-            Chains = Math.Max((int)MathF.Round(sheet.Total(Stat.Chain, skill.Chains, all, skill)), 0);
-            MinionCount = Math.Max((int)MathF.Round(sheet.Total(Stat.MinionCount, skill.MinionCount, all, skill)), 0);
+            float areaScale = MathF.Sqrt(MathF.Max(sheet.Collect(Stat.AreaOfEffect, all, page).Scale, 0.01f));
+            float reach = (all & Tags.Melee) != 0 ? sheet.Total(Stat.MeleeReach, 0f, all, page) : 0f;
+            Length = (page.Length + reach) * areaScale;
+            Width = page.Shape == AreaShape.Cone ? page.Width : page.Width * areaScale;
+            Range = page.Range;
+            Speed = sheet.Total(Stat.ProjectileSpeed, page.Speed, all, page);
+            Duration = sheet.Total(Stat.PageDuration, page.Duration, all, page);
+            Interval = page.Interval;
+            Projectiles = Math.Clamp((int)MathF.Round(sheet.Total(Stat.ProjectileCount, page.Projectiles, all, page)), 1, Rulebook.MostMade);
+            Pierce = Math.Max((int)MathF.Round(sheet.Total(Stat.Pierce, page.Pierce, all, page)), 0);
+            Chains = Math.Max((int)MathF.Round(sheet.Total(Stat.Chain, page.Chains, all, page)), 0);
+            MinionCount = Math.Max((int)MathF.Round(sheet.Total(Stat.MinionCount, page.MinionCount, all, page)), 0);
 
             // Landing.
-            float baseCrit = skill.IsAttack ? weapon.CritChance : skill.CritChance;
-            CritChance = sheet.Has(Rule.NeverCrit) ? 0f : Math.Clamp(sheet.Total(Stat.CritChance, baseCrit, all, skill), 0f, 100f);
-            CritMultiplier = MathF.Max(sheet.Total(Stat.CritMultiplier, ActorSheet.BaseCritMultiplier, all, skill), 100f);
-            Accuracy = MathF.Max(sheet.Total(Stat.Accuracy, 0f, all, skill), 0f);
-            ArmourIgnore = Math.Clamp(sheet.Total(Stat.ArmourIgnore, 0f, all, skill), 0f, 100f);
+            CritChance = sheet.Has(Rule.NeverCrit) ? 0f : Math.Clamp(sheet.Total(Stat.CritChance, weapon.CritChance, all, page), 0f, 100f);
+            CritMultiplier = MathF.Max(sheet.Total(Stat.CritMultiplier, ActorSheet.BaseCritMultiplier, all, page), 100f);
+            Accuracy = MathF.Max(sheet.Total(Stat.Accuracy, 0f, all, page), 0f);
+            ArmourIgnore = Math.Clamp(sheet.Total(Stat.ArmourIgnore, 0f, all, page), 0f, 100f);
             for (int i = 0; i < DamageKinds.Count; i++)
             {
-                Penetration[i] = sheet.Total(Stat.Penetration, 0f, tags | DamageKinds.TagsOf((DamageType)i), skill);
+                Penetration[i] = sheet.Total(Stat.Penetration, 0f, tags | DamageKinds.TagsOf((DamageType)i), page);
             }
-            (FoeBonuses, FoeConditions) = BuildFoeBonuses(sheet, skill, tags);
+            (FoeBonuses, FoeConditions) = BuildFoeBonuses(sheet, page, tags);
 
             // What follows.
             bool leeches = !sheet.Has(Rule.NoLeech);
-            HealthLeech = leeches ? sheet.Total(Stat.HealthLeech, 0f, all, skill) / 100f : 0f;
-            ManaLeech = leeches ? sheet.Total(Stat.ManaLeech, 0f, all, skill) / 100f : 0f;
-            HealthOnHit = sheet.Total(Stat.HealthOnHit, 0f, all, skill);
-            ManaOnHit = sheet.Total(Stat.ManaOnHit, 0f, all, skill);
-            HealthOnKill = sheet.Total(Stat.HealthOnKill, 0f, all, skill);
-            ManaOnKill = sheet.Total(Stat.ManaOnKill, 0f, all, skill);
-            BarrierOnKill = sheet.Total(Stat.BarrierOnKill, 0f, all, skill);
-            Execute = Math.Clamp(sheet.Total(Stat.Execute, 0f, all, skill), 0f, 100f);
-            ReactionScale = sheet.Total(Stat.ReactionDamage, 1f, all, skill);
-            ReactionArea = MathF.Sqrt(MathF.Max(sheet.Total(Stat.ReactionArea, 1f, all, skill), 0.01f));
+            HealthLeech = leeches ? sheet.Total(Stat.HealthLeech, 0f, all, page) / 100f : 0f;
+            ManaLeech = leeches ? sheet.Total(Stat.ManaLeech, 0f, all, page) / 100f : 0f;
+            HealthOnHit = sheet.Total(Stat.HealthOnHit, 0f, all, page);
+            ManaOnHit = sheet.Total(Stat.ManaOnHit, 0f, all, page);
+            HealthOnKill = sheet.Total(Stat.HealthOnKill, 0f, all, page);
+            ManaOnKill = sheet.Total(Stat.ManaOnKill, 0f, all, page);
+            BarrierOnKill = sheet.Total(Stat.BarrierOnKill, 0f, all, page);
+            Execute = Math.Clamp(sheet.Total(Stat.Execute, 0f, all, page), 0f, 100f);
+            ReactionScale = sheet.Total(Stat.ReactionDamage, 1f, all, page);
+            ReactionArea = MathF.Sqrt(MathF.Max(sheet.Total(Stat.ReactionArea, 1f, all, page), 0.01f));
 
             for (int i = 0; i < AilmentRules.Count; i++)
             {
@@ -196,19 +191,52 @@ namespace Dino_Defenders.Stats
                 Tags tag = AilmentRules.Tag(ailment);
                 Ailments[i] = new AilmentProfile
                 {
-                    Chance = Math.Clamp(sheet.Total(Stat.AilmentChance, 0f, all | tag, skill), 0f, 100f),
-                    Duration = MathF.Max(sheet.Total(Stat.AilmentDuration, 1f, all | tag, skill), 0f),
-                    Effect = MathF.Max(sheet.Total(Stat.AilmentEffect, 1f, all | tag, skill), 0f),
+                    Chance = Math.Clamp(sheet.Total(Stat.AilmentChance, 0f, all | tag, page), 0f, 100f),
+                    Duration = MathF.Max(sheet.Total(Stat.AilmentDuration, 1f, all | tag, page), 0f),
+                    Effect = MathF.Max(sheet.Total(Stat.AilmentEffect, 1f, all | tag, page), 0f),
                 };
-                LingerScale[i] = LingerFor(sheet, skill, all, tag);
+                LingerScale[i] = LingerFor(sheet, all, tag);
             }
+
+            foreach (AilmentPart part in page.Ailments)
+            {
+                (float low, float high) = Reading(sheet, part.Measure, weapon);
+                Inflicts[(int)part.Ailment] += (low + high) * 0.5f * part.Share * Potency;
+            }
+
+            Heals = new float[page.Heals.Length];
+            for (int i = 0; i < Heals.Length; i++)
+            {
+                (float low, float high) = Reading(sheet, page.Heals[i].Measure, weapon);
+                Heals[i] = (low + high) * 0.5f * page.Heals[i].Share * Potency;
+            }
+
+            Sign = PageSign.Of(page, spell, UseTime);
+        }
+
+        /// <summary>What a measure comes to on this sheet, as the two ends of a roll: only a weapon has any spread.</summary>
+        private static (float low, float high) Reading(ActorSheet sheet, Measure measure, in WeaponProfile weapon)
+        {
+            float value = measure switch
+            {
+                Measure.Health => sheet.MaxHealth,
+                Measure.Mana => sheet.MaxMana,
+                Measure.Barrier => sheet.MaxBarrier,
+                Measure.Armour => sheet.Armour,
+                Measure.Evasion => sheet.Evasion,
+                Measure.Strength => sheet.Total(Stat.Strength),
+                Measure.Dexterity => sheet.Total(Stat.Dexterity),
+                Measure.Intellect => sheet.Total(Stat.Intellect),
+                _ => -1f,
+            };
+            return value >= 0f ? (value, value) : (weapon.Min, weapon.Max);
         }
 
         public static float CostAtLevel(int level) => 1f + Rulebook.CostPerLevel * Math.Max(level - 1, 0);
 
         // A lingering ailment feeds on the hit that caused it, so whatever made that stronger has done its work already. What's left to add
         // is whatever names lingering damage or the ailment itself, which never touched the hit. That way nothing counts twice.
-        private static float LingerFor(ActorSheet sheet, SkillDefinition skill, Tags all, Tags ailment)
+        private static float LingerFor(ActorSheet sheet, Tags all, Tags ailment)
         {
             StatSum sum = StatSum.Empty;
             Tags naming = Tags.DamageOverTime | ailment;
@@ -216,34 +244,22 @@ namespace Dino_Defenders.Stats
             foreach (ref readonly Mod mod in sheet.Loadout.On(Stat.Damage))
             {
                 if ((mod.Scope & naming) == 0 || (mod.Scope & ~tags) != 0 || mod.Foe != Condition.None) continue;
-                if (mod.Skill != SkillDefinition.None && mod.Skill != skill.Number) continue;
                 if (sheet.WorthIfHeld(mod) is float value) sum.Add(mod, value);
             }
             return sum.Scale;
         }
 
-        private DamageFlow[] BuildFlows(ActorSheet sheet, SkillDefinition skill, Tags tags, in WeaponProfile weapon)
+        private DamageFlow[] BuildFlows(ActorSheet sheet, PagePlan page, Tags tags, in WeaponProfile weapon)
         {
-            if (sheet.Has(Rule.NoOwnDamage) || !skill.DealsDamage) return Array.Empty<DamageFlow>();
+            if (sheet.Has(Rule.NoOwnDamage) || !page.DealsDamage) return Array.Empty<DamageFlow>();
 
             DamageTable min = default;
             DamageTable max = default;
-
-            if (skill.IsAttack)
+            foreach (DamagePart part in page.Damage)
             {
-                min[(int)DamageType.Physical] = weapon.Min * skill.WeaponShare;
-                max[(int)DamageType.Physical] = weapon.Max * skill.WeaponShare;
-            }
-
-            // Nothing is known yet of what it might turn into, but what it starts as is, and levels can be for that.
-            Tags starts = tags;
-            foreach (BaseDamage part in skill.Damage) starts |= DamageKinds.TagsOf(part.Type);
-            SkillLevel = sheet.Loadout.Level + sheet.Total(Stat.SkillLevel, 0f, starts, skill);
-            float power = SkillDefinition.SkillPower(SkillLevel);
-            foreach (BaseDamage part in skill.Damage)
-            {
-                min[(int)part.Type] += part.Min * power;
-                max[(int)part.Type] += part.Max * power;
+                (float low, float high) = Reading(sheet, part.Measure, weapon);
+                min[(int)part.Type] += low * part.Share;
+                max[(int)part.Type] += high * part.Share;
             }
 
             BaseMin = min;
@@ -252,7 +268,7 @@ namespace Dino_Defenders.Stats
             for (int i = 0; i < DamageKinds.Count; i++)
             {
                 var type = (DamageType)i;
-                float added = sheet.Total(M.AddedStat(type), 0f, tags | DamageKinds.TagsOf(type), skill) * skill.AddedEffect;
+                float added = sheet.Total(M.AddedStat(type), 0f, tags | DamageKinds.TagsOf(type), page);
                 Added[i] = added;
                 min[i] += added * (1f - Rulebook.AddedSpread);
                 max[i] += added * (1f + Rulebook.AddedSpread);
@@ -261,8 +277,8 @@ namespace Dino_Defenders.Stats
             var flows = new List<DamageFlow>(8);
             var converts = new float[DamageKinds.Count * DamageKinds.Count];
             var gains = new float[DamageKinds.Count * DamageKinds.Count];
-            ReadShifts(sheet, skill, tags, Stat.Convert, converts);
-            ReadShifts(sheet, skill, tags, Stat.GainAs, gains);
+            ReadShifts(sheet, page, tags, Stat.Convert, converts);
+            ReadShifts(sheet, page, tags, Stat.GainAs, gains);
 
             for (int i = 0; i < DamageKinds.Count; i++)
             {
@@ -272,19 +288,18 @@ namespace Dino_Defenders.Stats
             return flows.ToArray();
         }
 
-        private static void ReadShifts(ActorSheet sheet, SkillDefinition skill, Tags tags, Stat stat, float[] table)
+        private static void ReadShifts(ActorSheet sheet, PagePlan page, Tags tags, Stat stat, float[] table)
         {
-            foreach (ref readonly Mod mod in sheet.Loadout.On(stat)) Read(sheet, mod, skill, tags, table);
-            foreach (ref readonly Mod mod in skill.Mods.AsSpan())
+            foreach (ref readonly Mod mod in sheet.Loadout.On(stat)) Read(sheet, mod, tags, table);
+            foreach (ref readonly Mod mod in page.Mods.AsSpan())
             {
-                if (mod.Stat == stat && mod.Kind == ModKind.Flat) Read(sheet, mod, null, tags, table);
+                if (mod.Stat == stat && mod.Kind == ModKind.Flat) Read(sheet, mod, tags, table);
             }
         }
 
-        private static void Read(ActorSheet sheet, in Mod mod, SkillDefinition? skill, Tags tags, float[] table)
+        private static void Read(ActorSheet sheet, in Mod mod, Tags tags, float[] table)
         {
             if (mod.From == mod.To) return;
-            if (mod.Skill != SkillDefinition.None && mod.Skill != skill?.Number) return;
             Tags from = tags | DamageKinds.TagsOf(mod.From);
             if ((mod.Scope & ~from) != 0 || mod.Foe != Condition.None) return;
             if (sheet.WorthIfHeld(mod) is float value) table[(int)mod.From * DamageKinds.Count + (int)mod.To] += value / 100f;
@@ -348,17 +363,16 @@ namespace Dino_Defenders.Stats
             flows.Add(new DamageFlow { Type = (DamageType)type, Lineage = lineage, Min = min, Max = max, More = 1f });
         }
 
-        private (FoeBonus[], Condition) BuildFoeBonuses(ActorSheet sheet, SkillDefinition skill, Tags tags)
+        private (FoeBonus[], Condition) BuildFoeBonuses(ActorSheet sheet, PagePlan page, Tags tags)
         {
             List<FoeBonus>? bonuses = null;
             Condition asked = Condition.None;
 
-            void Gather(Stat stat, ReadOnlySpan<Mod> mods, bool own)
+            void Gather(Stat stat, ReadOnlySpan<Mod> mods)
             {
                 foreach (ref readonly Mod mod in mods)
                 {
                     if (mod.Stat != stat || mod.Foe == Condition.None || mod.Kind > ModKind.More) continue;
-                    if (!own && mod.Skill != SkillDefinition.None && mod.Skill != skill.Number) continue;
                     if (sheet.WorthIfHeld(mod) is not float value) continue;
 
                     uint reaches = 0;
@@ -376,8 +390,8 @@ namespace Dino_Defenders.Stats
 
             foreach (Stat stat in new[] { Stat.Damage, Stat.CritChance, Stat.CritMultiplier })
             {
-                Gather(stat, sheet.Loadout.On(stat), own: false);
-                Gather(stat, skill.Mods, own: true);
+                Gather(stat, sheet.Loadout.On(stat));
+                Gather(stat, page.Mods);
             }
             return (bonuses?.ToArray() ?? Array.Empty<FoeBonus>(), asked);
         }
@@ -396,11 +410,11 @@ namespace Dino_Defenders.Stats
             }
         }
 
-        /// <summary>How many times one use reaches something standing in it the whole time.</summary>
-        public int Pulses => Skill.Form == SkillForm.Zone ? 1 + (int)((MathF.Max(Duration, Rulebook.ShortestZone) - Rulebook.FirstPulse) / MathF.Max(Interval, 0.01f)) : 1;
+        /// <summary>How many times something standing in it the whole time is reached.</summary>
+        public int Pulses => Page.Lingers ? 1 + (int)((MathF.Max(Duration, Rulebook.ShortestZone) - Rulebook.FirstPulse) / MathF.Max(Interval, 0.01f)) : 1;
 
-        /// <summary>What it comes to in a second of use on one target, for a tooltip.</summary>
-        public float DamagePerSecond => AverageHit * Pulses / MathF.Max(UseTime, Cooldown);
+        /// <summary>What each of those comes to, of what the page says: what lingers does what it says over its whole length, for a premium.</summary>
+        public float PulseShare => Page.Lingers ? Rulebook.LingerPremium / Pulses : 1f;
 
         /// <summary>What a share of a blow comes to as it leaves, before any critical hit.</summary>
         public static float Scale(in DamageFlow flow) => MathF.Max(1f + flow.Increased / 100f, 0f) * MathF.Max(flow.More, 0f);

@@ -1,7 +1,6 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using OpenTK.Mathematics;
@@ -34,7 +33,6 @@ namespace Dino_Defenders.Server
         public Actor Actor = null!;
         public HeroKit Kit = null!;
         public HeroSimState Sim;
-        public SkillDefinition? Stolen;
         public float DownFor;
         public Vector2 Respawn;
         public Entity Entity;
@@ -70,7 +68,7 @@ namespace Dino_Defenders.Server
         /// <summary>Gear, talents or something else has changed, so everything is worked out again.</summary>
         public void RefreshLoadout()
         {
-            Actor.Adopt(HeroBuild.Compile(Hero, Actor.Buffs, Stolen));
+            Actor.Adopt(HeroBuild.Compile(Hero, Actor.Buffs));
             Kit = new HeroKit(Hero, Actor.Sheet);
         }
 
@@ -79,17 +77,6 @@ namespace Dino_Defenders.Server
         {
             GearAnswered = gearAsked;
             GearChanged = true;
-        }
-
-        /// <summary>Takes up the last skill that hit them, for those who can.</summary>
-        public void Mimic(SkillDefinition skill)
-        {
-            if (Stolen == skill) return;
-            Stolen = skill;
-            Hero.Bar[^1] = skill.Id;
-            RefreshLoadout();
-            SummaryChanged = true;
-            BuffsChanged = true;
         }
 
         /// <summary>Takes commands off the wire. <paramref name="nextTick"/> is the next tick to run.</summary>

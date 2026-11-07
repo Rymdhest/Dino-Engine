@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using static Dino_Defenders.Stats.M;
@@ -6,17 +6,22 @@ using static Dino_Defenders.Stats.M;
 namespace Dino_Defenders.Progression
 {
     /// <summary>
-    /// Where something is on a hero, as one number so that a message can say it: a cell of the pack, or a place they wear it. Whatever moves an item says where from and where to with these,
-    /// and a number that's neither holds nothing.
+    /// Where something is on a hero, as one number so that a message can say it: a cell of the pack, a place they wear it, or a place on the bar. Whatever moves an item says where from and where to with these,
+    /// and a number that's none of those holds nothing.
     /// </summary>
     public readonly record struct ItemPlace(int Number)
     {
+        private const int FirstOnBar = HeroState.InventorySize + 16;
+
         public static ItemPlace Cell(int cell) => new(cell);
         public static ItemPlace Worn(WornSlot place) => new(HeroState.InventorySize + (int)place);
+        public static ItemPlace OnBar(int slot) => new(FirstOnBar + slot);
 
         public bool IsCell => Number >= 0 && Number < HeroState.InventorySize;
-        public bool IsWorn => Number >= HeroState.InventorySize && Enum.IsDefined((WornSlot)(Number - HeroState.InventorySize));
+        public bool IsWorn => Number >= HeroState.InventorySize && Number < FirstOnBar && Enum.IsDefined((WornSlot)(Number - HeroState.InventorySize));
+        public bool IsBar => Number >= FirstOnBar && Number < FirstOnBar + HeroState.BarSlots;
         public WornSlot Slot => (WornSlot)(Number - HeroState.InventorySize);
+        public int BarSlot => Number - FirstOnBar;
     }
 
     /// <summary>The hero as they carry on from world to world. Saved as it stands.</summary>
@@ -27,7 +32,8 @@ namespace Dino_Defenders.Progression
         public const int MaxFlasks = 4;
         public const float KillsPerFlask = 15f;
         public const int InventorySize = 36;
-        public const int SkillSlots = 7;
+        public const int BarSlots = 6;
+        public const int LongestBookName = 40;
 
         public int Level { get; set; } = 1;
         public int Experience { get; set; }
@@ -42,8 +48,8 @@ namespace Dino_Defenders.Progression
         /// <summary>The nodes taken on the talent tree, by id, in the order they were taken.</summary>
         public List<string> Talents { get; set; } = new();
 
-        /// <summary>What's in each skill slot, by id. A skill that isn't known at the moment simply sits there doing nothing.</summary>
-        public string?[] Bar { get; set; } = NewBar();
+        /// <summary>The books on the bar, which are there and not in the pack, as a ring is on a finger. See BOOKS.md.</summary>
+        public Item?[] Bar { get; set; } = new Item?[BarSlots];
 
         /// <summary>What's carried, cell by cell. A cell is the player's: nothing moves from one unless they say so, or ask for the whole pack to be sorted.</summary>
         public Item?[] Inventory { get; set; } = new Item?[InventorySize];
@@ -60,13 +66,6 @@ namespace Dino_Defenders.Progression
 
         /// <summary>The wind answers those who've set a land free, and nobody before that.</summary>
         public bool HasGuidingWind => WorldsCleared > 0;
-
-        private static string?[] NewBar()
-        {
-            var bar = new string?[SkillSlots];
-            bar[0] = SkillCatalog.Strike.Id;
-            return bar;
-        }
 
         /// <summary>Adds experience. Returns how many levels it brought.</summary>
         public int GainExperience(int amount)
@@ -110,6 +109,7 @@ namespace Dino_Defenders.Progression
         public Item? At(ItemPlace place)
         {
             if (place.IsCell) return Inventory[place.Number];
+            if (place.IsBar) return Bar[place.BarSlot];
             return place.IsWorn ? Equipped.GetValueOrDefault(place.Slot) : null;
         }
 
@@ -127,6 +127,7 @@ namespace Dino_Defenders.Progression
         {
             if (At(place) is not Item item) return null;
             if (place.IsCell) Inventory[place.Number] = null;
+            else if (place.IsBar) Bar[place.BarSlot] = null;
             else Equipped.Remove(place.Slot);
             return item;
         }
@@ -160,7 +161,7 @@ namespace Dino_Defenders.Progression
         /// </summary>
         public bool Equip(int cell, WornSlot? asked = null)
         {
-            if (!ItemPlace.Cell(cell).IsCell || Inventory[cell] is not Item item) return false;
+            if (!ItemPlace.Cell(cell).IsCell || Inventory[cell] is not Item item || item.IsBook) return false;
             WornSlot place = PlaceFor(item, asked);
 
             // Two hands are two hands.
@@ -198,6 +199,7 @@ namespace Dino_Defenders.Progression
         public bool Move(ItemPlace from, ItemPlace to)
         {
             if (from == to || At(from) is not Item item) return false;
+            if (from.IsBar || to.IsBar) return MoveOnBar(from, to, item);
 
             if (from.IsCell && to.IsCell)
             {
@@ -224,12 +226,66 @@ namespace Dino_Defenders.Progression
             return true;
         }
 
+        // Only a book goes on the bar, and whatever's there goes where it came from, if it can.
+        private bool MoveOnBar(ItemPlace from, ItemPlace to, Item item)
+        {
+            if (!item.IsBook || !(to.IsBar || to.IsCell) || !(from.IsBar || from.IsCell)) return false;
+
+            Item? there = At(to);
+            if (there is { IsBook: false } && from.IsBar) return false;
+            Put(to, item);
+            Put(from, there);
+            return true;
+        }
+
+        private void Put(ItemPlace place, Item? item)
+        {
+            if (place.IsBar) Bar[place.BarSlot] = item;
+            else Inventory[place.Number] = item;
+        }
+
         /// <summary>Whether a move would work, by trying it on a copy, so that what's shown of a move can't disagree with what it does.</summary>
         public bool CanMove(ItemPlace from, ItemPlace to)
         {
-            var trial = new HeroState { Inventory = (Item?[])Inventory.Clone(), Equipped = new Dictionary<WornSlot, Item>(Equipped) };
+            var trial = new HeroState { Inventory = (Item?[])Inventory.Clone(), Equipped = new Dictionary<WornSlot, Item>(Equipped), Bar = (Item?[])Bar.Clone() };
             return trial.Move(from, to);
         }
+
+        /// <summary>The first place on the bar with nothing on it, or -1 if there isn't one.</summary>
+        public int FreeOnBar() => Array.IndexOf(Bar, null);
+
+        /// <summary>Every book they have, in the order they'd be shown: what's on the bar and then what's in the pack.</summary>
+        public IEnumerable<ItemPlace> BookPlaces()
+        {
+            for (int slot = 0; slot < BarSlots; slot++)
+            {
+                if (Bar[slot] != null) yield return ItemPlace.OnBar(slot);
+            }
+            for (int cell = 0; cell < InventorySize; cell++)
+            {
+                if (Inventory[cell] is { IsBook: true }) yield return ItemPlace.Cell(cell);
+            }
+        }
+
+        /// <summary>
+        /// Writes in a book, whatever it says now: a book only ever changes as a whole, and what's written is put right first, so that nobody can write what can't be read. Both ends do this, as a client shows what it's
+        /// asked for at once. Says whether there was a book there.
+        /// </summary>
+        public bool Write(ItemPlace place, Book book, string name)
+        {
+            if (At(place) is not { IsBook: true } item) return false;
+            Book written = book.Copy();
+            Scribe.Fix(written);
+            item.Book = written;
+
+            string title = name.Trim();
+            if (title.Length > LongestBookName) title = title.Substring(0, LongestBookName);
+            if (title.Length > 0) item.Name = title;
+            return true;
+        }
+
+        /// <summary>A new book, in the first free cell. For now anyone can have as many as they can carry. Says whether there was room.</summary>
+        public bool NewBook(ulong seed) => Pickup(ItemGenerator.Book(seed));
 
         /// <summary>The only thing that rearranges a pack without being told where each thing goes, and it's only ever done when asked: by where things are worn, then the best first, from the first cell on.</summary>
         public void Sort()
@@ -246,6 +302,7 @@ namespace Dino_Defenders.Progression
             var looks = new Dino_Engine.World.WorldRandom((ulong)Random.Shared.NextInt64());
             hero.Equipped[WornSlot.MainHand] = new Item { Name = "Rusted Blade", Base = "Rusted Blade", Seed = ItemGenerator.NewSeed(looks.Fork(0)), Slot = ItemSlot.MainHand, Level = 1, WeaponDamage = 7f };
             hero.Equipped[WornSlot.Body] = new Item { Name = "Travelling Tunic", Base = "Leather Tunic", Seed = ItemGenerator.NewSeed(looks.Fork(1)), Slot = ItemSlot.Body, Level = 1, Evasion = 8f };
+            hero.Bar[0] = ItemGenerator.Book(ItemGenerator.NewSeed(looks.Fork(2)));
             return hero;
         }
     }
@@ -294,35 +351,28 @@ namespace Dino_Defenders.Progression
             }
         }
 
-        /// <summary>Makes a hero's loadout. <paramref name="stolen"/> is what they've mimicked, if they can.</summary>
-        public static Loadout Compile(HeroState hero, IReadOnlyList<ActiveBuff>? buffs = null, SkillDefinition? stolen = null)
+        /// <summary>Makes a hero's loadout, with what's on the bar in the order it's there.</summary>
+        public static Loadout Compile(HeroState hero, IReadOnlyList<ActiveBuff>? buffs = null)
         {
-            var skills = new List<SkillDefinition> { SkillCatalog.Strike };
-            if (stolen != null && !skills.Contains(stolen)) skills.Add(stolen);
-            return new Loadout(hero.Level, WeaponOf(hero), Gather(hero, buffs), skills);
+            var books = new List<BookPlan>(HeroState.BarSlots);
+            foreach (Item? item in hero.Bar)
+            {
+                if (item?.Book is Book book) books.Add(Scribe.Read(book, item.Name));
+            }
+            return new Loadout(hero.Level, WeaponOf(hero), Gather(hero, buffs), books);
         }
 
-        /// <summary>The place in a loadout of what's in a slot, or -1 if nothing usable is.</summary>
-        public static int SlotIndex(HeroState hero, Loadout loadout, int slot)
+        /// <summary>The place in a loadout of what's on a slot, or -1 if nothing is.</summary>
+        public static int SlotIndex(HeroState hero, int slot)
         {
-            if (slot < 0 || slot >= hero.Bar.Length || hero.Bar[slot] is not string id) return -1;
-            SkillDefinition? skill = SkillCatalog.Find(id);
-            return skill == null ? -1 : loadout.IndexOf(skill);
-        }
+            if (slot < 0 || slot >= hero.Bar.Length || hero.Bar[slot] == null) return -1;
 
-        /// <summary>Puts a skill that's newly known into the first empty slot, as most people would.</summary>
-        public static void OfferToBar(HeroState hero, SkillDefinition skill)
-        {
-            foreach (string? held in hero.Bar)
+            int index = 0;
+            for (int before = 0; before < slot; before++)
             {
-                if (held == skill.Id) return;
+                if (hero.Bar[before] != null) index++;
             }
-            for (int slot = 1; slot < hero.Bar.Length; slot++)
-            {
-                if (hero.Bar[slot] != null) continue;
-                hero.Bar[slot] = skill.Id;
-                return;
-            }
+            return index;
         }
     }
 

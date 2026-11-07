@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.World;
 using static Dino_Defenders.Stats.M;
@@ -60,11 +60,11 @@ namespace Dino_Defenders.Progression
             Add("beggars-staff", "Beggar's Staff", "Walking Staff", 2, "Alms for the poor, and for the staff.",
                 Inc(Stat.Damage, 1f).For(Per.Gold, 200f, 120f), Inc(Stat.GoldFind, 50f));
             Add("mourning-edge", "Mourning Edge", "Longsword", 14, "It keeps a count, and so should you.",
-                Inc(Stat.Damage, 3f).For(Per.RecentKills, 1f, 90f), Inc(Stat.AttackSpeed, 1f).For(Per.RecentKills, 1f, 30f), Trigger(TriggerEvent.Kill, SkillCatalog.Retaliate, 15f));
+                Inc(Stat.Damage, 3f).For(Per.RecentKills, 1f, 90f), Inc(Stat.AttackSpeed, 1f).For(Per.RecentKills, 1f, 30f), Trigger(TriggerEvent.Kill, Shelf.Retaliate, 15f));
 
             // Shields.
             Add("turned-cheek", "The Turned Cheek", "Heater Shield", 11, "Do unto others.",
-                Flat(Stat.BlockChance, 30f), Rules(Rule.BlockReflects), Trigger(TriggerEvent.Block, SkillCatalog.Retaliate));
+                Flat(Stat.BlockChance, 30f), Rules(Rule.BlockReflects), Trigger(TriggerEvent.Block, Shelf.Retaliate));
             Add("the-door", "The Door", "Tower Shield", 18, "It came off its hinges with the keep.",
                 Flat(Stat.BlockChance, 20f), More(Stat.DamageTaken, -15f, Tags.Projectile), Inc(Stat.MoveSpeed, -10f), Rules(Rule.CannotBeStunned));
 
@@ -72,7 +72,7 @@ namespace Dino_Defenders.Progression
             Add("hollow-crown", "The Hollow Crown", "Circlet", 10, "It weighs nothing at all, and that's what's wrong with it.",
                 Set(Stat.Mana, 1f), Rules(Rule.CostsHealth), More(Stat.Damage, 30f, Tags.Spell), Inc(Stat.Health, 15f));
             Add("mockingbird", "Eye of the Mockingbird", "Leather Cap", 6, "It has heard you say that before.",
-                Rules(Rule.Mimic), Inc(Stat.Damage, 20f, Tags.Spell), Inc(Stat.Damage, 20f, Tags.Attack));
+                Rules(Rule.Steady), Inc(Stat.Potency, 15f, Tags.Wild), Inc(Stat.Damage, 20f, Tags.Attack));
             Add("deep-cowl", "The Deep Cowl", "Hood", 5, "Nothing looks back.",
                 Flat(Stat.Stealth, 40f), Grant(Condition.InDarkness), Inc(Stat.Damage, 40f).While(Condition.InDarkness));
 
@@ -122,11 +122,23 @@ namespace Dino_Defenders.Progression
 
             // Amulets.
             Add("first-ember", "The First Ember", "Amulet", 8, "Everything that has ever burned was lit from this.",
-                Skill(SkillCatalog.Emberfall), Trigger(TriggerEvent.Kill, SkillCatalog.Emberfall, 20f), Inc(Stat.Damage, 20f, Tags.Fire));
+                Trigger(TriggerEvent.Kill, Shelf.Emberfall, 20f), Inc(Stat.Damage, 20f, Tags.Fire), Inc(Stat.Potency, 20f, Tags.Falling));
             Add("frostbitten-locket", "Frostbitten Locket", "Amulet", 10, "Someone is still inside.",
                 Rules(Rule.FreezeStores), Chance(Tags.Freeze, 10f), Inc(Stat.Damage, 20f, Tags.Cold));
             Add("heart-of-the-swarm", "Heart of the Swarm", "Amulet", 14, "It beats a little out of time with yours.",
-                Trigger(TriggerEvent.Struck, SkillCatalog.VenomCloud, 30f), Inc(Stat.Damage, 30f, Tags.Venom), Rules(Rule.Carrier));
+                Trigger(TriggerEvent.Struck, Shelf.VenomCloud, 30f), Inc(Stat.Damage, 30f, Tags.Venom), Rules(Rule.Carrier));
+
+            // What's only worth having for how a book is written.
+            Add("authors-quill", "The Author's Quill", "Bone Wand", 8, "It has never once been at a loss for words.",
+                Flat(Stat.ProjectileCount, 2f, Tags.Turned), More(Stat.Damage, -15f, Tags.Turned), Inc(Stat.Potency, 25f, Tags.Opening));
+            Add("dog-eared", "The Dog-Eared Page", "Ring", 7, "Someone keeps coming back to this bit.",
+                More(Stat.Potency, 30f, Tags.Turned), Inc(Stat.BookCost, 20f));
+            Add("bookmark", "The Bookmark", "Amulet", 9, "You can always pick up where you left off.",
+                Rules(Rule.OneCost), Inc(Stat.Potency, -10f));
+            Add("inky-fingers", "Inky Fingers", "Silk Gloves", 6, "It gets on everything.",
+                Inc(Stat.AreaOfEffect, 40f, Tags.Turned), Inc(Stat.PageDuration, 30f, Tags.Zone), Inc(Stat.Potency, -10f, Tags.Opening));
+            Add("upward-glance", "The Upward Glance", "Hood", 8, "It's worth looking up, now and again.",
+                More(Stat.Potency, 35f, Tags.Falling), Inc(Stat.ProjectileSpeed, 50f, Tags.Falling), Inc(Stat.Potency, -10f, Tags.Projectile));
         }
 
         /// <summary>Draws a unique that can drop at a level, for a slot if one is wanted. Null if there isn't one.</summary>

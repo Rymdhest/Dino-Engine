@@ -1,7 +1,7 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using static Dino_Defenders.Stats.Rulebook;
@@ -90,7 +90,7 @@ namespace Dino_Defenders.Tooltips
     }
 
     /// <summary>
-    /// How everything is described, from finished numbers. A skill's card comes from its <see cref="SkillProfile"/> and a stat's from an <see cref="ActorSheet"/>, whose numbers are the ones a blow reads,
+    /// How everything is described, from finished numbers. A book's card comes from its <see cref="BookProfile"/> and a stat's from an <see cref="ActorSheet"/>, whose numbers are the ones a blow reads,
     /// so what's on a card is what happens. Nothing in here decides how the game works: anything a card can't read off something else is a sign that the number is in the wrong place.
     /// </summary>
     public static class Cards
@@ -104,6 +104,7 @@ namespace Dino_Defenders.Tooltips
         private static readonly Tags[] TagOrder =
         {
             Tags.Attack, Tags.Spell, Tags.Melee, Tags.Projectile, Tags.Area, Tags.Zone, Tags.Chaining, Tags.Movement, Tags.Buff, Tags.Minion, Tags.Triggered, Tags.Reaction,
+            Tags.Opening, Tags.Turned, Tags.Closing, Tags.Wild, Tags.Falling,
             Tags.Physical, Tags.Fire, Tags.Cold, Tags.Lightning, Tags.Magic, Tags.Poison, Tags.Elemental, Tags.DamageOverTime,
             Tags.Burn, Tags.Bleed, Tags.Venom, Tags.Chill, Tags.Freeze, Tags.Shock, Tags.Hex, Tags.Stun,
             Tags.Sword, Tags.Axe, Tags.Mace, Tags.Dagger, Tags.Spear, Tags.Bow, Tags.Staff, Tags.Wand, Tags.Unarmed, Tags.OneHanded, Tags.TwoHanded,
@@ -158,13 +159,13 @@ namespace Dino_Defenders.Tooltips
         private static void Attach(Card card, in Mod mod, ActorSheet? viewer)
         {
             if (viewer == null) return;
-            if (mod.Kind is ModKind.Trigger or ModKind.GrantSkill) card.Attached.Add(Skill(viewer.Preview(SkillCatalog.Get(mod.Skill))));
+            if (mod.Kind == ModKind.Trigger) card.Attached.Add(Book(viewer.Preview(Shelf.Get(mod.Book))));
             if (mod.Kind != ModKind.Rule) return;
 
             foreach (RuleInfo info in ModText.Rules)
             {
                 if ((mod.Rule & info.Rule) == 0) continue;
-                if (info.Casts != null) card.Attached.Add(Skill(viewer.Preview(info.Casts)));
+                if (info.Casts != null) card.Attached.Add(Book(viewer.Preview(info.Casts)));
                 if (info.Gives != null) card.Attached.Add(Buff(info.Gives, viewer));
             }
         }
@@ -179,49 +180,59 @@ namespace Dino_Defenders.Tooltips
             }
         }
 
-        // ---- Skills.
+        // ---- Books.
 
-        /// <summary>A skill as its user has it: everything here is what a blow will read. The card is what matters most, and the rest is under <see cref="Card.Details"/>.</summary>
-        public static Card Skill(SkillProfile skill)
+        /// <summary>A book as its user has it: everything here is what a blow will read. What's on it is how it's used and what each page says, and the rest is under <see cref="Card.Details"/>.</summary>
+        public static Card Book(BookProfile book)
         {
-            SkillDefinition definition = skill.Skill;
-            var card = new Card { Title = definition.Name, Tags = skill.Tags & ~Tags.Hit };
+            BookPlan plan = book.Book;
+            bool used = (book.First.Tags & Tags.Triggered) == 0;
+            var card = new Card { Title = plan.Name, Kind = used ? "Book" : "", Tags = TagsOn(book) };
 
-            if (skill.DealsDamage) DamageRows(card, skill);
-            card.Gap();
-            UseCells(card, skill);
-            card.Gap();
-            AilmentLines(card, skill);
-            OwnLines(card, skill);
+            if (used) card.Cell("Use Time", Seconds(book.UseTime));
+            if (used && book.Cost > 0f) card.Cell("Cost", $"{Amount(book.Cost)} {(book.CostsHealth ? "Health" : "Mana")}");
+            if (book.Cooldown > 0f) card.Cell("Cooldown", Seconds(book.Cooldown));
+            if (used && book.Pages.Any(page => page.DealsDamage)) card.Row("Damage per Second", Amount(book.DamagePerSecond));
 
-            if (definition.MakesWater) card.Text("Counts as Water for everyone in its Radius");
-            if (definition.Form == SkillForm.Bolt && skill.Radius > 0f) card.Text("Bursts where it lands, striking everything in its Radius");
-            if (definition.Buff is BuffDefinition buff)
+            for (int i = 0; i < book.Pages.Length; i++)
             {
-                if (buff.MostStacks > 1) card.Text($"Up to {buff.MostStacks} Stacks");
-                Mods(card, buff.Mods, skill.Sheet);
-            }
-            if (definition.Form == SkillForm.Summon) MinionRows(card, skill);
-            if (definition.Needs != Tags.None) Needs(card, skill);
-
-            if (definition.Text.Length > 0)
-            {
+                PageProfile page = book.Pages[i];
                 card.Gap();
-                card.Lore(definition.Text);
+                if (plan.Source != null) card.Text(BookText.Says(plan.Source.Pages[i], i));
+                DamageRows(card, page);
+                AilmentLines(card, page);
+                foreach (GiftPart gift in page.Page.Gifts) card.Attached.Add(Buff(gift.Buff, book.Sheet));
+                if (page.Page.Minion != null) MinionRows(card, page);
             }
 
-            Card details = Details(skill);
+            Card details = Details(book);
             if (details.Lines.Count > 0) card.Details = details;
             return card;
         }
 
-        private static void DamageRows(Card card, SkillProfile skill)
+        private static Tags TagsOn(BookProfile book)
+        {
+            Tags tags = Tags.None;
+            foreach (PageProfile page in book.Pages) tags |= page.Tags;
+            return tags & ~(Tags.Hit | Tags.Opening | Tags.Turned | Tags.Closing);
+        }
+
+        /// <summary>A sentence as it's chosen: what it says, and what that does to the page it's on.</summary>
+        public static Card Sentence(Sentence sentence)
+        {
+            var card = new Card { Title = sentence.Words };
+            foreach (string line in BookText.Trade(sentence.Weights)) card.Text(line);
+            if (sentence.Buff != null) card.Attached.Add(Buff(sentence.Buff, null));
+            return card;
+        }
+
+        private static void DamageRows(Card card, PageProfile page)
         {
             Span<float> low = stackalloc float[DamageKinds.Count];
             Span<float> high = stackalloc float[DamageKinds.Count];
-            foreach (ref readonly DamageFlow flow in skill.Flows)
+            foreach (ref readonly DamageFlow flow in page.Flows)
             {
-                float scale = SkillProfile.Scale(flow);
+                float scale = PageProfile.Scale(flow);
                 low[(int)flow.Type] += flow.Min * scale;
                 high[(int)flow.Type] += flow.Max * scale;
             }
@@ -230,44 +241,47 @@ namespace Dino_Defenders.Tooltips
             {
                 if (high[(int)type] > 0f) card.Row($"{type} Damage", Range(low[(int)type], high[(int)type]));
             }
-            if ((skill.Skill.Tags & Tags.Triggered) == 0) card.Row("Damage per Second", Amount(skill.DamagePerSecond));
-            card.Cell("Critical Chance", Rate(skill.CritChance));
-            card.Cell("Critical Multiplier", Rate(skill.CritMultiplier));
         }
 
-        // Which of these mean anything goes by the form, and says what Combat reads for it.
-        private static void UseCells(Card card, SkillProfile skill)
+        // What it's made of, which isn't on the page because a sentence only says so much.
+        private static void PageCells(Card card, PageProfile page)
         {
-            SkillDefinition definition = skill.Skill;
-            SkillForm form = definition.Form;
-            bool used = (definition.Tags & Tags.Triggered) == 0;
+            PagePlan plan = page.Page;
+            card.Cell("Potency", Share(page.Potency));
+            if (page.Cost > 0f) card.Cell("Cost", Amount(page.Cost));
 
-            if (used) card.Cell("Use Time", Seconds(skill.UseTime));
-            if (used && skill.Cost > 0f) card.Cell("Cost", $"{Amount(skill.Cost)} {(skill.CostsHealth ? "Health" : "Mana")}");
-            if (skill.Cooldown > 0f) card.Cell("Cooldown", Seconds(skill.Cooldown));
-
-            if (used && form is SkillForm.Bolt or SkillForm.Burst or SkillForm.Zone or SkillForm.Chain or SkillForm.Leap) card.Cell("Range", Metres(skill.Range));
-            if (form is SkillForm.Strike or SkillForm.Beam || form == SkillForm.Leap && skill.DealsDamage) card.Cell("Reach", Metres(skill.Reach));
-            if (form is SkillForm.Strike || form == SkillForm.Leap && skill.DealsDamage) card.Cell("Arc", Degrees(definition.Arc));
-            if (skill.Radius > 0f && form is not (SkillForm.Strike or SkillForm.Leap)) card.Cell("Radius", Metres(skill.Radius));
-            if (form == SkillForm.Burst) card.Cell("Delay", Seconds(skill.Delay));
-
-            if (form == SkillForm.Bolt)
+            if (plan.Kind == PageKind.Projectile)
             {
-                if (skill.Projectiles > 1) card.Cell("Projectiles", skill.Projectiles.ToString());
-                if (skill.Pierce > 0) card.Cell("Pierce", skill.Pierce.ToString());
+                card.Cell("Projectile Speed", $"{Amount(page.Speed)} m a second");
+                card.Cell("Range", Metres(page.Range));
+                if (page.Projectiles > 1) card.Cell("Projectiles", page.Projectiles.ToString());
+                if (page.Projectiles > 1) card.Cell("Spread", Degrees(plan.Spread));
+                if (page.Pierce > 0) card.Cell("Pierce", page.Pierce.ToString());
+                if (page.Chains > 0) card.Cell("Chains", page.Chains.ToString());
+                return;
             }
-            if (form is SkillForm.Bolt or SkillForm.Chain && skill.Chains > 0) card.Cell("Chains", skill.Chains.ToString());
 
-            if (form == SkillForm.Zone)
+            switch (plan.Shape)
             {
-                card.Cell("Duration", Seconds(MathF.Max(skill.Duration, ShortestZone)));
-                if (skill.DealsDamage) card.Cell("Pulse", Seconds(skill.Interval));
+                case AreaShape.Circle:
+                    card.Cell("Radius", Metres(page.Length));
+                    break;
+                case AreaShape.Cone:
+                    card.Cell("Reach", Metres(page.Length));
+                    card.Cell("Arc", Degrees(page.Width));
+                    break;
+                default:
+                    card.Cell("Reach", Metres(page.Length));
+                    card.Cell("Width", Metres(page.Width * 2f));
+                    break;
             }
-            if (form == SkillForm.Buff) card.Cell("Duration", Seconds(skill.Duration));
+
+            if (!plan.Lingers) return;
+            card.Cell("Duration", Seconds(MathF.Max(page.Duration, ShortestZone)));
+            card.Cell("Pulse", Seconds(page.Interval));
         }
 
-        private static void AilmentLines(Card card, SkillProfile skill)
+        private static void AilmentLines(Card card, PageProfile skill)
         {
             for (int i = 0; i < AilmentRules.Count; i++)
             {
@@ -278,16 +292,21 @@ namespace Dino_Defenders.Tooltips
                 foreach (ref readonly DamageFlow flow in skill.Flows)
                 {
                     if ((DamageKinds.Tag(flow.Type) & causes) == 0) continue;
-                    float scale = SkillProfile.Scale(flow);
+                    float scale = PageProfile.Scale(flow);
                     low += flow.Min * scale;
                     high += flow.Max * scale;
                 }
+
+                // What's put on someone outright doesn't take a hit with any of the right type in it, and needs no chance.
+                float outright = skill.Inflicts[i];
+                low += outright;
+                high += outright;
 
                 // A hit with none of the right type can't do it, whatever the chance says. Showing that chance is how a tooltip comes to lie.
                 if (high <= 0f) continue;
 
                 AilmentProfile profile = skill.Ailments[i];
-                bool sure = ailment == Ailment.Chill || ailment == Ailment.Burn && skill.Sheet.Has(Rule.FireFeedsBurn);
+                bool sure = outright > 0f || ailment == Ailment.Chill || ailment == Ailment.Burn && skill.Sheet.Has(Rule.FireFeedsBurn);
                 if (profile.Chance <= 0f && !sure) continue;
 
                 string opening = sure ? Lexicon.Of(ailment)!.Forms[1] : $"{Rate(profile.Chance)} Chance to {(ailment == Ailment.Venom ? "Envenom" : ailment.ToString())}";
@@ -304,69 +323,54 @@ namespace Dino_Defenders.Tooltips
             }
         }
 
-        // What this skill has of its own. What every skill gets from the rest of the build is in the details.
-        private static void OwnLines(Card card, SkillProfile skill)
+        private static void MinionRows(Card card, PageProfile page)
         {
-            foreach (Mod mod in skill.Skill.Mods)
-            {
-                if (mod.Stat == Stat.AilmentChance && mod.Kind == ModKind.Flat) continue;
-                card.Text(Line(mod, skill.Sheet), Holds(mod, skill.Sheet) ? LineLook.Text : LineLook.Dim);
-            }
-        }
-
-        private static void MinionRows(Card card, SkillProfile skill)
-        {
-            ActorSheet sheet = skill.Sheet;
-            card.Cell("Minions", skill.MinionCount.ToString());
-            card.Cell("Duration", Seconds(skill.Duration * sheet.MinionDuration));
-            if (Bestiary.Minion(skill.Skill.Minion) is not EnemyKind kind) return;
+            ActorSheet sheet = page.Sheet;
+            card.Cell("Minions", page.MinionCount.ToString());
+            card.Cell("Duration", Seconds(MinionSeconds * sheet.MinionDuration));
+            if (Bestiary.Minion(page.Page.Minion) is not EnemyKind kind) return;
 
             ActorSheet minion = Bestiary.MinionOf(sheet.Loadout, sheet, kind).SheetFor(Condition.None);
             card.Cell("Minion Health", Whole(minion.MaxHealth));
-            if (minion.Loadout.Skills.Length > 0) card.Cell("Minion Damage", Amount(minion.Profile(0).AverageHit));
-        }
-
-        private static void Needs(Card card, SkillProfile skill)
-        {
-            foreach (string name in TagNames(skill.Skill.Needs))
-            {
-                bool held = (skill.Sheet.Loadout.Weapon.Tags & skill.Skill.Needs) != 0;
-                card.Text($"Needs a {name} in hand", held ? LineLook.Text : LineLook.Bad);
-            }
+            if (minion.Loadout.Books.Length > 0) card.Cell("Minion Damage", Amount(minion.Profile(0).First.AverageHit));
         }
 
         // Nothing is hidden, but this much on one card is too much to read.
-        private static Card Details(SkillProfile skill)
+        private static Card Details(BookProfile book)
         {
-            SkillDefinition definition = skill.Skill;
-            SkillForm form = definition.Form;
-            var card = new Card { Title = definition.Name, Kind = "Details" };
+            var card = new Card { Title = book.Book.Name, Kind = "Details" };
+            bool used = (book.First.Tags & Tags.Triggered) == 0;
+            if (used && !book.Rides) card.Cell("Impact", Seconds(book.ImpactTime));
+            if (used && book.MoveFactor < 1f && !book.Rides) card.Cell("Moving while using", Share(book.MoveFactor));
 
-            if ((definition.Tags & Tags.Triggered) == 0 && form != SkillForm.Leap) card.Cell("Impact", Seconds(skill.ImpactTime));
-            if (form == SkillForm.Leap) card.Cell("Leap Speed", $"{Amount(definition.LeapSpeed)} m a second");
-            if (form == SkillForm.Bolt) card.Cell("Projectile Speed", $"{Amount(skill.Speed)} m a second");
-            if (form == SkillForm.Bolt && skill.Projectiles > 1) card.Cell("Spread", Degrees(definition.Spread));
-            if (skill.DealsDamage && definition.IsAttack) card.Cell("Accuracy", Whole(skill.Accuracy));
-            if ((definition.Tags & Tags.Triggered) == 0 && definition.MoveFactor < 1f && form != SkillForm.Leap) card.Cell("Moving while using", Share(definition.MoveFactor));
-
-            if (skill.DealsDamage)
+            for (int i = 0; i < book.Pages.Length; i++)
             {
-                card.Gap();
-                FromTheBuild(card, skill);
-                Sets(card, skill);
-            }
+                PageProfile page = book.Pages[i];
+                card.Heading($"Page {i + 1}");
+                PageCells(card, page);
 
-            foreach (RuleInfo info in ModText.Rules)
-            {
-                if (info.Touches != Tags.None && skill.Sheet.Has(info.Rule) && (skill.Tags & info.Touches) == info.Touches) card.Text(info.Text);
-            }
+                if (page.DealsDamage)
+                {
+                    card.Cell("Critical Chance", Rate(page.CritChance));
+                    card.Cell("Critical Multiplier", Rate(page.CritMultiplier));
+                    if (page.IsAttack) card.Cell("Accuracy", Whole(page.Accuracy));
+                    card.Gap();
+                    FromTheBuild(card, page);
+                    Sets(card, page);
+                }
 
-            if (skill.DealsDamage) Breakdown(card, skill);
+                foreach (RuleInfo info in ModText.Rules)
+                {
+                    if (info.Touches != Tags.None && page.Sheet.Has(info.Rule) && (page.Tags & info.Touches) == info.Touches) card.Text(info.Text);
+                }
+
+                if (page.DealsDamage) Breakdown(card, page);
+            }
             return card;
         }
 
         // What it comes to with everything else a build has, said as modifiers so that it reads as they do everywhere else.
-        private static void FromTheBuild(Card card, SkillProfile skill)
+        private static void FromTheBuild(Card card, PageProfile skill)
         {
             void Say(Stat stat, float value)
             {
@@ -389,7 +393,7 @@ namespace Dino_Defenders.Tooltips
             }
         }
 
-        private static void Sets(Card card, SkillProfile skill)
+        private static void Sets(Card card, PageProfile skill)
         {
             var reactions = new List<string>();
             foreach ((Tags type, string reaction) in Reacting)
@@ -399,27 +403,20 @@ namespace Dino_Defenders.Tooltips
             if (reactions.Count > 0) card.Text($"Reactions: {Say.List(reactions)}");
         }
 
-        // Everything between what a skill starts from and what it deals, so that there's nothing left to guess about how it scales.
-        private static void Breakdown(Card card, SkillProfile skill)
+        // Everything between what a page starts from and what it deals, so that there's nothing left to guess about how it scales.
+        private static void Breakdown(Card card, PageProfile skill)
         {
-            SkillDefinition definition = skill.Skill;
-            card.Heading("Breakdown");
-
-            if (definition.IsAttack)
+            WeaponProfile weapon = skill.Sheet.Loadout.Weapon;
+            foreach (DamagePart part in skill.Page.Damage)
             {
-                WeaponProfile weapon = skill.Sheet.Loadout.Weapon;
-                card.Detail($"{Share(definition.WeaponShare)} of Weapon Damage ({Range(weapon.Min, weapon.Max)})");
-            }
-
-            foreach (BaseDamage part in definition.Damage)
-            {
-                card.Detail($"{Range(skill.BaseMin[(int)part.Type], skill.BaseMax[(int)part.Type])} {part.Type} at Level {N(skill.SkillLevel)}");
+                string from = part.Measure == Measure.Damage ? $" ({Range(weapon.Min, weapon.Max)})" : "";
+                card.Detail($"{Share(part.Share)} of {BookText.NameOf(part.Measure)}{from}, as {part.Type}");
             }
 
             foreach (DamageType type in DamageKinds.All)
             {
                 float added = skill.Added[(int)type];
-                if (added > 0f) card.Detail($"+{Amount(added)} Added {type} Damage ({Share(definition.AddedEffect)} Added Effect)");
+                if (added > 0f) card.Detail($"+{Amount(added)} Added {type} Damage");
             }
 
             foreach (ref readonly DamageFlow flow in skill.Flows)
@@ -479,6 +476,14 @@ namespace Dino_Defenders.Tooltips
 
         public static Card Item(Item item, ActorSheet? viewer, string kind)
         {
+            // What's in a book is what it is, and it's that which is worth reading.
+            if (item.Book != null && viewer != null)
+            {
+                Card book = Book(viewer.Preview(Scribe.Read(item.Book, item.Name)));
+                book.Picture = item;
+                return book;
+            }
+
             var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Grade = Loot.GradeOf(item), Picture = item, Tags = TagsOf(item.Mods()) };
             if (item.Slot == ItemSlot.MainHand) card.Tags |= item.Weapon().Tags;
 
@@ -499,20 +504,10 @@ namespace Dino_Defenders.Tooltips
         /// <summary>What a node on the tree gives, in the words of what it gives. Whether it can be had is for whoever's showing it to add.</summary>
         public static Card Talent(TalentNode node, ActorSheet? viewer)
         {
-            // What teaches a skill is that skill, so it's the skill that's shown.
-            if (node.Kind == TalentKind.Skill && viewer != null && node.Mods.FirstOrDefault(mod => mod.Kind == ModKind.GrantSkill) is { Kind: ModKind.GrantSkill } taught)
-            {
-                Card skill = Skill(viewer.Preview(SkillCatalog.Get(taught.Skill)));
-                skill.Kind = "Teaches a Skill";
-                Mods(skill, node.Mods.Where(mod => mod.Kind != ModKind.GrantSkill), viewer);
-                return skill;
-            }
-
             var card = new Card { Title = node.Name, Tags = TagsOf(node.Mods), Gilded = node.Kind == TalentKind.Keystone };
             card.Kind = node.Kind switch
             {
                 TalentKind.Keystone => "Keystone",
-                TalentKind.Skill => "Teaches a Skill",
                 TalentKind.Notable => "Notable",
                 TalentKind.Gate => "Waygate",
                 TalentKind.Root => "Where every Hero starts",
@@ -614,7 +609,7 @@ namespace Dino_Defenders.Tooltips
         // Whether a modifier counts towards the total shown, right now.
         private static bool Applies(StatRow row, in Mod mod, ActorSheet sheet)
         {
-            return mod.Foe == Condition.None && mod.Skill == SkillDefinition.None && (mod.Scope & ~(row.Within ?? Tags.None)) == 0 && sheet.WorthIfHeld(mod) != null;
+            return mod.Foe == Condition.None && (mod.Scope & ~(row.Within ?? Tags.None)) == 0 && sheet.WorthIfHeld(mod) != null;
         }
 
         // What scales with something, and what only counts for some skills or at some times, which is none of the sum above.

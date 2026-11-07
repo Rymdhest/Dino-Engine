@@ -1,7 +1,7 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.Animation;
 using Dino_Engine.Core;
@@ -97,10 +97,10 @@ namespace Dino_Defenders.Client
             for (int i = 0; i < components.Count; i++)
             {
                 if (components[i] is not ZoneComponent zone) continue;
-                Colour light = ClientEffects.LightOf(SkillCatalog.Named(zone.Skill).Look);
+                Colour light = ClientEffects.LightOf(PageSign.Read(zone.Sign).Look);
                 components.Add(new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(position) });
                 components.Add(new PointLightTag());
-                components.Add(new LightRangeComponent(zone.Radius * 1.6f, 0.2f, lightsFog: false));
+                components.Add(new LightRangeComponent(zone.Length * 1.6f, 0.2f, lightsFog: false));
                 components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, 26f)));
                 break;
             }
@@ -298,13 +298,14 @@ namespace Dino_Defenders.Client
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
                     var zone = entity.Get<ZoneComponent>();
-                    if (zone.Age == 0f) effects.Sounds.ZoneOpens(SkillCatalog.Named(zone.Skill), entity.Get<PositionComponent>().value);
+                    if (zone.Age == 0f) effects.Sounds.ZoneOpens(PageSign.Read(zone.Sign).Look, entity.Get<PositionComponent>().value);
                     zone.Age += deltaTime;
                     zone.NextMote -= deltaTime;
                     if (zone.NextMote <= 0f)
                     {
                         zone.NextMote = 0.09f;
-                        effects.Mote(entity.Get<PositionComponent>().value, zone.Radius, SkillCatalog.Named(zone.Skill).Look);
+                        Vector3 middle = entity.Get<PositionComponent>().value;
+                        effects.Mote(zone.ShapeAt(middle.Xz), middle.Y, PageSign.Read(zone.Sign).Look);
                     }
                     entity.Set(zone);
                 }
@@ -396,7 +397,7 @@ namespace Dino_Defenders.Client
                     if (animator.Orders.Action.Gesture == null && _effects() is ClientEffects doing) animator.Orders.Action = doing.FlourishOf(entity.Entity, animator.Orders.Yaw);
 
                     double since = (clock - action.Ends) * NetTime.TickSecondsPrecise;
-                    float alert = action.Skill != 0 && since < AlertFor ? 1f : 0f;
+                    float alert = action.Sign != PageSign.None && since < AlertFor ? 1f : 0f;
                     bool looking = false;
                     if (entity.Has<EnemyComponent>())
                     {
@@ -425,12 +426,11 @@ namespace Dino_Defenders.Client
 
         private static ActionInput Reading(in ActionComponent action, double clock, CharacterAnimator animator)
         {
-            if (action.Skill == 0 || clock < action.Start || clock >= action.Ends) return default;
+            if (action.Sign == PageSign.None || clock < action.Start || clock >= action.Ends) return default;
 
-            SkillDefinition skill = SkillCatalog.Named(action.Skill);
             return new ActionInput
             {
-                Gesture = SkillMotions.Of(skill, animator.Carrying, animator.Rig.Plan == BodyPlan.Quadruped, action.Serial),
+                Gesture = SkillMotions.Of(PageSign.Read(action.Sign), animator.Carrying, animator.Rig.Plan == BodyPlan.Quadruped, action.Serial),
                 Elapsed = (float)((clock - action.Start) * NetTime.TickSecondsPrecise),
                 Impact = (action.Lands - action.Start) * NetTime.TickSeconds,
                 Length = (action.Ends - action.Start) * NetTime.TickSeconds,
@@ -453,7 +453,7 @@ namespace Dino_Defenders.Client
                 float elapsed = action.Length - sim.BusyFor + betweenTicks * NetTime.TickSeconds * sim.ActionRate;
                 animator.Orders.Action = new ActionInput
                 {
-                    Gesture = SkillMotions.Of(action.Skill, animator.Carrying, false, action.Serial),
+                    Gesture = SkillMotions.Of(action.Sign, animator.Carrying, false, action.Serial),
                     Elapsed = elapsed,
                     Impact = action.Impact,
                     Length = action.Length,
@@ -593,7 +593,7 @@ namespace Dino_Defenders.Client
     }
 
     /// <summary>What this player's hero is doing, from the tick they pressed.</summary>
-    public readonly record struct OwnAction(SkillDefinition Skill, uint Start, float Impact, float Length, float Aim, int Serial);
+    public readonly record struct OwnAction(PageSign Sign, uint Start, float Impact, float Length, float Aim, int Serial);
 
     /// <summary>Sparks, numbers and gusts: what things look like happening, whether told by the server or done by this player a moment ago.</summary>
     public sealed class ClientEffects
@@ -651,6 +651,9 @@ namespace Dino_Defenders.Client
         private static readonly Vector3 HitColour = new Vector3(1f, 0.92f, 0.7f);
         private static readonly Vector3 CritColour = new Vector3(1f, 0.55f, 0.15f);
         private static readonly Vector3 HurtColour = new Vector3(1f, 0.25f, 0.2f);
+        private static readonly Vector3 HealColour = new Vector3(0.45f, 0.95f, 0.45f);
+        private static readonly Vector3 ManaColour = new Vector3(0.4f, 0.6f, 1f);
+        private static readonly Vector3 BarrierColour = new Vector3(0.7f, 0.85f, 1f);
 
         private readonly ECSWorld _world;
         private readonly GameClient _client;
@@ -681,7 +684,8 @@ namespace Dino_Defenders.Client
                 float size = e.ToHero ? 17f : e.Critical ? 22f : 16f;
                 client.Session?.Say(e.Position, $"{e.Amount:0}", colour, size, 0.9f);
             });
-            client.Events.On<SkillEvent>(ShowSkill);
+            client.Events.On<PageEvent>(ShowPage);
+            client.Events.On<HealEvent>(e => client.Session?.Say(e.Position, $"+{e.Amount:0}", e.Pool switch { Pool.Mana => ManaColour, Pool.Barrier => BarrierColour, _ => HealColour }, 16f, 0.9f));
             client.Events.On<LinkEvent>(ShowLink);
             client.Events.On<ReactionEvent>(e =>
             {
@@ -696,7 +700,7 @@ namespace Dino_Defenders.Client
                 Spark(e.Position, ColourOf(e.Kind), e.Count, e.Speed, lit: e.Kind == SparkKind.Blood);
                 if (e.Kind == SparkKind.Shrine) Flash(e.Position, new Colour(0.5f, 1f, 0.75f, 300f), 26f, 1.6f);
             });
-            client.Events.On<HeroMoveEvent>(e => Show(e.Move, e.Position, e.Aim, e.Skill));
+            client.Events.On<HeroMoveEvent>(e => Show(e.Move, e.Position, e.Aim, e.Sign));
             client.Reached += (item, room) => Sounds.Reached(item, room);
             _client = client;
         }
@@ -866,16 +870,34 @@ namespace Dino_Defenders.Client
             _ => new Colour(0.56f, 0.72f, 1f, 1f),
         };
 
-        private void ShowSkill(SkillEvent e)
+        private void ShowPage(PageEvent e)
         {
-            SkillDefinition skill = SkillCatalog.Named(e.Skill);
-            Colour light = LightOf(skill.Look);
+            PageSign sign = PageSign.Read(e.Sign);
+            Colour light = LightOf(sign.Look);
+            Colour glow = GlowOf(sign.Look);
+            var shape = new GroundShape(e.Kind, e.Position.Xz, e.Facing, e.Length, e.Width);
 
-            Sounds.Burst(skill, e.Position);
-            Flash(e.Position + Vector3.UnitY * 2f, new Colour(light.Red, light.Green, light.Blue, 200f), MathF.Max(e.Radius * 2f, 8f), 0.4f);
-            Ring(e.Position + Vector3.UnitY * 1.2f, e.Radius, GlowOf(skill.Look), 26);
-            Spark(e.Position + Vector3.UnitY * 1.6f, GlowOf(skill.Look), 12, 7f);
-            if (e.Radius > 4f) Wind.AddBlast(_world, e.Position, e.Radius * 1.6f, 14f, 0.6f);
+            // Where a flash goes is the middle of what it covers, which is only where it started for a circle.
+            Vector2 middle = shape.Anywhere(0.5f, e.Kind == ShapeKind.Line ? 0.5f : 0.25f);
+            Vector3 centre = new Vector3(middle.X, e.Position.Y, middle.Y);
+
+            Sounds.Burst(sign.Look, e.Position);
+            Flash(centre + Vector3.UnitY * 2f, new Colour(light.Red, light.Green, light.Blue, 200f), MathF.Max(e.Length * 2f, 8f), 0.4f);
+            if (e.Kind == ShapeKind.Circle) Ring(e.Position + Vector3.UnitY * 1.2f, e.Length, glow, 26);
+            else Scatter(shape, e.Position.Y, glow, 26);
+            Spark(centre + Vector3.UnitY * 1.6f, glow, 12, 7f);
+            if (e.Length > 4f) Wind.AddBlast(_world, centre, e.Length * 1.6f, 14f, 0.6f);
+            Marks.Struck(shape, _client.Commands.Tick);
+        }
+
+        // All over a shape that isn't round.
+        private void Scatter(in GroundShape shape, float height, Colour colour, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 at = shape.Anywhere(_random.Float(), _random.Float());
+                Spark(new Vector3(at.X, height + 1.2f, at.Y), colour, 1, 1.6f);
+            }
         }
 
         private void ShowLink(LinkEvent e)
@@ -902,11 +924,10 @@ namespace Dino_Defenders.Client
         }
 
         /// <summary>A moment of whatever a patch of ground is doing.</summary>
-        public void Mote(Vector3 centre, float radius, DamageType look)
+        public void Mote(in GroundShape shape, float height, DamageType look)
         {
-            float angle = _random.Range(0f, MathF.Tau);
-            float reach = MathF.Sqrt(_random.Float()) * radius;
-            Spark(centre + new Vector3(MathF.Cos(angle) * reach, 0.4f, MathF.Sin(angle) * reach), GlowOf(look), 1, 2.4f);
+            Vector2 at = shape.Anywhere(_random.Float(), _random.Float());
+            Spark(new Vector3(at.X, height + 0.4f, at.Y), GlowOf(look), 1, 2.4f);
         }
 
         /// <summary>What someone is suffering from, as it shows.</summary>
@@ -936,38 +957,37 @@ namespace Dino_Defenders.Client
             GameSession? session = client.Session;
             if (session == null) return;
 
-            SkillProfile? skill = hero.Using >= 0 ? client.Kit.Slots[hero.Using] : null;
-            if ((events & HeroStepEvents.Used) != 0 && skill != null)
+            BookProfile? book = hero.Using >= 0 ? client.Kit.Slots[hero.Using] : null;
+            if ((events & HeroStepEvents.Used) != 0 && book != null)
             {
-                Doing = new OwnAction(skill.Skill, client.Commands.Tick, hero.ImpactIn, hero.BusyFor, MathF.Atan2(hero.Aim.X, hero.Aim.Y), ++_serial);
+                Doing = new OwnAction(book.Sign, client.Commands.Tick, hero.ImpactIn, hero.BusyFor, MathF.Atan2(hero.Aim.X, hero.Aim.Y), ++_serial);
 
                 // What it covers, for as long as it takes to land.
-                if (HeroRules.ShowsArea(skill))
+                if (book.ShowsArea)
                 {
                     double leaves = client.Commands.Tick + hero.ImpactIn / MathF.Max(hero.ActionRate, 0.1f) * NetTime.TicksPerSecond;
-                    Marks.Own(skill, hero, client.Commands.Tick, leaves, leaves + skill.Delay * NetTime.TicksPerSecond);
+                    Marks.Own(book, hero, client.Commands.Tick, leaves, leaves + book.Delay * NetTime.TicksPerSecond);
                 }
             }
 
             // A blow nobody marked still shows where it went, for a moment.
-            if ((events & HeroStepEvents.Landed) != 0 && skill != null && skill.Skill.Form is SkillForm.Strike or SkillForm.Leap && !HeroRules.ShowsArea(skill) && skill.DealsDamage)
+            if ((events & HeroStepEvents.Landed) != 0 && book != null && book.Sign.Form == PageForm.Strike && !book.ShowsArea && book.First.DealsDamage)
             {
-                Marks.Struck(GroundShape.Sector(hero.Position, hero.Aim, skill.Reach, skill.Skill.Arc), client.Commands.Tick);
+                Marks.Struck(GroundShape.Of(book, hero.Position, hero.Aim, hero.AimReach), client.Commands.Tick);
             }
 
             Vector3 position = new Vector3(hero.Position.X, session.World.Height.Sample(hero.Position), hero.Position.Y);
-            Show(events, position, hero.Aim, skill?.Skill.Number ?? 0);
-            Sounds.HeroActed(events, position, hero.Aim, skill);
+            Show(events, position, hero.Aim, book?.Sign.Number ?? PageSign.None);
+            Sounds.HeroActed(events, position, hero.Aim, book);
         }
 
         private void Show(HeroStepEvents events, Vector3 position, Vector2 aim, int number)
         {
-            SkillDefinition? skill = number > 0 && SkillCatalog.IsNumber(number) ? SkillCatalog.Get(number) : null;
-
             if ((events & HeroStepEvents.Dashed) != 0) Wind.AddBlast(_world, position, 6f, 8f, 0.4f);
-            if ((events & HeroStepEvents.Landed) == 0 || skill == null) return;
+            if ((events & HeroStepEvents.Landed) == 0 || number == PageSign.None) return;
+            PageSign sign = PageSign.Read(number);
 
-            if (skill.Form == SkillForm.Strike && skill.Arc >= MathF.Tau)
+            if (sign.Form == PageForm.Nova && !sign.Spell)
             {
                 Wind.AddBlast(_world, position, 14f, 22f, 1f);
                 Flash(position + Vector3.UnitY * 2.4f, new Colour(0.8f, 0.92f, 1f, 90f), 14f, 0.5f);
@@ -977,14 +997,14 @@ namespace Dino_Defenders.Client
                     Spark(position + new Vector3(MathF.Cos(angle) * 6f, 2.4f, MathF.Sin(angle) * 6f), ColourOf(SparkKind.Whirl), 1, 2f);
                 }
             }
-            else if (skill.Form is SkillForm.Strike or SkillForm.Leap)
+            else if (sign.Form is PageForm.Strike or PageForm.Leap)
             {
                 Spark(position + new Vector3(aim.X * 3f, 3f, aim.Y * 3f), ColourOf(SparkKind.Blade), 3, 4f);
             }
-            else if (skill.IsSpell)
+            else if (sign.Spell)
             {
-                Colour light = LightOf(skill.Look);
-                Spark(position + new Vector3(aim.X * 1.5f, 3.2f, aim.Y * 1.5f), GlowOf(skill.Look), 5, 3.4f);
+                Colour light = LightOf(sign.Look);
+                Spark(position + new Vector3(aim.X * 1.5f, 3.2f, aim.Y * 1.5f), GlowOf(sign.Look), 5, 3.4f);
                 Flash(position + Vector3.UnitY * 3f, new Colour(light.Red, light.Green, light.Blue, 40f), 8f, 0.2f);
             }
         }
@@ -1036,7 +1056,7 @@ namespace Dino_Defenders.Client
     public static class LocalInput
     {
         private const int FirstKeySlot = 2;
-        private static readonly Keys[] SlotKeys = { Keys.Q, Keys.D1, Keys.D2, Keys.D3, Keys.D4 };
+        private static readonly Keys[] SlotKeys = { Keys.Q, Keys.D1, Keys.D2, Keys.D3 };
 
         public static HeroIntent Read(Vector3 position, in HeroSimState hero)
         {

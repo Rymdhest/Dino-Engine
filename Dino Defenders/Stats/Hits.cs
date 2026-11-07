@@ -166,7 +166,7 @@ namespace Dino_Defenders.Stats
         public const float DebtSeconds = 4f;
         public const float LowShare = 0.35f;
 
-        public static void Roll(SkillProfile skill, Condition foe, WorldRandom luck, ref HitPacket hit, float strength = 1f, bool forceCrit = false)
+        public static void Roll(PageProfile skill, Condition foe, WorldRandom luck, ref HitPacket hit, float strength = 1f, bool forceCrit = false)
         {
             hit.Damage = default;
             hit.Dealt = default;

@@ -1,6 +1,7 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
+using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
@@ -37,7 +38,6 @@ namespace Dino_Defenders.Net
         Allocate,
         Refund,
         ForgetTalents,
-        AssignSlot,
         Equip,
         Unequip,
         Sell,
@@ -51,6 +51,8 @@ namespace Dino_Defenders.Net
         Move,
         Drop,
         Sort,
+        Write,
+        NewBook,
     }
 
     public enum NoticeKind : byte
@@ -145,12 +147,6 @@ namespace Dino_Defenders.Net
 
             writer.WriteCount(hero.Talents.Count);
             foreach (string id in hero.Talents) writer.WriteVarInt(TalentTree.Find(id)?.Index ?? 0);
-
-            for (int slot = 0; slot < HeroState.SkillSlots; slot++)
-            {
-                string? held = slot < hero.Bar.Length ? hero.Bar[slot] : null;
-                writer.WriteVarInt(held != null ? SkillCatalog.Find(held)?.Number ?? 0 : 0);
-            }
         }
 
         public static void ReadHeroSummary(BitReader reader, HeroState hero)
@@ -170,18 +166,10 @@ namespace Dino_Defenders.Net
                 if (index > 0 && index < TalentTree.Nodes.Length) taken.Add(TalentTree.Nodes[index].Id);
             }
             hero.Talents = taken;
-
-            var bar = new string?[HeroState.SkillSlots];
-            for (int slot = 0; slot < HeroState.SkillSlots; slot++)
-            {
-                int number = reader.ReadVarInt();
-                if (SkillCatalog.IsNumber(number)) bar[slot] = SkillCatalog.Get(number).Id;
-            }
-            hero.Bar = bar;
         }
 
-        /// <summary>What's on a hero that only lasts a while, and what they've picked up from whatever last hit them.</summary>
-        public static void WriteBuffs(BitWriter writer, IReadOnlyList<ActiveBuff> buffs, SkillDefinition? stolen)
+        /// <summary>What's on a hero that only lasts a while.</summary>
+        public static void WriteBuffs(BitWriter writer, IReadOnlyList<ActiveBuff> buffs)
         {
             writer.WriteCount(buffs.Count);
             foreach (ActiveBuff buff in buffs)
@@ -190,10 +178,9 @@ namespace Dino_Defenders.Net
                 writer.WriteVarInt(buff.Stacks);
                 writer.WriteFloat(buff.Left);
             }
-            writer.WriteVarInt(stolen?.Number ?? 0);
         }
 
-        public static void ReadBuffs(BitReader reader, List<ActiveBuff> buffs, out SkillDefinition? stolen)
+        public static void ReadBuffs(BitReader reader, List<ActiveBuff> buffs)
         {
             buffs.Clear();
             int count = reader.ReadCount(MostBuffs);
@@ -204,14 +191,12 @@ namespace Dino_Defenders.Net
                 float left = Finite(reader.ReadFloat());
                 if (BuffCatalog.Get(number) is BuffDefinition buff) buffs.Add(new ActiveBuff { Buff = buff, Stacks = Math.Clamp(stacks, 1, buff.MostStacks), Left = left });
             }
-
-            int skill = reader.ReadVarInt();
-            stolen = SkillCatalog.IsNumber(skill) ? SkillCatalog.Get(skill) : null;
         }
 
         public static void WriteGear(BitWriter writer, HeroState hero)
         {
             WriteCells(writer, hero.Inventory);
+            WriteCells(writer, hero.Bar);
             writer.WriteCount(hero.Equipped.Count);
             foreach ((WornSlot place, Item item) in hero.Equipped)
             {
@@ -226,6 +211,14 @@ namespace Dino_Defenders.Net
             Item?[] sent = ReadCells(reader, HeroState.InventorySize);
             sent.CopyTo(carried, 0);
 
+            var bar = new Item?[HeroState.BarSlots];
+            Item?[] onBar = ReadCells(reader, HeroState.BarSlots);
+            onBar.CopyTo(bar, 0);
+            foreach (Item? item in bar)
+            {
+                if (item is { IsBook: false }) throw new NetReadException($"{item.Slot} on the bar.");
+            }
+
             var worn = new Dictionary<WornSlot, Item>();
             int count = reader.ReadCount(MostItems);
             for (int i = 0; i < count; i++)
@@ -237,6 +230,7 @@ namespace Dino_Defenders.Net
             }
 
             hero.Inventory = carried;
+            hero.Bar = bar;
             hero.Equipped = worn;
         }
 
@@ -319,6 +313,89 @@ namespace Dino_Defenders.Net
                 writer.WriteString(line.Affix);
                 writer.WriteFloat(line.Value);
             }
+            writer.WriteBool(item.Book != null);
+            if (item.Book != null) WriteBook(writer, item.Book);
+        }
+
+        private static void WriteSentence(BitWriter writer, string? id) => writer.WriteVarInt(Sentences.Find(id)?.Number ?? 0);
+
+        private static string ReadSentence(BitReader reader, string plain) => Sentences.Get(reader.ReadVarInt())?.Id ?? plain;
+
+        private static string? ReadChosen(BitReader reader) => Sentences.Get(reader.ReadVarInt())?.Id;
+
+        /// <summary>What's written in a book, as the numbers of its sentences. Whoever's at the other end, what's read here has been put right before anything sees it.</summary>
+        public static void WriteBook(BitWriter writer, Book book)
+        {
+            writer.WriteCount(book.Pages.Count);
+            foreach (Page page in book.Pages)
+            {
+                writer.WriteByte((byte)page.Kind);
+                WriteSentence(writer, page.From);
+                WriteSentence(writer, page.FromWithin);
+                WriteSentence(writer, page.Towards);
+                WriteSentence(writer, page.TowardsWithin);
+                WriteSentence(writer, page.Shape);
+                WriteSentence(writer, page.Timing);
+                writer.WriteCount(page.Clauses.Count);
+                foreach (string clause in page.Clauses) WriteSentence(writer, clause);
+                writer.WriteCount(page.Outcomes.Count);
+                foreach (Outcome outcome in page.Outcomes)
+                {
+                    WriteSentence(writer, outcome.Deed);
+                    WriteSentence(writer, outcome.Element);
+                    WriteSentence(writer, outcome.Measure);
+                    WriteSentence(writer, outcome.Ailment);
+                    WriteSentence(writer, outcome.Gift);
+                    WriteSentence(writer, outcome.Kin);
+                    WriteSentence(writer, outcome.Pool);
+                    WriteSentence(writer, outcome.Whom);
+                }
+            }
+        }
+
+        public static Book ReadBook(BitReader reader)
+        {
+            var book = new Book();
+            int pages = reader.ReadCount(Rulebook.MostPages);
+            for (int i = 0; i < pages; i++)
+            {
+                var page = new Page
+                {
+                    Kind = Checked<PageKind>(reader.ReadByte()),
+                    From = ReadSentence(reader, Sentences.PlainFrom),
+                    FromWithin = ReadChosen(reader),
+                    Towards = ReadSentence(reader, Sentences.PlainTowards),
+                    TowardsWithin = ReadChosen(reader),
+                    Shape = ReadSentence(reader, Sentences.PlainShape),
+                    Timing = ReadSentence(reader, Sentences.PlainTiming),
+                };
+
+                int clauses = reader.ReadCount(Rulebook.MostClauses);
+                for (int c = 0; c < clauses; c++)
+                {
+                    if (ReadChosen(reader) is string clause) page.Clauses.Add(clause);
+                }
+
+                int outcomes = reader.ReadCount(Rulebook.MostOutcomes);
+                for (int o = 0; o < outcomes; o++)
+                {
+                    page.Outcomes.Add(new Outcome
+                    {
+                        Deed = ReadSentence(reader, Sentences.PlainDeed),
+                        Element = ReadSentence(reader, Sentences.PlainElement),
+                        Measure = ReadSentence(reader, Sentences.PlainMeasure),
+                        Ailment = ReadSentence(reader, Sentences.PlainAilment),
+                        Gift = ReadSentence(reader, Sentences.PlainGift),
+                        Kin = ReadSentence(reader, Sentences.PlainKin),
+                        Pool = ReadSentence(reader, Sentences.PlainPool),
+                        Whom = ReadSentence(reader, Sentences.PlainWhom),
+                    });
+                }
+                book.Pages.Add(page);
+            }
+
+            Scribe.Fix(book);
+            return book;
         }
 
         public static Item ReadItem(BitReader reader)

@@ -1,6 +1,6 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
@@ -51,7 +51,7 @@ namespace Dino_Defenders.Client
             _effects = effects;
 
             client.Events.On<DamageEvent>(Hit);
-            client.Events.On<HeroMoveEvent>(e => Moves(e.Move, e.Position, e.Skill > 0 && SkillCatalog.IsNumber(e.Skill) ? SkillCatalog.Get(e.Skill) : null, 1f));
+            client.Events.On<HeroMoveEvent>(e => Moves(e.Move, e.Position, e.Sign != PageSign.None ? PageSign.Read(e.Sign) : null, 1f));
             client.Events.On<TextEvent>(e =>
             {
                 if (!e.Speech) return;
@@ -80,28 +80,28 @@ namespace Dino_Defenders.Client
         }
 
         /// <summary>This player's hero, the moment they acted.</summary>
-        public void HeroActed(HeroStepEvents events, Vector3 position, Vector2 aim, SkillProfile? skill)
+        public void HeroActed(HeroStepEvents events, Vector3 position, Vector2 aim, BookProfile? book)
         {
-            float rate = skill != null ? 0.6f / MathF.Max(skill.UseTime, 0.05f) : 1f;
-            Moves(events, position, skill?.Skill, rate);
+            float rate = book != null ? 0.6f / MathF.Max(book.UseTime, 0.05f) : 1f;
+            Moves(events, position, book?.Sign, rate);
 
-            if ((events & HeroStepEvents.Landed) != 0 && skill != null && skill.Skill.Form is SkillForm.Strike or SkillForm.Leap && skill.DealsDamage)
+            if ((events & HeroStepEvents.Landed) != 0 && book != null && book.Sign.Form == PageForm.Strike && book.First.DealsDamage)
             {
-                Predict(position, aim, skill);
+                Predict(position, aim, book);
             }
         }
 
-        private void Moves(HeroStepEvents events, Vector3 position, SkillDefinition? skill, float rate)
+        private void Moves(HeroStepEvents events, Vector3 position, PageSign? sign, float rate)
         {
-            if ((events & HeroStepEvents.Used) != 0 && skill != null)
+            if ((events & HeroStepEvents.Used) != 0 && sign is PageSign look)
             {
-                if (skill.IsSpell)
+                if (look.Spell)
                 {
-                    Audio.Play(Magic.Cast(ClientEffects.ElementOf(skill.Look)), position);
+                    Audio.Play(Magic.Cast(ClientEffects.ElementOf(look.Look)), position);
                 }
                 else
                 {
-                    Audio.Play(skill.Arc >= MathF.Tau ? Blades.Whirl : Blades.Swing, position, 0f, MathF.Sqrt(rate));
+                    Audio.Play(look.Form == PageForm.Nova ? Blades.Whirl : Blades.Swing, position, 0f, MathF.Sqrt(rate));
                     if (_random.Chance(Effort)) After(0.03f, Voices.HeroEffort, position);
                 }
             }
@@ -109,9 +109,9 @@ namespace Dino_Defenders.Client
         }
 
         /// <summary>A patch of ground starting to do something.</summary>
-        public void ZoneOpens(SkillDefinition skill, Vector3 position)
+        public void ZoneOpens(DamageType look, Vector3 position)
         {
-            Audio.Play(Magic.Aura(ClientEffects.ElementOf(skill.Look)), position);
+            Audio.Play(Magic.Aura(ClientEffects.ElementOf(look)), position);
         }
 
         /// <summary>Into the pack, or not: that's only ever this player's to hear.</summary>
@@ -165,16 +165,16 @@ namespace Dino_Defenders.Client
             else if (grade == LootGrade.Rare) Audio.Play(Treasure.DropRare, position);
         }
 
-        /// <summary>A spell going off somewhere.</summary>
-        public void Burst(SkillDefinition skill, Vector3 position)
+        /// <summary>A page going off somewhere.</summary>
+        public void Burst(DamageType look, Vector3 position)
         {
-            Audio.Play(Magic.Burst(ClientEffects.ElementOf(skill.Look)), position);
+            Audio.Play(Magic.Burst(ClientEffects.ElementOf(look)), position);
         }
 
         // The hero's own stroke, tested against what's on this screen, the same test the server is about to make.
-        private void Predict(Vector3 origin, Vector2 facing, SkillProfile skill)
+        private void Predict(Vector3 origin, Vector2 facing, BookProfile book)
         {
-            GroundShape shape = GroundShape.Sector(origin.Xz, facing, skill.Reach, skill.Skill.Arc);
+            GroundShape shape = GroundShape.Of(book, origin.Xz, facing, 0f);
             int hits = 0;
             foreach (Archetype archetype in _world.QueryArchetypes(_enemyMask, BitMask.Empty))
             {
@@ -191,7 +191,7 @@ namespace Dino_Defenders.Client
                     // How much of them it took is a guess until the server says, but a good enough one to show the moment it lands.
                     Vector2 way = position.Xz - origin.Xz;
                     float health = entity.Has<HealthComponent>() ? MathF.Max(entity.Get<HealthComponent>().Max, 1f) : 100f;
-                    float weight = skill.AverageHit / health;
+                    float weight = book.First.AverageHit / health;
                     _effects.Connected(entity, way.LengthSquared > 0.01f ? way.Normalized() : facing, weight, weight >= HeavyBlow, position + Vector3.UnitY * 3.2f);
                 }
             }

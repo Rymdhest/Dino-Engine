@@ -190,17 +190,17 @@ namespace Dino_Defenders.Tooltips
             Add(offence, "Reaction Area", Stat.ReactionArea, s => Change(s, Stat.ReactionArea));
             Add(offence, "Explosion on Kill", Stat.ExplodeOnKill, s => Rate(s.ExplodeOnKill));
 
-            const string skills = "Skills";
+            const string skills = "Books";
             Add(skills, "Area of Effect", Stat.AreaOfEffect, s => Change(s, Stat.AreaOfEffect));
             Add(skills, "Melee Reach", Stat.MeleeReach, s => Metres(s.Total(Stat.MeleeReach)));
             Add(skills, "Projectile Speed", Stat.ProjectileSpeed, s => Change(s, Stat.ProjectileSpeed));
             Add(skills, "Projectiles", Stat.ProjectileCount, s => Signed(s.Total(Stat.ProjectileCount)));
             Add(skills, "Pierce", Stat.Pierce, s => Signed(s.Total(Stat.Pierce)));
             Add(skills, "Chains", Stat.Chain, s => Signed(s.Total(Stat.Chain)));
-            Add(skills, "Skill Duration", Stat.SkillDuration, s => Change(s, Stat.SkillDuration));
+            Add(skills, "Page Duration", Stat.PageDuration, s => Change(s, Stat.PageDuration));
             Add(skills, "Cooldown Recovery", Stat.CooldownRecovery, s => Signed(Above(s, Stat.CooldownRecovery, 100f)) + "%");
-            Add(skills, "Skill Cost", Stat.SkillCost, s => Change(s, Stat.SkillCost));
-            Add(skills, "Levels of Skills", Stat.SkillLevel, s => Signed(s.Total(Stat.SkillLevel)));
+            Add(skills, "Book Cost", Stat.BookCost, s => Change(s, Stat.BookCost));
+            Add(skills, "Potency", Stat.Potency, s => Change(s, Stat.Potency));
 
             const string company = "Minions";
             Add(company, "Minions", Stat.MinionCount, s => Signed(s.Total(Stat.MinionCount)));

@@ -1,5 +1,4 @@
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using OpenTK.Mathematics;
 
@@ -11,7 +10,6 @@ namespace Dino_Defenders.Talents
         Small,
         Notable,
         Keystone,
-        Skill,
         Gate,
     }
 
@@ -240,28 +238,27 @@ namespace Dino_Defenders.Talents
         {
             float Offset(float sideways, float at) => degrees + side * MathHelper.RadiansToDegrees(sideways / at);
 
-            bool skill = pod.Skill != null;
+            bool close = pod.Close;
             TalentNode previous = from;
-            int smalls = skill ? 1 : 2;
+            int smalls = close ? 1 : 2;
             for (int i = 0; i < smalls; i++)
             {
-                float at = radius + (skill ? 60f : 40f + i * 70f);
+                float at = radius + (close ? 60f : 40f + i * 70f);
                 var small = Add(new TalentNode
                 {
                     Id = $"{sector.Id}.{pod.Id}.{i}", Name = pod.Name, Kind = TalentKind.Small, Sector = index,
-                    Position = At(at, Offset(skill ? 62f : 56f + i * 14f, at)), Mods = new[] { pod.Small },
+                    Position = At(at, Offset(close ? 62f : 56f + i * 14f, at)), Mods = new[] { pod.Small },
                 });
                 Link(previous, small);
                 previous = small;
             }
 
-            float end = radius + (skill ? 136f : 170f);
+            float end = radius + (close ? 136f : 170f);
             var notable = Add(new TalentNode
             {
-                Id = $"{sector.Id}.{pod.Id}", Name = pod.Name, Kind = skill ? TalentKind.Skill : TalentKind.Notable, Sector = index,
+                Id = $"{sector.Id}.{pod.Id}", Name = pod.Name, Kind = TalentKind.Notable, Sector = index,
                 Position = At(end, Offset(60f, end)),
-                Mods = skill ? pod.Mods.Prepend(M.Skill(pod.Skill!)).ToArray() : pod.Mods,
-                Lore = pod.Skill?.Text,
+                Mods = pod.Mods,
             });
             Link(previous, notable);
             Link(notable, to);

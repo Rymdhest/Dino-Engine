@@ -1,3 +1,4 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.Networking;
 using OpenTK.Mathematics;
@@ -46,20 +47,28 @@ namespace Dino_Defenders.Gameplay
         [NetStep(1f / 16f)] public float Weight;// How much of them it took, as a share of all they have.
     }
 
-    public enum SkillPhase : byte
-    {
-        Burst,      // It's gone off here.
-    }
-
-    /// <summary>A skill going off somewhere, for everyone to see. What it looks like comes from the skill.</summary>
+    /// <summary>A page going off somewhere, for everyone to see: what it looks like, and the ground it covers.</summary>
     [NetEvent]
-    public struct SkillEvent
+    public struct PageEvent
     {
         public Vector3 Position;
-        public int Skill;
-        public SkillPhase Phase;
-        [NetStep(0.25f)] public float Radius;
-        [NetStep(0.1f)] public float Time;
+        public int Sign;
+        public ShapeKind Kind;
+        [NetStep(1f / 64f)] public Vector2 Facing;
+        [NetStep(0.25f)] public float Length;
+        [NetStep(1f / 16f)] public float Width;
+
+        /// <summary>The same, for what goes off all around somewhere.</summary>
+        public static PageEvent Round(Vector3 position, PageSign sign, float radius) => new PageEvent { Position = position, Sign = sign.Number, Kind = ShapeKind.Circle, Facing = Vector2.UnitY, Length = radius };
+    }
+
+    /// <summary>Someone getting something back from a page.</summary>
+    [NetEvent]
+    public struct HealEvent
+    {
+        public Vector3 Position;
+        [NetStep(1f)] public float Amount;
+        public Pool Pool;
     }
 
     /// <summary>Something crossing from one place to another all at once: a bolt leaping, a lance of ice.</summary>
@@ -133,7 +142,7 @@ namespace Dino_Defenders.Gameplay
         public int Value;
     }
 
-    /// <summary>What a body can do that isn't a skill.</summary>
+    /// <summary>What a body can do that isn't on a page.</summary>
     public enum Flourish : byte
     {
         Drink,
@@ -155,6 +164,6 @@ namespace Dino_Defenders.Gameplay
         public Vector3 Position;
         [NetStep(1f / 64f)] public Vector2 Aim;
         public HeroStepEvents Move;
-        public int Skill;
+        public int Sign;
     }
 }

@@ -1,12 +1,11 @@
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using OpenTK.Mathematics;
 using static Dino_Defenders.Stats.M;
 
 namespace Dino_Defenders.Talents
 {
-    /// <summary>A cluster hanging off a branch: a couple of small nodes and something worth reaching. One that teaches a skill is closer to hand.</summary>
-    public sealed record PodEntry(string Id, string Name, Mod Small, Mod[] Mods, SkillDefinition? Skill = null);
+    /// <summary>A cluster hanging off a branch: a couple of small nodes and something worth reaching. A close one is one small node and sits tighter to its branch.</summary>
+    public sealed record PodEntry(string Id, string Name, Mod Small, Mod[] Mods, bool Close = false);
 
     /// <summary>A node that changes how a character plays, rather than how much.</summary>
     public sealed record KeystoneEntry(string Id, string Name, string Lore, string? Title, Mod[] Mods);
@@ -28,7 +27,7 @@ namespace Dino_Defenders.Talents
 
     /// <summary>
     /// What the tree is made of. Each sector is a way of fighting; none of them is a class. Pods are in the order they hang from the sector,
-    /// nearest the root first, so a skill near the top of a list is a skill within reach of a new hero.
+    /// nearest the root first, so what's near the top of a list is within reach of a new hero.
     ///
     /// "More" and "less" are kept for keystones and a few other special things. Everything else adds to the common pool.
     /// </summary>
@@ -36,7 +35,7 @@ namespace Dino_Defenders.Talents
     {
         private static Mod[] L(params Mod[] mods) => mods;
         private static PodEntry P(string id, string name, Mod small, params Mod[] mods) => new PodEntry(id, name, small, mods);
-        private static PodEntry S(SkillDefinition skill, Mod small, params Mod[] mods) => new PodEntry(skill.Id, skill.Name, small, mods, skill);
+        private static PodEntry C(string id, string name, Mod small, params Mod[] mods) => new PodEntry(id, name, small, mods, true);
         private static KeystoneEntry K(string id, string name, string lore, string? title, params Mod[] mods) => new KeystoneEntry(id, name, lore, title, mods);
         private static BridgeEntry B(string name, params Mod[] mods) => new BridgeEntry(name, mods);
 
@@ -48,17 +47,17 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.Damage, 8f, Tags.Melee)), L(Inc(Stat.Armour, 10f)), L(Inc(Stat.Damage, 8f, Tags.Physical)), L(Flat(Stat.Health, 10f)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.Cleave, Inc(Stat.Damage, 8f, Tags.Attack)),
-                    S(SkillCatalog.Sunder, Inc(Stat.Damage, 8f, Tags.Physical)),
+                    C("broad-strokes", "Broad Strokes", Inc(Stat.Damage, 8f, Tags.Attack), Inc(Stat.AreaOfEffect, 20f, Tags.Melee), Inc(Stat.Damage, 15f, Tags.Melee)),
+                    C("sundering", "Sundering", Inc(Stat.Damage, 8f, Tags.Physical), Flat(Stat.ArmourIgnore, 12f), Inc(Stat.Damage, 15f, Tags.Physical)),
                     P("heavy-hands", "Heavy Hands", Inc(Stat.Damage, 8f, Tags.Physical), Inc(Stat.Damage, 22f, Tags.Physical), Chance(Tags.Stun, 10f)),
-                    S(SkillCatalog.StoneSkinCast, Inc(Stat.Armour, 10f)),
+                    C("bedrock", "Bedrock", Inc(Stat.Armour, 10f), Inc(Stat.Armour, 25f), Inc(Stat.PageDuration, 15f, Tags.Buff)),
                     P("tempered", "Tempered", Inc(Stat.Armour, 12f), Inc(Stat.Armour, 30f), Flat(Stat.PhysicalReduction, 3f)),
                     P("hammerfall", "Hammerfall", Inc(Stat.Damage, 8f, Tags.Mace), Inc(Stat.Damage, 30f, Tags.Mace), Chance(Tags.Stun, 15f, Tags.Mace)),
                     P("whetstone", "Whetstone", Inc(Stat.Damage, 8f, Tags.Sword), Inc(Stat.Damage, 26f, Tags.Sword), Inc(Stat.Damage, 26f, Tags.Axe), Flat(Stat.CritChance, 1f, Tags.Sword)),
                     P("long-arms", "Long Arms", Inc(Stat.AreaOfEffect, 6f, Tags.Melee), Flat(Stat.MeleeReach, 1.2f), Inc(Stat.AreaOfEffect, 18f, Tags.Melee)),
                     P("butchers-work", "Butcher's Work", Chance(Tags.Bleed, 4f, Tags.Melee), Chance(Tags.Bleed, 15f, Tags.Melee), Inc(Stat.Damage, 28f, Tags.Bleed)),
                     P("two-hands", "Both Hands", Inc(Stat.Damage, 9f, Tags.TwoHanded), Inc(Stat.Damage, 30f, Tags.TwoHanded), Inc(Stat.AttackSpeed, 7f, Tags.TwoHanded)),
-                    S(SkillCatalog.Whirl, Inc(Stat.AreaOfEffect, 6f, Tags.Melee)),
+                    C("sweeping-arc", "Sweeping Arc", Inc(Stat.AreaOfEffect, 6f, Tags.Melee), Inc(Stat.Damage, 20f, Tags.Melee | Tags.Area), Flat(Stat.MeleeReach, 0.8f)),
                 },
                 Keystones = new[]
                 {
@@ -76,15 +75,15 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Flat(Stat.Health, 12f)), L(Flat(Stat.BlockChance, 1.5f)), L(Inc(Stat.Armour, 8f)), L(Flat(Stat.FlatReduction, 1f)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.ShieldBash, Inc(Stat.Damage, 8f, Tags.Melee)),
-                    S(SkillCatalog.SanctuaryCast, Inc(Stat.Health, 3f)),
+                    C("shield-arm", "Shield Arm", Inc(Stat.Damage, 8f, Tags.Melee), Chance(Tags.Stun, 15f, Tags.Melee), Inc(Stat.Damage, 20f, Tags.Melee).While(Condition.HoldingShield)),
+                    C("sanctum", "Sanctum", Inc(Stat.Health, 3f), Inc(Stat.PageDuration, 20f, Tags.Buff), Inc(Stat.Recovery, 12f)),
                     P("shield-wall", "Shield Wall", Flat(Stat.BlockChance, 2f), Flat(Stat.BlockChance, 8f), Inc(Stat.Armour, 30f).While(Condition.HoldingShield)),
                     P("unmoved", "Unmoved", Inc(Stat.StunThreshold, 15f), Inc(Stat.StunThreshold, 50f), Flat(Stat.AilmentAvoid, 15f, Tags.Stun)),
                     P("thick-hide", "Thick Hide", Flat(Stat.FlatReduction, 1f), Flat(Stat.FlatReduction, 5f), Inc(Stat.Health, 6f)),
                     P("briar-coat", "Briar Coat", Flat(Stat.Reflect, 5f), Flat(Stat.Reflect, 20f), Flat(Stat.Armour, 40f)),
                     P("hold-the-line", "Hold the Line", Inc(Stat.Armour, 8f), Inc(Stat.DamageTaken, -8f).While(Condition.Stationary), Inc(Stat.Armour, 40f).While(Condition.Stationary)),
                     P("deflection", "Deflection", Flat(Stat.BlockChance, 1.5f), Flat(Stat.BlockChance, 6f, Tags.Spell), Flat(Stat.MaxBlock, 4f)),
-                    P("counterstroke", "Counterstroke", Inc(Stat.Damage, 8f, Tags.Attack), Trigger(TriggerEvent.Block, SkillCatalog.Retaliate), Inc(Stat.Damage, 25f).While(Condition.RecentlyBlocked)),
+                    P("counterstroke", "Counterstroke", Inc(Stat.Damage, 8f, Tags.Attack), Trigger(TriggerEvent.Block, Books.Shelf.Retaliate), Inc(Stat.Damage, 25f).While(Condition.RecentlyBlocked)),
                     P("bastion", "Bastion", Flat(Stat.Resistance, 3f, Tags.Elemental), Flat(Stat.Resistance, 12f, Tags.Elemental), Flat(Stat.MaxResistance, 2f, Tags.Elemental)),
                 },
                 Keystones = new[]
@@ -103,9 +102,9 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.Health, 4f)), L(Flat(Stat.HealthRegen, 1f)), L(Inc(Stat.Damage, 7f)), L(Inc(Stat.Recovery, 5f)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.Rend, Chance(Tags.Bleed, 4f)),
-                    S(SkillCatalog.Sap, Inc(Stat.Health, 3f)),
-                    S(SkillCatalog.Bloodburst, Inc(Stat.Damage, 7f, Tags.Bleed)),
+                    C("long-cuts", "Long Cuts", Chance(Tags.Bleed, 4f), Chance(Tags.Bleed, 12f), Inc(Stat.Damage, 18f, Tags.Bleed)),
+                    C("sap", "Sap", Inc(Stat.Health, 3f), Flat(Stat.HealthLeech, 1f), Flat(Stat.ManaLeech, 0.5f)),
+                    C("bloodletting", "Bloodletting", Inc(Stat.Damage, 7f, Tags.Bleed), Inc(Stat.Damage, 20f).Against(Condition.Bleeding), Inc(Stat.AilmentDuration, 15f, Tags.Bleed)),
                     P("deep-veins", "Deep Veins", Inc(Stat.Health, 4f), Inc(Stat.Health, 14f), Flat(Stat.HealthRegenPercent, 0.5f)),
                     P("leech", "The Leech", Flat(Stat.HealthLeech, 0.3f), Flat(Stat.HealthLeech, 1.2f), Inc(Stat.Recovery, 12f)),
                     P("gorge", "Gorge", Flat(Stat.HealthOnKill, 4f), Flat(Stat.HealthOnKill, 16f), Flat(Stat.ManaOnKill, 6f)),
@@ -130,8 +129,8 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.Damage, 9f, Tags.Minion)), L(Inc(Stat.Health, 9f, Tags.Minion)), L(Inc(Stat.AttackSpeed, 4f, Tags.Minion)), L(Flat(Stat.Mana, 8f)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.RaiseBones, Inc(Stat.Damage, 9f, Tags.Minion)),
-                    S(SkillCatalog.BoneSpear, Inc(Stat.Damage, 8f, Tags.Physical)),
+                    C("marshal", "Marshal", Inc(Stat.Damage, 9f, Tags.Minion), Inc(Stat.Damage, 25f, Tags.Minion), Inc(Stat.MinionDuration, 20f)),
+                    C("bone-splinter", "Bone Splinter", Inc(Stat.Damage, 8f, Tags.Physical), Flat(Stat.Pierce, 1f), Inc(Stat.Damage, 15f, Tags.Physical | Tags.Projectile)),
                     P("gravedigger", "Gravedigger", Inc(Stat.Health, 9f, Tags.Minion), Flat(Stat.MinionCount, 1f), Inc(Stat.Health, 20f, Tags.Minion)),
                     P("rally", "Rally", Inc(Stat.MoveSpeed, 5f, Tags.Minion), Inc(Stat.MoveSpeed, 20f, Tags.Minion), Inc(Stat.AttackSpeed, 15f, Tags.Minion)),
                     P("old-bones", "Old Bones", Inc(Stat.MinionDuration, 12f), Inc(Stat.MinionDuration, 50f), Inc(Stat.Damage, 20f, Tags.Minion)),
@@ -157,15 +156,15 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.Damage, 9f, Tags.Poison)), L(Inc(Stat.Damage, 9f, Tags.DamageOverTime)), L(Chance(Tags.Venom, 4f)), L(Flat(Stat.Resistance, 4f, Tags.Poison)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.VenomSpit, Inc(Stat.Damage, 9f, Tags.Poison)),
-                    S(SkillCatalog.Miasma, Inc(Stat.Damage, 9f, Tags.DamageOverTime)),
+                    C("spittle", "Spittle", Inc(Stat.Damage, 9f, Tags.Poison), Chance(Tags.Venom, 12f, Tags.Projectile), Inc(Stat.ProjectileSpeed, 10f)),
+                    C("foul-air", "Foul Air", Inc(Stat.Damage, 9f, Tags.DamageOverTime), Inc(Stat.PageDuration, 20f, Tags.Zone), Inc(Stat.Potency, 12f, Tags.Zone)),
                     P("toxic-blood", "Toxic Blood", Inc(Stat.Damage, 9f, Tags.Venom), Inc(Stat.Damage, 30f, Tags.Venom), Chance(Tags.Venom, 10f)),
                     P("slow-sickness", "Slow Sickness", Inc(Stat.AilmentDuration, 8f), Inc(Stat.AilmentDuration, 30f), Inc(Stat.Damage, 15f, Tags.DamageOverTime)),
                     P("rot", "Rot", Inc(Stat.Damage, 9f, Tags.DamageOverTime), Inc(Stat.Damage, 32f, Tags.DamageOverTime), Flat(Stat.Penetration, 8f, Tags.Poison)),
                     P("immune", "Antibodies", Flat(Stat.Resistance, 5f, Tags.Poison), Flat(Stat.Resistance, 20f, Tags.Poison), Flat(Stat.AilmentAvoid, 25f, Tags.Venom), Inc(Stat.AilmentTaken, -25f)),
                     P("mudslick", "Mudslick", Inc(Stat.Evasion, 10f), Inc(Stat.Evasion, 30f).While(Condition.WetLand), Inc(Stat.MoveSpeed, 10f).While(Condition.WetLand)),
                     P("feeding-on-the-sick", "Feeding on the Sick", Flat(Stat.HealthOnHit, 1f), Inc(Stat.Damage, 30f).Against(Condition.Envenomed), Flat(Stat.HealthOnKill, 12f)),
-                    P("spreading-stain", "Spreading Stain", Inc(Stat.AreaOfEffect, 6f), Inc(Stat.AreaOfEffect, 25f, Tags.Zone), Inc(Stat.SkillDuration, 25f, Tags.Zone)),
+                    P("spreading-stain", "Spreading Stain", Inc(Stat.AreaOfEffect, 6f), Inc(Stat.AreaOfEffect, 25f, Tags.Zone), Inc(Stat.PageDuration, 25f, Tags.Zone)),
                     P("weakness", "Weakness", Inc(Stat.Damage, 9f, Tags.Poison), Flat(Stat.Penetration, 12f, Tags.Poison), Inc(Stat.Damage, 20f, Tags.Poison)),
                 },
                 Keystones = new[]
@@ -184,9 +183,9 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.Damage, 9f, Tags.Fire)), L(Chance(Tags.Burn, 3f)), L(Inc(Stat.AreaOfEffect, 5f)), L(Flat(Stat.Resistance, 4f, Tags.Fire)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.Firebolt, Inc(Stat.Damage, 9f, Tags.Fire)),
-                    S(SkillCatalog.Immolate, Inc(Stat.AreaOfEffect, 5f)),
-                    S(SkillCatalog.Emberfall, Inc(Stat.Damage, 9f, Tags.Fire)),
+                    C("kindled-bolt", "Kindled Bolt", Inc(Stat.Damage, 9f, Tags.Fire), Inc(Stat.Damage, 22f, Tags.Fire | Tags.Projectile), Chance(Tags.Burn, 8f, Tags.Projectile)),
+                    C("wreath-of-flame", "Wreath of Flame", Inc(Stat.AreaOfEffect, 5f), Inc(Stat.Damage, 22f, Tags.Fire | Tags.Area), Chance(Tags.Burn, 8f, Tags.Area)),
+                    C("falling-embers", "Falling Embers", Inc(Stat.Damage, 9f, Tags.Fire), Inc(Stat.Potency, 20f, Tags.Falling), Inc(Stat.AreaOfEffect, 10f, Tags.Turned)),
                     P("kindling", "Kindling", Chance(Tags.Burn, 4f), Chance(Tags.Burn, 15f), Inc(Stat.Damage, 26f, Tags.Burn)),
                     P("searing-heat", "Searing Heat", Inc(Stat.Damage, 9f, Tags.Fire), Inc(Stat.Damage, 30f, Tags.Fire), Flat(Stat.Penetration, 6f, Tags.Fire)),
                     P("wide-flame", "Wide Flame", Inc(Stat.AreaOfEffect, 6f), Inc(Stat.AreaOfEffect, 25f), Inc(Stat.Damage, 15f, Tags.Area)),
@@ -211,25 +210,25 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.Damage, 8f, Tags.Spell)), L(Inc(Stat.Mana, 7f)), L(Inc(Stat.CastSpeed, 3f)), L(Flat(Stat.Barrier, 10f)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.ArcaneDart, Inc(Stat.Damage, 8f, Tags.Magic)),
-                    S(SkillCatalog.Unmaking, Inc(Stat.Damage, 8f, Tags.Spell)),
-                    S(SkillCatalog.Blink, Inc(Stat.CooldownRecovery, 4f)),
+                    C("plain-force", "Plain Force", Inc(Stat.Damage, 8f, Tags.Magic), Inc(Stat.Damage, 25f, Tags.Magic), Chance(Tags.Hex, 8f)),
+                    C("second-reading", "Second Reading", Inc(Stat.Damage, 8f, Tags.Spell), Inc(Stat.Potency, 15f, Tags.Turned), Inc(Stat.BookCost, -8f)),
+                    C("fluent-hand", "Fluent Hand", Inc(Stat.CooldownRecovery, 4f), Inc(Stat.BookCost, -10f, Tags.Movement), Inc(Stat.CastSpeed, 8f)),
                     P("deep-well", "Deep Well", Inc(Stat.Mana, 8f), Inc(Stat.Mana, 25f), Flat(Stat.ManaRegenPercent, 0.4f)),
                     P("spellweaver", "Spellweaver", Inc(Stat.CastSpeed, 3f), Inc(Stat.CastSpeed, 12f), Inc(Stat.Damage, 20f, Tags.Spell)),
                     P("ward-of-glass", "Ward of Glass", Flat(Stat.Barrier, 12f), Inc(Stat.Barrier, 35f), Inc(Stat.BarrierRecharge, 30f), TakenAs(DamageType.Physical, DamageType.Magic, 15f)),
                     P("unravelling", "Unravelling", Chance(Tags.Hex, 4f), Chance(Tags.Hex, 15f), Inc(Stat.AilmentEffect, 30f, Tags.Hex)),
-                    P("economy-of-words", "Economy of Words", Inc(Stat.SkillCost, -3f), Inc(Stat.SkillCost, -14f), Inc(Stat.CooldownRecovery, 10f)),
+                    P("economy-of-words", "Economy of Words", Inc(Stat.BookCost, -3f), Inc(Stat.BookCost, -14f), Inc(Stat.CooldownRecovery, 10f)),
                     P("sharp-mind", "Sharp Mind", Flat(Stat.CritChance, 0.5f, Tags.Spell), Inc(Stat.CritChance, 40f, Tags.Spell), Flat(Stat.CritMultiplier, 25f, Tags.Spell)),
-                    P("full-of-it", "Brimming", Inc(Stat.Damage, 8f).While(Condition.FullMana), Inc(Stat.Damage, 35f, Tags.Spell).While(Condition.FullMana), Flat(Stat.SkillLevel, 1f, Tags.Magic)),
+                    P("full-of-it", "Brimming", Inc(Stat.Damage, 8f).While(Condition.FullMana), Inc(Stat.Damage, 35f, Tags.Spell).While(Condition.FullMana), Inc(Stat.Potency, 10f, Tags.Magic)),
                 },
                 Keystones = new[]
                 {
                     K("manaskin", "Manaskin", "You stopped being a body some time ago.", "Manaskin",
                         Flat(Stat.TakenFromMana, 60f), Inc(Stat.Mana, 50f), Inc(Stat.Health, -30f)),
                     K("echoing-word", "Echoing Word", "Say it again, and they'll believe it.", "Cantor",
-                        Rules(Rule.SpellEcho), Inc(Stat.SkillCost, 50f, Tags.Spell)),
-                    K("unbound-hour", "Unbound Hour", "There's always time, if you can pay for it.", "Timeless",
-                        Rules(Rule.NoCooldowns)),
+                        Rules(Rule.SpellEcho), Inc(Stat.BookCost, 50f, Tags.Spell)),
+                    K("palimpsest", "Palimpsest", "Written over and over, and only ever paid for once.", "Palimpsest",
+                        Rules(Rule.OneCost), More(Stat.Potency, -20f)),
                 },
             },
             new Sector
@@ -238,9 +237,9 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.Damage, 9f, Tags.Lightning)), L(Inc(Stat.CastSpeed, 3f)), L(Inc(Stat.MoveSpeed, 2f)), L(Flat(Stat.Resistance, 4f, Tags.Lightning)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.Spark, Inc(Stat.Damage, 9f, Tags.Lightning)),
-                    S(SkillCatalog.Stormcall, Inc(Stat.SkillDuration, 6f)),
-                    S(SkillCatalog.QuickeningCast, Inc(Stat.MoveSpeed, 2f)),
+                    C("forked-path", "Forked Path", Inc(Stat.Damage, 9f, Tags.Lightning), Inc(Stat.Damage, 15f, Tags.Lightning), Inc(Stat.Damage, 15f, Tags.Turned)),
+                    C("rolling-thunder", "Rolling Thunder", Inc(Stat.PageDuration, 6f), Inc(Stat.Potency, 15f, Tags.Zone), Inc(Stat.Damage, 15f, Tags.Lightning)),
+                    C("quickened", "Quickened", Inc(Stat.MoveSpeed, 2f), Inc(Stat.MoveSpeed, 8f), Inc(Stat.CastSpeed, 8f)),
                     P("high-voltage", "High Voltage", Inc(Stat.Damage, 9f, Tags.Lightning), Inc(Stat.Damage, 30f, Tags.Lightning), Flat(Stat.Penetration, 6f, Tags.Lightning)),
                     P("shocking-touch", "Shocking Touch", Chance(Tags.Shock, 4f), Chance(Tags.Shock, 15f), Inc(Stat.AilmentEffect, 30f, Tags.Shock)),
                     P("arc-flash", "Arc Flash", Inc(Stat.Damage, 9f, Tags.Chaining), Flat(Stat.Chain, 1f), Inc(Stat.Damage, 15f, Tags.Chaining)),
@@ -265,9 +264,9 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.Damage, 9f, Tags.Cold)), L(Inc(Stat.Barrier, 6f)), L(Inc(Stat.AilmentEffect, 6f, Tags.Chill)), L(Flat(Stat.Resistance, 4f, Tags.Cold)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.FrostShards, Inc(Stat.Damage, 9f, Tags.Cold)),
-                    S(SkillCatalog.FrostNova, Inc(Stat.AilmentEffect, 6f, Tags.Chill)),
-                    S(SkillCatalog.GlacialLance, Inc(Stat.Damage, 9f, Tags.Cold)),
+                    C("splinters", "Splinters", Inc(Stat.Damage, 9f, Tags.Cold), Inc(Stat.Damage, 22f, Tags.Cold | Tags.Projectile), Inc(Stat.ProjectileSpeed, 10f)),
+                    C("white-ring", "White Ring", Inc(Stat.AilmentEffect, 6f, Tags.Chill), Inc(Stat.Damage, 22f, Tags.Cold | Tags.Area), Inc(Stat.AreaOfEffect, 10f)),
+                    C("long-ice", "Long Ice", Inc(Stat.Damage, 9f, Tags.Cold), Chance(Tags.Freeze, 8f), Inc(Stat.Damage, 15f, Tags.Cold).Against(Condition.Chilled)),
                     P("biting-cold", "Biting Cold", Inc(Stat.Damage, 9f, Tags.Cold), Inc(Stat.Damage, 30f, Tags.Cold), Flat(Stat.Penetration, 6f, Tags.Cold)),
                     P("permafrost", "Permafrost", Chance(Tags.Freeze, 3f), Chance(Tags.Freeze, 12f), Inc(Stat.AilmentDuration, 30f, Tags.Freeze)),
                     P("numbing", "Numbing", Inc(Stat.AilmentEffect, 8f, Tags.Chill), Inc(Stat.AilmentEffect, 30f, Tags.Chill), Inc(Stat.AilmentDuration, 30f, Tags.Chill)),
@@ -292,8 +291,8 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.MoveSpeed, 2f)), L(Inc(Stat.Evasion, 8f)), L(Flat(Stat.Health, 8f), Flat(Stat.Mana, 4f)), L(Inc(Stat.Damage, 6f)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.Tidepool, Inc(Stat.MoveSpeed, 2f)),
-                    S(SkillCatalog.CallHound, Inc(Stat.Damage, 9f, Tags.Minion)),
+                    C("wellspring", "Wellspring", Inc(Stat.MoveSpeed, 2f), Inc(Stat.Recovery, 12f).While(Condition.InWater), Inc(Stat.Potency, 15f).While(Condition.InWater)),
+                    C("whistle", "Whistle", Inc(Stat.Damage, 9f, Tags.Minion), Inc(Stat.MoveSpeed, 15f, Tags.Minion), Inc(Stat.Health, 15f, Tags.Minion)),
                     P("forest-floor", "Forest Floor", Inc(Stat.Evasion, 10f), Inc(Stat.Evasion, 40f).While(Condition.UnderTrees), Flat(Stat.Stealth, 20f).While(Condition.UnderTrees)),
                     P("river-sense", "River Sense", Inc(Stat.MoveSpeed, 3f), Inc(Stat.MoveSpeed, 15f).While(Condition.InWater), Inc(Stat.Damage, 25f).While(Condition.InWater)),
                     P("the-long-road", "The Long Road", Inc(Stat.MoveSpeed, 3f), Inc(Stat.MoveSpeed, 18f).While(Condition.OnRoad), Inc(Stat.Damage, 20f).While(Condition.OnRoad)),
@@ -320,8 +319,8 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Inc(Stat.Damage, 8f, Tags.Projectile)), L(Inc(Stat.Evasion, 10f)), L(Inc(Stat.AttackSpeed, 3f)), L(Inc(Stat.ProjectileSpeed, 6f)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.Shot, Inc(Stat.Damage, 8f, Tags.Projectile)),
-                    S(SkillCatalog.Volley, Inc(Stat.ProjectileSpeed, 6f)),
+                    C("steady-draw", "Steady Draw", Inc(Stat.Damage, 8f, Tags.Projectile), Inc(Stat.Damage, 22f, Tags.Projectile), Inc(Stat.Accuracy, 15f)),
+                    C("loose-together", "Loose Together", Inc(Stat.ProjectileSpeed, 6f), Flat(Stat.ProjectileCount, 1f, Tags.Bow), Inc(Stat.Damage, -8f, Tags.Bow)),
                     P("fletching", "Fletching", Inc(Stat.Damage, 8f, Tags.Bow), Inc(Stat.Damage, 30f, Tags.Bow), Inc(Stat.AttackSpeed, 8f, Tags.Bow)),
                     P("through-and-through", "Through and Through", Inc(Stat.ProjectileSpeed, 6f), Flat(Stat.Pierce, 1f), Inc(Stat.Damage, 15f, Tags.Projectile)),
                     P("extra-quiver", "Extra Quiver", Inc(Stat.AttackSpeed, 3f), Flat(Stat.ProjectileCount, 1f), Inc(Stat.Damage, -10f, Tags.Projectile)),
@@ -337,8 +336,8 @@ namespace Dino_Defenders.Talents
                         Rules(Rule.LongShot)),
                     K("peakborn", "Peakborn", "You've always looked down on people.", "Peakborn",
                         Rules(Rule.HighGround), Inc(Stat.Damage, 10f, Tags.Projectile)),
-                    K("homing-flight", "Homing Flight", "It always comes home. Mind your fingers.", null,
-                        Rules(Rule.ProjectilesReturn), More(Stat.Damage, -15f, Tags.Projectile)),
+                    K("last-chapter", "The Last Chapter", "It was always going to end like this.", "Author",
+                        More(Stat.Potency, 60f, Tags.Closing), More(Stat.Potency, -30f, Tags.Opening)),
                 },
             },
             new Sector
@@ -347,8 +346,8 @@ namespace Dino_Defenders.Talents
                 Small = new[] { L(Flat(Stat.CritMultiplier, 6f)), L(Inc(Stat.CritChance, 10f)), L(Inc(Stat.AttackSpeed, 3f)), L(Inc(Stat.Evasion, 8f)) },
                 Pods = new[]
                 {
-                    S(SkillCatalog.Lunge, Inc(Stat.AttackSpeed, 3f)),
-                    S(SkillCatalog.Knives, Inc(Stat.CritChance, 10f)),
+                    C("lunging-step", "Lunging Step", Inc(Stat.AttackSpeed, 3f), Inc(Stat.Potency, 20f, Tags.Movement), Inc(Stat.BookCost, -15f, Tags.Movement)),
+                    C("balanced-blades", "Balanced Blades", Inc(Stat.CritChance, 10f), Inc(Stat.Damage, 20f, Tags.Projectile | Tags.Attack), Flat(Stat.CritChance, 1f, Tags.Projectile)),
                     P("twist-the-knife", "Twist the Knife", Inc(Stat.Damage, 8f, Tags.Dagger), Inc(Stat.Damage, 30f, Tags.Dagger), Flat(Stat.CritMultiplier, 20f, Tags.Dagger)),
                     P("cold-calculation", "Cold Calculation", Inc(Stat.CritChance, 10f), Inc(Stat.CritChance, 40f), Flat(Stat.CritChance, 1f)),
                     P("cut-throat", "Cut Throat", Flat(Stat.CritMultiplier, 8f), Flat(Stat.CritMultiplier, 35f), Inc(Stat.Damage, 15f).While(Condition.RecentlyCrit)),
@@ -364,8 +363,8 @@ namespace Dino_Defenders.Talents
                         Set(Stat.CritChance, 50f), Divert(Stat.CritChance, Stat.CritMultiplier, 100f)),
                     K("final-word", "Final Word", "Nobody's listening by then.", "Reaper",
                         Flat(Stat.Execute, 25f), More(Stat.Damage, -25f, Tags.Hit)),
-                    K("borrowed-tongue", "Borrowed Tongue", "Everything anyone has ever done to you is yours now.", "Mockingbird",
-                        Rules(Rule.Mimic), Inc(Stat.Damage, 15f)),
+                    K("wild-margins", "Wild Margins", "Nobody reads the notes. That's where you hide things.", "Marginalist",
+                        More(Stat.Potency, 40f, Tags.Wild), Inc(Stat.BookCost, 25f)),
                 },
             },
         };

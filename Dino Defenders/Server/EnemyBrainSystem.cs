@@ -1,5 +1,5 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -19,7 +19,7 @@ namespace Dino_Defenders.Server
         private const float RecoverTime = 0.75f;
         private const float PathRefresh = 0.8f;
         private const float WaypointReach = 2.2f;
-        private const float ShortestWindUp = 0.6f;      // However quick the skill, there's always a moment to get out of the way. A mark reaches a player's clock some 0.13 s late on the best of lines, and what's left has to be enough to act on.
+        private const float ShortestWindUp = 0.6f;      // However quick the book, there's always a moment to get out of the way. A mark reaches a player's clock some 0.13 s late on the best of lines, and what's left has to be enough to act on.
         private const float HeavyWindUp = 0.7f;
         private const float BossWindUp = 1.25f;
         private const float EscapeSpeed = 12f;          // Metres a second it's taken that someone can get out of an area at. An area gives them that long, near enough.
@@ -126,8 +126,8 @@ namespace Dino_Defenders.Server
                     float wants = Comfort(actor);
                     if (ready >= 0)
                     {
-                        brain.Skill = ready;
-                        SkillProfile chosen = actor.Sheet.Profile(ready);
+                        brain.Book = ready;
+                        BookProfile chosen = actor.Sheet.Profile(ready);
                         Commit(session, entity.Entity, actor, ref brain, enemy.Rank, chosen, position, foe, toTarget);
                         Change(ref enemy, ref brain, EnemyState.WindingUp);
                     }
@@ -196,39 +196,42 @@ namespace Dino_Defenders.Server
         }
 
         // Fixes what's going to happen: where from, which way and how far, and says so to all. Nothing is checked again until it lands, so that whatever a player can see is what's coming.
-        private static void Commit(ServerSession session, Entity who, Actor actor, ref EnemyBrainComponent brain, EnemyRank rank, SkillProfile skill, Vector2 position, Vector2 foe, float toTarget)
+        private static void Commit(ServerSession session, Entity who, Actor actor, ref EnemyBrainComponent brain, EnemyRank rank, BookProfile book, Vector2 position, Vector2 foe, float toTarget)
         {
             Vector2 toward = foe - position;
             brain.AimFrom = position;
             brain.AimWay = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.UnitY;
             brain.AimReach = toTarget + MeleeSlack;
-            brain.WindUpTicks = (int)MathF.Round(WindUpOf(skill, rank) / MathF.Max(actor.Afflictions.ActionRate, 0.1f) * NetTime.TicksPerSecond);
+            brain.WindUpTicks = (int)MathF.Round(WindUpOf(book, rank) / MathF.Max(actor.Afflictions.ActionRate, 0.1f) * NetTime.TicksPerSecond);
             float windUp = brain.WindUpTicks * NetTime.TickSeconds;
 
-            float follow = MathF.Min(MathF.Max(skill.UseTime - skill.ImpactTime, 0.35f), MostFollowThrough);
-            session.Combat.Perform(who, skill.Skill, windUp, windUp + follow, brain.AimWay);
+            float follow = MathF.Min(MathF.Max(book.UseTime - book.ImpactTime, 0.35f), MostFollowThrough);
+            session.Combat.Perform(who, book.Sign, windUp, windUp + follow, brain.AimWay);
 
             // Those on the heroes' side have no need of telling anyone, and there can be a lot of them.
             if (actor.Team != Team.Enemies) return;
-            GroundShape shape = GroundShape.Of(skill, position, brain.AimWay, brain.AimReach);
-            brain.Mark = session.Combat.Warn(shape, skill.Skill.Number, TierOf(rank, skill), true, windUp + skill.Delay);
+            GroundShape shape = GroundShape.Of(book, position, brain.AimWay, brain.AimReach);
+            brain.Mark = session.Combat.Warn(shape, TierOf(rank, book), true, windUp + book.Delay);
         }
 
         // Long enough to see it, and for anything with an area, long enough for someone in the middle of it to get to the edge.
-        private static float WindUpOf(SkillProfile skill, EnemyRank rank)
+        private static float WindUpOf(BookProfile book, EnemyRank rank)
         {
-            float windUp = MathF.Max(skill.ImpactTime, ShortestWindUp);
-            if (skill.Skill.Form is SkillForm.Nova or SkillForm.Burst or SkillForm.Zone or SkillForm.Chain) windUp = MathF.Max(windUp, GroundShape.Of(skill, Vector2.Zero, Vector2.UnitY, 0f).Length / EscapeSpeed * EscapeShare + 0.2f);
-            if (skill.Skill.Arc >= MathF.Tau || skill.Skill.UseTime >= 0.95f) windUp = MathF.Max(windUp, HeavyWindUp);
+            float windUp = MathF.Max(book.ImpactTime, ShortestWindUp);
+            if (book.Sign.Form is PageForm.Nova or PageForm.Burst or PageForm.Zone) windUp = MathF.Max(windUp, GroundShape.Of(book, Vector2.Zero, Vector2.UnitY, 0f).Length / EscapeSpeed * EscapeShare + 0.2f);
+            if (Fearsome(book)) windUp = MathF.Max(windUp, HeavyWindUp);
             return rank == EnemyRank.Boss ? windUp * BossWindUp : windUp;
         }
 
         // A hero's eye goes to what can really hurt them, and a crowd of cuts from fodder would drown that out.
-        private static MarkTier TierOf(EnemyRank rank, SkillProfile skill)
+        private static MarkTier TierOf(EnemyRank rank, BookProfile book)
         {
-            if (rank != EnemyRank.Normal || skill.Skill.UseTime >= 0.95f || skill.Skill.Arc >= MathF.Tau) return MarkTier.Grave;
-            return skill.Skill.Form is SkillForm.Strike or SkillForm.Bolt ? MarkTier.Slight : MarkTier.Plain;
+            if (rank != EnemyRank.Normal || Fearsome(book)) return MarkTier.Grave;
+            return book.Sign.Form is PageForm.Strike or PageForm.Bolt ? MarkTier.Slight : MarkTier.Plain;
         }
+
+        // What's slow to come, or goes all the way round.
+        private static bool Fearsome(BookProfile book) => book.Sign.Heavy || book.Sign.Form == PageForm.Nova && !book.Sign.Spell;
 
         // What's near hears it too. A pack is one thing to a hero who walks up to it, however far its members happen to be from them.
         private void Call(ServerSession session, Actor actor)
@@ -282,37 +285,37 @@ namespace Dino_Defenders.Server
         private static float Comfort(Actor actor)
         {
             float best = 0f;
-            for (int i = 0; i < actor.Loadout.Skills.Length; i++) best = MathF.Max(best, Reach(actor.Sheet.Profile(i)));
+            for (int i = 0; i < actor.Loadout.Books.Length; i++) best = MathF.Max(best, Reach(actor.Sheet.Profile(i)));
             return best;
         }
 
-        private static float Reach(SkillProfile skill) => skill.Skill.Form switch
+        private static float Reach(BookProfile book) => book.Sign.Form switch
         {
-            SkillForm.Strike => skill.Reach,
-            SkillForm.Nova => skill.Radius * 0.75f,
-            _ => skill.Range,
+            PageForm.Strike => book.First.Length,
+            PageForm.Nova => book.First.Length * 0.75f,
+            _ => book.First.Range,
         };
 
-        // The first thing it has that's ready and will reach. Skills are listed best first, so that's also the one it wants.
+        // The first thing it has that's ready and will reach. Books are listed best first, so that's also the one it wants.
         private static int Ready(Actor actor, float distance)
         {
-            for (int i = 0; i < actor.Loadout.Skills.Length; i++)
+            for (int i = 0; i < actor.Loadout.Books.Length; i++)
             {
                 if (actor.Cooldowns[i] > 0f) continue;
-                SkillProfile skill = actor.Sheet.Profile(i);
-                if (skill.Skill.Form is SkillForm.Buff or SkillForm.Summon or SkillForm.Leap) continue;
-                if (distance <= Reach(skill)) return i;
+                BookProfile book = actor.Sheet.Profile(i);
+                if ((book.First.Tags & Tags.Triggered) != 0 || book.Sign.Form is PageForm.Buff or PageForm.Summon or PageForm.Leap) continue;
+                if (distance <= Reach(book)) return i;
             }
             return -1;
         }
 
         private static void Let(ServerSession session, Actor actor, in EnemyBrainComponent brain)
         {
-            SkillProfile skill = actor.Sheet.Profile(brain.Skill);
-            actor.Cooldowns[brain.Skill] = skill.Cooldown;
+            BookProfile book = actor.Sheet.Profile(brain.Book);
+            actor.Cooldowns[brain.Book] = book.Cooldown;
 
             // It goes where it said it would. Whether anyone's still there is their business: that's the whole of how a blow gets dodged.
-            session.Combat.Release(actor, skill, brain.AimFrom, brain.AimWay, brain.AimReach);
+            session.Combat.Release(actor, book, brain.AimFrom, brain.AimWay, brain.AimReach);
         }
 
         public static void Face(EntityView entity, Vector2 direction, float deltaTime, float speed = 14f)

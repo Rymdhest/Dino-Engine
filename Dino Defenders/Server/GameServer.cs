@@ -1,7 +1,7 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.ECS.Components;
@@ -200,7 +200,6 @@ namespace Dino_Defenders.Server
 
             var actor = new Actor(Team.Heroes, HeroBuild.Compile(player.Hero), start, HeroRules.Radius) { Player = player, Body = "hero" };
             player.Actor = actor;
-            player.Stolen = null;
             player.Kit = new HeroKit(player.Hero, actor.Sheet);
             player.Respawn = session.World.Sites[0].Position;
             if (first && _saved != null)
@@ -354,7 +353,7 @@ namespace Dino_Defenders.Server
         {
             Vector3 position = HeroPosition(player);
             Vector2 at = player.Sim.Position;
-            SkillProfile? skill = player.Sim.Using >= 0 ? player.Kit.Slots[player.Sim.Using] : null;
+            BookProfile? book = player.Sim.Using >= 0 ? player.Kit.Slots[player.Sim.Using] : null;
             bool landed = (events & HeroStepEvents.Landed) != 0;
             bool dashed = (events & HeroStepEvents.Dashed) != 0;
 
@@ -367,24 +366,24 @@ namespace Dino_Defenders.Server
             else if (dashed || player.Sim.ImpactIn < 0f) CutShort(session, player);
             if (dashed) session.Combat.Stop(player.Entity);
 
-            if ((events & HeroStepEvents.Used) != 0 && skill != null)
+            if ((events & HeroStepEvents.Used) != 0 && book != null)
             {
                 float rate = MathF.Max(player.Sim.ActionRate, 0.1f);
-                session.Combat.Perform(player.Entity, skill.Skill, player.Sim.ImpactIn / rate, player.Sim.BusyFor / rate, player.Sim.Aim);
-                player.Mark = MarkForFriends(session, player, skill, rate);
+                session.Combat.Perform(player.Entity, book.Sign, player.Sim.ImpactIn / rate, player.Sim.BusyFor / rate, player.Sim.Aim);
+                player.Mark = MarkForFriends(session, player, book, rate);
                 player.WindingUp = true;
             }
 
-            if (landed && skill != null)
+            if (landed && book != null)
             {
-                session.Combat.Release(player.Actor, skill, at, player.Sim.Aim, player.Sim.AimReach, command.ViewLag);
+                session.Combat.Release(player.Actor, book, at, player.Sim.Aim, player.Sim.AimReach, command.ViewLag);
             }
 
             // Its owner saw all of this the moment they pressed; it's everyone else who needs telling.
             const HeroStepEvents visible = HeroStepEvents.Landed | HeroStepEvents.Used | HeroStepEvents.Dashed;
             if ((events & visible) != 0)
             {
-                Broadcast(new HeroMoveEvent { Position = position, Aim = player.Sim.Aim, Move = events & visible, Skill = skill?.Skill.Number ?? 0 }, at, except: player);
+                Broadcast(new HeroMoveEvent { Position = position, Aim = player.Sim.Aim, Move = events & visible, Sign = book?.Sign.Number ?? PageSign.None }, at, except: player);
             }
 
             if (command.Has(HeroButtons.Flask)) DrinkFlask(player, position);
@@ -403,11 +402,11 @@ namespace Dino_Defenders.Server
         }
 
         // Whoever's casting has seen this since they pressed. Their friends are told, as anything of a hero's is worth knowing about if you're standing nearby.
-        private Entity MarkForFriends(ServerSession session, ServerPlayer player, SkillProfile skill, float rate)
+        private Entity MarkForFriends(ServerSession session, ServerPlayer player, BookProfile book, float rate)
         {
-            if (_heroes.Count < 2 || !HeroRules.ShowsArea(skill)) return default;
-            GroundShape shape = GroundShape.Of(skill, player.Sim.Position, player.Sim.Aim, player.Sim.AimReach);
-            return session.Combat.Warn(shape, skill.Skill.Number, MarkTier.Plain, false, player.Sim.ImpactIn / rate + skill.Delay, player.Id);
+            if (_heroes.Count < 2 || !book.ShowsArea) return default;
+            GroundShape shape = GroundShape.Of(book, player.Sim.Position, player.Sim.Aim, player.Sim.AimReach);
+            return session.Combat.Warn(shape, MarkTier.Plain, false, player.Sim.ImpactIn / rate + book.Delay, player.Id);
         }
 
         private void DrinkFlask(ServerPlayer player, Vector3 position)
@@ -456,6 +455,12 @@ namespace Dino_Defenders.Server
             player.Hero.Flasks = HeroState.MaxFlasks;
             player.SummaryChanged = true;
             Teleport(player, player.Respawn);
+        }
+
+        /// <summary>Puts a hero as near somewhere as there's ground to stand on, for a page that says so.</summary>
+        public void Carry(ServerPlayer player, Vector2 to)
+        {
+            if (TryFindGround(Session!.World, to, out Vector2 ground)) Teleport(player, ground);
         }
 
         private void Teleport(ServerPlayer player, Vector2 to)
@@ -708,10 +713,6 @@ namespace Dino_Defenders.Server
                     if (!TalentTree.CanAllocate(hero, allocate)) break;
                     TalentNode taken = TalentTree.Nodes[allocate];
                     hero.Talents.Add(taken.Id);
-                    foreach (Mod mod in taken.Mods)
-                    {
-                        if (mod.Kind == ModKind.GrantSkill) HeroBuild.OfferToBar(hero, SkillCatalog.Get(mod.Skill));
-                    }
                     player.RefreshLoadout();
                     player.SummaryChanged = true;
                     break;
@@ -727,15 +728,6 @@ namespace Dino_Defenders.Server
                 case HeroAction.ForgetTalents:
                     hero.Talents.Clear();
                     player.RefreshLoadout();
-                    player.SummaryChanged = true;
-                    break;
-
-                case HeroAction.AssignSlot:
-                    int slotIndex = reader.ReadByte();
-                    int skillNumber = reader.ReadVarInt();
-                    if (slotIndex >= HeroState.SkillSlots) break;
-                    hero.Bar[slotIndex] = SkillCatalog.IsNumber(skillNumber) ? SkillCatalog.Get(skillNumber).Id : null;
-                    player.Kit = new HeroKit(hero, player.Actor.Sheet);
                     player.SummaryChanged = true;
                     break;
 
@@ -772,6 +764,19 @@ namespace Dino_Defenders.Server
                     if (hero.Move(moving, movingTo) && !(moving.IsCell && movingTo.IsCell)) player.RefreshLoadout();
                     break;
 
+                case HeroAction.Write:
+                    player.Heard(reader.ReadVarInt());
+                    var writing = new ItemPlace(reader.ReadVarInt());
+                    string title = reader.ReadString(Protocol.LongestName);
+                    Book written = Protocol.ReadBook(reader);
+                    if (hero.Write(writing, written, title) && writing.IsBar) player.RefreshLoadout();
+                    break;
+
+                case HeroAction.NewBook:
+                    player.Heard(reader.ReadVarInt());
+                    hero.NewBook(reader.ReadVarULong());
+                    break;
+
                 case HeroAction.Sort:
                     player.Heard(reader.ReadVarInt());
                     hero.Sort();
@@ -782,7 +787,7 @@ namespace Dino_Defenders.Server
                     var dropping = new ItemPlace(reader.ReadVarInt());
                     if (hero.Take(dropping) is not Item dropped) break;
                     Session!.Ground.Lay(player, dropped);
-                    if (dropping.IsWorn) player.RefreshLoadout();
+                    if (!dropping.IsCell) player.RefreshLoadout();
                     break;
 
                 case HeroAction.Sell:
@@ -790,7 +795,7 @@ namespace Dino_Defenders.Server
                     int sellingAt = reader.ReadVarInt();
                     var selling = new ItemPlace(reader.ReadVarInt());
                     if (sellingAt < 0 || sellingAt >= Session!.Sites.Count) break;
-                    if (TableFor(player, sellingAt).Sell(hero, selling) && selling.IsWorn) player.RefreshLoadout();
+                    if (TableFor(player, sellingAt).Sell(hero, selling) && !selling.IsCell) player.RefreshLoadout();
                     player.SummaryChanged = true;
                     SendMarket(player, sellingAt);
                     break;
@@ -937,7 +942,7 @@ namespace Dino_Defenders.Server
         {
             BitWriter writer = Protocol.Begin(Message.HeroUpdate);
             Protocol.WriteHeroSummary(writer, player.Hero);
-            Protocol.WriteBuffs(writer, player.Actor.Buffs, player.Stolen);
+            Protocol.WriteBuffs(writer, player.Actor.Buffs);
             writer.WriteBool(gear);
             if (gear)
             {

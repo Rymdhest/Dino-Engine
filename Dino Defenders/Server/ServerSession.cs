@@ -1,6 +1,6 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -256,26 +256,33 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>Puts someone's minions on their feet, as many as they're allowed, oldest going first.</summary>
-        public void Summon(Actor owner, SkillProfile skill, Vector2 at)
+        public void Summon(Actor owner, PageProfile page, Vector2 at)
         {
-            if (Bestiary.Minion(skill.Skill.Minion) is not EnemyKind kind) return;
+            if (Bestiary.Minion(page.Page.Minion) is not EnemyKind kind) return;
             Loadout loadout = Bestiary.MinionOf(owner.Loadout, owner.Sheet, kind);
 
-            // A new call replaces whoever answered the last one.
+            // A new call replaces whoever answered the last one, and there's only room for so many of anyone's.
+            int most = Math.Min(page.MinionCount, Rulebook.MostMinions);
             for (int i = Minions.Count - 1; i >= 0; i--)
             {
-                if (Minions[i].Owner == owner && Minions[i].MinionOf == skill.Skill) Combat.Dismiss(Minions[i]);
+                if (Minions[i].Owner == owner && Minions[i].MinionOf == page.Page.Minion) Combat.Dismiss(Minions[i]);
             }
 
-            for (int i = 0; i < skill.MinionCount; i++)
+            for (int i = 0; i < most; i++)
             {
-                float angle = i * MathF.Tau / MathF.Max(skill.MinionCount, 1);
+                float angle = i * MathF.Tau / MathF.Max(most, 1);
                 Vector2 spot = at + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 3f;
                 if (!World.Passable.IsSet(spot)) spot = at;
                 Actor minion = Raise(owner, loadout, kind.Name, kind.Look, spot, kind == Bestiary.Hound ? 0.85f : 1f, kind.AggroRadius);
-                minion.MinionLeft = skill.Duration * owner.Sheet.MinionDuration;
-                minion.MinionOf = skill.Skill;
+                minion.MinionLeft = Rulebook.MinionSeconds * owner.Sheet.MinionDuration;
+                minion.MinionOf = page.Page.Minion;
             }
+        }
+
+        /// <summary>Puts someone somewhere else, for a page that says so. It's only a hero's feet that a page moves, as it's only a hero who's asked it to.</summary>
+        public void Carry(Actor actor, Vector2 to)
+        {
+            if (actor.Player is ServerPlayer hero) Server.Carry(hero, to);
         }
 
         /// <summary>Stands a fallen enemy back up on its killer's side, with everything it had.</summary>
@@ -320,7 +327,7 @@ namespace Dino_Defenders.Server
             {
                 for (int stack = 0; stack < buff.Stacks; stack++) mods.AddRange(buff.Buff.Mods);
             }
-            actor.Adopt(actor.Buffs.Count == 0 ? actor.Innate : new Loadout(actor.Innate.Level, actor.Innate.Weapon, mods, actor.Innate.Skills));
+            actor.Adopt(actor.Buffs.Count == 0 ? actor.Innate : new Loadout(actor.Innate.Level, actor.Innate.Weapon, mods, actor.Innate.Books));
         }
 
         /// <summary>A hostile at a site has fallen; if it was the last, the site is free.</summary>

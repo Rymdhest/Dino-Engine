@@ -1,3 +1,4 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Tooltips;
 using Dino_Engine.World;
@@ -18,6 +19,7 @@ namespace Dino_Defenders.Progression
         Feet,
         Hands,
         Finger,
+        Book,       // Worn nowhere: it goes on the bar. See BOOKS.md.
     }
 
     /// <summary>A place on a hero. These line up with <see cref="ItemSlot"/> as far as the first finger, which <see cref="WornSlots"/> relies on.</summary>
@@ -46,7 +48,7 @@ namespace Dino_Defenders.Progression
         public static WornSlot First(ItemSlot slot) => (WornSlot)slot;
 
         /// <summary>Every place something worn as this can go, in the order they'd be filled.</summary>
-        public static IReadOnlyList<WornSlot> For(ItemSlot slot) => slot == ItemSlot.Finger ? Fingers : new[] { First(slot) };
+        public static IReadOnlyList<WornSlot> For(ItemSlot slot) => slot == ItemSlot.Finger ? Fingers : slot == ItemSlot.Book ? Array.Empty<WornSlot>() : new[] { First(slot) };
     }
 
     /// <summary>The three ways of dressing for a fight. What something looks like says which it is, and which it is says what it's good for.</summary>
@@ -157,7 +159,13 @@ namespace Dino_Defenders.Progression
         /// <summary>Which base it was made from. Empty on anything older than this, which <see cref="ItemGenerator.BaseOf"/> makes up for.</summary>
         public string Base { get; set; } = "";
 
-        public int SellValue => (int)(4f * Level * (1f + (int)Rarity * 1.6f + Lines.Count * 0.5f));
+        /// <summary>What's written in it, if it's a book.</summary>
+        public Book? Book { get; set; }
+
+        public bool IsBook => Book != null;
+
+        // Anyone can write as many books as they like for now, so one can't be worth any gold.
+        public int SellValue => IsBook ? 0 : (int)(4f * Level * (1f + (int)Rarity * 1.6f + Lines.Count * 0.5f));
         public int BuyValue => SellValue * 4;
 
         public bool IsTwoHanded => Slot == ItemSlot.MainHand && WeaponKinds.Of(Kind).TwoHanded;
@@ -384,11 +392,11 @@ namespace Dino_Defenders.Progression
             Add("penetration", false, new[] { "of Piercing", "of Unmaking", "of Undoing" }, new[] { ItemSlot.MainHand, ItemSlot.Neck }, Ladder((8, 4, 7), (18, 8, 12), (30, 13, 18)), v => Flat(Stat.Penetration, v));
 
             Add("area", false, new[] { "of Reach", "of Breadth", "of the Expanse", "of Horizons" }, new[] { ItemSlot.MainHand, ItemSlot.Neck, ItemSlot.Head }, SmallPercent, v => Inc(Stat.AreaOfEffect, v));
-            Add("duration", false, new[] { "of Patience", "of Endurance", "of Ages" }, new[] { ItemSlot.Neck, ItemSlot.Head, ItemSlot.Finger }, SmallPercent, v => Inc(Stat.SkillDuration, v));
+            Add("duration", false, new[] { "of Patience", "of Endurance", "of Ages" }, new[] { ItemSlot.Neck, ItemSlot.Head, ItemSlot.Finger }, SmallPercent, v => Inc(Stat.PageDuration, v));
             Add("cooldown", false, new[] { "of Readiness", "of Renewal", "of the Eternal Hour" }, new[] { ItemSlot.Neck, ItemSlot.Head, ItemSlot.Finger }, Ladder((5, 4, 7), (15, 8, 12), (28, 13, 18)), v => Inc(Stat.CooldownRecovery, v));
-            Add("cost", false, new[] { "of Thrift", "of Economy", "of the Miser" }, new[] { ItemSlot.Neck, ItemSlot.Head, ItemSlot.Finger }, Ladder((3, 4, 7), (12, 8, 12), (24, 13, 18)), v => Inc(Stat.SkillCost, -v));
+            Add("cost", false, new[] { "of Thrift", "of Economy", "of the Miser" }, new[] { ItemSlot.Neck, ItemSlot.Head, ItemSlot.Finger }, Ladder((3, 4, 7), (12, 8, 12), (24, 13, 18)), v => Inc(Stat.BookCost, -v));
             Add("projectile-speed", false, new[] { "of Flight", "of the Arrow", "of the Falcon" }, new[] { ItemSlot.MainHand, ItemSlot.Finger }, SmallPercent, v => Inc(Stat.ProjectileSpeed, v));
-            Add("skill-level", false, new[] { "of Learning", "of Mastery" }, new[] { ItemSlot.MainHand, ItemSlot.Neck }, Ladder((10, 1, 1), (26, 2, 2)), v => Flat(Stat.SkillLevel, MathF.Round(v)));
+            Add("potency", false, new[] { "of Ink", "of Eloquence" }, new[] { ItemSlot.MainHand, ItemSlot.Neck }, Ladder((10, 5, 8), (26, 9, 15)), v => Inc(Stat.Potency, v));
 
             Add("burn-chance", false, new[] { "of Kindling", "of Immolation", "of the Pyre" }, WeaponJewels, Chances, v => Chance(Tags.Burn, v));
             Add("bleed-chance", false, new[] { "of Cuts", "of Lacerating", "of Exsanguination" }, WeaponJewels, Chances, v => Chance(Tags.Bleed, v));
@@ -671,6 +679,9 @@ namespace Dino_Defenders.Progression
         public static IEnumerable<string> BaseNames => Bases.Select(b => b.Name);
 
         /// <summary>A base by number, which only means anything between two copies of one build, and 0 for none.</summary>
+        /// <summary>A blank book, which is what everyone starts with: a blow in front of them, for nothing.</summary>
+        public static Item Book(ulong seed) => new Item { Name = "Blank Book", Slot = ItemSlot.Book, Level = 1, Seed = seed, Book = Scribe.Starter() };
+
         public static int NumberOf(string baseName) => Array.FindIndex(Bases, b => b.Name == baseName) + 1;
 
         public static string NameOf(int number) => number > 0 && number <= Bases.Length ? Bases[number - 1].Name : "";

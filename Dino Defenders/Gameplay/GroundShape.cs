@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.Networking;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -28,7 +28,6 @@ namespace Dino_Defenders.Gameplay
     public readonly record struct GroundShape(ShapeKind Kind, Vector2 Origin, Vector2 Facing, float Length, float Width)
     {
         private const float BeyondTarget = 7f;      // Metres what flies is shown past whoever it's aimed at. It goes on further, but that's nobody's concern yet.
-        private const float ChainStart = 4f;        // Metres from where it's aimed that a chain can begin. How far it goes from there is its own affair, but what's marked has to be something a person can step out of.
 
         /// <summary>A body is this near the middle of an area before it's over what's going to hit it. Heroes get the benefit of the doubt: if a foot looks out of it, it is.</summary>
         public const float HeroBodyShare = 0.4f;
@@ -73,32 +72,61 @@ namespace Dino_Defenders.Gameplay
             }
         }
 
+        /// <summary>What an area page covers, from somewhere, going some way. Anything that isn't in someone's hands is centred on where it is, as that's what's being pointed at.</summary>
+        public static GroundShape Of(PageProfile page, Vector2 from, Vector2 facing)
+        {
+            switch (page.Page.Shape)
+            {
+                case AreaShape.Circle:
+                    return Circle(from, page.Length);
+                case AreaShape.Line:
+                    return Line(from, facing, page.Length, page.Width);
+                case AreaShape.Rectangle:
+                    return Line(page.Page.From == Start.You ? from : from - facing * (page.Length * 0.5f), facing, page.Length, page.Width);
+                default:
+                    return Sector(from, facing, page.Length, page.Width);
+            }
+        }
+
         /// <summary>
-        /// What a skill covers, used from somewhere, at something. Whatever goes through <see cref="Combat"/> and whatever's drawn both come through here.
+        /// What a book is going to cover, used from somewhere, at something. Whatever's marked comes through here, so that's what has to be true: where something flies is its line, and where it comes down or carries someone to
+        /// is whatever the next page does there.
         /// </summary>
         /// <param name="reach">How far off it was aimed.</param>
-        public static GroundShape Of(SkillProfile skill, Vector2 origin, Vector2 facing, float reach)
+        public static GroundShape Of(BookProfile book, Vector2 origin, Vector2 facing, float reach)
         {
-            Vector2 target = origin + facing * MathF.Min(reach, skill.Range);
-            switch (skill.Skill.Form)
+            PageProfile page = book.First;
+            PagePlan plan = page.Page;
+            Vector2 target = origin + facing * MathF.Min(reach, page.Range);
+            Vector2 from = plan.From == Start.Cursor ? target : origin;
+
+            if (plan.Kind == PageKind.Area) return Of(page, from, facing);
+            if (plan.To == Bearing.Down || plan.Rides)
             {
-                case SkillForm.Nova:
-                    return Circle(origin, skill.Radius);
-                case SkillForm.Burst:
-                case SkillForm.Zone:
-                    return Circle(target, skill.Radius);
-                case SkillForm.Chain:
-                    return Circle(target, MathF.Min(skill.Radius, ChainStart));
-                case SkillForm.Beam:
-                    return Line(origin, facing, skill.Reach, skill.Radius);
-                case SkillForm.Bolt:
-                    float length = MathF.Min(skill.Range, reach + BeyondTarget);
-                    if (skill.Projectiles <= 1) return Line(origin, facing, length, FlightWidth);
-                    return Sector(origin, facing, length, skill.Skill.Spread * (skill.Projectiles - 1) + 0.1f);
-                case SkillForm.Leap:
-                    return Sector(target, facing, skill.Reach, skill.Skill.Arc);
+                Vector2 at = plan.Rides ? target : from;
+                return book.Pages.Length > 1 && book.Pages[1].Page.Kind == PageKind.Area ? Of(book.Pages[1], at, facing) : Circle(at, FlightWidth);
+            }
+
+            float length = MathF.Min(page.Range, reach + BeyondTarget);
+            if (page.Projectiles <= 1) return Line(origin, facing, length, FlightWidth);
+            return Sector(origin, facing, length, plan.Spread * (page.Projectiles - 1) + 0.1f);
+        }
+
+        /// <summary>Somewhere in it, for what's shown happening all over it.</summary>
+        public Vector2 Anywhere(float along, float across)
+        {
+            switch (Kind)
+            {
+                case ShapeKind.Circle:
+                    float angle = along * MathF.Tau;
+                    return Origin + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (MathF.Sqrt(across) * Length);
+                case ShapeKind.Sector:
+                    float turn = (along - 0.5f) * Width;
+                    float cos = MathF.Cos(turn);
+                    float sin = MathF.Sin(turn);
+                    return Origin + new Vector2(Facing.X * cos - Facing.Y * sin, Facing.X * sin + Facing.Y * cos) * (MathF.Sqrt(across) * Length);
                 default:
-                    return Sector(origin, facing, skill.Reach, skill.Skill.Arc);
+                    return Origin + Facing * (along * Length) + new Vector2(-Facing.Y, Facing.X) * ((across * 2f - 1f) * Width);
             }
         }
     }
@@ -116,7 +144,6 @@ namespace Dino_Defenders.Gameplay
         public MarkTier Tier;
         public bool Hostile;
         public int Owner;           // Whose this is if it's a player's, who has been showing it since they pressed.
-        public int Skill;
         [NetStep(1f / 128f), NetSnap] public Vector2 Facing;
         [NetStep(1f / 32f), NetSnap] public float Length;
         [NetStep(1f / 128f), NetSnap] public float Width;
@@ -134,7 +161,7 @@ namespace Dino_Defenders.Gameplay
     public struct ActionComponent : IComponent
     {
         public byte Serial;
-        public int Skill;
+        public int Sign;            // What it looks like: see PageSign. Nothing means nobody's doing anything.
         public uint Start;
         public uint Lands;
         public uint Ends;

@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Tooltips;
 
 namespace Dino_Defenders.Stats
@@ -23,8 +23,8 @@ namespace Dino_Defenders.Stats
         /// <summary>What must hold of whoever is being hit.</summary>
         public Condition Foe { get; init; }
 
-        /// <summary>One skill alone, if it isn't <see cref="SkillDefinition.None"/>.</summary>
-        public ushort Skill { get; init; }
+        /// <summary>What it sets off, as a place on the <see cref="Shelf"/>.</summary>
+        public ushort Book { get; init; }
 
         /// <summary>For conversions: from one type to another.</summary>
         public DamageType From { get; init; }
@@ -46,7 +46,6 @@ namespace Dino_Defenders.Stats
         public Mod While(Condition condition) => this with { Need = Need | condition };
         public Mod Unless(Condition condition) => this with { Without = Without | condition };
         public Mod Against(Condition condition) => this with { Foe = Foe | condition };
-        public Mod ForSkill(SkillDefinition skill) => this with { Skill = skill.Number };
         public Mod For(Per per, float step, float cap = 0f) => this with { Per = per, PerStep = step, PerCap = cap };
 
         /// <summary>What a player reads. Anything worth having has to be able to say what it does.</summary>
@@ -83,12 +82,11 @@ namespace Dino_Defenders.Stats
 
         public static Mod Rules(Rule rule) => new Mod { Kind = ModKind.Rule, Rule = rule };
         public static Mod Grant(Condition condition) => new Mod { Kind = ModKind.Grant, Grants = condition };
-        public static Mod Skill(SkillDefinition skill) => new Mod { Kind = ModKind.GrantSkill, Skill = skill.Number };
 
-        /// <summary>When something happens, a skill goes off: <paramref name="chance"/> percent of the time.</summary>
-        public static Mod Trigger(TriggerEvent on, SkillDefinition skill, float chance = 100f)
+        /// <summary>When something happens, a written book goes off: <paramref name="chance"/> percent of the time.</summary>
+        public static Mod Trigger(TriggerEvent on, BookPlan book, float chance = 100f)
         {
-            return new Mod { Kind = ModKind.Trigger, On = on, Skill = skill.Number, Value = chance };
+            return new Mod { Kind = ModKind.Trigger, On = on, Book = book.Number, Value = chance };
         }
 
         /// <summary>Increases and mores of one stat apply to another instead, at <paramref name="percent"/> of their value, for what's in <paramref name="scope"/>.</summary>

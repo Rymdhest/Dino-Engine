@@ -66,7 +66,7 @@ namespace Dino_Defenders.Gameplay
         public float AggroRadius;
         public float LeashRadius;
         public bool KeepsAway;
-        public int Skill;           // Which of its skills it's winding up.
+        public int Book;            // Which of its books it's winding up.
         public int WindUpTicks;     // Until it lets go. A mark has said when, so nothing that happens to it after that changes this.
 
         // What it has committed to. All of this is fixed when the wind-up starts: what's on the ground is what lands, and walking out of it is what it's there for.
@@ -223,12 +223,17 @@ namespace Dino_Defenders.Gameplay
     [Replicated]
     public struct ZoneComponent : IComponent
     {
-        public int Skill;
+        public int Sign;
         public bool Hostile;
-        [NetStep(0.25f)] public float Radius;
+        public ShapeKind Kind;
+        [NetStep(1f / 128f), NetSnap] public Vector2 Facing;
+        [NetStep(0.25f)] public float Length;
+        [NetStep(1f / 128f)] public float Width;
         [NetStep(0.25f)] public float Life;
 
         [NotReplicated] public float Age;
         [NotReplicated] public float NextMote;
+
+        public readonly GroundShape ShapeAt(Vector2 origin) => new GroundShape(Kind, origin, Facing, Length, Width);
     }
 }

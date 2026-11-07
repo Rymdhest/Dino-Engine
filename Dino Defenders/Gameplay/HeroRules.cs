@@ -1,5 +1,5 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
@@ -13,7 +13,7 @@ namespace Dino_Defenders.Gameplay
     {
         public Vector2 Move;
         public Vector2? Aim;
-        public int Slots;       // A bit for each skill slot being asked for.
+        public int Slots;       // A bit for each place on the bar being asked for.
         public bool Dash;
         public bool Flask;
         public bool Interact;
@@ -32,16 +32,15 @@ namespace Dino_Defenders.Gameplay
         Slot3 = 8,
         Slot4 = 16,
         Slot5 = 32,
-        Slot6 = 64,
         Dash = 128,
         Flask = 256,
         Interact = 512,
         Frozen = 1024,  // The game is paused, as someone playing alone can.
 
-        Slots = Slot0 | Slot1 | Slot2 | Slot3 | Slot4 | Slot5 | Slot6,
+        Slots = Slot0 | Slot1 | Slot2 | Slot3 | Slot4 | Slot5,
 
         /// <summary>The ones that happen once per press, and so must never be lost.</summary>
-        Presses = Slot2 | Slot3 | Slot4 | Slot5 | Slot6 | Dash | Flask | Interact,
+        Presses = Slot2 | Slot3 | Slot4 | Slot5 | Dash | Flask | Interact,
     }
 
     /// <summary>
@@ -118,13 +117,13 @@ namespace Dino_Defenders.Gameplay
     public enum HeroStepEvents
     {
         None = 0,
-        Used = 1,       // A skill has started. Which one is in HeroSimState.Using.
+        Used = 1,       // A book has started. Which one is in HeroSimState.Using.
         Landed = 2,     // Its blow lands now.
         Dashed = 4,
     }
 
-    /// <summary>A number for each skill slot. It's a value, so a hero's state can be copied into the history a client keeps of it.</summary>
-    [InlineArray(HeroState.SkillSlots)]
+    /// <summary>A number for each place on the bar. It's a value, so a hero's state can be copied into the history a client keeps of it.</summary>
+    [InlineArray(HeroState.BarSlots)]
     public struct SlotTimes
     {
         private float _first;
@@ -198,12 +197,12 @@ namespace Dino_Defenders.Gameplay
 
             // Most of these are nothing, most of the time.
             uint running = 0;
-            for (int i = 0; i < HeroState.SkillSlots; i++)
+            for (int i = 0; i < HeroState.BarSlots; i++)
             {
                 if (Cooldowns[i] > 0f) running |= 1u << i;
             }
-            writer.WriteBits(running, HeroState.SkillSlots);
-            for (int i = 0; i < HeroState.SkillSlots; i++)
+            writer.WriteBits(running, HeroState.BarSlots);
+            for (int i = 0; i < HeroState.BarSlots; i++)
             {
                 if ((running & (1u << i)) != 0) writer.WriteFloat(Cooldowns[i]);
             }
@@ -247,8 +246,8 @@ namespace Dino_Defenders.Gameplay
                 BusyFor = reader.ReadFloat(),
             };
 
-            uint running = reader.ReadBits(HeroState.SkillSlots);
-            for (int i = 0; i < HeroState.SkillSlots; i++)
+            uint running = reader.ReadBits(HeroState.BarSlots);
+            for (int i = 0; i < HeroState.BarSlots; i++)
             {
                 if ((running & (1u << i)) != 0) state.Cooldowns[i] = reader.ReadFloat();
             }
@@ -286,7 +285,7 @@ namespace Dino_Defenders.Gameplay
             if ((Position - other.Position).LengthSquared >= 1e-6f || Down != other.Down || Moves != other.Moves || Using != other.Using) return false;
             if (MathF.Abs(DashLeft - other.DashLeft) >= 1e-3f || MathF.Abs(ImpactIn - other.ImpactIn) >= 1e-3f || MathF.Abs(BusyFor - other.BusyFor) >= 1e-3f) return false;
             if (MathF.Abs(DodgeCooldown - other.DodgeCooldown) >= 1e-3f || MathF.Abs(Mana - other.Mana) >= 0.05f) return false;
-            for (int i = 0; i < HeroState.SkillSlots; i++)
+            for (int i = 0; i < HeroState.BarSlots; i++)
             {
                 if (MathF.Abs(Cooldowns[i] - other.Cooldowns[i]) >= 1e-3f) return false;
             }
@@ -311,19 +310,15 @@ namespace Dino_Defenders.Gameplay
     public sealed class HeroKit
     {
         public readonly ActorSheet Sheet;
-        public readonly SkillProfile?[] Slots = new SkillProfile?[HeroState.SkillSlots];
+        public readonly BookProfile?[] Slots = new BookProfile?[HeroState.BarSlots];
 
         public HeroKit(HeroState hero, ActorSheet sheet)
         {
             Sheet = sheet;
-            for (int slot = 0; slot < HeroState.SkillSlots; slot++)
+            for (int slot = 0; slot < HeroState.BarSlots; slot++)
             {
-                int index = HeroBuild.SlotIndex(hero, sheet.Loadout, slot);
-                if (index < 0) continue;
-
-                SkillProfile profile = sheet.Profile(index);
-                Tags needs = profile.Skill.Needs;
-                if (needs == Tags.None || (sheet.Loadout.Weapon.Tags & needs) != 0) Slots[slot] = profile;
+                int index = HeroBuild.SlotIndex(hero, slot);
+                if (index >= 0 && index < sheet.Loadout.Books.Length) Slots[slot] = sheet.Profile(index);
             }
         }
     }
@@ -348,21 +343,13 @@ namespace Dino_Defenders.Gameplay
 
         public static HeroButtons SlotButton(int slot) => (HeroButtons)(1 << slot);
 
-        /// <summary>Whether a skill is worth showing on the ground. A plain blow isn't: nobody needs telling what a sword reaches, and there'd be no end of them.</summary>
-        public static bool ShowsArea(SkillProfile skill) => skill.DealsDamage && skill.Skill.Form switch
-        {
-            SkillForm.Strike => skill.Skill.Arc >= 3f || (skill.Skill.Tags & Tags.Area) != 0,
-            SkillForm.Nova or SkillForm.Burst or SkillForm.Zone or SkillForm.Beam => true,
-            _ => false,
-        };
-
         public static HeroStepEvents Step(ref HeroSimState hero, in HeroCommand command, HeroKit kit, CharacterMover mover)
         {
             const float deltaTime = NetTime.TickSeconds;
             if (command.Has(HeroButtons.Frozen)) return HeroStepEvents.None;
 
             ActorSheet sheet = kit.Sheet;
-            for (int i = 0; i < HeroState.SkillSlots; i++) hero.Cooldowns[i] = MathF.Max(hero.Cooldowns[i] - deltaTime, 0f);
+            for (int i = 0; i < HeroState.BarSlots; i++) hero.Cooldowns[i] = MathF.Max(hero.Cooldowns[i] - deltaTime, 0f);
             hero.DodgeCooldown = MathF.Max(hero.DodgeCooldown - deltaTime, 0f);
             hero.DodgeQueuedFor = MathF.Max(hero.DodgeQueuedFor - deltaTime, 0f);
             hero.Safe = MathF.Max(hero.Safe - deltaTime, 0f);
@@ -398,7 +385,7 @@ namespace Dino_Defenders.Gameplay
             if (move.LengthSquared > 0f) move.Normalize();
 
             float speed = sheet.MoveSpeed * hero.MoveRate;
-            if (hero.Using >= 0 && kit.Slots[hero.Using] is SkillProfile inHand) speed *= Slowed(hero, inHand);
+            if (hero.Using >= 0 && kit.Slots[hero.Using] is BookProfile inHand) speed *= Slowed(hero, inHand);
 
             // Nothing gets in the way of a dodge. Whatever they were doing is over, and if the blow hadn't landed it doesn't: getting out of there was worth more.
             if (hero.DodgeQueuedFor > 0f && hero.DodgeCooldown <= 0f)
@@ -436,7 +423,7 @@ namespace Dino_Defenders.Gameplay
             // What's landed stays in hand for this tick, so that whoever reads the events can see what it was.
             if (hero.BusyFor <= 0f && hero.ImpactIn < 0f && (events & HeroStepEvents.Landed) == 0) hero.Using = HeroSimState.NoSlot;
 
-            for (int slot = 2; slot < HeroState.SkillSlots; slot++)
+            for (int slot = 2; slot < HeroState.BarSlots; slot++)
             {
                 if (!command.Has(SlotButton(slot))) continue;
                 hero.Queued = (sbyte)slot;
@@ -471,17 +458,17 @@ namespace Dino_Defenders.Gameplay
         }
 
         // How much a use slows someone down: all of it while it's going, and less and less once it's landed, so that a hero who's struck can get away at once.
-        private static float Slowed(in HeroSimState hero, SkillProfile skill)
+        private static float Slowed(in HeroSimState hero, BookProfile book)
         {
-            float slowed = skill.Skill.MoveFactor;
+            float slowed = book.MoveFactor;
             if (hero.ImpactIn >= 0f) return slowed;
-            float left = hero.BusyFor / MathF.Max(skill.UseTime - skill.ImpactTime, 0.01f);
+            float left = hero.BusyFor / MathF.Max(book.UseTime - book.ImpactTime, 0.01f);
             return slowed + (1f - slowed) * (1f - Math.Clamp(left, 0f, 1f));
         }
 
         /// <summary>
         /// Whether the key on a slot presses it this frame. What a key sends is a press, so that a quick tap is never lost, which means one held
-        /// down has to press again for its skill to repeat as a mouse button's does. It waits until the skill could go: one on cooldown would
+        /// down has to press again for its book to repeat as a mouse button's does. It waits until the book could go: one on cooldown would
         /// otherwise keep the queue from a second key held with it.
         /// </summary>
         public static bool KeyPresses(in HeroSimState hero, int slot, bool down, bool justPressed) =>
@@ -489,34 +476,35 @@ namespace Dino_Defenders.Gameplay
 
         private static bool TryUse(ref HeroSimState hero, HeroKit kit, int slot, ref HeroStepEvents events)
         {
-            if (slot < 0 || slot >= HeroState.SkillSlots || kit.Slots[slot] is not SkillProfile skill || hero.Cooldowns[slot] > 0f) return false;
+            if (slot < 0 || slot >= HeroState.BarSlots || kit.Slots[slot] is not BookProfile book || hero.Cooldowns[slot] > 0f) return false;
 
-            if (skill.CostsHealth)
+            if (book.CostsHealth)
             {
-                if (hero.Health <= skill.Cost) return false;
-                hero.Health -= skill.Cost;
+                if (hero.Health <= book.Cost) return false;
+                hero.Health -= book.Cost;
             }
             else
             {
-                if (hero.Mana < skill.Cost) return false;
-                hero.Mana -= skill.Cost;
+                if (hero.Mana < book.Cost) return false;
+                hero.Mana -= book.Cost;
             }
 
             hero.Using = (sbyte)slot;
-            hero.ImpactIn = skill.ImpactTime;
-            hero.BusyFor = skill.UseTime;
-            hero.Cooldowns[slot] = skill.Cooldown;
+            hero.ImpactIn = book.ImpactTime;
+            hero.BusyFor = book.UseTime;
+            hero.Cooldowns[slot] = book.Cooldown;
             events |= HeroStepEvents.Used;
 
-            // A leap is carried out here, as moving always is. It lands when it arrives.
-            if (skill.Skill.Form == SkillForm.Leap)
+            // Riding what's let go of is carried out here, as moving always is. It lands when it arrives.
+            if (book.Rides)
             {
-                float distance = MathF.Min(MathF.Max(hero.AimReach, 2f), skill.Range);
+                float speed = MathF.Max(book.First.Speed, 1f);
+                float distance = MathF.Min(MathF.Max(hero.AimReach, 2f), book.First.Range);
                 hero.DashDirection = hero.Aim;
-                hero.DashSpeed = skill.Skill.LeapSpeed;
-                hero.DashLeft = distance / skill.Skill.LeapSpeed;
+                hero.DashSpeed = speed;
+                hero.DashLeft = distance / speed;
                 hero.ImpactIn = hero.DashLeft;
-                hero.BusyFor = MathF.Max(hero.DashLeft, skill.UseTime);
+                hero.BusyFor = MathF.Max(hero.DashLeft, book.UseTime);
             }
             return true;
         }

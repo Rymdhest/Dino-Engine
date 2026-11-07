@@ -2,7 +2,7 @@ using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Defenders.Tooltips;
@@ -459,7 +459,7 @@ namespace Dino_Defenders.UI
             body.Add(Ui.Action("Go on", resume));
             body.Add(Ui.Action("The hero (C)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Hero); }));
             body.Add(Ui.Action("The tree (T)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Talents); }));
-            body.Add(Ui.Action("Skills (K)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Skills); }));
+            body.Add(Ui.Action("Books (K)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Book); }));
             body.Add(Ui.Action("Glossary (G)", () => { resume(); GameUi.Current.Toggle(GameUi.Current.Glossary); }));
             body.Add(Ui.Action("Travel with friends", friends));
             SoundSettings.AddControls(body);
@@ -477,9 +477,9 @@ namespace Dino_Defenders.UI
             _confirm = body.Add(Ui.Paragraph("This forgets your hero for good. Press it again if you mean it.", 14f, Ui.Blood));
             _confirm.Visible = false;
 
-            body.Add(Ui.Line("WASD move, mouse aims, skills on LMB, RMB, Q, 1 to 4", 13f, Ui.Faded));
+            body.Add(Ui.Line("WASD move, mouse aims, books on LMB, RMB, Q, 1 to 3", 13f, Ui.Faded));
             body.Add(Ui.Line("Space dodge, R flask, E use, F guiding wind once a land is free", 13f, Ui.Faded));
-            body.Add(Ui.Line("M map, C hero, T tree, K skills, J chronicle, G glossary, wheel zoom", 13f, Ui.Faded));
+            body.Add(Ui.Line("M map, C hero, T tree, K books, J chronicle, G glossary, wheel zoom", 13f, Ui.Faded));
         }
 
         public void Reset()
@@ -599,7 +599,7 @@ namespace Dino_Defenders.UI
         public readonly MapPanel Map;
         public readonly HeroPanel Hero = new();
         public readonly TalentPanel Talents = new();
-        public readonly SkillPanel Skills = new();
+        public readonly BookPanel Book = new();
         public readonly GlossaryPanel Glossary = new();
         public readonly ChroniclePanel Chronicle = new();
         public readonly WaygatePanel Waygate;
@@ -609,6 +609,7 @@ namespace Dino_Defenders.UI
         public readonly TipLayer Tips = new();
         public readonly GroundCatcher Ground = new();
         public readonly HandLayer Hand = new();
+        public readonly ActionBar Bar;
 
         private readonly GuiElement[] _panels;
 
@@ -620,13 +621,15 @@ namespace Dino_Defenders.UI
             Waygate = new WaygatePanel(travel);
             Pause = new PauseMenu(CloseAll, () => Toggle(Friends!), quit, newJourney);
             Friends = new FriendsPanel(game);
-            _panels = new GuiElement[] { Map, Hero, Talents, Skills, Glossary, Chronicle, Waygate, Pause, Friends };
+            Bar = new ActionBar(Hero);
+            _panels = new GuiElement[] { Map, Hero, Talents, Book, Glossary, Chronicle, Waygate, Pause, Friends };
 
             gui.Root.Add(Marks);
             gui.Root.Add(Hud);
             gui.Root.Add(Labels);
             gui.Root.Add(Ground);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
+            gui.Root.Add(Bar);
             gui.Root.Add(Tips);
             gui.Root.Add(Hand);
             gui.Root.Add(Loading);
@@ -652,8 +655,17 @@ namespace Dino_Defenders.UI
             Audio.Play(Interface.Open);
             panel.Visible = true;
             if (panel == Hero) Hero.Open(null);
-            if (panel == Skills) Skills.Open();
+            if (panel == Book) Book.OpenAny();
             if (panel == Chronicle) Chronicle.Open(null);
+        }
+
+        /// <summary>Opens a book, in place of whatever else is open.</summary>
+        public void Read(ItemPlace place)
+        {
+            CloseAll();
+            Audio.Play(Interface.Open);
+            Book.Visible = true;
+            Book.Show(place);
         }
 
         /// <summary>Opens what goes with something the hero used in the world.</summary>

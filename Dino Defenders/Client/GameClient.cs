@@ -1,7 +1,7 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.ECS.Components;
@@ -101,7 +101,6 @@ namespace Dino_Defenders.Client
         public ActorSheet Sheet { get; private set; }
         public HeroKit Kit { get; private set; }
         public readonly List<ActiveBuff> Buffs = new();
-        public SkillDefinition? Stolen { get; private set; }
         public GameSession? Session { get; private set; }
         public ClientState State { get; private set; } = ClientState.Connecting;
         public int PlayerId { get; private set; }
@@ -405,7 +404,7 @@ namespace Dino_Defenders.Client
             uint confirmed = reader.ReadUInt();
 
             if (epoch != _epoch || State != ClientState.Playing || tick <= _lastSnapshotTick) return;
-            if (interval < 1 || !float.IsFinite(truth.Position.X) || !float.IsFinite(truth.Position.Y) || !float.IsFinite(truth.Health) || truth.Using >= HeroState.SkillSlots || truth.Queued >= HeroState.SkillSlots)
+            if (interval < 1 || !float.IsFinite(truth.Position.X) || !float.IsFinite(truth.Position.Y) || !float.IsFinite(truth.Health) || truth.Using >= HeroState.BarSlots || truth.Queued >= HeroState.BarSlots)
             {
                 throw new NetReadException("A snapshot that can't be true.");
             }
@@ -459,8 +458,7 @@ namespace Dino_Defenders.Client
         private void OnHeroUpdate(BitReader reader)
         {
             Protocol.ReadHeroSummary(reader, Hero);
-            Protocol.ReadBuffs(reader, Buffs, out SkillDefinition? stolen);
-            Stolen = stolen;
+            Protocol.ReadBuffs(reader, Buffs);
             if (reader.ReadBool())
             {
                 // Sent before the server had heard all that's been done here, this would only undo it for a moment. Whatever it's missing is on its way.
@@ -472,7 +470,7 @@ namespace Dino_Defenders.Client
 
         private void Recompile()
         {
-            _loadout = HeroBuild.Compile(Hero, Buffs, Stolen);
+            _loadout = HeroBuild.Compile(Hero, Buffs);
             Sheet = _loadout.SheetFor(_state, _counters);
             Kit = new HeroKit(Hero, Sheet);
         }
@@ -614,14 +612,6 @@ namespace Dino_Defenders.Client
 
         public void ForgetTalents() => Send(Action(HeroAction.ForgetTalents));
 
-        public void AssignSlot(int slot, SkillDefinition? skill)
-        {
-            BitWriter writer = Action(HeroAction.AssignSlot);
-            writer.WriteByte((byte)slot);
-            writer.WriteVarInt(skill?.Number ?? 0);
-            Send(writer);
-        }
-
         // What a hero carries is the one thing here that's changed before the server has said so, by the same rules it will use, as a pack that takes a moment to answer every click is
         // no pleasure to use. All of it is sent whatever the rules said here, as the server has the last word, and it answers each of these with the truth.
         private BitWriter AskGear(HeroAction action)
@@ -662,6 +652,28 @@ namespace Dino_Defenders.Client
             writer.WriteVarInt(to.Number);
             Send(writer);
             Recompile();
+        }
+
+        /// <summary>Writes in a book, all of it at once: what it says now, and what it's called.</summary>
+        public void Write(ItemPlace place, Book book, string name)
+        {
+            Hero.Write(place, book, name);
+            BitWriter writer = AskGear(HeroAction.Write);
+            writer.WriteVarInt(place.Number);
+            writer.WriteString(name);
+            Protocol.WriteBook(writer, book);
+            Send(writer);
+            Recompile();
+        }
+
+        /// <summary>A new book in the first free cell. The look is chosen here, so that it's the same one when the server has heard.</summary>
+        public void NewBook()
+        {
+            ulong seed = ItemGenerator.NewSeed(new WorldRandom((ulong)Random.Shared.NextInt64()));
+            Hero.NewBook(seed);
+            BitWriter writer = AskGear(HeroAction.NewBook);
+            writer.WriteVarULong(seed);
+            Send(writer);
         }
 
         /// <summary>Tidies the pack, which is the only thing that ever moves what's in it without being told where.</summary>

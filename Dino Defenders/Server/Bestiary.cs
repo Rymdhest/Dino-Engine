@@ -1,6 +1,6 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.World;
@@ -9,14 +9,14 @@ using static Dino_Defenders.Stats.M;
 namespace Dino_Defenders.Server
 {
     /// <summary>
-    /// What a kind of creature is. It has a level, skills from the same catalogue as anyone, and a list of modifiers, exactly as a hero does: there's
+    /// What a kind of creature is. It has a level, books written in the same words as anyone's, and a list of modifiers, exactly as a hero does: there's
     /// nothing else to an enemy. Everything that makes a bandit a bandit is written here as stats.
     /// </summary>
     public sealed class EnemyKind
     {
         public string Id = "";
         public string Name = "";
-        public SkillDefinition[] Skills = Array.Empty<SkillDefinition>();
+        public BookPlan[] Books = Array.Empty<BookPlan>();
         public Mod[] Mods = Array.Empty<Mod>();
         public Tags Weapon = Tags.Sword | Tags.OneHanded;
         public float MoveSpeed = 6.8f;
@@ -63,86 +63,86 @@ namespace Dino_Defenders.Server
 
         public static readonly EnemyKind Outlaw = new EnemyKind
         {
-            Id = "outlaw", Name = "Outlaw", Skills = new[] { SkillCatalog.Strike },
+            Id = "outlaw", Name = "Outlaw", Books = new[] { Shelf.Strike },
         };
 
         public static readonly EnemyKind Archer = new EnemyKind
         {
-            Id = "archer", Name = "Outlaw Archer", Skills = new[] { SkillCatalog.Shot }, Weapon = Tags.Bow | Tags.TwoHanded,
+            Id = "archer", Name = "Outlaw Archer", Books = new[] { Shelf.Shot }, Weapon = Tags.Bow | Tags.TwoHanded,
             KeepsAway = true, AggroRadius = 30f, Damage = 0.75f,
         };
 
         // Most of a pack is here to be cut down. Against a build that's working these go in a blow or two, and it's what's among them that takes thought.
         public static readonly EnemyKind Cutthroat = new EnemyKind
         {
-            Id = "cutthroat", Name = "Cutthroat", Skills = new[] { SkillCatalog.Strike }, MoveSpeed = 7.8f, Health = 0.5f, Damage = 0.42f,
+            Id = "cutthroat", Name = "Cutthroat", Books = new[] { Shelf.Strike }, MoveSpeed = 7.8f, Health = 0.5f, Damage = 0.42f,
             Look = "cutthroat", Variants = 4,
         };
 
         public static readonly EnemyKind Brute = new EnemyKind
         {
-            Id = "brute", Name = "Outlaw Brute", Skills = new[] { SkillCatalog.Maul, SkillCatalog.Strike }, MoveSpeed = 5.6f, Health = 2.2f, Damage = 1.3f,
+            Id = "brute", Name = "Outlaw Brute", Books = new[] { Shelf.Maul, Shelf.Strike }, MoveSpeed = 5.6f, Health = 2.2f, Damage = 1.3f,
             Mods = new[] { More(Stat.Armour, 30f) }, Look = "brute", Variants = 3, Scale = 1.28f,
         };
 
         public static readonly EnemyKind Sentry = new EnemyKind
         {
-            Id = "sentry", Name = "Sentry", Skills = new[] { SkillCatalog.Strike }, Mods = new[] { More(Stat.Armour, 50f), Flat(Stat.BlockChance, 15f) },
+            Id = "sentry", Name = "Sentry", Books = new[] { Shelf.Strike }, Mods = new[] { More(Stat.Armour, 50f), Flat(Stat.BlockChance, 15f) },
         };
 
         public static readonly EnemyKind Restless = new EnemyKind
         {
-            Id = "restless", Name = "Restless Dead", Skills = new[] { SkillCatalog.Bite }, MoveSpeed = 5.2f,
+            Id = "restless", Name = "Restless Dead", Books = new[] { Shelf.Bite }, MoveSpeed = 5.2f,
             Mods = Undead, Look = "skeleton",
         };
 
         public static readonly EnemyKind Shambler = new EnemyKind
         {
-            Id = "shambler", Name = "Shambler", Skills = new[] { SkillCatalog.Bite }, MoveSpeed = 4.6f, Health = 0.5f, Damage = 0.42f,
+            Id = "shambler", Name = "Shambler", Books = new[] { Shelf.Bite }, MoveSpeed = 4.6f, Health = 0.5f, Damage = 0.42f,
             Mods = Undead, Look = "skeleton", Scale = 0.94f,
         };
 
         public static readonly EnemyKind BoneArcher = new EnemyKind
         {
-            Id = "bone-archer", Name = "Bone Archer", Skills = new[] { SkillCatalog.Shot }, Weapon = Tags.Bow | Tags.TwoHanded, MoveSpeed = 5.2f,
+            Id = "bone-archer", Name = "Bone Archer", Books = new[] { Shelf.Shot }, Weapon = Tags.Bow | Tags.TwoHanded, MoveSpeed = 5.2f,
             KeepsAway = true, AggroRadius = 30f, Health = 0.55f, Damage = 0.65f, Mods = Undead, Look = "skeleton:bow",
         };
 
         public static readonly EnemyKind GraveKnight = new EnemyKind
         {
-            Id = "grave-knight", Name = "Grave Knight", Skills = new[] { SkillCatalog.Maul, SkillCatalog.Strike }, MoveSpeed = 5f, Health = 2.4f, Damage = 1.3f,
+            Id = "grave-knight", Name = "Grave Knight", Books = new[] { Shelf.Maul, Shelf.Strike }, MoveSpeed = 5f, Health = 2.4f, Damage = 1.3f,
             Mods = Undead.Append(More(Stat.Armour, 60f)).ToArray(), Look = "revenant", Scale = 1.2f,
         };
 
         // What lives out where nobody goes. Quick, and in numbers, with something much worse at the head of them now and then.
         public static readonly EnemyKind Wolf = new EnemyKind
         {
-            Id = "wolf", Name = "Wolf", Skills = new[] { SkillCatalog.Bite }, MoveSpeed = 9.2f, Health = 0.42f, Damage = 0.38f, AggroRadius = 24f,
+            Id = "wolf", Name = "Wolf", Books = new[] { Shelf.Bite }, MoveSpeed = 9.2f, Health = 0.42f, Damage = 0.38f, AggroRadius = 24f,
             Mods = new[] { Inc(Stat.AttackSpeed, 20f), Resist(Tags.Cold, 20f) }, Look = "wolf",
         };
 
         public static readonly EnemyKind DireWolf = new EnemyKind
         {
-            Id = "dire-wolf", Name = "Dire Wolf", Skills = new[] { SkillCatalog.Bite }, MoveSpeed = 9.2f, Health = 1.9f, Damage = 1.2f, AggroRadius = 24f,
+            Id = "dire-wolf", Name = "Dire Wolf", Books = new[] { Shelf.Bite }, MoveSpeed = 9.2f, Health = 1.9f, Damage = 1.2f, AggroRadius = 24f,
             Mods = new[] { Inc(Stat.AttackSpeed, 20f), Resist(Tags.Cold, 30f) }, Look = "direwolf",
         };
 
         public static readonly EnemyKind Boar = new EnemyKind
         {
-            Id = "boar", Name = "Wild Boar", Skills = new[] { SkillCatalog.Bite }, MoveSpeed = 8f, Health = 0.8f, Damage = 0.75f, AggroRadius = 17f,
+            Id = "boar", Name = "Wild Boar", Books = new[] { Shelf.Bite }, MoveSpeed = 8f, Health = 0.8f, Damage = 0.75f, AggroRadius = 17f,
             Mods = new[] { More(Stat.Armour, 40f), Flat(Stat.PhysicalReduction, 8f) }, Look = "boar",
         };
 
         public static readonly EnemyKind Bear = new EnemyKind
         {
-            Id = "bear", Name = "Cave Bear", Skills = new[] { SkillCatalog.Maul, SkillCatalog.Bite }, MoveSpeed = 6.6f, Health = 3f, Damage = 1.5f,
+            Id = "bear", Name = "Cave Bear", Books = new[] { Shelf.Maul, Shelf.Bite }, MoveSpeed = 6.6f, Health = 3f, Damage = 1.5f,
             Mods = new[] { More(Stat.Armour, 50f), Inc(Stat.AilmentTaken, -30f) }, Look = "bear",
         };
 
         // The ones who come to the land's powers with nothing yet but a blade and a good opinion of themselves.
         private static EnemyKind Acolyte(string id, string name, DamageType element, Tags resist, string look) => new EnemyKind
         {
-            Id = id, Name = name, Skills = new[] { SkillCatalog.Strike }, MoveSpeed = 7f, Health = 0.5f, Damage = 0.42f,
+            Id = id, Name = name, Books = new[] { Shelf.Strike }, MoveSpeed = 7f, Health = 0.5f, Damage = 0.42f,
             Mods = new[] { Convert(DamageType.Physical, element, 100f), Resist(resist, 40f) }, Look = look,
         };
 
@@ -153,37 +153,37 @@ namespace Dino_Defenders.Server
 
         public static readonly EnemyKind Firebrand = new EnemyKind
         {
-            Id = "firebrand", Name = "Firebrand", Skills = new[] { SkillCatalog.Immolate, SkillCatalog.Firebolt }, KeepsAway = true, AggroRadius = 26f,
+            Id = "firebrand", Name = "Firebrand", Weapon = Tags.Wand | Tags.OneHanded, Books = new[] { Shelf.Immolate, Shelf.Firebolt }, KeepsAway = true, AggroRadius = 26f,
             Health = 0.8f, Mods = new[] { Resist(Tags.Fire, 40f) }, Look = "robed:Fire",
         };
 
         public static readonly EnemyKind Rimewitch = new EnemyKind
         {
-            Id = "rimewitch", Name = "Rimewitch", Skills = new[] { SkillCatalog.FrostNova, SkillCatalog.FrostShards }, KeepsAway = true, AggroRadius = 26f,
+            Id = "rimewitch", Name = "Rimewitch", Weapon = Tags.Wand | Tags.OneHanded, Books = new[] { Shelf.FrostNova, Shelf.FrostShards }, KeepsAway = true, AggroRadius = 26f,
             Health = 0.8f, Mods = new[] { Resist(Tags.Cold, 40f) }, Look = "robed:Cold",
         };
 
         public static readonly EnemyKind Stormcaller = new EnemyKind
         {
-            Id = "stormcaller", Name = "Stormcaller", Skills = new[] { SkillCatalog.Spark }, KeepsAway = true, AggroRadius = 26f,
+            Id = "stormcaller", Name = "Stormcaller", Weapon = Tags.Wand | Tags.OneHanded, Books = new[] { Shelf.Spark }, KeepsAway = true, AggroRadius = 26f,
             Health = 0.75f, Mods = new[] { Resist(Tags.Lightning, 40f) }, Look = "robed:Lightning",
         };
 
         public static readonly EnemyKind Bogseer = new EnemyKind
         {
-            Id = "bogseer", Name = "Bogseer", Skills = new[] { SkillCatalog.Miasma, SkillCatalog.VenomSpit }, KeepsAway = true, AggroRadius = 26f,
+            Id = "bogseer", Name = "Bogseer", Weapon = Tags.Wand | Tags.OneHanded, Books = new[] { Shelf.Miasma, Shelf.VenomSpit }, KeepsAway = true, AggroRadius = 26f,
             Health = 0.85f, Mods = new[] { Resist(Tags.Poison, 60f) }, Look = "robed:Poison",
         };
 
         public static readonly EnemyKind Mourner = new EnemyKind
         {
-            Id = "mourner", Name = "Hollow Mourner", Skills = new[] { SkillCatalog.Unmaking, SkillCatalog.ArcaneDart }, KeepsAway = true, MoveSpeed = 5f, AggroRadius = 26f,
+            Id = "mourner", Name = "Hollow Mourner", Weapon = Tags.Wand | Tags.OneHanded, Books = new[] { Shelf.Unmaking, Shelf.ArcaneDart }, KeepsAway = true, MoveSpeed = 5f, AggroRadius = 26f,
             Health = 0.85f, Mods = new[] { Resist(Tags.Magic, 40f), Resist(Tags.Fire, -20f) }, Look = "robed:Magic",
         };
 
         public static readonly EnemyKind Warlord = new EnemyKind
         {
-            Id = "warlord", Name = "Warlord", Skills = new[] { SkillCatalog.Whirl, SkillCatalog.Maul, SkillCatalog.Strike }, AggroRadius = 26f, LeashRadius = 70f,
+            Id = "warlord", Name = "Warlord", Books = new[] { Shelf.Whirl, Shelf.Maul, Shelf.Strike }, AggroRadius = 26f, LeashRadius = 70f,
             Mods = new[] { More(Stat.Armour, 100f), Inc(Stat.AilmentTaken, -50f) }, Look = "warlord",
         };
 
@@ -192,13 +192,13 @@ namespace Dino_Defenders.Server
         // What people raise and whistle for. Minions are enemies on your side, and share everything else with them.
         public static readonly EnemyKind Bones = new EnemyKind
         {
-            Id = "bones", Name = "Risen Bones", Skills = new[] { SkillCatalog.Strike }, MoveSpeed = 7f, Health = 0.8f, Damage = 0.8f,
+            Id = "bones", Name = "Risen Bones", Books = new[] { Shelf.Strike }, MoveSpeed = 7f, Health = 0.8f, Damage = 0.8f,
             Mods = new[] { Resist(Tags.Poison, 40f) }, Look = "skeleton",
         };
 
         public static readonly EnemyKind Hound = new EnemyKind
         {
-            Id = "hound", Name = "Pack Hound", Skills = new[] { SkillCatalog.Bite }, MoveSpeed = 10f, Health = 0.6f, Damage = 0.7f,
+            Id = "hound", Name = "Pack Hound", Books = new[] { Shelf.Bite }, MoveSpeed = 10f, Health = 0.6f, Damage = 0.7f,
             Mods = new[] { Inc(Stat.AttackSpeed, 30f) }, Look = "wolf",
         };
 
@@ -282,7 +282,7 @@ namespace Dino_Defenders.Server
                 if (Traits[trait].Name == "Warded") mods = mods.Append(Flat(Stat.Barrier, HealthAt(level) * rankHealth));
             }
 
-            loadout = new Loadout(level, WeaponFor(kind, level, rankDamage), mods.Concat(Worn), kind.Skills);
+            loadout = new Loadout(level, WeaponFor(kind, level, rankDamage), mods.Concat(Worn), kind.Books);
             _shared.Add((kind.Id, level, rank, trait), loadout);
             return loadout;
         }
@@ -323,7 +323,7 @@ namespace Dino_Defenders.Server
             WorldRandom traitDraw = random.Fork("traits");
             mods.AddRange(traitDraw.Pick(Traits).Mods);
             if (landWide != null) mods.AddRange(landWide);
-            return new Loadout(level, WeaponFor(kind, level, 1.9f), mods, kind.Skills);
+            return new Loadout(level, WeaponFor(kind, level, 1.9f), mods, kind.Books);
         }
 
         // Some keystones only mean something with a player's hands on them.
@@ -331,7 +331,7 @@ namespace Dino_Defenders.Server
         {
             foreach (Mod mod in node.Mods)
             {
-                if (mod.Kind == ModKind.Rule && (mod.Rule & (Rule.NoOwnDamage | Rule.Mimic | Rule.Guardian | Rule.CostsHealth)) != 0) return false;
+                if (mod.Kind == ModKind.Rule && (mod.Rule & (Rule.NoOwnDamage | Rule.Guardian | Rule.CostsHealth)) != 0) return false;
                 if (mod.Scope.HasFlag(Tags.Minion) || mod.Stat == Stat.RaiseFallen) return false;
             }
             return true;
@@ -351,7 +351,7 @@ namespace Dino_Defenders.Server
                 }
                 if (puppet && mod.Stat is Stat.Damage or Stat.AttackSpeed or Stat.CastSpeed or Stat.CritChance or Stat.CritMultiplier) mods.Add(mod);
             }
-            return new Loadout(owner.Level, WeaponFor(kind, owner.Level, 1f), mods, kind.Skills);
+            return new Loadout(owner.Level, WeaponFor(kind, owner.Level, 1f), mods, kind.Books);
         }
 
         /// <summary>What a fallen enemy can do on your side: everything it could do before, in your colours, a little worn.</summary>
@@ -360,7 +360,7 @@ namespace Dino_Defenders.Server
             var mods = new List<Mod>(enemy.Mods.Length + 1);
             mods.AddRange(enemy.Mods);
             mods.Add(More(Stat.Health, -Rulebook.RisenHealthLess));
-            return new Loadout(level, enemy.Weapon, mods, enemy.Skills);
+            return new Loadout(level, enemy.Weapon, mods, enemy.Books);
         }
     }
 }

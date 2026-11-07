@@ -95,7 +95,7 @@ namespace Dino_Defenders.Tooltips
             HowNumbersStack();
             Basics();
             AttributeTerms();
-            KindsOfSkill();
+            KindsOfBook();
             KindsOfDamage();
             Ailments();
             Reactions();
@@ -130,9 +130,9 @@ namespace Dino_Defenders.Tooltips
             Basic("Enemy", "Anyone on the other side.", "Enemies");
             Basic("Kill", "Landing the killing blow. Your Minions' Kills count as yours.", "Killed", "Kills");
             Basic("Item", "Something you wear or hold. Its Level decides what it can roll, and wearing it has no requirement.", "Items");
-            Basic("Bar", "Your Skills along the bottom of the screen.");
+            Basic("Bar", "Your Books along the bottom of the screen.");
             Basic("Gold", "Currency.");
-            Basic("Level", $"Each Level gives {HeroState.PointsPerLevel} talent points. Spells get stronger, and Skills Cost more.", "Levels");
+            Basic("Level", $"Each Level gives {HeroState.PointsPerLevel} talent points, and Books Cost more.", "Levels");
             Word("Shrine", "A lit altar. Only those in the current land count.", "Shrines");
             Word("Enemies Killed Recently", $"Each Kill adds {Whole(1f)}. Falls by {N(RecentKillFade)} a second.", "Enemy Killed Recently");
             Word("Health spent Recently", $"Each Cost paid in Health adds to this. Falls by {Percent(HealthSpentFade)} a second.");
@@ -148,31 +148,41 @@ namespace Dino_Defenders.Tooltips
             On(Stat.Intellect, Word("Intellect", $"Each point gives {N(IntellectMana)} Mana, {N(IntellectManaRegen)} Mana Regeneration and {Percent(IntellectSpellDamage)} increased Spell Damage."));
         }
 
-        private static void KindsOfSkill()
+        private static void KindsOfBook()
         {
-            Basic("Skill", "Anything on your Bar, or anything that Triggers. Every Skill is an Attack or a Spell.", "Skills");
-            On(Tags.Attack, Word("Attack", "Damage comes from your Weapon. Speed comes from Attack Speed. Can be Evaded and Blocked.", "Attacks"));
-            On(Tags.Spell, Word("Spell", $"Has its own Damage, gaining {Share(PowerPerLevel)} per Level. Speed comes from Cast Speed. Can be Blocked, but not Evaded.", "Spells"));
-            On(Tags.Hit, Word("Hit", "One Skill striking one target. Striking several targets is several Hits.", "Hits"));
+            Basic("Book", "What you fight with: anything on your Bar, or anything that Triggers. Right click one to read it.", "Books");
+            Basic("Page", "Part of a Book. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
+            On(Stat.Potency, Word("Potency", $"How strong everything a Page does is, up to {Share(MostPotency)}. Its sentences decide it, and it counts for healing as much as Damage."));
+            On(Tags.Opening, Word("Opening Page", "The first Page of a Book."));
+            On(Tags.Turned, Word("Turned Page", "Any Page after the first."));
+            On(Tags.Closing, Word("Closing Page", "The last Page of a Book. A single Page is both this and an Opening Page."));
+            On(Tags.Wild, Word("Wild", "Something on the Page is left to chance."));
+            On(Tags.Falling, Word("Falling", "Comes straight down out of the sky."));
+            Basic("Cone", "A wedge spreading out from where it starts.");
+            Basic("Circle", "Everything within its Radius.");
+            Basic("Line", "A narrow strip, starting from where it starts.");
+            Basic("Rectangle", "A wide block. Away from you, it's centred on where it starts.");
+            On(Tags.Attack, Word("Attack", "Any Book, unless you hold a Wand or a Staff. Speed comes from Attack Speed. Can be Evaded and Blocked.", "Attacks"));
+            On(Tags.Spell, Word("Spell", "Any Book while you hold a Wand or a Staff. Speed comes from Cast Speed. Can be Blocked, but not Evaded.", "Spells"));
+            On(Tags.Hit, Word("Hit", "One Page striking one target. Striking several targets is several Hits.", "Hits"));
             On(Tags.DamageOverTime, Word("Damage over Time", "Dealt each second instead of on a Hit. Only Resistance and Damage Taken reduce it."));
             Word("Indirect Damage", "Damage that isn't a Hit. Armour and Resistance reduce it, but it can't be Blocked, Evaded or Dodged. It can't be a Critical Hit, Leech or cause Ailments.");
             On(Tags.Triggered, Word("Trigger", $"Happens automatically, with no Cost. Limited by its Cooldown, or {Seconds(TriggerGap)} if it has none.", "Triggered", "Triggers"));
             On(Tags.Buff, Word("Buff", "A temporary bonus on you. Reapplying it refreshes it.", "Buffs"));
-            On(Tags.Movement, Word("Movement", "Carries you to where you aim, up to its Range."));
-            On(Tags.Minion, Word("Minion", "Fights for you. Using the Skill again replaces them.", "Minions"));
+            On(Tags.Movement, Word("Movement", "Takes you somewhere, up to its Range."));
+            On(Tags.Minion, Word("Minion", "Fights for you. Raising more of a kind replaces them.", "Minions"));
             Basic("Use Time", $"How long one use takes. The shortest possible is {Seconds(ShortestUse)}.");
             Basic("Impact", "When a use lands. A Dodge or a Stun before then cancels it.");
-            Basic("Cost", $"Paid on each use. Grows by {Share(CostPerLevel)} per Level.", "Skill Cost", "Skill Costs", "Costs");
-            Stats[Stat.SkillCost] = ByForm["Skill Cost"];
+            Basic("Cost", $"Paid on each use: every Page's, added up. Grows by {Share(CostPerLevel)} per Level.", "Book Cost", "Book Costs", "Costs");
+            Stats[Stat.BookCost] = ByForm["Book Cost"];
             On(Stat.CooldownRecovery, Word("Cooldown Recovery", "Makes Cooldowns pass faster."));
             Basic("Cooldown", "Time before it can be used again.", "Cooldowns");
             Basic("Damage per Second", "An average Hit on one target, Critical Hits included, per Use Time or Cooldown, whichever is longer. A Zone counts all its Pulses.");
-            On(Stat.SkillLevel, Word("Levels of Skills", "Extra Levels for a Spell's Damage. Attacks are unaffected. If it names a type, only Spells of that type count.", "Level of Skills"));
         }
 
         private static void KindsOfDamage()
         {
-            On(Stat.Damage, Basic("Damage", "Numbers on a Skill are before the target's defences."));
+            On(Stat.Damage, Basic("Damage", "What your Weapon deals. Numbers on a Page are before the target's defences."));
             On(Tags.Elemental, Word("Elemental", "Fire, Cold and Lightning."));
             On(Tags.Physical, Word("Physical", "Reduced by Armour, not Resistance. Can Bleed, Stun and Envenom."));
             On(Tags.Fire, Word("Fire", "Can Burn."));
@@ -224,7 +234,7 @@ namespace Dino_Defenders.Tooltips
         private static void Pools()
         {
             On(Stat.Health, Basic("Health", "When this reaches zero, you die.", "Maximum Health"));
-            On(Stat.Mana, Basic("Mana", $"Pays for Skills. Refills {Percent(ManaRefill)} a second by itself.", "Maximum Mana"));
+            On(Stat.Mana, Basic("Mana", $"Pays for Books. Refills {Percent(ManaRefill)} a second by itself.", "Maximum Mana"));
             On(Stat.Barrier, Word("Barrier", $"Absorbs Damage before Health. Poison Hits bypass it. Refills {Percent(ActorSheet.BaseBarrierRecharge)} a second, {Seconds(ActorSheet.BaseBarrierDelay)} after you were last Hit.", "Maximum Barrier"));
             On(Stat.HealthRegen, Word("Health Regeneration", "Health recovered each second.", "Health Regenerated"));
             Stats[Stat.HealthRegenPercent] = ByForm["Health Regeneration"];
@@ -237,7 +247,7 @@ namespace Dino_Defenders.Tooltips
             Stats[Stat.ManaLeech] = ByForm["Leech"];
             On(Stat.HealthOnHit, Word("on Hit", "Gained instantly on each Hit that deals Damage.", "Health on Hit", "Mana on Hit"));
             Stats[Stat.ManaOnHit] = ByForm["on Hit"];
-            On(Stat.HealthOnKill, Word("on Kill", "Gained instantly when a Skill Kills.", "Health on Kill", "Mana on Kill", "Barrier on Kill"));
+            On(Stat.HealthOnKill, Word("on Kill", "Gained instantly when a Page Kills.", "Health on Kill", "Mana on Kill", "Barrier on Kill"));
             Stats[Stat.ManaOnKill] = ByForm["on Kill"];
             Stats[Stat.BarrierOnKill] = ByForm["on Kill"];
             Word("Waygate", "On the tree, taking one lets you take the one across from it.", "Waygates");
@@ -251,7 +261,7 @@ namespace Dino_Defenders.Tooltips
 
         private static void Offence()
         {
-            Term added = Word("Added", $"Flat Damage on your Skills, rolling {Share(AddedSpread)} above or below its value. Added Effect is the share a Skill gets.", "Added Effect");
+            Term added = Word("Added", $"Flat Damage on your Pages, rolling {Share(AddedSpread)} above or below its value.");
             foreach (Stat stat in new[] { Stat.AddedPhysical, Stat.AddedFire, Stat.AddedCold, Stat.AddedLightning, Stat.AddedMagic, Stat.AddedPoison }) Stats[stat] = added;
 
             On(Stat.AttackSpeed, Basic("Attack Speed", "Shortens the Use Time of Attacks."));
@@ -291,26 +301,25 @@ namespace Dino_Defenders.Tooltips
             On(Tags.Zone, Word("Zone", "Stays on the ground for its Duration.", "Zones"));
             Word("Pulse", "A Zone Hits everything inside it this often.", "Pulses");
             On(Tags.Chaining, Word("Chaining", $"Jumps to the nearest target not yet struck, dealing {Share(1f - ChainFade)} less each jump."));
-            On(Stat.Chain, Word("Chain", $"One more jump. A Projectile finds its next target within {Metres(ProjectileChainReach)}, a Chaining Skill within its Radius.", "Chains"));
+            On(Stat.Chain, Word("Chain", $"One more jump. A Projectile finds its next target within {Metres(ProjectileChainReach)}.", "Chains"));
             On(Stat.Pierce, Word("Pierce", "How many targets a Projectile passes through.", "Pierced"));
             On(Stat.ProjectileCount, Word("Projectile Count", "How many are fired at once. Each can Hit the same target."));
             On(Stat.ProjectileSpeed, Basic("Projectile Speed", "Metres a second."));
             On(Stat.AreaOfEffect, Word("Area of Effect", $"Scales the space covered. Double the space is {Share(MathF.Sqrt(2f) - 1f)} more Radius."));
-            On(Stat.MeleeReach, Word("Melee Reach", "Metres on top of the Reach of Melee Skills."));
-            On(Stat.SkillDuration, Word("Skill Duration", "Scales how long Zones and Buffs last."));
+            On(Stat.MeleeReach, Word("Melee Reach", "Metres on top of the Reach of Melee Pages."));
+            On(Stat.PageDuration, Word("Page Duration", "Scales how long Zones and Buffs last."));
             Basic("Reach", "How far a strike or line extends.");
             Basic("Range", "How far away it can be aimed.");
             Basic("Radius", "Distance from its centre.");
             Basic("Arc", "How wide a strike is.");
             Basic("Spread", "Angle between Projectiles.");
             Basic("Delay", "Time from Impact until it lands.");
-            Basic("Leap Speed", "Metres a second while it carries you.");
-            Basic("Moving", "Changing position. While using a Skill you move at this share of your Movement Speed until its Impact.");
+            Basic("Moving", "Changing position. While using a Book you move at this share of your Movement Speed until its Impact.");
         }
 
         private static void Company()
         {
-            On(Stat.MinionCount, Word("Minion Count", "How many a Minion Skill raises."));
+            On(Stat.MinionCount, Word("Minion Count", "How many a Page raises."));
             On(Stat.MinionDuration, Word("Minion Duration", "Scales how long Minions last."));
             On(Stat.RaiseFallen, Word("Chance to Rise", $"A Killed Enemy, except a Boss, returns as your Minion after {Seconds(RisenDelay)} for {Seconds(RisenSeconds)}, with {Percent(RisenHealthLess)} less Health.", "Chance for Enemies you Kill to Rise beside you"));
         }
@@ -348,9 +357,9 @@ namespace Dino_Defenders.Tooltips
             On(Condition.Moving, ByForm["Moving"]);
             On(Condition.Stationary, Word("Standing Still", "Not Moving."));
             On(Condition.RecentlyHit, Word("Recently", $"In the last {Seconds(Rulebook.Recently)}."));
-            foreach (Condition recent in new[] { Condition.RecentlyKilled, Condition.RecentlyCrit, Condition.RecentlyBlocked, Condition.RecentlyDodged, Condition.RecentlyUsedSkill }) ConditionTerms[recent] = ByForm["Recently"];
+            foreach (Condition recent in new[] { Condition.RecentlyKilled, Condition.RecentlyCrit, Condition.RecentlyBlocked, Condition.RecentlyDodged, Condition.RecentlyUsedBook }) ConditionTerms[recent] = ByForm["Recently"];
 
-            On(Condition.InWater, Word("Water", $"Deeper than {Metres(WaterDepth)}, or made by a Skill."));
+            On(Condition.InWater, Word("Water", $"Deeper than {Metres(WaterDepth)}, or made by a Page."));
             On(Condition.UnderTrees, Word("Trees", "Under dense tree cover."));
             On(Condition.OnRoad, Word("Road", "Any paved way or trail."));
             On(Condition.InDarkness, Word("Darkness", $"Within {Metres(DarknessReach)} of a graveyard, or anywhere under an Endless Night."));
