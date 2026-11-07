@@ -23,7 +23,9 @@ namespace Dino_Engine.Rendering
     /// <param name="ShadowedLights">How many lamps and fires cast shadows.</param>
     /// <param name="FogSteps">Through the volumetric fog.</param>
     /// <param name="ReflectionSteps">Of a reflected ray, and none means reflections are of the sky alone.</param>
-    public readonly record struct QualityPreset(int Samples, float GrassDensity, float GrassWidth, float GrassDistance, float GrassShadowDistance, float GrassShadowDensity, int ShadowMap, int ShadowedLights, int FogSteps, int ReflectionSteps);
+    /// <param name="Creatures">The most living things about at once.</param>
+    /// <param name="Leaves">The most leaves falling or lying at once.</param>
+    public readonly record struct QualityPreset(int Samples, float GrassDensity, float GrassWidth, float GrassDistance, float GrassShadowDistance, float GrassShadowDensity, int ShadowMap, int ShadowedLights, int FogSteps, int ReflectionSteps, int Creatures, int Leaves);
 
     /// <summary>
     /// What each level of quality comes to. Everything here was chosen by what it buys for what it costs to look at, measured at the most expensive kind of place there is: what the player sees from the game's own camera
@@ -33,9 +35,9 @@ namespace Dino_Engine.Rendering
     {
         private static readonly QualityPreset[] Presets =
         {
-            new(2, 70f, 1.3f, 85f, 30f, 0.15f, 2048, 1, 16, 0),
-            new(2, 100f, 1.15f, 100f, 50f, 0.25f, 3072, 2, 24, 32),
-            new(4, 140f, 1f, 115f, 70f, 0.35f, 4096, 4, 32, 56),
+            new(2, 70f, 1.3f, 85f, 30f, 0.15f, 2048, 1, 16, 0, 80, 500),
+            new(2, 100f, 1.15f, 100f, 50f, 0.25f, 3072, 2, 24, 32, 140, 900),
+            new(4, 140f, 1f, 115f, 70f, 0.35f, 4096, 4, 32, 56, 200, 1400),
         };
 
         public static QualityPreset Of(GraphicsQuality quality) => Presets[(int)quality];

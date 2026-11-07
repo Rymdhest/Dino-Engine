@@ -903,7 +903,7 @@ namespace Dino_NetLab
         {
             using (Arena arena = Enter(worlds, request))
             {
-                Loadout loadout = arena.Session.Bestiary.Shared(Bestiary.Firebrand, 10, EnemyRank.Normal, Bestiary.NoTrait);
+                Loadout loadout = arena.Session.Bestiary.Shared(Bestiary.Firebrand, 10, Rarity.Normal, Bestiary.NoTraits);
                 Actor witch = arena.Place(loadout, East * 15f);
                 witch.Still = false;
                 float before = arena.Hero.Vitals.Health;
@@ -913,9 +913,9 @@ namespace Dino_NetLab
 
             using (Arena arena = Enter(worlds, request, "pyre.kindled-bolt"))
             {
-                Loadout one = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 10, EnemyRank.Normal, Bestiary.NoTrait);
-                Loadout two = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 10, EnemyRank.Elite, 0);
-                report.Check("An elite is more than a plain enemy", two.SheetFor(Condition.None).MaxHealth > one.SheetFor(Condition.None).MaxHealth);
+                Loadout one = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 10, Rarity.Normal, Bestiary.NoTraits);
+                Loadout two = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 10, Rarity.Rare, Bestiary.Trait(0));
+                report.Check("A rare is more than a normal enemy", two.SheetFor(Condition.None).MaxHealth > one.SheetFor(Condition.None).MaxHealth);
                 report.Check("And its trait changes what it does: a burning one hits with fire", two.SheetFor(Condition.None).Profile(0).First.Flows.ToArray().Any(f => f.Type == DamageType.Fire));
             }
 
@@ -971,7 +971,7 @@ namespace Dino_NetLab
             arena.Run(BuffCatalog.StoneSkin.Duration + 1);
             report.Check("And wears off, on both", arena.Hero.Sheet.Armour == armour && arena.Player.Client.Sheet.Armour == armour);
 
-            Loadout shared = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 5, EnemyRank.Normal, Bestiary.NoTrait);
+            Loadout shared = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 5, Rarity.Normal, Bestiary.NoTraits);
             Actor one = arena.Place(shared, East * 8f);
             Actor two = arena.Place(shared, West * 8f);
             arena.Combat.AddBuff(one, BuffCatalog.Quickening, 2f);
@@ -1103,8 +1103,8 @@ namespace Dino_NetLab
             for (int i = 0; i < enemies; i++)
             {
                 EnemyKind kind = kinds[i % kinds.Length];
-                int trait = i % 5 == 0 ? random.Next(Bestiary.Traits.Length) : Bestiary.NoTrait;
-                Loadout loadout = session.Bestiary.Shared(kind, 20 + i % 3, trait == Bestiary.NoTrait ? EnemyRank.Normal : EnemyRank.Elite, trait);
+                int trait = i % 5 == 0 ? Bestiary.Trait(random.Next(Bestiary.Traits.Length)) : Bestiary.NoTraits;
+                Loadout loadout = session.Bestiary.Shared(kind, 20 + i % 3, trait == Bestiary.NoTraits ? Rarity.Normal : Rarity.Rare, trait);
                 shared.Add(loadout);
 
                 Vector2 at = centre + new Vector2(random.NextSingle() - 0.5f, random.NextSingle() - 0.5f) * 110f;

@@ -20,6 +20,9 @@ uniform sampler2DArray albedoMapModelTextureArray;
 uniform sampler2DArray normalMapModelTextureArray;
 uniform sampler2DArray materialMapModelTextureArray;
 uniform vec4 hitFlash;
+#ifdef WILDLIFE
+flat in float fragFade;
+#endif
 
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gNormal;
@@ -44,6 +47,10 @@ void main() {
 	// Characters' own shader keeps them whole; for everything else this opens the view to the player.
 #ifndef CHARACTER
 	applyFocusCutout(worldPosition);
+#endif
+#ifdef WILDLIFE
+	// What comes and goes does it by thinning out, as nothing that's only for looking at should ever be seen to pop.
+	if (fragFade < 1.0 && fragFade <= focusDither(gl_FragCoord.xy)) discard;
 #endif
 
 	vec2 uvDX = dFdx(fragUV);

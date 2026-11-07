@@ -1,3 +1,4 @@
+using Dino_Defenders.Progression;
 using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.Networking;
@@ -144,6 +145,7 @@ namespace Dino_Defenders.Gameplay
         public MarkTier Tier;
         public bool Hostile;
         public int Owner;           // Whose this is if it's a player's, who has been showing it since they pressed.
+        public Rarity From;         // What sort of enemy is doing it, for those who'd sooner not be told about the least of them.
         [NetStep(1f / 128f), NetSnap] public Vector2 Facing;
         [NetStep(1f / 32f), NetSnap] public float Length;
         [NetStep(1f / 128f), NetSnap] public float Width;

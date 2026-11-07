@@ -46,7 +46,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         };
 
         // 0 at the stalk to 1 at the tip, the half width there as a share of the widest.
-        private float HalfWidth(float t, uint seed, float side)
+        internal float HalfWidth(float t, uint seed, float side)
         {
             if (t <= 0f || t >= 1f) return 0f;
             float width = MathF.Pow(MathF.Sin(MathF.PI * MathF.Pow(t, Skew)), Round);
@@ -73,7 +73,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         }
 
         // How far a palmate leaf reaches at an angle from its stalk.
-        private float PalmateReach(float angle, uint seed)
+        internal float PalmateReach(float angle, uint seed)
         {
             int fingers = Math.Max(Lobes, 3);
             float best = 0f;
@@ -96,7 +96,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             return reach * (1f + 0.04f * FloraNoise.Wave(angle * 3f, seed));
         }
 
-        private float FanReach(float angle, uint seed)
+        internal float FanReach(float angle, uint seed)
         {
             if (MathF.Abs(angle) >= LobeSpread) return 0f;
             float edge = 1f - 0.16f * MathF.Pow(MathF.Abs(angle) / LobeSpread, 3f);

@@ -337,8 +337,8 @@ namespace Dino_Defenders.UI
             if (!_offering.AtStake) return _offering.Any ? "The same from each, and more of them to get it from." : "Nothing offered, and nothing more than the land gives.";
             LootBoon boon = _offering.Boon();
             string levels = boon.ExtraLevels > 1 ? $", items {boon.ExtraLevels} levels up" : boon.ExtraLevels == 1 ? ", items a level up" : "";
-            string plain = boon.Least > LootGrade.Plain ? ", nothing plain" : "";
-            return $"Drops: {(boon.Quantity - 1f) * 100f:0}% more, {(boon.Rarity - 1f) * 100f:0}% rarer{levels}{plain}. {Offering.AllowedFalls} falls allowed.";
+            string normal = boon.Least > Rarity.Normal ? ", nothing normal" : "";
+            return $"Drops: {(boon.Quantity - 1f) * 100f:0}% more, {(boon.Rarity - 1f) * 100f:0}% rarer{levels}{normal}. {Offering.AllowedFalls} falls allowed.";
         }
 
         private void StepThrough(WorldRequest request)

@@ -1,6 +1,8 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Books;
+using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
+using Dino_Defenders.UI;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -35,6 +37,7 @@ namespace Dino_Defenders.Client
             public double Lands;
             public bool Hostile;
             public MarkTier Tier;
+            public Rarity From;
             public uint Ghost;
             public float Withdrawn = -1f;
             public float Strength = 1f;
@@ -113,6 +116,9 @@ namespace Dino_Defenders.Client
                 }
 
                 if (drawn >= MostMarks || (mark.Shape.Origin - hero).LengthSquared > FarOff * FarOff) continue;
+
+                // Only what's drawn: the blow lands all the same, and turning this back on in the middle of a fight shows what's already on its way.
+                if (mark.Hostile && !InterfaceSettings.Load().Marks(mark.From)) continue;
                 drawn++;
                 renderer.SubmitCommand(Command(mark, now, past, hero));
             }
@@ -164,6 +170,7 @@ namespace Dino_Defenders.Client
                         Lands = telegraph.Lands,
                         Hostile = telegraph.Hostile,
                         Tier = telegraph.Tier,
+                        From = telegraph.From,
                         Ghost = telegraph.Serial,
                     };
                     _seen.Add(telegraph.Serial, mark);
@@ -298,7 +305,7 @@ namespace Dino_Defenders.Client
         private static bool Worth(in EntityView entity)
         {
             if (entity.Has<HeroComponent>()) return true;
-            return entity.Has<EnemyComponent>() && entity.Get<EnemyComponent>().Rank != EnemyRank.Normal;
+            return entity.Has<EnemyComponent>() && entity.Get<EnemyComponent>().Rarity != Rarity.Normal;
         }
 
         private static void Add(Trail trail, Vector3 hilt, Vector3 tip, float now)

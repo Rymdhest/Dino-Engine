@@ -165,7 +165,7 @@ namespace Dino_NetLab
                 EntityView view = scene.Player.Ecs.GetEntityView(entity);
                 var pickup = view.Get<PickupComponent>();
                 if (pickup.Find != find) continue;
-                seen = pickup.Grade == LootGrade.Rare && pickup.Slot == ItemSlot.MainHand && (pickup.From.Xz - from).Length < 0.1f && pickup.Born > 0 && (view.Get<PositionComponent>().value.Xz - at).Length < 0.1f;
+                seen = pickup.Rarity == Rarity.Rare && pickup.Slot == ItemSlot.MainHand && (pickup.From.Xz - from).Length < 0.1f && pickup.Born > 0 && (view.Get<PositionComponent>().value.Xz - at).Length < 0.1f;
             }
             report.Check("And has all it needs to show it falling", seen);
         }
@@ -386,19 +386,19 @@ namespace Dino_NetLab
             var ground = new Vector3(at.X, scene.Session.World.Height.Sample(at), at.Y);
             uint opened = scene.Lab.Server.Tick;
             scene.Session.Combat.OpenChest(scene.Truth, ground, 8, LootTier.Hoard);
-            report.Check("A hoard gives what its table says", scene.Session.Ground.Count >= 5 && scene.Session.Ground.All.All(l => Loot.GradeOf(l.item) >= LootGrade.Rare) && scene.Session.Ground.All.Any(l => Loot.GradeOf(l.item) >= LootGrade.Masterwork));
+            report.Check("A hoard gives what its table says", scene.Session.Ground.Count >= 5 && scene.Session.Ground.All.All(l => l.item.Rarity >= Rarity.Rare));
 
             scene.Lab.Run(0.1);
-            var bySoonest = new List<(uint born, LootGrade grade)>();
+            var bySoonest = new List<(uint born, Rarity rarity)>();
             foreach (Entity entity in scene.Lab.Server.Ecs.QueryEntities(new BitMask(typeof(PickupComponent)), BitMask.Empty))
             {
                 var pickup = scene.Lab.Server.Ecs.GetEntityView(entity).Get<PickupComponent>();
-                if (pickup.Find != 0) bySoonest.Add((pickup.Born, pickup.Grade));
+                if (pickup.Find != 0) bySoonest.Add((pickup.Born, pickup.Rarity));
             }
             bySoonest.Sort();
 
             bool bestLast = true;
-            for (int i = 1; i < bySoonest.Count; i++) bestLast &= bySoonest[i].grade >= bySoonest[i - 1].grade && bySoonest[i].born > bySoonest[i - 1].born;
+            for (int i = 1; i < bySoonest.Count; i++) bestLast &= bySoonest[i].rarity >= bySoonest[i - 1].rarity && bySoonest[i].born > bySoonest[i - 1].born;
             report.Check("It all comes out one after another, with the best last", bestLast);
             report.Check("And not before the lid is up", bySoonest[0].born >= opened + (uint)(GroundLoot.ChestDelay * NetTime.TicksPerSecond));
         }

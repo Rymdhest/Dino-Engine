@@ -882,7 +882,7 @@ namespace Dino_NetLab
         {
             HeroState hero = Hero();
             hero.Pickup(new Item { Name = "Leaf", Slot = ItemSlot.Page, Level = 1, Seed = 3, Page = Scribe.NewPage(PageKind.Projectile), Held = new Item?[2] }, 0);
-            hero.Pickup(ItemGenerator.StickerItem(Stickers.Written("two-at-once")!, 5, 1, Rarity.Common), 1);
+            hero.Pickup(ItemGenerator.StickerItem(Stickers.Written("two-at-once")!, 5, 1, Rarity.Normal), 1);
             hero.Pickup(new Item { Name = "Empty Book", Slot = ItemSlot.Book, Level = 1, Seed = 6, Held = new Item?[1] }, 2);
             hero.Pickup(new Item { Name = "Spare Leaf", Slot = ItemSlot.Page, Level = 1, Seed = 8, Page = Scribe.NewPage(PageKind.Projectile), Held = new Item?[1] }, 3);
             return hero;

@@ -40,7 +40,7 @@ namespace Dino_Defenders.Tooltips
         public Tags Tags;
 
         /// <summary>What colours its title and what's rolled on it, if it's something found.</summary>
-        public LootGrade? Grade;
+        public Rarity? Rarity;
 
         /// <summary>Picture of this, if it has one.</summary>
         public Item? Picture;
@@ -470,17 +470,8 @@ namespace Dino_Defenders.Tooltips
         }
 
         /// <param name="kind">What it is, in a word or two.</param>
-        /// <summary>What grade of what something is, in a few words.</summary>
-        public static string KindOf(Item item) => $"{GradeName(item)} {SlotName(item)}";
-
-        public static string GradeName(Item item) => item.Unique != null ? "Unique" : Loot.GradeOf(item) switch
-        {
-            LootGrade.Plain => "Common",
-            LootGrade.Magic => "Magic",
-            LootGrade.Rare => "Rare",
-            LootGrade.Masterwork => "Masterwork",
-            _ => "Legendary",
-        };
+        /// <summary>What rarity of what something is, in a few words.</summary>
+        public static string KindOf(Item item) => $"{item.Rarity} {SlotName(item)}";
 
         private static string SlotName(Item item) => item.Slot switch
         {
@@ -495,7 +486,7 @@ namespace Dino_Defenders.Tooltips
         {
             if (item.IsFolio) return Folio(item, viewer, kind);
 
-            var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Grade = Loot.GradeOf(item), Picture = item, Tags = TagsOf(item.Mods()) };
+            var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Rarity = item.Rarity, Picture = item, Tags = TagsOf(item.Mods()) };
             if (item.Slot == ItemSlot.MainHand) card.Tags |= item.Weapon().Tags;
 
             foreach ((string name, string value) in item.BaseRows()) card.Row(name, value);
@@ -537,7 +528,7 @@ namespace Dino_Defenders.Tooltips
             Card card = written != null && viewer != null ? Book(viewer.Preview(Scribe.Read(written, item.Name))) : new Card { Title = item.Name };
             if (written == null && BookText.Mode(item.Mode, item.When) is { Length: > 0 } mode) card.Text(mode);
             card.Kind = $"{kind}, Level {item.Level}";
-            card.Grade = Loot.GradeOf(item);
+            card.Rarity = item.Rarity;
             card.Picture = item;
 
             int taken = item.Held?.Count(held => held != null) ?? 0;

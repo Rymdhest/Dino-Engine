@@ -42,7 +42,7 @@ namespace Dino_Defenders.Progression
             Add("ashen-promise", "Ashen Promise", "Arming Sword", 4, "It was sworn on a burning house.",
                 Convert(DamageType.Physical, DamageType.Fire, 100f), Inc(Stat.Damage, 40f, Tags.Fire), Flat(Stat.ExplodeOnKill, 8f), Chance(Tags.Burn, 20f));
             Add("sawtooth-mercy", "Sawtooth Mercy", "Bearded Axe", 8, "The kindest thing it does is finish.",
-                Chance(Tags.Bleed, 60f), Inc(Stat.Damage, 80f, Tags.Bleed), More(Stat.Damage, -20f, Tags.Hit), Flat(Stat.HealthOnKill, 8f));
+                Chance(Tags.Bleed, 60f), Inc(Stat.Damage, 80f, Tags.Bleed), More(Stat.Damage, -20f, Tags.Hit), Flat(Stat.Execute, 15f));
             Add("slow-verdict", "The Slow Verdict", "Warhammer", 10, "The court will rise.",
                 Divert(Stat.AttackSpeed, Stat.Damage, 150f, Tags.Attack), Chance(Tags.Stun, 40f), Inc(Stat.Damage, 40f, Tags.Mace));
             Add("widows-needle", "Widow's Needle", "Stiletto", 9, "One was enough, but she brought more.",
@@ -80,7 +80,7 @@ namespace Dino_Defenders.Progression
             Add("drowned-king", "Shell of the Drowned King", "Lamellar Coat", 12, "The sea hasn't finished with it.",
                 Grant(Condition.InWater), Inc(Stat.Armour, 60f), Resist(Tags.Fire, 40f), Resist(Tags.Lightning, -40f));
             Add("mantle-of-cinders", "Mantle of Cinders", "Linen Robe", 8, "Whoever wore it first is part of it now.",
-                Rules(Rule.FireHeals | Rule.ImmuneToBurn | Rule.BurningTrail), Resist(Tags.Cold, -30f));
+                Rules(Rule.FireHeals | Rule.ImmuneToBurn), Resist(Tags.Cold, -30f));
             Add("patient-beast", "Hide of the Patient Beast", "Leather Jerkin", 7, "It took a long time to die, and didn't seem to mind.",
                 Rules(Rule.DeferredDamage), Inc(Stat.Health, 20f), Flat(Stat.HealthRegenPercent, 1f));
             Add("last-word", "Robe of the Last Word", "Silk Vestments", 13, "There's always something to add.",
@@ -94,7 +94,7 @@ namespace Dino_Defenders.Progression
             Add("cindertread", "Cindertread", "Sandals", 3, "Mind the rug.",
                 Rules(Rule.BurningTrail), Inc(Stat.MoveSpeed, 15f), Resist(Tags.Fire, 30f));
             Add("tidewalkers", "Tidewalkers", "Silk Slippers", 8, "They were never once dry.",
-                Inc(Stat.MoveSpeed, 30f).While(Condition.InWater), Rules(Rule.WaterTrail), Inc(Stat.Barrier, 25f));
+                Inc(Stat.MoveSpeed, 30f).While(Condition.InWater), Grant(Condition.WetLand), Inc(Stat.Barrier, 25f));
 
             // Legs.
             Add("forced-march", "The Forced March", "Iron Cuisses", 10, "Left, right. Left, right. Left.",
@@ -110,7 +110,7 @@ namespace Dino_Defenders.Progression
             Add("sleight-of-hand", "Sleight of Hand", "Silk Gloves", 10, "Watch closely. No, closer.",
                 Echo(Stat.CastSpeed, Stat.AttackSpeed), Inc(Stat.CastSpeed, 20f));
             Add("cutpurses-fingers", "Cutpurse's Fingers", "Leather Gloves", 4, "What's yours is anyone's.",
-                Inc(Stat.GoldFind, 40f), Inc(Stat.ItemRarity, 20f), Inc(Stat.AttackSpeed, 1f).For(Per.RecentKills, 1f, 20f));
+                Inc(Stat.GoldFind, 40f), Inc(Stat.ItemRarity, 20f), Rules(Rule.DodgeCrit));
 
             // Rings.
             Add("understudy", "The Understudy", "Ring", 6, "It has learned all your lines.",
@@ -158,7 +158,7 @@ namespace Dino_Defenders.Progression
         {
             Item item = ItemGenerator.Plain(unique.Base, level, random);
             item.Name = unique.Name;
-            item.Rarity = Rarity.Legendary;
+            item.Rarity = Rarity.Unique;
             item.Unique = unique.Id;
             return item;
         }

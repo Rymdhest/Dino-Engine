@@ -30,8 +30,11 @@ namespace Dino_Defenders.Server
         public float Scale = 1f;
     }
 
-    /// <summary>A quality an enemy can have on top of what it is. Elites get one and bosses several. They're the same modifiers a hero's gear is made of.</summary>
-    public readonly record struct EnemyTrait(string Name, Mod[] Mods);
+    /// <summary>A quality an enemy can have on top of what it is, and something it can do because of it. They're the same modifiers a hero's gear is made of, and the same books.</summary>
+    public readonly record struct EnemyTrait(string Name, Mod[] Mods, BookPlan Book);
+
+    /// <summary>What a rarity makes of a creature, on top of what it is. How many traits is how many more things it can do.</summary>
+    public readonly record struct EnemyPower(float Health, float Damage, float Scale, int Traits, float Importance);
 
     /// <summary>
     /// The creatures of the world, and how strong they are at each level. Enemies of one kind, level and trait share a single loadout and so a single
@@ -39,7 +42,17 @@ namespace Dino_Defenders.Server
     /// </summary>
     public sealed class Bestiary
     {
-        public const int NoTrait = -1;
+        public const int NoTraits = 0;
+
+        private static readonly EnemyPower[] Powers =
+        {
+            new(1f, 1f, 1f, 0, 1.5f),
+            new(1.6f, 1.2f, 1.1f, 1, 1.75f),
+            new(2.6f, 1.4f, 1.22f, 2, 2f),
+            new(11f, 1.9f, 1.7f, 3, 4f),
+        };
+
+        public static EnemyPower PowerOf(Rarity rarity) => Powers[(int)rarity];
 
         // Measured against sample heroes in BuildLab's balance table, who know nothing of keystones and don't choose their gear. A hero gains most
         // early, as gear comes in tiers, so these climb the same way, and what's exponential in them is what keeps lands past the level cap getting harder.
@@ -218,21 +231,61 @@ namespace Dino_Defenders.Server
 
         public static readonly EnemyTrait[] Traits =
         {
-            new("Burning", new[] { Convert(DamageType.Physical, DamageType.Fire, 100f), Resist(Tags.Fire, 50f), Chance(Tags.Burn, 40f) }),
-            new("Frostbound", new[] { Convert(DamageType.Physical, DamageType.Cold, 100f), Resist(Tags.Cold, 50f), Inc(Stat.AilmentEffect, 50f, Tags.Chill) }),
-            new("Stormtouched", new[] { Convert(DamageType.Physical, DamageType.Lightning, 100f), Resist(Tags.Lightning, 50f), Chance(Tags.Shock, 40f) }),
-            new("Venomous", new[] { GainAs(DamageType.Physical, DamageType.Poison, 50f), Chance(Tags.Venom, 60f), Resist(Tags.Poison, 40f) }),
-            new("Vampiric", new[] { Flat(Stat.HealthLeech, 25f), Inc(Stat.Health, 20f) }),
-            new("Ironclad", new[] { More(Stat.Armour, 200f), Flat(Stat.PhysicalReduction, 15f), Flat(Stat.BlockChance, 20f) }),
-            new("Swift", new[] { Inc(Stat.MoveSpeed, 40f), Inc(Stat.AttackSpeed, 30f), Inc(Stat.CastSpeed, 30f) }),
-            new("Thorned", new[] { Flat(Stat.Reflect, 40f), Inc(Stat.Armour, 50f) }),
-            new("Warded", new[] { Inc(Stat.Health, -30f), Flat(Stat.BarrierRecharge, 30f) }),
-            new("Deadeye", new[] { Flat(Stat.CritChance, 20f), Flat(Stat.CritMultiplier, 50f), Flat(Stat.Accuracy, 200f) }),
-            new("Unmaking", new[] { Chance(Tags.Hex, 50f), Added(DamageType.Magic, 6f), Flat(Stat.Penetration, 15f) }),
-            new("Fearsome", new[] { More(Stat.Damage, 20f), Inc(Stat.Health, 30f) }),
+            new("Burning", new[] { Convert(DamageType.Physical, DamageType.Fire, 100f), Resist(Tags.Fire, 50f), Chance(Tags.Burn, 40f) }, Shelf.Immolate),
+            new("Frostbound", new[] { Convert(DamageType.Physical, DamageType.Cold, 100f), Resist(Tags.Cold, 50f), Inc(Stat.AilmentEffect, 50f, Tags.Chill) }, Shelf.FrostNova),
+            new("Stormtouched", new[] { Convert(DamageType.Physical, DamageType.Lightning, 100f), Resist(Tags.Lightning, 50f), Chance(Tags.Shock, 40f) }, Shelf.Spark),
+            new("Venomous", new[] { GainAs(DamageType.Physical, DamageType.Poison, 50f), Chance(Tags.Venom, 60f), Resist(Tags.Poison, 40f) }, Shelf.VenomSpit),
+            new("Vampiric", new[] { Flat(Stat.HealthLeech, 25f), Inc(Stat.Health, 20f) }, Shelf.Sap),
+            new("Ironclad", new[] { More(Stat.Armour, 200f), Flat(Stat.PhysicalReduction, 15f), Flat(Stat.BlockChance, 20f) }, Shelf.Sunder),
+            new("Swift", new[] { Inc(Stat.MoveSpeed, 40f), Inc(Stat.AttackSpeed, 30f), Inc(Stat.CastSpeed, 30f) }, Shelf.Knives),
+            new("Thorned", new[] { Flat(Stat.Reflect, 40f), Inc(Stat.Armour, 50f) }, Shelf.Cleave),
+            new("Warded", new[] { Inc(Stat.Health, -30f), Flat(Stat.BarrierRecharge, 30f) }, Shelf.ArcaneDart),
+            new("Deadeye", new[] { Flat(Stat.CritChance, 20f), Flat(Stat.CritMultiplier, 50f), Flat(Stat.Accuracy, 200f) }, Shelf.Shot),
+            new("Unmaking", new[] { Chance(Tags.Hex, 50f), Added(DamageType.Magic, 6f), Flat(Stat.Penetration, 15f) }, Shelf.Unmaking),
+            new("Fearsome", new[] { More(Stat.Damage, 20f), Inc(Stat.Health, 30f) }, Shelf.Maul),
         };
 
-        private readonly Dictionary<(string kind, int level, EnemyRank rank, int trait), Loadout> _shared = new();
+        /// <summary>One trait, as a set of them.</summary>
+        public static int Trait(int index) => 1 << index;
+
+        /// <summary>Every trait in a set, in the order they're listed.</summary>
+        public static IEnumerable<EnemyTrait> TraitsOf(int traits)
+        {
+            for (int i = 0; i < Traits.Length; i++)
+            {
+                if ((traits & Trait(i)) != 0) yield return Traits[i];
+            }
+        }
+
+        /// <summary>Adds to a set whatever a rarity has room for, so that something rare that's taken after its pack is still as much as any other.</summary>
+        public static int Fill(int traits, Rarity rarity, WorldRandom random)
+        {
+            int wanted = PowerOf(rarity).Traits;
+            while (System.Numerics.BitOperations.PopCount((uint)traits) < wanted) traits |= Trait(random.Int(Traits.Length));
+            return traits;
+        }
+
+        /// <summary>What it's called, by what it's become.</summary>
+        public static string NameOf(EnemyKind kind, int traits) => string.Join(' ', TraitsOf(traits).Select(trait => trait.Name).Append(kind.Name));
+
+        // What a trait gave it comes first, as books are listed best first. Anything it could do already isn't a second thing to do.
+        private static IEnumerable<BookPlan> Abilities(EnemyKind kind, int traits) => TraitsOf(traits).Select(trait => trait.Book).Distinct().Except(kind.Books);
+
+        /// <summary>How many of its books its traits gave it, which are the first of them.</summary>
+        public static int AbilitiesOf(EnemyKind kind, int traits) => Abilities(kind, traits).Count();
+
+        private static IEnumerable<BookPlan> BooksOf(EnemyKind kind, int traits) => Abilities(kind, traits).Concat(kind.Books);
+
+        private static IEnumerable<Mod> ModsOf(int traits, int level, float rarityHealth)
+        {
+            foreach (EnemyTrait trait in TraitsOf(traits))
+            {
+                foreach (Mod mod in trait.Mods) yield return mod;
+                if (trait.Name == "Warded") yield return Flat(Stat.Barrier, HealthAt(level) * rarityHealth);
+            }
+        }
+
+        private readonly Dictionary<(string kind, int level, Rarity rarity, int traits), Loadout> _shared = new();
 
         /// <summary>What everything hostile in this world wears on top of what it is, on a land that's had something paid on it.</summary>
         public readonly IReadOnlyList<Mod> Worn;
@@ -242,9 +295,9 @@ namespace Dino_Defenders.Server
             Worn = worn ?? Array.Empty<Mod>();
         }
 
-        private static IEnumerable<Mod> Base(EnemyKind kind, int level, float rankHealth)
+        private static IEnumerable<Mod> Base(EnemyKind kind, int level, float rarityHealth)
         {
-            yield return Flat(Stat.Health, HealthAt(level) * rankHealth * kind.Health);
+            yield return Flat(Stat.Health, HealthAt(level) * rarityHealth * kind.Health);
             yield return Flat(Stat.Mana, 400f + 40f * level);
             yield return Flat(Stat.ManaRegen, 40f);
             yield return Flat(Stat.MoveSpeed, kind.MoveSpeed);
@@ -255,9 +308,9 @@ namespace Dino_Defenders.Server
             foreach (Mod mod in kind.Mods) yield return mod;
         }
 
-        private static WeaponProfile WeaponFor(EnemyKind kind, int level, float rankDamage)
+        private static WeaponProfile WeaponFor(EnemyKind kind, int level, float rarityDamage)
         {
-            float damage = DamageAt(level) * rankDamage * kind.Damage;
+            float damage = DamageAt(level) * rarityDamage * kind.Damage;
             return new WeaponProfile(damage * 0.85f, damage * 1.15f, WeaponProfile.BareTime, 5f, kind.Weapon);
         }
 
@@ -269,21 +322,15 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>The numbers for this kind of enemy at this level, shared by every one of them there is.</summary>
-        public Loadout Shared(EnemyKind kind, int level, EnemyRank rank, int trait)
+        /// <param name="traits">A set of them: see <see cref="Trait"/>.</param>
+        public Loadout Shared(EnemyKind kind, int level, Rarity rarity, int traits)
         {
-            if (_shared.TryGetValue((kind.Id, level, rank, trait), out Loadout? loadout)) return loadout;
+            if (_shared.TryGetValue((kind.Id, level, rarity, traits), out Loadout? loadout)) return loadout;
 
-            float rankHealth = rank == EnemyRank.Elite ? 2.6f : 1f;
-            float rankDamage = rank == EnemyRank.Elite ? 1.4f : 1f;
-            IEnumerable<Mod> mods = Base(kind, level, rankHealth);
-            if (trait != NoTrait)
-            {
-                mods = mods.Concat(Traits[trait].Mods);
-                if (Traits[trait].Name == "Warded") mods = mods.Append(Flat(Stat.Barrier, HealthAt(level) * rankHealth));
-            }
-
-            loadout = new Loadout(level, WeaponFor(kind, level, rankDamage), mods.Concat(Worn), kind.Books);
-            _shared.Add((kind.Id, level, rank, trait), loadout);
+            EnemyPower power = PowerOf(rarity);
+            IEnumerable<Mod> mods = Base(kind, level, power.Health).Concat(ModsOf(traits, level, power.Health));
+            loadout = new Loadout(level, WeaponFor(kind, level, power.Damage), mods.Concat(Worn), BooksOf(kind, traits));
+            _shared.Add((kind.Id, level, rarity, traits), loadout);
             return loadout;
         }
 
@@ -292,9 +339,10 @@ namespace Dino_Defenders.Server
         /// of that, and what it wore is what it drops.
         /// </summary>
         /// <param name="landWide">What everything hostile here wears, which a boss wears too.</param>
-        public static Loadout Boss(EnemyKind kind, int level, WorldRandom random, out Item[] gear, out string? title, IReadOnlyList<Mod>? landWide = null)
+        public static Loadout Boss(EnemyKind kind, int level, int traits, WorldRandom random, out Item[] gear, out string? title, IReadOnlyList<Mod>? landWide = null)
         {
-            var mods = new List<Mod>(Base(kind, level, 11f));
+            EnemyPower power = PowerOf(Rarity.Unique);
+            var mods = new List<Mod>(Base(kind, level, power.Health));
             WorldRandom gearDraw = random.Fork("gear");
 
             ItemSlot[] slots = { ItemSlot.Neck, ItemSlot.Body, ItemSlot.Finger };
@@ -303,7 +351,7 @@ namespace Dino_Defenders.Server
             for (int i = 0; i < pieces; i++)
             {
                 ItemSlot slot = slots[gearDraw.Int(slots.Length)];
-                Rarity least = gearDraw.Chance(0.45f) ? Rarity.Legendary : Rarity.Rare;
+                Rarity least = gearDraw.Chance(0.45f) ? Rarity.Unique : Rarity.Rare;
                 Item item = ItemGenerator.Roll(level + 1, gearDraw.Fork(i), 0.5f, least, slot);
                 worn.Add(item);
                 mods.AddRange(item.Mods());
@@ -320,10 +368,9 @@ namespace Dino_Defenders.Server
                 title = keystone.Title ?? keystone.Name;
             }
 
-            WorldRandom traitDraw = random.Fork("traits");
-            mods.AddRange(traitDraw.Pick(Traits).Mods);
+            mods.AddRange(ModsOf(traits, level, power.Health));
             if (landWide != null) mods.AddRange(landWide);
-            return new Loadout(level, WeaponFor(kind, level, 1.9f), mods, kind.Books);
+            return new Loadout(level, WeaponFor(kind, level, power.Damage), mods, BooksOf(kind, traits));
         }
 
         // Some keystones only mean something with a player's hands on them.

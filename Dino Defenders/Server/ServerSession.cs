@@ -142,9 +142,9 @@ namespace Dino_Defenders.Server
         }
 
         // A fight goes on far from any shrine now, so flasks have to come back from fighting.
-        private void ChargeFlasks(Vector2 position, EnemyRank rank)
+        private void ChargeFlasks(Vector2 position, Rarity rarity)
         {
-            float worth = rank switch { EnemyRank.Boss => Rulebook.FlaskFromBoss, EnemyRank.Elite => Rulebook.FlaskFromElite, _ => 1f };
+            float worth = rarity switch { Rarity.Unique => Rulebook.FlaskFromBoss, Rarity.Rare => Rulebook.FlaskFromRare, _ => 1f };
             foreach (ServerPlayer hero in Heroes)
             {
                 if ((hero.Sim.Position - position).LengthSquared > Rulebook.FlaskReach * Rulebook.FlaskReach) continue;
@@ -212,7 +212,7 @@ namespace Dino_Defenders.Server
             state.Live.Remove(actor.Entity);
 
             ShareExperience(position.Xz, (int)(brain.Experience * Boon.Experience));
-            ChargeFlasks(position.Xz, enemy.Rank);
+            ChargeFlasks(position.Xz, enemy.Rarity);
             Combat.DropLoot(enemy, position, actor);
 
             bool wasHeld = !Liberated;
@@ -298,7 +298,7 @@ namespace Dino_Defenders.Server
             float height = World.Height.Sample(at);
             var actor = new Actor(Team.Heroes, loadout, at, WorldData.CharacterRadius * scale) { Owner = owner, Body = model, Height = height };
 
-            var enemy = new EnemyComponent { Name = name, Rank = EnemyRank.Normal, Level = owner.Loadout.Level, Friendly = true };
+            var enemy = new EnemyComponent { Name = name, Rarity = Rarity.Normal, Level = owner.Loadout.Level, Friendly = true };
             var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = owner.Position, AggroRadius = aggro, LeashRadius = 45f };
             var position = new Vector3(at.X, height, at.Y);
             actor.Entity = ecs.CreateEntity(name, Bodies.Walking(Server, model, position, scale, 1.5f, enemy, brain, new HealthComponent(loadout.SheetFor(Condition.None).MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));

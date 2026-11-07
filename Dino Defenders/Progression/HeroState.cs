@@ -373,7 +373,7 @@ namespace Dino_Defenders.Progression
         /// <summary>The only thing that rearranges a pack without being told where each thing goes, and it's only ever done when asked: by where things are worn, then the best first, from the first cell on.</summary>
         public void Sort()
         {
-            Item[] sorted = Carried().OrderBy(item => item.Slot).ThenByDescending(Loot.GradeOf).ThenByDescending(item => item.Level).ThenBy(item => item.Name, StringComparer.Ordinal).ToArray();
+            Item[] sorted = Carried().OrderBy(item => item.Slot).ThenByDescending(item => item.Rarity).ThenByDescending(item => item.Level).ThenBy(item => item.Name, StringComparer.Ordinal).ToArray();
             Array.Clear(Inventory);
             sorted.CopyTo(Inventory, 0);
         }

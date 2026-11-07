@@ -27,7 +27,7 @@ namespace Dino_Defenders.Server
         private const float PushPerHealth = 34f;    // Metres a second, for a blow that takes all there is.
         private const float MostPush = 11f;
         private const float BossGive = 0.12f;
-        private const float EliteGive = 0.5f;
+        private const float RareGive = 0.5f;
         private const float ReelFrom = 0.05f;       // Seconds a blow stops someone for, at least.
         private const float ReelPerHealth = 0.5f;
         private const float MostReel = 0.3f;
@@ -215,13 +215,13 @@ namespace Dino_Defenders.Server
         // ---- What's coming.
 
         /// <summary>Marks a piece of ground for everyone, for as long as there is until it lands. Whoever's doing this can take it back with <see cref="Withdraw"/>.</summary>
-        public Entity Warn(in GroundShape shape, MarkTier tier, bool hostile, float landsIn, int owner = 0)
+        public Entity Warn(in GroundShape shape, MarkTier tier, bool hostile, float landsIn, int owner = 0, Rarity from = Rarity.Normal)
         {
             uint ticks = Server.Tick + (uint)MathF.Round(landsIn * NetTime.TicksPerSecond);
             return World.CreateEntity("Warning",
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: hostile ? 6f : 2f),
                 new PositionComponent(Ground(shape.Origin)),
-                new TelegraphComponent { Serial = ++_marksMade, Kind = shape.Kind, Tier = tier, Hostile = hostile, Owner = owner, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Start = Server.Tick, Lands = ticks },
+                new TelegraphComponent { Serial = ++_marksMade, Kind = shape.Kind, Tier = tier, Hostile = hostile, Owner = owner, From = from, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Start = Server.Tick, Lands = ticks },
                 new TelegraphLifeComponent { Left = landsIn + MarkLingers });
         }
 
@@ -435,7 +435,7 @@ namespace Dino_Defenders.Server
             if (target.IsHero || target.Still || target.Dead) return;
             Vector2 away = target.Position - from;
             if (away.LengthSquared < 0.01f) return;
-            float give = (target.Nature & Condition.Boss) != 0 ? BossGive : (target.Nature & Condition.Elite) != 0 ? EliteGive : 1f;
+            float give = (target.Nature & Condition.Boss) != 0 ? BossGive : (target.Nature & Condition.Rare) != 0 ? RareGive : 1f;
             target.Push += away.Normalized() * (speed * give);
         }
 
@@ -868,7 +868,7 @@ namespace Dino_Defenders.Server
         {
             if (target.IsHero || target.Still) return;
 
-            float give = (target.Nature & Condition.Boss) != 0 ? BossGive : (target.Nature & Condition.Elite) != 0 ? EliteGive : 1f;
+            float give = (target.Nature & Condition.Boss) != 0 ? BossGive : (target.Nature & Condition.Rare) != 0 ? RareGive : 1f;
             target.Push += way * (MathF.Min(weight * PushPerHealth * ForceOf(skill, critical), MostPush) * give);
             target.Reeling = MathF.Max(target.Reeling, MathF.Min(ReelFrom + weight * ReelPerHealth, MostReel) * give);
         }
@@ -1501,7 +1501,7 @@ namespace Dino_Defenders.Server
             // A world holds a thousand of these. What's worth having comes from those that took some beating, and how much beating is in the health it really had.
             // What's been paid for on this land comes out of that, or peril would turn its fodder into champions and pay for them twice.
             LootBoon boon = _session.Boon;
-            LootTier tier = LootTables.TierOf(enemy.Rank, actor.Sheet.MaxHealth / (Bestiary.HealthAt(enemy.Level) * _session.Offering.EnemyHealth));
+            LootTier tier = LootTables.TierOf(enemy.Rarity, actor.Sheet.MaxHealth / (Bestiary.HealthAt(enemy.Level) * _session.Offering.EnemyHealth));
             List<Item> items = Loot.Roll(tier, enemy.Level, StrongestHero, BestOfParty(s => s.ItemRarity) / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)), boon);
 
             // What it was wearing is yours now. That's the whole point of having seen it used.

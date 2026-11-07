@@ -43,7 +43,7 @@ namespace Dino_Defenders.UI
             base.OnDraw(draw);
             if (Context == null) return;
 
-            Colour colour = Ui.GradeColour(Loot.GradeOf(_item));
+            Colour colour = Ui.RarityColour(_item.Rarity);
             if (IsHovered) draw.AddRect(Bounds, GuiColors.Rgba(255, 240, 200, 26), 2f);
 
             GuiRect picture = new GuiRect(Bounds.X + 3f, Bounds.Y + 3f, Picture, Picture);
@@ -112,7 +112,7 @@ namespace Dino_Defenders.UI
             }
 
             _scroll.Content.ClearChildren();
-            foreach ((Item item, int cell) in fits.OrderByDescending(fit => Loot.GradeOf(fit.item)).ThenByDescending(fit => fit.item.Level))
+            foreach ((Item item, int cell) in fits.OrderByDescending(fit => fit.item.Rarity).ThenByDescending(fit => fit.item.Level))
             {
                 _scroll.Content.Add(new PickerRow(_panel, item, cell, wearing, () => Choose(cell)));
             }

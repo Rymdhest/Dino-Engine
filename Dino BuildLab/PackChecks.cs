@@ -354,7 +354,7 @@ namespace Dino_BuildLab
 
             Item sword = Found("Longsword", Rarity.Rare, ("fire-resistance", 22f), ("added-cold", 7f));
             Item ring = Found("Ring", Rarity.Magic, ("health", 30f));
-            Item robe = Found("Silk Vestments", Rarity.Common);
+            Item robe = Found("Silk Vestments", Rarity.Normal);
             Item unique = UniqueCatalog.Make(UniqueCatalog.All[0], 20, random);
 
             report.Check("Nothing typed finds everything", Finds(sword, "") && Finds(sword, "   "));
@@ -362,14 +362,14 @@ namespace Dino_BuildLab
             report.Check("So does what's rolled on it", Finds(sword, "fire res") && Finds(sword, "cold") && Finds(ring, "health") && !Finds(ring, "cold"));
             report.Check("Every word has to be there, in any order", Finds(sword, "resistance fire") && !Finds(sword, "resistance health"));
             report.Check("And a number on it", Finds(sword, "22") && !Finds(sword, "2200"));
-            report.Check("What grade and what kind of thing it is", Finds(sword, "rare") && Finds(sword, "sword") && Finds(ring, "magic ring") && !Finds(ring, "rare"));
+            report.Check("What rarity and what kind of thing it is", Finds(sword, "rare") && Finds(sword, "sword") && Finds(ring, "magic ring") && !Finds(ring, "rare"));
             report.Check("What it's made of as a family", Finds(robe, "cloth") && !Finds(robe, "heavy"));
             report.Check("What it is before anything's rolled", Finds(robe, "barrier"));
             report.Check("Its level", Finds(sword, "level 20"));
             Item spring = Found("Round Shield", Rarity.Magic);
             spring.Name = "Round Shield of the Spring";
             report.Check("Words are found from their start, so a ring isn't anything of the Spring", Finds(spring, "spr") && !Finds(spring, "ring") && Finds(Found("Ring", Rarity.Magic), "ring") && Finds(sword, "resist"));
-            report.Check("A unique is both things it can be called", Finds(unique, "unique") && Finds(unique, "legendary"));
+            report.Check("A rarity is found by its name", Finds(unique, "unique") && !Finds(unique, "rare") && Finds(robe, "normal") && !Finds(robe, "magic"));
             report.Check("But not what it's worth, as everything has a price and \"gold\" would find the whole pack", !Finds(sword, "gold") && !Finds(ring, "sells") && !Finds(unique, "gold"));
             report.Check("And anything a player can read on a card", Cards.Item(sword, null, Cards.KindOf(sword)).Words().Where(word => word.Length > 0).All(word => ItemSearch.Finds(sword, ItemSearch.Words(word))));
         }

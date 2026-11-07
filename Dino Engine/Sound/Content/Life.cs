@@ -56,6 +56,142 @@ namespace Dino_Engine.Sound.Content
             Defaults = new[] { 1f },
         });
 
+        /// <summary>A few birds going up, and a flock doing it: wings are mostly what's heard of either, and a flock going off together is one of the sounds of being outdoors.</summary>
+        public static readonly SoundDefinition WingsFew = Wings("life.wings.few", 3, 0.9f, -31f);
+        public static readonly SoundDefinition WingsFlock = Wings("life.wings.flock", 9, 1.5f, -27f);
+
+        public static readonly SoundDefinition Caw = Call("life.caw", take =>
+        {
+            SoundRandom random = take.Random;
+            float at = 0f;
+            int caws = 2 + random.Int(3);
+            float pitch = random.Range(430f, 520f);
+            for (int i = 0; i < caws; i++)
+            {
+                float seconds = random.Range(0.2f, 0.3f);
+                var voice = new VoiceSettings
+                {
+                    Pitch = Curve.Points((0f, pitch * 1.12f), (seconds * 0.3f, pitch), (seconds, pitch * 0.74f)),
+                    Loudness = Curve.Hump(seconds * 0.16f, seconds, 1f, 0.7f),
+                    Tract = t => Vowel.Lerp(Vowel.Ae, Vowel.Ah, Math.Clamp(t / seconds, 0f, 1f)),
+                    Size = 0.56f,
+                    Breath = 0.3f,
+                    Rough = 0.92f,
+                    Tension = 0.92f,
+                };
+                take.Mix(Vocal.Utter(take, seconds + 0.03f, voice).Normalize(0f), at);
+                at += seconds + random.Range(0.13f, 0.28f);
+            }
+        }, -30f);
+
+        public static readonly SoundDefinition GullCry = Call("life.gull", take =>
+        {
+            SoundRandom random = take.Random;
+            float at = 0f;
+            int cries = 2 + random.Int(4);
+            float pitch = random.Range(1150f, 1450f);
+            for (int i = 0; i < cries; i++)
+            {
+                float seconds = random.Range(0.17f, 0.34f);
+                var voice = new VoiceSettings
+                {
+                    Pitch = Curve.Points((0f, pitch * 0.82f), (seconds * 0.28f, pitch), (seconds, pitch * 0.6f)),
+                    Loudness = Curve.Hump(seconds * 0.26f, seconds, 1f, 0.8f),
+                    Tract = t => Vowel.Lerp(Vowel.Ee, Vowel.Ah, Math.Clamp(t / seconds, 0f, 1f)),
+                    Size = 0.34f,
+                    Breath = 0.16f,
+                    Rough = 0.34f,
+                    Tension = 0.8f,
+                };
+                take.Mix(Vocal.Utter(take, seconds + 0.03f, voice).Normalize(0f), at);
+                at += seconds + random.Range(0.05f, 0.16f);
+            }
+        }, -31f);
+
+        /// <summary>Something small going into water: the surface breaking, and the one bubble of air it took down with it, which is what a plop is.</summary>
+        public static readonly SoundDefinition Plop = Call("life.plop", take =>
+        {
+            SoundRandom random = take.Random;
+            Signal cavity = take.Track(0.28f);
+            Liquid.Bubble(cavity, 0.012f, random.LogRange(0.0065f, 0.0105f), 1f, 0.3f);
+            take.Mix(cavity.Normalize(0f));
+            take.Mix(take.Pink(0.1f).Bandpass(Curve.Glide(2000f, 520f, 0.05f), 0.8f).Percussive(0.001f, 0.022f).Normalize(0f), 0f, -9f);
+        }, -29f);
+
+        private static SoundDefinition Call(string id, SoundRecipe recipe, float target)
+        {
+            return SoundCatalog.Add(new SoundDefinition(id, recipe)
+            {
+                Bus = SoundBus.Ambience,
+                Takes = 3,
+                PlaysPerTake = 2,
+                PitchSpread = 0.8f,
+                GainSpread = 2f,
+                NearDistance = 12f,
+                FarDistance = 95f,
+                ReverbSend = 0.36f,
+                Spacing = 0.2f,
+                MostAtOnce = 2,
+                Mastering = Mastering.Default with { Target = target, Stage = -8f },
+            });
+        }
+
+        // Each wing beat is a short rush of air through feathers, most of it between 500 Hz and 4 kHz, and each bird beats at its own pace and is further off with every beat. A pulse train
+        // sets how it goes, and noise is what it's made of, which is why it isn't a hiss: it's many small events, with nothing between them, which is what keeps wind in leaves from being one too.
+        private static SoundDefinition Wings(string id, int birds, float seconds, float target)
+        {
+            return SoundCatalog.Add(new SoundDefinition(id, take =>
+            {
+                SoundRandom random = take.Random;
+                Signal beats = take.Track(seconds);
+                float[] samples = beats.Samples;
+                for (int bird = 0; bird < birds; bird++)
+                {
+                    float time = random.Range(0f, 0.28f);
+                    float rate = random.Range(9f, 14f);
+                    float level = random.Range(0.5f, 1f);
+                    while (time < seconds)
+                    {
+                        float left = 1f - time / seconds;
+                        Beat(samples, time, level * left * left);
+                        time += random.Range(0.9f, 1.1f) / rate;
+                    }
+                }
+
+                take.Mix(take.White(seconds).Bandpass(1900f, 0.6f).Multiply(beats).Normalize(0f));
+                take.Mix(take.Pink(seconds).Bandpass(480f, 0.8f).Multiply(beats).Normalize(0f), 0f, -7f);
+
+                // The first stroke of a bird that's in a hurry claps its wings together over its back.
+                take.Mix(take.White(0.05f).Highpass(900f).Percussive(0.0008f, 0.011f).Normalize(0f), 0f, -10f);
+            })
+            {
+                Bus = SoundBus.Ambience,
+                Takes = 3,
+                PlaysPerTake = 2,
+                PitchSpread = 1.4f,
+                GainSpread = 2f,
+                NearDistance = 11f,
+                FarDistance = 80f,
+                ReverbSend = 0.22f,
+                Spacing = 0.2f,
+                MostAtOnce = 3,
+                Mastering = Mastering.Default with { Target = target, Stage = -9f },
+            });
+        }
+
+        private static void Beat(float[] samples, float at, float level)
+        {
+            const float Attack = 0.003f, Decay = 0.028f;
+            int start = (int)(at * AudioFormat.SampleRate);
+            int length = (int)((Attack + Decay * 4f) * AudioFormat.SampleRate);
+            for (int i = 0; i < length && start + i < samples.Length; i++)
+            {
+                float t = i * (1f / AudioFormat.SampleRate);
+                float shape = t < Attack ? t / Attack : MathF.Exp(-(t - Attack) / Decay);
+                samples[start + i] += shape * level;
+            }
+        }
+
         /// <summary>A far bell tolling, for whoever is near a church.</summary>
         public static readonly SoundDefinition ChurchBell = SoundCatalog.Add(new SoundDefinition("place.bell", take => take.Mix(Bells.Toll(take, take.Random.Pick(new[] { 146.83f, 164.81f, 130.81f }), 6f).Normalize(0f)))
         {

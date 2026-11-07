@@ -30,7 +30,10 @@ namespace Dino_BuildLab
             SkillShape(report);
 
             report.Section("Items");
+            EnemyRarities(report);
             Rolling(report);
+            Affixes(report);
+            Fixing(report);
             Uniques(report);
             Wires(report);
             GearChecks.Run(report);
@@ -317,9 +320,178 @@ namespace Dino_BuildLab
             }
             report.Check("40000 items roll sensibly, at every level", odd == 0 && unknown == 0, $"{odd} odd, {unknown} unknown");
             report.Check("Every affix turns up", seen.Count == AffixCatalog.All.Count, $"{seen.Count} of {AffixCatalog.All.Count}");
-            report.Note($"Common {rarity[0]}, magic {rarity[1]}, rare {rarity[2]}, unique {rarity[3]}");
+            report.Note($"Normal {rarity[0]}, magic {rarity[1]}, rare {rarity[2]}, unique {rarity[3]}");
             report.Check("Rarities come out in order, with uniques scarce", rarity[0] > rarity[1] && rarity[1] > rarity[2] && rarity[2] > rarity[3] && rarity[3] is > 0 and < 1000);
         }
+
+        // What a rarity is and where a stat can go are the rules of the whole game's loot, so these read the tables from outside rather than asking the generator what it meant.
+        private static void Affixes(Report report)
+        {
+            report.Check("There are four rarities and no others", Enum.GetNames<Rarity>().SequenceEqual(new[] { "Normal", "Magic", "Rare", "Unique" }), string.Join(", ", Enum.GetNames<Rarity>()));
+
+            List<Stat> onNeither = Enum.GetValues<Stat>().Where(stat => stat != Stat.Count && StatSides.Defensive.Contains(stat) == StatSides.Offensive.Contains(stat)).ToList();
+            report.Check("Every stat is a prefix's or a suffix's, and never both", onNeither.Count == 0, string.Join(", ", onNeither));
+
+            List<string> wrongSide = AffixCatalog.All.Where(affix => affix.Build(1f).Any(mod => (affix.Prefix ? StatSides.Offensive : StatSides.Defensive).Contains(mod.Stat))).Select(affix => affix.Id).ToList();
+            report.Check("A prefix is always defensive and a suffix always offensive", wrongSide.Count == 0, string.Join(", ", wrongSide));
+            report.Check("And each reads as what it is", AffixCatalog.All.All(affix => affix.Names.All(name => name.StartsWith("of ") != affix.Prefix)));
+
+            ItemSlot[] slots = Enum.GetValues<ItemSlot>().Where(slot => slot < ItemSlot.Book).ToArray();
+            int most = AffixCatalog.PerSide(Rarity.Rare);
+            foreach (ItemSlot slot in slots)
+            {
+                bool Has(bool prefix) => AffixCatalog.All.Count(affix => affix.Prefix == prefix && affix.Slots.Contains(slot) && affix.Tiers[0].MinLevel <= 1) >= most;
+                report.Check($"{slot} has enough of each to be rare at the first level", Has(true) && Has(false));
+            }
+
+            report.Check("Nothing can roll everywhere", AffixCatalog.All.All(affix => affix.Slots.Length < slots.Length), string.Join(", ", AffixCatalog.All.Where(affix => affix.Slots.Length >= slots.Length).Select(affix => affix.Id)));
+            report.Check("Everything can roll somewhere", AffixCatalog.All.All(affix => affix.Slots.Length > 0 && affix.Slots.All(slot => slots.Contains(slot))));
+            report.Check("Some stats go on several slots", AffixCatalog.All.Count(affix => affix.Slots.Length > 1) >= AffixCatalog.All.Count / 2);
+            string PoolOf(ItemSlot slot) => string.Join(",", AffixCatalog.All.Where(affix => affix.Slots.Contains(slot)).Select(affix => affix.Id));
+            report.Check("No two slots roll the same things", slots.Select(PoolOf).Distinct().Count() == slots.Length);
+
+            bool OnlyOn(ItemSlot slot, params Stat[] stats) => AffixCatalog.All.Where(affix => affix.Build(1f).Any(mod => stats.Contains(mod.Stat))).All(affix => affix.Slots.SequenceEqual(new[] { slot }));
+            report.Check("Resistances are for rings", OnlyOn(ItemSlot.Finger, Stat.Resistance));
+            report.Check("Movement speed is for boots", OnlyOn(ItemSlot.Feet, Stat.MoveSpeed));
+            report.Check("Attack speed is for gloves", OnlyOn(ItemSlot.Hands, Stat.AttackSpeed));
+
+            var random = new WorldRandom(101);
+            int wrongCount = 0, wrongPlace = 0, unnamed = 0, rolled = 0;
+            foreach (Rarity rarity in new[] { Rarity.Normal, Rarity.Magic, Rarity.Rare })
+            {
+                foreach (ItemSlot slot in slots)
+                {
+                    for (int level = 1; level <= 60; level++)
+                    {
+                        for (int i = 0; i < 5; i++)
+                        {
+                            Item item = ItemGenerator.Forge(level, random.Fork(rolled++), rarity, i * 0.25f, slot);
+                            List<Affix> lines = item.Lines.Select(line => AffixCatalog.Find(line.Affix)!).ToList();
+                            int each = rarity switch { Rarity.Magic => 1, Rarity.Rare => 2, _ => 0 };
+                            if (item.Rarity != rarity || lines.Count(affix => affix.Prefix) != each || lines.Count(affix => !affix.Prefix) != each) wrongCount++;
+                            if (lines.Distinct().Count() != lines.Count || lines.Any(affix => !affix.Slots.Contains(slot))) wrongPlace++;
+                            if (lines.Select(affix => affix.Prefix).SkipWhile(prefix => prefix).Any(prefix => prefix)) wrongPlace++;
+                            if (each > 0 && (!item.Name.Contains(" of ") || !item.Name.EndsWith(lines.First(affix => !affix.Prefix).Names.First(name => item.Name.EndsWith(name))))) unnamed++;
+                        }
+                    }
+                }
+            }
+            report.Check($"{rolled} items, at every level on every slot: nothing on Normal, one of each on Magic, two of each on Rare", wrongCount == 0, $"{wrongCount}");
+            report.Check("Each line once, on a slot that can have it, prefixes first", wrongPlace == 0, $"{wrongPlace}");
+            report.Check("Named by what they are", unnamed == 0, $"{unnamed}");
+
+            int bought = 0;
+            for (int i = 0; i < 4000; i++)
+            {
+                Item item = ItemGenerator.Roll(1 + i % 60, random.Fork(rolled + i), 0.4f);
+                if (item.Unique == null && item.Lines.Count != AffixCatalog.PerSide(item.Rarity) * 2) bought++;
+            }
+            report.Check("What a merchant or a boss rolls is the same", bought == 0, $"{bought}");
+            report.Check("A Unique has nothing rolled on it", UniqueCatalog.All.All(unique => UniqueCatalog.Make(unique, 30, random.Fork(1)).Lines.Count == 0));
+            report.Check("A Unique can be anything on anything, and nothing stops it having what no affix gives", UniqueCatalog.All.All(unique => UniqueCatalog.Make(unique, 30, random.Fork(1)).Rarity == Rarity.Unique));
+        }
+
+        private static void Fixing(Report report)
+        {
+            var random = new WorldRandom(102);
+            static int Side(Item item, bool prefix) => item.Lines.Count(line => AffixCatalog.Find(line.Affix)!.Prefix == prefix);
+            static string Written(Item item) => item.Name + string.Join(",", item.Lines.Select(line => $"{line.Affix}={line.Value}"));
+
+            int moved = 0;
+            for (int i = 0; i < 3000; i++)
+            {
+                Item item = ItemGenerator.Roll(1 + i % 60, random.Fork(i));
+                string before = Written(item);
+                ItemGenerator.Fix(item);
+                if (Written(item) != before) moved++;
+            }
+            report.Check("Anything rolled by these rules comes through a fix untouched", moved == 0, $"{moved}");
+
+            var old = new Item { Name = "Keen Ring of Haste", Base = "Ring", Rarity = Rarity.Rare, Slot = ItemSlot.Finger, Level = 20, Seed = 5 };
+            foreach (string id in new[] { "move-speed", "health", "attack-speed", "added-fire", "added-cold", "added-lightning", "fire-resistance", "fire-resistance", "not-an-affix" }) old.Lines.Add(new ItemLine(id, 9f));
+            Item twin = new Item { Name = old.Name, Base = old.Base, Rarity = old.Rarity, Slot = old.Slot, Level = old.Level, Seed = old.Seed, Lines = old.Lines.Select(line => new ItemLine(line.Affix, line.Value)).ToList() };
+            ItemGenerator.Fix(old);
+            ItemGenerator.Fix(twin);
+            string once = Written(old);
+            ItemGenerator.Fix(old);
+
+            report.Check("A rare from before this is a rare within the rules", old.Rarity == Rarity.Rare && Side(old, true) == 2 && Side(old, false) == 2 && old.Lines.All(line => AffixCatalog.Find(line.Affix)!.Slots.Contains(ItemSlot.Finger)), string.Join(", ", old.Lines.Select(line => line.Affix)));
+            report.Check("What could stay did, and once only", old.Lines.Count(line => line.Affix == "fire-resistance" && line.Value == 9f) == 1 && old.Lines.Any(line => line.Affix == "added-fire") && old.Lines.Any(line => line.Affix == "added-cold") && !old.Lines.Any(line => line.Affix == "added-lightning"));
+            report.Check("Comes out the same every time", Written(old) == Written(twin) && Written(old) == once);
+            report.Check("And is called what it now is", old.Name.Contains("Ring") && !old.Name.Contains("Haste") && !old.Name.Contains("Keen"), old.Name);
+
+            var plain = new Item { Name = "Ring", Base = "Ring", Rarity = Rarity.Normal, Slot = ItemSlot.Finger, Level = 5, Lines = { new ItemLine("gold-find", 9f) } };
+            ItemGenerator.Fix(plain);
+            report.Check("Nothing normal keeps a line", plain.Lines.Count == 0 && plain.Name == "Ring");
+
+            var noSuch = new Item { Name = "Gone", Base = "Ring", Rarity = Rarity.Unique, Slot = ItemSlot.Finger, Level = 5, Unique = "not-a-unique" };
+            ItemGenerator.Fix(noSuch);
+            report.Check("Nothing says it's unique unless it really is", noSuch.Rarity == Rarity.Rare && noSuch.Unique == null && noSuch.Lines.Count == 4);
+
+            Item real = UniqueCatalog.Make(UniqueCatalog.All[0], 20, random.Fork(9000));
+            real.Lines.Add(new ItemLine("move-speed", 9f));
+            string asItWas = Written(real);
+            ItemGenerator.Fix(real);
+            report.Check("But a real unique answers to none of this", Written(real) == asItWas && real.Rarity == Rarity.Unique);
+
+            var fabled = new Item { Name = "Fabled Trigger Book", Slot = ItemSlot.Book, Rarity = Rarity.Unique, Level = 5, Held = new Item?[6] };
+            var masterful = new Item { Name = "Masterful Area Page", Slot = ItemSlot.Page, Rarity = Rarity.Rare, Level = 5, Held = new Item?[4] };
+            ItemGenerator.Fix(fabled);
+            ItemGenerator.Fix(masterful);
+            report.Check("What used to be better than rare in a Book is rare, and keeps its places", fabled.Rarity == Rarity.Rare && fabled.Places == 6 && masterful.Places == 4);
+            report.Check("And has no word for what's gone", fabled.Name == "Gilded Trigger Book" && masterful.Name == "Gilded Area Page", $"{fabled.Name}, {masterful.Name}");
+
+            SaveGame? save = SaveGame.Read(BeforeAffixes);
+            report.Check("A save from before the four rarities loads", save != null);
+            if (save == null) return;
+
+            Item[] carried = save.Hero.Carried().ToArray();
+            Item page = save.Hero.Bar[0]!.Held![0]!;
+            report.Check("Every word that's gone means what it did, however deep", carried[0].Rarity == Rarity.Normal && carried[1].Rarity == Rarity.Unique && save.Hero.Bar[0]!.Rarity == Rarity.Normal && page.Rarity == Rarity.Rare && page.Held![0]!.Rarity == Rarity.Rare, $"{page.Rarity}, {page.Held?[0]?.Rarity}");
+            report.Check("A six line rare is a four line rare", carried[2].Lines.Count == 4 && Side(carried[2], true) == 2 && Side(carried[2], false) == 2, string.Join(", ", carried[2].Lines.Select(line => line.Affix)));
+            report.Check("It knows it's up to date", save.Version == SaveGame.CurrentVersion);
+
+            string path = Path.Combine(Path.GetTempPath(), $"buildlab-affixes-{Environment.ProcessId}.json");
+            File.WriteAllText(path, BeforeAffixes);
+            SaveGame.PathOverride = path;
+            SaveGame? loaded = SaveGame.Load();
+            bool kept = File.Exists(path + ".before-affixes") && File.ReadAllText(path + ".before-affixes") == BeforeAffixes;
+            loaded?.Store();
+            string written = File.ReadAllText(path);
+            SaveGame? again = SaveGame.Load();
+            File.Delete(path + ".before-affixes");
+            File.Delete(path);
+            SaveGame.PathOverride = null;
+
+            report.Check("Bringing it up to date keeps a copy of how it was", kept);
+            report.Check("And what's written back has no word that's gone", !written.Contains("\"Common\"") && !written.Contains("\"Legendary\""));
+            report.Check("Which comes back the same", again != null && Same(loaded!.Hero, again.Hero));
+        }
+
+        // As saved by 0.1.10: rarities by their old names, a masterwork, and a book with what's better than rare inside it.
+        private const string BeforeAffixes = """
+            {
+              "Version": 7,
+              "Hero": {
+                "Level": 30, "Gold": 20, "Talents": [],
+                "Bar": [ { "Name": "Worn Book", "Slot": "Book", "Rarity": "Common", "Level": 1, "Seed": 7, "Lines": [],
+                           "Held": [ { "Name": "Fabled Area Page", "Slot": "Page", "Rarity": "Legendary", "Level": 9, "Seed": 8, "Lines": [],
+                                       "Page": { "Kind": "Area" },
+                                       "Held": [ { "Name": "Sticker of Might", "Slot": "Sticker", "Rarity": "Legendary", "Level": 9, "Seed": 9, "Lines": [],
+                                                   "Sticker": { "Good": "Potency", "GoodBy": 30, "Bad": "Cost", "BadBy": 10 } } ] } ] },
+                         null, null, null, null, null ],
+                "Inventory": [
+                  { "Name": "Longsword", "Base": "Longsword", "Slot": "MainHand", "Rarity": "Common", "Level": 9, "Seed": 10, "WeaponDamage": 20, "Lines": [] },
+                  { "Name": "Two Coins", "Base": "Ring", "Slot": "Finger", "Rarity": "Legendary", "Level": 6, "Seed": 11, "Lines": [], "Unique": "two-coins" },
+                  { "Name": "Sharp Plate Harness of the Ox", "Base": "Plate Harness", "Slot": "Body", "Rarity": "Rare", "Level": 30, "Seed": 12, "Armour": 40, "Lines": [
+                    { "Affix": "damage", "Value": 40 }, { "Affix": "armour", "Value": 30 }, { "Affix": "armour-percent", "Value": 30 }, { "Affix": "health", "Value": 90 },
+                    { "Affix": "strength", "Value": 20 }, { "Affix": "fire-resistance", "Value": 20 } ] }
+                ],
+                "Equipped": { }
+              },
+              "WorldSeed": 7, "WorldLevel": 3
+            }
+            """;
 
         private static void Uniques(Report report)
         {
@@ -334,8 +506,34 @@ namespace Dino_BuildLab
                 report.Check($"There's a unique for {slot}", UniqueCatalog.All.Any(u => ItemGenerator.Plain(u.Base, 1, random).Slot == slot));
             }
 
-            int changing = UniqueCatalog.All.Count(u => u.Mods.Any(m => m.Kind is ModKind.Rule or ModKind.Grant or ModKind.Divert or ModKind.Trigger || m.Stat == Stat.Convert || (m.Scope & (Tags.Opening | Tags.Turned | Tags.Closing | Tags.Wild | Tags.Falling)) != 0 || m.Per != Per.None || m.Need != Condition.None));
-            report.Check("Most of them change how a hero plays, rather than only adding to it", changing * 4 >= UniqueCatalog.All.Count * 3, $"{changing} of {UniqueCatalog.All.Count}");
+            // Truly one of a kind: something on it that nothing else worn can do, which no affix can roll and no other unique has.
+            var rollable = new HashSet<Stat>(AffixCatalog.All.SelectMany(affix => affix.Build(1f)).Where(mod => mod.Kind != ModKind.Rule).Select(mod => mod.Stat));
+            var holders = new Dictionary<string, int>();
+            foreach (string mechanic in UniqueCatalog.All.SelectMany(u => u.Mods.SelectMany(Mechanics).Distinct())) holders[mechanic] = holders.GetValueOrDefault(mechanic) + 1;
+            List<string> ordinary = UniqueCatalog.All.Where(u => !u.Mods.SelectMany(Mechanics).Any(mechanic => holders[mechanic] == 1)).Select(u => u.Id).ToList();
+            report.Check("Each one does something no other item can", ordinary.Count == 0, string.Join(", ", ordinary));
+
+            IEnumerable<string> Mechanics(Mod mod)
+            {
+                switch (mod.Kind)
+                {
+                    case ModKind.Rule:
+                        foreach (Rule rule in Enum.GetValues<Rule>().Where(rule => rule != Rule.None && mod.Rule.HasFlag(rule))) yield return rule.ToString();
+                        yield break;
+                    case ModKind.Grant:
+                        yield return $"Grant {mod.Grants}";
+                        yield break;
+                    case ModKind.Divert or ModKind.Echo:
+                        yield return $"{mod.Kind} {mod.Stat} {mod.Into}";
+                        yield break;
+                    case ModKind.Trigger:
+                        yield return $"{mod.On} {mod.Book}";
+                        yield break;
+                }
+
+                bool narrowed = mod.Per != Per.None || mod.Need != Condition.None || mod.Foe != Condition.None || (mod.Scope & (Tags.Opening | Tags.Turned | Tags.Closing | Tags.Wild | Tags.Falling)) != 0;
+                if (narrowed || mod.Kind == ModKind.Override || !rollable.Contains(mod.Stat)) yield return $"{mod.Stat} {mod.Kind} {mod.Scope} {mod.From} {mod.To} {mod.Need} {mod.Foe} {mod.Per}";
+            }
 
             Item shell = UniqueCatalog.Make(UniqueCatalog.Find("drowned-king")!, 20, random);
             var hero = HeroState.CreateNew();
@@ -450,6 +648,76 @@ namespace Dino_BuildLab
             }
             """;
 
+        // An enemy's rarity is the same four as an item's, and means the same thing: how much more there is to it.
+        private static void EnemyRarities(Report report)
+        {
+            report.Section("Enemy rarity");
+
+            Rarity[] rarities = Enum.GetValues<Rarity>();
+            EnemyPower[] powers = rarities.Select(Bestiary.PowerOf).ToArray();
+            bool climbing = true;
+            for (int i = 1; i < powers.Length; i++) climbing &= powers[i].Health > powers[i - 1].Health && powers[i].Damage > powers[i - 1].Damage && powers[i].Traits > powers[i - 1].Traits && powers[i].Scale > powers[i - 1].Scale;
+            report.Check("Each rarity is harder to kill, hits harder, is bigger and does more than the last", climbing);
+            report.Check("Nothing normal has any traits", powers[0].Traits == 0 && powers[0].Health == 1f && powers[0].Damage == 1f);
+
+            var random = new WorldRandom(201);
+            int wrong = 0;
+            foreach (Rarity rarity in rarities)
+            {
+                for (int i = 0; i < 400; i++)
+                {
+                    int traits = Bestiary.Fill(Bestiary.NoTraits, rarity, random.Fork(i));
+                    if (Bestiary.TraitsOf(traits).Count() != Bestiary.PowerOf(rarity).Traits) wrong++;
+                }
+            }
+            report.Check("Each comes out with exactly as many traits as it should", wrong == 0, $"{wrong}");
+            int shared = Bestiary.Fill(Bestiary.Trait(3), Rarity.Rare, random.Fork("shared"));
+            report.Check("A leader keeps the trait it shares with its pack", (shared & Bestiary.Trait(3)) != 0 && Bestiary.TraitsOf(shared).Count() == 2);
+
+            List<string> idle = Bestiary.Traits.Where(trait => trait.Book.First.From is not (Start.You or Start.Cursor)).Select(trait => trait.Name).ToList();
+            report.Check("Everything a trait gives starts from them or from where they're aiming", idle.Count == 0, string.Join(", ", idle));
+            ActorSheet plain = new Loadout(20, new WeaponProfile(10f, 10f, 0.6f, 0f, Tags.Sword), new[] { Flat(Stat.Health, 100f), Flat(Stat.Mana, 1000f) }, Bestiary.Traits.Select(trait => trait.Book).Distinct()).SheetFor(Condition.None);
+            List<string> unusable = Enumerable.Range(0, Bestiary.Traits.Select(trait => trait.Book).Distinct().Count()).Select(i => plain.Profile(i)).Where(book => (book.First.Tags & Tags.Triggered) != 0 || book.Sign.Form is PageForm.Buff or PageForm.Summon or PageForm.Leap).Select(book => book.Book.Name).ToList();
+            report.Check("And is something an enemy will really do", unusable.Count == 0, string.Join(", ", unusable));
+            report.Check("Each trait gives something different", Bestiary.Traits.Select(trait => trait.Book).Distinct().Count() == Bestiary.Traits.Length);
+
+            var bestiary = new Bestiary();
+            int Books(Rarity rarity, int traits) => bestiary.Shared(Bestiary.Outlaw, 10, rarity, traits).Books.Length;
+            int swift = Bestiary.Trait(Array.FindIndex(Bestiary.Traits, trait => trait.Name == "Swift"));
+            int burning = Bestiary.Trait(Array.FindIndex(Bestiary.Traits, trait => trait.Name == "Burning"));
+            report.Check("The more traits, the more it can do", Books(Rarity.Normal, 0) < Books(Rarity.Magic, swift) && Books(Rarity.Magic, swift) < Books(Rarity.Rare, swift | burning));
+            report.Check("What a trait gave it comes first, and is counted", bestiary.Shared(Bestiary.Outlaw, 10, Rarity.Magic, swift).Books[0] == Shelf.Knives && Bestiary.AbilitiesOf(Bestiary.Outlaw, swift) == 1);
+            int fearsome = Bestiary.Trait(Array.FindIndex(Bestiary.Traits, trait => trait.Name == "Fearsome"));
+            report.Check("What it could already do isn't a new thing to do", Bestiary.AbilitiesOf(Bestiary.Brute, fearsome) == 0 && bestiary.Shared(Bestiary.Brute, 10, Rarity.Magic, fearsome).Books.Length == Bestiary.Brute.Books.Length);
+            report.Check("Two of one kind and rarity with different traits don't share numbers", !ReferenceEquals(bestiary.Shared(Bestiary.Outlaw, 10, Rarity.Magic, swift), bestiary.Shared(Bestiary.Outlaw, 10, Rarity.Magic, burning)));
+            report.Check("A name says all of what it is", Bestiary.NameOf(Bestiary.Outlaw, burning | swift) == "Burning Swift Outlaw" && Bestiary.NameOf(Bestiary.Outlaw, Bestiary.NoTraits) == "Outlaw");
+
+            ActorSheet Sheet(Rarity rarity) => bestiary.Shared(Bestiary.Outlaw, 10, rarity, Bestiary.NoTraits).SheetFor(Condition.None);
+            report.Check("Rarity reaches the sheet", Sheet(Rarity.Magic).MaxHealth > Sheet(Rarity.Normal).MaxHealth && Sheet(Rarity.Rare).MaxHealth > Sheet(Rarity.Magic).MaxHealth);
+
+            Loadout boss = Bestiary.Boss(Bestiary.Warlord, 12, swift | burning, new WorldRandom(4), out _, out _);
+            report.Check("A boss can do what its traits give it as well", boss.Books.Length == Bestiary.Warlord.Books.Length + 2 && boss.Books[0] != Shelf.Whirl);
+
+            bool apart = true;
+            foreach (Rarity rarity in rarities)
+            {
+                var one = new Dino_Defenders.UI.InterfaceSettings { NormalMarks = rarity == Rarity.Normal, MagicMarks = rarity == Rarity.Magic, RareMarks = rarity == Rarity.Rare, UniqueMarks = rarity == Rarity.Unique };
+                apart &= rarities.All(other => one.Marks(other) == (other == rarity));
+            }
+            report.Check("Each rarity's marks go by its own setting and nobody else's", apart);
+
+            var settings = new Dino_Defenders.UI.InterfaceSettings();
+            report.Check("Normal enemies' attacks aren't marked until a player asks", !settings.Marks(Rarity.Normal) && settings.Marks(Rarity.Magic) && settings.Marks(Rarity.Rare) && settings.Marks(Rarity.Unique));
+            settings.NormalMarks = true;
+            settings.UniqueMarks = false;
+            report.Check("Each is a setting of its own", settings.Marks(Rarity.Normal) && settings.Marks(Rarity.Magic) && !settings.Marks(Rarity.Unique));
+            string kept = System.Text.Json.JsonSerializer.Serialize(settings);
+            var back = System.Text.Json.JsonSerializer.Deserialize<Dino_Defenders.UI.InterfaceSettings>(kept)!;
+            report.Check("And is kept", back.Marks(Rarity.Normal) && !back.Marks(Rarity.Unique));
+            var older = System.Text.Json.JsonSerializer.Deserialize<Dino_Defenders.UI.InterfaceSettings>("{ \"PoolsOverHero\": false }")!;
+            report.Check("Settings from before this have the same start as anyone", !older.PoolsOverHero && !older.Marks(Rarity.Normal) && older.Marks(Rarity.Rare));
+        }
+
         private static void PackContent(Report report)
         {
             report.Section("Packs");
@@ -485,13 +753,18 @@ namespace Dino_BuildLab
             report.Check("A sword someone edited by hand stays as it was", hero.Equipped[WornSlot.MainHand].WeaponDamage == 700f);
 
             Item hood = hero.Inventory[0]!;
-            report.Check("Item lines come across, value for value", hood.Lines.Count == 2 && hood.Lines[0].Affix == "armour" && MathF.Abs(hood.Lines[0].Value - 4.534136f) < 1e-4f && hood.Lines[1].Affix == "health");
-            report.Check("Every old stat has somewhere to go", hero.Inventory[1]!.Lines.Count == 10 && hero.Inventory[1]!.Lines.All(l => AffixCatalog.Find(l.Affix) != null));
+            report.Check("Item lines come across, value for value", hood.Lines.Count == 2 && hood.Lines[0].Affix == "armour" && MathF.Abs(hood.Lines[0].Value - 4.534136f) < 1e-4f);
+            report.Check("With no second prefix on something magic, and a suffix to make up for it", !AffixCatalog.Find(hood.Lines[1].Affix)!.Prefix, hood.Lines[1].Affix);
 
-            ActorSheet sheet = HeroBuild.Compile(hero).SheetFor(Condition.None);
-            hero.Equip(1);
-            ActorSheet ringed = HeroBuild.Compile(hero).SheetFor(Condition.None);
+            // Nothing rolled can have ten lines any more. A unique can have anything, which is the way to see all of them come across.
+            HeroState untouched = SaveGame.Read(OldSave.Replace("\"Name\": \"Ring of Everything\",", "\"Name\": \"Ring of Everything\", \"Unique\": \"two-coins\","))!.Hero;
+            report.Check("Every old stat has somewhere to go", untouched.Inventory[1]!.Lines.Count == 10 && untouched.Inventory[1]!.Lines.All(l => AffixCatalog.Find(l.Affix) != null));
+
+            ActorSheet sheet = HeroBuild.Compile(untouched).SheetFor(Condition.None);
+            untouched.Equip(1);
+            ActorSheet ringed = HeroBuild.Compile(untouched).SheetFor(Condition.None);
             report.Check("And mean what they meant", ringed.MoveSpeed > sheet.MoveSpeed && ringed.HealthRegen > sheet.HealthRegen && ringed.ItemRarity == 12f && ringed.GoldFind == 30f && ringed.Preview(Shelf.Strike).First.AverageHit > sheet.Preview(Shelf.Strike).First.AverageHit);
+            report.Check("An old ring of everything is a rare ring of what a ring can have", hero.Inventory[1]!.Rarity == Rarity.Rare && hero.Inventory[1]!.Lines.Count == 4 && hero.Inventory[1]!.Lines.Any(l => l.Affix == "gold-find" && l.Value == 30f), string.Join(", ", hero.Inventory[1]!.Lines.Select(l => l.Affix)));
             report.Check("A hero from before books has one on the bar, and it's the plain one", hero.Bar[0] is { IsBook: true } && hero.Bar.Skip(1).All(s => s == null));
 
             string path = Path.Combine(Path.GetTempPath(), $"buildlab-old-{Environment.ProcessId}.json");
@@ -523,7 +796,7 @@ namespace Dino_BuildLab
 
             string? damaged = OldSave.Replace("\"Stat\": \"Armour\"", "\"Stat\": \"SomethingWeNeverHad\"");
             SaveGame? survived = SaveGame.Read(damaged);
-            report.Check("A stat nobody has heard of costs a line, not the hero", survived != null && survived.Hero.Inventory[0]!.Lines.Count == 1);
+            report.Check("A stat nobody has heard of costs a line, not the hero", survived != null && survived.Hero.Inventory[0]!.Lines[0].Affix == "health");
 
             string? folder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string backups = Path.Combine(folder, "DinoDefenders", "backups");
@@ -563,18 +836,18 @@ namespace Dino_BuildLab
             report.Check("The same modifiers on either side deal the same blow and take it the same way", Blow(hero, enemy) == Blow(enemy, hero), $"{Blow(hero, enemy)} and {Blow(enemy, hero)}");
 
             var bestiary = new Bestiary();
-            Loadout first = bestiary.Shared(Bestiary.Outlaw, 5, Dino_Defenders.Gameplay.EnemyRank.Normal, Bestiary.NoTrait);
-            Loadout second = bestiary.Shared(Bestiary.Outlaw, 5, Dino_Defenders.Gameplay.EnemyRank.Normal, Bestiary.NoTrait);
+            Loadout first = bestiary.Shared(Bestiary.Outlaw, 5, Rarity.Normal, Bestiary.NoTraits);
+            Loadout second = bestiary.Shared(Bestiary.Outlaw, 5, Rarity.Normal, Bestiary.NoTraits);
             report.Check("Enemies of a kind share one set of numbers", ReferenceEquals(first, second) && ReferenceEquals(first.SheetFor(Condition.None), second.SheetFor(Condition.Burning)));
 
-            Loadout boss = Bestiary.Boss(Bestiary.Warlord, 12, new WorldRandom(4), out Item[] gear, out string? title);
+            Loadout boss = Bestiary.Boss(Bestiary.Warlord, 12, Bestiary.NoTraits, new WorldRandom(4), out Item[] gear, out string? title);
             report.Check("A boss wears real gear, and walks the real tree", gear.Length > 0 && title != null, $"{gear.Length} items, {title}");
             report.Note($"This one: {title}, wearing {string.Join(", ", gear.Select(g => g.Name))}");
 
             int uniques = 0;
             for (int i = 0; i < 400; i++)
             {
-                Bestiary.Boss(Bestiary.Warlord, 20, new WorldRandom(i), out Item[] worn, out _);
+                Bestiary.Boss(Bestiary.Warlord, 20, Bestiary.NoTraits, new WorldRandom(i), out Item[] worn, out _);
                 if (worn.Any(g => g.Unique != null)) uniques++;
             }
             report.Check("A good share of them are wearing something unique", uniques is > 80 and < 360, $"{uniques} of 400");

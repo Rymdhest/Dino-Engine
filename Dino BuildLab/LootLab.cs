@@ -16,24 +16,23 @@ namespace Dino_BuildLab
         // What a world is made of, roughly, by what stands in it: most of a pack is fodder. `Dino NetLab pace` kills a good part of this at the speed a plain hero does.
         internal static readonly (LootTier tier, int count)[] World =
         {
-            (LootTier.Fodder, 900), (LootTier.Soldier, 200), (LootTier.Champion, 80), (LootTier.Elite, 20), (LootTier.Boss, 1),
+            (LootTier.Fodder, 900), (LootTier.Soldier, 200), (LootTier.Champion, 60), (LootTier.Magic, 70), (LootTier.Rare, 20), (LootTier.Boss, 1),
             (LootTier.Cache, 30), (LootTier.Chest, 8), (LootTier.Hoard, 1),
         };
 
-        private readonly record struct Tally(float Finds, float[] Grades, float Lines, float LineShare, float Worth, float Level);
+        private readonly record struct Tally(float Finds, float[] Rarities, float Lines, float LineShare, float Worth, float Level);
 
-        // What one find is worth, on a scale where each grade is several of the last: this is what "much better" has to mean, in one number.
+        // What one find is worth, on a scale where each rarity is several of the last: this is what "much better" has to mean, in one number.
         internal static float WorthOf(Item item)
         {
-            float grade = Loot.GradeOf(item) switch
+            float rarity = item.Rarity switch
             {
-                LootGrade.Legendary => 80f,
-                LootGrade.Masterwork => 30f,
-                LootGrade.Rare => 8f,
-                LootGrade.Magic => 2f,
+                Rarity.Unique => 80f,
+                Rarity.Rare => 8f,
+                Rarity.Magic => 2f,
                 _ => 0.25f,
             };
-            return grade * (1f + 0.5f * Shares(item)) * (1f + item.Level * 0.02f);
+            return rarity * (1f + 0.5f * Shares(item)) * (1f + item.Level * 0.02f);
         }
 
         // How far up what its level can reach an item's lines came out, from 0 to 1.
@@ -57,7 +56,7 @@ namespace Dino_BuildLab
         private static Tally Measure(LootTier tier, int level, int rolls, ulong seed)
         {
             var random = new WorldRandom(seed);
-            var grades = new float[Enum.GetValues<LootGrade>().Length];
+            var rarities = new float[Enum.GetValues<Rarity>().Length];
             double finds = 0, lines = 0, share = 0, worth = 0, levels = 0, rated = 0;
             for (int i = 0; i < rolls; i++)
             {
@@ -65,7 +64,7 @@ namespace Dino_BuildLab
                 foreach (Item item in Loot.Roll(tier, level, level, 0f, new LootLuck(), random.Fork(i)))
                 {
                     finds++;
-                    grades[(int)Loot.GradeOf(item)]++;
+                    rarities[(int)item.Rarity]++;
                     worth += WorthOf(item);
                     levels += item.Level;
                     if (item.Lines.Count == 0) continue;
@@ -75,24 +74,24 @@ namespace Dino_BuildLab
                 }
             }
 
-            for (int i = 0; i < grades.Length; i++) grades[i] /= rolls;
-            return new Tally((float)(finds / rolls), grades, (float)(lines / Math.Max(rated, 1)), (float)(share / Math.Max(rated, 1)), (float)(worth / rolls), (float)(levels / Math.Max(finds, 1)));
+            for (int i = 0; i < rarities.Length; i++) rarities[i] /= rolls;
+            return new Tally((float)(finds / rolls), rarities, (float)(lines / Math.Max(rated, 1)), (float)(share / Math.Max(rated, 1)), (float)(worth / rolls), (float)(levels / Math.Max(finds, 1)));
         }
 
         public static int Run(Options options)
         {
             int level = options.Int("level", 12);
             Console.WriteLine($"What one of each gives at level {level}, over {Rolls} of them\n");
-            Console.WriteLine("tier        finds   plain   magic    rare  master  legend   lines  rolled   level     worth");
+            Console.WriteLine("tier        finds  normal   magic    rare  unique   lines  rolled   level     worth");
             foreach (LootTier tier in Enum.GetValues<LootTier>())
             {
                 Tally t = Measure(tier, level, tier is LootTier.Boss or LootTier.Hoard ? Rolls / 10 : Rolls, 1);
-                Console.WriteLine($"{tier,-9} {t.Finds,7:0.000} {t.Grades[0],7:0.0000} {t.Grades[1],7:0.0000} {t.Grades[2],7:0.0000} {t.Grades[3],7:0.0000} {t.Grades[4],7:0.0000} {t.Lines,7:0.00} {t.LineShare,6:0%} {t.Level,7:0.0} {t.Worth,9:0.000}");
+                Console.WriteLine($"{tier,-9} {t.Finds,7:0.000} {t.Rarities[0],7:0.0000} {t.Rarities[1],7:0.0000} {t.Rarities[2],7:0.0000} {t.Rarities[3],7:0.0000} {t.Lines,7:0.00} {t.LineShare,6:0%} {t.Level,7:0.0} {t.Worth,9:0.000}");
             }
 
             var world = new WorldRandom(7);
             const int Worlds = 400;
-            var grades = new double[Enum.GetValues<LootGrade>().Length];
+            var rarities = new double[Enum.GetValues<Rarity>().Length];
             for (int w = 0; w < Worlds; w++)
             {
                 var luck = new LootLuck();
@@ -100,43 +99,43 @@ namespace Dino_BuildLab
                 {
                     for (int i = 0; i < count; i++)
                     {
-                        foreach (Item item in Loot.Roll(tier, level, level, 0f, luck, world.Fork(w * 4096 + i))) grades[(int)Loot.GradeOf(item)]++;
+                        foreach (Item item in Loot.Roll(tier, level, level, 0f, luck, world.Fork(w * 4096 + i))) rarities[(int)item.Rarity]++;
                     }
                 }
             }
 
-            Console.WriteLine($"\nA whole world cleared, on average: {grades[0] / Worlds:0.0} plain, {grades[1] / Worlds:0.0} magic, {grades[2] / Worlds:0.0} rare, {grades[3] / Worlds:0.0} masterwork, {grades[4] / Worlds:0.0} legendary.");
+            Console.WriteLine($"\nA whole world cleared, on average: {rarities[0] / Worlds:0.0} normal, {rarities[1] / Worlds:0.0} magic, {rarities[2] / Worlds:0.0} rare, {rarities[3] / Worlds:0.0} unique.");
 
-            (int kills, int rare, int legendary) = Droughts(level, 1000000, 3);
-            Console.WriteLine($"The longest anyone went, in a million kills of what packs are made of: {kills} kills without a find, {rare} without a rare or better, {legendary} without a legendary.");
+            (int kills, int rare, int unique) = Droughts(level, 1000000, 3);
+            Console.WriteLine($"The longest anyone went, in a million kills of what packs are made of: {kills} kills without a find, {rare} without a rare or better, {unique} without a unique.");
             return 0;
         }
 
         // The longest dry spells in a long run of ordinary killing, with no chests and no bosses to help.
-        private static (int kills, int rare, int legendary) Droughts(int level, int kills, ulong seed)
+        private static (int kills, int rare, int unique) Droughts(int level, int kills, ulong seed)
         {
             var random = new WorldRandom(seed);
             var luck = new LootLuck();
-            int longestDry = 0, longestRare = 0, longestLegend = 0;
-            int dry = 0, sinceRare = 0, sinceLegend = 0;
+            int longestDry = 0, longestRare = 0, longestUnique = 0;
+            int dry = 0, sinceRare = 0, sinceUnique = 0;
             for (int i = 0; i < kills; i++)
             {
                 LootTier tier = (i % 11) switch { 0 or 1 or 2 => LootTier.Soldier, 3 => LootTier.Champion, _ => LootTier.Fodder };
                 List<Item> items = Loot.Roll(tier, level, level, 0f, luck, random.Fork(i));
                 dry = items.Count > 0 ? 0 : dry + 1;
                 sinceRare++;
-                sinceLegend++;
+                sinceUnique++;
                 foreach (Item item in items)
                 {
-                    LootGrade grade = Loot.GradeOf(item);
-                    if (grade >= LootGrade.Rare) sinceRare = 0;
-                    if (grade == LootGrade.Legendary) sinceLegend = 0;
+                    Rarity rarity = item.Rarity;
+                    if (rarity >= Rarity.Rare) sinceRare = 0;
+                    if (rarity == Rarity.Unique) sinceUnique = 0;
                 }
                 longestDry = Math.Max(longestDry, dry);
                 longestRare = Math.Max(longestRare, sinceRare);
-                longestLegend = Math.Max(longestLegend, sinceLegend);
+                longestUnique = Math.Max(longestUnique, sinceUnique);
             }
-            return (longestDry, longestRare, longestLegend);
+            return (longestDry, longestRare, longestUnique);
         }
 
         /// <summary>What has to stay true of the tables, whatever their numbers become.</summary>
@@ -146,7 +145,7 @@ namespace Dino_BuildLab
 
             const int Level = 12;
             const int Trials = 40000;
-            LootTier[] enemies = { LootTier.Fodder, LootTier.Soldier, LootTier.Champion, LootTier.Elite, LootTier.Boss };
+            LootTier[] enemies = { LootTier.Fodder, LootTier.Soldier, LootTier.Champion, LootTier.Magic, LootTier.Rare, LootTier.Boss };
             LootTier[] chests = { LootTier.Cache, LootTier.Chest, LootTier.Hoard };
             var measured = new Dictionary<LootTier, Tally>();
             foreach (LootTier tier in Enum.GetValues<LootTier>()) measured[tier] = Measure(tier, Level, tier is LootTier.Boss or LootTier.Hoard ? Trials / 10 : Trials, 11);
@@ -170,9 +169,9 @@ namespace Dino_BuildLab
             for (int i = 0; i < 2000; i++)
             {
                 List<Item> items = Loot.Roll(LootTier.Boss, Level, Level, 0f, new LootLuck(), boss.Fork(i));
-                everyBossPays &= items.Count >= 5 && items.All(item => Loot.GradeOf(item) >= LootGrade.Rare) && items.Any(item => Loot.GradeOf(item) == LootGrade.Legendary);
+                everyBossPays &= items.Count >= 5 && items.All(item => item.Rarity >= Rarity.Rare) && items.Any(item => item.Rarity == Rarity.Unique);
             }
-            report.Check("Every boss gives five rare finds or better, and a legendary", everyBossPays);
+            report.Check("Every boss gives five rare finds or better, and a unique", everyBossPays);
 
             bool noTwins = true;
             for (int i = 0; i < 3000; i++)
@@ -182,42 +181,29 @@ namespace Dino_BuildLab
             }
             report.Check("Nothing gives the same unique twice", noTwins);
 
-            report.Check("The tiers come from health", LootTables.TierOf(EnemyRank.Normal, Bestiary.Cutthroat.Health) == LootTier.Fodder && LootTables.TierOf(EnemyRank.Normal, Bestiary.Outlaw.Health) == LootTier.Soldier && LootTables.TierOf(EnemyRank.Normal, Bestiary.Bear.Health) == LootTier.Champion);
-            report.Check("Every kind of enemy is in a sensible tier", Bestiary.Everyone.All(kind => LootTables.TierOf(EnemyRank.Normal, kind.Health) != LootTier.Boss));
-            report.Check("Rank outranks health", LootTables.TierOf(EnemyRank.Elite, 0.3f) == LootTier.Elite && LootTables.TierOf(EnemyRank.Boss, 0.3f) == LootTier.Boss);
+            report.Check("The tiers come from health", LootTables.TierOf(Rarity.Normal, Bestiary.Cutthroat.Health) == LootTier.Fodder && LootTables.TierOf(Rarity.Normal, Bestiary.Outlaw.Health) == LootTier.Soldier && LootTables.TierOf(Rarity.Normal, Bestiary.Bear.Health) == LootTier.Champion);
+            report.Check("Every kind of enemy is in a sensible tier", Bestiary.Everyone.All(kind => LootTables.TierOf(Rarity.Normal, kind.Health) != LootTier.Boss));
+            report.Check("Rarity outranks health", LootTables.TierOf(Rarity.Magic, 0.3f) == LootTier.Magic && LootTables.TierOf(Rarity.Rare, 0.3f) == LootTier.Rare && LootTables.TierOf(Rarity.Unique, 0.3f) == LootTier.Boss);
 
             report.Check("Going after what's above you pays", Loot.Daring(12, 8) > 1.2f);
             report.Check("Farming what's beneath you doesn't", Loot.Daring(4, 20) < 0.5f);
             report.Check("But it's never nothing, and never silly", Loot.Daring(1, 100) > 0f && Loot.Daring(100, 1) <= 2f);
 
             var random = new WorldRandom(9);
-            bool sixLines = true, onlyMasterworkHasSix = true;
-            for (int i = 0; i < 3000; i++)
+            bool everyRarity = true;
+            foreach (Rarity rarity in Enum.GetValues<Rarity>())
             {
-                Item work = ItemGenerator.Forge(20, random.Fork(i), LootGrade.Masterwork, (i % 5) * 0.25f);
-                sixLines &= work.Lines.Count == Loot.MasterworkLines && Loot.GradeOf(work) == LootGrade.Masterwork;
-                Item rare = ItemGenerator.Forge(20, random.Fork(i + 5000), LootGrade.Rare, 1f);
-                onlyMasterworkHasSix &= Loot.GradeOf(rare) == LootGrade.Rare;
-                Item bought = ItemGenerator.Roll(20, random.Fork(i + 10000), 0.4f);
-                onlyMasterworkHasSix &= bought.Lines.Count < Loot.MasterworkLines;
+                // A unique at a level none reaches is the one thing that can't be what was asked for, and it comes out as the next best thing.
+                for (int i = 0; i < 300; i++) everyRarity &= ItemGenerator.Forge(20, random.Fork(i + 20000), rarity, 0.5f).Rarity == rarity;
             }
-            report.Check("A masterwork has six lines, in any slot", sixLines);
-            report.Check("Nothing else can roll that many", onlyMasterworkHasSix);
-
-            bool everyGrade = true;
-            foreach (LootGrade grade in Enum.GetValues<LootGrade>())
-            {
-                // A legendary at a level no unique reaches is the one thing that can't be what was asked for, and it comes out as the next best thing.
-                for (int i = 0; i < 300; i++) everyGrade &= Loot.GradeOf(ItemGenerator.Forge(20, random.Fork(i + 20000), grade, 0.5f)) == grade;
-            }
-            report.Check("A grade asked for is the grade that comes out", everyGrade);
-            report.Check("With no unique to be, a legendary is a masterwork", Loot.GradeOf(ItemGenerator.Forge(1, random.Fork(1), LootGrade.Legendary, 0f, ItemSlot.Feet)) >= LootGrade.Masterwork);
+            report.Check("A rarity asked for is the rarity that comes out", everyRarity);
+            report.Check("With no unique to be, a unique is a rare", ItemGenerator.Forge(1, random.Fork(1), Rarity.Unique, 0f, ItemSlot.Feet).Rarity == Rarity.Rare);
 
             float plain = 0f, fine = 0f;
             for (int i = 0; i < 4000; i++)
             {
-                plain += Shares(ItemGenerator.Forge(30, random.Fork(i), LootGrade.Rare, 0f));
-                fine += Shares(ItemGenerator.Forge(30, random.Fork(i), LootGrade.Rare, 1f));
+                plain += Shares(ItemGenerator.Forge(30, random.Fork(i), Rarity.Rare, 0f));
+                fine += Shares(ItemGenerator.Forge(30, random.Fork(i), Rarity.Rare, 1f));
             }
             report.Check("Quality really does roll higher", fine > plain * 1.15f, $"{fine / 4000f:0.00} against {plain / 4000f:0.00}");
 
@@ -226,21 +212,18 @@ namespace Dino_BuildLab
             float start = luck.Finds;
             for (int i = 0; i < 60; i++) luck.Missed();
             report.Check("Going without makes a find likelier", luck.Finds > start * 3f, $"{luck.Finds:0.0}");
-            luck.Found(LootGrade.Plain);
+            luck.Found(Rarity.Normal);
             report.Check("Finding something lets go of that", luck.Finds == start);
-            for (int i = 0; i < 20; i++) luck.Found(LootGrade.Plain);
-            report.Check("Plain finds don't stop the wait for a good one", luck.Good > 3f, $"{luck.Good:0.0}");
-            luck.Found(LootGrade.Rare);
+            for (int i = 0; i < 20; i++) luck.Found(Rarity.Normal);
+            report.Check("Normal finds don't stop the wait for a good one", luck.Good > 3f, $"{luck.Good:0.0}");
+            luck.Found(Rarity.Rare);
             report.Check("A good one ends it", luck.Good == 1f);
 
-            (int dryKills, int dryRare, int dryLegend) = Droughts(Level, 200000, 13);
+            (int dryKills, int dryRare, int dryUnique) = Droughts(Level, 200000, 13);
             report.Check("Nobody goes a hundred kills with nothing", dryKills < 100, $"{dryKills}");
             report.Check("Nobody goes a thousand kills without a rare", dryRare < 1000, $"{dryRare}");
-            report.Check("Nobody goes twenty thousand kills without a legendary", dryLegend < 20000, $"{dryLegend}");
+            report.Check("Nobody goes twenty thousand kills without a unique", dryUnique < 20000, $"{dryUnique}");
 
-            var saved = new Item { Name = "Old Rare", Rarity = Rarity.Rare, Slot = ItemSlot.Finger };
-            for (int i = 0; i < 5; i++) saved.Lines.Add(new ItemLine("health", 10f));
-            report.Check("Rares from before this are still rares", Loot.GradeOf(saved) == LootGrade.Rare);
         }
     }
 }

@@ -11,12 +11,12 @@ using OpenTK.Mathematics;
 
 namespace Dino_Defenders.Client
 {
-    /// <summary>What a pillar of light is, for a grade that has one.</summary>
+    /// <summary>What a pillar of light is, for a rarity that has one.</summary>
     public readonly record struct LootBeam(Colour Colour, float Height, float Width);
 
     /// <summary>
     /// A drop, as it's seen. It's all worked out from when the find left what it came out of, so nothing here can be missed, and the better a find the longer the moment goes on:
-    /// it goes higher, takes longer to come down, and lands harder. A legendary's whole flight is the rise of its sound, which breaks as it lands.
+    /// it goes higher, takes longer to come down, and lands harder. A unique's whole flight is the rise of its sound, which breaks as it lands.
     /// </summary>
     public static class LootShow
     {
@@ -29,35 +29,33 @@ namespace Dino_Defenders.Client
         private const float BeamFlash = 3.2f;       // How quickly the burst of a beam starting dies down.
         private const float Hidden = 0.001f;
 
-        private static readonly float[] Flights = { 0.42f, 0.48f, 0.6f, 0.72f, Treasure.LegendaryStrike };
-        private static readonly float[] Arcs = { 3.2f, 4f, 6f, 8.5f, 13f };
-        private static readonly float[] Sizes = { 0.9f, 1f, 1.1f, 1.2f, 1.35f };
-        private static readonly float[] Glows = { 0f, 3f, 8f, 13f, 22f };
-        private static readonly float[] MoteEvery = { 0f, 0f, 0.3f, 0.16f, 0.07f };
+        private static readonly float[] Flights = { 0.42f, 0.48f, 0.6f, Treasure.UniqueStrike };
+        private static readonly float[] Arcs = { 3.2f, 4f, 6f, 13f };
+        private static readonly float[] Sizes = { 0.9f, 1f, 1.1f, 1.35f };
+        private static readonly float[] Glows = { 0f, 3f, 8f, 22f };
+        private static readonly float[] MoteEvery = { 0f, 0f, 0.3f, 0.07f };
 
         private static readonly BitMask Pickups = new BitMask(typeof(PickupComponent), typeof(PositionComponent), typeof(RotationComponent), typeof(ScaleComponent));
 
-        public static float FlightOf(LootGrade grade) => Flights[(int)grade];
+        public static float FlightOf(Rarity rarity) => Flights[(int)rarity];
 
-        /// <summary>What a grade looks like as something glowing: deep, as particles go straight into a scene lit by a sun of about 13, and anything pale comes out white.</summary>
-        public static Colour GlowOf(LootGrade grade) => grade switch
+        /// <summary>What a rarity looks like as something glowing: deep, as particles go straight into a scene lit by a sun of about 13, and anything pale comes out white.</summary>
+        public static Colour GlowOf(Rarity rarity) => rarity switch
         {
-            LootGrade.Legendary => new Colour(1f, 0.3f, 0.02f, 1.8f),
-            LootGrade.Masterwork => new Colour(0.56f, 0.08f, 1f, 1.8f),
-            LootGrade.Rare => new Colour(1f, 0.66f, 0.05f, 1.5f),
-            LootGrade.Magic => new Colour(0.12f, 0.3f, 1f, 1.3f),
+            Rarity.Unique => new Colour(1f, 0.3f, 0.02f, 1.8f),
+            Rarity.Rare => new Colour(1f, 0.66f, 0.05f, 1.5f),
+            Rarity.Magic => new Colour(0.12f, 0.3f, 1f, 1.3f),
             _ => new Colour(0.7f, 0.66f, 0.6f, 0.8f),
         };
 
-        public static LootBeam? BeamOf(LootGrade grade) => grade switch
+        public static LootBeam? BeamOf(Rarity rarity) => rarity switch
         {
-            LootGrade.Legendary => new LootBeam(new Colour(1f, 0.22f, 0.005f, 1.25f), 26f, 3f),
-            LootGrade.Masterwork => new LootBeam(new Colour(0.42f, 0.05f, 1f, 1.7f), 19f, 2.3f),
-            LootGrade.Rare => new LootBeam(new Colour(1f, 0.62f, 0.01f, 0.85f), 13f, 1.7f),
+            Rarity.Unique => new LootBeam(new Colour(1f, 0.22f, 0.005f, 1.25f), 26f, 3f),
+            Rarity.Rare => new LootBeam(new Colour(1f, 0.62f, 0.01f, 0.85f), 13f, 1.7f),
             _ => null,
         };
 
-        public static float GlowStrength(LootGrade grade) => Glows[(int)grade];
+        public static float GlowStrength(Rarity rarity) => Glows[(int)rarity];
 
         public const float LightRadius = 9f;
 
@@ -78,19 +76,19 @@ namespace Dino_Defenders.Client
                         continue;
                     }
 
-                    float flight = gold ? Loot.GoldFlight : FlightOf(pickup.Laid ? LootGrade.Plain : pickup.Grade);
+                    float flight = gold ? Loot.GoldFlight : FlightOf(pickup.Laid ? Rarity.Normal : pickup.Rarity);
                     if (!pickup.Launched)
                     {
                         pickup.Launched = true;
 
                         // Each find is announced once to a player, however many times it goes out of sight and comes back. One that's found lying there was never seen to fall, and nothing a hero put down is news.
                         bool news = (gold || session.Heard.Add(pickup.Find)) && !pickup.Laid;
-                        if (age < flight && news) effects?.LootLaunched(pickup.Grade, gold, entity.Get<PositionComponent>().value);
+                        if (age < flight && news) effects?.LootLaunched(pickup.Rarity, gold, entity.Get<PositionComponent>().value);
                         else if (age >= flight)
                         {
                             pickup.Landed = true;
                             pickup.LandedFor = 10f;
-                            if (news && !gold) effects?.LootDiscovered(pickup.Grade, pickup.Rest);
+                            if (news && !gold) effects?.LootDiscovered(pickup.Rarity, pickup.Rest);
                         }
                     }
 
@@ -100,7 +98,7 @@ namespace Dino_Defenders.Client
                         if (!pickup.Landed)
                         {
                             pickup.Landed = true;
-                            effects?.LootLanded(pickup.Find, pickup.Laid ? LootGrade.Plain : pickup.Grade, pickup.Slot, gold, pickup.Rest);
+                            effects?.LootLanded(pickup.Find, pickup.Laid ? Rarity.Normal : pickup.Rarity, pickup.Slot, gold, pickup.Rest);
                         }
                         pickup.LandedFor += deltaTime;
                         if (gold) Settle(entity, session);
@@ -113,19 +111,19 @@ namespace Dino_Defenders.Client
 
         private static void Fly(in EntityView entity, ref PickupComponent pickup, float share, bool gold, ClientEffects? effects, float deltaTime)
         {
-            float arc = gold ? GoldArc : pickup.Laid ? Arcs[0] : Arcs[(int)pickup.Grade];
+            float arc = gold ? GoldArc : pickup.Laid ? Arcs[0] : Arcs[(int)pickup.Rarity];
             Vector3 at = Vector3.Lerp(pickup.From, pickup.Rest, share) + Vector3.UnitY * (MathF.Sin(share * MathF.PI) * arc);
             entity.Set(new PositionComponent(at));
-            entity.Set(new ScaleComponent(new Vector3(gold ? GoldScale : pickup.Dressed ? Sizes[(int)pickup.Grade] * pickup.Fit : Hidden)));
+            entity.Set(new ScaleComponent(new Vector3(gold ? GoldScale : pickup.Dressed ? Sizes[(int)pickup.Rarity] * pickup.Fit : Hidden)));
 
             // A whole number of turns, so that it comes down flat.
             if (!gold) entity.Set(new RotationComponent(Quaternion.FromAxisAngle(new Vector3(0.8f, 0f, 0.6f), share * MathF.Tau * 2f) * Lying(pickup.Find)));
 
-            if (gold || pickup.Laid || pickup.Grade < LootGrade.Rare) return;
+            if (gold || pickup.Laid || pickup.Rarity < Rarity.Rare) return;
             pickup.NextMote -= deltaTime;
             if (pickup.NextMote > 0f) return;
             pickup.NextMote = 0.03f;
-            effects?.LootMote(pickup.Grade, at, 0.2f);
+            effects?.LootMote(pickup.Rarity, at, 0.2f);
         }
 
         private static void Settle(in EntityView entity, GameSession session)
@@ -152,17 +150,17 @@ namespace Dino_Defenders.Client
             float bounce = 0.8f * MathF.Abs(MathF.Sin(landed * 11f)) * MathF.Exp(-landed * 7f);
             entity.Set(new PositionComponent(pickup.Rest + Vector3.UnitY * (0.04f + bounce)));
             entity.Set(new RotationComponent(Lying(pickup.Find)));
-            entity.Set(new ScaleComponent(new Vector3(taken || !pickup.Dressed ? Hidden : Sizes[(int)pickup.Grade] * pickup.Fit)));
+            entity.Set(new ScaleComponent(new Vector3(taken || !pickup.Dressed ? Hidden : Sizes[(int)pickup.Rarity] * pickup.Fit)));
 
             float burst = MathF.Exp(-landed * BeamFlash);
             if (entity.Has<ColorComponent>())
             {
-                Colour light = GlowOf(pickup.Grade);
-                float strength = taken ? 0f : GlowStrength(pickup.Grade) * (1f + 3f * burst);
+                Colour light = GlowOf(pickup.Rarity);
+                float strength = taken ? 0f : GlowStrength(pickup.Rarity) * (1f + 3f * burst);
                 entity.Set(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, strength)));
             }
 
-            if (BeamOf(pickup.Grade) is not LootBeam beam) return;
+            if (BeamOf(pickup.Rarity) is not LootBeam beam) return;
             float rise = taken ? 0f : Math.Clamp(landed / BeamRise, 0f, 1f);
             float bright = beam.Colour.Intensity * (1f + 2.5f * burst);
             entity.Set(new BeamComponent
@@ -175,8 +173,8 @@ namespace Dino_Defenders.Client
             if (taken) return;
             pickup.NextMote -= deltaTime;
             if (pickup.NextMote > 0f) return;
-            pickup.NextMote = MoteEvery[(int)pickup.Grade];
-            effects?.LootMote(pickup.Grade, pickup.Rest, beam.Height * 0.5f);
+            pickup.NextMote = MoteEvery[(int)pickup.Rarity];
+            effects?.LootMote(pickup.Rarity, pickup.Rest, beam.Height * 0.5f);
         }
 
         // What's lying there is the same thing someone would be wearing. It has to keep being asked for, or the wardrobe puts it away.

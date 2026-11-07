@@ -138,14 +138,14 @@ namespace Dino_Defenders.UI
                         continue;
                     }
 
-                    if (enemy.Rank == EnemyRank.Boss)
+                    if (enemy.Rarity == Rarity.Unique)
                     {
                         bool engaged = enemy.State != EnemyState.Idle || share < 1f;
                         if (engaged && (position.Xz - session.PlayerPosition).Length < BossRange) DrawBossBar(draw, enemy, share, screen);
                         continue;
                     }
 
-                    bool marked = enemy.Rank == EnemyRank.Elite;
+                    bool marked = enemy.Rarity != Rarity.Normal;
                     if (share >= 1f && !marked) continue;
 
                     float height = 5.4f * entity.Get<ScaleComponent>().value.Y;
@@ -155,7 +155,7 @@ namespace Dino_Defenders.UI
                     GuiRect back = new GuiRect(at.X - width * 0.5f, at.Y, width, 5f);
                     draw.AddRect(back, GuiColors.Rgba(0, 0, 0, 170));
                     draw.AddRect(new GuiRect(back.X, back.Y, back.Width * share, back.Height), Ui.Blood);
-                    if (marked) Ui.Text(Context!, draw, enemy.Name, 13f, new GuiRect(back.X - 60f, back.Y - 18f, width + 120f, 16f), Ui.Gold, Alignment.Center);
+                    if (marked) Ui.Text(Context!, draw, enemy.Name, 13f, new GuiRect(back.X - 60f, back.Y - 18f, width + 120f, 16f), Ui.RarityColour(enemy.Rarity), Alignment.Center);
                 }
             }
         }

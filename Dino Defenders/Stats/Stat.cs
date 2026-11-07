@@ -110,6 +110,37 @@ namespace Dino_Defenders.Stats
         Count,
     }
 
+    /// <summary>
+    /// Which side of a hero each stat is on. What keeps them alive and going is defensive, and is what a prefix can be: pools and getting them back, not being hurt, and getting
+    /// away. What they kill with is offensive, and is what a suffix can be: everything about a blow, how a page reaches, what it leaves behind, the attributes power comes from, and what's got out of a kill.
+    /// Every stat is on exactly one of these, which BuildLab holds.
+    /// </summary>
+    public static class StatSides
+    {
+        public static readonly Stat[] Defensive =
+        {
+            Stat.Health, Stat.Mana, Stat.Barrier,
+            Stat.HealthRegen, Stat.HealthRegenPercent, Stat.ManaRegen, Stat.ManaRegenPercent, Stat.BarrierRecharge, Stat.BarrierDelay, Stat.Recovery,
+            Stat.HealthLeech, Stat.ManaLeech, Stat.HealthOnHit, Stat.ManaOnHit, Stat.HealthOnKill, Stat.ManaOnKill, Stat.BarrierOnKill, Stat.FlaskEffect,
+            Stat.MoveSpeed, Stat.DodgeCooldown, Stat.DodgeSpeed, Stat.Stealth,
+            Stat.Armour, Stat.ArmourApplies, Stat.Evasion, Stat.BlockChance, Stat.MaxBlock, Stat.Resistance, Stat.MaxResistance, Stat.PhysicalReduction, Stat.FlatReduction,
+            Stat.DamageTaken, Stat.TakenAs, Stat.TakenFromMana, Stat.AilmentAvoid, Stat.AilmentTaken, Stat.StunThreshold,
+        };
+
+        public static readonly Stat[] Offensive =
+        {
+            Stat.Strength, Stat.Dexterity, Stat.Intellect,
+            Stat.Damage, Stat.AddedPhysical, Stat.AddedFire, Stat.AddedCold, Stat.AddedLightning, Stat.AddedMagic, Stat.AddedPoison, Stat.Convert, Stat.GainAs,
+            Stat.AttackSpeed, Stat.CastSpeed, Stat.CritChance, Stat.CritMultiplier, Stat.Accuracy, Stat.Penetration, Stat.ArmourIgnore,
+            Stat.AreaOfEffect, Stat.MeleeReach, Stat.ProjectileSpeed, Stat.ProjectileCount, Stat.Pierce, Stat.Chain, Stat.PageDuration, Stat.CooldownRecovery, Stat.BookCost, Stat.Potency,
+            Stat.AilmentChance, Stat.AilmentDuration, Stat.AilmentEffect, Stat.Execute, Stat.ReactionDamage, Stat.ReactionArea, Stat.Reflect, Stat.ExplodeOnKill,
+            Stat.MinionCount, Stat.MinionDuration, Stat.RaiseFallen,
+            Stat.ItemRarity, Stat.GoldFind, Stat.ExperienceGain,
+        };
+
+        public static bool IsDefensive(Stat stat) => Array.IndexOf(Defensive, stat) >= 0;
+    }
+
     /// <summary>How a modifier acts on a stat.</summary>
     public enum ModKind : byte
     {

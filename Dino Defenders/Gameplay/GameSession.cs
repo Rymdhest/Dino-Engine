@@ -39,7 +39,7 @@ namespace Dino_Defenders.Gameplay
     public struct LootCallout
     {
         public string Text;
-        public LootGrade Grade;
+        public Rarity Rarity;
         public float Age;
     }
 

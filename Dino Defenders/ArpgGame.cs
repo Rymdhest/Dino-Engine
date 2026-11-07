@@ -337,7 +337,7 @@ namespace Dino_Defenders
 
             var carried = new Dino_Engine.World.WorldRandom(options.Seed ?? 1).Fork("carried");
             for (int i = 0; i < options.Carry; i++) hero.Pickup(ItemGenerator.Roll(Math.Max(hero.Level, 10), carried.Fork(i), rarityBonus: 2f));
-            for (int i = 0; i < options.Folios; i++) hero.Pickup(ItemGenerator.Folio(Math.Max(hero.Level, 10), carried.Fork("folio").Fork(i), (LootGrade)(i % 5)));
+            for (int i = 0; i < options.Folios; i++) hero.Pickup(ItemGenerator.Folio(Math.Max(hero.Level, 10), carried.Fork("folio").Fork(i), (Rarity)(i % 3)));
         }
 
         // For a scripted run: something for every place, as much of one family as can be had, to look at.
@@ -349,7 +349,7 @@ namespace Dino_Defenders
                 if (place == WornSlot.OffHand && hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? held) && held.IsTwoHanded) continue;
                 for (int attempt = 0; attempt < 300; attempt++)
                 {
-                    Item item = ItemGenerator.Forge(Math.Max(hero.Level, 20), random.Fork((int)place * 1000 + attempt), LootGrade.Rare, 0.5f, WornSlots.Holds(place));
+                    Item item = ItemGenerator.Forge(Math.Max(hero.Level, 20), random.Fork((int)place * 1000 + attempt), Rarity.Rare, 0.5f, WornSlots.Holds(place));
                     if (item.Shares() != default && item.Shares().Of(family) < 0.6f) continue;
                     hero.Pickup(item);
                     hero.Equip(item, place);
@@ -385,6 +385,9 @@ namespace Dino_Defenders
             SystemRegistry.InsertBefore<GravitySystem>(new SoundscapeSystem());
             SystemRegistry.InsertBefore<GravitySystem>(new MusicDirectorSystem());
             SystemRegistry.InsertAfter<GhostPresentationSystem>(new CharacterSoundSystem(() => _effects?.Sounds));
+            SystemRegistry.InsertBefore<ModelRenderSystem>(new WildlifeSystem());
+            Nature.Off = _options.NoLife;
+            Nature.LogFile = _options.LifeLog;
         }
 
         // Alone or hosting, the server is here. The world it holds and the hero it is given are the same as they would be anywhere.
@@ -583,6 +586,8 @@ namespace Dino_Defenders
                 });
             }
             if (_frames == 30 && _options.Garden is string garden) PlantGarden(garden);
+            if (_frames == 30 && _options.Bring is string bring) BringCreatures(session, bring);
+            if (_frames == _options.StartleAfterFrames) Nature.Startle(session.PlayerPosition, 40f);
             if (_frames == 30 && _options.Parade is string parade && _server != null)
             {
                 _server.Ask(server =>
@@ -622,6 +627,17 @@ namespace Dino_Defenders
             session.WeatherClockOffset = _options.WeatherClock;
             if (_options.Weather != null && WeatherSample.TryNamed(_options.Weather, out WeatherSample ordered)) session.ScriptedWeather = ordered;
             if (_frames == _options.GuideAfterFrames) session.Intent.Guide = true;
+        }
+
+        // A little way off, in a ring round the hero, so that they're near enough to look at and far enough off to be left in peace.
+        private static void BringCreatures(GameSession session, string creatures)
+        {
+            string[] ids = creatures.Split(',');
+            for (int i = 0; i < ids.Length; i++)
+            {
+                float angle = i * MathF.Tau / ids.Length + 0.6f;
+                Nature.Bring(ids[i], session.PlayerPosition + new Vector2(MathF.Sin(angle), MathF.Cos(angle)) * 17f);
+            }
         }
 
         private void UpdateFilm()

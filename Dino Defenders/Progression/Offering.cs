@@ -70,7 +70,7 @@ namespace Dino_Defenders.Progression
         public static readonly OmenDefinition Warhost = Add(new OmenDefinition
         {
             Id = "warhost", Name = "Warhost", Toll = 0.7f,
-            Text = $"Every pack has a leader if it can. Leaders are {Say.N(Rulebook.WarhostLeaderElites)} times as likely to be Elite, up to {Say.Share(Rulebook.MostWarhostLeaderElites)}. Site guards are Elite {Say.Share(Rulebook.WarhostEliteChance)} of the time instead of {Say.Share(Rulebook.EliteChance)}.",
+            Text = $"Every pack has a leader if it can. Leaders are {Say.N(Rulebook.WarhostLeaderRares)} times as likely to be Rare, up to {Say.Share(Rulebook.MostWarhostLeaderRares)}. Site guards are Rare {Say.Share(Rulebook.WarhostRareChance)} of the time instead of {Say.Share(Rulebook.RareChance)}.",
         });
 
         public static readonly OmenDefinition Gilded = Add(new OmenDefinition
@@ -106,12 +106,12 @@ namespace Dino_Defenders.Progression
         // What a step of peril pays. It has to keep ahead of what it does to how long a fight takes, or nobody who can climb would want to: `Dino BuildLab offering` holds the sums.
         private const float QuantityStep = 0.15f;
         private const float RarityStep = 0.18f;
-        private const float LegendStep = 0.15f;
+        private const float UniqueStep = 0.23f;
         private const float QualityStep = 0.035f;
         private const float GoldStep = 0.12f;
         private const float ExperienceStep = 0.1f;
         private const int PerilPerLevel = 2;        // Steps of peril for each level items come out above.
-        private const int NothingPlainFrom = 3;
+        private const int NothingNormalFrom = 3;
         private const int PerilPerOmen = 3;
 
         private static readonly float[] PeopleShares = { 0f, 0.5f, 1f, 1.5f };
@@ -218,10 +218,10 @@ namespace Dino_Defenders.Progression
             return new LootBoon(
                 Quantity: (1f + QuantityStep * Peril) * (1f + quantity),
                 Rarity: (1f + RarityStep * Peril) * (1f + rarity),
-                Legend: 1f + LegendStep * Peril,
+                Uniques: 1f + UniqueStep * Peril,
                 Quality: QualityStep * Peril,
                 ExtraLevels: Peril / PerilPerLevel,
-                Least: Peril >= NothingPlainFrom ? LootGrade.Magic : LootGrade.Plain,
+                Least: Peril >= NothingNormalFrom ? Rarity.Magic : Rarity.Normal,
                 Gold: 1f + GoldStep * Peril,
                 Experience: 1f + ExperienceStep * Peril);
         }

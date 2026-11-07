@@ -3,6 +3,7 @@ using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.ECS.Systems;
 using Dino_Engine.Networking;
 using Dino_Engine.Physics;
 using Dino_Engine.Sound;
@@ -68,7 +69,11 @@ namespace Dino_Defenders.Client
         protected override void UpdateFrame(ECSWorld world, float deltaTime)
         {
             GameSession session = GameSession.Current;
-            if (session == null) return;
+            if (session == null)
+            {
+                Nature.Paused = false;
+                return;
+            }
             if (session != _session) Begin(world, session);
 
             session.GuideCooldown = MathF.Max(session.GuideCooldown - deltaTime, 0f);
@@ -278,21 +283,23 @@ namespace Dino_Defenders.Client
 
         private void SpawnMotes(ECSWorld world, GameSession session, float deltaTime)
         {
-            bool guiding = _guideLeft > 0f;
-            AmbientMotes kind = guiding ? AmbientMotes.FallingLeaves : _motes;
-            if (kind == AmbientMotes.None || session.Paused) return;
+            Nature.Paused = session.Paused;
+            if (_guideLeft > 0f && !session.Paused)
+            {
+                float heading = MathHelper.DegreesToRadians(_guideDirection);
+                Nature.Guiding = new Vector2(MathF.Sin(heading), MathF.Cos(heading));
+            }
+
+            // Leaves and petals aren't motes: they come from real trees, in WildlifeSystem.
+            AmbientMotes kind = _motes;
+            if (kind is AmbientMotes.None or AmbientMotes.FallingLeaves or AmbientMotes.Petals || session.Paused) return;
 
             MoteStyle style = StyleOf(kind);
-
-            // Leaves and petals come from trees, and only where there are some (Ghost of Tsushima keeps its leaves to forests by biome, too).
-            float overhead = kind is AmbientMotes.FallingLeaves or AmbientMotes.Petals ? 0.15f + 1.4f * session.World.Canopy.Sample(session.PlayerPosition) : 1f;
-            _moteDebt += (guiding ? 45f : style.Rate * overhead * LeftInTheAir(world, kind)) * deltaTime;
-            Colour colour = _moteColour is Vector3 tint && !guiding ? new Colour(tint.X, tint.Y, tint.Z, style.Colour.Intensity) : style.Colour;
+            _moteDebt += style.Rate * LeftInTheAir(world, kind) * deltaTime;
+            Colour colour = _moteColour is Vector3 tint ? new Colour(tint.X, tint.Y, tint.Z, style.Colour.Intensity) : style.Colour;
             Vector3 centre = new Vector3(session.PlayerPosition.X, session.World.Height.Sample(session.PlayerPosition), session.PlayerPosition.Y);
 
-            Vector2 drift = guiding
-                ? new Vector2(MathF.Sin(MathHelper.DegreesToRadians(_guideDirection)), MathF.Cos(MathHelper.DegreesToRadians(_guideDirection))) * 12f
-                : Carried(world.GetComponent<WindSingleton>(world.GetSingleton<WindSingleton>()).Velocity) * style.Drift;
+            Vector2 drift = Carried(world.GetComponent<WindSingleton>(world.GetSingleton<WindSingleton>()).Velocity) * style.Drift;
 
             while (_moteDebt >= 1f)
             {
@@ -330,8 +337,6 @@ namespace Dino_Defenders.Client
         private static MoteStyle StyleOf(AmbientMotes kind) => kind switch
         {
             AmbientMotes.Pollen => new(14f, 0.05f, 5f, 0.6f, 5f, 0.1f, 0.25f, new Colour(1f, 0.92f, 0.55f, 1.3f)),
-            AmbientMotes.Petals => new(16f, 0.11f, 6f, 2f, 11f, -0.7f, 0.4f, new Colour(1f, 0.62f, 0.68f, 1.1f)),
-            AmbientMotes.FallingLeaves => new(20f, 0.13f, 6f, 3f, 12f, -1f, 0.45f, new Colour(0.85f, 0.42f, 0.14f, 1f)),
             AmbientMotes.Snow => new(34f, 0.07f, 6f, 4f, 15f, -1.5f, 0.5f, new Colour(0.95f, 0.97f, 1f, 1.2f)),
             AmbientMotes.Embers => new(16f, 0.06f, 3.2f, 0.3f, 4f, 1.4f, 0.4f, new Colour(1f, 0.4f, 0.1f, 4f), Glows: true),
             AmbientMotes.Fireflies => new(9f, 0.06f, 3.5f, 0.6f, 3.5f, 0.1f, 0.05f, new Colour(0.75f, 1f, 0.35f, 4f), Glows: true),

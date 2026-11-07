@@ -172,7 +172,7 @@ namespace Dino_Defenders.Stats
         WetLand = 1ul << 28,
         HighLand = 1ul << 29,
 
-        Elite = 1ul << 32,
+        Rare = 1ul << 32,
         Boss = 1ul << 33,
 
         HoldingShield = 1ul << 34,

@@ -1,4 +1,5 @@
 using Dino_Engine.Modelling.Procedural.Flora;
+using Dino_Engine.Wildlife;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.World.Content
@@ -115,6 +116,9 @@ namespace Dino_Engine.World.Content
         public float WindStrength = 1f;     // Multiplier on the world's wind.
         public AmbientMotes Motes = AmbientMotes.None;
         public Vector3? MoteColour;         // What it's falling from, if that's not the usual: the leaves of a ginkgo wood are gold.
+
+        /// <summary>What lives here, whichever parts of it suit each. None of it has a say in how the land grows.</summary>
+        public Creature[] Life = Array.Empty<Creature>();
     }
 
     /// <summary>Every biome worlds can be built from.</summary>
@@ -126,6 +130,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Meadow = new BiomeDefinition
         {
             Id = "meadow",
+            Life = Fauna.Temperate,
             Bedrock = RockKind.Limestone,
             Name = "Meadowland",
             MapColour = new Vector3(0.46f, 0.62f, 0.26f),
@@ -157,6 +162,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition GoldenSteppe = new BiomeDefinition
         {
             Id = "steppe",
+            Life = Fauna.Grassland,
             Bedrock = RockKind.Limestone,
             Name = "Golden Steppe",
             MapColour = new Vector3(0.78f, 0.63f, 0.28f),
@@ -192,6 +198,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition PineForest = new BiomeDefinition
         {
             Id = "pine",
+            Life = Fauna.Conifer,
             Name = "Pinewood",
             MapColour = new Vector3(0.14f, 0.32f, 0.2f),
             Temperature = 0.35f,
@@ -227,6 +234,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition BirchWood = new BiomeDefinition
         {
             Id = "birch",
+            Life = Fauna.Temperate,
             Bedrock = RockKind.Granite,
             Name = "Birchwood",
             MapColour = new Vector3(0.55f, 0.68f, 0.42f),
@@ -259,6 +267,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition CrimsonWood = new BiomeDefinition
         {
             Id = "crimson",
+            Life = Fauna.Temperate,
             Bedrock = RockKind.Sandstone,
             Name = "Crimson Wood",
             MapColour = new Vector3(0.72f, 0.2f, 0.14f),
@@ -294,6 +303,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition BlossomGrove = new BiomeDefinition
         {
             Id = "blossom",
+            Life = Fauna.Blossom,
             Bedrock = RockKind.Limestone,
             Name = "Blossom Grove",
             MapColour = new Vector3(0.9f, 0.68f, 0.76f),
@@ -330,6 +340,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition BambooThicket = new BiomeDefinition
         {
             Id = "bamboo",
+            Life = Fauna.Blossom,
             Bedrock = RockKind.Limestone,
             Name = "Bamboo Thicket",
             MapColour = new Vector3(0.3f, 0.55f, 0.3f),
@@ -362,6 +373,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Marsh = new BiomeDefinition
         {
             Id = "marsh",
+            Life = Fauna.Mire,
             Bedrock = RockKind.Limestone,
             Name = "Mire",
             MapColour = new Vector3(0.36f, 0.4f, 0.27f),
@@ -404,6 +416,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Highland = new BiomeDefinition
         {
             Id = "highland",
+            Life = Fauna.Upland,
             Bedrock = RockKind.Schist,
             Name = "High Moor",
             MapColour = new Vector3(0.52f, 0.5f, 0.42f),
@@ -442,6 +455,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Snowfield = new BiomeDefinition
         {
             Id = "snow",
+            Life = Fauna.Frozen,
             Name = "Snowfield",
             MapColour = new Vector3(0.9f, 0.93f, 0.96f),
             Temperature = 0.04f,
@@ -472,6 +486,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Dunes = new BiomeDefinition
         {
             Id = "dunes",
+            Life = Fauna.Sands,
             Bedrock = RockKind.Sandstone,
             Name = "Dunes",
             MapColour = new Vector3(0.88f, 0.76f, 0.5f),
@@ -506,6 +521,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Badlands = new BiomeDefinition
         {
             Id = "badlands",
+            Life = Fauna.Scorched,
             Bedrock = RockKind.Sandstone,
             Name = "Badlands",
             MapColour = new Vector3(0.68f, 0.44f, 0.3f),
@@ -538,6 +554,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Ashland = new BiomeDefinition
         {
             Id = "ash",
+            Life = Fauna.Burnt,
             Bedrock = RockKind.Basalt,
             Name = "Ashlands",
             MapColour = new Vector3(0.24f, 0.2f, 0.2f),
@@ -568,6 +585,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition RedwoodGrove = new BiomeDefinition
         {
             Id = "redwood",
+            Life = Fauna.Conifer,
             Name = "Redwood Grove",
             MapColour = new Vector3(0.4f, 0.22f, 0.16f),
             Temperature = 0.42f,
@@ -606,6 +624,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition DarkWood = new BiomeDefinition
         {
             Id = "darkwood",
+            Life = Fauna.Haunted,
             Bedrock = RockKind.Schist,
             Name = "The Blackwood",
             MapColour = new Vector3(0.14f, 0.13f, 0.17f),
@@ -644,6 +663,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Jungle = new BiomeDefinition
         {
             Id = "jungle",
+            Life = Fauna.Tropics,
             Bedrock = RockKind.Limestone,
             Name = "The Green Deep",
             MapColour = new Vector3(0.1f, 0.44f, 0.22f),
@@ -683,6 +703,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Savanna = new BiomeDefinition
         {
             Id = "savanna",
+            Life = Fauna.Plains,
             Bedrock = RockKind.Sandstone,
             Name = "The Long Grass",
             MapColour = new Vector3(0.74f, 0.66f, 0.3f),
@@ -720,6 +741,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition GoldenWood = new BiomeDefinition
         {
             Id = "ginkgo",
+            Life = Fauna.Temperate,
             Bedrock = RockKind.Limestone,
             Name = "Gold Wood",
             MapColour = new Vector3(0.86f, 0.68f, 0.14f),
@@ -757,6 +779,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition CedarWood = new BiomeDefinition
         {
             Id = "cedar",
+            Life = Fauna.Conifer,
             Name = "Old Cedars",
             MapColour = new Vector3(0.16f, 0.26f, 0.2f),
             Temperature = 0.48f,

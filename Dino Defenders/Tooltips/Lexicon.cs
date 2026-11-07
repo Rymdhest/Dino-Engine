@@ -254,7 +254,7 @@ namespace Dino_Defenders.Tooltips
             Stats[Stat.ManaOnKill] = ByForm["on Kill"];
             Stats[Stat.BarrierOnKill] = ByForm["on Kill"];
             Word("Waygate", "On the tree, taking one lets you take the one across from it.", "Waygates");
-            Word("Flask", $"Instantly heals {Share(HeroRules.FlaskHeal)} of Maximum Health. Holds {HeroState.MaxFlasks}. Refills every {Whole(HeroState.KillsPerFlask)} Kills within {Metres(FlaskReach)}. An Elite counts as {Whole(FlaskFromElite)}, a Boss as {Whole(FlaskFromBoss)}.", "Flasks");
+            Word("Flask", $"Instantly heals {Share(HeroRules.FlaskHeal)} of Maximum Health. Holds {HeroState.MaxFlasks}. Refills every {Whole(HeroState.KillsPerFlask)} Kills within {Metres(FlaskReach)}. A Rare Enemy counts as {Whole(FlaskFromRare)}, a Boss as {Whole(FlaskFromBoss)}.", "Flasks");
             On(Stat.FlaskEffect, Word("Flask Effect", "Scales how much a Flask heals."));
             On(Stat.MoveSpeed, Basic("Movement Speed", $"Bonus on your walking speed of {Metres(HeroState.BaseMoveSpeed)} a second."));
             Word("Dodge", $"A dash that lasts {Seconds(HeroRules.DashDuration)}. Immune to Hits for {Seconds(HeroRules.DashDuration + DodgeSafeExtra)}. Cancels what you were doing.", "Dodged", "Dodges");
@@ -370,7 +370,7 @@ namespace Dino_Defenders.Tooltips
             On(Condition.ColdLand, Word("Cold Lands", "Cold biomes."));
             On(Condition.WetLand, Word("Wet Lands", "Wet biomes."));
             On(Condition.HighLand, Word("High Country", "High altitude biomes."));
-            On(Condition.Elite, Word("Elite", "A stronger Enemy with a special trait."));
+            On(Condition.Rare, Word("Rare", "A much stronger Enemy with special traits."));
             On(Condition.Boss, Word("Boss", "The strongest Enemy of a place.", "Bosses"));
         }
 

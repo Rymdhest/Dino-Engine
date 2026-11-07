@@ -69,6 +69,7 @@ namespace Dino_Engine.Rendering
         public TerrainRenderer _terrainRenderer;
         public InstancedModelRenderer _instancedModelRenderer;
         public CharacterRenderer _characterRenderer;
+        public WildlifeRenderer _wildlifeRenderer;
         public ImposterRenderer _imposterRenderer;
         public AmbientLightRenderer _ambientLightRenderer;
         public DirectionalLightRenderer _directionalLightRenderer;
@@ -91,6 +92,7 @@ namespace Dino_Engine.Rendering
         public ParticleRenderer _particleRenderer;
         public BeamRenderer _beamRenderer;
         public GroundMarkRenderer _groundMarkRenderer;
+        public OutlineRenderer _outlineRenderer;
         public TrailRenderer _trailRenderer;
         public GrassRenderer _grassRenderer;
         public CelestialBodyRenderer _sunRenderer;
@@ -170,6 +172,7 @@ namespace Dino_Engine.Rendering
             _terrainRenderer = new TerrainRenderer();
             _instancedModelRenderer = new InstancedModelRenderer();
             _characterRenderer = new CharacterRenderer();
+            _wildlifeRenderer = new WildlifeRenderer();
             _imposterRenderer = new ImposterRenderer();
             _ambientLightRenderer = new AmbientLightRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
@@ -194,6 +197,7 @@ namespace Dino_Engine.Rendering
             _particleRenderer = new ParticleRenderer();
             _beamRenderer = new BeamRenderer();
             _groundMarkRenderer = new GroundMarkRenderer();
+            _outlineRenderer = new OutlineRenderer();
             _trailRenderer = new TrailRenderer();
             _depthOfFieldRenderer = new DepthOfFieldRenderer();
             _grassRenderer = new GrassRenderer();
@@ -329,6 +333,7 @@ namespace Dino_Engine.Rendering
 
             _modelRenderer.ShadowRenderPass(this);
             _characterRenderer.ShadowRenderPass(this);
+            _wildlifeRenderer.ShadowRenderPass(this);
             _instancedModelRenderer.ShadowRenderPass(this);
             _imposterRenderer.ShadowRenderPass(this);
 
@@ -342,6 +347,7 @@ namespace Dino_Engine.Rendering
 
             _modelRenderer.GeometryRenderPass(this);
             _characterRenderer.GeometryRenderPass(this);
+            _wildlifeRenderer.GeometryRenderPass(this);
             _instancedModelRenderer.GeometryRenderPass(this);
             _imposterRenderer.GeometryRenderPass(this);
 
@@ -382,6 +388,8 @@ namespace Dino_Engine.Rendering
             _volumetricFogRenderer.RenderPass(this);
             // What's about to hit someone comes over the fog: it isn't atmosphere, and nothing is allowed to hide it.
             _groundMarkRenderer.RenderPass(this);
+            // And so is who's doing it.
+            _outlineRenderer.RenderPass(this);
             // What falls comes in front of the fog, and is lit by what it falls through.
             _precipitationRenderer.RenderPass(this);
             _lightningRenderer.RenderPass(this);

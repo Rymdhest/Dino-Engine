@@ -228,6 +228,10 @@ namespace Dino_Defenders.UI
             InterfaceSettings shown = InterfaceSettings.Load();
             GuiElement part = Part();
             part.Add(new MenuRow("Health, Mana and Barrier over your hero", new MenuToggle(() => shown.PoolsOverHero, on => shown.Change(() => shown.PoolsOverHero = on))));
+            part.Add(new MenuRow("Attacks marked on the ground: Normal enemies", new MenuToggle(() => shown.NormalMarks, on => shown.Change(() => shown.NormalMarks = on))));
+            part.Add(new MenuRow("Attacks marked on the ground: Magic enemies", new MenuToggle(() => shown.MagicMarks, on => shown.Change(() => shown.MagicMarks = on))));
+            part.Add(new MenuRow("Attacks marked on the ground: Rare enemies", new MenuToggle(() => shown.RareMarks, on => shown.Change(() => shown.RareMarks = on))));
+            part.Add(new MenuRow("Attacks marked on the ground: Unique enemies", new MenuToggle(() => shown.UniqueMarks, on => shown.Change(() => shown.UniqueMarks = on))));
             return part;
         }
 

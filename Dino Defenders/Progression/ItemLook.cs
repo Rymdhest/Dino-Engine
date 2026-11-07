@@ -13,6 +13,10 @@ namespace Dino_Defenders.Progression
     public static class ItemLook
     {
         private const int GradeBits = 8;
+
+        // The top of what a look is grown from, which has a step between rare and unique that nothing stands on. Bringing this down would give every unique a different look.
+        public const int UniqueGrade = 4;
+
         private const int ThemeBits = 11;
         private const int HeavyBits = 14;
         private const int LeatherBits = 18;
@@ -27,7 +31,7 @@ namespace Dino_Defenders.Progression
             FamilyShares shares = item.Shares();
             bool family = shares != default;
             return (uint)(ItemGenerator.NumberOf(ItemGenerator.BaseOf(item)) & 0xFF)
-                | (uint)Loot.GradeOf(item) << GradeBits
+                | (uint)(item.Rarity == Rarity.Unique ? UniqueGrade : (int)item.Rarity) << GradeBits
                 | (uint)ThemeOf(item) << ThemeBits
                 | (uint)MathF.Round(shares.Heavy * ShareSteps) << HeavyBits
                 | (uint)MathF.Round(shares.Leather * ShareSteps) << LeatherBits

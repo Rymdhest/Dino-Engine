@@ -42,7 +42,7 @@ namespace Dino_Defenders.UI
             Vector2 mouse = Context.MousePosition;
             float size = ItemCell.Size;
             GuiRect rect = new GuiRect(mouse.X - size * 0.5f, mouse.Y - size * 0.5f, size, size);
-            Colour colour = Ui.GradeColour(Loot.GradeOf(item));
+            Colour colour = Ui.RarityColour(item.Rarity);
             draw.AddRect(rect, Ui.InkLight, 2f, 1.5f, colour.MultiplyAlpha(0.9f));
             Ui.DrawItem(draw, item, rect, colour, GuiColors.White);
 

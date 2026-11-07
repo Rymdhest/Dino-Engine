@@ -1,4 +1,5 @@
 using Dino_Defenders.Gameplay;
+using Dino_Defenders.Progression;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Sound.Music;
@@ -76,8 +77,8 @@ namespace Dino_Defenders.Client
 
                     float distance = (entity.Get<PositionComponent>().value.Xz - at).Length;
                     bool engaged = enemy.State is EnemyState.Chasing or EnemyState.WindingUp or EnemyState.Recovering;
-                    if (engaged) pressure += enemy.Rank switch { EnemyRank.Boss => 1f, EnemyRank.Elite => 0.5f, _ => 0.26f };
-                    if (enemy.Rank == EnemyRank.Boss && distance < BossReach) boss = true;
+                    if (engaged) pressure += enemy.Rarity switch { Rarity.Unique => 1f, Rarity.Rare => 0.5f, Rarity.Magic => 0.36f, _ => 0.26f };
+                    if (enemy.Rarity == Rarity.Unique && distance < BossReach) boss = true;
                     closest = MathF.Min(closest, distance);
                 }
             }

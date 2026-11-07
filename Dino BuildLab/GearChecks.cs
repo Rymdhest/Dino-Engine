@@ -167,7 +167,7 @@ namespace Dino_BuildLab
                 string name = family switch { GearFamily.Heavy => "Plate Harness", GearFamily.Leather => "Hunter's Coat", _ => "Silk Vestments" };
                 for (int i = 0; i < 4000; i++)
                 {
-                    Item item = ItemGenerator.Forge(30, random.Fork(i * 4 + (int)family), LootGrade.Rare, 0.3f, ItemSlot.Body);
+                    Item item = ItemGenerator.Forge(30, random.Fork(i * 4 + (int)family), Rarity.Rare, 0.3f, ItemSlot.Body);
                     if (Dominant(item) != family) continue;
                     foreach (ItemLine line in item.Lines)
                     {
@@ -211,7 +211,7 @@ namespace Dino_BuildLab
             report.Check("A unique looks the same wherever it turns up", UniqueCatalog.Make(unique, 10, random.Fork(1)).LookSeed() == UniqueCatalog.Make(unique, 40, random.Fork(2)).LookSeed());
             report.Check("But no two uniques look alike", UniqueCatalog.All.Select(u => UniqueCatalog.Make(u, 20, random.Fork(3)).LookSeed()).Distinct().Count() == UniqueCatalog.All.Count);
 
-            Item item = ItemGenerator.Forge(30, random.Fork(4), LootGrade.Rare, 0.5f, ItemSlot.Body);
+            Item item = ItemGenerator.Forge(30, random.Fork(4), Rarity.Rare, 0.5f, ItemSlot.Body);
             var writer = new BitWriter();
             Protocol.WriteItem(writer, item);
             Item sent = Protocol.ReadItem(new BitReader(writer.ToArray()));
@@ -269,10 +269,13 @@ namespace Dino_BuildLab
                 kinds.Add(spec.Kind);
 
                 FamilyShares shares = item.Shares();
-                bool same = spec.Seed == item.LookSeed() && spec.Grade == (int)Loot.GradeOf(item) && MathF.Abs(spec.Heavy - shares.Heavy) < 0.05f && MathF.Abs(spec.Leather - shares.Leather) < 0.05f && MathF.Abs(spec.Cloth - shares.Cloth) < 0.05f;
+                bool same = spec.Seed == item.LookSeed() && spec.Grade == (item.Rarity == Rarity.Unique ? ItemLook.UniqueGrade : (int)item.Rarity) && MathF.Abs(spec.Heavy - shares.Heavy) < 0.05f && MathF.Abs(spec.Leather - shares.Leather) < 0.05f && MathF.Abs(spec.Cloth - shares.Cloth) < 0.05f;
                 if (same) kept++;
             }
             report.Check("What a look needs survives being packed into one number", kept == rolled, $"{kept} of {rolled}");
+
+            // Written out, as a unique's look is grown from this number, and a save only keeps its seed: anything else gives every unique in every pack a different look.
+            report.Check("A unique keeps the look it's always had", ItemLook.SpecOf(UniqueCatalog.Make(UniqueCatalog.All[0], 20, new WorldRandom(1))).Grade == 4);
             report.Check("And everything worn or held has a kind of look, which what goes in a book isn't", kinds.Count == Enum.GetValues<Dino_Engine.Modelling.Procedural.Gear.GearKind>().Count(kind => kind < Dino_Engine.Modelling.Procedural.Gear.GearKind.Book), $"{kinds.Count}");
 
             Item burning = new Item { Name = "Test", Slot = ItemSlot.MainHand, Lines = { new ItemLine("added-fire", 10f) } };
@@ -315,7 +318,7 @@ namespace Dino_BuildLab
             report.Check("Each thing worn is where it should be", hero.Equipped[WornSlot.MainHand].Name.Contains("Longsword") && hero.Equipped[WornSlot.OffHand].Name == "Round Shield" && hero.Equipped[WornSlot.Finger1].Unique == "understudy" && hero.Equipped[WornSlot.Neck].Name == "Amulet" && hero.Equipped[WornSlot.Body].Name == "Tunic");
             report.Check("And is what it should be", hero.Equipped[WornSlot.MainHand].Slot == ItemSlot.MainHand && hero.Equipped[WornSlot.OffHand].Slot == ItemSlot.OffHand && hero.Equipped[WornSlot.Finger1].Slot == ItemSlot.Finger && hero.Equipped[WornSlot.Neck].Slot == ItemSlot.Neck);
             report.Check("What's carried comes across too", hero.Inventory[0]!.Slot == ItemSlot.Finger && hero.Inventory[1]!.Slot == ItemSlot.MainHand && hero.Inventory[1]!.Kind == WeaponKind.Axe);
-            report.Check("Lines mean what they meant", hero.Equipped[WornSlot.MainHand].Lines.Count == 1 && hero.Inventory[0]!.Lines[0].Value == 12f);
+            report.Check("Lines that can stay do, as they were", hero.Equipped[WornSlot.MainHand].Lines.Any(line => line.Affix == "damage" && line.Value == 40f) && hero.Inventory[0]!.Lines.Any(line => line.Affix == "gold-find" && line.Value == 12f));
             report.Check("A second finger is free", hero.PlaceFor(hero.Inventory[0]!) == WornSlot.Finger2);
             report.Check("It knows it's up to date", save.Version == SaveGame.CurrentVersion);
 

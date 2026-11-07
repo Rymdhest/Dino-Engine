@@ -113,7 +113,7 @@ namespace Dino_Defenders.UI
                 return;
             }
 
-            Colour colour = Ui.GradeColour(Loot.GradeOf(item));
+            Colour colour = Ui.RarityColour(item.Rarity);
             if (mood == CellMood.Lifted)
             {
                 Ui.DrawItem(draw, item, Bounds, colour, GuiColors.Rgba(255, 255, 255, 46));

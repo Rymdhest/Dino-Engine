@@ -80,12 +80,16 @@ namespace Dino_Defenders.Progression
         };
     }
 
-    public enum Rarity
+    /// <summary>
+    /// What an item is, which is what everything that shows one goes by: its colour, its sound, whether it has a beam. What's rolled on it follows from this
+    /// (<see cref="AffixCatalog.PerSide"/>), and these four are all there are. Saved by name and sent by number.
+    /// </summary>
+    public enum Rarity : byte
     {
-        Common,
-        Magic,
-        Rare,
-        Legendary,
+        Normal,     // Only what its base gives.
+        Magic,      // A prefix and a suffix.
+        Rare,       // Two of each.
+        Unique,     // None of the above applies: see UniqueCatalog.
     }
 
     public enum WeaponKind : byte
@@ -305,6 +309,8 @@ namespace Dino_Defenders.Progression
     public sealed class Affix
     {
         public string Id = "";
+
+        /// <summary>Whether it's a prefix, which keeps a hero alive, or a suffix, which is what they kill with.</summary>
         public bool Prefix;
         public string[] Names = Array.Empty<string>();
         public ItemSlot[] Slots = Array.Empty<ItemSlot>();
@@ -314,22 +320,32 @@ namespace Dino_Defenders.Progression
 
     /// <summary>
     /// Everything an item can roll. Ids are saved in items, so renaming one loses it from every item that has it; a value's meaning can change
-    /// freely. Between them these cover every stat a build can want, so that gear can push any build further rather than only the obvious ones.
+    /// freely. A prefix keeps a hero alive and a suffix is what they kill with, by what each changes (<see cref="StatSides"/>). Each stat goes only where it belongs, so that
+    /// what's on an item says what kind of item it is: resistances are for rings, speed of foot for boots and speed of hand for gloves. BUILDS.md has the whole table.
     /// </summary>
     public static class AffixCatalog
     {
-        private static readonly ItemSlot[] Weapon = { ItemSlot.MainHand };
-        private static readonly ItemSlot[] WeaponJewels = { ItemSlot.MainHand, ItemSlot.Finger, ItemSlot.Neck };
-        private static readonly ItemSlot[] Jewels = { ItemSlot.Finger, ItemSlot.Neck };
-        private static readonly ItemSlot[] Grips = { ItemSlot.MainHand, ItemSlot.Hands, ItemSlot.Finger, ItemSlot.Neck };
-        private static readonly ItemSlot[] Armours = { ItemSlot.OffHand, ItemSlot.Head, ItemSlot.Body, ItemSlot.Legs, ItemSlot.Feet, ItemSlot.Hands };
-        private static readonly ItemSlot[] Upper = { ItemSlot.OffHand, ItemSlot.Head, ItemSlot.Body };
-        private static readonly ItemSlot[] Clothes = { ItemSlot.Head, ItemSlot.Body, ItemSlot.Legs, ItemSlot.Finger, ItemSlot.Neck };
-        private static readonly ItemSlot[] Worn = { ItemSlot.OffHand, ItemSlot.Head, ItemSlot.Body, ItemSlot.Legs, ItemSlot.Feet, ItemSlot.Hands, ItemSlot.Finger, ItemSlot.Neck };
-        private static readonly ItemSlot[] Feet = { ItemSlot.Feet };
-        private static readonly ItemSlot[] Shields = { ItemSlot.OffHand };
+        private const int MagicPerSide = 1;
+        private const int RarePerSide = 2;
 
-        /// <summary>How much the lines of something wholly of one family go to what suits it, as a share of all there is to draw from. What an item looks like should say what it's for, and at 1 that's over half of its lines, but anything can still roll anywhere.</summary>
+        private static readonly ItemSlot[] Weapon = { ItemSlot.MainHand };
+        private static readonly ItemSlot[] Shield = { ItemSlot.OffHand };
+        private static readonly ItemSlot[] Ring = { ItemSlot.Finger };
+        private static readonly ItemSlot[] Amulet = { ItemSlot.Neck };
+        private static readonly ItemSlot[] Boots = { ItemSlot.Feet };
+        private static readonly ItemSlot[] Gloves = { ItemSlot.Hands };
+        private static readonly ItemSlot[] WeaponRing = { ItemSlot.MainHand, ItemSlot.Finger };
+        private static readonly ItemSlot[] WeaponAmulet = { ItemSlot.MainHand, ItemSlot.Neck };
+        private static readonly ItemSlot[] WeaponGloves = { ItemSlot.MainHand, ItemSlot.Hands };
+        private static readonly ItemSlot[] HeadAmulet = { ItemSlot.Head, ItemSlot.Neck };
+        private static readonly ItemSlot[] BodyAmulet = { ItemSlot.Body, ItemSlot.Neck };
+        private static readonly ItemSlot[] Plates = { ItemSlot.OffHand, ItemSlot.Body };
+        private static readonly ItemSlot[] Upper = { ItemSlot.OffHand, ItemSlot.Head, ItemSlot.Body };
+        private static readonly ItemSlot[] Lower = { ItemSlot.Body, ItemSlot.Legs, ItemSlot.Feet };
+        private static readonly ItemSlot[] Armours = { ItemSlot.OffHand, ItemSlot.Head, ItemSlot.Body, ItemSlot.Legs, ItemSlot.Feet, ItemSlot.Hands };
+        private static readonly ItemSlot[] Worn = { ItemSlot.OffHand, ItemSlot.Head, ItemSlot.Body, ItemSlot.Legs, ItemSlot.Feet, ItemSlot.Hands, ItemSlot.Finger, ItemSlot.Neck };
+
+        /// <summary>How much the lines of something wholly of one family go to what suits it, as a share of all there is to draw from on that side of its slot. What an item looks like should say what it's for, and at 1 that's over half of its lines, but anything its slot takes can still roll on it.</summary>
         private const float Leaning = 1f;
 
         private static readonly Dictionary<string, Affix> ById = new();
@@ -342,6 +358,14 @@ namespace Dino_Defenders.Progression
         public static IReadOnlyDictionary<string, GearFamily> Suited => Suits;
 
         public static Affix? Find(string id) => ById.GetValueOrDefault(id);
+
+        /// <summary>How many prefixes something of this rarity has, and as many suffixes. Nothing normal has any, and a unique is what it is.</summary>
+        public static int PerSide(Rarity rarity) => rarity switch
+        {
+            Rarity.Magic => MagicPerSide,
+            Rarity.Rare => RarePerSide,
+            _ => 0,
+        };
 
         /// <summary>
         /// How likely each of these is on something of these shares. A family's share is of the whole draw, not of each affix: more affixes suit heavy armour on a body than suit
@@ -378,120 +402,132 @@ namespace Dino_Defenders.Progression
         private static readonly Tier[] Rating = Ladder((1, 3, 7), (6, 8, 16), (12, 17, 30), (20, 31, 50), (30, 51, 85), (42, 86, 130));
         private static readonly Tier[] Chances = Ladder((2, 5, 10), (10, 11, 18), (20, 19, 28));
 
-        private static void Add(string id, bool prefix, string[] names, ItemSlot[] slots, Tier[] tiers, Func<float, Mod[]> build)
+        // Which side it's on goes by what it builds, so that it can't be written down as the other.
+        private static void Add(string id, string[] names, ItemSlot[] slots, Tier[] tiers, Func<float, Mod[]> build)
         {
-            var affix = new Affix { Id = id, Prefix = prefix, Names = names, Slots = slots, Tiers = tiers, Build = build };
+            var affix = new Affix { Id = id, Prefix = StatSides.IsDefensive(build(1f)[0].Stat), Names = names, Slots = slots, Tiers = tiers, Build = build };
             ById.Add(id, affix);
             Everything.Add(affix);
         }
 
-        private static void Add(string id, bool prefix, string[] names, ItemSlot[] slots, Tier[] tiers, Func<float, Mod> build) => Add(id, prefix, names, slots, tiers, v => new[] { build(v) });
+        private static void Add(string id, string[] names, ItemSlot[] slots, Tier[] tiers, Func<float, Mod> build) => Add(id, names, slots, tiers, v => new[] { build(v) });
 
         static AffixCatalog()
         {
-            // Damage, on what deals it. These ids are what saves from before this system map onto, so they stay.
-            Add("damage", true, new[] { "Sharp", "Keen", "Cruel", "Merciless", "Ruinous" }, Weapon, Ladder((1, 8, 15), (5, 16, 28), (10, 29, 45), (16, 46, 70), (24, 71, 100)), v => Inc(Stat.Damage, v));
-            Add("added-physical", true, new[] { "Jagged", "Barbed", "Rending", "Brutal", "Savage", "Flaying" }, WeaponJewels, Added, v => M.Added(DamageType.Physical, v));
-            Add("added-fire", true, new[] { "Warm", "Smouldering", "Burning", "Blazing", "Infernal", "Solar" }, WeaponJewels, Added, v => M.Added(DamageType.Fire, v));
-            Add("added-cold", true, new[] { "Chill", "Frosted", "Biting", "Glacial", "Polar", "Absolute" }, WeaponJewels, Added, v => M.Added(DamageType.Cold, v));
-            Add("added-lightning", true, new[] { "Humming", "Sparking", "Crackling", "Arcing", "Thundering", "Heavenly" }, WeaponJewels, Added, v => M.Added(DamageType.Lightning, v));
-            Add("added-magic", true, new[] { "Faint", "Charmed", "Ensorcelled", "Eldritch", "Unbound", "Sovereign" }, WeaponJewels, Added, v => M.Added(DamageType.Magic, v));
-            Add("added-poison", true, new[] { "Tainted", "Sickly", "Foul", "Venomous", "Virulent", "Plaguebearing" }, WeaponJewels, Added, v => M.Added(DamageType.Poison, v));
+            // Prefixes: what keeps a hero alive. First what stands between them and a blow, on whatever they wear.
+            Add("armour", new[] { "Sturdy", "Reinforced", "Fortified", "Unyielding", "Adamant", "Impregnable" }, Armours, Rating, v => Flat(Stat.Armour, v));
+            Add("armour-percent", new[] { "Iron", "Steel", "Mithril", "Dragonscale" }, Upper, Percent, v => Inc(Stat.Armour, v));
+            Add("evasion", new[] { "Fleet", "Agile", "Lithe", "Elusive", "Phantasmal", "Vanishing" }, Armours, Rating, v => Flat(Stat.Evasion, v));
+            Add("evasion-percent", new[] { "Shadowed", "Blurred", "Ghostly", "Unseen" }, Upper, Percent, v => Inc(Stat.Evasion, v));
+            Add("barrier", new[] { "Warded", "Shielded", "Sheltered", "Enclosed", "Bastioned", "Inviolate" }, Armours, Pool, v => Flat(Stat.Barrier, v * 0.8f));
+            Add("barrier-percent", new[] { "Shimmering", "Gleaming", "Radiant" }, Upper, Percent, v => Inc(Stat.Barrier, v));
+            Add("block", new[] { "Deflecting", "Parrying", "Turning" }, Shield, Ladder((1, 3, 6), (12, 7, 11), (26, 12, 16)), v => Flat(Stat.BlockChance, v));
+            Add("flat-reduction", new[] { "Tough", "Hidebound", "Scaled", "Tortoiseshell" }, Upper, Ladder((3, 1, 2), (12, 3, 6), (22, 7, 12), (34, 13, 20)), v => Flat(Stat.FlatReduction, v));
+            Add("physical-reduction", new[] { "Padded", "Bulwarked" }, new[] { ItemSlot.OffHand, ItemSlot.Body, ItemSlot.Legs }, Ladder((10, 2, 3), (24, 4, 6)), v => Flat(Stat.PhysicalReduction, v));
+            Add("physical-taken-as-fire", new[] { "Cinderhide" }, Plates, Ladder((8, 6, 12), (24, 13, 20)), v => TakenAs(DamageType.Physical, DamageType.Fire, v));
+            Add("physical-taken-as-cold", new[] { "Rimehide" }, Plates, Ladder((8, 6, 12), (24, 13, 20)), v => TakenAs(DamageType.Physical, DamageType.Cold, v));
+            Add("physical-taken-as-lightning", new[] { "Stormhide" }, Plates, Ladder((8, 6, 12), (24, 13, 20)), v => TakenAs(DamageType.Physical, DamageType.Lightning, v));
 
-            Add("spell-damage", true, new[] { "Apprentice's", "Adept's", "Scholar's", "Magus'", "Archmage's" }, new[] { ItemSlot.MainHand, ItemSlot.Neck }, Percent, v => Inc(Stat.Damage, v, Tags.Spell));
-            Add("attack-damage", true, new[] { "Soldier's", "Veteran's", "Champion's", "Warmaster's", "Conqueror's" }, new[] { ItemSlot.MainHand, ItemSlot.Neck }, Percent, v => Inc(Stat.Damage, v, Tags.Attack));
-            Add("physical-damage", true, new[] { "Heavy", "Weighted", "Massive", "Crushing", "Titanic" }, WeaponJewels, Percent, v => Inc(Stat.Damage, v, Tags.Physical));
-            Add("fire-damage", true, new[] { "Ember", "Flame", "Pyre", "Conflagrant", "Cremating" }, WeaponJewels, Percent, v => Inc(Stat.Damage, v, Tags.Fire));
-            Add("cold-damage", true, new[] { "Rime", "Hoar", "Winter", "Boreal", "Deathly Cold" }, WeaponJewels, Percent, v => Inc(Stat.Damage, v, Tags.Cold));
-            Add("lightning-damage", true, new[] { "Static", "Galvanic", "Storm", "Tempest", "Thunderhead" }, WeaponJewels, Percent, v => Inc(Stat.Damage, v, Tags.Lightning));
-            Add("magic-damage", true, new[] { "Hedge", "Runed", "Sigilled", "Occult", "Forbidden" }, WeaponJewels, Percent, v => Inc(Stat.Damage, v, Tags.Magic));
-            Add("poison-damage", true, new[] { "Noxious", "Rancid", "Blighted", "Pestilent", "Rotting" }, WeaponJewels, Percent, v => Inc(Stat.Damage, v, Tags.Poison));
-            Add("elemental-damage", true, new[] { "Prismatic", "Coloured", "Elemental", "Primal", "Primordial" }, Jewels, SmallPercent, v => Inc(Stat.Damage, v, Tags.Elemental));
-            Add("area-damage", true, new[] { "Sweeping", "Rolling", "Broad", "Sundering", "Cataclysmic" }, Jewels, SmallPercent, v => Inc(Stat.Damage, v, Tags.Area));
-            Add("projectile-damage", true, new[] { "Fletched", "Balanced", "Whistling", "Piercing", "Unerring" }, Jewels, SmallPercent, v => Inc(Stat.Damage, v, Tags.Projectile));
-            Add("melee-damage", true, new[] { "Brawler's", "Duellist's", "Gladiator's", "Slaughterer's", "Warlord's" }, Jewels, SmallPercent, v => Inc(Stat.Damage, v, Tags.Melee));
-            Add("lingering-damage", true, new[] { "Festering", "Lingering", "Wasting", "Slow", "Inexorable" }, WeaponJewels, Percent, v => Inc(Stat.Damage, v, Tags.DamageOverTime));
-            Add("minion-damage", true, new[] { "Shepherd's", "Master's", "Tyrant's", "Lich's", "Necrarch's" }, new[] { ItemSlot.MainHand, ItemSlot.Finger, ItemSlot.Neck, ItemSlot.Head }, Percent, v => Inc(Stat.Damage, v, Tags.Minion));
+            // Resistances are what rings are for, and only rings.
+            Add("fire-resistance", new[] { "Salamander's", "Hearthborn", "Furnaced", "Sunward" }, Ring, Resistance, v => Resist(Tags.Fire, v));
+            Add("cold-resistance", new[] { "Seal's", "Furred", "Tundra", "Polar" }, Ring, Resistance, v => Resist(Tags.Cold, v));
+            Add("lightning-resistance", new[] { "Insulated", "Grounded", "Earthed", "Stormproof" }, Ring, Resistance, v => Resist(Tags.Lightning, v));
+            Add("magic-resistance", new[] { "Unbelieving", "Spellproof", "Nullifying", "Voidbound" }, Ring, Resistance, v => Resist(Tags.Magic, v));
+            Add("poison-resistance", new[] { "Antidotal", "Pure", "Unblemished", "Immune" }, Ring, Resistance, v => Resist(Tags.Poison, v));
+            Add("all-resistance", new[] { "Prismatic", "Spectral", "Rainbow" }, Ring, Ladder((6, 3, 6), (16, 7, 11), (28, 12, 16)), v => Resist(Tags.Elemental, v));
 
-            Add("attack-speed", false, new[] { "of Haste", "of Fury", "of the Storm", "of the Whirlwind" }, new[] { ItemSlot.MainHand, ItemSlot.Hands, ItemSlot.Finger }, Ladder((3, 4, 8), (10, 9, 14), (18, 15, 22), (30, 23, 30)), v => Inc(Stat.AttackSpeed, v));
-            Add("cast-speed", false, new[] { "of Muttering", "of Fluency", "of Recitation", "of the Unbroken Word" }, new[] { ItemSlot.MainHand, ItemSlot.Hands, ItemSlot.Finger, ItemSlot.Neck }, Ladder((3, 4, 8), (10, 9, 14), (18, 15, 22), (30, 23, 30)), v => Inc(Stat.CastSpeed, v));
-            Add("crit-chance", false, new[] { "of Precision", "of the Hawk", "of the Unerring", "of the Killing Eye" }, Grips, Ladder((2, 1, 3), (9, 3.5f, 6), (17, 6.5f, 10), (30, 10.5f, 14)), v => Flat(Stat.CritChance, v));
-            Add("crit-increased", false, new[] { "of Focus", "of Intent", "of Certainty", "of Fate" }, WeaponJewels, Percent, v => Inc(Stat.CritChance, v));
-            Add("crit-multiplier", false, new[] { "of Wounding", "of Slaughter", "of Ruin", "of Annihilation" }, new[] { ItemSlot.MainHand, ItemSlot.Neck }, Ladder((4, 10, 20), (11, 21, 35), (19, 36, 60), (32, 61, 85)), v => Flat(Stat.CritMultiplier, v));
-            Add("accuracy", false, new[] { "of the Marksman", "of the Sharpshooter", "of the Sniper" }, Grips, Pool, v => Flat(Stat.Accuracy, v));
-            Add("penetration", false, new[] { "of Piercing", "of Unmaking", "of Undoing" }, new[] { ItemSlot.MainHand, ItemSlot.Neck }, Ladder((8, 4, 7), (18, 8, 12), (30, 13, 18)), v => Flat(Stat.Penetration, v));
+            // The pools, and getting them back.
+            Add("health", new[] { "Stout", "Bearish", "Oaken", "Mountainous", "Titan's", "Colossal" }, new[] { ItemSlot.OffHand, ItemSlot.Head, ItemSlot.Body, ItemSlot.Legs, ItemSlot.Neck }, Pool, v => Flat(Stat.Health, v));
+            Add("health-percent", new[] { "Hale", "Robust", "Stalwart", "Hearty" }, BodyAmulet, Ladder((8, 3, 5), (18, 6, 9), (30, 10, 14)), v => Inc(Stat.Health, v));
+            Add("mana", new[] { "Minded", "Sagely", "Insightful", "Welling", "Deep", "Abyssal" }, new[] { ItemSlot.Head, ItemSlot.Hands, ItemSlot.Neck }, Pool, v => Flat(Stat.Mana, v * 0.7f));
+            Add("mana-percent", new[] { "Lucid", "Brimming", "Boundless" }, HeadAmulet, Ladder((8, 4, 7), (18, 8, 12), (30, 13, 18)), v => Inc(Stat.Mana, v));
+            Add("taken-from-mana", new[] { "Composed", "Unshaken" }, HeadAmulet, Ladder((10, 3, 6), (24, 7, 11)), v => Flat(Stat.TakenFromMana, v));
+            Add("health-regen", new[] { "Renewing", "Vigorous", "Springing", "Hydra's" }, new[] { ItemSlot.Body, ItemSlot.Legs, ItemSlot.Neck }, Ladder((2, 0.5f, 1.2f), (9, 1.3f, 2.5f), (17, 2.6f, 4.5f), (30, 4.6f, 9f)), v => Flat(Stat.HealthRegen, v));
+            Add("health-regen-percent", new[] { "Convalescent", "Regrowing" }, BodyAmulet, Ladder((12, 0.3f, 0.6f), (26, 0.7f, 1.2f)), v => Flat(Stat.HealthRegenPercent, v));
+            Add("mana-regen", new[] { "Clear", "Meditative", "Serene", "Tidal" }, new[] { ItemSlot.Head, ItemSlot.Hands, ItemSlot.Neck }, Ladder((2, 0.4f, 1f), (9, 1.1f, 2f), (17, 2.1f, 3.5f), (30, 3.6f, 7f)), v => Flat(Stat.ManaRegen, v));
+            Add("barrier-recharge", new[] { "Restoring", "Ramparted" }, BodyAmulet, SmallPercent, v => Inc(Stat.BarrierRecharge, v));
+            Add("recovery", new[] { "Physician's", "Healer's", "Saint's" }, BodyAmulet, SmallPercent, v => Inc(Stat.Recovery, v));
+            Add("flask-effect", new[] { "Tippler's", "Apothecary's" }, Amulet, SmallPercent, v => Inc(Stat.FlaskEffect, v));
 
-            Add("area", false, new[] { "of Reach", "of Breadth", "of the Expanse", "of Horizons" }, new[] { ItemSlot.MainHand, ItemSlot.Neck, ItemSlot.Head }, SmallPercent, v => Inc(Stat.AreaOfEffect, v));
-            Add("duration", false, new[] { "of Patience", "of Endurance", "of Ages" }, new[] { ItemSlot.Neck, ItemSlot.Head, ItemSlot.Finger }, SmallPercent, v => Inc(Stat.PageDuration, v));
-            Add("cooldown", false, new[] { "of Readiness", "of Renewal", "of the Eternal Hour" }, new[] { ItemSlot.Neck, ItemSlot.Head, ItemSlot.Finger }, Ladder((5, 4, 7), (15, 8, 12), (28, 13, 18)), v => Inc(Stat.CooldownRecovery, v));
-            Add("cost", false, new[] { "of Thrift", "of Economy", "of the Miser" }, new[] { ItemSlot.Neck, ItemSlot.Head, ItemSlot.Finger }, Ladder((3, 4, 7), (12, 8, 12), (24, 13, 18)), v => Inc(Stat.BookCost, -v));
-            Add("projectile-speed", false, new[] { "of Flight", "of the Arrow", "of the Falcon" }, new[] { ItemSlot.MainHand, ItemSlot.Finger }, SmallPercent, v => Inc(Stat.ProjectileSpeed, v));
-            Add("potency", false, new[] { "of Ink", "of Eloquence" }, new[] { ItemSlot.MainHand, ItemSlot.Neck }, Ladder((10, 5, 8), (26, 9, 15)), v => Inc(Stat.Potency, v));
+            // What a weapon does for whoever's holding it: what it takes out of what it cuts.
+            Add("health-leech", new[] { "Leeching", "Lamprey's", "Vampiric" }, Weapon, Ladder((6, 0.3f, 0.6f), (16, 0.7f, 1.1f), (28, 1.2f, 1.8f)), v => Flat(Stat.HealthLeech, v));
+            Add("mana-leech", new[] { "Thirsting", "Draining", "Mind-Eating" }, Weapon, Ladder((6, 0.2f, 0.4f), (16, 0.5f, 0.8f), (28, 0.9f, 1.3f)), v => Flat(Stat.ManaLeech, v));
+            Add("health-on-hit", new[] { "Mending", "Knitting" }, WeaponGloves, Ladder((4, 1, 2.5f), (13, 3, 6), (26, 7, 12)), v => Flat(Stat.HealthOnHit, v));
+            Add("mana-on-hit", new[] { "Siphoning", "Tapping" }, WeaponGloves, Ladder((4, 0.5f, 1.5f), (13, 2, 3.5f), (26, 4, 7)), v => Flat(Stat.ManaOnHit, v));
+            Add("health-on-kill", new[] { "Harvesting", "Reaping" }, WeaponAmulet, Pool, v => Flat(Stat.HealthOnKill, v * 0.5f));
+            Add("mana-on-kill", new[] { "Gleaning", "Absorbing" }, WeaponAmulet, Pool, v => Flat(Stat.ManaOnKill, v * 0.3f));
+            Add("barrier-on-kill", new[] { "Husked", "Carapaced" }, WeaponAmulet, Pool, v => Flat(Stat.BarrierOnKill, v * 0.4f));
 
-            Add("burn-chance", false, new[] { "of Kindling", "of Immolation", "of the Pyre" }, WeaponJewels, Chances, v => Chance(Tags.Burn, v));
-            Add("bleed-chance", false, new[] { "of Cuts", "of Lacerating", "of Exsanguination" }, WeaponJewels, Chances, v => Chance(Tags.Bleed, v));
-            Add("venom-chance", false, new[] { "of the Asp", "of the Viper", "of the Cobra" }, WeaponJewels, Chances, v => Chance(Tags.Venom, v));
-            Add("shock-chance", false, new[] { "of Jolting", "of Shocking", "of Paralysis" }, WeaponJewels, Chances, v => Chance(Tags.Shock, v));
-            Add("freeze-chance", false, new[] { "of Numbing", "of Stillness", "of the Glacier" }, WeaponJewels, Chances, v => Chance(Tags.Freeze, v));
-            Add("hex-chance", false, new[] { "of Ill Omen", "of Hexing", "of the Curse" }, WeaponJewels, Chances, v => Chance(Tags.Hex, v));
-            Add("stun-chance", false, new[] { "of Staggering", "of Stunning", "of the Hammer" }, Weapon, Chances, v => Chance(Tags.Stun, v));
-            Add("ailment-duration", false, new[] { "of Suffering", "of Torment", "of Agony" }, Jewels, SmallPercent, v => Inc(Stat.AilmentDuration, v));
-            Add("reaction-damage", false, new[] { "of Catalysis", "of Reaction", "of the Crucible" }, new[] { ItemSlot.MainHand, ItemSlot.Neck, ItemSlot.Finger }, Percent, v => Inc(Stat.ReactionDamage, v));
+            // Staying on your feet, and getting away. How fast a hero goes is for boots, and nothing else.
+            Add("ailment-taken", new[] { "Shrugging", "Stoic" }, Lower, SmallPercent, v => Inc(Stat.AilmentTaken, -v));
+            Add("stun-threshold", new[] { "Boulder", "Anchored" }, Lower, Percent, v => Inc(Stat.StunThreshold, v));
+            Add("ailment-avoid", new[] { "Untouched", "Unmarked" }, Lower, Ladder((6, 6, 12), (18, 13, 22), (30, 23, 32)), v => Flat(Stat.AilmentAvoid, v));
+            Add("move-speed", new[] { "Roadworn", "Windswept", "Galeborn", "Cometary" }, Boots, Ladder((1, 4, 8), (8, 9, 13), (16, 14, 20), (30, 21, 28)), v => Inc(Stat.MoveSpeed, v));
+            Add("dodge-cooldown", new[] { "Quickfooted", "Dancing" }, new[] { ItemSlot.Feet, ItemSlot.Legs }, SmallPercent, v => Inc(Stat.DodgeCooldown, -v));
+            Add("stealth", new[] { "Muffled", "Hushed", "Silent" }, new[] { ItemSlot.Feet, ItemSlot.Legs, ItemSlot.Head }, Ladder((4, 5, 10), (14, 11, 18), (26, 19, 28)), v => Flat(Stat.Stealth, v));
 
-            Add("health-leech", false, new[] { "of the Leech", "of the Lamprey", "of the Vampire" }, new[] { ItemSlot.MainHand, ItemSlot.Finger }, Ladder((6, 0.3f, 0.6f), (16, 0.7f, 1.1f), (28, 1.2f, 1.8f)), v => Flat(Stat.HealthLeech, v));
-            Add("mana-leech", false, new[] { "of Thirst", "of Draining", "of the Mind Eater" }, new[] { ItemSlot.MainHand, ItemSlot.Finger }, Ladder((6, 0.2f, 0.4f), (16, 0.5f, 0.8f), (28, 0.9f, 1.3f)), v => Flat(Stat.ManaLeech, v));
-            Add("health-on-hit", false, new[] { "of Mending", "of Knitting" }, new[] { ItemSlot.MainHand, ItemSlot.Hands, ItemSlot.Finger }, Ladder((4, 1, 2.5f), (13, 3, 6), (26, 7, 12)), v => Flat(Stat.HealthOnHit, v));
-            Add("mana-on-hit", false, new[] { "of Siphoning", "of Tapping" }, new[] { ItemSlot.MainHand, ItemSlot.Hands, ItemSlot.Finger }, Ladder((4, 0.5f, 1.5f), (13, 2, 3.5f), (26, 4, 7)), v => Flat(Stat.ManaOnHit, v));
-            Add("barrier-on-kill", false, new[] { "of the Husk", "of the Carapace" }, new[] { ItemSlot.MainHand, ItemSlot.Finger, ItemSlot.Neck }, Pool, v => Flat(Stat.BarrierOnKill, v * 0.4f));
-            Add("health-on-kill", false, new[] { "of Harvest", "of Reaping" }, new[] { ItemSlot.MainHand, ItemSlot.Finger, ItemSlot.Neck }, Pool, v => Flat(Stat.HealthOnKill, v * 0.5f));
-            Add("mana-on-kill", false, new[] { "of Gleaning", "of Absorption" }, new[] { ItemSlot.MainHand, ItemSlot.Finger, ItemSlot.Neck }, Pool, v => Flat(Stat.ManaOnKill, v * 0.3f));
+            // Suffixes: what a hero kills with. First what a blow is made of. These ids are what saves from before this system map onto, so they stay.
+            Add("damage", new[] { "of Sharpness", "of the Edge", "of Cruelty", "of No Mercy", "of Ruination" }, Weapon, Ladder((1, 8, 15), (5, 16, 28), (10, 29, 45), (16, 46, 70), (24, 71, 100)), v => Inc(Stat.Damage, v));
+            Add("added-physical", new[] { "of Jags", "of Barbs", "of Rending", "of Brutality", "of Savagery", "of Flaying" }, WeaponRing, Added, v => M.Added(DamageType.Physical, v));
+            Add("added-fire", new[] { "of Warmth", "of Smouldering", "of Burning", "of the Blaze", "of the Inferno", "of the Sun" }, WeaponRing, Added, v => M.Added(DamageType.Fire, v));
+            Add("added-cold", new[] { "of Chill", "of Frost", "of Biting Cold", "of Ice", "of Polar Night", "of Absolute Zero" }, WeaponRing, Added, v => M.Added(DamageType.Cold, v));
+            Add("added-lightning", new[] { "of Humming", "of Sparks", "of Crackling", "of Arcs", "of Thunder", "of the Heavens" }, WeaponRing, Added, v => M.Added(DamageType.Lightning, v));
+            Add("added-magic", new[] { "of Whispers", "of Charms", "of Ensorcelling", "of the Eldritch", "of the Unbound", "of Sovereignty" }, WeaponRing, Added, v => M.Added(DamageType.Magic, v));
+            Add("added-poison", new[] { "of Taint", "of Sickness", "of Foulness", "of Venom", "of Virulence", "of Plague" }, WeaponRing, Added, v => M.Added(DamageType.Poison, v));
 
-            Add("strength", false, new[] { "of the Brute", "of Might", "of Iron", "of the Giant", "of Titans", "of the Mountain King" }, Worn, Rating, v => Flat(Stat.Strength, v));
-            Add("dexterity", false, new[] { "of the Fox", "of Grace", "of the Dancer", "of the Cat", "of Quicksilver", "of the Wind" }, Worn, Rating, v => Flat(Stat.Dexterity, v));
-            Add("intellect", false, new[] { "of the Student", "of Wit", "of the Scholar", "of the Sage's Eye", "of Genius", "of the Oracle" }, Worn, Rating, v => Flat(Stat.Intellect, v));
+            Add("spell-damage", new[] { "of the Apprentice", "of the Adept", "of the Learned", "of the Magus", "of the Archmage" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Spell));
+            Add("attack-damage", new[] { "of the Soldier", "of the Veteran", "of the Champion", "of the Warmaster", "of the Conqueror" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Attack));
+            Add("physical-damage", new[] { "of Weight", "of Heft", "of Mass", "of Crushing", "of the Titanic" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Physical));
+            Add("fire-damage", new[] { "of Embers", "of Flame", "of Pyres", "of Conflagration", "of Cremation" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Fire));
+            Add("cold-damage", new[] { "of Rime", "of Hoarfrost", "of Winter", "of the Boreal", "of Deathly Cold" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Cold));
+            Add("lightning-damage", new[] { "of Static", "of Galvanism", "of Stormlight", "of Tempests", "of the Thunderhead" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Lightning));
+            Add("magic-damage", new[] { "of Hedge Magic", "of Runes", "of Sigils", "of the Occult", "of the Forbidden" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Magic));
+            Add("poison-damage", new[] { "of Noxious Air", "of Rancour", "of Blight", "of Pestilence", "of Rot" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Poison));
+            Add("elemental-damage", new[] { "of Colours", "of the Elements", "of the Primal", "of the Primordial" }, Amulet, SmallPercent, v => Inc(Stat.Damage, v, Tags.Elemental));
+            Add("area-damage", new[] { "of Sweeping", "of the Broadside", "of Sundering", "of Cataclysm" }, Amulet, SmallPercent, v => Inc(Stat.Damage, v, Tags.Area));
+            Add("projectile-damage", new[] { "of Fletching", "of Balance", "of Whistling", "of the True Shot" }, Amulet, SmallPercent, v => Inc(Stat.Damage, v, Tags.Projectile));
+            Add("melee-damage", new[] { "of the Brawler", "of the Duellist", "of the Gladiator", "of the Warlord" }, Amulet, SmallPercent, v => Inc(Stat.Damage, v, Tags.Melee));
+            Add("lingering-damage", new[] { "of Festering", "of Lingering", "of Wasting", "of Slow Death", "of the Inexorable" }, new[] { ItemSlot.MainHand, ItemSlot.Neck, ItemSlot.Legs }, Percent, v => Inc(Stat.Damage, v, Tags.DamageOverTime));
+            Add("minion-damage", new[] { "of the Shepherd", "of the Master", "of the Tyrant", "of the Lich", "of the Necrarch" }, new[] { ItemSlot.MainHand, ItemSlot.Neck, ItemSlot.Head }, Percent, v => Inc(Stat.Damage, v, Tags.Minion));
 
-            // Staying alive.
-            Add("health", false, new[] { "of the Ox", "of the Bear", "of the Oak", "of the Mountain", "of the Titan", "of the Colossus" }, new[] { ItemSlot.Head, ItemSlot.Body, ItemSlot.Legs, ItemSlot.OffHand, ItemSlot.Finger, ItemSlot.Neck }, Pool, v => Flat(Stat.Health, v));
-            Add("health-percent", true, new[] { "Hale", "Robust", "Stalwart", "Hearty" }, Clothes, Ladder((8, 3, 5), (18, 6, 9), (30, 10, 14)), v => Inc(Stat.Health, v));
-            Add("mana", false, new[] { "of the Mind", "of the Sage", "of Insight", "of the Well", "of the Deep", "of the Abyss" }, new[] { ItemSlot.Head, ItemSlot.Legs, ItemSlot.Hands, ItemSlot.Finger, ItemSlot.Neck, ItemSlot.MainHand }, Pool, v => Flat(Stat.Mana, v * 0.7f));
-            Add("mana-percent", true, new[] { "Lucid", "Brimming", "Boundless" }, Clothes, Ladder((8, 4, 7), (18, 8, 12), (30, 13, 18)), v => Inc(Stat.Mana, v));
-            Add("barrier", true, new[] { "Warded", "Shielded", "Sheltered", "Enclosed", "Bastioned", "Inviolate" }, Worn, Pool, v => Flat(Stat.Barrier, v * 0.8f));
-            Add("barrier-percent", true, new[] { "Shimmering", "Gleaming", "Radiant" }, Upper, Percent, v => Inc(Stat.Barrier, v));
-            Add("armour", true, new[] { "Sturdy", "Reinforced", "Fortified", "Unyielding", "Adamant", "Impregnable" }, Armours, Rating, v => Flat(Stat.Armour, v));
-            Add("armour-percent", true, new[] { "Iron", "Steel", "Mithril", "Dragonscale" }, Upper, Percent, v => Inc(Stat.Armour, v));
-            Add("evasion", true, new[] { "Fleet", "Agile", "Lithe", "Elusive", "Phantasmal", "Vanishing" }, Armours, Rating, v => Flat(Stat.Evasion, v));
-            Add("evasion-percent", true, new[] { "Shadowed", "Blurred", "Ghostly", "Unseen" }, Upper, Percent, v => Inc(Stat.Evasion, v));
-            Add("block", false, new[] { "of Deflection", "of Parrying", "of Warding Off" }, Shields, Ladder((1, 3, 6), (12, 7, 11), (26, 12, 16)), v => Flat(Stat.BlockChance, v));
-            Add("fire-resistance", false, new[] { "of the Salamander", "of the Hearth", "of the Furnace", "of the Sun" }, Worn, Resistance, v => Resist(Tags.Fire, v));
-            Add("cold-resistance", false, new[] { "of the Seal", "of the Fur", "of the Tundra", "of the Pole" }, Worn, Resistance, v => Resist(Tags.Cold, v));
-            Add("lightning-resistance", false, new[] { "of the Rod", "of Grounding", "of the Faraday", "of the Eye" }, Worn, Resistance, v => Resist(Tags.Lightning, v));
-            Add("magic-resistance", false, new[] { "of Unbelief", "of Warding", "of the Null", "of the Void" }, Worn, Resistance, v => Resist(Tags.Magic, v));
-            Add("poison-resistance", false, new[] { "of the Antidote", "of Purity", "of the Unblemished", "of the Immune" }, Worn, Resistance, v => Resist(Tags.Poison, v));
-            Add("all-resistance", false, new[] { "of the Prism", "of the Spectrum", "of the Rainbow" }, Jewels, Ladder((6, 3, 6), (16, 7, 11), (28, 12, 16)), v => Resist(Tags.Elemental, v));
-            Add("flat-reduction", false, new[] { "of Toughness", "of Hide", "of Scales", "of the Tortoise" }, Upper, Ladder((3, 1, 2), (12, 3, 6), (22, 7, 12), (34, 13, 20)), v => Flat(Stat.FlatReduction, v));
-            Add("physical-reduction", false, new[] { "of Padding", "of Bulwarks" }, new[] { ItemSlot.Body, ItemSlot.Legs, ItemSlot.OffHand }, Ladder((10, 2, 3), (24, 4, 6)), v => Flat(Stat.PhysicalReduction, v));
-            Add("taken-from-mana", false, new[] { "of the Mindful", "of Mental Fortitude" }, new[] { ItemSlot.Head, ItemSlot.Neck }, Ladder((10, 3, 6), (24, 7, 11)), v => Flat(Stat.TakenFromMana, v));
-            Add("health-regen", false, new[] { "of Renewal", "of Vigour", "of the Spring", "of the Hydra" }, new[] { ItemSlot.Body, ItemSlot.Legs, ItemSlot.Head, ItemSlot.Finger, ItemSlot.Neck }, Ladder((2, 0.5f, 1.2f), (9, 1.3f, 2.5f), (17, 2.6f, 4.5f), (30, 4.6f, 9f)), v => Flat(Stat.HealthRegen, v));
-            Add("health-regen-percent", false, new[] { "of Convalescence", "of Regrowth" }, new[] { ItemSlot.Body, ItemSlot.Neck }, Ladder((12, 0.3f, 0.6f), (26, 0.7f, 1.2f)), v => Flat(Stat.HealthRegenPercent, v));
-            Add("mana-regen", false, new[] { "of Clarity", "of Meditation", "of Serenity", "of the Sea" }, new[] { ItemSlot.Head, ItemSlot.Hands, ItemSlot.Finger, ItemSlot.Neck, ItemSlot.MainHand }, Ladder((2, 0.4f, 1f), (9, 1.1f, 2f), (17, 2.1f, 3.5f), (30, 3.6f, 7f)), v => Flat(Stat.ManaRegen, v));
-            Add("barrier-recharge", false, new[] { "of Restoration", "of the Rampart" }, new[] { ItemSlot.Body, ItemSlot.Neck }, SmallPercent, v => Inc(Stat.BarrierRecharge, v));
-            Add("recovery", false, new[] { "of the Physician", "of the Healer", "of the Saint" }, new[] { ItemSlot.Neck, ItemSlot.Body }, SmallPercent, v => Inc(Stat.Recovery, v));
-            Add("reflect", false, new[] { "of Thorns", "of Spines", "of the Briar" }, new[] { ItemSlot.Body, ItemSlot.OffHand }, Ladder((3, 5, 10), (14, 11, 20), (28, 21, 35)), v => Flat(Stat.Reflect, v));
-            Add("physical-taken-as-fire", false, new[] { "of the Cinder Hide" }, new[] { ItemSlot.Body, ItemSlot.OffHand }, Ladder((8, 6, 12), (24, 13, 20)), v => TakenAs(DamageType.Physical, DamageType.Fire, v));
-            Add("physical-taken-as-cold", false, new[] { "of the Rime Hide" }, new[] { ItemSlot.Body, ItemSlot.OffHand }, Ladder((8, 6, 12), (24, 13, 20)), v => TakenAs(DamageType.Physical, DamageType.Cold, v));
-            Add("physical-taken-as-lightning", false, new[] { "of the Storm Hide" }, new[] { ItemSlot.Body, ItemSlot.OffHand }, Ladder((8, 6, 12), (24, 13, 20)), v => TakenAs(DamageType.Physical, DamageType.Lightning, v));
-            Add("ailment-taken", false, new[] { "of Shrugging Off", "of the Stoic" }, new[] { ItemSlot.Body, ItemSlot.Legs, ItemSlot.Feet }, SmallPercent, v => Inc(Stat.AilmentTaken, -v));
-            Add("stun-threshold", false, new[] { "of the Boulder", "of the Anchor" }, new[] { ItemSlot.Body, ItemSlot.Legs, ItemSlot.Feet }, Percent, v => Inc(Stat.StunThreshold, v));
-            Add("ailment-avoid", false, new[] { "of Immunity", "of the Unmarked" }, new[] { ItemSlot.Body, ItemSlot.Legs, ItemSlot.Feet, ItemSlot.Finger }, Ladder((6, 6, 12), (18, 13, 22), (30, 23, 32)), v => Flat(Stat.AilmentAvoid, v));
-            Add("flask-effect", false, new[] { "of the Tippler", "of the Apothecary" }, new[] { ItemSlot.Neck, ItemSlot.Finger }, SmallPercent, v => Inc(Stat.FlaskEffect, v));
+            // How fast a hero strikes and casts is for gloves, and nothing else.
+            Add("attack-speed", new[] { "of Haste", "of Fury", "of the Storm", "of the Whirlwind" }, Gloves, Ladder((3, 4, 8), (10, 9, 14), (18, 15, 22), (30, 23, 30)), v => Inc(Stat.AttackSpeed, v));
+            Add("cast-speed", new[] { "of Muttering", "of Fluency", "of Recitation", "of the Unbroken Word" }, Gloves, Ladder((3, 4, 8), (10, 9, 14), (18, 15, 22), (30, 23, 30)), v => Inc(Stat.CastSpeed, v));
+            Add("crit-chance", new[] { "of Precision", "of the Hawk", "of the Unerring", "of the Killing Eye" }, WeaponGloves, Ladder((2, 1, 3), (9, 3.5f, 6), (17, 6.5f, 10), (30, 10.5f, 14)), v => Flat(Stat.CritChance, v));
+            Add("crit-increased", new[] { "of Focus", "of Intent", "of Certainty", "of Fate" }, WeaponAmulet, Percent, v => Inc(Stat.CritChance, v));
+            Add("crit-multiplier", new[] { "of Wounding", "of Slaughter", "of Ruin", "of Annihilation" }, WeaponAmulet, Ladder((4, 10, 20), (11, 21, 35), (19, 36, 60), (32, 61, 85)), v => Flat(Stat.CritMultiplier, v));
+            Add("accuracy", new[] { "of the Marksman", "of the Sharpshooter", "of the Sniper" }, new[] { ItemSlot.Hands, ItemSlot.Head }, Pool, v => Flat(Stat.Accuracy, v));
+            Add("penetration", new[] { "of Piercing", "of Unmaking", "of Undoing" }, WeaponAmulet, Ladder((8, 4, 7), (18, 8, 12), (30, 13, 18)), v => Flat(Stat.Penetration, v));
 
-            // Getting about, and doing well out of it.
-            Add("move-speed", false, new[] { "of the Road", "of the Wind", "of the Gale", "of the Comet" }, Feet, Ladder((1, 4, 8), (8, 9, 13), (16, 14, 20), (30, 21, 28)), v => Inc(Stat.MoveSpeed, v));
-            Add("dodge-cooldown", false, new[] { "of Quick Feet", "of the Dancer" }, new[] { ItemSlot.Feet, ItemSlot.Legs }, SmallPercent, v => Inc(Stat.DodgeCooldown, -v));
-            Add("gold-find", true, new[] { "Gilded", "Golden" }, Jewels, Ladder((1, 10, 25), (10, 26, 50)), v => Inc(Stat.GoldFind, v));
-            Add("item-rarity", true, new[] { "Lucky", "Fated" }, Jewels, Ladder((3, 6, 14), (13, 15, 28)), v => Inc(Stat.ItemRarity, v));
-            Add("experience", true, new[] { "Studious", "Enlightened" }, Jewels, Ladder((10, 2, 4), (24, 5, 8)), v => Inc(Stat.ExperienceGain, v));
-            Add("stealth", true, new[] { "Muffled", "Hushed", "Silent" }, new[] { ItemSlot.Feet, ItemSlot.Legs, ItemSlot.Head }, Ladder((4, 5, 10), (14, 11, 18), (26, 19, 28)), v => Flat(Stat.Stealth, v));
+            // How a book goes.
+            Add("area", new[] { "of Reach", "of Breadth", "of the Expanse", "of Horizons" }, HeadAmulet, SmallPercent, v => Inc(Stat.AreaOfEffect, v));
+            Add("duration", new[] { "of Patience", "of Endurance", "of Ages" }, HeadAmulet, SmallPercent, v => Inc(Stat.PageDuration, v));
+            Add("cooldown", new[] { "of Readiness", "of Renewal", "of the Eternal Hour" }, HeadAmulet, Ladder((5, 4, 7), (15, 8, 12), (28, 13, 18)), v => Inc(Stat.CooldownRecovery, v));
+            Add("cost", new[] { "of Thrift", "of Economy", "of the Miser" }, HeadAmulet, Ladder((3, 4, 7), (12, 8, 12), (24, 13, 18)), v => Inc(Stat.BookCost, -v));
+            Add("projectile-speed", new[] { "of Flight", "of the Arrow", "of the Falcon" }, WeaponGloves, SmallPercent, v => Inc(Stat.ProjectileSpeed, v));
+            Add("potency", new[] { "of Ink", "of Eloquence" }, WeaponAmulet, Ladder((10, 5, 8), (26, 9, 15)), v => Inc(Stat.Potency, v));
+
+            // What it leaves behind.
+            Add("burn-chance", new[] { "of Kindling", "of Immolation", "of the Pyre" }, WeaponAmulet, Chances, v => Chance(Tags.Burn, v));
+            Add("bleed-chance", new[] { "of Cuts", "of Lacerating", "of Exsanguination" }, WeaponAmulet, Chances, v => Chance(Tags.Bleed, v));
+            Add("venom-chance", new[] { "of the Asp", "of the Viper", "of the Cobra" }, WeaponAmulet, Chances, v => Chance(Tags.Venom, v));
+            Add("shock-chance", new[] { "of Jolting", "of Shocking", "of Paralysis" }, WeaponAmulet, Chances, v => Chance(Tags.Shock, v));
+            Add("freeze-chance", new[] { "of Numbing", "of Stillness", "of the Glacier" }, WeaponAmulet, Chances, v => Chance(Tags.Freeze, v));
+            Add("hex-chance", new[] { "of Ill Omen", "of Hexing", "of the Curse" }, WeaponAmulet, Chances, v => Chance(Tags.Hex, v));
+            Add("stun-chance", new[] { "of Staggering", "of Stunning", "of the Hammer" }, Weapon, Chances, v => Chance(Tags.Stun, v));
+            Add("ailment-duration", new[] { "of Suffering", "of Torment", "of Agony" }, new[] { ItemSlot.Neck, ItemSlot.Legs }, SmallPercent, v => Inc(Stat.AilmentDuration, v));
+            Add("reaction-damage", new[] { "of Catalysis", "of Reaction", "of the Crucible" }, WeaponAmulet, Percent, v => Inc(Stat.ReactionDamage, v));
+            Add("reflect", new[] { "of Thorns", "of Spines", "of the Briar" }, Plates, Ladder((3, 5, 10), (14, 11, 20), (28, 21, 35)), v => Flat(Stat.Reflect, v));
+
+            // Attributes are where power comes from, so they go on anything worn, which also means there's something to kill with on every piece of armour.
+            Add("strength", new[] { "of the Brute", "of Might", "of Iron", "of the Giant", "of Titans", "of the Mountain King" }, Worn, Rating, v => Flat(Stat.Strength, v));
+            Add("dexterity", new[] { "of the Fox", "of Grace", "of the Dancer", "of the Cat", "of Quicksilver", "of the Wind" }, Worn, Rating, v => Flat(Stat.Dexterity, v));
+            Add("intellect", new[] { "of the Student", "of Wit", "of the Scholar", "of the Sage's Eye", "of Genius", "of the Oracle" }, Worn, Rating, v => Flat(Stat.Intellect, v));
+
+            // Doing well out of it.
+            Add("gold-find", new[] { "of Gilding", "of Gold" }, new[] { ItemSlot.Finger, ItemSlot.Feet }, Ladder((1, 10, 25), (10, 26, 50)), v => Inc(Stat.GoldFind, v));
+            Add("item-rarity", new[] { "of Luck", "of Fortune" }, Ring, Ladder((3, 6, 14), (13, 15, 28)), v => Inc(Stat.ItemRarity, v));
+            Add("experience", new[] { "of Study", "of Enlightenment" }, new[] { ItemSlot.Finger, ItemSlot.Neck }, Ladder((10, 2, 4), (24, 5, 8)), v => Inc(Stat.ExperienceGain, v));
 
             // What each family is good for. Weapons lean the same way as what they're carried with, so a staff tends to be a caster's.
             Suit(GearFamily.Heavy, "strength", "armour", "armour-percent", "health", "health-percent", "block", "flat-reduction", "physical-reduction", "reflect", "stun-threshold", "health-regen",
@@ -505,8 +541,8 @@ namespace Dino_Defenders.Progression
 
     /// <summary>
     /// Rolls items. As in the classic ARPGs, an item's level decides which tiers of each affix can appear on it, its rarity how
-    /// many it gets, and the value within a tier is a roll of its own: so the same drop is never quite the same twice, and a
-    /// deeper world holds better things without any item being placed by hand.
+    /// many it gets of each kind, its slot which can, and the value within a tier is a roll of its own: so the same drop is never
+    /// quite the same twice, and a deeper world holds better things without any item being placed by hand.
     /// </summary>
     public static class ItemGenerator
     {
@@ -609,58 +645,83 @@ namespace Dino_Defenders.Progression
         {
             Rarity rarity = RollRarity(random, rarityBonus);
             if (least.HasValue && rarity < least.Value) rarity = least.Value;
-            return Compose(level, random, rarity, slot, 0f, false);
+            return Compose(level, random, rarity, slot, 0f);
         }
 
-        /// <summary>
-        /// An item of exactly this grade, for what's already been decided by a loot table. A legendary with no unique to be at this level comes out as the next best thing.
-        /// </summary>
-        /// <param name="quality">From 0 to 1, how well it comes out: from a fair roll of everything, to every line at the top of what its level can reach, on the newest make, with as many lines as it can have.</param>
-        public static Item Forge(int level, WorldRandom random, LootGrade grade, float quality, ItemSlot? slot = null)
-        {
-            Rarity rarity = grade switch
-            {
-                LootGrade.Legendary => Rarity.Legendary,
-                LootGrade.Masterwork or LootGrade.Rare => Rarity.Rare,
-                LootGrade.Magic => Rarity.Magic,
-                _ => Rarity.Common,
-            };
-            return Compose(level, random, rarity, slot, quality, grade >= LootGrade.Masterwork);
-        }
+        /// <summary>An item of exactly this rarity, for what's already been decided by a loot table. A unique with nothing to be at this level comes out as the next best thing.</summary>
+        /// <param name="quality">From 0 to 1, how well it comes out: from a fair roll of everything, to every line at the top of what its level can reach, on the newest make.</param>
+        public static Item Forge(int level, WorldRandom random, Rarity rarity, float quality, ItemSlot? slot = null) => Compose(level, random, rarity, slot, quality);
 
-        private static Item Compose(int level, WorldRandom random, Rarity rarity, ItemSlot? slot, float quality, bool masterwork)
+        private static Item Compose(int level, WorldRandom random, Rarity rarity, ItemSlot? slot, float quality)
         {
             ItemSlot chosen = slot ?? (ItemSlot)random.Int((int)ItemSlot.Book);
-            if (rarity == Rarity.Legendary && UniqueCatalog.Pick(level, slot, random) is UniqueDefinition unique) return UniqueCatalog.Make(unique, level, random);
-            if (rarity == Rarity.Legendary) rarity = Rarity.Rare;
+            if (rarity == Rarity.Unique && UniqueCatalog.Pick(level, slot, random) is UniqueDefinition unique) return UniqueCatalog.Make(unique, level, random);
+            if (rarity == Rarity.Unique) rarity = Rarity.Rare;
 
             BaseItem baseItem = PickBase(chosen, level, random, quality);
             Item item = Make(baseItem, level, random, quality);
             item.Rarity = rarity;
+            Deal(item, random, quality);
+            item.Name = Name(baseItem.Name, item.Lines);
+            return item;
+        }
 
-            int affixes = rarity switch
+        // Tops up each side to what its rarity has, prefixes first, so that a card always reads the same way round.
+        private static void Deal(Item item, WorldRandom random, float quality)
+        {
+            int each = AffixCatalog.PerSide(item.Rarity);
+            int level = Math.Max(item.Level, 1);
+            var dealt = new List<ItemLine>(each * 2);
+            foreach (bool prefix in new[] { true, false })
             {
-                Rarity.Common => 0,
-                Rarity.Magic => Climb(random.Int(1, 2), 2, quality, random),
-                _ => masterwork ? Loot.MasterworkLines : Climb(random.Int(3, 5), 5, quality, random),
-            };
+                List<ItemLine> side = item.Lines.Where(line => AffixCatalog.Find(line.Affix)!.Prefix == prefix).ToList();
+                while (side.Count < each && PickAffix(item.Slot, prefix, level, side, item.Shares(), random) is Affix affix)
+                {
+                    Tier rolled = affix.Tiers[BestTier(affix, level, random, quality)];
+                    side.Add(new ItemLine(affix.Id, Rise(rolled.Low, rolled.High, quality, random)));
+                }
+                dealt.AddRange(side);
+            }
+            item.Lines = dealt;
+        }
 
-            var names = new List<(bool prefix, string text)>();
-            var taken = new HashSet<string>();
-            for (int i = 0; i < affixes; i++)
+        /// <summary>
+        /// Brings something from a save up to the rules, whatever it was made under. A line stays if its slot can have it and its side has room, in the order it's written. What's left
+        /// to fill is drawn from the item's own seed, so a hero's rare is still a rare and the same one each time. Anything already within the rules isn't touched, and a unique answers to nothing.
+        /// </summary>
+        public static void Fix(Item item)
+        {
+            if (item.Unique != null && UniqueCatalog.Find(item.Unique) == null) item.Unique = null;
+            if (item.Unique != null)
             {
-                Affix? affix = PickAffix(chosen, level, taken, item.Shares(), random);
-                if (affix == null) break;
-                taken.Add(affix.Id);
-
-                int tier = BestTier(affix, level, random, quality);
-                Tier rolled = affix.Tiers[tier];
-                item.Lines.Add(new ItemLine(affix.Id, Rise(rolled.Low, rolled.High, quality, random)));
-                names.Add((affix.Prefix, affix.Names[Math.Min(tier, affix.Names.Length - 1)]));
+                item.Rarity = Rarity.Unique;
+                return;
             }
 
-            item.Name = Name(baseItem.Name, names);
-            return item;
+            if (!Enum.IsDefined(item.Rarity) || item.Rarity == Rarity.Unique) item.Rarity = Rarity.Rare;
+            if (item.IsFolio)
+            {
+                foreach (string word in OldFolioWords) item.Name = item.Name.Replace(word, FolioWords[^1]);
+                return;
+            }
+
+            int each = AffixCatalog.PerSide(item.Rarity);
+            var kept = new List<ItemLine>(each * 2);
+            int prefixes = 0, suffixes = 0;
+            foreach (ItemLine line in item.Lines)
+            {
+                if (AffixCatalog.Find(line.Affix) is not Affix affix || !affix.Slots.Contains(item.Slot) || kept.Any(other => other.Affix == line.Affix)) continue;
+                if ((affix.Prefix ? prefixes : suffixes) >= each) continue;
+                if (affix.Prefix) prefixes++;
+                else suffixes++;
+                kept.Add(line);
+            }
+            if (kept.Count == item.Lines.Count && prefixes == each && suffixes == each) return;
+
+            item.Lines = kept;
+            Deal(item, new WorldRandom(item.LookSeed()).Fork("lines"), 0f);
+            string baseName = BaseOf(item);
+            if (baseName.Length > 0) item.Name = Name(baseName, item.Lines);
         }
 
         // A roll that good quality leans towards the top of. At none it's the plain roll.
@@ -668,13 +729,6 @@ namespace Dino_Defenders.Progression
         {
             float share = 1f - MathF.Pow(1f - random.Float(), 1f + quality * 2.5f);
             return low + (high - low) * share;
-        }
-
-        // One more line, as often as quality says, up to what the item can have.
-        private static int Climb(int lines, int most, float quality, WorldRandom random)
-        {
-            while (lines < most && quality > 0f && random.Chance(quality)) lines++;
-            return lines;
         }
 
         private static Item Make(BaseItem baseItem, int level, WorldRandom random, float quality = 0f)
@@ -714,8 +768,8 @@ namespace Dino_Defenders.Progression
         /// <summary>What everyone starts with: a blow in front of them, for nothing, and room for one thing more.</summary>
         public static Item Book(ulong seed)
         {
-            Item book = EmptyBook(StarterPlaces, "Worn Book", seed, 1, Rarity.Common);
-            book.Held![0] = Leaf(Scribe.NewPage(PageKind.Area), StarterStickers, "Area Page", NextSeed(seed), 1, Rarity.Common);
+            Item book = EmptyBook(StarterPlaces, "Worn Book", seed, 1, Rarity.Normal);
+            book.Held![0] = Leaf(Scribe.NewPage(PageKind.Area), StarterStickers, "Area Page", NextSeed(seed), 1, Rarity.Normal);
             return book;
         }
 
@@ -747,18 +801,18 @@ namespace Dino_Defenders.Progression
         /// <summary>A whole book as items, for what's already written: each page as a page with room for just what's on it.</summary>
         public static Item Copied(Book book, string name, ulong seed, int level = 1)
         {
-            Item item = EmptyBook(Math.Max(book.Pages.Count, 1), name, seed, level, Rarity.Common);
+            Item item = EmptyBook(Math.Max(book.Pages.Count, 1), name, seed, level, Rarity.Normal);
             item.Mode = book.Mode;
             item.When = book.When?.Copy();
             for (int i = 0; i < book.Pages.Count; i++)
             {
                 seed = NextSeed(seed);
                 Page page = book.Pages[i].Copy();
-                Item leaf = Leaf(page, Math.Max(page.Stickers.Count, 1), $"{page.Kind} Page", seed, level, Rarity.Common);
+                Item leaf = Leaf(page, Math.Max(page.Stickers.Count, 1), $"{page.Kind} Page", seed, level, Rarity.Normal);
                 for (int s = 0; s < page.Stickers.Count; s++)
                 {
                     seed = NextSeed(seed);
-                    leaf.Held![s] = StickerItem(page.Stickers[s], seed, level, Rarity.Common);
+                    leaf.Held![s] = StickerItem(page.Stickers[s], seed, level, Rarity.Normal);
                 }
                 page.Stickers = new List<Sticker>();
                 item.Held![i] = leaf;
@@ -768,36 +822,33 @@ namespace Dino_Defenders.Progression
 
         /// <summary>
         /// Something that goes in a book, or a book. What it can hold is what it's worth, so the better it is the more places it has, and a sticker the better it rolls.
-        /// A masterwork is told by its places, so a sticker can't be one.
+        /// Nothing of the kind is one of a kind, so rare is as far as it goes.
         /// </summary>
-        public static Item Folio(int level, WorldRandom random, LootGrade grade)
+        public static Item Folio(int level, WorldRandom random, Rarity rarity)
         {
             ulong seed = NewSeed(random);
-            int table = (int)grade;
-            Rarity rarity = grade switch
-            {
-                LootGrade.Legendary => Rarity.Legendary,
-                >= LootGrade.Rare => Rarity.Rare,
-                LootGrade.Magic => Rarity.Magic,
-                _ => Rarity.Common,
-            };
+            if (rarity > Rarity.Rare) rarity = Rarity.Rare;
+            int table = (int)rarity;
 
             float kind = random.Float();
-            if (kind < StickerShare && grade != LootGrade.Masterwork) return StickerItem(Stickers.Roll(grade, random), seed, level, rarity);
+            if (kind < StickerShare) return StickerItem(Stickers.Roll(rarity, random), seed, level, rarity);
             if (kind < StickerShare + PageShare)
             {
                 PageKind pageKind = random.Chance(0.5f) ? PageKind.Projectile : PageKind.Area;
-                return Leaf(Scribe.NewPage(pageKind), random.Int(LeastStickers[table], MostStickers[table]), $"{FolioWords[table]} {pageKind} Page", seed, level, rarity);
+                return Leaf(Scribe.NewPage(pageKind), PlacesOf(LeastStickers[table], MostStickers[table], random), $"{FolioWords[table]} {pageKind} Page", seed, level, rarity);
             }
 
             float mode = random.Float();
             BookMode bookMode = mode < TriggerShare ? BookMode.Trigger : mode < TriggerShare + ToggleShare ? BookMode.Toggle : BookMode.Active;
             string word = bookMode == BookMode.Active ? "" : $"{bookMode} ";
-            Item book = EmptyBook(random.Int(LeastPages[table], MostPages[table]), $"{FolioWords[table]} {word}Book", seed, level, rarity);
+            Item book = EmptyBook(PlacesOf(LeastPages[table], MostPages[table], random), $"{FolioWords[table]} {word}Book", seed, level, rarity);
             book.Mode = bookMode;
-            if (bookMode == BookMode.Trigger) book.When = BookTriggers.Roll(grade, random);
+            if (bookMode == BookMode.Trigger) book.When = BookTriggers.Roll(rarity, random);
             return book;
         }
+
+        // The lower of two draws, as all the places there can be is what's worth having, and shouldn't turn up as often as the fewest.
+        private static int PlacesOf(int least, int most, WorldRandom random) => Math.Min(random.Int(least, most), random.Int(least, most));
 
         private const int StarterPlaces = 2;
         private const int StarterStickers = 1;
@@ -806,12 +857,13 @@ namespace Dino_Defenders.Progression
         private const float TriggerShare = 0.3f;    // Of books. What's left after toggles is pressed by hand.
         private const float ToggleShare = 0.2f;
 
-        // By grade, from plain to legendary. A book of more places than a page has stickers is the rarer thing, as it's worth more.
-        private static readonly int[] LeastPages = { 1, 2, 3, 5, 6 };
-        private static readonly int[] MostPages = { 2, 2, 4, 5, 6 };
-        private static readonly int[] LeastStickers = { 1, 2, 3, 4, 5 };
-        private static readonly int[] MostStickers = { 1, 2, 3, 4, 5 };
-        private static readonly string[] FolioWords = { "Plain", "Fine", "Gilded", "Masterful", "Fabled" };
+        // By rarity, from normal to rare. A book of more places than a page has stickers is the rarer thing, as it's worth more.
+        private static readonly int[] LeastPages = { 1, 2, 3 };
+        private static readonly int[] MostPages = { 2, 2, 6 };
+        private static readonly int[] LeastStickers = { 1, 2, 3 };
+        private static readonly int[] MostStickers = { 1, 2, 5 };
+        private static readonly string[] FolioWords = { "Plain", "Fine", "Gilded" };
+        private static readonly string[] OldFolioWords = { "Masterful", "Fabled" };
 
         public static int NumberOf(string baseName) => Array.FindIndex(Bases, b => b.Name == baseName) + 1;
 
@@ -841,10 +893,10 @@ namespace Dino_Defenders.Progression
         private static Rarity RollRarity(WorldRandom random, float bonus)
         {
             float roll = random.Float() / (1f + bonus);
-            if (roll < 0.012f) return Rarity.Legendary;
+            if (roll < 0.012f) return Rarity.Unique;
             if (roll < 0.11f) return Rarity.Rare;
             if (roll < 0.42f) return Rarity.Magic;
-            return Rarity.Common;
+            return Rarity.Normal;
         }
 
         private static BaseItem PickBase(ItemSlot slot, int level, WorldRandom random, float quality)
@@ -865,12 +917,12 @@ namespace Dino_Defenders.Progression
             return random.Chance(0.7f + 0.3f * quality) ? kin[^1] : first;
         }
 
-        private static Affix? PickAffix(ItemSlot slot, int level, HashSet<string> taken, in FamilyShares shares, WorldRandom random)
+        private static Affix? PickAffix(ItemSlot slot, bool prefix, int level, List<ItemLine> taken, in FamilyShares shares, WorldRandom random)
         {
             var options = new List<Affix>();
             foreach (Affix affix in AffixCatalog.All)
             {
-                if (taken.Contains(affix.Id) || !affix.Slots.Contains(slot)) continue;
+                if (affix.Prefix != prefix || !affix.Slots.Contains(slot) || taken.Any(line => line.Affix == affix.Id)) continue;
                 if (affix.Tiers[0].MinLevel <= level) options.Add(affix);
             }
             if (options.Count == 0) return null;
@@ -893,16 +945,29 @@ namespace Dino_Defenders.Progression
             return tier;
         }
 
-        private static string Name(string baseName, List<(bool prefix, string text)> names)
+        // What it's called comes from the first of each kind, by the tier its roll reached.
+        private static string Name(string baseName, List<ItemLine> lines)
         {
             string prefix = "";
             string suffix = "";
-            foreach ((bool isPrefix, string text) in names)
+            foreach (ItemLine line in lines)
             {
-                if (isPrefix && prefix.Length == 0) prefix = text + " ";
-                if (!isPrefix && suffix.Length == 0) suffix = " " + text;
+                if (AffixCatalog.Find(line.Affix) is not Affix affix) continue;
+                string word = affix.Names[Math.Min(TierOf(affix, line.Value), affix.Names.Length - 1)];
+                if (affix.Prefix && prefix.Length == 0) prefix = word + " ";
+                if (!affix.Prefix && suffix.Length == 0) suffix = " " + word;
             }
             return prefix + baseName + suffix;
+        }
+
+        private static int TierOf(Affix affix, float value)
+        {
+            int tier = 0;
+            for (int i = 0; i < affix.Tiers.Length; i++)
+            {
+                if (affix.Tiers[i].Low <= value) tier = i;
+            }
+            return tier;
         }
     }
 }

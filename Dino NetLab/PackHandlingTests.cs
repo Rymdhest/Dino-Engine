@@ -241,7 +241,7 @@ namespace Dino_NetLab
         {
             report.Section("Putting something down");
             Item ring = Thing(ItemSlot.Finger, "Ring"), keeps = Thing(ItemSlot.Feet, "Stays Put");
-            ring.Rarity = Rarity.Legendary;
+            ring.Rarity = Rarity.Unique;
             using var scene = new Scene(worlds, request, Hero((4, ring), (5, keeps)));
 
             scene.Player.Client.Drop(ItemPlace.Cell(4));
@@ -256,13 +256,13 @@ namespace Dino_NetLab
 
             PickupComponent? pickup = null;
             foreach (Entity entity in scene.Player.Ecs.QueryEntities(new BitMask(typeof(PickupComponent)), BitMask.Empty)) pickup = scene.Player.Ecs.GetEntityView(entity).Get<PickupComponent>();
-            report.Check("Marked as put down, so that nobody hears a legendary land", pickup is { Laid: true });
+            report.Check("Marked as put down, so that nobody hears a unique land", pickup is { Laid: true });
 
             scene.Player.Client.TravelTo(at);
             scene.Lab.Run(0.6);
             scene.Player.Client.PickUp(find);
             scene.Lab.Run(1);
-            report.Check("And it can be picked up again, as it was", scene.Session.Ground.Count == 0 && scene.Real.Carried().Any(i => i.Name == "Ring" && i.Rarity == Rarity.Legendary) && scene.Shown.Carried().Any(i => i.Name == "Ring"));
+            report.Check("And it can be picked up again, as it was", scene.Session.Ground.Count == 0 && scene.Real.Carried().Any(i => i.Name == "Ring" && i.Rarity == Rarity.Unique) && scene.Shown.Carried().Any(i => i.Name == "Ring"));
 
             float armed = scene.Truth.Actor.Sheet.Profile(0).First.AverageHit;
             scene.Player.Client.Drop(ItemPlace.Worn(WornSlot.MainHand));

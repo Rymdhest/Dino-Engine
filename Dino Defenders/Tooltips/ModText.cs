@@ -162,7 +162,7 @@ namespace Dino_Defenders.Tooltips
             (Condition.ColdLand, "in Cold Lands", "in Cold Lands"),
             (Condition.WetLand, "in Wet Lands", "in Wet Lands"),
             (Condition.HighLand, "in the High Country", "in the High Country"),
-            (Condition.Elite, "while Elite", "that are Elite"),
+            (Condition.Rare, "while Rare", "that are Rare"),
             (Condition.Boss, "while a Boss", "that are Bosses"),
             (Condition.HoldingShield, "while holding a Shield", "holding a Shield"),
             (Condition.TwoHanded, "while wielding a Two Handed Weapon", "wielding a Two Handed Weapon"),

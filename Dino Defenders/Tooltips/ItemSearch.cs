@@ -41,7 +41,7 @@ namespace Dino_Defenders.Tooltips
         {
             Card card = Cards.Item(item, null, Cards.KindOf(item));
             var text = new StringBuilder();
-            text.Append(card.Title).Append('\n').Append(card.Kind).Append('\n').Append(item.Base).Append('\n').Append(Loot.GradeOf(item)).Append('\n');
+            text.Append(card.Title).Append('\n').Append(card.Kind).Append('\n').Append(item.Base).Append('\n').Append(item.Rarity).Append('\n');
             foreach (string word in card.Words()) text.Append(word).Append('\n');
             foreach (CardLine line in card.Lines) text.Append(line.Value).Append('\n');
 

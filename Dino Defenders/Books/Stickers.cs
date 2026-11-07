@@ -39,7 +39,7 @@ namespace Dino_Defenders.Books
     /// </summary>
     public static class Stickers
     {
-        private const float GradeSteps = 5f;
+        private const float RaritySteps = 3f;
         private const float BestDrawback = 0.75f;       // Of the way from a drawback's worst to its least, for the best there is. Nothing gets away with nothing.
 
         /// <param name="Fits">Only means anything on one kind of page, if it isn't null.</param>
@@ -116,8 +116,8 @@ namespace Dino_Defenders.Books
         public static bool GoesOn(Sticker sticker, PageKind kind) => Fits(sticker) is not PageKind only || only == kind;
 
         /// <summary>Rolls one.</summary>
-        /// <param name="grade">How good it is, which is how far its good side goes and how little its bad side does.</param>
-        public static Sticker Roll(LootGrade grade, WorldRandom random)
+        /// <param name="rarity">How good it is, which is how far its good side goes and how little its bad side does.</param>
+        public static Sticker Roll(Rarity rarity, WorldRandom random)
         {
             // A page for projectiles, for areas, or either: whichever it is, everything on it has to mean something there.
             int kind = random.Int(3);
@@ -129,8 +129,8 @@ namespace Dino_Defenders.Books
             Line[] bads = Array.FindAll(Lines, line => CanHurt(line) && Belongs(line) && line.Effect != good.Effect);
             Line bad = bads[random.Int(bads.Length)];
 
-            float strength = ((int)grade + random.Float()) / GradeSteps;
-            float mercy = ((int)grade + random.Float()) / GradeSteps * BestDrawback;
+            float strength = ((int)rarity + random.Float()) / RaritySteps;
+            float mercy = ((int)rarity + random.Float()) / RaritySteps * BestDrawback;
             return new Sticker
             {
                 Good = good.Effect,

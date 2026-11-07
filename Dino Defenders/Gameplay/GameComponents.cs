@@ -6,13 +6,6 @@ using OpenTK.Mathematics;
 
 namespace Dino_Defenders.Gameplay
 {
-    public enum EnemyRank
-    {
-        Normal,
-        Elite,
-        Boss,
-    }
-
     public enum EnemyState
     {
         Idle,       // Standing watch, or wandering near home.
@@ -41,7 +34,7 @@ namespace Dino_Defenders.Gameplay
     public struct EnemyComponent : IComponent
     {
         public string Name;
-        public EnemyRank Rank;
+        public Rarity Rarity;
         public int Level;
         public EnemyState State;
         public bool Friendly;       // Someone's minion: the same creature, on the other side.
@@ -67,6 +60,7 @@ namespace Dino_Defenders.Gameplay
         public float LeashRadius;
         public bool KeepsAway;
         public int Book;            // Which of its books it's winding up.
+        public int Abilities;       // How many of its books, from the first, its traits gave it.
         public int WindUpTicks;     // Until it lets go. A mark has said when, so nothing that happens to it after that changes this.
 
         // What it has committed to. All of this is fixed when the wind-up starts: what's on the ground is what lands, and walking out of it is what it's there for.
@@ -158,7 +152,7 @@ namespace Dino_Defenders.Gameplay
     public struct PickupComponent : IComponent
     {
         public int Find;            // Which find this is, to ask for it by. Nobody asks for gold, so it has none.
-        public LootGrade Grade;
+        public Rarity Rarity;
         public ItemSlot Slot;
         public uint Born;           // The tick it leaves what it came out of.
         public Vector3 From;

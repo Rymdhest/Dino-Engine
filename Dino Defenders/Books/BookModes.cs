@@ -38,7 +38,7 @@ namespace Dino_Defenders.Books
     /// <summary>How Trigger Books are rolled: anything they can wait for, and the rarer the book the less it has to wait.</summary>
     public static class BookTriggers
     {
-        private const float GradeSteps = 5f;
+        private const float RaritySteps = 3f;
 
         /// <param name="Most">What the plainest asks for.</param>
         /// <param name="Least">What the best asks for.</param>
@@ -61,10 +61,10 @@ namespace Dino_Defenders.Books
         /// <summary>Everything a book can wait for.</summary>
         public static IEnumerable<BookWhen> All => Lines.Select(line => line.When);
 
-        public static BookTrigger Roll(LootGrade grade, WorldRandom random)
+        public static BookTrigger Roll(Rarity rarity, WorldRandom random)
         {
             Line line = Lines[random.Int(Lines.Length)];
-            float share = ((int)grade + random.Float()) / GradeSteps;
+            float share = ((int)rarity + random.Float()) / RaritySteps;
             return new BookTrigger { When = line.When, Amount = MathF.Round(line.Most + (line.Least - line.Most) * share) };
         }
 

@@ -200,6 +200,9 @@ namespace Dino_Engine.ECS.Systems
                     Engine.RenderEngine._characterRenderer.SubmitShadowCommand(cmd, cascade);
                 }
 
+                // What's alive. A bird's shadow going over the ground is most of what shows it's in the air.
+                Engine.RenderEngine._wildlifeRenderer.SubmitShadows(cascade);
+
                 // Imposters
                 if (imposterCommand.HasValue)
                 {

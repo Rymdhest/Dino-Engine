@@ -32,6 +32,7 @@ namespace Dino_Defenders.Client
         private const float Effort = 0.3f;              // Share of swings that get a grunt.
         private const float OwnReach = 6f;              // Metres from this hero within which something happened to them.
         private const float HeavyBlow = 0.5f;           // Of what something has, for the camera to feel it.
+        private const float BlowHeard = 22f;            // Metres off that anything living takes fright at a blow.
 
         private readonly ECSWorld _world;
         private readonly GameClient _client;
@@ -125,21 +126,21 @@ namespace Dino_Defenders.Client
 
             Audio.Play(item.Rarity switch
             {
-                Rarity.Legendary => Treasure.ItemLegendary,
+                Rarity.Unique => Treasure.ItemUnique,
                 Rarity.Rare => Treasure.ItemRare,
                 Rarity.Magic => Treasure.ItemMagic,
-                _ => Treasure.ItemCommon,
+                _ => Treasure.ItemNormal,
             });
         }
 
-        /// <summary>A legendary's sound takes as long as its flight, and arrives when it does.</summary>
-        public void LootLaunched(LootGrade grade, Vector3 position)
+        /// <summary>A unique's sound takes as long as its flight, and arrives when it does.</summary>
+        public void LootLaunched(Rarity rarity, Vector3 position)
         {
-            if (grade == LootGrade.Legendary) Audio.Play(Treasure.DropLegendary);
+            if (rarity == Rarity.Unique) Audio.Play(Treasure.DropUnique);
         }
 
         /// <summary>A find coming down: what it is, by what it hits the ground with, and what it's worth, by the note that follows.</summary>
-        public void LootLanded(LootGrade grade, ItemSlot slot, bool gold, Vector3 position)
+        public void LootLanded(Rarity rarity, ItemSlot slot, bool gold, Vector3 position)
         {
             if (gold)
             {
@@ -153,16 +154,14 @@ namespace Dino_Defenders.Client
                 ItemSlot.Body or ItemSlot.Legs or ItemSlot.Feet or ItemSlot.Hands => Treasure.LandCloth,
                 _ => Treasure.LandMetal,
             }, position);
-            if (grade == LootGrade.Masterwork) Audio.Play(Treasure.DropMasterwork);
-            else if (grade == LootGrade.Rare) Audio.Play(Treasure.DropRare, position);
+            if (rarity == Rarity.Rare) Audio.Play(Treasure.DropRare, position);
         }
 
         /// <summary>Something good found lying there has its note all the same, as that's how a player knows to look.</summary>
-        public void LootDiscovered(LootGrade grade, Vector3 position)
+        public void LootDiscovered(Rarity rarity, Vector3 position)
         {
-            if (grade == LootGrade.Legendary) Audio.Play(Treasure.DropLegendary);
-            else if (grade == LootGrade.Masterwork) Audio.Play(Treasure.DropMasterwork);
-            else if (grade == LootGrade.Rare) Audio.Play(Treasure.DropRare, position);
+            if (rarity == Rarity.Unique) Audio.Play(Treasure.DropUnique);
+            else if (rarity == Rarity.Rare) Audio.Play(Treasure.DropRare, position);
         }
 
         /// <summary>A page going off somewhere.</summary>
@@ -216,6 +215,9 @@ namespace Dino_Defenders.Client
 
         private void Hit(DamageEvent e)
         {
+            // A fight can be heard, and it's as good as a shout to anything listening for one.
+            Dino_Engine.ECS.Systems.Nature.Startle(e.Position.Xz, BlowHeard);
+
             if (e.Note != HitNote.None)
             {
                 if (e.Note == HitNote.Blocked) Audio.Play(Impacts.Armour, e.Position);

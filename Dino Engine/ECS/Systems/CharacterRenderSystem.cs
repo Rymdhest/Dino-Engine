@@ -5,6 +5,7 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering.Renderers.Geometry;
+using Dino_Engine.Rendering.Renderers.PosGeometry;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Systems
@@ -48,6 +49,11 @@ namespace Dino_Engine.ECS.Systems
                     {
                         list = new List<CharacterInstanceData>();
                         _characterCommands[model] = list;
+                    }
+
+                    if (animatorArray != null && animatorArray[i].Animator.Outline.W > 0f)
+                    {
+                        Engine.RenderEngine._outlineRenderer.SubmitCommand(new OutlineCommand { Model = model, ModelMatrix = modelMatrix, SkinningMatrices = skeletonArray[i].SkinningMatrices, Colour = animatorArray[i].Animator.Outline });
                     }
 
                     list.Add(new CharacterInstanceData

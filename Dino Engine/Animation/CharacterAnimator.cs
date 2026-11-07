@@ -145,6 +145,9 @@ namespace Dino_Engine.Animation
         public Gait Gait => _gait;
 
         /// <summary>How bright a blow has left them, from 1 down to nothing, and in what.</summary>
+        /// <summary>What's drawn round them: a colour, and nothing at all with none in its fourth part.</summary>
+        public Vector4 Outline;
+
         public float Flash { get; private set; }
         public Vector3 FlashColour { get; private set; } = Vector3.One;
 

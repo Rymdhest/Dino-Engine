@@ -698,7 +698,7 @@ namespace Dino_NetLab
 
             // All three hundred are one loadout, which is the point. They can't be killed in the time, or do much.
             var kind = new EnemyKind { Id = "lab-horde", Name = "Restless Dead", Books = new[] { Shelf.Strike, Shelf.Shot }, Weapon = Tags.Bow, Health = 2000f, Damage = 0.01f, MoveSpeed = 6f };
-            Loadout horde = server.Session!.Bestiary.Shared(kind, 1, EnemyRank.Normal, Bestiary.NoTrait);
+            Loadout horde = server.Session!.Bestiary.Shared(kind, 1, Rarity.Normal, Bestiary.NoTraits);
             for (int i = 0; i < Enemies; i++)
             {
                 Vector2 at = centre + new Vector2(random.NextSingle() - 0.5f, random.NextSingle() - 0.5f) * 90f;

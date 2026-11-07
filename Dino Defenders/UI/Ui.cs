@@ -36,22 +36,20 @@ namespace Dino_Defenders.UI
 
         public static FontFace Face => _face ??= SystemFonts.TryLoad("Palatino Linotype", "Book Antiqua", "Georgia", "Cambria", "Times New Roman") ?? Engine.Gui.Theme.Font;
 
-        public static Colour GradeColour(LootGrade grade) => grade switch
+        public static Colour RarityColour(Rarity rarity) => rarity switch
         {
-            LootGrade.Magic => GuiColors.Rgba(112, 150, 230),
-            LootGrade.Rare => GuiColors.Rgba(232, 204, 92),
-            LootGrade.Masterwork => GuiColors.Rgba(190, 120, 255),
-            LootGrade.Legendary => GuiColors.Rgba(255, 138, 46),
+            Rarity.Magic => GuiColors.Rgba(112, 150, 230),
+            Rarity.Rare => GuiColors.Rgba(232, 204, 92),
+            Rarity.Unique => GuiColors.Rgba(255, 138, 46),
             _ => Parchment,
         };
 
         /// <summary>What's behind a find's name on the ground: dark enough to read over anything, with enough of its colour in it to tell at a glance.</summary>
-        public static Colour GradeFill(LootGrade grade) => grade switch
+        public static Colour RarityFill(Rarity rarity) => rarity switch
         {
-            LootGrade.Magic => GuiColors.Rgba(10, 16, 36, 210),
-            LootGrade.Rare => GuiColors.Rgba(38, 30, 8, 220),
-            LootGrade.Masterwork => GuiColors.Rgba(36, 14, 58, 232),
-            LootGrade.Legendary => GuiColors.Rgba(66, 26, 4, 238),
+            Rarity.Magic => GuiColors.Rgba(10, 16, 36, 210),
+            Rarity.Rare => GuiColors.Rgba(38, 30, 8, 220),
+            Rarity.Unique => GuiColors.Rgba(66, 26, 4, 238),
             _ => GuiColors.Rgba(12, 10, 8, 180),
         };
 
@@ -246,9 +244,8 @@ namespace Dino_Defenders.UI
         // What's behind a picture of something, for what's worth noticing. It's part of the picture, so it has to go by what's in the picture's key.
         private static Colour Halo(Item item)
         {
-            LootGrade grade = Loot.GradeOf(item);
-            if (grade < LootGrade.Rare) return default;
-            Colour glow = GradeColour(grade);
+            if (item.Rarity < Rarity.Rare) return default;
+            Colour glow = RarityColour(item.Rarity);
             return new Colour(glow.Red, glow.Green, glow.Blue, 1f, 0.55f);
         }
 

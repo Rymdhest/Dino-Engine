@@ -19,8 +19,8 @@ namespace Dino_Defenders
     ///   --books a,b     Puts these books from Shelf on the bar, by id, in order from the left mouse button.
     ///   --equip a,b     Puts these uniques on the hero, by id.
     ///   --carry N       Fills N cells of the pack with things rolled from the seed, to try anything to do with a pack.
-    ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar.
-    ///   --loot all      Drops one find of every grade in front of the hero, or everything a tier gives, as boss, elite, chest or hoard.
+    ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar, or one of each rarity with rarities.
+    ///   --loot all      Drops one find of every rarity in front of the hero, or everything a tier gives, as boss, rare, magic, chest or hoard.
     ///   --panel name    Opens map, hero, talents, book, glossary, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
     ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one, with whatever offering is below.
     ///   --peril N  --teeming N  --overrun N  --omens a,b   What's been paid on the first world, or on the way through a waygate with --travel.
@@ -51,6 +51,10 @@ namespace Dino_Defenders
     ///   --biome id      Starts in the thickest wood of that biome, if the world has it.
     ///   --garden a,b    Stands those plants thick along the way the hero's going with --walk, for looking at what walking through them does.
     ///   --gardengap N   How many metres apart they stand: a few trees 16 apart make an arboretum, for judging how they look from the game's own camera.
+    ///   --bring a,b     Puts some of those creatures from Fauna near the hero, for looking at: rabbit, sparrow, crab.shore.
+    ///   --nolife true   Nothing's alive and no leaves fall, for measuring what that costs.
+    ///   --startle N     Frightens everything within sight of the hero after N frames, for watching it go in a --film.
+    ///   --lifelog file  Writes down what's alive, where it is and what it's up to, once a second.
     ///   --meshseed N    Seeds what otherwise grows differently in every run, so that two builds can be compared picture by picture.
     ///   --perf file     Measures --perfframes N frames from frame --perfstart N, writes the report to this file and quits. Timing each pass slows the
     ///                   GPU down a little: --perfgpu false measures what a player really gets, with no passes in the report.
@@ -93,7 +97,7 @@ namespace Dino_Defenders
         /// <summary>Where the main menu keeps its heroes, for a scripted run: --heroes folder.</summary>
         public string? Heroes;
 
-        /// <summary>How many things that go in a book to carry, of every grade in turn: --folios N.</summary>
+        /// <summary>How many things that go in a book to carry, of every rarity in turn: --folios N.</summary>
         public int Folios;
         public string? Parade;
 
@@ -139,6 +143,10 @@ namespace Dino_Defenders
         public string? Perf;
         public string? Biome;
         public string? Garden;
+        public string? Bring;
+        public bool NoLife;
+        public string? LifeLog;
+        public int StartleAfterFrames = -1;
         public float GardenGap = 1.6f;
         public int PerfStart = 300;
         public int PerfFrames = 600;
@@ -238,6 +246,10 @@ namespace Dino_Defenders
                     case "maxfps": options.MaxFps = int.Parse(value); break;
                     case "perf": options.Perf = value; break;
                     case "garden": options.Garden = value; break;
+                    case "bring": options.Bring = value; break;
+                    case "nolife": options.NoLife = bool.Parse(value); break;
+                    case "lifelog": options.LifeLog = value; break;
+                    case "startle": options.StartleAfterFrames = int.Parse(value); break;
                     case "gardengap": options.GardenGap = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "perfstart": options.PerfStart = int.Parse(value); break;
                     case "perfframes": options.PerfFrames = int.Parse(value); break;

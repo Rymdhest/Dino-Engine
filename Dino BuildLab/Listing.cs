@@ -67,6 +67,32 @@ namespace Dino_BuildLab
                 }
             }
 
+            if (what is "all" or "slots")
+            {
+                foreach (ItemSlot slot in Enum.GetValues<ItemSlot>().Where(slot => slot < ItemSlot.Book))
+                {
+                    Console.WriteLine($"\n{slot}");
+                    foreach (bool prefix in new[] { true, false })
+                    {
+                        Console.WriteLine($"  {(prefix ? "Prefixes" : "Suffixes")}: {string.Join(", ", AffixCatalog.All.Where(a => a.Prefix == prefix && a.Slots.Contains(slot)).Select(a => a.Id))}");
+                    }
+                }
+            }
+
+            if (what == "items")
+            {
+                var random = new Dino_Engine.World.WorldRandom(1);
+                foreach (ItemSlot slot in Enum.GetValues<ItemSlot>().Where(slot => slot < ItemSlot.Book))
+                {
+                    foreach (Rarity rarity in new[] { Rarity.Normal, Rarity.Magic, Rarity.Rare })
+                    {
+                        Item item = ItemGenerator.Forge(30, random.Fork((int)slot * 4 + (int)rarity), rarity, 0.5f, slot);
+                        Console.WriteLine($"\n{item.Name} ({Cards.KindOf(item)})");
+                        foreach (Mod mod in item.RolledMods()) Console.WriteLine($"  {mod.Describe()}");
+                    }
+                }
+            }
+
             if (what is "all" or "sentences")
             {
                 foreach (Blank blank in Enum.GetValues<Blank>())

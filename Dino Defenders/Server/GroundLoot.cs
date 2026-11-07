@@ -59,7 +59,7 @@ namespace Dino_Defenders.Server
                 delay += FountainStep * 0.5f;
             }
 
-            foreach (Item item in items.OrderBy(Loot.GradeOf))
+            foreach (Item item in items.OrderBy(find => find.Rarity))
             {
                 Drop(mouth, item, delay);
                 delay += FountainStep;
@@ -75,14 +75,14 @@ namespace Dino_Defenders.Server
         private void Drop(Vector3 from, Item item, float delay, bool laid = false)
         {
             int find = _nextFind++;
-            LootGrade grade = Loot.GradeOf(item);
+            Rarity rarity = item.Rarity;
             Vector2 spot = Landing(from.Xz);
             ulong seed = item.LookSeed();
             Entity entity = Server.Ecs.CreateEntity("Find",
-                new NetIdentityComponent(Server.Ghosts.NextId(), importance: 1.5f + (int)grade),
+                new NetIdentityComponent(Server.Ghosts.NextId(), importance: 1.5f + (int)rarity),
                 new PositionComponent(Ground(spot)),
                 new VisualComponent(LootModels.Find, VisualKind.Prop),
-                new PickupComponent { Find = find, Grade = grade, Slot = item.Slot, From = from, Born = Moment(delay), SeedLow = (uint)seed, SeedHigh = (uint)(seed >> 32), Traits = ItemLook.Traits(item), Laid = laid });
+                new PickupComponent { Find = find, Rarity = rarity, Slot = item.Slot, From = from, Born = Moment(delay), SeedLow = (uint)seed, SeedHigh = (uint)(seed >> 32), Traits = ItemLook.Traits(item), Laid = laid });
 
             _lying.Add(find, new Lying(entity, item, spot));
             foreach (ServerPlayer hero in Server.Heroes) Tell(hero, find, item);
@@ -185,7 +185,7 @@ namespace Dino_Defenders.Server
             Server.Note(hero, $"Found: {lying.Item.Name}");
         }
 
-        /// <summary>For a scripted run: one of every grade in front of a hero, or everything a tier gives, to look at and listen to.</summary>
+        /// <summary>For a scripted run: one of every rarity in front of a hero, or everything a tier gives, to look at and listen to.</summary>
         public void Show(Vector2 at, string which)
         {
             int level = _session.World.Plan.Level + 8;
@@ -198,7 +198,7 @@ namespace Dino_Defenders.Server
             }
 
             var items = new List<Item>();
-            foreach (LootGrade grade in Enum.GetValues<LootGrade>()) items.Add(ItemGenerator.Forge(level, _random.Fork((int)grade), grade, 0.5f));
+            foreach (Rarity rarity in Enum.GetValues<Rarity>()) items.Add(ItemGenerator.Forge(level, _random.Fork((int)rarity), rarity, 0.5f));
             Spill(from, items, 0, 0);
         }
     }

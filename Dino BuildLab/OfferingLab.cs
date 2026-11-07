@@ -21,12 +21,12 @@ namespace Dino_BuildLab
         private static readonly int[] Ladder = { 0, 1, 2, 3, 5, 8, 10, 12, 15, 20, 25, 30 };
 
         /// <summary>What one world pays out, on average, if all of it is cleared.</summary>
-        internal readonly record struct Payout(float Worth, float Kills, float Good, float Legendary, float Gold);
+        internal readonly record struct Payout(float Worth, float Kills, float Good, float Uniques, float Gold);
 
         internal static Payout Measure(int level, in LootBoon boon, int worlds, ulong seed)
         {
             var random = new WorldRandom(seed);
-            double worth = 0, good = 0, legendary = 0, gold = 0;
+            double worth = 0, good = 0, uniques = 0, gold = 0;
             int kills = 0;
             for (int w = 0; w < worlds; w++)
             {
@@ -40,15 +40,15 @@ namespace Dino_BuildLab
                         foreach (Item item in Loot.Roll(tier, level, level, 0f, luck, draw, boon))
                         {
                             worth += LootLab.WorthOf(item);
-                            LootGrade grade = Loot.GradeOf(item);
-                            if (grade >= LootGrade.Rare) good++;
-                            if (grade == LootGrade.Legendary) legendary++;
+                            Rarity rarity = item.Rarity;
+                            if (rarity >= Rarity.Rare) good++;
+                            if (rarity == Rarity.Unique) uniques++;
                         }
                         gold += Loot.RollGold(tier, level, 0f, draw, boon.Gold);
                     }
                 }
             }
-            return new Payout((float)(worth / worlds), (float)kills / worlds, (float)(good / worlds), (float)(legendary / worlds), (float)(gold / worlds));
+            return new Payout((float)(worth / worlds), (float)kills / worlds, (float)(good / worlds), (float)(uniques / worlds), (float)(gold / worlds));
         }
 
         public static int Run(Options options)
@@ -58,7 +58,7 @@ namespace Dino_BuildLab
             Payout usual = Measure(level, LootBoon.None, worlds, 5);
 
             Console.WriteLine($"What each step of peril comes to on a land of level {level}, over {worlds} whole worlds of the usual size\n");
-            Console.WriteLine("peril  health  damage  worth/kill  good/world  legend/world   gold/world     price   price/gold   paid per time");
+            Console.WriteLine("peril  health  damage  worth/kill  good/world  unique/world   gold/world     price   price/gold   paid per time");
             foreach (int peril in Ladder)
             {
                 var offering = new Offering { Peril = peril };
@@ -66,7 +66,7 @@ namespace Dino_BuildLab
                 float worthPerKill = payout.Worth / payout.Kills;
                 float perTime = worthPerKill / (usual.Worth / usual.Kills) / offering.EnemyHealth;
                 long price = offering.Price(level);
-                Console.WriteLine($"{peril,5} {offering.EnemyHealth,6:0.0}x {offering.EnemyDamage,6:0.0}x {worthPerKill,11:0.00} {payout.Good,11:0.0} {payout.Legendary,13:0.0} {payout.Gold,12:0} {price,9} {price / (payout.Gold / WalkedShare),11:0%} {perTime,12:0.00}x");
+                Console.WriteLine($"{peril,5} {offering.EnemyHealth,6:0.0}x {offering.EnemyDamage,6:0.0}x {worthPerKill,11:0.00} {payout.Good,11:0.0} {payout.Uniques,13:0.0} {payout.Gold,12:0} {price,9} {price / (payout.Gold / WalkedShare),11:0%} {perTime,12:0.00}x");
             }
 
             Console.WriteLine("\nprice/gold is against half a world's gold, as most people don't clear all of one. paid per time is worth per kill over how much longer a kill takes, for a hero no stronger than before.");
@@ -158,7 +158,7 @@ namespace Dino_BuildLab
                 Payout payout = Measure(level, offering.Boon(), worlds, 21);
                 climbing &= payout.Worth > lastWorth;
                 if (peril <= ClimbWorthIt) outruns &= payout.Worth / usual.Worth >= offering.EnemyHealth;
-                report.Note($"Peril {peril}: {payout.Worth / usual.Worth:0.0}x the worth for {offering.EnemyHealth:0.0}x the health, {payout.Good:0} good finds a world, {payout.Legendary:0.0} legendary");
+                report.Note($"Peril {peril}: {payout.Worth / usual.Worth:0.0}x the worth for {offering.EnemyHealth:0.0}x the health, {payout.Good:0} good finds a world, {payout.Uniques:0.0} unique");
                 lastWorth = payout.Worth;
             }
             report.Check("Every step of peril pays more than the last", climbing);
@@ -166,26 +166,26 @@ namespace Dino_BuildLab
 
             LootBoon top = new Offering { Peril = Offering.MostPeril, Omens = Omens.All.Where(o => o.Quantity > 0f).Take(Offering.MostOmens).Select(o => o.Id).ToList() }.Boon();
             var random = new WorldRandom(9);
-            int finds = 0, legendary = 0;
+            int finds = 0, uniques = 0;
             for (int i = 0; i < 2000; i++)
             {
                 foreach (Item item in Loot.Roll(LootTier.Boss, level, level, 0f, new LootLuck(), random.Fork(i), top))
                 {
                     finds++;
-                    if (Loot.GradeOf(item) == LootGrade.Legendary) legendary++;
+                    if (item.Rarity == Rarity.Unique) uniques++;
                 }
             }
-            report.Check("Even at the top a boss drops more than legendaries", (float)legendary / finds < 0.6f, $"{legendary} of {finds}");
+            report.Check("Even at the top a boss drops more than uniques", (float)uniques / finds < 0.6f, $"{uniques} of {finds}");
             report.Check("And not an impossible heap of them", finds / 2000f < 40f, $"{finds / 2000f:0.0} a boss");
 
-            var plain = new Offering { Peril = 3 }.Boon();
+            var noNormal = new Offering { Peril = 3 }.Boon();
             var draw = new WorldRandom(11);
-            int plainFinds = 0;
+            int normalFinds = 0;
             for (int i = 0; i < 4000; i++)
             {
-                plainFinds += Loot.Roll(LootTier.Soldier, level, level, 0f, new LootLuck(), draw.Fork(i), plain).Count(item => Loot.GradeOf(item) == LootGrade.Plain);
+                normalFinds += Loot.Roll(LootTier.Soldier, level, level, 0f, new LootLuck(), draw.Fork(i), noNormal).Count(item => item.Rarity == Rarity.Normal);
             }
-            report.Check("Past a point nothing plain drops", plainFinds == 0, $"{plainFinds} did");
+            report.Check("Past a point nothing normal drops", normalFinds == 0, $"{normalFinds} did");
         }
 
         // Everything that isn't an offering has to come out as it did before there were any.
@@ -194,8 +194,8 @@ namespace Dino_BuildLab
             bool same = true;
             for (int i = 0; i < 500; i++)
             {
-                List<Item> before = Loot.Roll(LootTier.Elite, 10, 10, 0.3f, new LootLuck(), new WorldRandom((ulong)i));
-                List<Item> after = Loot.Roll(LootTier.Elite, 10, 10, 0.3f, new LootLuck(), new WorldRandom((ulong)i), new Offering().Boon());
+                List<Item> before = Loot.Roll(LootTier.Rare, 10, 10, 0.3f, new LootLuck(), new WorldRandom((ulong)i));
+                List<Item> after = Loot.Roll(LootTier.Rare, 10, 10, 0.3f, new LootLuck(), new WorldRandom((ulong)i), new Offering().Boon());
                 same &= before.Select(item => item.Name + item.Level).SequenceEqual(after.Select(item => item.Name + item.Level));
             }
             report.Check("A land with nothing paid on it rolls what it always did", same);
@@ -207,21 +207,21 @@ namespace Dino_BuildLab
             var offering = new Offering { Peril = 10, Omens = { "ironhide", "bloodthirst" } };
             var usual = new Bestiary();
             var worse = new Bestiary(offering.EnemyMods());
-            ActorSheet before = usual.Shared(Bestiary.Outlaw, 12, EnemyRank.Normal, Bestiary.NoTrait).SheetFor(Condition.None);
-            ActorSheet after = worse.Shared(Bestiary.Outlaw, 12, EnemyRank.Normal, Bestiary.NoTrait).SheetFor(Condition.None);
+            ActorSheet before = usual.Shared(Bestiary.Outlaw, 12, Rarity.Normal, Bestiary.NoTraits).SheetFor(Condition.None);
+            ActorSheet after = worse.Shared(Bestiary.Outlaw, 12, Rarity.Normal, Bestiary.NoTraits).SheetFor(Condition.None);
             report.Near("Enemies have the health it says", after.MaxHealth / before.MaxHealth, offering.EnemyHealth, 0.002f);
             report.Near("And the damage", after.Preview(Shelf.Strike).First.AverageHit / before.Preview(Shelf.Strike).First.AverageHit, offering.EnemyDamage, 0.002f);
 
-            ActorSheet elite = worse.Shared(Bestiary.Outlaw, 12, EnemyRank.Elite, 4).SheetFor(Condition.None);
-            report.Check("An elite has it on top of what it is", elite.MaxHealth > after.MaxHealth * 2f);
+            ActorSheet rare = worse.Shared(Bestiary.Outlaw, 12, Rarity.Rare, Bestiary.Trait(4)).SheetFor(Condition.None);
+            report.Check("A rare has it on top of what it is", rare.MaxHealth > after.MaxHealth * 2f);
 
-            Loadout boss = Bestiary.Boss(Bestiary.Warlord, 12, new WorldRandom(4), out _, out _);
-            Loadout worseBoss = Bestiary.Boss(Bestiary.Warlord, 12, new WorldRandom(4), out _, out _, worse.Worn);
+            Loadout boss = Bestiary.Boss(Bestiary.Warlord, 12, Bestiary.NoTraits, new WorldRandom(4), out _, out _);
+            Loadout worseBoss = Bestiary.Boss(Bestiary.Warlord, 12, Bestiary.NoTraits, new WorldRandom(4), out _, out _, worse.Worn);
             report.Near("And so does a boss", worseBoss.SheetFor(Condition.None).MaxHealth / boss.SheetFor(Condition.None).MaxHealth, offering.EnemyHealth, 0.002f);
 
             report.Check("Everything an omen names, an enemy really wears", Omens.All.Where(o => o.Mods.Length > 0).All(omen =>
             {
-                Loadout worn = new Bestiary(omen.Mods).Shared(Bestiary.Outlaw, 12, EnemyRank.Normal, Bestiary.NoTrait);
+                Loadout worn = new Bestiary(omen.Mods).Shared(Bestiary.Outlaw, 12, Rarity.Normal, Bestiary.NoTraits);
                 ActorSheet sheet = worn.SheetFor(Condition.None);
                 return omen.Mods.All(mod => mod.Kind == ModKind.Rule ? sheet.Has(mod.Rule) : worn.Mods.Contains(mod));
             }));

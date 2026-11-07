@@ -119,7 +119,7 @@ namespace Dino_BuildLab
                         sheet = known.SheetFor(Condition.None);
                         BookProfile skill = sheet.Profile(sample.Book)!;
 
-                        Loadout enemy = bestiary.Shared(Bestiary.Outlaw, level, EnemyRank.Normal, Bestiary.NoTrait);
+                        Loadout enemy = bestiary.Shared(Bestiary.Outlaw, level, Rarity.Normal, Bestiary.NoTraits);
                         (float dealt, float taken) = Exchange(sheet, skill, enemy);
                         ActorSheet foe = enemy.SheetFor(Condition.None);
 

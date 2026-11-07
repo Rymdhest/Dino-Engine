@@ -10,22 +10,21 @@ namespace Dino_Engine.Sound.Content
     [SoundCollection]
     public static class Treasure
     {
-        /// <summary>Seconds into <see cref="DropLegendary"/> at which it breaks. A legendary takes exactly this long to come down, so that's the moment it lands.</summary>
-        public const float LegendaryStrike = 0.95f;
+        /// <summary>Seconds into <see cref="DropUnique"/> at which it breaks. A unique takes exactly this long to come down, so that's the moment it lands.</summary>
+        public const float UniqueStrike = 0.95f;
 
         public static readonly SoundDefinition Coin = Add("loot.coin", take => Coins(take, 1 + take.Random.Int(2)), -21f, positional: true);
         public static readonly SoundDefinition Handful = Add("loot.coins", take => Coins(take, 3 + take.Random.Int(3)), -19f, positional: true);
         public static readonly SoundDefinition Hoard = Add("loot.hoard", take => Coins(take, 14 + take.Random.Int(10)), -17f, positional: true);
-        public static readonly SoundDefinition ItemCommon = Add("loot.item", take => Item(take, 0), -20f);
+        public static readonly SoundDefinition ItemNormal = Add("loot.item", take => Item(take, 0), -20f);
         public static readonly SoundDefinition ItemMagic = Add("loot.item.magic", take => Item(take, 1), -19f);
         public static readonly SoundDefinition ItemRare = Add("loot.item.rare", take => Item(take, 2), -18f);
-        public static readonly SoundDefinition ItemLegendary = Add("loot.item.legendary", take => Item(take, 3), -17f, stereo: true);
+        public static readonly SoundDefinition ItemUnique = Add("loot.item.unique", take => Item(take, 3), -17f, stereo: true);
         public static readonly SoundDefinition LandMetal = Add("loot.land.metal", LandedMetal, -24f, positional: true);
         public static readonly SoundDefinition LandJewel = Add("loot.land.jewel", LandedJewel, -25f, positional: true);
         public static readonly SoundDefinition LandCloth = Add("loot.land.cloth", LandedCloth, -25f, positional: true);
         public static readonly SoundDefinition DropRare = Drop("loot.drop.rare", RareFind, -17f, 3f, positional: true);
-        public static readonly SoundDefinition DropMasterwork = Drop("loot.drop.masterwork", MasterworkFind, -14f, 6f);
-        public static readonly SoundDefinition DropLegendary = Drop("loot.drop.legendary", LegendaryFind, -11f, 9f);
+        public static readonly SoundDefinition DropUnique = Drop("loot.drop.unique", UniqueFind, -11f, 9f);
         public static readonly SoundDefinition ChestOpen = Add("loot.chest", Chest, -18f, positional: true);
         public static readonly SoundDefinition Flask = Add("loot.flask", DrinkFlask, -18f, positional: true);
         public static readonly SoundDefinition Experience = Add("reward.experience", Glimmer, -24f, stereo: true);
@@ -177,38 +176,24 @@ namespace Dino_Engine.Sound.Content
             take.Mix(Shimmer(take, 0.7f, 5000f, 12000f).Normalize(0f), 0.09f, -20f);
         }
 
-        // A hammer on steel, and the note it leaves ringing climbs: sharp at the front, to cut through anything, then all bright metal.
-        private static void MasterworkFind(Take take)
-        {
-            var strike = new Blow { Material = Material.Steel, Shape = ModalShape.Bar, Fundamental = 2093f, Modes = 16, Tilt = 0.5f, Ringing = 0.7f, Rattle = 0.15f, Noise = -11f, NoiseLow = 1800f };
-            take.Mix(Impact.Of(take, strike, 0.8f).Normalize(0f), 0f, -2f);
-
-            float[] notes = { 1046.5f, 1568f, 2093f, 2637f };
-            for (int i = 0; i < notes.Length; i++)
-            {
-                take.Mix(Chime(take, notes[i], 2.1f, 1f).Normalize(0f), 0.02f + i * 0.058f, -3f - i * 0.5f, (i - 1.5f) * 0.3f);
-            }
-            take.Mix(Shimmer(take, 1.5f, 4200f, 13000f).Normalize(0f), 0.12f, -14f);
-        }
-
         // Its flight is the breath in: everything drawn upwards for as long as it's in the air, then let go all at once as it lands, in the deepest bell there is and the whole chord over it.
-        private static void LegendaryFind(Take take)
+        private static void UniqueFind(Take take)
         {
-            float rise = LegendaryStrike + 0.06f;
-            take.Mix(take.Pink(rise).Bandpass(Curve.Glide(240f, 5600f, LegendaryStrike), 1.5f).Shape(Curve.Hump(LegendaryStrike * 0.97f, rise)).Normalize(0f), 0f, -11f);
-            take.Mix(take.Sine(rise, Curve.Glide(62f, 148f, LegendaryStrike)).Shape(Curve.Hump(LegendaryStrike * 0.95f, rise)).Normalize(0f), 0f, -15f);
-            take.Mix(Shimmer(take, LegendaryStrike, 1700f, 9000f).Normalize(0f), 0.12f, -13f);
+            float rise = UniqueStrike + 0.06f;
+            take.Mix(take.Pink(rise).Bandpass(Curve.Glide(240f, 5600f, UniqueStrike), 1.5f).Shape(Curve.Hump(UniqueStrike * 0.97f, rise)).Normalize(0f), 0f, -11f);
+            take.Mix(take.Sine(rise, Curve.Glide(62f, 148f, UniqueStrike)).Shape(Curve.Hump(UniqueStrike * 0.95f, rise)).Normalize(0f), 0f, -15f);
+            take.Mix(Shimmer(take, UniqueStrike, 1700f, 9000f).Normalize(0f), 0.12f, -13f);
 
-            take.Mix(Impacts.Thump(take, 170f, 44f, 0.03f, 0.24f, 1f).Normalize(0f), LegendaryStrike, -1f);
-            take.Mix(Bells.Toll(take, 146.83f, 5f).Normalize(0f), LegendaryStrike, -3f);
+            take.Mix(Impacts.Thump(take, 170f, 44f, 0.03f, 0.24f, 1f).Normalize(0f), UniqueStrike, -1f);
+            take.Mix(Bells.Toll(take, 146.83f, 5f).Normalize(0f), UniqueStrike, -3f);
 
             float[] chord = { 293.66f, 440f, 587.33f, 739.99f, 880f, 1174.66f, 1760f };
             for (int i = 0; i < chord.Length; i++)
             {
-                take.Mix(Chime(take, chord[i], 3.6f, 0.95f).Normalize(0f), LegendaryStrike + i * 0.034f, -4f - i * 0.5f, MathF.Sin(i * 1.9f) * 0.55f);
+                take.Mix(Chime(take, chord[i], 3.6f, 0.95f).Normalize(0f), UniqueStrike + i * 0.034f, -4f - i * 0.5f, MathF.Sin(i * 1.9f) * 0.55f);
             }
-            take.Mix(Shimmer(take, 3.4f, 2600f, 12500f).Normalize(0f), LegendaryStrike + 0.05f, -13f);
-            take.Mix(take.Pink(3f).Bandpass(Curve.Glide(800f, 7000f, 2f), 1f).Shape(Curve.Hump(0.4f, 3f)).Normalize(0f), LegendaryStrike, -19f);
+            take.Mix(Shimmer(take, 3.4f, 2600f, 12500f).Normalize(0f), UniqueStrike + 0.05f, -13f);
+            take.Mix(take.Pink(3f).Bandpass(Curve.Glide(800f, 7000f, 2f), 1f).Shape(Curve.Hump(0.4f, 3f)).Normalize(0f), UniqueStrike, -19f);
         }
 
         private static void Chest(Take take)

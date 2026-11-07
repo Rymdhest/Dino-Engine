@@ -16,7 +16,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 namespace Dino_Defenders.UI
 {
     /// <summary>
-    /// What's on the ground, as a box of its name in its grade's colour, for clicking on. Labels push each other up rather than overlap, with the best finds placed first, so
+    /// What's on the ground, as a box of its name in its rarity's colour, for clicking on. Labels push each other up rather than overlap, with the best finds placed first, so
     /// a boss's fountain stays readable and what's worth having is what stays where it fell. Clicking walks the hero to it. Only the labels themselves stop the mouse: everywhere
     /// else it goes through to the game. Holding shift goes through them as well, to fight over the top of what's on the ground.
     /// </summary>
@@ -32,14 +32,14 @@ namespace Dino_Defenders.UI
         private const float CalloutTop = 66f;
         private const float CalloutStep = 44f;
 
-        private static readonly float[] Sizes = { 13f, 14f, 15.5f, 17f, 19f };
+        private static readonly float[] Sizes = { 13f, 14f, 15.5f, 19f };
         private static readonly BitMask Pickups = new BitMask(typeof(PickupComponent), typeof(PositionComponent));
 
         private struct Label
         {
             public int Find;
             public Item Item;
-            public LootGrade Grade;
+            public Rarity Rarity;
             public GuiRect Rect;
             public Vector2 Anchor;
             public float Fresh;     // 1 when it's just landed, falling away to nothing.
@@ -153,7 +153,7 @@ namespace Dino_Defenders.UI
                     if (!Hud.Project(pickup.Rest + Vector3.UnitY * LabelHeight, screen, out Vector2 at)) continue;
                     if (at.X < -EdgeMargin || at.Y < -EdgeMargin || at.X > screen.Width + EdgeMargin || at.Y > screen.Height + EdgeMargin) continue;
 
-                    float size = Sizes[(int)pickup.Grade];
+                    float size = Sizes[(int)pickup.Rarity];
                     if (!_widths.TryGetValue(pickup.Find, out float width))
                     {
                         width = GuiText.MeasureWidth(Context!, item.Name, Ui.Face, size);
@@ -166,7 +166,7 @@ namespace Dino_Defenders.UI
                     {
                         Find = pickup.Find,
                         Item = item,
-                        Grade = pickup.Grade,
+                        Rarity = pickup.Rarity,
                         Rect = new GuiRect(at.X - boxWidth * 0.5f, at.Y - boxHeight, boxWidth, boxHeight),
                         Anchor = at,
                         Fresh = MathF.Exp(-pickup.LandedFor * 2.6f),
@@ -175,8 +175,8 @@ namespace Dino_Defenders.UI
                 }
             }
 
-            // By find as well, so that labels of a grade keep their order from one frame to the next, and don't change places as the hero walks.
-            _labels.Sort(static (a, b) => a.Grade != b.Grade ? b.Grade.CompareTo(a.Grade) : a.Find.CompareTo(b.Find));
+            // By find as well, so that labels of a rarity keep their order from one frame to the next, and don't change places as the hero walks.
+            _labels.Sort(static (a, b) => a.Rarity != b.Rarity ? b.Rarity.CompareTo(a.Rarity) : a.Find.CompareTo(b.Find));
         }
 
         // Each goes up past anything it would land on. There are never many on screen, and the ones placed first are the ones worth keeping where they are.
@@ -196,28 +196,28 @@ namespace Dino_Defenders.UI
         private void Draw(GuiDrawList draw, in Label label)
         {
             GuiRect rect = label.Rect;
-            Colour colour = Ui.GradeColour(label.Grade);
+            Colour colour = Ui.RarityColour(label.Rarity);
             bool hovered = label.Find == _hovered;
-            int grade = (int)label.Grade;
+            int rarity = (int)label.Rarity;
 
             float shifted = label.Anchor.Y - rect.Bottom;
             if (shifted > ShiftedFar) draw.AddLine(new Vector2(label.Anchor.X, rect.Bottom), label.Anchor, colour.MultiplyAlpha(0.45f), 1f);
 
             // A find that's just come down throws light on its own label, and the very best never quite stop.
-            float pulse = label.Grade == LootGrade.Legendary ? 0.32f + 0.16f * MathF.Sin(Engine.Time * 3.4f) : label.Grade == LootGrade.Masterwork ? 0.2f : 0f;
+            float pulse = label.Rarity == Rarity.Unique ? 0.32f + 0.16f * MathF.Sin(Engine.Time * 3.4f) : 0f;
             float glow = MathF.Max(label.Fresh, pulse);
-            if (glow > 0.01f && grade >= (int)LootGrade.Magic)
+            if (glow > 0.01f && rarity >= (int)Rarity.Magic)
             {
                 float spread = 5f + 7f * label.Fresh;
                 draw.AddRect(new GuiRect(rect.X - spread, rect.Y - spread, rect.Width + spread * 2f, rect.Height + spread * 2f), colour.MultiplyAlpha(glow * 0.75f), 6f, 0f, default, 12f);
             }
 
-            Colour fill = hovered ? colour.MultiplyAlpha(0.92f) : Ui.GradeFill(label.Grade);
-            float border = label.Grade >= LootGrade.Masterwork ? 1.6f : 1f;
-            draw.AddRect(rect, fill, 2f, border, colour.MultiplyAlpha(hovered ? 1f : label.Grade == LootGrade.Plain ? 0.35f : 0.85f));
+            Colour fill = hovered ? colour.MultiplyAlpha(0.92f) : Ui.RarityFill(label.Rarity);
+            float border = label.Rarity == Rarity.Unique ? 1.6f : 1f;
+            draw.AddRect(rect, fill, 2f, border, colour.MultiplyAlpha(hovered ? 1f : label.Rarity == Rarity.Normal ? 0.35f : 0.85f));
 
             Colour text = hovered ? GuiColors.Rgba(14, 10, 8) : colour;
-            Ui.Text(Context!, draw, label.Item.Name, Sizes[grade], rect, text, Alignment.Center);
+            Ui.Text(Context!, draw, label.Item.Name, Sizes[rarity], rect, text, Alignment.Center);
         }
 
         // What was found, across the top of the screen, for the finds that are the reason for playing. It's the same moment as the sound breaking and the beam going up.
@@ -229,20 +229,20 @@ namespace Dino_Defenders.UI
             float y = CalloutTop;
             foreach (LootCallout callout in session.Callouts)
             {
-                Colour colour = Ui.GradeColour(callout.Grade);
+                Colour colour = Ui.RarityColour(callout.Rarity);
                 float alpha = Math.Clamp(MathF.Min(callout.Age / 0.12f, (CalloutLife - callout.Age) / 0.7f), 0f, 1f);
-                bool legendary = callout.Grade == LootGrade.Legendary;
+                bool unique = callout.Rarity == Rarity.Unique;
 
                 // A flush of colour from the edges of the screen, gone in a moment.
-                float flush = MathF.Exp(-callout.Age * 2.4f) * (legendary ? 0.42f : 0.2f);
+                float flush = MathF.Exp(-callout.Age * 2.4f) * (unique ? 0.42f : 0.2f);
                 float depth = screen.Height * 0.24f;
                 draw.AddRectGradient(new GuiRect(0f, 0f, screen.Width, depth), colour.MultiplyAlpha(flush), colour.MultiplyAlpha(0f));
                 draw.AddRectGradient(new GuiRect(0f, screen.Height - depth, screen.Width, depth), colour.MultiplyAlpha(0f), colour.MultiplyAlpha(flush));
 
                 // It lands big and settles.
                 float punch = 1f + 0.45f * MathF.Exp(-callout.Age * 9f);
-                float size = (legendary ? 27f : 23f) * punch;
-                string text = $"{callout.Grade}: {callout.Text}";
+                float size = (unique ? 27f : 23f) * punch;
+                string text = $"{callout.Rarity}: {callout.Text}";
                 draw.PushOpacity(alpha);
                 float back = MathF.Min(GuiText.MeasureWidth(Context!, text, Ui.Face, size) + 90f, screen.Width);
                 draw.AddRect(new GuiRect((screen.Width - back) * 0.5f, y, back, CalloutStep - 6f), GuiColors.Rgba(10, 8, 6, 105), 10f, 0f, default, 18f);

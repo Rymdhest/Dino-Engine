@@ -109,12 +109,12 @@ namespace Dino_BuildLab
             var finds = new Dino_Engine.World.WorldRandom(31);
             for (int i = 0; i < 300; i++)
             {
-                Item found = ItemGenerator.Folio(20, finds.Fork(i), (LootGrade)(i % 5));
+                Item found = ItemGenerator.Folio(20, finds.Fork(i), (Rarity)(i % 3));
                 yield return Cards.Priced(found, sheet, Cards.KindOf(found));
             }
             foreach (string name in Dino_Defenders.Books.Stickers.Names)
             {
-                Item stuck = ItemGenerator.StickerItem(Dino_Defenders.Books.Stickers.Written(name)!, 1, 1, Rarity.Common);
+                Item stuck = ItemGenerator.StickerItem(Dino_Defenders.Books.Stickers.Written(name)!, 1, 1, Rarity.Normal);
                 yield return Cards.Priced(stuck, sheet, Cards.KindOf(stuck));
             }
             foreach (BuffDefinition buff in BuffCatalog.All) yield return Cards.Buff(buff, sheet);

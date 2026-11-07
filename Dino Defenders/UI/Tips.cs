@@ -48,7 +48,7 @@ namespace Dino_Defenders.UI
         public float Width;
         public float Height;
 
-        public static Colour TitleColour(Card card, Inks ink) => card.Grade is LootGrade grade ? Ui.GradeColour(grade) : card.Gilded ? Ui.Gold : ink.Text;
+        public static Colour TitleColour(Card card, Inks ink) => card.Rarity is Rarity rarity ? Ui.RarityColour(rarity) : card.Gilded ? Ui.Gold : ink.Text;
 
         /// <param name="held">Whether it's being held still to be read, which is when there's anything to rest on.</param>
         /// <param name="comparable">Whether there's something to set it against with Alt.</param>
@@ -56,7 +56,7 @@ namespace Dino_Defenders.UI
         public static LaidCard Of(GuiContext context, Card card, float width, bool held, bool comparable = false, Inks? inks = null)
         {
             Inks ink = inks ?? Inks.Card;
-            var laid = new LaidCard { Width = width, Picture = card.Picture, Links = card.Attached, Ink = ink, Edge = card.Grade is LootGrade grade ? Ui.GradeColour(grade).MultiplyAlpha(0.8f) : GuiColors.Rgba(120, 96, 58) };
+            var laid = new LaidCard { Width = width, Picture = card.Picture, Links = card.Attached, Ink = ink, Edge = card.Rarity is Rarity rarity ? Ui.RarityColour(rarity).MultiplyAlpha(0.8f) : GuiColors.Rgba(120, 96, 58) };
             float inner = width - Pad * 2f;
             float head = card.Picture != null ? inner - PictureSize - 8f : inner;
             float y = Pad - 3f;

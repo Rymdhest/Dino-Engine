@@ -148,14 +148,14 @@ namespace Dino_Defenders.Client
                         components.Add(new LightRangeComponent(GoldLightRadius, 0.2f, lightsFog: false));
                         components.Add(new ColorComponent(new Colour(1f, 0.74f, 0.3f, 0f)));
                     }
-                    else if (LootShow.GlowStrength(find.Grade) > 0f)
+                    else if (LootShow.GlowStrength(find.Rarity) > 0f)
                     {
-                        Colour light = LootShow.GlowOf(find.Grade);
+                        Colour light = LootShow.GlowOf(find.Rarity);
                         components.Add(new PointLightTag());
                         components.Add(new LightRangeComponent(LootShow.LightRadius, 0.2f, lightsFog: false));
                         components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, 0f)));
                     }
-                    if (LootShow.BeamOf(find.Grade) != null) components.Add(new BeamComponent());
+                    if (LootShow.BeamOf(find.Rarity) != null) components.Add(new BeamComponent());
                 }
                 else if (visual.Value.Model.StartsWith(CharacterFactory.BoltPrefix) && Enum.TryParse(visual.Value.Model.AsSpan(CharacterFactory.BoltPrefix.Length), out DamageType look))
                 {
@@ -391,6 +391,8 @@ namespace Dino_Defenders.Client
                         continue;
                     }
 
+                    animator.Outline = entity.Has<EnemyComponent>() ? OutlineOf(entity.Get<EnemyComponent>()) : Vector4.Zero;
+
                     var action = entity.Get<ActionComponent>();
                     bool hero = entity.Has<HeroComponent>();
                     double clock = hero ? past : present;
@@ -423,6 +425,14 @@ namespace Dino_Defenders.Client
                     animator.Orders.Dash = velocity.LengthSquared > DashSpeed * DashSpeed ? velocity.Xz.Normalized() : Vector2.Zero;
                 }
             }
+        }
+
+        // How rare something is has to be seen at a glance in a crowd, so it's drawn round it in the colour of what it might drop. Whatever's normal has nothing, or nothing would stand out.
+        private static Vector4 OutlineOf(in EnemyComponent enemy)
+        {
+            if (enemy.Rarity == Rarity.Normal || enemy.Friendly || enemy.State == EnemyState.Dead) return Vector4.Zero;
+            Colour colour = LootShow.GlowOf(enemy.Rarity);
+            return new Vector4(colour.Red, colour.Green, colour.Blue, 1f);
         }
 
         private static ActionInput Reading(in ActionComponent action, double clock, CharacterAnimator animator)
@@ -782,56 +792,58 @@ namespace Dino_Defenders.Client
             camera.Set(follow);
         }
 
-        /// <summary>Something has just left what it came out of. A legendary's whole sound starts here, and breaks as it lands.</summary>
-        public void LootLaunched(LootGrade grade, bool gold, Vector3 position)
+        /// <summary>Something has just left what it came out of. A unique's whole sound starts here, and breaks as it lands.</summary>
+        public void LootLaunched(Rarity rarity, bool gold, Vector3 position)
         {
-            if (!gold) Sounds.LootLaunched(grade, position);
+            if (!gold) Sounds.LootLaunched(rarity, position);
         }
 
         /// <summary>Something has come down, for all to see.</summary>
-        public void LootLanded(int find, LootGrade grade, ItemSlot slot, bool gold, Vector3 position)
+        public void LootLanded(int find, Rarity rarity, ItemSlot slot, bool gold, Vector3 position)
         {
-            Sounds.LootLanded(grade, slot, gold, position);
-            if (gold || grade < LootGrade.Magic) return;
+            Sounds.LootLanded(rarity, slot, gold, position);
+            if (gold || rarity < Rarity.Magic) return;
 
-            Colour glow = LootShow.GlowOf(grade);
+            Colour glow = LootShow.GlowOf(rarity);
             Vector3 foot = position + Vector3.UnitY * 0.5f;
-            if (grade == LootGrade.Magic)
+            if (rarity == Rarity.Magic)
             {
                 Spark(foot, glow, 5, 3f);
                 return;
             }
 
-            // Each step up is bigger in every way, and the top of it moves the land itself.
-            int step = grade - LootGrade.Rare;
+            // A unique is bigger in every way, and moves the land itself.
+            int step = rarity == Rarity.Unique ? UniqueStep : 0;
             Flash(position + Vector3.UnitY * 2.5f, new Colour(glow.Red, glow.Green, glow.Blue, 260f + 240f * step), 16f + 13f * step, 0.6f + 0.4f * step);
             Ring(foot, 2.6f + 1.6f * step, glow, 16 + 10 * step);
             Spark(foot, glow, 14 + 18 * step, 6f + 3f * step);
             if (step > 0) Wind.AddBlast(_world, position, 9f + 9f * step, 12f + 12f * step, 0.5f + 0.3f * step);
-            if (step > 0) Announce(find, grade);
+            if (step > 0) Announce(find, rarity);
         }
 
-        private void Announce(int find, LootGrade grade)
+        private const int UniqueStep = 2;
+
+        private void Announce(int find, Rarity rarity)
         {
             GameSession? session = _client.Session;
             if (session == null || !session.Ground.TryGetValue(find, out Item? item)) return;
 
             // A boss can pour out more of these than there's room for, and it gives its best last.
             if (session.Callouts.Count >= MostCallouts) session.Callouts.RemoveAt(0);
-            session.Callouts.Add(new LootCallout { Text = item.Name, Grade = grade });
+            session.Callouts.Add(new LootCallout { Text = item.Name, Rarity = rarity });
         }
 
         /// <summary>Something good, already lying there when it came into sight.</summary>
-        public void LootDiscovered(LootGrade grade, Vector3 position)
+        public void LootDiscovered(Rarity rarity, Vector3 position)
         {
-            Sounds.LootDiscovered(grade, position);
+            Sounds.LootDiscovered(rarity, position);
         }
 
         /// <summary>A spark off something good, in the air or rising up its beam.</summary>
-        public void LootMote(LootGrade grade, Vector3 position, float height)
+        public void LootMote(Rarity rarity, Vector3 position, float height)
         {
             Vector3 at = position + new Vector3(_random.Range(-0.5f, 0.5f), _random.Range(0f, height), _random.Range(-0.5f, 0.5f));
-            Spark(at, LootShow.GlowOf(grade), 1, 1.6f);
+            Spark(at, LootShow.GlowOf(rarity), 1, 1.6f);
         }
 
         /// <summary>

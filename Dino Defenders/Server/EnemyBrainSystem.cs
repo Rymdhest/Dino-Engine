@@ -1,5 +1,6 @@
 using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
+using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -128,7 +129,7 @@ namespace Dino_Defenders.Server
                     {
                         brain.Book = ready;
                         BookProfile chosen = actor.Sheet.Profile(ready);
-                        Commit(session, entity.Entity, actor, ref brain, enemy.Rank, chosen, position, foe, toTarget);
+                        Commit(session, entity.Entity, actor, ref brain, enemy.Rarity, chosen, position, foe, toTarget);
                         Change(ref enemy, ref brain, EnemyState.WindingUp);
                     }
                     else if (toTarget > wants * 0.75f)
@@ -150,7 +151,7 @@ namespace Dino_Defenders.Server
                     {
                         Let(session, actor, brain);
                         brain.Mark = default;
-                        brain.Cooldown = enemy.Rank == EnemyRank.Boss ? 1.1f : 1.5f;
+                        brain.Cooldown = enemy.Rarity == Rarity.Unique ? 1.1f : 1.5f;
                         Change(ref enemy, ref brain, EnemyState.Recovering);
                     }
                     break;
@@ -196,13 +197,13 @@ namespace Dino_Defenders.Server
         }
 
         // Fixes what's going to happen: where from, which way and how far, and says so to all. Nothing is checked again until it lands, so that whatever a player can see is what's coming.
-        private static void Commit(ServerSession session, Entity who, Actor actor, ref EnemyBrainComponent brain, EnemyRank rank, BookProfile book, Vector2 position, Vector2 foe, float toTarget)
+        private static void Commit(ServerSession session, Entity who, Actor actor, ref EnemyBrainComponent brain, Rarity rarity, BookProfile book, Vector2 position, Vector2 foe, float toTarget)
         {
             Vector2 toward = foe - position;
             brain.AimFrom = position;
             brain.AimWay = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.UnitY;
             brain.AimReach = toTarget + MeleeSlack;
-            brain.WindUpTicks = (int)MathF.Round(WindUpOf(book, rank) / MathF.Max(actor.Afflictions.ActionRate, 0.1f) * NetTime.TicksPerSecond);
+            brain.WindUpTicks = (int)MathF.Round(WindUpOf(book, rarity) / MathF.Max(actor.Afflictions.ActionRate, 0.1f) * NetTime.TicksPerSecond);
             float windUp = brain.WindUpTicks * NetTime.TickSeconds;
 
             float follow = MathF.Min(MathF.Max(book.UseTime - book.ImpactTime, 0.35f), MostFollowThrough);
@@ -211,23 +212,23 @@ namespace Dino_Defenders.Server
             // Those on the heroes' side have no need of telling anyone, and there can be a lot of them.
             if (actor.Team != Team.Enemies) return;
             GroundShape shape = GroundShape.Of(book, position, brain.AimWay, brain.AimReach);
-            brain.Mark = session.Combat.Warn(shape, TierOf(rank, book), true, windUp + book.Delay);
+            brain.Mark = session.Combat.Warn(shape, TierOf(rarity, book), true, windUp + book.Delay, from: rarity);
         }
 
         // Long enough to see it, and for anything with an area, long enough for someone in the middle of it to get to the edge.
-        private static float WindUpOf(BookProfile book, EnemyRank rank)
+        private static float WindUpOf(BookProfile book, Rarity rarity)
         {
             float windUp = MathF.Max(book.ImpactTime, ShortestWindUp);
             if (book.Sign.Form is PageForm.Nova or PageForm.Burst or PageForm.Zone) windUp = MathF.Max(windUp, GroundShape.Of(book, Vector2.Zero, Vector2.UnitY, 0f).Length / EscapeSpeed * EscapeShare + 0.2f);
             if (Fearsome(book)) windUp = MathF.Max(windUp, HeavyWindUp);
-            return rank == EnemyRank.Boss ? windUp * BossWindUp : windUp;
+            return rarity == Rarity.Unique ? windUp * BossWindUp : windUp;
         }
 
         // A hero's eye goes to what can really hurt them, and a crowd of cuts from fodder would drown that out.
-        private static MarkTier TierOf(EnemyRank rank, BookProfile book)
+        private static MarkTier TierOf(Rarity rarity, BookProfile book)
         {
-            if (rank != EnemyRank.Normal || Fearsome(book)) return MarkTier.Grave;
-            return book.Sign.Form is PageForm.Strike or PageForm.Bolt ? MarkTier.Slight : MarkTier.Plain;
+            if (rarity >= Rarity.Rare || Fearsome(book)) return MarkTier.Grave;
+            return rarity == Rarity.Normal && book.Sign.Form is PageForm.Strike or PageForm.Bolt ? MarkTier.Slight : MarkTier.Plain;
         }
 
         // What's slow to come, or goes all the way round.
@@ -284,9 +285,15 @@ namespace Dino_Defenders.Server
         // How close it wants to be before it's happy.
         private static float Comfort(Actor actor)
         {
-            float best = 0f;
-            for (int i = 0; i < actor.Loadout.Books.Length; i++) best = MathF.Max(best, Reach(actor.Sheet.Profile(i)));
-            return best;
+            float best = 0f, waiting = 0f;
+            for (int i = 0; i < actor.Loadout.Books.Length; i++)
+            {
+                if (actor.Cooldowns[i] > 0f) waiting = MathF.Max(waiting, Reach(actor.Sheet.Profile(i)));
+                else best = MathF.Max(best, Reach(actor.Sheet.Profile(i)));
+            }
+
+            // What can't be used yet is no reason to hang back, or a swordsman with a thrown knife stands off between throws and does nothing.
+            return best > 0f ? best : waiting;
         }
 
         private static float Reach(BookProfile book) => book.Sign.Form switch
@@ -312,7 +319,7 @@ namespace Dino_Defenders.Server
         private static void Let(ServerSession session, Actor actor, in EnemyBrainComponent brain)
         {
             BookProfile book = actor.Sheet.Profile(brain.Book);
-            actor.Cooldowns[brain.Book] = book.Cooldown;
+            actor.Cooldowns[brain.Book] = brain.Book < brain.Abilities ? MathF.Max(book.Cooldown, Rulebook.AbilityCooldown) : book.Cooldown;
 
             // It goes where it said it would. Whether anyone's still there is their business: that's the whole of how a blow gets dodged.
             session.Combat.Release(actor, book, brain.AimFrom, brain.AimWay, brain.AimReach);
@@ -342,7 +349,7 @@ namespace Dino_Defenders.Server
                 brain.Wander = brain.Home + new Vector2(_random.Range(-6f, 6f), _random.Range(-6f, 6f));
             }
             Vector2 offset = brain.Wander - position;
-            if (offset.Length < 1f || enemy.Rank == EnemyRank.Boss) return Vector2.Zero;
+            if (offset.Length < 1f || enemy.Rarity == Rarity.Unique) return Vector2.Zero;
             return offset.Normalized() * speed * 0.3f;
         }
 

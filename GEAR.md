@@ -14,7 +14,7 @@ Status: built, and looked at by machine. See "Where it stands" at the end for wh
   |  Seed     64 random bits    |      +--> worn:   skinned to the rig, merged into the hero
   |  Base     "Longsword"       | ---> | 
   |  Armour / Evasion / Barrier |  |   +--> ground: the same mesh, laid down
-  |  grade, lines (as ever)     |  |   |
+  |  rarity, lines (as ever)    |  |   |
   +-----------------------------+  |   +--> icon:   the same mesh, in a studio
                                    |
                               GearSpec  (Seed + traits: 3 integers on the wire)
@@ -54,7 +54,7 @@ Structure in the randomness: you should be able to read a hero from across the s
 | Leather | Hide: straps, studs, buckles, laces, close fit | Evasion | Evasion, speed, crit, attack |
 | Cloth | Robes, hoods, sashes, long lines, trim, charms | Barrier and mana | Mana, barrier, spells, cooldowns |
 
-A family is never stored. It comes from the item's base numbers as three **shares**, so a Brigandine at half armour and half evasion really is halfway: plates riveted to leather. Affixes lean the same way as the look, by weighting what an item can roll, so what you see is what you get. Every line can still appear anywhere.
+A family is never stored. It comes from the item's base numbers as three **shares**, so a Brigandine at half armour and half evasion really is halfway: plates riveted to leather. Affixes lean the same way as the look, by weighting what an item can roll, so what you see is what you get. Anything a slot can have can still roll on it, whatever it's made of. `ItemLook.UniqueGrade` keeps a unique at the top of what a look is grown from, where it's always been: bring it down and every unique looks different.
 
 Cloth giving mana is a rule in `Item.Mods`, worked out from its barrier, so old items get it too and nothing new is saved.
 

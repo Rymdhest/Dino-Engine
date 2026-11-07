@@ -53,7 +53,7 @@ namespace Dino_NetLab
             ServerPlayer truth = lab.Server.Heroes[0];
             ServerSession session = lab.Server.Session!;
 
-            Item item = ItemGenerator.Forge(20, new WorldRandom(5), LootGrade.Rare, 0.5f, ItemSlot.MainHand);
+            Item item = ItemGenerator.Forge(20, new WorldRandom(5), Rarity.Rare, 0.5f, ItemSlot.MainHand);
             var at = new Vector3(truth.Sim.Position.X, session.World.Height.Sample(truth.Sim.Position), truth.Sim.Position.Y);
             session.Ground.Spill(at, new[] { item }, 0, 0);
             lab.Run(2);
@@ -82,9 +82,9 @@ namespace Dino_NetLab
         {
             using var lab = new GameLab(worlds, request, "Landing");
             HeroState kitted = HeroState.CreateNew();
-            Item extra = ItemGenerator.Forge(20, new WorldRandom(6), LootGrade.Magic, 0.5f, ItemSlot.MainHand);
+            Item extra = ItemGenerator.Forge(20, new WorldRandom(6), Rarity.Magic, 0.5f, ItemSlot.MainHand);
             kitted.Pickup(extra);
-            Item carried = ItemGenerator.Forge(20, new WorldRandom(7), LootGrade.Magic, 0.5f, ItemSlot.Finger);
+            Item carried = ItemGenerator.Forge(20, new WorldRandom(7), Rarity.Magic, 0.5f, ItemSlot.Finger);
             kitted.Pickup(carried);
 
             LabPlayer first = lab.AddPlayer("First", Line, 1, hero: kitted);

@@ -79,6 +79,8 @@ Marks go through `GroundMarkRenderer` into a map of signed distances with a mini
 
 **Two colours and no more.** Whatever's in a player's way is one and whatever's theirs is the other, and that's all it ever takes to read. What kind of damage it is doesn't matter to whether you should move. `MarkTier` says how much attention something deserves, and what can't reach this hero stays quiet, as a pack can put a dozen down at once and a screen covered in them says nothing.
 
+**A player can turn marks off by how rare the enemy is**, in Interface, as what the least of them do is seldom worth an eye, and normal enemies start off that way. `TelegraphComponent.From` says what's doing it, and `GroundMarks.Update` leaves it out only as it draws, so the blow lands all the same, and turning it back on in a fight shows what's already on its way. It's the promise a player has chosen not to be made, and nothing else may lean on it. Ground that's already doing something (`ZoneComponent`) isn't an attack on its way, so it's always shown.
+
 A plain blow of a hero's isn't marked: nobody needs telling what a sword reaches. `HeroRules.ShowsArea` says what is. Their own area goes with them until it leaves their hands, as that's where the server lets it go from.
 
 ### How a blow feels
@@ -91,7 +93,7 @@ All of this is drawn on a client and changes nothing about the fight.
 - **A jolt** of the camera for a hero who's hurt, along the blow.
 - **Weapon trails** for heroes and for what's dangerous enough to watch.
 
-What's real is the shove: `Combat.Shove` moves what's struck by how much of it the blow took, less for elites and hardly at all for bosses. It only ever moves what the rules allow: a hero's feet are their own, or they couldn't predict them.
+What's real is the shove: `Combat.Shove` moves what's struck by how much of it the blow took, less for rare enemies and hardly at all for bosses. It only ever moves what the rules allow: a hero's feet are their own, or they couldn't predict them.
 
 ### Getting out of the way
 

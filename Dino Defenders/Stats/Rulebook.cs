@@ -169,16 +169,18 @@ namespace Dino_Defenders.Stats
         // Flasks.
         public const float FlaskReach = 80f;            // Metres from a kill that it still counts, which is also how far experience is shared.
         public const float FlaskFromBoss = 30f;         // Kills a boss counts for, towards a flask.
-        public const float FlaskFromElite = 4f;
+        public const float FlaskFromRare = 4f;
 
         // Getting about.
         public const float GuideCooldown = 14f;         // Seconds. The guiding wind is the client's own, and nothing is sent.
 
         // Enemies.
         public const float NightNotice = 1.4f;          // How much further enemies notice a hero under an endless night.
-        public const float EliteChance = 0.14f;         // Of each who holds a place.
-        public const float WarhostEliteChance = 0.35f;
-        public const float WarhostLeaderElites = 2.5f;  // On the chance of a pack's leader being elite.
-        public const float MostWarhostLeaderElites = 0.8f;
+        public const float RareChance = 0.14f;          // Of each who holds a place.
+        public const float MagicChance = 0.2f;          // Of each who holds a place and isn't rare.
+        public const float WarhostRareChance = 0.35f;
+        public const float WarhostLeaderRares = 2.5f;   // On the chance of a pack's leader being rare.
+        public const float MostWarhostLeaderRares = 0.8f;
+        public const float AbilityCooldown = 7f;        // Seconds before an enemy does what a trait gave it again, or it would do nothing else.
     }
 }

@@ -23,7 +23,7 @@ namespace Dino_Defenders.Progression
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 7;
+        public const int CurrentVersion = 8;
 
         /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
         private const int SlotsVersion = 4;
@@ -33,6 +33,9 @@ namespace Dino_Defenders.Progression
 
         /// <summary>The version that made pages and stickers items of their own, which needs a copy of the old save kept. What was written stays written, each book with room for exactly what was in it.</summary>
         private const int StickersVersion = 7;
+
+        /// <summary>The version that left four rarities with prefixes and suffixes of their own, which needs a copy of the old save kept. Most of what was rolled under the old rules comes out of it with a line or two changed.</summary>
+        private const int AffixVersion = 8;
 
         public int Version { get; set; } = CurrentVersion;
         public HeroState Hero { get; set; } = HeroState.CreateNew();
@@ -90,6 +93,7 @@ namespace Dino_Defenders.Progression
                 else if (save != null && VersionOf(json) < SlotsVersion) KeepOldCopy(path, ".before-gear");
                 else if (save != null && VersionOf(json) < BooksVersion) KeepOldCopy(path, ".before-books");
                 else if (save != null && VersionOf(json) < StickersVersion) KeepOldCopy(path, ".before-stickers");
+                else if (save != null && VersionOf(json) < AffixVersion) KeepOldCopy(path, ".before-affixes");
                 return save;
             }
             catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -125,6 +129,7 @@ namespace Dino_Defenders.Progression
             // Has to be before anything is read: an enum name that's gone throws, and a save that can't be read starts a new journey.
             if (version < SlotsVersion) RenameSlots(root);
             if (version < BooksVersion) ForgetSkills(root);
+            if (version < AffixVersion) RenameRarities(root["Hero"]);
 
             SaveGame? save = root.Deserialize<SaveGame>(Options);
             if (save == null) return null;
@@ -145,6 +150,26 @@ namespace Dino_Defenders.Progression
             hero.Remove("Bar");
             hero["Talents"] = new JsonArray();
         }
+
+        // Everything carried, worn or held inside something else says what it is by name, and two of those names have gone. Anything already called something else is left alone.
+        private static void RenameRarities(JsonNode? node)
+        {
+            if (node is JsonArray list)
+            {
+                foreach (JsonNode? held in list) RenameRarities(held);
+            }
+            if (node is not JsonObject item) return;
+
+            if (item["Rarity"] is JsonValue rarity && rarity.TryGetValue(out string? name)) item["Rarity"] = NewRarity(name);
+            foreach (KeyValuePair<string, JsonNode?> pair in item) RenameRarities(pair.Value);
+        }
+
+        private static string NewRarity(string old) => old switch
+        {
+            "Common" => nameof(Rarity.Normal),
+            "Legendary" => nameof(Rarity.Unique),
+            _ => old,
+        };
 
         private static int VersionOf(string json)
         {
@@ -221,6 +246,7 @@ namespace Dino_Defenders.Progression
                 item.Held = made.Held;
             }
             item.Book = null;
+            ItemGenerator.Fix(item);
 
             if (!item.IsBook || !Enum.IsDefined(item.Mode)) item.Mode = BookMode.Active;
             item.When = item.Mode == BookMode.Trigger ? BookTriggers.Fix(item.When) : null;

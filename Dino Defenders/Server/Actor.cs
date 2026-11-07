@@ -130,7 +130,7 @@ namespace Dino_Defenders.Server
         public Vector2 Position;
         public float Height;
 
-        /// <summary>What it is, whatever it's doing: elite, boss.</summary>
+        /// <summary>What it is, whatever it's doing: rare, boss.</summary>
         public Condition Nature;
 
         /// <summary>What's true of it, as of this tick.</summary>

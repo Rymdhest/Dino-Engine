@@ -863,13 +863,13 @@ namespace Dino_NetLab
             report.Check("But only so much, however hard", hugePush.Length <= 11.001f && hugeReel <= 0.3001f, $"{hugePush.Length}, {hugeReel}");
 
             float normalWeight = PushOf(Condition.None, 6f, out Vector2 normal, out _);
-            float eliteWeight = PushOf(Condition.Elite, 6f, out Vector2 elite, out _);
+            float rareWeight = PushOf(Condition.Rare, 6f, out Vector2 rare, out _);
             float bossWeight = PushOf(Condition.Boss, 6f, out Vector2 boss, out _);
             float normalGive = normal.Length / normalWeight;
-            float eliteGive = elite.Length / eliteWeight;
+            float rareGive = rare.Length / rareWeight;
             float bossGive = boss.Length / bossWeight;
-            report.Check("Something great gives less", eliteGive < normalGive, $"{eliteGive} against {normalGive}");
-            report.Check("And something greater gives hardly at all", bossGive < eliteGive && bossGive < normalGive * 0.25f, $"{bossGive} against {normalGive}");
+            report.Check("Something great gives less", rareGive < normalGive, $"{rareGive} against {normalGive}");
+            report.Check("And something greater gives hardly at all", bossGive < rareGive && bossGive < normalGive * 0.25f, $"{bossGive} against {normalGive}");
 
             Actor dummy = arena.Dummy(East * 3f, 20000f);
             arena.Combat.Hit(arena.Hero, strike, dummy, 6f, arena.At);

@@ -145,7 +145,7 @@ namespace Dino_BuildLab
                     Timing = Any(Blank.Timing),
                 };
                 int stickers = random.Next(8);
-                for (int c = 0; c < stickers; c++) page.Stickers.Add(Stickers.Roll((Dino_Defenders.Progression.LootGrade)random.Next(5), new Dino_Engine.World.WorldRandom((ulong)random.Next())));
+                for (int c = 0; c < stickers; c++) page.Stickers.Add(Stickers.Roll((Dino_Defenders.Progression.Rarity)random.Next(3), new Dino_Engine.World.WorldRandom((ulong)random.Next())));
                 int outcomes = random.Next(6);
                 for (int o = 0; o < outcomes; o++)
                 {
@@ -345,7 +345,7 @@ namespace Dino_BuildLab
 
         private static Item Leaf(PageKind kind, int places) => new Item { Name = "Leaf", Slot = ItemSlot.Page, Level = 1, Seed = 3, Page = Scribe.NewPage(kind), Held = new Item?[places] };
 
-        private static Item Stuck(string name) => ItemGenerator.StickerItem(Stickers.Written(name)!, 5, 1, Rarity.Common);
+        private static Item Stuck(string name) => ItemGenerator.StickerItem(Stickers.Written(name)!, 5, 1, Rarity.Normal);
 
         // Everything a sticker promises, over a great many of them.
         private static void Stickered(Report report)
@@ -357,7 +357,7 @@ namespace Dino_BuildLab
             var seen = new HashSet<string>();
             for (int i = 0; i < 5000; i++)
             {
-                Sticker sticker = Stickers.Roll((LootGrade)(i % 5), random.Fork(i));
+                Sticker sticker = Stickers.Roll((Rarity)(i % 3), random.Fork(i));
                 goods.Add(sticker.Good);
                 bads.Add(sticker.Bad);
                 seen.Add($"{sticker.Good} {sticker.GoodBy} {sticker.Bad} {sticker.BadBy}");
@@ -378,18 +378,18 @@ namespace Dino_BuildLab
             report.Check("And everything that can be bad", bads.SetEquals(Stickers.Bads), string.Join(", ", bads));
             report.Check("No two need be alike", seen.Count > 1500, $"{seen.Count} different of 5000");
 
-            float Mean(LootGrade grade, Func<Sticker, float> of, PageEffect effect, bool good)
+            float Mean(Rarity rarity, Func<Sticker, float> of, PageEffect effect, bool good)
             {
                 var values = new List<float>();
                 for (int i = 0; i < 6000; i++)
                 {
-                    Sticker sticker = Stickers.Roll(grade, random.Fork(100000 + i));
+                    Sticker sticker = Stickers.Roll(rarity, random.Fork(100000 + i));
                     if ((good ? sticker.Good : sticker.Bad) == effect) values.Add(of(sticker));
                 }
                 return values.Average();
             }
-            report.Check("A rarer sticker does more", Mean(LootGrade.Legendary, s => s.GoodBy, PageEffect.Potency, true) > Mean(LootGrade.Plain, s => s.GoodBy, PageEffect.Potency, true) * 2f);
-            report.Check("And costs less for it", Mean(LootGrade.Legendary, s => s.BadBy, PageEffect.Potency, false) < Mean(LootGrade.Plain, s => s.BadBy, PageEffect.Potency, false));
+            report.Check("A rarer sticker does more", Mean(Rarity.Rare, s => s.GoodBy, PageEffect.Potency, true) > Mean(Rarity.Normal, s => s.GoodBy, PageEffect.Potency, true) * 2f);
+            report.Check("And costs less for it", Mean(Rarity.Rare, s => s.BadBy, PageEffect.Potency, false) < Mean(Rarity.Normal, s => s.BadBy, PageEffect.Potency, false));
 
             Sticker both = new Sticker { Good = PageEffect.Potency, GoodBy = 40f, Bad = PageEffect.UseTime, BadBy = 50f };
             Page page = Scribe.NewPage(PageKind.Area);
@@ -558,7 +558,7 @@ namespace Dino_BuildLab
             int wrong = 0;
             for (int i = 0; i < 4000; i++)
             {
-                Item found = ItemGenerator.Folio(20, random.Fork(i), (LootGrade)(i % 5));
+                Item found = ItemGenerator.Folio(20, random.Fork(i), (Rarity)(i % 3));
                 if (!found.IsBook)
                 {
                     if (found.Mode != BookMode.Active || found.When != null) wrong++;
@@ -573,8 +573,8 @@ namespace Dino_BuildLab
             report.Check("And everything that can be waited for turns up", whens.SetEquals(BookTriggers.All), string.Join(", ", whens));
             report.Check("With words for all of it", BookTriggers.All.All(when => BookText.Waits(new BookTrigger { When = when, Amount = 3f }).Length > 0));
 
-            float Waited(LootGrade grade) => Enumerable.Range(0, 2000).Select(i => BookTriggers.Roll(grade, random.Fork(50000 + i))).Where(t => t.When == BookWhen.Hit).Average(t => t.Amount);
-            report.Check("A rarer book waits for less", Waited(LootGrade.Legendary) < Waited(LootGrade.Plain) * 0.6f);
+            float Waited(Rarity rarity) => Enumerable.Range(0, 2000).Select(i => BookTriggers.Roll(rarity, random.Fork(50000 + i))).Where(t => t.When == BookWhen.Hit).Average(t => t.Amount);
+            report.Check("A rarer book waits for less", Waited(Rarity.Rare) < Waited(Rarity.Normal) * 0.6f);
             report.Check("What everyone starts with is pressed", ItemGenerator.Book(1).Mode == BookMode.Active);
 
             var aura = new Book { Mode = BookMode.Toggle, Pages = { Scribe.NewPage(PageKind.Area), Scribe.NewPage(PageKind.Projectile), Scribe.NewPage(PageKind.Area) } };
@@ -714,24 +714,25 @@ namespace Dino_BuildLab
             report.Check("Nothing but a Page can be written on, or a Book called anything", !writer.Write(bar, written) && !writer.Write(ItemPlace.Worn(WornSlot.Body), written) && !writer.Title(bar.In(0), "Leaf"));
 
             var random = new Dino_Engine.World.WorldRandom(21);
-            int wrongGrade = 0, wrongPlaces = 0;
+            int wrongRarity = 0, wrongPlaces = 0;
             int stickers = 0, pages = 0, books = 0;
-            foreach (LootGrade grade in Enum.GetValues<LootGrade>())
+            foreach (Rarity rarity in new[] { Rarity.Normal, Rarity.Magic, Rarity.Rare })
             {
                 float mostPages = 0f, mostStickers = 0f;
                 for (int i = 0; i < 400; i++)
                 {
-                    Item found = ItemGenerator.Folio(20, random.Fork((int)grade * 1000 + i), grade);
-                    if (Loot.GradeOf(found) != grade) wrongGrade++;
+                    Item found = ItemGenerator.Folio(20, random.Fork((int)rarity * 1000 + i), rarity);
+                    if (found.Rarity != rarity) wrongRarity++;
                     if (found.Places > (found.IsBook ? Rulebook.MostPages : Rulebook.MostStickers)) wrongPlaces++;
                     if (found.IsBook) { books++; mostPages = MathF.Max(mostPages, found.Places); }
                     if (found.IsPage) { pages++; mostStickers = MathF.Max(mostStickers, found.Places); }
                     if (found.IsSticker) stickers++;
                 }
-                if (grade == LootGrade.Plain && (mostPages >= Rulebook.MostPages || mostStickers >= Rulebook.MostStickers)) wrongPlaces++;
-                if (grade == LootGrade.Legendary && (mostPages != Rulebook.MostPages || mostStickers != Rulebook.MostStickers)) wrongPlaces++;
+                if (rarity == Rarity.Normal && (mostPages >= Rulebook.MostPages || mostStickers >= Rulebook.MostStickers)) wrongPlaces++;
+                if (rarity == Rarity.Rare && (mostPages != Rulebook.MostPages || mostStickers != Rulebook.MostStickers)) wrongPlaces++;
             }
-            report.Check("What's found is the grade it was rolled at, worked out from what it is", wrongGrade == 0, $"{wrongGrade}");
+            report.Check("What's found is the rarity it was rolled at", wrongRarity == 0, $"{wrongRarity}");
+            report.Check("Nothing for a Book is one of a kind, so rare is as far as it goes", Enumerable.Range(0, 200).All(i => ItemGenerator.Folio(20, random.Fork(9000 + i), Rarity.Unique).Rarity == Rarity.Rare));
             report.Check("And only the best has all the places there can be", wrongPlaces == 0, $"{wrongPlaces}");
             report.Check("Books, Pages and Stickers can all be found, Stickers most and Books least", stickers > pages && pages > books && books > 0, $"{stickers}, {pages}, {books}");
 
@@ -834,7 +835,7 @@ namespace Dino_BuildLab
             HeroState hero = save.Hero;
             report.Check("With the hero as they were", hero.Level == 12 && hero.Gold == 40 && hero.WorldsCleared == 1 && save.WorldSeed == 7);
             report.Check("Their tree has gone, every point there to spend again", hero.Talents.Count == 0 && hero.UnspentPoints == hero.TalentPoints, $"{hero.Talents.Count}, {hero.UnspentPoints}");
-            report.Check("What they carry stays", hero.Inventory[0]?.Name == "Sturdy Hood" && hero.Equipped[WornSlot.MainHand].WeaponDamage == 7f);
+            report.Check("What they carry stays", hero.Inventory[0]?.Name.Contains("Hood") == true && hero.Equipped[WornSlot.MainHand].WeaponDamage == 7f);
             report.Check("And a line that means nothing now costs only that line", hero.Inventory[0]!.Mods().Any());
             report.Check("They've a book on the first place of the bar", hero.Bar[0] is { IsBook: true } && hero.Bar.Length == HeroState.BarSlots && hero.Bar.Skip(1).All(item => item == null));
             report.Check("And can fight with it", HeroBuild.Compile(hero).Books.Length == 1);

@@ -223,9 +223,9 @@ namespace Dino_NetLab
             // A find's worth comes from health, and health is what peril changes. If that weren't taken out again, this would pay for champions and be three times what it should be.
             float Rate(Scene scene)
             {
-                Loadout fodder = scene.Session.Bestiary.Shared(Bestiary.Cutthroat, 6, EnemyRank.Normal, Bestiary.NoTrait);
+                Loadout fodder = scene.Session.Bestiary.Shared(Bestiary.Cutthroat, 6, Rarity.Normal, Bestiary.NoTraits);
                 var actor = new Actor(Team.Enemies, fodder, scene.Truth.Sim.Position, 1f);
-                var enemy = new EnemyComponent { Name = "Fodder", Rank = EnemyRank.Normal, Level = 6 };
+                var enemy = new EnemyComponent { Name = "Fodder", Rarity = Rarity.Normal, Level = 6 };
                 int before = scene.Session.Ground.Count;
                 Vector2 at = scene.Truth.Sim.Position;
                 var ground = new Vector3(at.X, scene.Session.World.Height.Sample(at), at.Y);
@@ -401,7 +401,7 @@ namespace Dino_NetLab
             worlds.Get(offering.Shape(Home)).Wait();
             using var arena = new Arena(worlds, Home, Rich(), offering: offering);
 
-            Loadout kind = arena.Session.Bestiary.Shared(Bestiary.Cutthroat, 6, EnemyRank.Normal, Bestiary.NoTrait);
+            Loadout kind = arena.Session.Bestiary.Shared(Bestiary.Cutthroat, 6, Rarity.Normal, Bestiary.NoTraits);
             report.Check("Enemies have it", kind.SheetFor(Condition.None).Has(Rule.BurstsOnDeath));
 
             Actor first = arena.Place(kind, new Vector2(2f, 0f));
@@ -446,7 +446,7 @@ namespace Dino_NetLab
             worlds.Get(offering.Shape(Home)).Wait();
             using var arena = new Arena(worlds, Home, Rich(), offering: offering);
 
-            Loadout kind = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 6, EnemyRank.Normal, Bestiary.NoTrait);
+            Loadout kind = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 6, Rarity.Normal, Bestiary.NoTraits);
             Actor near = arena.Place(kind, new Vector2(4f, 0f));
             Actor far = arena.Place(kind, new Vector2(30f, 0f));
             float hit = near.Sheet.Preview(Shelf.Strike).First.AverageHit;
@@ -506,26 +506,26 @@ namespace Dino_NetLab
 
             var host = new Offering { Omens = { "warhost" } };
             WorldData world = worlds.Get(host.Shape(Home)).Result;
-            (int led, int elite) Count(Offering offering)
+            (int led, int rare) Count(Offering offering)
             {
                 int leaders = 0;
-                int elites = 0;
+                int rares = 0;
                 for (int i = 0; i < world.Haunts.Count; i++)
                 {
                     WorldSite haunt = world.Haunts[i];
                     var random = new WorldRandom((ulong)i);
                     var orders = new PackOrders(world, haunt, haunt.Folk, 10, true, random.Fork("pack"), offering);
-                    (EnemyKind kind, EnemyRank rank, _) = orders.Draw(0, random.Fork("kind"));
-                    if (kind.Health >= 1.5f || rank == EnemyRank.Elite) leaders++;
-                    if (rank == EnemyRank.Elite) elites++;
+                    (EnemyKind kind, Rarity rarity, _) = orders.Draw(0, random.Fork("kind"));
+                    if (kind.Health >= 1.5f || rarity == Rarity.Rare) leaders++;
+                    if (rarity == Rarity.Rare) rares++;
                 }
-                return (leaders, elites);
+                return (leaders, rares);
             }
 
-            (int usualLed, int usualElite) = Count(new Offering());
-            (int hostLed, int hostElite) = Count(host);
+            (int usualLed, int usualRare) = Count(new Offering());
+            (int hostLed, int hostRare) = Count(host);
             report.Check("Under a warhost, far more packs are led", hostLed > usualLed * 1.3f, $"{usualLed} to {hostLed} of {world.Haunts.Count}");
-            report.Check("And far more of those who lead are elite", hostElite > usualElite * 1.8f, $"{usualElite} to {hostElite}");
+            report.Check("And far more of those who lead are rare", hostRare > usualRare * 1.8f, $"{usualRare} to {hostRare}");
 
             var gilded = new Offering { Omens = { "gilded" } };
             worlds.Get(gilded.Shape(Home)).Wait();
@@ -554,7 +554,7 @@ namespace Dino_NetLab
                     scene.Lab.Run(2);
                     int found = scene.Session.Ground.Count - before;
                     report.Check("A camp's box gives what a place's chest does", found >= (int)LootTables.Of(LootTier.Chest).Finds, $"{found} finds");
-                    report.Check("At the least the rare a place's chest promises", scene.Session.Ground.All.Any(lying => Loot.GradeOf(lying.item) >= LootGrade.Rare));
+                    report.Check("At the least the rare a place's chest promises", scene.Session.Ground.All.Any(lying => lying.item.Rarity >= Rarity.Rare));
                 }
             }
         }

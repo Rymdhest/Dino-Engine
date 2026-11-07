@@ -130,33 +130,32 @@ namespace Dino_Defenders.Server
             WorldRandom kinds = random.Fork("kind");
 
             EnemyKind kind;
-            EnemyRank rank;
-            int trait;
-            if (boss) (kind, rank, trait) = (Bestiary.Warlord, EnemyRank.Boss, Bestiary.NoTrait);
-            else if (spawn.Role == SpawnRole.Guard) (kind, rank, trait) = (kinds.Chance(GuardArcherChance) ? Bestiary.Archer : Bestiary.Sentry, EnemyRank.Normal, Bestiary.NoTrait);
-            else (kind, rank, trait) = orders.Draw(spawnIndex, kinds);
+            Rarity rarity;
+            int traits;
+            if (boss) (kind, rarity, traits) = (Bestiary.Warlord, Rarity.Unique, Bestiary.NoTraits);
+            else if (spawn.Role == SpawnRole.Guard) (kind, rarity, traits) = (kinds.Chance(GuardArcherChance) ? Bestiary.Archer : Bestiary.Sentry, Rarity.Normal, Bestiary.NoTraits);
+            else (kind, rarity, traits) = orders.Draw(spawnIndex, kinds);
 
             // The people of a place have their hard cases, where a pack has its leader.
-            if (!boss && !state.Wild && kinds.Chance(session.Offering.Has(Omens.Warhost) ? Rulebook.WarhostEliteChance : Rulebook.EliteChance))
+            if (!boss && !state.Wild)
             {
-                rank = EnemyRank.Elite;
-                trait = kinds.Int(Bestiary.Traits.Length);
+                if (kinds.Chance(session.Offering.Has(Omens.Warhost) ? Rulebook.WarhostRareChance : Rulebook.RareChance)) rarity = Rarity.Rare;
+                else if (rarity == Rarity.Normal && kinds.Chance(Rulebook.MagicChance)) rarity = Rarity.Magic;
             }
+            traits = Bestiary.Fill(traits, rarity, random.Fork("traits"));
 
-            bool elite = rank == EnemyRank.Elite;
-            float rankHealth = boss ? 11f : elite ? 2.6f : 1f;
-            float scale = kind.Scale * (boss ? 1.7f : elite ? 1.22f : random.Range(0.94f, 1.06f));
+            EnemyPower power = Bestiary.PowerOf(rarity);
+            float scale = kind.Scale * (rarity == Rarity.Normal ? random.Range(0.94f, 1.06f) : power.Scale);
             string model = Bestiary.ModelOf(kind, random);
 
             Dino_Defenders.Progression.Item[]? gear = null;
             string? title = null;
-            Loadout loadout = boss ? Bestiary.Boss(kind, level, random.Fork("boss"), out gear, out title, session.Bestiary.Worn) : session.Bestiary.Shared(kind, level, rank, trait);
+            Loadout loadout = boss ? Bestiary.Boss(kind, level, traits, random.Fork("boss"), out gear, out title, session.Bestiary.Worn) : session.Bestiary.Shared(kind, level, rarity, traits);
 
-            string name = boss ? session.Chronicle.Warlord : kind.Name;
+            string name = boss ? session.Chronicle.Warlord : Bestiary.NameOf(kind, traits);
             if (title != null) name = $"{name}, {title}";
-            if (trait != Bestiary.NoTrait) name = $"{Bestiary.Traits[trait].Name} {kind.Name}";
 
-            var enemy = new EnemyComponent { Name = name, Rank = rank, Level = level };
+            var enemy = new EnemyComponent { Name = name, Rarity = rarity, Level = level };
             var brain = new EnemyBrainComponent
             {
                 SiteIndex = siteIndex,
@@ -165,7 +164,8 @@ namespace Dino_Defenders.Server
                 AggroRadius = kind.AggroRadius * session.Offering.Notice,
                 LeashRadius = kind.LeashRadius,
                 KeepsAway = kind.KeepsAway,
-                Experience = Bestiary.ExperienceAt(level, rankHealth * kind.Health),
+                Experience = Bestiary.ExperienceAt(level, power.Health * kind.Health),
+                Abilities = Bestiary.AbilitiesOf(kind, traits),
                 Cooldown = random.Range(0f, 1f),
             };
 
@@ -176,11 +176,10 @@ namespace Dino_Defenders.Server
                 Body = model,
                 Gear = gear,
                 Height = position.Y,
-                Nature = boss ? Condition.Boss : elite ? Condition.Elite : Condition.None,
+                Nature = boss ? Condition.Boss : rarity == Rarity.Rare ? Condition.Rare : Condition.None,
             };
 
-            float importance = boss ? 4f : elite ? 2f : 1.5f;
-            actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, importance, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, power.Importance, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
             state.Live.Add(actor.Entity);
         }
 
@@ -189,17 +188,21 @@ namespace Dino_Defenders.Server
         {
             const int perRow = 7;
             var random = new WorldRandom(1);
-            EnemyKind[] kinds = which == "all" ? Bestiary.Everyone : Bestiary.Everyone.Where(kind => which.Split(',').Contains(kind.Id)).ToArray();
-            for (int i = 0; i < kinds.Length; i++)
+            (EnemyKind kind, Rarity rarity)[] line = which == "rarities"
+                ? Enum.GetValues<Rarity>().Select(rarity => (Bestiary.Outlaw, rarity)).ToArray()
+                : (which == "all" ? Bestiary.Everyone : Bestiary.Everyone.Where(kind => which.Split(',').Contains(kind.Id))).Select(kind => (kind, Rarity.Normal)).ToArray();
+            for (int i = 0; i < line.Length; i++)
             {
-                EnemyKind kind = kinds[i];
+                (EnemyKind kind, Rarity rarity) = line[i];
+                int traits = Bestiary.Fill(Bestiary.NoTraits, rarity, random.Fork(i));
+                float scale = kind.Scale * (rarity == Rarity.Normal ? 1f : Bestiary.PowerOf(rarity).Scale);
                 Vector2 spot = at + new Vector2((i % perRow - (perRow - 1) * 0.5f) * 5.5f, -7f - i / perRow * 7f);
                 Vector3 position = new Vector3(spot.X, session.World.Height.Sample(spot), spot.Y);
-                Loadout loadout = session.Bestiary.Shared(kind, 1, EnemyRank.Normal, Bestiary.NoTrait);
+                Loadout loadout = session.Bestiary.Shared(kind, 1, rarity, traits);
                 var actor = new Actor(Team.Enemies, loadout, spot, WorldData.CharacterRadius) { Body = kind.Look, Height = position.Y, Still = !fighting };
-                var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = spot, AggroRadius = 60f, LeashRadius = 200f, KeepsAway = kind.KeepsAway };
-                IComponent[] body = Bodies.Walking(_server, Bestiary.ModelOf(kind, random), position, kind.Scale, 2f,
-                    new EnemyComponent { Name = kind.Name, Level = 1 }, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor));
+                var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = spot, AggroRadius = 60f, LeashRadius = 200f, KeepsAway = kind.KeepsAway, Abilities = Bestiary.AbilitiesOf(kind, traits) };
+                IComponent[] body = Bodies.Walking(_server, Bestiary.ModelOf(kind, random), position, scale, 2f,
+                    new EnemyComponent { Name = Bestiary.NameOf(kind, traits), Rarity = rarity, Level = 1 }, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor));
                 for (int part = 0; part < body.Length; part++)
                 {
                     if (body[part] is RotationComponent) body[part] = new RotationComponent(new Vector3(0f, MathF.PI * 0.8f, 0f));

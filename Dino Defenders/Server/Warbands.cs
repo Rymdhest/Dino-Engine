@@ -16,9 +16,13 @@ namespace Dino_Defenders.Server
     /// </summary>
     public sealed class PackOrders
     {
-        private const float EliteLeaderAtFirst = 0.12f;
-        private const float EliteLeaderPerLevel = 0.012f;
-        private const float MostEliteLeaders = 0.5f;
+        private const float RareLeaderAtFirst = 0.12f;
+        private const float RareLeaderPerLevel = 0.012f;
+        private const float MostRareLeaders = 0.5f;
+        private const float MagicLeaders = 0.5f;        // Of those who lead and aren't rare.
+        private const float MagicFollowersAtFirst = 0.03f;
+        private const float MagicFollowersPerLevel = 0.004f;
+        private const float MostMagicFollowers = 0.14f;
         private const float SharedTraitAtFirst = 0.05f;
         private const float SharedTraitPerLevel = 0.01f;
         private const float MostSharedTraits = 0.3f;
@@ -29,9 +33,10 @@ namespace Dino_Defenders.Server
         private readonly Recipe _recipe;
         private readonly bool _led;
         private readonly bool _firstSteps;
-        private readonly EnemyRank _leaderRank;
-        private readonly int _leaderTrait;
+        private readonly Rarity _leaderRarity;
+        private readonly int _leaderTraits;
         private readonly int _sharedTrait;
+        private readonly float _magicFollowers;
 
         /// <param name="free">Whether this is a pack of its own, rather than some of the people of a place.</param>
         /// <param name="offering">What's been paid on this land. Whoever has paid for trouble isn't taking their first steps.</param>
@@ -40,31 +45,36 @@ namespace Dino_Defenders.Server
             bool warhost = offering.Has(Omens.Warhost);
             _recipe = Warbands.RecipeFor(world, site, folk, random.Fork("recipe"));
             _firstSteps = world.Plan.Level <= 1 && site.Remoteness < 0.2f && !offering.AtStake;
-            _leaderTrait = Bestiary.NoTrait;
-            _sharedTrait = Bestiary.NoTrait;
+            _leaderTraits = Bestiary.NoTraits;
+            _sharedTrait = Bestiary.NoTraits;
             if (!free || _firstSteps) return;
 
-            int traits = Bestiary.Traits.Length;
+            _magicFollowers = MathF.Min(MagicFollowersAtFirst + MagicFollowersPerLevel * level, MostMagicFollowers);
             _led = _recipe.Leaders.Length > 0 && (site.Haunt == HauntKind.Camp || random.Chance(warhost ? 1f : MathF.Min(LedAtFirst + LedPerLevel * level, MostLed)));
             if (!_led) return;
 
-            float elites = MathF.Min(EliteLeaderAtFirst + EliteLeaderPerLevel * level, MostEliteLeaders);
-            if (random.Chance(warhost ? MathF.Min(elites * Rulebook.WarhostLeaderElites, Rulebook.MostWarhostLeaderElites) : elites))
+            float rares = MathF.Min(RareLeaderAtFirst + RareLeaderPerLevel * level, MostRareLeaders);
+            if (random.Chance(warhost ? MathF.Min(rares * Rulebook.WarhostLeaderRares, Rulebook.MostWarhostLeaderRares) : rares))
             {
-                _leaderRank = EnemyRank.Elite;
-                _leaderTrait = random.Int(traits);
-                if (random.Chance(MathF.Min(SharedTraitAtFirst + SharedTraitPerLevel * level, MostSharedTraits))) _sharedTrait = _leaderTrait;
+                _leaderRarity = Rarity.Rare;
+                if (random.Chance(MathF.Min(SharedTraitAtFirst + SharedTraitPerLevel * level, MostSharedTraits))) _sharedTrait = Bestiary.Trait(random.Int(Bestiary.Traits.Length));
             }
+            else if (random.Chance(MagicLeaders)) _leaderRarity = Rarity.Magic;
+            _leaderTraits = Bestiary.Fill(_sharedTrait, _leaderRarity, random.Fork("leader"));
         }
 
         /// <summary>Who stands at this place in the pack. The first place is the leader's, if it has one.</summary>
-        public (EnemyKind kind, EnemyRank rank, int trait) Draw(int place, WorldRandom random)
+        public (EnemyKind kind, Rarity rarity, int traits) Draw(int place, WorldRandom random)
         {
-            if (place == 0 && _led) return (random.Pick(_recipe.Leaders), _leaderRank, _leaderTrait);
+            if (place == 0 && _led) return (random.Pick(_recipe.Leaders), _leaderRarity, _leaderTraits);
 
             // Someone new to all this meets one thing at a time.
             bool behind = !_firstSteps && _recipe.Support.Length > 0 && random.Chance(_recipe.SupportShare);
-            return (random.Pick(behind ? _recipe.Support : _recipe.Core), EnemyRank.Normal, _sharedTrait);
+            EnemyKind kind = random.Pick(behind ? _recipe.Support : _recipe.Core);
+
+            // Nothing normal has a trait, so whoever has taken after their leader is more than that.
+            if (_sharedTrait != Bestiary.NoTraits) return (kind, Rarity.Magic, _sharedTrait);
+            return (kind, random.Chance(_magicFollowers) ? Rarity.Magic : Rarity.Normal, Bestiary.NoTraits);
         }
     }
 
