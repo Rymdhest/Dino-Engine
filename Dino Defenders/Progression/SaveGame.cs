@@ -52,6 +52,9 @@ namespace Dino_Defenders.Progression
         public float RespawnX { get; set; } = -1f;
         public float RespawnZ { get; set; } = -1f;
 
+        /// <summary>Whether this is a hero who hasn't set foot anywhere yet, and has a land still to be grown. It's a method so that it isn't saved.</summary>
+        public bool NeverPlayed() => Sites.Count == 0 && PlayerX < 0f;
+
         private static readonly JsonSerializerOptions Options = new()
         {
             WriteIndented = true,
@@ -329,18 +332,6 @@ namespace Dino_Defenders.Progression
             "ItemFind" => "item-rarity",
             _ => null,
         };
-
-        public static void Delete()
-        {
-            try
-            {
-                File.Delete(SavePath);
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            {
-                Console.WriteLine($"Could not delete the save: {e.Message}");
-            }
-        }
 
         public void Store()
         {

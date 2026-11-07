@@ -74,6 +74,12 @@ namespace Dino_Defenders
         public readonly List<string> Books = new();
         public int Carry;
 
+        /// <summary>Whether to start at the main menu: --menu true or false. Without being told it's for anyone just starting the game, and no scripted run.</summary>
+        public bool? Menu;
+
+        /// <summary>Where the main menu keeps its heroes, for a scripted run: --heroes folder.</summary>
+        public string? Heroes;
+
         /// <summary>How many things that go in a book to carry, of every grade in turn: --folios N.</summary>
         public int Folios;
         public string? Parade;
@@ -122,6 +128,8 @@ namespace Dino_Defenders
         public bool PerfGpu = true;
 
         /// <summary>Whether this run plays on from a save, as someone playing does, rather than being a throwaway.</summary>
+        public bool StartsAtMenu => Menu ?? (Saves && SaveFile == null && Join == null && !Host);
+
         public bool Saves => SaveFile != null || !(Seed != null || Archetype != null || Tour != null || Shot != null || Film != null || Perf != null || Bot);
 
         /// <summary>The frame rate limit for this run, if not the engine's own.</summary>
@@ -163,6 +171,8 @@ namespace Dino_Defenders
                     case "equip": options.Equip.AddRange(value.Split(',')); break;
                     case "books": options.Books.AddRange(value.Split(',')); break;
                     case "carry": options.Carry = int.Parse(value); break;
+                    case "menu": options.Menu = value == "true"; break;
+                    case "heroes": options.Heroes = value; break;
                     case "folios": options.Folios = int.Parse(value); break;
                     case "parade": options.Parade = value; break;
                     case "brawl": options.Brawl = value; break;

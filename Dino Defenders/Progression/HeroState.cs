@@ -53,6 +53,9 @@ namespace Dino_Defenders.Progression
         public const int BarSlots = 6;
         public const int LongestBookName = 40;
 
+        /// <summary>What they're called, on the main menu and to anyone they travel with.</summary>
+        public string Name { get; set; } = "";
+
         public int Level { get; set; } = 1;
         public int Experience { get; set; }
         public int Gold { get; set; }

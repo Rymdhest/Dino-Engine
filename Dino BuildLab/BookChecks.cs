@@ -39,6 +39,7 @@ namespace Dino_BuildLab
 
             report.Section("Books: carrying them");
             Carrying(report);
+            Rostered(report);
             Stickered(report);
             Moded(report);
             Carried(report);
@@ -411,6 +412,59 @@ namespace Dino_BuildLab
 
             report.Check("Everything already written has what a sticker can say", Stickers.Names.All(name => BookText.Good(Stickers.Written(name)!).Length > 0));
             report.Check("Nothing written says more than a sticker can", Stickers.Names.All(name => Stickers.Written(name)!.GoodBy <= Rulebook.MostStickerGood && Stickers.Written(name)!.BadBy <= Rulebook.MostStickerBad));
+        }
+
+        // Everyone someone has made, which is more than anything else in the game worth not losing.
+        private static void Rostered(Report report)
+        {
+            string root = Path.Combine(Path.GetTempPath(), $"buildlab-roster-{Environment.ProcessId}");
+            Directory.CreateDirectory(root);
+            string old = Path.Combine(root, "save.json");
+            HeroState first = HeroState.CreateNew();
+            first.Level = 12;
+            first.Gold = 777;
+            SaveGame.PathOverride = old;
+            new SaveGame { Hero = first, WorldSeed = 5, PlayerX = 10f, PlayerZ = 10f }.Store();
+            SaveGame.PathOverride = null;
+            string saved = File.ReadAllText(old);
+
+            var roster = new HeroRoster(root);
+            List<RosterEntry> heroes = roster.List();
+            report.Check("The save from before there were several heroes is the first of them", heroes.Count == 1 && heroes[0].Hero.Level == 12 && heroes[0].Hero.Gold == 777);
+            report.Check("With a name, as it never had one", heroes[0].Hero.Name == HeroRoster.FirstHero);
+            report.Check("And the old file is kept, word for word, but moved out of the way", !File.Exists(old) && File.ReadAllText(old + ".before-heroes") == saved);
+            report.Check("It's only moved once", new HeroRoster(root).List().Count == 1);
+
+            SaveGame.PathOverride = heroes[0].Path;
+            SaveGame? moved = SaveGame.Load();
+            SaveGame.PathOverride = null;
+            report.Check("With its world, so they go back to where they were", moved is { WorldSeed: 5 } && !moved.NeverPlayed());
+
+            RosterEntry? ash = roster.Create("  Ash  ");
+            report.Check("A new hero gets the name they were given, trimmed", ash?.Hero.Name == "Ash");
+            report.Check("And what everyone starts with", ash?.Hero.Bar[0] is { IsBook: true });
+            report.Check("Nobody can be called nothing", roster.Create("   ") == null && HeroRoster.Clean("") == null);
+            report.Check("Or go on for ever", HeroRoster.Clean(new string('x', 400))!.Length == HeroRoster.LongestName);
+            report.Check("Two can have the same name, as they're different people", roster.Create("Ash") != null && roster.List().Count == 3);
+
+            SaveGame.PathOverride = ash!.Path;
+            report.Check("Someone who hasn't been anywhere has a land still to grow", SaveGame.Load()?.NeverPlayed() == true);
+            SaveGame.PathOverride = null;
+
+            File.SetLastWriteTimeUtc(ash.Path, DateTime.UtcNow.AddHours(1));
+            report.Check("Whoever was played last comes first", roster.List()[0].Path == ash.Path);
+
+            File.WriteAllText(Path.Combine(root, "heroes", "broken.json"), "{ this isn't a save");
+            int readable = roster.List().Count;
+            report.Check("A save that can't be read isn't shown", readable == 3);
+            report.Check("And isn't touched", File.Exists(Path.Combine(root, "heroes", "broken.json")));
+            report.Check("Nor does looking change where saves go", SaveGame.PathOverride == null);
+
+            roster.Delete(ash);
+            report.Check("Someone deleted is off the list", roster.List().All(entry => entry.Path != ash.Path));
+            report.Check("But not gone, as the game can't undo it", File.Exists(Path.Combine(root, "heroes", "deleted", Path.GetFileName(ash.Path))));
+
+            Directory.Delete(root, true);
         }
 
         // What makes one book go off and another not.

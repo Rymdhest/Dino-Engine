@@ -26,7 +26,7 @@ namespace Dino_Defenders
     /// talking to a server. Alone, that server runs on a thread beside it and is reached without touching a network. A host
     /// opens the same server up to friends. Joining a friend puts this client on theirs instead, and the local one stops.
     /// </summary>
-    internal class ArpgGame : Game, IClientHost
+    internal class ArpgGame : Game, IClientHost, IMenuHost
     {
         private const float AutosaveInterval = 30f;
         private const float InterfaceHeight = 1000f;
@@ -47,8 +47,13 @@ namespace Dino_Defenders
         private readonly Stopwatch _simulatedLine = Stopwatch.StartNew();
         private readonly Queue<IPEndPoint> _joinAddresses = new();
 
-        private HeroState _hero;
+        private HeroState _hero = null!;
         private SaveGame? _save;
+        private HeroRoster? _roster;
+        private List<RosterEntry> _heroes = new();
+        private RosterEntry? _chosen;
+        private TitleScene? _title;
+        private Task<WorldData>? _titleLoading;
         private ServerHost? _server;
         private GameClient? _client;
         private ClientEffects? _effects;
@@ -120,16 +125,20 @@ namespace Dino_Defenders
             engine.WorldReady = false;
             NetSchema.Build();
             RegisterSystems();
-            _ui = new GameUi(Dino_Engine.Core.Engine.Gui, this, Travel, Quit, NewJourney);
+            _ui = new GameUi(Dino_Engine.Core.Engine.Gui, this, Travel, Quit, ToMenu);
             Dino_Engine.Core.Engine.WindowHandler.Closing += _ => ShutDown();
 
+            if (options.StartsAtMenu)
+            {
+                ShowMenu();
+                return;
+            }
+
+            _ui.Playing(true);
             SaveGame.PathOverride = options.SaveFile;
             _save = options.Saves ? SaveGame.Load() : null;
             _hero = _save?.Hero ?? HeroState.CreateNew();
-            _hero.Level = Math.Max(_hero.Level, options.HeroLevel);
-            _hero.Gold = Math.Max(_hero.Gold, options.Gold);
-            _hero.PerilProven = Math.Max(_hero.PerilProven, options.Proven);
-            ApplyBuildOptions(_hero, options);
+            PrepareHero();
 
             if (options.Join != null)
             {
@@ -142,6 +151,150 @@ namespace Dino_Defenders
                 : new WorldRequest(options.Seed ?? Environment.TickCount, options.Archetype, options.Level), _save);
 
             if (options.Host) OpenToFriends();
+        }
+
+        private void PrepareHero()
+        {
+            _hero.Level = Math.Max(_hero.Level, _options.HeroLevel);
+            _hero.Gold = Math.Max(_hero.Gold, _options.Gold);
+            _hero.PerilProven = Math.Max(_hero.PerilProven, _options.Proven);
+            ApplyBuildOptions(_hero, _options);
+            if (_options.Name == null && _hero.Name.Length > 0) HeroName = _hero.Name;
+        }
+
+        // ---- The main menu.
+
+        IReadOnlyList<RosterEntry> IMenuHost.Heroes => _heroes;
+
+        RosterEntry? IMenuHost.Chosen => _chosen;
+
+        void IMenuHost.Choose(RosterEntry entry)
+        {
+            _chosen = entry;
+            _title?.Show(entry.Hero);
+        }
+
+        void IMenuHost.Create(string name)
+        {
+            if (_roster?.Create(name) is not RosterEntry created) return;
+            _heroes.Insert(0, created);
+            ((IMenuHost)this).Choose(created);
+        }
+
+        void IMenuHost.Delete(RosterEntry entry)
+        {
+            _roster?.Delete(entry);
+            _heroes.Remove(entry);
+            _chosen = _heroes.FirstOrDefault();
+            _title?.Show(_chosen?.Hero);
+        }
+
+        void IMenuHost.Quit() => Quit();
+
+        /// <summary>Takes the chosen hero into their world, or a new one if they've never been anywhere.</summary>
+        void IMenuHost.Play()
+        {
+            if (_chosen == null) return;
+
+            SaveGame.PathOverride = _chosen.Path;
+            SaveGame? save = SaveGame.Load();
+            _hero = save?.Hero ?? _chosen.Hero;
+            _save = save is { } played && !played.NeverPlayed() ? played : null;
+            _firstWorldOfThisSession = true;
+            PrepareHero();
+
+            _ui.Playing(true);
+            _title = null;
+            _titleLoading = null;
+            Music.End(1.2f);
+            StartOwnGame(_save != null
+                ? new WorldRequest(_save.WorldSeed, _save.WorldArchetype, _save.WorldLevel)
+                : new WorldRequest(save?.WorldSeed ?? Environment.TickCount), _save);
+        }
+
+        private void ShowMenu()
+        {
+            _roster ??= new HeroRoster(_options.Heroes);
+            _heroes = _roster.List();
+            _chosen = _heroes.FirstOrDefault();
+
+            ShowLoading(BuildInfo.Name, "");
+            LoadingScreen screen = _ui.Loading;
+            _worlds.Progress = (progress, stage) =>
+            {
+                screen.Progress = progress;
+                screen.Stage = stage;
+            };
+            _titleLoading = _worlds.Get(new WorldRequest(_options.Seed ?? TitleScene.Seed, _options.Archetype ?? TitleScene.Archetype, 1));
+        }
+
+        private void FinishTitleLoading()
+        {
+            if (_titleLoading == null || !_titleLoading.IsCompleted) return;
+
+            Task<WorldData> finished = _titleLoading;
+            _titleLoading = null;
+            if (finished.IsFaulted)
+            {
+                Console.WriteLine($"The land behind the menu failed: {finished.Exception}");
+                Quit();
+                return;
+            }
+
+            WorldData world = finished.Result;
+            GameSession.Current = null!;
+            WorldScene.Enter(Engine.world, world, _assets, TitleScene.ChunkRadius);
+            _characters.Prepare();
+            _title = new TitleScene(Engine.world, world, Wardrobe, _characters);
+            _title.Show(_chosen?.Hero);
+            Engine.WorldReady = true;
+
+            _ui.Playing(false);
+            _ui.Menu.Rebuild();
+            _ui.Loading.Visible = false;
+            Music.Begin((ulong)(uint)world.Plan.Seed * 2654435761UL + 11UL);
+            Music.Mood = MusicMood.Wander;
+            Music.Intensity = 0.15f;
+        }
+
+        private void ToMenu()
+        {
+            Save();
+            LeaveCurrentGame();
+            Audio.StopWorld(1.2f);
+            Music.End(1.2f);
+
+            // Nobody's being played from here on, so there's nothing that can be saved over anyone.
+            _hero = null!;
+            _save = null;
+            SaveGame.PathOverride = _options.SaveFile;
+            ShowMenu();
+        }
+
+        // Whoever asked may still be writing the file, and then it's for the next frame.
+        private void TakeSnap()
+        {
+            if (_options.Snap == null || !File.Exists(_options.Snap)) return;
+            try
+            {
+                string picture = File.ReadAllText(_options.Snap).Trim();
+                File.Delete(_options.Snap);
+                Engine.RequestScreenshot(picture);
+            }
+            catch (IOException)
+            {
+            }
+        }
+
+        // What a scripted run does with the menu showing, as nothing below it happens until there's a game.
+        private void UpdateMenu()
+        {
+            _title?.Update(Dino_Engine.Core.Engine.Delta);
+            if (_title == null) return;
+
+            _frames++;
+            TakeSnap();
+            if (_options.Shot != null && _frames == _options.ShotAfterFrames) Engine.RequestScreenshot(_options.Shot, Quit);
         }
 
         // For scripted runs: a hero made to order, to look at a build without earning it.
@@ -349,6 +502,8 @@ namespace Dino_Defenders
             _client?.Update(Dino_Engine.Core.Engine.Delta);
             HandleLostConnection();
             FinishLoading();
+            FinishTitleLoading();
+            UpdateMenu();
             FollowHero();
             UpdateInterface();
 
@@ -406,12 +561,7 @@ namespace Dino_Defenders
                 _perf.Frame(_frames, Dino_Engine.Core.Engine.Delta);
                 if (_perf.Finished) Quit();
             }
-            if (_options.Snap != null && File.Exists(_options.Snap))
-            {
-                string picture = File.ReadAllText(_options.Snap).Trim();
-                File.Delete(_options.Snap);
-                Engine.RequestScreenshot(picture);
-            }
+            TakeSnap();
             if (_options.Tour != null) UpdateTour();
             if (_options.Film != null) UpdateFilm();
             foreach (var (frame, speed, direction) in _options.Wind)
@@ -463,7 +613,7 @@ namespace Dino_Defenders
             float scale = Math.Clamp(Dino_Engine.Core.Engine.Resolution.Y / InterfaceHeight, 0.75f, 3f);
             if (MathF.Abs(gui.Scale - scale) > 0.01f) gui.Scale = scale;
 
-            if (_ui.Loading.Visible) return;
+            if (_ui.Loading.Visible || _ui.Menu.Visible) return;
 
             var window = Dino_Engine.Core.Engine.WindowHandler;
             if (Dino_Engine.Core.Engine.Gui.WantsKeyboard) return;
@@ -558,7 +708,8 @@ namespace Dino_Defenders
 
         private void Save()
         {
-            if (!_options.Saves) return;
+            // At the main menu nobody's being played, and whoever's on the spot is only being looked at.
+            if (!_options.Saves || _hero == null || _ui.Menu.Visible) return;
 
             // A friend's world isn't this player's to keep, but the hero who went there is.
             if (_server != null)
@@ -595,16 +746,6 @@ namespace Dino_Defenders
             LeaveCurrentGame();
             Music.End(0f);
             Audio.Stop();
-        }
-
-        private void NewJourney()
-        {
-            if (_options.Saves) SaveGame.Delete();
-            LeaveCurrentGame();
-            _hero = HeroState.CreateNew();
-            _save = null;
-            _firstWorldOfThisSession = true;
-            StartOwnGame(new WorldRequest(Environment.TickCount), null);
         }
 
         private void StepThroughWaygate()
@@ -684,6 +825,7 @@ namespace Dino_Defenders
             _characters.Prepare();
             Console.WriteLine($"Prepared {_assets.Count} models in {clock.Elapsed.TotalSeconds:0.00} s");
 
+            _title = null;
             _client!.EnterWorld(world);
             GameSession session = _client.Session!;
             Ambience.FindFeatures(session, _assets);

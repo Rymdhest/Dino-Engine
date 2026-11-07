@@ -7,10 +7,12 @@ namespace Dino_Defenders
     {
         private const string Unstamped = "1.0.0";
 
+        public const string Name = "Dino Defenders";
+
         public static readonly string Version = Read();
 
         /// <summary>What the window is called, so that a screenshot in a bug report says what it came from.</summary>
-        public static string Title => Version == Unstamped ? "Dino Defenders" : $"Dino Defenders {Version}";
+        public static string Title => Version == Unstamped ? Name : $"{Name} {Version}";
 
         private static string Read()
         {

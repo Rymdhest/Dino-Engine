@@ -442,8 +442,6 @@ namespace Dino_Defenders.UI
     /// <summary>The game held still: go on, or leave the road for now.</summary>
     internal sealed class PauseMenu : GuiElement
     {
-        private readonly Label _confirm;
-        private bool _confirming;
 
         public PauseMenu(Action resume, Action friends, Action quit, Action newJourney)
         {
@@ -464,28 +462,11 @@ namespace Dino_Defenders.UI
             body.Add(Ui.Action("Travel with friends", friends));
             SoundSettings.AddControls(body);
             body.Add(Ui.Action("Leave the road", quit));
-            body.Add(Ui.Action("Begin a new journey", () =>
-            {
-                if (_confirming)
-                {
-                    newJourney();
-                    return;
-                }
-                _confirming = true;
-                _confirm.Visible = true;
-            }));
-            _confirm = body.Add(Ui.Paragraph("This forgets your hero for good. Press it again if you mean it.", 14f, Ui.Blood));
-            _confirm.Visible = false;
+            body.Add(Ui.Action("Choose another hero", newJourney));
 
             body.Add(Ui.Line("WASD move, mouse aims, books on LMB, RMB, Q, 1 to 3", 13f, Ui.Faded));
             body.Add(Ui.Line("Space dodge, R flask, E use, F guiding wind once a land is free", 13f, Ui.Faded));
             body.Add(Ui.Line("M map, C hero, T tree, K books, J chronicle, G glossary, wheel zoom", 13f, Ui.Faded));
-        }
-
-        public void Reset()
-        {
-            _confirming = false;
-            _confirm.Visible = false;
         }
     }
 
@@ -610,6 +591,7 @@ namespace Dino_Defenders.UI
         public readonly GroundCatcher Ground = new();
         public readonly HandLayer Hand = new();
         public readonly ActionBar Bar;
+        public readonly MenuScreen Menu;
 
         private readonly GuiElement[] _panels;
 
@@ -623,6 +605,7 @@ namespace Dino_Defenders.UI
             Pause = new PauseMenu(CloseAll, () => Toggle(Friends!), quit, newJourney);
             Friends = new FriendsPanel(game);
             Bar = new ActionBar(Hero);
+            Menu = new MenuScreen(game);
             _panels = new GuiElement[] { Map, Hero, Talents, Book, Glossary, Chronicle, Waygate, Pause, Friends };
 
             gui.Root.Add(Marks);
@@ -631,9 +614,22 @@ namespace Dino_Defenders.UI
             gui.Root.Add(Ground);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
             gui.Root.Add(Bar);
+            gui.Root.Add(Menu);
             gui.Root.Add(Tips);
             gui.Root.Add(Hand);
             gui.Root.Add(Loading);
+        }
+
+        /// <summary>Whether there's a game going on, as everything that's part of one goes when the main menu comes.</summary>
+        public void Playing(bool playing)
+        {
+            CloseAll();
+            Hud.Visible = playing;
+            Bar.Visible = playing;
+            Marks.Visible = playing;
+            Labels.Visible = playing;
+            Ground.Visible = playing;
+            Menu.Visible = !playing;
         }
 
         public bool AnyOpen => _panels.Any(p => p.Visible);
@@ -644,7 +640,6 @@ namespace Dino_Defenders.UI
             foreach (GuiElement panel in _panels) panel.Visible = false;
             Tips.Clear();
             Hero.Forget();
-            Pause.Reset();
         }
 
         public void Toggle(GuiElement panel)

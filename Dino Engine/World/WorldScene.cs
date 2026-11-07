@@ -20,7 +20,8 @@ namespace Dino_Engine.World
         public const int ChunkRadius = 8;
         public const float LongestGrass = 2.6f;
 
-        public static void Enter(ECSWorld ecs, WorldData world, WorldAssetLibrary assets)
+        /// <param name="radius">How many chunks of terrain to keep on each side of the camera, if it isn't the game's.</param>
+        public static void Enter(ECSWorld ecs, WorldData world, WorldAssetLibrary assets, int radius = ChunkRadius)
         {
             ecs.DirtyEntitiesBuffers.ClearAll();
             ecs.DirtyEntities.Clear();
@@ -30,7 +31,7 @@ namespace Dino_Engine.World
             var generator = new TerrainGenerator(world);
             Engine.RenderEngine._terrainRenderer.SetSurfacePalette(generator.Palette);
 
-            ecs.RegisterSingleton<TerrainQuadTreeSingleton>(ecs.CreateEntity(new TerrainQuadTreeSingleton(ChunkSize, ChunkRadius)));
+            ecs.RegisterSingleton<TerrainQuadTreeSingleton>(ecs.CreateEntity(new TerrainQuadTreeSingleton(ChunkSize, radius)));
             ecs.RegisterSingleton<TerrainGeneratorSingleton>(ecs.CreateEntity(new TerrainGeneratorSingleton(generator)));
             ecs.RegisterSingleton<CollisionEventBufferSingleton>(ecs.CreateEntity(new CollisionEventBufferSingleton()));
             ecs.RegisterSingleton<RenderSpatialGridSingleton>(ecs.CreateEntity(new RenderSpatialGridSingleton(15f)));
