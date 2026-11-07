@@ -221,7 +221,7 @@ namespace Dino_BuildLab
             var everything = new List<Item>();
             for (int i = 0; i < 28; i++)
             {
-                var slot = (ItemSlot)random.Next(Enum.GetValues<ItemSlot>().Length);
+                var slot = (ItemSlot)random.Next((int)ItemSlot.Book);
                 Item item = Thing(slot, (WeaponKind)random.Next(Enum.GetValues<WeaponKind>().Length));
                 everything.Add(item);
                 hero.Pickup(item);
@@ -435,6 +435,7 @@ namespace Dino_BuildLab
             var shortPack = new BitWriter();
             shortPack.WriteCount(1);
             shortPack.WriteBool(false);
+            shortPack.WriteCount(0);
             shortPack.WriteCount(0);
             var shorter = new HeroState();
             Protocol.ReadGear(new BitReader(shortPack.ToArray()), shorter);

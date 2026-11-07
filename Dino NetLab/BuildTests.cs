@@ -3,7 +3,7 @@ using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Defenders.Tooltips;
@@ -52,7 +52,7 @@ namespace Dino_NetLab
         {
             var all = new List<Mod> { Flat(Stat.Health, health), Flat(Stat.MoveSpeed, 1f), Flat(Stat.Mana, 100f), Flat(Stat.Accuracy, 1000000f) };
             all.AddRange(mods);
-            Loadout loadout = new Loadout(1, new WeaponProfile(10f, 10f, 0.6f, 0f, Tags.Sword), all, new[] { SkillCatalog.Strike, SkillCatalog.Firebolt });
+            Loadout loadout = new Loadout(1, new WeaponProfile(10f, 10f, 0.6f, 0f, Tags.Sword), all, new[] { Shelf.Strike, Shelf.Firebolt });
             return Place(loadout, offset);
         }
 
@@ -70,10 +70,10 @@ namespace Dino_NetLab
             return actor;
         }
 
-        public SkillProfile Skill(SkillDefinition skill) => Hero.Sheet.Profile(skill)!;
+        public BookProfile Skill(BookPlan skill) => Hero.Sheet.Profile(skill)!;
 
         /// <summary>Lets a skill off, from where the hero stands, the way their step would.</summary>
-        public void Release(SkillDefinition skill, Vector2 direction, float reach = 10f)
+        public void Release(BookPlan skill, Vector2 direction, float reach = 10f)
         {
             Combat.Release(Hero, Skill(skill), At, direction.Normalized(), reach);
         }
@@ -168,11 +168,11 @@ namespace Dino_NetLab
             {
                 Actor ahead = arena.Dummy(East * 4f);
                 Actor behind = arena.Dummy(West * 4f);
-                arena.Release(SkillCatalog.Strike, East);
+                arena.Release(Shelf.Strike, East);
                 report.Check("A strike reaches what's in front", Arena.Lost(ahead) > 0f);
                 report.Check("And not what's behind", Arena.Lost(behind) == 0f);
 
-                arena.Release(SkillCatalog.Whirl, East);
+                arena.Release(Shelf.Whirl, East);
                 report.Check("A whirl reaches what's all around", Arena.Lost(behind) > 0f);
             }
 
@@ -180,14 +180,14 @@ namespace Dino_NetLab
             {
                 Actor near = arena.Dummy(East * 5f);
                 Actor far = arena.Dummy(West * 30f);
-                arena.Release(SkillCatalog.Immolate, East);
+                arena.Release(Shelf.Immolate, East);
                 report.Check("A nova reaches what's near", Arena.Lost(near) > 0f);
                 report.Check("And not what's far", Arena.Lost(far) == 0f);
 
                 float before = Arena.Lost(near);
-                arena.Release(SkillCatalog.Emberfall, East, 5f);
+                arena.Release(Shelf.Emberfall, East, 5f);
                 report.Check("A burst doesn't land at once", Arena.Lost(near) == before);
-                arena.Run(SkillCatalog.Emberfall.Delay + 0.3);
+                arena.Run(Shelf.Emberfall.Delay + 0.3);
                 report.Check("And does a moment later", Arena.Lost(near) > before);
             }
 
@@ -195,7 +195,7 @@ namespace Dino_NetLab
             {
                 Actor target = arena.Dummy(East * 12f);
                 Actor beside = arena.Dummy(East * 13.5f + new Vector2(0f, 2f));
-                arena.Release(SkillCatalog.Firebolt, East);
+                arena.Release(Shelf.Firebolt, East);
                 report.Check("A bolt isn't there yet", Arena.Lost(target) == 0f);
                 arena.Run(0.7);
                 report.Check("And then it is", Arena.Lost(target) > 0f);
@@ -208,26 +208,26 @@ namespace Dino_NetLab
                 Actor second = arena.Dummy(East * 11f);
                 Actor third = arena.Dummy(East * 15f);
                 Actor dodger = arena.Dummy(new Vector2(0f, 20f));
-                arena.Combat.Release(arena.Hero, arena.Skill(SkillCatalog.FrostShards), arena.At, East, 20f);
+                arena.Combat.Release(arena.Hero, arena.Skill(Shelf.FrostShards), arena.At, East, 20f);
                 arena.Run(1.2);
                 report.Check("A piercing shot goes through the first", Arena.Lost(first) > 0f && Arena.Lost(second) > 0f);
-                report.Check("And stops when its piercing's spent", Arena.Lost(third) == 0f || SkillCatalog.FrostShards.Pierce >= 2);
+                report.Check("And stops when its piercing's spent", Arena.Lost(third) == 0f || Shelf.FrostShards.Pierce >= 2);
                 report.Check("And a spread goes where it's aimed, not everywhere", Arena.Lost(dodger) == 0f);
             }
 
             using (Arena arena = Enter(worlds, request, "storm.spark"))
             {
                 var line = new[] { arena.Dummy(East * 8f), arena.Dummy(East * 14f), arena.Dummy(East * 20f), arena.Dummy(East * 26f), arena.Dummy(East * 32f) };
-                arena.Combat.Release(arena.Hero, arena.Skill(SkillCatalog.Spark), arena.At, East, 8f);
+                arena.Combat.Release(arena.Hero, arena.Skill(Shelf.Spark), arena.At, East, 8f);
                 int struck = line.Count(a => Arena.Lost(a) > 0f);
-                report.Check("A chain leaps as many times as it says, and no more", struck == 1 + SkillCatalog.Spark.Chains, $"{struck}");
+                report.Check("A chain leaps as many times as it says, and no more", struck == 1 + Shelf.Spark.Chains, $"{struck}");
             }
 
             using (Arena arena = Enter(worlds, request, "winter.glacial-lance"))
             {
                 Actor inLine = arena.Dummy(East * 15f);
                 Actor aside = arena.Dummy(East * 15f + new Vector2(0f, 8f));
-                arena.Release(SkillCatalog.GlacialLance, East);
+                arena.Release(Shelf.GlacialLance, East);
                 report.Check("A beam reaches along its line", Arena.Lost(inLine) > 0f);
                 report.Check("And not beside it", Arena.Lost(aside) == 0f);
             }
@@ -235,7 +235,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "storm.stormcall"))
             {
                 Actor inside = arena.Dummy(East * 6f);
-                arena.Release(SkillCatalog.Stormcall, East, 6f);
+                arena.Release(Shelf.Stormcall, East, 6f);
                 arena.Run(0.4);
                 float once = Arena.Lost(inside);
                 arena.Run(1.5);
@@ -252,7 +252,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "pyre.firebolt"))
             {
                 Actor target = arena.Dummy(East * 3f);
-                SkillProfile bolt = arena.Skill(SkillCatalog.Firebolt);
+                BookProfile bolt = arena.Skill(Shelf.Firebolt);
                 for (int i = 0; i < 40 && target.Afflictions.BurnLeft <= 0f; i++) arena.Combat.Hit(arena.Hero, bolt, target, 1f, arena.At);
                 report.Check("A fire skill can leave someone burning", target.Afflictions.BurnLeft > 0f);
 
@@ -311,7 +311,7 @@ namespace Dino_NetLab
             using (Arena arena = new Arena(worlds, request, Hero("mire.venom-spit")))
             {
                 Actor target = arena.Dummy(East * 3f);
-                SkillProfile spit = arena.Skill(SkillCatalog.VenomSpit);
+                BookProfile spit = arena.Skill(Shelf.VenomSpit);
                 for (int i = 0; i < 60; i++) arena.Combat.Hit(arena.Hero, spit, target, 1f, arena.At);
                 report.Check("Venom stacks, up to a limit", target.Afflictions.Venom!.Count == AilmentRules.MostVenom, $"{target.Afflictions.Venom!.Count}");
             }
@@ -319,7 +319,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "key.patient-death"))
             {
                 Actor target = arena.Dummy(East * 3f);
-                SkillProfile strike = arena.Skill(SkillCatalog.Strike);
+                BookProfile strike = arena.Skill(Shelf.Strike);
                 for (int i = 0; i < 200; i++) arena.Combat.Hit(arena.Hero, strike, target, 1f, arena.At);
                 report.Check("Patient Death lifts the limit on Venom", target.Afflictions.Venom!.Count > AilmentRules.MostVenom, $"{target.Afflictions.Venom!.Count}");
             }
@@ -333,7 +333,7 @@ namespace Dino_NetLab
                 Actor beside = arena.Dummy(East * 5f);
                 target.Afflictions.ChillLeft = 100f;
                 target.Afflictions.ChillEffect = 0.3f;
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Firebolt), target, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Firebolt), target, 1f, arena.At);
                 report.Check("Scald: fire on the chilled ends the chill", target.Afflictions.ChillLeft == 0f);
                 arena.Run(0.1);
                 report.Check("And scalds what's nearby", Arena.Lost(beside) > 0f);
@@ -345,7 +345,7 @@ namespace Dino_NetLab
                 Actor beside = arena.Dummy(East * 5f);
                 target.Afflictions.BurnLeft = 100f;
                 target.Afflictions.BurnPerSecond = 1f;
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.FrostShards), target, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.FrostShards), target, 1f, arena.At);
                 report.Check("Crackle: cold on the burning puts the fire out", target.Afflictions.BurnLeft == 0f);
                 arena.Run(0.1);
                 report.Check("And cracks what's nearby", Arena.Lost(beside) > 0f);
@@ -356,7 +356,7 @@ namespace Dino_NetLab
                 Actor target = arena.Dummy(East * 3f);
                 Actor beside = arena.Dummy(East * 5f);
                 target.Afflictions.Venom = new List<VenomStack> { new VenomStack { PerSecond = 500f, Left = 2f, Source = arena.Hero } };
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Firebolt), target, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Firebolt), target, 1f, arena.At);
                 report.Check("Flashfire: fire takes all the venom at once", target.Afflictions.Venom.Count == 0);
                 arena.Run(0.1);
                 report.Check("And what it would have done goes off around it", Arena.Lost(beside) >= 500f, $"{Arena.Lost(beside)}");
@@ -370,8 +370,8 @@ namespace Dino_NetLab
                 for (int i = 0; i < 60; i++)
                 {
                     frozen.Afflictions.FreezeLeft = 100f;
-                    arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), plain, 1f, arena.At);
-                    arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), frozen, 1f, arena.At);
+                    arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), plain, 1f, arena.At);
+                    arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), frozen, 1f, arena.At);
                     broke &= frozen.Afflictions.FreezeLeft == 0f;
                 }
                 report.Check("Shatter: a blow on the frozen breaks the ice", broke);
@@ -383,12 +383,12 @@ namespace Dino_NetLab
                 Actor wet = arena.Dummy(East * 4f);
                 Actor alsoWet = arena.Dummy(East * 7f);
                 Actor dry = arena.Dummy(East * 7f + new Vector2(0f, 14f));
-                arena.Release(SkillCatalog.Tidepool, East, 5f);
+                arena.Release(Shelf.Tidepool, East, 5f);
                 arena.Run(0.2);
                 report.Check("Water can be made where there was none", arena.Combat.Land.InWater(wet.Position));
 
                 float before = Arena.Lost(alsoWet);
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Spark), wet, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Spark), wet, 1f, arena.At);
                 arena.Run(0.1);
                 report.Check("Conduction: lightning runs through the water to whoever else is in it", Arena.Lost(alsoWet) > before);
                 report.Check("And no further", Arena.Lost(dry) == 0f);
@@ -398,7 +398,7 @@ namespace Dino_NetLab
             {
                 Actor target = arena.Dummy(East * 3f);
                 Actor beside = arena.Dummy(East * 5f);
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), target, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), target, 1f, arena.At);
                 arena.Run(0.1);
                 report.Check("With nothing to react to, nothing reacts", Arena.Lost(beside) == 0f);
             }
@@ -416,7 +416,7 @@ namespace Dino_NetLab
                 report.Check("But it falls due", arena.Hero.Vitals.Health < before);
                 float owing = arena.Hero.Vitals.Debt;
                 Actor weak = arena.Dummy(West * 3f, 1f);
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), weak, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), weak, 1f, arena.At);
                 report.Check("And a kill forgives some of it", arena.Hero.Vitals.Debt < owing * 0.9f);
             }
 
@@ -463,12 +463,12 @@ namespace Dino_NetLab
 
             using (Arena arena = Enter(worlds, request, "key.blood-tithe", "pyre.firebolt"))
             {
-                SkillProfile bolt = arena.Skill(SkillCatalog.Firebolt);
+                BookProfile bolt = arena.Skill(Shelf.Firebolt);
                 report.Check("Blood Tithe: skills cost health", bolt.CostsHealth);
                 float plain = bolt.AverageHit;
                 arena.Hero.HealthSpent = 40f;
                 arena.Hero.ReadState(Condition.None);
-                float fed = arena.Hero.Sheet.Profile(SkillCatalog.Firebolt)!.AverageHit;
+                float fed = arena.Hero.Sheet.Preview(Shelf.Firebolt).First.AverageHit;
                 report.Check("And what's spent goes into everything", fed > plain * 1.5f, $"{plain} then {fed}");
                 arena.Run(5);
                 report.Check("For a while", arena.Hero.Counters.HealthSpent == 0);
@@ -484,7 +484,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "key.slow-burn", "pyre.firebolt"))
             {
                 Actor target = arena.Dummy(East * 3f);
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Firebolt), target, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Firebolt), target, 1f, arena.At);
                 report.Check("Slow Burn: a fire hit does nothing at once", Arena.Lost(target) == 0f, $"{Arena.Lost(target)}");
                 report.Check("All of it goes into the burn", target.Afflictions.BurnPerSecond > 0f);
                 arena.Run(1);
@@ -504,7 +504,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "key.echoing-word", "pyre.immolate"))
             {
                 Actor target = arena.Dummy(East * 3f);
-                arena.Release(SkillCatalog.Immolate, East);
+                arena.Release(Shelf.Immolate, East);
                 float first = Arena.Lost(target);
                 arena.Run(0.9);
                 report.Check("Echoing Word: a spell goes off again, softer", Arena.Lost(target) > first && Arena.Lost(target) < first * 3f, $"{first} then {Arena.Lost(target)}");
@@ -512,9 +512,9 @@ namespace Dino_NetLab
 
             using (Arena arena = Enter(worlds, request, "key.unbound-hour", "pyre.emberfall"))
             {
-                SkillProfile fall = arena.Skill(SkillCatalog.Emberfall);
+                BookProfile fall = arena.Skill(Shelf.Emberfall);
                 report.Check("Unbound Hour: no cooldowns", fall.Cooldown == 0f);
-                report.Check("At a price", fall.Cost > SkillCatalog.Emberfall.Cost * SkillProfile.CostAtLevel(60) * 1.5f, $"{fall.Cost}");
+                report.Check("At a price", fall.Cost > Shelf.Emberfall.Cost * BookProfile.CostAtLevel(60) * 1.5f, $"{fall.Cost}");
             }
 
             using (Arena arena = Enter(worlds, request, "key.static-stride"))
@@ -524,9 +524,9 @@ namespace Dino_NetLab
                 for (int i = 0; i < 60; i++)
                 {
                     arena.Hero.Static = 0f;
-                    arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), target, 1f, arena.At);
+                    arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), target, 1f, arena.At);
                     arena.Hero.Static = 100f;
-                    arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), other, 1f, arena.At);
+                    arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), other, 1f, arena.At);
                 }
                 report.Check("Static Stride: a charge built by walking goes into the next hit", Arena.Lost(other) > Arena.Lost(target) * 1.7f, $"{Arena.Lost(target)} without, {Arena.Lost(other)} with");
                 report.Check("And is spent", arena.Hero.Static == 0f);
@@ -535,7 +535,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "key.forked-sky", "storm.spark"))
             {
                 var line = new[] { arena.Dummy(East * 6f), arena.Dummy(East * 12f), arena.Dummy(East * 18f), arena.Dummy(East * 24f) };
-                arena.Combat.Release(arena.Hero, arena.Skill(SkillCatalog.Spark), arena.At, East, 6f);
+                arena.Combat.Release(arena.Hero, arena.Skill(Shelf.Spark), arena.At, East, 6f);
                 report.Check("Forked Sky: chains grow as they go", Arena.Lost(line[3]) > Arena.Lost(line[0]) * 0.9f || Arena.Lost(line[3]) > 0f);
             }
 
@@ -549,7 +549,7 @@ namespace Dino_NetLab
             {
                 Actor target = arena.Dummy(East * 3f);
                 target.Afflictions.FreezeLeft = 0.5f;
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.ArcaneDart), target, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.ArcaneDart), target, 1f, arena.At);
                 report.Check("Still Point: what's done to the frozen doesn't land yet", Arena.Lost(target) == 0f && target.Afflictions.Stored > 0f, $"{Arena.Lost(target)}, stored {target.Afflictions.Stored}");
                 float stored = target.Afflictions.Stored;
                 arena.Run(0.8);
@@ -568,7 +568,7 @@ namespace Dino_NetLab
 
             using (Arena arena = Enter(worlds, request, "key.long-shot", "knave.knives"))
             {
-                var shot = new Projectile { Source = arena.Hero, Skill = arena.Skill(SkillCatalog.Knives), Life = 5f, Start = arena.At };
+                var shot = new Projectile { Source = arena.Hero, Skill = arena.Skill(Shelf.Knives), Life = 5f, Start = arena.At };
                 Actor near = arena.Dummy(East * 5f);
                 Actor far = arena.Dummy(East * 40f);
                 Vector3 Point(Actor actor) => new Vector3(actor.Position.X, actor.Height, actor.Position.Y);
@@ -585,7 +585,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "key.homing-flight", "knave.knives"))
             {
                 int flying = Count<ProjectileComponent>(arena);
-                arena.Combat.Release(arena.Hero, arena.Skill(SkillCatalog.Knives), arena.At, East, 18f);
+                arena.Combat.Release(arena.Hero, arena.Skill(Shelf.Knives), arena.At, East, 18f);
                 arena.Run(0.2);
                 int out_ = Count<ProjectileComponent>(arena);
                 arena.Run(0.85);
@@ -595,7 +595,7 @@ namespace Dino_NetLab
 
             using (Arena arena = Enter(worlds, request, "key.final-word"))
             {
-                SkillProfile strike = arena.Skill(SkillCatalog.Strike);
+                BookProfile strike = arena.Skill(Shelf.Strike);
                 Actor target = arena.Dummy(East * 3f, 1000f);
                 target.Vitals.Health = 200f;
                 arena.Hero.Critical = true;
@@ -615,12 +615,12 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "key.borrowed-tongue"))
             {
                 Actor foe = arena.Dummy(East * 3f);
-                report.Check("Borrowed Tongue: nothing borrowed yet", arena.Hero.Sheet.Profile(SkillCatalog.Firebolt) == null);
-                arena.Combat.Hit(foe, foe.Sheet.Profile(SkillCatalog.Firebolt)!, arena.Hero, 1f, foe.Position);
-                report.Check("A skill that hits you is yours", arena.Hero.Sheet.Profile(SkillCatalog.Firebolt) != null && arena.Truth.Hero.Bar[^1] == "firebolt");
+                report.Check("Borrowed Tongue: nothing borrowed yet", arena.Hero.Sheet.Profile(Shelf.Firebolt) == null);
+                arena.Combat.Hit(foe, foe.Sheet.Preview(Shelf.Firebolt), arena.Hero, 1f, foe.Position);
+                report.Check("A skill that hits you is yours", arena.Hero.Sheet.Profile(Shelf.Firebolt) != null && arena.Truth.Hero.Bar[^1] == "firebolt");
                 arena.Run(0.3);
-                report.Check("On your client too", arena.Player.Client.Sheet.Profile(SkillCatalog.Firebolt) != null && arena.Player.Client.Kit.Slots[^1]?.Skill == SkillCatalog.Firebolt);
-                report.Check("And it's cast with your numbers, not theirs", arena.Hero.Sheet.Profile(SkillCatalog.Firebolt)!.AverageHit != foe.Sheet.Profile(SkillCatalog.Firebolt)!.AverageHit);
+                report.Check("On your client too", arena.Player.Client.Sheet.Profile(Shelf.Firebolt) != null && arena.Player.Client.Kit.Slots[^1]?.Skill == Shelf.Firebolt);
+                report.Check("And it's cast with your numbers, not theirs", arena.Hero.Sheet.Preview(Shelf.Firebolt).First.AverageHit != foe.Sheet.Preview(Shelf.Firebolt).First.AverageHit);
             }
 
             using (Arena arena = new Arena(worlds, request, Wearing("mantle-of-cinders")))
@@ -679,7 +679,7 @@ namespace Dino_NetLab
                 for (int i = 0; i < 200 && Arena.Lost(nearby) == before; i++)
                 {
                     Actor weak = arena.Dummy(East * 4f, 1f);
-                    arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), weak, 1f, arena.At);
+                    arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), weak, 1f, arena.At);
                     arena.Run(1.1);
                 }
                 report.Check("A kill can too", Arena.Lost(nearby) > before);
@@ -703,7 +703,7 @@ namespace Dino_NetLab
                     for (int i = 0; i < 30; i++)
                     {
                         Actor victim = arena.Dummy(East * 3f, 1f);
-                        arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), victim, 1f, arena.At);
+                        arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), victim, 1f, arena.At);
                         arena.Run(0.05);
                     }
                 }
@@ -729,14 +729,14 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "host.raise-bones"))
             {
                 Actor foe = arena.Dummy(East * 10f);
-                arena.Release(SkillCatalog.RaiseBones, East);
+                arena.Release(Shelf.RaiseBones, East);
                 arena.Run(0.2);
-                report.Check("A minion gets up", arena.Session.Minions.Count == SkillCatalog.RaiseBones.MinionCount, $"{arena.Session.Minions.Count}");
+                report.Check("A minion gets up", arena.Session.Minions.Count == Shelf.RaiseBones.MinionCount, $"{arena.Session.Minions.Count}");
                 arena.Run(6);
                 report.Check("And fights for you", Arena.Lost(foe) > 0f);
 
                 int before = arena.Session.Minions.Count;
-                arena.Release(SkillCatalog.RaiseBones, East);
+                arena.Release(Shelf.RaiseBones, East);
                 arena.Run(0.2);
                 report.Check("Calling them again replaces them rather than adding to them", arena.Session.Minions.Count == before);
 
@@ -755,9 +755,9 @@ namespace Dino_NetLab
                 {
                     GameLab.Learn(arena.Truth.Hero, "host.raise-bones");
                     arena.Truth.RefreshLoadout();
-                    arena.Release(SkillCatalog.RaiseBones, East);
+                    arena.Release(Shelf.RaiseBones, East);
                     arena.Run(0.1);
-                    return arena.Session.Minions[0].Sheet.Profile(0).AverageHit;
+                    return arena.Session.Minions[0].Sheet.Profile(0).First.AverageHit;
                 }
                 report.Check("What's written for minions reaches them", Hit(strong) > Hit(plain) * 1.2f, $"{Hit(plain)} and {Hit(strong)}");
             }
@@ -765,26 +765,26 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "key.puppeteer", "host.raise-bones"))
             {
                 Actor foe = arena.Dummy(East * 4f);
-                arena.Release(SkillCatalog.Strike, East);
+                arena.Release(Shelf.Strike, East);
                 report.Check("Puppeteer: your own hands do nothing", Arena.Lost(foe) == 0f);
             }
 
             using (Arena strong = Enter(worlds, request, "host.command", "host.raise-bones"))
             {
-                strong.Release(SkillCatalog.RaiseBones, East);
+                strong.Release(Shelf.RaiseBones, East);
                 strong.Run(0.2);
                 Actor bones = strong.Session.Minions[0];
-                float one = bones.Sheet.Profile(0).AverageHit;
+                float one = bones.Sheet.Profile(0).First.AverageHit;
                 strong.Hero.Counters.Minions = 10;
                 bones.Counters.Minions = 10;
                 bones.ReadState(Condition.None);
-                report.Check("What's counted per minion counts on the minions", bones.Sheet.Profile(0).AverageHit > one, $"{one} then {bones.Sheet.Profile(0).AverageHit}");
+                report.Check("What's counted per minion counts on the minions", bones.Sheet.Profile(0).First.AverageHit > one, $"{one} then {bones.Sheet.Profile(0).First.AverageHit}");
             }
 
             using (Arena arena = new Arena(worlds, request, Hero("host.raise-bones"), heroes: 2))
             {
                 ServerPlayer friend = arena.Lab.Server.Heroes[1];
-                arena.Release(SkillCatalog.RaiseBones, East);
+                arena.Release(Shelf.RaiseBones, East);
                 arena.Run(0.2);
                 Actor minion = arena.Session.Minions[0];
                 arena.Lab.Players[0].Client.Dispose();
@@ -798,10 +798,10 @@ namespace Dino_NetLab
                 for (int i = 0; i < 60 && arena.Session.Minions.Count == 0; i++)
                 {
                     Actor weak = arena.Dummy(East * 3f, 1f);
-                    arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), weak, 1f, arena.At);
+                    arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), weak, 1f, arena.At);
                     arena.Run(1);
                 }
-                report.Check("Mutiny: an enemy you kill can rise beside you, with what it could do", arena.Session.Minions.Count > 0 && arena.Session.Minions[0].Loadout.Skills.Contains(SkillCatalog.Firebolt));
+                report.Check("Mutiny: an enemy you kill can rise beside you, with what it could do", arena.Session.Minions.Count > 0 && arena.Session.Minions[0].Loadout.Books.Contains(Shelf.Firebolt));
             }
 
             using (Arena arena = new Arena(worlds, request, Hero("key.shared-burden"), heroes: 2))
@@ -825,14 +825,14 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request, "key.tidewalker", "wilds.tidepool"))
             {
                 arena.Run(0.4);
-                float dry = arena.Skill(SkillCatalog.Strike).AverageHit;
-                arena.Release(SkillCatalog.Tidepool, East, 0f);
+                float dry = arena.Skill(Shelf.Strike).AverageHit;
+                arena.Release(Shelf.Tidepool, East, 0f);
                 arena.Run(0.6);
                 report.Check("The land is read under someone's feet", (arena.Hero.State & Condition.InWater) != 0);
-                float wet = arena.Hero.Sheet.Profile(SkillCatalog.Strike)!.AverageHit;
+                float wet = arena.Hero.Sheet.Preview(Shelf.Strike).First.AverageHit;
                 report.Check("Tidewalker: far stronger in the water, and its own pool counts", wet > dry * 1.6f, $"{dry} dry, {wet} wet");
                 arena.Run(0.2);
-                report.Check("Which the client works out for itself from what it's told", arena.Player.Client.Sheet.Profile(SkillCatalog.Strike)!.AverageHit == wet);
+                report.Check("Which the client works out for itself from what it's told", arena.Player.Client.Sheet.Preview(Shelf.Strike).First.AverageHit == wet);
             }
 
             using (Arena arena = new Arena(worlds, request, Wearing("drowned-king", "key.tidewalker")))
@@ -849,8 +849,8 @@ namespace Dino_NetLab
                 high.Height = arena.Hero.Height + 10f;
                 for (int i = 0; i < 60; i++)
                 {
-                    arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), low, 1f, arena.At);
-                    arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), high, 1f, arena.At);
+                    arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), low, 1f, arena.At);
+                    arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), high, 1f, arena.At);
                 }
                 report.Check("Peakborn: height is damage", Arena.Lost(low) > Arena.Lost(high) * 1.5f, $"{Arena.Lost(low)} down, {Arena.Lost(high)} up");
             }
@@ -897,13 +897,13 @@ namespace Dino_NetLab
             {
                 Actor hero = arena.Hero;
                 Item shell = UniqueCatalog.Make(UniqueCatalog.Find("ashen-promise")!, 20, new WorldRandom(1));
-                Loadout boss = new Loadout(20, new WeaponProfile(50f, 50f, 0.6f, 5f, Tags.Sword), shell.Mods().Append(Flat(Stat.Health, 1f)), new[] { SkillCatalog.Strike });
+                Loadout boss = new Loadout(20, new WeaponProfile(50f, 50f, 0.6f, 5f, Tags.Sword), shell.Mods().Append(Flat(Stat.Health, 1f)), new[] { Shelf.Strike });
                 Actor warlord = arena.Place(boss, East * 3f);
                 warlord.Gear = new[] { shell };
 
                 warlord.Site = arena.Session.Sites[0];
                 int pickups = Count<PickupComponent>(arena);
-                arena.Combat.Hit(hero, arena.Skill(SkillCatalog.Strike), warlord, 1f, arena.At);
+                arena.Combat.Hit(hero, arena.Skill(Shelf.Strike), warlord, 1f, arena.At);
                 arena.Run(0.2);
                 report.Check("A boss drops what it was wearing", Count<PickupComponent>(arena) > pickups);
             }
@@ -938,7 +938,7 @@ namespace Dino_NetLab
             hero.Equipped[WornSlot.Body] = new Item { Name = "Lab Plate", Slot = ItemSlot.Body, Level = 1, Armour = 40f };
             using var arena = new Arena(worlds, request, hero);
             float armour = arena.Hero.Sheet.Armour;
-            arena.Release(SkillCatalog.StoneSkinCast, East);
+            arena.Release(Shelf.StoneSkinCast, East);
             arena.Run(0.3);
             report.Check("A buff changes what someone is", arena.Hero.Sheet.Armour > armour, $"{armour} to {arena.Hero.Sheet.Armour}");
             report.Check("On their client too", arena.Player.Client.Sheet.Armour == arena.Hero.Sheet.Armour, $"{arena.Player.Client.Sheet.Armour}");
@@ -956,7 +956,7 @@ namespace Dino_NetLab
         }
 
         // Someone on the hero's side with exactly what's asked for, using exactly one skill.
-        private static Actor Caster(Arena arena, SkillDefinition skill, params Mod[] mods)
+        private static Actor Caster(Arena arena, BookPlan skill, params Mod[] mods)
         {
             var all = new List<Mod> { Flat(Stat.Health, 1000f), Flat(Stat.Mana, 1000f) };
             all.AddRange(mods);
@@ -971,8 +971,8 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request))
             {
                 Actor target = arena.Dummy(East * 4f);
-                Actor caster = Caster(arena, SkillCatalog.Tidepool, Chance(Tags.Hex, 100f));
-                SkillProfile pool = caster.Sheet.Profile(0);
+                Actor caster = Caster(arena, Shelf.Tidepool, Chance(Tags.Hex, 100f));
+                BookProfile pool = caster.Sheet.Profile(0);
                 arena.Combat.Release(caster, pool, target.Position, East, 0f);
                 arena.Run(0.5);
                 report.Check("A Zone that deals nothing Hits nothing, whatever the Chance: Tidepool's card has no Hex on it, and there's none on the target", target.Afflictions.HexStacks == 0 && !Cards.Skill(pool).Lines.Any(line => line.Text.Contains("Hex")));
@@ -985,7 +985,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request))
             {
                 Actor target = arena.Dummy(East * 3f);
-                Actor caster = Caster(arena, SkillCatalog.ArcaneDart, Chance(Tags.Hex, 100f), Inc(Stat.AilmentEffect, 100f, Tags.Hex));
+                Actor caster = Caster(arena, Shelf.ArcaneDart, Chance(Tags.Hex, 100f), Inc(Stat.AilmentEffect, 100f, Tags.Hex));
                 arena.Combat.Hit(caster, caster.Sheet.Profile(0), target, 1f, caster.Position);
                 report.Near("Effect of Hex does what it says: twice the Effect takes twice the Resistance", target.Afflictions.ResistanceLost, 2f * AilmentRules.HexPerStack);
                 report.Check("And the card says so", Cards.Skill(caster.Sheet.Profile(0)).Lines.Any(line => line.Text.Contains($"{Say.Amount(2f * AilmentRules.HexPerStack)} Resistance per Stack")));
@@ -993,8 +993,8 @@ namespace Dino_NetLab
 
             using (Arena arena = Enter(worlds, request))
             {
-                Actor caster = Caster(arena, SkillCatalog.StoneSkinCast, Inc(Stat.SkillDuration, 100f));
-                SkillProfile skin = caster.Sheet.Profile(0);
+                Actor caster = Caster(arena, Shelf.StoneSkinCast, Inc(Stat.PageDuration, 100f));
+                BookProfile skin = caster.Sheet.Profile(0);
                 arena.Combat.Release(caster, skin, caster.Position, East, 0f);
                 arena.Run(0.1);
                 report.Near("Skill Duration reaches a Buff from a Skill", caster.Buffs[0].Left, BuffCatalog.StoneSkin.Duration * 2f - 0.1f, 0.03f);
@@ -1004,7 +1004,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request))
             {
                 Actor target = arena.Dummy(East * 3f);
-                Actor caster = Caster(arena, SkillCatalog.Stormcall, Rules(Rule.SpellEcho));
+                Actor caster = Caster(arena, Shelf.Stormcall, Rules(Rule.SpellEcho));
                 arena.Combat.Release(caster, caster.Sheet.Profile(0), target.Position, East, 0f);
                 arena.Run(Rulebook.EchoDelay + 0.1);
 
@@ -1019,8 +1019,8 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request))
             {
                 Actor target = arena.Dummy(East * 3f);
-                Actor caster = Caster(arena, SkillCatalog.Stormcall);
-                SkillProfile storm = caster.Sheet.Profile(0);
+                Actor caster = Caster(arena, Shelf.Stormcall);
+                BookProfile storm = caster.Sheet.Profile(0);
                 arena.Combat.Release(caster, storm, target.Position, East, 0f);
 
                 int pulses = 0;
@@ -1038,7 +1038,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request))
             {
                 Actor target = arena.Dummy(East * 3f, 1000000f, Flat(Stat.AilmentAvoid, 100f));
-                Actor caster = Caster(arena, SkillCatalog.FrostShards);
+                Actor caster = Caster(arena, Shelf.FrostShards);
                 arena.Combat.Hit(caster, caster.Sheet.Profile(0), target, 1f, caster.Position);
                 report.Check("Chance to Avoid Ailments means all of them, Chill included", target.Afflictions.ChillLeft <= 0f);
             }
@@ -1046,8 +1046,8 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request))
             {
                 Actor target = arena.Dummy(East * 3f);
-                Actor caster = Caster(arena, SkillCatalog.Sap);
-                SkillProfile sap = caster.Sheet.Profile(0);
+                Actor caster = Caster(arena, Shelf.Sap);
+                BookProfile sap = caster.Sheet.Profile(0);
                 caster.Vitals.Health = 100f;
                 arena.Combat.Hit(caster, sap, target, 1f, caster.Position);
                 report.Near("Leech comes all at once, on the Hit, as the words say", caster.Vitals.Health - 100f, Arena.Lost(target) * sap.HealthLeech, 0.01f);
@@ -1125,16 +1125,16 @@ namespace Dino_NetLab
             using var lab = new GameLab(worlds, request);
             HeroState hero = GameLab.StrongHero();
             hero.Equipped[WornSlot.Finger1] = new Item { Name = "Lab Ring", Slot = ItemSlot.Finger, Level = 1, Lines = { new ItemLine("mana-regen", 1000f) } };
-            hero.Bar[OnOne] = SkillCatalog.Firebolt.Id;
-            hero.Bar[OnTwo] = SkillCatalog.FrostNova.Id;
+            hero.Bar[OnOne] = Shelf.Firebolt.Id;
+            hero.Bar[OnTwo] = Shelf.FrostNova.Id;
             LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 80, Jitter = 10, LossChance = 0.01 }, 9, hero: hero);
             player.Fights = false;
             lab.Run(4);
 
             int before = player.Client.Predictor.Corrections;
             int compared = player.Client.Predictor.Compared;
-            SkillProfile bolt = player.Client.Kit.Slots[OnOne]!;
-            SkillProfile nova = player.Client.Kit.Slots[OnTwo]!;
+            BookProfile bolt = player.Client.Kit.Slots[OnOne]!;
+            BookProfile nova = player.Client.Kit.Slots[OnTwo]!;
 
             player.HeldSlots = 1 << OnOne;
             lab.Run(0.08);

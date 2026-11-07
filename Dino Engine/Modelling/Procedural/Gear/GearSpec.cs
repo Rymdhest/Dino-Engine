@@ -19,6 +19,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         Feet,
         Hands,
         Finger,
+        Book,
     }
 
     /// <summary>What power is in something, which shows in what glows on it and in its accents.</summary>

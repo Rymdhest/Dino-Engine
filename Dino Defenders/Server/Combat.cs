@@ -443,13 +443,13 @@ namespace Dino_Defenders.Server
                     }
                 }
 
-                foreach (GiftPart gift in plan.Gifts)
+                for (int i = 0; i < plan.Gifts.Length; i++)
                 {
-                    float lasts = sheet.Total(Stat.PageDuration, gift.Buff.Duration, page.Tags, plan);
-                    if (gift.Whom == Whom.You) AddBuff(user, gift.Buff, lasts);
+                    GiftPart gift = plan.Gifts[i];
+                    if (gift.Whom == Whom.You) AddBuff(user, gift.Buff, page.GiftSeconds[i]);
                     else
                     {
-                        foreach (Actor friend in _friends) AddBuff(friend, gift.Buff, lasts);
+                        foreach (Actor friend in _friends) AddBuff(friend, gift.Buff, page.GiftSeconds[i]);
                     }
                 }
             }
@@ -551,13 +551,23 @@ namespace Dino_Defenders.Server
             };
             if (parent != null) projectile.Spent.AddRange(parent.Spent);
 
-            World.CreateEntity("Projectile",
+            World.CreateEntity("Projectile", Parts(user,
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 2f),
                 new PositionComponent(origin),
                 new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, yaw)),
                 new VisualComponent(ModelOf(user, page), VisualKind.Prop),
                 new BallisticComponent { Origin = origin, Velocity = new Vector3(direction.X, 0f, direction.Y) * speed, StartTick = Server.Tick, FromHeroes = user.Team == Team.Heroes },
-                new ProjectileComponent { State = projectile });
+                new ProjectileComponent { State = projectile }));
+        }
+
+        // What leaves a hero's hands is what was in them, down to the look of it.
+        private static IComponent[] Parts(Actor user, params IComponent[] parts)
+        {
+            if (user.Player is not ServerPlayer hero || !hero.Hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? weapon)) return parts;
+            if ((user.Loadout.Weapon.Tags & (Tags.Bow | Tags.Wand | Tags.Staff)) != 0) return parts;
+
+            ulong seed = weapon.LookSeed();
+            return parts.Append(new ThrownComponent { SeedLow = (uint)seed, SeedHigh = (uint)(seed >> 32), Traits = ItemLook.Traits(weapon) }).ToArray();
         }
 
         // Out of the sky. What it does happens when it says it will, for what's on the ground to be true, so what's in the air is only there to be seen.
@@ -569,13 +579,13 @@ namespace Dino_Defenders.Server
             var origin = new Vector3(ground.X, ground.Y + SkyHeight, ground.Z);
             Actor user = cast.Source;
 
-            World.CreateEntity("Projectile",
+            World.CreateEntity("Projectile", Parts(user,
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 2f),
                 new PositionComponent(origin),
                 new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitX, MathF.PI * 0.5f)),
                 new VisualComponent(ModelOf(user, page), VisualKind.Prop),
                 new BallisticComponent { Origin = origin, Velocity = -Vector3.UnitY * speed, StartTick = Server.Tick, FromHeroes = user.Team == Team.Heroes },
-                new ProjectileComponent { State = new Projectile { Cast = cast, Page = page, Life = fall, Falling = true, Start = at, Way = way } });
+                new ProjectileComponent { State = new Projectile { Cast = cast, Page = page, Life = fall, Falling = true, Start = at, Way = way } }));
 
             Defer(new Consequence { Kind = Later.Fall, At = Now + fall, Source = user, Cast = cast, Page = page.Page.Index, Origin = at, Facing = way, Strength = cast.Strength });
         }

@@ -219,6 +219,17 @@ namespace Dino_Defenders.Gameplay
         public readonly bool Has(Condition condition) => ((Condition)Flags & condition) != 0;
     }
 
+    /// <summary>What a hero has thrown, which is the very thing in their hands, and sent the way anything lying on the ground is: see <see cref="PickupComponent"/>.</summary>
+    [Replicated]
+    public struct ThrownComponent : IComponent
+    {
+        public uint SeedLow;
+        public uint SeedHigh;
+        public uint Traits;
+
+        public readonly ulong Seed => SeedLow | (ulong)SeedHigh << 32;
+    }
+
     /// <summary>A patch of ground that's doing something. Sent once: everything else about it can be worked out from that.</summary>
     [Replicated]
     public struct ZoneComponent : IComponent

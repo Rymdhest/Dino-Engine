@@ -432,6 +432,10 @@ namespace Dino_Defenders.Net
                 float value = Finite(reader.ReadFloat());
                 if (AffixCatalog.Find(affix) != null) item.Lines.Add(new ItemLine(affix, value));
             }
+
+            // What it's worn as says what it is, so nothing can arrive as a book with nothing in it, or as a sword with pages.
+            Book? book = reader.ReadBool() ? ReadBook(reader) : null;
+            if (item.IsBook) item.Book = book ?? Scribe.Starter();
             return item;
         }
 

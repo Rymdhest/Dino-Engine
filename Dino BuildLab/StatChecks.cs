@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Tooltips;
 using Dino_Engine.World;
@@ -12,29 +12,26 @@ namespace Dino_BuildLab
     {
         private static readonly WeaponProfile Sword = new WeaponProfile(10f, 10f, 0.6f, 5f, Tags.Sword | Tags.OneHanded);
 
-        public static ActorSheet Sheet(params Mod[] mods) => new Loadout(1, Sword, mods, SkillCatalog.All).SheetFor(Condition.None);
+        public static ActorSheet Sheet(params Mod[] mods) => new Loadout(1, Sword, mods, Shelf.All).SheetFor(Condition.None);
 
-        private static SkillDefinition Spell(DamageType type, float damage, params Mod[] mods) => new SkillDefinition
-        {
-            Number = SkillCatalog.Strike.Number,
-            Id = "probe",
-            Tags = Tags.Spell,
-            Damage = new[] { new BaseDamage(type, damage, damage) },
-            CritChance = 0f,
-            Mods = mods,
-        };
+        // What's held decides what a book is, and this one rolls exactly one and never crits, so that a page's share of it is exactly what it deals.
+        private static readonly WeaponProfile Wand = new WeaponProfile(1f, 1f, 0.6f, 0f, Tags.Wand | Tags.OneHanded);
 
-        private static SkillProfile Profile(SkillDefinition skill, params Mod[] mods)
+        private static BookPlan One(PagePlan page) => new BookPlan { Id = "probe", Pages = new[] { page } };
+
+        private static BookPlan Spell(DamageType type, float damage, params Mod[] mods) => One(new PagePlan { Kind = PageKind.Area, Tags = Tags.Area, Damage = new[] { new DamagePart(type, Measure.Damage, damage) }, Mods = mods });
+
+        private static BookProfile Profile(BookPlan skill, params Mod[] mods)
         {
-            ActorSheet sheet = new Loadout(1, Sword, mods, new[] { skill }).SheetFor(Condition.None);
+            ActorSheet sheet = new Loadout(1, Wand, mods, new[] { skill }).SheetFor(Condition.None);
             return sheet.Profile(0);
         }
 
-        private static DamageTable HitWith(SkillProfile profile, Condition foe = Condition.None)
+        private static DamageTable HitWith(BookProfile profile, Condition foe = Condition.None)
         {
             var luck = new WorldRandom(1);
             HitPacket hit = default;
-            Hits.Roll(profile, foe, luck, ref hit);
+            Hits.Roll(profile.First, foe, luck, ref hit);
             return hit.Damage;
         }
 
@@ -97,7 +94,7 @@ namespace Dino_BuildLab
         private static void Scopes(Report report)
         {
             const int Fire = (int)DamageType.Fire;
-            SkillDefinition fire = Spell(DamageType.Fire, 100f);
+            BookPlan fire = Spell(DamageType.Fire, 100f);
             report.Near("Fire damage helps a fire spell", HitWith(Profile(fire, Inc(Stat.Damage, 50f, Tags.Fire)))[Fire], 150f);
             report.Near("Spell damage helps it too, in the same pool", HitWith(Profile(fire, Inc(Stat.Damage, 50f, Tags.Fire), Inc(Stat.Damage, 50f, Tags.Spell)))[Fire], 200f);
             report.Near("Elemental damage helps it", HitWith(Profile(fire, Inc(Stat.Damage, 50f, Tags.Elemental)))[Fire], 150f);
@@ -105,20 +102,20 @@ namespace Dino_BuildLab
             report.Near("Attack damage doesn't", HitWith(Profile(fire, Inc(Stat.Damage, 50f, Tags.Attack)))[Fire], 100f);
             report.Near("A scope of two needs both", HitWith(Profile(fire, Inc(Stat.Damage, 50f, Tags.Fire | Tags.Attack)))[Fire], 100f);
             report.Near("Elemental doesn't reach poison", HitWith(Profile(Spell(DamageType.Poison, 100f), Inc(Stat.Damage, 50f, Tags.Elemental)))[(int)DamageType.Poison], 100f);
-            report.Near("A modifier for one skill counts on that skill", HitWith(Profile(fire, Inc(Stat.Damage, 50f) with { Skill = fire.Number }))[Fire], 150f);
-            report.Near("And not on another", HitWith(Profile(fire, Inc(Stat.Damage, 50f) with { Skill = (ushort)(fire.Number + 1) }))[Fire], 100f);
 
-            var strike = new SkillDefinition { Id = "probe", Tags = Tags.Attack | Tags.Melee };
+            BookPlan strike = One(new PagePlan { Kind = PageKind.Area, From = Start.You, Tags = Tags.Area, Damage = new[] { new DamagePart(DamageType.Physical, Measure.Damage, 1f) } });
             ActorSheet swordsman = new Loadout(1, Sword, new[] { Inc(Stat.Damage, 100f, Tags.Sword) }, new[] { strike }).SheetFor(Condition.None);
-            report.Near("A weapon's kind reaches its attacks", HitWith(swordsman.Profile(0))[(int)DamageType.Physical], 20f);
-            ActorSheet caster = new Loadout(1, Sword, new[] { Inc(Stat.Damage, 100f, Tags.Sword) }, new[] { fire }).SheetFor(Condition.None);
-            report.Near("And not spells cast with it in hand", HitWith(caster.Profile(0))[Fire], 100f);
+            report.Near("A weapon's kind reaches what's done with it", HitWith(swordsman.Profile(0))[(int)DamageType.Physical], 20f);
+            ActorSheet other = new Loadout(1, Sword, new[] { Inc(Stat.Damage, 100f, Tags.Axe) }, new[] { strike }).SheetFor(Condition.None);
+            report.Near("And not what's done with anything else", HitWith(other.Profile(0))[(int)DamageType.Physical], 10f);
+            report.Check("A sword makes a book an Attack, and Melee when it's done by hand", (swordsman.Profile(0).First.Tags & (Tags.Attack | Tags.Melee)) == (Tags.Attack | Tags.Melee) && (swordsman.Profile(0).First.Tags & Tags.Spell) == 0);
+            report.Check("A wand makes the same book a Spell, and no kind of Melee", Profile(strike).First.Tags.HasFlag(Tags.Spell) && (Profile(strike).First.Tags & (Tags.Attack | Tags.Melee)) == 0);
 
             float added = HitWith(Profile(fire, Added(DamageType.Fire, 50f), Inc(Stat.Damage, 100f)))[Fire];
             report.Check("Added damage is damage like any other: 50 around 100, then doubled", added is >= 280f and <= 320f, $"{added}");
-            SkillDefinition light = Spell(DamageType.Fire, 100f);
-            light.AddedEffect = 0.5f;
-            report.Check("And a skill takes only its share of it", HitWith(Profile(light, Added(DamageType.Fire, 50f)))[Fire] < HitWith(Profile(fire, Added(DamageType.Fire, 50f)))[Fire]);
+            BookPlan light = Spell(DamageType.Fire, 100f);
+            light.First.Potency = 0.5f;
+            report.Near("And Potency takes all of it along", HitWith(Profile(light, Added(DamageType.Fire, 50f)))[Fire], HitWith(Profile(fire, Added(DamageType.Fire, 50f)))[Fire] * 0.5f);
         }
 
         private static void Conversion(Report report)
@@ -127,7 +124,7 @@ namespace Dino_BuildLab
             const int Fire = (int)DamageType.Fire;
             const int Cold = (int)DamageType.Cold;
 
-            SkillDefinition phys = Spell(DamageType.Physical, 100f);
+            BookPlan phys = Spell(DamageType.Physical, 100f);
             DamageTable half = HitWith(Profile(phys, Convert(DamageType.Physical, DamageType.Fire, 50f)));
             report.Near("Half converted: 50 stays", half[Physical], 50f);
             report.Near("And 50 moves", half[Fire], 50f);
@@ -160,7 +157,7 @@ namespace Dino_BuildLab
             report.Near("Gained from the whole, before any of it moves", gainFirst[Fire], 50f);
             report.Near("The conversion still takes all of it", gainFirst[Cold], 100f);
 
-            SkillDefinition built = Spell(DamageType.Physical, 100f, Convert(DamageType.Physical, DamageType.Lightning, 100f));
+            BookPlan built = Spell(DamageType.Physical, 100f, Convert(DamageType.Physical, DamageType.Lightning, 100f));
             report.Near("A skill can do this on its own", HitWith(Profile(built))[(int)DamageType.Lightning], 100f);
         }
 
@@ -168,21 +165,21 @@ namespace Dino_BuildLab
         {
             const int Fire = (int)DamageType.Fire;
             Mod[] mods = { Flat(Stat.Health, 100f), Inc(Stat.Health, 50f).While(Condition.Moving), Inc(Stat.Health, 50f).Unless(Condition.Moving), More(Stat.Health, 100f).While(Condition.InWater | Condition.Moving) };
-            var loadout = new Loadout(1, Sword, mods, SkillCatalog.All);
+            var loadout = new Loadout(1, Sword, mods, Shelf.All);
             report.Near("Unless holds when it isn't so", loadout.SheetFor(Condition.None).MaxHealth, 150f);
             report.Near("While holds when it is", loadout.SheetFor(Condition.Moving).MaxHealth, 150f);
             report.Near("Asking for two needs both", loadout.SheetFor(Condition.Moving | Condition.InWater).MaxHealth, 300f);
             report.Check("The same state is the same sheet, made once", ReferenceEquals(loadout.SheetFor(Condition.Moving), loadout.SheetFor(Condition.Moving)));
             report.Check("What no modifier asks about makes no new sheet", ReferenceEquals(loadout.SheetFor(Condition.Moving), loadout.SheetFor(Condition.Moving | Condition.Burning)));
 
-            var plain = new Loadout(1, Sword, new[] { Flat(Stat.Health, 100f) }, SkillCatalog.All);
+            var plain = new Loadout(1, Sword, new[] { Flat(Stat.Health, 100f) }, Shelf.All);
             report.Check("An actor with nothing conditional has one sheet whatever happens", ReferenceEquals(plain.SheetFor(Condition.None), plain.SheetFor(Condition.Moving | Condition.Burning | Condition.LowHealth)));
 
-            var granted = new Loadout(1, Sword, new[] { Flat(Stat.Health, 100f), Inc(Stat.Health, 100f).While(Condition.InWater), Grant(Condition.InWater) }, SkillCatalog.All);
+            var granted = new Loadout(1, Sword, new[] { Flat(Stat.Health, 100f), Inc(Stat.Health, 100f).While(Condition.InWater), Grant(Condition.InWater) }, Shelf.All);
             report.Near("A condition can be granted outright", granted.SheetFor(Condition.None).MaxHealth, 200f);
 
-            SkillDefinition fire = Spell(DamageType.Fire, 100f);
-            SkillProfile profile = Profile(fire, Inc(Stat.Damage, 100f).Against(Condition.Chilled), More(Stat.Damage, 50f, Tags.Fire).Against(Condition.Burning), Inc(Stat.Damage, 100f, Tags.Cold).Against(Condition.Burning));
+            BookPlan fire = Spell(DamageType.Fire, 100f);
+            BookProfile profile = Profile(fire, Inc(Stat.Damage, 100f).Against(Condition.Chilled), More(Stat.Damage, 50f, Tags.Fire).Against(Condition.Burning), Inc(Stat.Damage, 100f, Tags.Cold).Against(Condition.Burning));
             report.Near("Against a foe it doesn't fit, nothing", HitWith(profile)[Fire], 100f);
             report.Near("An increase against one that does joins the pool", HitWith(profile, Condition.Chilled)[Fire], 200f);
             report.Near("A more against one that does multiplies; scopes still count", HitWith(profile, Condition.Burning)[Fire], 150f);
@@ -195,7 +192,7 @@ namespace Dino_BuildLab
             report.Near("Two stats each per the other don't feed on themselves: armour", circular.Armour, 200f);
             report.Near("Mana", circular.MaxMana, 200f);
 
-            var counted = new Loadout(1, Sword, new[] { Flat(Stat.Health, 100f), Inc(Stat.Health, 1f).For(Per.Gold, 100f, 40f) }, SkillCatalog.All);
+            var counted = new Loadout(1, Sword, new[] { Flat(Stat.Health, 100f), Inc(Stat.Health, 1f).For(Per.Gold, 100f, 40f) }, Shelf.All);
             report.Near("Counters count", counted.SheetFor(Condition.None, new Counters { Gold = 1234 }).MaxHealth, 112f);
             report.Near("And are read again when they change", counted.SheetFor(Condition.None, new Counters { Gold = 2000 }).MaxHealth, 120f);
             report.Near("With a cap of their own", counted.SheetFor(Condition.None, new Counters { Gold = 900000 }).MaxHealth, 140f);
@@ -203,13 +200,13 @@ namespace Dino_BuildLab
 
         private static void Diversions(Report report)
         {
-            var swing = new SkillDefinition { Id = "probe", Tags = Tags.Attack | Tags.Melee, UseTime = 0.6f };
+            BookPlan swing = One(new PagePlan { Kind = PageKind.Area, From = Start.You, Tags = Tags.Area, UseTime = 0.6f, Damage = new[] { new DamagePart(DamageType.Physical, Measure.Damage, 1f) } });
             Mod[] mods = { Inc(Stat.AttackSpeed, 50f), Divert(Stat.AttackSpeed, Stat.Damage, 200f, Tags.Attack) };
-            SkillProfile diverted = new Loadout(1, Sword, mods, new[] { swing }).SheetFor(Condition.None).Profile(0);
-            report.Near("A diverted stat no longer moves", diverted.UseTime, 0.6f);
+            BookProfile diverted = new Loadout(1, Sword, mods, new[] { swing }).SheetFor(Condition.None).Profile(0);
+            report.Near("A diverted stat no longer moves", diverted.First.UseTime, 0.6f);
             report.Near("Its increases apply elsewhere, at the rate given", HitWith(diverted)[(int)DamageType.Physical], 20f);
 
-            SkillProfile echoed = new Loadout(1, Sword, new[] { Inc(Stat.AttackSpeed, 50f), Echo(Stat.AttackSpeed, Stat.Damage, 100f, Tags.Attack) }, new[] { swing }).SheetFor(Condition.None).Profile(0);
+            BookProfile echoed = new Loadout(1, Sword, new[] { Inc(Stat.AttackSpeed, 50f), Echo(Stat.AttackSpeed, Stat.Damage, 100f, Tags.Attack) }, new[] { swing }).SheetFor(Condition.None).Profile(0);
             report.Near("An echoed stat keeps working", echoed.UseTime, 0.4f);
             report.Near("And also applies elsewhere", HitWith(echoed)[(int)DamageType.Physical], 15f);
 
@@ -343,7 +340,8 @@ namespace Dino_BuildLab
         private static void NothingIsDead(Report report)
         {
             var weapon = new WeaponProfile(20f, 30f, 0.6f, 5f, Tags.Sword | Tags.OneHanded);
-            SkillDefinition[] skills = SkillCatalog.All.ToArray();
+            var wand = new WeaponProfile(20f, 30f, 0.6f, 5f, Tags.Wand | Tags.OneHanded);
+            BookPlan[] skills = Shelf.All.ToArray();
             Mod[] floor = { Flat(Stat.Health, 100f), Flat(Stat.Mana, 100f), Flat(Stat.Barrier, 100f), Flat(Stat.Armour, 100f), Flat(Stat.Evasion, 100f), Flat(Stat.MoveSpeed, 10f), Flat(Stat.HealthRegen, 1f), Flat(Stat.ManaRegen, 1f) };
 
             // Some stats only show against others: a cap needs something pressing on it.
@@ -355,10 +353,14 @@ namespace Dino_BuildLab
                 bool lives = false;
                 foreach (Mod[] start in floors)
                 {
-                    string plain = Fingerprint(new Loadout(1, weapon, start, skills).SheetFor(Condition.None));
-                    foreach (Mod probe in Probes(stat))
+                    // What's in the hands decides what a book is, and some stats only speak to one or the other.
+                    foreach (WeaponProfile held in new[] { weapon, wand })
                     {
-                        lives |= Fingerprint(new Loadout(1, weapon, start.Append(probe), skills).SheetFor(Condition.None)) != plain;
+                        string plain = Fingerprint(new Loadout(1, held, start, skills).SheetFor(Condition.None));
+                        foreach (Mod probe in Probes(stat))
+                        {
+                            lives |= Fingerprint(new Loadout(1, held, start.Append(probe), skills).SheetFor(Condition.None)) != plain;
+                        }
                     }
                 }
                 if (!lives) dead.Add(stat.ToString());
@@ -391,7 +393,11 @@ namespace Dino_BuildLab
         {
             var text = new System.Text.StringBuilder();
             AppendFields(text, sheet);
-            for (int i = 0; i < sheet.Loadout.Skills.Length; i++) AppendFields(text, sheet.Profile(i));
+            for (int i = 0; i < sheet.Loadout.Books.Length; i++)
+            {
+                AppendFields(text, sheet.Profile(i));
+                foreach (PageProfile page in sheet.Profile(i).Pages) AppendFields(text, page);
+            }
             return text.ToString();
         }
 
@@ -417,7 +423,7 @@ namespace Dino_BuildLab
                 }
             }
 
-            if (target is SkillProfile profile)
+            if (target is PageProfile profile)
             {
                 foreach (DamageFlow flow in profile.Flows) text.Append(flow.Type).Append(flow.Min).Append(',').Append(flow.Max).Append(',').Append(flow.Increased).Append(',').Append(flow.More).Append(',');
             }

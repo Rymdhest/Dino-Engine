@@ -191,7 +191,7 @@ namespace Dino_Defenders.Tooltips
             new(Rule.HighGround, $"{Say.Share(HighGroundPerMetre)} more Damage per metre above your target, up to {Say.Share(HighGroundMost)}. {Say.Share(LowGroundPerMetre)} less per metre below, up to {Say.Share(LowGroundMost)}"),
             new(Rule.LongShot, $"Projectiles deal {Say.Share(LongShotPerMetre)} more Damage per metre flown, up to {Say.Share(LongShotMost)}, and {Say.Share(LongShotNearLess)} less within {Say.Metres(LongShotNear)}", Tags.Projectile),
             new(Rule.ProjectilesReturn, "Projectiles fly back to you when spent, and can Hit everything again", Tags.Projectile),
-            new(Rule.Steady, "Nothing on your Pages is left to chance: they find the nearest Enemy and go where they're aimed, and pay as if they hadn't", Tags.Wild),
+            new(Rule.Steady, "Nothing on your Pages is random: they find the nearest Enemy and go where they're aimed, and are worth what they would be otherwise", Tags.Wild),
             new(Rule.DodgeCrit, "After you Dodge a Hit, your next Hit is a Critical Hit"),
             new(Rule.WaterTrail, "Spells leave Standing Water where aimed. Triggered Spells don't", Tags.Spell, Casts: Shelf.Puddle),
             new(Rule.NoLeech, "You can't Leech"),

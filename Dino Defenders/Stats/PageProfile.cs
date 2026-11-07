@@ -96,6 +96,9 @@ namespace Dino_Defenders.Stats
         /// <summary>What each of its heals comes to, in the order of <see cref="PagePlan.Heals"/>.</summary>
         public readonly float[] Heals;
 
+        /// <summary>How long what it gives lasts, in the order of <see cref="PagePlan.Gifts"/>.</summary>
+        public readonly float[] GiftSeconds;
+
         /// <summary>What it starts from, by type, before flat damage is added to it.</summary>
         public DamageTable BaseMin;
         public DamageTable BaseMax;
@@ -120,15 +123,15 @@ namespace Dino_Defenders.Stats
             Tags tags = page.Tags | weapon.Tags | (spell ? Tags.Spell : Tags.Attack);
             if (!spell && page.Kind == PageKind.Area && page.From == Start.You && (weapon.Tags & Tags.Bow) == 0) tags |= Tags.Melee;
 
-            // It's the same in everything it does, so it has to be known before any of them.
-            Potency = Math.Clamp(page.Potency * sheet.Collect(Stat.Potency, tags, page).Scale, Rulebook.LeastPotency, Rulebook.MostPotency);
-
             _flows = BuildFlows(sheet, page, tags, weapon);
 
             int lineage = 0;
             foreach (ref readonly DamageFlow flow in _flows.AsSpan()) lineage |= flow.Lineage;
             Tags all = tags | DamageKinds.TagsOf(lineage);
             Tags = all;
+
+            // It's the same in everything a page does, and goes by everything it turns out to be.
+            Potency = Math.Clamp(page.Potency * sheet.Collect(Stat.Potency, all, page).Scale, Rulebook.LeastPotency, Rulebook.MostPotency);
 
             for (int i = 0; i < _flows.Length; i++)
             {
@@ -210,6 +213,9 @@ namespace Dino_Defenders.Stats
                 (float low, float high) = Reading(sheet, page.Heals[i].Measure, weapon);
                 Heals[i] = (low + high) * 0.5f * page.Heals[i].Share * Potency;
             }
+
+            GiftSeconds = new float[page.Gifts.Length];
+            for (int i = 0; i < GiftSeconds.Length; i++) GiftSeconds[i] = sheet.Total(Stat.PageDuration, page.Gifts[i].Buff.Duration, all, page);
 
             Sign = PageSign.Of(page, spell, UseTime);
         }

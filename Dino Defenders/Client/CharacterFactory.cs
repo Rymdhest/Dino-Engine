@@ -4,6 +4,7 @@ using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Modelling.Procedural.Architecture;
 using Dino_Engine.Modelling.Procedural.Character;
+using Dino_Engine.Modelling.Procedural.Gear;
 using Dino_Engine.Modelling.Procedural.Indoor;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
@@ -79,6 +80,7 @@ namespace Dino_Defenders.Client
             if (key.StartsWith("cutthroat") && int.TryParse(key.AsSpan(9), out int cutthroat)) return Model(key, () => HumanoidGenerator.Generate(CutthroatLook(cutthroat)));
             if (key.StartsWith("brute") && int.TryParse(key.AsSpan(5), out int brute)) return Model(key, () => HumanoidGenerator.Generate(BruteLook(brute)));
             if (key == "arrow") return Model(key, Arrow);
+            if (key.StartsWith(Books.Thrown.Prefix)) return Model(key, () => ThrownThing(key.Substring(Books.Thrown.Prefix.Length)));
             if (key == "chest") return Model(key, Chest);
             if (key == Progression.LootModels.Gold) return Model(key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
             if (key == Progression.LootModels.Find) return Model(key, () => Ball(new Colour(0f, 0f, 0f)));
@@ -98,6 +100,14 @@ namespace Dino_Defenders.Client
             // A newer server than this client could name something it has never heard of. Better a stranger than a crash.
             Console.WriteLine($"No model called '{key}'.");
             return Villager(0);
+        }
+
+        // What's thrown by someone with nothing about them to say what it looks like. A hero's own is the real thing, and takes this one's place: see ThrownComponent.
+        private static Mesh ThrownThing(string kind)
+        {
+            if (!Enum.TryParse(kind, out GearKind gear)) return Ball(new Colour(0.42f, 0.4f, 0.37f));
+            var spec = new GearSpec(1, gear, 0f, 0f, 0f, GearForm.Middling, 0, GearTheme.None);
+            return GearDisplay.Lying(GearForge.Make(spec), gear).Build(bones: false);
         }
 
         /// <summary>The animal a server means by <paramref name="key"/>, if it means one. Those stand on a rig of their own.</summary>

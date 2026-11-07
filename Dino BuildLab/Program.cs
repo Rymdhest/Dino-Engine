@@ -96,6 +96,7 @@ namespace Dino_BuildLab
             var report = new Report();
             StatChecks.Run(report);
             ContentChecks.Run(report);
+            BookChecks.Run(report);
             TooltipChecks.Run(report);
             OfferingLab.Checks(report);
             LootLab.Check(report);

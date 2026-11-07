@@ -214,6 +214,7 @@ namespace Dino_Defenders.Client
         private const double ArrowCatchUp = 15.0;   // Ticks over which an arrow moves up into the player's own moment.
         private const float ArrowHitReach = 2.4f;
         private const float BoltSize = 0.42f;
+        private const float ThrownTurn = 0.3f;      // Radians a tick, for what's turning end over end.
 
         private readonly Func<GameClient?> _client;
         private readonly Func<ClientEffects?> _effects;
@@ -543,11 +544,24 @@ namespace Dino_Defenders.Client
                         || session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f));
 
                     entity.Set(new PositionComponent(position));
+                    if (entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model.StartsWith(Thrown.Prefix)) Tumble(entity, arrow, tick);
                     bool bolt = entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model.StartsWith(CharacterFactory.BoltPrefix);
                     entity.Set(new ScaleComponent(new Vector3(spent ? 0.001f : bolt ? BoltSize : 1f)));
                     if (!spent && bolt && _effects() is ClientEffects effects) effects.Wake(entity.Get<VisualComponent>().Model, position);
                 }
             }
+        }
+
+        // End over end, along the way it's going. What a hero threw is the thing in their hands, which has to keep being asked for.
+        private void Tumble(in EntityView entity, in BallisticComponent flight, double tick)
+        {
+            float yaw = MathF.Atan2(flight.Velocity.X, flight.Velocity.Z);
+            float turned = (float)(tick - flight.StartTick) * ThrownTurn;
+            entity.Set(new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, yaw) * Quaternion.FromAxisAngle(Vector3.UnitX, turned)));
+
+            if (!entity.Has<ThrownComponent>()) return;
+            var thrown = entity.Get<ThrownComponent>();
+            if (_wardrobe.Lying(thrown.Seed, thrown.Traits) is Dino_Engine.Modelling.Model.glModel model) entity.Set(new ModelComponent(model));
         }
 
     }

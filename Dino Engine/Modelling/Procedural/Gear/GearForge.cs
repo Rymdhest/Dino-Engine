@@ -58,6 +58,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 case GearKind.Hands:
                     LimbGenerator.Hands(mesh, style);
                     break;
+                case GearKind.Book:
+                    BookGenerator.Build(mesh, style);
+                    break;
             }
             return mesh;
         }

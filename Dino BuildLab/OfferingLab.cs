@@ -2,7 +2,7 @@ using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
@@ -210,7 +210,7 @@ namespace Dino_BuildLab
             ActorSheet before = usual.Shared(Bestiary.Outlaw, 12, EnemyRank.Normal, Bestiary.NoTrait).SheetFor(Condition.None);
             ActorSheet after = worse.Shared(Bestiary.Outlaw, 12, EnemyRank.Normal, Bestiary.NoTrait).SheetFor(Condition.None);
             report.Near("Enemies have the health it says", after.MaxHealth / before.MaxHealth, offering.EnemyHealth, 0.002f);
-            report.Near("And the damage", after.Profile(SkillCatalog.Strike)!.AverageHit / before.Profile(SkillCatalog.Strike)!.AverageHit, offering.EnemyDamage, 0.002f);
+            report.Near("And the damage", after.Preview(Shelf.Strike).First.AverageHit / before.Preview(Shelf.Strike).First.AverageHit, offering.EnemyDamage, 0.002f);
 
             ActorSheet elite = worse.Shared(Bestiary.Outlaw, 12, EnemyRank.Elite, 4).SheetFor(Condition.None);
             report.Check("An elite has it on top of what it is", elite.MaxHealth > after.MaxHealth * 2f);

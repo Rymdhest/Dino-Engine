@@ -1,7 +1,7 @@
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.Networking;
@@ -48,7 +48,7 @@ namespace Dino_BuildLab
         {
             TalentNode[] nodes = TalentTree.Nodes;
             int Count(TalentKind kind) => nodes.Count(n => n.Kind == kind);
-            report.Note($"{nodes.Length} nodes: {Count(TalentKind.Small)} small, {Count(TalentKind.Notable)} notable, {Count(TalentKind.Skill)} skills, {Count(TalentKind.Keystone)} keystones, {Count(TalentKind.Gate)} gates");
+            report.Note($"{nodes.Length} nodes: {Count(TalentKind.Small)} small, {Count(TalentKind.Notable)} notable, {Count(TalentKind.Keystone)} keystones, {Count(TalentKind.Gate)} gates");
             report.Check("It's big", nodes.Length >= 800, $"{nodes.Length}");
             report.Check("Ids are all different", nodes.Select(n => n.Id).Distinct().Count() == nodes.Length);
             report.Check("Everything can be walked to", TalentTree.DepthOf.All(d => d >= 0), $"{TalentTree.DepthOf.Count(d => d < 0)} can't");
@@ -82,9 +82,9 @@ namespace Dino_BuildLab
             report.Check("Keystones can be had well before the end of the game", deepest <= 30, $"{deepest}");
             report.Note($"A keystone is {shallowest} to {deepest} points from the root; a hero at level 60 has {new HeroState { Level = 60 }.TalentPoints}");
 
-            var skills = nodes.Where(n => n.Kind == TalentKind.Skill).ToList();
-            int nearest = TalentContent.Sectors.Select((s, i) => skills.Where(n => n.Sector == i).Min(n => TalentTree.DepthOf[n.Index])).Max();
-            report.Check("Every sector has a skill a new hero can reach", nearest <= new HeroState().TalentPoints, $"{nearest} points");
+            var notables = nodes.Where(n => n.Kind == TalentKind.Notable).ToList();
+            int nearest = TalentContent.Sectors.Select((s, i) => notables.Where(n => n.Sector == i).Min(n => TalentTree.DepthOf[n.Index])).Max();
+            report.Check("Every sector has a notable that's soon reached", nearest <= new HeroState { Level = 2 }.TalentPoints, $"{nearest} points");
         }
 
         private static HeroState Hero(int level, params string[] talents)
@@ -102,9 +102,8 @@ namespace Dino_BuildLab
             int Index(string id) => TalentTree.Find(id)!.Index;
 
             HeroState fresh = HeroState.CreateNew();
-            report.Check("A new hero knows how to hit things, and nothing else", HeroBuild.Compile(fresh).Skills.SequenceEqual(new[] { SkillCatalog.Strike }));
+            report.Check("A new hero has one book, and it's free", HeroBuild.Compile(fresh).Books.Length == 1 && HeroBuild.Compile(fresh).SheetFor(Condition.None).Profile(0).Cost == 0f);
             report.Check("The wind doesn't answer them until a land is free", !fresh.HasGuidingWind && new HeroState { WorldsCleared = 1 }.HasGuidingWind);
-            report.Check("Whirl is one of the first things they can learn", TalentTree.DepthOf[Index("forge.whirl")] <= new HeroState { Level = 2 }.TalentPoints, $"{TalentTree.DepthOf[Index("forge.whirl")]} points");
             report.Check("A new hero can take the first step", TalentTree.CanAllocate(fresh, Index("pyre.t0")));
             report.Check("But not a step further", !TalentTree.CanAllocate(fresh, Index("pyre.t1")));
             report.Check("Nor anything that's taken", !TalentTree.CanAllocate(Hero(5, "pyre.t0"), Index("pyre.t0")));
@@ -114,7 +113,7 @@ namespace Dino_BuildLab
             report.Check("The end of it can", TalentTree.CanRefund(path, Index("pyre.t2")));
             report.Check("Nor can the root ever", !TalentTree.CanRefund(path, TalentTree.Root.Index));
 
-            HeroState looped = Hero(20, "pyre.t2", "pyre.firebolt", "pyre.firebolt.0");
+            HeroState looped = Hero(20, "pyre.t2", "pyre.kindled-bolt", "pyre.kindled-bolt.0");
             report.Check("A node a loop goes around can be given back", TalentTree.CanRefund(looped, Index("pyre.t1")));
 
             HeroState rim = Hero(60, "forge.gate");
@@ -144,10 +143,10 @@ namespace Dino_BuildLab
             TalentTree.Sanitize(broke);
             report.Check("More talents than the level allows are trimmed, and what's left still holds together", broke.Talents.Count <= broke.TalentPoints && Enumerable.Range(0, TalentTree.Nodes.Length).All(i => !TalentTree.Allocated(broke).Contains(i) || i == 0 || TalentTree.CanRefund(broke, i) || TalentTree.Nodes[i].Links.Count > 0), $"{broke.Talents.Count} of {broke.TalentPoints}");
 
-            HeroState ordered = Hero(40, "pyre.firebolt", "winter.frost-nova");
+            HeroState ordered = Hero(40, "pyre.kindled-bolt", "winter.white-ring");
             var shuffled = new HeroState { Level = 40, Talents = ordered.Talents.OrderByDescending(t => t).ToList() };
-            float a = HeroBuild.Compile(ordered).SheetFor(Condition.None).Profile(SkillCatalog.Firebolt)!.AverageHit;
-            float b = HeroBuild.Compile(shuffled).SheetFor(Condition.None).Profile(SkillCatalog.Firebolt)!.AverageHit;
+            float a = HeroBuild.Compile(ordered).SheetFor(Condition.None).Preview(Shelf.Firebolt).First.AverageHit;
+            float b = HeroBuild.Compile(shuffled).SheetFor(Condition.None).Preview(Shelf.Firebolt).First.AverageHit;
             report.Check("The order talents were taken in makes no difference to what they add up to", a == b, $"{a} and {b}");
 
             report.Check("A wanderer becomes something", TalentTree.TitleOf(new HeroState()) == "Wanderer" && TalentTree.TitleOf(Hero(30, "pyre.t5")) == "Ember Pyromancer", TalentTree.TitleOf(Hero(30, "pyre.t5")));
@@ -173,9 +172,12 @@ namespace Dino_BuildLab
             {
                 foreach (Mod mod in omen.Mods) yield return (omen.Id, mod);
             }
-            foreach (SkillDefinition skill in SkillCatalog.All)
+            foreach (BookPlan book in Shelf.All)
             {
-                foreach (Mod mod in skill.Mods) yield return (skill.Id, mod);
+                foreach (PagePlan page in book.Pages)
+                {
+                    foreach (Mod mod in page.Mods) yield return (book.Id, mod);
+                }
             }
             foreach (BuffDefinition buff in BuffCatalog.All)
             {
@@ -203,7 +205,6 @@ namespace Dino_BuildLab
             report.Note($"{lines.Count} different lines of text");
 
             report.Check("Every keystone says something of its own", TalentTree.Nodes.Where(n => n.Kind == TalentKind.Keystone).All(n => n.Mods.Length > 0 && !string.IsNullOrEmpty(n.Lore)));
-            report.Check("Every skill the tree teaches has words to go with it", TalentTree.Nodes.Where(n => n.Kind == TalentKind.Skill).All(n => !string.IsNullOrEmpty(n.Lore)));
             report.Check("No two notables share a name", TalentTree.Nodes.Where(n => n.Kind is TalentKind.Notable or TalentKind.Keystone).Select(n => n.Name).Distinct().Count() == TalentTree.Nodes.Count(n => n.Kind is TalentKind.Notable or TalentKind.Keystone));
         }
 
@@ -248,35 +249,40 @@ namespace Dino_BuildLab
 
         private static void SkillShape(Report report)
         {
-            var known = SkillCatalog.All.Where(s => !s.Hidden).ToList();
-            report.Note($"{SkillCatalog.All.Count} skills, {known.Count} that can be learned");
-            report.Check("Ids are all different", SkillCatalog.All.Select(s => s.Id).Distinct().Count() == SkillCatalog.All.Count);
-            report.Check("Every skill that can be learned is taught somewhere", known.Where(s => s != SkillCatalog.Strike).All(s => TalentTree.Nodes.Any(n => n.Mods.Any(m => m.Kind == ModKind.GrantSkill && m.Skill == s.Number))),
-                string.Join(", ", known.Where(s => s != SkillCatalog.Strike && !TalentTree.Nodes.Any(n => n.Mods.Any(m => m.Kind == ModKind.GrantSkill && m.Skill == s.Number))).Select(s => s.Id)));
-            report.Check("Every one has words to go with it", known.All(s => s.Text.Length > 0));
-            report.Check("Every skill is an attack or a spell", SkillCatalog.All.All(s => s.IsAttack != s.IsSpell));
+            report.Note($"{Shelf.All.Count} written books");
+            report.Check("Ids are all different", Shelf.All.Select(s => s.Id).Distinct().Count() == Shelf.All.Count);
 
+            var deals = Shelf.All.SelectMany(book => book.Pages).SelectMany(page => page.Damage).Select(part => part.Type).ToHashSet();
             foreach (DamageType type in DamageKinds.All)
             {
-                report.Check($"There's a spell for {type}", SkillCatalog.All.Any(s => s.IsSpell && !s.Hidden && s.Damage.Any(d => d.Type == type)));
+                report.Check($"Something written deals {type}", deals.Contains(type));
             }
 
-            foreach (SkillForm form in Enum.GetValues<SkillForm>())
+            ActorSheet sheet = new Loadout(1, WeaponProfile.Fists, new[] { Flat(Stat.Health, 100f) }, Shelf.All).SheetFor(Condition.None);
+            var forms = Shelf.All.SelectMany(book => sheet.Preview(book).Pages).Select(page => page.Sign.Form).ToHashSet();
+            foreach (PageForm form in Enum.GetValues<PageForm>())
             {
-                report.Check($"Something has the form {form}", known.Any(s => s.Form == form));
+                report.Check($"Something written looks like {form}", forms.Contains(form));
             }
 
-            ActorSheet sheet = new Loadout(1, WeaponProfile.Fists, new[] { Flat(Stat.Health, 100f) }, SkillCatalog.All).SheetFor(Condition.None);
             var broken = new List<string>();
-            foreach (SkillDefinition skill in SkillCatalog.All)
+            foreach (BookPlan skill in Shelf.All)
             {
-                SkillProfile profile = sheet.Profile(skill)!;
-                if (!float.IsFinite(profile.UseTime) || profile.UseTime <= 0f || !float.IsFinite(profile.AverageHit)) broken.Add(skill.Id);
-                if (skill.Form == SkillForm.Zone && (profile.Duration <= 0f || profile.Radius <= 0f)) broken.Add(skill.Id);
-                if (skill.Form == SkillForm.Summon && Bestiary.Minion(skill.Minion) == null) broken.Add(skill.Id);
-                if (skill.Form is SkillForm.Burst or SkillForm.Nova && profile.Radius <= 0f) broken.Add(skill.Id);
+                BookProfile book = sheet.Preview(skill);
+                if (!float.IsFinite(book.UseTime) || book.UseTime <= 0f) broken.Add(skill.Id);
+                foreach (PageProfile page in book.Pages)
+                {
+                    if (!float.IsFinite(page.AverageHit)) broken.Add(skill.Id);
+                    if (page.Page.Lingers && (page.Duration <= 0f || page.Length <= 0f)) broken.Add(skill.Id);
+                    if (page.Page.Minion != null && Bestiary.Minion(page.Page.Minion) == null) broken.Add(skill.Id);
+                    if (page.Page.Kind == PageKind.Area && page.Length <= 0f) broken.Add(skill.Id);
+                }
             }
-            report.Check("Every skill compiles to something usable", broken.Count == 0, string.Join(", ", broken));
+            report.Check("Every written book compiles to something usable", broken.Count == 0, string.Join(", ", broken));
+
+            // A mark is a promise, so what an enemy does has to be known before it's chosen anyone.
+            var unmarkable = Bestiary.Everyone.SelectMany(kind => kind.Books).Where(book => book.First.From is not (Start.You or Start.Cursor)).Select(book => book.Id).Distinct().ToList();
+            report.Check("Everything an enemy uses starts from them or from where they're aiming", unmarkable.Count == 0, string.Join(", ", unmarkable));
         }
 
         private static void Rolling(Report report)
@@ -323,12 +329,12 @@ namespace Dino_BuildLab
             report.Check("Each has a line of lore and something to do", UniqueCatalog.All.All(u => u.Lore.Length > 0 && u.Mods.Length > 0));
 
             var random = new WorldRandom(5);
-            foreach (ItemSlot slot in Enum.GetValues<ItemSlot>())
+            foreach (ItemSlot slot in Enum.GetValues<ItemSlot>().Where(slot => slot != ItemSlot.Book))
             {
                 report.Check($"There's a unique for {slot}", UniqueCatalog.All.Any(u => ItemGenerator.Plain(u.Base, 1, random).Slot == slot));
             }
 
-            int changing = UniqueCatalog.All.Count(u => u.Mods.Any(m => m.Kind is ModKind.Rule or ModKind.Grant or ModKind.Divert or ModKind.Trigger or ModKind.GrantSkill || m.Stat == Stat.Convert || m.Per != Per.None || m.Need != Condition.None));
+            int changing = UniqueCatalog.All.Count(u => u.Mods.Any(m => m.Kind is ModKind.Rule or ModKind.Grant or ModKind.Divert or ModKind.Trigger || m.Stat == Stat.Convert || (m.Scope & (Tags.Opening | Tags.Turned | Tags.Closing | Tags.Wild | Tags.Falling)) != 0 || m.Per != Per.None || m.Need != Condition.None));
             report.Check("Most of them change how a hero plays, rather than only adding to it", changing * 4 >= UniqueCatalog.All.Count * 3, $"{changing} of {UniqueCatalog.All.Count}");
 
             Item shell = UniqueCatalog.Make(UniqueCatalog.Find("drowned-king")!, 20, random);
@@ -338,8 +344,8 @@ namespace Dino_BuildLab
             hero.Talents.AddRange(TalentTree.PathTo(hero, TalentTree.Find("key.tidewalker")!.Index).Select(i => TalentTree.Nodes[i].Id));
             hero.Level = 40;
             ActorSheet sheet = HeroBuild.Compile(hero).SheetFor(Condition.None);
-            float dry = new Loadout(40, HeroBuild.WeaponOf(hero), TalentTree.Mods(hero), new[] { SkillCatalog.Strike }).SheetFor(Condition.None).Profile(0).AverageHit;
-            report.Check("A unique can change what another talent means: the Drowned King's shell keeps a Tidewalker in the water", sheet.Profile(SkillCatalog.Strike)!.AverageHit > dry * 1.7f, $"{sheet.Profile(SkillCatalog.Strike)!.AverageHit} against {dry}");
+            float dry = new Loadout(40, HeroBuild.WeaponOf(hero), TalentTree.Mods(hero), new[] { Shelf.Strike }).SheetFor(Condition.None).Profile(0).First.AverageHit;
+            report.Check("A unique can change what another talent means: the Drowned King's shell keeps a Tidewalker in the water", sheet.Preview(Shelf.Strike).First.AverageHit > dry * 1.7f, $"{sheet.Preview(Shelf.Strike).First.AverageHit} against {dry}");
         }
 
         private static bool Same(HeroState a, HeroState b)
@@ -361,15 +367,20 @@ namespace Dino_BuildLab
                 return true;
             }
 
-            return a.Level == b.Level && a.Gold == b.Gold && a.Talents.SequenceEqual(b.Talents) && a.Bar.SequenceEqual(b.Bar)
+            return a.Level == b.Level && a.Gold == b.Gold && a.Talents.SequenceEqual(b.Talents)
+                && a.Bar.Select(Written).SequenceEqual(b.Bar.Select(Written)) && a.Carried().Select(Written).SequenceEqual(b.Carried().Select(Written))
                 && Items(a.Carried(), b.Carried()) && Items(a.Equipped.OrderBy(p => p.Key).Select(p => p.Value), b.Equipped.OrderBy(p => p.Key).Select(p => p.Value));
         }
+
+        // All that's in a book, as text, so that two can be compared.
+        private static string Written(Item? item) => item?.Book == null ? "" : System.Text.Json.JsonSerializer.Serialize(item.Book);
 
         private static void Wires(Report report)
         {
             var random = new WorldRandom(8);
-            HeroState hero = Hero(30, "pyre.firebolt", "key.slow-burn");
-            hero.Bar[3] = "firebolt";
+            HeroState hero = Hero(30, "pyre.kindled-bolt", "key.slow-burn");
+            hero.Bar[3] = ItemGenerator.Book(7);
+            hero.Bar[3]!.Book = Shelf.Meteor.Source!.Copy();
             hero.Equipped[WornSlot.MainHand] = UniqueCatalog.Make(UniqueCatalog.Find("ashen-promise")!, 20, random);
             for (int i = 0; i < 30; i++) hero.Pickup(ItemGenerator.Roll(30, random.Fork(i), 2f));
 
@@ -381,7 +392,7 @@ namespace Dino_BuildLab
 
             ActorSheet here = HeroBuild.Compile(hero).SheetFor(Condition.None);
             ActorSheet there = HeroBuild.Compile(back).SheetFor(Condition.None);
-            report.Check("And adds up to exactly the same on the other side", here.MaxHealth == there.MaxHealth && here.Profile(SkillCatalog.Firebolt)!.AverageHit == there.Profile(SkillCatalog.Firebolt)!.AverageHit);
+            report.Check("And adds up to exactly the same on the other side", here.MaxHealth == there.MaxHealth && here.Preview(Shelf.Firebolt).First.AverageHit == there.Preview(Shelf.Firebolt).First.AverageHit);
 
             var save = new SaveGame { Hero = hero, WorldSeed = 4 };
             string path = Path.Combine(Path.GetTempPath(), $"buildlab-{Environment.ProcessId}.json");
@@ -406,6 +417,7 @@ namespace Dino_BuildLab
             forged.WriteCount(1);
             forged.WriteString("not-an-affix");
             forged.WriteFloat(99999f);
+            forged.WriteBool(false);
             List<Item> arrived = new List<Item> { Protocol.ReadItem(new BitReader(forged.ToArray())) };
             report.Check("An affix, a unique or a base that doesn't exist does nothing, whatever a stranger sends", arrived.Count == 1 && arrived[0].Unique == null && arrived[0].Lines.Count == 0 && arrived[0].Base.Length == 0);
         }
@@ -444,7 +456,7 @@ namespace Dino_BuildLab
             report.Check("Every kind has a name of its own", Bestiary.Everyone.Select(k => k.Id).Distinct().Count() == Bestiary.Everyone.Length);
             report.Check("Every pack has a core to it", recipes.All(r => r.Core.Length > 0));
             report.Check("A pack has support if it says it does", recipes.All(r => (r.SupportShare > 0f) == (r.Support.Length > 0)));
-            report.Check("Anything that fights can do so", Bestiary.Everyone.All(k => k.Skills.Length > 0 && k.Skills.Any(s => s.Form is not (SkillForm.Buff or SkillForm.Summon or SkillForm.Leap))));
+            report.Check("Anything that fights can do so", Bestiary.Everyone.All(k => k.Books.Length > 0 && k.Books.Any(book => book.First.Hostile)));
 
             // What a pack is mostly made of goes down quickly. That's what clearing one is, and what a leader isn't.
             report.Check("The core of a pack is less than one ordinary enemy", recipes.All(r => r.Core.Min(k => k.Health) <= 1f && r.Core.Average(k => k.Health) < 1f));
@@ -476,8 +488,8 @@ namespace Dino_BuildLab
             ActorSheet sheet = HeroBuild.Compile(hero).SheetFor(Condition.None);
             hero.Equip(1);
             ActorSheet ringed = HeroBuild.Compile(hero).SheetFor(Condition.None);
-            report.Check("And mean what they meant", ringed.MoveSpeed > sheet.MoveSpeed && ringed.HealthRegen > sheet.HealthRegen && ringed.ItemRarity == 12f && ringed.GoldFind == 30f && ringed.Profile(SkillCatalog.Strike)!.AverageHit > sheet.Profile(SkillCatalog.Strike)!.AverageHit);
-            report.Check("A new hero has a bar with one thing on it", hero.Bar[0] == "strike" && hero.Bar.Skip(1).All(s => s == null));
+            report.Check("And mean what they meant", ringed.MoveSpeed > sheet.MoveSpeed && ringed.HealthRegen > sheet.HealthRegen && ringed.ItemRarity == 12f && ringed.GoldFind == 30f && ringed.Preview(Shelf.Strike).First.AverageHit > sheet.Preview(Shelf.Strike).First.AverageHit);
+            report.Check("A hero from before books has one on the bar, and it's the plain one", hero.Bar[0] is { IsBook: true } && hero.Bar.Skip(1).All(s => s == null));
 
             string path = Path.Combine(Path.GetTempPath(), $"buildlab-old-{Environment.ProcessId}.json");
             File.WriteAllText(path, OldSave);
@@ -522,7 +534,7 @@ namespace Dino_BuildLab
                 if (real != null)
                 {
                     ActorSheet check = HeroBuild.Compile(real.Hero).SheetFor(Condition.None);
-                    report.Check("  and compiles", check.MaxHealth > 0f && float.IsFinite(check.Profile(SkillCatalog.Strike)!.AverageHit));
+                    report.Check("  and compiles", check.MaxHealth > 0f && float.IsFinite(check.Preview(Shelf.Strike).First.AverageHit));
                 }
                 read++;
             }
@@ -534,14 +546,14 @@ namespace Dino_BuildLab
             var random = new WorldRandom(3);
             WeaponProfile sword = new WeaponProfile(20f, 20f, 0.6f, 0f, Tags.Sword);
             Mod[] mods = { Flat(Stat.Health, 500f), Inc(Stat.Damage, 40f), Convert(DamageType.Physical, DamageType.Fire, 50f), Flat(Stat.Armour, 200f), Resist(Tags.Fire, 30f) };
-            var hero = new Actor(Team.Heroes, new Loadout(10, sword, mods, new[] { SkillCatalog.Strike }), Vector2.Zero, 1f);
-            var enemy = new Actor(Team.Enemies, new Loadout(10, sword, mods, new[] { SkillCatalog.Strike }), Vector2.Zero, 1f);
+            var hero = new Actor(Team.Heroes, new Loadout(10, sword, mods, new[] { Shelf.Strike }), Vector2.Zero, 1f);
+            var enemy = new Actor(Team.Enemies, new Loadout(10, sword, mods, new[] { Shelf.Strike }), Vector2.Zero, 1f);
 
             float Blow(Actor from, Actor to)
             {
                 var luck = new WorldRandom(77);
                 HitPacket hit = default;
-                Hits.Roll(from.Sheet.Profile(0), Condition.None, luck, ref hit);
+                Hits.Roll(from.Sheet.Profile(0).First, Condition.None, luck, ref hit);
                 return Hits.Mitigate(to.Sheet, ref hit);
             }
 
@@ -567,9 +579,9 @@ namespace Dino_BuildLab
             int fair = 0;
             foreach (TalentNode keystone in TalentTree.Nodes.Where(n => n.Kind == TalentKind.Keystone))
             {
-                Loadout load = new Loadout(20, sword, mods.Concat(keystone.Mods), new[] { SkillCatalog.Strike, SkillCatalog.Firebolt });
+                Loadout load = new Loadout(20, sword, mods.Concat(keystone.Mods), new[] { Shelf.Strike, Shelf.Firebolt });
                 ActorSheet sheet = load.SheetFor(Condition.None);
-                if (float.IsFinite(sheet.Profile(0).AverageHit) && sheet.MaxHealth > 0f) fair++;
+                if (float.IsFinite(sheet.Profile(0).First.AverageHit) && sheet.MaxHealth > 0f) fair++;
             }
             report.Check("Every keystone works on anyone", fair == TalentTree.Nodes.Count(n => n.Kind == TalentKind.Keystone));
         }

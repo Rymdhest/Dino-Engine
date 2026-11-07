@@ -2,7 +2,7 @@ using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -39,7 +39,7 @@ namespace Dino_NetLab
         }
 
         // Someone with one thing to do, who doesn't miss. They stand still until told otherwise.
-        private static Actor Fighter(Arena arena, Vector2 offset, SkillDefinition skill, float health = 1000000f, Team team = Team.Enemies)
+        private static Actor Fighter(Arena arena, Vector2 offset, BookPlan skill, float health = 1000000f, Team team = Team.Enemies)
         {
             var mods = new List<Mod> { Flat(Stat.Health, health), Flat(Stat.MoveSpeed, 1f), Flat(Stat.Mana, 100f), Flat(Stat.Accuracy, SureAccuracy) };
             return arena.Place(new Loadout(1, new WeaponProfile(10f, 10f, 0.6f, 0f, Tags.Sword), mods, new[] { skill }), offset, team);
@@ -92,7 +92,7 @@ namespace Dino_NetLab
             };
         }
 
-        private static int SlotOf(Arena arena, SkillDefinition skill) => Array.FindIndex(arena.Truth.Kit.Slots, s => s?.Skill == skill);
+        private static int SlotOf(Arena arena, BookPlan skill) => Array.FindIndex(arena.Truth.Kit.Slots, s => s?.Skill == skill);
 
         private static ActionComponent ActionOf(GameServer server, Entity who) => server.Ecs.GetEntityView(who).Get<ActionComponent>();
 
@@ -201,7 +201,7 @@ namespace Dino_NetLab
         }
 
         // Puts what's aimed at either side of each part of a shape's edge, by moving where it comes from, and sees whether it's touched. Everything that can go wrong with a shape goes wrong at its edge.
-        private static void Edges(Report report, Arena arena, string label, Actor user, SkillProfile skill, Actor target, float body, int directions = 24, float settle = 0f)
+        private static void Edges(Report report, Arena arena, string label, Actor user, BookProfile skill, Actor target, float body, int directions = 24, float settle = 0f)
         {
             Vector2 facing = new Vector2(0.6f, 0.8f);
             const float aimed = 11f;
@@ -245,7 +245,7 @@ namespace Dino_NetLab
         }
 
         // What flies is the strip it's shown as, down both sides. Past the end it goes on, as an arrow does.
-        private static void Sides(Report report, Arena arena, string label, Actor user, SkillProfile skill, Actor target, float body)
+        private static void Sides(Report report, Arena arena, string label, Actor user, BookProfile skill, Actor target, float body)
         {
             const float aimed = 14f;
             const float margin = 0.25f;     // A flight goes a little way each tick.
@@ -308,8 +308,8 @@ namespace Dino_NetLab
             float missed = Hits.EvadeChance(hero.Sheet.Evasion, SureAccuracy);
             report.Check("  (Blows tried here are as good as certain not to be evaded, so a miss means the shape)", missed < 1e-7f, $"{missed}");
 
-            var instant = new[] { SkillCatalog.Strike, SkillCatalog.Cleave, SkillCatalog.Sunder, SkillCatalog.Whirl, SkillCatalog.Maul, SkillCatalog.Bite, SkillCatalog.FrostNova, SkillCatalog.Immolate, SkillCatalog.GlacialLance, SkillCatalog.Spark };
-            foreach (SkillDefinition skill in instant)
+            var instant = new[] { Shelf.Strike, Shelf.Cleave, Shelf.Sunder, Shelf.Whirl, Shelf.Maul, Shelf.Bite, Shelf.FrostNova, Shelf.Immolate, Shelf.GlacialLance, Shelf.Spark };
+            foreach (BookPlan skill in instant)
             {
                 Actor enemy = Fighter(arena, new Vector2(0f, 40f), skill);
                 Edges(report, arena, $"{skill.Name} at a hero", enemy, enemy.Sheet.Profile(0), hero, heroBody);
@@ -318,26 +318,26 @@ namespace Dino_NetLab
                 Edges(report, arena, $"{skill.Name} at an enemy", friend, friend.Sheet.Profile(0), dummy, dummy.Radius);
             }
 
-            Actor mage = Fighter(arena, new Vector2(0f, 40f), SkillCatalog.Emberfall);
+            Actor mage = Fighter(arena, new Vector2(0f, 40f), Shelf.Emberfall);
             Edges(report, arena, "Emberfall, once it's come down", mage, mage.Sheet.Profile(0), hero, heroBody, directions: 8, settle: 1f);
 
-            Actor undoer = Fighter(arena, new Vector2(0f, 42f), SkillCatalog.Unmaking);
+            Actor undoer = Fighter(arena, new Vector2(0f, 42f), Shelf.Unmaking);
             Edges(report, arena, "Unmaking, once it's come down", undoer, undoer.Sheet.Profile(0), hero, heroBody, directions: 8, settle: 0.6f);
 
-            Actor storm = Fighter(arena, new Vector2(0f, 44f), SkillCatalog.Stormcall);
+            Actor storm = Fighter(arena, new Vector2(0f, 44f), Shelf.Stormcall);
             Edges(report, arena, "Stormcall, while it lasts", storm, storm.Sheet.Profile(0), hero, heroBody, directions: 2, settle: storm.Sheet.Profile(0).Duration + 0.5f);
 
-            Actor archer = Fighter(arena, new Vector2(0f, 46f), SkillCatalog.Shot);
+            Actor archer = Fighter(arena, new Vector2(0f, 46f), Shelf.Shot);
             Sides(report, arena, "An arrow", archer, archer.Sheet.Profile(0), hero, heroBody);
 
-            Actor caster = Fighter(arena, new Vector2(0f, 48f), SkillCatalog.Firebolt);
+            Actor caster = Fighter(arena, new Vector2(0f, 48f), Shelf.Firebolt);
             Sides(report, arena, "A firebolt", caster, caster.Sheet.Profile(0), hero, heroBody);
 
             using (var chain = new Arena(worlds, request, Hero()))
             {
                 Actor first = chain.Dummy(East * 8f);
                 Actor second = chain.Dummy(East * 19f);
-                Actor stormcaller = Fighter(chain, new Vector2(0f, 30f), SkillCatalog.Spark, team: Team.Heroes);
+                Actor stormcaller = Fighter(chain, new Vector2(0f, 30f), Shelf.Spark, team: Team.Heroes);
                 chain.Combat.Release(stormcaller, stormcaller.Sheet.Profile(0), chain.At, East, 8f);
                 report.Check("A chain still goes as far as it ever did, once it's started", Arena.Lost(first) > 0f && Arena.Lost(second) > 0f, $"{Arena.Lost(first)}, {Arena.Lost(second)}");
 
@@ -347,7 +347,7 @@ namespace Dino_NetLab
                 report.Check("But it has to start on what's marked", Arena.Lost(first) == 0f && Arena.Lost(second) == 0f, $"{Arena.Lost(first)}, {Arena.Lost(second)}");
             }
 
-            foreach (SkillDefinition skill in SkillCatalog.All)
+            foreach (BookPlan skill in Shelf.All)
             {
                 if (skill.Form != SkillForm.Chain) continue;
                 Actor someone = Fighter(arena, new Vector2(0f, 50f), skill);
@@ -358,17 +358,17 @@ namespace Dino_NetLab
 
         private static void Landing(Report report, WorldCache worlds, WorldRequest request)
         {
-            (string name, SkillDefinition skill, float stands)[] blows =
+            (string name, BookPlan skill, float stands)[] blows =
             {
-                ("A cut", SkillCatalog.Strike, 3.5f),
-                ("A heavy blow", SkillCatalog.Sunder, 4f),
-                ("A bite", SkillCatalog.Bite, 3.5f),
-                ("A whirl", SkillCatalog.Whirl, 4f),
-                ("A nova", SkillCatalog.FrostNova, 4f),
-                ("A chain", SkillCatalog.Spark, 10f),
-                ("A beam", SkillCatalog.GlacialLance, 10f),
+                ("A cut", Shelf.Strike, 3.5f),
+                ("A heavy blow", Shelf.Sunder, 4f),
+                ("A bite", Shelf.Bite, 3.5f),
+                ("A whirl", Shelf.Whirl, 4f),
+                ("A nova", Shelf.FrostNova, 4f),
+                ("A chain", Shelf.Spark, 10f),
+                ("A beam", Shelf.GlacialLance, 10f),
             };
-            foreach ((string name, SkillDefinition skill, float stands) in blows)
+            foreach ((string name, BookPlan skill, float stands) in blows)
             {
                 using var arena = new Arena(worlds, request, Hero());
                 Blow blow = Watch(arena, Fighter(arena, East * stands, skill));
@@ -377,39 +377,39 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Blow blow = Watch(arena, Fighter(arena, East * 10f, SkillCatalog.Emberfall));
+                Blow blow = Watch(arena, Fighter(arena, East * 10f, Shelf.Emberfall));
                 report.Check("What comes down from above lands on the tick it says, however long it takes", blow.Promised != 0 && blow.Came == blow.Promised, $"said {blow.Promised}, came {blow.Came}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Blow blow = Watch(arena, Fighter(arena, East * 12f, SkillCatalog.Shot), () => Any<ProjectileComponent>(arena.Lab.Server.Ecs));
+                Blow blow = Watch(arena, Fighter(arena, East * 12f, Shelf.Shot), () => Any<ProjectileComponent>(arena.Lab.Server.Ecs));
                 report.Check("What flies leaves on the tick it says", blow.Promised != 0 && blow.Came == blow.Promised, $"said {blow.Promised}, came {blow.Came}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Blow blow = Watch(arena, Fighter(arena, East * 12f, SkillCatalog.Stormcall), () => Any<ZoneComponent>(arena.Lab.Server.Ecs));
+                Blow blow = Watch(arena, Fighter(arena, East * 12f, Shelf.Stormcall), () => Any<ZoneComponent>(arena.Lab.Server.Ecs));
                 report.Check("Ground that's going to turn bad does so on the tick it says", blow.Promised != 0 && blow.Came == blow.Promised, $"said {blow.Promised}, came {blow.Came}");
             }
 
             float brisk;
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Blow blow = Watch(arena, Fighter(arena, East * 4f, SkillCatalog.Sunder));
+                Blow blow = Watch(arena, Fighter(arena, East * 4f, Shelf.Sunder));
                 brisk = (blow.Promised - blow.Marked) * NetTime.TickSeconds;
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Blow blow = Watch(arena, Fighter(arena, East * 3.5f, SkillCatalog.Bite));
+                Blow blow = Watch(arena, Fighter(arena, East * 3.5f, Shelf.Bite));
                 float quickest = (blow.Promised - blow.Marked) * NetTime.TickSeconds;
                 report.Check("Even the quickest blow leaves a moment to see it coming", quickest >= 0.6f - NetTime.TickSeconds, $"{quickest} s");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor enemy = Fighter(arena, East * 4f, SkillCatalog.Sunder);
+                Actor enemy = Fighter(arena, East * 4f, Shelf.Sunder);
                 enemy.Afflictions.ChillEffect = 0.5f;
                 enemy.Afflictions.ChillLeft = 30f;
                 Blow blow = Watch(arena, enemy, seconds: 6.0);
@@ -420,7 +420,7 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor enemy = Fighter(arena, East * 4f, SkillCatalog.Sunder);
+                Actor enemy = Fighter(arena, East * 4f, Shelf.Sunder);
                 Blow blow = Watch(arena, enemy, after: 6, then: () =>
                 {
                     enemy.Afflictions.ChillEffect = 0.5f;
@@ -431,7 +431,7 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor enemy = Fighter(arena, East * 4f, SkillCatalog.Sunder);
+                Actor enemy = Fighter(arena, East * 4f, Shelf.Sunder);
                 enemy.Afflictions.ChillEffect = 0.5f;
                 enemy.Afflictions.ChillLeft = 30f;
                 Blow blow = Watch(arena, enemy, after: 6, then: () => enemy.Afflictions.ChillLeft = 0f, seconds: 6.0);
@@ -440,7 +440,7 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor enemy = Fighter(arena, East * 4f, SkillCatalog.Sunder);
+                Actor enemy = Fighter(arena, East * 4f, Shelf.Sunder);
                 enemy.Still = false;
                 bool same = Until(arena, () => TryMark(arena.Lab.Server.Ecs, out _, out _));
                 ActionComponent action = ActionOf(arena.Lab.Server, enemy.Entity);
@@ -458,14 +458,14 @@ namespace Dino_NetLab
             {
                 ("Stunned", (_, enemy) => enemy.Afflictions.StunLeft = 1.5f),
                 ("Frozen", (_, enemy) => enemy.Afflictions.FreezeLeft = 1.5f),
-                ("Killed", (arena, enemy) => arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), enemy, 1000f, arena.At)),
+                ("Killed", (arena, enemy) => arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), enemy, 1000f, arena.At)),
             };
 
             foreach ((string name, Action<Arena, Actor> stop) in ways)
             {
                 using var arena = new Arena(worlds, request, Hero());
                 GameServer server = arena.Lab.Server;
-                Actor enemy = Fighter(arena, East * 4f, SkillCatalog.Sunder, health: 10f);
+                Actor enemy = Fighter(arena, East * 4f, Shelf.Sunder, health: 10f);
                 bool seen = false;
                 Blow blow = Watch(arena, enemy, after: seenFor, then: () =>
                 {
@@ -490,7 +490,7 @@ namespace Dino_NetLab
                 GameServer server = arena.Lab.Server;
                 LabPlayer friend = arena.Lab.Players[1];
                 Actor target = arena.Dummy(East * 4f);
-                int slot = SlotOf(arena, SkillCatalog.FrostNova);
+                int slot = SlotOf(arena, Shelf.FrostNova);
                 report.Check("A hero can be given a skill to test with", slot >= 0, $"{slot}");
 
                 var press = new HeroIntent { Aim = East * 4f };
@@ -510,7 +510,7 @@ namespace Dino_NetLab
                 GameServer server = arena.Lab.Server;
                 LabPlayer friend = arena.Lab.Players[1];
                 Actor target = arena.Dummy(East * 4f);
-                int slot = SlotOf(arena, SkillCatalog.FrostNova);
+                int slot = SlotOf(arena, Shelf.FrostNova);
 
                 var press = new HeroIntent { Aim = East * 4f };
                 press.Use(slot);
@@ -532,7 +532,7 @@ namespace Dino_NetLab
             using (var arena = new Arena(worlds, request, Hero("winter.frost-nova"), heroes: 2))
             {
                 GameServer server = arena.Lab.Server;
-                int slot = SlotOf(arena, SkillCatalog.FrostNova);
+                int slot = SlotOf(arena, Shelf.FrostNova);
                 Actor target = arena.Dummy(East * 4f);
 
                 var press = new HeroIntent { Aim = East * 4f };
@@ -550,8 +550,8 @@ namespace Dino_NetLab
             using (var arena = new Arena(worlds, request, Hero("winter.frost-nova"), heroes: 2))
             {
                 GameServer server = arena.Lab.Server;
-                int slot = SlotOf(arena, SkillCatalog.FrostNova);
-                Actor enemy = Fighter(arena, East * 3f, SkillCatalog.Strike);
+                int slot = SlotOf(arena, Shelf.FrostNova);
+                Actor enemy = Fighter(arena, East * 3f, Shelf.Strike);
 
                 var press = new HeroIntent { Aim = East * 4f };
                 press.Use(slot);
@@ -566,7 +566,7 @@ namespace Dino_NetLab
             using (var arena = new Arena(worlds, request, Hero("winter.frost-nova")))
             {
                 GameServer server = arena.Lab.Server;
-                int slot = SlotOf(arena, SkillCatalog.FrostNova);
+                int slot = SlotOf(arena, Shelf.FrostNova);
                 byte before = ActionOf(server, arena.Truth.Entity).Serial;
 
                 var both = new HeroIntent { Aim = East * 4f, Dash = true, Move = West };
@@ -581,7 +581,7 @@ namespace Dino_NetLab
             // What's shown of a hero's own blow, which is done on their machine and goes nowhere near the server.
             using (var arena = new Arena(worlds, request, Hero("winter.frost-nova")))
             {
-                SkillProfile nova = arena.Skill(SkillCatalog.FrostNova);
+                BookProfile nova = arena.Skill(Shelf.FrostNova);
                 HeroSimState hero = HeroSimState.At(arena.At, 100f);
                 hero.Using = 2;
                 hero.Aim = East;
@@ -682,7 +682,7 @@ namespace Dino_NetLab
         private static void Dodging(Report report, WorldCache worlds, WorldRequest request)
         {
             using var arena = new Arena(worlds, request, Hero());
-            SkillProfile swing = arena.Truth.Kit.Slots[0]!;
+            BookProfile swing = arena.Truth.Kit.Slots[0]!;
             ActorSheet sheet = arena.Hero.Sheet;
 
             var rules = new Rules(arena);
@@ -776,7 +776,7 @@ namespace Dino_NetLab
 
             using (var dodger = new Arena(worlds, request, Hero()))
             {
-                Actor enemy = Fighter(dodger, East * 4f, SkillCatalog.Sunder);
+                Actor enemy = Fighter(dodger, East * 4f, Shelf.Sunder);
                 dodger.Truth.Sim.Safe = 5f;
                 Blow blow = Watch(dodger, enemy, seconds: 1.2);
                 report.Check("A blow landing on someone in the middle of a dodge does nothing", blow.Promised != 0 && Arena.Lost(dodger.Hero) == 0f, $"lost {Arena.Lost(dodger.Hero)}");
@@ -788,7 +788,7 @@ namespace Dino_NetLab
             using var arena = new Arena(worlds, request, Hero());
             GameServer server = arena.Lab.Server;
             GameClient client = arena.Player.Client;
-            Actor enemy = Fighter(arena, East * 4f, SkillCatalog.Sunder);
+            Actor enemy = Fighter(arena, East * 4f, Shelf.Sunder);
             arena.Hero.Vitals.Health = arena.Hero.Sheet.MaxHealth;
 
             enemy.Still = false;
@@ -827,7 +827,7 @@ namespace Dino_NetLab
             using var falling = new Arena(worlds, request, Hero());
             server = falling.Lab.Server;
             client = falling.Player.Client;
-            Actor caster = Fighter(falling, East * 10f, SkillCatalog.Emberfall);
+            Actor caster = Fighter(falling, East * 10f, Shelf.Emberfall);
             falling.Hero.Vitals.Health = falling.Hero.Sheet.MaxHealth;
 
             caster.Still = false;
@@ -856,7 +856,7 @@ namespace Dino_NetLab
         private static void Weight(Report report, WorldCache worlds, WorldRequest request)
         {
             using var arena = new Arena(worlds, request, Hero());
-            SkillProfile strike = arena.Skill(SkillCatalog.Strike);
+            BookProfile strike = arena.Skill(Shelf.Strike);
 
             // What a blow does, per share of health it took, to someone of this nature.
             float PushOf(Condition nature, float strength, out Vector2 push, out float reeling)
@@ -922,7 +922,7 @@ namespace Dino_NetLab
                 held.Still = true;
             }
 
-            Actor enemy = Fighter(arena, East * 3f, SkillCatalog.Strike);
+            Actor enemy = Fighter(arena, East * 3f, Shelf.Strike);
             Vector2 stood = arena.Truth.Sim.Position;
             arena.Combat.Release(enemy, enemy.Sheet.Profile(0), enemy.Position, West, 3f);
             arena.Run(0.2);
@@ -934,7 +934,7 @@ namespace Dino_NetLab
         {
             using var arena = new Arena(worlds, request, Hero());
             GameServer server = arena.Lab.Server;
-            SkillProfile strike = arena.Skill(SkillCatalog.Strike);
+            BookProfile strike = arena.Skill(Shelf.Strike);
 
             // A body that takes this much health to fill, with one point left in it, struck this hard.
             Vector3 Thrown(float health, float strength, out EntityView view)
@@ -967,7 +967,7 @@ namespace Dino_NetLab
             report.Check("How a body was thrown reaches a client", told);
 
             using var other = new Arena(worlds, request, Hero());
-            Actor enemy = Fighter(other, East * 3f, SkillCatalog.Strike);
+            Actor enemy = Fighter(other, East * 3f, Shelf.Strike);
             other.Hero.Vitals.Health = 1f;
             other.Truth.Sim.Health = 1f;
             other.Combat.Hit(enemy, enemy.Sheet.Profile(0), other.Hero, 100000f, enemy.Position);
@@ -986,7 +986,7 @@ namespace Dino_NetLab
                 var seen = new List<DamageEvent>();
                 arena.Player.Client.Events.On<DamageEvent>(seen.Add);
                 int counted = arena.Player.HitsSeen;
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), target, 3f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), target, 3f, arena.At);
                 arena.Run(0.5);
 
                 report.Check("Everyone listening for a blow hears it, not just the last to ask", seen.Count > 0 && arena.Player.HitsSeen > counted, $"{seen.Count}, {arena.Player.HitsSeen - counted}");
@@ -1030,8 +1030,8 @@ namespace Dino_NetLab
                 });
 
                 uint struck = server.Tick;
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), first, 1f, arena.At);
-                arena.Combat.Hit(arena.Hero, arena.Skill(SkillCatalog.Strike), second, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), first, 1f, arena.At);
+                arena.Combat.Hit(arena.Hero, arena.Skill(Shelf.Strike), second, 1f, arena.At);
                 arena.Run(0.6);
                 report.Check("What's urgent isn't held back to be shown with everything else", urgentCame != 0 && plainCame != 0 && urgentCame < plainCame, $"{urgentCame - struck} ticks against {plainCame - struck}");
             }
@@ -1039,7 +1039,7 @@ namespace Dino_NetLab
             using (var arena = new Arena(worlds, request, Hero()))
             {
                 GameServer server = arena.Lab.Server;
-                Actor enemy = Fighter(arena, East * 4f, SkillCatalog.Cleave);
+                Actor enemy = Fighter(arena, East * 4f, Shelf.Cleave);
                 enemy.Still = false;
                 Until(arena, () => TryMark(server.Ecs, out _, out _));
                 TryMark(server.Ecs, out TelegraphComponent truth, out Vector2 at);
@@ -1063,7 +1063,7 @@ namespace Dino_NetLab
                 using var arena = new Arena(worlds, request, Hero(), line: line);
                 GameServer server = arena.Lab.Server;
                 GameClient client = arena.Player.Client;
-                Actor enemy = Fighter(arena, East * 4.5f, SkillCatalog.Strike);
+                Actor enemy = Fighter(arena, East * 4.5f, Shelf.Strike);
 
                 double warning = -1.0;
                 double pressAt = -1.0;
@@ -1105,8 +1105,8 @@ namespace Dino_NetLab
             {
                 using var arena = new Arena(worlds, request, Hero("winter.frost-nova"), line: line);
                 LabPlayer player = arena.Player;
-                int slot = SlotOf(arena, SkillCatalog.FrostNova);
-                SkillProfile nova = arena.Truth.Kit.Slots[slot]!;
+                int slot = SlotOf(arena, Shelf.FrostNova);
+                BookProfile nova = arena.Truth.Kit.Slots[slot]!;
                 arena.Run(2.0);
 
                 int before = player.Uses[slot];

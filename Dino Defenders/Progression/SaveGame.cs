@@ -200,7 +200,8 @@ namespace Dino_Defenders.Progression
             }
             foreach (Item item in hero.Carried())
             {
-                if (item.Book != null) Scribe.Fix(item.Book);
+                if (!item.IsBook) item.Book = null;
+                else Scribe.Fix(item.Book ??= Scribe.Starter());
             }
         }
 

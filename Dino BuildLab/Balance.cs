@@ -1,7 +1,7 @@
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.World;
@@ -14,14 +14,14 @@ namespace Dino_BuildLab
     /// </summary>
     internal static class Balance
     {
-        private sealed record Sample(string Name, SkillDefinition Skill, string[] Sectors, string[] Wanted, WeaponKind? Weapon);
+        private sealed record Sample(string Name, BookPlan Book, string[] Sectors, string[] Wanted, WeaponKind? Weapon);
 
         private static readonly Sample[] Samples =
         {
-            new("Fire caster", SkillCatalog.Firebolt, new[] { "pyre", "arcanum", "marrow" }, new[] { "pyre.firebolt" }, WeaponKind.Staff),
-            new("Sword fighter", SkillCatalog.Strike, new[] { "forge", "bulwark", "marrow" }, Array.Empty<string>(), WeaponKind.Sword),
-            new("Frost caster", SkillCatalog.FrostShards, new[] { "winter", "arcanum", "storm" }, new[] { "winter.frost-shards" }, WeaponKind.Wand),
-            new("Archer", SkillCatalog.Shot, new[] { "hunt", "knave", "wilds" }, new[] { "hunt.shot" }, WeaponKind.Bow),
+            new("Fire caster", Shelf.Firebolt, new[] { "pyre", "arcanum", "marrow" }, new[] { "pyre.kindled-bolt" }, WeaponKind.Staff),
+            new("Sword fighter", Shelf.Strike, new[] { "forge", "bulwark", "marrow" }, Array.Empty<string>(), WeaponKind.Sword),
+            new("Frost caster", Shelf.FrostShards, new[] { "winter", "arcanum", "storm" }, new[] { "winter.splinters" }, WeaponKind.Wand),
+            new("Archer", Shelf.Shot, new[] { "hunt", "knave", "wilds" }, new[] { "hunt.steady-draw" }, WeaponKind.Bow),
         };
 
         private static readonly int[] Levels = { 1, 3, 5, 8, 12, 16, 20, 25, 30, 40, 50, 60 };
@@ -73,7 +73,7 @@ namespace Dino_BuildLab
             if (hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? weapon) && weapon.IsTwoHanded) hero.Equipped.Remove(WornSlot.OffHand);
         }
 
-        private static (float dealt, float taken) Exchange(ActorSheet hero, SkillProfile skill, Loadout enemy, int blows = 2000)
+        private static (float dealt, float taken) Exchange(ActorSheet hero, BookProfile skill, Loadout enemy, int blows = 2000)
         {
             var luck = new WorldRandom(5);
             ActorSheet foe = enemy.SheetFor(Condition.None);
@@ -82,11 +82,11 @@ namespace Dino_BuildLab
             for (int i = 0; i < blows; i++)
             {
                 HitPacket out_ = default;
-                Hits.Roll(skill, Condition.None, luck, ref out_);
+                Hits.Roll(skill.First, Condition.None, luck, ref out_);
                 dealt += Hits.Mitigate(foe, ref out_);
 
                 HitPacket back = default;
-                Hits.Roll(foe.Profile(0), Condition.None, luck, ref back);
+                Hits.Roll(foe.Profile(0).First, Condition.None, luck, ref back);
                 taken += Hits.Mitigate(hero, ref back);
             }
             return (dealt / blows, taken / blows);
@@ -97,7 +97,7 @@ namespace Dino_BuildLab
             var bestiary = new Bestiary();
             foreach (Sample sample in Samples)
             {
-                Console.WriteLine($"\n{sample.Name}, using {sample.Skill.Name}");
+                Console.WriteLine($"\n{sample.Name}, using {sample.Book.Name}");
                 Console.WriteLine("level  health   mana  armour  dps     per hit   foe hp  foe hit  hits to kill  kill in  hits to die  title");
 
                 foreach (int level in Levels)
@@ -115,9 +115,9 @@ namespace Dino_BuildLab
 
                         Loadout loadout = HeroBuild.Compile(hero);
                         ActorSheet sheet = loadout.SheetFor(Condition.None);
-                        Loadout known = sample.Skill == SkillCatalog.Strike ? loadout : new Loadout(level, loadout.Weapon, loadout.Mods.Concat(loadout.RuleMods), loadout.Skills.Append(sample.Skill).Distinct());
+                        Loadout known = new Loadout(level, loadout.Weapon, loadout.Mods.Concat(loadout.RuleMods), loadout.Books.Append(sample.Book));
                         sheet = known.SheetFor(Condition.None);
-                        SkillProfile skill = sheet.Profile(sample.Skill)!;
+                        BookProfile skill = sheet.Profile(sample.Book)!;
 
                         Loadout enemy = bestiary.Shared(Bestiary.Outlaw, level, EnemyRank.Normal, Bestiary.NoTrait);
                         (float dealt, float taken) = Exchange(sheet, skill, enemy);

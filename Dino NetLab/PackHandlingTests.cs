@@ -264,10 +264,10 @@ namespace Dino_NetLab
             scene.Lab.Run(1);
             report.Check("And it can be picked up again, as it was", scene.Session.Ground.Count == 0 && scene.Real.Carried().Any(i => i.Name == "Ring" && i.Rarity == Rarity.Legendary) && scene.Shown.Carried().Any(i => i.Name == "Ring"));
 
-            float armed = scene.Truth.Actor.Sheet.Profile(0).AverageHit;
+            float armed = scene.Truth.Actor.Sheet.Profile(0).First.AverageHit;
             scene.Player.Client.Drop(ItemPlace.Worn(WornSlot.MainHand));
             scene.Lab.Run(1.5);
-            report.Check("What's worn can be put down too, and the hero's bare-handed for it", !scene.Real.Equipped.ContainsKey(WornSlot.MainHand) && scene.Session.Ground.Count == 1 && scene.Truth.Actor.Sheet.Profile(0).AverageHit != armed);
+            report.Check("What's worn can be put down too, and the hero's bare-handed for it", !scene.Real.Equipped.ContainsKey(WornSlot.MainHand) && scene.Session.Ground.Count == 1 && scene.Truth.Actor.Sheet.Profile(0).First.AverageHit != armed);
 
             int lying2 = scene.Session.Ground.Count;
             scene.Player.Client.Drop(ItemPlace.Cell(20));

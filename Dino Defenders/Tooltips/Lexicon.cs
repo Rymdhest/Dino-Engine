@@ -156,12 +156,12 @@ namespace Dino_Defenders.Tooltips
             On(Tags.Opening, Word("Opening Page", "The first Page of a Book."));
             On(Tags.Turned, Word("Turned Page", "Any Page after the first."));
             On(Tags.Closing, Word("Closing Page", "The last Page of a Book. A single Page is both this and an Opening Page."));
-            On(Tags.Wild, Word("Wild", "Something on the Page is left to chance."));
+            On(Tags.Wild, Word("Wild", "Something on the Page is random."));
             On(Tags.Falling, Word("Falling", "Comes straight down out of the sky."));
             Basic("Cone", "A wedge spreading out from where it starts.");
             Basic("Circle", "Everything within its Radius.");
             Basic("Line", "A narrow strip, starting from where it starts.");
-            Basic("Rectangle", "A wide block. Away from you, it's centred on where it starts.");
+            Basic("Rectangle", "A wide box. Away from you, it's centred on where it starts.");
             On(Tags.Attack, Word("Attack", "Any Book, unless you hold a Wand or a Staff. Speed comes from Attack Speed. Can be Evaded and Blocked.", "Attacks"));
             On(Tags.Spell, Word("Spell", "Any Book while you hold a Wand or a Staff. Speed comes from Cast Speed. Can be Blocked, but not Evaded.", "Spells"));
             On(Tags.Hit, Word("Hit", "One Page striking one target. Striking several targets is several Hits.", "Hits"));
@@ -173,7 +173,7 @@ namespace Dino_Defenders.Tooltips
             On(Tags.Minion, Word("Minion", "Fights for you. Raising more of a kind replaces them.", "Minions"));
             Basic("Use Time", $"How long one use takes. The shortest possible is {Seconds(ShortestUse)}.");
             Basic("Impact", "When a use lands. A Dodge or a Stun before then cancels it.");
-            Basic("Cost", $"Paid on each use: every Page's, added up. Grows by {Share(CostPerLevel)} per Level.", "Book Cost", "Book Costs", "Costs");
+            Basic("Cost", $"Paid on each use: what every Page Costs, together. Grows by {Share(CostPerLevel)} per Level.", "Book Cost", "Book Costs", "Costs");
             Stats[Stat.BookCost] = ByForm["Book Cost"];
             On(Stat.CooldownRecovery, Word("Cooldown Recovery", "Makes Cooldowns pass faster."));
             Basic("Cooldown", "Time before it can be used again.", "Cooldowns");
@@ -308,7 +308,7 @@ namespace Dino_Defenders.Tooltips
             On(Stat.AreaOfEffect, Word("Area of Effect", $"Scales the space covered. Double the space is {Share(MathF.Sqrt(2f) - 1f)} more Radius."));
             On(Stat.MeleeReach, Word("Melee Reach", "Metres on top of the Reach of Melee Pages."));
             On(Stat.PageDuration, Word("Page Duration", "Scales how long Zones and Buffs last."));
-            Basic("Reach", "How far a strike or line extends.");
+            Basic("Reach", "How far a Cone or a Line extends.");
             Basic("Range", "How far away it can be aimed.");
             Basic("Radius", "Distance from its centre.");
             Basic("Arc", "How wide a strike is.");

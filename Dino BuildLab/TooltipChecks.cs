@@ -1,6 +1,6 @@
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Defenders.Tooltips;
@@ -78,13 +78,13 @@ namespace Dino_BuildLab
             report.Check("Every type of damage has a term", DamageKinds.All.All(t => Lexicon.Named(t.ToString()) != null));
 
             var kinds = new HashSet<string>();
-            foreach (TriggerEvent on in Enum.GetValues<TriggerEvent>()) kinds.Add(Trigger(on, SkillCatalog.Strike).Describe());
+            foreach (TriggerEvent on in Enum.GetValues<TriggerEvent>()) kinds.Add(Trigger(on, Shelf.Strike).Describe());
             report.Check("Every trigger says what sets it off", kinds.Count == Enum.GetValues<TriggerEvent>().Length);
 
             var nameless = Enum.GetValues<Per>().Where(p => p != Per.None && !new Mod { Kind = ModKind.Flat, Stat = Stat.Health, Value = 1f, Per = p, PerStep = 2f }.Describe().Contains(" per ")).ToList();
             report.Check("Everything that can be counted says what it counts", nameless.Count == 0, string.Join(", ", nameless));
 
-            report.Check("Every rule that has a skill or a buff to show has it", ModText.Of(Rule.Carrier)!.Casts == SkillCatalog.VenomCloud && ModText.Of(Rule.BurningTrail)!.Casts != null && ModText.Of(Rule.WaterTrail)!.Casts != null && ModText.Of(Rule.RalliesOnDeath)!.Gives != null);
+            report.Check("Every rule that has a skill or a buff to show has it", ModText.Of(Rule.Carrier)!.Casts == Shelf.VenomCloud && ModText.Of(Rule.BurningTrail)!.Casts != null && ModText.Of(Rule.WaterTrail)!.Casts != null && ModText.Of(Rule.RalliesOnDeath)!.Gives != null);
             report.Note($"{Lexicon.All.Count} terms");
         }
 
@@ -103,7 +103,8 @@ namespace Dino_BuildLab
         private static IEnumerable<Card> EveryCard()
         {
             ActorSheet sheet = Everyone();
-            foreach (SkillDefinition skill in SkillCatalog.All) yield return Cards.Skill(sheet.Preview(skill));
+            foreach (BookPlan skill in Shelf.All) yield return Cards.Book(sheet.Preview(skill));
+            foreach (Sentence sentence in Dino_Defenders.Books.Sentences.All) yield return Cards.Sentence(sentence);
             foreach (BuffDefinition buff in BuffCatalog.All) yield return Cards.Buff(buff, sheet);
             foreach (TalentNode node in TalentTree.Nodes) yield return Cards.Talent(node, sheet);
             foreach (OmenDefinition omen in Omens.All) yield return Cards.Omen(omen, sheet);
@@ -125,6 +126,7 @@ namespace Dino_BuildLab
                 foreach (string line in card.Words()) yield return (card.Title, line);
             }
             foreach (Term term in Lexicon.All) yield return (term.Name, term.Says);
+            foreach (Sentence sentence in Dino_Defenders.Books.Sentences.All) yield return (sentence.Id, sentence.Words);
             foreach (OmenDefinition omen in Omens.All) yield return (omen.Name, omen.Describe());
         }
 
@@ -137,10 +139,11 @@ namespace Dino_BuildLab
                 foreach (string word in name.Split(' ')) names.Add(word);
             }
 
-            foreach (SkillDefinition skill in SkillCatalog.All) Add(skill.Name);
+            foreach (BookPlan skill in Shelf.All) Add(skill.Name);
             foreach (BuffDefinition buff in BuffCatalog.All) Add(buff.Name);
             foreach (OmenDefinition omen in Omens.All) Add(omen.Name);
             foreach (string reaction in new[] { "Scald", "Crackle", "Flashfire", "Shatter", "Conduction" }) Add(reaction);
+            foreach (EnemyKind kind in Bestiary.Everyone) Add(kind.Name);
             return names;
         }
 
@@ -198,7 +201,7 @@ namespace Dino_BuildLab
             foreach (Affix affix in AffixCatalog.All) foreach (Mod mod in affix.Build(affix.Tiers[^1].High)) yield return mod;
             foreach (UniqueDefinition unique in UniqueCatalog.All) foreach (Mod mod in unique.Mods) yield return mod;
             foreach (OmenDefinition omen in Omens.All) foreach (Mod mod in omen.Mods) yield return mod;
-            foreach (SkillDefinition skill in SkillCatalog.All) foreach (Mod mod in skill.Mods) yield return mod;
+            foreach (BookPlan book in Shelf.All) foreach (PagePlan page in book.Pages) foreach (Mod mod in page.Mods) yield return mod;
             foreach (BuffDefinition buff in BuffCatalog.All) foreach (Mod mod in buff.Mods) yield return mod;
             foreach (EnemyTrait trait in Bestiary.Traits) foreach (Mod mod in trait.Mods) yield return mod;
             foreach (WeaponKind kind in Enum.GetValues<WeaponKind>()) foreach (Mod mod in WeaponKinds.Of(kind).Mods) yield return mod;
@@ -316,7 +319,7 @@ namespace Dino_BuildLab
             }
 
             var typed = new List<string>();
-            foreach (string path in Directory.GetFiles(Path.Combine(sources, "Tooltips")).Append(Path.Combine(sources, "Progression", "Offering.cs")))
+            foreach (string path in Directory.GetFiles(Path.Combine(sources, "Tooltips")).Append(Path.Combine(sources, "Progression", "Offering.cs")).Append(Path.Combine(sources, "Books", "Sentences.cs")))
             {
                 foreach (string line in File.ReadLines(path))
                 {
@@ -335,7 +338,7 @@ namespace Dino_BuildLab
             // nothing, one, a hundred for a percentage, and what's only for show. A new one means a new rule with a number nobody will be told.
             var allowed = new HashSet<string> { "0", "1", "2", "3", "4", "6", "100", "0.5", "0.01", "0.05", "1e-3", "1e-4", "1e-5", "4", "0.25", "1.5", "3.2", "3.4", "5", "0.6", "0.8", "1.6", "11", "0.3", "0.12", "0.1", "1.25", "1.15", "0.56", "30", "34", "2.5", "1000", "1e-4f" };
             var stray = new List<string>();
-            foreach (string name in new[] { "Server/Combat.cs", "Server/Actor.cs", "Server/ActorSystems.cs", "Stats/Hits.cs", "Stats/SkillProfile.cs", "Stats/ActorSheet.cs" })
+            foreach (string name in new[] { "Server/Combat.cs", "Server/Actor.cs", "Server/ActorSystems.cs", "Stats/Hits.cs", "Stats/PageProfile.cs", "Stats/ActorSheet.cs", "Books/BookProfile.cs" })
             {
                 foreach (string line in File.ReadLines(Path.Combine(sources, name)))
                 {
@@ -349,13 +352,9 @@ namespace Dino_BuildLab
                 }
             }
             report.Check("No number in the rules is outside the rulebook", stray.Count == 0, string.Join(" | ", stray.Take(8)));
-
-            var mechanical = new[] { "armour", "damage", "chance", "mana", "health", "cooldown", "stun", "ignores", "stuns", "bleeding", "second" };
-            var claims = SkillCatalog.All.Where(s => Regex.IsMatch(s.Text, @"\d") || mechanical.Any(word => Regex.IsMatch(s.Text, $@"\b{word}\b", RegexOptions.IgnoreCase))).Select(s => $"{s.Name}: {s.Text}").ToList();
-            report.Check("A skill's flavour makes no claim about what it does: that's what the card is for", claims.Count == 0, string.Join(" | ", claims.Take(6)));
         }
 
-        private static Card CardOf(ActorSheet sheet, SkillDefinition skill) => Cards.Skill(sheet.Preview(skill));
+        private static Card CardOf(ActorSheet sheet, BookPlan skill) => Cards.Book(sheet.Preview(skill));
 
         private static string? Value(Card card, string name) => card.Lines.FirstOrDefault(l => l.Text == name && l.Look is LineLook.Row or LineLook.Cell).Value is { Length: > 0 } value ? value : card.Details != null ? Value(card.Details, name) : null;
 
@@ -365,7 +364,15 @@ namespace Dino_BuildLab
         {
             var all = new List<Mod> { Flat(Stat.Health, 100f) };
             all.AddRange(mods);
-            return new Loadout(10, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, Tags.Sword | Tags.OneHanded), all, SkillCatalog.All);
+            return new Loadout(10, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, Tags.Sword | Tags.OneHanded), all, Shelf.All);
+        }
+
+        // The same, with something in hand that makes a book a Spell.
+        private static Loadout Caster(params Mod[] mods)
+        {
+            var all = new List<Mod> { Flat(Stat.Health, 100f) };
+            all.AddRange(mods);
+            return new Loadout(10, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, Tags.Wand | Tags.OneHanded), all, Shelf.All);
         }
 
         // Whatever a card says, a blow is asked the same thing and has to agree.
@@ -373,36 +380,35 @@ namespace Dino_BuildLab
         {
             ActorSheet plain = Kit(Chance(Tags.Hex, 6f), Chance(Tags.Burn, 6f)).SheetFor(Condition.None);
 
-            Card pool = CardOf(plain, SkillCatalog.Tidepool);
-            report.Check("Tidepool deals nothing, so it can't Hex, and doesn't claim to", !Mentions(pool, "Hex") && !Mentions(pool, "Chance"));
-            report.Check("It says how long, how far, and what it does", Value(pool, "Duration") == "10 s" && Value(pool, "Radius") == "8 m" && Mentions(pool, "Counts as Water"));
-            report.Check("A Burn needs Fire, so Frost Shards can't, whatever the Chance", !Mentions(CardOf(plain, SkillCatalog.FrostShards), "Burn"));
-            report.Check("But Firebolt can", Mentions(CardOf(plain, SkillCatalog.Firebolt), "Chance to Burn"));
-            report.Check("And Magic can Hex", Mentions(CardOf(plain, SkillCatalog.ArcaneDart), "Chance to Hex"));
+            Card pool = CardOf(plain, Shelf.Puddle);
+            report.Check("Standing Water deals nothing, so it can't Hex, and doesn't claim to", !Mentions(pool, "Hex") && !Mentions(pool, "Chance"));
+            report.Check("It says how long, how far, and what it does", Value(pool, "Duration") == "8 s" && Value(pool, "Radius") == "5 m" && Mentions(pool, "make Water there"));
+            report.Check("A Burn needs Fire, so Frost Shards can't, whatever the Chance", !Mentions(CardOf(plain, Shelf.FrostShards), "Burn"));
+            report.Check("But Firebolt can", Mentions(CardOf(plain, Shelf.Firebolt), "Chance to Burn"));
+            report.Check("And Magic can Hex", Mentions(CardOf(plain, Shelf.ArcaneDart), "Chance to Hex"));
 
-            Card bash = CardOf(Kit(Flat(Stat.Armour, 500f)).SheetFor(Condition.None), SkillCatalog.ShieldBash);
-            report.Check("Shield Bash says how armour scales it", Mentions(bash, "2% increased Damage per 50 Armour, up to 200%"));
-            report.Check("And what that comes to now", Mentions(bash, "(now 20%)"));
-            report.Check("And what it's made of", Mentions(bash, "90% of Weapon Damage"));
-            report.Check("And that it's all shown", Value(bash, "Cooldown") == "2 s" && Value(bash, "Arc") != null && Value(bash, "Reach") != null && Value(bash, "Critical Chance") == "5%");
+            Card strike = CardOf(plain, Shelf.Strike);
+            report.Check("A page says what it's made of", Mentions(strike, "100% of Weapon Damage"));
+            report.Check("And it's all shown", Value(strike, "Arc") != null && Value(strike, "Reach") != null && Value(strike, "Critical Chance") == "5%" && Value(strike, "Potency") == "100%");
+            report.Check("What's on a page reads as what's on it", Mentions(CardOf(plain, Shelf.Meteor), "straight down out of the sky") && Mentions(CardOf(plain, Shelf.Meteor), "On Impact, deal Fire Damage equal to 100% of your Damage"));
+            report.Check("Every page of a book is on its card", Mentions(CardOf(plain, Shelf.Meteor), "From where it struck"));
 
             Card carrier = Cards.Talent(TalentTree.Find("key.carrier")!, plain);
-            report.Check("Carrier says how near is nearby, on the card itself", Mentions(carrier, $"within {Say.Metres(SkillCatalog.VenomCloud.Radius)}"));
-            report.Check("And its name opens the Skill, with its own numbers", carrier.Attached.Any(c => c.Title == "Contagion" && Value(c, "Radius") == "8 m"));
-            report.Check("A talent that teaches a Skill is one card, not two", Cards.Talent(TalentTree.Find("host.bone-spear")!, plain) is { Title: "Bone Spear", Attached.Count: 0 });
-            report.Check("And nothing taught is called Triggered", !Cards.TagNames(Cards.TagsOf(TalentTree.Find("host.bone-spear")!.Mods)).Contains("Trigger"));
-            report.Check("What a whole build gets isn't on a Skill's card", !Cards.Skill(Kit(Flat(Stat.HealthOnKill, 9f)).SheetFor(Condition.None).Preview(SkillCatalog.BoneSpear)).Lines.Any(l => l.Text.Contains("on Kill")));
-            report.Check("But it's in the details", Mentions(Cards.Skill(Kit(Flat(Stat.HealthOnKill, 9f)).SheetFor(Condition.None).Preview(SkillCatalog.BoneSpear)), "on Kill"));
-            report.Check("Second Opinion's Spell is a tag anyone can check", Cards.TagNames(SkillCatalog.Firebolt.Tags).Contains("Spell") && Lexicon.Named("Spell")!.Says.Contains("Cast Speed"));
+            report.Check("Carrier says how near is nearby, on the card itself", Mentions(carrier, $"within {Say.Metres(Shelf.VenomCloud.First.Length)}"));
+            report.Check("And its name opens the Book, with its own numbers", carrier.Attached.Any(c => c.Title == "Contagion" && Value(c, "Radius") == "8 m"));
+            report.Check("What a whole build gets isn't on a Book's card", !Cards.Book(Kit(Flat(Stat.HealthOnKill, 9f)).SheetFor(Condition.None).Preview(Shelf.Firebolt)).Lines.Any(l => l.Text.Contains("on Kill")));
+            report.Check("But it's in the details", Mentions(Cards.Book(Kit(Flat(Stat.HealthOnKill, 9f)).SheetFor(Condition.None).Preview(Shelf.Firebolt)), "on Kill"));
+            report.Check("A Spell is a tag anyone can check", Cards.TagNames(Caster().SheetFor(Condition.None).Preview(Shelf.Firebolt).First.Tags).Contains("Spell") && Lexicon.Named("Spell")!.Says.Contains("Cast Speed"));
+            report.Check("And what's in the hands is what makes it one", Cards.TagNames(plain.Preview(Shelf.Firebolt).First.Tags).Contains("Attack") && !Cards.TagNames(plain.Preview(Shelf.Firebolt).First.Tags).Contains("Spell"));
             report.Check("What Leech is, is said: instantly", Lexicon.Named("Leech")!.Says.Contains("Instantly"));
 
             ActorSheet sheet = Kit(Inc(Stat.Damage, 40f), More(Stat.Damage, 25f, Tags.Spell), Added(DamageType.Fire, 6f), Flat(Stat.CritChance, 0f)).SheetFor(Condition.None);
             var luck = new WorldRandom(7);
             var wrong = new List<string>();
-            foreach (SkillDefinition skill in SkillCatalog.All.Where(s => s.DealsDamage))
+            foreach (BookPlan skill in Shelf.All.Where(s => s.Pages.Any(page => page.DealsDamage)))
             {
-                SkillProfile profile = sheet.Preview(skill);
-                Card card = Cards.Skill(profile);
+                PageProfile profile = sheet.Preview(skill).Pages.First(page => page.DealsDamage);
+                Card card = Cards.Book(sheet.Preview(skill));
                 foreach (DamageType type in DamageKinds.All)
                 {
                     string? shown = Value(card, $"{type} Damage");
@@ -451,35 +457,36 @@ namespace Dino_BuildLab
         private static void Live(Report report)
         {
             var hero = new HeroState { Level = 20 };
-            foreach (int step in TalentTree.PathTo(hero, TalentTree.Find("pyre.firebolt")!.Index)) hero.Talents.Add(TalentTree.Nodes[step].Id);
+            hero.Equipped[WornSlot.MainHand] = new Item { Name = "Wand", Slot = ItemSlot.MainHand, Level = 20, Kind = WeaponKind.Wand, WeaponDamage = 30f };
+            foreach (int step in TalentTree.PathTo(hero, TalentTree.Find("pyre.kindled-bolt")!.Index)) hero.Talents.Add(TalentTree.Nodes[step].Id);
 
-            string? Damage() => Value(CardOf(HeroBuild.Compile(hero).SheetFor(Condition.None), SkillCatalog.Firebolt), "Fire Damage");
+            string? Damage() => Value(CardOf(HeroBuild.Compile(hero).SheetFor(Condition.None), Shelf.Firebolt), "Fire Damage");
             string? before = Damage();
             foreach (int step in TalentTree.PathTo(hero, TalentTree.Find("arcanum.spellweaver")!.Index)) hero.Talents.Add(TalentTree.Nodes[step].Id);
             string? after = Damage();
             report.Check("Taking a talent that adds Spell Damage changes the Spell's card", before != null && after != null && before != after, $"{before} and {after}");
 
             Loadout conditional = Kit(Inc(Stat.Damage, 100f).While(Condition.Moving));
-            string? still = Value(CardOf(conditional.SheetFor(Condition.Stationary), SkillCatalog.Firebolt), "Fire Damage");
-            string? moving = Value(CardOf(conditional.SheetFor(Condition.Moving), SkillCatalog.Firebolt), "Fire Damage");
+            string? still = Value(CardOf(conditional.SheetFor(Condition.Stationary), Shelf.Firebolt), "Fire Damage");
+            string? moving = Value(CardOf(conditional.SheetFor(Condition.Moving), Shelf.Firebolt), "Fire Damage");
             report.Check("What only counts sometimes shows when it does", still != moving, $"{still} and {moving}");
 
             var gear = new HeroState { Level = 20 };
-            string? bare = Value(CardOf(HeroBuild.Compile(gear).SheetFor(Condition.None), SkillCatalog.Strike), "Physical Damage");
+            string? bare = Value(CardOf(HeroBuild.Compile(gear).SheetFor(Condition.None), Shelf.Strike), "Physical Damage");
             gear.Equipped[WornSlot.MainHand] = new Item { Name = "Sword", Slot = ItemSlot.MainHand, Level = 20, WeaponDamage = 60f };
-            string? armed = Value(CardOf(HeroBuild.Compile(gear).SheetFor(Condition.None), SkillCatalog.Strike), "Physical Damage");
+            string? armed = Value(CardOf(HeroBuild.Compile(gear).SheetFor(Condition.None), Shelf.Strike), "Physical Damage");
             report.Check("Putting on a weapon changes an Attack's card", bare != armed, $"{bare} and {armed}");
 
-            float cooldown = Kit().SheetFor(Condition.None).Preview(SkillCatalog.Emberfall).Cooldown;
-            float quicker = Kit(Inc(Stat.CooldownRecovery, 100f)).SheetFor(Condition.None).Preview(SkillCatalog.Emberfall).Cooldown;
+            float cooldown = Kit().SheetFor(Condition.None).Preview(Shelf.FrostNova).Cooldown;
+            float quicker = Kit(Inc(Stat.CooldownRecovery, 100f)).SheetFor(Condition.None).Preview(Shelf.FrostNova).Cooldown;
             report.Near("Cooldown Recovery says what it does: 100% increased is half the Cooldown", quicker, cooldown / 2f);
 
-            float own = Kit().SheetFor(Condition.None).Preview(SkillCatalog.ArcaneDart).SkillLevel;
-            report.Near("And so do Levels of a type of Skill", Kit(Flat(Stat.SkillLevel, 1f, Tags.Magic)).SheetFor(Condition.None).Preview(SkillCatalog.ArcaneDart).SkillLevel, own + 1f);
-            report.Near("For that type alone", Kit(Flat(Stat.SkillLevel, 1f, Tags.Magic)).SheetFor(Condition.None).Preview(SkillCatalog.Firebolt).SkillLevel, own);
+            float plainHit = Kit().SheetFor(Condition.None).Preview(Shelf.Strike).First.AverageHit;
+            report.Near("And Potency: 100% increased is twice what a Page does", Kit(Inc(Stat.Potency, 100f)).SheetFor(Condition.None).Preview(Shelf.Strike).First.AverageHit, plainHit * 2f, 0.01f);
+            report.Near("And only on what it names", Kit(Inc(Stat.Potency, 100f, Tags.Turned)).SheetFor(Condition.None).Preview(Shelf.Strike).First.AverageHit, plainHit, 0.01f);
 
             ActorSheet preview = Kit().SheetFor(Condition.None);
-            report.Check("A skill not yet known is still shown with real numbers", Value(Cards.Talent(TalentTree.Find("pyre.firebolt")!, preview), "Fire Damage") != null);
+            report.Check("A book that isn't on the bar is still shown with real numbers", Value(Cards.Book(preview.Preview(Shelf.Firebolt)), "Fire Damage") != null);
         }
 
         // Everything a sheet and a skill's numbers come to, as one string, so that two can be told apart however they differ.
@@ -500,29 +507,42 @@ namespace Dino_BuildLab
             }
 
             Read(sheet);
-            for (int i = 0; i < sheet.Loadout.Skills.Length; i++)
+            for (int i = 0; i < sheet.Loadout.Books.Length; i++)
             {
-                SkillProfile profile = sheet.Profile(i);
-                Read(profile);
-                foreach (ref readonly DamageFlow flow in profile.Flows) text.Append(flow.Type).Append(' ').Append(flow.Min).Append(' ').Append(flow.Max).Append(' ').Append(flow.Increased).Append(' ').Append(flow.More).Append(' ');
+                Read(sheet.Profile(i));
+                foreach (PageProfile profile in sheet.Profile(i).Pages)
+                {
+                    Read(profile);
+                    foreach (ref readonly DamageFlow flow in profile.Flows) text.Append(flow.Type).Append(' ').Append(flow.Min).Append(' ').Append(flow.Max).Append(' ').Append(flow.Increased).Append(' ').Append(flow.More).Append(' ');
+                }
             }
             return text.ToString();
         }
 
         // Whoever comes when called is part of what a build is too.
-        private static string Everything(Loadout loadout)
+        private static string Everything(IEnumerable<Loadout> loadouts)
         {
-            ActorSheet sheet = loadout.SheetFor(Condition.None);
-            return Fingerprint(sheet) + Fingerprint(Bestiary.MinionOf(loadout, sheet, Bestiary.Minion("bones")!).SheetFor(Condition.None));
+            var text = new System.Text.StringBuilder();
+            foreach (Loadout loadout in loadouts)
+            {
+                ActorSheet sheet = loadout.SheetFor(Condition.None);
+                text.Append(Fingerprint(sheet)).Append(Fingerprint(Bestiary.MinionOf(loadout, sheet, Bestiary.Minion("bones")!).SheetFor(Condition.None)));
+            }
+            return text.ToString();
         }
 
         // A hero with no flat amount of anything but what heroes really have, so that something that only works on what isn't there shows up as doing nothing.
-        private static Loadout Plain(IEnumerable<Mod> extra)
+        private static IEnumerable<Loadout> Plain(IEnumerable<Mod> extra)
         {
             var hero = new HeroState { Level = 20 };
             var mods = new List<Mod>(HeroBuild.Innate()) { Flat(Stat.Barrier, 100f) };
             mods.AddRange(extra);
-            return new Loadout(hero.Level, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, Tags.Sword | Tags.OneHanded | Tags.Unarmed | Tags.Axe | Tags.Mace | Tags.Dagger | Tags.Spear | Tags.Bow | Tags.Staff | Tags.Wand | Tags.TwoHanded), mods, SkillCatalog.All);
+
+            // What's in the hands decides what a book is, so it takes one of each to find out what a line can do.
+            foreach (Tags weapon in new[] { Tags.Sword | Tags.OneHanded | Tags.Unarmed | Tags.Axe | Tags.Mace | Tags.Dagger | Tags.Spear | Tags.TwoHanded, Tags.Bow | Tags.TwoHanded, Tags.Staff | Tags.Wand | Tags.OneHanded | Tags.TwoHanded })
+            {
+                yield return new Loadout(hero.Level, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, weapon), mods, Shelf.All);
+            }
         }
 
         // What it takes for a line to be read at all: whatever it asks for, as if it held. What only counts against a foe is read by a blow, and StatChecks has those.
@@ -532,7 +552,7 @@ namespace Dino_BuildLab
         // Those that need a flat amount from elsewhere to work on are given some, if the game has any to give: otherwise nobody could ever see them do anything.
         private static void NothingIsEmpty(Report report)
         {
-            var mods = EveryMod().Where(mod => mod.Kind <= ModKind.More && mod.Foe == Condition.None && mod.Skill == SkillDefinition.None).Select(mod => AsIfHeld(mod)).Distinct().ToList();
+            var mods = EveryMod().Where(mod => mod.Kind <= ModKind.More && mod.Foe == Condition.None).Select(mod => AsIfHeld(mod)).Distinct().ToList();
             string plain = Everything(Plain(Array.Empty<Mod>()));
             var flats = EveryMod().Where(mod => mod.Kind == ModKind.Flat).Select(mod => AsIfHeld(mod)).ToList();
 
@@ -566,14 +586,15 @@ namespace Dino_BuildLab
             ActorSheet strong = Kit(Flat(Stat.Strength, 100f)).SheetFor(Condition.None);
             ActorSheet plain = Kit().SheetFor(Condition.None);
             report.Near("Strength gives Health", strong.MaxHealth - plain.MaxHealth, 100f * Rulebook.StrengthHealth);
-            report.Near("And Physical Damage", strong.Preview(SkillCatalog.Strike).Flows[0].Increased, 100f * Rulebook.StrengthPhysical);
+            report.Near("And Physical Damage", strong.Preview(Shelf.Strike).First.Flows[0].Increased, 100f * Rulebook.StrengthPhysical);
             ActorSheet quick = Kit(Flat(Stat.Dexterity, 100f)).SheetFor(Condition.None);
             report.Near("Dexterity gives Accuracy and Evasion", quick.Evasion, 100f * Rulebook.DexterityEvasion);
-            report.Check("And Attack Speed", quick.Preview(SkillCatalog.Strike).UseTime < plain.Preview(SkillCatalog.Strike).UseTime);
-            ActorSheet clever = Kit(Flat(Stat.Intellect, 100f)).SheetFor(Condition.None);
+            report.Check("And Attack Speed", quick.Preview(Shelf.Strike).UseTime < plain.Preview(Shelf.Strike).UseTime);
+            ActorSheet clever = Caster(Flat(Stat.Intellect, 100f)).SheetFor(Condition.None);
+            ActorSheet fighter = Kit(Flat(Stat.Intellect, 100f)).SheetFor(Condition.None);
             report.Near("Intellect gives Mana", clever.MaxMana, 100f * Rulebook.IntellectMana);
-            report.Near("And Spell Damage", clever.Preview(SkillCatalog.Firebolt).Flows[0].Increased, 100f * Rulebook.IntellectSpellDamage);
-            report.Check("Which does nothing for an Attack", clever.Preview(SkillCatalog.Strike).Flows[0].Increased == 0f);
+            report.Near("And Spell Damage", clever.Preview(Shelf.Firebolt).First.Flows[0].Increased, 100f * Rulebook.IntellectSpellDamage);
+            report.Check("Which does nothing for an Attack", fighter.Preview(Shelf.Strike).First.Flows[0].Increased == 0f);
 
             report.Check("Attributes come from the tree", TalentTree.Nodes.Where(n => n.Sector >= 0 && n.Kind != TalentKind.Gate).All(n => n.Mods.Any(m => Attributes.Is(m.Stat))));
             int[] given = TalentContent.Sectors.Select(s => (int)TalentContent.AttributesOf(s.Id).Sum(m => m.Value)).ToArray();
@@ -582,7 +603,7 @@ namespace Dino_BuildLab
             // The sum on a card has to come to what the sheet says.
             var armoured = new HeroState { Level = 5 };
             armoured.Equipped[WornSlot.Body] = new Item { Name = "Coat", Slot = ItemSlot.Body, Level = 5, Armour = 100f };
-            ActorSheet worn = new Loadout(5, WeaponProfile.Fists, HeroBuild.Innate().Concat(armoured.Equipped[WornSlot.Body].Mods()).Concat(new[] { Inc(Stat.Armour, 20f), Inc(Stat.Armour, 10f), Inc(Stat.Armour, -5f), More(Stat.Armour, 50f), More(Stat.Armour, -10f) }), new[] { SkillCatalog.Strike }).SheetFor(Condition.None);
+            ActorSheet worn = new Loadout(5, WeaponProfile.Fists, HeroBuild.Innate().Concat(armoured.Equipped[WornSlot.Body].Mods()).Concat(new[] { Inc(Stat.Armour, 20f), Inc(Stat.Armour, 10f), Inc(Stat.Armour, -5f), More(Stat.Armour, 50f), More(Stat.Armour, -10f) }), new[] { Shelf.Strike }).SheetFor(Condition.None);
             Card card = Cards.OfRow(StatBook.Rows.First(r => r.Name == "Armour"), worn);
             report.Check("A stat's card adds up all the flat", Value(card, "Flat") == "+100", Value(card, "Flat") ?? "");
             report.Check("And all the increased and reduced into one", Value(card, "Increased") == "25%", Value(card, "Increased") ?? "");

@@ -162,7 +162,7 @@ namespace Dino_Defenders.Progression
         /// <summary>What's written in it, if it's a book.</summary>
         public Book? Book { get; set; }
 
-        public bool IsBook => Book != null;
+        public bool IsBook => Slot == ItemSlot.Book;
 
         // Anyone can write as many books as they like for now, so one can't be worth any gold.
         public int SellValue => IsBook ? 0 : (int)(4f * Level * (1f + (int)Rarity * 1.6f + Lines.Count * 0.5f));
@@ -468,7 +468,7 @@ namespace Dino_Defenders.Progression
                 "health-regen-percent", "physical-damage", "attack-damage", "stun-chance");
             Suit(GearFamily.Leather, "dexterity", "evasion", "evasion-percent", "attack-speed", "crit-chance", "crit-increased", "crit-multiplier", "accuracy", "move-speed", "dodge-cooldown", "stealth",
                 "ailment-avoid", "projectile-speed", "bleed-chance", "venom-chance");
-            Suit(GearFamily.Cloth, "intellect", "mana", "mana-percent", "mana-regen", "barrier", "barrier-percent", "barrier-recharge", "spell-damage", "cast-speed", "cooldown", "cost", "skill-level",
+            Suit(GearFamily.Cloth, "intellect", "mana", "mana-percent", "mana-regen", "barrier", "barrier-percent", "barrier-recharge", "spell-damage", "cast-speed", "cooldown", "cost", "potency",
                 "taken-from-mana", "duration", "minion-damage", "mana-on-hit", "mana-leech", "mana-on-kill");
         }
     }
@@ -598,7 +598,7 @@ namespace Dino_Defenders.Progression
 
         private static Item Compose(int level, WorldRandom random, Rarity rarity, ItemSlot? slot, float quality, bool masterwork)
         {
-            ItemSlot chosen = slot ?? (ItemSlot)random.Int(Enum.GetValues<ItemSlot>().Length);
+            ItemSlot chosen = slot ?? (ItemSlot)random.Int((int)ItemSlot.Book);
             if (rarity == Rarity.Legendary && UniqueCatalog.Pick(level, slot, random) is UniqueDefinition unique) return UniqueCatalog.Make(unique, level, random);
             if (rarity == Rarity.Legendary) rarity = Rarity.Rare;
 

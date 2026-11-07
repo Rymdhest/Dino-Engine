@@ -3,7 +3,7 @@ using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.ECS.Components;
@@ -44,7 +44,7 @@ namespace Dino_NetLab
         public int HeldSlots;           // Instead of fighting: the keys on these slots held down.
         public Func<HeroIntent>? Script;    // Instead of everything: exactly what's pressed, frame by frame.
         private int _heldLastFrame;
-        public readonly int[] Uses = new int[HeroState.SkillSlots];
+        public readonly int[] Uses = new int[HeroState.BarSlots];
         public readonly List<(InteractKind kind, SiteState site)> PanelsOpened = new();
         private int _frames;
         public double DivergenceTotal;
@@ -140,7 +140,7 @@ namespace Dino_NetLab
             if (HeldSlots != 0 && Client.Session != null)
             {
                 var held = new HeroIntent();
-                for (int slot = 2; slot < HeroState.SkillSlots; slot++)
+                for (int slot = 2; slot < HeroState.BarSlots; slot++)
                 {
                     bool down = (HeldSlots & 1 << slot) != 0;
                     bool justPressed = down && (_heldLastFrame & 1 << slot) == 0;
@@ -200,7 +200,7 @@ namespace Dino_NetLab
                 intent.Dash = best is > 10f and < 18f && _random.NextDouble() < 0.05;
 
                 // Spells too, as what they do to mana and cooldowns has to be predicted like everything else.
-                for (int slot = 1; slot < HeroState.SkillSlots; slot++)
+                for (int slot = 1; slot < HeroState.BarSlots; slot++)
                 {
                     if (slot != WhirlSlot && Client.Kit.Slots[slot] != null && best < 24f && _random.NextDouble() < 0.03) intent.Use(slot);
                 }
@@ -302,7 +302,7 @@ namespace Dino_NetLab
                     hero.Talents.Add(node.Id);
                     foreach (Mod mod in node.Mods)
                     {
-                        if (mod.Kind == ModKind.GrantSkill) HeroBuild.OfferToBar(hero, SkillCatalog.Get(mod.Skill));
+                        if (mod.Kind == ModKind.GrantSkill) HeroBuild.OfferToBar(hero, Shelf.Get(mod.Skill));
                     }
                 }
             }
@@ -666,7 +666,7 @@ namespace Dino_NetLab
             var random = new Random(9);
 
             // All three hundred are one loadout, which is the point. They can't be killed in the time, or do much.
-            var kind = new EnemyKind { Id = "lab-horde", Name = "Restless Dead", Skills = new[] { SkillCatalog.Strike, SkillCatalog.Shot }, Weapon = Tags.Bow, Health = 2000f, Damage = 0.01f, MoveSpeed = 6f };
+            var kind = new EnemyKind { Id = "lab-horde", Name = "Restless Dead", Skills = new[] { Shelf.Strike, Shelf.Shot }, Weapon = Tags.Bow, Health = 2000f, Damage = 0.01f, MoveSpeed = 6f };
             Loadout horde = server.Session!.Bestiary.Shared(kind, 1, EnemyRank.Normal, Bestiary.NoTrait);
             for (int i = 0; i < Enemies; i++)
             {
@@ -679,7 +679,7 @@ namespace Dino_NetLab
             }
 
             var archer = new Actor(Team.Enemies, horde, centre, 1.1f) { Body = "skeleton" };
-            SkillProfile shot = archer.Sheet.Profile(SkillCatalog.Shot)!;
+            BookProfile shot = archer.Sheet.Preview(Shelf.Shot);
 
             int ticks = 0;
             int arrowsLoosed = 0;
@@ -1009,7 +1009,7 @@ namespace Dino_NetLab
             lab.Run(6);
 
             ServerPlayer truth = lab.Server.Players.First();
-            player.WhirlEveryFrames = (int)(SkillCatalog.Whirl.Cooldown * 60.0) + 90;
+            player.WhirlEveryFrames = (int)(Shelf.Whirl.Cooldown * 60.0) + 90;
 
             int happened = 0;
             float last = 0f;
@@ -1071,7 +1071,7 @@ namespace Dino_NetLab
             player.Client.Allocate(Node("pyre.firebolt"));
             lab.Run(0.5);
             report.Check("A skill learned on the tree goes on the bar, on both ends", truth.Hero.Bar.Contains("firebolt") && player.Client.Hero.Bar.Contains("firebolt"));
-            report.Check("And there's a profile to use it with, on both ends", truth.Kit.Slots.Any(s => s?.Skill == SkillCatalog.Firebolt) && player.Client.Kit.Slots.Any(s => s?.Skill == SkillCatalog.Firebolt));
+            report.Check("And there's a profile to use it with, on both ends", truth.Kit.Slots.Any(s => s?.Skill == Shelf.Firebolt) && player.Client.Kit.Slots.Any(s => s?.Skill == Shelf.Firebolt));
 
             player.Client.Allocate(Node("pyre.t1"));
             lab.Run(0.5);
@@ -1084,7 +1084,7 @@ namespace Dino_NetLab
             player.Client.Refund(Node("pyre.firebolt"));
             lab.Run(0.5);
             report.Check("A node at the end of a path can", !truth.Hero.Talents.Contains("pyre.firebolt") && !player.Client.Hero.Talents.Contains("pyre.firebolt"));
-            report.Check("And what it taught goes with it", truth.Kit.Slots.All(s => s?.Skill != SkillCatalog.Firebolt));
+            report.Check("And what it taught goes with it", truth.Kit.Slots.All(s => s?.Skill != Shelf.Firebolt));
 
             player.Client.ForgetTalents();
             lab.Run(0.5);
@@ -1126,7 +1126,7 @@ namespace Dino_NetLab
             ActorSheet server = truth.Actor.Sheet;
             ActorSheet client = player.Client.Sheet;
             return server.MaxHealth == client.MaxHealth && server.MaxMana == client.MaxMana && server.MoveSpeed == client.MoveSpeed && server.Armour == client.Armour
-                && server.Loadout.Skills.Length == client.Loadout.Skills.Length;
+                && server.Loadout.Books.Length == client.Loadout.Books.Length;
         }
 
         // Clicking a mark: the hero walks there on their own feet, and the press that ends it goes to the thing that was clicked and nothing else.

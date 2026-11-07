@@ -1,5 +1,5 @@
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Defenders.Tooltips;
@@ -67,13 +67,12 @@ namespace Dino_BuildLab
                 }
             }
 
-            if (what is "all" or "skills")
+            if (what is "all" or "sentences")
             {
-                Console.WriteLine("\nSkills");
-                foreach (SkillDefinition skill in SkillCatalog.All.Where(s => !s.Hidden))
+                foreach (Blank blank in Enum.GetValues<Blank>())
                 {
-                    Console.WriteLine($"  {skill.Name}: {skill.Text}");
-                    foreach (Mod mod in skill.Mods) Console.WriteLine($"      {mod.Describe()}");
+                    Console.WriteLine($"\n{BookText.NameOf(blank)}");
+                    foreach (Sentence sentence in Sentences.For(blank)) Console.WriteLine($"  {sentence.Words}: {string.Join(", ", BookText.Trade(sentence.Weights))}");
                 }
             }
 
@@ -96,7 +95,7 @@ namespace Dino_BuildLab
 
                 if (what == "cards")
                 {
-                    foreach (SkillDefinition skill in SkillCatalog.All) Print(Cards.Skill(sheet.Preview(skill)));
+                    foreach (BookPlan skill in Shelf.All) Print(Cards.Book(sheet.Preview(skill)));
                 }
                 else
                 {

@@ -70,6 +70,7 @@ namespace Dino_Defenders
         public int HeroLevel = 1;
         public readonly List<string> Talents = new();
         public readonly List<string> Equip = new();
+        public readonly List<string> Books = new();
         public int Carry;
         public string? Parade;
 
@@ -156,6 +157,7 @@ namespace Dino_Defenders
                     case "hero": options.HeroLevel = int.Parse(value); break;
                     case "talents": options.Talents.AddRange(value.Split(',')); break;
                     case "equip": options.Equip.AddRange(value.Split(',')); break;
+                    case "books": options.Books.AddRange(value.Split(',')); break;
                     case "carry": options.Carry = int.Parse(value); break;
                     case "parade": options.Parade = value; break;
                     case "brawl": options.Brawl = value; break;

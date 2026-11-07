@@ -165,6 +165,16 @@ namespace Dino_Defenders
                 hero.Equip(item);
             }
 
+            // What's on the shelf, copied out onto the bar from the first place on, for looking at something with nothing written by hand.
+            for (int i = 0; i < options.Books.Count && i < HeroState.BarSlots; i++)
+            {
+                if (Books.Shelf.Find(options.Books[i]) is not { Source: Books.Book written } plan) continue;
+                Item book = ItemGenerator.Book((ulong)i + 1);
+                book.Book = written.Copy();
+                book.Name = plan.Name;
+                hero.Bar[i] = book;
+            }
+
             if (options.Wear is string family) Wear(hero, Enum.Parse<GearFamily>(family, ignoreCase: true), options.Seed ?? 1);
 
             var carried = new Dino_Engine.World.WorldRandom(options.Seed ?? 1).Fork("carried");

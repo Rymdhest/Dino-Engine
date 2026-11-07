@@ -1,5 +1,5 @@
 using Dino_Defenders.Progression;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.World;
@@ -34,7 +34,7 @@ namespace Dino_BuildLab
                 for (int i = 0; i < size; i++) mods.Add(every[random.Next(every.Count)]);
 
                 var weapon = new WeaponProfile(random.NextSingle() * 200f, 200f + random.NextSingle() * 200f, 0.4f + random.NextSingle(), random.NextSingle() * 20f, Tags.Sword);
-                var loadout = new Loadout(random.Next(1, 90), weapon, mods, SkillCatalog.All);
+                var loadout = new Loadout(random.Next(1, 90), weapon, mods, Shelf.All);
 
                 Condition state = (Condition)((ulong)random.NextInt64() & (ulong)((1L << 37) - 1));
                 Counters counters = new Counters { Gold = random.Next(0, 1000000), ShrinesKindled = (byte)random.Next(60), RecentKills = (byte)random.Next(200), HealthSpent = (byte)random.Next(200), Minions = (byte)random.Next(30), AlliesNear = (byte)random.Next(5) };
@@ -44,10 +44,10 @@ namespace Dino_BuildLab
                 firstBad = Inspect(sheet, $"round {round}");
                 if (firstBad != null) break;
 
-                var target = new Loadout(30, weapon, mods.Take(mods.Count / 2), new[] { SkillCatalog.Strike }).SheetFor(state);
-                foreach (SkillDefinition skill in SkillCatalog.All)
+                var target = new Loadout(30, weapon, mods.Take(mods.Count / 2), new[] { Shelf.Strike }).SheetFor(state);
+                foreach (BookPlan skill in Shelf.All)
                 {
-                    SkillProfile profile = sheet.Profile(skill)!;
+                    PageProfile profile = sheet.Profile(skill)!.First;
                     firstBad = Inspect(profile, $"round {round}, {skill.Id}");
                     if (firstBad != null) break;
                     if (random.Next(4) != 0) continue;
@@ -110,7 +110,7 @@ namespace Dino_BuildLab
                 }
             }
 
-            if (target is SkillProfile profile)
+            if (target is PageProfile profile)
             {
                 foreach (DamageFlow flow in profile.Flows)
                 {
@@ -136,17 +136,17 @@ namespace Dino_BuildLab
             report.Check("Nor does armour as high as a float can hold", float.IsFinite(Hits.Mitigate(stone, ref glance)));
             report.Check("Nor evasion", Hits.EvadeChance(stone.Evasion, 1f) <= Hits.MostEvasion);
 
-            ActorSheet broken = StatChecks.Sheet(Flat(Stat.Health, 100f), Inc(Stat.Health, -500f), More(Stat.Health, -500f), Inc(Stat.AttackSpeed, -500f), Inc(Stat.CastSpeed, -500f), Inc(Stat.MoveSpeed, -500f), Inc(Stat.SkillCost, -500f), Inc(Stat.AreaOfEffect, -500f));
+            ActorSheet broken = StatChecks.Sheet(Flat(Stat.Health, 100f), Inc(Stat.Health, -500f), More(Stat.Health, -500f), Inc(Stat.AttackSpeed, -500f), Inc(Stat.CastSpeed, -500f), Inc(Stat.MoveSpeed, -500f), Inc(Stat.BookCost, -500f), Inc(Stat.AreaOfEffect, -500f));
             report.Check("A hero can't be reduced to less than nothing", broken.MaxHealth >= 1f && broken.MoveSpeed > 0f);
-            SkillProfile slow = broken.Profile(SkillCatalog.Firebolt)!;
-            report.Check("Nor their skills", float.IsFinite(slow.UseTime) && slow.UseTime > 0f && slow.Cost >= 0f && slow.Radius >= 0f, $"{slow.UseTime}, {slow.Cost}, {slow.Radius}");
+            PageProfile slow = broken.Preview(Shelf.Immolate).First;
+            report.Check("Nor their books", float.IsFinite(slow.UseTime) && slow.UseTime > 0f && slow.Cost >= 0f && slow.Length >= 0f, $"{slow.UseTime}, {slow.Cost}, {slow.Length}");
 
             ActorSheet quick = StatChecks.Sheet(More(Stat.CastSpeed, 100000f), More(Stat.AttackSpeed, 100000f));
-            report.Check("Nor sped up past what a tick can see", quick.Profile(SkillCatalog.Firebolt)!.UseTime >= 0.05f);
+            report.Check("Nor sped up past what a tick can see", quick.Preview(Shelf.Firebolt).UseTime >= 0.05f);
 
             ActorSheet many = StatChecks.Sheet(Flat(Stat.ProjectileCount, 100000f), Flat(Stat.Pierce, 1e9f), Flat(Stat.Chain, 1e9f));
-            report.Check("A skill can't be made to fire more than a server can bear", many.Profile(SkillCatalog.Firebolt)!.Projectiles <= 32);
-            report.Check("And the numbers that can run away stay integers", many.Profile(SkillCatalog.Firebolt)!.Pierce > 0 && many.Profile(SkillCatalog.Spark)!.Chains > 0);
+            report.Check("A book can't be made to fire more than a server can bear", many.Preview(Shelf.Firebolt).First.Projectiles <= Rulebook.MostMade);
+            report.Check("And the numbers that can run away stay integers", many.Preview(Shelf.Firebolt).First.Pierce > 0 && many.Preview(Shelf.Spark).First.Chains > 0);
         }
 
         // Someone clicking around the tree at random, taking and giving back, can never leave it in a state that doesn't hold together.

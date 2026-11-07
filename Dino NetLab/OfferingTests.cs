@@ -2,7 +2,7 @@ using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -449,7 +449,7 @@ namespace Dino_NetLab
             Loadout kind = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 6, EnemyRank.Normal, Bestiary.NoTrait);
             Actor near = arena.Place(kind, new Vector2(4f, 0f));
             Actor far = arena.Place(kind, new Vector2(30f, 0f));
-            float hit = near.Sheet.Profile(SkillCatalog.Strike)!.AverageHit;
+            float hit = near.Sheet.Preview(Shelf.Strike).First.AverageHit;
 
             for (int i = 0; i < 7; i++)
             {
@@ -460,7 +460,7 @@ namespace Dino_NetLab
 
             report.Check("Those around it have heard", near.Buffs.Any(b => b.Buff == BuffCatalog.Rallied));
             report.Check("And it stacks only so far", near.Buffs.First(b => b.Buff == BuffCatalog.Rallied).Stacks == BuffCatalog.Rallied.MostStacks);
-            report.Check("And they really hit harder", near.Sheet.Profile(SkillCatalog.Strike)!.AverageHit > hit * 1.4f, $"{hit} to {near.Sheet.Profile(SkillCatalog.Strike)!.AverageHit}");
+            report.Check("And they really hit harder", near.Sheet.Preview(Shelf.Strike).First.AverageHit > hit * 1.4f, $"{hit} to {near.Sheet.Preview(Shelf.Strike).First.AverageHit}");
             report.Check("Those too far off haven't", far.Buffs.Count == 0);
             report.Check("Heroes get nothing from it", arena.Hero.Buffs.All(b => b.Buff != BuffCatalog.Rallied));
 
@@ -472,7 +472,7 @@ namespace Dino_NetLab
             report.Check("So one who was rallied rallies others in turn", last.Buffs.Any(b => b.Buff == BuffCatalog.Rallied));
 
             arena.Run(BuffCatalog.Rallied.Duration + 1.0);
-            report.Check("It wears off", last.Buffs.Count == 0 && MathF.Abs(last.Sheet.Profile(SkillCatalog.Strike)!.AverageHit - hit) < 0.01f);
+            report.Check("It wears off", last.Buffs.Count == 0 && MathF.Abs(last.Sheet.Preview(Shelf.Strike).First.AverageHit - hit) < 0.01f);
         }
 
         private static void Land(Report report, WorldCache worlds)

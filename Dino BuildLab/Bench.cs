@@ -1,4 +1,4 @@
-using Dino_Defenders.Skills;
+using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.World;
 using System.Diagnostics;
@@ -38,10 +38,10 @@ namespace Dino_BuildLab
         {
             var weapon = new WeaponProfile(50f, 70f, 0.6f, 5f, Tags.Sword);
             Mod[] heavy = HeavyBuild(600);
-            var loadout = new Loadout(40, weapon, heavy, SkillCatalog.All);
+            var loadout = new Loadout(40, weapon, heavy, Shelf.All);
             ActorSheet sheet = loadout.SheetFor(Condition.None);
-            SkillProfile profile = sheet.Profile(SkillCatalog.Firebolt)!;
-            ActorSheet target = new Loadout(40, weapon, HeavyBuild(100), SkillCatalog.All).SheetFor(Condition.None);
+            PageProfile profile = sheet.Preview(Shelf.Firebolt).First;
+            ActorSheet target = new Loadout(40, weapon, HeavyBuild(100), Shelf.All).SheetFor(Condition.None);
             var luck = new WorldRandom(11);
             Vitals vitals = Vitals.Full(target);
 
@@ -69,7 +69,7 @@ namespace Dino_BuildLab
             report.Check("A blow from a build of 600 modifiers takes under a microsecond", nanoseconds < 1000.0, $"{nanoseconds:0} ns");
             report.Note($"A blow, rolled, mitigated and paid: {nanoseconds:0} ns, so {1e9 / nanoseconds / 1e6:0.0} million a second on one core");
 
-            SkillProfile lean = new Loadout(40, weapon, new[] { Flat(Stat.Health, 500f), Inc(Stat.Damage, 50f) }, SkillCatalog.All).SheetFor(Condition.None).Profile(SkillCatalog.Firebolt)!;
+            PageProfile lean = new Loadout(40, weapon, new[] { Flat(Stat.Health, 500f), Inc(Stat.Damage, 50f) }, Shelf.All).SheetFor(Condition.None).Preview(Shelf.Firebolt).First;
             clock.Restart();
             for (int i = 0; i < Blows; i++)
             {
@@ -85,8 +85,8 @@ namespace Dino_BuildLab
             clock.Restart();
             for (int i = 0; i < Compiles; i++)
             {
-                var fresh = new Loadout(40, weapon, heavy, SkillCatalog.All);
-                _ = fresh.SheetFor(Condition.None).Profile(SkillCatalog.Firebolt);
+                var fresh = new Loadout(40, weapon, heavy, Shelf.All);
+                _ = fresh.SheetFor(Condition.None).Profile(Shelf.Firebolt);
             }
             clock.Stop();
             double compile = clock.Elapsed.TotalMilliseconds * 1000.0 / Compiles;
