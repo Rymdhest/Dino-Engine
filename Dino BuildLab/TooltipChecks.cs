@@ -64,7 +64,7 @@ namespace Dino_BuildLab
             report.Check("Every stat has a term", stats.All(s => Lexicon.Of(s) != null), string.Join(", ", stats.Where(s => Lexicon.Of(s) == null)));
             report.Check("Every stat has a line on the sheet", stats.All(s => StatBook.Rows.Any(r => r.Stats.Contains(s))), string.Join(", ", stats.Where(s => !StatBook.Rows.Any(r => r.Stats.Contains(s)))));
 
-            var rules = Single<Rule>().ToList();
+            var rules = Enum.GetValues<Rule>().Where(r => r is not (Rule.None or Rule.Count)).ToList();
             report.Check("Every rule has words", rules.All(r => ModText.Of(r) != null), string.Join(", ", rules.Where(r => ModText.Of(r) == null)));
 
             var conditions = Single<Condition>().ToList();

@@ -132,6 +132,55 @@ namespace Dino_Defenders.Stats
         public const float LongShotNear = 10f;          // Metres, inside which it's weaker.
         public const float LongShotNearLess = 0.4f;
 
+        // What only uniques do. Nobody has played any of it, so these are only where to start.
+        public const float BleedBurstShare = 0.25f;     // Of the bleeder's maximum health, dealt around it as Physical.
+        public const float OverkillReach = 12f;         // Metres what's left over looks for someone in.
+        public const float ExecuteAnyReach = 12f;       // Percent of maximum health, onto what executes, for those whose every hit can.
+        public const float StunSpreadReach = 6f;
+        public const float LevellerShare = 0.04f;       // Of a target's maximum health, in each Hit.
+        public const float LevellerBossShare = 0.01f;   // The same, for a boss.
+        public const float VenomSlowPerStack = 0.05f;   // Off action speed.
+        public const float OverTimeLeech = 0.03f;       // Of damage over time dealt, back as health.
+        public const float DragSpeed = 14f;             // Metres a second towards whoever threw it.
+        public const float ForkAngle = 0.35f;           // Radians either side of the way it was going.
+        public const float PierceGrowth = 0.2f;         // More damage after each one passed through.
+        public const float ManaPowerStep = 5f;          // Mana spent, for each 1% more.
+        public const float ChoirStrength = 0.3f;        // Of what you'd do, for each minion that joins in.
+        public const int MostDeepHex = 12;              // Stacks of Hex, for those who go deeper.
+        public const float RunOnStrength = 0.5f;
+        public const float RetortMost = 1f;             // Of maximum health: what can be kept from blocking.
+        public const int ThirdBlockEvery = 3;
+        public const float BlockManaShare = 0.3f;       // Of a blocked spell's damage, as mana.
+        public const float ShoulderShare = 0.3f;        // Of a Hit, taken by a minion instead.
+        public const float GoldAbsorbShare = 0.3f;      // Of each Hit, paid in gold while there's any.
+        public const float GoldPerHealth = 0.5f;        // Gold for each point of health it pays for.
+        public const float CostToRest = 0.08f;          // Seconds of rest for each point of Cost.
+        public const float RestToCost = 10f;            // Cost for each second of rest.
+        public const float GaspSeconds = 4f;
+        public const float GaspCooldown = 60f;
+        public const float GaspHeal = 0.4f;             // Of maximum health, back for a kill while gasping.
+        public const float MinionShieldHealth = 0.3f;   // Of maximum health, kept when a minion dies instead.
+        public const float HitCapShare = 0.2f;          // Of maximum health: the most a Hit can take.
+        public const float DodgeManaShare = 0.12f;      // Of maximum mana, for each dodge.
+        public const float FlukeChance = 0.25f;
+        public const float FumbleChance = 0.25f;
+        public const float FlukeDelay = 0.25f;          // Seconds between a book and its second going.
+        public const float HealsHarmRadius = 8f;
+        public const float HealsHarmShare = 1f;         // Of what's restored, dealt as Magic.
+        public const float GoldPerCost = 3f;            // Gold for each point of a book's Cost.
+        public const float QuickTriggerShare = 0.5f;    // Of what a Trigger Book waits for.
+        public const float IceBurstShare = 0.3f;        // Of the frozen's maximum health, dealt around as Cold.
+        public const float LodestoneReach = 14f;
+        public const float LodestonePull = 4f;          // Metres a second.
+        public const float MinionBurstShare = 0.6f;     // Of a minion's maximum health, dealt around as Fire.
+        public const float RepeatLess = 0.5f;           // Off a book used twice running, for those who can't.
+        public const float CloseReach = 6f;             // Metres: Up Close inside it, At Range beyond.
+        public const float IsolatedReach = 6f;          // Metres an Enemy has to be from any other to be Isolated.
+        public const float CrowdReach = 10f;            // Metres, for who's around a hero.
+        public const int SurroundedBy = 5;              // Enemies within that.
+        public const float RainFrom = 0.25f;            // How hard it has to be raining to count.
+        public const float SnowFrom = 0.25f;
+
         // What enemies do at the end.
         public const float BurstDelay = 0.9f;           // Seconds from a body falling to its going up. A dodge is half that.
         public const float BurstRadius = 4.5f;

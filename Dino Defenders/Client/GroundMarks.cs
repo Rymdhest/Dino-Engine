@@ -100,6 +100,7 @@ namespace Dino_Defenders.Client
             Follow(client.Predictor.Current, now, deltaTime);
 
             int drawn = 0;
+            bool blind = client.Kit.Sheet.Has(Rule.Blind);
             for (int i = _marks.Count - 1; i >= 0; i--)
             {
                 Mark mark = _marks[i];
@@ -117,8 +118,8 @@ namespace Dino_Defenders.Client
 
                 if (drawn >= MostMarks || (mark.Shape.Origin - hero).LengthSquared > FarOff * FarOff) continue;
 
-                // Only what's drawn: the blow lands all the same, and turning this back on in the middle of a fight shows what's already on its way.
-                if (mark.Hostile && !InterfaceSettings.Load().Marks(mark.From)) continue;
+                // Only what's drawn: the blow lands all the same, and turning this back on in the middle of a fight shows what's already on its way. Some heroes choose not to see.
+                if (mark.Hostile && (blind || !InterfaceSettings.Load().Marks(mark.From))) continue;
                 drawn++;
                 renderer.SubmitCommand(Command(mark, now, past, hero));
             }

@@ -121,5 +121,23 @@ namespace Dino_Defenders.Books
         public static readonly BookPlan Split = Write("split", "Splitting Shot", new[] { Bolt(Plain, Deal()), Bolt(Say("three-at-once"), Deal()).Going("onward") });
         public static readonly BookPlan Inferno = Write("inferno", "Inferno", new[] { Area("circle", Plain, Deal("fire")) }, mode: BookMode.Toggle);
         public static readonly BookPlan Retort = Write("retort", "Retort", new[] { Area("circle", Plain, Deal("lightning")) }, mode: BookMode.Trigger, when: new BookTrigger { When = BookWhen.Moved, Amount = 20f });
+
+        // What uniques set off.
+        public static readonly BookPlan Aftershock = Write("aftershock", "Aftershock", new[] { Area("circle", Plain, Deal()) }, page => { page.Potency = 0.8f; page.Length = 6f; }, triggered: true);
+        public static readonly BookPlan Bristle = Write("bristle", "Bristling Spears", new[] { Area("circle", Plain, Deal()) }, page => { page.Potency = 0.6f; page.Length = 5f; }, triggered: true);
+        public static readonly BookPlan Skyfall = Write("skyfall", "Skyfall", new[] { Bolt(Plain, Do("pass")).At("from-nearest").Going("downwards"), Area("circle", Plain, Deal("lightning")) }, page =>
+        {
+            if (page.Index == 0) return;
+            page.Potency = 1.2f;
+            page.Length = 4f;
+            page.Mods = new[] { Chance(Tags.Shock, 50f) };
+        }, triggered: true);
+        public static readonly BookPlan StaticField = Write("static-field", "Static Field", new[] { Area("circle", Plain, Deal("lightning")) }, page => { page.Potency = 0.3f; page.Length = 8f; page.Mods = new[] { Chance(Tags.Shock, 100f) }; }, triggered: true);
+        public static readonly BookPlan Kiln = Write("kiln", "Kiln Heat", new[] { Area("circle", Plain, Deal("fire")) }, page => { page.Potency = 0.25f; page.Length = 7f; page.Mods = new[] { Chance(Tags.Burn, 100f) }; }, triggered: true);
+        public static readonly BookPlan EmberRing = Write("ember-ring", "Ember Ring", new[] { Area("circle", Plain, Deal("fire")) }, page => { page.Potency = 0.7f; page.Length = 6f; page.Mods = new[] { Chance(Tags.Burn, 60f) }; }, triggered: true);
+        public static readonly BookPlan Trample = Write("trample", "Trample", new[] { Area("circle", Plain, Deal()) }, page => { page.Length = 4.5f; page.Mods = new[] { Chance(Tags.Stun, 40f) }; }, triggered: true);
+        public static readonly BookPlan BoneSpurs = Write("bone-spurs", "Bone Spurs", new[] { Bolt(Say("five-at-once"), Deal()).Going("anywhere") }, page => page.Potency = 0.5f, triggered: true);
+        public static readonly BookPlan LastWord = Write("last-word", "The Last Word", new[] { Area("circle", Plain, Deal("magic", "of-barrier")) }, page => { page.Potency = 2.5f; page.Length = 8f; }, triggered: true);
+        public static readonly BookPlan Steam = Write("steam", "Scalding Steam", new[] { Area("circle", Plain, Deal("fire")).Lasting("lingering") }, page => { page.Potency = 0.4f; page.Length = 4f; }, triggered: true);
     }
 }

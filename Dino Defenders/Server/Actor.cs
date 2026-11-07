@@ -60,6 +60,9 @@ namespace Dino_Defenders.Server
         public float Stored;
         public Actor? StoredBy;
 
+        /// <summary>Whether the venom on it slows it, as some people's does.</summary>
+        public bool VenomDrags;
+
         public Condition Current
         {
             get
@@ -83,13 +86,22 @@ namespace Dino_Defenders.Server
             BurnPerSecond = BleedPerSecond = ChillEffect = ShockEffect = Stored = 0f;
             HexStacks = 0;
             HexEffect = 1f;
+            VenomDrags = false;
             Venom?.Clear();
         }
 
         public float ResistanceLost => HexLeft > 0f ? HexStacks * AilmentRules.HexPerStack * HexEffect : 0f;
         public float TakenIncrease => ShockLeft > 0f ? ShockEffect : 0f;
         public bool Held => FreezeLeft > 0f || StunLeft > 0f;
-        public float ActionRate => ChillLeft > 0f ? 1f - ChillEffect : 1f;
+        public float ActionRate
+        {
+            get
+            {
+                float rate = ChillLeft > 0f ? 1f - ChillEffect : 1f;
+                if (VenomDrags && Venom is { Count: > 0 }) rate *= 1f - MathF.Min(Venom.Count * Rulebook.VenomSlowPerStack, AilmentRules.ChillEffectLimit);
+                return rate;
+            }
+        }
     }
 
     /// <summary>
@@ -144,6 +156,41 @@ namespace Dino_Defenders.Server
         public float SinceBlock = LongAgo;
         public float SinceDodge = LongAgo;
         public float SinceUse = LongAgo;
+        public float SinceStrike = LongAgo;     // Since it last landed a hit on anyone.
+
+        /// <summary>How long it's been fighting without a break, which is hitting or being hit at least every so often.</summary>
+        public float FightFor;
+
+        /// <summary>How far it went in the last tick.</summary>
+        public float Stepped;
+
+        /// <summary>Since each place on a hero's bar was last used by hand, the one used last, and how many times running.</summary>
+        public readonly float[] SinceSlot = Enumerable.Repeat(LongAgo, HeroState.BarSlots).ToArray();
+        public int LastSlot = -1;
+        public int Streak;
+
+        /// <summary>Enemies within <see cref="Rulebook.CrowdReach"/>, as of the last tick. Only a hero counts them.</summary>
+        public int EnemiesNear;
+        public int RaresSlain;
+
+        /// <summary>The one it has marked, for those who mark.</summary>
+        public Actor? Focus;
+
+        /// <summary>What it's blocked and kept, for those who give it back.</summary>
+        public float Kept;
+
+        /// <summary>Hits that have reached it, for those who block every so many.</summary>
+        public int Struck;
+
+        /// <summary>How long it has left to find a kill, while death waits for one, and how long until death will wait again.</summary>
+        public float GaspLeft;
+        public float GaspIn;
+
+        /// <summary>What its last use spent, in mana, for those whose books are worth what they cost.</summary>
+        public float Spent;
+
+        /// <summary>It was killed by someone whose kills drop nothing.</summary>
+        public bool Plundered;
 
         public float KillHeat;
         public float HealthSpent;
@@ -165,6 +212,9 @@ namespace Dino_Defenders.Server
 
         /// <summary>How long until each of its triggers can go off again. Follows the loadout.</summary>
         public float[] TriggerReady;
+
+        /// <summary>What each trigger that goes by time or distance has left to wait for, in seconds or metres. Follows the loadout.</summary>
+        public float[] TriggerLeft;
 
         /// <summary>The Trigger Books it has, and how far each has got. Most have none.</summary>
         public BookWatch[] Watches = Array.Empty<BookWatch>();
@@ -190,14 +240,19 @@ namespace Dino_Defenders.Server
             Array.Fill(Trail, position);
             Cooldowns = new float[loadout.Books.Length];
             TriggerReady = new float[loadout.Triggers.Length];
+            TriggerLeft = Waits(loadout);
         }
+
+        // What goes by time or distance starts by waiting the whole of it.
+        private static float[] Waits(Loadout loadout) => Array.ConvertAll(loadout.Triggers, trigger => trigger.PerStep);
 
         public bool IsFoeOf(Actor other) => Team != other.Team;
 
         /// <summary>Everything that passes with time alone. Damage over time is <see cref="Combat"/>'s.</summary>
         public void Advance(float seconds, uint tick, Vector2 position)
         {
-            Moving = (position - Position).LengthSquared > 1e-5f;
+            Stepped = (position - Position).Length;
+            Moving = Stepped * Stepped > 1e-5f;
             if (Sheet.Has(Rule.StaticCharge)) Static = MathF.Min(Static + (position - Position).Length, Rulebook.MostStatic);
             Position = position;
             Trail[tick % TrailTicks] = position;
@@ -208,6 +263,10 @@ namespace Dino_Defenders.Server
             SinceBlock += seconds;
             SinceDodge += seconds;
             SinceUse += seconds;
+            SinceStrike += seconds;
+            FightFor = SinceHit < Rulebook.Recently || SinceStrike < Rulebook.Recently ? FightFor + seconds : 0f;
+            GaspIn = MathF.Max(GaspIn - seconds, 0f);
+            for (int i = 0; i < SinceSlot.Length; i++) SinceSlot[i] += seconds;
             KillHeat = MathF.Max(KillHeat - Rulebook.RecentKillFade * seconds, 0f);
             HealthSpent = MathF.Max(HealthSpent - Rulebook.HealthSpentFade * seconds, 0f);
             RebirthIn = MathF.Max(RebirthIn - seconds, 0f);
@@ -231,7 +290,12 @@ namespace Dino_Defenders.Server
         /// <summary>Works out what's true of it now, and takes the sheet that goes with that.</summary>
         public void ReadState(Condition land)
         {
+            // Health that can't come back past low doesn't, whatever brought it.
+            if (Sheet.Has(Rule.NeverHealed)) Vitals.Health = MathF.Min(Vitals.Health, Sheet.MaxHealth * Hits.LowShare);
+
             Condition state = Nature | land | Afflictions.Current | Hits.PoolState(Sheet, Vitals);
+            if (IsHero && EnemiesNear >= Rulebook.SurroundedBy) state |= Condition.Surrounded;
+            if (IsHero && EnemiesNear == 0) state |= Condition.Alone;
             state |= Moving ? Condition.Moving : Condition.Stationary;
             if (SinceHit < Rulebook.Recently) state |= Condition.RecentlyHit;
             if (SinceKill < Rulebook.Recently) state |= Condition.RecentlyKilled;
@@ -267,6 +331,7 @@ namespace Dino_Defenders.Server
             // These go by place in the loadout, and a new one can hold more or less.
             if (Cooldowns.Length != loadout.Books.Length) Cooldowns = new float[loadout.Books.Length];
             if (TriggerReady.Length != loadout.Triggers.Length) TriggerReady = new float[loadout.Triggers.Length];
+            if (TriggerLeft.Length != loadout.Triggers.Length) TriggerLeft = Waits(loadout);
         }
 
         /// <summary>What ailments and rules add to everything it takes.</summary>
@@ -387,6 +452,7 @@ namespace Dino_Defenders.Server
         private readonly Condition[] _biomes;
         private readonly List<WorldSite> _graveyards = new();
         private readonly List<(Vector2 position, float radius, float until)> _pools = new();
+        private WeatherField? _weather;
 
         /// <param name="endlessNight">Whether all of it is dark, as a land can be made to be.</param>
         public LandReader(WorldData world, bool endlessNight = false)
@@ -424,6 +490,19 @@ namespace Dino_Defenders.Server
                 if ((at - position).LengthSquared <= radius * radius) return true;
             }
             return false;
+        }
+
+        /// <summary>What the sky is doing over somewhere. It's the same function a client draws it from, with the same seed and clock, so nothing has to be sent.</summary>
+        public Condition Weather(Vector2 position, float clock)
+        {
+            if (!_world.InBounds(position)) return Condition.None;
+            _weather ??= new WeatherField(_world);
+            WeatherSample sky = _weather.Sample(position, clock);
+
+            Condition weather = Condition.None;
+            if (sky.Rain >= Rulebook.RainFrom) weather |= Condition.InRain;
+            if (sky.Fall * sky.Snow >= Rulebook.SnowFrom) weather |= Condition.InSnow;
+            return weather;
         }
 
         public Condition At(Vector2 position)

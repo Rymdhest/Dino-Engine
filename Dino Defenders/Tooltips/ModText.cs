@@ -40,6 +40,7 @@ namespace Dino_Defenders.Tooltips
             Name(Stat.ManaOnKill, "Mana on Kill");
             Name(Stat.BarrierOnKill, "Barrier on Kill");
             Name(Stat.FlaskEffect, "Flask Effect");
+            Name(Stat.HealthDrain, "of Maximum Health lost a second", true);
             Name(Stat.MoveSpeed, "Movement Speed");
             Name(Stat.DodgeCooldown, "Dodge Cooldown");
             Name(Stat.DodgeSpeed, "Dodge Speed");
@@ -107,7 +108,8 @@ namespace Dino_Defenders.Tooltips
     /// <param name="Touches">What it's about: it shows on anything with all of these, and among a talent's tags.</param>
     /// <param name="Casts">A book it sets off, shown beside it with that book's own numbers.</param>
     /// <param name="Gives">A buff it hands out, shown the same way.</param>
-    public sealed record RuleInfo(Rule Rule, string Text, Tags Touches = Tags.None, BookPlan? Casts = null, BuffDefinition? Gives = null);
+    /// <param name="Hurts">Whether it's something nobody would want for itself, which is what an item's price is made of.</param>
+    public sealed record RuleInfo(Rule Rule, string Text, Tags Touches = Tags.None, BookPlan? Casts = null, BuffDefinition? Gives = null, bool Hurts = false);
 
     /// <summary>
     /// Turns a modifier into a line of text by the rules in TOOLTIPS.md, so that nobody has to write one out by hand and have it drift from what the numbers do. Each part of a modifier has one
@@ -167,11 +169,25 @@ namespace Dino_Defenders.Tooltips
             (Condition.HoldingShield, "while holding a Shield", "holding a Shield"),
             (Condition.TwoHanded, "while wielding a Two Handed Weapon", "wielding a Two Handed Weapon"),
             (Condition.Unarmed, "while Unarmed", "that are Unarmed"),
+            (Condition.Wounded, "while Wounded", "that are Wounded"),
+            (Condition.Overdrawn, "while Overdrawn", "that are Overdrawn"),
+            (Condition.Surrounded, "while Surrounded", "that are Surrounded"),
+            (Condition.Alone, "while Alone", "that are Alone"),
+            (Condition.InRain, "while in Rain", "in Rain"),
+            (Condition.InSnow, "while in Snow", "in Snow"),
+            (Condition.Marked, "while Marked", "you've Marked"),
+            (Condition.Unmarked, "while not Marked", "you haven't Marked"),
+            (Condition.Unaware, "while Unaware", "that are Unaware"),
+            (Condition.Aware, "while Aware", "that are Aware"),
+            (Condition.UpClose, "while Up Close", "Up Close"),
+            (Condition.AtRange, "while At Range", "At Range"),
+            (Condition.Isolated, "while Isolated", "that are Isolated"),
+            (Condition.Crowded, "while Crowded", "that are Crowded"),
         };
 
         private static readonly RuleInfo[] RuleTable =
         {
-            new(Rule.CostsHealth, "Books Cost Health instead of Mana"),
+            new(Rule.CostsHealth, "Books Cost Health instead of Mana", Hurts: true),
             new(Rule.DeferredDamage, $"Damage you take becomes Debt, which drains your Health by {Say.Share(1f / Hits.DebtSeconds)} of itself a second, at least {Say.Share(DebtLeast)} of Maximum Health. Each Kill removes {Say.Share(DebtForgiven)} of it"),
             new(Rule.OverhealBarrier, $"Healing above Maximum Health becomes Barrier, up to {Say.Share(OverhealMost)} of Maximum Health over your Maximum Barrier"),
             new(Rule.BlockReflects, "Hits you Block are sent back as Physical Indirect Damage"),
@@ -194,21 +210,92 @@ namespace Dino_Defenders.Tooltips
             new(Rule.Steady, "Nothing on your Pages is random: they find the nearest Enemy and go where they're aimed, and are worth what they would be otherwise", Tags.Wild),
             new(Rule.DodgeCrit, "After you Dodge a Hit, your next Hit is a Critical Hit"),
             new(Rule.WaterTrail, "Spells leave Standing Water where aimed. Triggered Spells don't", Tags.Spell, Casts: Shelf.Puddle),
-            new(Rule.NoLeech, "You can't Leech"),
-            new(Rule.NoRegen, "You can't Regenerate Health"),
-            new(Rule.NeverCrit, "You can't deal Critical Hits"),
-            new(Rule.CannotEvade, "You can't Evade"),
+            new(Rule.NoLeech, "You can't Leech", Hurts: true),
+            new(Rule.NoRegen, "You can't Regenerate Health", Hurts: true),
+            new(Rule.NeverCrit, "You can't deal Critical Hits", Hurts: true),
+            new(Rule.CannotEvade, "You can't Evade", Hurts: true),
             new(Rule.CannotBeStunned, "You can't be Stunned"),
             new(Rule.CannotBeFrozen, "You can't be Frozen"),
             new(Rule.CannotBeChilled, "You can't be Chilled"),
             new(Rule.ImmuneToBurn, "You can't be Burned"),
-            new(Rule.AlwaysShocked, $"You are always Shocked, taking at least {Say.Share(AlwaysShockedTaken)} more Damage", Tags.Shock),
+            new(Rule.AlwaysShocked, $"You are always Shocked, taking at least {Say.Share(AlwaysShockedTaken)} more Damage", Tags.Shock, Hurts: true),
             new(Rule.ChillNeverFades, $"Your Chill doesn't fade while the Enemy is within {Say.Metres(ChillReach)}", Tags.Chill),
             new(Rule.FireHeals, $"{Say.Share(FireHealShare)} of Fire Damage from Hits heals you instead", Tags.Fire),
-            new(Rule.NoOwnDamage, "Your Books deal no Damage"),
+            new(Rule.NoOwnDamage, "Your Books deal no Damage", Hurts: true),
             new(Rule.LuckyHits, "Damage is rolled twice, keeping the better roll"),
-            new(Rule.BurstsOnDeath, $"Bursts {Say.Seconds(BurstDelay)} after death for Fire Indirect Damage within {Say.Metres(BurstRadius)}, worth {Say.Share(BurstShare)} of a normal Enemy Hit", Tags.Fire),
+            new(Rule.BurstsOnDeath, $"Bursts {Say.Seconds(BurstDelay)} after death for Fire Indirect Damage within {Say.Metres(BurstRadius)}, worth {Say.Share(BurstShare)} of an ordinary Enemy Hit", Tags.Fire),
             new(Rule.RalliesOnDeath, $"On death, gives Rallied to allies within {Say.Metres(RallyReach)}", Gives: BuffCatalog.Rallied),
+
+            // What only uniques do.
+            new(Rule.NeverHealed, $"You can't be healed above {Say.Share(Hits.LowShare)} of Maximum Health", Hurts: true),
+            new(Rule.Marks, "Your first Hit Marks an Enemy, until it dies"),
+            new(Rule.BleedBurst, $"Enemies that die while Bleeding burst for Physical Indirect Damage equal to {Say.Share(BleedBurstShare)} of their Maximum Health, within {Say.Metres(ExplosionRadius)}", Tags.Bleed),
+            new(Rule.FullCircle, "Your Melee Pages in a Cone go all the way round you", Tags.Melee),
+            new(Rule.ExecuteAny, $"Any Hit can Execute, not only a Critical Hit, and your Hits Execute Enemies below a further {Say.Percent(ExecuteAnyReach)} of Maximum Health"),
+            new(Rule.Overkill, $"Damage past what Kills an Enemy is dealt to the nearest Enemy within {Say.Metres(OverkillReach)}, as Physical Indirect Damage"),
+            new(Rule.StunSpreads, $"Your Stuns pass on to Enemies within {Say.Metres(StunSpreadReach)}", Tags.Stun),
+            new(Rule.Leveller, $"Your Hits deal Physical Damage equal to {Say.Share(LevellerShare)} of the Enemy's Maximum Health, or {Say.Share(LevellerBossShare)} of a Boss's", Tags.Hit),
+            new(Rule.OnlyLevels, "Nothing else adds to the Damage of your Hits", Tags.Hit, Hurts: true),
+            new(Rule.VenomBursts, $"When an Enemy has {Say.Whole(AilmentRules.MostVenom)} Stacks of your Venom, all of them deal their Damage at once", Tags.Venom),
+            new(Rule.VenomSlows, $"Each Stack of your Venom slows the Enemy by {Say.Share(VenomSlowPerStack)}", Tags.Venom),
+            new(Rule.AllOrNothing, "Hits that aren't Critical Hits deal no Damage", Tags.Hit, Hurts: true),
+            new(Rule.LeechesOverTime, $"{Say.Share(OverTimeLeech)} of your Damage over Time is Leeched as Health", Tags.DamageOverTime),
+            new(Rule.Drags, "Your Projectiles drag Enemies towards you", Tags.Projectile),
+            new(Rule.Lobbed, "Your Projectiles fly up and come down where you aim, and count as Falling", Tags.Projectile),
+            new(Rule.Forks, "Your Projectiles split into two more on their first Hit", Tags.Projectile),
+            new(Rule.PierceGrows, $"Your Projectiles deal {Say.Share(PierceGrowth)} more Damage after each Enemy they Pierce", Tags.Projectile),
+            new(Rule.FullVoice, $"Each Pulse of a Toggle Book does all it would by hand, instead of {Say.Share(AuraStrength)}"),
+            new(Rule.NoActive, "You can't use Active Books", Hurts: true),
+            new(Rule.ManaPower, $"Books deal {Say.Percent(1f)} more Damage for each {Say.Whole(ManaPowerStep)} Mana they spend"),
+            new(Rule.SpendsAll, "Every Book you use spends all your Mana", Hurts: true),
+            new(Rule.Choir, $"When you use a Book, each of your Minions uses it too, at {Say.Share(ChoirStrength)} of its Damage", Tags.Minion),
+            new(Rule.DeepHex, $"Your Hex can have {Say.Whole(MostDeepHex)} Stacks instead of {Say.Whole(AilmentRules.MostHex)}", Tags.Hex),
+            new(Rule.Mirror, "Books you use also go off the opposite way"),
+            new(Rule.RunOn, $"When a Book reaches its end, it starts again from its first Page, once, at {Say.Share(RunOnStrength)} of its Damage"),
+            new(Rule.Overdraw, "You can use Books without enough Mana, and be Overdrawn as far as your Maximum Mana"),
+            new(Rule.Conducts, "Conduction runs through Shocked Enemies as well as through Water", Tags.Lightning),
+            new(Rule.ChainsBack, "Your Chains can go back to Enemies they've already Hit", Tags.Chaining),
+            new(Rule.SpellsTwice, "Your Spells Hit everything twice", Tags.Spell),
+            new(Rule.DeathTakesAll, "When you fall, you lose all your Gold", Hurts: true),
+            new(Rule.Retort, $"Damage you Block is kept, up to {Say.Share(RetortMost)} of Maximum Health, and goes into your next Hit as Physical Damage"),
+            new(Rule.Wall, "While Standing Still, you Block every Projectile"),
+            new(Rule.BlockFeedsMana, $"Spells you Block restore Mana equal to {Say.Share(BlockManaShare)} of their Damage"),
+            new(Rule.ThirdBlock, $"One in every {Say.Whole(ThirdBlockEvery)} Hits against you is Blocked"),
+            new(Rule.Barricaded, "While you have Barrier, you can't be given Ailments"),
+            new(Rule.ThornsAlways, "You Reflect Damage from every Hit you take, not only Melee ones"),
+            new(Rule.MinionsShoulder, $"{Say.Share(ShoulderShare)} of each Hit against you is taken by one of your Minions instead", Tags.Minion),
+            new(Rule.GoldAbsorbs, $"{Say.Share(GoldAbsorbShare)} of each Hit against you is paid for in Gold instead, {Say.N(GoldPerHealth)} for each point of Health, while you have any"),
+            new(Rule.CostIsTime, $"Books Cost nothing, but their Cooldown is {Say.Seconds(CostToRest)} longer for each point of Cost they had"),
+            new(Rule.Blind, "You can't see where Enemies' blows will land", Hurts: true),
+            new(Rule.NoRepeat, $"A Book used twice in a row deals {Say.Share(RepeatLess)} less Damage the second time", Hurts: true),
+            new(Rule.Remote, "Your Melee Pages land where you aim instead of around you", Tags.Melee),
+            new(Rule.LastGasp, $"When you would die, you have {Say.Seconds(GaspSeconds)} to Kill an Enemy. A Kill brings back {Say.Share(GaspHeal)} of Maximum Health, and otherwise you die. Once every {Say.Seconds(GaspCooldown)}", Gives: BuffCatalog.LastGasp),
+            new(Rule.AllAsFire, "All Damage you take arrives as Fire", Tags.Fire),
+            new(Rule.MinionShield, $"When you would die, your oldest Minion dies instead, and you're left with {Say.Share(MinionShieldHealth)} of Maximum Health", Tags.Minion),
+            new(Rule.Adapts, "When you take a Hit, you become Inured to whatever did the most of it, and nothing else"),
+            new(Rule.HitCap, $"No Hit can take more than {Say.Share(HitCapShare)} of your Maximum Health"),
+            new(Rule.FlaskNoHeal, "Your Flasks heal nothing", Hurts: true),
+            new(Rule.NoSafeDodge, "Your Dodge doesn't keep you from being Hit", Hurts: true),
+            new(Rule.DodgeCostsMana, $"Each Dodge takes {Say.Share(DodgeManaShare)} of your Maximum Mana, and needs it", Hurts: true),
+            new(Rule.NoDodge, "You can't Dodge", Hurts: true),
+            new(Rule.NoItems, "Enemies you Kill drop no Items", Hurts: true),
+            new(Rule.Fluke, $"Books you use have a {Say.Share(FlukeChance)} Chance to go off a second time"),
+            new(Rule.Fumble, $"Books you use have a {Say.Share(FumbleChance)} Chance to do nothing at all", Hurts: true),
+            new(Rule.Wildfire, $"Flashfire doesn't use up Venom, and passes the Ailments of whoever it struck to Enemies within {Say.Metres(AilmentLeapReach)}", Tags.Venom),
+            new(Rule.HealsHarm, $"Whatever your Pages restore is also dealt as Magic Indirect Damage to Enemies within {Say.Metres(HealsHarmRadius)}"),
+            new(Rule.EvenResist, "Your Fire, Cold and Lightning Resistances are each as high as the highest of them"),
+            new(Rule.CostsGold, $"Books Cost Gold instead of Mana, {Say.N(GoldPerCost)} for each point", Hurts: true),
+            new(Rule.Exchange, "Strength gives what Intellect would, and Intellect what Strength would"),
+            new(Rule.NoCooldowns, "Books have no Cooldown"),
+            new(Rule.TimeIsCost, $"Books Cost {Say.N(RestToCost)} more for each second of Cooldown they would have had", Hurts: true),
+            new(Rule.QuickTrigger, $"Trigger Books go off after {Say.Share(QuickTriggerShare)} of what they wait for"),
+            new(Rule.IceBursts, $"Enemies that die while Frozen burst for Cold Indirect Damage equal to {Say.Share(IceBurstShare)} of their Maximum Health, within {Say.Metres(ExplosionRadius)}", Tags.Freeze),
+            new(Rule.KillResets, "When you Kill, the Book you last used by hand is off Cooldown"),
+            new(Rule.Lodestone, $"Enemies within {Say.Metres(LodestoneReach)} are drawn towards you"),
+            new(Rule.MinionsBurst, $"When one of your Minions dies or its time is up, it bursts for Fire Indirect Damage equal to {Say.Share(MinionBurstShare)} of its Maximum Health, within {Say.Metres(ExplosionRadius)}", Tags.Minion),
+            new(Rule.FlockPays, "Books Cost nothing, except those that raise Minions"),
+            new(Rule.FlockBleeds, "Each Book you use takes your oldest Minion, and can't be used without one, except those that raise Minions", Tags.Minion, Hurts: true),
+            new(Rule.Inoculated, "You can't be given Ailments"),
         };
 
         public static IReadOnlyList<RuleInfo> Rules => RuleTable;
@@ -303,6 +390,18 @@ namespace Dino_Defenders.Tooltips
                 Per.HealthSpent => "% of Health spent Recently",
                 Per.Minions => one ? "Minion" : "Minions",
                 Per.AlliesNear => one ? "Ally near you" : "Allies near you",
+                Per.EnemiesNear => one ? "Enemy near you" : "Enemies near you",
+                Per.Ailments => one ? "Ailment on you" : "Ailments on you",
+                Per.EmptySlots => one ? "place where nothing is worn" : "places where nothing is worn",
+                Per.NormalWorn => one ? "Normal Item worn" : "Normal Items worn",
+                Per.UniquesWorn => one ? "Unique Item worn" : "Unique Items worn",
+                Per.Carried => one ? "Item carried" : "Items carried",
+                Per.Peril => "Peril",
+                Per.Omens => one ? "Omen on this land" : "Omens on this land",
+                Per.RaresSlain => one ? "Rare Enemy or Boss slain since you last fell" : "Rare Enemies or Bosses slain since you last fell",
+                Per.FightSeconds => one ? "second spent Fighting" : "seconds spent Fighting",
+                Per.Streak => one ? "use of the same Book in a row" : "uses of the same Book in a row",
+                Per.Variety => one ? "different Book used Recently" : "different Books used Recently",
                 _ => "",
             };
             bool percent = mod.Kind != ModKind.Flat || StatNames.Of(mod.Stat).Percent;
@@ -318,7 +417,7 @@ namespace Dino_Defenders.Tooltips
                 ModKind.Increased => DescribeScaled(mod, "increased", "reduced"),
                 ModKind.More => DescribeScaled(mod, "more", "less"),
                 ModKind.Override when mod.Stat == Stat.MinionCount => $"Pages raise only {Say.Whole(mod.Value)} of their Minions{Tail(mod)}",
-                ModKind.Override => $"{Subject(mod)}is set to {Number(mod.Value)}{(StatNames.Of(mod.Stat).Percent ? "%" : "")}{Tail(mod)}",
+                ModKind.Override => DescribeSet(mod),
                 ModKind.Rule => DescribeRule(mod),
                 ModKind.Grant => DescribeGrant(mod),
                 ModKind.Divert => $"increased, reduced, more and less {StatNames.Of(mod.Stat).Name} apply to {Adjective(mod.Scope)}{StatNames.Of(mod.Into).Name} instead{Rate(mod)}",
@@ -330,24 +429,31 @@ namespace Dino_Defenders.Tooltips
 
         private static string Rate(in Mod mod) => mod.Value == 100f ? "" : $", at {Number(mod.Value)}% of their value";
 
+        // A stat replaced outright, said in the same words it's given in: in seconds where it's seconds, and with what it's narrowed to where that has words of its own.
+        private static string DescribeSet(in Mod mod)
+        {
+            StatName name = StatNames.Of(mod.Stat);
+            string subject = Subject(mod);
+            string value = Number(mod.Value) + (name.Percent ? "%" : "");
+            if (name.Name.StartsWith("s ") || mod.Stat == Stat.DodgeCooldown)
+            {
+                subject = $"{Adjective(mod.Scope)}{name.Name.TrimStart('s', ' ')} ";
+                value = Say.Seconds(mod.Value);
+            }
+            if (mod.Stat == Stat.BlockChance && (mod.Scope & (Tags.Attack | Tags.Spell)) != 0) subject = (mod.Scope & Tags.Spell) != 0 ? "Chance to Block Spells " : "Chance to Block Attacks ";
+            return $"{subject}is set to {value}{Tail(mod)}";
+        }
+
         private static string Subject(in Mod mod) => $"{Adjective(mod.Scope)}{StatNames.Of(mod.Stat).Name} ";
 
-        private static string DescribeRule(in Mod mod)
-        {
-            var lines = new List<string>();
-            foreach (RuleInfo info in RuleTable)
-            {
-                if ((mod.Rule & info.Rule) != 0) lines.Add(info.Text);
-            }
-            return string.Join(". ", lines) + Own(mod.Need);
-        }
+        private static string DescribeRule(in Mod mod) => (Of(mod.Rule)?.Text ?? "") + Own(mod.Need);
 
         private static string DescribeGrant(in Mod mod)
         {
             var words = new List<string>();
             foreach ((Condition one, _, string foe) in Conditions)
             {
-                if ((mod.Grants & one) != 0) words.Add(foe);
+                if ((mod.Grants & one) != 0) words.Add(foe.StartsWith("that are ") ? foe["that are ".Length..] : foe);
             }
             return $"You always count as {string.Join(" and ", words)}";
         }
@@ -362,8 +468,25 @@ namespace Dino_Defenders.Tooltips
                 TriggerEvent.Struck => "When you're Hit",
                 TriggerEvent.Block => "When you Block",
                 TriggerEvent.Dodge => "When you Dodge a Hit",
-                _ => "When you use a Flask",
+                TriggerEvent.Flask => "When you use a Flask",
+                TriggerEvent.Stun => "When you Stun an Enemy",
+                TriggerEvent.Reaction => "When you cause a Reaction",
+                TriggerEvent.BarrierBroke => "When your Barrier runs out",
+                TriggerEvent.Dash => "When you Dodge",
+                TriggerEvent.MinionDied => "When one of your Minions dies",
+                TriggerEvent.Used => "When you use a Book",
+                TriggerEvent.Time => $"Every {Say.Seconds(mod.PerStep)}",
+                _ => $"Every {Say.Metres(mod.PerStep)} you move",
             };
+            when += Own(mod.Need);
+            if (mod.Without != Condition.None) when += " unless" + Own(mod.Without).Replace(" while ", " ").Replace(" if ", " ");
+
+            if (mod.Gift != 0 && BuffCatalog.Get(mod.Gift) is BuffDefinition buff)
+            {
+                if (mod.Spends) return $"{when}, lose all {buff.Name}";
+                return mod.Value >= 100f ? $"{when}, gain {buff.Name}" : $"{when}, {Number(mod.Value)}% Chance to gain {buff.Name}";
+            }
+
             string chance = mod.Value >= 100f ? ", Trigger" : $", {Number(mod.Value)}% Chance to Trigger";
             return $"{when}{chance} {Shelf.Get(mod.Book).Name}";
         }
@@ -429,6 +552,9 @@ namespace Dino_Defenders.Tooltips
 
                 case Stat.Execute:
                     return $"Critical Hits Execute Enemies below {number} of Maximum Health{Tail(mod)}";
+
+                case Stat.HealthDrain:
+                    return $"Lose {number} of Maximum Health a second{Tail(mod)}";
 
                 case Stat.TakenFromMana or Stat.HealthLeech or Stat.ManaLeech or Stat.Reflect or Stat.ArmourIgnore or Stat.RaiseFallen or Stat.ExplodeOnKill or Stat.PhysicalReduction or Stat.HealthRegenPercent or Stat.ManaRegenPercent:
                     return $"{number} {Adjective(scope)}{name.Name}{Tail(mod)}";

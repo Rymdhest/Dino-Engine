@@ -119,6 +119,9 @@ namespace Dino_Defenders.Gameplay
         [NetStep(0.5f)] public float Size;
         [NetStep(0.1f)] public float Life;
         public bool Speech;     // Someone saying it, and not just a number going up.
+
+        /// <summary>A word over someone that says what's just happened to them, for what has no other way of being seen.</summary>
+        public static TextEvent Word(Vector3 position, string text) => new TextEvent { Position = position, Text = text, Colour = new Vector3(0.95f, 0.75f, 0.3f), Size = 15f, Life = 1f };
     }
 
     public enum SoundCue

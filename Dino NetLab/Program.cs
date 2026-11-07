@@ -14,6 +14,7 @@ namespace Dino_NetLab
     ///   pack  [--seed N]                            What a pack does across a line: shown at once, the server has the last word, and nothing is lost or doubled however bad the line.
     ///   offering                                    What's paid at a waygate: who pays, what it does to the land, what falling costs, and what it pays out.
     ///   foes  [--seed N]                            What an enemy's rarity comes to: who turns up as what, that a trait's ability gets used, and what a client is told
+    ///   uniques [--seed N]                          Every unique's rule, done for real on a running server.
     ///   combat                                      What a fight promises: what's marked is what's hit, on the tick it says, what's called off is seen to be, and a dodge is there when it's asked for.
     /// Exit code 1 on any failure.
     /// </summary>
@@ -52,6 +53,8 @@ namespace Dino_NetLab
                     return BookTests.Run(options);
                 case "foes":
                     return FoeTests.Run(options);
+                case "uniques":
+                    return UniqueTests.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

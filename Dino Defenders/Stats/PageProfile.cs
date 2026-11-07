@@ -123,6 +123,9 @@ namespace Dino_Defenders.Stats
             Tags tags = page.Tags | weapon.Tags | (spell ? Tags.Spell : Tags.Attack);
             if (!spell && page.Kind == PageKind.Area && page.From == Start.You && (weapon.Tags & Tags.Bow) == 0) tags |= Tags.Melee;
 
+            // What's lobbed comes down out of the sky, and counts as that.
+            if (page.Kind == PageKind.Projectile && !page.Rides && sheet.Has(Rule.Lobbed)) tags |= Tags.Falling;
+
             _flows = BuildFlows(sheet, page, tags, weapon);
 
             int lineage = 0;
@@ -154,7 +157,7 @@ namespace Dino_Defenders.Stats
             float areaScale = MathF.Sqrt(MathF.Max(sheet.Collect(Stat.AreaOfEffect, all, page).Scale, 0.01f));
             float reach = (all & Tags.Melee) != 0 ? sheet.Total(Stat.MeleeReach, 0f, all, page) : 0f;
             Length = (page.Length + reach) * areaScale;
-            Width = page.Shape == AreaShape.Cone ? page.Width : page.Width * areaScale;
+            Width = page.Shape != AreaShape.Cone ? page.Width * areaScale : sheet.Has(Rule.FullCircle) && (all & Tags.Melee) != 0 ? MathF.Tau : page.Width;
             Range = page.Range;
             Speed = sheet.Total(Stat.ProjectileSpeed, page.Speed, all, page);
             Duration = sheet.Total(Stat.PageDuration, page.Duration, all, page);

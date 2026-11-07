@@ -43,6 +43,7 @@ namespace Dino_Defenders.Server
     public sealed class Bestiary
     {
         public const int NoTraits = 0;
+        private const int HeroOnlyRerolls = 8;
 
         private static readonly EnemyPower[] Powers =
         {
@@ -353,6 +354,13 @@ namespace Dino_Defenders.Server
                 ItemSlot slot = slots[gearDraw.Int(slots.Length)];
                 Rarity least = gearDraw.Chance(0.45f) ? Rarity.Unique : Rarity.Rare;
                 Item item = ItemGenerator.Roll(level + 1, gearDraw.Fork(i), 0.5f, least, slot);
+
+                // Some uniques only mean anything in a player's hands, or would make a boss no boss at all.
+                for (int again = 1; again < HeroOnlyRerolls && item.Unique != null && UniqueCatalog.Find(item.Unique) is { HeroOnly: true }; again++)
+                {
+                    item = ItemGenerator.Roll(level + 1, gearDraw.Fork(pieces + i * HeroOnlyRerolls + again), 0.5f, least, slot);
+                }
+                if (item.Unique != null && UniqueCatalog.Find(item.Unique) is { HeroOnly: true }) item = ItemGenerator.Roll(level + 1, gearDraw.Fork(i), 0.5f, Rarity.Rare, slot);
                 worn.Add(item);
                 mods.AddRange(item.Mods());
             }
@@ -378,7 +386,7 @@ namespace Dino_Defenders.Server
         {
             foreach (Mod mod in node.Mods)
             {
-                if (mod.Kind == ModKind.Rule && (mod.Rule & (Rule.NoOwnDamage | Rule.Guardian | Rule.CostsHealth)) != 0) return false;
+                if (mod.Kind == ModKind.Rule && mod.Rule is Rule.NoOwnDamage or Rule.Guardian or Rule.CostsHealth) return false;
                 if (mod.Scope.HasFlag(Tags.Minion) || mod.Stat == Stat.RaiseFallen) return false;
             }
             return true;

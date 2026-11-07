@@ -1,5 +1,6 @@
 using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
+using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -20,8 +21,14 @@ namespace Dino_Defenders.Server
         /// <summary>Whether it's a Toggle Book going off by itself, which nobody's hands show.</summary>
         public bool Pulsing;
 
+        /// <summary>Whether it goes off over and over by itself, and so shows itself without the noise a spell makes.</summary>
+        public bool Quiet;
+
         /// <summary>How much it's made so far, which has a limit.</summary>
         public int Made;
+
+        /// <summary>Whether it's started over from its first page once already, for those whose books run on.</summary>
+        public bool RanOn;
 
         /// <summary>Everyone it's reached so far, whom nothing goes looking for again.</summary>
         public readonly List<Actor> Struck = new();
@@ -39,6 +46,7 @@ namespace Dino_Defenders.Server
         public Vector2 Start;
         public Vector2 Way;
         public bool Returning;
+        public bool Forked;         // It, or what it came from, has split already.
         public bool Falling;        // Only there to be seen: it does what it does when it said it would.
         public readonly List<Actor> Spent = new();
     }
@@ -75,6 +83,7 @@ namespace Dino_Defenders.Server
         private static readonly BitMask Mask = new BitMask(typeof(ActorComponent), typeof(PositionComponent), typeof(HealthComponent));
 
         private readonly GameServer _server;
+        private readonly List<Actor> _near = new();
         private float _nextLand;
 
         public ActorSystem(GameServer server)
@@ -127,7 +136,11 @@ namespace Dino_Defenders.Server
                         else if (actor.Owner != null) actor.Counters = actor.Owner.Counters;
 
                         // Only those who care about the land are worth asking it for. They ask a few times a second: nobody's walking far in that.
-                        if (readLand && (actor.Loadout.Relevant & Condition.Land) != 0) actor.Ground = combat.Land.At(actor.Position);
+                        if (readLand && (actor.Loadout.Relevant & (Condition.Land | Condition.Weather)) != 0)
+                        {
+                            actor.Ground = combat.Land.At(actor.Position);
+                            if ((actor.Loadout.Relevant & Condition.Weather) != 0) actor.Ground |= combat.Land.Weather(actor.Position, (float)session.Time);
+                        }
                         actor.ReadState(actor.Ground);
                     }
 
@@ -144,6 +157,17 @@ namespace Dino_Defenders.Server
                         if (afflicted[i].Flags != shown) afflicted[i] = new AfflictedComponent { Flags = shown };
                     }
                 }
+            }
+
+            // Who's around a hero, now that everyone's where they are. It's read next tick, which nobody can tell.
+            foreach (ServerPlayer hero in session.Heroes)
+            {
+                Actor actor = hero.Actor;
+                if (actor.Dead) continue;
+                _near.Clear();
+                combat.Grid.Foes(actor.Team, actor.Position, Rulebook.CrowdReach, _near);
+                actor.EnemiesNear = _near.Count;
+                if (actor.Sheet.Has(Rule.Lodestone)) combat.Draw(actor, deltaTime);
             }
 
             combat.Step();
@@ -169,11 +193,48 @@ namespace Dino_Defenders.Server
                 if (minion.Owner == actor) minions++;
             }
 
+            HeroState own = actor.Player!.Hero;
+            int empty = 0, normal = 0, uniques = 0;
+            foreach (WornSlot place in Enum.GetValues<WornSlot>())
+            {
+                if (!own.Equipped.TryGetValue(place, out Item? worn))
+                {
+                    // What's held in both hands fills the other one.
+                    if (place != WornSlot.OffHand || !own.Equipped.TryGetValue(WornSlot.MainHand, out Item? held) || !held.IsTwoHanded) empty++;
+                    continue;
+                }
+                if (worn.Rarity == Rarity.Normal) normal++;
+                if (worn.Rarity == Rarity.Unique) uniques++;
+            }
+
+            int carried = 0;
+            foreach (Item? item in own.Inventory)
+            {
+                if (item != null) carried++;
+            }
+
             Counters counters = actor.Counters;
-            counters.Gold = actor.Player!.Hero.Gold;
+            counters.Gold = own.Gold;
             counters.ShrinesKindled = (byte)Math.Min(shrines, 255);
             counters.AlliesNear = (byte)allies;
             counters.Minions = (byte)Math.Min(minions, 255);
+            counters.EnemiesNear = (byte)Math.Min(actor.EnemiesNear, 255);
+            counters.Ailments = (byte)System.Numerics.BitOperations.PopCount((ulong)(actor.State & Condition.Afflicted));
+            counters.EmptySlots = (byte)empty;
+            counters.NormalWorn = (byte)normal;
+            counters.UniquesWorn = (byte)uniques;
+            counters.Carried = (byte)Math.Min(carried, 255);
+            counters.Peril = (byte)session.Offering.Peril;
+            counters.Omens = (byte)session.Offering.Omens.Count;
+            counters.RaresSlain = (byte)Math.Min(actor.RaresSlain, 255);
+            counters.FightSeconds = (byte)Math.Min((int)actor.FightFor, 255);
+            counters.Streak = (byte)Math.Min(actor.Streak, 255);
+            int variety = 0;
+            foreach (float since in actor.SinceSlot)
+            {
+                if (since < Rulebook.Recently) variety++;
+            }
+            counters.Variety = (byte)variety;
             return counters;
         }
     }

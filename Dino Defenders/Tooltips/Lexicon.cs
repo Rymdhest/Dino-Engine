@@ -140,6 +140,13 @@ namespace Dino_Defenders.Tooltips
             Word("Health spent Recently", $"Each Cost paid in Health adds to this. Falls by {Percent(HealthSpentFade)} a second.");
             Word("Ally near you", $"Another Hero within {Metres(AlliesReach)}.", "Allies near you");
             Word("Debt", "Damage you still owe, shown dark at the end of your Health.");
+            Word("Enemy near you", $"An Enemy within {Metres(CrowdReach)}.", "Enemies near you");
+            Word("Fighting", $"Having Hit something, or been Hit, in the last {Seconds(Recently)}.");
+            Word("Peril", "How much more dangerous a land was paid to be.");
+            Word("Omen", "A danger or a change paid for on a land.", "Omens");
+            Word("Normal", "An Item with nothing rolled on it.");
+            Word("Unique", "One of a kind. What it gives always comes at a price.");
+            Word("Active Book", "Used by pressing it on your Bar.", "Active Books");
             Word("Regenerate", "Recover a little every second.", "Regeneration");
         }
 
@@ -258,6 +265,7 @@ namespace Dino_Defenders.Tooltips
             Word("Waygate", "On the tree, taking one lets you take the one across from it.", "Waygates");
             Word("Flask", $"Instantly heals {Share(HeroRules.FlaskHeal)} of Maximum Health. Holds {HeroState.MaxFlasks}. Refills every {Whole(HeroState.KillsPerFlask)} Kills within {Metres(FlaskReach)}. A Rare Enemy counts as {Whole(FlaskFromRare)}, a Boss as {Whole(FlaskFromBoss)}.", "Flasks");
             On(Stat.FlaskEffect, Word("Flask Effect", "Scales how much a Flask heals."));
+            On(Stat.HealthDrain, Word("Health Drain", "Health lost every second, even at Full Health."));
             On(Stat.MoveSpeed, Basic("Movement Speed", $"Bonus on your walking speed of {Metres(HeroState.BaseMoveSpeed)} a second."));
             Word("Dodge", $"A dash that lasts {Seconds(HeroRules.DashDuration)}. Immune to Hits for {Seconds(HeroRules.DashDuration + DodgeSafeExtra)}. Cancels what you were doing.", "Dodged", "Dodges");
             On(Stat.DodgeCooldown, Basic("Dodge Cooldown", $"Changes the {Seconds(ActorSheet.BaseDodgeCooldown)} between Dodges, down to {Seconds(LeastDodgeCooldown)}."));
@@ -374,6 +382,20 @@ namespace Dino_Defenders.Tooltips
             On(Condition.HighLand, Word("High Country", "High altitude biomes."));
             On(Condition.Rare, Word("Rare", "A much stronger Enemy with special traits."));
             On(Condition.Boss, Word("Boss", "The strongest Enemy of a place.", "Bosses"));
+            On(Condition.Wounded, Word("Wounded", "Missing any Health."));
+            On(Condition.Overdrawn, Word("Overdrawn", "Mana below zero."));
+            On(Condition.Surrounded, Word("Surrounded", $"{Whole(SurroundedBy)} or more Enemies within {Metres(CrowdReach)}."));
+            On(Condition.Alone, Word("Alone", $"No Enemy within {Metres(CrowdReach)}."));
+            On(Condition.InRain, Word("Rain", "Falling hard enough to soak you."));
+            On(Condition.InSnow, Word("Snow", "Falling hard enough to whiten the ground."));
+            On(Condition.Marked, Word("Marked", "Chosen by your first Hit, until it dies.", "Marks", "Mark"));
+            ConditionTerms[Condition.Unmarked] = ByForm["Marked"];
+            On(Condition.Unaware, Word("Unaware", "Hasn't noticed anyone yet."));
+            On(Condition.Aware, Word("Aware", "Has noticed someone."));
+            On(Condition.UpClose, Word("Up Close", $"Within {Metres(CloseReach)} of you."));
+            On(Condition.AtRange, Word("At Range", $"Further than {Metres(CloseReach)} from you."));
+            On(Condition.Isolated, Word("Isolated", $"No other Enemy within {Metres(IsolatedReach)}."));
+            On(Condition.Crowded, Word("Crowded", $"Another Enemy within {Metres(IsolatedReach)}."));
         }
 
         private static void Fortune()

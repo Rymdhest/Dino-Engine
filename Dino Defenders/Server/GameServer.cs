@@ -338,6 +338,7 @@ namespace Dino_Defenders.Server
                 Brief(player);
 
                 float healthBefore = player.Sim.Health;
+                float manaBefore = player.Sim.Mana;
                 Vector2 wasAt = player.Sim.Position;
                 byte wasMoved = player.Sim.Moves;
                 HeroStepEvents events = HeroRules.Step(ref player.Sim, command, player.Kit, _mover!);
@@ -350,7 +351,7 @@ namespace Dino_Defenders.Server
                     if (actor.Vitals.Health > 0f)
                     {
                         if (player.Sim.Moves == wasMoved) session.Combat.Watch(actor, BookWhen.Moved, (player.Sim.Position - wasAt).Length);
-                        Act(session, player, command, events);
+                        Act(session, player, command, events, manaBefore);
                         GoOff(session, player);
                     }
                     else
@@ -386,13 +387,13 @@ namespace Dino_Defenders.Server
                 if (watch.Progress < watch.Amount || player.Sim.Cooldowns[watch.Slot] > 0f || player.Kit.Slots[watch.Slot] is not BookProfile book) continue;
 
                 // Nothing to pay with, it waits, and goes the moment there is.
-                if (book.CostsHealth ? actor.Vitals.Health <= book.Cost : actor.Vitals.Mana < book.Cost) continue;
-                if (book.CostsHealth) actor.Vitals.Health -= book.Cost;
-                else actor.Vitals.Mana -= book.Cost;
+                float manaBefore = actor.Vitals.Mana;
+                if (!PayFor(session, player, book)) continue;
 
                 player.Sim.Cooldowns[watch.Slot] = book.Cooldown;
                 watch.Progress = 0f;
-                session.Combat.Release(actor, book, at, player.Sim.Aim, player.Sim.AimReach);
+                actor.Spent = manaBefore - actor.Vitals.Mana;
+                session.Combat.Release(actor, book, at, player.Sim.Aim, player.Sim.AimReach, 0, Worth(actor));
             }
 
             for (int slot = 0; slot < HeroState.BarSlots; slot++)
@@ -402,6 +403,60 @@ namespace Dino_Defenders.Server
                 session.Combat.Pulse(actor, aura, at, player.Sim.Aim, player.Sim.AimReach);
                 player.Pulses[slot] = aura.Pulse;
             }
+        }
+
+        // What a book that goes by itself costs, out of whatever it's paid with. False, and nothing taken, if there isn't enough.
+        private static bool PayFor(ServerSession session, ServerPlayer player, BookProfile book)
+        {
+            Actor actor = player.Actor;
+            if (book.CostsMinion && session.Combat.Oldest(actor) == null) return false;
+            if (book.CostsGold)
+            {
+                int gold = (int)MathF.Ceiling(book.Cost * Rulebook.GoldPerCost);
+                if (player.Hero.Gold < gold) return false;
+                player.Hero.Gold -= gold;
+                player.SummaryChanged = true;
+            }
+            else if (book.CostsHealth)
+            {
+                if (actor.Vitals.Health <= book.Cost) return false;
+                actor.Vitals.Health -= book.Cost;
+            }
+            else
+            {
+                if (actor.Vitals.Mana < book.Cost) return false;
+                actor.Vitals.Mana = actor.Sheet.Has(Rule.SpendsAll) ? 0f : actor.Vitals.Mana - book.Cost;
+            }
+            if (book.CostsMinion) session.Combat.Dismiss(session.Combat.Oldest(actor)!);
+            return true;
+        }
+
+        /// <summary>What someone's last use is worth, of what it says: some are worth what they spent, and some are weaker for being the same as the one before.</summary>
+        public static float Worth(Actor actor)
+        {
+            float worth = 1f;
+            if (actor.Sheet.Has(Rule.ManaPower)) worth += actor.Spent / Rulebook.ManaPowerStep / 100f;
+            if (actor.Streak > 1 && actor.Sheet.Has(Rule.NoRepeat)) worth *= 1f - Rulebook.RepeatLess;
+            return worth;
+        }
+
+        // What a use by hand costs that only the server can take, and the count it keeps of them. Mana and health were taken by the step, on both ends.
+        private static void Used(ServerSession session, ServerPlayer player, BookProfile book, float manaBefore)
+        {
+            Actor actor = player.Actor;
+            int slot = player.Sim.Using;
+            actor.Streak = slot == actor.LastSlot ? actor.Streak + 1 : 1;
+            actor.LastSlot = slot;
+            actor.SinceSlot[slot] = 0f;
+            actor.Spent = MathF.Max(manaBefore - player.Sim.Mana, 0f);
+
+            if (book.CostsGold)
+            {
+                player.Hero.Gold = Math.Max(player.Hero.Gold - (int)MathF.Ceiling(book.Cost * Rulebook.GoldPerCost), 0);
+                player.SummaryChanged = true;
+            }
+            if (book.CostsMinion && session.Combat.Oldest(actor) is Actor minion) session.Combat.Dismiss(minion);
+            session.Combat.SetOff(actor, TriggerEvent.Used, actor.Position);
         }
 
         // What's happened to a hero since their last step that their step has to know about: only the server can say.
@@ -420,7 +475,7 @@ namespace Dino_Defenders.Server
             foreach (BookWatch watch in actor.Watches) player.Sim.Charged[watch.Slot] = watch.Progress / MathF.Max(watch.Amount, 0.01f);
         }
 
-        private void Act(ServerSession session, ServerPlayer player, in HeroCommand command, HeroStepEvents events)
+        private void Act(ServerSession session, ServerPlayer player, in HeroCommand command, HeroStepEvents events, float manaBefore)
         {
             Vector3 position = HeroPosition(player);
             Vector2 at = player.Sim.Position;
@@ -435,11 +490,16 @@ namespace Dino_Defenders.Server
                 player.Mark = default;
             }
             else if (dashed || player.Sim.ImpactIn < 0f) CutShort(session, player);
-            if (dashed) session.Combat.Stop(player.Entity);
+            if (dashed)
+            {
+                session.Combat.Stop(player.Entity);
+                session.Combat.SetOff(player.Actor, TriggerEvent.Dash, at);
+            }
 
             if ((events & HeroStepEvents.Used) != 0 && book != null)
             {
                 session.Combat.Watch(player.Actor, BookWhen.Used, 1f);
+                Used(session, player, book, manaBefore);
                 float rate = MathF.Max(player.Sim.ActionRate, 0.1f);
                 session.Combat.Perform(player.Entity, book.Sign, player.Sim.ImpactIn / rate, player.Sim.BusyFor / rate, player.Sim.Aim);
                 player.Mark = MarkForFriends(session, player, book, rate);
@@ -448,7 +508,7 @@ namespace Dino_Defenders.Server
 
             if (landed && book != null)
             {
-                session.Combat.Release(player.Actor, book, at, player.Sim.Aim, player.Sim.AimReach, command.ViewLag);
+                session.Combat.Release(player.Actor, book, at, player.Sim.Aim, player.Sim.AimReach, command.ViewLag, Worth(player.Actor));
             }
 
             // Its owner saw all of this the moment they pressed; it's everyone else who needs telling.
@@ -485,15 +545,17 @@ namespace Dino_Defenders.Server
         {
             Actor actor = player.Actor;
             ActorSheet sheet = actor.Sheet;
-            if (player.Hero.Flasks <= 0 || actor.Vitals.Health >= sheet.MaxHealth) return;
+            // A flask that heals nothing can always be drunk, for whatever else it does.
+            bool heals = !sheet.Has(Rule.FlaskNoHeal);
+            if (player.Hero.Flasks <= 0 || heals && actor.Vitals.Health >= sheet.MaxHealth) return;
             player.Hero.Flasks--;
             player.SummaryChanged = true;
-            float heal = sheet.MaxHealth * HeroRules.FlaskHeal * sheet.FlaskScale;
+            float heal = heals ? sheet.MaxHealth * HeroRules.FlaskHeal * sheet.FlaskScale : 0f;
             Hits.Heal(sheet, ref actor.Vitals, heal);
             Session!.Combat.SetOff(actor, TriggerEvent.Flask, actor.Position);
             Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Flask }, position.Xz);
             Broadcast(new FlourishEvent { Who = player.GhostId, Kind = Flourish.Drink }, position.Xz);
-            Broadcast(new TextEvent
+            if (heal > 0f) Broadcast(new TextEvent
             {
                 Position = position + Vector3.UnitY * 5.4f,
                 Text = $"+{heal:0}",
@@ -510,7 +572,8 @@ namespace Dino_Defenders.Server
             {
                 player.Sim.Down = true;
                 player.DownFor = 0f;
-                int lost = player.Hero.Gold / 10;
+                int lost = player.Actor.Sheet.Has(Rule.DeathTakesAll) ? player.Hero.Gold : player.Hero.Gold / 10;
+                player.Actor.RaresSlain = 0;
                 player.Hero.Gold -= lost;
                 player.SummaryChanged = true;
                 Announce(player, "You have fallen", lost > 0 ? $"{lost} gold lost on the road" : "The land goes on without you");

@@ -169,9 +169,32 @@ An item holds lines of an affix id and a rolled value, never modifiers. What a l
 
 **Old items.** `ItemGenerator.Fix` brings whatever's in a save up to these rules. A line stays if its slot can have it and its side has room, and what's missing is drawn from the item's own seed, so a hero's rare is still a rare, and comes out the same each time. Anything already within the rules isn't touched. A save from before this is kept beside itself as `.before-affixes`. A unique answers to none of it.
 
-Uniques (`UniqueCatalog`) are items with lines of their own, and change what a build *is*. Each has to do something no other item can: a rule, a grant, a trigger, or a stat no affix gives or a condition on one, that no other unique has, and `check` fails on one that doesn't. Bases come in kinds: weapons by `WeaponKind`, armour by which of armour, evasion and barrier it gives. A hero has ten places: `ItemSlot` is what something is worn as, and `WornSlot` where it's worn, so a ring goes on either of two. Two-handed weapons and the off hand don't mix.
+Uniques have a section of their own, below. Bases come in kinds: weapons by `WeaponKind`, armour by which of armour, evasion and barrier it gives. A hero has ten places: `ItemSlot` is what something is worn as, and `WornSlot` where it's worn, so a ring goes on either of two. Two-handed weapons and the off hand don't mix.
 
 **Families.** Armour is heavy, evasion is leather, and barrier is cloth, which holds `ManaPerBarrier` mana as well, and something giving two of those is that much of each (`Item.Shares`). Weapons go by their kind. A family leans what can roll, so that what something looks like says what it's for: over half of a piece's lines suit it, whichever family it is, and anything its slot takes can still roll on it. It's a share of each side's draw and not a weight on each affix, as more affixes suit heavy armour on a body than suit leather (`AffixCatalog.Weigh`). How all of this looks is in `GEAR.md`.
+
+### Uniques
+
+There are 141 (`UniqueCatalog`), and every one of them is a trade. A unique has what it **gives** and what it **costs**, kept apart (`UniqueDefinition.Boon` and `Burden`), and its card shows the cost apart, in red. `check` holds all of this:
+
+- **It changes what a build is.** Each does something no other item can: a rule, a grant, a trigger, or a stat no affix gives or a condition on one, that no other unique has. What it costs can be what makes it so, and more of something and less of it count as different things.
+- **It costs something real.** Every line of what it costs makes something worse by enough to notice, at least 15% of what it touches (20% for a resistance), or is a rule nobody would want for itself (`RuleInfo.Hurts`). The best costs land on what the build that wants the item needs most: All In spends every last point of Mana, the Glass Heart leaves 1 Health, Dead Weight can't dodge.
+- **It isn't a keystone.** Nothing a unique gives is a rule a keystone gives, as what the tree already has is no reason to want an item. A keystone's rule can be what one costs.
+- **A boss can wear it.** Bosses wear what they drop, so anything that only means something in a player's hands, or would make a boss no boss, is `HeroOnly`, and `Bestiary.Boss` never gives one out.
+
+What they're made of, so that a new one is mostly a line:
+
+| Part | Is | For |
+|---|---|---|
+| `Gain`, `Lose` | A trigger that gives a stack of a buff, or takes all of it away | Anything that builds up. A player can see a buff and can't see a count kept in their head |
+| `Every`, `EveryGain`, `EveryMetres` | A trigger by the clock for as long as something holds, or by the step | Auras, and what standing still or walking builds |
+| More `TriggerEvent`s | Stun, Reaction, BarrierBroke, Dash, MinionDied, Used | Nothing past `Flask` is something a Trigger Book can wait for |
+| Foe conditions | Marked, Unaware, Up Close, At Range, Isolated and Wounded, and their opposites | Worked out by the blow, and only when something asks (`Condition.Relations`) |
+| Own conditions | Surrounded and Alone, which a hero counts once everyone's moved. In Rain and In Snow, from the same weather function a client draws, a few times a second for those who care | |
+| More `Per` counters | Enemies near, Ailments on you, empty places, Normal and Unique items worn, items carried, Peril, Omens, Rares slain, seconds Fighting, the same Book in a row, different Books Recently | A sheet is keyed on only the counters it reads (`Loadout.CountersRead`), so gold changing doesn't remake a sheet that only counts enemies |
+| `Rule`s | Everything else, in `Combat`, `HeroRules`, `GameServer` and the sheet | `Rule` is a number and a sheet keeps a `RuleSet`, so there's room for as many as there are uniques |
+
+What only uniques do is listed after the keystones in `Rule`. A new one is a value there, a `RuleInfo` in `ModText` with its numbers in the `Rulebook` (and `Hurts` if it's a cost), the code where it matters, and a check in `Dino NetLab uniques`, which does every unique's rule for real on a running server and has been seen to fail with each of a sample of them broken. None of these numbers has been played by a person.
 
 ## Enemies
 
@@ -284,7 +307,8 @@ dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" offering       # What's 
 dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" packs      # Who stands where, as a map
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" foes           # What an enemy's rarity comes to: who turns up as what, that a trait's book gets used, and what a client is told
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build          # Every ailment, reaction and keystone, for real on a running server
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" uniques        # Every unique's rule, for real on a running server
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" books          # Every sentence, for real on a running server
 ```
 
-Run `check` and `build` after any change here, `game` if the hero's step or the protocol moved, `loot` and `pace` if anything about drops did, and `offering` if anything about a waygate or what's paid at one did. A bot proves nothing about clicking: post real mouse messages for that. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.
+Run `check` and `build` after any change here, `uniques` if a unique or anything one reads moved, `game` if the hero's step or the protocol moved, `loot` and `pace` if anything about drops did, and `offering` if anything about a waygate or what's paid at one did. A bot proves nothing about clicking: post real mouse messages for that. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.

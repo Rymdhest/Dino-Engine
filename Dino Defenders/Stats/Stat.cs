@@ -33,6 +33,7 @@ namespace Dino_Defenders.Stats
         ManaOnKill,
         BarrierOnKill,
         FlaskEffect,
+        HealthDrain,            // Percent of maximum health lost a second, full or not.
 
         // Moving.
         MoveSpeed,
@@ -121,7 +122,7 @@ namespace Dino_Defenders.Stats
         {
             Stat.Health, Stat.Mana, Stat.Barrier,
             Stat.HealthRegen, Stat.HealthRegenPercent, Stat.ManaRegen, Stat.ManaRegenPercent, Stat.BarrierRecharge, Stat.BarrierDelay, Stat.Recovery,
-            Stat.HealthLeech, Stat.ManaLeech, Stat.HealthOnHit, Stat.ManaOnHit, Stat.HealthOnKill, Stat.ManaOnKill, Stat.BarrierOnKill, Stat.FlaskEffect,
+            Stat.HealthLeech, Stat.ManaLeech, Stat.HealthOnHit, Stat.ManaOnHit, Stat.HealthOnKill, Stat.ManaOnKill, Stat.BarrierOnKill, Stat.FlaskEffect, Stat.HealthDrain,
             Stat.MoveSpeed, Stat.DodgeCooldown, Stat.DodgeSpeed, Stat.Stealth,
             Stat.Armour, Stat.ArmourApplies, Stat.Evasion, Stat.BlockChance, Stat.MaxBlock, Stat.Resistance, Stat.MaxResistance, Stat.PhysicalReduction, Stat.FlatReduction,
             Stat.DamageTaken, Stat.TakenAs, Stat.TakenFromMana, Stat.AilmentAvoid, Stat.AilmentTaken, Stat.StunThreshold,
@@ -165,54 +166,150 @@ namespace Dino_Defenders.Stats
         Block,
         Dodge,
         Flask,
+
+        // Nothing past here is something a Trigger Book can wait for: those are BookWhen, which shares the numbers above.
+        Stun,           // You stunned someone.
+        Reaction,       // You set off a reaction.
+        BarrierBroke,   // Your barrier has just run out.
+        Dash,           // You started a dodge.
+        MinionDied,     // One of yours has fallen, or its time is up.
+        Used,           // You used a book by hand.
+        Time,           // Every so many seconds, while what it asks for holds.
+        Walked,         // Every so many metres.
     }
 
     /// <summary>
     /// The ways a build can change how the game works. Keystones and unique items carry these. Heroes and enemies read them alike, as
-    /// anything a hero can be, an enemy can too.
+    /// anything a hero can be, an enemy can too. They're numbers rather than flags, so there's room for as many as there are uniques: a modifier
+    /// carries one, and a sheet keeps which hold in a <see cref="RuleSet"/>. None of them is saved or sent, so a new one can go anywhere in the list.
     /// </summary>
-    [Flags]
-    public enum Rule : ulong
+    public enum Rule : byte
     {
-        None = 0,
+        None,
 
-        CostsHealth = 1ul << 0,             // Books cost health instead of mana.
-        DeferredDamage = 1ul << 1,          // Damage taken is paid over time.
-        OverhealBarrier = 1ul << 2,         // Healing past full becomes barrier.
-        BlockReflects = 1ul << 3,           // A blocked hit goes back at whoever threw it.
-        Guardian = 1ul << 4,                // Part of what allies take comes to you.
-        Puppeteer = 1ul << 5,               // Your minions have your modifiers; you deal no damage yourself.
-        EndlessVenom = 1ul << 6,            // Venom has no limit on stacks.
-        Carrier = 1ul << 7,                 // Immune to venom, and it spreads from you.
-        AilmentsLeap = 1ul << 8,            // When an enemy dies, its ailments spread.
-        FireFeedsBurn = 1ul << 9,           // Fire hits go wholly into Burn.
-        BurningTrail = 1ul << 10,           // The ground burns behind you.
-        Rebirth = 1ul << 11,                // Death is put off, now and then.
-        SpellEcho = 1ul << 12,              // Spells go off twice.
-        OneCost = 1ul << 13,                // Only a book's first page has a cost.
-        StaticCharge = 1ul << 14,           // Moving builds a charge the next hit spends.
-        ChainsGrow = 1ul << 15,             // Chains strengthen as they go.
-        FreezeStores = 1ul << 16,           // Damage to the frozen is saved up for when the ice breaks.
-        HighGround = 1ul << 17,             // Height over a target is damage.
-        LongShot = 1ul << 18,               // Projectiles strengthen with distance.
-        ProjectilesReturn = 1ul << 19,      // Projectiles come back.
-        Steady = 1ul << 20,                 // What's left to chance isn't, and pays the same.
-        DodgeCrit = 1ul << 21,              // A dodge makes the next hit critical.
-        WaterTrail = 1ul << 22,             // Spells leave water behind.
-        NoLeech = 1ul << 23,
-        NoRegen = 1ul << 24,
-        NeverCrit = 1ul << 25,
-        CannotEvade = 1ul << 26,
-        CannotBeStunned = 1ul << 27,
-        CannotBeFrozen = 1ul << 28,
-        CannotBeChilled = 1ul << 29,
-        ImmuneToBurn = 1ul << 30,
-        AlwaysShocked = 1ul << 31,
-        ChillNeverFades = 1ul << 32,
-        FireHeals = 1ul << 33,              // Part of fire damage taken heals instead.
-        NoOwnDamage = 1ul << 34,            // Your own hits deal nothing.
-        LuckyHits = 1ul << 35,              // Damage is rolled twice, keeping the better.
-        BurstsOnDeath = 1ul << 36,          // A moment after dying, you go up in flames.
-        RalliesOnDeath = 1ul << 37,         // Your death drives those around you on.
+        CostsHealth,            // Books cost health instead of mana.
+        DeferredDamage,         // Damage taken is paid over time.
+        OverhealBarrier,        // Healing past full becomes barrier.
+        BlockReflects,          // A blocked hit goes back at whoever threw it.
+        Guardian,               // Part of what allies take comes to you.
+        Puppeteer,              // Your minions have your modifiers; you deal no damage yourself.
+        EndlessVenom,           // Venom has no limit on stacks.
+        Carrier,                // Immune to venom, and it spreads from you.
+        AilmentsLeap,           // When an enemy dies, its ailments spread.
+        FireFeedsBurn,          // Fire hits go wholly into Burn.
+        BurningTrail,           // The ground burns behind you.
+        Rebirth,                // Death is put off, now and then.
+        SpellEcho,              // Spells go off twice.
+        OneCost,                // Only a book's first page has a cost.
+        StaticCharge,           // Moving builds a charge the next hit spends.
+        ChainsGrow,             // Chains strengthen as they go.
+        FreezeStores,           // Damage to the frozen is saved up for when the ice breaks.
+        HighGround,             // Height over a target is damage.
+        LongShot,               // Projectiles strengthen with distance.
+        ProjectilesReturn,      // Projectiles come back.
+        Steady,                 // What's left to chance isn't, and pays the same.
+        DodgeCrit,              // A dodge makes the next hit critical.
+        WaterTrail,             // Spells leave water behind.
+        NoLeech,
+        NoRegen,
+        NeverCrit,
+        CannotEvade,
+        CannotBeStunned,
+        CannotBeFrozen,
+        CannotBeChilled,
+        ImmuneToBurn,
+        AlwaysShocked,
+        ChillNeverFades,
+        FireHeals,              // Part of fire damage taken heals instead.
+        NoOwnDamage,            // Your own hits deal nothing.
+        LuckyHits,              // Damage is rolled twice, keeping the better.
+        BurstsOnDeath,          // A moment after dying, you go up in flames.
+        RalliesOnDeath,         // Your death drives those around you on.
+
+        // What only uniques do. Each is one item's reason to exist, or what it costs.
+        NeverHealed,            // Health stops at low.
+        Marks,                  // The first enemy hit is marked until it dies.
+        BleedBurst,             // What dies bleeding bursts.
+        FullCircle,             // Melee cones go all the way round.
+        ExecuteAny,             // Any hit can execute, not only a critical one.
+        Overkill,               // What's left over after a kill goes on to the next.
+        StunSpreads,            // A stun passes to those around.
+        Leveller,               // Hits deal a share of the target's maximum health.
+        OnlyLevels,             // And nothing else.
+        VenomBursts,            // A full stack of venom lands all at once.
+        VenomSlows,             // Each stack of venom slows.
+        AllOrNothing,           // Hits that aren't critical deal nothing.
+        LeechesOverTime,        // Damage over time leeches.
+        Drags,                  // Projectiles drag what they hit towards you.
+        Lobbed,                 // Projectiles go up and come down where they're aimed.
+        Forks,                  // Projectiles split on their first hit.
+        PierceGrows,            // A projectile strengthens with each it passes through.
+        FullVoice,              // Toggle Books pulse at full strength.
+        NoActive,               // Active Books can't be used.
+        ManaPower,              // What a book spends in mana it deals as damage.
+        SpendsAll,              // Every book spends all the mana there is.
+        Choir,                  // Minions use what you use.
+        DeepHex,                // Hex goes deeper.
+        Mirror,                 // Books also go off the other way.
+        RunOn,                  // A finished book starts again, once.
+        Overdraw,               // Mana can be spent below nothing.
+        Conducts,               // Conduction runs through the shocked as through water.
+        ChainsBack,             // Chains can go back to whoever they came from before.
+        SpellsTwice,            // Spells hit everything twice.
+        DeathTakesAll,          // A fall takes all the gold.
+        Retort,                 // What's blocked is kept, and the next hit gives it back.
+        Wall,                   // Standing still, nothing that flies gets past.
+        BlockFeedsMana,         // Blocked spells are mana.
+        ThirdBlock,             // Every third hit is blocked.
+        Barricaded,             // No ailments while barrier holds.
+        ThornsAlways,           // Thorns answer every hit, not only melee.
+        MinionsShoulder,        // Minions take part of what you take.
+        GoldAbsorbs,            // Gold pays for part of what you take.
+        CostIsTime,             // Books cost rest instead of mana.
+        Blind,                  // Enemies' ground marks aren't shown.
+        NoRepeat,               // A book used twice running is weaker.
+        Remote,                 // Melee lands where you aim.
+        LastGasp,               // Death waits a few seconds for a kill.
+        AllAsFire,              // Everything arrives as fire.
+        MinionShield,           // A minion dies in your place.
+        Adapts,                 // You harden to what last hit you.
+        HitCap,                 // No hit takes more than a share of your health.
+        FlaskNoHeal,            // Flasks heal nothing.
+        NoSafeDodge,            // A dodge moves you and protects you from nothing.
+        DodgeCostsMana,         // A dodge costs mana.
+        NoDodge,                // You can't dodge.
+        NoItems,                // What you kill drops no items.
+        Fluke,                  // Books sometimes go off twice.
+        Fumble,                 // Books sometimes do nothing.
+        Wildfire,               // Flashfire spreads venom and leaves it.
+        HealsHarm,              // What you heal also hurts what's around.
+        EvenResist,             // Elemental resistances are all your best.
+        CostsGold,              // Books cost gold instead of mana.
+        Exchange,               // Strength and Intellect swap what they give.
+        NoCooldowns,            // Books don't rest.
+        TimeIsCost,             // Rest is paid for in mana instead.
+        QuickTrigger,           // Trigger Books fill faster.
+        IceBursts,              // What dies frozen shatters.
+        KillResets,             // A kill takes the book that did it off cooldown.
+        Lodestone,              // Enemies around are drawn in.
+        MinionsBurst,           // Minions burst when they're gone.
+        FlockPays,              // Books cost nothing.
+        FlockBleeds,            // Each use costs a minion.
+        Inoculated,             // No ailments at all.
+
+        Count,
+    }
+
+    /// <summary>Which rules hold for someone, one bit each. It's a value with room for every rule, so a sheet can carry one without anything being allocated.</summary>
+    [System.Runtime.CompilerServices.InlineArray(Words)]
+    public struct RuleSet
+    {
+        public const int Words = 4;
+
+        private ulong _first;
+
+        public readonly bool Has(Rule rule) => (this[(int)rule >> 6] & 1ul << ((int)rule & 63)) != 0;
+
+        public void Add(Rule rule) => this[(int)rule >> 6] |= 1ul << ((int)rule & 63);
     }
 }

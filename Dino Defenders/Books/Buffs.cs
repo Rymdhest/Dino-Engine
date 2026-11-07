@@ -71,6 +71,101 @@ namespace Dino_Defenders.Books
             Mods = new[] { More(Stat.Damage, 20f), Inc(Stat.MoveSpeed, 15f) },
         });
 
+        // What uniques hand out. A count a player has to keep in their head is one they can't see, so whatever builds up is a buff with stacks.
+        public static readonly BuffDefinition Grudge = Add(new BuffDefinition
+        {
+            Id = "grudge",
+            Name = "Grudge",
+            Duration = 20f,
+            MostStacks = 6,
+            Mods = new[] { Inc(Stat.Damage, 40f) },
+        });
+
+        public static readonly BuffDefinition Verdict = Add(new BuffDefinition
+        {
+            Id = "verdict",
+            Name = "Verdict",
+            Duration = 30f,
+            Mods = new[] { More(Stat.Damage, 300f) },
+        });
+
+        public static readonly BuffDefinition Aim = Add(new BuffDefinition
+        {
+            Id = "aim",
+            Name = "Aim",
+            Duration = 10f,
+            MostStacks = 3,
+            Mods = new[] { More(Stat.Damage, 40f, Tags.Projectile), Flat(Stat.CritChance, 10f) },
+        });
+
+        public static readonly BuffDefinition Riposte = Add(new BuffDefinition
+        {
+            Id = "riposte",
+            Name = "Riposte",
+            Duration = 4f,
+            Mods = new[] { Flat(Stat.CritChance, 100f), More(Stat.Damage, 100f, Tags.Attack) },
+        });
+
+        public static readonly BuffDefinition Stride = Add(new BuffDefinition
+        {
+            Id = "stride",
+            Name = "Long Stride",
+            Duration = 2f,
+            MostStacks = 10,
+            Mods = new[] { Inc(Stat.Damage, 6f), Inc(Stat.MoveSpeed, 3f) },
+        });
+
+        public static readonly BuffDefinition Dance = Add(new BuffDefinition
+        {
+            Id = "dance",
+            Name = "Dance",
+            Duration = 8f,
+            MostStacks = 5,
+            Mods = new[] { Inc(Stat.Damage, 15f), Inc(Stat.AttackSpeed, 5f), Inc(Stat.CastSpeed, 5f) },
+        });
+
+        public static readonly BuffDefinition Courage = Add(new BuffDefinition
+        {
+            Id = "courage",
+            Name = "Dutch Courage",
+            Duration = 8f,
+            Mods = new[] { More(Stat.Damage, 40f), Inc(Stat.MoveSpeed, 15f) },
+        });
+
+        public static readonly BuffDefinition Mourning = Add(new BuffDefinition
+        {
+            Id = "mourning",
+            Name = "Mourning",
+            Duration = 8f,
+            MostStacks = 5,
+            Mods = new[] { Inc(Stat.Damage, 15f), Inc(Stat.CastSpeed, 5f) },
+        });
+
+        public static readonly BuffDefinition Vanish = Add(new BuffDefinition
+        {
+            Id = "vanish",
+            Name = "Unseen",
+            Duration = 3f,
+            Mods = new[] { Flat(Stat.Stealth, 90f) },
+        });
+
+        public static readonly BuffDefinition LastGasp = Add(new BuffDefinition
+        {
+            Id = "last-gasp",
+            Name = "Last Gasp",
+            Duration = Rulebook.GaspSeconds,
+            Mods = new[] { More(Stat.Damage, 60f) },
+        });
+
+        /// <summary>Hardened against one type of damage, by type: what last got through.</summary>
+        public static readonly BuffDefinition[] Inured = DamageKinds.All.Select(type => Add(new BuffDefinition
+        {
+            Id = $"inured-{type.ToString().ToLowerInvariant()}",
+            Name = $"Inured to {type}",
+            Duration = 6f,
+            Mods = new[] { More(Stat.DamageTaken, -50f, DamageKinds.Tag(type)) },
+        })).ToArray();
+
         private static BuffDefinition Add(BuffDefinition buff)
         {
             Everything.Add(buff);

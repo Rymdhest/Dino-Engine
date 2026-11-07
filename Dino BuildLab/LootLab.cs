@@ -197,7 +197,8 @@ namespace Dino_BuildLab
                 for (int i = 0; i < 300; i++) everyRarity &= ItemGenerator.Forge(20, random.Fork(i + 20000), rarity, 0.5f).Rarity == rarity;
             }
             report.Check("A rarity asked for is the rarity that comes out", everyRarity);
-            report.Check("With no unique to be, a unique is a rare", ItemGenerator.Forge(1, random.Fork(1), Rarity.Unique, 0f, ItemSlot.Feet).Rarity == Rarity.Rare);
+            ItemSlot none = Enum.GetValues<ItemSlot>().First(slot => slot < ItemSlot.Book && UniqueCatalog.All.All(u => u.MinLevel > 1 || ItemGenerator.Plain(u.Base, 1, new WorldRandom(1)).Slot != slot));
+            report.Check("With no unique to be, a unique is a rare", ItemGenerator.Forge(1, random.Fork(1), Rarity.Unique, 0f, none).Rarity == Rarity.Rare, $"{none}");
 
             float plain = 0f, fine = 0f;
             for (int i = 0; i < 4000; i++)

@@ -74,13 +74,13 @@ namespace Dino_Defenders.Tooltips
         private static IEnumerable<string> ArmourNotes(ActorSheet sheet)
         {
             float hit = Bestiary.DamageAt(sheet.Loadout.Level);
-            yield return $"A normal Hit at your Level ({Whole(hit)}): {Rate(Hits.ArmourReduction(sheet.Armour, hit) * 100f)} reduced";
+            yield return $"An ordinary Hit at your Level ({Whole(hit)}): {Rate(Hits.ArmourReduction(sheet.Armour, hit) * 100f)} reduced";
         }
 
         private static IEnumerable<string> EvasionNotes(ActorSheet sheet)
         {
             float accuracy = Bestiary.AccuracyAt(sheet.Loadout.Level);
-            yield return $"A normal Attack at your Level ({Whole(accuracy)} Accuracy): {Rate(Hits.EvadeChance(sheet.Evasion, accuracy) * 100f)} miss";
+            yield return $"An ordinary Attack at your Level ({Whole(accuracy)} Accuracy): {Rate(Hits.EvadeChance(sheet.Evasion, accuracy) * 100f)} miss";
         }
 
         private static IEnumerable<string> ResistanceNotes(ActorSheet sheet, DamageType type)
@@ -142,6 +142,7 @@ namespace Dino_Defenders.Tooltips
             Add(recovery, "Mana on Kill", Stat.ManaOnKill, s => Sum(s, Stat.ManaOnKill));
             Add(recovery, "Barrier on Kill", Stat.BarrierOnKill, s => Sum(s, Stat.BarrierOnKill));
             Add(recovery, "Flask Effect", Stat.FlaskEffect, s => Change(s, Stat.FlaskEffect));
+            Add(recovery, "Health Drain", Stat.HealthDrain, s => Rate(s.HealthDrain));
 
             const string defence = "Defence";
             Add(defence, "Armour", Stat.Armour, s => Whole(s.Armour), always: true, adds: true, notes: ArmourNotes);

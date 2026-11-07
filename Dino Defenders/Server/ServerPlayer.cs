@@ -2,6 +2,7 @@ using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
+using Dino_Defenders.Stats;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using OpenTK.Mathematics;
@@ -85,7 +86,8 @@ namespace Dino_Defenders.Server
             {
                 if (Hero.Bar[slot] is not { Mode: BookMode.Trigger, When: BookTrigger when } book || book.Written() == null) continue;
                 float progress = Array.Find(Actor.Watches, watch => watch.Book == book)?.Progress ?? 0f;
-                watches.Add(new BookWatch { Slot = slot, Book = book, When = when.When, Amount = when.Amount, Progress = progress });
+                float amount = Actor.Sheet.Has(Rule.QuickTrigger) ? when.Amount * Rulebook.QuickTriggerShare : when.Amount;
+                watches.Add(new BookWatch { Slot = slot, Book = book, When = when.When, Amount = amount, Progress = MathF.Min(progress, amount) });
             }
             Actor.Watches = watches.ToArray();
         }

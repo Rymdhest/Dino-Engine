@@ -24,6 +24,7 @@ namespace Dino_Defenders.Tooltips
         Price,
         Good,
         Bad,
+        Burden,     // What a unique costs, apart from what it gives.
     }
 
     public readonly record struct CardLine(LineLook Look, string Text, string Value = "");
@@ -159,15 +160,15 @@ namespace Dino_Defenders.Tooltips
         private static void Attach(Card card, in Mod mod, ActorSheet? viewer)
         {
             if (viewer == null) return;
-            if (mod.Kind == ModKind.Trigger) card.Attached.Add(Book(viewer.Preview(Shelf.Get(mod.Book))));
-            if (mod.Kind != ModKind.Rule) return;
-
-            foreach (RuleInfo info in ModText.Rules)
+            if (mod.Kind == ModKind.Trigger)
             {
-                if ((mod.Rule & info.Rule) == 0) continue;
-                if (info.Casts != null) card.Attached.Add(Book(viewer.Preview(info.Casts)));
-                if (info.Gives != null) card.Attached.Add(Buff(info.Gives, viewer));
+                if (mod.Book != 0) card.Attached.Add(Book(viewer.Preview(Shelf.Get(mod.Book))));
+                else if (!mod.Spends && BuffCatalog.Get(mod.Gift) is BuffDefinition buff) card.Attached.Add(Buff(buff, viewer));
             }
+            if (mod.Kind != ModKind.Rule || ModText.Of(mod.Rule) is not RuleInfo info) return;
+
+            if (info.Casts != null) card.Attached.Add(Book(viewer.Preview(info.Casts)));
+            if (info.Gives != null) card.Attached.Add(Buff(info.Gives, viewer));
         }
 
         /// <summary>Modifiers as lines, each with whatever it sets off ready to be looked at.</summary>
@@ -498,10 +499,12 @@ namespace Dino_Defenders.Tooltips
                 Side(card, item, true, viewer);
                 Side(card, item, false, viewer);
             }
-            else Mods(card, item.RolledMods(), viewer, LineLook.Rolled);
-
-            if (item.Unique != null && UniqueCatalog.Find(item.Unique) is UniqueDefinition unique)
+            else if (UniqueCatalog.Find(item.Unique) is UniqueDefinition unique)
             {
+                // What it gives, and then what it costs, apart and in a colour of its own.
+                Mods(card, unique.Boon, viewer, LineLook.Rolled);
+                card.Gap();
+                Mods(card, unique.Burden, viewer, LineLook.Burden);
                 card.Gap();
                 card.Lore(unique.Lore);
             }

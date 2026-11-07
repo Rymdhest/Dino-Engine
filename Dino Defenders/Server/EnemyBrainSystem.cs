@@ -26,7 +26,7 @@ namespace Dino_Defenders.Server
         private const float EscapeSpeed = 12f;          // Metres a second it's taken that someone can get out of an area at. An area gives them that long, near enough.
         private const float EscapeShare = 0.7f;
         private const float MostFollowThrough = 0.75f;
-        private const float PushFade = 9f;              // Per second.
+        public const float PushFade = 9f;               // Per second.
         private const float ReelingSpeed = 0.2f;        // What's left of how fast it was going.
         private const float MeleeSlack = 1.2f;
         private const float FollowDistance = 7f;

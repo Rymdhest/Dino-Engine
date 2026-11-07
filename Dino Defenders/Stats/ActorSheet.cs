@@ -62,13 +62,13 @@ namespace Dino_Defenders.Stats
         public const float BaseStunThreshold = 100f;
 
         private readonly BookProfile?[] _profiles;
-        private readonly float[] _per = new float[(int)Per.AlliesNear + 1];
+        private readonly float[] _per = new float[(int)Counting.Last + 1];
+        private readonly RuleSet _rules;
         private bool _perReady;
 
         public readonly Loadout Loadout;
         public readonly Condition State;
         public readonly Counters Counters;
-        public readonly Rule Rules;
 
         public readonly float MaxHealth;
         public readonly float MaxMana;
@@ -76,6 +76,9 @@ namespace Dino_Defenders.Stats
 
         public readonly float HealthRegen;
         public readonly float ManaRegen;
+
+        /// <summary>Percent of maximum health lost a second, whatever else is going on.</summary>
+        public readonly float HealthDrain;
 
         /// <summary>What a build adds to the mana everyone gets back.</summary>
         public readonly float ManaRegenBonus;
@@ -121,7 +124,7 @@ namespace Dino_Defenders.Stats
         public readonly float RaiseFallen;
         public readonly float ExplodeOnKill;
 
-        public bool Has(Rule rule) => (Rules & rule) != 0;
+        public bool Has(Rule rule) => _rules.Has(rule);
 
         internal ActorSheet(Loadout loadout, Condition state, in Counters counters)
         {
@@ -132,7 +135,7 @@ namespace Dino_Defenders.Stats
 
             foreach (Mod mod in loadout.RuleMods)
             {
-                if (Holds(mod)) Rules |= mod.Rule;
+                if (Holds(mod)) _rules.Add(mod.Rule);
             }
 
             // Anything measured against a total is measured against what it was before such things were counted. So one can't feed another,
@@ -148,7 +151,7 @@ namespace Dino_Defenders.Stats
             _per[(int)Per.Strength] = Total(Stat.Strength);
             _per[(int)Per.Dexterity] = Total(Stat.Dexterity);
             _per[(int)Per.Intellect] = Total(Stat.Intellect);
-            for (Per per = Per.Gold; per <= Per.AlliesNear; per++) _per[(int)per] = counters.Read(per);
+            for (Per per = Per.Gold; per <= Counting.Last; per++) _per[(int)per] = counters.Read(per);
             _perReady = true;
 
             MaxHealth = MathF.Max(Total(Stat.Health), 1f);
@@ -159,6 +162,7 @@ namespace Dino_Defenders.Stats
             FlaskScale = Total(Stat.FlaskEffect, 1f);
             float healthRegen = Total(Stat.HealthRegen) + MaxHealth * Total(Stat.HealthRegenPercent) / 100f;
             HealthRegen = Has(Rule.NoRegen) ? 0f : healthRegen * RecoveryScale;
+            HealthDrain = MathF.Max(Total(Stat.HealthDrain), 0f);
             ManaRegenBonus = (Total(Stat.ManaRegen) + MaxMana * Total(Stat.ManaRegenPercent) / 100f) * RecoveryScale;
             ManaRegen = ManaRegenBonus + MaxMana * Rulebook.ManaRefill / 100f * RecoveryScale;
             BarrierRecharge = MaxBarrier * Total(Stat.BarrierRecharge, BaseBarrierRecharge) / 100f * RecoveryScale;
@@ -188,6 +192,7 @@ namespace Dino_Defenders.Stats
                 FlatReduction[i] = TotalNaming(Stat.FlatReduction, tags);
                 Taken[i] = TakenScale(tags);
             }
+            if (Has(Rule.EvenResist)) EvenOut();
             FlatReductionAll = TotalNotNaming(Stat.FlatReduction, Tags.DamageTypes);
             TakenAs = ShiftTable();
             ScopedTaken = ScopedDefences();
@@ -202,7 +207,7 @@ namespace Dino_Defenders.Stats
             ItemRarity = Bonus(Stat.ItemRarity);
             GoldFind = Bonus(Stat.GoldFind);
             ExperienceGain = Bonus(Stat.ExperienceGain);
-            Stealth = Math.Clamp(Total(Stat.Stealth), 0f, Rulebook.MostStealth);
+            Stealth = Math.Clamp(Total(Stat.Stealth), -100f, Rulebook.MostStealth);
             MinionDuration = Total(Stat.MinionDuration, 1f);
             RaiseFallen = Math.Clamp(Total(Stat.RaiseFallen), 0f, 100f);
             ExplodeOnKill = MathF.Max(Total(Stat.ExplodeOnKill), 0f);
@@ -299,9 +304,27 @@ namespace Dino_Defenders.Stats
             return list?.ToArray() ?? Array.Empty<ScopedDefence>();
         }
 
+        // Fire, cold and lightning, each as good as the best of them, as far as each is allowed to go.
+        private void EvenOut()
+        {
+            float best = MathF.Max(Resistance[(int)DamageType.Fire], MathF.Max(Resistance[(int)DamageType.Cold], Resistance[(int)DamageType.Lightning]));
+            foreach (DamageType type in new[] { DamageType.Fire, DamageType.Cold, DamageType.Lightning }) Resistance[(int)type] = MathF.Min(best, MaxResistance[(int)type]);
+        }
+
         private float[]? ShiftTable()
         {
             float[]? table = null;
+            if (Has(Rule.AllAsFire))
+            {
+                // Everything is fire by the time it arrives, and nothing else can move it on.
+                table = new float[DamageKinds.Count * DamageKinds.Count];
+                for (int from = 0; from < DamageKinds.Count; from++)
+                {
+                    if (from != (int)DamageType.Fire) table[from * DamageKinds.Count + (int)DamageType.Fire] = 1f;
+                }
+                return table;
+            }
+
             foreach (ref readonly Mod mod in Loadout.On(Stat.TakenAs))
             {
                 if (!Holds(mod) || mod.From == mod.To || Worth(mod) is not float value || value <= 0f) continue;

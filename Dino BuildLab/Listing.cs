@@ -44,7 +44,8 @@ namespace Dino_BuildLab
                 foreach (UniqueDefinition unique in UniqueCatalog.All)
                 {
                     Console.WriteLine($"  {unique.Name} ({unique.Base})");
-                    foreach (Mod mod in unique.Mods) Console.WriteLine($"      {mod.Describe()}");
+                    foreach (Mod mod in unique.Boon) Console.WriteLine($"      {mod.Describe()}");
+                    foreach (Mod mod in unique.Burden) Console.WriteLine($"    - {mod.Describe()}");
                     Console.WriteLine($"      \"{unique.Lore}\"");
                 }
             }

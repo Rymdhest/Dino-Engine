@@ -236,12 +236,7 @@ namespace Dino_Defenders.Gameplay
             writer.WriteFloat(MoveRate);
             writer.WriteFloat(ActionRate);
             writer.WriteVarULong((ulong)State);
-            writer.WriteVarInt(Counters.Gold);
-            writer.WriteByte(Counters.ShrinesKindled);
-            writer.WriteByte(Counters.RecentKills);
-            writer.WriteByte(Counters.HealthSpent);
-            writer.WriteByte(Counters.Minions);
-            writer.WriteByte(Counters.AlliesNear);
+            Counters.Write(writer);
         }
 
         public static HeroSimState Read(BitReader reader)
@@ -288,15 +283,7 @@ namespace Dino_Defenders.Gameplay
             state.MoveRate = reader.ReadFloat();
             state.ActionRate = reader.ReadFloat();
             state.State = (Condition)reader.ReadVarULong();
-            state.Counters = new Counters
-            {
-                Gold = reader.ReadVarInt(),
-                ShrinesKindled = reader.ReadByte(),
-                RecentKills = reader.ReadByte(),
-                HealthSpent = reader.ReadByte(),
-                Minions = reader.ReadByte(),
-                AlliesNear = reader.ReadByte(),
-            };
+            state.Counters = Counters.Read(reader);
             return state;
         }
 
@@ -415,14 +402,14 @@ namespace Dino_Defenders.Gameplay
             if (hero.Using >= 0 && kit.Slots[hero.Using] is BookProfile inHand) speed *= Slowed(hero, inHand);
 
             // Nothing gets in the way of a dodge. Whatever they were doing is over, and if the blow hadn't landed it doesn't: getting out of there was worth more.
-            if (hero.DodgeQueuedFor > 0f && hero.DodgeCooldown <= 0f)
+            if (hero.DodgeQueuedFor > 0f && hero.DodgeCooldown <= 0f && PayForDodge(ref hero, sheet))
             {
                 hero.DashDirection = move.LengthSquared > 0f ? move : hero.Aim;
                 hero.DashSpeed = sheet.DodgeSpeed;
                 hero.DashLeft = DashDuration;
                 hero.DodgeCooldown = sheet.DodgeCooldown;
                 hero.DodgeQueuedFor = 0f;
-                hero.Safe = DashDuration + Rulebook.DodgeSafeExtra;
+                hero.Safe = sheet.Has(Rule.NoSafeDodge) ? 0f : DashDuration + Rulebook.DodgeSafeExtra;
                 hero.Using = HeroSimState.NoSlot;
                 hero.ImpactIn = -1f;
                 hero.BusyFor = 0f;
@@ -501,20 +488,37 @@ namespace Dino_Defenders.Gameplay
         public static bool KeyPresses(in HeroSimState hero, int slot, bool down, bool justPressed) =>
             justPressed || down && hero.Using < 0 && hero.Cooldowns[slot] <= 0f;
 
+        // Whether a dodge can be had, and paying for it if so.
+        private static bool PayForDodge(ref HeroSimState hero, ActorSheet sheet)
+        {
+            if (sheet.Has(Rule.NoDodge)) return false;
+            if (!sheet.Has(Rule.DodgeCostsMana)) return true;
+
+            float cost = sheet.MaxMana * Rulebook.DodgeManaShare;
+            if (hero.Mana < cost) return false;
+            hero.Mana -= cost;
+            return true;
+        }
+
+        /// <summary>Whether a book could be paid for as things stand. Gold and minions are counted by the server, which takes them, so this goes by what it last said.</summary>
+        public static bool CanPay(in HeroSimState hero, ActorSheet sheet, BookProfile book)
+        {
+            if (book.CostsMinion && hero.Counters.Minions == 0) return false;
+            if (book.CostsGold) return hero.Counters.Gold >= book.Cost * Rulebook.GoldPerCost;
+            if (book.CostsHealth) return hero.Health > book.Cost;
+            return hero.Mana - book.Cost >= (sheet.Has(Rule.Overdraw) ? -sheet.MaxMana : 0f);
+        }
+
         private static bool TryUse(ref HeroSimState hero, HeroKit kit, int slot, ref HeroStepEvents events)
         {
             if (slot < 0 || slot >= HeroState.BarSlots || kit.Slots[slot] is not BookProfile { Mode: BookMode.Active } book || hero.Cooldowns[slot] > 0f) return false;
 
-            if (book.CostsHealth)
-            {
-                if (hero.Health <= book.Cost) return false;
-                hero.Health -= book.Cost;
-            }
-            else
-            {
-                if (hero.Mana < book.Cost) return false;
-                hero.Mana -= book.Cost;
-            }
+            ActorSheet sheet = kit.Sheet;
+            if (sheet.Has(Rule.NoActive) || !CanPay(hero, sheet, book)) return false;
+
+            // Gold comes off on the server, which has the last word on what's in anyone's pocket.
+            if (book.CostsHealth && !book.CostsGold) hero.Health -= book.Cost;
+            else if (!book.CostsGold) hero.Mana = sheet.Has(Rule.SpendsAll) ? MathF.Min(hero.Mana - book.Cost, 0f) : hero.Mana - book.Cost;
 
             hero.Using = (sbyte)slot;
             hero.ImpactIn = book.ImpactTime;

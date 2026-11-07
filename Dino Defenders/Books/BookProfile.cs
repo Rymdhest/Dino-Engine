@@ -85,6 +85,12 @@ namespace Dino_Defenders.Books
         /// <summary>Every page's added together, for those who pay for every page.</summary>
         public readonly float Cost;
         public readonly bool CostsHealth;
+
+        /// <summary>Paid in gold, <see cref="Rulebook.GoldPerCost"/> for each point of it, instead of mana.</summary>
+        public readonly bool CostsGold;
+
+        /// <summary>Using it takes a minion of yours, and it can't be used without one.</summary>
+        public readonly bool CostsMinion;
         public readonly float Cooldown;
 
         public PageProfile First => Pages[0];
@@ -94,8 +100,14 @@ namespace Dino_Defenders.Books
         public bool Rides => First.Page.Rides;
         public PageSign Sign => First.Sign;
 
+        /// <summary>Whether its first page comes down out of the sky, written that way or lobbed.</summary>
+        public bool Lobs => First.Page.Kind == PageKind.Projectile && !First.Page.Rides && (First.Page.To == Bearing.Down || Sheet.Has(Rule.Lobbed));
+
         /// <summary>How long after it's let go that what's marked lands, for what has a way to fall.</summary>
-        public float Delay => First.Page.Kind == PageKind.Projectile && First.Page.To == Bearing.Down ? Rulebook.SkyHeight / MathF.Max(First.Speed, 1f) : 0f;
+        public float Delay => Lobs ? Rulebook.SkyHeight / MathF.Max(First.Speed, 1f) : 0f;
+
+        /// <summary>What a Toggle Book's pulse does, of what its pages would by hand.</summary>
+        public float AuraStrength => Sheet.Has(Rule.FullVoice) ? 1f : Rulebook.AuraStrength;
 
         internal BookProfile(ActorSheet sheet, BookPlan book)
         {
@@ -109,6 +121,22 @@ namespace Dino_Defenders.Books
                 Cooldown += Pages[i].Cooldown;
             }
             CostsHealth = sheet.Has(Rule.CostsHealth);
+            CostsGold = sheet.Has(Rule.CostsGold);
+
+            // What a book is paid with can be something else altogether. Raising the flock is never paid for with the flock.
+            if (Mode != BookMode.Toggle)
+            {
+                bool raises = Array.Exists(Pages, page => page.Page.Minion != null);
+                if (sheet.Has(Rule.TimeIsCost)) Cost += Cooldown * Rulebook.RestToCost;
+                if (sheet.Has(Rule.NoCooldowns)) Cooldown = 0f;
+                if (sheet.Has(Rule.CostIsTime))
+                {
+                    Cooldown += Cost * Rulebook.CostToRest;
+                    Cost = 0f;
+                }
+                if (sheet.Has(Rule.FlockPays) && !raises) Cost = 0f;
+                CostsMinion = sheet.Has(Rule.FlockBleeds) && !raises;
+            }
             if (Mode == BookMode.Toggle) Cost = MathF.Max(Cost, Rulebook.LeastToggleCost);
         }
 
@@ -126,7 +154,7 @@ namespace Dino_Defenders.Books
                 if (!page.Hostile && Pages.Length == 1) return false;
                 if (page.From is Start.Nearest or Start.Random) return false;
                 if (page.Kind == PageKind.Area) return page.From != Start.You || page.Shape != AreaShape.Cone || First.Length >= Rulebook.WideReach;
-                return page.To == Bearing.Down || page.Rides;
+                return Lobs || page.Rides;
             }
         }
 
@@ -137,7 +165,7 @@ namespace Dino_Defenders.Books
             {
                 float total = 0f;
                 foreach (PageProfile page in Pages) total += page.AverageHit * page.PulseShare * page.Pulses;
-                return Mode == BookMode.Toggle ? total * Rulebook.AuraStrength / Pulse : total / MathF.Max(UseTime, Cooldown);
+                return Mode == BookMode.Toggle ? total * AuraStrength / Pulse : total / MathF.Max(UseTime, Cooldown);
             }
         }
     }

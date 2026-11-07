@@ -213,7 +213,12 @@ namespace Dino_Defenders.Stats
                 hit.Damage[(int)flow.Type] += amount * strength;
             }
 
-            if (!hit.Critical) return;
+            if (!hit.Critical)
+            {
+                // Some would rather have nothing than an ordinary blow.
+                if (skill.Sheet.Has(Rule.AllOrNothing)) hit.Damage = default;
+                return;
+            }
             float scale = multiplier / 100f;
             for (int i = 0; i < DamageKinds.Count; i++) hit.Damage[i] *= scale;
         }
@@ -389,6 +394,12 @@ namespace Dino_Defenders.Stats
         {
             if (vitals.Health <= 0f) return;
 
+            if (sheet.HealthDrain > 0f)
+            {
+                vitals.Health -= sheet.MaxHealth * sheet.HealthDrain / 100f * seconds;
+                if (vitals.Health <= 0f) return;
+            }
+
             if (vitals.Debt > 0f)
             {
                 float due = MathF.Min(vitals.Debt, MathF.Max(vitals.Debt / DebtSeconds, sheet.MaxHealth * Rulebook.DebtLeast) * seconds);
@@ -409,7 +420,12 @@ namespace Dino_Defenders.Stats
         {
             Condition state = Condition.None;
             if (vitals.Health >= sheet.MaxHealth - 0.01f) state |= Condition.FullHealth;
-            else if (vitals.Health <= sheet.MaxHealth * LowShare) state |= Condition.LowHealth;
+            else
+            {
+                state |= Condition.Wounded;
+                if (vitals.Health <= sheet.MaxHealth * LowShare) state |= Condition.LowHealth;
+            }
+            if (vitals.Mana < 0f) state |= Condition.Overdrawn;
             if (vitals.Mana >= sheet.MaxMana - 0.01f) state |= Condition.FullMana;
             else if (vitals.Mana <= sheet.MaxMana * LowShare) state |= Condition.LowMana;
             state |= vitals.Barrier > 0f ? Condition.HasBarrier : Condition.NoBarrier;

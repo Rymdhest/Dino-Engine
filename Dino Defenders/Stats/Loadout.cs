@@ -40,8 +40,10 @@ namespace Dino_Defenders.Stats
         /// <summary>The conditions that change a sheet: everything else can come and go without any recalculation.</summary>
         public readonly Condition Relevant;
 
-        /// <summary>Whether a counter changing means a new sheet.</summary>
-        public readonly bool ReadsCounters;
+        /// <summary>Which counters a sheet reads, a bit each (<see cref="Counters.Bit"/>): only those changing means a new sheet.</summary>
+        public readonly uint CountersRead;
+
+        public bool ReadsCounters => CountersRead != 0;
 
         public Loadout(int level, WeaponProfile weapon, IEnumerable<Mod> mods, IEnumerable<BookPlan> books)
         {
@@ -76,6 +78,16 @@ namespace Dino_Defenders.Stats
                 }
             }
 
+            // Strength and Intellect trade places for those who've arranged it, before either gives anything.
+            if (rules.Exists(rule => rule.Rule == Rule.Exchange))
+            {
+                for (int i = 0; i < numbers.Count; i++)
+                {
+                    if (numbers[i].Stat == Stat.Strength) numbers[i] = numbers[i] with { Stat = Stat.Intellect };
+                    else if (numbers[i].Stat == Stat.Intellect) numbers[i] = numbers[i] with { Stat = Stat.Strength };
+                }
+            }
+
             // Before anything is diverted, as what an attribute gives is as much a part of a stat as anything else.
             if (numbers.Exists(mod => Attributes.Is(mod.Stat)) && !numbers.Contains(Attributes.Mods[0])) numbers.AddRange(Attributes.Mods);
 
@@ -84,6 +96,7 @@ namespace Dino_Defenders.Stats
             // What goes off by itself has to be somewhere for a profile to be made of it, though nobody picks it from a list.
             foreach (Mod trigger in triggers)
             {
+                if (trigger.Book == 0) continue;
                 BookPlan book = Shelf.Get(trigger.Book);
                 if (!known.Contains(book)) known.Add(book);
             }
@@ -101,15 +114,16 @@ namespace Dino_Defenders.Stats
             Mods = SortByStat(numbers, _first);
 
             Condition relevant = Condition.None;
-            bool readsCounters = false;
+            uint countersRead = 0;
             void Note(in Mod mod)
             {
                 relevant |= mod.Need | mod.Without;
-                readsCounters |= mod.Per >= Per.Gold;
+                countersRead |= Counters.Bit(mod.Per);
             }
 
             foreach (Mod mod in Mods) Note(mod);
             foreach (Mod mod in RuleMods) Note(mod);
+            foreach (Mod mod in Triggers) Note(mod);
             foreach (BookPlan book in Books)
             {
                 foreach (PagePlan page in book.Pages)
@@ -118,7 +132,7 @@ namespace Dino_Defenders.Stats
                 }
             }
             Relevant = relevant;
-            ReadsCounters = readsCounters;
+            CountersRead = countersRead;
         }
 
         // A stat's increases can be sent somewhere else. Only what was written on the stat itself goes: what's been moved doesn't move again, so
@@ -169,7 +183,7 @@ namespace Dino_Defenders.Stats
         public ActorSheet SheetFor(Condition state, in Counters counters = default)
         {
             Condition key = (state | Granted) & Relevant;
-            Counters read = ReadsCounters ? counters : default;
+            Counters read = counters.Only(CountersRead);
             if (_sheets.TryGetValue((key, read), out ActorSheet? sheet)) return sheet;
 
             // Counters can run through a lot of values. What's been outgrown isn't worth keeping.

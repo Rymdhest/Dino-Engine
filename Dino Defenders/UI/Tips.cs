@@ -157,6 +157,7 @@ namespace Dino_Defenders.UI
             LineLook.Price => (14f, ink.Heading),
             LineLook.Good => (13f, Ui.Good),
             LineLook.Bad => (13f, Ui.Blood),
+            LineLook.Burden => (14f, Ui.Blood),
             _ => (14f, ink.Text),
         };
 

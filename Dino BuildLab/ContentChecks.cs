@@ -4,6 +4,7 @@ using Dino_Defenders.Server;
 using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.Networking;
 using Dino_Engine.World;
 using OpenTK.Mathematics;
@@ -214,13 +215,13 @@ namespace Dino_BuildLab
         private static void Coverage(Report report)
         {
             var stats = new HashSet<Stat>();
-            Rule rules = Rule.None;
+            var rules = new HashSet<Rule>();
             var conditions = Condition.None;
             var scopes = Tags.None;
             foreach ((_, Mod mod) in EveryMod())
             {
                 if (mod.Kind <= ModKind.Override) stats.Add(mod.Stat);
-                rules |= mod.Rule;
+                if (mod.Kind == ModKind.Rule) rules.Add(mod.Rule);
                 conditions |= mod.Need | mod.Without | mod.Foe | mod.Grants;
                 scopes |= mod.Scope;
             }
@@ -228,7 +229,7 @@ namespace Dino_BuildLab
             var unused = Enum.GetValues<Stat>().Where(s => s != Stat.Count && !stats.Contains(s)).ToList();
             report.Check("Every stat can be had from something", unused.Count == 0, string.Join(", ", unused));
 
-            var unusedRules = Enum.GetValues<Rule>().Where(r => r != Rule.None && (rules & r) == 0).ToList();
+            var unusedRules = Enum.GetValues<Rule>().Where(r => r is not (Rule.None or Rule.Count) && !rules.Contains(r)).ToList();
             report.Check("Every rule can be had from something", unusedRules.Count == 0, string.Join(", ", unusedRules));
 
             Condition[] land = { Condition.InWater, Condition.UnderTrees, Condition.OnRoad, Condition.InDarkness, Condition.HotLand, Condition.ColdLand, Condition.WetLand, Condition.HighLand };
@@ -511,9 +512,20 @@ namespace Dino_BuildLab
         private static void Uniques(Report report)
         {
             report.Note($"{UniqueCatalog.All.Count} uniques");
-            report.Check("There are plenty", UniqueCatalog.All.Count >= 25);
+            report.Check("There are plenty", UniqueCatalog.All.Count >= 140);
             report.Check("Each is built on something that exists", UniqueCatalog.All.All(u => ItemGenerator.HasBase(u.Base)), string.Join(", ", UniqueCatalog.All.Where(u => !ItemGenerator.HasBase(u.Base)).Select(u => u.Base)));
-            report.Check("Each has a line of lore and something to do", UniqueCatalog.All.All(u => u.Lore.Length > 0 && u.Mods.Length > 0));
+            report.Check("Each has a line of lore, something it gives and something it costs", UniqueCatalog.All.All(u => u.Lore.Length > 0 && u.Boon.Length > 0 && u.Burden.Length > 0), string.Join(", ", UniqueCatalog.All.Where(u => u.Boon.Length == 0 || u.Burden.Length == 0).Select(u => u.Id)));
+            report.Check("And everything on it is one or the other", UniqueCatalog.All.All(u => u.Mods.SequenceEqual(u.Boon.Concat(u.Burden))));
+
+            // A price nobody notices is no price. Each line of what a unique costs has to make something worse, by enough to matter, or be a rule nobody would want.
+            var free = UniqueCatalog.All.Where(u => !u.Burden.All(Hurts)).Select(u => $"{u.Id}: {string.Join(" / ", u.Burden.Where(mod => !Hurts(mod)).Select(mod => mod.Describe()))}").ToList();
+            report.Check("Everything a unique costs really costs", free.Count == 0, string.Join(" | ", free.Take(10)));
+            report.Check("And nothing it gives is a cost in disguise", UniqueCatalog.All.All(u => !u.Boon.Any(mod => mod.Kind == ModKind.Rule && ModText.Of(mod.Rule)?.Hurts == true)), string.Join(", ", UniqueCatalog.All.Where(u => u.Boon.Any(mod => mod.Kind == ModKind.Rule && ModText.Of(mod.Rule)?.Hurts == true)).Select(u => u.Id)));
+
+            // What the tree already gives is no reason to want an item.
+            var keystoneRules = TalentTree.Nodes.Where(n => n.Kind == TalentKind.Keystone).SelectMany(n => n.Mods).Where(mod => mod.Kind == ModKind.Rule).Select(mod => mod.Rule).ToHashSet();
+            var borrowed = UniqueCatalog.All.Where(u => u.Boon.Any(mod => mod.Kind == ModKind.Rule && keystoneRules.Contains(mod.Rule))).Select(u => $"{u.Id} ({string.Join(", ", u.Boon.Where(mod => mod.Kind == ModKind.Rule && keystoneRules.Contains(mod.Rule)).Select(mod => mod.Rule))})").ToList();
+            report.Check("No unique gives what a keystone gives", borrowed.Count == 0, string.Join(", ", borrowed));
 
             var random = new WorldRandom(5);
             foreach (ItemSlot slot in Enum.GetValues<ItemSlot>().Where(slot => slot < ItemSlot.Book))
@@ -521,7 +533,7 @@ namespace Dino_BuildLab
                 report.Check($"There's a unique for {slot}", UniqueCatalog.All.Any(u => ItemGenerator.Plain(u.Base, 1, random).Slot == slot));
             }
 
-            // Truly one of a kind: something on it that nothing else worn can do, which no affix can roll and no other unique has.
+            // Truly one of a kind: something on it that nothing else worn can do, which no affix can roll and no other unique has. What it costs can be what makes it so.
             var rollable = new HashSet<Stat>(AffixCatalog.All.SelectMany(affix => affix.Build(1f)).Where(mod => mod.Kind != ModKind.Rule).Select(mod => mod.Stat));
             var holders = new Dictionary<string, int>();
             foreach (string mechanic in UniqueCatalog.All.SelectMany(u => u.Mods.SelectMany(Mechanics).Distinct())) holders[mechanic] = holders.GetValueOrDefault(mechanic) + 1;
@@ -533,7 +545,7 @@ namespace Dino_BuildLab
                 switch (mod.Kind)
                 {
                     case ModKind.Rule:
-                        foreach (Rule rule in Enum.GetValues<Rule>().Where(rule => rule != Rule.None && mod.Rule.HasFlag(rule))) yield return rule.ToString();
+                        yield return mod.Rule.ToString();
                         yield break;
                     case ModKind.Grant:
                         yield return $"Grant {mod.Grants}";
@@ -542,12 +554,13 @@ namespace Dino_BuildLab
                         yield return $"{mod.Kind} {mod.Stat} {mod.Into}";
                         yield break;
                     case ModKind.Trigger:
-                        yield return $"{mod.On} {mod.Book}";
+                        yield return $"{mod.On} {mod.Book} {mod.Gift} {mod.Spends}";
                         yield break;
                 }
 
                 bool narrowed = mod.Per != Per.None || mod.Need != Condition.None || mod.Foe != Condition.None || (mod.Scope & (Tags.Opening | Tags.Turned | Tags.Closing | Tags.Wild | Tags.Falling)) != 0;
-                if (narrowed || mod.Kind == ModKind.Override || !rollable.Contains(mod.Stat)) yield return $"{mod.Stat} {mod.Kind} {mod.Scope} {mod.From} {mod.To} {mod.Need} {mod.Foe} {mod.Per}";
+                // More of something and less of it are opposites, and no two items share either.
+                if (narrowed || mod.Kind == ModKind.Override || !rollable.Contains(mod.Stat)) yield return $"{mod.Stat} {mod.Kind} {MathF.Sign(mod.Value)} {mod.Scope} {mod.From} {mod.To} {mod.Need} {mod.Without} {mod.Foe} {mod.Per}";
             }
 
             Item shell = UniqueCatalog.Make(UniqueCatalog.Find("drowned-king")!, 20, random);
@@ -559,6 +572,36 @@ namespace Dino_BuildLab
             ActorSheet sheet = HeroBuild.Compile(hero).SheetFor(Condition.None);
             float dry = new Loadout(40, HeroBuild.WeaponOf(hero), TalentTree.Mods(hero), new[] { Shelf.Strike }).SheetFor(Condition.None).Profile(0).First.AverageHit;
             report.Check("A unique can change what another talent means: the Drowned King's shell keeps a Tidewalker in the water", sheet.Preview(Shelf.Strike).First.AverageHit > dry * 1.7f, $"{sheet.Preview(Shelf.Strike).First.AverageHit} against {dry}");
+        }
+
+        // Which stats a build wants less of. Everything else, more is better.
+        private static readonly Stat[] Unwanted = { Stat.DamageTaken, Stat.BookCost, Stat.AilmentTaken, Stat.BarrierDelay, Stat.DodgeCooldown, Stat.HealthDrain };
+
+        // Whether a line makes whoever wears it worse off, by enough that they'd notice.
+        private static bool Hurts(Mod mod)
+        {
+            bool unwanted = Unwanted.Contains(mod.Stat);
+            switch (mod.Kind)
+            {
+                case ModKind.Rule:
+                    return ModText.Of(mod.Rule)?.Hurts == true;
+                case ModKind.Override:
+                    return !unwanted;
+                case ModKind.Flat or ModKind.Increased or ModKind.More:
+                    if (mod.Value * (unwanted ? 1f : -1f) <= 0f) return false;
+                    float size = mod.Per != Per.None ? mod.PerCap : MathF.Abs(mod.Value);
+                    float least = mod.Kind != ModKind.Flat ? 15f : mod.Stat switch
+                    {
+                        Stat.Resistance => 20f,
+                        Stat.MaxResistance => 10f,
+                        Stat.Stealth => 30f,
+                        Stat.HealthDrain => 1f,
+                        _ => 15f,
+                    };
+                    return size >= least;
+                default:
+                    return false;
+            }
         }
 
         private static bool Same(HeroState a, HeroState b)
@@ -711,7 +754,8 @@ namespace Dino_BuildLab
             report.Check("Rarity reaches the sheet", Sheet(Rarity.Magic).MaxHealth > Sheet(Rarity.Normal).MaxHealth && Sheet(Rarity.Rare).MaxHealth > Sheet(Rarity.Magic).MaxHealth);
 
             Loadout boss = Bestiary.Boss(Bestiary.Warlord, 12, swift | burning, new WorldRandom(4), out _, out _);
-            report.Check("A boss can do what its traits give it as well", boss.Books.Length == Bestiary.Warlord.Books.Length + 2 && boss.Books[0] != Shelf.Whirl);
+            // What it wears can set books off as well, which aren't what it does.
+            report.Check("A boss can do what its traits give it as well", boss.Books.Count(book => (book.First.Tags & Tags.Triggered) == 0) == Bestiary.Warlord.Books.Length + 2 && boss.Books[0] != Shelf.Whirl);
 
             bool apart = true;
             foreach (Rarity rarity in rarities)
@@ -860,12 +904,15 @@ namespace Dino_BuildLab
             report.Note($"This one: {title}, wearing {string.Join(", ", gear.Select(g => g.Name))}");
 
             int uniques = 0;
+            int heroOnly = 0;
             for (int i = 0; i < 400; i++)
             {
                 Bestiary.Boss(Bestiary.Warlord, 20, Bestiary.NoTraits, new WorldRandom(i), out Item[] worn, out _);
                 if (worn.Any(g => g.Unique != null)) uniques++;
+                if (worn.Any(g => g.Unique != null && UniqueCatalog.Find(g.Unique)!.HeroOnly)) heroOnly++;
             }
             report.Check("A good share of them are wearing something unique", uniques is > 80 and < 360, $"{uniques} of 400");
+            report.Check("But never one that only means anything in a player's hands", heroOnly == 0, $"{heroOnly} of 400");
 
             int fair = 0;
             foreach (TalentNode keystone in TalentTree.Nodes.Where(n => n.Kind == TalentKind.Keystone))

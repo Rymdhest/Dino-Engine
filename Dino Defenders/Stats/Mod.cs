@@ -43,6 +43,12 @@ namespace Dino_Defenders.Stats
         public Condition Grants { get; init; }
         public TriggerEvent On { get; init; }
 
+        /// <summary>For triggers that hand out a buff rather than set off a book: which, as a place in <see cref="BuffCatalog"/>.</summary>
+        public ushort Gift { get; init; }
+
+        /// <summary>For those: whether it takes all of the buff away instead.</summary>
+        public bool Spends { get; init; }
+
         public Mod While(Condition condition) => this with { Need = Need | condition };
         public Mod Unless(Condition condition) => this with { Without = Without | condition };
         public Mod Against(Condition condition) => this with { Foe = Foe | condition };
@@ -88,6 +94,23 @@ namespace Dino_Defenders.Stats
         {
             return new Mod { Kind = ModKind.Trigger, On = on, Book = book.Number, Value = chance };
         }
+
+        /// <summary>When something happens, a stack of a buff: what a unique counts up with, as a buff is something a player can see.</summary>
+        public static Mod Gain(TriggerEvent on, BuffDefinition buff, float chance = 100f)
+        {
+            return new Mod { Kind = ModKind.Trigger, On = on, Gift = buff.Number, Value = chance };
+        }
+
+        /// <summary>When something happens, all of a buff goes.</summary>
+        public static Mod Lose(TriggerEvent on, BuffDefinition buff) => Gain(on, buff) with { Spends = true };
+
+        /// <summary>Every so many seconds, a written book goes off, for as long as what it asks for holds. Waiting starts over whenever it doesn't.</summary>
+        public static Mod Every(float seconds, BookPlan book) => Trigger(TriggerEvent.Time, book) with { PerStep = seconds };
+
+        public static Mod EveryGain(float seconds, BuffDefinition buff) => Gain(TriggerEvent.Time, buff) with { PerStep = seconds };
+
+        /// <summary>Every so many metres walked, a written book goes off.</summary>
+        public static Mod EveryMetres(float metres, BookPlan book) => Trigger(TriggerEvent.Walked, book) with { PerStep = metres };
 
         /// <summary>Increases and mores of one stat apply to another instead, at <paramref name="percent"/> of their value, for what's in <paramref name="scope"/>.</summary>
         public static Mod Divert(Stat from, Stat into, float percent = 100f, Tags scope = Tags.None)
