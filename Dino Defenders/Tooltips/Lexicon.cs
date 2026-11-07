@@ -130,6 +130,8 @@ namespace Dino_Defenders.Tooltips
             Basic("Enemy", "Anyone on the other side.", "Enemies");
             Basic("Kill", "Landing the killing blow. Your Minions' Kills count as yours.", "Killed", "Kills");
             Basic("Item", "Something you wear or hold. Its Level decides what it can roll, and wearing it has no requirement.", "Items");
+            Word("Prefix", "A defensive modifier rolled on an Item.", "Prefixes");
+            Word("Suffix", "An offensive modifier rolled on an Item.", "Suffixes");
             Basic("Bar", "Your Books along the bottom of the screen.");
             Basic("Gold", "Currency.");
             Basic("Level", $"Each Level gives {HeroState.PointsPerLevel} talent points, and Books Cost more.", "Levels");

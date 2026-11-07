@@ -168,6 +168,11 @@ namespace Dino_NetLab
                 seen = pickup.Rarity == Rarity.Rare && pickup.Slot == ItemSlot.MainHand && (pickup.From.Xz - from).Length < 0.1f && pickup.Born > 0 && (view.Get<PositionComponent>().value.Xz - at).Length < 0.1f;
             }
             report.Check("And has all it needs to show it falling", seen);
+
+            Item forged = ItemGenerator.Forge(20, new WorldRandom(5), Rarity.Rare, 0f, ItemSlot.MainHand);
+            (int rolled, _) = scene.Lay(forged, new Vector2(-3f, 0f));
+            scene.Lab.Run(1);
+            report.Check("And what a label calls it, which is less than its name", scene.Seen.Ground.TryGetValue(rolled, out Item? named) && named.PlainName() == forged.Base && named.Name == forged.Name && forged.Name != forged.Base);
         }
 
         private static void ReachMatters(Report report, WorldCache worlds, WorldRequest request)

@@ -242,6 +242,9 @@ namespace Dino_Defenders.Progression
             return total > 0f ? new FamilyShares(Armour / total, Evasion / total, Barrier / total) : default;
         }
 
+        /// <summary>What it goes by among everything else on the ground: what it was made from, as the rest of its name is only what's rolled on it, and that's on its card. A name that wasn't rolled stays.</summary>
+        public string PlainName() => Unique == null && Lines.Count > 0 && ItemGenerator.BaseOf(this) is { Length: > 0 } made ? made : Name;
+
         /// <summary>What this adds to whoever is wearing it. A line whose affix has gone from the game simply does nothing.</summary>
         public IEnumerable<Mod> Mods()
         {

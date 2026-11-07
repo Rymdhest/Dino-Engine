@@ -493,7 +493,12 @@ namespace Dino_Defenders.Tooltips
             if (item.Slot == ItemSlot.MainHand) Mods(card, WeaponKinds.Of(item.Kind).Mods, viewer);
 
             card.Gap();
-            Mods(card, item.RolledMods(), viewer, LineLook.Rolled);
+            if (item.Unique == null)
+            {
+                Side(card, item, true, viewer);
+                Side(card, item, false, viewer);
+            }
+            else Mods(card, item.RolledMods(), viewer, LineLook.Rolled);
 
             if (item.Unique != null && UniqueCatalog.Find(item.Unique) is UniqueDefinition unique)
             {
@@ -501,6 +506,16 @@ namespace Dino_Defenders.Tooltips
                 card.Lore(unique.Lore);
             }
             return card;
+        }
+
+        // One side of what's rolled on something, under its name. It goes by each line's affix and not by where it's written, as a save can have them in any order.
+        private static void Side(Card card, Item item, bool prefix, ActorSheet? viewer)
+        {
+            List<ItemLine> lines = item.Lines.Where(line => AffixCatalog.Find(line.Affix)?.Prefix == prefix).ToList();
+            if (lines.Count == 0) return;
+
+            card.Heading(prefix ? lines.Count == 1 ? "Prefix" : "Prefixes" : lines.Count == 1 ? "Suffix" : "Suffixes");
+            foreach (ItemLine line in lines) Mods(card, AffixCatalog.Find(line.Affix)!.Build(line.Value), viewer, LineLook.Rolled);
         }
 
         /// <summary>

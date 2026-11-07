@@ -25,6 +25,7 @@ namespace Dino_Defenders.Server
         private const float LandingLook = 0.5f;
         private const int LandingTries = 16;
         private const int MostAsked = 8;
+        private const int FoliosOfEach = 3;         // What a scripted run lays among the gear, for looking at.
         private const float AskPatience = 1f;       // Seconds. A hero is seen a moment late, so a request can arrive ahead of them.
         private const float Height = 1.6f;          // What comes out of a body comes from about the middle of it.
 
@@ -199,6 +200,11 @@ namespace Dino_Defenders.Server
 
             var items = new List<Item>();
             foreach (Rarity rarity in Enum.GetValues<Rarity>()) items.Add(ItemGenerator.Forge(level, _random.Fork((int)rarity), rarity, 0.5f));
+            for (int i = 0; which == "folios" && i < 300; i++)
+            {
+                Item folio = ItemGenerator.Folio(level, _random.Fork("folios").Fork(i), (Rarity)(i % 3));
+                if (items.Count(item => item.Slot == folio.Slot) < FoliosOfEach) items.Add(folio);
+            }
             Spill(from, items, 0, 0);
         }
     }

@@ -16,9 +16,9 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 namespace Dino_Defenders.UI
 {
     /// <summary>
-    /// What's on the ground, as a box of its name in its rarity's colour, for clicking on. Labels push each other up rather than overlap, with the best finds placed first, so
+    /// What's on the ground, as a box of its plain name in its rarity's colour, for clicking on, with the rest of what it is on its card. Labels push each other up rather than overlap, with the best finds placed first, so
     /// a boss's fountain stays readable and what's worth having is what stays where it fell. Clicking walks the hero to it. Only the labels themselves stop the mouse: everywhere
-    /// else it goes through to the game. Holding shift goes through them as well, to fight over the top of what's on the ground.
+    /// else it goes through to the game. Holding shift goes through them as well, to fight over the top of what's on the ground. What goes in a book has an icon after its name, or it's lost among the gear.
     /// </summary>
     internal sealed class LootLabels : GuiElement
     {
@@ -26,6 +26,8 @@ namespace Dino_Defenders.UI
         private const float PaddingX = 8f;
         private const float PaddingY = 3f;
         private const float Gap = 2f;
+        private const float IconGap = 5f;
+        private const float IconShare = 0.62f;      // Half an icon's height, of the size of the text beside it.
         private const float EdgeMargin = 40f;
         private const float ShiftedFar = 6f;        // Pixels a label can move before it needs a line back to its find.
         private const float CalloutLife = 4.2f;
@@ -39,6 +41,7 @@ namespace Dino_Defenders.UI
         {
             public int Find;
             public Item Item;
+            public string Name;
             public Rarity Rarity;
             public GuiRect Rect;
             public Vector2 Anchor;
@@ -153,19 +156,21 @@ namespace Dino_Defenders.UI
                     if (!Hud.Project(pickup.Rest + Vector3.UnitY * LabelHeight, screen, out Vector2 at)) continue;
                     if (at.X < -EdgeMargin || at.Y < -EdgeMargin || at.X > screen.Width + EdgeMargin || at.Y > screen.Height + EdgeMargin) continue;
 
+                    string name = item.PlainName();
                     float size = Sizes[(int)pickup.Rarity];
                     if (!_widths.TryGetValue(pickup.Find, out float width))
                     {
-                        width = GuiText.MeasureWidth(Context!, item.Name, Ui.Face, size);
+                        width = GuiText.MeasureWidth(Context!, name, Ui.Face, size);
                         _widths[pickup.Find] = width;
                     }
 
-                    float boxWidth = width + PaddingX * 2f;
+                    float boxWidth = width + PaddingX * 2f + (item.IsFolio ? IconRoom(size) : 0f);
                     float boxHeight = size + 5f + PaddingY * 2f;
                     _labels.Add(new Label
                     {
                         Find = pickup.Find,
                         Item = item,
+                        Name = name,
                         Rarity = pickup.Rarity,
                         Rect = new GuiRect(at.X - boxWidth * 0.5f, at.Y - boxHeight, boxWidth, boxHeight),
                         Anchor = at,
@@ -216,8 +221,45 @@ namespace Dino_Defenders.UI
             float border = label.Rarity == Rarity.Unique ? 1.6f : 1f;
             draw.AddRect(rect, fill, 2f, border, colour.MultiplyAlpha(hovered ? 1f : label.Rarity == Rarity.Normal ? 0.35f : 0.85f));
 
-            Colour text = hovered ? GuiColors.Rgba(14, 10, 8) : colour;
-            Ui.Text(Context!, draw, label.Item.Name, Sizes[rarity], rect, text, Alignment.Center);
+            Colour dark = GuiColors.Rgba(14, 10, 8);
+            Colour text = hovered ? dark : colour;
+            float size = Sizes[rarity];
+            float room = label.Item.IsFolio ? IconRoom(size) : 0f;
+            Ui.Text(Context!, draw, label.Name, size, new GuiRect(rect.X, rect.Y, rect.Width - room, rect.Height), text, Alignment.Center);
+            if (label.Item.IsFolio) DrawIcon(draw, label.Item, new Vector2(rect.Right - PaddingX - size * IconShare, rect.Y + rect.Height * 0.5f), size * IconShare, text, hovered ? colour : dark);
+        }
+
+        private static float IconRoom(float size) => size * IconShare * 2f + IconGap;
+
+        // Told apart by their outlines, as details are lost at this size: a book is solid, a page is open and a sticker is round. They're in the label's colour, as colour is what rarity says.
+        private static void DrawIcon(GuiDrawList draw, Item item, Vector2 c, float s, Colour ink, Colour cut)
+        {
+            const float Stroke = 1.8f;
+            if (item.IsBook)
+            {
+                draw.AddRect(new GuiRect(c.X - s * 0.8f, c.Y - s, s * 1.6f, s * 2f), ink, s * 0.2f);
+                draw.AddLine(c + new Vector2(-s * 0.42f, -s), c + new Vector2(-s * 0.42f, s), cut, Stroke);
+                draw.AddLine(c + new Vector2(-s * 0.08f, -s * 0.4f), c + new Vector2(s * 0.5f, -s * 0.4f), cut, Stroke);
+            }
+            else if (item.IsPage)
+            {
+                Vector2 topLeft = c + new Vector2(-s * 0.75f, -s), fold = c + new Vector2(s * 0.25f, -s), side = c + new Vector2(s * 0.75f, -s * 0.5f);
+                Vector2 bottomRight = c + new Vector2(s * 0.75f, s), bottomLeft = c + new Vector2(-s * 0.75f, s);
+                draw.AddLine(topLeft, fold, ink, Stroke, roundCaps: true);
+                draw.AddLine(fold, side, ink, Stroke, roundCaps: true);
+                draw.AddLine(side, bottomRight, ink, Stroke, roundCaps: true);
+                draw.AddLine(bottomRight, bottomLeft, ink, Stroke, roundCaps: true);
+                draw.AddLine(bottomLeft, topLeft, ink, Stroke, roundCaps: true);
+                draw.AddLine(c + new Vector2(-s * 0.35f, 0f), c + new Vector2(s * 0.35f, 0f), ink, Stroke);
+                draw.AddLine(c + new Vector2(-s * 0.35f, s * 0.5f), c + new Vector2(s * 0.35f, s * 0.5f), ink, Stroke);
+            }
+            else
+            {
+                draw.AddCircle(c, s, ink);
+                draw.AddLine(c + new Vector2(s * 0.05f, s * 0.95f), c + new Vector2(s * 0.95f, s * 0.05f), cut, Stroke);
+                draw.AddLine(c + new Vector2(s * 0.05f, s * 0.95f), c + new Vector2(s * 0.3f, s * 0.3f), cut, Stroke);
+                draw.AddLine(c + new Vector2(s * 0.3f, s * 0.3f), c + new Vector2(s * 0.95f, s * 0.05f), cut, Stroke);
+            }
         }
 
         // What was found, across the top of the screen, for the finds that are the reason for playing. It's the same moment as the sound breaking and the beam going up.

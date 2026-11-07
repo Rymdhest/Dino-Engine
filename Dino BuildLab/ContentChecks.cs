@@ -356,7 +356,7 @@ namespace Dino_BuildLab
             report.Check("Attack speed is for gloves", OnlyOn(ItemSlot.Hands, Stat.AttackSpeed));
 
             var random = new WorldRandom(101);
-            int wrongCount = 0, wrongPlace = 0, unnamed = 0, rolled = 0;
+            int wrongCount = 0, wrongPlace = 0, unnamed = 0, wordy = 0, rolled = 0;
             foreach (Rarity rarity in new[] { Rarity.Normal, Rarity.Magic, Rarity.Rare })
             {
                 foreach (ItemSlot slot in slots)
@@ -372,6 +372,7 @@ namespace Dino_BuildLab
                             if (lines.Distinct().Count() != lines.Count || lines.Any(affix => !affix.Slots.Contains(slot))) wrongPlace++;
                             if (lines.Select(affix => affix.Prefix).SkipWhile(prefix => prefix).Any(prefix => prefix)) wrongPlace++;
                             if (each > 0 && (!item.Name.Contains(" of ") || !item.Name.EndsWith(lines.First(affix => !affix.Prefix).Names.First(name => item.Name.EndsWith(name))))) unnamed++;
+                            if (item.PlainName() != item.Base) wordy++;
                         }
                     }
                 }
@@ -379,6 +380,20 @@ namespace Dino_BuildLab
             report.Check($"{rolled} items, at every level on every slot: nothing on Normal, one of each on Magic, two of each on Rare", wrongCount == 0, $"{wrongCount}");
             report.Check("Each line once, on a slot that can have it, prefixes first", wrongPlace == 0, $"{wrongPlace}");
             report.Check("Named by what they are", unnamed == 0, $"{unnamed}");
+            report.Check("But on the ground, only by what they're made from", wordy == 0, $"{wordy}");
+
+            Item forged = ItemGenerator.Forge(20, random.Fork(rolled), Rarity.Rare, 0f, ItemSlot.Neck);
+            string madeFrom = forged.Base;
+            forged.Base = "";
+            report.Check("Even if they're too old to say, which their name does", forged.PlainName() == madeFrom, forged.PlainName());
+            forged.Name = "Cruel Keepsake of Haste";
+            report.Check("And a base that's gone leaves the name it had, as a label can't be blank", forged.PlainName() == forged.Name, forged.PlainName());
+
+            Item unique = UniqueCatalog.Make(UniqueCatalog.All.First(), 30, random.Fork(1));
+            unique.Lines.Add(new ItemLine("health", 40f));
+            Item folio = ItemGenerator.Folio(20, random.Fork(2), Rarity.Rare);
+            Item starter = HeroState.CreateNew().Equipped[WornSlot.Body]!;
+            report.Check("A name that wasn't rolled stays, whatever an old save has on it", unique.PlainName() == unique.Name && folio.PlainName() == folio.Name && starter.Name != starter.Base && starter.PlainName() == starter.Name, $"{unique.PlainName()}, {folio.PlainName()}, {starter.PlainName()}");
 
             int bought = 0;
             for (int i = 0; i < 4000; i++)

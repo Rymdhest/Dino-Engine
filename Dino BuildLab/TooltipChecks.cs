@@ -36,6 +36,7 @@ namespace Dino_BuildLab
 
             report.Section("Tooltips: what's on a card is what happens");
             Truth(report);
+            Sides(report);
             Live(report);
 
             report.Section("Tooltips: every line does something");
@@ -392,6 +393,53 @@ namespace Dino_BuildLab
         }
 
         // Whatever a card says, a blow is asked the same thing and has to agree.
+        // Each rolled line under the heading it's shown beneath, in the order they're read.
+        private static List<(string heading, string text)> Rolled(Card card)
+        {
+            var read = new List<(string, string)>();
+            string heading = "";
+            foreach (CardLine line in card.Lines)
+            {
+                if (line.Look == LineLook.Heading) heading = line.Text;
+                if (line.Look == LineLook.Rolled) read.Add((heading, line.Text));
+            }
+            return read;
+        }
+
+        private static void Sides(Report report)
+        {
+            var random = new WorldRandom(23);
+            var misplaced = new List<string>();
+            int shown = 0;
+            foreach (Rarity rarity in new[] { Rarity.Magic, Rarity.Rare })
+            {
+                string prefixes = rarity == Rarity.Magic ? "Prefix" : "Prefixes";
+                string suffixes = rarity == Rarity.Magic ? "Suffix" : "Suffixes";
+                for (int i = 0; i < 300; i++)
+                {
+                    Item item = ItemGenerator.Forge(1 + i % 60, random.Fork(shown++), rarity, 0f, null);
+                    var written = new List<(string, string)>();
+                    foreach (bool prefix in new[] { true, false })
+                    {
+                        foreach (ItemLine line in item.Lines)
+                        {
+                            Affix affix = AffixCatalog.Find(line.Affix)!;
+                            if (affix.Prefix == prefix) written.AddRange(affix.Build(line.Value).Select(mod => (prefix ? prefixes : suffixes, mod.Describe())));
+                        }
+                    }
+
+                    if (!Rolled(Cards.Item(item, null, "Item")).SequenceEqual(written)) misplaced.Add(item.Name);
+                    item.Lines = item.Lines.OrderBy(line => AffixCatalog.Find(line.Affix)!.Prefix).ToList();
+                    if (!Rolled(Cards.Item(item, null, "Item")).SequenceEqual(written)) misplaced.Add($"{item.Name}, saved suffixes first");
+                }
+            }
+            report.Check("Every rolled line is under the side it's on, with prefixes first, however it was saved", misplaced.Count == 0, string.Join(", ", misplaced.Take(6)));
+
+            var plainly = new List<Card> { Cards.Item(ItemGenerator.Forge(20, random.Fork(shown++), Rarity.Normal, 0f, null), null, "Item") };
+            foreach (UniqueDefinition unique in UniqueCatalog.All) plainly.Add(Cards.Item(UniqueCatalog.Make(unique, 30, random), null, "Unique"));
+            report.Check("And nothing that doesn't roll them says so", plainly.All(card => card.Lines.All(line => line.Look != LineLook.Heading)));
+        }
+
         private static void Truth(Report report)
         {
             ActorSheet plain = Kit(Chance(Tags.Hex, 6f), Chance(Tags.Burn, 6f)).SheetFor(Condition.None);
