@@ -293,6 +293,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _grassCarveShader.loadUniformFloat("chunkArrayID", arrayID);
             _grassCarveShader.loadUniformVector2f("chunkWorldPos", chunkPos);
             _grassCarveShader.loadUniformVector2f("chunkSize", chunkSize);
+            _grassCarveShader.loadUniformFloat("firstCard", Engine.RenderEngine.textureGenerator.loadedMaterialTextures);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);
@@ -318,11 +319,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
                 // Assuming your entities have a Model component and a Transform/Matrix component
                 var model = world.GetComponent<ModelComponent>(entity);
-                GL.EnableVertexAttribArray(0);
-                GL.EnableVertexAttribArray(1);
-                GL.EnableVertexAttribArray(2);
                 var matrix = world.GetComponent<LocalToWorldMatrixComponent>(entity).value;
                 GL.BindVertexArray(model.model.getVAOID());
+                GL.EnableVertexAttribArray(0);
+                GL.EnableVertexAttribArray(5);
                 _grassCarveShader.loadUniformMatrix4f("modelMatrix", matrix);
                 GL.DrawElements(PrimitiveType.Triangles, model.model.getVertexCount(), DrawElementsType.UnsignedInt, 0);
             }

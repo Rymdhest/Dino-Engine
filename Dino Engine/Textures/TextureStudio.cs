@@ -216,14 +216,6 @@ namespace Dino_Engine.Textures
             return new MaterialMapsTextures(albedo, normal, materials);
         }
 
-        public MaterialMapsTextures GenerateTextureFromMesh(Mesh mesh, bool fullStretch = true)
-        {
-            glModel model = glLoader.loadToVAO(mesh);
-            var textures = GenerateTextureFromModel(model, fullStretch);
-            model.cleanUp();
-            return textures;
-        }
-
         public void CleanUp()
         {
             _textureStudioShader.cleanUp();

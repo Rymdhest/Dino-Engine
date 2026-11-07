@@ -28,6 +28,11 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
         public float Range(string name, float low, float high) => low + (high - low) * Unit(name);
 
+        public float Range(string name, FloatRange range) => Range(name, range.Min, range.Max);
+
+        /// <summary>A stream of its own, for when numbers are wanted by the hundred and naming each would cost more than the thing they make.</summary>
+        public WorldRandom Stream(string name) => _random.Fork(name);
+
         /// <summary>Near <paramref name="centre"/>, by about <paramref name="spread"/> either way, and never more than twice that.</summary>
         public float Around(string name, float centre, float spread)
         {

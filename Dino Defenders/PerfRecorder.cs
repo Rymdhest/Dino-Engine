@@ -20,9 +20,11 @@ namespace Dino_Defenders
         private readonly List<float> _frameTimes = new();
         private readonly Dictionary<string, long> _counts = new();
         private readonly List<string> _slowFrames = new();
+        private readonly List<string> _collections = new();
         private int _collections0;
         private int _collections1;
         private int _collections2;
+        private int _collectionsSeen;
         private double _pausedBefore;
         private bool _running;
 
@@ -44,11 +46,20 @@ namespace Dino_Defenders
                 _running = true;
                 Engine.PerformanceMonitor.ResetTotals();
                 (_collections0, _collections1, _collections2) = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2));
+                _collectionsSeen = _collections0;
+                _pausedBefore = GC.GetTotalPauseDuration().TotalMilliseconds;
                 return;
             }
 
             _frameTimes.Add(delta * 1000f);
-            if (delta * 1000f > SlowFrameMilliseconds && _slowFrames.Count < MostSlowFrames) _slowFrames.Add(DescribeSlowFrame(delta));
+            double paused = GC.GetTotalPauseDuration().TotalMilliseconds;
+            if (delta * 1000f > SlowFrameMilliseconds && _slowFrames.Count < MostSlowFrames) _slowFrames.Add(DescribeSlowFrame(delta, paused - _pausedBefore));
+            _pausedBefore = paused;
+            if (GC.CollectionCount(0) != _collectionsSeen)
+            {
+                _collectionsSeen = GC.CollectionCount(0);
+                _collections.Add(DescribeCollection());
+            }
             foreach (var (name, amount) in Engine.PerformanceMonitor.LastFrameCounts)
             {
                 _counts.TryGetValue(name, out long sofar);
@@ -61,16 +72,23 @@ namespace Dino_Defenders
         }
 
         // What took the time in a frame that was slow, as the averages hide what stutters.
-        private string DescribeSlowFrame(float delta)
+        private string DescribeSlowFrame(float delta, double collecting)
         {
             IEnumerable<string> tasks = Engine.PerformanceMonitor.CPUTaskTrackers
                 .OrderByDescending(t => t.LastFrameTime)
                 .Take(4)
                 .Select(t => FormattableString.Invariant($"{t.Name} {t.LastFrameTime / 1_000_000.0:0.0}"));
-            double paused = GC.GetTotalPauseDuration().TotalMilliseconds;
-            string collections = FormattableString.Invariant($"collecting {paused - _pausedBefore:0.0}, ");
-            _pausedBefore = paused;
-            return FormattableString.Invariant($"{delta * 1000f,8:0.0}: ") + collections + string.Join(", ", tasks);
+            string collections = FormattableString.Invariant($"collecting {collecting:0.0}, ");
+            return FormattableString.Invariant($"{delta * 1000f,8:0.0}: frame {_frameTimes.Count}, ") + collections + string.Join(", ", tasks);
+        }
+
+        // What a pause was spent on, which says more than how many there were.
+        private string DescribeCollection()
+        {
+            GCMemoryInfo last = GC.GetGCMemoryInfo(GCKind.Any);
+            const double megabyte = 1024.0 * 1024.0;
+            string kind = last.Concurrent ? "in the background" : last.Compacted ? "compacting" : "sweeping";
+            return FormattableString.Invariant($"    frame {_frameTimes.Count}: gen {last.Generation} {kind}, paused {last.PauseDurations[0].TotalMilliseconds:0.0} ms, promoted {last.PromotedBytes / megabyte:0.0} MB, heap {last.HeapSizeBytes / megabyte:0} MB, {last.PinnedObjectsCount} pinned");
         }
 
         private string Write()
@@ -90,6 +108,7 @@ namespace Dino_Defenders
 
             text.AppendLine();
             text.AppendLine(culture, $"Collections: {GC.CollectionCount(0) - _collections0} gen 0, {GC.CollectionCount(1) - _collections1} gen 1, {GC.CollectionCount(2) - _collections2} gen 2");
+            foreach (string collection in _collections) text.AppendLine(collection);
             text.AppendLine(culture, $"{_frameTimes.Count(t => t > SlowFrameMilliseconds)} frames over {SlowFrameMilliseconds} ms:");
             foreach (string frame in _slowFrames) text.AppendLine(frame);
 

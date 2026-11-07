@@ -13,6 +13,8 @@ namespace Dino_NetLab
     internal static class PackTests
     {
         private const float Distant = 34f;      // Further than anyone notices a hero by themselves.
+        private const float MovedAside = 6f;    // How far from a saved spot the ground starts.
+        private const float NeighbourAwake = 95f;   // Near enough to a hero for EncounterSystem to have woken them.
 
         public static void Run(Report report, WorldCache worlds)
         {
@@ -21,6 +23,7 @@ namespace Dino_NetLab
             Crowding(report, worlds, request);
             Waking(report, worlds, request);
             Keeping(report, worlds, request);
+            MovedLand(report, worlds, request);
             Growing(report);
         }
 
@@ -38,7 +41,8 @@ namespace Dino_NetLab
         private static EnemyState StateOf(GameLab lab, Actor actor) => lab.Server.Ecs.GetEntityView(actor.Entity).Get<EnemyComponent>().State;
 
         // A pack of a good size well out in the open, and somewhere to stand that's out of every creature's sight.
-        private static (SiteState pack, Vector2 spot) Lookout(ServerSession session, float away)
+        /// <param name="withNeighbour">There has to be another pack close enough to be awake: which ones are depends on where a world's biomes put them.</param>
+        private static (SiteState pack, Vector2 spot) Lookout(ServerSession session, float away, bool withNeighbour = false)
         {
             var hostiles = session.Sites.SelectMany(s => s.Site.Spawns.Where(p => p.Role.IsHostile()).Select(p => p.Position)).ToList();
             foreach (SiteState state in session.Sites.Where(s => s.Wild && s.HostilesTotal >= 5 && s.Site.Haunt != HauntKind.Camp).OrderBy(s => s.Site.Remoteness))
@@ -47,7 +51,8 @@ namespace Dino_NetLab
                 {
                     Vector2 spot = state.Site.Position + new Vector2(MathF.Cos(i * 0.39f), MathF.Sin(i * 0.39f)) * away;
                     bool clear = away < Distant ? hostiles.All(h => (h - state.Site.Position).Length < 16f || (h - spot).Length > Distant) : hostiles.All(h => (h - spot).Length > Distant);
-                    if (session.World.Passable.IsSet(spot) && clear) return (state, spot);
+                    bool beside = !withNeighbour || session.Sites.Any(s => s != state && s.Wild && s.HostilesTotal > 0 && (s.Site.Position - spot).Length < NeighbourAwake);
+                    if (session.World.Passable.IsSet(spot) && clear && beside) return (state, spot);
                 }
             }
             throw new InvalidOperationException("Nowhere to watch a pack from.");
@@ -57,7 +62,7 @@ namespace Dino_NetLab
         {
             using var arena = new Arena(worlds, request, GameLab.StrongHero());
             ServerSession session = arena.Lab.Server.Session!;
-            (SiteState pack, Vector2 spot) = Lookout(session, 42f);
+            (SiteState pack, Vector2 spot) = Lookout(session, 42f, withNeighbour: true);
             arena.Player.Client.TravelTo(spot);
             arena.Lab.Run(2);
 
@@ -184,6 +189,35 @@ namespace Dino_NetLab
             report.Check("Kills fill flasks", filled == 2 && flasks.Flasks == 2);
             flasks.Flasks = HeroState.MaxFlasks;
             report.Check("But no further than a hero can carry", !flasks.ChargeFlask(100f) && flasks.Flasks == HeroState.MaxFlasks);
+        }
+
+        // New biomes on an archetype's list move the sites of most seeds, so what a save holds by place can be anywhere by the time it's loaded.
+        private static void MovedLand(Report report, WorldCache worlds, WorldRequest request)
+        {
+            WorldData land = worlds.Get(request).Result;
+
+            Vector2 WakesAt(Vector2 saved)
+            {
+                using var lab = new GameLab(worlds, request, "Landing", save: new SaveGame { RespawnX = saved.X, RespawnZ = saved.Y });
+                lab.AddPlayer("Returning", new NetworkConditions(), 1).Fights = false;
+                lab.Run(3);
+                return lab.Server.Heroes[0].Respawn;
+            }
+
+            Vector2 inside = Spots(land).First(at => !land.Passable.IsSet(at) && land.Passable.IsSet(at + new Vector2(MovedAside, 0f)));
+            Vector2 wakes = WakesAt(inside);
+            report.Check("A place to wake that the land has moved under becomes the ground beside it", land.Passable.IsSet(wakes) && (wakes - inside).Length <= MovedAside * 2f, $"{inside} to {wakes}");
+
+            Vector2 nowhere = Spots(land).First(at => !Enumerable.Range(0, 64).Any(i => land.Passable.IsSet(at + new Vector2(MathF.Cos(i * 0.4f), MathF.Sin(i * 0.4f)) * (i % 8 + 1) * 4f)));
+            report.Check("And with no ground near it, a hero wakes at the landing", WakesAt(nowhere) == land.Sites[0].Position);
+        }
+
+        private static IEnumerable<Vector2> Spots(WorldData land)
+        {
+            for (float z = 8f; z < land.Size - 8f; z += 4f)
+            {
+                for (float x = 8f; x < land.Size - 8f; x += 4f) yield return new Vector2(x, z);
+            }
         }
 
         private static void Growing(Report report)

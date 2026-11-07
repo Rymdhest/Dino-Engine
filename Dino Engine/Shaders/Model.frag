@@ -74,7 +74,9 @@ void main() {
     //gAlbedo.rgb = vec3(fract(fragUV), 0f);
 	vec3 normalTangentSpace = material.normal;
     gNormal.a = material.ambient;
-    if (!gl_FrontFacing) normalTangentSpace.z *= -1.0;
+    // A card's normals aren't its face's: they're the soft shape of the mass it's part of, which is the same from either side. Turning them over would shade half a crown inside out.
+    bool card = int(textureIndex + 0.5) >= numberOfMaterials;
+    if (!gl_FrontFacing && !card) normalTangentSpace.z *= -1.0;
     normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
     vec3 normal = normalize(normalTBN*normalTangentSpace.xyz);
 	float roughness = material.roughness;
@@ -83,7 +85,7 @@ void main() {
 	if (material.emission <= 0.0)
 	{
 		mat3 viewToWorld = mat3(invViewMatrix);
-		vec3 geometryNormal = normalize(viewToWorld * normalTBN[2]) * (gl_FrontFacing ? 1.0 : -1.0);
+		vec3 geometryNormal = normalize(viewToWorld * normalTBN[2]) * (gl_FrontFacing || card ? 1.0 : -1.0);
 		vec3 worldNormal = viewToWorld * normal;
 		vec3 albedo = gAlbedo.rgb;
 		weatherWetten(worldPosition, geometryNormal, weatherPorosity(textureIndex, numberOfMaterials), material.metalic, 0.0, material.height, albedo, roughness, worldNormal);

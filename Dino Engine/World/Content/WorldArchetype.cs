@@ -61,7 +61,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The Isle of {0}", "{0} Isle", "The Isle of {0}" },
             Landform = LandformKind.Island,
             Size = new FloatRange(1792f, 2304f),
-            Biomes = new[] { BiomeCatalog.Meadow, BiomeCatalog.PineForest, BiomeCatalog.CrimsonWood, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood, BiomeCatalog.BlossomGrove, BiomeCatalog.Highland },
+            Biomes = new[] { BiomeCatalog.Meadow, BiomeCatalog.PineForest, BiomeCatalog.CrimsonWood, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood, BiomeCatalog.BlossomGrove, BiomeCatalog.Highland, BiomeCatalog.CedarWood, BiomeCatalog.GoldenWood },
             BiomeCount = new IntRange(3, 5),
         };
 
@@ -75,7 +75,7 @@ namespace Dino_Engine.World.Content
             HillHeight = new FloatRange(8f, 16f),
             MountainHeight = new FloatRange(20f, 40f),
             MountainCoverage = new FloatRange(0.1f, 0.2f),
-            Biomes = new[] { BiomeCatalog.BlossomGrove, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.GoldenSteppe, BiomeCatalog.Dunes, BiomeCatalog.PineForest },
+            Biomes = new[] { BiomeCatalog.BlossomGrove, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.GoldenSteppe, BiomeCatalog.Dunes, BiomeCatalog.PineForest, BiomeCatalog.Jungle },
             BiomeCount = new IntRange(3, 4),
             Settlements = 0.9f,
         };
@@ -88,7 +88,7 @@ namespace Dino_Engine.World.Content
             Landform = LandformKind.Peninsula,
             Size = new FloatRange(1792f, 2304f),
             RimHeight = 75f,
-            Biomes = new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.PineForest, BiomeCatalog.Dunes, BiomeCatalog.Highland },
+            Biomes = new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.PineForest, BiomeCatalog.Dunes, BiomeCatalog.Highland, BiomeCatalog.Savanna, BiomeCatalog.Jungle },
             BiomeCount = new IntRange(3, 4),
         };
 
@@ -102,7 +102,7 @@ namespace Dino_Engine.World.Content
             BaseHeight = new FloatRange(8f, 13f),
             RimHeight = 85f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.PineForest, BiomeCatalog.BirchWood, BiomeCatalog.CrimsonWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket },
+            Biomes = new[] { BiomeCatalog.PineForest, BiomeCatalog.BirchWood, BiomeCatalog.CrimsonWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.RedwoodGrove, BiomeCatalog.CedarWood, BiomeCatalog.DarkWood, BiomeCatalog.GoldenWood },
             BiomeCount = new IntRange(3, 4),
             Wilds = 1.2f,
         };
@@ -116,7 +116,7 @@ namespace Dino_Engine.World.Content
             Size = new FloatRange(1792f, 2304f),
             RimHeight = 70f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.BirchWood, BiomeCatalog.PineForest, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.BlossomGrove },
+            Biomes = new[] { BiomeCatalog.BirchWood, BiomeCatalog.PineForest, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.BlossomGrove, BiomeCatalog.GoldenWood, BiomeCatalog.RedwoodGrove },
             BiomeCount = new IntRange(3, 4),
         };
 
@@ -133,7 +133,7 @@ namespace Dino_Engine.World.Content
             MountainCoverage = new FloatRange(0.3f, 0.45f),
             RimHeight = 100f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.Highland, BiomeCatalog.PineForest, BiomeCatalog.Snowfield, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood },
+            Biomes = new[] { BiomeCatalog.Highland, BiomeCatalog.PineForest, BiomeCatalog.Snowfield, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood, BiomeCatalog.CedarWood },
             BiomeCount = new IntRange(3, 4),
             Settlements = 0.75f,
             Dangers = 1.15f,
@@ -147,7 +147,7 @@ namespace Dino_Engine.World.Content
             Landform = LandformKind.Island,
             Size = new FloatRange(1792f, 2304f),
             MountainCoverage = new FloatRange(0.25f, 0.4f),
-            Biomes = new[] { BiomeCatalog.Snowfield, BiomeCatalog.Highland, BiomeCatalog.PineForest },
+            Biomes = new[] { BiomeCatalog.Snowfield, BiomeCatalog.Highland, BiomeCatalog.PineForest, BiomeCatalog.DarkWood },
             BiomeCount = new IntRange(3, 3),
             Settlements = 0.7f,
             Dangers = 1.2f,
@@ -162,7 +162,7 @@ namespace Dino_Engine.World.Content
             Size = new FloatRange(1536f, 2048f),
             RimHeight = 60f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.Marsh, BiomeCatalog.BirchWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket },
+            Biomes = new[] { BiomeCatalog.Marsh, BiomeCatalog.BirchWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.DarkWood },
             BiomeCount = new IntRange(2, 3),
             Settlements = 0.7f,
             Dangers = 1.2f,
@@ -183,7 +183,7 @@ namespace Dino_Engine.World.Content
             Erosion = new FloatRange(0.5f, 0.8f),
             RimHeight = 70f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.Badlands, BiomeCatalog.GoldenSteppe, BiomeCatalog.Dunes, BiomeCatalog.Highland },
+            Biomes = new[] { BiomeCatalog.Badlands, BiomeCatalog.GoldenSteppe, BiomeCatalog.Dunes, BiomeCatalog.Highland, BiomeCatalog.Savanna },
             BiomeCount = new IntRange(2, 3),
             Settlements = 0.7f,
         };
@@ -196,7 +196,7 @@ namespace Dino_Engine.World.Content
             Landform = LandformKind.Island,
             Size = new FloatRange(1536f, 2048f),
             MountainCoverage = new FloatRange(0.3f, 0.4f),
-            Biomes = new[] { BiomeCatalog.Ashland, BiomeCatalog.GoldenSteppe, BiomeCatalog.Highland, BiomeCatalog.Dunes },
+            Biomes = new[] { BiomeCatalog.Ashland, BiomeCatalog.GoldenSteppe, BiomeCatalog.Highland, BiomeCatalog.Dunes, BiomeCatalog.DarkWood },
             BiomeCount = new IntRange(2, 3),
             Settlements = 0.6f,
             Dangers = 1.3f,

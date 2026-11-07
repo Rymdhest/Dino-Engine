@@ -1,6 +1,7 @@
 #version 330 core
 
 in vec3 fragWorldPos;
+flat in float fragCard;
 out vec4 fragColor;
 
 uniform sampler2DArray normalHeightTextureArray;
@@ -9,6 +10,9 @@ uniform vec2 chunkWorldPos;
 uniform vec2 chunkSize;
 
 void main() {
+    // Only what's solid clears the grass under it. A card is mostly air, and carving its whole quad stamps a rectangle in the ground.
+    if (fragCard > 0.5) discard;
+
     // Map fragment world XZ to the chunk's UV space [0, 1]
     vec2 localUV = (fragWorldPos.xz - chunkWorldPos) / chunkSize;
     

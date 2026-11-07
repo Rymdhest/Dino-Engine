@@ -2,6 +2,7 @@ using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
+using Dino_Defenders.Stats;
 using Dino_Defenders.UI;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -222,16 +223,19 @@ namespace Dino_NetLab
                 if (!world.InBounds(a) || !world.InBounds(b) || !world.Passable.IsSet(a) || !world.Passable.IsSet(b) || WorldPathfinder.HasClearLine(world, a, b)) continue;
                 if (paths.Find(world, a, b) is not { Count: > 3 and < 45 } way || (way[^1] - b).Length > 2f) continue;
 
+                // These go past packs, and a hero who never hits back is worn down by the end of them: how a fight goes is no part of this.
+                scene.Truth.Actor.Vitals = Vitals.Full(scene.Truth.Actor.Sheet);
                 scene.Go(b);
                 string name = $"Behind A Wall {tried}";
                 (int behind, Vector2 lying) = scene.Lay(Blade(name));
                 scene.Lab.Run(0.4);
                 scene.Go(a);
                 scene.Seen.Fetch.Begin(behind, lying);
-                scene.Lab.Run(14);
+                bool fell = false;
+                scene.Lab.Run(14, () => fell |= scene.Truth.Sim.Down);
                 tried++;
                 if (scene.Truth.Hero.Carried().Any(i => i.Name == name)) reached++;
-                else report.Note($"from {a} to {lying}: stopped {(scene.Truth.Sim.Position - lying).Length:0.0} m short at {scene.Truth.Sim.Position}, clear line {WorldPathfinder.HasClearLine(world, a, lying)}, path {paths.Find(world, a, lying)?.Count ?? -1}, still going {scene.Seen.Fetch.Active}");
+                else report.Note($"from {a} to {lying}: stopped {(scene.Truth.Sim.Position - lying).Length:0.0} m short at {scene.Truth.Sim.Position}, clear line {WorldPathfinder.HasClearLine(world, a, lying)}, path {paths.Find(world, a, lying)?.Count ?? -1}, still going {scene.Seen.Fetch.Active}, fell {fell}");
             }
             report.Check("Heroes get around what's in the way", tried >= Walls && reached == tried, $"{reached} of {tried}");
         }

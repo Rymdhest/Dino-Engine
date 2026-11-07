@@ -23,6 +23,11 @@ namespace Dino_Engine.World
         /// <param name="radius">How many chunks of terrain to keep on each side of the camera, if it isn't the game's.</param>
         public static void Enter(ECSWorld ecs, WorldData world, WorldAssetLibrary assets, int radius = ChunkRadius)
         {
+            // Everything goes up to the GPU now, so that walking into a meadow doesn't cost a frame.
+            List<string> models = WorldAssetLibrary.AssetsOf(world);
+            assets.Retain(models);
+            foreach (string model in models) assets.Get(model);
+
             ecs.DirtyEntitiesBuffers.ClearAll();
             ecs.DirtyEntities.Clear();
             ecs.ClearAllEntitiesExcept();

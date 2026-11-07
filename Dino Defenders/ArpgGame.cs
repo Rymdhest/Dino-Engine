@@ -226,7 +226,14 @@ namespace Dino_Defenders
                 screen.Progress = progress;
                 screen.Stage = stage;
             };
-            _titleLoading = _worlds.Get(new WorldRequest(_options.Seed ?? TitleScene.Seed, _options.Archetype ?? TitleScene.Archetype, 1));
+            _titleLoading = PrepareTitle(new WorldRequest(_options.Seed ?? TitleScene.Seed, _options.Archetype ?? TitleScene.Archetype, 1));
+        }
+
+        private async Task<WorldData> PrepareTitle(WorldRequest request)
+        {
+            WorldData world = await _worlds.Get(request);
+            await Task.Run(() => _assets.Grow(WorldAssetLibrary.AssetsOf(world)));
+            return world;
         }
 
         private void FinishTitleLoading()
@@ -391,6 +398,7 @@ namespace Dino_Defenders
                 AllowTeleport = _options.Bot || _options.Tour != null,
                 Start = _options.At,
                 StartSite = _options.Site,
+                StartBiome = _options.Biome,
             }, _worlds);
 
             (LoopbackTransport serverEnd, LoopbackTransport clientEnd) = LoopbackTransport.CreatePair();
@@ -496,12 +504,15 @@ namespace Dino_Defenders
             Vector2 along = (to - from) / MathF.Max(length, 1f);
             Vector2 across = new Vector2(-along.Y, along.X);
             var random = new WorldRandom(1).Fork("garden");
-            for (float travelled = 3f; travelled < length; travelled += 1.6f)
+            float gap = _options.GardenGap;
+            float reach = MathF.Max(7f, gap * 1.2f);
+            int planted = 0;
+            for (float travelled = 3f; travelled < length; travelled += gap)
             {
-                for (float side = -7f; side <= 7f; side += 1.6f)
+                for (float side = -reach; side <= reach; side += gap)
                 {
                     Vector2 at = from + along * travelled + across * side + new Vector2(random.Range(-0.6f, 0.6f), random.Range(-0.6f, 0.6f));
-                    string id = ids[random.Int(0, ids.Length - 1)];
+                    string id = $"{ids[planted++ % ids.Length]}#{random.Int(0, 5)}";
                     Vector3 position = new Vector3(at.X, session.World.Height.SampleCubic(at.X, at.Y), at.Y);
                     Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, random.Float() * MathF.Tau);
                     Vector3 scale = new Vector3(random.Range(0.9f, 1.25f));
@@ -530,6 +541,7 @@ namespace Dino_Defenders
         }
 
         private string? _homecoming;
+        private int _travelled;
 
         public override void update()
         {
@@ -556,7 +568,11 @@ namespace Dino_Defenders
             }
 
             if (_options.Trace != null && _client.State == ClientState.Playing) WriteTrace(_options.Trace);
-            if (_frames == _options.TravelAfterFrames) StepThroughWaygate();
+            if (_options.TravelAfterFrames > 0 && _travelled < _options.Travels && _frames >= _options.TravelAfterFrames * (_travelled + 1))
+            {
+                _travelled++;
+                StepThroughWaygate();
+            }
             if (_frames == 90 && _options.Panel != null) OpenPanel(_options.Panel);
             if (_frames == 30 && _options.Loot is string loot && _server != null)
             {
@@ -849,7 +865,9 @@ namespace Dino_Defenders
         {
             var clock = Stopwatch.StartNew();
             WorldData world = await _worlds.Get(request);
+            Task growing = Task.Run(() => _assets.Grow(WorldAssetLibrary.AssetsOf(world)));
             byte[] map = await Task.Run(() => WorldMapImage.Render(world, MapPanel.Resolution, showSites: false));
+            await growing;
             Console.WriteLine($"Generated {world.Plan.Name} ({world.Plan.Archetype.Name}, {world.Plan.Mood.Name}) in {clock.Elapsed.TotalSeconds:0.00} s");
             return new PreparedWorld(world, map);
         }

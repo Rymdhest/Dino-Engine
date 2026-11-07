@@ -173,7 +173,7 @@ namespace Dino_Engine.World.Generation
 
                 placement.Add(Footprint.Circle(point, footprint), PlacementLayer.Tree);
                 placement.Add(Footprint.Circle(point, asset.SolidRadius * scale), PlacementLayer.None, solid: true);
-                AddPlant(world, objects, asset, point, scale, random, sink: 0.15f);
+                AddPlant(world, objects, asset, point, scale, random.Float() * MathF.Tau, sink: 0.15f);
             }
         }
 
@@ -206,7 +206,7 @@ namespace Dino_Engine.World.Generation
                 if (TouchesSolid(placement, point, asset.Footprint * scale * 0.5f)) continue;
 
                 placement.Add(footprint, PlacementLayer.Shrub);
-                AddPlant(world, objects, asset, point, scale, random, sink: 0.05f);
+                AddPlant(world, objects, asset, point, scale, random.Float() * MathF.Tau, sink: 0.05f);
             }
         }
 
@@ -233,8 +233,17 @@ namespace Dino_Engine.World.Generation
                 if (TouchesSolid(placement, point, asset.Footprint * scale)) continue;
 
                 placement.Add(footprint, PlacementLayer.Deadwood);
-                if (asset.SolidRadius > 0f) placement.Add(Footprint.Circle(point, asset.SolidRadius * scale), PlacementLayer.None, solid: true, height: asset.SolidRadius * scale * LowSolidHeight);
-                AddPlant(world, objects, asset, point, scale, random, sink: 0.1f);
+
+                // The way it lies has to be known here, as a log is solid along all of itself and not just at its middle.
+                float yaw = random.Float() * MathF.Tau;
+                if (asset.SolidRadius > 0f)
+                {
+                    float height = asset.SolidRadius * scale * LowSolidHeight;
+                    Vector2 along = new Vector2(MathF.Cos(yaw), -MathF.Sin(yaw)) * (asset.SolidLength * scale * 0.5f);
+                    Footprint solid = asset.SolidLength > 0f ? Footprint.Segment(point - along, point + along, asset.SolidRadius * scale) : Footprint.Circle(point, asset.SolidRadius * scale);
+                    placement.Add(solid, PlacementLayer.None, solid: true, height: height);
+                }
+                AddPlant(world, objects, asset, point, scale, yaw, sink: 0.1f);
             }
         }
 
@@ -278,11 +287,11 @@ namespace Dino_Engine.World.Generation
             return placement.OverlapsSolid(Footprint.Circle(point, radius));
         }
 
-        private static void AddPlant(WorldData world, WorldObjects objects, WorldAsset asset, Vector2 point, float scale, WorldRandom random, float sink)
+        private static void AddPlant(WorldData world, WorldObjects objects, WorldAsset asset, Vector2 point, float scale, float yaw, float sink)
         {
             float height = world.Height.Sample(point) - sink;
-            Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, random.Float() * MathF.Tau);
-            objects.Add(asset.Id, new Vector3(point.X, height, point.Y), rotation, new Vector3(scale));
+            Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, yaw);
+            objects.Add(NatureCatalog.ModelAt(asset, world.Plan.Seed, point), new Vector3(point.X, height, point.Y), rotation, new Vector3(scale));
         }
     }
 }

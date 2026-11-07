@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Flora;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling.Model
@@ -103,23 +104,33 @@ namespace Dino_Engine.Modelling.Model
             if (joints == null) return 0f;
 
             float furthest = 0f;
-            foreach (MeshVertex vertex in mesh.meshVertices)
-            {
-                float reach = 0f;
-                float along = -1f;
-                for (int joint = vertex.joint, level = 0; joint >= 0 && level < MostLevels; level++)
-                {
-                    PlantJoint at = joints[joint];
-                    if (along < 0f) along = Along(at, vertex.position);
-                    Vector3 line = at.Base + (at.Tip - at.Base) * along;
-                    // A point on an arc moves about half what it would if the joint turned whole, and what's beside the line swings as far as it stands off it.
-                    reach += at.MostBend * along * (0.6f * along * at.Length + (vertex.position - line).Length);
-                    along = at.Parent >= 0 ? Along(joints[at.Parent], at.Base) : 0f;
-                    joint = at.Parent;
-                }
-                furthest = MathF.Max(furthest, reach);
-            }
+            foreach (MeshVertex vertex in mesh.meshVertices) furthest = MathF.Max(furthest, ReachOf(joints, vertex.joint, vertex.position));
             return furthest;
+        }
+
+        /// <summary>The same for a plant as it comes from the forge.</summary>
+        public static float Reach(FloraMesh mesh)
+        {
+            float furthest = 0f;
+            foreach (FloraVertex vertex in mesh.Vertices) furthest = MathF.Max(furthest, ReachOf(mesh.Joints, vertex.Joint, vertex.Position));
+            return furthest;
+        }
+
+        private static float ReachOf(List<PlantJoint> joints, int joint, Vector3 position)
+        {
+            float reach = 0f;
+            float along = -1f;
+            for (int level = 0; joint >= 0 && level < MostLevels; level++)
+            {
+                PlantJoint at = joints[joint];
+                if (along < 0f) along = Along(at, position);
+                Vector3 line = at.Base + (at.Tip - at.Base) * along;
+                // A point on an arc moves about half what it would if the joint turned whole, and what's beside the line swings as far as it stands off it.
+                reach += at.MostBend * along * (0.6f * along * at.Length + (position - line).Length);
+                along = at.Parent >= 0 ? Along(joints[at.Parent], at.Base) : 0f;
+                joint = at.Parent;
+            }
+            return reach;
         }
 
         /// <summary>What Plant.glsl reads, four vec4s to a joint.</summary>

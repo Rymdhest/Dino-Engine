@@ -46,5 +46,5 @@ void main() {
 
 	normalTBN = normalMatrix*TBN;
 
-	fragColor = color;
+	fragColor = plant == 1 ? color * plantTint(modelMatrix[3].xz) : color;
 }

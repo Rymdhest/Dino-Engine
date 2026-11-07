@@ -49,6 +49,7 @@ namespace Dino_Defenders.Client
         private float _windTarget;
         private Vector3 _fogColourTarget;
         private AmbientMotes _motes;
+        private Vector3? _moteColour;
         private float _nightTarget;
         private Entity _heroLight;
         private float _moteDebt;
@@ -208,6 +209,7 @@ namespace Dino_Defenders.Client
                 {
                     strongest = weight;
                     _motes = biome.Motes;
+                    _moteColour = biome.MoteColour;
                 }
             }
 
@@ -281,7 +283,11 @@ namespace Dino_Defenders.Client
             if (kind == AmbientMotes.None || session.Paused) return;
 
             MoteStyle style = StyleOf(kind);
-            _moteDebt += (guiding ? 45f : style.Rate * LeftInTheAir(world, kind)) * deltaTime;
+
+            // Leaves and petals come from trees, and only where there are some (Ghost of Tsushima keeps its leaves to forests by biome, too).
+            float overhead = kind is AmbientMotes.FallingLeaves or AmbientMotes.Petals ? 0.15f + 1.4f * session.World.Canopy.Sample(session.PlayerPosition) : 1f;
+            _moteDebt += (guiding ? 45f : style.Rate * overhead * LeftInTheAir(world, kind)) * deltaTime;
+            Colour colour = _moteColour is Vector3 tint && !guiding ? new Colour(tint.X, tint.Y, tint.Z, style.Colour.Intensity) : style.Colour;
             Vector3 centre = new Vector3(session.PlayerPosition.X, session.World.Height.Sample(session.PlayerPosition), session.PlayerPosition.Y);
 
             Vector2 drift = guiding
@@ -298,7 +304,7 @@ namespace Dino_Defenders.Client
                     new LocalToWorldMatrixComponent(),
                     new PositionComponent(at),
                     new ScaleComponent(new Vector3(style.Size * _random.Range(0.7f, 1.2f))),
-                    new ColorComponent(style.Colour),
+                    new ColorComponent(colour),
                     new VelocityComponent(velocity),
                     new selfDestroyComponent(style.Life * _random.Range(0.7f, 1.2f)));
             }
@@ -325,7 +331,7 @@ namespace Dino_Defenders.Client
         {
             AmbientMotes.Pollen => new(14f, 0.05f, 5f, 0.6f, 5f, 0.1f, 0.25f, new Colour(1f, 0.92f, 0.55f, 1.3f)),
             AmbientMotes.Petals => new(16f, 0.11f, 6f, 2f, 11f, -0.7f, 0.4f, new Colour(1f, 0.62f, 0.68f, 1.1f)),
-            AmbientMotes.FallingLeaves => new(12f, 0.13f, 6f, 3f, 12f, -1f, 0.45f, new Colour(0.85f, 0.42f, 0.14f, 1f)),
+            AmbientMotes.FallingLeaves => new(20f, 0.13f, 6f, 3f, 12f, -1f, 0.45f, new Colour(0.85f, 0.42f, 0.14f, 1f)),
             AmbientMotes.Snow => new(34f, 0.07f, 6f, 4f, 15f, -1.5f, 0.5f, new Colour(0.95f, 0.97f, 1f, 1.2f)),
             AmbientMotes.Embers => new(16f, 0.06f, 3.2f, 0.3f, 4f, 1.4f, 0.4f, new Colour(1f, 0.4f, 0.1f, 4f), Glows: true),
             AmbientMotes.Fireflies => new(9f, 0.06f, 3.5f, 0.6f, 3.5f, 0.1f, 0.05f, new Colour(0.75f, 1f, 0.35f, 4f), Glows: true),

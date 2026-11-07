@@ -8,6 +8,7 @@ namespace Dino_Engine.World
     public struct GroundPlant
     {
         public WorldAsset Asset;
+        public string Model;
         public Vector3 Position;
         public float Yaw;
         public float Scale;
@@ -100,6 +101,7 @@ namespace Dino_Engine.World
             results.Add(new GroundPlant
             {
                 Asset = asset,
+                Model = NatureCatalog.ModelAt(asset, world.Plan.Seed, point),
                 Position = new Vector3(point.X, height - 0.02f, point.Y),
                 Yaw = Random01(ref state) * MathF.Tau,
                 Scale = scale,

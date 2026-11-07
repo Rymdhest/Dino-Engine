@@ -3,7 +3,6 @@ using Dino_Engine.Debug;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Gear;
-using Dino_Engine.Modelling.Procedural.Vegetation;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using OpenTK.Compute.OpenCL;
@@ -65,8 +64,8 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             body += hip.translated(new Vector3(0.35f, 0, 0f));
             body += hip.translated(new Vector3(0.35f, 0, 0f)).scaled(new Vector3(-1f, 1f, 1f));
 
-            TreeBuilder spineBuilder = new TreeBuilder(boneMaterial);
-            TreeBuilder.StemBuildSettings spineSettings = new TreeBuilder.StemBuildSettings();
+            StemBuilder spineBuilder = new StemBuilder(boneMaterial);
+            StemBuilder.StemBuildSettings spineSettings = new StemBuilder.StemBuildSettings();
             spineSettings.baseRadiusFactor = 0.0f;
             spineSettings.radiusBase = 0.065f;
             spineSettings.radiusTop = 0.065f;
@@ -94,7 +93,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
             Mesh spinePart = IcoSphereGenerator.CreateIcosphere(1, boneMaterial);
             spinePart.translate(new Vector3(0f, 0f, -0.7f));
             spinePart.scale(new Vector3(0.03f, 0.043f, 0.162f));
-            TreeBuilder.SpreadAroundStemSettings spinePartSettings = new TreeBuilder.SpreadAroundStemSettings();
+            StemBuilder.SpreadAroundStemSettings spinePartSettings = new StemBuilder.SpreadAroundStemSettings();
             spinePartSettings.BranchStartScale = new Vector3(1f);
             spinePartSettings.BranchEndScale = new Vector3(1f);
             spinePartSettings.randomSpin = false;
@@ -140,8 +139,8 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
         public static Mesh GenerateRibPart()
         {
             VertexMaterial boneMaterial = new VertexMaterial(GearMaterials.Bone);
-            TreeBuilder spineBuilder = new TreeBuilder(boneMaterial);
-            TreeBuilder.StemBuildSettings spineSettings = new TreeBuilder.StemBuildSettings();
+            StemBuilder spineBuilder = new StemBuilder(boneMaterial);
+            StemBuilder.StemBuildSettings spineSettings = new StemBuilder.StemBuildSettings();
             spineSettings.baseRadiusFactor = 0.0f;
             spineSettings.radiusBase = 0.025f;
             spineSettings.radiusTop = 0.025f;

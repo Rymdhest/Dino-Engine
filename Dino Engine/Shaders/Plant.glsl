@@ -59,6 +59,14 @@ vec3 plantLean(vec2 at, mat3 toModel, vec3 axis, float give, float touch, float 
     return model;
 }
 
+// A little of its own colour, from where it stands, so that two plants off one mesh don't read as the same plant.
+vec3 plantTint(vec2 at)
+{
+    float bright = fract(sin(dot(at, vec2(12.9898, 78.233))) * 43758.5453);
+    float warm = fract(sin(dot(at, vec2(39.3462, 11.1351))) * 24634.6345) - 0.5;
+    return (0.9 + 0.2 * bright) * vec3(1.0 + 0.16 * warm, 1.0, 1.0 - 0.22 * warm);
+}
+
 // Bends a point held by `joint`, and the directions of the surface there.
 void plantPose(int joint, mat4 modelMatrix, inout vec3 position, inout vec3 normal, inout vec3 tangent)
 {

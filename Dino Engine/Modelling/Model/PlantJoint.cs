@@ -31,6 +31,10 @@ namespace Dino_Engine.Modelling.Model
         public static PlantJoint Spray => Of(0.45f, 0.55f, 0f, 2.5f);
         public static PlantJoint Cane => Of(0.42f, 0.55f, 0f, 0.3f);
 
+        // What only rides on what it grew from, carried whole: a twig too fine to be worth bending. Its own line is what says where it sits on its parent, or each of its
+        // vertices would work that out for itself, and an arc would shear whatever reaches out from it.
+        public static PlantJoint Rigid => Of(0f, 0.001f, 0f, 0f);
+
         // Down where a body goes.
         public static PlantJoint Stem => Of(0.9f, 1.35f, 1f, 1f);
         public static PlantJoint Blade => Of(0.55f, 0.75f, 0.8f, 1.5f);     // A link of a chain, whose bends add up.

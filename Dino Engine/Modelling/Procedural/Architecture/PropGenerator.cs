@@ -1,5 +1,4 @@
 using Dino_Engine.Modelling.Model;
-using Dino_Engine.Modelling.Procedural.Vegetation;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using Dino_Engine.World;
@@ -86,8 +85,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             float poleRadius = 0.04f;
             float poleRadiusStacked = 0.03f;
 
-            TreeBuilder builder = new TreeBuilder(new VertexMaterial(TextureGenerator.pineBark));
-            TreeBuilder.StemBuildSettings stemSettings = new TreeBuilder.StemBuildSettings();
+            StemBuilder builder = new StemBuilder(new VertexMaterial(TextureGenerator.pineBark));
+            StemBuilder.StemBuildSettings stemSettings = new StemBuilder.StemBuildSettings();
             stemSettings.radiusBase = poleRadius;
             stemSettings.radiusTop = poleRadius;
             stemSettings.detailPerRing = 6;
@@ -215,7 +214,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
 
         private static void BuildWoodpile(MeshBuilder b, WorldRandom random)
         {
-            VertexMaterial logs = new VertexMaterial(TextureGenerator.oakBark, new Colour(200, 176, 150));
+            VertexMaterial logs = new VertexMaterial(TextureGenerator.barkFurrowed, new Colour(105, 72, 42));
             for (int row = 0; row < 3; row++)
             {
                 int count = 5 - row;
@@ -387,7 +386,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 Vector3 at = new Vector3(MathF.Cos(angle), 0.14f, MathF.Sin(angle)) * new Vector3(1.28f, 1f, 1.28f);
                 b.Add(IcoSphereGenerator.CreateIcosphere(1, Rough(150)), at, new Vector3(random.Range(0.26f, 0.4f), random.Range(0.2f, 0.3f), random.Range(0.26f, 0.4f)));
             }
-            VertexMaterial charred = new VertexMaterial(TextureGenerator.oakBark, new Colour(40, 34, 30));
+            VertexMaterial charred = new VertexMaterial(TextureGenerator.barkFurrowed, new Colour(20, 14, 11));
             for (int i = 0; i < 5; i++)
             {
                 float angle = i * (MathF.Tau / 5f) + random.Range(-0.2f, 0.2f);

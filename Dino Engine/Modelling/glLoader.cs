@@ -1,4 +1,5 @@
 ﻿using Dino_Engine.Modelling.Model;
+using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.Physics;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
@@ -32,6 +33,31 @@ public class glLoader
         return model;
     }
 
+    /// <summary>A plant, straight from the lists it was grown in.</summary>
+    public static glModel loadToVAO(FloraMesh plant)
+    {
+        int count = plant.VertexCount;
+        float[] positions = new float[count * 3], colours = new float[count * 3], normals = new float[count * 3], tangents = new float[count * 3];
+        float[] uvs = new float[count * 2], materials = new float[count], joints = new float[count];
+        for (int i = 0; i < count; i++)
+        {
+            FloraVertex vertex = plant.Vertices[i];
+            positions[i * 3] = vertex.Position.X; positions[i * 3 + 1] = vertex.Position.Y; positions[i * 3 + 2] = vertex.Position.Z;
+            colours[i * 3] = vertex.Colour.X; colours[i * 3 + 1] = vertex.Colour.Y; colours[i * 3 + 2] = vertex.Colour.Z;
+            normals[i * 3] = vertex.Normal.X; normals[i * 3 + 1] = vertex.Normal.Y; normals[i * 3 + 2] = vertex.Normal.Z;
+            tangents[i * 3] = vertex.Tangent.X; tangents[i * 3 + 1] = vertex.Tangent.Y; tangents[i * 3 + 2] = vertex.Tangent.Z;
+            uvs[i * 2] = vertex.UV.X; uvs[i * 2 + 1] = vertex.UV.Y;
+            materials[i] = vertex.Material;
+            joints[i] = vertex.Joint;
+        }
+
+        glModel model = loadToVAO(positions, colours, normals, tangents, uvs, materials, plant.Indices.ToArray());
+        plant.Bounds(out Vector3 min, out Vector3 max);
+        model.box = new AABB(min, max);
+        if (plant.Joints.Count > 0) LoadPlant(model, joints, plant.Joints, PlantRig.Reach(plant));
+        return model;
+    }
+
     // What a plant adds: which joint holds each vertex, and the joints themselves, which Plant.glsl walks up from there.
     private static void LoadPlant(glModel model, Mesh mesh)
     {
@@ -40,12 +66,17 @@ public class glLoader
         {
             vertexJoints[i] = mesh.meshVertices[i].joint;
         }
+        LoadPlant(model, vertexJoints, mesh.joints!, PlantRig.Reach(mesh));
+    }
+
+    private static void LoadPlant(glModel model, float[] vertexJoints, List<PlantJoint> plantJoints, float reach)
+    {
         GL.BindVertexArray(model.getVAOID());
         int vertexBuffer = storeDataInAttributeList(glModel.JointAttribute, 1, vertexJoints);
         GL.EnableVertexAttribArray(glModel.JointAttribute);
         unbindVAO();
 
-        float[] joints = PlantRig.Pack(mesh.joints!);
+        float[] joints = PlantRig.Pack(plantJoints);
         int buffer = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.TextureBuffer, buffer);
         GL.BufferData(BufferTarget.TextureBuffer, joints.Length * sizeof(float), joints, BufferUsageHint.StaticDraw);
@@ -55,7 +86,7 @@ public class glLoader
         GL.BindTexture(TextureTarget.TextureBuffer, 0);
         GL.BindBuffer(BufferTarget.TextureBuffer, 0);
 
-        model.SetPlant(vertexBuffer, buffer, texture, PlantRig.Reach(mesh));
+        model.SetPlant(vertexBuffer, buffer, texture, reach);
     }
 
     public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, int[] indices)

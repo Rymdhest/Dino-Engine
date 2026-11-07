@@ -23,6 +23,7 @@ namespace Dino_Defenders.Server
         public bool AllowTeleport;      // For scripted runs: a client may ask to be put anywhere.
         public Vector2? Start;
         public string? StartSite;
+        public string? StartBiome;
     }
 
     /// <summary>
@@ -207,7 +208,9 @@ namespace Dino_Defenders.Server
             if (first && _saved != null)
             {
                 if (_saved.Health > 0f) actor.Vitals.Health = Math.Min(_saved.Health, actor.Sheet.MaxHealth);
-                if (_saved.RespawnX >= 0f) player.Respawn = new Vector2(_saved.RespawnX, _saved.RespawnZ);
+
+                // A newer build can grow a different land from the same seed, and a hero is put here without anything asking the ground.
+                if (_saved.RespawnX >= 0f && TryFindGround(session.World, new Vector2(_saved.RespawnX, _saved.RespawnZ), out Vector2 wake)) player.Respawn = wake;
             }
 
             player.Sim = HeroSimState.At(start, actor.Vitals.Mana);
@@ -260,6 +263,7 @@ namespace Dino_Defenders.Server
                 if (TryFindGround(world, new Vector2(_saved.PlayerX, _saved.PlayerZ), out Vector2 ground)) return ground;
             }
             if (_settings.Start.HasValue) return _settings.Start.Value;
+            if (_settings.StartBiome != null && TryFindWood(world, _settings.StartBiome, out Vector2 wood)) return wood;
             if (_settings.StartSite != null)
             {
                 foreach (WorldSite site in world.Sites)
@@ -269,6 +273,34 @@ namespace Dino_Defenders.Server
                 }
             }
             return world.Sites[0].Position;
+        }
+
+        // The heart of the thickest wood of a biome, for looking at it.
+        private static bool TryFindWood(WorldData world, string biomeId, out Vector2 wood)
+        {
+            wood = default;
+            int biome = -1;
+            for (int i = 0; i < world.Plan.Biomes.Count; i++)
+            {
+                if (world.Plan.Biomes[i].Id == biomeId) biome = i;
+            }
+            if (biome < 0) return false;
+
+            float best = 0f;
+            bool found = false;
+            for (float z = 32f; z < world.Size - 32f; z += 16f)
+            {
+                for (float x = 32f; x < world.Size - 32f; x += 16f)
+                {
+                    Vector2 at = new Vector2(x, z);
+                    float score = world.BiomeWeights[biome].Sample(at) * (0.2f + world.Canopy.Sample(at));
+                    if (score <= best || !world.Passable.IsSet(at) || world.Height.Sample(at) - world.WaterLevelAt(at) < 1.5f) continue;
+                    best = score;
+                    wood = at;
+                    found = true;
+                }
+            }
+            return found;
         }
 
         private static bool TryFindGround(WorldData world, Vector2 near, out Vector2 ground)

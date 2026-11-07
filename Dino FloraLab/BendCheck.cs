@@ -1,19 +1,15 @@
 using Dino_Engine.Modelling.Model;
-using Dino_Engine.Modelling.Procedural.Vegetation;
-using Dino_Engine.World;
+using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
-namespace Dino_Defenders.Client
+namespace Dino_FloraLab
 {
     /// <summary>
-    /// Bends every plant in the game as hard as it can be bent, and fails if any of them comes apart: --plantcheck true --hidden true. It has to be here and not in
-    /// a lab, as plants are built from materials that only exist with a GPU. What's posed is <see cref="PlantRig"/>, the copy of what Plant.glsl does.
-    ///
-    /// A body is walked through each plant from every side, with a field as sharp as a real one: this is what used to tear them. The way they used to bend is
-    /// measured alongside, to say what the numbers mean.
+    /// Bends every plant in the game as hard as it can be bent, and fails if any of them comes apart. What's posed is <see cref="PlantRig"/>, the copy of what Plant.glsl does.
+    /// A body is walked through each plant from every side, with a field as sharp as a real one: this is what used to tear them.
     /// </summary>
-    internal static class PlantCheck
+    internal static class BendCheck
     {
         private const float Radius = 2.7f;
         private const float MostStretch = 0.6f;     // How much longer the worst edge of anything may get, at the very limit of what it can bend.
@@ -21,24 +17,26 @@ namespace Dino_Defenders.Client
 
         private static int _failures;
 
-        public static int Run()
+        public static int Run(Options options)
         {
             _failures = 0;
-            Console.WriteLine($"{"",-16}{"joints",8}{"depth",7}{"verts",9}{"reach m",9}{"walked through",16}{"at its limit",14}{"as it was",12}");
+            int seeds = options.Int("count", 2);
+            Console.WriteLine($"{"",-24}{"joints",8}{"depth",7}{"verts",9}{"reach m",9}{"walked through",16}{"at its limit",14}");
 
-            foreach (WorldAsset asset in NatureCatalog.All)
+            foreach (PlantSpecies species in Program.Chosen(options))
             {
-                if (!asset.Sways) continue;
-                Check(asset.Id, WorldAssetLibrary.BuildPlant(asset.Id), asset.Kind != WorldAssetKind.Tree, OldSway(asset.Id));
+                if (!species.Sways) continue;
+                for (int seed = 0; seed < seeds; seed++)
+                {
+                    Check(species.Id, FloraForge.Grow(species, (ulong)(seed * 977 + 3)).ToMesh(), species.Kind != WorldAssetKind.Tree && species.Kind != WorldAssetKind.Deadwood);
+                }
             }
-            Check("crop.grain", PlantGenerator.GenerateGrainCrop(), true, 0f);
-            Check("crop.vegetable", PlantGenerator.GenerateVegetableCrop(), true, 0f);
 
             Console.WriteLine(_failures == 0 ? "Every plant holds together." : $"{_failures} plant problem(s).");
             return _failures == 0 ? 0 : 1;
         }
 
-        private static void Check(string id, Mesh mesh, bool walkable, float oldSway)
+        private static void Check(string id, Mesh mesh, bool walkable)
         {
             List<PlantJoint>? joints = mesh.joints;
             if (joints == null)
@@ -62,6 +60,7 @@ namespace Dino_Defenders.Client
                 if ((face.A.joint < 0) != (face.B.joint < 0) || (face.A.joint < 0) != (face.C.joint < 0)) Fail(id, "has a face half held and half not");
             }
 
+            _worst = 0f;
             int count = mesh.meshVertices.Count;
             Vector3[] rest = new Vector3[count];
             for (int i = 0; i < count; i++) rest[i] = mesh.meshVertices[i].position;
@@ -72,7 +71,6 @@ namespace Dino_Defenders.Client
             float walked = 0f;
             float limit = 0f;
             float moved = 0f;
-            float old = 0f;
             int step = walkable ? 1 : 2;
             for (int x = -6; x <= 6; x += step)
             {
@@ -86,17 +84,15 @@ namespace Dino_Defenders.Client
                     Pose(mesh, posed, joint => Blast(joints[joint], body, 40f));
                     limit = MathF.Max(limit, Stretch(mesh, rest, posed));
                     moved = MathF.Max(moved, Furthest(rest, posed));
-
-                    if (oldSway > 0f)
-                    {
-                        for (int i = 0; i < count; i++) posed[i] = OldPose(rest[i], body, oldSway);
-                        old = MathF.Max(old, Stretch(mesh, rest, posed));
-                    }
                 }
             }
 
-            Console.WriteLine($"{id,-16}{joints.Count,8}{depth,7}{count,9}{reach,9:0.0}{walked,15:0%} {limit,13:0%} {(oldSway > 0f ? old.ToString("0%") : "-"),11}");
-            if (limit > MostStretch) Fail(id, $"stretches {limit:0%} at its limit");
+            Console.WriteLine($"{id,-24}{joints.Count,8}{depth,7}{count,9}{reach,9:0.0}{walked,15:0%} {limit,13:0%}");
+            if (limit > MostStretch)
+            {
+                MeshVertex a = mesh.meshVertices[_worstEdge.a], b = mesh.meshVertices[_worstEdge.b];
+                Fail(id, $"stretches {limit:0%} at its limit: a {_worstEdge.length:0.00} m edge at {a.position.Y:0.0} m up, between joints {a.joint} ({joints[a.joint].Length:0.0} m, bends {joints[a.joint].MostBend:0.00}) and {b.joint} ({joints[b.joint].Length:0.0} m), material {a.materialTextureIndex}");
+            }
             if (moved > reach) Fail(id, $"moves {moved:0.00} m, past the {reach:0.00} m culling allows it");
         }
 
@@ -159,47 +155,23 @@ namespace Dino_Defenders.Client
         {
             float before = (rest[a] - rest[b]).Length;
             if (before < ShortestEdge) return 0f;
-            return (posed[a] - posed[b]).Length / before - 1f;
+            float stretch = (posed[a] - posed[b]).Length / before - 1f;
+            if (stretch > _worst)
+            {
+                _worst = stretch;
+                _worstEdge = (a, b, before);
+            }
+            return stretch;
         }
+
+        private static float _worst;
+        private static (int a, int b, float length) _worstEdge;
 
         private static float Furthest(Vector3[] rest, Vector3[] posed)
         {
             float worst = 0f;
             for (int i = 0; i < rest.Length; i++) worst = MathF.Max(worst, (posed[i] - rest[i]).LengthSquared);
             return MathF.Sqrt(worst);
-        }
-
-        // The way a vertex used to bend: read for itself where it stands, and turned about the model's origin by however far it was from there.
-        private static Vector3 OldPose(Vector3 position, Vector2 body, float sway)
-        {
-            Vector2 offset = position.Xz - body;
-            float distance = offset.Length;
-            if (distance >= 3f) return position;
-            float push = 1.4f * MathF.Pow((3f - distance) / 3f, 0.6f);
-            Vector2 bend = (distance > 1e-4f ? offset / distance : Vector2.Zero) * MathF.Min(push, 1.5f);
-
-            float scale = (position.Y * 0.001f + position.Xz.Length * 0.01f) * sway;
-            float rotateX = -bend.Y * scale;
-            float rotateZ = bend.X * scale;
-            Matrix3 x = new Matrix3(1f, 0f, 0f, 0f, MathF.Cos(rotateX), -MathF.Sin(rotateX), 0f, MathF.Sin(rotateX), MathF.Cos(rotateX));
-            Matrix3 z = new Matrix3(MathF.Cos(rotateZ), -MathF.Sin(rotateZ), 0f, MathF.Sin(rotateZ), MathF.Cos(rotateZ), 0f, 0f, 0f, 1f);
-            return position * z * x;
-        }
-
-        private static float OldSway(string id)
-        {
-            if (id.StartsWith("flower.")) return 45f;
-            return id switch
-            {
-                "bamboo" => 22f,
-                "bush.bigleaf" => 30f,
-                "fern" => 30f,
-                "reeds" => 40f,
-                "pampas" => 55f,
-                "heather" => 20f,
-                "scrub" => 25f,
-                _ => 0f,
-            };
         }
 
         private static void Fail(string id, string problem)

@@ -47,8 +47,10 @@ namespace Dino_Defenders
     ///   --weatherclock s  Starts this many seconds into the world's own weather.
     ///   --size WxH      The window's size, for measuring at the size someone else plays at.
     ///   --maxfps N      The most frames a second, 0 for no limit. A scripted run keeps to 60, as --frames is how long one lasts.
+    ///   --travels N     Goes on stepping through waygates, every --travel frames, this many times.
+    ///   --biome id      Starts in the thickest wood of that biome, if the world has it.
     ///   --garden a,b    Stands those plants thick along the way the hero's going with --walk, for looking at what walking through them does.
-    ///   --plantcheck true  Bends every plant as hard as it can be bent, says how they held together, and quits. Exit code 1 on any problem.
+    ///   --gardengap N   How many metres apart they stand: a few trees 16 apart make an arboretum, for judging how they look from the game's own camera.
     ///   --meshseed N    Seeds what otherwise grows differently in every run, so that two builds can be compared picture by picture.
     ///   --perf file     Measures --perfframes N frames from frame --perfstart N, writes the report to this file and quits. Timing each pass slows the
     ///                   GPU down a little: --perfgpu false measures what a player really gets, with no passes in the report.
@@ -86,7 +88,7 @@ namespace Dino_Defenders
         public string? Settings;
 
         /// <summary>Whether this is a run nobody's sitting at, which has no business with anyone's settings.</summary>
-        public bool Scripted => PlantCheck || Hidden || Bot || Shot != null || Film != null || Perf != null || Tour != null;
+        public bool Scripted => Hidden || Bot || Shot != null || Film != null || Perf != null || Tour != null;
 
         /// <summary>Where the main menu keeps its heroes, for a scripted run: --heroes folder.</summary>
         public string? Heroes;
@@ -104,6 +106,7 @@ namespace Dino_Defenders
         public string? Panel;
         public string? Wear;
         public int TravelAfterFrames = -1;
+        public int Travels = 1;
         public readonly Offering Offering = new();
         public int Gold;
         public int Proven;
@@ -134,8 +137,9 @@ namespace Dino_Defenders
         public int? MeshSeed;
         public int? MaxFps;
         public string? Perf;
-        public bool PlantCheck;
+        public string? Biome;
         public string? Garden;
+        public float GardenGap = 1.6f;
         public int PerfStart = 300;
         public int PerfFrames = 600;
         public bool PerfGpu = true;
@@ -162,6 +166,7 @@ namespace Dino_Defenders
                     case "seed": options.Seed = int.Parse(value); break;
                     case "archetype": options.Archetype = value; break;
                     case "site": options.Site = value; break;
+                    case "biome": options.Biome = value; break;
                     case "at":
                         string[] parts = value.Split(',');
                         options.At = new Vector2(float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
@@ -196,6 +201,7 @@ namespace Dino_Defenders
                     case "panel": options.Panel = value; break;
                     case "wear": options.Wear = value; break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
+                    case "travels": options.Travels = int.Parse(value); break;
                     case "peril": options.Offering.Peril = int.Parse(value); break;
                     case "teeming": options.Offering.Teeming = int.Parse(value); break;
                     case "overrun": options.Offering.Overrun = int.Parse(value); break;
@@ -231,8 +237,8 @@ namespace Dino_Defenders
                     case "meshseed": options.MeshSeed = int.Parse(value); break;
                     case "maxfps": options.MaxFps = int.Parse(value); break;
                     case "perf": options.Perf = value; break;
-                    case "plantcheck": options.PlantCheck = value == "true"; break;
                     case "garden": options.Garden = value; break;
+                    case "gardengap": options.GardenGap = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "perfstart": options.PerfStart = int.Parse(value); break;
                     case "perfframes": options.PerfFrames = int.Parse(value); break;
                     case "perfgpu": options.PerfGpu = value == "true"; break;
