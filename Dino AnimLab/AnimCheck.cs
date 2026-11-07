@@ -812,7 +812,7 @@ namespace Dino_AnimLab
         public static int Bench()
         {
             var ground = new Slope();
-            foreach (string name in new[] { "bare", "sword", "shield", "wolf" })
+            foreach (string name in new[] { "bare", "sword", "shield", "wolf", "raptor", "tyrant", "hornback" })
             {
                 Body body = Body.Named(name);
                 CharacterAnimator[] crowd = new CharacterAnimator[200];

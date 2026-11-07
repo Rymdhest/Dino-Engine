@@ -2,6 +2,7 @@ using Dino_Engine.Animation;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Character;
 using Dino_Engine.Modelling.Procedural.Indoor;
+using Dino_Engine.Modelling.Procedural.Saurian;
 using OpenTK.Mathematics;
 
 namespace Dino_AnimLab
@@ -24,6 +25,28 @@ namespace Dino_AnimLab
 
         private static Body Beast(string name, BeastLook look, MotionStyle style) => new Body(name, BeastGenerator.RigOf(look), style, Carry.Nothing, false, () => BeastGenerator.Generate(look));
 
+        /// <summary>A dinosaur, by the name the game gives its model.</summary>
+        public static Body Dino(string name, string key, MotionStyle style)
+        {
+            SaurianSpec spec = SaurianSpec.Parse(key) ?? throw new ArgumentException($"No dinosaur called {key}.");
+            return new Body(name, SaurianForge.RigOf(spec), style, Carry.Nothing, false, () => SaurianForge.Make(spec));
+        }
+
+        /// <summary>How each kind of dinosaur moves.</summary>
+        public static MotionStyle StyleOf(SaurianSpec spec) => spec.Condition switch
+        {
+            SaurianCondition.Bones => MotionStyle.Bones,
+            SaurianCondition.Rotting => MotionStyle.Rotting,
+            _ => spec.Species switch
+            {
+                "raptor" => MotionStyle.Raptor,
+                "skitter" => MotionStyle.Scurrier,
+                "tyrant" => MotionStyle.Tyrant,
+                "hornback" => MotionStyle.Horned,
+                _ => MotionStyle.Stalker,
+            },
+        };
+
         public static readonly Body[] All =
         {
             new Body("bare", Rig.Humanoid, MotionStyle.Hero, Carry.Nothing, false, () => HumanoidGenerator.Generate(Person(HeldItem.None))),
@@ -38,9 +61,22 @@ namespace Dino_AnimLab
             Beast("wolf", new BeastLook(), MotionStyle.Hound),
             Beast("boar", new BeastLook { Height = 1.35f, Length = 2.9f, Girth = 0.82f, Skull = 0.46f, Muzzle = 0.56f, Tail = 0.4f, Ears = 0.16f, Tusks = 0.36f, Hump = 0.28f, Neck = 0.42f, Coat = new Vector3(0.42f, 0.24f, 0.13f), Belly = new Vector3(0.5f, 0.34f, 0.22f) }, MotionStyle.Boar),
             Beast("bear", new BeastLook { Height = 2.3f, Length = 3.9f, Girth = 1.25f, Skull = 0.62f, Muzzle = 0.44f, Tail = 0f, Ears = 0.17f, Hump = 0.34f, Neck = 0.8f, Coat = new Vector3(0.34f, 0.2f, 0.1f), Belly = new Vector3(0.42f, 0.27f, 0.15f) }, MotionStyle.Bear),
+            Dino("raptor", "dino:raptor.0", MotionStyle.Raptor),
+            Dino("skitter", "dino:skitter.0", MotionStyle.Scurrier),
+            Dino("spitter", "dino:spitter.0", MotionStyle.Stalker),
+            Dino("ravager", "dino:ravager.0", MotionStyle.Stalker),
+            Dino("tyrant", "dino:tyrant.0", MotionStyle.Tyrant),
+            Dino("hornback", "dino:hornback.0", MotionStyle.Horned),
         };
 
-        public static Body Named(string name) => All.FirstOrDefault(body => body.Name == name) ?? All[0];
+        /// <summary>A body by name, or any dinosaur by its model's name.</summary>
+        public static Body Named(string name)
+        {
+            Body? found = All.FirstOrDefault(body => body.Name == name);
+            if (found != null) return found;
+            if (SaurianSpec.Parse(name) is SaurianSpec spec) return Dino(name, name, StyleOf(spec));
+            return All[0];
+        }
 
         public CharacterAnimator NewAnimator(int seed = 7)
         {
@@ -128,6 +164,14 @@ namespace Dino_AnimLab
                 "use" => Doing(Gestures.Use, 0.28f, 0.7f),
                 "bite" => Doing(Gestures.Bite, 0.45f, 0.75f),
                 "maul" => Doing(Gestures.Maul, 0.6f, 1f),
+                "chomp" => Doing(Gestures.Chomp, 0.6f, 1.05f),
+                "roar" => Doing(Gestures.Roar, 0.7f, 1.9f),
+                "tailsweep" => Doing(Gestures.TailSweep, 0.72f, 1.25f),
+                "stomp" => Doing(Gestures.Stomp, 0.9f, 1.4f),
+                "pounce" => Doing(Gestures.Pounce, 0.5f, 0.95f, 6f),
+                "spit" => Doing(Gestures.Spit, 0.6f, 1.05f),
+                "gore" => Doing(Gestures.Gore, 0.7f, 1.2f),
+                "trample" => Doing(Gestures.Trample, 0.9f, 1.4f),
                 _ => null,
             };
         }

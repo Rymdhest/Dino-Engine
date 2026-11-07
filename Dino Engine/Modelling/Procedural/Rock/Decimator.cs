@@ -23,6 +23,7 @@ namespace Dino_Engine.Modelling.Procedural.Rock
         private readonly PriorityQueue<Candidate, double> _queue = new();
         private readonly List<int> _neighbours = new();
         private readonly HashSet<int> _seen = new();
+        private double _longestSquared = double.PositiveInfinity;
 
         private readonly record struct Candidate(int A, int B, int VersionA, int VersionB, Vector3d Target);
 
@@ -58,10 +59,11 @@ namespace Dino_Engine.Modelling.Procedural.Rock
         }
 
         /// <summary>Replaces <paramref name="points"/> and <paramref name="triangles"/> with no more than <paramref name="target"/> triangles, if it can get there.</summary>
-        public static void Reduce(List<Vector3> points, List<int> triangles, int target)
+        /// <param name="longestEdge">How long an edge may get. Something that bends where it's skinned needs vertices along it to bend at, however flat it is there, and a rock needs none.</param>
+        public static void Reduce(List<Vector3> points, List<int> triangles, int target, float longestEdge = float.PositiveInfinity)
         {
             if (triangles.Count / 3 <= target) return;
-            var decimator = new Decimator(points, triangles);
+            var decimator = new Decimator(points, triangles) { _longestSquared = (double)longestEdge * longestEdge };
             decimator.Run(target);
             decimator.Write(points, triangles);
         }
@@ -173,6 +175,13 @@ namespace Dino_Engine.Modelling.Procedural.Rock
             int shared = 0;
             foreach (int v in _neighbours) if (_seen.Contains(v)) shared++;
             if (shared != 2) return false;
+
+            if (_longestSquared < double.PositiveInfinity)
+            {
+                foreach (int v in _neighbours) if ((_points[v] - target).LengthSquared > _longestSquared) return false;
+                Neighbours(a);
+                foreach (int v in _neighbours) if ((_points[v] - target).LengthSquared > _longestSquared) return false;
+            }
 
             return Keeps(a, b, target) && Keeps(b, a, target);
         }

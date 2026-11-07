@@ -101,6 +101,13 @@ namespace Dino_Engine.Animation
             {
                 Tail = frame.Tail;
                 foreach (BoneType bone in Tail) Use(bone, 0.6f, 0.08f);
+
+                // A dinosaur's toes reach well ahead of its ankle, and would go through a wall the foot stopped at.
+                foreach (Limb limb in rig.Legs)
+                {
+                    BoneType toe = Rig.ToeOf(limb.End);
+                    if (toe != BoneType.Count) Use(toe, 0.5f, Radius[(int)limb.End] * 0.6f);
+                }
             }
             else if (!biped && (Rest[(int)BoneType.TailBase] - Rest[(int)BoneType.TailTip]).LengthSquared > 1e-4f)
             {
@@ -533,7 +540,14 @@ namespace Dino_Engine.Animation
                 _rotations[from] = Frames.Of(along, across) * restInverse;
             }
 
-            foreach (Limb limb in rig.Legs) ReadLimb(limb, _rotations[limb.Parent == BoneType.Chest ? (int)BoneType.Chest : (int)BoneType.Pelvis]);
+            foreach (Limb limb in rig.Legs)
+            {
+                ReadLimb(limb, _rotations[limb.Parent == BoneType.Chest ? (int)BoneType.Chest : (int)BoneType.Pelvis]);
+
+                // Toes that fall go stiff with the foot.
+                BoneType toe = Rig.ToeOf(limb.End);
+                if (toe != BoneType.Count && _plan.Used[(int)toe]) _rotations[(int)toe] = _rotations[(int)limb.End] * _onParent[(int)toe];
+            }
 
             // Each piece of a tail points at the next, and the last one goes on the way the one before it went.
             BoneType[] tail = _plan.Tail;
