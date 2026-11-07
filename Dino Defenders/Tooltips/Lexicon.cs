@@ -153,7 +153,7 @@ namespace Dino_Defenders.Tooltips
             Basic("Book", "What you fight with: anything on your Bar, or anything that Triggers. It holds Pages. Right click one to read it.", "Books");
             Basic("Page", "Goes in a Book, and holds Stickers. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
             Basic("Sticker", "Goes on a Page. Always does one thing for it and one thing against it.", "Stickers");
-            On(Stat.Potency, Word("Potency", $"How strong everything a Page does is, up to {Share(MostPotency)}. A Page starts from where the one before it left off, and its sentences and Stickers go on from there. It counts for healing as much as Damage."));
+            On(Stat.Potency, Word("Potency", $"How strong everything a Page does is, up to {Share(MostPotency)}. Each Page starts from where the last left off. Counts for healing too."));
             On(Tags.Opening, Word("Opening Page", "The first Page of a Book."));
             On(Tags.Turned, Word("Turned Page", "Any Page after the first."));
             On(Tags.Closing, Word("Closing Page", "The last Page of a Book. A single Page is both this and an Opening Page."));

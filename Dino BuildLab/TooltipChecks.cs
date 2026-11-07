@@ -106,10 +106,10 @@ namespace Dino_BuildLab
             foreach (BookPlan skill in Shelf.All) yield return Cards.Book(sheet.Preview(skill));
             foreach (Sentence sentence in Dino_Defenders.Books.Sentences.All) yield return Cards.Sentence(sentence);
 
-            var random = new Dino_Engine.World.WorldRandom(31);
+            var finds = new Dino_Engine.World.WorldRandom(31);
             for (int i = 0; i < 300; i++)
             {
-                Item found = ItemGenerator.Folio(20, random.Fork(i), (LootGrade)(i % 5));
+                Item found = ItemGenerator.Folio(20, finds.Fork(i), (LootGrade)(i % 5));
                 yield return Cards.Item(found, sheet, Cards.KindOf(found));
             }
             foreach (string name in Dino_Defenders.Books.Stickers.Names)
