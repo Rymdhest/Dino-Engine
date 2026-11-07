@@ -30,6 +30,8 @@ Other ARPGs desync because the client keeps its own running idea of the world an
 
 World state is never sent as "this changed". Snapshots are differences from a state the client has *confirmed holding*, so a lost packet is simply covered by the next one. Nothing depends on any one packet arriving, including ghosts appearing and leaving.
 
+**A Toggle Book is part of the step**: `HeroSimState.Toggled` and what it does to Mana are predicted like anything else, and only a press flips one. A Trigger Book isn't: what it's waiting for is other people, so it goes off on the server, and `Charged` is sent as one of the things a client takes as it finds them.
+
 **A place can be inside something**: `ItemPlace.In` is a page in a book or a sticker on a page, as one number like any other, so moving them is `HeroAction.Move`. Only what's written on a page and what a book is called are ever sent to the server (`Write`, `Title`), never an item: a client can't say what it has.
 
 **What a hero carries is the other thing a client does ahead of being told**, as a pack that waits for the server at every click is no pleasure to use. `GameClient` makes each change at once, by the same rules the server will use (`HeroState`, `MerchantTable`), and sends it whatever those rules said, as the server has the last word. Each one carries a running number, which comes back with every gear update and market:

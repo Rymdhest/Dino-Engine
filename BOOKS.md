@@ -64,9 +64,29 @@ Each side has to mean something on the same kind of page, so a sticker is for a 
 
 `Stickers.Written` is for what's already written and has to come out the same: creatures fight with those. They go by the names clauses had, as a save from before stickers does too.
 
+## Three kinds of book
+
+A book is found as one of three, and stays that way (`Item.Mode`). All of them go on the bar, which is where a book has to be to do anything.
+
+| Kind | How it goes off | What it costs |
+|---|---|---|
+| Active | Pressed | Its Cost, each use |
+| Trigger | By itself, when what it's waiting for has happened enough. A press does nothing | Its Cost, each time. With nothing to pay with it waits, full, and goes the moment there is |
+| Toggle | A press turns it on and another off. While on it pulses every page it has | Its Cost, off Mana Regeneration, for as long as it's on |
+
+**A Trigger Book** rolls what it waits for and how much of it (`BookTriggers`), the rarer the less. `Combat.Watch` only counts, and that's all that happens in a blow: what's ready goes off in `GameServer.GoOff`, between blows, so a blow can't set off a book that sets off a blow. What goes off by itself doesn't count as used by hand, or one waiting for that would never stop. How far each has got is sent as `HeroSimState.Charged` and the bar fills with it. It aims where the hero's aiming. Something new to wait for is a line in `BookTriggers.Lines`, a value on the end of `BookWhen` and its words in `BookText.Waits`, and a call to `Watch`. Damage is counted from Hits, not from ailments ticking.
+
+**A Toggle Book** is turned on in `HeroRules.Step`, so a client knows at once, and what it gives up comes off in the same step, so Mana is predicted like anything else. It can only go on with more Mana Regeneration left than it Costs, which is your whole regeneration less whatever else is on. Taking off what paid for one turns off the last until what's left can be kept up (`Settle`). Only the press counts, or a mouse button held down would flip it every tick. It's a press that's on the wire and not a state, so it can't be lost.
+
+It holds only Area Pages, as an Area ends a book and a book that could only ever have one page would have no use for more places. Every page goes at once in each pulse, each its own last, and Potency still carries from one to the next. Nothing on it lingers, as pulsing is what it does. `AuraPulse` is at bare hands' pace, so what quickens a use quickens it and what makes a book rest holds it back, and each pulse does `AuraStrength` of what the page would by hand. A pulse shows a ring and embers but none of the noise a spell makes, as it's going to go on making it. Nothing costs less than `LeastToggleCost`, or a free cone could be left on for nothing. What's on stops with the world: arriving in a new one, everything's off.
+
+Everyone regenerates `ManaRefill` of their Mana a second, which is 2.2 at the start, so a toggle is something a build has to make room for. If that's too hard it's that number or the sentences to change, and not this rule.
+
 ## What's found
 
 `Loot.Fresh` makes `FolioShare` of everything that drops something for a book, by `ItemGenerator.Folio`, stickers most and books least, and one in `GameServer`'s `FolioEvery` on a table. Grade is places: `LeastPages`, `MostPages`, `LeastStickers` and `MostStickers` say how many by grade, and only a legendary has all there can be. `GradeOf` reads it back from the item, as it does for anything else, so a masterwork is a rare with `MasterworkPages` or `MasterworkStickers` places, and a sticker can't be one. What's in something is sold with it.
+
+Of books, `TriggerShare` are Trigger Books and `ToggleShare` Toggle Books.
 
 Everyone starts with a Worn Book of two places, an Area Page in the first of them with one place for a sticker. Nothing makes a book or a page but finding one.
 
