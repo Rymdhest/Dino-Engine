@@ -150,7 +150,7 @@ namespace Dino_Defenders.Server
                     if (c.Book != null) Release(c.Source, c.Book, c.Origin, c.Facing, c.Reach, 0, c.Strength);
                     break;
                 case Later.Turn:
-                    if (c.Cast != null) Open(c.Cast, c.Page, c.Origin, c.Facing);
+                    if (c.Cast != null) Open(c.Cast, c.Page, c.Origin, c.Facing, c.Victim);
                     break;
                 case Later.Fall:
                     if (c.Cast != null) Fell(c.Cast, c.Cast.Book.Pages[c.Page], c.Origin, c.Facing, c.Strength);
@@ -262,19 +262,20 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>Goes to a page of a book: the first, or the next one from where the last struck. A book that's run out of pages is over.</summary>
-        private void Open(Cast cast, int index, Vector2 at, Vector2 way)
+        /// <param name="off">Who it's coming off, if it came off anyone.</param>
+        private void Open(Cast cast, int index, Vector2 at, Vector2 way, Actor? off = null)
         {
             if (index >= cast.Book.Pages.Length) return;
 
             PageProfile page = cast.Book.Pages[index];
             if (page.Page.Kind == PageKind.Area) Spread(cast, page, at, way);
-            else Fire(cast, page, at, way);
+            else Fire(cast, page, at, way, off);
         }
 
-        private void Turn(Cast cast, PageProfile page, Vector2 at, Vector2 way)
+        private void Turn(Cast cast, PageProfile page, Vector2 at, Vector2 way, Actor? off = null)
         {
             if (page.Page.Last) return;
-            Defer(new Consequence { Kind = Later.Turn, At = Now, Source = cast.Source, Cast = cast, Page = page.Page.Index + 1, Origin = at, Facing = way });
+            Defer(new Consequence { Kind = Later.Turn, At = Now, Source = cast.Source, Cast = cast, Page = page.Page.Index + 1, Origin = at, Facing = way, Victim = off });
         }
 
         // Somewhere within so far of a place, evenly over the circle.
@@ -481,7 +482,7 @@ namespace Dino_Defenders.Server
             Show(new HealEvent { Position = new Vector3(who.Position.X, who.Height + 3.4f, who.Position.Y), Amount = amount, Pool = pool }, who.Position);
         }
 
-        private void Fire(Cast cast, PageProfile page, Vector2 at, Vector2 way)
+        private void Fire(Cast cast, PageProfile page, Vector2 at, Vector2 way, Actor? off)
         {
             PagePlan plan = page.Page;
 
@@ -519,7 +520,7 @@ namespace Dino_Defenders.Server
                 bool hands = plan.From == Start.You && plan.Index == 0;
                 float height = (hands ? cast.Source.Height : Ground(from).Y) + FlightHeight;
                 float length = plan.Stops ? MathF.Min(distance, page.Range) : page.Range;
-                Launch(cast, page, hands ? from + direction * FlightOffset : from, direction, height, cast.Strength, length, null);
+                Launch(cast, page, hands ? from + direction * FlightOffset : from, direction, height, cast.Strength, length, null, off);
             }
         }
 
@@ -531,7 +532,8 @@ namespace Dino_Defenders.Server
             return Thrown.Prefix + Thrown.Of(weapon);
         }
 
-        private void Launch(Cast cast, PageProfile page, Vector2 from, Vector2 direction, float height, float strength, float length, Projectile? parent)
+        // What starts from an impact starts touching whoever took it, and stopping there is no way to get anywhere, so that one it goes straight through.
+        private void Launch(Cast cast, PageProfile page, Vector2 from, Vector2 direction, float height, float strength, float length, Projectile? parent, Actor? off = null)
         {
             Actor user = cast.Source;
             float speed = MathF.Max(page.Speed, 1f);
@@ -543,13 +545,14 @@ namespace Dino_Defenders.Server
                 Page = page,
                 Life = length / speed + (page.Page.Stops ? 0f : FlightGrace),
                 Pierce = page.Pierce,
-                Chains = page.Chains,
+                Chains = parent?.Chains ?? page.Chains,
                 Strength = strength,
                 Start = from,
                 Way = direction,
                 Returning = parent?.Returning ?? false,
             };
             if (parent != null) projectile.Spent.AddRange(parent.Spent);
+            if (off != null) projectile.Spent.Add(off);
 
             World.CreateEntity("Projectile", Parts(user,
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 2f),
@@ -624,7 +627,7 @@ namespace Dino_Defenders.Server
                 float strength = projectile.Strength * Flight(projectile, at.Xz);
                 if (!friends) Strike(cast, page, foe, strength, at.Xz, projectile.Way);
                 Do(cast, page, GroundShape.Circle(at.Xz, GroundShape.FlightWidth), strength, false);
-                Turn(cast, page, at.Xz, projectile.Way);
+                Turn(cast, page, at.Xz, projectile.Way, foe);
 
                 if (projectile.Chains > 0 && Retarget(projectile, foe, at))
                 {

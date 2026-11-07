@@ -47,6 +47,8 @@ namespace Dino_NetLab
                     return OfferingTests.Run(options);
                 case "combat":
                     return CombatTests.Run(options);
+                case "books":
+                    return BookTests.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

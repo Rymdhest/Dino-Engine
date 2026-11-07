@@ -287,23 +287,31 @@ namespace Dino_NetLab
             hero.Level = 12;
             hero.Equipped[WornSlot.MainHand].WeaponDamage = 34f;
             hero.Equipped[WornSlot.Neck] = new Item { Name = "Lab Charm", Slot = ItemSlot.Neck, Level = 12, Lines = { new ItemLine("health", 400f) } };
-            Learn(hero, "pyre.firebolt", "forge.whirl", "winter.frost-nova", "storm.spark");
+            Learn(hero, "pyre.kindled-bolt", "forge.sweeping-arc", "winter.white-ring", "storm.forked-path");
+            hero.Bar[1] = Written(Shelf.Firebolt);
+            hero.Bar[LabPlayer.WhirlSlot] = Written(Shelf.Whirl);
+            hero.Bar[3] = Written(Shelf.FrostNova);
+            hero.Bar[4] = Written(Shelf.Spark);
             return hero;
         }
 
-        /// <summary>Walks a hero to these nodes the way a player would, and puts what they teach on the bar.</summary>
+        /// <summary>A copy of something on the shelf, in a book of a hero's own.</summary>
+        public static Item Written(BookPlan plan)
+        {
+            Item book = ItemGenerator.Book((ulong)plan.Number);
+            book.Book = plan.Source!.Copy();
+            book.Name = plan.Name;
+            return book;
+        }
+
+        /// <summary>Walks a hero to these nodes the way a player would.</summary>
         public static void Learn(HeroState hero, params string[] nodes)
         {
             foreach (string id in nodes)
             {
                 foreach (int step in TalentTree.PathTo(hero, TalentTree.Find(id)!.Index))
                 {
-                    TalentNode node = TalentTree.Nodes[step];
-                    hero.Talents.Add(node.Id);
-                    foreach (Mod mod in node.Mods)
-                    {
-                        if (mod.Kind == ModKind.GrantSkill) HeroBuild.OfferToBar(hero, Shelf.Get(mod.Skill));
-                    }
+                    hero.Talents.Add(TalentTree.Nodes[step].Id);
                 }
             }
         }
@@ -622,7 +630,7 @@ namespace Dino_NetLab
         {
             return a.Level == b.Level && a.Experience == b.Experience && a.Gold == b.Gold && a.Flasks == b.Flasks
                 && a.Carried().Count() == b.Carried().Count() && a.Equipped.Count == b.Equipped.Count && a.WorldsCleared == b.WorldsCleared
-                && a.Talents.SequenceEqual(b.Talents) && a.Bar.SequenceEqual(b.Bar);
+                && a.Talents.SequenceEqual(b.Talents) && a.Bar.Select(item => item?.Name).SequenceEqual(b.Bar.Select(item => item?.Name));
         }
 
         // A host on fibre and a friend on bad wifi: one player's line mustn't become everyone's problem.
@@ -666,7 +674,7 @@ namespace Dino_NetLab
             var random = new Random(9);
 
             // All three hundred are one loadout, which is the point. They can't be killed in the time, or do much.
-            var kind = new EnemyKind { Id = "lab-horde", Name = "Restless Dead", Skills = new[] { Shelf.Strike, Shelf.Shot }, Weapon = Tags.Bow, Health = 2000f, Damage = 0.01f, MoveSpeed = 6f };
+            var kind = new EnemyKind { Id = "lab-horde", Name = "Restless Dead", Books = new[] { Shelf.Strike, Shelf.Shot }, Weapon = Tags.Bow, Health = 2000f, Damage = 0.01f, MoveSpeed = 6f };
             Loadout horde = server.Session!.Bestiary.Shared(kind, 1, EnemyRank.Normal, Bestiary.NoTrait);
             for (int i = 0; i < Enemies; i++)
             {
@@ -699,7 +707,7 @@ namespace Dino_NetLab
                     new RotationComponent(new Vector3(0f)),
                     new VisualComponent("arrow", VisualKind.Prop),
                     new BallisticComponent { Origin = new Vector3(from.X, 8f, from.Y), Velocity = new Vector3(direction.X, 0f, direction.Y) * 42f, StartTick = server.Tick },
-                    new ProjectileComponent { State = new Projectile { Source = archer, Skill = shot, Life = 1.6f, Start = from } });
+                    new ProjectileComponent { State = new Projectile { Cast = new Cast { Source = archer, Book = shot }, Page = shot.First, Life = 1.6f, Start = from } });
                 arrowsLoosed++;
             });
 
@@ -1009,7 +1017,7 @@ namespace Dino_NetLab
             lab.Run(6);
 
             ServerPlayer truth = lab.Server.Players.First();
-            player.WhirlEveryFrames = (int)(Shelf.Whirl.Cooldown * 60.0) + 90;
+            player.WhirlEveryFrames = (int)(Shelf.Whirl.First.Cooldown * 60.0) + 90;
 
             int happened = 0;
             float last = 0f;
@@ -1067,11 +1075,9 @@ namespace Dino_NetLab
             lab.Run(0.5);
             report.Check("A talent nowhere near what's taken can't be had", !truth.Hero.Talents.Contains("key.tidewalker"));
 
-            player.Client.Allocate(Node("pyre.firebolt.0"));
-            player.Client.Allocate(Node("pyre.firebolt"));
+            player.Client.Allocate(Node("pyre.kindled-bolt.0"));
+            player.Client.Allocate(Node("pyre.kindled-bolt"));
             lab.Run(0.5);
-            report.Check("A skill learned on the tree goes on the bar, on both ends", truth.Hero.Bar.Contains("firebolt") && player.Client.Hero.Bar.Contains("firebolt"));
-            report.Check("And there's a profile to use it with, on both ends", truth.Kit.Slots.Any(s => s?.Skill == Shelf.Firebolt) && player.Client.Kit.Slots.Any(s => s?.Skill == Shelf.Firebolt));
 
             player.Client.Allocate(Node("pyre.t1"));
             lab.Run(0.5);
@@ -1081,10 +1087,9 @@ namespace Dino_NetLab
             lab.Run(0.5);
             report.Check("A node others hang from can't be given back", truth.Hero.Talents.Contains("pyre.t0"));
 
-            player.Client.Refund(Node("pyre.firebolt"));
+            player.Client.Refund(Node("pyre.kindled-bolt"));
             lab.Run(0.5);
-            report.Check("A node at the end of a path can", !truth.Hero.Talents.Contains("pyre.firebolt") && !player.Client.Hero.Talents.Contains("pyre.firebolt"));
-            report.Check("And what it taught goes with it", truth.Kit.Slots.All(s => s?.Skill != Shelf.Firebolt));
+            report.Check("A node at the end of a path can", !truth.Hero.Talents.Contains("pyre.kindled-bolt") && !player.Client.Hero.Talents.Contains("pyre.kindled-bolt"));
 
             player.Client.ForgetTalents();
             lab.Run(0.5);
@@ -1111,7 +1116,7 @@ namespace Dino_NetLab
             player.Client.Allocate(99999);
             player.Client.Allocate(-1);
             player.Client.Refund(99999);
-            player.Client.AssignSlot(6, null);
+            player.Client.Write(new ItemPlace(9999), new Dino_Defenders.Books.Book(), "Nothing");
             lab.Run(0.5);
             report.Check("Nonsense requests are ignored", player.Client.State == ClientState.Playing);
 

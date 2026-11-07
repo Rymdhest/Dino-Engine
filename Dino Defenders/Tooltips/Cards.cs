@@ -201,7 +201,11 @@ namespace Dino_Defenders.Tooltips
                 if (plan.Source != null) card.Text(BookText.Says(plan.Source.Pages[i], i));
                 DamageRows(card, page);
                 AilmentLines(card, page);
-                foreach (GiftPart gift in page.Page.Gifts) card.Attached.Add(Buff(gift.Buff, book.Sheet));
+                for (int gift = 0; gift < page.Page.Gifts.Length; gift++)
+                {
+                    card.Cell("Duration", Seconds(page.GiftSeconds[gift]));
+                    card.Attached.Add(Buff(page.Page.Gifts[gift].Buff, book.Sheet));
+                }
                 if (page.Page.Minion != null) MinionRows(card, page);
             }
 

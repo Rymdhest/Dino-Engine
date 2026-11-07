@@ -77,7 +77,7 @@ namespace Dino_Defenders.Books
         public static readonly BookPlan Strike = Write("strike", "Strike", new[] { Area("cone", Plain, Deal()) });
         public static readonly BookPlan Bite = Write("bite", "Bite", new[] { Area("cone", Say("tight"), Deal()) }, page => { page.Potency = 1f; page.UseTime = 0.5f; page.Mods = new[] { Chance(Tags.Bleed, 25f) }; });
         public static readonly BookPlan Maul = Write("maul", "Maul", new[] { Area("cone", Say("broad", "deliberate"), Deal()) }, page => { page.Potency = 1.6f; page.Mods = new[] { Chance(Tags.Stun, 50f) }; });
-        public static readonly BookPlan Whirl = Write("whirl", "Whirl", new[] { Area("circle", Plain, Deal()) }, page => page.Potency = 1.9f);
+        public static readonly BookPlan Whirl = Write("whirl", "Whirl", new[] { Area("circle", Say("rest"), Deal()) }, page => page.Potency = 1.9f);
         public static readonly BookPlan Shot = Write("shot", "Loose", new[] { Bolt(Plain, Deal()) }, page => page.Speed = 56f);
 
         public static readonly BookPlan Firebolt = Write("firebolt", "Firebolt", new[] { Bolt(Plain, Deal("fire")) }, page => { page.Speed = 34f; page.Mods = new[] { Chance(Tags.Burn, 25f) }; });
@@ -111,6 +111,11 @@ namespace Dino_Defenders.Books
         public static readonly BookPlan Mend = Write("mend", "Mend", new[] { Area("circle", Plain, new Outcome { Deed = "heal", Measure = "of-health" }) });
         public static readonly BookPlan StoneSkin = Write("stone-skin", "Stone Skin", new[] { Area("circle", Say("tight", "rest"), Give("stone-skin")) });
         public static readonly BookPlan RaiseBones = Write("raise-bones", "Raise Bones", new[] { Area("circle", Say("tight"), Raise("bones")) });
+        public static readonly BookPlan Cleave = Write("cleave", "Cleave", new[] { Area("cone", Say("broad"), Deal()) });
+        public static readonly BookPlan Sunder = Write("sunder", "Sunder", new[] { Area("cone", Say("deliberate"), Deal()) }, page => page.Mods = new[] { Flat(Stat.ArmourIgnore, 40f), Chance(Tags.Stun, 60f) });
+        public static readonly BookPlan Knives = Write("knives", "Throwing Knives", new[] { Bolt(Say("three-at-once"), Deal()) });
+        public static readonly BookPlan Sap = Write("sap", "Sap", new[] { Area("line", Say("tight"), Deal("magic")) }, page => page.Mods = new[] { Flat(Stat.HealthLeech, 12f), Flat(Stat.ManaLeech, 6f) });
+        public static readonly BookPlan Tidepool = Write("tidepool", "Tidepool", new[] { Area("circle", Plain, Do("water")).At("from-cursor").Lasting("lingering-long") });
         public static readonly BookPlan Split = Write("split", "Splitting Shot", new[] { Bolt(Plain, Deal()), Bolt(Say("three-at-once"), Deal()).Going("onward") });
     }
 }
