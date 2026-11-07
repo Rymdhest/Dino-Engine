@@ -57,6 +57,7 @@ namespace Dino_Defenders.Gameplay
         [NetStep(1f / 64f)] public Vector2 Facing;
         [NetStep(0.25f)] public float Length;
         [NetStep(1f / 16f)] public float Width;
+        public bool Quiet;      // It's going to go on doing this, so it's only seen.
 
         /// <summary>The same, for what goes off all around somewhere.</summary>
         public static PageEvent Round(Vector3 position, PageSign sign, float radius) => new PageEvent { Position = position, Sign = sign.Number, Kind = ShapeKind.Circle, Facing = Vector2.UnitY, Length = radius };

@@ -895,12 +895,15 @@ namespace Dino_Defenders.Client
             Vector2 middle = shape.Anywhere(0.5f, e.Kind == ShapeKind.Line ? 0.5f : 0.25f);
             Vector3 centre = new Vector3(middle.X, e.Position.Y, middle.Y);
 
-            Sounds.Burst(sign.Look, e.Position);
-            Flash(centre + Vector3.UnitY * 2f, new Colour(light.Red, light.Green, light.Blue, 200f), MathF.Max(e.Length * 2f, 8f), 0.4f);
+            if (!e.Quiet)
+            {
+                Sounds.Burst(sign.Look, e.Position);
+                Flash(centre + Vector3.UnitY * 2f, new Colour(light.Red, light.Green, light.Blue, 200f), MathF.Max(e.Length * 2f, 8f), 0.4f);
+            }
             if (e.Kind == ShapeKind.Circle) Ring(e.Position + Vector3.UnitY * 1.2f, e.Length, glow, 26);
             else Scatter(shape, e.Position.Y, glow, 26);
             Spark(centre + Vector3.UnitY * 1.6f, glow, 12, 7f);
-            if (e.Length > 4f) Wind.AddBlast(_world, centre, e.Length * 1.6f, 14f, 0.6f);
+            if (e.Length > 4f && !e.Quiet) Wind.AddBlast(_world, centre, e.Length * 1.6f, 14f, 0.6f);
             Marks.Struck(shape, _client.Commands.Tick);
         }
 

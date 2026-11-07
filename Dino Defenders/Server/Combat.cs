@@ -386,14 +386,14 @@ namespace Dino_Defenders.Server
             }
 
             // A plain blow shows for itself, in the hands of whoever made it, which a pulse isn't.
-            if (page.Sign.Form != PageForm.Strike || cast.Pulsing) Announce(page, shape);
+            if (page.Sign.Form != PageForm.Strike || cast.Pulsing) Announce(page, shape, cast.Pulsing);
             Cover(cast, page, shape, cast.Strength);
         }
 
-        private void Announce(PageProfile page, in GroundShape shape)
+        private void Announce(PageProfile page, in GroundShape shape, bool quiet = false)
         {
             Vector2 at = shape.Origin;
-            Show(new PageEvent { Position = Ground(at), Sign = page.Sign.Number, Kind = shape.Kind, Facing = shape.Facing, Length = shape.Length, Width = shape.Width }, at);
+            Show(new PageEvent { Position = Ground(at), Sign = page.Sign.Number, Kind = shape.Kind, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Quiet = quiet }, at);
             if (page.Sign.Form == PageForm.Beam) Show(new LinkEvent { From = Ground(at) + Vector3.UnitY * 3f, To = Ground(at + shape.Facing * shape.Length) + Vector3.UnitY * 3f, Look = page.Page.Look, Wide = true }, at);
         }
 
