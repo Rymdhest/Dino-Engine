@@ -6,12 +6,15 @@ using static Dino_Defenders.Stats.M;
 namespace Dino_Defenders.Progression
 {
     /// <summary>
-    /// Where something is on a hero, as one number so that a message can say it: a cell of the pack, a place they wear it, or a place on the bar. Whatever moves an item says where from and where to with these,
-    /// and a number that's none of those holds nothing.
+    /// Where something is on a hero, as one number so that a message can say it: a cell of the pack, a place they wear it, or a place on the bar, or a place inside what's in one of those, as a page is in a book and a
+    /// sticker on that page. Whatever moves an item says where from and where to with these, and a number that's none of those holds nothing.
     /// </summary>
     public readonly record struct ItemPlace(int Number)
     {
         private const int FirstOnBar = HeroState.InventorySize + 16;
+        private const int OuterBits = 8;
+        private const int InnerBits = 4;
+        private const int InnerMask = (1 << InnerBits) - 1;
 
         public static ItemPlace Cell(int cell) => new(cell);
         public static ItemPlace Worn(WornSlot place) => new(HeroState.InventorySize + (int)place);
@@ -22,6 +25,21 @@ namespace Dino_Defenders.Progression
         public bool IsBar => Number >= FirstOnBar && Number < FirstOnBar + HeroState.BarSlots;
         public WornSlot Slot => (WornSlot)(Number - HeroState.InventorySize);
         public int BarSlot => Number - FirstOnBar;
+
+        private int First => Number >> OuterBits & InnerMask;
+        private int Second => Number >> OuterBits + InnerBits & InnerMask;
+
+        /// <summary>Whether it's a place inside something else, which is all these below mean anything for.</summary>
+        public bool IsHeld => Number >= 1 << OuterBits;
+
+        /// <summary>A place inside whatever's here.</summary>
+        public ItemPlace In(int slot) => new(First == 0 ? Number | slot + 1 << OuterBits : Number | slot + 1 << OuterBits + InnerBits);
+
+        /// <summary>What it's a place in.</summary>
+        public ItemPlace Holder => Second != 0 ? new(Number & ~(InnerMask << OuterBits + InnerBits)) : new(Number & (1 << OuterBits) - 1);
+
+        /// <summary>Which of the places in that it is.</summary>
+        public int Index => (Second != 0 ? Second : First) - 1;
     }
 
     /// <summary>The hero as they carry on from world to world. Saved as it stands.</summary>
@@ -108,6 +126,7 @@ namespace Dino_Defenders.Progression
         /// <summary>What's in a place, if it's a place at all.</summary>
         public Item? At(ItemPlace place)
         {
+            if (place.IsHeld) return At(place.Holder)?.Held is Item?[] held && place.Index >= 0 && place.Index < held.Length ? held[place.Index] : null;
             if (place.IsCell) return Inventory[place.Number];
             if (place.IsBar) return Bar[place.BarSlot];
             return place.IsWorn ? Equipped.GetValueOrDefault(place.Slot) : null;
@@ -126,7 +145,8 @@ namespace Dino_Defenders.Progression
         public Item? Take(ItemPlace place)
         {
             if (At(place) is not Item item) return null;
-            if (place.IsCell) Inventory[place.Number] = null;
+            if (place.IsHeld) At(place.Holder)!.Held![place.Index] = null;
+            else if (place.IsCell) Inventory[place.Number] = null;
             else if (place.IsBar) Bar[place.BarSlot] = null;
             else Equipped.Remove(place.Slot);
             return item;
@@ -145,7 +165,7 @@ namespace Dino_Defenders.Progression
         }
 
         /// <summary>What something would be set beside, if anything. A book is worn nowhere, so it has no place to look in.</summary>
-        public Item? WornBeside(Item item) => !item.IsBook && Equipped.TryGetValue(PlaceFor(item), out Item? worn) && worn != item ? worn : null;
+        public Item? WornBeside(Item item) => !item.IsFolio && Equipped.TryGetValue(PlaceFor(item), out Item? worn) && worn != item ? worn : null;
 
         /// <summary>What wearing something would take off: whatever's in its place, both rings for a ring, and for something that changes how the hands are used, whatever's in the other one.</summary>
         public IEnumerable<Item> WornInPlaceOf(Item item)
@@ -164,7 +184,7 @@ namespace Dino_Defenders.Progression
         /// </summary>
         public bool Equip(int cell, WornSlot? asked = null)
         {
-            if (!ItemPlace.Cell(cell).IsCell || Inventory[cell] is not Item item || item.IsBook) return false;
+            if (!ItemPlace.Cell(cell).IsCell || Inventory[cell] is not Item item || item.IsFolio) return false;
             WornSlot place = PlaceFor(item, asked);
 
             // Two hands are two hands.
@@ -202,6 +222,7 @@ namespace Dino_Defenders.Progression
         public bool Move(ItemPlace from, ItemPlace to)
         {
             if (from == to || At(from) is not Item item) return false;
+            if (from.IsHeld || to.IsHeld) return MoveHeld(from, to, item);
             if (from.IsBar || to.IsBar) return MoveOnBar(from, to, item);
 
             if (from.IsCell && to.IsCell)
@@ -243,13 +264,64 @@ namespace Dino_Defenders.Progression
 
         private void Put(ItemPlace place, Item? item)
         {
-            if (place.IsBar) Bar[place.BarSlot] = item;
+            if (place.IsHeld) At(place.Holder)!.Held![place.Index] = item;
+            else if (place.IsBar) Bar[place.BarSlot] = item;
             else Inventory[place.Number] = item;
+        }
+
+        // Into a book or a page, out of one, or from one to another. Whatever's there goes where this came from.
+        private bool MoveHeld(ItemPlace from, ItemPlace to, Item item)
+        {
+            if (!CanMoveHeld(from, to, item)) return false;
+            Item? there = At(to);
+            Put(to, item);
+            Put(from, there);
+            return true;
+        }
+
+        private bool CanMoveHeld(ItemPlace from, ItemPlace to, Item item)
+        {
+            Item? there = At(to);
+            if (!CanGo(to, item, from, there) || there != null && !CanGo(from, there, to, item)) return false;
+
+            // Each book this touches has to read afterwards. The other end of the move isn't there yet, so it's asked what would be.
+            return Reads(to, item, from, there) && Reads(from, there, to, item);
+        }
+
+        // Whether something can be put in a place at all, whatever else is around it.
+        private bool CanGo(ItemPlace place, Item item, ItemPlace other, Item? leaving)
+        {
+            if (!place.IsHeld) return place.IsCell || place.IsBar && item.IsBook;
+            if (At(place.Holder) is not Item holder || place.Index < 0 || place.Index >= holder.Places) return false;
+            if (holder.IsBook) return item.IsPage;
+            return holder.IsPage && item.Sticker is Sticker sticker && holder.Page != null && Stickers.GoesOn(sticker, holder.Page.Kind);
+        }
+
+        // A book reads to its first Area and no further, so nothing may end up after one.
+        private bool Reads(ItemPlace place, Item? item, ItemPlace other, Item? leaving)
+        {
+            if (!place.IsHeld || At(place.Holder) is not { IsBook: true } book) return true;
+
+            bool ended = false;
+            for (int i = 0; i < book.Places; i++)
+            {
+                Item? page = book.Held![i];
+                if (i == place.Index) page = item;
+                else if (other.IsHeld && other.Holder == place.Holder && i == other.Index) page = leaving;
+
+                if (page == null) continue;
+                if (ended) return false;
+                ended = page.Page?.Kind == PageKind.Area;
+            }
+            return true;
         }
 
         /// <summary>Whether a move would work, by trying it on a copy, so that what's shown of a move can't disagree with what it does.</summary>
         public bool CanMove(ItemPlace from, ItemPlace to)
         {
+            if (from == to || At(from) is not Item item) return false;
+            if (from.IsHeld || to.IsHeld) return CanMoveHeld(from, to, item);
+
             var trial = new HeroState { Inventory = (Item?[])Inventory.Clone(), Equipped = new Dictionary<WornSlot, Item>(Equipped), Bar = (Item?[])Bar.Clone() };
             return trial.Move(from, to);
         }
@@ -271,24 +343,29 @@ namespace Dino_Defenders.Progression
         }
 
         /// <summary>
-        /// Writes in a book, whatever it says now: a book only ever changes as a whole, and what's written is put right first, so that nobody can write what can't be read. Both ends do this, as a client shows what it's
-        /// asked for at once. Says whether there was a book there.
+        /// Writes on a page, whatever it says now: a page only ever changes as a whole, and what's written is put right first, so that nobody can write what can't be read. What kind of page it is isn't anyone's to write,
+        /// as that's what was found. Both ends do this, as a client shows what it's asked for at once. Says whether there was a page there.
         /// </summary>
-        public bool Write(ItemPlace place, Book book, string name)
+        public bool Write(ItemPlace place, Page page)
         {
-            if (At(place) is not { IsBook: true } item) return false;
-            Book written = book.Copy();
-            Scribe.Fix(written);
-            item.Book = written;
-
-            string title = name.Trim();
-            if (title.Length > LongestBookName) title = title.Substring(0, LongestBookName);
-            if (title.Length > 0) item.Name = title;
+            if (At(place) is not { IsPage: true, Page: Page old } item) return false;
+            Page written = page.Copy();
+            written.Kind = old.Kind;
+            written.Stickers = new List<Sticker>();
+            Scribe.Fix(written, following: true);
+            item.Page = written;
             return true;
         }
 
-        /// <summary>A new book, in the first free cell. For now anyone can have as many as they can carry. Says whether there was room.</summary>
-        public bool NewBook(ulong seed) => Pickup(ItemGenerator.Book(seed));
+        /// <summary>Calls a book something. Says whether there was a book there and a name to call it.</summary>
+        public bool Title(ItemPlace place, string name)
+        {
+            string title = name.Trim();
+            if (title.Length > LongestBookName) title = title.Substring(0, LongestBookName);
+            if (At(place) is not { IsBook: true } item || title.Length == 0) return false;
+            item.Name = title;
+            return true;
+        }
 
         /// <summary>The only thing that rearranges a pack without being told where each thing goes, and it's only ever done when asked: by where things are worn, then the best first, from the first cell on.</summary>
         public void Sort()
@@ -360,7 +437,7 @@ namespace Dino_Defenders.Progression
             var books = new List<BookPlan>(HeroState.BarSlots);
             foreach (Item? item in hero.Bar)
             {
-                if (item?.Book is Book book) books.Add(Scribe.Read(book, item.Name));
+                if (item?.Written() is Book book) books.Add(Scribe.Read(book, item.Name));
             }
             return new Loadout(hero.Level, WeaponOf(hero), Gather(hero, buffs), books);
         }
@@ -368,12 +445,12 @@ namespace Dino_Defenders.Progression
         /// <summary>The place in a loadout of what's on a slot, or -1 if nothing is.</summary>
         public static int SlotIndex(HeroState hero, int slot)
         {
-            if (slot < 0 || slot >= hero.Bar.Length || hero.Bar[slot] == null) return -1;
+            if (slot < 0 || slot >= hero.Bar.Length || hero.Bar[slot]?.Written() == null) return -1;
 
             int index = 0;
             for (int before = 0; before < slot; before++)
             {
-                if (hero.Bar[before] != null) index++;
+                if (hero.Bar[before]?.Written() != null) index++;
             }
             return index;
         }

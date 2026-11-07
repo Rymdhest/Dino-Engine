@@ -1,4 +1,5 @@
 using Dino_Defenders.Books;
+using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -22,13 +23,16 @@ namespace Dino_Defenders.Progression
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 6;
+        public const int CurrentVersion = 7;
 
         /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
         private const int SlotsVersion = 4;
 
         /// <summary>The version that replaced skills with books, which needs a copy of the old save kept. Nothing a tree held means anything now, so everyone starts it again.</summary>
         private const int BooksVersion = 6;
+
+        /// <summary>The version that made pages and stickers items of their own, which needs a copy of the old save kept. What was written stays written, each book with room for exactly what was in it.</summary>
+        private const int StickersVersion = 7;
 
         public int Version { get; set; } = CurrentVersion;
         public HeroState Hero { get; set; } = HeroState.CreateNew();
@@ -82,6 +86,7 @@ namespace Dino_Defenders.Progression
                 if (save != null && !json.Contains("\"Version\"")) KeepOldCopy(path, ".before-talents");
                 else if (save != null && VersionOf(json) < SlotsVersion) KeepOldCopy(path, ".before-gear");
                 else if (save != null && VersionOf(json) < BooksVersion) KeepOldCopy(path, ".before-books");
+                else if (save != null && VersionOf(json) < StickersVersion) KeepOldCopy(path, ".before-stickers");
                 return save;
             }
             catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -196,13 +201,70 @@ namespace Dino_Defenders.Progression
             for (int slot = 0; slot < hero.Bar.Length; slot++)
             {
                 if (hero.Bar[slot] is { IsBook: false }) hero.Bar[slot] = null;
-                if (hero.Bar[slot]?.Book is Book book) Scribe.Fix(book);
+                if (hero.Bar[slot] is Item book) Fix(book);
             }
-            foreach (Item item in hero.Carried())
+            foreach (Item item in hero.Carried()) Fix(item);
+            foreach (Item item in hero.Equipped.Values) Fix(item);
+        }
+
+        // What it is says what it can hold, whatever the file says, and anything from before pages were items comes out as the items it would have been.
+        private static void Fix(Item item)
+        {
+            if (item.Book is Book old)
             {
-                if (!item.IsBook) item.Book = null;
-                else Scribe.Fix(item.Book ??= Scribe.Starter());
+                foreach (Page page in old.Pages ?? new List<Page>()) AddClauses(page);
+                Scribe.Fix(old);
+                Item made = ItemGenerator.Copied(old, item.Name, item.LookSeed(), item.Level);
+                item.Held = made.Held;
             }
+            item.Book = null;
+
+            if (!item.IsFolio)
+            {
+                item.Page = null;
+                item.Sticker = null;
+                item.Held = null;
+                return;
+            }
+
+            if (item.IsBook) item.Held = Held(item.Held, 1, Rulebook.MostPages, held => held.IsPage);
+            else if (item.IsPage)
+            {
+                item.Page ??= Scribe.NewPage(PageKind.Projectile);
+                Scribe.Fix(item.Page, following: true);
+                PageKind kind = item.Page.Kind;
+                item.Held = Held(item.Held, 0, Rulebook.MostStickers, held => held.Sticker is Sticker sticker && Stickers.GoesOn(sticker, kind));
+            }
+            else
+            {
+                item.Sticker ??= new Sticker();
+                Stickers.Fix(item.Sticker);
+                item.Held = null;
+            }
+            foreach (Item? held in item.Held ?? Array.Empty<Item?>())
+            {
+                if (held != null) Fix(held);
+            }
+        }
+
+        // Clauses that are gone can't be stickers, so they're only left out.
+        private static void AddClauses(Page page)
+        {
+            foreach (string clause in page.Clauses ?? new List<string>())
+            {
+                if (Stickers.Written(clause) is Sticker sticker) page.Stickers.Add(sticker);
+            }
+            page.Clauses = null;
+        }
+
+        private static Item?[] Held(Item?[]? held, int least, int most, Func<Item, bool> belongs)
+        {
+            var kept = new Item?[Math.Clamp(held?.Length ?? 0, least, most)];
+            for (int i = 0; i < kept.Length && held != null && i < held.Length; i++)
+            {
+                if (held[i] is Item item && belongs(item)) kept[i] = item;
+            }
+            return kept;
         }
 
         // Before a pack had cells it was a list of what was in it, so that's what fills the first of them, in the order they were carried. A pack that's the right size is left as it is, gaps and all.

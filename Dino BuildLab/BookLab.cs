@@ -32,7 +32,7 @@ namespace Dino_BuildLab
                 Console.WriteLine($"{"",-46}  {"cost",5}  {"hit",6}  {"per sec",7}  {"per cost",8}  {"use",5}  {"reach",6}");
                 Row("as it comes", Read(sheet, plain));
 
-                foreach (Blank blank in new[] { Blank.From, Blank.Towards, Blank.Shape, Blank.Timing, Blank.Within, Blank.Clause })
+                foreach (Blank blank in new[] { Blank.From, Blank.Towards, Blank.Shape, Blank.Timing, Blank.Within })
                 {
                     foreach (Sentence sentence in Sentences.For(blank))
                     {
@@ -45,6 +45,15 @@ namespace Dino_BuildLab
                         Write(page, sentence);
                         Row(sentence.Words, Read(sheet, page));
                     }
+                }
+
+                foreach (string name in Stickers.Names)
+                {
+                    Sticker sticker = Stickers.Written(name)!;
+                    if (!Stickers.GoesOn(sticker, kind)) continue;
+                    Page page = plain.Copy();
+                    page.Stickers.Add(sticker);
+                    Row($"{BookText.Good(sticker)}, {BookText.Bad(sticker)}", Read(sheet, page));
                 }
             }
 
@@ -77,7 +86,6 @@ namespace Dino_BuildLab
                 case Blank.Shape: page.Shape = sentence.Id; break;
                 case Blank.Timing: page.Timing = sentence.Id; break;
                 case Blank.Within: page.FromWithin = sentence.Id; break;
-                default: page.Clauses.Add(sentence.Id); break;
             }
         }
 

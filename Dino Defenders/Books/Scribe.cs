@@ -42,8 +42,11 @@ namespace Dino_Defenders.Books
         public bool Stops;
         public bool Rides;
 
-        /// <summary>What sentences have made of its strength, its Cost and how long it takes.</summary>
+        /// <summary>What sentences and stickers have made of its strength, its Cost and how long it takes. Its strength goes on from the page before: see <see cref="Carried"/>.</summary>
         public float Potency = 1f;
+
+        /// <summary>The Potency it started from, which is where the page before it left off.</summary>
+        public float Carried = 1f;
         public float Cost;
         public float UseTime = Rulebook.PageUseTime;
         public float ImpactAt = Rulebook.PageImpactAt;
@@ -99,9 +102,6 @@ namespace Dino_Defenders.Books
     /// </summary>
     public static class Scribe
     {
-        /// <summary>What everyone starts with: a blow in front of them, for nothing.</summary>
-        public static Book Starter() => new Book { Pages = { NewPage(PageKind.Area) } };
-
         public static Page NewPage(PageKind kind)
         {
             var page = new Page { Kind = kind };
@@ -121,6 +121,35 @@ namespace Dino_Defenders.Books
             return Sentences.Find(id)?.Blank == Blank.Within ? id : null;
         }
 
+        /// <summary>What an item comes to as a book: the pages it holds, in order, each with what's stuck on it. A page on its own reads as a book of one. Nothing if there's nothing in it to read.</summary>
+        public static Book? Bind(Progression.Item item)
+        {
+            var book = new Book();
+            if (item.IsPage) AddPage(book, item);
+            else if (item.IsBook)
+            {
+                foreach (Progression.Item? held in item.Held ?? Array.Empty<Progression.Item?>())
+                {
+                    if (held is { IsPage: true }) AddPage(book, held);
+                }
+            }
+
+            if (book.Pages.Count == 0) return null;
+            Fix(book);
+            return book;
+        }
+
+        private static void AddPage(Book book, Progression.Item item)
+        {
+            if (item.Page == null) return;
+            Page page = item.Page.Copy();
+            foreach (Progression.Item? held in item.Held ?? Array.Empty<Progression.Item?>())
+            {
+                if (held?.Sticker is Sticker sticker) page.Stickers.Add(sticker.Copy());
+            }
+            book.Pages.Add(page);
+        }
+
         /// <summary>
         /// Makes a book into one that can be read, leaving anything right as it was: what's unknown goes back to plain, and whatever doesn't belong comes out. Doing this twice changes nothing. Both ends do this to whatever
         /// they're given, so it decides what's allowed.
@@ -136,33 +165,24 @@ namespace Dino_Defenders.Books
             int firstArea = book.Pages.FindIndex(page => page.Kind == PageKind.Area);
             if (firstArea >= 0 && firstArea < book.Pages.Count - 1) book.Pages.RemoveRange(firstArea + 1, book.Pages.Count - firstArea - 1);
 
-            for (int i = 0; i < book.Pages.Count; i++) Fix(book.Pages[i], i);
+            for (int i = 0; i < book.Pages.Count; i++) Fix(book.Pages[i], i > 0);
         }
 
-        private static void Fix(Page page, int index)
+        /// <summary>The same for one page.</summary>
+        /// <param name="following">Whether what only makes sense after another page can stay. One that's loose could go anywhere, so it can.</param>
+        public static void Fix(Page page, bool following)
         {
             if (!Enum.IsDefined(page.Kind)) page.Kind = PageKind.Area;
             page.From = Valid(page.From, Blank.From, Sentences.PlainFrom, page.Kind);
             page.FromWithin = ValidWithin(page.FromWithin);
-            page.Towards = Valid(page.Towards, Blank.Towards, Sentences.PlainTowards, PageKind.Projectile, following: index > 0);
+            page.Towards = Valid(page.Towards, Blank.Towards, Sentences.PlainTowards, PageKind.Projectile, following);
             page.TowardsWithin = ValidWithin(page.TowardsWithin);
             page.Shape = Valid(page.Shape, Blank.Shape, Sentences.PlainShape, PageKind.Area);
             page.Timing = Valid(page.Timing, Blank.Timing, Sentences.PlainTiming, PageKind.Area);
 
-            page.Clauses ??= new List<string>();
-            var kept = new List<string>();
-            var groups = new HashSet<string>();
-            foreach (string id in page.Clauses)
-            {
-                if (kept.Count >= Rulebook.MostClauses || kept.Contains(id) || Sentences.Find(id) is not Sentence clause || clause.Blank != Blank.Clause) continue;
-                if (clause.Fits is PageKind fits && fits != page.Kind) continue;
-                if (clause.Group != null && !groups.Add(clause.Group)) continue;
-
-                // Only the first page can carry anyone, as it's from them that it has to go.
-                if (clause.Rides && (index > 0 || Sentences.Find(page.From)!.Start != Start.You || Sentences.Find(page.Towards)!.Bearing == Bearing.Down)) continue;
-                kept.Add(id);
-            }
-            page.Clauses = kept;
+            page.Stickers ??= new List<Sticker>();
+            page.Stickers.RemoveAll(sticker => sticker == null || !Stickers.GoesOn(sticker, page.Kind));
+            if (page.Stickers.Count > Rulebook.MostStickers) page.Stickers.RemoveRange(Rulebook.MostStickers, page.Stickers.Count - Rulebook.MostStickers);
 
             page.Outcomes ??= new List<Outcome>();
             page.Outcomes.RemoveAll(outcome => outcome == null);
@@ -199,7 +219,6 @@ namespace Dino_Defenders.Books
                 yield return Sentences.Find(page.Timing)!;
             }
 
-            foreach (string id in page.Clauses) yield return Sentences.Find(id)!;
             foreach (Outcome outcome in page.Outcomes)
             {
                 Sentence deed = Sentences.Find(outcome.Deed)!;
@@ -225,13 +244,20 @@ namespace Dino_Defenders.Books
         public static BookPlan Read(Book book, string name = "")
         {
             var plan = new BookPlan { Name = name, Source = book, Pages = new PagePlan[book.Pages.Count] };
-            for (int i = 0; i < plan.Pages.Length; i++) plan.Pages[i] = Read(book.Pages[i], i, i == plan.Pages.Length - 1);
+
+            // Strength goes on from page to page: what's left at the end of one is where the next starts from.
+            float carried = 1f;
+            for (int i = 0; i < plan.Pages.Length; i++)
+            {
+                plan.Pages[i] = Read(book.Pages[i], i, i == plan.Pages.Length - 1, carried);
+                carried = plan.Pages[i].Potency;
+            }
             return plan;
         }
 
-        private static PagePlan Read(Page written, int index, bool last)
+        private static PagePlan Read(Page written, int index, bool last, float carried)
         {
-            var page = new PagePlan { Index = index, Last = last, Kind = written.Kind };
+            var page = new PagePlan { Index = index, Last = last, Kind = written.Kind, Carried = carried };
             bool area = written.Kind == PageKind.Area;
 
             page.From = index == 0 ? Sentences.Find(written.From)!.Start : Start.Impact;
@@ -252,16 +278,15 @@ namespace Dino_Defenders.Books
 
             float added = area ? 0f : Rulebook.ProjectileCost;
             float cost = 1f;
-            float potency = 1f;
+            float potency = carried;
             float speed = Rulebook.ProjectileSpeed;
             float scale = 1f;
             float range = Rulebook.PageRange;
             float useTime = Rulebook.PageUseTime;
             bool wild = false;
 
-            foreach (Sentence sentence in SentencesOn(written, index))
+            void Weigh(in Weights weights)
             {
-                Weights weights = sentence.Weights;
                 added += weights.Added;
                 cost *= 1f + weights.Cost / 100f;
                 potency *= 1f + weights.Potency / 100f;
@@ -269,15 +294,21 @@ namespace Dino_Defenders.Books
                 scale *= 1f + weights.Area / 100f;
                 range *= 1f + weights.Range / 100f;
                 useTime *= 1f + weights.UseTime / 100f;
-                wild |= sentence.Wild;
-
-                page.Projectiles = Math.Max(page.Projectiles, sentence.Projectiles);
-                page.Pierce = Math.Max(page.Pierce, sentence.Pierce);
-                page.Chains = Math.Max(page.Chains, sentence.Chains);
-                page.Stops |= sentence.Stops;
-                page.Rides |= sentence.Rides;
-                page.Cooldown = MathF.Max(page.Cooldown, sentence.Cooldown);
             }
+
+            foreach (Sentence sentence in SentencesOn(written, index))
+            {
+                Weigh(sentence.Weights);
+                wild |= sentence.Wild;
+            }
+
+            foreach (Sticker sticker in written.Stickers)
+            {
+                Weigh(Stickers.WeightsOf(sticker));
+                Stick(page, written, index, sticker.Good, sticker.GoodBy);
+                Stick(page, written, index, sticker.Bad, sticker.BadBy);
+            }
+            page.Projectiles = Math.Min(page.Projectiles, Rulebook.MostProjectiles);
 
             // Past the first, an Outcome is a thing more to pay for, whatever it is.
             added += Rulebook.OutcomeCost * (written.Outcomes.Count - 1);
@@ -300,6 +331,24 @@ namespace Dino_Defenders.Books
             page.Tags = TagsOf(page, index, last, wild);
             page.Look = LookOf(page);
             return page;
+        }
+
+        // What a sticker does that isn't a number on a page, and that stacks with another that does the same.
+        private static void Stick(PagePlan page, Page written, int index, PageEffect effect, float by)
+        {
+            switch (effect)
+            {
+                case PageEffect.Projectiles: page.Projectiles += (int)by; break;
+                case PageEffect.Pierce: page.Pierce += (int)by; break;
+                case PageEffect.Chains: page.Chains += (int)by; break;
+                case PageEffect.Stops: page.Stops = true; break;
+                case PageEffect.Rest: page.Cooldown += by; break;
+
+                // Only the first page can carry anyone, as it's from them that it has to go.
+                case PageEffect.Rides:
+                    page.Rides = index == 0 && Sentences.Find(written.From)!.Start == Start.You && Sentences.Find(written.Towards)!.Bearing != Bearing.Down;
+                    break;
+            }
         }
 
         private static void ReadOutcomes(Page written, PagePlan page)

@@ -298,8 +298,7 @@ namespace Dino_NetLab
         /// <summary>A copy of something on the shelf, in a book of a hero's own.</summary>
         public static Item Written(BookPlan plan)
         {
-            Item book = ItemGenerator.Book((ulong)plan.Number);
-            book.Book = plan.Source!.Copy();
+            Item book = ItemGenerator.Copied(plan.Source!, plan.Name, (ulong)plan.Number);
             book.Name = plan.Name;
             return book;
         }
@@ -1140,7 +1139,7 @@ namespace Dino_NetLab
             player.Client.Allocate(99999);
             player.Client.Allocate(-1);
             player.Client.Refund(99999);
-            player.Client.Write(new ItemPlace(9999), new Dino_Defenders.Books.Book(), "Nothing");
+            player.Client.Write(new ItemPlace(9999), new Dino_Defenders.Books.Page());
             lab.Run(0.5);
             report.Check("Nonsense requests are ignored", player.Client.State == ClientState.Playing);
 

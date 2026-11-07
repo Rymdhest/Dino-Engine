@@ -148,6 +148,13 @@ namespace Dino_Defenders.Progression
         /// <summary>How many lines make a rare a masterwork. Nothing else can roll this many.</summary>
         public const int MasterworkLines = 6;
 
+        /// <summary>How many places make a rare book or page a masterwork, which is what lines are to anything worn.</summary>
+        public const int MasterworkPages = 5;
+        public const int MasterworkStickers = 4;
+
+        /// <summary>Of what comes out, how much is something for a book, as what a book can do is half of what a build is.</summary>
+        public const float FolioShare = 0.3f;
+
         /// <summary>From where a hero can pick something up. The server allows a little more than a client walks to, as it sees the hero a moment late.</summary>
         public const float Reach = 3f;
         public const float ServerReach = Reach + 2.5f;
@@ -166,7 +173,7 @@ namespace Dino_Defenders.Progression
         public static LootGrade GradeOf(Item item) => item.Rarity switch
         {
             Rarity.Legendary => LootGrade.Legendary,
-            Rarity.Rare => item.Lines.Count >= MasterworkLines ? LootGrade.Masterwork : LootGrade.Rare,
+            Rarity.Rare => item.Lines.Count >= MasterworkLines || item.IsBook && item.Places >= MasterworkPages || item.IsPage && item.Places >= MasterworkStickers ? LootGrade.Masterwork : LootGrade.Rare,
             Rarity.Magic => LootGrade.Magic,
             _ => LootGrade.Plain,
         };
@@ -211,6 +218,9 @@ namespace Dino_Defenders.Progression
         // A unique is one of a kind, and the same one twice out of one chest reads as a mistake. Where there's nothing else it can be, it can be that.
         private static Item Fresh(List<Item> others, int level, WorldRandom random, LootGrade grade, float quality)
         {
+            WorldRandom folio = random.Fork("folio");
+            if (folio.Chance(FolioShare)) return ItemGenerator.Folio(level, folio, grade);
+
             Item item = ItemGenerator.Forge(level, random, grade, quality);
             for (int attempt = 0; attempt < MostRedraws && item.Unique != null && others.Any(other => other.Unique == item.Unique); attempt++)
             {

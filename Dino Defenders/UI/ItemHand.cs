@@ -18,7 +18,7 @@ namespace Dino_Defenders.UI
         }
 
         // It has to really be over the game: with the window gone the mouse is nowhere, and losing the focus halfway through a drag mustn't put anything on the ground.
-        public override bool HitTestSelf(Vector2 point) => Bounds.Contains(point) && GameUi.Current.Hero.Visible && GameUi.Current.Hero.Holding != null;
+        public override bool HitTestSelf(Vector2 point) => Bounds.Contains(point) && GameUi.Current.Hero.Active && GameUi.Current.Hero.Holding != null;
     }
 
     /// <summary>What's on the cursor, over everything else, and what bringing it down here would do.</summary>
@@ -37,7 +37,7 @@ namespace Dino_Defenders.UI
         protected override void OnDraw(GuiDrawList draw)
         {
             HeroPanel panel = GameUi.Current.Hero;
-            if (Context == null || !panel.Visible || panel.Holding is not Item item) return;
+            if (Context == null || !panel.Active || panel.Holding is not Item item) return;
 
             Vector2 mouse = Context.MousePosition;
             float size = ItemCell.Size;

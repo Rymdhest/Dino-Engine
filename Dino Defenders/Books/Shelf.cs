@@ -28,9 +28,11 @@ namespace Dino_Defenders.Books
 
         private static Outcome Raise(string kin) => new Outcome { Deed = "raise", Kin = kin };
 
-        private static Page Area(string shape, string[] clauses, params Outcome[] outcomes) => new Page { Kind = PageKind.Area, Shape = shape, Clauses = clauses.ToList(), Outcomes = outcomes.ToList() };
+        private static List<Sticker> Stuck(string[] stickers) => stickers.Select(name => Stickers.Written(name)!).ToList();
 
-        private static Page Bolt(string[] clauses, params Outcome[] outcomes) => new Page { Kind = PageKind.Projectile, Clauses = clauses.ToList(), Outcomes = outcomes.ToList() };
+        private static Page Area(string shape, string[] stickers, params Outcome[] outcomes) => new Page { Kind = PageKind.Area, Shape = shape, Stickers = Stuck(stickers), Outcomes = outcomes.ToList() };
+
+        private static Page Bolt(string[] stickers, params Outcome[] outcomes) => new Page { Kind = PageKind.Projectile, Stickers = Stuck(stickers), Outcomes = outcomes.ToList() };
 
         private static Page At(this Page page, string from)
         {
@@ -52,7 +54,7 @@ namespace Dino_Defenders.Books
 
         private static readonly string[] Plain = Array.Empty<string>();
 
-        private static string[] Say(params string[] clauses) => clauses;
+        private static string[] Say(params string[] stickers) => stickers;
 
         // What's set off by something else counts as that, and everything that isn't a hero's own can have numbers a sentence couldn't get to.
         private static BookPlan Write(string id, string name, Page[] pages, Action<PagePlan>? tune = null, bool triggered = false)
@@ -103,7 +105,7 @@ namespace Dino_Defenders.Books
         public static readonly BookPlan Boomerang = Write("boomerang", "Boomerang", new[] { Bolt(Say("stops"), Deal()), Bolt(Plain, Deal()).Going("towards-you") });
         public static readonly BookPlan ChainLightning = Write("chain-lightning", "Chain Lightning", new[] { Bolt(Say("swift"), Deal("lightning")).Going("towards-nearest"), Bolt(Say("swift"), Deal("lightning")).Going("towards-nearest"), Bolt(Say("swift"), Deal("lightning")).Going("towards-nearest") });
         public static readonly BookPlan Volley = Write("volley", "Volley", new[] { Bolt(Say("five-at-once"), Deal()) });
-        public static readonly BookPlan RainOfArrows = Write("rain", "Rain of Arrows", new[] { new Page { Kind = PageKind.Projectile, From = "from-cursor", FromWithin = "within-mid", Towards = "downwards", Clauses = { "five-at-once" }, Outcomes = { Deal() } } });
+        public static readonly BookPlan RainOfArrows = Write("rain", "Rain of Arrows", new[] { new Page { Kind = PageKind.Projectile, From = "from-cursor", FromWithin = "within-mid", Towards = "downwards", Stickers = Stuck(Say("five-at-once")), Outcomes = { Deal() } } });
         public static readonly BookPlan Charge = Write("charge", "Charge", new[] { Bolt(Say("rides", "short"), Do("pass")), Area("cone", Plain, Deal()) });
         public static readonly BookPlan Blink = Write("blink", "Blink", new[] { Area("circle", Say("tight"), Do("move")).At("from-cursor") });
         public static readonly BookPlan Lance = Write("lance", "Glacial Lance", new[] { Area("line", Plain, Deal("cold")) });

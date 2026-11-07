@@ -654,26 +654,26 @@ namespace Dino_Defenders.Client
             Recompile();
         }
 
-        /// <summary>Writes in a book, all of it at once: what it says now, and what it's called.</summary>
-        public void Write(ItemPlace place, Book book, string name)
+        /// <summary>Writes on a page, all of it at once.</summary>
+        public void Write(ItemPlace place, Page page)
         {
-            Hero.Write(place, book, name);
+            Hero.Write(place, page);
             BitWriter writer = AskGear(HeroAction.Write);
             writer.WriteVarInt(place.Number);
-            writer.WriteString(name);
-            Protocol.WriteBook(writer, book);
+            Protocol.WritePage(writer, page);
             Send(writer);
             Recompile();
         }
 
-        /// <summary>A new book in the first free cell. The look is chosen here, so that it's the same one when the server has heard.</summary>
-        public void NewBook()
+        /// <summary>Calls a book something.</summary>
+        public void Title(ItemPlace place, string name)
         {
-            ulong seed = ItemGenerator.NewSeed(new WorldRandom((ulong)Random.Shared.NextInt64()));
-            Hero.NewBook(seed);
-            BitWriter writer = AskGear(HeroAction.NewBook);
-            writer.WriteVarULong(seed);
+            Hero.Title(place, name);
+            BitWriter writer = AskGear(HeroAction.Title);
+            writer.WriteVarInt(place.Number);
+            writer.WriteString(name);
             Send(writer);
+            Recompile();
         }
 
         /// <summary>Tidies the pack, which is the only thing that ever moves what's in it without being told where.</summary>

@@ -77,7 +77,10 @@ namespace Dino_Defenders.Stats
         // How far a book can go, however it's written. No number on a page can stop one branching, so these do.
         public const int MostPages = 6;
         public const int MostOutcomes = 3;
-        public const int MostClauses = 5;
+        public const int MostStickers = 5;              // On a page.
+        public const int MostProjectiles = 12;          // From a page, whatever's been stuck on it.
+        public const float MostStickerGood = 130f;      // What any sticker can say, which is also what a save can claim.
+        public const float MostStickerBad = 60f;
         public const int MostMade = 48;                 // Projectiles and areas from one use.
         public const int MostZones = 6;                 // Lingering areas from one caster.
         public const int MostMinions = 12;              // From one caster, the oldest going first.

@@ -329,7 +329,7 @@ namespace Dino_BuildLab
             report.Check("Each has a line of lore and something to do", UniqueCatalog.All.All(u => u.Lore.Length > 0 && u.Mods.Length > 0));
 
             var random = new WorldRandom(5);
-            foreach (ItemSlot slot in Enum.GetValues<ItemSlot>().Where(slot => slot != ItemSlot.Book))
+            foreach (ItemSlot slot in Enum.GetValues<ItemSlot>().Where(slot => slot < ItemSlot.Book))
             {
                 report.Check($"There's a unique for {slot}", UniqueCatalog.All.Any(u => ItemGenerator.Plain(u.Base, 1, random).Slot == slot));
             }
@@ -373,14 +373,13 @@ namespace Dino_BuildLab
         }
 
         // All that's in a book, as text, so that two can be compared.
-        private static string Written(Item? item) => item?.Book == null ? "" : System.Text.Json.JsonSerializer.Serialize(item.Book);
+        private static string Written(Item? item) => item?.Held == null ? "" : System.Text.Json.JsonSerializer.Serialize(item);
 
         private static void Wires(Report report)
         {
             var random = new WorldRandom(8);
             HeroState hero = Hero(30, "pyre.kindled-bolt", "key.slow-burn");
-            hero.Bar[3] = ItemGenerator.Book(7);
-            hero.Bar[3]!.Book = Shelf.Meteor.Source!.Copy();
+            hero.Bar[3] = ItemGenerator.Copied(Shelf.Meteor.Source!, "Meteor", 7);
             hero.Equipped[WornSlot.MainHand] = UniqueCatalog.Make(UniqueCatalog.Find("ashen-promise")!, 20, random);
             for (int i = 0; i < 30; i++) hero.Pickup(ItemGenerator.Roll(30, random.Fork(i), 2f));
 
@@ -418,6 +417,8 @@ namespace Dino_BuildLab
             forged.WriteString("not-an-affix");
             forged.WriteFloat(99999f);
             forged.WriteBool(false);
+            forged.WriteBool(false);
+            forged.WriteCount(0);
             List<Item> arrived = new List<Item> { Protocol.ReadItem(new BitReader(forged.ToArray())) };
             report.Check("An affix, a unique or a base that doesn't exist does nothing, whatever a stranger sends", arrived.Count == 1 && arrived[0].Unique == null && arrived[0].Lines.Count == 0 && arrived[0].Base.Length == 0);
         }

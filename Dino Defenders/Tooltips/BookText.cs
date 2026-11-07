@@ -4,7 +4,7 @@ using static Dino_Defenders.Tooltips.Say;
 namespace Dino_Defenders.Tooltips
 {
     /// <summary>Which part of a page something is, for whoever wants to change it: a blank, and if there are several of those, which.</summary>
-    public readonly record struct PagePlace(Blank Blank, int Outcome = -1, int Clause = -1, bool Towards = false);
+    public readonly record struct PagePlace(Blank Blank, int Outcome = -1, bool Towards = false);
 
     /// <summary>A stretch of a page as it reads. Something that was chosen says where it is, and what only joins those up doesn't.</summary>
     public readonly record struct PagePart(string Text, PagePlace? Place = null);
@@ -39,13 +39,6 @@ namespace Dino_Defenders.Tooltips
                 then.Add(Chosen(page.Timing, new PagePlace(Blank.Timing)));
             }
             lines.Add(then);
-
-            if (page.Clauses.Count > 0)
-            {
-                var clauses = new List<PagePart>();
-                for (int i = 0; i < page.Clauses.Count; i++) clauses.Add(Chosen(page.Clauses[i], new PagePlace(Blank.Clause, Clause: i)));
-                lines.Add(clauses);
-            }
 
             for (int i = 0; i < page.Outcomes.Count; i++) lines.Add(OutcomeParts(page.Outcomes[i], i));
             return lines;
@@ -101,6 +94,36 @@ namespace Dino_Defenders.Tooltips
             return $"{char.ToUpperInvariant(way[0])}{way.Substring(1)}. On Impact, {outcomes}";
         }
 
+        /// <summary>What's good about a sticker, in the words those things are always said in.</summary>
+        public static string Good(Sticker sticker) => sticker.Good switch
+        {
+            PageEffect.Potency => $"{N(sticker.GoodBy)}% more Potency",
+            PageEffect.Speed => $"{N(sticker.GoodBy)}% more Projectile Speed",
+            PageEffect.Area => $"{N(sticker.GoodBy)}% more Area",
+            PageEffect.Range => $"{N(sticker.GoodBy)}% more Range",
+            PageEffect.Cost => $"{N(sticker.GoodBy)}% less Cost",
+            PageEffect.UseTime => $"{N(sticker.GoodBy)}% less Use Time",
+            PageEffect.Projectiles => $"{Signed(sticker.GoodBy)} Projectiles",
+            PageEffect.Pierce => $"Pierces {N(sticker.GoodBy)} more Enemies",
+            PageEffect.Chains => $"Chains to {N(sticker.GoodBy)} more Enemies",
+            PageEffect.Stops => "Stops at its target",
+            PageEffect.Rides => "Carries you with it, from an Opening Page that starts from you",
+            _ => "",
+        };
+
+        /// <summary>What's bad about a sticker. Some written ones have nothing, and then this says nothing.</summary>
+        public static string Bad(Sticker sticker) => sticker.Bad switch
+        {
+            PageEffect.Potency => $"{N(sticker.BadBy)}% less Potency",
+            PageEffect.Speed => $"{N(sticker.BadBy)}% less Projectile Speed",
+            PageEffect.Area => $"{N(sticker.BadBy)}% less Area",
+            PageEffect.Range => $"{N(sticker.BadBy)}% less Range",
+            PageEffect.Cost => $"{Signed(sticker.BadBy)} Cost",
+            PageEffect.UseTime => $"{N(sticker.BadBy)}% more Use Time",
+            PageEffect.Rest => $"{Seconds(sticker.BadBy)} Cooldown",
+            _ => "",
+        };
+
         private static IEnumerable<string> Scaled(float percent, string what)
         {
             if (percent > 0f) yield return $"{N(percent)}% more {what}";
@@ -129,7 +152,6 @@ namespace Dino_Defenders.Tooltips
             Blank.Shape => "Its shape",
             Blank.Timing => "How long it stays",
             Blank.Within => "How far off",
-            Blank.Clause => "What else",
             Blank.Deed => "What happens",
             Blank.Element => "What kind",
             Blank.Measure => "How much",

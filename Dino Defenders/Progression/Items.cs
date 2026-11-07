@@ -2,6 +2,7 @@ using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Tooltips;
 using Dino_Engine.World;
+using System.Text.Json.Serialization;
 using Dino_Engine.World.Content;
 using static Dino_Defenders.Stats.M;
 
@@ -20,6 +21,8 @@ namespace Dino_Defenders.Progression
         Hands,
         Finger,
         Book,       // Worn nowhere: it goes on the bar. See BOOKS.md.
+        Page,       // Goes in a book.
+        Sticker,    // Goes on a page.
     }
 
     /// <summary>A place on a hero. These line up with <see cref="ItemSlot"/> as far as the first finger, which <see cref="WornSlots"/> relies on.</summary>
@@ -48,7 +51,7 @@ namespace Dino_Defenders.Progression
         public static WornSlot First(ItemSlot slot) => (WornSlot)slot;
 
         /// <summary>Every place something worn as this can go, in the order they'd be filled.</summary>
-        public static IReadOnlyList<WornSlot> For(ItemSlot slot) => slot == ItemSlot.Finger ? Fingers : slot == ItemSlot.Book ? Array.Empty<WornSlot>() : new[] { First(slot) };
+        public static IReadOnlyList<WornSlot> For(ItemSlot slot) => slot == ItemSlot.Finger ? Fingers : slot >= ItemSlot.Book ? Array.Empty<WornSlot>() : new[] { First(slot) };
     }
 
     /// <summary>The three ways of dressing for a fight. What something looks like says which it is, and which it is says what it's good for.</summary>
@@ -159,13 +162,34 @@ namespace Dino_Defenders.Progression
         /// <summary>Which base it was made from. Empty on anything older than this, which <see cref="ItemGenerator.BaseOf"/> makes up for.</summary>
         public string Base { get; set; } = "";
 
-        /// <summary>What's written in it, if it's a book.</summary>
+        /// <summary>What's written on it, if it's a page.</summary>
+        public Page? Page { get; set; }
+
+        /// <summary>What it says, if it's a sticker.</summary>
+        public Sticker? Sticker { get; set; }
+
+        /// <summary>What's in it, a place each, with gaps: a book holds pages and a page holds stickers. How many places there are is what makes one better than another. See BOOKS.md.</summary>
+        public Item?[]? Held { get; set; }
+
+        /// <summary>What was written in a book before pages were items, which only a save that old has.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public Book? Book { get; set; }
 
         public bool IsBook => Slot == ItemSlot.Book;
+        public bool IsPage => Slot == ItemSlot.Page;
+        public bool IsSticker => Slot == ItemSlot.Sticker;
 
-        // Anyone can write as many books as they like for now, so one can't be worth any gold.
-        public int SellValue => IsBook ? 0 : (int)(4f * Level * (1f + (int)Rarity * 1.6f + Lines.Count * 0.5f));
+        /// <summary>Whether it's something that goes in a book, or a book, rather than something worn.</summary>
+        public bool IsFolio => Slot >= ItemSlot.Book;
+
+        /// <summary>How many places it has for something else.</summary>
+        public int Places => Held?.Length ?? 0;
+
+        /// <summary>What it reads as, or nothing if there's nothing in it. It's a method so that it isn't saved.</summary>
+        public Book? Written() => Scribe.Bind(this);
+
+        // What's in something is sold with it.
+        public int SellValue => (int)(4f * Level * (1f + (int)Rarity * 1.6f + (Lines.Count + Places) * 0.5f)) + (Held?.Sum(held => held?.SellValue ?? 0) ?? 0);
         public int BuyValue => SellValue * 4;
 
         public bool IsTwoHanded => Slot == ItemSlot.MainHand && WeaponKinds.Of(Kind).TwoHanded;
@@ -681,8 +705,96 @@ namespace Dino_Defenders.Progression
         public static IEnumerable<string> BaseNames => Bases.Select(b => b.Name);
 
         /// <summary>A base by number, which only means anything between two copies of one build, and 0 for none.</summary>
-        /// <summary>A blank book, which is what everyone starts with: a blow in front of them, for nothing.</summary>
-        public static Item Book(ulong seed) => new Item { Name = "Blank Book", Slot = ItemSlot.Book, Level = 1, Seed = seed, Book = Scribe.Starter() };
+        /// <summary>What everyone starts with: a blow in front of them, for nothing, and room for one thing more.</summary>
+        public static Item Book(ulong seed)
+        {
+            Item book = EmptyBook(StarterPlaces, "Worn Book", seed, 1, Rarity.Common);
+            book.Held![0] = Leaf(Scribe.NewPage(PageKind.Area), StarterStickers, "Area Page", NextSeed(seed), 1, Rarity.Common);
+            return book;
+        }
+
+        private static ulong NextSeed(ulong seed) => seed * 6364136223846793005UL + 1442695040888963407UL | 1UL;
+
+        private static Item EmptyBook(int places, string name, ulong seed, int level, Rarity rarity) => new Item { Name = name, Slot = ItemSlot.Book, Level = level, Seed = seed, Rarity = rarity, Held = new Item?[places] };
+
+        private static Item Leaf(Page page, int places, string name, ulong seed, int level, Rarity rarity) => new Item { Name = name, Slot = ItemSlot.Page, Level = level, Seed = seed, Rarity = rarity, Page = page, Held = new Item?[places] };
+
+        /// <summary>A sticker as an item.</summary>
+        public static Item StickerItem(Sticker sticker, ulong seed, int level, Rarity rarity) => new Item { Name = StickerName(sticker), Slot = ItemSlot.Sticker, Level = level, Seed = seed, Rarity = rarity, Sticker = sticker };
+
+        private static string StickerName(Sticker sticker) => sticker.Good switch
+        {
+            PageEffect.Potency => "Sticker of Might",
+            PageEffect.Speed => "Sticker of Haste",
+            PageEffect.Area => "Sticker of Reach",
+            PageEffect.Range => "Sticker of Distance",
+            PageEffect.Cost => "Sticker of Thrift",
+            PageEffect.UseTime => "Sticker of Pace",
+            PageEffect.Projectiles => "Sticker of Plenty",
+            PageEffect.Pierce => "Sticker of Piercing",
+            PageEffect.Chains => "Sticker of Leaping",
+            PageEffect.Stops => "Sticker of Aim",
+            PageEffect.Rides => "Sticker of Flight",
+            _ => "Sticker",
+        };
+
+        /// <summary>A whole book as items, for what's already written: each page as a page with room for just what's on it.</summary>
+        public static Item Copied(Book book, string name, ulong seed, int level = 1)
+        {
+            Item item = EmptyBook(Math.Max(book.Pages.Count, 1), name, seed, level, Rarity.Common);
+            for (int i = 0; i < book.Pages.Count; i++)
+            {
+                seed = NextSeed(seed);
+                Page page = book.Pages[i].Copy();
+                Item leaf = Leaf(page, Math.Max(page.Stickers.Count, 1), $"{page.Kind} Page", seed, level, Rarity.Common);
+                for (int s = 0; s < page.Stickers.Count; s++)
+                {
+                    seed = NextSeed(seed);
+                    leaf.Held![s] = StickerItem(page.Stickers[s], seed, level, Rarity.Common);
+                }
+                page.Stickers = new List<Sticker>();
+                item.Held![i] = leaf;
+            }
+            return item;
+        }
+
+        /// <summary>
+        /// Something that goes in a book, or a book. What it can hold is what it's worth, so the better it is the more places it has, and a sticker the better it rolls.
+        /// A masterwork is told by its places, so a sticker can't be one.
+        /// </summary>
+        public static Item Folio(int level, WorldRandom random, LootGrade grade)
+        {
+            ulong seed = NewSeed(random);
+            int table = (int)grade;
+            Rarity rarity = grade switch
+            {
+                LootGrade.Legendary => Rarity.Legendary,
+                >= LootGrade.Rare => Rarity.Rare,
+                LootGrade.Magic => Rarity.Magic,
+                _ => Rarity.Common,
+            };
+
+            float kind = random.Float();
+            if (kind < StickerShare && grade != LootGrade.Masterwork) return StickerItem(Stickers.Roll(grade, random), seed, level, rarity);
+            if (kind < StickerShare + PageShare)
+            {
+                PageKind pageKind = random.Chance(0.5f) ? PageKind.Projectile : PageKind.Area;
+                return Leaf(Scribe.NewPage(pageKind), random.Int(LeastStickers[table], MostStickers[table]), $"{FolioWords[table]} {pageKind} Page", seed, level, rarity);
+            }
+            return EmptyBook(random.Int(LeastPages[table], MostPages[table]), $"{FolioWords[table]} Book", seed, level, rarity);
+        }
+
+        private const int StarterPlaces = 2;
+        private const int StarterStickers = 1;
+        private const float StickerShare = 0.55f;   // Of what's found that isn't worn. What's left after pages is books.
+        private const float PageShare = 0.33f;
+
+        // By grade, from plain to legendary. A book of more places than a page has stickers is the rarer thing, as it's worth more.
+        private static readonly int[] LeastPages = { 1, 2, 3, 5, 6 };
+        private static readonly int[] MostPages = { 2, 2, 4, 5, 6 };
+        private static readonly int[] LeastStickers = { 1, 2, 3, 4, 5 };
+        private static readonly int[] MostStickers = { 1, 2, 3, 4, 5 };
+        private static readonly string[] FolioWords = { "Plain", "Fine", "Gilded", "Masterful", "Fabled" };
 
         public static int NumberOf(string baseName) => Array.FindIndex(Bases, b => b.Name == baseName) + 1;
 

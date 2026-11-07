@@ -198,7 +198,14 @@ namespace Dino_Defenders.Tooltips
             {
                 PageProfile page = book.Pages[i];
                 card.Gap();
-                if (plan.Source != null) card.Text(BookText.Says(plan.Source.Pages[i], i));
+                if (plan.Source != null)
+                {
+                    card.Text(BookText.Says(plan.Source.Pages[i], i));
+                    foreach (Sticker sticker in plan.Source.Pages[i].Stickers)
+                    {
+                        card.Text(BookText.Bad(sticker).Length > 0 ? $"{BookText.Good(sticker)}, {BookText.Bad(sticker)}" : BookText.Good(sticker), LineLook.Rolled);
+                    }
+                }
                 DamageRows(card, page);
                 AilmentLines(card, page);
                 for (int gift = 0; gift < page.Page.Gifts.Length; gift++)
@@ -480,13 +487,7 @@ namespace Dino_Defenders.Tooltips
 
         public static Card Item(Item item, ActorSheet? viewer, string kind)
         {
-            // What's in a book is what it is, and it's that which is worth reading.
-            if (item.Book != null && viewer != null)
-            {
-                Card book = Book(viewer.Preview(Scribe.Read(item.Book, item.Name)));
-                book.Picture = item;
-                return book;
-            }
+            if (item.IsFolio) return Folio(item, viewer, kind);
 
             var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Grade = Loot.GradeOf(item), Picture = item, Tags = TagsOf(item.Mods()) };
             if (item.Slot == ItemSlot.MainHand) card.Tags |= item.Weapon().Tags;
@@ -501,6 +502,27 @@ namespace Dino_Defenders.Tooltips
             {
                 card.Gap();
                 card.Lore(unique.Lore);
+            }
+            return card;
+        }
+
+        // What's in a book is what it is, and it's that which is worth reading. How much room there is comes first, as that's what one is worth.
+        private static Card Folio(Item item, ActorSheet? viewer, string kind)
+        {
+            Book? written = item.Written();
+            Card card = written != null && viewer != null ? Book(viewer.Preview(Scribe.Read(written, item.Name))) : new Card { Title = item.Name };
+            card.Kind = $"{kind}, Level {item.Level}";
+            card.Grade = Loot.GradeOf(item);
+            card.Picture = item;
+
+            int taken = item.Held?.Count(held => held != null) ?? 0;
+            if (item.IsBook) card.Cell("Pages", $"{taken} of {item.Places}");
+            if (item.IsPage) card.Cell("Stickers", $"{taken} of {item.Places}");
+            if (item.Sticker is Sticker sticker)
+            {
+                card.Text(BookText.Good(sticker), LineLook.Rolled);
+                if (sticker.Bad != PageEffect.None) card.Text(BookText.Bad(sticker), LineLook.Rolled);
+                if (Stickers.Fits(sticker) is PageKind fits) card.Text($"Only on a {fits} Page");
             }
             return card;
         }

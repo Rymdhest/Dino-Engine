@@ -28,16 +28,18 @@ namespace Dino_Defenders.UI
         Stock,
         Sold,
         Bar,
+        Held,       // Inside something: its index is the place's own number.
     }
 
     /// <summary>A place something can be in this panel: on the hero, or on a merchant's table.</summary>
     internal readonly record struct Spot(Shelf Shelf, int Index)
     {
-        public bool OnHero => Shelf is Shelf.Pack or Shelf.Worn or Shelf.Bar;
+        public bool OnHero => Shelf is Shelf.Pack or Shelf.Worn or Shelf.Bar or Shelf.Held;
         public ItemPlace Place => Shelf switch
         {
             Shelf.Pack => ItemPlace.Cell(Index),
             Shelf.Bar => ItemPlace.OnBar(Index),
+            Shelf.Held => new ItemPlace(Index),
             _ => ItemPlace.Worn((WornSlot)Index),
         };
     }
@@ -64,6 +66,12 @@ namespace Dino_Defenders.UI
 
         /// <summary>What's keeping this place from being used, and shows in it, faintly: something two-handed, in the off hand.</summary>
         public Func<Item?>? TakenBy;
+
+        /// <summary>Whether it's the one of its row that's being looked at.</summary>
+        public bool Marked;
+
+        /// <summary>Whether what's in it shows how much room it has.</summary>
+        protected bool ShowsPlaces = true;
 
         public ItemCell(HeroPanel panel, Spot spot, float size = Size, ItemSlot? slot = null)
         {
@@ -120,7 +128,8 @@ namespace Dino_Defenders.UI
             draw.AddRect(Bounds, colour.MultiplyAlpha(0.1f), 2f);
             if (IsHovered) draw.AddRect(Bounds, GuiColors.Rgba(255, 240, 200, 26), 2f);
             Ui.DrawItem(draw, item, Bounds, colour, GuiColors.White);
-            draw.AddRect(Bounds, GuiColors.Transparent, 2f, 1.5f, colour.MultiplyAlpha(0.8f));
+            if (ShowsPlaces) Ui.DrawPlaces(draw, item, Bounds);
+            draw.AddRect(Bounds, GuiColors.Transparent, 2f, 1.5f, Marked ? Ui.Gold : colour.MultiplyAlpha(0.8f));
 
             if (Context != null && _panel.PriceOn(Spot, item) is int price)
             {
@@ -265,9 +274,6 @@ namespace Dino_Defenders.UI
             heading.Add(Ui.Line("Carried", 15f, Ui.Gold));
             heading.Add(Ui.Line("", 14f, Ui.Faded).Bind(Tally));
             heading.Add(new Spacer(height: 1f));
-            Button fresh = heading.Add(Ui.Action("New Book", NewBook));
-            fresh.Width = 96f;
-            fresh.Height = 26f;
             Button sort = heading.Add(Ui.Action("Sort", SortPack));
             sort.Width = 64f;
             sort.Height = 26f;
@@ -291,7 +297,7 @@ namespace Dino_Defenders.UI
             var help = right.Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Auto, Margin = new Thickness(0f, 6f, 0f, 0f) });
             help.Add(Ui.Line("Click to pick up and put down, or drag", 13f, Ui.Faded));
             help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => _merchant != null ? "Ctrl-click to sell, right-click to wear" : "Ctrl-click or right-click to wear"));
-            help.Add(Ui.Line("Right-click a book to read it, and drag it to the bar to use it", 13f, Ui.Faded));
+            help.Add(Ui.Line("Right-click a Book or a Page to open it, and drag a Book to the bar to use it", 13f, Ui.Faded));
             help.Add(Ui.Line("Drag off the panel to drop on the ground", 13f, Ui.Faded));
             help.Add(Ui.Line("Click a place on the hero to see what fits it", 13f, Ui.Faded));
             help.Add(Ui.Line("Hold Alt to compare with what's worn", 13f, Ui.Faded));
@@ -418,12 +424,21 @@ namespace Dino_Defenders.UI
             _search.SelectAll();
         }
 
+        /// <summary>Whether things can be carried about at the moment, which they can whenever there's a pack on the screen.</summary>
+        public bool Active => Visible || GameUi.Current.Book.Visible;
+
+        /// <summary>What has to go on while there's something being carried. It's here for an open book to ask, as this panel isn't updated while it's hidden.</summary>
+        public void Tend()
+        {
+            // Nothing can be held that's no longer there, as when the server has had the last word.
+            if (_hand is Spot held && ItemAt(held) == null) _hand = null;
+        }
+
         protected override void OnUpdate(float deltaTime)
         {
             if (GameSession.Current == null || Context == null) return;
 
-            // Nothing can be held that's no longer there, as when the server has had the last word.
-            if (_hand is Spot held && ItemAt(held) == null) _hand = null;
+            Tend();
             _clear.Visible = _search.Text.Length > 0;
 
             _leftSearch = _wasTyping && !_search.IsFocused;
@@ -464,6 +479,7 @@ namespace Dino_Defenders.UI
             Item? moving = _hand is Spot held ? ItemAt(held) : _looking is Spot looking && looking.Shelf != Shelf.Worn ? ItemAt(looking) : null;
             if (spot.Shelf == Shelf.Worn && moving != null && WornSlots.For(moving.Slot).Contains((WornSlot)spot.Index) && (_hand == null || _hand.Value.OnHero)) return CellMood.Wanted;
             if (spot.Shelf == Shelf.Bar && moving is { IsBook: true } && (_hand == null || _hand.Value.OnHero)) return CellMood.Wanted;
+            if (spot.Shelf == Shelf.Held && moving != null && _looking is not null && (_hand ?? _looking) is Spot source && source != spot && source.OnHero && Hero.CanMove(source.Place, spot.Place)) return CellMood.Wanted;
             if (_hand != null && cell.IsHovered && PlanFor(cell).Refused) return CellMood.Refused;
 
             if (item == null) return CellMood.Plain;
@@ -506,14 +522,22 @@ namespace Dino_Defenders.UI
 
             if (_merchant != null && _market.Contains(under)) return new Plan($"Sell for {item.SellValue} gold", () => Sell(from));
             if (under is GroundCatcher) return new Plan("Drop on the ground", () => Drop(from));
-            if (under is HeroStage && from.Shelf == Shelf.Pack && !item.IsBook) return new Plan("Wear", () => Wear(from.Index, null));
+            if (under is HeroStage && from.Shelf == Shelf.Pack && !item.IsFolio) return new Plan("Wear", () => Wear(from.Index, null));
             if (cell == null) return Plan.Nothing;
 
             ItemPlace to = cell.Spot.Place;
-            if (!Hero.CanMove(from.Place, to)) return Plan.Refuse(cell.Spot.Shelf == Shelf.Worn && WornSlots.For(item.Slot).Contains((WornSlot)cell.Spot.Index) ? "Your pack is full" : "That doesn't go there");
+            if (!Hero.CanMove(from.Place, to)) return Plan.Refuse(WhyNot(item, cell.Spot));
 
-            string says = cell.Spot.Shelf == Shelf.Worn ? "Wear" : cell.Spot.Shelf == Shelf.Bar && Hero.At(to) == null ? "Put on the Bar" : Hero.At(to) != null ? "Swap" : "";
+            string says = cell.Spot.Shelf == Shelf.Worn ? "Wear" : cell.Spot.Shelf == Shelf.Bar && Hero.At(to) == null ? "Put on the Bar" : Hero.At(to) != null ? "Swap" : cell.Spot.Shelf == Shelf.Held ? item.IsSticker ? "Stick on the Page" : "Put in the Book" : "";
             return new Plan(says, () => Move(from.Place, to));
+        }
+
+        private static string WhyNot(Item item, Spot to)
+        {
+            if (to.Shelf == Shelf.Worn && WornSlots.For(item.Slot).Contains((WornSlot)to.Index)) return "Your pack is full";
+            if (to.Shelf != Shelf.Held) return "That doesn't go there";
+            if (item.IsPage && Hero.At(to.Place.Holder) is { IsBook: true }) return "Nothing can come after an Area Page";
+            return item.IsSticker && Hero.At(to.Place.Holder) is { IsPage: true } ? "That Sticker is for another kind of Page" : "That doesn't go there";
         }
 
         // A plan that can't be done leaves what's on the cursor there, to be put somewhere that it can go.
@@ -630,14 +654,23 @@ namespace Dino_Defenders.UI
         {
             switch (spot.Shelf)
             {
-                case Shelf.Pack or Shelf.Bar when item.IsBook && rightClick:
+                case Shelf.Pack or Shelf.Bar when (item.IsBook || item.IsPage) && rightClick:
                     GameUi.Current.Read(spot.Place);
+                    break;
+                case Shelf.Held when item.IsPage && rightClick:
+                    GameUi.Current.Book.TurnTo(spot.Place);
+                    break;
+                case Shelf.Held:
+                    Unslot(spot);
                     break;
                 case Shelf.Pack when _merchant != null && !rightClick:
                     Sell(spot);
                     break;
                 case Shelf.Pack when item.IsBook:
                     ToBar(spot);
+                    break;
+                case Shelf.Pack when item.IsFolio:
+                    if (GameUi.Current.Book.Visible && !GameUi.Current.Book.Slot(spot.Place)) Refuse("There's no place for that");
                     break;
                 case Shelf.Bar:
                     FromBar(spot);
@@ -677,15 +710,15 @@ namespace Dino_Defenders.UI
             Move(from.Place, ItemPlace.Cell(cell));
         }
 
-        private static void NewBook()
+        private static void Unslot(Spot from)
         {
-            if (!Hero.HasRoom())
+            int cell = Hero.FreeCell();
+            if (cell < 0)
             {
                 Refuse("Your pack is full");
                 return;
             }
-            Audio.Play(Interface.Open);
-            Session.Client.NewBook();
+            Move(from.Place, ItemPlace.Cell(cell));
         }
 
         // All of these are done here at once and asked of the server, which has the last word: see GameClient.AskGear.
@@ -768,6 +801,12 @@ namespace Dino_Defenders.UI
         protected override void OnDrawOverlay(GuiDrawList draw)
         {
             base.OnDrawOverlay(draw);
+            DrawOver(draw);
+        }
+
+        /// <summary>What goes over everything while this is what's holding things: it's here for an open book to ask too.</summary>
+        public void DrawOver(GuiDrawList draw)
+        {
             if (Context == null) return;
 
             // Where it can be sold is all of the merchant's side.

@@ -82,6 +82,8 @@ namespace Dino_Defenders.Progression
             ItemSlot.Feet => GearKind.Feet,
             ItemSlot.Hands => GearKind.Hands,
             ItemSlot.Book => GearKind.Book,
+            ItemSlot.Page => GearKind.Page,
+            ItemSlot.Sticker => GearKind.Sticker,
             _ => GearKind.Finger,
         };
 

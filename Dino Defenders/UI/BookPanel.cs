@@ -131,7 +131,12 @@ namespace Dino_Defenders.UI
             _spots.Clear();
             Cursor = _over ? MouseCursor.Hand : null;
             _over = false;
-            if (Context == null || _panel.Page is not Page page) return;
+            if (Context == null) return;
+            if (_panel.Page is not Page page)
+            {
+                Vellum.Write(Context, draw, "There's nothing to read here yet. Drag a Page into this Book.", Size, new GuiRect(Bounds.X, Bounds.Y, Bounds.Width, LineHeight), Vellum.Pale);
+                return;
+            }
 
             int index = _panel.PageIndex;
             float left = Bounds.X;
@@ -159,13 +164,6 @@ namespace Dino_Defenders.UI
                 if (i == 0 && page.FromWithin == null) Flow(draw, "+ how far off", new PagePlace(Blank.Within), ref x, ref y, start, right, faint: true);
                 if (i == 1 && page.Kind == PageKind.Projectile && page.TowardsWithin == null) Flow(draw, "+ how far off", new PagePlace(Blank.Within, Towards: true), ref x, ref y, start, right, faint: true);
                 y += LineHeight;
-
-                if (i == before - 1 && page.Clauses.Count < Rulebook.MostClauses)
-                {
-                    float more = left;
-                    Flow(draw, "+ what else", new PagePlace(Blank.Clause), ref more, ref y, left, right, faint: true);
-                    y += LineHeight;
-                }
             }
 
             if (outcomes < Rulebook.MostOutcomes)
@@ -269,39 +267,30 @@ namespace Dino_Defenders.UI
         }
     }
 
-    /// <summary>A book the hero has, down the side of an open one.</summary>
-    internal sealed class ShelfBook : GuiElement
+    /// <summary>A place on a page for a sticker, with what's on it said out loud, as a page's stickers are half of what it is.</summary>
+    internal sealed class StickerRow : GuiElement
     {
-        private const float RowHeight = 42f;
-        private const float Picture = 36f;
+        private const float Cell = 38f;
 
         private readonly ItemPlace _place;
 
-        public ShelfBook(ItemPlace place, Action pressed)
+        public StickerRow(HeroPanel hands, ItemPlace place)
         {
             _place = place;
             Width = UIValue.Fill;
-            Height = RowHeight;
-            HitTest = HitTestMode.Block;
-            Clicked += e =>
-            {
-                if (e.Button == MouseButton.Left) pressed();
-            };
+            Height = Cell;
+            Add(new ItemCell(hands, new Spot(Shelf.Held, place.Number), Cell));
         }
 
         protected override void OnDraw(GuiDrawList draw)
         {
             base.OnDraw(draw);
-            if (Context == null || GameSession.Current?.Hero.At(_place) is not Item item) return;
+            if (Context == null || GameUi.Current.Book.At(_place)?.Sticker is not Sticker sticker) return;
 
-            bool open = GameUi.Current.Book.IsOpen(item);
-            if (open || IsHovered) draw.AddRect(Bounds, open ? GuiColors.Rgba(136, 34, 18, 150) : GuiColors.Rgba(255, 240, 200, 26), 2f);
-            Ui.DrawItem(draw, item, new GuiRect(Bounds.X + 3f, Bounds.Y + 3f, Picture, Picture), Ui.GradeColour(Loot.GradeOf(item)), GuiColors.White);
-
-            GuiRect name = new GuiRect(Bounds.X + Picture + 9f, Bounds.Y, Bounds.Width - Picture - 12f, Bounds.Height);
-            draw.PushClip(name);
-            Ui.Text(Context, draw, item.Name, 13.5f, name, open ? Ui.Gold : Ui.Parchment);
-            draw.PopClip();
+            float x = Bounds.X + Cell + 8f;
+            float width = Bounds.Width - Cell - 8f;
+            Vellum.Write(Context, draw, BookText.Good(sticker), 13f, new GuiRect(x, Bounds.Y + 1f, width, 18f), Vellum.Ink);
+            Vellum.Write(Context, draw, BookText.Bad(sticker), 13f, new GuiRect(x, Bounds.Y + 19f, width, 18f), Vellum.Rubric);
         }
     }
 
@@ -354,32 +343,38 @@ namespace Dino_Defenders.UI
     }
 
     /// <summary>
-    /// An open book. The left is the page that's turned to and everything about it, and clicking a part of it lays what could go there over it. The right is the whole book: what it's called and what it comes to.
-    /// Everything's written at once, as the only thing there is to do with a book is change it. Down the side is every book the hero has, and New Book.
+    /// An open book, or a loose page, and nothing else: to open another, right click it. The pack is beside it, as everything that goes in a book comes from there. The left is the page that's turned to and everything about
+    /// it, and clicking a part of it lays what could go there over it. The right is the whole book: what it's called, the places it has for pages, and what it comes to.
     /// </summary>
     internal sealed class BookPanel : GuiElement
     {
-        private const float ShelfWidth = 190f;
+        private const int PackColumns = 6;
+        private const float PackCell = 48f;
+        private const float PackGap = 4f;
+        private const float PackWidth = PackCell * PackColumns + PackGap * (PackColumns - 1);
+        private const float PageCell = 50f;
 
         private static readonly Colour Leather = GuiColors.Rgba(44, 26, 18, 248);
-        private static readonly Colour Chosen = GuiColors.Rgba(136, 34, 18);
 
-        private readonly StackPanel _shelf;
+        private readonly HeroPanel _hands;
         private readonly TextBox _name;
-        private readonly Button _projectile;
-        private readonly Button _area;
+        private readonly Label _kind;
         private readonly Label _numbers;
         private readonly Label _where;
+        private readonly Label _whole;
+        private readonly Label _turnHint;
         private readonly Button _next;
         private readonly Button _last;
-        private readonly Button _turn;
-        private readonly Button _tear;
+        private readonly StackPanel _stickers;
+        private readonly Label _stickerHeading;
+        private readonly StackPanel _pages;
         private readonly GuiElement _sheet;
         private readonly ChoiceSlip _slip;
 
         private ItemPlace _place;
-        private Book _written = new();
-        private int _shown = -1;
+        private int _turnedTo;
+        private (int pages, int stickers, int turnedTo, ItemPlace place) _built = (-1, -1, -1, default);
+        private bool _naming;
 
         private static GameSession Session => GameSession.Current;
         private static HeroState Hero => Session.Hero;
@@ -387,23 +382,42 @@ namespace Dino_Defenders.UI
         /// <summary>The part of the page whose choices are showing, if any.</summary>
         public PagePlace? Open { get; private set; }
 
-        public int PageIndex { get; private set; }
+        private Item? Opened => At(_place);
 
-        public Page? Page => PageIndex < _written.Pages.Count ? _written.Pages[PageIndex] : null;
+        // Where the page that's turned to is: a place in the book, or the page itself if it's loose.
+        private ItemPlace PagePlace => Opened is { IsPage: true } ? _place : _place.In(_turnedTo);
 
-        /// <summary>What's being written comes to, in this hero's hands.</summary>
-        public BookProfile? Reading => GameSession.Current == null ? null : Session.Sheet.Preview(Scribe.Read(_written, _name.Text));
+        public Page? Page => At(PagePlace)?.Page;
+
+        /// <summary>Which page of what's written it is, which a gap in a book doesn't count towards.</summary>
+        public int PageIndex
+        {
+            get
+            {
+                if (Opened?.Held is not Item?[] held || !Opened.IsBook) return 0;
+                int index = 0;
+                for (int i = 0; i < _turnedTo && i < held.Length; i++)
+                {
+                    if (held[i] != null) index++;
+                }
+                return index;
+            }
+        }
+
+        /// <summary>What it comes to, in this hero's hands, or nothing while there's nothing in it.</summary>
+        public BookProfile? Reading => GameSession.Current != null && Opened is Item item && item.Written() is Book book ? Session.Sheet.Preview(Scribe.Read(book, item.Name)) : null;
 
         /// <summary>What's in a place, if there's a hero to ask.</summary>
         public Item? At(ItemPlace place) => GameSession.Current == null ? null : Hero.At(place);
 
-        /// <summary>Whether this is the book lying open.</summary>
-        public bool IsOpen(Item? item) => Visible && item is { IsBook: true } && At(_place) == item;
+        /// <summary>Whether this is what's lying open.</summary>
+        public bool IsOpen(Item? item) => Visible && item is { IsFolio: true } && Opened == item;
 
-        public BookPanel()
+        public BookPanel(HeroPanel hands)
         {
+            _hands = hands;
             Anchor = Anchor.Center;
-            Width = 1120f;
+            Width = 1180f;
             Height = 680f;
             Padding = new Thickness(16f);
             Ui.Dress(this);
@@ -412,13 +426,14 @@ namespace Dino_Defenders.UI
 
             var columns = Add(new StackPanel(Orientation.Horizontal, 14f) { Width = UIValue.Fill, Height = UIValue.Fill });
 
-            var side = columns.Add(new StackPanel(Orientation.Vertical, 6f) { Width = ShelfWidth, Height = UIValue.Fill });
-            side.Add(Ui.Line("Your books", 16f, Ui.Gold));
-            var scroll = side.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
-            _shelf = scroll.Content.Add(new StackPanel(Orientation.Vertical, 3f) { Width = UIValue.Fill, Height = UIValue.Auto });
-            Button fresh = side.Add(Ui.Action("New Book", NewBook));
-            fresh.Height = 28f;
-            side.Add(Ui.Paragraph("Drag a book onto the bar from your pack to use it, and right click it there to open it.", 12.5f, Ui.Faded));
+            var side = columns.Add(new StackPanel(Orientation.Vertical, 6f) { Width = PackWidth, Height = UIValue.Fill });
+            side.Add(Ui.Line("Carried", 16f, Ui.Gold));
+            var bag = side.Add(new GridPanel(PackColumns, PackGap, PackGap));
+            for (int i = 0; i < HeroState.InventorySize; i++) bag.Add(new ItemCell(hands, new Spot(Shelf.Pack, i), PackCell));
+            side.Add(new Spacer(height: 4f));
+            side.Add(Ui.Paragraph("Drag Pages into the Book and Stickers onto the Page, or Ctrl-click them.", 12.5f, Ui.Faded));
+            side.Add(Ui.Paragraph("Right click another Book or Page to open that instead.", 12.5f, Ui.Faded));
+            side.Add(Ui.Paragraph("Drag a Book onto the bar to use it.", 12.5f, Ui.Faded));
 
             var left = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill, Padding = new Thickness(20f, 14f) });
             left.BackgroundColor = Vellum.Sheet;
@@ -436,20 +451,14 @@ namespace Dino_Defenders.UI
             _next.Width = 26f;
             _next.Height = 26f;
             turning.Add(new Spacer(width: UIValue.Fill));
-            _projectile = turning.Add(Ui.Action("Projectile", () => SetKind(PageKind.Projectile)));
-            _projectile.Width = 86f;
-            _projectile.Height = 26f;
-            _area = turning.Add(Ui.Action("Area", () => SetKind(PageKind.Area)));
-            _area.Width = 60f;
-            _area.Height = 26f;
+            _kind = turning.Add(new Label("") { Font = Ui.Face, FontSize = 14f, Color = Vellum.Pale });
 
             left.Add(new Spacer(height: 2f));
             left.Add(new PageView(this));
 
+            _stickerHeading = left.Add(new Label("") { Font = Ui.Face, FontSize = 14f, Color = Vellum.Rubric });
+            _stickers = left.Add(new StackPanel(Orientation.Vertical, 3f) { Width = UIValue.Fill, Height = UIValue.Auto });
             _numbers = left.Add(new Label("") { Font = Ui.Face, FontSize = 14f, Color = Vellum.Ink });
-            _tear = left.Add(Ui.Action("Tear out this Page", TearOut));
-            _tear.Width = 150f;
-            _tear.Height = 26f;
 
             var right = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill, Padding = new Thickness(20f, 14f) });
             right.BackgroundColor = Vellum.Sheet;
@@ -458,17 +467,16 @@ namespace Dino_Defenders.UI
             right.HitTest = HitTestMode.Block;
             right.Clicked += _ => PutDown();
 
-            right.Add(new Label("The whole Book") { Font = Ui.Face, FontSize = 16f, Color = Vellum.Rubric, Height = 26f });
+            _whole = right.Add(new Label("") { Font = Ui.Face, FontSize = 16f, Color = Vellum.Rubric, Height = 26f });
             _name = right.Add(new TextBox("", "Name this book") { Width = UIValue.Fill, Height = 30f, MaxLength = HeroState.LongestBookName });
             _name.BackgroundColor = GuiColors.Rgba(60, 44, 30, 235);
-            _name.Submitted += _ => { _name.Unfocus(); Commit(); };
+            _name.Submitted += _ => _name.Unfocus();
+
+            _pages = right.Add(new StackPanel(Orientation.Horizontal, 4f) { Width = UIValue.Fill, Height = PageCell });
+            _turnHint = right.Add(new Label("Right click a Page to turn to it") { Font = Ui.Face, FontSize = 12.5f, Color = Vellum.Pale });
 
             var reading = right.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
             reading.Content.Add(new Summary(this));
-
-            _turn = right.Add(Ui.Action("Add a Page", AddPage));
-            _turn.Width = 150f;
-            _turn.Height = 26f;
 
             _slip = Add(new ChoiceSlip());
         }
@@ -476,20 +484,75 @@ namespace Dino_Defenders.UI
         protected override void OnUpdate(float deltaTime)
         {
             if (GameSession.Current == null) return;
+            _hands.Tend();
 
             // The server has the last word on what's where, and something can be gone from under an open book.
-            if (Hero.At(_place) is not { IsBook: true }) Close();
-            _slip.Visible = Open != null;
-            if (!Visible || Reading is not BookProfile book || book.Pages.Length <= PageIndex) return;
+            if (Opened is not { IsFolio: true, IsSticker: false } item)
+            {
+                Close();
+                return;
+            }
 
-            PageProfile page = book.Pages[PageIndex];
-            string size = page.Page.Kind == PageKind.Projectile ? $"Projectile Speed {Say.Amount(page.Speed)} m a second" : page.Page.Shape == AreaShape.Circle ? $"Radius {Say.Metres(page.Length)}" : $"Reach {Say.Metres(page.Length)}";
-            _numbers.Text = $"Cost {Say.Amount(page.Cost)}   Potency {Say.Share(page.Potency)}   {size}";
-            _where.Text = $"Page {PageIndex + 1} of {book.Pages.Length}";
-            _last.Visible = PageIndex > 0;
-            _next.Visible = PageIndex < book.Pages.Length - 1;
-            _projectile.NormalColor = page.Page.Kind == PageKind.Projectile ? Chosen : Ui.InkLight;
-            _area.NormalColor = page.Page.Kind == PageKind.Area ? Chosen : Ui.InkLight;
+            // Whatever was typed is what it's called, however the box was left.
+            if (_naming && !_name.IsFocused && item.IsBook)
+            {
+                Session.Client.Title(_place, _name.Text);
+                Rebuilt();
+            }
+            _naming = _name.IsFocused;
+
+            if (item.IsBook && At(PagePlace) == null) TurnToFirst();
+            Rebuilt();
+
+            _slip.Visible = Open != null;
+            bool book = item.IsBook;
+            _whole.Text = book ? "The whole Book" : "Not in any Book";
+            _name.Visible = book;
+            _pages.Visible = book;
+            _turnHint.Visible = book;
+
+            int pages = book ? item.Held?.Count(held => held != null) ?? 0 : 1;
+            _where.Text = pages == 0 ? "No Pages yet" : $"Page {PageIndex + 1} of {pages}";
+            _last.Visible = book && Neighbour(-1) >= 0;
+            _next.Visible = book && Neighbour(1) >= 0;
+
+            Item? shown = At(PagePlace);
+            _kind.Text = shown?.Page is Page page ? $"{page.Kind} Page" : "";
+            _stickerHeading.Text = shown == null ? "" : shown.Places == 0 ? "No room for Stickers" : "Stickers";
+
+            if (Reading is BookProfile reading && PageIndex < reading.Pages.Length)
+            {
+                PageProfile profile = reading.Pages[PageIndex];
+                string size = profile.Page.Kind == PageKind.Projectile ? $"Projectile Speed {Say.Amount(profile.Speed)} m a second" : profile.Page.Shape == AreaShape.Circle ? $"Radius {Say.Metres(profile.Length)}" : $"Reach {Say.Metres(profile.Length)}";
+                string carried = PageIndex > 0 ? $" (from {Say.Share(profile.Page.Carried)})" : "";
+                _numbers.Text = $"Cost {Say.Amount(profile.Cost)}   Potency {Say.Share(profile.Potency)}{carried}   {size}";
+            }
+            else _numbers.Text = "";
+        }
+
+        protected override void OnDrawOverlay(GuiDrawList draw)
+        {
+            base.OnDrawOverlay(draw);
+            _hands.DrawOver(draw);
+        }
+
+        // The places change with what's open, and a place is only a number, so nothing is rebuilt but when there are more or fewer of them or they're somewhere else.
+        private void Rebuilt()
+        {
+            if (Opened is not Item item) return;
+            int stickers = At(PagePlace)?.Places ?? 0;
+            var wanted = (item.IsBook ? item.Places : 0, stickers, _turnedTo, PagePlace);
+            if (wanted == _built) return;
+            _built = wanted;
+
+            _pages.ClearChildren();
+            for (int i = 0; i < wanted.Item1; i++)
+            {
+                _pages.Add(new ItemCell(_hands, new Spot(Shelf.Held, _place.In(i).Number), PageCell) { Marked = i == _turnedTo });
+            }
+
+            _stickers.ClearChildren();
+            for (int i = 0; i < stickers; i++) _stickers.Add(new StickerRow(_hands, PagePlace.In(i)));
         }
 
         private void Close()
@@ -506,37 +569,63 @@ namespace Dino_Defenders.UI
                 Show(place);
                 return;
             }
-
-            _place = default;
-            _written = new Book();
-            Rebuild();
+            Close();
         }
 
-        /// <summary>Opens a book, at its first page.</summary>
+        /// <summary>Opens a book at its first page, or a page on its own.</summary>
         public void Show(ItemPlace place)
         {
-            if (Hero.At(place) is not { Book: Book book } item) return;
+            if (Hero.At(place) is not { IsFolio: true, IsSticker: false } item) return;
             _place = place;
-            _written = book.Copy();
             _name.Text = item.Name;
-            PageIndex = 0;
+            _naming = false;
             Open = null;
-            Rebuild();
+            _turnedTo = 0;
+            TurnToFirst();
+            Offer();
         }
 
-        private void Rebuild()
+        private void TurnToFirst()
         {
-            _shelf.ClearChildren();
-            foreach (ItemPlace place in Hero.BookPlaces())
+            if (Opened?.Held is Item?[] held && Opened.IsBook) _turnedTo = Math.Max(Array.FindIndex(held, page => page != null), 0);
+        }
+
+        // The next place that has a page in it, one way or the other, or -1.
+        private int Neighbour(int way)
+        {
+            if (Opened?.Held is not Item?[] held) return -1;
+            for (int i = _turnedTo + way; i >= 0 && i < held.Length; i += way)
             {
-                ItemPlace at = place;
-                _shelf.Add(new ShelfBook(at, () =>
-                {
-                    Audio.Play(Interface.Open);
-                    Show(at);
-                }));
+                if (held[i] != null) return i;
             }
+            return -1;
+        }
+
+        /// <summary>Turns to whichever page is in a place in the book.</summary>
+        public void TurnTo(ItemPlace place)
+        {
+            if (place.Holder != _place) return;
+            _turnedTo = place.Index;
+            Open = null;
+            Audio.Play(Interface.Click);
             Offer();
+        }
+
+        /// <summary>Whatever's in a cell of the pack, into the first place in what's open that takes it. Says whether it found one.</summary>
+        public bool Slot(ItemPlace from)
+        {
+            if (At(from) is not Item item) return false;
+            ItemPlace holder = item.IsSticker ? PagePlace : _place;
+            int places = At(holder)?.Places ?? 0;
+            for (int i = 0; i < places; i++)
+            {
+                ItemPlace to = holder.In(i);
+                if (At(to) != null || !Hero.CanMove(from, to)) continue;
+                Audio.Play(Interface.Equip);
+                Session.Client.Move(from, to);
+                return true;
+            }
+            return false;
         }
 
         // Everything that could go in what's open, as a row each.
@@ -547,29 +636,23 @@ namespace Dino_Defenders.UI
             if (Open is not PagePlace open || Page is not Page page) return;
 
             string? chosen = Current(page, open);
-            bool optional = open.Blank == Blank.Within || open.Blank == Blank.Clause;
-            if (optional && chosen != null || open.Blank == Blank.Deed && open.Outcome < page.Outcomes.Count && page.Outcomes.Count > 1)
+            if (open.Blank == Blank.Within && chosen != null || open.Blank == Blank.Deed && open.Outcome < page.Outcomes.Count && page.Outcomes.Count > 1)
             {
                 _slip.Rows.Content.Add(new ChoiceRow("Strike this out", "", false, () => Strike(open)));
             }
 
             foreach (Sentence sentence in Sentences.For(open.Blank))
             {
-                if (!Fits(sentence, page, open, chosen)) continue;
+                if (!Fits(sentence, page)) continue;
                 Sentence offered = sentence;
                 _slip.Rows.Content.Add(new ChoiceRow(sentence.Words, string.Join(", ", BookText.Trade(sentence.Weights)), sentence.Id == chosen, () => Choose(offered)));
             }
         }
 
-        private bool Fits(Sentence sentence, Page page, in PagePlace open, string? chosen)
+        private bool Fits(Sentence sentence, Page page)
         {
             if (sentence.Fits is PageKind kind && kind != page.Kind) return false;
-            if (sentence.FollowsOnly && PageIndex == 0) return false;
-            if (open.Blank != Blank.Clause) return true;
-
-            if (sentence.Id != chosen && page.Clauses.Contains(sentence.Id)) return false;
-            if (sentence.Rides && (PageIndex > 0 || Sentences.Find(page.From)!.Start != Start.You || Sentences.Find(page.Towards)!.Bearing == Bearing.Down)) return false;
-            return true;
+            return !sentence.FollowsOnly || PageIndex > 0;
         }
 
         private static string? Current(Page page, in PagePlace open)
@@ -582,7 +665,6 @@ namespace Dino_Defenders.UI
                 Blank.Shape => page.Shape,
                 Blank.Timing => page.Timing,
                 Blank.Within => open.Towards ? page.TowardsWithin : page.FromWithin,
-                Blank.Clause => open.Clause >= 0 ? page.Clauses[open.Clause] : null,
                 Blank.Deed => outcome?.Deed,
                 Blank.Element => outcome?.Element,
                 Blank.Measure => outcome?.Measure,
@@ -626,8 +708,6 @@ namespace Dino_Defenders.UI
                 case Blank.Timing: page.Timing = id; break;
                 case Blank.Within when open.Towards: page.TowardsWithin = id; break;
                 case Blank.Within: page.FromWithin = id; break;
-                case Blank.Clause when open.Clause >= 0: page.Clauses[open.Clause] = id; break;
-                case Blank.Clause: page.Clauses.Add(id); break;
                 case Blank.Deed when outcome == null: page.Outcomes.Add(new Outcome { Deed = id }); break;
                 case Blank.Deed: outcome.Deed = id; break;
                 case Blank.Element when outcome != null: outcome.Element = id; break;
@@ -640,7 +720,7 @@ namespace Dino_Defenders.UI
             }
             Open = null;
             Audio.Play(Interface.Equip);
-            Commit();
+            Commit(page);
         }
 
         private void Strike(in PagePlace place)
@@ -650,91 +730,33 @@ namespace Dino_Defenders.UI
             {
                 case Blank.Within when place.Towards: page.TowardsWithin = null; break;
                 case Blank.Within: page.FromWithin = null; break;
-                case Blank.Clause when place.Clause >= 0: page.Clauses.RemoveAt(place.Clause); break;
                 case Blank.Deed when place.Outcome < page.Outcomes.Count: page.Outcomes.RemoveAt(place.Outcome); break;
             }
             Open = null;
             Audio.Play(Interface.Click);
-            Commit();
+            Commit(page);
         }
 
-        private void SetKind(PageKind kind)
+        private void Turn(int way)
         {
-            if (Page is not Page page || page.Kind == kind) return;
-            if (kind == PageKind.Area && PageIndex < _written.Pages.Count - 1)
-            {
-                Audio.Play(Interface.Refuse);
-                Session.Note("An Area Page has to be the last. Tear out the Pages after it first.");
-                return;
-            }
-            page.Kind = kind;
-            Open = null;
-            Audio.Play(Interface.Click);
-            Commit();
-        }
-
-        private void Turn(int by)
-        {
-            PageIndex = Math.Clamp(PageIndex + by, 0, _written.Pages.Count - 1);
+            int next = Neighbour(way);
+            if (next < 0) return;
+            _turnedTo = next;
             Open = null;
             Audio.Play(Interface.Click);
             Offer();
         }
 
-        private void AddPage()
+        // Done at once and asked of the server, which has the last word: see GameClient.AskGear.
+        private void Commit(Page page)
         {
-            if (_written.Pages.Count >= Rulebook.MostPages || _written.Pages[^1].Kind == PageKind.Area)
-            {
-                Audio.Play(Interface.Refuse);
-                Session.Note(_written.Pages.Count >= Rulebook.MostPages ? "This Book is full." : "An Area Page has to be the last. Make this one a Projectile first.");
-                return;
-            }
-            _written.Pages.Add(Scribe.NewPage(PageKind.Projectile));
-            PageIndex = _written.Pages.Count - 1;
-            Open = null;
-            Audio.Play(Interface.Equip);
-            Commit();
-        }
-
-        private void TearOut()
-        {
-            if (_written.Pages.Count <= 1)
-            {
-                Audio.Play(Interface.Refuse);
-                return;
-            }
-            _written.Pages.RemoveAt(PageIndex);
-            PageIndex = Math.Min(PageIndex, _written.Pages.Count - 1);
-            Open = null;
-            Audio.Play(Interface.Click);
-            Commit();
-        }
-
-        private void NewBook()
-        {
-            if (!Hero.HasRoom())
-            {
-                Audio.Play(Interface.Refuse);
-                Session.Note("Your pack is full.");
-                return;
-            }
-            Audio.Play(Interface.Open);
-            Session.Client.NewBook();
-            Show(ItemPlace.Cell(Array.FindLastIndex(Hero.Inventory, item => item is { IsBook: true })));
-        }
-
-        // Done at once and asked of the server, which has the last word: see GameClient.AskGear. What comes back from being put right is what's shown.
-        private void Commit()
-        {
-            Scribe.Fix(_written);
-            Session.Client.Write(_place, _written, _name.Text);
-            PageIndex = Math.Min(PageIndex, _written.Pages.Count - 1);
-            Rebuild();
+            Session.Client.Write(PagePlace, page);
+            Offer();
         }
     }
 
     /// <summary>
-    /// A place on the bar. It's a place like any on the hero while there's a pack open to bring something from. Otherwise the mouse is what's aimed with, so it's there only for the moment a right button comes down on a
+    /// A place on the bar. It's a place like any on the hero while there's a pack open to bring something from, which a book has beside it. Otherwise the mouse is what's aimed with, so it's there only for the moment a right button comes down on a
     /// book, which opens it: a button held since before it got here belongs to the fight, and the attack mustn't stop every time the mouse crosses the bar.
     /// </summary>
     internal sealed class BarCell : ItemCell
@@ -744,11 +766,12 @@ namespace Dino_Defenders.UI
         public BarCell(HeroPanel panel, int slot, float size)
             : base(panel, new Spot(Shelf.Bar, slot), size)
         {
+            ShowsPlaces = false;
         }
 
         private bool OpensBook => !_heldElsewhere && Context != null && Context.IsMouseDown(MouseButton.Right) && GameSession.Current is { Health: > 0f } session && session.Hero.At(Spot.Place) != null;
 
-        public override bool HitTestSelf(Vector2 point) => (GameUi.Current.Hero.Visible || OpensBook) && base.HitTestSelf(point);
+        public override bool HitTestSelf(Vector2 point) => (GameUi.Current.Hero.Active || OpensBook) && base.HitTestSelf(point);
 
         protected override void OnUpdate(float deltaTime)
         {

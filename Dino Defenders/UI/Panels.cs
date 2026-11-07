@@ -599,7 +599,7 @@ namespace Dino_Defenders.UI
         public readonly MapPanel Map;
         public readonly HeroPanel Hero = new();
         public readonly TalentPanel Talents = new();
-        public readonly BookPanel Book = new();
+        public readonly BookPanel Book;
         public readonly GlossaryPanel Glossary = new();
         public readonly ChroniclePanel Chronicle = new();
         public readonly WaygatePanel Waygate;
@@ -617,6 +617,7 @@ namespace Dino_Defenders.UI
         {
             Current = this;
             Wardrobe = game.Wardrobe;
+            Book = new BookPanel(Hero);
             Map = new MapPanel(CloseAll);
             Waygate = new WaygatePanel(travel);
             Pause = new PauseMenu(CloseAll, () => Toggle(Friends!), quit, newJourney);
@@ -654,7 +655,7 @@ namespace Dino_Defenders.UI
 
             Audio.Play(Interface.Open);
             panel.Visible = true;
-            if (panel == Hero) Hero.Open(null);
+            if (panel == Hero || panel == Book) Hero.Open(null);
             if (panel == Book) Book.OpenAny();
             if (panel == Chronicle) Chronicle.Open(null);
         }
@@ -662,11 +663,12 @@ namespace Dino_Defenders.UI
         /// <summary>Opens a book, in place of whatever else is open, or shuts it if it's the one that's open.</summary>
         public void Read(ItemPlace place)
         {
-            bool reading = Book.Visible && Book.IsOpen(Book.At(place));
+            bool reading = Book.IsOpen(Book.At(place));
             CloseAll();
             if (reading) return;
 
             Audio.Play(Interface.Open);
+            Hero.Open(null);
             Book.Visible = true;
             Book.Show(place);
         }

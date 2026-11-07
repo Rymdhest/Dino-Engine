@@ -41,7 +41,7 @@ namespace Dino_GearLab
         public static Matrix3 View(GearKind kind, float turn = 0.5f)
         {
             float lean = kind is GearKind.Sword or GearKind.Dagger or GearKind.Spear or GearKind.Staff or GearKind.Wand or GearKind.Axe or GearKind.Mace ? -0.72f : 0f;
-            return Matrix3.CreateRotationZ(lean) * Matrix3.CreateRotationY(turn) * Matrix3.CreateRotationX(kind == GearKind.OpenBook ? -0.8f : 0.28f);
+            return Matrix3.CreateRotationZ(lean) * Matrix3.CreateRotationY(turn) * Matrix3.CreateRotationX(kind is GearKind.OpenBook or GearKind.Page or GearKind.Sticker ? -0.8f : 0.28f);
         }
 
         public static GearSpec Spec(Options options, ulong seed, GearKind kind)

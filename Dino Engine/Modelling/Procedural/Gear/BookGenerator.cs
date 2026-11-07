@@ -122,6 +122,77 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }
         }
 
+        /// <summary>A loose leaf, lying flat and curling a little, with writing on it. Its proportions and its curl are what tell one from another, and how far down it's written.</summary>
+        public static void Leaf(GearMesh mesh, GearStyle style)
+        {
+            Genes genes = style.Genes;
+            GearPalette palette = style.Palette;
+
+            float wide = genes.Range("leaf.wide", 0.34f, 0.72f);
+            float tall = wide * genes.Range("leaf.tall", 1f, 2f);
+            float curl = genes.Range("leaf.curl", 0.02f, 0.3f);
+            float lean = genes.Range("leaf.lean", -0.3f, 0.3f);
+            float taper = genes.Range("leaf.taper", -0.45f, 0.45f);
+            float thin = 0.012f;
+            Section flat = Section.Slab(0.2f);
+            float Rise(float along) => curl * along * along * (genes.Chance("leaf.flip", 0.5f) ? 1f : 0.4f);
+
+            var sheet = new Ring[PageSteps + 1];
+            for (int i = 0; i <= PageSteps; i++)
+            {
+                float along = (float)i / PageSteps;
+                sheet[i] = Across(1f, along * wide * 2f - wide, thin + Rise(along), lean * (along - 0.5f), tall * (1f + taper * (along - 0.5f)), thin);
+            }
+            mesh.Loft(flat, sheet, palette.Bone);
+
+            int lines = genes.Count("leaf.lines", 2, 9);
+            for (int line = 0; line < lines; line++)
+            {
+                float z = tall * (0.7f - 1.4f * line / (lines - 1f));
+                float ends = genes.Range($"leaf.line{line}", 0.6f, 0.88f);
+                var ink = new Ring[PageSteps / 2 + 1];
+                for (int i = 0; i < ink.Length; i++)
+                {
+                    float along = 0.12f + (ends - 0.12f) * i / (ink.Length - 1f);
+                    ink[i] = Across(1f, along * wide * 2f - wide, thin * 2.2f + Rise(along), z + lean * (along - 0.5f), tall * 0.028f, thin * 0.3f);
+                }
+                mesh.Loft(flat, ink, line == 0 ? palette.Glow : palette.Binding);
+            }
+
+            // A seal, for one somebody meant to keep, wherever it was pressed.
+            if (genes.Chance("leaf.seal", 0.6f))
+            {
+                float along = genes.Range("leaf.seal.along", 0.15f, 0.85f);
+                float radius = wide * genes.Range("leaf.seal.size", 0.1f, 0.26f);
+                Vector3 at = new Vector3(along * wide * 2f - wide, thin * 2f + Rise(along), tall * genes.Range("leaf.seal.down", -0.8f, 0.8f));
+                mesh.At(Matrix4.CreateTranslation(at), () => mesh.Lathe(Section.Polygon(genes.Count("leaf.seal.sides", 5, 9)), thin * 2f, 1, t => radius, palette.Fitting));
+            }
+        }
+
+        /// <summary>A sticker: a flat seal of some shape with a rim, and a stone in the middle of it for its colour.</summary>
+        public static void Seal(GearMesh mesh, GearStyle style)
+        {
+            Genes genes = style.Genes;
+            GearPalette palette = style.Palette;
+
+            float radius = genes.Range("seal.radius", 0.26f, 0.42f);
+            int sides = genes.Count("seal.sides", 3, 9);
+            float turn = genes.Range("seal.turn", 0f, 1f);
+            float height = genes.Range("seal.height", 0.03f, 0.07f);
+            float long_ = genes.Range("seal.long", 1f, 1.5f);
+            Section section = sides >= 9 ? Section.Round(14) : Section.Polygon(sides, turn);
+
+            mesh.At(Matrix4.CreateScale(1f, 1f, long_), () =>
+            {
+                mesh.Lathe(section, height, 1, t => radius, palette.Fitting);
+                mesh.At(Matrix4.CreateTranslation(0f, height, 0f), () =>
+                {
+                    mesh.Lathe(section, height * 0.5f, 1, t => radius * 0.78f, genes.Pick("seal.face", 2f, 2f, 1f) switch { 0 => palette.Leather, 1 => palette.Cloth, _ => palette.Trim });
+                    mesh.At(Matrix4.CreateTranslation(0f, height * 0.5f, 0f), () => mesh.Gem(Math.Max(sides, 4), radius * genes.Range("seal.stone", 0.3f, 0.5f), radius * 0.2f, radius * 0.05f, 0.6f, palette.Glow));
+                });
+            });
+        }
+
         // A slice through something that runs out from the gutter, to either side of it.
         private static Ring Across(float side, float x, float y, float z, float halfWidth, float halfDepth) => new Ring
         {

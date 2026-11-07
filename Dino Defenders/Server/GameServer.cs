@@ -39,6 +39,7 @@ namespace Dino_Defenders.Server
         private const float LoadSearchRadius = 24f;
         private const int FlaskPrice = 12;
         private const int StockSize = 12;
+        private const int FolioEvery = 4;   // One thing in this many on a table is for a book.
         private const float ModerateLoss = 0.08f;
         private const float HeavyLoss = 0.2f;
 
@@ -538,7 +539,7 @@ namespace Dino_Defenders.Server
             var stock = new Item?[StockSize];
             var random = new WorldRandom(session.World.Plan.Seed).Fork("market").Fork(session.Sites[siteIndex].Site.Id).Fork(hero.Hero.WorldsCleared);
             int level = session.World.Plan.Level + 1;
-            for (int i = 0; i < StockSize; i++) stock[i] = ItemGenerator.Roll(level, random.Fork(i), rarityBonus: 0.4f);
+            for (int i = 0; i < StockSize; i++) stock[i] = i % FolioEvery == FolioEvery - 1 ? ItemGenerator.Folio(level, random.Fork(i), random.Chance(0.3f) ? LootGrade.Magic : LootGrade.Plain) : ItemGenerator.Roll(level, random.Fork(i), rarityBonus: 0.4f);
             table = new MerchantTable { Stock = stock };
             hero.Tables[siteIndex] = table;
             return table;
@@ -767,14 +768,14 @@ namespace Dino_Defenders.Server
                 case HeroAction.Write:
                     player.Heard(reader.ReadVarInt());
                     var writing = new ItemPlace(reader.ReadVarInt());
-                    string title = reader.ReadString(Protocol.LongestName);
-                    Book written = Protocol.ReadBook(reader);
-                    if (hero.Write(writing, written, title) && writing.IsBar) player.RefreshLoadout();
+                    Page written = Protocol.ReadPage(reader);
+                    if (hero.Write(writing, written) && writing.IsHeld) player.RefreshLoadout();
                     break;
 
-                case HeroAction.NewBook:
+                case HeroAction.Title:
                     player.Heard(reader.ReadVarInt());
-                    hero.NewBook(reader.ReadVarULong());
+                    var titling = new ItemPlace(reader.ReadVarInt());
+                    if (hero.Title(titling, reader.ReadString(Protocol.LongestName)) && titling.IsBar) player.RefreshLoadout();
                     break;
 
                 case HeroAction.Sort:

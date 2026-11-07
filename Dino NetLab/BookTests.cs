@@ -24,18 +24,18 @@ namespace Dino_NetLab
 
         private static Outcome Deal(string element = Sentences.PlainElement) => new Outcome { Element = element };
 
-        private static Page Flight(params string[] clauses)
+        private static Page Flight(params string[] stickers)
         {
             Page page = Scribe.NewPage(PageKind.Projectile);
-            page.Clauses.AddRange(clauses);
+            page.Stickers.AddRange(stickers.Select(name => Stickers.Written(name)!));
             return page;
         }
 
-        private static Page Area(string shape = "circle", params string[] clauses)
+        private static Page Area(string shape = "circle", params string[] stickers)
         {
             Page page = Scribe.NewPage(PageKind.Area);
             page.Shape = shape;
-            page.Clauses.AddRange(clauses);
+            page.Stickers.AddRange(stickers.Select(name => Stickers.Written(name)!));
             return page;
         }
 
@@ -717,40 +717,69 @@ namespace Dino_NetLab
             report.Check($"All {Shelf.All.Count} written books can be used", broken.Count == 0, string.Join(", ", broken));
         }
 
-        private static string Text(Item? item) => item?.Book == null ? "" : JsonSerializer.Serialize(item.Book);
+        private static string Text(Item? item) => item == null ? "" : JsonSerializer.Serialize(item);
+
+        // A hero with something to put in a book, as nobody can write one out of nothing now.
+        private static HeroState Stocked()
+        {
+            HeroState hero = Hero();
+            hero.Pickup(new Item { Name = "Leaf", Slot = ItemSlot.Page, Level = 1, Seed = 3, Page = Scribe.NewPage(PageKind.Projectile), Held = new Item?[2] }, 0);
+            hero.Pickup(ItemGenerator.StickerItem(Stickers.Written("two-at-once")!, 5, 1, Rarity.Common), 1);
+            hero.Pickup(new Item { Name = "Empty Book", Slot = ItemSlot.Book, Level = 1, Seed = 6, Held = new Item?[1] }, 2);
+            hero.Pickup(new Item { Name = "Spare Leaf", Slot = ItemSlot.Page, Level = 1, Seed = 8, Page = Scribe.NewPage(PageKind.Projectile), Held = new Item?[1] }, 3);
+            return hero;
+        }
 
         private static void Writing(Report report, WorldCache worlds, WorldRequest request)
         {
             foreach ((string name, NetworkConditions line) in Scenarios.All)
             {
                 if (name is not ("Good broadband" or "Awful")) continue;
-                using var arena = new Arena(worlds, request, Hero(), line: line);
-                HeroState client = arena.Player.Client.Hero;
+                using var arena = new Arena(worlds, request, Stocked(), line: line);
+                var player = arena.Player.Client;
+                HeroState client = player.Hero;
                 HeroState truth = arena.Truth.Hero;
+                ItemPlace book = ItemPlace.OnBar(0);
 
-                var fireball = new Book { Pages = { Flight().With(new Outcome { Deed = "pass" }), Area("circle").With(Deal("fire")) } };
-                arena.Player.Client.Write(ItemPlace.OnBar(0), fireball, "Fireball");
-                report.Check($"{name}: what's written shows at once", client.Bar[0]!.Name == "Fireball" && client.Bar[0]!.Book!.Pages.Count == 2);
-                report.Check("  And changes what the Kit does at once, on this end", arena.Player.Client.Kit.Slots[0]!.Pages.Length == 2);
+                player.Move(book.In(0), book.In(1));
+                player.Move(ItemPlace.Cell(0), book.In(0));
+                report.Check($"{name}: a Page slotted into a Book shows at once", client.Bar[0]!.Written() is { Pages.Count: 2 } && client.Inventory[0] == null);
+                report.Check("  And changes what the Kit does at once, on this end", player.Kit.Slots[0]!.Pages.Length == 2);
+
+                Page fire = client.At(book.In(1))!.Page!.Copy();
+                fire.Shape = "circle";
+                fire.Outcomes = new List<Outcome> { Deal("fire") };
+                player.Write(book.In(1), fire);
+                player.Title(book, "Fireball");
+                report.Check("  What's written shows at once", client.Bar[0]!.Name == "Fireball" && player.Kit.Slots[0]!.Pages[1].Page.Shape == AreaShape.Circle);
                 arena.Run(3);
                 report.Check("  The server has it", truth.Bar[0]!.Name == "Fireball" && Text(truth.Bar[0]) == Text(client.Bar[0]));
-                report.Check("  And what it comes to is the same on both ends", arena.Truth.Kit.Slots[0]!.Cost == arena.Player.Client.Kit.Slots[0]!.Cost && arena.Truth.Kit.Slots[0]!.UseTime == arena.Player.Client.Kit.Slots[0]!.UseTime);
+                report.Check("  And what it comes to is the same on both ends", arena.Truth.Kit.Slots[0]!.Cost == player.Kit.Slots[0]!.Cost && arena.Truth.Kit.Slots[0]!.UseTime == player.Kit.Slots[0]!.UseTime);
 
-                arena.Player.Client.NewBook();
-                int cell = Array.FindIndex(client.Inventory, item => item is { IsBook: true });
-                report.Check("  A new book shows at once", cell >= 0);
+                player.Move(ItemPlace.Cell(1), book.In(0).In(1));
+                report.Check("  A Sticker stuck on a Page shows at once", player.Kit.Slots[0]!.First.Projectiles == 2 && client.Inventory[1] == null);
                 arena.Run(3);
-                report.Check("  And the server agrees what it looks like", truth.Inventory[cell] is { IsBook: true } && truth.Inventory[cell]!.Seed == client.Inventory[cell]!.Seed);
+                report.Check("  And counts on the server", arena.Truth.Kit.Slots[0]!.First.Projectiles == 2 && Text(truth.Bar[0]) == Text(client.Bar[0]));
 
-                arena.Player.Client.Move(ItemPlace.Cell(cell), ItemPlace.OnBar(3));
-                report.Check("  Onto the bar, at once", client.Bar[3] != null && client.Inventory[cell] == null && arena.Player.Client.Kit.Slots[3] != null);
+                player.Move(ItemPlace.Cell(0), book.In(0));
+                player.Move(book.In(0).In(1), book.In(1).In(0));
                 arena.Run(3);
-                report.Check("  On both ends", truth.Bar[3] != null && truth.Inventory[cell] == null && arena.Truth.Kit.Slots[3] != null);
+                report.Check("  A move the rules refuse is refused on both ends", Text(truth.Bar[0]) == Text(client.Bar[0]));
+
+                player.Move(ItemPlace.Cell(2), ItemPlace.OnBar(3));
+                arena.Run(3);
+                report.Check("  A Book with nothing in it goes on the bar, and can't be used", truth.Bar[3] != null && player.Kit.Slots[3] == null && arena.Truth.Kit.Slots[3] == null);
+                player.Move(ItemPlace.Cell(3), ItemPlace.OnBar(3).In(0));
+                report.Check("  Until it has a Page, at once", client.Bar[3] != null && client.Inventory[3] == null && player.Kit.Slots[3] != null);
+                arena.Run(3);
+                report.Check("  On both ends", truth.Bar[3] != null && truth.Inventory[3] == null && arena.Truth.Kit.Slots[3] != null);
 
                 for (int i = 0; i < 20; i++)
                 {
-                    var quick = new Book { Pages = { Flight(i % 2 == 0 ? "swift" : "slow").With(Deal()) } };
-                    arena.Player.Client.Write(ItemPlace.OnBar(3), quick, $"Draft {i}");
+                    Page quick = Flight().With(Deal());
+                    quick.Towards = i % 2 == 0 ? "towards-you" : Sentences.PlainTowards;
+                    player.Write(ItemPlace.OnBar(3).In(0), quick);
+                    player.Title(ItemPlace.OnBar(3), $"Draft {i}");
                 }
                 arena.Run(5);
                 report.Check("  A run of changes ends up the last one, on both ends", truth.Bar[3]!.Name == "Draft 19" && client.Bar[3]!.Name == "Draft 19" && Text(truth.Bar[3]) == Text(client.Bar[3]));
@@ -768,11 +797,10 @@ namespace Dino_NetLab
                 report.Check("A plain hero attacks with the plain book", arena.Truth.Sim.Using == 0 || arena.Player.Uses[0] > 0);
             }
 
-            using (var arena = new Arena(worlds, request, Hero()))
+            HeroState rider = Hero();
+            rider.Bar[0] = ItemGenerator.Copied(new Book { Pages = { Flight("rides").With(new Outcome { Deed = "pass" }), Area("cone").With(Deal()) } }, "Charge", 4);
+            using (var arena = new Arena(worlds, request, rider))
             {
-                HeroState client = arena.Player.Client.Hero;
-                var charge = new Book { Pages = { Flight("rides").With(new Outcome { Deed = "pass" }), Area("cone").With(Deal()) } };
-                arena.Player.Client.Write(ItemPlace.OnBar(0), charge, "Charge");
                 arena.Run(0.5);
                 Vector2 before = arena.Truth.Sim.Position;
                 arena.Player.Script = () => { var press = new HeroIntent { Aim = East * 14f }; press.Use(0); return press; };

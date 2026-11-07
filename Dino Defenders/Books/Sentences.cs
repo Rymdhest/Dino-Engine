@@ -11,7 +11,6 @@ namespace Dino_Defenders.Books
         Shape,
         Timing,
         Within,
-        Clause,
         Deed,
         Element,
         Measure,
@@ -115,9 +114,6 @@ namespace Dino_Defenders.Books
         /// <summary>Only makes sense on one kind of page, if it isn't null.</summary>
         public PageKind? Fits;
 
-        /// <summary>Sentences that can't stand together, as a page can't be two at once and three at once.</summary>
-        public string? Group;
-
         /// <summary>Leaves something to chance, which a build can make something of.</summary>
         public bool Wild;
 
@@ -131,12 +127,6 @@ namespace Dino_Defenders.Books
         public float Width;             // Radians for a cone, and otherwise metres either side of the middle.
         public float Duration;          // Seconds, for what lingers.
         public float Scatter;           // Metres.
-        public int Projectiles;
-        public int Pierce;
-        public int Chains;
-        public bool Stops;
-        public bool Rides;
-        public float Cooldown;
         public Deed Deed;
         public DamageType Element;
         public Measure Measure;
@@ -209,11 +199,6 @@ namespace Dino_Defenders.Books
 
         private static void Within(string id, float metres, Weights weights) => Add(new Sentence { Id = id, Blank = Blank.Within, Words = $"somewhere within {Say.Metres(metres)}", Scatter = metres, Weights = weights, Wild = true });
 
-        private static void Clause(string id, string words, Weights weights, PageKind? fits = null, string? group = null, int projectiles = 0, int pierce = 0, int chains = 0, bool stops = false, bool rides = false, float cooldown = 0f)
-        {
-            Add(new Sentence { Id = id, Blank = Blank.Clause, Words = words, Weights = weights, Fits = fits, Group = group, Projectiles = projectiles, Pierce = pierce, Chains = chains, Stops = stops, Rides = rides, Cooldown = cooldown });
-        }
-
         private static void Doing(string id, string words, Deed deed, Weights weights) => Add(new Sentence { Id = id, Blank = Blank.Deed, Words = words, Deed = deed, Weights = weights });
 
         private static void Type(string id, DamageType element, Weights weights) => Add(new Sentence { Id = id, Blank = Blank.Element, Words = element.ToString(), Element = element, Weights = weights });
@@ -259,25 +244,6 @@ namespace Dino_Defenders.Books
             Within("within-mid", Rulebook.ScatterMid, new Weights(Cost: -10f, Potency: 15f));
             Within("within-far", Rulebook.ScatterFar, new Weights(Cost: -20f, Potency: 25f));
 
-            Clause("two-at-once", "two at once", new Weights(Added: 2f, Potency: -30f), PageKind.Projectile, "count", projectiles: 2);
-            Clause("three-at-once", "three at once", new Weights(Added: 3f, Potency: -45f), PageKind.Projectile, "count", projectiles: 3);
-            Clause("five-at-once", "five at once", new Weights(Added: 5f, Potency: -60f), PageKind.Projectile, "count", projectiles: 5);
-            Clause("pierce-one", "passing through one Enemy", new Weights(Added: 1f, Potency: -10f), PageKind.Projectile, "pierce", pierce: 1);
-            Clause("pierce-three", "passing through three Enemies", new Weights(Added: 2f, Potency: -25f), PageKind.Projectile, "pierce", pierce: 3);
-            Clause("chain-one", "leaping to one more Enemy", new Weights(Added: 2f, Potency: -15f), PageKind.Projectile, "chain", chains: 1);
-            Clause("chain-three", "leaping to three more Enemies", new Weights(Added: 3f, Potency: -30f), PageKind.Projectile, "chain", chains: 3);
-            Clause("stops", "stopping at its target", default, PageKind.Projectile, stops: true);
-            Clause("swift", "swiftly", new Weights(Potency: -10f, Speed: 60f), PageKind.Projectile, "speed");
-            Clause("slow", "slowly", new Weights(Potency: 15f, Speed: -40f), PageKind.Projectile, "speed");
-            Clause("far", "a long way", new Weights(Added: 1f, Range: 50f), PageKind.Projectile, "range");
-            Clause("short", "a short way", new Weights(Cost: -25f, Potency: 10f, Range: -50f), PageKind.Projectile, "range");
-            Clause("rides", "carrying you with it", new Weights(Added: 4f), PageKind.Projectile, rides: true);
-            Clause("broad", "on a grand scale", new Weights(Added: 2f, Area: 60f), PageKind.Area, "size");
-            Clause("tight", "drawn in tight", new Weights(Potency: 20f, Area: -40f), PageKind.Area, "size");
-            Clause("hasty", "hastily", new Weights(Potency: -20f, UseTime: -30f), group: "pace");
-            Clause("deliberate", "deliberately", new Weights(Potency: 40f, UseTime: 60f), group: "pace");
-            Clause("rest", $"then resting for {Say.Seconds(Rulebook.RestShort)}", new Weights(Potency: 60f), group: "rest", cooldown: Rulebook.RestShort);
-            Clause("rest-long", $"then resting for {Say.Seconds(Rulebook.RestLong)}", new Weights(Potency: 130f), group: "rest", cooldown: Rulebook.RestLong);
 
             Doing(PlainDeed, "deal", Deed.Deal, default);
             Doing("heal", "restore", Deed.Heal, new Weights(Added: 4f));

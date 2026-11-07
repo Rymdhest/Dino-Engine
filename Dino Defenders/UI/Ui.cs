@@ -1,3 +1,4 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Tooltips;
@@ -193,6 +194,32 @@ namespace Dino_Defenders.UI
         {
             if (GameUi.Current.Wardrobe.Picture(item, Halo(item), GameUi.Current.Book.IsOpen(item)) is StudioPicture picture) draw.AddImage(picture.Texture, rect, picture.From, picture.To, tint);
             else DrawSlotIcon(draw, item.Slot, rect, colour);
+        }
+
+        /// <summary>
+        /// What's worth knowing about something for a book without having to look at it: which kind of page, and how many places it has with how many of them are taken. It's what one is worth, so it goes on the picture.
+        /// </summary>
+        public static void DrawPlaces(GuiDrawList draw, Item item, GuiRect rect)
+        {
+            const float Pip = 5f;
+            const float Gap = 2f;
+            if (item.Page is Page page)
+            {
+                Vector2 corner = new Vector2(rect.Right - 9f, rect.Y + 9f);
+                if (page.Kind == PageKind.Area) draw.AddCircle(corner, 5f, GuiColors.Transparent, 1.5f, Gold);
+                else
+                {
+                    draw.AddLine(corner + new Vector2(-5f, 5f), corner + new Vector2(5f, -5f), Gold, 1.5f);
+                    draw.AddLine(corner + new Vector2(5f, -5f), corner + new Vector2(-1f, -5f), Gold, 1.5f);
+                    draw.AddLine(corner + new Vector2(5f, -5f), corner + new Vector2(5f, 1f), Gold, 1.5f);
+                }
+            }
+
+            for (int i = 0; i < item.Places; i++)
+            {
+                var pip = new GuiRect(rect.X + 3f + i * (Pip + Gap), rect.Bottom - Pip - 3f, Pip, Pip);
+                draw.AddRect(pip, item.Held![i] != null ? Gold : GuiColors.Rgba(20, 16, 12, 200), 1f, 1f, Gold);
+            }
         }
 
         // What's behind a picture of something, for what's worth noticing. It's part of the picture, so it has to go by what's in the picture's key.

@@ -169,16 +169,14 @@ namespace Dino_Defenders
             for (int i = 0; i < options.Books.Count && i < HeroState.BarSlots; i++)
             {
                 if (Books.Shelf.Find(options.Books[i]) is not { Source: Books.Book written } plan) continue;
-                Item book = ItemGenerator.Book((ulong)i + 1);
-                book.Book = written.Copy();
-                book.Name = plan.Name;
-                hero.Bar[i] = book;
+                hero.Bar[i] = ItemGenerator.Copied(written, plan.Name, (ulong)i + 1);
             }
 
             if (options.Wear is string family) Wear(hero, Enum.Parse<GearFamily>(family, ignoreCase: true), options.Seed ?? 1);
 
             var carried = new Dino_Engine.World.WorldRandom(options.Seed ?? 1).Fork("carried");
             for (int i = 0; i < options.Carry; i++) hero.Pickup(ItemGenerator.Roll(Math.Max(hero.Level, 10), carried.Fork(i), rarityBonus: 2f));
+            for (int i = 0; i < options.Folios; i++) hero.Pickup(ItemGenerator.Folio(Math.Max(hero.Level, 10), carried.Fork("folio").Fork(i), (LootGrade)(i % 5)));
         }
 
         // For a scripted run: something for every place, as much of one family as can be had, to look at.
@@ -472,7 +470,7 @@ namespace Dino_Defenders
 
             if (window.IsKeyPressed(Keys.Escape))
             {
-                if (_ui.Hero.Visible && _ui.Hero.StepBack()) return;
+                if (_ui.Hero.Active && _ui.Hero.StepBack()) return;
                 if (_ui.AnyOpen) _ui.CloseAll();
                 else _ui.Toggle(_ui.Pause);
             }

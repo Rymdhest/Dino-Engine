@@ -73,6 +73,9 @@ namespace Dino_Defenders
         public readonly List<string> Equip = new();
         public readonly List<string> Books = new();
         public int Carry;
+
+        /// <summary>How many things for a book to carry, of every grade in turn.</summary>
+        public int Folios;
         public string? Parade;
 
         /// <summary>The same as <see cref="Parade"/>, but they're awake and want a fight.</summary>
@@ -160,6 +163,7 @@ namespace Dino_Defenders
                     case "equip": options.Equip.AddRange(value.Split(',')); break;
                     case "books": options.Books.AddRange(value.Split(',')); break;
                     case "carry": options.Carry = int.Parse(value); break;
+                    case "folios": options.Folios = int.Parse(value); break;
                     case "parade": options.Parade = value; break;
                     case "brawl": options.Brawl = value; break;
                     case "trace": options.Trace = value; break;

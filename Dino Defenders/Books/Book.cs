@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Dino_Defenders.Books
 {
     /// <summary>The two kinds of page. What comes before a page's Outcomes is different on each, and an area page can only be the last.</summary>
@@ -22,7 +24,10 @@ namespace Dino_Defenders.Books
         public Outcome Copy() => (Outcome)MemberwiseClone();
     }
 
-    /// <summary>A page as it's written, which is sentence ids and nothing else. It's what's saved and what's sent, and what it comes to is <see cref="Scribe"/>'s business, so a change to a sentence reaches every book there is.</summary>
+    /// <summary>
+    /// A page as it's written, which is sentence ids. It's what's saved and what's sent, and what it comes to is <see cref="Scribe"/>'s business, so a change to a sentence reaches every book there is. Its stickers are items
+    /// of their own, held by the item the page belongs to, and are only here once <see cref="Scribe.Bind"/> has gathered them, or on what's already written.
+    /// </summary>
     public sealed class Page
     {
         public PageKind Kind { get; set; }
@@ -39,19 +44,25 @@ namespace Dino_Defenders.Books
         public string Shape { get; set; } = Sentences.PlainShape;
         public string Timing { get; set; } = Sentences.PlainTiming;
 
-        public List<string> Clauses { get; set; } = new();
+        [JsonIgnore]
+        public List<Sticker> Stickers { get; set; } = new();
+
         public List<Outcome> Outcomes { get; set; } = new();
+
+        /// <summary>What a page said before stickers, which only a save that old has. See <see cref="Progression.SaveGame"/>.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<string>? Clauses { get; set; }
 
         public Page Copy()
         {
             var page = (Page)MemberwiseClone();
-            page.Clauses = new List<string>(Clauses);
+            page.Stickers = Stickers.Select(sticker => sticker.Copy()).ToList();
             page.Outcomes = Outcomes.Select(outcome => outcome.Copy()).ToList();
             return page;
         }
     }
 
-    /// <summary>What's in a book. It belongs to an <see cref="Progression.Item"/>, which is where its name and its look are, and it only ever changes as a whole: see <see cref="Progression.HeroState.Write"/>.</summary>
+    /// <summary>A book as it reads: its pages in order, with what's stuck on them. A hero's is worked out from their items by <see cref="Scribe.Bind"/>, and what's on <see cref="Shelf"/> is only ever this.</summary>
     public sealed class Book
     {
         public List<Page> Pages { get; set; } = new();
