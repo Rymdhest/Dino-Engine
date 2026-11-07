@@ -38,6 +38,8 @@ namespace Dino_Defenders.Tooltips
 
         public static string Degrees(float radians) => Whole(radians * 180f / MathF.PI) + "°";
 
+        public static string Gold(int amount) => amount.ToString(CultureInfo.InvariantCulture) + " Gold";
+
         public static string Range(float low, float high) => Amount(low) == Amount(high) ? Amount(low) : Amount(low) + To + Amount(high);
 
         public static string PercentRange(float low, float high) => N(low * 100f) + To + N(high * 100f) + "%";

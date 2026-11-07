@@ -16,8 +16,8 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 namespace Dino_Defenders.UI
 {
     /// <summary>
-    /// What is always on screen, kept to the edges so the land stays the picture: health and flasks, the abilities, what the
-    /// chronicle asks for next, and the words and numbers that come off the world itself.
+    /// What is always on screen, kept to the edges so the land stays the picture: how far the hero has come, what the chronicle
+    /// asks for next, and the words and numbers that come off the world itself. Health and Mana are on the <see cref="ActionBar"/>.
     /// </summary>
     internal sealed class Hud : GuiElement
     {
@@ -25,6 +25,13 @@ namespace Dino_Defenders.UI
         private const float BannerFade = 0.7f;
         private const float LogLife = 8f;
         private const float BossRange = 70f;
+        private const float OverHead = 5.6f;        // Metres above the hero's feet, where everyone else's health is.
+        private const float OverWidth = 96f;
+        private const float OverHealth = 9f;
+        private const float OverMana = 5f;
+
+        /// <summary>How much of the top of the Health bar is Barrier's, wherever it's shown. Anything written on the bar goes under it, as it's too pale to read over.</summary>
+        public const float BarrierHeight = 3f;
 
         private static readonly BitMask EnemyMask = new BitMask(typeof(EnemyComponent), typeof(HealthComponent), typeof(PositionComponent));
         private static readonly BitMask HeroMask = new BitMask(typeof(HeroComponent), typeof(HealthComponent), typeof(PositionComponent));
@@ -79,9 +86,10 @@ namespace Dino_Defenders.UI
 
             DrawEnemies(draw, session, screen);
             DrawCompanions(draw, session, screen);
+            DrawOverHero(draw, session, screen);
             DrawFloatingTexts(draw, session, screen);
             DrawGuidance(draw, session, screen);
-            DrawVitals(draw, session, screen);
+            DrawStanding(draw, session, screen);
             DrawChronicle(draw, session, screen);
             DrawLog(draw, session, screen);
             DrawBanner(draw, session, screen);
@@ -186,6 +194,49 @@ namespace Dino_Defenders.UI
             }
         }
 
+        // The pools again where the eye already is. It goes by what's drawn and not by the ground, as the hero isn't always standing on it.
+        private void DrawOverHero(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            if (!InterfaceSettings.Load().PoolsOverHero || session.Health <= 0f) return;
+
+            ECSWorld world = Engine.Instance!.world;
+            if (!session.Player.IsValid() || !world.TryGetEntityLocation(session.Player, out _, out _)) return;
+
+            Vector3 position = world.GetEntityView(session.Player).Get<PositionComponent>().value;
+            if (!Project(position + Vector3.UnitY * OverHead, screen, out Vector2 at)) return;
+
+            // They stand on that point, so that they stay off the head however far out the camera is.
+            GuiRect health = new GuiRect(at.X - OverWidth * 0.5f, at.Y - OverMana - 1f - OverHealth, OverWidth, OverHealth);
+            DrawPools(draw, session, health, new GuiRect(health.X, health.Bottom + 1f, OverWidth, OverMana));
+        }
+
+        /// <summary>Health with Barrier along the top of it, and Mana, wherever they're being shown. The numbers are up to whatever's showing them, as not everything has room.</summary>
+        public static void DrawPools(GuiDrawList draw, GameSession session, GuiRect health, GuiRect mana)
+        {
+            ActorSheet sheet = session.Sheet;
+
+            float life = Math.Clamp(session.Health / sheet.MaxHealth, 0f, 1f);
+            draw.AddRect(health, GuiColors.Rgba(0, 0, 0, 170), 2f, 1f, GuiColors.Rgba(120, 96, 58));
+            draw.AddRect(new GuiRect(health.X + 1f, health.Y + 1f, (health.Width - 2f) * life, health.Height - 2f), Ui.Life, 1f);
+
+            // What's owed shows as what's about to go.
+            if (session.Debt > 0f)
+            {
+                float owed = Math.Clamp(session.Debt / sheet.MaxHealth, 0f, life);
+                draw.AddRect(new GuiRect(health.X + 1f + (health.Width - 2f) * (life - owed), health.Y + 1f, (health.Width - 2f) * owed, health.Height - 2f), Ui.Owed, 1f);
+            }
+
+            if (session.Barrier > 0f)
+            {
+                float shield = Math.Clamp(session.Barrier / MathF.Max(sheet.MaxBarrier, session.Barrier), 0f, 1f);
+                draw.AddRect(new GuiRect(health.X + 1f, health.Y + 1f, (health.Width - 2f) * shield, BarrierHeight), Ui.Barrier, 1f);
+            }
+
+            float pool = Math.Clamp(session.Sim.Mana / MathF.Max(sheet.MaxMana, 1f), 0f, 1f);
+            draw.AddRect(mana, GuiColors.Rgba(0, 0, 0, 170), 2f, 1f, GuiColors.Rgba(120, 96, 58));
+            draw.AddRect(new GuiRect(mana.X + 1f, mana.Y + 1f, (mana.Width - 2f) * pool, mana.Height - 2f), Ui.Mana, 1f);
+        }
+
         private void DrawConnection(GuiDrawList draw, GameSession session)
         {
             GameClient client = session.Client;
@@ -247,53 +298,25 @@ namespace Dino_Defenders.UI
             Ui.Text(Context!, draw, label, 13f, new GuiRect(back.X - 60f, back.Y - direction.Y * -14f - 9f, 120f, 18f), Ui.Parchment, Alignment.Center);
         }
 
-        private void DrawVitals(GuiDrawList draw, GameSession session, GuiRect screen)
+        private void DrawStanding(GuiDrawList draw, GameSession session, GuiRect screen)
         {
             HeroState hero = session.Hero;
             float width = 300f;
-            ActorSheet sheet = session.Sheet;
-            GuiRect bar = new GuiRect(Margin, screen.Height - Margin - 50f, width, 16f);
+            GuiRect experience = new GuiRect(Margin, screen.Height - Margin - 4f, width, 4f);
+            GuiRect above = new GuiRect(Margin, experience.Y - 26f, width, 22f);
 
-            float life = Math.Clamp(session.Health / sheet.MaxHealth, 0f, 1f);
-            draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 170), 2f, 1f, GuiColors.Rgba(120, 96, 58));
-            draw.AddRect(new GuiRect(bar.X + 1f, bar.Y + 1f, (bar.Width - 2f) * life, bar.Height - 2f), Ui.Life, 1f);
+            DrawBuffs(draw, session, new GuiRect(above.X, above.Y - 21f, width, 18f));
+            Shade(draw, above);
 
-            // What's owed shows as what's about to go.
-            if (session.Debt > 0f)
-            {
-                float owed = Math.Clamp(session.Debt / sheet.MaxHealth, 0f, life);
-                draw.AddRect(new GuiRect(bar.X + 1f + (bar.Width - 2f) * (life - owed), bar.Y + 1f, (bar.Width - 2f) * owed, bar.Height - 2f), GuiColors.Rgba(70, 12, 12), 1f);
-            }
-
-            if (session.Barrier > 0f)
-            {
-                float shield = Math.Clamp(session.Barrier / MathF.Max(sheet.MaxBarrier, session.Barrier), 0f, 1f);
-                draw.AddRect(new GuiRect(bar.X + 1f, bar.Y + 1f, (bar.Width - 2f) * shield, 4f), GuiColors.Rgba(180, 220, 240), 1f);
-            }
-
-            string reading = session.Barrier > 0f ? $"{MathF.Max(session.Health, 0f):0} / {sheet.MaxHealth:0}  +{session.Barrier:0}" : $"{MathF.Max(session.Health, 0f):0} / {sheet.MaxHealth:0}";
-            Ui.Text(Context!, draw, reading, 12.5f, bar, Ui.Parchment, Alignment.Center);
-
-            GuiRect mana = new GuiRect(bar.X, bar.Bottom + 3f, width, 12f);
-            float pool = Math.Clamp(session.Sim.Mana / MathF.Max(sheet.MaxMana, 1f), 0f, 1f);
-            draw.AddRect(mana, GuiColors.Rgba(0, 0, 0, 170), 2f, 1f, GuiColors.Rgba(120, 96, 58));
-            draw.AddRect(new GuiRect(mana.X + 1f, mana.Y + 1f, (mana.Width - 2f) * pool, mana.Height - 2f), GuiColors.Rgba(44, 84, 170), 1f);
-            Ui.Text(Context!, draw, $"{session.Sim.Mana:0} / {sheet.MaxMana:0}", 11f, mana, Ui.Parchment, Alignment.Center);
-
-            DrawBuffs(draw, session, new GuiRect(bar.X, bar.Y - 46f, width, 18f));
-
-            GuiRect experience = new GuiRect(bar.X, mana.Bottom + 4f, width, 4f);
             draw.AddRect(experience, GuiColors.Rgba(0, 0, 0, 170));
             float gained = hero.Level >= HeroState.MaxLevel ? 1f : Math.Clamp((float)hero.Experience / hero.ExperienceToNext, 0f, 1f);
             draw.AddRect(new GuiRect(experience.X, experience.Y, experience.Width * gained, experience.Height), Ui.Experience);
 
-            GuiRect above = new GuiRect(bar.X, bar.Y - 25f, width, 22f);
-            Shade(draw, above);
             Ui.Text(Context!, draw, $"Level {hero.Level}", 16f, above, Ui.Gold);
             Ui.Text(Context!, draw, $"{hero.Gold} gold", 14f, above, Ui.Parchment, Alignment.End);
             if (hero.UnspentPoints > 0)
             {
-                Ui.Text(Context!, draw, $"{hero.UnspentPoints} to spend  [{Bindings.Label(GameAction.Talents)}]", 13f, new GuiRect(bar.Right + 12f, bar.Y, 160f, 16f), Ui.Gold);
+                Ui.Text(Context!, draw, $"{hero.UnspentPoints} to spend  [{Bindings.Label(GameAction.Talents)}]", 13f, above, Ui.Gold, Alignment.Center);
             }
         }
 
@@ -361,7 +384,7 @@ namespace Dino_Defenders.UI
 
         private void DrawLog(GuiDrawList draw, GameSession session, GuiRect screen)
         {
-            float y = screen.Height - Margin - 92f;
+            float y = screen.Height - Margin - 54f;
             for (int i = session.Log.Count - 1; i >= 0; i--)
             {
                 LogLine line = session.Log[i];

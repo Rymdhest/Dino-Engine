@@ -26,10 +26,67 @@ namespace Dino_Defenders.UI
         public static readonly Colour Rubric = GuiColors.Rgba(136, 34, 18);
         public static readonly Colour Lit = GuiColors.Rgba(120, 80, 30, 46);
         public static readonly Colour Slip = GuiColors.Rgba(240, 228, 198);
+        public static readonly Colour Number = GuiColors.Rgba(20, 12, 6);
+        public static readonly Colour Term = GuiColors.Rgba(26, 62, 128);
 
-        public static void Write(GuiContext context, GuiDrawList draw, string text, float size, GuiRect rect, Colour colour, Alignment horizontal = Alignment.Start, Alignment vertical = Alignment.Center)
+        /// <summary>A card on a page, and anything else written on one.</summary>
+        public static readonly Inks Written = new(Ink, Number, Pale, Rubric, Term);
+
+        /// <summary>What's written in a box that's been filled in.</summary>
+        public static readonly Inks OnRubric = new(Slip, Slip, Slip, Slip, Slip);
+
+        /// <summary>One line, with what means something marked and able to be rested on, as anywhere else: see <see cref="Ui.Rich"/>.</summary>
+        /// <param name="spots">Gets where each marked word ended up, which has to be handed to <see cref="TipLayer.Placed"/>.</param>
+        /// <param name="links">Cards whose names in this line open them.</param>
+        /// <param name="inks">What it's written in, if it's not on the page itself.</param>
+        public static void Mark(GuiContext context, GuiDrawList draw, string text, float size, GuiRect rect, Colour colour, List<HotSpot> spots, IReadOnlyList<Card>? links = null, Inks? inks = null)
         {
-            GuiText.Draw(context, draw, text, Ui.Face, size, rect, colour, horizontal, vertical);
+            float height = context.GetFont(Ui.Face, size).LineHeight / context.PixelScale;
+            Ui.Rich(context, draw, text, size, rect.X, rect.Y + (rect.Height - height) * 0.5f, colour, links ?? Array.Empty<Card>(), spots, inks ?? Written);
+        }
+    }
+
+    /// <summary>A line on a page that isn't what's written there, and is read the same way.</summary>
+    internal sealed class PageLine : GuiElement
+    {
+        private readonly float _size;
+        private readonly Colour _colour;
+        private readonly List<HotSpot> _spots = new();
+        private string _text;
+
+        public PageLine(string text, float size, Colour colour)
+        {
+            _text = text;
+            _size = size;
+            _colour = colour;
+            HitTest = HitTestMode.PassThrough;
+        }
+
+        public string Text
+        {
+            get => _text;
+            set
+            {
+                if (value == _text) return;
+                _text = value;
+                InvalidateLayout();
+            }
+        }
+
+        protected override Vector2 MeasureContent(Vector2 reference, Vector2 available)
+        {
+            Vector2 children = base.MeasureContent(reference, available);
+            return Context == null ? children : Vector2.ComponentMax(children, Context.MeasureText(_text, Ui.Face, _size));
+        }
+
+        protected override void OnDraw(GuiDrawList draw)
+        {
+            base.OnDraw(draw);
+            if (Context == null) return;
+
+            _spots.Clear();
+            Vellum.Mark(Context, draw, _text, _size, Bounds, _colour, _spots);
+            GameUi.Current.Tips.Placed(_spots, Bounds);
         }
     }
 
@@ -47,8 +104,9 @@ namespace Dino_Defenders.UI
 
         private readonly BookPanel _panel;
         private readonly List<(GuiRect rect, PagePlace place)> _spots = new();
-        private readonly List<(string word, GuiRect rect)> _words = new();
+        private readonly List<(string text, float x, float y)> _runs = new();
         private readonly List<GuiRect> _boxes = new();
+        private readonly List<HotSpot> _marked = new();
         private bool _over;
 
         public PageView(BookPanel panel)
@@ -77,29 +135,39 @@ namespace Dino_Defenders.UI
             float space = GuiText.MeasureWidth(Context, " ", Ui.Face, Size);
             float pad = place != null ? Pad : 0f;
 
-            _words.Clear();
+            _runs.Clear();
             _boxes.Clear();
             float from = x;
             float end = x;
             bool empty = true;
             x += pad;
+            float runFrom = x;
+            int runStart = 0;
+            int reached = 0;
             foreach (string word in text.Split(' '))
             {
                 float width = GuiText.MeasureWidth(Context, word, Ui.Face, Size);
                 if (x + width + pad > right && x > left + pad)
                 {
-                    if (!empty) _boxes.Add(new GuiRect(from, y + 2f, end + pad - from, LineHeight - 4f));
+                    if (!empty)
+                    {
+                        _boxes.Add(new GuiRect(from, y + 2f, end + pad - from, LineHeight - 4f));
+                        _runs.Add((text.Substring(runStart, reached - 1 - runStart), runFrom, y));
+                    }
                     from = left;
                     x = left + pad;
                     y += LineHeight;
                     empty = true;
+                    runFrom = x;
+                    runStart = reached;
                 }
-                _words.Add((word, new GuiRect(x, y + 1f, width, LineHeight)));
                 end = x + width;
                 x = end + space;
+                reached += word.Length + 1;
                 empty = false;
             }
             _boxes.Add(new GuiRect(from, y + 2f, end + pad - from, LineHeight - 4f));
+            _runs.Add((text.Substring(runStart), runFrom, y));
             x = end + pad + space;
 
             bool open = place != null && place == _panel.Open;
@@ -123,7 +191,7 @@ namespace Dino_Defenders.UI
             }
 
             Colour colour = open ? Vellum.Slip : faint && !over ? Vellum.Pale : place != null ? Vellum.Rubric : Vellum.Ink;
-            foreach ((string word, GuiRect rect) in _words) Vellum.Write(Context, draw, word, Size, rect, colour);
+            foreach ((string run, float runX, float runY) in _runs) Vellum.Mark(Context, draw, run, Size, new GuiRect(runX, runY + 1f, right - runX, LineHeight), colour, _marked, _panel.Links, open ? Vellum.OnRubric : Vellum.Written);
         }
 
         protected override void OnDraw(GuiDrawList draw)
@@ -133,9 +201,12 @@ namespace Dino_Defenders.UI
             Cursor = _over ? MouseCursor.Hand : null;
             _over = false;
             if (Context == null) return;
+
+            _marked.Clear();
+            GameUi.Current.Tips.Placed(_marked, Bounds);
             if (_panel.Page is not Page page)
             {
-                Vellum.Write(Context, draw, "Drag a Page into this Book.", Size, new GuiRect(Bounds.X, Bounds.Y, Bounds.Width, LineHeight), Vellum.Pale);
+                Vellum.Mark(Context, draw, "Drag a Page into this Book.", Size, new GuiRect(Bounds.X, Bounds.Y, Bounds.Width, LineHeight), Vellum.Pale, _marked);
                 return;
             }
 
@@ -184,14 +255,20 @@ namespace Dino_Defenders.UI
         private readonly string _words;
         private readonly string _trade;
         private readonly bool _chosen;
+        private readonly IReadOnlyList<Card> _links;
+        private readonly List<HotSpot> _spots;
 
         public readonly float RowHeight;
 
-        public ChoiceRow(string words, string trade, bool chosen, Action pressed)
+        /// <param name="links">Cards whose names in these words open them.</param>
+        /// <param name="spots">Gets where each marked word ended up.</param>
+        public ChoiceRow(string words, string trade, bool chosen, IReadOnlyList<Card> links, List<HotSpot> spots, Action pressed)
         {
             _words = words;
             _trade = trade;
             _chosen = chosen;
+            _links = links;
+            _spots = spots;
             RowHeight = trade.Length > 0 ? 42f : 26f;
             Width = UIValue.Fill;
             Height = RowHeight;
@@ -210,8 +287,8 @@ namespace Dino_Defenders.UI
 
             float x = Bounds.X + 8f;
             float width = Bounds.Width - 12f;
-            Vellum.Write(Context, draw, _words, WordSize, new GuiRect(x, Bounds.Y + 3f, width, 20f), _chosen ? Vellum.Rubric : Vellum.Ink);
-            if (_trade.Length > 0) Vellum.Write(Context, draw, _trade, TradeSize, new GuiRect(x, Bounds.Y + 23f, width, 16f), Vellum.Pale);
+            Vellum.Mark(Context, draw, _words, WordSize, new GuiRect(x, Bounds.Y + 3f, width, 20f), _chosen ? Vellum.Rubric : Vellum.Ink, _spots, _links);
+            if (_trade.Length > 0) Vellum.Mark(Context, draw, _trade, TradeSize, new GuiRect(x, Bounds.Y + 23f, width, 16f), Vellum.Pale, _spots);
         }
     }
 
@@ -223,7 +300,12 @@ namespace Dino_Defenders.UI
         private const float RowGap = 2f;
         private const float Heading = 24f;
 
-        private readonly Label _title;
+        private static readonly List<HotSpot> Nothing = new();
+
+        private readonly PageLine _title;
+
+        /// <summary>Where what's marked in the rows ended up, for them to add to.</summary>
+        public readonly List<HotSpot> Spots = new();
 
         public readonly ScrollPanel Rows;
 
@@ -238,9 +320,18 @@ namespace Dino_Defenders.UI
             Visible = false;
 
             var body = Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Fill });
-            _title = body.Add(new Label("") { Font = Ui.Face, FontSize = 14f, Color = Vellum.Pale, Height = Heading - 2f });
+            _title = body.Add(new PageLine("", 14f, Vellum.Pale) { Height = Heading - 2f });
             Rows = body.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
             Rows.Content.Layout = new StackLayout(Orientation.Vertical, RowGap);
+        }
+
+        // It lies over a page, and what's on that page can't be rested on through it.
+        protected override void OnDraw(GuiDrawList draw)
+        {
+            base.OnDraw(draw);
+            Spots.Clear();
+            GameUi.Current.Tips.Placed(Nothing, Bounds);
+            GameUi.Current.Tips.Placed(Spots, Rows.Bounds);
         }
 
         /// <summary>Lays it over a page, below what it's about if it fits there, and otherwise wherever there's more room.</summary>
@@ -274,6 +365,7 @@ namespace Dino_Defenders.UI
         private const float Cell = 38f;
 
         private readonly ItemPlace _place;
+        private readonly List<HotSpot> _spots = new();
 
         public StickerRow(HeroPanel hands, ItemPlace place)
         {
@@ -290,56 +382,10 @@ namespace Dino_Defenders.UI
 
             float x = Bounds.X + Cell + 8f;
             float width = Bounds.Width - Cell - 8f;
-            Vellum.Write(Context, draw, BookText.Good(sticker), 13f, new GuiRect(x, Bounds.Y + 1f, width, 18f), Vellum.Ink);
-            Vellum.Write(Context, draw, BookText.Bad(sticker), 13f, new GuiRect(x, Bounds.Y + 19f, width, 18f), Vellum.Rubric);
-        }
-    }
-
-    /// <summary>What a book comes to, read off its card, always, on the page for the whole of it. It's as tall as it's written, as a book of six pages has a lot to say.</summary>
-    internal sealed class Summary : GuiElement
-    {
-        private const float Size = 14f;
-        private const float RowHeight = 20f;
-
-        private readonly BookPanel _panel;
-
-        public Summary(BookPanel panel)
-        {
-            _panel = panel;
-            Width = UIValue.Fill;
-            Height = RowHeight;
-        }
-
-        protected override void OnDraw(GuiDrawList draw)
-        {
-            base.OnDraw(draw);
-            if (Context == null || _panel.Reading is not BookProfile book) return;
-
-            float y = Bounds.Y;
-            foreach (CardLine line in Cards.Book(book).Lines)
-            {
-                switch (line.Look)
-                {
-                    case LineLook.Gap:
-                        y += 8f;
-                        break;
-                    case LineLook.Row:
-                    case LineLook.Cell:
-                        var row = new GuiRect(Bounds.X, y, Bounds.Width, RowHeight);
-                        Vellum.Write(Context, draw, line.Text, Size, row, Vellum.Pale);
-                        Vellum.Write(Context, draw, line.Value, Size, row, Vellum.Ink, Alignment.End);
-                        y += RowHeight;
-                        break;
-                    default:
-                        foreach (string wrapped in Ui.Wrap(Context, line.Text, Size, Bounds.Width))
-                        {
-                            Vellum.Write(Context, draw, wrapped, Size, new GuiRect(Bounds.X, y, Bounds.Width, RowHeight), Vellum.Ink);
-                            y += RowHeight;
-                        }
-                        break;
-                }
-            }
-            if (MathF.Abs(Bounds.Height - (y - Bounds.Y)) > 0.5f) Height = y - Bounds.Y;
+            _spots.Clear();
+            Vellum.Mark(Context, draw, BookText.Good(sticker), 13f, new GuiRect(x, Bounds.Y + 1f, width, 18f), Vellum.Ink, _spots);
+            Vellum.Mark(Context, draw, BookText.Bad(sticker), 13f, new GuiRect(x, Bounds.Y + 19f, width, 18f), Vellum.Rubric, _spots);
+            GameUi.Current.Tips.Placed(_spots, Bounds);
         }
     }
 
@@ -359,15 +405,15 @@ namespace Dino_Defenders.UI
 
         private readonly HeroPanel _hands;
         private readonly TextBox _name;
-        private readonly Label _kind;
-        private readonly Label _numbers;
-        private readonly Label _where;
-        private readonly Label _whole;
-        private readonly Label _turnHint;
+        private readonly PageLine _kind;
+        private readonly PageLine _numbers;
+        private readonly PageLine _where;
+        private readonly PageLine _whole;
+        private readonly PageLine _turnHint;
         private readonly Button _next;
         private readonly Button _last;
         private readonly StackPanel _stickers;
-        private readonly Label _stickerHeading;
+        private readonly PageLine _stickerHeading;
         private readonly StackPanel _pages;
         private readonly GuiElement _sheet;
         private readonly ChoiceSlip _slip;
@@ -376,6 +422,7 @@ namespace Dino_Defenders.UI
         private int _turnedTo;
         private (int pages, int stickers, int turnedTo, ItemPlace place) _built = (-1, -1, -1, default);
         private bool _naming;
+        private Card? _summary;
 
         private static GameSession Session => GameSession.Current;
         private static HeroState Hero => Session.Hero;
@@ -405,8 +452,11 @@ namespace Dino_Defenders.UI
             }
         }
 
-        /// <summary>What it comes to, in this hero's hands, or nothing while there's nothing in it.</summary>
-        public BookProfile? Reading => GameSession.Current != null && Opened is Item item && item.Written() is Book book ? Session.Sheet.Preview(Scribe.Read(book, item.Name)) : null;
+        /// <summary>Whatever's named on this book's card opens from that name, on its pages as well.</summary>
+        public IReadOnlyList<Card> Links => _summary?.Attached ?? (IReadOnlyList<Card>)Array.Empty<Card>();
+
+        // What it comes to, in this hero's hands, or nothing while there's nothing in it.
+        private BookProfile? Reading => GameSession.Current != null && Opened is Item item && item.Written() is Book book ? Session.Sheet.Preview(Scribe.Read(book, item.Name)) : null;
 
         /// <summary>What's in a place, if there's a hero to ask.</summary>
         public Item? At(ItemPlace place) => GameSession.Current == null ? null : Hero.At(place);
@@ -447,19 +497,19 @@ namespace Dino_Defenders.UI
             _last = turning.Add(Ui.Action("<", () => Turn(-1)));
             _last.Width = 26f;
             _last.Height = 26f;
-            _where = turning.Add(new Label("") { Font = Ui.Face, FontSize = 16f, Color = Vellum.Rubric });
+            _where = turning.Add(new PageLine("", 16f, Vellum.Rubric));
             _next = turning.Add(Ui.Action(">", () => Turn(1)));
             _next.Width = 26f;
             _next.Height = 26f;
             turning.Add(new Spacer(width: UIValue.Fill));
-            _kind = turning.Add(new Label("") { Font = Ui.Face, FontSize = 14f, Color = Vellum.Pale });
+            _kind = turning.Add(new PageLine("", 14f, Vellum.Pale));
 
             left.Add(new Spacer(height: 2f));
             left.Add(new PageView(this));
 
-            _stickerHeading = left.Add(new Label("") { Font = Ui.Face, FontSize = 14f, Color = Vellum.Rubric });
+            _stickerHeading = left.Add(new PageLine("", 14f, Vellum.Rubric));
             _stickers = left.Add(new StackPanel(Orientation.Vertical, 3f) { Width = UIValue.Fill, Height = UIValue.Auto });
-            _numbers = left.Add(new Label("") { Font = Ui.Face, FontSize = 14f, Color = Vellum.Ink });
+            _numbers = left.Add(new PageLine("", 14f, Vellum.Ink));
 
             var right = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill, Padding = new Thickness(20f, 14f) });
             right.BackgroundColor = Vellum.Sheet;
@@ -468,16 +518,16 @@ namespace Dino_Defenders.UI
             right.HitTest = HitTestMode.Block;
             right.Clicked += _ => PutDown();
 
-            _whole = right.Add(new Label("") { Font = Ui.Face, FontSize = 16f, Color = Vellum.Rubric, Height = 26f });
+            _whole = right.Add(new PageLine("", 16f, Vellum.Rubric) { Height = 26f });
             _name = right.Add(new TextBox("", "Name this book") { Width = UIValue.Fill, Height = 30f, MaxLength = HeroState.LongestBookName });
             _name.BackgroundColor = GuiColors.Rgba(60, 44, 30, 235);
             _name.Submitted += _ => _name.Unfocus();
 
             _pages = right.Add(new StackPanel(Orientation.Horizontal, 4f) { Width = UIValue.Fill, Height = PageCell });
-            _turnHint = right.Add(new Label("Right click a Page to turn to it") { Font = Ui.Face, FontSize = 12.5f, Color = Vellum.Pale });
+            _turnHint = right.Add(new PageLine("Right click a Page to turn to it", 12.5f, Vellum.Pale));
 
             var reading = right.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
-            reading.Content.Add(new Summary(this));
+            reading.Content.Add(new CardView(() => _summary, Vellum.Written, reading));
 
             _slip = Add(new ChoiceSlip());
         }
@@ -521,7 +571,9 @@ namespace Dino_Defenders.UI
             _kind.Text = shown?.Page is Page page ? $"{page.Kind} Page" : "";
             _stickerHeading.Text = shown == null ? "" : shown.Places == 0 ? "No room for Stickers" : "Stickers";
 
-            if (Reading is BookProfile reading && PageIndex < reading.Pages.Length)
+            BookProfile? written = Reading;
+            _summary = written != null ? Summary(written) : null;
+            if (written is BookProfile reading && PageIndex < reading.Pages.Length)
             {
                 PageProfile profile = reading.Pages[PageIndex];
                 string size = profile.Page.Kind == PageKind.Projectile ? $"Projectile Speed {Say.Amount(profile.Speed)} m a second" : profile.Page.Shape == AreaShape.Circle ? $"Radius {Say.Metres(profile.Length)}" : $"Reach {Say.Metres(profile.Length)}";
@@ -535,6 +587,15 @@ namespace Dino_Defenders.UI
         {
             base.OnDrawOverlay(draw);
             _hands.DrawOver(draw);
+        }
+
+        // What a book comes to is its card, always, on the page for the whole of it. What it's called and what it is are already at the top of that page.
+        private static Card Summary(BookProfile book)
+        {
+            Card card = Cards.Book(book);
+            card.Title = "";
+            card.Kind = "";
+            return card;
         }
 
         // The places change with what's open, and a place is only a number, so nothing is rebuilt but when there are more or fewer of them or they're somewhere else.
@@ -653,14 +714,14 @@ namespace Dino_Defenders.UI
             string? chosen = Current(page, open);
             if (open.Blank == Blank.Within && chosen != null || open.Blank == Blank.Deed && open.Outcome < page.Outcomes.Count && page.Outcomes.Count > 1)
             {
-                _slip.Rows.Content.Add(new ChoiceRow("Strike this out", "", false, () => Strike(open)));
+                _slip.Rows.Content.Add(new ChoiceRow("Strike this out", "", false, Array.Empty<Card>(), _slip.Spots, () => Strike(open)));
             }
 
             foreach (Sentence sentence in Sentences.For(open.Blank))
             {
                 if (!Fits(sentence, page)) continue;
                 Sentence offered = sentence;
-                _slip.Rows.Content.Add(new ChoiceRow(sentence.Words, string.Join(", ", BookText.Trade(sentence.Weights)), sentence.Id == chosen, () => Choose(offered)));
+                _slip.Rows.Content.Add(new ChoiceRow(sentence.Words, string.Join(", ", BookText.Trade(sentence.Weights)), sentence.Id == chosen, Cards.Sentence(sentence).Attached, _slip.Spots, () => Choose(offered)));
             }
         }
 
@@ -801,14 +862,18 @@ namespace Dino_Defenders.UI
     }
 
     /// <summary>
-    /// The bar, with dodging and the rest beside it. Six places take a book each, and those are real places: what's dragged here lands the same way it would anywhere on the hero. It stops the mouse only while the pack is
-    /// open, as otherwise the mouse is what's aimed with, but for a right click on a book: see <see cref="BarCell"/>.
+    /// The bar, with dodging and the rest beside it, and Health and Mana along the top of it, as what's left and what it can pay for are read together. Six places take a book each, and those are real places: what's dragged
+    /// here lands the same way it would anywhere on the hero. It stops the mouse only while the pack is open, as otherwise the mouse is what's aimed with, but for a right click on a book: see <see cref="BarCell"/>.
     /// </summary>
     internal sealed class ActionBar : GuiElement
     {
         private const float Size = 62f;
         private const float Gap = 8f;
         private const float Bottom = 26f;
+        private const float HealthHeight = 16f;
+        private const float ManaHeight = 12f;
+        private const float PoolGap = 3f;
+        private const float PoolsAbove = 6f;
 
         private readonly BarCell[] _cells = new BarCell[HeroState.BarSlots];
 
@@ -847,6 +912,8 @@ namespace Dino_Defenders.UI
         {
             base.OnDrawOverlay(draw);
             if (Context == null || GameSession.Current is not GameSession session) return;
+
+            DrawPools(draw, session);
 
             HeroSimState sim = session.Sim;
             for (int slot = 0; slot < _cells.Length; slot++)
@@ -906,6 +973,20 @@ namespace Dino_Defenders.UI
                 if (Resting(Context, slot)) GameUi.Current.Tips.Show(ability.Card, slot, above: true);
                 x += Size + Gap;
             }
+        }
+
+        // As wide as the bar, whatever's on it. They're only drawn, so the mouse goes through them to the world.
+        private void DrawPools(GuiDrawList draw, GameSession session)
+        {
+            ActorSheet sheet = session.Sheet;
+            GuiRect mana = new GuiRect(Bounds.X, Bounds.Y - PoolsAbove - ManaHeight, Bounds.Width, ManaHeight);
+            GuiRect health = new GuiRect(Bounds.X, mana.Y - PoolGap - HealthHeight, Bounds.Width, HealthHeight);
+            Hud.DrawPools(draw, session, health, mana);
+
+            string reading = session.Barrier > 0f ? $"{MathF.Max(session.Health, 0f):0} / {sheet.MaxHealth:0}  +{session.Barrier:0}" : $"{MathF.Max(session.Health, 0f):0} / {sheet.MaxHealth:0}";
+            float below = Hud.BarrierHeight + 1f;
+            Ui.Text(Context!, draw, reading, 12.5f, new GuiRect(health.X, health.Y + below, health.Width, health.Height - below), Ui.Parchment, Alignment.Center);
+            Ui.Text(Context!, draw, $"{session.Sim.Mana:0} / {sheet.MaxMana:0}", 11f, mana, Ui.Parchment, Alignment.Center);
         }
 
         protected override void OnUpdate(float deltaTime)

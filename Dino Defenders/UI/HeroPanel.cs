@@ -824,12 +824,11 @@ namespace Dino_Defenders.UI
             Item? item = ItemAt(spot) ?? (spot == new Spot(Shelf.Worn, (int)WornSlot.OffHand) ? TwoHandedHeld() : null);
             if (item == null) return;
 
-            string? price = null;
-            if (_merchant != null) price = spot.Shelf switch
+            string? price = spot.Shelf switch
             {
-                Shelf.Stock => $"Costs {item.BuyValue} gold",
-                Shelf.Sold => $"Buy back for {item.SellValue} gold",
-                _ => $"Sells for {item.SellValue} gold",
+                Shelf.Stock => Cards.Costs(item),
+                Shelf.Sold => Cards.BuyBack(item),
+                _ => null,
             };
             Ui.DrawTooltip(Hero, item, _lookingFrom, price, compare: spot.Shelf != Shelf.Worn, loose: true);
         }

@@ -269,7 +269,13 @@ namespace Dino_BuildLab
             Item ring = Ring(), helm = Thing(ItemSlot.Head), stays = Ring();
             HeroState hero = Laid((4, ring), (9, stays), (12, helm));
 
+            static IEnumerable<string> Prices(Card card) => card.Lines.Where(line => line.Look == LineLook.Price).Select(line => line.Text);
+            string says = Cards.Sells(ring);
+            report.Check("Every item's card says what it would sell for", Prices(Cards.Priced(ring, null, Cards.KindOf(ring))).SequenceEqual(new[] { says }));
+            report.Check("And on a merchant's table what it costs, instead of that", Prices(Cards.Priced(ring, null, Cards.KindOf(ring), Cards.Costs(ring))).SequenceEqual(new[] { Cards.Costs(ring) }));
             report.Check("Selling pays what it says", table.Sell(hero, ItemPlace.Cell(4)) && hero.Gold == ring.SellValue);
+            report.Check("Which is what the card said, to the coin", says == $"Sells for {Say.Gold(hero.Gold)}", says);
+            report.Check("And what it costs to buy back", Cards.BuyBack(ring) == $"Buy back for {Say.Gold(hero.Gold)}", Cards.BuyBack(ring));
             report.Check("And leaves a gap, with nothing moving into it", hero.Inventory[4] == null && hero.Inventory[9] == stays && hero.Inventory[12] == helm);
             report.Check("And it's on the table to be bought back", table.Sold[0] == ring);
 
@@ -364,6 +370,7 @@ namespace Dino_BuildLab
             spring.Name = "Round Shield of the Spring";
             report.Check("Words are found from their start, so a ring isn't anything of the Spring", Finds(spring, "spr") && !Finds(spring, "ring") && Finds(Found("Ring", Rarity.Magic), "ring") && Finds(sword, "resist"));
             report.Check("A unique is both things it can be called", Finds(unique, "unique") && Finds(unique, "legendary"));
+            report.Check("But not what it's worth, as everything has a price and \"gold\" would find the whole pack", !Finds(sword, "gold") && !Finds(ring, "sells") && !Finds(unique, "gold"));
             report.Check("And anything a player can read on a card", Cards.Item(sword, null, Cards.KindOf(sword)).Words().Where(word => word.Length > 0).All(word => ItemSearch.Finds(sword, ItemSearch.Words(word))));
         }
 

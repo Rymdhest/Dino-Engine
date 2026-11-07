@@ -62,6 +62,8 @@ Ctrl is also what a click in a pack is held down with, and a held card stops the
 
 Holding Alt sets whatever an item would replace beside it, in full (`alongside`), to read the two against each other: both rings for a ring, and both hands for something that needs two. Those are only there to be read, and have nothing to rest on.
 
+**Words in a panel read the same way.** Whatever shows the rules somewhere other than a card hands its marked words to `TipLayer.Placed` every frame, with the rect they're in: a `CardView` for a whole card, and `Vellum.Mark` and `PageLine` for anything written on a page of a book, where plain text would be words nobody can look up. There can be any number of these, and what's asked last is on top, so something lying over them places an empty list over the whole of itself, or what's under it can be rested on through it (`ChoiceSlip`). `Inks` is what it's all written in, as a page is dark on light, and marked words there are blue, as red is what was chosen.
+
 **Say it plainly.** A definition is a line or two, in the words any ARPG would use: "Reduces Physical Hits", not an explanation of how the sum goes. Short and ordinary beats complete. What's left out of a definition can be on a stat's card, in `Details`, or in the numbers themselves, and `check` fails past `LongestTerm` and `MostLinesOnACard`.
 
 ## Terms
@@ -72,6 +74,7 @@ A `Basic` term is plain enough to leave unmarked: Health, Cooldown, Radius. Ever
 
 A card is what's wanted at a glance, and `Details` is the rest.
 
+- **An item's card** is `Cards.Priced`, which ends with what a merchant would pay for it, or on a merchant's table what it costs. That's apart from `Cards.Item` on purpose: `ItemSearch` reads that one, and everything has a price, so with it there "gold" would find the whole pack.
 - **A book's card** has what each page deals, how it's used, what it can leave behind and what it has of its own, and nothing it doesn't really do. A Hit with no fire in it can't Burn, so no Chance to Burn is shown, whatever the sheet says: that's `AilmentRules.Causes`. `PageCells` goes by kind of page, and says what `Combat` reads for that kind.
 - **Its `Details`** have what the rest of the build gives it, the rules that touch it, the reactions it can set off, and `Breakdown`, which is everything between what it starts from and what it deals. A hero's Health on Kill is not a fact about Bone Spear, so it never goes on the card itself.
 - **A stat** shows its total, what it does, what that means against a normal enemy, then the sum: all the flat added up, all the increased and reduced added up, each more and less on its own line, and the sum written out. What scales with something is under `Scaling`, and what only counts for some books or at some times is under `Situational`, as neither is part of the sum.

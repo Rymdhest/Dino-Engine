@@ -76,7 +76,7 @@ namespace Dino_Defenders.UI
     }
 
     /// <summary>
-    /// Everything a player can set, in three parts. Whatever's changed happens at once and is kept at once, so there's nothing to confirm. A new part is a word on the rail and a panel of rows, and a new setting a row.
+    /// Everything a player can set, in four parts. Whatever's changed happens at once and is kept at once, so there's nothing to confirm. A new part is a word on the rail and a panel of rows, and a new setting a row.
     /// While a key is being listened for everything else is out of reach, as a click may be what's being given.
     /// </summary>
     internal sealed class SettingsPage : MenuPage
@@ -99,8 +99,8 @@ namespace Dino_Defenders.UI
         public SettingsPage()
             : base("Settings")
         {
-            string[] names = { "Graphics", "Sound", "Input" };
-            _parts = new[] { Graphics(), SoundPart(), Input() };
+            string[] names = { "Graphics", "Sound", "Interface", "Input" };
+            _parts = new[] { Graphics(), SoundPart(), InterfacePart(), Input() };
             _words = new MenuWord[names.Length];
             for (int i = 0; i < names.Length; i++)
             {
@@ -218,6 +218,16 @@ namespace Dino_Defenders.UI
             Row("Interface", () => sound.Interface, v => sound.Interface = v);
             part.Add(new Spacer(height: 10f));
             part.Add(new MenuRow("Headphones", new MenuToggle(() => sound.Headphones, on => sound.Change(() => sound.Headphones = on))));
+            return part;
+        }
+
+        // ---- Interface.
+
+        private static GuiElement InterfacePart()
+        {
+            InterfaceSettings shown = InterfaceSettings.Load();
+            GuiElement part = Part();
+            part.Add(new MenuRow("Health, Mana and Barrier over your hero", new MenuToggle(() => shown.PoolsOverHero, on => shown.Change(() => shown.PoolsOverHero = on))));
             return part;
         }
 

@@ -512,6 +512,24 @@ namespace Dino_Defenders.Tooltips
             return card;
         }
 
+        /// <summary>
+        /// An item's card as a player is shown it, with what it's worth at the end. This is apart from <see cref="Item"/> as that's what a search reads, and everything has a price: "gold" would find the whole pack.
+        /// </summary>
+        /// <param name="price">What it says instead of what it would sell for, on a merchant's table.</param>
+        public static Card Priced(Item item, ActorSheet? viewer, string kind, string? price = null)
+        {
+            Card card = Item(item, viewer, kind);
+            card.Gap();
+            card.Text(price ?? Sells(item), LineLook.Price);
+            return card;
+        }
+
+        public static string Sells(Item item) => $"Sells for {Gold(item.SellValue)}";
+
+        public static string Costs(Item item) => $"Costs {Gold(MerchantTable.PriceOf(item, buyingBack: false))}";
+
+        public static string BuyBack(Item item) => $"Buy back for {Gold(MerchantTable.PriceOf(item, buyingBack: true))}";
+
         // What's in a book is what it is, and it's that which is worth reading. How much room there is comes first, as that's what one is worth.
         private static Card Folio(Item item, ActorSheet? viewer, string kind)
         {

@@ -26,6 +26,9 @@ namespace Dino_Defenders.UI
         public static readonly Colour Gold = GuiColors.Rgba(214, 172, 92);
         public static readonly Colour Blood = GuiColors.Rgba(172, 40, 30);
         public static readonly Colour Life = GuiColors.Rgba(150, 34, 28);
+        public static readonly Colour Owed = GuiColors.Rgba(70, 12, 12);
+        public static readonly Colour Mana = GuiColors.Rgba(44, 84, 170);
+        public static readonly Colour Barrier = GuiColors.Rgba(180, 220, 240);
         public static readonly Colour Experience = GuiColors.Rgba(196, 158, 80);
         public static readonly Colour Good = GuiColors.Rgba(126, 190, 118);
 
@@ -67,8 +70,10 @@ namespace Dino_Defenders.UI
         /// <summary>One line of a tooltip, with each word that means something marked and each number standing out.</summary>
         /// <param name="links">Cards whose names in this line open them.</param>
         /// <param name="spots">Gets where each marked word ended up, so that it can be rested on.</param>
-        public static void Rich(GuiContext context, GuiDrawList draw, string text, float size, float x, float y, Colour colour, IReadOnlyList<Card> links, List<HotSpot> spots)
+        /// <param name="inks">What it's written in, if it's not on the dark of a card.</param>
+        public static void Rich(GuiContext context, GuiDrawList draw, string text, float size, float x, float y, Colour colour, IReadOnlyList<Card> links, List<HotSpot> spots, Inks? inks = null)
         {
+            Inks ink = inks ?? Inks.Card;
             Lexicon.Find(text, Marks);
             Hot.Clear();
             foreach (TermMark mark in Marks)
@@ -89,16 +94,16 @@ namespace Dino_Defenders.UI
             int at = 0;
             foreach ((int start, int length, Term? term, Card? card) in Hot)
             {
-                x = Numbered(context, draw, text, at, start, size, x, y, colour);
+                x = Numbered(context, draw, text, at, start, size, x, y, colour, ink.Number);
                 float from = x;
-                x = Piece(context, draw, text.Substring(start, length), size, x, y, TermInk);
-                spots.Add(new HotSpot(new GuiRect(from, y, x - from, size + 5f), term, card));
+                x = Piece(context, draw, text.Substring(start, length), size, x, y, ink.Term);
+                spots.Add(new HotSpot(new GuiRect(from, y, x - from, size + 5f), term, card, ink.Term));
                 at = start + length;
             }
-            Numbered(context, draw, text, at, text.Length, size, x, y, colour);
+            Numbered(context, draw, text, at, text.Length, size, x, y, colour, ink.Number);
         }
 
-        private static float Numbered(GuiContext context, GuiDrawList draw, string text, int start, int end, float size, float x, float y, Colour colour)
+        private static float Numbered(GuiContext context, GuiDrawList draw, string text, int start, int end, float size, float x, float y, Colour colour, Colour number)
         {
             int at = start;
             for (int i = start; i < end; i++)
@@ -109,7 +114,7 @@ namespace Dino_Defenders.UI
                 int last = i;
                 while (last + 1 < end && (char.IsDigit(text[last + 1]) || text[last + 1] is '.' or '%' or '\u2013')) last++;
                 x = Piece(context, draw, text.Substring(at, first - at), size, x, y, colour);
-                x = Piece(context, draw, text.Substring(first, last - first + 1), size, x, y, Bright);
+                x = Piece(context, draw, text.Substring(first, last - first + 1), size, x, y, number);
                 at = last + 1;
                 i = last;
             }
@@ -249,19 +254,14 @@ namespace Dino_Defenders.UI
 
         /// <summary>What something is, beside whatever's showing it, set against what's worn in its place. Everything that shows an item shows it the same way.</summary>
         /// <param name="beside">What it's showing beside.</param>
-        /// <param name="price">What it's worth here, if anything.</param>
+        /// <param name="price">What it says instead of what it would sell for, on a merchant's table.</param>
         /// <param name="compare">Whether to set it against what it would replace, in a line or two, and in full beside it while Alt is held.</param>
         /// <param name="loose">Whether it's in a pack, where Ctrl is for clicking: see <see cref="TipLayer"/>.</param>
         public static void DrawTooltip(HeroState hero, Item item, GuiRect beside, string? price, bool compare, bool loose = false)
         {
             GameUi.Current.Tips.Show(() =>
             {
-                Card card = Cards.Item(item, GameSession.Current?.Sheet, Cards.KindOf(item));
-                if (price != null)
-                {
-                    card.Gap();
-                    card.Text(price, LineLook.Price);
-                }
+                Card card = Cards.Priced(item, GameSession.Current?.Sheet, Cards.KindOf(item), price);
 
                 if (compare && hero.WornBeside(item) is Item worn && Differences(item, worn).Any())
                 {
@@ -276,7 +276,7 @@ namespace Dino_Defenders.UI
         private static List<Card> WornCards(HeroState hero, Item item)
         {
             var cards = new List<Card>();
-            foreach (Item worn in hero.WornInPlaceOf(item)) cards.Add(Cards.Item(worn, GameSession.Current?.Sheet, $"Equipped: {Cards.KindOf(worn)}"));
+            foreach (Item worn in hero.WornInPlaceOf(item)) cards.Add(Cards.Priced(worn, GameSession.Current?.Sheet, $"Equipped: {Cards.KindOf(worn)}"));
             if (cards.Count == 0) cards.Add(new Card { Title = "Nothing equipped", Kind = "This place is empty" });
             return cards;
         }

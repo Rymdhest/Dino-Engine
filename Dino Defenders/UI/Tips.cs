@@ -13,10 +13,16 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Dino_Defenders.UI
 {
-    /// <summary>Something in a card that can be rested on, and what that opens: what a word means, or another card.</summary>
-    internal readonly record struct HotSpot(GuiRect Rect, Term? Term, Card? Card)
+    /// <summary>Something in a card that can be rested on, what that opens, which is what a word means or another card, and what it's underlined in.</summary>
+    internal readonly record struct HotSpot(GuiRect Rect, Term? Term, Card? Card, Colour Ink)
     {
         public bool Opens(in HotSpot other) => ReferenceEquals(Term, other.Term) && Card?.Title == other.Card?.Title && Card?.Kind == other.Card?.Kind;
+    }
+
+    /// <summary>What something's written in, as a card is light on dark and a page of a book isn't: what's said, the numbers in it, what matters less, headings, and the words that mean something.</summary>
+    internal sealed record Inks(Colour Text, Colour Number, Colour Quiet, Colour Heading, Colour Term)
+    {
+        public static readonly Inks Card = new(Ui.Parchment, Ui.Bright, Ui.Faded, Ui.Gold, Ui.TermInk);
     }
 
     /// <summary>A card with its text broken into lines and put in place, ready to be drawn anywhere.</summary>
@@ -38,16 +44,19 @@ namespace Dino_Defenders.UI
         public IReadOnlyList<Card> Links = Array.Empty<Card>();
         public Item? Picture;
         public Colour Edge;
+        public Inks Ink = Inks.Card;
         public float Width;
         public float Height;
 
-        public static Colour TitleColour(Card card) => card.Grade is LootGrade grade ? Ui.GradeColour(grade) : card.Gilded ? Ui.Gold : Ui.Parchment;
+        public static Colour TitleColour(Card card, Inks ink) => card.Grade is LootGrade grade ? Ui.GradeColour(grade) : card.Gilded ? Ui.Gold : ink.Text;
 
         /// <param name="held">Whether it's being held still to be read, which is when there's anything to rest on.</param>
         /// <param name="comparable">Whether there's something to set it against with Alt.</param>
-        public static LaidCard Of(GuiContext context, Card card, float width, bool held, bool comparable = false)
+        /// <param name="inks">What it's written in, if it's not on the dark of a card.</param>
+        public static LaidCard Of(GuiContext context, Card card, float width, bool held, bool comparable = false, Inks? inks = null)
         {
-            var laid = new LaidCard { Width = width, Picture = card.Picture, Links = card.Attached, Edge = card.Grade is LootGrade grade ? Ui.GradeColour(grade).MultiplyAlpha(0.8f) : GuiColors.Rgba(120, 96, 58) };
+            Inks ink = inks ?? Inks.Card;
+            var laid = new LaidCard { Width = width, Picture = card.Picture, Links = card.Attached, Ink = ink, Edge = card.Grade is LootGrade grade ? Ui.GradeColour(grade).MultiplyAlpha(0.8f) : GuiColors.Rgba(120, 96, 58) };
             float inner = width - Pad * 2f;
             float head = card.Picture != null ? inner - PictureSize - 8f : inner;
             float y = Pad - 3f;
@@ -61,9 +70,9 @@ namespace Dino_Defenders.UI
                 }
             }
 
-            Colour title = TitleColour(card);
+            Colour title = TitleColour(card, ink);
             if (card.Title.Length > 0) Wrapped(card.Title, 18f, title, head);
-            if (card.Kind.Length > 0) Wrapped(card.Kind, 13f, Ui.Faded, head);
+            if (card.Kind.Length > 0) Wrapped(card.Kind, 13f, ink.Quiet, head);
             y = laid.LayChips(context, card, y, card.Picture != null && y < PictureSize + Pad ? head : inner);
             if (card.Picture != null) y = MathF.Max(y, PictureSize + Pad + 4f);
             y += 4f;
@@ -77,25 +86,25 @@ namespace Dino_Defenders.UI
                         y += 7f;
                         break;
                     case LineLook.Row:
-                        laid.Pieces.Add(new Piece(line.Text, line.Value, Pad, y, inner, 14.5f, Ui.Parchment, Ui.Bright));
+                        laid.Pieces.Add(new Piece(line.Text, line.Value, Pad, y, inner, 14.5f, ink.Text, ink.Number));
                         y += 20f;
                         break;
                     case LineLook.Cell:
                         float cell = (inner - 14f) * 0.5f;
                         bool paired = i + 1 < card.Lines.Count && card.Lines[i + 1].Look == LineLook.Cell && Fits(context, line, cell) && Fits(context, card.Lines[i + 1], cell);
-                        laid.Pieces.Add(new Piece(line.Text, line.Value, Pad, y, paired ? cell : inner, 13f, Ui.Faded, Ui.Parchment));
+                        laid.Pieces.Add(new Piece(line.Text, line.Value, Pad, y, paired ? cell : inner, 13f, ink.Quiet, ink.Text));
                         if (paired)
                         {
                             CardLine next = card.Lines[++i];
-                            laid.Pieces.Add(new Piece(next.Text, next.Value, Pad + cell + 14f, y, cell, 13f, Ui.Faded, Ui.Parchment));
+                            laid.Pieces.Add(new Piece(next.Text, next.Value, Pad + cell + 14f, y, cell, 13f, ink.Quiet, ink.Text));
                         }
                         y += 18f;
                         break;
                     case LineLook.Heading:
-                        Wrapped(line.Text, 12.5f, Ui.Gold, inner);
+                        Wrapped(line.Text, 12.5f, ink.Heading, inner);
                         break;
                     default:
-                        (float size, Colour colour) = Style(line.Look, title);
+                        (float size, Colour colour) = Style(line.Look, title, ink);
                         Wrapped(line.Text, size, colour, inner);
                         break;
                 }
@@ -104,13 +113,13 @@ namespace Dino_Defenders.UI
             if (held && card.Details != null)
             {
                 y += 4f;
-                laid.Pieces.Add(new Piece(DetailsLink, "", Pad, y, inner, 13f, Ui.TermInk, default, card.Details));
+                laid.Pieces.Add(new Piece(DetailsLink, "", Pad, y, inner, 13f, ink.Term, default, card.Details));
                 y += 18f;
             }
             else if (!held)
             {
                 y += 4f;
-                laid.Pieces.Add(new Piece(comparable ? ItemHint : HoldHint, "", Pad, y, inner, 11.5f, Ui.Faded.MultiplyAlpha(0.7f), default));
+                laid.Pieces.Add(new Piece(comparable ? ItemHint : HoldHint, "", Pad, y, inner, 11.5f, ink.Quiet.MultiplyAlpha(0.7f), default));
                 y += 16f;
             }
 
@@ -139,16 +148,16 @@ namespace Dino_Defenders.UI
             return any ? y + ChipHeight + 6f : y;
         }
 
-        private static (float size, Colour colour) Style(LineLook look, Colour title) => look switch
+        private static (float size, Colour colour) Style(LineLook look, Colour title, Inks ink) => look switch
         {
             LineLook.Rolled => (14f, title),
-            LineLook.Dim => (14f, Ui.Faded.MultiplyAlpha(0.72f)),
-            LineLook.Detail => (13f, Ui.Faded),
-            LineLook.Lore => (13f, Ui.Faded),
-            LineLook.Price => (14f, Ui.Gold),
+            LineLook.Dim => (14f, ink.Quiet.MultiplyAlpha(0.72f)),
+            LineLook.Detail => (13f, ink.Quiet),
+            LineLook.Lore => (13f, ink.Quiet),
+            LineLook.Price => (14f, ink.Heading),
             LineLook.Good => (13f, Ui.Good),
             LineLook.Bad => (13f, Ui.Blood),
-            _ => (14f, Ui.Parchment),
+            _ => (14f, ink.Text),
         };
 
         /// <param name="spots">Gets everything drawn that can be rested on.</param>
@@ -162,7 +171,7 @@ namespace Dino_Defenders.UI
                 GuiRect rect = new GuiRect(x + chip.X, y + chip.Y, chip.Width, ChipHeight);
                 draw.AddRect(rect, GuiColors.Rgba(52, 42, 32, 235), 3f);
                 GuiText.Draw(context, draw, chip.Text, Ui.Face, TagSize, rect, Ui.Parchment, Alignment.Center);
-                if (Lexicon.Named(chip.Text) is Term term) spots.Add(new HotSpot(rect, term, null));
+                if (Lexicon.Named(chip.Text) is Term term) spots.Add(new HotSpot(rect, term, null, Ink.Term));
             }
 
             foreach (Piece piece in Pieces)
@@ -172,11 +181,11 @@ namespace Dino_Defenders.UI
                 {
                     float width = GuiText.MeasureWidth(context, piece.Text, Ui.Face, piece.Size);
                     GuiText.Draw(context, draw, piece.Text, Ui.Face, piece.Size, new GuiRect(x + piece.X, top, width + 2f, piece.Size + 5f), piece.Colour, Alignment.Start, Alignment.Start);
-                    spots.Add(new HotSpot(new GuiRect(x + piece.X, top, width, piece.Size + 5f), null, piece.Opens));
+                    spots.Add(new HotSpot(new GuiRect(x + piece.X, top, width, piece.Size + 5f), null, piece.Opens, Ink.Term));
                     continue;
                 }
 
-                Ui.Rich(context, draw, piece.Text, piece.Size, x + piece.X, top, piece.Colour, Links, spots);
+                Ui.Rich(context, draw, piece.Text, piece.Size, x + piece.X, top, piece.Colour, Links, spots, Ink);
                 if (piece.Value.Length > 0)
                 {
                     GuiText.Draw(context, draw, piece.Value, Ui.Face, piece.Size, new GuiRect(x + piece.X, top, piece.Width, piece.Size + 5f), piece.ValueColour, Alignment.End, Alignment.Start);
@@ -189,7 +198,7 @@ namespace Dino_Defenders.UI
     /// Where every tooltip is drawn, on top of everything. Whatever is being looked at hands over a way of making its card each frame, so it can't go stale, and only that card shows, for as long as the mouse is
     /// on the thing itself. Holding left Ctrl holds it still, and only then does it stop the mouse and can a marked word or a tag on it be rested on, which explains that one word in a small card of its own.
     /// Ctrl is also what a click on something in a pack is held down with, so a card that's loose only stays for a Ctrl pressed while it's showing, and lets go the moment that click comes: a hand going down a
-    /// row of things with Ctrl held has to see each of them, and never find the last one's card in its way.
+    /// row of things with Ctrl held has to see each of them, and never find the last one's card in its way. What's written in a panel rather than on a card is <see cref="Placed"/> here, and read the same way.
     /// </summary>
     internal sealed class TipLayer : GuiElement
     {
@@ -203,6 +212,8 @@ namespace Dino_Defenders.UI
         private readonly List<GuiRect> _rects = new();
         private readonly List<HotSpot> _open = new();
         private readonly List<List<HotSpot>> _layers = new();
+        private readonly List<(List<HotSpot> spots, GuiRect rect)> _places = new();
+        private readonly List<HotSpot> _nothing = new();
 
         private Func<Card?>? _source;
         private Func<Card?>? _asked;
@@ -216,7 +227,6 @@ namespace Dino_Defenders.UI
         private Func<List<Card>>? _askedAlongside;
         private bool _ctrlDown;
         private bool _pinned;       // Ctrl went down on the card showing, and hasn't been used for anything else.
-        private List<HotSpot>? _placedSpots;
         private GuiRect _placed;
         private string _looking = "";
         private double _keepOpen;
@@ -265,11 +275,29 @@ namespace Dino_Defenders.UI
             _open.Clear();
         }
 
-        /// <summary>For a card drawn where it is, in a panel: its words can be rested on all the same.</summary>
-        public void Placed(List<HotSpot> spots, GuiRect rect)
+        /// <summary>For words drawn where they are, in a panel: they can be rested on all the same. There can be any number of these, each asked every frame, and what's asked last is what's on top.</summary>
+        public void Placed(List<HotSpot> spots, GuiRect rect) => _places.Add((spots, rect));
+
+        // Whichever of what's in place the mouse is on. While it's on a card opened from one that's still the one, or that card would move out from under it.
+        private List<HotSpot>? PlacedUnder(Vector2 mouse)
         {
-            _placedSpots = spots;
-            _placed = rect;
+            if (_places.Count == 0) return null;
+
+            bool reading = false;
+            for (int i = 1; i < _rects.Count; i++) reading |= _rects[i].Contains(mouse);
+
+            for (int i = _places.Count - 1; i >= 0 && !reading; i--)
+            {
+                if (!_places[i].rect.Contains(mouse)) continue;
+                _placed = _places[i].rect;
+                return _places[i].spots;
+            }
+
+            foreach ((List<HotSpot> spots, GuiRect rect) in _places)
+            {
+                if (rect == _placed) return spots;
+            }
+            return _nothing;
         }
 
         public void Clear()
@@ -280,6 +308,7 @@ namespace Dino_Defenders.UI
             _askedAlongside = null;
             _open.Clear();
             _rects.Clear();
+            _places.Clear();
         }
 
         protected override void OnDraw(GuiDrawList draw)
@@ -291,9 +320,9 @@ namespace Dino_Defenders.UI
             Vector2 mouse = Context.MousePosition;
             GuiRect screen = Bounds;
             Func<Card?>? asked = _asked;
-            List<HotSpot>? placedSpots = _placedSpots;
+            List<HotSpot>? placedSpots = PlacedUnder(mouse);
             _asked = null;
-            _placedSpots = null;
+            _places.Clear();
 
             bool ctrl = Bindings.Down(GameAction.Details);
             if (ctrl && !_ctrlDown) _pinned = _source != null;
@@ -384,10 +413,15 @@ namespace Dino_Defenders.UI
         {
             for (int i = 0; i < _open.Count; i++)
             {
+                // The same word can be there twice, and it's the one that was rested on that's being read.
                 HotSpot from = _open[i];
+                float nearest = float.MaxValue;
                 foreach (HotSpot spot in _layers[i])
                 {
-                    if (spot.Opens(from)) from = spot;
+                    float off = (spot.Rect.Center - _open[i].Rect.Center).LengthSquared;
+                    if (!spot.Opens(_open[i]) || off >= nearest) continue;
+                    from = spot;
+                    nearest = off;
                 }
 
                 Card opened = from.Card ?? WordCard(from.Term!);
@@ -400,11 +434,18 @@ namespace Dino_Defenders.UI
 
                 var spots = new List<HotSpot>();
                 laid.Draw(Context!, draw, x, y, framed: true, spots);
-                draw.AddLine(new Vector2(from.Rect.X, from.Rect.Bottom), new Vector2(from.Rect.Right, from.Rect.Bottom), Ui.TermInk, 1f);
+                Underline(draw, from);
                 parent = new GuiRect(x, y, width, laid.Height);
                 _rects.Add(parent);
                 _layers.Add(spots);
             }
+        }
+
+        // This face sits high in its line, so the foot of the line is the top of the next.
+        private static void Underline(GuiDrawList draw, in HotSpot spot)
+        {
+            float y = spot.Rect.Bottom - 2f;
+            draw.AddLine(new Vector2(spot.Rect.X, y), new Vector2(spot.Rect.Right, y), spot.Ink, 1f);
         }
 
         private static Card WordCard(Term term)
@@ -440,7 +481,7 @@ namespace Dino_Defenders.UI
 
             if (under is HotSpot wanted)
             {
-                draw.AddLine(new Vector2(wanted.Rect.X, wanted.Rect.Bottom), new Vector2(wanted.Rect.Right, wanted.Rect.Bottom), Ui.TermInk, 1f);
+                Underline(draw, wanted);
                 if (top < _open.Count && _open[top].Opens(wanted))
                 {
                     _keepOpen = now + Linger;
@@ -468,14 +509,22 @@ namespace Dino_Defenders.UI
         }
     }
 
-    /// <summary>A card drawn in place in a panel, and kept up to date for as long as it's there.</summary>
+    /// <summary>A card drawn in place in a panel, and kept up to date for as long as it's there. It's as tall as it's written, and its words start at its edge, as a panel has margins of its own.</summary>
     internal sealed class CardView : GuiElement
     {
         private readonly Func<Card?> _source;
+        private readonly Inks? _inks;
+        private readonly GuiElement? _window;
 
-        public CardView(Func<Card?> source)
+        /// <param name="inks">What it's written in, if it's not on the dark of a card.</param>
+        /// <param name="window">What it scrolls inside, as what's been scrolled out of sight can't be rested on.</param>
+        public CardView(Func<Card?> source, Inks? inks = null, GuiElement? window = null)
         {
             _source = source;
+            _inks = inks;
+            _window = window;
+            Width = UIValue.Fill;
+            Height = 20f;
         }
 
         protected override void OnDraw(GuiDrawList draw)
@@ -484,9 +533,12 @@ namespace Dino_Defenders.UI
             if (Context == null || _source() is not Card card) return;
 
             var spots = new List<HotSpot>();
-            LaidCard laid = LaidCard.Of(Context, card, Bounds.Width, GameUi.Current.Tips.Held);
-            laid.Draw(Context, draw, Bounds.X, Bounds.Y, framed: false, spots);
-            GameUi.Current.Tips.Placed(spots, new GuiRect(Bounds.X, Bounds.Y, Bounds.Width, laid.Height));
+            LaidCard laid = LaidCard.Of(Context, card, Bounds.Width + LaidCard.Pad * 2f, GameUi.Current.Tips.Held, inks: _inks);
+            laid.Draw(Context, draw, Bounds.X - LaidCard.Pad, Bounds.Y, framed: false, spots);
+
+            var shown = new GuiRect(Bounds.X, Bounds.Y, Bounds.Width, laid.Height);
+            GameUi.Current.Tips.Placed(spots, _window != null ? shown.Intersect(_window.Bounds) : shown);
+            if (MathF.Abs(Bounds.Height - laid.Height) > 0.5f) Height = laid.Height;
         }
     }
 }

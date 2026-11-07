@@ -110,12 +110,12 @@ namespace Dino_BuildLab
             for (int i = 0; i < 300; i++)
             {
                 Item found = ItemGenerator.Folio(20, finds.Fork(i), (LootGrade)(i % 5));
-                yield return Cards.Item(found, sheet, Cards.KindOf(found));
+                yield return Cards.Priced(found, sheet, Cards.KindOf(found));
             }
             foreach (string name in Dino_Defenders.Books.Stickers.Names)
             {
                 Item stuck = ItemGenerator.StickerItem(Dino_Defenders.Books.Stickers.Written(name)!, 1, 1, Rarity.Common);
-                yield return Cards.Item(stuck, sheet, Cards.KindOf(stuck));
+                yield return Cards.Priced(stuck, sheet, Cards.KindOf(stuck));
             }
             foreach (BuffDefinition buff in BuffCatalog.All) yield return Cards.Buff(buff, sheet);
             foreach (TalentNode node in TalentTree.Nodes) yield return Cards.Talent(node, sheet);
@@ -123,8 +123,12 @@ namespace Dino_BuildLab
             foreach (StatRow row in StatBook.Rows) yield return Cards.OfRow(row, sheet);
 
             var random = new WorldRandom(11);
-            foreach (UniqueDefinition unique in UniqueCatalog.All) yield return Cards.Item(UniqueCatalog.Make(unique, 30, random), sheet, "Unique");
-            for (int i = 0; i < 400; i++) yield return Cards.Item(ItemGenerator.Roll(1 + i % 60, random.Fork(i)), sheet, "Item");
+            foreach (UniqueDefinition unique in UniqueCatalog.All) yield return Cards.Priced(UniqueCatalog.Make(unique, 30, random), sheet, "Unique");
+            for (int i = 0; i < 400; i++) yield return Cards.Priced(ItemGenerator.Roll(1 + i % 60, random.Fork(i)), sheet, "Item");
+
+            Item wares = ItemGenerator.Roll(20, random.Fork(400));
+            yield return Cards.Priced(wares, sheet, "Item", Cards.Costs(wares));
+            yield return Cards.Priced(wares, sheet, "Item", Cards.BuyBack(wares));
 
             yield return Cards.Dodge(sheet);
             yield return Cards.Flask(new HeroState(), sheet);
