@@ -134,7 +134,7 @@ namespace Dino_Defenders.UI
             if (Context == null) return;
             if (_panel.Page is not Page page)
             {
-                Vellum.Write(Context, draw, "There's nothing to read here yet. Drag a Page into this Book.", Size, new GuiRect(Bounds.X, Bounds.Y, Bounds.Width, LineHeight), Vellum.Pale);
+                Vellum.Write(Context, draw, "Drag a Page into this Book.", Size, new GuiRect(Bounds.X, Bounds.Y, Bounds.Width, LineHeight), Vellum.Pale);
                 return;
             }
 
@@ -524,7 +524,7 @@ namespace Dino_Defenders.UI
             {
                 PageProfile profile = reading.Pages[PageIndex];
                 string size = profile.Page.Kind == PageKind.Projectile ? $"Projectile Speed {Say.Amount(profile.Speed)} m a second" : profile.Page.Shape == AreaShape.Circle ? $"Radius {Say.Metres(profile.Length)}" : $"Reach {Say.Metres(profile.Length)}";
-                string carried = PageIndex > 0 ? $" (from {Say.Share(profile.Page.Carried)})" : "";
+                string carried = MathF.Abs(profile.Page.Carried - 1f) > 0.001f ? $" (from {Say.Share(profile.Page.Carried)})" : "";
                 _numbers.Text = $"Cost {Say.Amount(profile.Cost)}   Potency {Say.Share(profile.Potency)}{carried}   {size}";
             }
             else _numbers.Text = "";
@@ -626,6 +626,20 @@ namespace Dino_Defenders.UI
                 return true;
             }
             return false;
+        }
+
+        /// <summary>Something has gone from one place to another, and what's open goes with it.</summary>
+        public void Moved(ItemPlace from, ItemPlace to)
+        {
+            if (_place == from) _place = to;
+            else if (_place == to) _place = from;
+        }
+
+        /// <summary>Why something didn't find a place.</summary>
+        public string WhyNot(Item item)
+        {
+            if (item.Sticker is Sticker sticker && Page is Page page && !Stickers.GoesOn(sticker, page.Kind)) return "That Sticker is for another kind of Page";
+            return item.IsSticker ? "There's no room on this Page" : "There's no place in this Book for that";
         }
 
         // Everything that could go in what's open, as a row each.

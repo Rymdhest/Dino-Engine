@@ -55,7 +55,7 @@ namespace Dino_Defenders.Books
             new(PageEffect.Potency, null, (10f, 70f), (10f, 45f)),
             new(PageEffect.Cost, null, (10f, 45f), (1f, 8f), Whole: false),
             new(PageEffect.UseTime, null, (8f, 35f), (10f, 60f)),
-            new(PageEffect.Rest, null, Never, (1f, 6f)),
+            new(PageEffect.Rest, null, Never, (0.5f, 3f)),
             new(PageEffect.Speed, PageKind.Projectile, (15f, 100f), (15f, 50f)),
             new(PageEffect.Range, PageKind.Projectile, (15f, 100f), (15f, 50f)),
             new(PageEffect.Projectiles, PageKind.Projectile, (1f, 4f), Never, Whole: true),

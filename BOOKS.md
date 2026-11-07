@@ -4,11 +4,13 @@ There are no skills. Everything anyone does in a fight, from a sword swing to a 
 
 ## The one idea
 
-**A book is a program, and a sentence is a line of it.** A book is an item, made of pages, and a page is made of sentences. Nothing about what a book does is hand-made: `Scribe` reads the sentences and works out numbers from them, so any attack or spell from any ARPG is a few pages, and a new sentence is a line in a table.
+**A book is a program, and a sentence is a line of it.** Nothing about what a book does is hand-made: `Scribe` reads the sentences and works out numbers from them, so any attack or spell from any ARPG is a few pages, and a new sentence is a line in a table.
+
+**Books, pages and stickers are all items, found in the world, and each holds the next.** A book has places for pages and a page has places for stickers (`Item.Held`), and how many places it has is what makes one better than another. Anyone can write whatever they like on a page they have, but what they have to write on, how much of it, and what's stuck on it is what they've found.
 
 ```
-Book (saved, sent)  --Scribe.Read-->  BookPlan  --ActorSheet.Profile-->  BookProfile
-pages of sentence ids                 what it says                       one actor's finished numbers
+Items (saved, sent)  --Scribe.Bind-->  Book  --Scribe.Read-->  BookPlan  --ActorSheet.Profile-->  BookProfile
+book > page > sticker                  pages in order          what it says                       one actor's finished numbers
 ```
 
 `BookPlan` is what a book says, whoever holds it. `BookProfile` is what it comes to in one actor's hands, with a `PageProfile` for each page, and that's what a blow reads. So everything `BUILDS.md` says about why blows are fast is still true: a hundred archers are one set of numbers.
@@ -21,11 +23,14 @@ A page is one of two kinds. Every page has an Outcome, and what comes before tha
 |---|---|---|
 | Start | Where it begins: you, the cursor, the nearest Enemy, a random Enemy nearby | The same |
 | Then | Towards: the cursor, you, the nearest Enemy, a random Enemy, in a random direction, the way it was going, or down from the sky | Shape: a cone, a circle, a line or a rectangle, and whether it happens at once or lingers |
-| Clauses | Anything that changes either: within some radius, how many at once, what it passes through | The same |
+| Within | That it happens somewhere within a radius of either | The same |
+| Stickers | Whatever's been stuck on it, in as many places as it has | The same |
 | Outcomes | What happens on impact, up to `MostOutcomes` | The same, to everyone in the shape |
 | Its own numbers | Cost, Projectile Speed, Potency | Cost, Area, Potency |
 
-**A follow-up page starts where the last one struck.** A book's pages go in order: when a projectile page has an impact, the book turns to the next page, from there. That's all a chain is. Going to the nearest Enemy and then back to you is a returning projectile, and nobody had to write one. An area page has no impact to turn from, so it can only be the last.
+**A follow-up page starts where the last one struck.** A book's pages go in order: when a projectile page has an impact, the book turns to the next page, from there. That's all a chain is. Going to the nearest Enemy and then back to you is a returning projectile, and nobody had to write one. An area page has no impact to turn from, so it can only be the last: `HeroState.Move` won't put anything after one, and a gap in a book is only a gap.
+
+**Potency goes on from page to page.** A page starts from where the one before it left off, so a first page at 90% and a second that doubles it comes to 180% (`PagePlan.Carried`). It's what's on the page that goes on: anything a build adds is applied to each page where it stands and doesn't compound, or a little Potency on the tree would be worth more the longer the book.
 
 **The book's Cost is every page's Cost added up.** It's paid when the book is used, and only then.
 
@@ -37,7 +42,7 @@ A page is one of two kinds. Every page has an Outcome, and what comes before tha
 
 - **Nearest and random** look at the moment the page opens, and skip anyone this cast has struck, which is what makes a chain go on to someone new. With nobody there, it uses the cursor.
 - **Direction is fixed at launch.** There's no homing. `BallisticComponent` is sent once and flies straight, and that's what makes hundreds of projectiles cost almost nothing.
-- **A projectile flies past what it's aimed at**, to the end of its range. Reaching the end, or anything solid, counts as an impact, so the next page turns anyway. A clause can make it stop at the target instead.
+- **A projectile flies past what it's aimed at**, to the end of its range. Reaching the end, or anything solid, counts as an impact, so the next page turns anyway. A sticker can make it stop at the target instead.
 - **Down** comes out of the sky over wherever the Start says, and lands exactly when it says it will.
 - **Lingering** spreads the Outcomes over the Duration, in pulses, and pays a premium for being something Enemies can walk out of.
 - **What starts from an impact starts touching whoever took it**, so it goes straight through them. Without that (`off`, through `Combat.Turn`) a page that turned on someone would be stopped by them at once.
@@ -51,11 +56,25 @@ Every sentence has `Weights`: flat Cost, and `more` or `less` of Cost, Potency, 
 
 `MostPotency` is the ceiling on what stacked drawbacks can come to. `BuildLab books` tables what every sentence is worth, as nobody has played any of this, and a person's opinion outranks that table.
 
+## Stickers
+
+A sticker is an item with one good thing and one bad thing on it, and that's all it is. Nothing about one is decided by hand: `Stickers.Roll` picks anything from `Stickers.Lines` that can be good, anything that can be bad, and how far each goes, so any combination can turn up. A rarer one goes further on its good side and less far on its bad. A line is a new thing a sticker can do, and `PageEffect` values go on the end, as they're saved by name and sent by number.
+
+Each side has to mean something on the same kind of page, so a sticker is for a projectile page, an area page or either (`Stickers.Fits`), and it won't go on the other. What adds up does (Projectiles, Pierce, Chains, a Cooldown), and the rest are multipliers of their own as sentences are, so anything can be stuck beside anything. Cost as a drawback is flat, as a share of nothing is nothing and most of what starts out is free.
+
+`Stickers.Written` is for what's already written and has to come out the same: creatures fight with those. They go by the names clauses had, as a save from before stickers does too.
+
+## What's found
+
+`Loot.Fresh` makes `FolioShare` of everything that drops something for a book, by `ItemGenerator.Folio`, stickers most and books least, and one in `GameServer`'s `FolioEvery` on a table. Grade is places: `LeastPages`, `MostPages`, `LeastStickers` and `MostStickers` say how many by grade, and only a legendary has all there can be. `GradeOf` reads it back from the item, as it does for anything else, so a masterwork is a rare with `MasterworkPages` or `MasterworkStickers` places, and a sticker can't be one. What's in something is sold with it.
+
+Everyone starts with a Worn Book of two places, an Area Page in the first of them with one place for a sticker. Nothing makes a book or a page but finding one.
+
 ## Limits
 
 These are hard limits, as balance numbers can't stop a book branching out of control: Noita and Mages of Mystralia both learned that.
 
-- `MostPages` pages, and `MostOutcomes` Outcomes on a page.
+- `MostPages` pages, `MostStickers` stickers and `MostOutcomes` Outcomes on a page, and `MostProjectiles` from one.
 - `MostMade` projectiles and areas from one cast. Past that a page simply doesn't turn.
 - `MostZones` lingering areas from one caster, and `MostMinions` minions, the oldest going first.
 
@@ -85,17 +104,18 @@ A stat that names a tag reads it off a page: `Opening` is a book's first page, `
 
 `SaveGame.BooksVersion` is where this came in. An older save keeps a copy of itself beside it (`.before-books`), loses its talents and what was on its bar, and comes out with its items, its gold, its points to spend again, and the starter on the left mouse button.
 
-## For now it's a sandbox
+`StickersVersion` is where pages and stickers became items. What's written stays written: an older save keeps a copy (`.before-stickers`), and each book comes out as a book with exactly as many places as it had pages, each page with as many as it had clauses, each clause a sticker by its name, and at least one place for a sticker on every page. Nothing but `Item.Book` and `Page.Clauses` knows the old shape, and only `SaveGame.Fix` reads them.
 
-Nobody has decided how sentences are earned. Everyone can write anything, pages are free up to `MostPages`, and New Book makes as many as they like. Selling one pays nothing, or that's free gold. When sentences become something to find, `Sentences` is the only list to narrow.
+## What's still free
+
+Nobody has decided how sentences are earned, so everyone can write anything on a page they've found. When sentences become something to find, `Sentences` is the only list to narrow.
 
 ## Adding to it
 
 - **A sentence**: a line in `Sentences`. Ids are saved, so they stay, and they go on the end, as the order is what's sent.
 - **A new kind of Outcome**: a value in `Deed`, a case in `Combat.Do`, and its words.
 - **A written book**: a line in `Shelf`.
-
-A clause can make a page rest, a cooldown paid for in Potency. Nobody asked for that yet: it's here because taking cooldowns out of everything else would have been the bigger change.
+- **Something a sticker can do**: a line in `Stickers.Lines`, a value on the end of `PageEffect`, its words in `BookText.Good` or `Bad`, and what it does in `Stickers.WeightsOf` or `Scribe.Stick`.
 
 ## Testing
 
@@ -108,4 +128,4 @@ dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build        # Everythin
 
 In the real game `--books a,b` puts books from `Shelf` on the bar, by id, `--panel book` opens the first one, and K does the same for a person. A right click on a book in the pack or on the bar opens it, and another on the same one shuts it. The bar takes that right click with nothing else open, but only a press that starts on a book (`BarCell`), as otherwise the mouse is what's aimed with, so a held attack dragged across the bar has to stay an attack and a left click on it has to attack. Ctrl and a click puts a book on the bar.
 
-An open book is two pages with a rule to them: the left is the page turned to and everything about it, and the right is the whole book. Each part of a page that was chosen is one box however many lines it runs to (`PageView.Flow`), lit as a whole, so a part of it is never lit alone. What could go in a box comes on a slip over the left page, beside the box (`ChoiceSlip`), and not on the right, which always says what the book comes to. Nothing about writing one can be proved by a bot: post real mouse messages.
+An open book is one book and nothing else: to open another, right click it, and a loose page opens the same way. The pack is beside it, as everything that goes in a book comes from there, and carrying is `HeroPanel`'s whether that's showing or not (`Active`, `Tend`, `DrawOver`). Everything inside something is an `ItemPlace` with `In`, so what's in a book moves by `HeroState.Move` like anything else, and `ItemCell` draws it. Its two pages have a rule to them: the left is the page turned to and everything about it, and the right is the whole book. Each part of a page that was chosen is one box however many lines it runs to (`PageView.Flow`), lit as a whole, so a part of it is never lit alone. What could go in a box comes on a slip over the left page, beside the box (`ChoiceSlip`), and not on the right, which always says what the book comes to. Nothing about writing one can be proved by a bot: post real mouse messages. `--folios N` carries that many things for a book, of every grade in turn.

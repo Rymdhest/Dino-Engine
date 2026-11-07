@@ -150,9 +150,10 @@ namespace Dino_Defenders.Tooltips
 
         private static void KindsOfBook()
         {
-            Basic("Book", "What you fight with: anything on your Bar, or anything that Triggers. Right click one to read it.", "Books");
-            Basic("Page", "Part of a Book. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
-            On(Stat.Potency, Word("Potency", $"How strong everything a Page does is, up to {Share(MostPotency)}. Its sentences decide it, and it counts for healing as much as Damage."));
+            Basic("Book", "What you fight with: anything on your Bar, or anything that Triggers. It holds Pages. Right click one to read it.", "Books");
+            Basic("Page", "Goes in a Book, and holds Stickers. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
+            Basic("Sticker", "Goes on a Page. Always does one thing for it and one thing against it.", "Stickers");
+            On(Stat.Potency, Word("Potency", $"How strong everything a Page does is, up to {Share(MostPotency)}. A Page starts from where the one before it left off, and its sentences and Stickers go on from there. It counts for healing as much as Damage."));
             On(Tags.Opening, Word("Opening Page", "The first Page of a Book."));
             On(Tags.Turned, Word("Turned Page", "Any Page after the first."));
             On(Tags.Closing, Word("Closing Page", "The last Page of a Book. A single Page is both this and an Opening Page."));
@@ -302,7 +303,7 @@ namespace Dino_Defenders.Tooltips
             Word("Pulse", "A Zone Hits everything inside it this often.", "Pulses");
             On(Tags.Chaining, Word("Chaining", $"Jumps to the nearest target not yet struck, dealing {Share(1f - ChainFade)} less each jump."));
             On(Stat.Chain, Word("Chain", $"One more jump. A Projectile finds its next target within {Metres(ProjectileChainReach)}.", "Chains"));
-            On(Stat.Pierce, Word("Pierce", "How many targets a Projectile passes through.", "Pierced"));
+            On(Stat.Pierce, Word("Pierce", "How many targets a Projectile passes through.", "Pierced", "Pierces"));
             On(Stat.ProjectileCount, Word("Projectile Count", "How many are fired at once. Each can Hit the same target."));
             On(Stat.ProjectileSpeed, Basic("Projectile Speed", "Metres a second."));
             On(Stat.AreaOfEffect, Word("Area of Effect", $"Scales the space covered. Double the space is {Share(MathF.Sqrt(2f) - 1f)} more Radius."));

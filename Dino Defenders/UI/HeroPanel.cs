@@ -670,7 +670,7 @@ namespace Dino_Defenders.UI
                     ToBar(spot);
                     break;
                 case Shelf.Pack when item.IsFolio:
-                    if (GameUi.Current.Book.Visible && !GameUi.Current.Book.Slot(spot.Place)) Refuse("There's no place for that");
+                    if (GameUi.Current.Book.Visible && !GameUi.Current.Book.Slot(spot.Place)) Refuse(GameUi.Current.Book.WhyNot(item));
                     break;
                 case Shelf.Bar:
                     FromBar(spot);
@@ -726,6 +726,7 @@ namespace Dino_Defenders.UI
         {
             Audio.Play(from.IsCell && to.IsCell ? Interface.Click : Interface.Equip);
             Session.Client.Move(from, to);
+            GameUi.Current.Book.Moved(from, to);
         }
 
         /// <summary>Puts on what's in a cell, and what comes off takes its place.</summary>

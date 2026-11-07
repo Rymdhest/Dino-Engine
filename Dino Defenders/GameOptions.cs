@@ -74,7 +74,7 @@ namespace Dino_Defenders
         public readonly List<string> Books = new();
         public int Carry;
 
-        /// <summary>How many things for a book to carry, of every grade in turn.</summary>
+        /// <summary>How many things that go in a book to carry, of every grade in turn: --folios N.</summary>
         public int Folios;
         public string? Parade;
 
