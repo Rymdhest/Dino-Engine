@@ -74,11 +74,12 @@ namespace Dino_Defenders.Client
 
             Vector2 before = _current.Position;
             bool moved = truth.Moves != _current.Moves;
+            bool stunned = known && (truth.Held > 0f) != (_states[tick % Ring].Held > 0f);
             Rewind(tick, truth, kit, mover);
 
-            // Being put somewhere by the server isn't a wrong guess, however far it is.
+            // Being put somewhere by the server isn't a wrong guess, however far it is, and nor is being stopped by a stun, as nobody can see one coming.
             float error = (before - _current.Position).Length;
-            if (known && !moved && error > 1e-3f)
+            if (known && !moved && !stunned && error > 1e-3f)
             {
                 Corrections++;
                 WorstCorrection = MathF.Max(WorstCorrection, error);

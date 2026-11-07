@@ -443,6 +443,7 @@ namespace Dino_NetLab
 
             report.Section("A mixed party");
             MixedParty(report, worlds, request);
+            StunnedWalking(report, worlds, request);
 
             report.Section("A horde");
             Horde(report, worlds, request, Scenarios.All[1].conditions, "Good broadband");
@@ -631,6 +632,29 @@ namespace Dino_NetLab
             return a.Level == b.Level && a.Experience == b.Experience && a.Gold == b.Gold && a.Flasks == b.Flasks
                 && a.Carried().Count() == b.Carried().Count() && a.Equipped.Count == b.Equipped.Count && a.WorldsCleared == b.WorldsCleared
                 && a.Talents.SequenceEqual(b.Talents) && a.Bar.Select(item => item?.Name).SequenceEqual(b.Bar.Select(item => item?.Name));
+        }
+
+        // A blow can stun someone on any line at all, and it's the server's word. A hero who's walking is what shows it, as one standing still has nothing to be wrong about.
+        private static void StunnedWalking(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var lab = new GameLab(worlds, request);
+            LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 30, Jitter = 5 }, 6);
+            lab.Run(6);
+
+            ServerPlayer truth = lab.Server.Players.First();
+            player.Heading = truth.Sim.Position + new Vector2(80f, 0f);
+            lab.Run(1.5);
+            int before = player.Client.Predictor.Corrections;
+            Vector2 walking = truth.Sim.Position;
+
+            truth.Actor.Afflictions.StunLeft = 0.5f;
+            lab.Run(0.25);
+            Vector2 stopped = truth.Sim.Position;
+            lab.Run(0.2);
+            report.Check("A stun stops someone in their tracks", (truth.Sim.Position - stopped).Length < 0.05f && (stopped - walking).Length < 2f, $"{(truth.Sim.Position - stopped).Length:0.00} m");
+            lab.Run(1.5);
+            report.Check("And being stopped isn't counted as a wrong guess", player.Client.Predictor.Corrections == before, $"{player.Client.Predictor.Corrections - before}");
+            report.Check("With the hero walking again after it", (truth.Sim.Position - stopped).Length > 2f, $"{(truth.Sim.Position - stopped).Length:0.00} m");
         }
 
         // A host on fibre and a friend on bad wifi: one player's line mustn't become everyone's problem.

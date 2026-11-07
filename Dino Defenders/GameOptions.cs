@@ -15,12 +15,13 @@ namespace Dino_Defenders
     ///   --sweep true    With the bot: when nothing is near, goes to the next place still held, until the world is free.
     ///   --walk x,z      With the bot: runs straight there and does nothing else, for whatever needs someone on foot. It gets about by being moved otherwise.
     ///   --hero N        Starts the hero at level N.
-    ///   --talents a,b   Walks the talent tree to these nodes, by id, taking everything on the way. Skills they teach go on the bar.
+    ///   --talents a,b   Walks the talent tree to these nodes, by id, taking everything on the way.
+    ///   --books a,b     Puts these books from Shelf on the bar, by id, in order from the left mouse button.
     ///   --equip a,b     Puts these uniques on the hero, by id.
     ///   --carry N       Fills N cells of the pack with things rolled from the seed, to try anything to do with a pack.
     ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar.
     ///   --loot all      Drops one find of every grade in front of the hero, or everything a tier gives, as boss, elite, chest or hoard.
-    ///   --panel name    Opens map, hero, talents, skills, glossary, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
+    ///   --panel name    Opens map, hero, talents, book, glossary, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
     ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one, with whatever offering is below.
     ///   --peril N  --teeming N  --overrun N  --omens a,b   What's been paid on the first world, or on the way through a waygate with --travel.
     ///   --gold N        Starts the hero with this much gold.
