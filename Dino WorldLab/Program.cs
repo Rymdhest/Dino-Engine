@@ -1,4 +1,4 @@
-using Dino_Engine.Util;
+﻿using Dino_Engine.Util;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using Dino_Engine.World.Generation;
@@ -14,6 +14,8 @@ namespace Dino_WorldLab
     ///   plan    [--seed N] [--archetype id] [--site kind] [--nth N] [--span m] [--out f] A surveyor's plan of one site, the Nth of its kind.
     ///   check   [--seed N] [--count N] [--archetype id]                        Generates worlds and validates them. Exit code 1 on any problem.
     ///   packs   [--seed N] [--archetype id] [--level N] [--out file.png]       Who stands where: the mix, and a map of it, each folk in its colour.
+    ///   relief  [--seed N] [--count N] [--archetype id]                        What the land is made of, and where the rock stands highest.
+    ///   view    --at x,z [--seed N] [--archetype id] [--span m] [--angle d] [--yaw d] [--out f]  A drawing of a place, for shaping land with no game.
     ///   wind                                                                   Puts the wind through what a game does to it. Exit code 1 on any problem.
     /// </summary>
     internal static class Program
@@ -35,6 +37,13 @@ namespace Dino_WorldLab
                     return Check(options);
                 case "packs":
                     return Packs(options);
+                case "relief":
+                    return ReliefCheck.Survey(options.Int("seed", 1), options.Int("count", ArchetypeCatalog.All.Count), options.Text("archetype"));
+                case "view":
+                    return View(options);
+                case "probe":
+                    string[] probe = (options.Text("at") ?? "1000,1000").Split(',');
+                    return ReliefCheck.Probe(options.Int("seed", 1), options.Text("archetype"), new Vector2(float.Parse(probe[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(probe[1], System.Globalization.CultureInfo.InvariantCulture)));
                 case "wind":
                     return WindCheck.Run();
                 case "weather":
@@ -44,6 +53,13 @@ namespace Dino_WorldLab
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;
             }
+        }
+
+        private static int View(Options options)
+        {
+            string[] at = (options.Text("at") ?? "1000,1000").Split(',');
+            Vector2 place = new Vector2(float.Parse(at[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(at[1], System.Globalization.CultureInfo.InvariantCulture));
+            return ReliefCheck.View(options.Int("seed", 1), options.Text("archetype"), place, options.Int("span", 160), options.Int("angle", 67), options.Int("yaw", 0), options.Int("width", 1100), options.Int("height", 700), options.Text("out") ?? "view.png", options.Text("plain") == "true");
         }
 
         private static int Map(Options options)

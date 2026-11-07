@@ -13,6 +13,8 @@
 
 This is a fully **procedural game engine** built from scratch in C# using OpenGL and OpenTK. The engine does **not use any external libraries** beyond OpenTK (the game adds LiteNetLib and Mono.Nat for playing over the internet, behind an interface the engine defines). Every asset, from textures and models to terrain, effects, sound and music, is generated **procedurally at runtime**.
 
+The code is under the MIT licence, but for [`ErosionFilter.cs`](Dino%20Engine/World/Generation/ErosionFilter.cs), a port of Rune Skovbo Johansen's erosion filter, which stays under the Mozilla Public License 2.0.
+
 ---
 
 ## Dino Defenders

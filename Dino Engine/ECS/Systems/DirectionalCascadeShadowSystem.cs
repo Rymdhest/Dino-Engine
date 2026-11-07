@@ -29,6 +29,7 @@ namespace Dino_Engine.ECS.Systems
 
         private readonly List<Entity> _visibleChunks = new();
         private readonly List<TerrainChunkRenderData> _terrainCommands = new();
+        private readonly List<TerrainChunkRenderData> _farRock = new();
         private readonly List<GrassChunkRenderData> _grassCommands = new();
 
         public DirectionalCascadeShadowSystem()
@@ -263,8 +264,10 @@ namespace Dino_Engine.ECS.Systems
                     }
                 }
 
+                Engine.RenderEngine._terrainRenderer.CollectFarRock(new Util.Frustum(viewProj), _farRock);
+
                 Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(_grassCommands.ToArray()), shadow);
-                Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(_terrainCommands.ToArray(), 0.0f), shadow);
+                Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(_terrainCommands.ToArray(), 0.0f, _farRock.ToArray()), shadow);
             }
         }
 

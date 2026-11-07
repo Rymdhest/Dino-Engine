@@ -66,7 +66,8 @@ float grassValueNoise(vec2 p)
 float grassFertility(float grassMap, float normalY, float road)
 {
     float steepness = 1.0 - normalY;
-    return max((1.0 - steepness * 4.0) * grassMap * (1.0 - steepness) * (1.0 - min(road * 2.0, 1.0)), 0.0);
+    // Below zero that isn't road: on rock the channel says something else (see Terrain.frag).
+    return max((1.0 - steepness * 4.0) * grassMap * (1.0 - steepness) * (1.0 - clamp(road * 2.0, 0.0, 1.0)), 0.0);
 }
 
 // How far the top of the field rises or sinks here, -1..1: long swells with shorter ones on them, so even flat ground

@@ -70,7 +70,8 @@ namespace Dino_Engine.World.Generation
                     Vector2 position = new Vector2(x, z) * WorldData.WalkCell;
                     open[z * width + x] = world.WaterDepthAt(position) <= WorldData.WadingDepth
                         && world.Height.SlopeAt(position) <= WorldData.WalkableSlope
-                        && world.Boundary.Sample(position) < 0.6f;
+                        && world.Boundary.Sample(position) < 0.6f
+                        && world.Rock.Sample(position) < 0.5f;
                 }
             });
 

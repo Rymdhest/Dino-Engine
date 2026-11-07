@@ -56,6 +56,8 @@ namespace Dino_Engine.Textures
         public static int gravel;
         public static int foliage_white;
         public static int rock;
+        /// <summary>Bare rock, for the mountains and every stone: grey, as all its colour comes from the world's <see cref="World.Geology"/>. See Rock.glsl.</summary>
+        public static int cliff;
         public static int grass;
         public static int wood;
         public static int pineBark;
@@ -160,6 +162,8 @@ namespace Dino_Engine.Textures
             crackedLava = createCrackedLAva();
             crackedDesert = createCrackedDesert();
             rock = createRock();
+            cliff = createCliff();
+            Modelling.Procedural.Rock.RockMaterials.Stone = cliff;
             bone = createBoneTexture();
             mirror = createMirrorTexture();
             grassy_soil = createGrassySoilTexture();
@@ -308,7 +312,7 @@ namespace Dino_Engine.Textures
             {
                 (sand, 0.9f), (sandDunes, 0.85f), (soil, 0.8f), (farmland, 0.85f), (dirtPath, 0.75f), (grassy_soil, 0.7f), (moss, 0.7f), (grain, 0.7f),
                 (crackedDesert, 0.85f), (crackedLava, 0.6f), (mud, 0.4f), (gravel, 0.5f), (grass, 0.35f),
-                (rock, 0.35f), (cobble, 0.42f), (stoneWall, 0.45f), (brick, 0.7f), (plaster, 0.75f), (slate, 0.15f), (shingle, 0.5f), (thatch, 0.8f),
+                (rock, 0.35f), (cliff, 0.35f), (cobble, 0.42f), (stoneWall, 0.45f), (brick, 0.7f), (plaster, 0.75f), (slate, 0.15f), (shingle, 0.5f), (thatch, 0.8f),
                 (wood, 0.65f), (pineBark, 0.7f), (BirchBark, 0.6f),
                 (barkFurrowed, 0.7f), (barkPlated, 0.7f), (barkSmooth, 0.45f), (barkFibrous, 0.75f), (barkRinged, 0.6f), (barkBare, 0.6f), (barkCharred, 0.5f), (cloth, 0.9f), (leather, 0.45f), (bone, 0.3f), (wax, 0.04f),
                 (foliage_white, 0.12f),
@@ -533,6 +537,24 @@ namespace Dino_Engine.Textures
             combined2.scaleHeight(0.15f);
             combined2.addHeight(0.85f);
             return FinishTexture(combined2, normalFlatness:50.0f);
+        }
+
+        // What rock is made of at the scale of a hand and a stride: blocks with flat faces, the cracks between them, and a grain over all of it. It's read at two sizes
+        // at once, and from a long way up, so it's the large strong shapes that count. The grey is as bright as rock gets, as the world's layers multiply it.
+        private int createCliff()
+        {
+            Material stone = new Material(new Colour(232, 232, 232), 0.86f);
+
+            // Wider than they're tall: seen from the side a rock face is laid down in flakes.
+            var faces = procTextGen.Facets(new Vector2(3f, 6f), tilt: 0.42f, relief: 0.5f, crack: 0.28f, width: 0.022f).setMaterial(stone);
+            var smaller = procTextGen.Facets(new Vector2(8f, 13f), tilt: 0.5f, relief: 0.55f, crack: 0.3f, width: 0.04f);
+            var chips = procTextGen.Facets(new Vector2(21f, 31f), tilt: 0.6f, relief: 0.5f, crack: 0.24f, width: 0.07f);
+            MaterialLayersCombiner.combine(faces, smaller, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Add, weight: 0.42f);
+            MaterialLayersCombiner.combine(faces, chips, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Add, weight: 0.3f);
+
+            var grain = procTextGen.PerlinFBM(new Vector2(29f, 29f), octaves: 7, amplitudePerOctave: 0.58f);
+            MaterialLayersCombiner.combine(faces, grain, FilterMode.Everywhere, materialOperation: Operation.Nothing, heightOperation: Operation.Add, weight: 0.16f);
+            return FinishTexture(faces, normalFlatness: 7.0f);
         }
 
         private int createCobbleTexture()

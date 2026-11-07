@@ -32,6 +32,7 @@ namespace Dino_WorldLab
             CheckBareStretches(world);
             CheckPlayable(world);
             CheckPacks(world);
+            CheckMountains(world);
         }
 
         private void Problem(string text)
@@ -282,6 +283,73 @@ namespace Dino_WorldLab
                 {
                     if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of {site.Name} can't be reached at {spawn.Position}");
                 }
+            }
+        }
+
+        // The game's camera, which looks along +z from behind and above at a fixed angle (ArpgGame.SpawnCameras).
+        private static readonly float CameraRise = MathF.Tan(MathF.PI / 2.7f);
+        private const float CameraReach = 14f;      // Metres of ground between the hero and the point under the camera, at its usual distance.
+        private const float HeroWaist = 1f;         // Seeing this much of someone is seeing them.
+        private const float LeastRockShare = 0.015f;// Of the land, in anything that isn't a marsh.
+        private const float LeastRockSlope = 0.8f;  // Median, of bare rock. A smooth hill with rock painted on it comes in under 0.7.
+
+        // What rock has to leave alone and what it has to be, measured from the finished ground and knowing nothing of how it was made.
+        private void CheckMountains(WorldData world)
+        {
+            ScalarField reachable = world.Reachable;
+
+            // Everything anyone uses stays as it was. Rock starts at the edge of the land, so only go by what's a little way in from it.
+            int touched = 0;
+            for (int z = 2; z < reachable.Depth - 2; z++)
+            {
+                for (int x = 2; x < reachable.Width - 2; x++)
+                {
+                    if (reachable[x, z] < 0.5f || reachable[x - 2, z] < 0.5f || reachable[x + 2, z] < 0.5f || reachable[x, z - 2] < 0.5f || reachable[x, z + 2] < 0.5f) continue;
+                    if (world.Rock.Sample(reachable.WorldPosition(x, z)) > 0f) touched++;
+                }
+            }
+            if (touched > 0) Problem($"rock has been sculpted into {touched} cells of the land people walk on");
+
+            // Nobody can be hidden by the ground. A hero stands anywhere walkable, and the line from them to the camera has to clear everything on the way.
+            int hidden = 0;
+            Vector2 first = default;
+            for (float z = 0f; z < world.Size; z += 6f)
+            {
+                for (float x = 0f; x < world.Size; x += 6f)
+                {
+                    Vector2 at = new Vector2(x, z);
+                    if (!world.Walkable.IsSet(at)) continue;
+                    float waist = world.Height.Sample(at) + HeroWaist;
+                    for (float back = 1f; back <= CameraReach; back += 1f)
+                    {
+                        if (world.Height.Sample(at - new Vector2(0f, back)) <= waist + back * CameraRise) continue;
+                        if (hidden++ == 0) first = at;
+                        break;
+                    }
+                }
+            }
+            if (hidden > 0) Problem($"the ground hides a hero from the camera in {hidden} places, the first at {first}");
+
+            // Whatever a world's mountains are, it has some, and they stand up.
+            int land = 0;
+            var slopes = new List<float>();
+            for (float z = 0f; z < world.Size; z += 4f)
+            {
+                for (float x = 0f; x < world.Size; x += 4f)
+                {
+                    Vector2 at = new Vector2(x, z);
+                    if (world.Height.Sample(at) <= WorldPlan.SeaLevel) continue;
+                    land++;
+                    if (world.Rock.Sample(at) > 0.9f) slopes.Add(world.Height.SlopeAt(at));
+                }
+            }
+            float share = slopes.Count / (float)Math.Max(land, 1);
+            if (share < LeastRockShare) Problem($"only {share:P1} of the land is rock");
+            if (slopes.Count > 0)
+            {
+                slopes.Sort();
+                float median = slopes[slopes.Count / 2];
+                if (median < LeastRockSlope) Problem($"the rock lies back at a median slope of {median:0.00}");
             }
         }
 

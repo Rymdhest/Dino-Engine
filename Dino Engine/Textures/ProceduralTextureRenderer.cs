@@ -19,6 +19,7 @@ namespace Dino_Engine.Textures
         private ShaderProgram _textureTileweaveShader = new ShaderProgram("Simple.vert", "Texture_Tileweave.frag");
         private ShaderProgram _textureVoronoiShader = new ShaderProgram("Simple.vert", "Texture_Voronoi.frag");
         private ShaderProgram _textureVoronoiCracksShader = new ShaderProgram("Simple.vert", "Texture_Voronoi_Cracks.frag");
+        private ShaderProgram _textureFacetsShader = new ShaderProgram("Simple.vert", "Texture_Facets.frag");
         private ShaderProgram _textureCellularShader = new ShaderProgram("Simple.vert", "Texture_Cellular.frag");
         private ShaderProgram _textureFlatShader = new ShaderProgram("Simple.vert", "Texture_Flat.frag");
         private ShaderProgram _textureBricksShader = new ShaderProgram("Simple.vert", "Texture_Bricks.frag");
@@ -126,6 +127,23 @@ namespace Dino_Engine.Textures
             _textureVoronoiCracksShader.loadUniformBool("warpSmudge", warpSmudge);
             _textureVoronoiCracksShader.loadUniformFloat("seed", seed);
             _textureVoronoiCracksShader.loadUniformInt("returnMode", (int)returnMode);
+            return layer.tap();
+        }
+
+        /// <summary>Broken rock: a flat face at its own tilt in every cell, and a crack between them. <paramref name="scale"/> is cells across the tile, which must be whole numbers for it to tile.</summary>
+        public MaterialLayer Facets(Vector2 scale, float tilt = 0.5f, float relief = 0.6f, float crack = 0.3f, float width = 0.04f, float seed = -1.0f)
+        {
+            var layer = new MaterialLayer(bind: true);
+            if (seed < 0) seed = rand.NextSingle() * 100000.0f;
+            _textureFacetsShader.bind();
+            _textureFacetsShader.loadUniformVector4f("albedo", defaultColour.ToVector4());
+            _textureFacetsShader.loadUniformVector4f("material", defaultmaterial);
+            _textureFacetsShader.loadUniformVector2f("scale", scale);
+            _textureFacetsShader.loadUniformFloat("seed", seed);
+            _textureFacetsShader.loadUniformFloat("tilt", tilt);
+            _textureFacetsShader.loadUniformFloat("relief", relief);
+            _textureFacetsShader.loadUniformFloat("crack", crack);
+            _textureFacetsShader.loadUniformFloat("width", width);
             return layer.tap();
         }
 

@@ -266,6 +266,7 @@ namespace Dino_Engine.World.Generation
 
                 WorldAsset? asset = PickSpecies(biome.Boulders, random.Float(), random);
                 if (asset == null) continue;
+                asset = NatureCatalog.Resolve(asset, world.Geology.Kind);
 
                 float scale = random.Range(asset.Scale) * (1f + outcrop * 0.5f);
                 Footprint footprint = Footprint.Circle(point, asset.Footprint * scale);
@@ -278,7 +279,7 @@ namespace Dino_Engine.World.Generation
                 float height = world.Height.Sample(point) - 0.25f * scale;
                 Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, random.Float() * MathF.Tau);
                 Vector3 size = new Vector3(scale, scale * random.Range(0.7f, 1.2f), scale);
-                objects.Add(asset.Id, new Vector3(point.X, height, point.Y), rotation, size);
+                objects.Add(NatureCatalog.ModelAt(asset, world.Plan.Seed, point), new Vector3(point.X, height, point.Y), rotation, size);
             }
         }
 

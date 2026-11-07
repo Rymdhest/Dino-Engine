@@ -26,6 +26,7 @@ layout (location = 1) out vec4 gNormal;
 layout (location = 2) out vec4 gMaterials;  
 
 #include textureUtil.glsl
+#include Rock.glsl
 #include procedural/fastHash.glsl
 #include gBufferUtil.glsl
 #include AntiAliasing/Msaa.glsl
@@ -47,6 +48,8 @@ void main() {
 
 	vec2 uvDX = dFdx(fragUV);
 	vec2 uvDY = dFdy(fragUV);
+	vec3 positionDX = dFdx(worldPosition);
+	vec3 positionDY = dFdy(worldPosition);
 
 	vec2 parallaxedCoords = fragUV;
 	if (parallaxDepth > 0.001) {
@@ -58,6 +61,18 @@ void main() {
 	}
 	//if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
 	MaterialProps material = LookupAllMaterialPropsGrad(parallaxedCoords, textureIndex, uvDX, uvDY);
+#ifndef CHARACTER
+	// A stone is the rock of the mountains: the same layers at the same heights, whatever its own shape.
+	bool stone = isRock(textureIndex);
+	RockLook rock;
+	if (stone) {
+		rock = rockLook(worldPosition, normalize(mat3(invViewMatrix) * normalTBN[2]) * (gl_FrontFacing ? 1.0 : -1.0), positionDX, positionDY);
+		material.albedo = rock.albedo;
+		material.roughness = rock.roughness;
+		material.ambient = rock.ambient;
+		material.height = rock.height;
+	}
+#endif
 	// An emissive colour can be brighter than the albedo's 8 bits hold. Its hue stays there and the rest goes to the emission.
 	float overbright = material.emission > 0.0 ? max(max(fragColor.r, max(fragColor.g, fragColor.b)), 1.0) : 1.0;
 	gAlbedo.rgb = material.albedo * fragColor / overbright;
@@ -79,6 +94,9 @@ void main() {
     if (!gl_FrontFacing && !card) normalTangentSpace.z *= -1.0;
     normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
     vec3 normal = normalize(normalTBN*normalTangentSpace.xyz);
+#ifndef CHARACTER
+	if (stone) normal = normalize(mat3(viewMatrix) * rock.normal);
+#endif
 	float roughness = material.roughness;
 
 	// Whatever glows goes on glowing in the rain, at the same strength.

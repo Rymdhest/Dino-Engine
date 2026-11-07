@@ -75,6 +75,9 @@ namespace Dino_Engine.World.Content
         public SurfaceMaterial Shore = SurfaceMaterial.Sand;
         public SurfaceMaterial Path = SurfaceMaterial.Dirt;
 
+        /// <summary>What the land here stands on, and so what a world of this biome is likely to be made of.</summary>
+        public RockKind Bedrock = RockKind.Granite;
+
         // --- Grass ---
         public float GrassCover = 1f;       // 0..1, how much of the open ground grows grass.
         public float GrassHeight = 0.6f;    // 0..1 of the world's longest blades.
@@ -123,6 +126,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Meadow = new BiomeDefinition
         {
             Id = "meadow",
+            Bedrock = RockKind.Limestone,
             Name = "Meadowland",
             MapColour = new Vector3(0.46f, 0.62f, 0.26f),
             Temperature = 0.55f,
@@ -153,6 +157,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition GoldenSteppe = new BiomeDefinition
         {
             Id = "steppe",
+            Bedrock = RockKind.Limestone,
             Name = "Golden Steppe",
             MapColour = new Vector3(0.78f, 0.63f, 0.28f),
             Temperature = 0.72f,
@@ -222,6 +227,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition BirchWood = new BiomeDefinition
         {
             Id = "birch",
+            Bedrock = RockKind.Granite,
             Name = "Birchwood",
             MapColour = new Vector3(0.55f, 0.68f, 0.42f),
             Temperature = 0.45f,
@@ -253,6 +259,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition CrimsonWood = new BiomeDefinition
         {
             Id = "crimson",
+            Bedrock = RockKind.Sandstone,
             Name = "Crimson Wood",
             MapColour = new Vector3(0.72f, 0.2f, 0.14f),
             Temperature = 0.48f,
@@ -287,6 +294,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition BlossomGrove = new BiomeDefinition
         {
             Id = "blossom",
+            Bedrock = RockKind.Limestone,
             Name = "Blossom Grove",
             MapColour = new Vector3(0.9f, 0.68f, 0.76f),
             Temperature = 0.62f,
@@ -322,6 +330,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition BambooThicket = new BiomeDefinition
         {
             Id = "bamboo",
+            Bedrock = RockKind.Limestone,
             Name = "Bamboo Thicket",
             MapColour = new Vector3(0.3f, 0.55f, 0.3f),
             Temperature = 0.74f,
@@ -353,6 +362,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Marsh = new BiomeDefinition
         {
             Id = "marsh",
+            Bedrock = RockKind.Limestone,
             Name = "Mire",
             MapColour = new Vector3(0.36f, 0.4f, 0.27f),
             Temperature = 0.52f,
@@ -394,6 +404,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Highland = new BiomeDefinition
         {
             Id = "highland",
+            Bedrock = RockKind.Schist,
             Name = "High Moor",
             MapColour = new Vector3(0.52f, 0.5f, 0.42f),
             Temperature = 0.25f,
@@ -461,6 +472,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Dunes = new BiomeDefinition
         {
             Id = "dunes",
+            Bedrock = RockKind.Sandstone,
             Name = "Dunes",
             MapColour = new Vector3(0.88f, 0.76f, 0.5f),
             Temperature = 0.9f,
@@ -494,6 +506,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Badlands = new BiomeDefinition
         {
             Id = "badlands",
+            Bedrock = RockKind.Sandstone,
             Name = "Badlands",
             MapColour = new Vector3(0.68f, 0.44f, 0.3f),
             Temperature = 0.86f,
@@ -525,6 +538,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Ashland = new BiomeDefinition
         {
             Id = "ash",
+            Bedrock = RockKind.Basalt,
             Name = "Ashlands",
             MapColour = new Vector3(0.24f, 0.2f, 0.2f),
             Temperature = 0.96f,
@@ -592,6 +606,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition DarkWood = new BiomeDefinition
         {
             Id = "darkwood",
+            Bedrock = RockKind.Schist,
             Name = "The Blackwood",
             MapColour = new Vector3(0.14f, 0.13f, 0.17f),
             Temperature = 0.3f,
@@ -629,6 +644,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Jungle = new BiomeDefinition
         {
             Id = "jungle",
+            Bedrock = RockKind.Limestone,
             Name = "The Green Deep",
             MapColour = new Vector3(0.1f, 0.44f, 0.22f),
             Temperature = 0.84f,
@@ -667,6 +683,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Savanna = new BiomeDefinition
         {
             Id = "savanna",
+            Bedrock = RockKind.Sandstone,
             Name = "The Long Grass",
             MapColour = new Vector3(0.74f, 0.66f, 0.3f),
             Temperature = 0.82f,
@@ -703,6 +720,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition GoldenWood = new BiomeDefinition
         {
             Id = "ginkgo",
+            Bedrock = RockKind.Limestone,
             Name = "Gold Wood",
             MapColour = new Vector3(0.86f, 0.68f, 0.14f),
             Temperature = 0.5f,

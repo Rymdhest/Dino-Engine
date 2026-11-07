@@ -88,7 +88,8 @@ namespace Dino_Engine.World.Generation
                     int i = z * width + x;
                     open[i] = height.Data[i] > WorldPlan.SeaLevel + 0.2f
                         && height.SlopeAt(x, z) < MaxWalkableSlope
-                        && world.Boundary.Data[i] < BoundaryLimit;
+                        && world.Boundary.Data[i] < BoundaryLimit
+                        && world.Massif.Data[i] < 0.5f;
                 }
             }
 

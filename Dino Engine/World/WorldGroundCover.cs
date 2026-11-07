@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Rock;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using static Dino_Engine.World.WorldMath;
@@ -72,6 +73,23 @@ namespace Dino_Engine.World
             if (above < 0.12f) return;
 
             float slope = world.Height.SlopeAt(point);
+
+            // A scree is nothing but small stones, on ground far too steep for anything else.
+            float scree = world.Scree.Sample(point);
+            if (scree > 0.25f && slope < 1.7f)
+            {
+                if (Random01(ref state) >= scree * 0.75f) return;
+                WorldAsset chip = NatureCatalog.RockOf(world.Geology.Kind, RockForm.Chip);
+                results.Add(new GroundPlant
+                {
+                    Asset = chip,
+                    Model = NatureCatalog.ModelAt(chip, world.Plan.Seed, point),
+                    Position = new Vector3(point.X, height - 0.03f, point.Y),
+                    Yaw = Random01(ref state) * MathF.Tau,
+                    Scale = chip.Scale.Lerp(Random01(ref state)),
+                });
+                return;
+            }
             if (slope > 0.6f) return;
 
             float pick = Random01(ref state);
@@ -92,7 +110,7 @@ namespace Dino_Engine.World
             else return;
             if (list.Length == 0) return;
 
-            WorldAsset asset = PickSpecies(list, ref state);
+            WorldAsset asset = NatureCatalog.Resolve(PickSpecies(list, ref state), world.Geology.Kind);
             float scale = asset.Scale.Lerp(Random01(ref state));
             float reach = asset.Footprint * scale * 0.7f;
             Footprint footprint = Footprint.Circle(point, reach);

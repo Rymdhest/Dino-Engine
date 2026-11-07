@@ -32,11 +32,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     {
         public TerrainChunkRenderData[] chunks;
         public float parallaxDepth;
+        /// <summary>Mountains too far off to have chunks, that can still shade what's here. Only shadows have these.</summary>
+        public TerrainChunkRenderData[]? farRock;
 
-        public TerrainRenderCommand(TerrainChunkRenderData[] chunks, float parallaxDepth)
+        public TerrainRenderCommand(TerrainChunkRenderData[] chunks, float parallaxDepth, TerrainChunkRenderData[]? farRock = null)
         {
             this.chunks = chunks;
             this.parallaxDepth = parallaxDepth;
+            this.farRock = farRock;
         }
     }
 
@@ -45,6 +48,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private ShaderProgram _terrainShader = new ShaderProgram("Terrain.vert", "Terrain.frag");
         private ShaderProgram _terrainShadowShader = new ShaderProgram("Terrain_Shadow.vert", "Terrain_Shadow.frag");
         private ShaderProgram _grassCarveShader = new ShaderProgram("GrassCarve.vert", "GrassCarve.frag");
+        private ShaderProgram _farShadowShader = new ShaderProgram("Terrain_Far_Shadow.vert", "Terrain_Shadow.frag");
 
         private glModel baseChunkModel;
         private int normalRoadHeightTextureArray;
@@ -64,6 +68,20 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private int carveFBO;
 
         private int instanceVBO;
+
+        private const int GeologyBinding = 10;
+        // How fine the far mountains are, which only ever make shadows, in metres.
+        private const float FarCell = 8f;
+        private const float FarTile = 64f;
+        private const int FarHeightUnit = 7;
+
+        private int farHeightMap;
+        private Vector2 farHeightMapping;
+        private readonly List<(TerrainChunkRenderData tile, float lowest, float highest)> farTiles = new();
+
+        private const int GeologyHeader = 12;
+        private const int GeologyDataBytes = GeologyHeader * sizeof(float) + Geology.Steps * 4;
+        private int geologyBuffer;
 
         public TerrainRenderer() : base("Terrain")
         {
@@ -90,6 +108,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _terrainShadowShader.bind();
             _terrainShadowShader.loadUniformInt("normalHeightTextureArray", 6);
             _terrainShadowShader.unBind();
+
+            _farShadowShader.bind();
+            _farShadowShader.loadUniformInt("farHeightMap", FarHeightUnit);
+            _farShadowShader.unBind();
 
 
             var mesh = MeshGenerator.generatePlane(size : new Vector2(1f, 1f), resolution : new Vector2i(CHUNK_RESOLUTION-1), material : new VertexMaterial(TextureGenerator.flat), centerX : false, centerY : false);
@@ -127,7 +149,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindVertexArray(0);
 
 
-            normalRoadHeightTextureArray = CreateChunkTextureArray();
+            // Full floats, as heights are absolute: at the top of a mountain a half float only comes in steps of a quarter of a metre.
+            normalRoadHeightTextureArray = CreateChunkTextureArray(SizedInternalFormat.Rgba32f);
             grassTextureArray = CreateChunkTextureArray();
             grassColourTextureArray = CreateChunkTextureArray();
             grassBloomTextureArray = CreateChunkTextureArray();
@@ -135,13 +158,121 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
 
             carveFBO = GL.GenFramebuffer();
+
+            geologyBuffer = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.UniformBuffer, geologyBuffer);
+            GL.BufferData(BufferTarget.UniformBuffer, GeologyDataBytes, IntPtr.Zero, BufferUsageHint.StaticDraw);
+            // With no world yet, no material is rock: item pictures are drawn before there's a world, and a 0 here is a real material.
+            float[] nothing = new float[GeologyHeader];
+            nothing[7] = nothing[11] = -10f;
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, nothing.Length * sizeof(float), nothing);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, GeologyBinding, geologyBuffer);
         }
 
-        private int CreateChunkTextureArray()
+        /// <summary>
+        /// Keeps the shape of a world's mountains for the sun, which sees further than the terrain goes: a wall past the last chunk still throws its shadow in, and with no chunks there to cast it,
+        /// it would appear all at once as they arrive. Each height is the lowest for some way around, so that this always lies under the real ground and can't shade it.
+        /// </summary>
+        public void SetFarRock(WorldData world)
+        {
+            ScalarField ground = world.Height;
+            int nodes = (int)MathF.Ceiling(world.Size / FarCell) + 1;
+            float[] heights = new float[nodes * nodes];
+            Parallel.For(0, nodes, z =>
+            {
+                for (int x = 0; x < nodes; x++)
+                {
+                    float lowest = float.MaxValue;
+                    for (float dz = -FarCell; dz <= FarCell; dz += FarCell * 0.5f)
+                    {
+                        for (float dx = -FarCell; dx <= FarCell; dx += FarCell * 0.5f)
+                        {
+                            lowest = MathF.Min(lowest, ground.Sample(x * FarCell + dx, z * FarCell + dz));
+                        }
+                    }
+                    heights[z * nodes + x] = lowest - 0.5f;
+                }
+            });
+
+            if (farHeightMap == 0) farHeightMap = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, farHeightMap);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R32f, nodes, nodes, 0, PixelFormat.Red, PixelType.Float, heights);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            farHeightMapping = new Vector2(1f / (FarCell * nodes), 0.5f / nodes);
+
+            // Only where rock stands: nothing on open land is tall enough to reach this far.
+            farTiles.Clear();
+            int tiles = (int)MathF.Ceiling(world.Size / FarTile);
+            for (int tz = 0; tz < tiles; tz++)
+            {
+                for (int tx = 0; tx < tiles; tx++)
+                {
+                    bool rock = false;
+                    float lowest = float.MaxValue, highest = float.MinValue;
+                    for (float z = tz * FarTile; z <= (tz + 1) * FarTile; z += FarCell)
+                    {
+                        for (float x = tx * FarTile; x <= (tx + 1) * FarTile; x += FarCell)
+                        {
+                            rock |= world.Rock.Sample(x, z) > 0.5f;
+                            float h = ground.Sample(x, z);
+                            lowest = MathF.Min(lowest, h);
+                            highest = MathF.Max(highest, h);
+                        }
+                    }
+                    if (!rock) continue;
+                    farTiles.Add((new TerrainChunkRenderData { chunkPos = new Vector3(tx * FarTile, 0f, tz * FarTile), size = new Vector3(FarTile, 1f, FarTile) }, lowest, highest));
+                }
+            }
+        }
+
+        /// <summary>The far mountains that fall within a shadow map.</summary>
+        public void CollectFarRock(Util.Frustum frustum, List<TerrainChunkRenderData> into)
+        {
+            into.Clear();
+            foreach ((TerrainChunkRenderData tile, float lowest, float highest) in farTiles)
+            {
+                Vector3 min = new Vector3(tile.chunkPos.X, lowest, tile.chunkPos.Z);
+                Vector3 max = new Vector3(tile.chunkPos.X + FarTile, highest, tile.chunkPos.Z + FarTile);
+                if (frustum.IntersectsAABB(new Physics.AABB(min, max)) != Util.IntersectionResult.Outside) into.Add(tile);
+            }
+        }
+
+        /// <summary>Tells every shader that reads Rock.glsl what a world's rock is. <see cref="GeologyData"/> there has to match this.</summary>
+        public void SetGeology(Geology geology)
+        {
+            float[] header = new float[GeologyHeader];
+            header[0] = geology.Dip.X;
+            header[1] = geology.Dip.Y;
+            header[2] = Geology.Bottom;
+            header[3] = Geology.Steps / (Geology.Top - Geology.Bottom);
+            header[4] = geology.Phase.X;
+            header[5] = geology.Phase.Y;
+            header[6] = geology.Phase.Z;
+            header[7] = TextureGenerator.cliff;
+
+            // Its hue and not its brightness, as gravel has to go on looking like gravel.
+            Vector3 hue = geology.Colour / MathF.Max((geology.Colour.X + geology.Colour.Y + geology.Colour.Z) / 3f, 0.01f);
+            header[8] = hue.X;
+            header[9] = hue.Y;
+            header[10] = hue.Z;
+            header[11] = TextureGenerator.gravel;
+
+            GL.BindBuffer(BufferTarget.UniformBuffer, geologyBuffer);
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, GeologyHeader * sizeof(float), header);
+            GL.BufferSubData(BufferTarget.UniformBuffer, (IntPtr)(GeologyHeader * sizeof(float)), geology.Layers.Length, geology.Layers);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+        }
+
+        private int CreateChunkTextureArray(SizedInternalFormat format = SizedInternalFormat.Rgba16f)
         {
             int array = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2DArray, array);
-            GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba16f, CHUNK_RESOLUTION, CHUNK_RESOLUTION, MAX_TERRAIN_CHUNKS);
+            GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, format, CHUNK_RESOLUTION, CHUNK_RESOLUTION, MAX_TERRAIN_CHUNKS);
 
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
@@ -171,7 +302,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             SurfaceMaterial.Soil => TextureGenerator.soil,
             SurfaceMaterial.Grass => TextureGenerator.grass,
             SurfaceMaterial.GrassySoil => TextureGenerator.grassy_soil,
-            SurfaceMaterial.Rock => TextureGenerator.rock,
+            SurfaceMaterial.Rock => TextureGenerator.cliff,
             SurfaceMaterial.Sand => TextureGenerator.sand,
             SurfaceMaterial.Dunes => TextureGenerator.sandDunes,
             SurfaceMaterial.CrackedEarth => TextureGenerator.crackedDesert,
@@ -337,6 +468,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             _terrainShader.cleanUp();
             _terrainShadowShader.cleanUp();
+            _farShadowShader.cleanUp();
+            GL.DeleteBuffer(geologyBuffer);
+            if (farHeightMap != 0) GL.DeleteTexture(farHeightMap);
         }
 
         internal override void PrepareGeometry(RenderEngine renderEngine)
@@ -553,6 +687,29 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 IntPtr.Zero,
                 numberOfChunks
             );
+
+            if (command.farRock == null || command.farRock.Length == 0) return;
+
+            _farShadowShader.bind();
+            _farShadowShader.loadUniformMatrix4f("projectionViewMatrix", projectionViewMatrix);
+            _farShadowShader.loadUniformVector2f("farHeightMapping", farHeightMapping);
+            GL.ActiveTexture(TextureUnit.Texture0 + FarHeightUnit);
+            GL.BindTexture(TextureTarget.Texture2D, farHeightMap);
+
+            GL.BufferData(BufferTarget.ArrayBuffer,
+                command.farRock.Length * Marshal.SizeOf<TerrainChunkRenderData>(),
+                command.farRock,
+                BufferUsageHint.DynamicDraw);
+            GL.DrawElementsInstanced(
+                PrimitiveType.Triangles,
+                baseChunkModel.getVertexCount(),
+                DrawElementsType.UnsignedInt,
+                IntPtr.Zero,
+                command.farRock.Length
+            );
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            _terrainShadowShader.bind();
         }
     }
 }

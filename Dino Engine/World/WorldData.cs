@@ -43,6 +43,14 @@ namespace Dino_Engine.World
         public ScalarField Flow = null!;
         /// <summary>1 inside the mountains closing off the world, where nothing can be built or walked.</summary>
         public ScalarField Boundary = null!;
+        /// <summary>How much the land here wants to be a mountain, 0..1. Foothills rise around it, and it's where <see cref="Massif"/> is drawn from.</summary>
+        public ScalarField Highland = null!;
+        /// <summary>1 where mountains stand, from MountainStage on: the wall around the world and whatever rises within it.</summary>
+        public ScalarField Massif = null!;
+        /// <summary>1 on the crest of a ridge and -1 down a valley, in the mountains, from MountainStage on.</summary>
+        public ScalarField Crests = null!;
+        /// <summary>The bedrock, from MountainStage on.</summary>
+        public Geology Geology = null!;
 
         // --- Climate, at ClimateCell ---
         public ScalarField Temperature = null!;
@@ -80,6 +88,12 @@ namespace Dino_Engine.World
         public ByteField Yard = null!;
         public ByteField Plaza = null!;
         public ByteField Farmland = null!;
+        /// <summary>1 on bare mountain, where nobody goes. Everything else is ground as it always was.</summary>
+        public ByteField Rock = null!;
+        /// <summary>1 where broken rock has gathered, down the creases of a mountain.</summary>
+        public ByteField Scree = null!;
+        /// <summary>How far bare rock stands out of what's around it: half is level, 1 a sharp crest and 0 the bottom of a crack.</summary>
+        public ByteField Proud = null!;
 
         // --- Water and plants ---
         public readonly List<WorldPond> Ponds = new();

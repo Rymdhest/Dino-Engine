@@ -45,7 +45,8 @@ namespace Dino_Engine.World.Generation
                     int i = z * width + x;
                     float worldX = x * WorldData.ClimateCell;
                     float worldZ = z * WorldData.ClimateCell;
-                    land[i] = world.Elevation.Sample(worldX, worldZ) > WorldPlan.SeaLevel;
+                    // Shares are of the land people walk on: bare mountain counts for nothing, or a biome that likes the heights would be spent where nobody goes.
+                    land[i] = world.Elevation.Sample(worldX, worldZ) > WorldPlan.SeaLevel && world.Massif.Sample(worldX, worldZ) < 0.5f;
 
                     // A wandering offset gives borders the shape of living things rather than of the climate's smooth contours.
                     Vector2 wander = noise.Warp(worldX, worldZ, 170f, 0.1f, 4);

@@ -122,6 +122,13 @@ namespace Dino_Engine.World
             return MathF.Sqrt(dx * dx + dz * dz);
         }
 
+        public ScalarField Copy()
+        {
+            var copy = new ScalarField(Width, Depth, CellSize);
+            Array.Copy(Data, copy.Data, Data.Length);
+            return copy;
+        }
+
         public void Fill(float value)
         {
             Array.Fill(Data, value);

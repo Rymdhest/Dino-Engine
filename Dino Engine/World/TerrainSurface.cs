@@ -113,6 +113,11 @@ namespace Dino_Engine.World
             float slope = MathF.Sqrt(MathF.Max(1f - normalY * normalY, 0f)) / MathF.Max(normalY, 0.05f);
             float rock = Smoothstep(0.62f, 1.02f, slope + breakup * 0.14f);
 
+            // A mountain is bare down to quite gentle ground, and what lies back on it, a ledge or a bench, is where anything grows.
+            float bare = world.Rock.Sample(x, z);
+            rock = MathF.Max(rock, bare * Smoothstep(0.26f, 0.5f, slope + breakup * 0.2f));
+            float scree = world.Scree.Sample(x, z) * (1f - Smoothstep(0.75f, 1.25f, slope));
+
             float above = height - world.WaterLevelAt(position);
             float shore = 1f - Smoothstep(0.3f, 1.8f, above + breakup * 0.45f + drift * 0.4f);
 
@@ -140,8 +145,12 @@ namespace Dino_Engine.World
                 if (share <= 0.002f) continue;
                 BiomeDefinition biome = _biomes[b];
 
-                weights[_slot[(int)biome.Ground]] += share * natural * (1f - shade);
-                weights[_slot[(int)biome.Understory]] += share * natural * shade;
+                // Sand doesn't lie on a ledge: what's there is what's come off the rock above it.
+                bool loose = biome.Ground is SurfaceMaterial.Sand or SurfaceMaterial.Dunes or SurfaceMaterial.CrackedEarth;
+                float ledge = loose ? bare : 0f;
+                weights[_slot[(int)biome.Ground]] += share * natural * (1f - shade) * (1f - ledge);
+                weights[_slot[(int)biome.Understory]] += share * natural * shade * (1f - ledge);
+                weights[_slot[(int)SurfaceMaterial.Gravel]] += share * natural * ledge;
                 weights[_slot[(int)biome.Shore]] += share * notRoad * shore * (1f - rock);
                 weights[_slot[(int)biome.Slope]] += share * notRoad * rock;
                 weights[_slot[(int)biome.Path]] += share * trail;
@@ -156,6 +165,7 @@ namespace Dino_Engine.World
                 bloomColour += share * Vector3.Lerp(biome.GrassBloomColour, biome.GrassBloomColourTwo, bloomPick);
             }
 
+            weights[_slot[(int)SurfaceMaterial.Gravel]] += scree * rock * notRoad * 2f;
             weights[_slot[(int)SurfaceMaterial.Cobble]] += paved;
             weights[_slot[(int)SurfaceMaterial.Dirt]] += yard * notRoad * (1f - plaza);
             weights[_slot[(int)SurfaceMaterial.Gravel]] += plaza * notRoad;
@@ -163,7 +173,7 @@ namespace Dino_Engine.World
 
             float small = 0.8f + 0.2f * _noise.Fbm01(x, z, 2.2f, 2);
             float broad = 0.72f + 0.28f * _noise.Fbm01(x + 91f, z - 13f, 6f, 2);
-            float grows = (1f - rock) * notRoad * (1f - plaza) * (1f - farm) * (1f - yard * 0.7f);
+            float grows = (1f - rock) * (1f - bare * 0.55f) * notRoad * (1f - plaza) * (1f - farm) * (1f - yard * 0.7f);
             // Grass thins out over the last of the dry ground and stops at the water.
             grows *= Smoothstep(0.02f, 0.5f, above);
 

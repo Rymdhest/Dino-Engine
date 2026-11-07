@@ -49,6 +49,7 @@ namespace Dino_Engine.World.Generation
             float terraceStep = 7f;
 
             ScalarField boundary = ScalarField.ForWorld(size, WorldData.CoarseCell);
+            ScalarField highland = ScalarField.ForWorld(size, WorldData.CoarseCell);
             ScalarField elevation = ScalarField.ForWorld(size, WorldData.CoarseCell);
             Parallel.For(0, depth, z =>
             {
@@ -73,7 +74,7 @@ namespace Dino_Engine.World.Generation
                     }
                     else
                     {
-                        height = LandHeight(plan, worldX, worldZ, inland.Data[i], reliefNoise, mountainNoise, coastNoise, mountainThreshold);
+                        height = LandHeight(plan, worldX, worldZ, inland.Data[i], reliefNoise, mountainNoise, coastNoise, mountainThreshold, out highland.Data[i]);
                         if (plan.Terraces > 0f) height = Terrace(height, terraceStep, plan.Terraces);
                     }
 
@@ -84,6 +85,7 @@ namespace Dino_Engine.World.Generation
 
             world.Elevation = elevation;
             world.Boundary = boundary;
+            world.Highland = highland;
             // Refined by the erosion stage once the shape is final.
             world.Inland = inland;
         }
@@ -96,7 +98,7 @@ namespace Dino_Engine.World.Generation
             return 1f - Smoothstep(0f, rimWidth * 1.5f, border + wander - rimWidth * 0.1f);
         }
 
-        private static float LandHeight(WorldPlan plan, float x, float z, float inland, WorldNoise relief, WorldNoise mountains, WorldNoise coast, float mountainThreshold)
+        private static float LandHeight(WorldPlan plan, float x, float z, float inland, WorldNoise relief, WorldNoise mountains, WorldNoise coast, float mountainThreshold, out float highland)
         {
             // Stretches of the coast rise straight up as cliffs; the rest are beaches.
             float cliffNoise = coast.Fbm01(x - 1300f, z + 700f, 300f, 3);
@@ -115,6 +117,7 @@ namespace Dino_Engine.World.Generation
             Vector2 warp = mountains.Warp(x, z, 340f, 90f);
             float massif = mountains.Fbm01(x + 500f, z + 120f, 720f, 3);
             float mask = Smoothstep(mountainThreshold, mountainThreshold + 0.26f, massif) * Smoothstep(60f, 320f, inland);
+            highland = massif * Smoothstep(60f, 320f, inland);
             float ridges = mountains.Ridged(x + warp.X, z + warp.Y, 430f, 6);
             float mountain = plan.MountainHeight * mask * (0.32f + 0.68f * ridges);
 

@@ -35,6 +35,8 @@ namespace Dino_Engine.World.Content
         public FloatRange Terraces = new FloatRange(0f, 0f);                // 0..1, how strongly heights step like mesas.
         public FloatRange Erosion = new FloatRange(0.7f, 1.1f);
 
+        public RockKind? Bedrock;       // What the land stands on, if that's what this kind of world is known for. Otherwise it goes by the biomes.
+
         public float RimHeight = 0f;    // Mountains closing off the edge of the world, where the sea doesn't.
         public float RimWidth = 170f;
 
@@ -174,6 +176,7 @@ namespace Dino_Engine.World.Content
             Name = "Badlands",
             Titles = new[] { "The {0} Badlands", "The {0} Mesas", "The Red Reach of {0}" },
             Landform = LandformKind.Badlands,
+            Bedrock = RockKind.Sandstone,
             Size = new FloatRange(1792f, 2304f),
             BaseHeight = new FloatRange(10f, 16f),
             HillHeight = new FloatRange(10f, 16f),
@@ -194,6 +197,7 @@ namespace Dino_Engine.World.Content
             Name = "Ashen Isle",
             Titles = new[] { "The Ashes of {0}", "{0} Cinder", "The Burning Isle of {0}" },
             Landform = LandformKind.Island,
+            Bedrock = RockKind.Basalt,
             Size = new FloatRange(1536f, 2048f),
             MountainCoverage = new FloatRange(0.3f, 0.4f),
             Biomes = new[] { BiomeCatalog.Ashland, BiomeCatalog.GoldenSteppe, BiomeCatalog.Highland, BiomeCatalog.Dunes, BiomeCatalog.DarkWood },

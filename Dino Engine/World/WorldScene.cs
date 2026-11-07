@@ -35,6 +35,8 @@ namespace Dino_Engine.World
             WorldMood mood = world.Plan.Mood;
             var generator = new TerrainGenerator(world);
             Engine.RenderEngine._terrainRenderer.SetSurfacePalette(generator.Palette);
+            Engine.RenderEngine._terrainRenderer.SetGeology(world.Geology);
+            Engine.RenderEngine._terrainRenderer.SetFarRock(world);
 
             ecs.RegisterSingleton<TerrainQuadTreeSingleton>(ecs.CreateEntity(new TerrainQuadTreeSingleton(ChunkSize, radius)));
             ecs.RegisterSingleton<TerrainGeneratorSingleton>(ecs.CreateEntity(new TerrainGeneratorSingleton(generator)));

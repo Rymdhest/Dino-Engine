@@ -66,7 +66,8 @@ namespace Dino_Engine.World
         private const float ClimateCell = 64f;          // Metres between nodes of the climate this reads.
         private const float LapseRate = 0.0025f;        // Warmth lost per metre of height.
         private const float LiftReach = 150f;           // Metres upwind that a slope is measured over.
-        private const float LiftHeight = 40f;           // Metres of climb over that which wrings the most out of the air.
+        private const float LiftHeight = 110f;          // Metres of climb over that which wrings the most out of the air. Much less and every ridge wrings it dry and hands the sky straight over.
+        private const int LandBlur = 8;                 // Cells of the coarse map, three times over: what the air feels of the land.
         private const float CellShare = 0.24f;          // How much showers break up what a system would do alone.
         private const float SurfaceMemory = 120f;       // Seconds for the ground to give up most of its water once it stops raining.
         private const float SurfaceFill = 40f;          // Seconds of hard rain to wet it through.
@@ -128,14 +129,19 @@ namespace Dino_Engine.World
             _nodes = (int)MathF.Ceiling(_size / ClimateCell) + 1;
             _climate = new ClimateNode[_nodes * _nodes];
             Vector2 upwind = _drift.Normalized() * LiftReach;
+
+            // Air answers to the lie of the land and not to a cliff: from one step to the next at the foot of a wall the sky doesn't change.
+            ScalarField land = world.Elevation.Copy();
+            land.Blur(LandBlur, 3);
+
             for (int z = 0; z < _nodes; z++)
             {
                 for (int x = 0; x < _nodes; x++)
                 {
-                    _climate[z * _nodes + x] = Read(world, new Vector2(x, z) * ClimateCell, upwind, unsettled, worldWarmth);
+                    _climate[z * _nodes + x] = Read(world, land, new Vector2(x, z) * ClimateCell, upwind, unsettled, worldWarmth);
                 }
             }
-            for (int pass = 0; pass < 2; pass++) Soften();
+            for (int pass = 0; pass < 3; pass++) Soften();
         }
 
         // Weather has no edge along a ridge or a biome's border: the air doesn't know they're there until it's over them.
@@ -167,7 +173,7 @@ namespace Dino_Engine.World
             Array.Copy(softened, _climate, _climate.Length);
         }
 
-        private static ClimateNode Read(WorldData world, Vector2 position, Vector2 upwind, float unsettled, float worldWarmth)
+        private static ClimateNode Read(WorldData world, ScalarField land, Vector2 position, Vector2 upwind, float unsettled, float worldWarmth)
         {
             float damp = 0f, warmth = 0f, ash = 0f, total = 0f;
             for (int i = 0; i < world.BiomeWeights.Length; i++)
@@ -186,8 +192,8 @@ namespace Dino_Engine.World
                 ash /= total;
             }
 
-            float height = MathF.Max(world.Elevation.Sample(position.X, position.Y), 0f);
-            float climb = (height - MathF.Max(world.Elevation.Sample(position.X - upwind.X, position.Y - upwind.Y), 0f)) / LiftHeight;
+            float height = MathF.Max(land.Sample(position.X, position.Y), 0f);
+            float climb = (height - MathF.Max(land.Sample(position.X - upwind.X, position.Y - upwind.Y), 0f)) / LiftHeight;
 
             return new ClimateNode
             {

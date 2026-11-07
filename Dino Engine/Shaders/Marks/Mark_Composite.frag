@@ -2,6 +2,7 @@
 
 // Lays the map of marks over the scene. It doesn't paint what's in front of the camera: each pixel goes along its ray to the ground, and shows what's marked there. So a mark is exactly where it means
 // whatever's in the way: it follows the land, it doesn't smear up a wall, and something under a tree can still be seen coming. Characters are kept out by the stencil, so that they stand on it.
+// It stops at the foot of a rock face. A mark is about where someone can stand, and nobody can stand there.
 // Two colours and no more. Whatever's in a player's way is one, whatever is theirs is the other, and that's all it ever takes to read: what kind of damage it is doesn't matter to whether you should move.
 
 #include Globals.glsl
@@ -24,6 +25,9 @@ in vec2 textureCoords;
 
 const float Outline = 0.13;     // Metres either side of the edge.
 const float Rim = 1.1;          // How far in from the edge the shape is tinted more strongly.
+const float SlopeStep = 0.8;    // Metres either way that the ground's slope is read over.
+const float SteepestSlope = 1.05;   // Past what anyone can climb, and short of what a ray can find its way to.
+const float Unsettled = 0.35;   // Metres a ray can still be off the ground by, where the ground's too steep for it to find.
 
 // mapRegion: xy the corner of the map in the world, zw one over how big it is. terrainRegion: xy the corner of what's known of the ground, z how big it is, and nothing is known if that's 0.
 float groundAt(vec2 xz)
@@ -31,7 +35,7 @@ float groundAt(vec2 xz)
 	if (terrainRegion.z <= 0.0) return groundFallback;
 	vec2 uv = (xz - terrainRegion.xy) / terrainRegion.z;
 	if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return groundFallback;
-	float depth = texture(terrainDepth, uv).r;
+	float depth = textureLod(terrainDepth, uv, 0.0).r;
 	if (depth >= 1.0) return groundFallback;
 	return max(terrainHeightRange.x - depth * terrainHeightRange.y, seaLevel);
 }
@@ -84,6 +88,11 @@ void main(void)
 
 	// What can hurt you goes over what you've done.
 	vec4 both = hostile + friendly * (1.0 - hostile.a);
+	if (both.a <= 0.002) discard;
+
+	vec2 slope = vec2(groundAt(point.xz + vec2(SlopeStep, 0.0)) - groundAt(point.xz - vec2(SlopeStep, 0.0)), groundAt(point.xz + vec2(0.0, SlopeStep)) - groundAt(point.xz - vec2(0.0, SlopeStep)));
+	float off = abs(groundAt(point.xz) - point.y);
+	both *= (1.0 - smoothstep(SteepestSlope, SteepestSlope * 1.35, length(slope) / (2.0 * SlopeStep))) * (1.0 - smoothstep(Unsettled, Unsettled * 3.0, off));
 	if (both.a <= 0.002) discard;
 	out_Colour = both;
 }

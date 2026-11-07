@@ -16,6 +16,7 @@ namespace Dino_FloraLab
     ///   variety [--plants a,b] [--count N]                                                                            Are two plants of a species really different? Exit code 1 if not.
     ///   find                                                                                                          A seed and an archetype for every biome, to look at it with --biome.
     ///   bend    [--plants a,b] [--count N]                                                                            Bends every plant as hard as it can go. Exit code 1 if one comes apart.
+    ///   rocks, rockcheck                                                                                              The same for stones: see RockCheck.
     /// </summary>
     internal static class Program
     {
@@ -41,6 +42,10 @@ namespace Dino_FloraLab
                     return FloraCheck.Run(options);
                 case "variety":
                     return FloraVariety.Run(options);
+                case "rocks":
+                    return RockCheck.Sheet(options);
+                case "rockcheck":
+                    return RockCheck.Run(options);
                 default:
                     Console.WriteLine($"No command called {command}.");
                     return 1;

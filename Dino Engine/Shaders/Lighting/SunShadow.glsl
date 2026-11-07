@@ -32,6 +32,14 @@ const vec2 poissonDisk[16] = vec2[](
     vec2( 0.14383161, -0.14100790 )
 );
 
+// Air fills a long shadow with light, and it matters here: a mountain can lay its shadow over everything for hundreds of metres in a low sun, and nobody can fight what they can't see.
+// So a shadow gets lighter the further off whatever casts it. Close up it's as dark as ever, which is what gives a rock its shape, and what's standing on the ground keeps its own.
+const float SHADOW_FILL_NEAR = 24.0;    // Metres from a point to what's shading it, where the shadow starts to lift,
+const float SHADOW_FILL_FAR = 90.0;     // and where it's lifted as far as it goes.
+const float SHADOW_FILL_MOST = 0.5;
+const int SHADOW_FILL_STEPS = 4;        // Each is a line inside the shadow, so there are several, each too faint to see, and each read over a wide patch.
+const float SHADOW_FILL_SPREAD = 9.0;   // Times the width of the shadow's own filter.
+
 float sunShadowRandom(vec3 seed) {
     return fract(sin(dot(seed, vec3(12.9898, 78.233, 45.164))) * 43758.5453123);
 }
@@ -85,7 +93,20 @@ float calcShadow(vec3 positionViewSpace) {
             sunFactorSum += texture(shadowMaps[i], sampleCoord);
         }
 
-        finalSunFactor = min(finalSunFactor, sunFactorSum / float(numSamples));
+        float sunFactor = sunFactorSum / float(numSamples);
+        if (sunFactor < 0.999) {
+            // Asked again from a point further up the ray, a shadow that's gone means what cast it was nearer than that.
+            mat4 sunSpace = sunSpaceMatrices[i];
+            float perMetre = 0.5 * length(vec3(sunSpace[0][2], sunSpace[1][2], sunSpace[2][2]));
+            float lifted = 0.0;
+            for (int step = 0; step < SHADOW_FILL_STEPS; step++) {
+                float reach = mix(SHADOW_FILL_NEAR, SHADOW_FILL_FAR, float(step) / float(SHADOW_FILL_STEPS - 1));
+                vec2 aside = rotation * poissonDisk[(step * 5 + sampleIndex) & 15] * texelSize * filterRadius * SHADOW_FILL_SPREAD;
+                lifted += 1.0 - texture(shadowMaps[i], vec3(positionSunSpace.xy + aside, positionSunSpace.z - reach * perMetre));
+            }
+            sunFactor = max(sunFactor, lifted * (SHADOW_FILL_MOST / float(SHADOW_FILL_STEPS)));
+        }
+        finalSunFactor = min(finalSunFactor, sunFactor);
     }
     return finalSunFactor;
 }

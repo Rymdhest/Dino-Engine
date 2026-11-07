@@ -45,6 +45,7 @@ layout (depth_greater) out float gl_FragDepth;
 #include textureUtil.glsl
 #include gBufferUtil.glsl
 #include procedural/fastHash.glsl
+#include Rock.glsl
 #include Grass/GrassField.glsl
 #include Weather/Weather.glsl
 #include Weather/SurfaceMap.glsl
@@ -213,21 +214,26 @@ void main() {
 
     vec2 uvDX = dFdx(fragUV);
     vec2 uvDY = dFdy(fragUV);
+    vec3 positionDX = dFdx(fragWorldPos);
+    vec3 positionDY = dFdy(fragWorldPos);
     vec2 uvToMacro = textureTileSize / fragInstanceChunkSizeXZ * (1.0 - textureMapOffset);
     vec2 macroDX = uvDX * uvToMacro;
     vec2 macroDY = uvDY * uvToMacro;
     vec2 macroCoord = clamp((fragWorldPos.xz - fragInstanceChunkPos) / fragInstanceChunkSizeXZ, 0.0, 1.0) * (1.0 - textureMapOffset) + vec2(textureMapOffset / 2.0);
     TerrainMaterialSample surface = GatherSurface(macroCoord, macroDX, macroDY);
 
-    // 1. Ray march using smoothly blended heights to eliminate false cliffs and window artifacts
+    // 1. Ray march using smoothly blended heights to eliminate false cliffs and window artifacts. Rock has no use for it: it's
+    //    projected from the side, and what stands out of it is really there.
+    bool bareRock = isRock(surface.mats.x) && surface.weights.x > 0.995;
     vec2 winningUV = fragUV;
     float rayT = 0.0;
-    if (parallaxDepth > 0.0001) {
+    if (parallaxDepth > 0.0001 && !bareRock) {
         winningUV = ParallaxOcclusionMapping(fragUV, V, N, surface, uvDX, uvDY, rayT);
     }
 
     // 2. Determine the single sharp winning material at the final resolved surface coordinate
-    float winningMat = WinningMaterial(SampleTerrainMaterials(surface, winningUV, uvDX, uvDY));
+    float winningMat = bareRock ? surface.mats.x : WinningMaterial(SampleTerrainMaterials(surface, winningUV, uvDX, uvDY));
+    bool rock = isRock(winningMat);
 
     // 3. Write the depth of the parallax hit so trees/grass don't float. The hit is on this pixel's view ray, rayT
     //    behind the rasterized surface. gl_FragDepth is written on every path; leaving it unwritten is undefined.
@@ -237,11 +243,27 @@ void main() {
     // 4. Lookup final properties using the crisp winning material. Explicit gradients, because winningUV jumps at
     //    occlusion edges and its own derivatives would pick the wrong mip level there.
     MaterialProps material = LookupAllMaterialPropsGrad(winningUV, winningMat, uvDX, uvDY);
+    RockLook stone;
+    if (rock) {
+        stone = rockLook(fragWorldPos, N, positionDX, positionDY);
+        material.albedo = stone.albedo;
+        material.roughness = stone.roughness;
+        material.ambient = stone.ambient;
+        material.height = stone.height;
+    }
 
     gAlbedo.rgb = material.albedo;
+    if (isScree(winningMat)) gAlbedo.rgb *= geologyColour.rgb;
 
     // Under the grass the ground takes on the colour of the field, so gaps between blades read as more grass.
     float tintRoad = textureGrad(normalHeightTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).z;
+
+    // On rock this says how far it stands out of what's around it, -1 to 1 (RockSculpt.MeasureRelief): shadow gathers in what's sunk, and an edge is worn pale. It's the shape of a
+    // rock at a size that neither the texture nor the sun's shadows can give it, and what makes it read from this far up. Nothing is 0, so it fades out by itself at the rock's edge.
+    if (rock) {
+        gAlbedo.rgb *= mix(0.4, 1.0, smoothstep(-0.72, 0.0, tintRoad)) * mix(1.0, 1.32, smoothstep(0.04, 0.72, tintRoad));
+        material.ambient *= mix(0.55, 1.0, smoothstep(-0.8, 0.0, tintRoad));
+    }
     vec4 tintGrass = textureGrad(grassTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY);
     vec3 tintColour = textureGrad(grassColourTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).rgb;
     float tintFertility = grassFertility(tintGrass.r, N.y, tintRoad);
@@ -260,7 +282,7 @@ void main() {
     normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
 
     // The hollows of the ground are in the grass map's alpha (TerrainSurface), for the rain to fill.
-    vec3 worldNormal = normalize(TBN * normalTangentSpace.xyz);
+    vec3 worldNormal = rock ? stone.normal : normalize(TBN * normalTangentSpace.xyz);
     float roughness = material.roughness;
     vec3 albedo = gAlbedo.rgb;
     weatherWetten(fragWorldPos, N, weatherPorosity(winningMat, numberOfMaterials), material.metalic, tintGrass.a, material.height, albedo, roughness, worldNormal);

@@ -1,4 +1,5 @@
 using Dino_Engine.Modelling.Procedural.Flora;
+using Dino_Engine.Modelling.Procedural.Rock;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.World.Content
@@ -48,20 +49,73 @@ namespace Dino_Engine.World.Content
 
     /// <summary>
     /// Every natural object a biome can scatter: the stones here, and every plant in <see cref="FloraCatalog"/>. Structures are listed by <see cref="StructureCatalog"/>.
-    /// A plant's model id is the species with a seed after a hash, as "oak#1f3a", which is all it takes to grow that one again.
+    /// A plant's model id is the species with a seed after a hash, as "oak#1f3a", which is all it takes to grow that one again, and a stone's is its rock and form, as "rock.granite-crag#1f3a".
+    /// A biome only says it has boulders: what they're made of is whatever the world is, which <see cref="Resolve"/> settles.
     /// </summary>
     public static class NatureCatalog
     {
         private const float RockImposter = 70f;
+        private const int StoneVariants = 5;
         private const char SeedMark = '#';
 
         private static readonly Dictionary<string, WorldAsset> Stones = new();
 
+        private static readonly Dictionary<(RockKind, RockForm), WorldAsset> Rocks = BuildRocks();
+        private static readonly Dictionary<string, (RockKind kind, RockForm form)> RockIds = Rocks.ToDictionary(rock => rock.Value.Id, rock => rock.Key);
+
+        // What a biome asks for. These are never built: see Resolve.
         public static readonly WorldAsset Boulder = Stone("rock.boulder", 2.2f, 2.0f, 0.8f, 2.4f);
         public static readonly WorldAsset BrownRock = Stone("rock.brown", 2.2f, 2.0f, 0.8f, 2.0f);
         public static readonly WorldAsset Pebbles = Add(new WorldAsset("rock.small", WorldAssetKind.GroundCover, 0.7f, 0f, new FloatRange(0.6f, 1.4f), 60f, false));
 
         public static IEnumerable<WorldAsset> All => Stones.Values.Concat(FloraCatalog.Species.Select(species => species.Asset));
+
+        private static Dictionary<(RockKind, RockForm), WorldAsset> BuildRocks()
+        {
+            var rocks = new Dictionary<(RockKind, RockForm), WorldAsset>();
+            foreach (RockKind kind in Enum.GetValues<RockKind>())
+            {
+                foreach (RockForm form in Enum.GetValues<RockForm>())
+                {
+                    (float footprint, float solid, FloatRange scale, int variants) = form switch
+                    {
+                        RockForm.Pebble => (0.3f, 0f, new FloatRange(0.5f, 1.5f), StoneVariants),
+                        RockForm.Chip => (0.5f, 0f, new FloatRange(0.55f, 1.5f), StoneVariants),
+                        RockForm.Boulder => (1.6f, 1.2f, new FloatRange(0.6f, 1.8f), StoneVariants),
+                        RockForm.Block => (1.9f, 1.5f, new FloatRange(0.6f, 1.6f), StoneVariants),
+                        RockForm.Slab => (2.3f, 1.7f, new FloatRange(0.6f, 1.3f), 3),
+                        RockForm.Outcrop => (4.6f, 3.6f, new FloatRange(0.7f, 1.5f), 4),
+                        RockForm.Crag => (7f, 0f, new FloatRange(0.6f, 1.5f), 4),
+                        _ => (4f, 0f, new FloatRange(0.55f, 1.25f), 3),
+                    };
+                    WorldAssetKind assetKind = form is RockForm.Pebble or RockForm.Chip ? WorldAssetKind.GroundCover : WorldAssetKind.Rock;
+                    var asset = new WorldAsset($"rock.{kind}-{form}".ToLowerInvariant(), assetKind, footprint, solid, scale, RockImposter, false, variants);
+                    Stones.Add(asset.Id, asset);
+                    rocks.Add((kind, form), asset);
+                }
+            }
+            return rocks;
+        }
+
+        public static WorldAsset RockOf(RockKind kind, RockForm form) => Rocks[(kind, form)];
+
+        /// <summary>Whether a species is a stone, and which.</summary>
+        public static bool TryGetRock(string species, out RockKind kind, out RockForm form)
+        {
+            bool found = RockIds.TryGetValue(species, out (RockKind kind, RockForm form) rock);
+            kind = rock.kind;
+            form = rock.form;
+            return found;
+        }
+
+        /// <summary>What a biome's list really means in a world of this rock.</summary>
+        public static WorldAsset Resolve(WorldAsset asset, RockKind kind)
+        {
+            if (asset == Boulder) return RockOf(kind, RockForm.Boulder);
+            if (asset == BrownRock) return RockOf(kind, RockForm.Block);
+            if (asset == Pebbles) return RockOf(kind, RockForm.Pebble);
+            return asset;
+        }
         public static WorldAsset Get(string id) => TryGet(id, out WorldAsset asset) ? asset : throw new KeyNotFoundException(id);
 
         public static bool TryGet(string id, out WorldAsset asset)

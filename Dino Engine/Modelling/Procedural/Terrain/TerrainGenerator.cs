@@ -2,6 +2,7 @@
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
+using static Dino_Engine.World.WorldMath;
 
 namespace Dino_Engine.Modelling.Procedural.Terrain
 {
@@ -83,7 +84,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             return grid;
         }
 
-        /// <summary>Normals (x and z) and the road weight of a chunk. Normals are taken from the world's maps, so chunks match along their edges.</summary>
+        /// <summary>Normals (x and z) and the road weight of a chunk, which on bare rock is how far it stands proud instead. Normals are taken from the world's maps, so chunks match along their edges.</summary>
         public Vector3Grid generateNormalGridFor(Vector2 chunkPositionWorld, Vector2 sizeWorld, Vector2i resolution)
         {
             Vector3Grid normalGrid = new Vector3Grid(resolution);
@@ -95,7 +96,11 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                 {
                     Vector2 worldPos = chunkPositionWorld + new Vector2(x, z) * cellSizeWorld;
                     Vector3 normal = GetNormalAt(worldPos.X, worldPos.Y);
-                    normalGrid.Values[x, z] = new Vector3(normal.X, normal.Z, getRoadMaskAt(worldPos));
+                    float road = getRoadMaskAt(worldPos);
+                    // No road crosses bare rock, so there this says how far it stands out of what's around it, -1 to 1. Level is 0, which is what lets it meet the land with no seam.
+                    float rock = World.Rock.Sample(worldPos);
+                    if (road <= 0f && rock > 0f) road = (World.Proud.Sample(worldPos) * 2f - 1f) * Saturate(rock * 3f);
+                    normalGrid.Values[x, z] = new Vector3(normal.X, normal.Z, road);
                 }
             }
 

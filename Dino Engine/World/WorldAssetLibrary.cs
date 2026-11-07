@@ -3,7 +3,7 @@ using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Architecture;
 using Dino_Engine.Modelling.Procedural.Flora;
-using Dino_Engine.Modelling.Procedural.Nature;
+using Dino_Engine.Modelling.Procedural.Rock;
 using Dino_Engine.Util;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
@@ -12,7 +12,7 @@ using System.Collections.Concurrent;
 namespace Dino_Engine.World
 {
     /// <summary>
-    /// Turns the asset ids of a generated world into models. Plants are grown on worker threads while a world loads (<see cref="Grow"/>) and only reach the GPU here, and a model is
+    /// Turns the asset ids of a generated world into models. Plants and stones are made on worker threads while a world loads (<see cref="Grow"/>) and only reach the GPU here, and a model is
     /// kept for the world after, in case it's wanted again. Every world has plants of its own, so what no world has used for two worlds is let go. Must be used on the render thread,
     /// but for <see cref="Grow"/>.
     /// </summary>
@@ -45,15 +45,17 @@ namespace Dino_Engine.World
         /// <summary>Grows every plant on the list that isn't there yet, on as many threads as there are. Safe from any thread, and it touches no GPU.</summary>
         public void Grow(IEnumerable<string> ids)
         {
-            var wanted = new List<(PlantSpecies species, string id, ulong seed)>();
+            var wanted = new List<(string id, Func<FloraMesh> make)>();
             foreach (string id in ids)
             {
                 if (_models.ContainsKey(id) || _grown.ContainsKey(id)) continue;
-                if (FloraCatalog.TryGet(NatureCatalog.SpeciesOf(id, out ulong seed), out PlantSpecies species)) wanted.Add((species, id, seed));
+                string name = NatureCatalog.SpeciesOf(id, out ulong seed);
+                if (FloraCatalog.TryGet(name, out PlantSpecies species)) wanted.Add((id, () => FloraForge.Grow(species, seed)));
+                else if (NatureCatalog.TryGetRock(name, out RockKind kind, out RockForm form)) wanted.Add((id, () => RockForge.Forge(form, kind, seed)));
             }
-            Parallel.ForEach(wanted, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, plant =>
+            Parallel.ForEach(wanted, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
             {
-                _grown[plant.id] = FloraForge.Grow(plant.species, plant.seed);
+                _grown[item.id] = item.make();
             });
         }
 
@@ -74,29 +76,26 @@ namespace Dino_Engine.World
             if (_models.TryGetValue(id, out glModel? model)) return model;
 
             float imposterDistance = 0f;
-            if (FloraCatalog.TryGet(NatureCatalog.SpeciesOf(id, out ulong seed), out PlantSpecies species))
+            string name = NatureCatalog.SpeciesOf(id, out ulong seed);
+            if (FloraCatalog.TryGet(name, out PlantSpecies species))
             {
                 if (!_grown.TryRemove(id, out FloraMesh? plant)) plant = FloraForge.Grow(species, seed);
                 model = glLoader.loadToVAO(plant);
                 imposterDistance = species.Asset.ImposterDistance;
             }
+            else if (NatureCatalog.TryGetRock(name, out RockKind kind, out RockForm form))
+            {
+                if (!_grown.TryRemove(id, out FloraMesh? stone)) stone = RockForge.Forge(form, kind, seed);
+                model = glLoader.loadToVAO(stone);
+                imposterDistance = NatureCatalog.RockOf(kind, form).ImposterDistance;
+            }
             else
             {
-                Mesh mesh;
-                if (NatureCatalog.TryGet(id, out WorldAsset asset))
-                {
-                    mesh = BuildRock(id);
-                    imposterDistance = asset.ImposterDistance;
-                    mesh.Still();
-                }
-                else
-                {
-                    var chimneys = new List<Vector3>();
-                    var lights = new List<AssetLight>();
-                    mesh = BuildStructure(id, chimneys, lights, out imposterDistance);
-                    if (chimneys.Count > 0) _chimneys.Add(id, chimneys);
-                    if (lights.Count > 0) _lights.Add(id, lights);
-                }
+                var chimneys = new List<Vector3>();
+                var lights = new List<AssetLight>();
+                Mesh mesh = BuildStructure(id, chimneys, lights, out imposterDistance);
+                if (chimneys.Count > 0) _chimneys.Add(id, chimneys);
+                if (lights.Count > 0) _lights.Add(id, lights);
                 model = glLoader.loadToVAO(mesh);
             }
 
@@ -110,34 +109,27 @@ namespace Dino_Engine.World
         {
             var ids = new List<string>(world.Objects.AssetIds);
             var seen = new HashSet<string>(ids);
+            RockKind rock = world.Geology.Kind;
             foreach (BiomeDefinition biome in world.Plan.Biomes)
             {
-                AddSpecies(ids, seen, biome.ForestFloor, world.Plan.Seed);
-                AddSpecies(ids, seen, biome.OpenGround, world.Plan.Seed);
-                AddSpecies(ids, seen, biome.Waterside, world.Plan.Seed);
+                AddSpecies(ids, seen, biome.ForestFloor, world.Plan.Seed, rock);
+                AddSpecies(ids, seen, biome.OpenGround, world.Plan.Seed, rock);
+                AddSpecies(ids, seen, biome.Waterside, world.Plan.Seed, rock);
             }
+            AddAsset(ids, seen, NatureCatalog.RockOf(rock, RockForm.Chip), world.Plan.Seed);
             return ids;
         }
 
-        private static void AddSpecies(List<string> ids, HashSet<string> seen, Species[] list, int worldSeed)
+        private static void AddSpecies(List<string> ids, HashSet<string> seen, Species[] list, int worldSeed, RockKind rock)
         {
-            foreach (Species species in list)
-            {
-                foreach (string model in NatureCatalog.ModelsOf(species.Asset, worldSeed))
-                {
-                    if (seen.Add(model)) ids.Add(model);
-                }
-            }
+            foreach (Species species in list) AddAsset(ids, seen, NatureCatalog.Resolve(species.Asset, rock), worldSeed);
         }
 
-        private static Mesh BuildRock(string id)
+        private static void AddAsset(List<string> ids, HashSet<string> seen, WorldAsset asset, int worldSeed)
         {
-            switch (id)
+            foreach (string model in NatureCatalog.ModelsOf(asset, worldSeed))
             {
-                case "rock.boulder": return RockGenerator.GenerateRock(0.75f);
-                case "rock.brown": return RockGenerator.GenerateRockBrown();
-                case "rock.small": return RockGenerator.GenerateRock(0f, detail: 3).scaled(new Vector3(0.55f));
-                default: throw new ArgumentException($"No model for nature asset '{id}'.");
+                if (seen.Add(model)) ids.Add(model);
             }
         }
 

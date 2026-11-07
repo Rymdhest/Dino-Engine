@@ -20,6 +20,10 @@ namespace Dino_Engine.World.Generation
             ScalarField height = ScalarField.ForWorld(size, WorldData.DetailCell);
             var detail = new WorldNoise(world.Random.Fork("detail"));
             ScalarField elevation = world.Elevation;
+            world.Rock = ByteField.ForWorld(size, WorldData.DetailCell);
+            world.Scree = ByteField.ForWorld(size, WorldData.DetailCell);
+            world.Proud = ByteField.ForWorld(size, WorldData.DetailCell);
+            var sculpt = new RockSculpt(world, world.Random.Fork("sculpt"));
 
             height.Generate((x, z) =>
             {
@@ -28,8 +32,10 @@ namespace Dino_Engine.World.Generation
                 float land = Smoothstep(0.3f, 3.5f, h);
                 float rolls = detail.Fbm(x, z, 34f, 3) * 0.6f;
                 float bumps = detail.Fbm(x + 53f, z - 91f, 7.5f, 3) * 0.13f;
-                return h + (rolls + bumps) * land;
+                return sculpt.Apply((int)(x / WorldData.DetailCell), (int)(z / WorldData.DetailCell), x, z, h + (rolls + bumps) * land);
             });
+
+            sculpt.Break(height);
 
             world.Height = height;
             world.PavedRoad = ByteField.ForWorld(size, WorldData.DetailCell);
@@ -41,6 +47,8 @@ namespace Dino_Engine.World.Generation
             ApplyPads(world, world.Pads, height);
             StampRoads(world, height, detail);
             foreach (PaintPatch patch in world.Paint) ApplyPaint(world, patch);
+            sculpt.KeepHeroInSight(height);
+            sculpt.MeasureRelief(height);
         }
 
         private static void ApplyPads(WorldData world, List<GroundPad> pads, ScalarField height)

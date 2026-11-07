@@ -35,6 +35,7 @@ namespace Dino_Engine.World.Generation
             {
                 new LandformStage(),
                 new ErosionStage(),
+                new MountainStage(),
                 new ClimateStage(),
                 new BiomeStage(),
                 new SiteStage(),
@@ -44,6 +45,7 @@ namespace Dino_Engine.World.Generation
                 new TerrainBakeStage(),
                 new WaterStage(),
                 new VegetationStage(),
+                new RockStage(),
                 new FinalizeStage(),
                 new PackStage(),
             };
