@@ -56,7 +56,7 @@ If `check` objects to an ordinary English word because it's also a term ("reach"
 
 A person read the first version of this and called it unreadable: every word was explained beside every card, and a skill's card ran to thirty lines. So there are two rules that matter as much as the truth does.
 
-**Nothing opens by itself, and nothing sticks.** A card shows what it says, only while the mouse is on the thing itself, and it never stops the mouse. Holding left Ctrl holds it still: only then does a marked word or a tag open that one word's meaning when the mouse rests on it, the name of a skill or buff open its card, and `Details` open the rest (`TipLayer.Held`). Anything calling `Show` has to pass the rect of the thing itself, never the mouse: a card that follows the mouse can't be reached.
+**Nothing opens by itself, and nothing sticks.** A card shows what it says, only while the mouse is on the thing itself, and it never stops the mouse. Holding left Ctrl holds it still: only then does a marked word or a tag open that one word's meaning when the mouse rests on it, the name of a book or buff open its card, and `Details` open the rest (`TipLayer.Held`). Anything calling `Show` has to pass the rect of the thing itself, never the mouse: a card that follows the mouse can't be reached.
 
 Ctrl is also what a click in a pack is held down with, and a held card stops the mouse, so a hand going along a row with Ctrl down would find the last card sitting on the next thing. A card there is `loose`: it's only held by a Ctrl that went down while it was showing, and `TipLayer.LetGo` ends that the moment such a click has done something. So Ctrl pressed on a card still reads it, and Ctrl held down the whole way still clicks.
 
@@ -74,14 +74,14 @@ A card is what's wanted at a glance, and `Details` is the rest.
 
 - **A book's card** has what each page deals, how it's used, what it can leave behind and what it has of its own, and nothing it doesn't really do. A Hit with no fire in it can't Burn, so no Chance to Burn is shown, whatever the sheet says: that's `AilmentRules.Causes`. `PageCells` goes by kind of page, and says what `Combat` reads for that kind.
 - **Its `Details`** have what the rest of the build gives it, the rules that touch it, the reactions it can set off, and `Breakdown`, which is everything between what it starts from and what it deals. A hero's Health on Kill is not a fact about Bone Spear, so it never goes on the card itself.
-- **A stat** shows its total, what it does, what that means against a normal enemy, then the sum: all the flat added up, all the increased and reduced added up, each more and less on its own line, and the sum written out. What scales with something is under `Scaling`, and what only counts for some skills or at some times is under `Situational`, as neither is part of the sum.
+- **A stat** shows its total, what it does, what that means against a normal enemy, then the sum: all the flat added up, all the increased and reduced added up, each more and less on its own line, and the sum written out. What scales with something is under `Scaling`, and what only counts for some books or at some times is under `Situational`, as neither is part of the sum.
 - **What's set off** goes in `Card.Attached` by `Attach`, from a trigger, `RuleInfo.Casts` or `RuleInfo.Gives`, and opens from its name in the sentence. The number a reader needs most goes in the sentence as well: Carrier says "within 8 m".
 - **Flavour** (lore) says nothing about what something does. A claim belongs on the card, where a number can back it.
 
 ## Adding to it
 
 - **A stat**: a value in `Stat`, a line in `StatNames`, a term in `Lexicon` by `On`, and a line in `StatBook`. `check` fails on any of them missing.
-- **A rule**: a value in `Rule`, and a `RuleInfo` in `ModText`, whose numbers come from the `Rulebook`. `Touches` says which skills it shows on, and `Casts` or `Gives` what goes beside it.
+- **A rule**: a value in `Rule`, and a `RuleInfo` in `ModText`, whose numbers come from the `Rulebook`. `Touches` says which books it shows on, and `Casts` or `Gives` what goes beside it.
 - **A condition, a tag, an ailment**: a term by `On`, and for a condition its lines in `ModText.Conditions`.
 - **A sentence**: a line in `Sentences`. Its words are its text, and `BookText.Trade` says what it comes to from its `Weights`. Something a stat can't say, such as making water, is a `Deed`, which both `Combat` and `Cards` read.
 - **A number in a rule**: a name in the `Rulebook`, never a literal in the code that uses it.
@@ -98,6 +98,6 @@ dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list --what terms   
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list --what tree    # Where every node is, for hovering one with real mouse messages
 ```
 
-`check` can say a sentence is well made and true. Only reading it can say it reads well, and a card has to be judged in the real game: `--hero 30 --talents a,b --equip c --panel skills`, with real mouse messages, as nothing else proves a hover. `--panel` opens at frame 90, and "joined" prints about 5 s before the world is up, so wait for that before moving the mouse, or it leaves before there's anything to hover. To reach a word on a card, move the mouse from the thing onto the card in small steps, as a hand would.
+`check` can say a sentence is well made and true. Only reading it can say it reads well, and a card has to be judged in the real game: `--hero 30 --talents a,b --equip c --panel book`, with real mouse messages, as nothing else proves a hover. `--panel` opens at frame 90, and "joined" prints about 5 s before the world is up, so wait for that before moving the mouse, or it leaves before there's anything to hover. To reach a word on a card, move the mouse from the thing onto the card in small steps, as a hand would.
 
 Every check here has been seen to fail with its bug put back: keep it that way.

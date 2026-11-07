@@ -10,16 +10,22 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Genes genes = style.Genes;
             GearPalette palette = style.Palette;
 
-            float wide = genes.Range("wide", 0.5f, 0.66f);
-            float tall = wide * genes.Range("tall", 1.2f, 1.5f);
-            float thick = genes.Range("thick", 0.2f, 0.42f);
+            // Its proportions change and its size doesn't much, as they're all something to be carried.
+            float size = genes.Range("size", 0.46f, 0.6f);
+            float shape = MathF.Sqrt(genes.Range("tall", 1.05f, 1.75f));
+            float wide = size / shape;
+            float tall = size * shape;
+            float thick = genes.Range("thick", 0.14f, 0.5f);
             float board = genes.Range("board", 0.028f, 0.05f);
             float inset = genes.Range("inset", 0.025f, 0.05f);
             Section flat = Section.Slab(genes.Range("bevel", 0.08f, 0.22f));
 
-            // Boards, top and bottom, with the same leather running round the spine.
-            Slab(mesh, flat, 0f, board, wide, tall, 0f, palette.Leather);
-            Slab(mesh, flat, thick - board, board, wide, tall, 0f, palette.Leather);
+            // Bound in leather more often than not, and in cloth by those who couldn't run to it.
+            Model.VertexMaterial cover = genes.Pick("cover", 3f, 2f, 1f) switch { 0 => palette.Leather, 1 => palette.Cloth, _ => palette.Trim };
+
+            // Boards, top and bottom, with the same thing running round the spine.
+            Slab(mesh, flat, 0f, board, wide, tall, 0f, cover);
+            Slab(mesh, flat, thick - board, board, wide, tall, 0f, cover);
             Slab(mesh, flat, board, thick - board * 2f, wide - inset * 2f, tall - inset, inset * 0.7f, palette.Bone);
             Slab(mesh, flat, 0f, thick, board * 1.5f, tall, -wide + board, palette.Binding);
 
@@ -31,6 +37,13 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 {
                     Slab(mesh, flat, thick - board * 0.4f, board * 0.7f, corner, corner, wide - corner * 0.8f, palette.Fitting, side * (tall - corner * 0.8f));
                 }
+            }
+
+            // A ribbon left in it, coming out wherever it was left.
+            if (genes.Chance("ribbon", 0.55f))
+            {
+                float hangs = tall * genes.Range("ribbon.hangs", 0.12f, 0.34f);
+                Slab(mesh, flat, thick * 0.5f, board * 0.3f, wide * genes.Range("ribbon.wide", 0.04f, 0.08f), hangs, wide * genes.Range("ribbon.along", -0.5f, 0.6f), palette.Binding, tall + hangs * 0.6f);
             }
 
             // Something on its face, which is what tells one from another.
