@@ -2,6 +2,7 @@ using Dino_Engine.Core;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Architecture;
+using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.Modelling.Procedural.Rock;
 using Dino_Engine.Util;
@@ -12,7 +13,7 @@ using System.Collections.Concurrent;
 namespace Dino_Engine.World
 {
     /// <summary>
-    /// Turns the asset ids of a generated world into models. Plants and stones are made on worker threads while a world loads (<see cref="Grow"/>) and only reach the GPU here, and a model is
+    /// Turns the asset ids of a generated world into models. Plants, stones and fences are made on worker threads while a world loads (<see cref="Grow"/>) and only reach the GPU here, and a model is
     /// kept for the world after, in case it's wanted again. Every world has plants of its own, so what no world has used for two worlds is let go. Must be used on the render thread,
     /// but for <see cref="Grow"/>.
     /// </summary>
@@ -49,6 +50,11 @@ namespace Dino_Engine.World
             foreach (string id in ids)
             {
                 if (_models.ContainsKey(id) || _grown.ContainsKey(id)) continue;
+                if (FenceSpec.TryParse(id, out FenceSpec fence))
+                {
+                    wanted.Add((id, () => FenceForge.Make(fence)));
+                    continue;
+                }
                 string name = NatureCatalog.SpeciesOf(id, out ulong seed);
                 if (FloraCatalog.TryGet(name, out PlantSpecies species)) wanted.Add((id, () => FloraForge.Grow(species, seed)));
                 else if (NatureCatalog.TryGetRock(name, out RockKind kind, out RockForm form)) wanted.Add((id, () => RockForge.Forge(form, kind, seed)));
@@ -65,7 +71,7 @@ namespace Dino_Engine.World
             var thisWorld = new HashSet<string>(ids);
             foreach (string id in _models.Keys)
             {
-                if (thisWorld.Contains(id) || _lastWorld.Contains(id) || !id.Contains('#')) continue;
+                if (thisWorld.Contains(id) || _lastWorld.Contains(id) || !(id.Contains('#') || FenceSpec.IsFence(id))) continue;
                 if (_models.TryRemove(id, out glModel? model)) model.cleanUp();
             }
             _lastWorld = thisWorld;
@@ -77,7 +83,12 @@ namespace Dino_Engine.World
 
             float imposterDistance = 0f;
             string name = NatureCatalog.SpeciesOf(id, out ulong seed);
-            if (FloraCatalog.TryGet(name, out PlantSpecies species))
+            if (FenceSpec.TryParse(id, out FenceSpec fence))
+            {
+                if (!_grown.TryRemove(id, out FloraMesh? built)) built = FenceForge.Make(fence);
+                model = glLoader.loadToVAO(built);
+            }
+            else if (FloraCatalog.TryGet(name, out PlantSpecies species))
             {
                 if (!_grown.TryRemove(id, out FloraMesh? plant)) plant = FloraForge.Grow(species, seed);
                 model = glLoader.loadToVAO(plant);
@@ -138,7 +149,6 @@ namespace Dino_Engine.World
             StructureDefinition definition = StructureCatalog.Parse(id, out BuildingStyle style, out int variant);
             imposterDistance = definition.ImposterDistance;
 
-            if (definition == StructureCatalog.Fence) return PropGenerator.GenerateFence();
             if (definition == StructureCatalog.GrainCrop) return FloraForge.Grow(Undergrowth.Grain, (ulong)variant).ToMesh();
             if (definition == StructureCatalog.VegetableCrop) return FloraForge.Grow(Undergrowth.Cabbage, (ulong)variant).ToMesh();
             if (definition.Styled && definition != StructureCatalog.WatchTower) return BuildingGenerator.Generate(definition, style, variant, chimneys, lights);

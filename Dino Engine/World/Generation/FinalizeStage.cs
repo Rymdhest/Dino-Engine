@@ -3,7 +3,7 @@ using OpenTK.Mathematics;
 namespace Dino_Engine.World.Generation
 {
     /// <summary>
-    /// Settles everything onto the finished ground: buildings and props take their height, walls step along the land, and the
+    /// Settles everything onto the finished ground: buildings and props take their height, fences and walls stand along the land, and the
     /// walkable ground is worked out, flooding out from the landing so that everything a character can stand on really is
     /// connected to it.
     /// </summary>
@@ -24,36 +24,11 @@ namespace Dino_Engine.World.Generation
                 objects.Add(item.Asset, new Vector3(item.Position.X, height, item.Position.Y), rotation, item.Scale);
             }
 
-            foreach (WallRun run in world.Walls) AddWall(world, objects, run);
+            FenceLayout.Lay(world.Fences, world.Height.Sample, objects.Add);
 
             BuildWalkable(world);
             BuildPassable(world);
             RepairSpawns(world);
-        }
-
-        // A wall's model runs one metre along local +x from its origin, so each piece stretches from post to post, tilted to the slope.
-        private static void AddWall(WorldData world, WorldObjects objects, in WallRun run)
-        {
-            Vector2 span = run.To - run.From;
-            float length = span.Length;
-            int pieces = Math.Max((int)MathF.Round(length / run.SegmentLength), 1);
-            Vector2 direction = span / length;
-            float yaw = MathF.Atan2(-direction.Y, direction.X);
-            float piece = length / pieces;
-
-            for (int i = 0; i < pieces; i++)
-            {
-                Vector2 from = run.From + direction * (piece * i);
-                Vector2 to = from + direction * piece;
-                float fromHeight = world.Height.Sample(from);
-                float toHeight = world.Height.Sample(to);
-                float rise = toHeight - fromHeight;
-                float pitch = MathF.Atan2(rise, piece);
-
-                Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, yaw) * Quaternion.FromAxisAngle(Vector3.UnitZ, pitch);
-                float stretched = MathF.Sqrt(piece * piece + rise * rise);
-                objects.Add(run.Asset, new Vector3(from.X, fromHeight, from.Y), rotation, new Vector3(stretched, run.Scale, run.Scale));
-            }
         }
 
         private static void BuildWalkable(WorldData world)

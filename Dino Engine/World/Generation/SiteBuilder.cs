@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using static Dino_Engine.World.WorldMath;
@@ -20,12 +21,17 @@ namespace Dino_Engine.World.Generation
         public readonly WorldRandom Random;
         public readonly BuildingStyle Style;
 
+        // What this site fences with, chosen once for each use, from a stream nothing else draws on.
+        private readonly WorldRandom _fences;
+        private readonly Dictionary<FenceUse, (FenceKind Kind, ulong Style)> _fenceStyles = new();
+
         public SiteBuilder(WorldData world, WorldSite site, WorldRandom random)
         {
             World = world;
             Site = site;
             Random = random;
             Style = world.Style;
+            _fences = random.Fork("fences");
         }
 
         public Vector2 Centre => Site.Position;
@@ -152,13 +158,28 @@ namespace Dino_Engine.World.Generation
             return false;
         }
 
-        /// <summary>A run of wall or fence, kept out of whatever already stands there. False if it doesn't fit.</summary>
-        public bool Wall(StructureDefinition definition, Vector2 from, Vector2 to, float segmentLength, float scale, float thickness)
+        /// <summary>The kind and style of fence this site puts up for a use: the same every time it's asked, so a village's gardens all match.</summary>
+        public (FenceKind Kind, ulong Style) FenceFor(FenceUse use)
         {
+            if (_fenceStyles.TryGetValue(use, out (FenceKind, ulong) chosen)) return chosen;
+            WorldRandom random = _fences.Fork(use.ToString());
+            FenceKind kind = FenceCatalog.Choose(use, Style, random.Fork("kind"));
+            ulong style = FenceCatalog.StyleSeed(World.Plan.Seed, kind, random.Fork("style").Int(FenceCatalog.StylesPerWorld));
+            _fenceStyles[use] = (kind, style);
+            return (kind, style);
+        }
+
+        /// <summary>
+        /// A run of wall or fence, kept out of whatever already stands there. It's turned so that its inside faces <paramref name="inside"/>, if that's given: a paling's
+        /// pales face out and a keep's battlements face away. A wall that meets a tower can't stand in it, so it's tried up to the tower's foot and drawn on into it by
+        /// <paramref name="tuckFrom"/> and <paramref name="tuckTo"/>. False if it doesn't fit.
+        /// </summary>
+        public bool Wall(FenceUse use, Vector2 from, Vector2 to, Vector2? inside = null, float tuckFrom = 0f, float tuckTo = 0f)
+        {
+            (FenceKind kind, ulong style) = FenceFor(use);
             Vector2 span = to - from;
             float length = span.Length;
             if (length < 0.5f) return false;
-            Vector2 middle = (from + to) * 0.5f;
 
             for (int i = 0; i <= 4; i++)
             {
@@ -166,11 +187,15 @@ namespace Dino_Engine.World.Generation
                 if (!World.InBounds(point) || World.Elevation.Sample(point) < WorldPlan.SeaLevel + MinGroundAboveWater) return false;
             }
 
-            Footprint footprint = Footprint.Segment(from, to, thickness);
+            Footprint footprint = Footprint.Segment(from, to, kind.HalfThickness);
             if (World.Placement.Overlaps(footprint, PlacementLayer.Structure | PlacementLayer.Prop | PlacementLayer.Road, 0.4f)) return false;
 
-            World.Placement.Add(footprint, PlacementLayer.Fence, solid: true, height: definition.Height);
-            World.Walls.Add(new WallRun(definition.Id, from, to, segmentLength, scale));
+            Vector2 along = span / length;
+            from -= along * tuckFrom;
+            to += along * tuckTo;
+            if (inside.HasValue && Vector2.Dot(new Vector2(-span.Y, span.X), inside.Value - (from + to) * 0.5f) < 0f) (from, to) = (to, from);
+            World.Placement.Add(footprint, PlacementLayer.Fence, solid: true, height: kind.Height);
+            World.Fences.Add(new FenceRun(kind, style, from, to));
             return true;
         }
 
@@ -178,7 +203,7 @@ namespace Dino_Engine.World.Generation
         /// A closed ring of wall around the site, open where a road passes through and where <paramref name="gate"/> asks. A gate
         /// that lands on a corner can come out too narrow to walk through; <paramref name="gateOnEdge"/> turns the ring so it can't.
         /// </summary>
-        public List<Vector2> Ring(StructureDefinition definition, float radius, int corners, float segmentLength, float scale, float thickness, Vector2? gate = null, float gateWidth = 9f, bool gateOnEdge = false)
+        public List<Vector2> Ring(FenceUse use, float radius, int corners, Vector2? gate = null, float gateWidth = 9f, bool gateOnEdge = false)
         {
             var points = new List<Vector2>(corners);
             float start = Random.Float() * MathF.Tau;
@@ -193,14 +218,14 @@ namespace Dino_Engine.World.Generation
             {
                 Vector2 from = points[i];
                 Vector2 to = points[(i + 1) % corners];
-                if (gate.HasValue && BreakForGate(ref from, ref to, gate.Value, definition, segmentLength, scale, thickness, gateWidth)) continue;
-                Wall(definition, from, to, segmentLength, scale, thickness);
+                if (gate.HasValue && BreakForGate(ref from, ref to, gate.Value, use, gateWidth)) continue;
+                Wall(use, from, to, Centre);
             }
             return points;
         }
 
         // Splits the wall that the gate direction runs through into two pieces either side of the opening.
-        private bool BreakForGate(ref Vector2 from, ref Vector2 to, Vector2 gate, StructureDefinition definition, float segmentLength, float scale, float thickness, float gateWidth)
+        private bool BreakForGate(ref Vector2 from, ref Vector2 to, Vector2 gate, FenceUse use, float gateWidth)
         {
             Vector2 a = from - Centre;
             Vector2 b = to - Centre;
@@ -212,8 +237,8 @@ namespace Dino_Engine.World.Generation
             float t = crossA / (crossA - crossB);
             Vector2 middle = Vector2.Lerp(from, to, t);
             Vector2 along = (to - from).Normalized();
-            Wall(definition, from, middle - along * gateWidth * 0.5f, segmentLength, scale, thickness);
-            Wall(definition, middle + along * gateWidth * 0.5f, to, segmentLength, scale, thickness);
+            Wall(use, from, middle - along * gateWidth * 0.5f, Centre);
+            Wall(use, middle + along * gateWidth * 0.5f, to, Centre);
             return true;
         }
 
@@ -271,12 +296,12 @@ namespace Dino_Engine.World.Generation
                 }
             }
 
-            FenceAround(footprint, gateSide);
+            FenceAround(footprint, gateSide, FenceUse.Field);
             return true;
         }
 
         /// <summary>Fences a box, leaving a gate in the side nearest <paramref name="gateSide"/>.</summary>
-        public void FenceAround(in Footprint box, Vector2 gateSide)
+        public void FenceAround(in Footprint box, Vector2 gateSide, FenceUse use)
         {
             Vector2 half = box.HalfExtents + new Vector2(0.8f);
             Vector2[] corners =
@@ -308,19 +333,14 @@ namespace Dino_Engine.World.Generation
                 {
                     Vector2 along = (to - from).Normalized();
                     Vector2 middle = (from + to) * 0.5f;
-                    Fence(from, middle - along * 2.4f);
-                    Fence(middle + along * 2.4f, to);
+                    Wall(use, from, middle - along * 2.4f, box.Centre);
+                    Wall(use, middle + along * 2.4f, to, box.Centre);
                 }
                 else
                 {
-                    Fence(from, to);
+                    Wall(use, from, to, box.Centre);
                 }
             }
-        }
-
-        public void Fence(Vector2 from, Vector2 to)
-        {
-            Wall(StructureCatalog.Fence, from, to, 4.6f, 5f, 0.25f);
         }
 
         /// <summary>The road points within <paramref name="radius"/> of the site, split into the separate streets running through it.</summary>

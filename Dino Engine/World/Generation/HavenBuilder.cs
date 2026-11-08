@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
@@ -191,7 +192,7 @@ namespace Dino_Engine.World.Generation
 
             foreach (float between in new[] { (SingleAlong + SmallAlong + DummyGap) * 0.5f, (SmallAlong - DummyGap + BigAlong + DummyGap * 2.7f) * 0.5f })
             {
-                b.Fence(centre + East * between - North * (GroundHalf.Y - 0.5f), centre + East * between + North * PenReach);
+                b.Wall(FenceUse.Yard, centre + East * between - North * (GroundHalf.Y - 0.5f), centre + East * between + North * PenReach);
             }
 
             Vector2 big = centre + East * BigAlong - North * 1f;
@@ -230,11 +231,11 @@ namespace Dino_Engine.World.Generation
                     // The north side is the third, from the north-east corner to the north-west.
                     if (side == 2 && MathF.Max(start.X, end.X) > centre.X - YardGate && MathF.Min(start.X, end.X) < centre.X + YardGate)
                     {
-                        if (start.X > centre.X + YardGate) b.Fence(start, new Vector2(centre.X + YardGate, start.Y));
-                        if (end.X < centre.X - YardGate) b.Fence(new Vector2(centre.X - YardGate, end.Y), end);
+                        if (start.X > centre.X + YardGate) b.Wall(FenceUse.Yard, start, new Vector2(centre.X + YardGate, start.Y), centre);
+                        if (end.X < centre.X - YardGate) b.Wall(FenceUse.Yard, new Vector2(centre.X - YardGate, end.Y), end, centre);
                         continue;
                     }
-                    b.Fence(start, end);
+                    b.Wall(FenceUse.Yard, start, end, centre);
                 }
             }
         }

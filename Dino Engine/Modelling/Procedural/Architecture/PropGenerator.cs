@@ -70,8 +70,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "ruin.column": BuildRuinColumn(b, random); break;
                 case "ruin.rubble": BuildRubble(b, random); break;
                 case "cairn": BuildCairn(b, random); break;
-                case "palisade": BuildPalisade(b, random); break;
-                case "wall.stone": BuildStoneWall(b); break;
                 case "tower.watch": BuildWatchTower(b, style); break;
                 case "waygate.great": BuildGreatWaygate(b, lights); break;
                 case "table.map": BuildMapTable(b, random, lights); break;
@@ -121,49 +119,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 }
                 default: throw new ArgumentException($"'{definition.Id}' doesn't break.");
             }
-        }
-
-        /// <summary>One length of log fence: a pair of posts holding stacked rails, running one metre along +x at scale 1.</summary>
-        public static Mesh GenerateFence()
-        {
-            float fenceHeight = 0.6f;
-            float poleRadius = 0.04f;
-            float poleRadiusStacked = 0.03f;
-
-            StemBuilder builder = new StemBuilder(new VertexMaterial(TextureGenerator.pineBark));
-            StemBuilder.StemBuildSettings stemSettings = new StemBuilder.StemBuildSettings();
-            stemSettings.radiusBase = poleRadius;
-            stemSettings.radiusTop = poleRadius;
-            stemSettings.detailPerRing = 6;
-            stemSettings.detailsHeight = 1;
-            stemSettings.height = fenceHeight;
-            stemSettings.sinkAmount = 0f;
-            stemSettings.stemBendRadiusStart = 0.008f;
-            stemSettings.stemBendRadiusEnd = 0.008f;
-            stemSettings.stemBaseHeight = 0.0f;
-            stemSettings.stemWavePatternAmount = 0.0f;
-            stemSettings.baseRadiusFactor = 0.0f;
-            stemSettings.textureRepeats = 1;
-            builder.BuildStem(stemSettings);
-
-            Mesh fence = new Mesh();
-            fence += builder.mesh.translated(new Vector3(poleRadiusStacked + poleRadius, 0f, 0f));
-            fence += builder.mesh.translated(new Vector3(-poleRadiusStacked - poleRadius, 0f, 0f));
-
-            int numberOfPolesStacked = 5;
-            for (int i = 0; i < numberOfPolesStacked; i++)
-            {
-                stemSettings.height = 1f;
-                stemSettings.radiusBase = poleRadiusStacked;
-                stemSettings.radiusTop = poleRadiusStacked;
-                Mesh stackPole = builder.BuildStem(stemSettings);
-                stackPole.rotate(new Vector3(-MathF.PI / 2f, 0f, 0f));
-                float t = i / (float)(numberOfPolesStacked - 1);
-
-                fence += stackPole.translated(new Vector3(0f, t * (fenceHeight - poleRadius * 2f) + poleRadius, 0f));
-            }
-            fence.rotate(new Vector3(0f, -MathF.PI / 2f, 0f));
-            return fence;
         }
 
         private static void BuildWell(MeshBuilder b)
@@ -1253,37 +1208,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                     b.Add(IcoSphereGenerator.CreateIcosphere(1, Rough(random.Int(140, 186))), at, new Vector3(size, size * 0.72f, size));
                 }
             }
-        }
-
-        // Logs in a row along +x from 0 to 1. The run is stretched along x to its length, so widths here are one over that.
-        private static void BuildPalisade(MeshBuilder b, WorldRandom random)
-        {
-            VertexMaterial logs = new VertexMaterial(TextureGenerator.pineBark, new Colour(200, 178, 156));
-            const int Logs = 8;
-            const float Stretch = 4f;
-            b.Stretch = new Vector3(1f / Stretch, 1f, 1f);
-            for (int i = 0; i < Logs; i++)
-            {
-                float x = (i + 0.5f) / Logs * Stretch;
-                float height = random.Range(6.1f, 7f);
-                b.Tube(new Vector3(x, -1f, 0f), new Vector3(x, height, 0f), 0.28f, 0.26f, 6, logs, capped: false);
-                b.Tube(new Vector3(x, height, 0f), new Vector3(x, height + 0.8f, 0f), 0.26f, 0.02f, 6, logs);
-            }
-            b.Tube(new Vector3(0f, 4.2f, 0.24f), new Vector3(Stretch, 4.2f, 0.24f), 0.09f, 0.09f, 5, DarkWood);
-            b.ResetPlacement();
-        }
-
-        private static void BuildStoneWall(MeshBuilder b)
-        {
-            VertexMaterial wall = Stone(170);
-            const float Stretch = 4.5f;
-            b.Stretch = new Vector3(1f / Stretch, 1f, 1f);
-            b.Box(new Vector3(Stretch * 0.5f, 1.4f, 0f), new Vector3(Stretch * 0.5f, 2.6f, 0.76f), wall);
-            foreach (float x in new[] { 0.7f, 2.25f, 3.8f })
-            {
-                b.Box(new Vector3(x, 4.5f, 0f), new Vector3(0.52f, 0.5f, 0.76f), wall);
-            }
-            b.ResetPlacement();
         }
     }
 }

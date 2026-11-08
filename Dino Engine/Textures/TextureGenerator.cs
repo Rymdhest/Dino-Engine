@@ -198,6 +198,7 @@ namespace Dino_Engine.Textures
             gem = createGemTexture();
             SetPorosity();
             BindGearMaterials();
+            BindFenceMaterials();
 
             BindFloraMaterials();
 
@@ -287,6 +288,20 @@ namespace Dino_Engine.Textures
             GearMaterials.Glow = flatGlow;
             GearMaterials.Skin = flat;
             GearMaterials.Straw = thatch;
+        }
+
+        private static void BindFenceMaterials()
+        {
+            Modelling.Procedural.Fence.FenceMaterials.Weathered = barkBare;
+            Modelling.Procedural.Fence.FenceMaterials.Bark = barkPlated;
+            Modelling.Procedural.Fence.FenceMaterials.Cane = barkSmooth;
+            Modelling.Procedural.Fence.FenceMaterials.Stone = cliff;
+            Modelling.Procedural.Fence.FenceMaterials.Masonry = stoneWall;
+            Modelling.Procedural.Fence.FenceMaterials.Timber = wood;
+            Modelling.Procedural.Fence.FenceMaterials.Plaster = plaster;
+            Modelling.Procedural.Fence.FenceMaterials.Roof = shingle;
+            Modelling.Procedural.Fence.FenceMaterials.Iron = iron;
+            Modelling.Procedural.Fence.FenceMaterials.Cord = thatch;
         }
 
         private static void BindFloraMaterials()

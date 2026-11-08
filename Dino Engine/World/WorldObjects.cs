@@ -46,25 +46,6 @@ namespace Dino_Engine.World
         }
     }
 
-    /// <summary>A run of fence or wall from one point to the next, stepped along the ground when the terrain is final.</summary>
-    public readonly struct WallRun
-    {
-        public readonly string Asset;
-        public readonly Vector2 From;
-        public readonly Vector2 To;
-        public readonly float SegmentLength;
-        public readonly float Scale;    // Height and thickness of the model.
-
-        public WallRun(string asset, Vector2 from, Vector2 to, float segmentLength, float scale)
-        {
-            Asset = asset;
-            From = from;
-            To = to;
-            SegmentLength = segmentLength;
-            Scale = scale;
-        }
-    }
-
     /// <summary>A kind of ground painted by people rather than by nature.</summary>
     public enum GroundPaint
     {

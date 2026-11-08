@@ -20,6 +20,10 @@ namespace Dino_FloraLab
 
         public readonly int Width;
         public readonly int Height;
+
+        /// <summary>How much of a surface's colour the stand-in for its texture keeps at least, and how much it varies above that.</summary>
+        public float GrainFloor = 0.3f;
+        public float GrainDepth = 0.75f;
         private readonly BakedCards _cards;
         private readonly float[] _depth;
         private readonly Vector3[] _colour;
@@ -39,12 +43,13 @@ namespace Dino_FloraLab
         }
 
         /// <param name="pitch">Radians above the horizon that it's seen from.</param>
-        public void Draw(FloraMesh mesh, float pitch, float yaw, float? span = null)
+        /// <param name="focus">What to look at, if not the middle of it all.</param>
+        public void Draw(FloraMesh mesh, float pitch, float yaw, float? span = null, Vector3? focus = null)
         {
             mesh.Bounds(out Vector3 min, out Vector3 max);
             Vector3 size = max - min;
             float reach = span ?? MathF.Max(MathF.Max(size.X, size.Z), size.Y) * 1.12f;
-            Vector3 target = new Vector3((min.X + max.X) * 0.5f, size.Y * 0.5f * MathF.Cos(pitch) + 0.1f * size.Y, (min.Z + max.Z) * 0.5f);
+            Vector3 target = focus ?? new Vector3((min.X + max.X) * 0.5f, size.Y * 0.5f * MathF.Cos(pitch) + 0.1f * size.Y, (min.Z + max.Z) * 0.5f);
 
             Vector3 forward = new Vector3(MathF.Cos(pitch) * MathF.Sin(yaw), -MathF.Sin(pitch), MathF.Cos(pitch) * MathF.Cos(yaw));
             Vector3 right = Vector3.Cross(forward, Vector3.UnitY).Normalized();
@@ -241,7 +246,7 @@ namespace Dino_FloraLab
                     {
                         // No bark here: only enough grain to read a bark's direction.
                         float grain = FloraNoise.Fbm(new Vector3(world.X * 6f, world.Y * 1.2f, world.Z * 6f), 3u, 2);
-                        colour *= 0.3f + 0.75f * grain;
+                        colour *= GrainFloor + GrainDepth * grain;
                     }
 
                     _depth[at] = depth;

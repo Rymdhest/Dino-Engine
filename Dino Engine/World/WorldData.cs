@@ -75,7 +75,7 @@ namespace Dino_Engine.World
         /// <summary>Every footprint in the world. What is solid here also blocks characters at run time.</summary>
         public PlacementIndex Placement = null!;
         public readonly List<PendingObject> Pending = new();
-        public readonly List<WallRun> Walls = new();
+        public readonly List<FenceRun> Fences = new();
         public readonly List<GroundPad> Pads = new();
         public readonly List<PaintPatch> Paint = new();
         public readonly List<Clearing> Clearings = new();

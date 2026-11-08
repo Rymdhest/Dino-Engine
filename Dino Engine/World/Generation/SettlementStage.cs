@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using static Dino_Engine.World.Generation.SiteBuilder;
@@ -133,7 +134,7 @@ namespace Dino_Engine.World.Generation
             // Walls before houses, so that houses keep to the inside.
             if (fortified)
             {
-                b.Ring(StructureCatalog.Palisade, site.Radius * 1.02f, b.Random.Int(12, 16), 4f, 1f, 0.55f, site.RoadDirection, 12f);
+                b.Ring(FenceUse.Stockade, site.Radius * 1.02f, b.Random.Int(12, 16), site.RoadDirection, 12f);
             }
 
             b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, isVillage ? 13f : 7f), 9f);
@@ -439,7 +440,7 @@ namespace Dino_Engine.World.Generation
                 if (b.Fits(plot, 0.2f, 0.6f))
                 {
                     b.World.Placement.Add(plot, PlacementLayer.Keepout);
-                    b.FenceAround(plot, -outward);
+                    b.FenceAround(plot, -outward, FenceUse.Garden);
                 }
             }
         }
@@ -660,7 +661,7 @@ namespace Dino_Engine.World.Generation
             WorldSite site = b.Site;
             Vector2 toRoad = site.RoadDirection;
             b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, site.Radius * 0.62f), 12f);
-            b.Ring(StructureCatalog.Palisade, site.Radius, b.Random.Int(9, 13), 4f, 1f, 0.55f, toRoad, 8f, gateOnEdge: true);
+            b.Ring(FenceUse.Pen, site.Radius, b.Random.Int(9, 13), toRoad, 8f, gateOnEdge: true);
 
             b.Place(StructureCatalog.Campfire, b.Centre, 0f);
             Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
@@ -699,7 +700,7 @@ namespace Dino_Engine.World.Generation
 
             // The church goes first: everything else makes way for it, and whatever the land allows, it is what the place is for.
             RaiseChurch(b, toRoad, out Vector2 church, out Vector2 front);
-            b.Ring(StructureCatalog.StoneWall, site.Radius, 8, 4.5f, 1f, 0.8f, toRoad, 6f, gateOnEdge: true);
+            b.Ring(FenceUse.Churchyard, site.Radius, 8, toRoad, 6f, gateOnEdge: true);
 
             // The path to the door, between tall candles, and a vigil kept either side of it.
             Vector2 across = new Vector2(-front.Y, front.X);
@@ -804,6 +805,9 @@ namespace Dino_Engine.World.Generation
 
         private const int TowerRetreats = 4;
         private const float TowerRetreatStep = 1.5f;
+        private const float TowerClearance = 0.5f;      // Metres of ground between a tower's foot and where its walls are tried from, which is more than the padding a wall keeps.
+        private const float WallIntoTower = 2.6f;       // Metres a wall is drawn on into a tower, and the end it stops at hidden in it.
+        private const float WallIntoGatehouse = 1.8f;
 
         private static void BuildKeep(SiteBuilder b)
         {
@@ -833,25 +837,26 @@ namespace Dino_Engine.World.Generation
                 }
             }
 
-            float inset = 5.4f;
+            // Walls start where a tower's foot ends, as they can't stand in it, and are drawn on into the towers and the gatehouse so that they meet them.
+            float clear = StructureCatalog.StoneTower.HalfExtents.X + TowerClearance;
             for (int i = 0; i < 4; i++)
             {
                 Vector2 from = corners[i];
                 Vector2 to = corners[(i + 1) % 4];
                 Vector2 along = (to - from).Normalized();
-                Vector2 start = from + along * inset;
-                Vector2 end = to - along * inset;
+                Vector2 start = from + along * clear;
+                Vector2 end = to - along * clear;
                 if (i == 3)
                 {
                     // The wall facing the road carries the gatehouse.
                     Vector2 middle = (start + end) * 0.5f;
-                    b.Wall(StructureCatalog.StoneWall, start, middle - along * 7f, 4.5f, 1.5f, 0.9f);
-                    b.Wall(StructureCatalog.StoneWall, middle + along * 7f, end, 4.5f, 1.5f, 0.9f);
+                    b.Wall(FenceUse.Curtain, start, middle - along * 7f, b.Centre, WallIntoTower, WallIntoGatehouse);
+                    b.Wall(FenceUse.Curtain, middle + along * 7f, end, b.Centre, WallIntoGatehouse, WallIntoTower);
                     b.Place(StructureCatalog.Gatehouse, middle, YawFacing(toRoad), padding: -1f, maxSlope: 0.6f);
                 }
                 else
                 {
-                    b.Wall(StructureCatalog.StoneWall, start, end, 4.5f, 1.5f, 0.9f);
+                    b.Wall(FenceUse.Curtain, start, end, b.Centre, WallIntoTower, WallIntoTower);
                 }
             }
 

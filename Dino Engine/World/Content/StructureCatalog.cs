@@ -150,11 +150,6 @@ namespace Dino_Engine.World.Content
         public static readonly StructureDefinition Rubble = Round("ruin.rubble", 2.2f, 1f);
         public static readonly StructureDefinition Cairn = Round("cairn", 1.1f, 2.1f);
 
-        // Lengths of wall or fence. Their models run along local +x, one metre at scale 1, and are stretched to fit.
-        public static readonly StructureDefinition Fence = new StructureDefinition("fence", new Vector2(0.5f, 0.25f), imposterDistance: 70f, height: 3f);
-        public static readonly StructureDefinition Palisade = new StructureDefinition("palisade", new Vector2(0.5f, 0.55f), height: 7f);
-        public static readonly StructureDefinition StoneWall = new StructureDefinition("wall.stone", new Vector2(0.5f, 0.8f), height: 5f);
-
         public static readonly StructureDefinition GrainCrop = new StructureDefinition("crop.grain", new Vector2(1.2f, 0f), solid: false, imposterDistance: 45f);
         public static readonly StructureDefinition VegetableCrop = new StructureDefinition("crop.vegetable", new Vector2(1f, 0f), solid: false, imposterDistance: 45f);
 
