@@ -542,13 +542,13 @@ namespace Dino_Defenders.UI
             if (_hand == spot) return CellMood.Lifted;
 
             Item? moving = _hand is Spot held ? ItemAt(held) : _looking is Spot looking && looking.Shelf != Shelf.Worn ? ItemAt(looking) : null;
-            if (spot.Shelf == Shelf.Worn && moving != null && WornSlots.For(moving.Slot).Contains((WornSlot)spot.Index) && (_hand == null || _hand.Value.OnHero)) return CellMood.Wanted;
+            if (spot.Shelf == Shelf.Worn && moving != null && WornSlots.Fits(moving, (WornSlot)spot.Index) && (_hand == null || _hand.Value.OnHero)) return CellMood.Wanted;
             if (spot.Shelf == Shelf.Bar && moving is { IsBook: true } && (_hand == null || _hand.Value.OnHero)) return CellMood.Wanted;
             if (spot.Shelf == Shelf.Held && moving != null && _looking is not null && (_hand ?? _looking) is Spot source && source != spot && source.OnHero && Hero.CanMove(source.Place, spot.Place)) return CellMood.Wanted;
             if (_hand != null && cell.IsHovered && PlanFor(cell).Refused) return CellMood.Refused;
 
             if (item == null) return CellMood.Plain;
-            if (_picker.Visible && spot.Shelf == Shelf.Pack) return WornSlots.For(item.Slot).Contains(_picker.Slot) ? CellMood.Wanted : CellMood.Missed;
+            if (_picker.Visible && spot.Shelf == Shelf.Pack) return WornSlots.Fits(item, _picker.Slot) ? CellMood.Wanted : CellMood.Missed;
             return ItemSearch.Finds(item, _words) ? CellMood.Plain : CellMood.Missed;
         }
 
@@ -620,7 +620,7 @@ namespace Dino_Defenders.UI
 
         private static string WhyNot(Item item, Spot to)
         {
-            if (to.Shelf == Shelf.Worn && WornSlots.For(item.Slot).Contains((WornSlot)to.Index)) return "Your pack is full";
+            if (to.Shelf == Shelf.Worn && WornSlots.Fits(item, (WornSlot)to.Index)) return "Your pack is full";
             if (to.Shelf != Shelf.Held) return "That doesn't go there";
             if (item.IsPage && Hero.At(to.Place.Holder) is { Mode: BookMode.Toggle }) return "A Toggle Book holds only Area Pages";
             if (item.IsPage && Hero.At(to.Place.Holder) is { IsBook: true }) return "Nothing can come after an Area Page";

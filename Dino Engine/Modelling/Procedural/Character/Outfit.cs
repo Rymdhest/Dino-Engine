@@ -10,7 +10,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
     {
         private const float PendantHeight = 3.28f;
 
-        /// <param name="worn">What's on them, and which side of the body it's on, for what could be either: 1 is the left hand.</param>
+        /// <param name="worn">What's on them, and which side of the body it's on, for what could be either, a ring or a weapon that takes one hand: 1 is the left hand.</param>
         public static Mesh Dress(HumanoidLook body, IReadOnlyList<(GearSpec spec, float side)> worn)
         {
             var dressed = new GearMesh();
@@ -49,8 +49,9 @@ namespace Dino_Engine.Modelling.Procedural.Character
                         dressed.Add(piece);
                         break;
                     default:
-                        piece.SetBone((int)BoneType.HandR);
-                        dressed.At(HumanoidGenerator.MainHand, () => dressed.Add(piece));
+                        // A weapon, in the right hand unless it's the second of two.
+                        piece.SetBone((int)(side > 0f ? BoneType.HandL : BoneType.HandR));
+                        dressed.At(side > 0f ? HumanoidGenerator.SecondHand : HumanoidGenerator.MainHand, () => dressed.Add(piece));
                         break;
                 }
             }

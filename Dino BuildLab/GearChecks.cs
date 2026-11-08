@@ -15,6 +15,7 @@ namespace Dino_BuildLab
             Places(report);
             Fingers(report);
             Hands(report);
+            DualWielding(report);
             FullPack(report);
 
             report.Section("Families");
@@ -96,7 +97,51 @@ namespace Dino_BuildLab
             hero.Equip(sword);
             report.Check("A sword goes back beside it", hero.Equipped[WornSlot.MainHand] == sword && hero.Equipped[WornSlot.OffHand] == shield);
 
-            report.Check("Whatever's in the off hand counts as a shield to the rules", (HeroBuild.Compile(hero).Granted & Condition.HoldingShield) != 0);
+            report.Check("A shield in the off hand counts as a shield to the rules", (HeroBuild.Compile(hero).Granted & Condition.HoldingShield) != 0);
+        }
+
+        private static void DualWielding(Report report)
+        {
+            Item sword = Weapon(WeaponKind.Sword), dagger = Weapon(WeaponKind.Dagger), staff = Weapon(WeaponKind.Staff), shield = Shield();
+            dagger.WeaponDamage = 9f;
+            report.Check("A weapon that takes one hand goes in either, and one that takes two only in the main", WornSlots.For(sword).SequenceEqual(new[] { WornSlot.MainHand, WornSlot.OffHand }) && WornSlots.For(staff).SequenceEqual(new[] { WornSlot.MainHand }) && WornSlots.For(shield).SequenceEqual(new[] { WornSlot.OffHand }));
+
+            HeroState hero = Carrying(sword, dagger, staff, shield);
+            hero.Equip(sword);
+            hero.Equip(dagger);
+            report.Check("A second weapon goes in the main hand unless it's put in the other", hero.Equipped[WornSlot.MainHand] == dagger && !hero.Equipped.ContainsKey(WornSlot.OffHand) && hero.Carried().Contains(sword));
+
+            report.Check("And can be put there", hero.Move(ItemPlace.Cell(Array.IndexOf(hero.Inventory, sword)), ItemPlace.Worn(WornSlot.OffHand)) && hero.Equipped[WornSlot.OffHand] == sword && hero.Equipped[WornSlot.MainHand] == dagger);
+
+            Loadout both = HeroBuild.Compile(hero);
+            WeaponProfile paired = both.Weapon, alone = sword.Weapon(), other = dagger.Weapon();
+            report.Check("One in each hand is Dual Wielding, and isn't holding a Shield", (both.Granted & Condition.DualWielding) != 0 && (both.Granted & (Condition.HoldingShield | Condition.Unarmed | Condition.TwoHanded)) == 0);
+            report.Check("Two weapons strike as their average, faster, and are both kinds", MathF.Abs(paired.Min - (alone.Min + other.Min) * 0.5f) < 1e-4f && paired.AttackTime < (alone.AttackTime + other.AttackTime) * 0.5f && (paired.Tags & (Tags.Sword | Tags.Dagger)) == (Tags.Sword | Tags.Dagger));
+            report.Check("It's the same whichever is in which hand", Item.Paired(alone, other) == Item.Paired(other, alone));
+            report.Check("Each brings what its kind does", both.Mods.Any(mod => mod.Stat == Stat.CritMultiplier && mod.Value == 20f) && both.Mods.Any(mod => mod.Stat == Stat.Accuracy && mod.Value == 20f));
+
+            report.Check("They change hands as rings do", hero.Move(ItemPlace.Worn(WornSlot.OffHand), ItemPlace.Worn(WornSlot.MainHand)) && hero.Equipped[WornSlot.MainHand] == sword && hero.Equipped[WornSlot.OffHand] == dagger);
+
+            hero.Move(ItemPlace.Worn(WornSlot.OffHand), ItemPlace.Cell(Array.IndexOf(hero.Inventory, shield)));
+            report.Check("A shield on a weapon in the off hand swaps the two", hero.Equipped[WornSlot.OffHand] == shield && hero.Carried().Contains(dagger));
+            report.Check("And a shield can't change hands with a sword", !hero.Move(ItemPlace.Worn(WornSlot.OffHand), ItemPlace.Worn(WornSlot.MainHand)) && hero.Equipped[WornSlot.MainHand] == sword && hero.Equipped[WornSlot.OffHand] == shield);
+
+            hero.Move(ItemPlace.Cell(Array.IndexOf(hero.Inventory, dagger)), ItemPlace.Worn(WornSlot.OffHand));
+            hero.Equip(staff);
+            report.Check("Two hands take a second weapon off as well", hero.Equipped[WornSlot.MainHand] == staff && !hero.Equipped.ContainsKey(WornSlot.OffHand) && hero.Carried().Contains(dagger) && hero.Carried().Contains(sword));
+            report.Check("What needs two can't go in the off hand", !hero.Move(ItemPlace.Worn(WornSlot.MainHand), ItemPlace.Worn(WornSlot.OffHand)));
+
+            hero.Move(ItemPlace.Cell(Array.IndexOf(hero.Inventory, dagger)), ItemPlace.Worn(WornSlot.OffHand));
+            report.Check("A weapon put in the off hand puts down what needs two", hero.Equipped[WornSlot.OffHand] == dagger && !hero.Equipped.ContainsKey(WornSlot.MainHand) && hero.Carried().Contains(staff));
+            Loadout lone = HeroBuild.Compile(hero);
+            report.Check("A weapon alone in the off hand is what's attacked with, and isn't Bare Hands", lone.Weapon == dagger.Weapon() && (lone.Granted & (Condition.Unarmed | Condition.DualWielding | Condition.HoldingShield)) == 0);
+
+            HeroState worn = Carrying(Weapon(WeaponKind.Axe));
+            worn.Equipped[WornSlot.MainHand] = sword;
+            worn.Equipped[WornSlot.OffHand] = dagger;
+            report.Check("A weapon is compared against both weapons held", worn.WornInPlaceOf(worn.Inventory[0]!).SequenceEqual(new[] { sword, dagger }));
+            worn.Equipped[WornSlot.OffHand] = shield;
+            report.Check("But not against a shield, which it wouldn't take off", worn.WornInPlaceOf(worn.Inventory[0]!).SequenceEqual(new[] { sword }));
         }
 
         private static void FullPack(Report report)
@@ -364,7 +409,7 @@ namespace Dino_BuildLab
                 int before = CountOf(json, "\"Slot\"");
                 report.Check($"{name} loads with all {before} of its items", items >= before, $"{items}");
                 report.Check($"{name} has a look for everything", save.Hero.Carried().Concat(save.Hero.Equipped.Values).All(i => i.LookSeed() != 0));
-                report.Check($"{name} has everything worn where it fits", save.Hero.Equipped.All(pair => WornSlots.Holds(pair.Key) == pair.Value.Slot));
+                report.Check($"{name} has everything worn where it fits", save.Hero.Equipped.All(pair => WornSlots.Fits(pair.Value, pair.Key)));
             }
             if (files.Count == 0) report.Note("No real saves on this machine to try");
         }

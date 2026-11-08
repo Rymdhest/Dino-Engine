@@ -1,6 +1,7 @@
 using Dino_Engine.Animation;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Character;
+using Dino_Engine.Modelling.Procedural.Gear;
 using Dino_Engine.Modelling.Procedural.Indoor;
 using Dino_Engine.Modelling.Procedural.Saurian;
 using OpenTK.Mathematics;
@@ -8,7 +9,7 @@ using OpenTK.Mathematics;
 namespace Dino_AnimLab
 {
     /// <summary>A body to try things on: the same kinds the game has, made the same way.</summary>
-    internal sealed record Body(string Name, Rig Rig, MotionStyle Style, Carry Carry, bool Shield, Func<Mesh> Build)
+    internal sealed record Body(string Name, Rig Rig, MotionStyle Style, Carry Carry, bool Shield, Func<Mesh> Build, Carry? Second = null)
     {
         private static readonly Vector3 Tunic = new Vector3(0.2f, 0.3f, 0.5f);
 
@@ -22,6 +23,17 @@ namespace Dino_AnimLab
             Bulk = bulk,
             LongGarment = robe,
         };
+
+        // A sword and a dagger, dressed the way a hero is, so the second is where the game puts it.
+        private static Mesh Twin()
+        {
+            var form = new GearForm(0.45f, 0.5f, 0.15f, 0.4f, 0.12f, 0.45f);
+            return Outfit.Dress(Person(HeldItem.None), new[]
+            {
+                (new GearSpec(21, GearKind.Sword, 1f, 0f, 0f, form, 0, GearTheme.None), -1f),
+                (new GearSpec(22, GearKind.Dagger, 0f, 1f, 0f, form, 0, GearTheme.None), 1f),
+            });
+        }
 
         private static Body Beast(string name, BeastLook look, MotionStyle style) => new Body(name, BeastGenerator.RigOf(look), style, Carry.Nothing, false, () => BeastGenerator.Generate(look));
 
@@ -40,6 +52,7 @@ namespace Dino_AnimLab
             new Body("bare", Rig.Humanoid, MotionStyle.Hero, Carry.Nothing, false, () => HumanoidGenerator.Generate(Person(HeldItem.None))),
             new Body("sword", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, false, () => HumanoidGenerator.Generate(Person(HeldItem.Sword))),
             new Body("shield", Rig.Humanoid, MotionStyle.Outlaw, Carry.Sword, true, () => HumanoidGenerator.Generate(Person(HeldItem.Sword, true))),
+            new Body("twin", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, false, Twin, Carry.Dagger),
             new Body("spear", Rig.Humanoid, MotionStyle.Outlaw, Carry.Spear, false, () => HumanoidGenerator.Generate(Person(HeldItem.Spear))),
             new Body("bow", Rig.Humanoid, MotionStyle.Outlaw, Carry.Bow, false, () => HumanoidGenerator.Generate(Person(HeldItem.Bow))),
             new Body("robe", Rig.Humanoid, MotionStyle.Robed, Carry.Staff, false, () => HumanoidGenerator.Generate(Person(HeldItem.Spear, robe: true))),
@@ -69,7 +82,7 @@ namespace Dino_AnimLab
         public CharacterAnimator NewAnimator(int seed = 7)
         {
             var animator = new CharacterAnimator(Rig, Style, seed);
-            animator.Hold(Carry, Shield);
+            animator.Hold(Carry, Shield, Second);
             return animator;
         }
     }

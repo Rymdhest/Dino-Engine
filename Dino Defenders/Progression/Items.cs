@@ -51,8 +51,16 @@ namespace Dino_Defenders.Progression
         /// <summary>The first place something worn as this can go, which is the only one for anything but a ring.</summary>
         public static WornSlot First(ItemSlot slot) => (WornSlot)slot;
 
+        private static readonly WornSlot[] Hands = { WornSlot.MainHand, WornSlot.OffHand };
+
         /// <summary>Every place something worn as this can go, in the order they'd be filled.</summary>
         public static IReadOnlyList<WornSlot> For(ItemSlot slot) => slot == ItemSlot.Finger ? Fingers : slot >= ItemSlot.Book ? Array.Empty<WornSlot>() : new[] { First(slot) };
+
+        /// <summary>Every place this one thing can go: what it's worn as says, and a One Handed Weapon goes in either hand as well.</summary>
+        public static IReadOnlyList<WornSlot> For(Item item) => item.IsOneHandedWeapon ? Hands : For(item.Slot);
+
+        /// <summary>Whether this can be in that place.</summary>
+        public static bool Fits(Item item, WornSlot place) => For(item).Contains(place);
     }
 
     /// <summary>The three ways of dressing for a fight. What something looks like says which it is, and which it is says what it's good for.</summary>
@@ -209,6 +217,9 @@ namespace Dino_Defenders.Progression
 
         public bool IsTwoHanded => Slot == ItemSlot.MainHand && WeaponKinds.Of(Kind).TwoHanded;
 
+        /// <summary>Whether it's a weapon that leaves a hand free, and so can go in the off hand too.</summary>
+        public bool IsOneHandedWeapon => Slot == ItemSlot.MainHand && !WeaponKinds.Of(Kind).TwoHanded;
+
         /// <summary>
         /// What its look grows from. A unique is one thing wherever it turns up, so a boss's sword is the sword you pick up. Anything from before seeds were kept gets one from what
         /// it is, which can't change, so an old sword has a look of its own and keeps it. It's a method so that it isn't saved.
@@ -274,6 +285,16 @@ namespace Dino_Defenders.Progression
             WeaponTraits traits = WeaponKinds.Of(Kind);
             Tags tags = traits.Tag | (traits.TwoHanded ? Tags.TwoHanded : Tags.OneHanded);
             return new WeaponProfile(WeaponDamage * (1f - WeaponSpread), WeaponDamage * (1f + WeaponSpread), traits.AttackTime, traits.CritChance, tags);
+        }
+
+        /// <summary>
+        /// Two weapons in two hands, as far as an attack goes: they take turns, so it's what the two come to on average, struck <see cref="Rulebook.DualWieldSpeed"/> faster, and it's
+        /// both kinds of weapon at once. It's the same whichever is in which hand.
+        /// </summary>
+        public static WeaponProfile Paired(WeaponProfile a, WeaponProfile b)
+        {
+            float time = (a.AttackTime + b.AttackTime) * 0.5f / (1f + Rulebook.DualWieldSpeed / 100f);
+            return new WeaponProfile((a.Min + b.Min) * 0.5f, (a.Max + b.Max) * 0.5f, time, (a.CritChance + b.CritChance) * 0.5f, a.Tags | b.Tags);
         }
 
         /// <summary>What it is before anything has been rolled on it, as names and numbers.</summary>

@@ -54,7 +54,7 @@ namespace Dino_Defenders.Client
         /// <summary>A hero in what they have on, or nothing yet.</summary>
         public glModel? Dressed(int dye, IReadOnlyList<WornLook> worn)
         {
-            return _workshop.Get(KeyOf(dye, worn), () => Outfit.Dress(CharacterFactory.HeroLook(dye), worn.Select(look => (ItemLook.SpecOf(look.Seed, look.Traits), look.Place == WornSlot.Finger2 ? 1f : -1f)).ToList()));
+            return _workshop.Get(KeyOf(dye, worn), () => Outfit.Dress(CharacterFactory.HeroLook(dye), worn.Select(look => (ItemLook.SpecOf(look.Seed, look.Traits), look.Place is WornSlot.Finger2 or WornSlot.OffHand ? 1f : -1f)).ToList()));
         }
 
         private static GearKey KeyOf(int dye, IReadOnlyList<WornLook> worn)

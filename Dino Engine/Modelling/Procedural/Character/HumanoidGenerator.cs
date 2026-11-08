@@ -71,6 +71,11 @@ namespace Dino_Engine.Modelling.Procedural.Character
             Turned(0f, MathF.PI / 2f, 0f) * Turned(MathF.PI / 2f, 0f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.15f, 0f)
             * Turned(0f, 0f, -MathF.PI / 2f) * Matrix4.CreateTranslation(-ShoulderX, ShoulderY + LegLength, 0f);
 
+        /// <summary>The same for a second weapon in the left hand: turned onto the other arm rather than mirrored, so that nothing is built inside out. On the same bone as that hand.</summary>
+        public static readonly Matrix4 SecondHand =
+            Turned(0f, MathF.PI / 2f, 0f) * Turned(MathF.PI / 2f, 0f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.15f, 0f)
+            * Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(ShoulderX, ShoulderY + LegLength, 0f);
+
         private static VertexMaterial Cloth(Vector3 colour) => new VertexMaterial(GearMaterials.Cloth, new Colour(colour));
         private static VertexMaterial Hide(Vector3 colour) => new VertexMaterial(GearMaterials.Leather, new Colour(colour));
         private static VertexMaterial Skin(Vector3 colour) => new VertexMaterial(GearMaterials.Skin, new Colour(colour));

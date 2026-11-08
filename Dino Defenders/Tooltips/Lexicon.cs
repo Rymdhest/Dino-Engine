@@ -351,13 +351,14 @@ namespace Dino_Defenders.Tooltips
             Kind(Tags.Bow, "Bow", "Bows");
             Kind(Tags.Staff, "Staff", "Staves");
             Kind(Tags.Wand, "Wand", "Wands");
-            On(Tags.Unarmed, Basic("Bare Hands", "Nothing in your main hand.", "Unarmed"));
+            On(Tags.Unarmed, Basic("Bare Hands", "No Weapon in either hand.", "Unarmed"));
             ConditionTerms[Condition.Unarmed] = ByForm["Bare Hands"];
-            On(Tags.OneHanded, Basic("One Handed", "Leaves your other hand free.", "One Handed Weapons", "One Handed Weapon"));
+            On(Tags.OneHanded, Basic("One Handed", "Leaves your other hand free, for a Shield or a second one.", "One Handed Weapons", "One Handed Weapon"));
             On(Tags.TwoHanded, Basic("Two Handed", "Uses both hands.", "Two Handed Weapons", "Two Handed Weapon"));
             ConditionTerms[Condition.TwoHanded] = ByForm["Two Handed"];
-            Basic("Weapon", "What's in your main hand.", "Weapons");
-            On(Condition.HoldingShield, Word("Shield", "Anything in your off hand."));
+            Basic("Weapon", "What's in your hands.", "Weapons");
+            On(Condition.HoldingShield, Word("Shield", "Anything in your off hand but a Weapon."));
+            On(Condition.DualWielding, Word("Dual Wielding", $"A One Handed Weapon in each hand. They take turns, so your Weapon Damage, Attack Speed and Critical Chance are the two averaged, then {Percent(DualWieldSpeed)} more Attack Speed.", "Dual Wield"));
         }
 
         private static void Conditions()

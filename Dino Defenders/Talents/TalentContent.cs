@@ -348,7 +348,7 @@ namespace Dino_Defenders.Talents
                 {
                     C("lunging-step", "Lunging Step", Inc(Stat.AttackSpeed, 3f), Inc(Stat.Potency, 20f, Tags.Movement), Inc(Stat.BookCost, -15f, Tags.Movement)),
                     C("balanced-blades", "Balanced Blades", Inc(Stat.CritChance, 10f), Inc(Stat.Damage, 20f, Tags.Projectile | Tags.Attack), Flat(Stat.CritChance, 1f, Tags.Projectile)),
-                    P("twist-the-knife", "Twist the Knife", Inc(Stat.Damage, 8f, Tags.Dagger), Inc(Stat.Damage, 30f, Tags.Dagger), Flat(Stat.CritMultiplier, 20f, Tags.Dagger)),
+                    P("twist-the-knife", "Twist the Knife", Inc(Stat.Damage, 8f, Tags.Dagger), Inc(Stat.Damage, 30f, Tags.Dagger), Flat(Stat.CritMultiplier, 20f, Tags.Dagger), Inc(Stat.AttackSpeed, 10f).While(Condition.DualWielding)),
                     P("cold-calculation", "Cold Calculation", Inc(Stat.CritChance, 10f), Inc(Stat.CritChance, 40f), Flat(Stat.CritChance, 1f)),
                     P("cut-throat", "Cut Throat", Flat(Stat.CritMultiplier, 8f), Flat(Stat.CritMultiplier, 35f), Inc(Stat.Damage, 15f).While(Condition.RecentlyCrit)),
                     P("sidestep", "Sidestep", Inc(Stat.Evasion, 8f), Inc(Stat.DodgeCooldown, -20f), Inc(Stat.DodgeSpeed, 15f)),

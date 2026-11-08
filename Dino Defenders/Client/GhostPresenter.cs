@@ -289,14 +289,7 @@ namespace Dino_Defenders.Client
                     if (entity.Get<CharacterModelComponent>().model == model) continue;
 
                     entity.Set(new CharacterModelComponent(model));
-                    Carry carry = Carry.Nothing;
-                    bool shield = false;
-                    foreach (WornLook look in worn)
-                    {
-                        if (look.Place == WornSlot.MainHand) carry = SkillMotions.CarryOf(ItemLook.WeaponOf(look.Traits));
-                        else if (look.Place == WornSlot.OffHand) shield = true;
-                    }
-                    if (entity.Has<AnimatorComponent>()) entity.Get<AnimatorComponent>().Animator.Hold(carry, shield);
+                    if (entity.Has<AnimatorComponent>()) SkillMotions.Hold(entity.Get<AnimatorComponent>().Animator, worn);
                 }
             }
         }

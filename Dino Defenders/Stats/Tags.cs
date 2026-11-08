@@ -200,6 +200,8 @@ namespace Dino_Defenders.Stats
         Isolated = 1ul << 47,           // Nobody else on its side near it.
         Crowded = 1ul << 48,
 
+        DualWielding = 1ul << 49,       // A One Handed Weapon in each hand.
+
         /// <summary>What the land decides. Worth looking up only for those who care.</summary>
         Land = InWater | UnderTrees | OnRoad | InDarkness | HotLand | ColdLand | WetLand | HighLand,
 

@@ -108,7 +108,7 @@ namespace Dino_Defenders.UI
             var fits = new List<(Item item, int cell)>();
             for (int cell = 0; cell < HeroState.InventorySize; cell++)
             {
-                if (Hero.Inventory[cell] is Item item && WornSlots.For(item.Slot).Contains(slot)) fits.Add((item, cell));
+                if (Hero.Inventory[cell] is Item item && WornSlots.Fits(item, slot)) fits.Add((item, cell));
             }
 
             _scroll.Content.ClearChildren();

@@ -202,15 +202,7 @@ namespace Dino_Defenders.Client
             EntityView body = _ecs.GetEntityView(_body);
             if (body.Get<CharacterModelComponent>().model == model) return;
             body.Set(new CharacterModelComponent(model));
-
-            Carry carry = Carry.Nothing;
-            bool shield = false;
-            foreach (WornLook look in _worn)
-            {
-                if (look.Place == WornSlot.MainHand) carry = SkillMotions.CarryOf(ItemLook.WeaponOf(look.Traits));
-                else if (look.Place == WornSlot.OffHand) shield = true;
-            }
-            body.Get<AnimatorComponent>().Animator.Hold(carry, shield);
+            SkillMotions.Hold(body.Get<AnimatorComponent>().Animator, _worn);
         }
 
         // It's always a fine day here: a first look at a game shouldn't depend on the clock.

@@ -353,7 +353,7 @@ namespace Dino_AnimLab
                             Vector3 way = new Vector3(random.NextSingle() - 0.5f, 0f, random.NextSingle() - 0.5f);
                             animator.Struck(way, random.NextSingle() * 3f, random.NextSingle() * 0.1f, Vector3.One);
                         }
-                        if (random.NextDouble() < 0.01) animator.Hold(body.Carry == Carry.Nothing ? Carry.Sword : Carry.Nothing, random.NextDouble() < 0.5);
+                        if (random.NextDouble() < 0.01) animator.Hold(body.Carry == Carry.Nothing ? Carry.Sword : Carry.Nothing, random.NextDouble() < 0.5, random.NextDouble() < 0.3 ? Carry.Dagger : null);
 
                         animator.Step(input, dt, ground);
                         if (!Sound(animator, out string found) || animator.Faults > 0)
@@ -812,7 +812,7 @@ namespace Dino_AnimLab
         public static int Bench()
         {
             var ground = new Slope();
-            foreach (string name in new[] { "bare", "sword", "shield", "wolf", "raptor", "tyrant", "hornback" })
+            foreach (string name in new[] { "bare", "sword", "shield", "twin", "wolf", "raptor", "tyrant", "hornback" })
             {
                 Body body = Body.Named(name);
                 CharacterAnimator[] crowd = new CharacterAnimator[200];

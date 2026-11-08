@@ -259,7 +259,7 @@ namespace Dino_BuildLab
             report.Check("Two hundred thousand moves lose nothing", lost == 0, $"{lost} times");
             report.Check("And double nothing", doubled == 0, $"{doubled} times");
             report.Check("And never leave something in both hands beside something else", overlapping == 0, $"{overlapping} times");
-            report.Check("Everything worn is where it fits", hero.Equipped.All(pair => WornSlots.Holds(pair.Key) == pair.Value.Slot));
+            report.Check("Everything worn is where it fits", hero.Equipped.All(pair => WornSlots.Fits(pair.Value, pair.Key)));
             report.Check("And what's left is what there was", hero.Carried().Concat(hero.Equipped.Values).ToHashSet().SetEquals(everything));
         }
 

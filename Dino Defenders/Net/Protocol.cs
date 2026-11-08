@@ -258,7 +258,7 @@ namespace Dino_Defenders.Net
             {
                 WornSlot place = Checked<WornSlot>(reader.ReadByte());
                 Item item = ReadItem(reader);
-                if (WornSlots.Holds(place) != item.Slot) throw new NetReadException($"{item.Slot} worn on {place}.");
+                if (!WornSlots.Fits(item, place)) throw new NetReadException($"{item.Slot} worn on {place}.");
                 worn[place] = item;
             }
 

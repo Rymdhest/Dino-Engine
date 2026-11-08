@@ -169,6 +169,7 @@ namespace Dino_Defenders.Tooltips
             (Condition.HoldingShield, "while holding a Shield", "holding a Shield"),
             (Condition.TwoHanded, "while wielding a Two Handed Weapon", "wielding a Two Handed Weapon"),
             (Condition.Unarmed, "while Unarmed", "that are Unarmed"),
+            (Condition.DualWielding, "while Dual Wielding", "that are Dual Wielding"),
             (Condition.Wounded, "while Wounded", "that are Wounded"),
             (Condition.Overdrawn, "while Overdrawn", "that are Overdrawn"),
             (Condition.Surrounded, "while Surrounded", "that are Surrounded"),

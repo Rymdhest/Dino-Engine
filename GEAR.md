@@ -38,7 +38,7 @@ Variety is measured, not claimed: see Testing.
 | Place | Takes | Notes |
 |---|---|---|
 | MainHand | Weapons | Two-handed ones empty the off hand |
-| OffHand | Shields, wards | Not while something two-handed is held |
+| OffHand | Shields, wards, or a second one-handed weapon | Not while something two-handed is held. A weapon here is held in the left hand (`HumanoidGenerator.SecondHand`), and only goes here when put here |
 | Head, Neck, Body, Legs, Feet, Hands | One thing each | Legs and Hands are new |
 | Finger1, Finger2 | Rings | A ring is the same item on either |
 
@@ -187,7 +187,7 @@ All seven phases of the plan were built, in the order rules, kernel, a single sw
 
 Choices made without asking, as none of them block anything. Say if any are wrong.
 
-- **The off hand is shields and wards only.** There's no dual wielding in the rules today, and adding it is a build-system change, not a gear one.
+- **A one-handed weapon goes in either hand.** It stays a `MainHand` item, so what it can roll is a weapon's, and `WornSlots.For(item)` is what says where it can go: never `WornSlots.For(item.Slot)` when there's an item to ask about. The rules are in `BUILDS.md`.
 - **A unique has one look**, seeded by its id. It's one of a kind, and it means the boss's sword is the sword you're then holding. Everything else is unique per drop.
 - **Mana comes on top of barrier for cloth.** Barrier is already the third defence, and removing it would break builds.
 - **Friends lose their tunic dyes** as a way to tell each other apart, since gear covers them. Dye stays on undergarments only. If that's not enough in play, it needs something of its own, such as a coloured mark.

@@ -85,6 +85,9 @@ namespace Dino_Engine.Animation
         private readonly TurnContinuity[] _gripTurn;
 
         private Carry _carry = Carry.Nothing;
+        private Carry? _second;     // A weapon in the other hand too.
+        private bool _offTurn;      // This blow is the other hand's: with a weapon in each, they take turns, the main hand first.
+        private bool _offNext;
         private bool _shield;
         private bool _seen;
         private Vector3 _position;
@@ -194,11 +197,12 @@ namespace Dino_Engine.Animation
             ReadGrips();
         }
 
-        /// <summary>What they have in their hands, and whether there's a shield on the other arm.</summary>
-        public void Hold(Carry carry, bool shield)
+        /// <summary>What they have in their hands, and whether there's a shield on the other arm or a second weapon in that hand, which is held as the first is, on the other side.</summary>
+        public void Hold(Carry carry, bool shield, Carry? second = null)
         {
             _carry = carry;
-            _shield = shield;
+            _second = carry.TwoHanded || carry.Arm != 1 ? null : second;
+            _shield = shield && _second == null;
             ReadGrips();
         }
 
@@ -429,10 +433,12 @@ namespace Dino_Engine.Animation
                 _serial = action.Serial;
                 _lost = 0f;
 
-                // A blow that follows hard on the last one takes up from where that one left the hand.
+                // A blow that follows hard on the last one takes up from where that one left the hand. With a weapon in each, the other hand opens instead, and a weapon alone in the off hand does it all.
                 if (acting)
                 {
-                    bool follows = _sinceActing < ChainWithin && _playing?.Next != null && action.Gesture!.Next != null;
+                    _offTurn = _second != null && (_carry == Carry.Nothing || _offNext);
+                    _offNext = !_offTurn;
+                    bool follows = _second == null && _sinceActing < ChainWithin && _playing?.Next != null && action.Gesture!.Next != null;
                     _playing = follows ? _playing!.Next : action.Gesture;
                 }
             }
@@ -445,11 +451,22 @@ namespace Dino_Engine.Animation
             {
                 _lost = _held > 0f ? _lost + deltaTime : MathF.Max(_lost - deltaTime * 1.5f, 0f);
                 gesture = GesturePlayer.Sample(_playing ?? action.Gesture!, MathF.Max(action.Elapsed - _lost, 0f), action.Impact, action.Length);
+                if (_offTurn && _second != null) gesture = Mirrored(gesture);
                 _aim = Spring.Shortest(action.Aim - input.Yaw);
             }
             Swinging = acting && gesture.Swing > 0f && gesture.Swing < 1f;
             _shake = Spring.Damp(_shake, 0f, 0.07f, deltaTime);
         }
+
+        // The same blow struck with the other hand: each hand does what the other would have, on its own side, and so does the body.
+        private static GestureSample Mirrored(in GestureSample gesture) => gesture with
+        {
+            Main = gesture.Off.Mirrored,
+            Off = gesture.Main.Mirrored,
+            HasMain = gesture.HasOff,
+            HasOff = gesture.HasMain,
+            Body = gesture.Body.Mirrored,
+        };
 
         // The hips go the way the body is going, so that legs step out the way they're going, while the shoulders stay on what they're looking at.
         private void ReadFacing(float deltaTime, float life)
@@ -767,6 +784,7 @@ namespace Dino_Engine.Animation
                 HandKey key;
                 bool heldUp = false;
                 if (main) key = Mix(_carry, moving, run);
+                else if (_second != null) key = Mix(_second, moving, run).Mirrored;
                 else if (_shield)
                 {
                     key = HandKey.Lerp(HandKey.Lerp(Carry.ShieldIdle, Carry.ShieldRun, run), Carry.ShieldGuard, _alert);
@@ -779,7 +797,7 @@ namespace Dino_Engine.Animation
                 }
 
                 // Opposite arm to the leg in front. What's held swings less, and a shield hardly at all.
-                float own = (main && _carry != Carry.Nothing ? 0.3f : 1f) * (heldUp ? 0.2f : 1f);
+                float own = ((main ? _carry != Carry.Nothing : _second != null) ? 0.3f : 1f) * (heldUp ? 0.2f : 1f);
                 float forward = -side * _stride * moving * own * _style.ArmSwing;
                 key = key with { Turn = key.Turn - side * forward * swing, Reach = key.Reach + forward * 0.1f * run, Height = key.Height + MathF.Max(forward, 0f) * 0.14f * run };
 
@@ -823,6 +841,8 @@ namespace Dino_Engine.Animation
 
         private Vector3 _mainHand;
         private Vector3 _mainAxis = Vector3.UnitZ;
+        private Vector3 _secondHand;
+        private Vector3 _secondAxis = Vector3.UnitZ;
 
         private HandKey Mix(Carry carry, float moving, float run)
         {
@@ -864,7 +884,7 @@ namespace Dino_Engine.Animation
 
             // A fist closes square to the forearm, so what the forearm is doing and which way the blade should go are enough to say how the hand lies.
             Vector3 forearm = (wrist - elbow).Normalized();
-            bool holds = main ? _carry != Carry.Nothing : _shield || _carry.TwoHanded;
+            bool holds = main ? _carry != Carry.Nothing : _shield || _carry.TwoHanded || _second != null;
             if (!holds)
             {
                 _rotations[(int)limb.End] = lower;
@@ -875,7 +895,12 @@ namespace Dino_Engine.Animation
             grip = _gripTurn[index].Follow(grip, BlendHalfLife, FastestGrip, deltaTime, transition);
             _rotations[(int)limb.End] = grip;
 
-            if (!main) return;
+            if (!main)
+            {
+                _secondHand = wrist;
+                _secondAxis = Vector3.Transform(_gripAxes[index], grip);
+                return;
+            }
             _mainHand = wrist;
 
             // It's what ended up being held that counts, and that has been through all of the above.
@@ -1268,15 +1293,20 @@ namespace Dino_Engine.Animation
                 Chain(toe, limb.End);
             }
 
-            if (_carry != Carry.Nothing) ReadWeapon(input);
+            if (_carry != Carry.Nothing || _second != null) ReadWeapon(input);
             WriteSkin();
         }
 
+        // Whichever hand's turn it is, as that's the one leaving something in the air.
         private void ReadWeapon(in AnimationInput input)
         {
+            bool second = _second != null && (_offTurn || _carry == Carry.Nothing);
+            Vector3 hand = second ? _secondHand : _mainHand;
+            Vector3 axis = second ? _secondAxis : _mainAxis;
+            float length = second ? _second!.Length : _carry.Length;
             Quaternion toWorld = Frames.Yaw(input.Yaw);
-            WeaponBase = input.Position + Vector3.Transform(_mainHand, toWorld) * input.Scale;
-            WeaponTip = input.Position + Vector3.Transform(_mainHand + _mainAxis * _carry.Length, toWorld) * input.Scale;
+            WeaponBase = input.Position + Vector3.Transform(hand, toWorld) * input.Scale;
+            WeaponTip = input.Position + Vector3.Transform(hand + axis * length, toWorld) * input.Scale;
         }
 
         private void WriteSkin()

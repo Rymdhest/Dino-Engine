@@ -78,6 +78,21 @@ namespace Dino_Defenders.Client
             }
         }
 
+        /// <summary>Gives a hero's body what they have in their hands: a weapon in the main hand, and in the off hand a second weapon or a shield.</summary>
+        public static void Hold(CharacterAnimator animator, IReadOnlyList<WornLook> worn)
+        {
+            Carry carry = Carry.Nothing;
+            Carry? second = null;
+            bool shield = false;
+            foreach (WornLook look in worn)
+            {
+                if (look.Place == WornSlot.MainHand) carry = CarryOf(ItemLook.WeaponOf(look.Traits));
+                else if (look.Place == WornSlot.OffHand && ItemLook.SlotOf(look.Traits) == ItemSlot.MainHand) second = CarryOf(ItemLook.WeaponOf(look.Traits));
+                else if (look.Place == WornSlot.OffHand) shield = true;
+            }
+            animator.Hold(carry, shield, second);
+        }
+
         /// <summary>How something a hero has in their hands is carried.</summary>
         public static Carry CarryOf(WeaponKind kind) => kind switch
         {

@@ -190,11 +190,15 @@ namespace Dino_Defenders.Progression
             return item;
         }
 
-        /// <summary>Where something would go: where it was asked to, if it fits there, or else the first free place for it, or else the first place.</summary>
+        /// <summary>
+        /// Where something would go: where it was asked to, if it fits there, or else the first free place for it, or else the first place. A weapon goes in the main hand unless it's
+        /// put in the other, as a second weapon is a choice and a new one is usually meant to replace the old.
+        /// </summary>
         public WornSlot PlaceFor(Item item, WornSlot? asked = null)
         {
-            IReadOnlyList<WornSlot> places = WornSlots.For(item.Slot);
+            IReadOnlyList<WornSlot> places = WornSlots.For(item);
             if (asked is WornSlot wanted && places.Contains(wanted)) return wanted;
+            if (item.Slot != ItemSlot.Finger) return places[0];
             foreach (WornSlot place in places)
             {
                 if (!Equipped.ContainsKey(place)) return place;
@@ -205,12 +209,17 @@ namespace Dino_Defenders.Progression
         /// <summary>What something would be set beside, if anything. A book or orders are worn nowhere, so they have no place to look in.</summary>
         public Item? WornBeside(Item item) => item.IsWorn && Equipped.TryGetValue(PlaceFor(item), out Item? worn) && worn != item ? worn : null;
 
-        /// <summary>What wearing something would take off: whatever's in its place, both rings for a ring, and for something that changes how the hands are used, whatever's in the other one.</summary>
+        /// <summary>
+        /// What wearing something would take off: whatever's in its place, both rings for a ring, both weapons for a weapon that takes one hand (but not a shield, which it wouldn't), and for
+        /// something that changes how the hands are used, whatever's in the other one.
+        /// </summary>
         public IEnumerable<Item> WornInPlaceOf(Item item)
         {
-            foreach (WornSlot place in WornSlots.For(item.Slot))
+            foreach (WornSlot place in WornSlots.For(item))
             {
-                if (Equipped.TryGetValue(place, out Item? worn) && worn != item) yield return worn;
+                if (!Equipped.TryGetValue(place, out Item? worn) || worn == item) continue;
+                if (place == WornSlot.OffHand && item.IsOneHandedWeapon && !worn.IsOneHandedWeapon) continue;
+                yield return worn;
             }
             if (item.IsTwoHanded && Equipped.TryGetValue(WornSlot.OffHand, out Item? offHand)) yield return offHand;
             if (item.Slot == ItemSlot.OffHand && Equipped.TryGetValue(WornSlot.MainHand, out Item? held) && held.IsTwoHanded) yield return held;
@@ -270,18 +279,19 @@ namespace Dino_Defenders.Progression
                 return true;
             }
 
-            if (from.IsCell) return to.IsWorn && WornSlots.For(item.Slot).Contains(to.Slot) && Equip(from.Number, to.Slot);
+            if (from.IsCell) return to.IsWorn && WornSlots.Fits(item, to.Slot) && Equip(from.Number, to.Slot);
 
             if (to.IsCell)
             {
                 // Something's in the way: it's as if that had been put on, which it can only be if it fits there.
                 if (Inventory[to.Number] is not Item there) return Unequip(from.Slot, to.Number);
-                return WornSlots.For(there.Slot).Contains(from.Slot) && Equip(to.Number, from.Slot);
+                return WornSlots.Fits(there, from.Slot) && Equip(to.Number, from.Slot);
             }
 
-            // From one place on the hero to another, which only a ring has.
-            if (!to.IsWorn || !WornSlots.For(item.Slot).Contains(to.Slot)) return false;
+            // From one place on the hero to another, which a ring has, and a weapon that takes one hand. Whatever's there has to fit where this came from.
+            if (!to.IsWorn || !WornSlots.Fits(item, to.Slot)) return false;
             Item? other = Equipped.GetValueOrDefault(to.Slot);
+            if (other != null && !WornSlots.Fits(other, from.Slot)) return false;
             Equipped[to.Slot] = item;
             if (other != null) Equipped[from.Slot] = other;
             else Equipped.Remove(from.Slot);
@@ -440,9 +450,13 @@ namespace Dino_Defenders.Progression
             yield return Flat(Stat.MoveSpeed, HeroState.BaseMoveSpeed);
         }
 
+        /// <summary>What a hero attacks with: what's in their main hand, both weapons together if they're Dual Wielding, or a weapon alone in the off hand if that's all there is.</summary>
         public static WeaponProfile WeaponOf(HeroState hero)
         {
-            return hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? weapon) ? weapon.Weapon() : WeaponProfile.Fists;
+            Item? main = hero.Equipped.GetValueOrDefault(WornSlot.MainHand);
+            Item? off = hero.Equipped.TryGetValue(WornSlot.OffHand, out Item? held) && held.IsOneHandedWeapon ? held : null;
+            if (main != null && off != null) return Item.Paired(main.Weapon(), off.Weapon());
+            return (main ?? off)?.Weapon() ?? WeaponProfile.Fists;
         }
 
         private static IEnumerable<Mod> Gather(HeroState hero, IReadOnlyList<ActiveBuff>? buffs, IReadOnlyList<Mod>? land)
@@ -465,9 +479,13 @@ namespace Dino_Defenders.Progression
                 foreach (Mod mod in item.Mods()) yield return mod;
             }
 
-            if (hero.Equipped.ContainsKey(WornSlot.OffHand)) yield return Grant(Condition.HoldingShield);
-            if (!hero.Equipped.ContainsKey(WornSlot.MainHand)) yield return Grant(Condition.Unarmed);
-            else if (hero.Equipped[WornSlot.MainHand].IsTwoHanded) yield return Grant(Condition.TwoHanded);
+            // A weapon in the off hand isn't a shield. One in each hand is Dual Wielding, and one in either is not being Unarmed.
+            Item? main = hero.Equipped.GetValueOrDefault(WornSlot.MainHand);
+            Item? off = hero.Equipped.GetValueOrDefault(WornSlot.OffHand);
+            if (off != null && !off.IsOneHandedWeapon) yield return Grant(Condition.HoldingShield);
+            if (main == null && off is not { IsOneHandedWeapon: true }) yield return Grant(Condition.Unarmed);
+            else if (main is { IsTwoHanded: true }) yield return Grant(Condition.TwoHanded);
+            else if (main != null && off is { IsOneHandedWeapon: true }) yield return Grant(Condition.DualWielding);
 
             if (buffs == null) yield break;
             foreach (ActiveBuff buff in buffs)

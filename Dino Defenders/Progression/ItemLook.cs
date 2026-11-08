@@ -46,6 +46,9 @@ namespace Dino_Defenders.Progression
         /// <summary>What kind of weapon something is, for how it's carried.</summary>
         public static WeaponKind WeaponOf(uint traits) => (WeaponKind)(traits >> KindBits & 7);
 
+        /// <summary>What something is worn as, which tells a second weapon in the off hand from a shield.</summary>
+        public static ItemSlot SlotOf(uint traits) => (ItemSlot)(traits >> SlotBits & 15);
+
         /// <summary>What something is that's only known by what was said about it.</summary>
         public static GearSpec SpecOf(ulong seed, uint traits)
         {

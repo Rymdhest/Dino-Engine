@@ -73,6 +73,7 @@ namespace Dino_Defenders.Stats
         public const float PushSpeed = 18f;             // Metres a second, for what throws or drags.
         public const float HeavyUse = 0.95f;            // Seconds. A use this long or longer looks heavy.
         public const float WideReach = 8f;              // Metres. A shape this big or bigger is worth showing, and goes round the whole body.
+        public const float DualWieldSpeed = 10f;        // Percent more attacks a second with a One Handed Weapon in each hand, on top of the two weapons' average.
 
         // How far a book can go, however it's written. No number on a page can stop one branching, so these do.
         public const int MostPages = 6;
