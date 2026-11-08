@@ -39,6 +39,16 @@ namespace Dino_Engine.World.Generation
             List<Candidate> candidates = GatherCandidates(world, random.Fork("candidates"));
             if (candidates.Count == 0) throw new InvalidOperationException("World has no usable land.");
 
+            // The Haven is one village, where the island is broadest and the ground kindest, and nothing else.
+            if (world.Plan.Archetype.Peaceful)
+            {
+                Candidate heart = PickHeart(world, candidates);
+                BuildRemoteness(world, heart.Position);
+                AddSite(world, SiteCatalog.Haven, heart, random.Fork("haven"));
+                LevelSites(world);
+                return;
+            }
+
             Candidate landing = PickLanding(world, candidates, random.Fork("landing"));
             BuildRemoteness(world, landing.Position);
             for (int i = 0; i < candidates.Count; i++)
@@ -182,6 +192,24 @@ namespace Dino_Engine.World.Generation
                 }
             }
             return candidates;
+        }
+
+        // Flat, open ground well in from the shore, near the middle of the land, with room all round for a village and its fields.
+        private static Candidate PickHeart(WorldData world, List<Candidate> candidates)
+        {
+            Vector2 centre = new Vector2(world.Size * 0.5f);
+            float bestScore = float.NegativeInfinity;
+            Candidate best = candidates[0];
+            foreach (Candidate candidate in candidates)
+            {
+                if (candidate.Inland < 70f) continue;
+                float fromCentre = (candidate.Position - centre).Length / (world.Size * 0.5f);
+                float score = -candidate.Slope * 6f - fromCentre * 1.5f - MathF.Abs(candidate.Domination) + Smoothstep(70f, 160f, candidate.Inland) * 0.5f;
+                if (score <= bestScore) continue;
+                bestScore = score;
+                best = candidate;
+            }
+            return best;
         }
 
         // The landing sits at the edge of the land: a shore if there is one, or else the foot of the mountains.
@@ -378,6 +406,10 @@ namespace Dino_Engine.World.Generation
                     return "The Stones of " + PlaceNames.Root(seed, random);
                 case SiteKind.Keep:
                     return "Fort " + PlaceNames.Root(seed, random);
+                case SiteKind.Waygate:
+                    return PlaceNames.Height(seed, random) + " Gate";
+                case SiteKind.Haven:
+                    return "The Haven";
                 default:
                     return "The Landing";
             }

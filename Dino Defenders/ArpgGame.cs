@@ -49,6 +49,7 @@ namespace Dino_Defenders
 
         private HeroState _hero = null!;
         private SaveGame? _save;
+        private Stash? _stash;
         private HeroRoster? _roster;
         private List<RosterEntry> _heroes = new();
         private RosterEntry? _chosen;
@@ -126,7 +127,7 @@ namespace Dino_Defenders
             engine.WorldReady = false;
             NetSchema.Build();
             RegisterSystems();
-            _ui = new GameUi(Dino_Engine.Core.Engine.Gui, this, Travel, Quit, ToMenu);
+            _ui = new GameUi(Dino_Engine.Core.Engine.Gui, this, Quit, ToMenu);
             Dino_Engine.Core.Engine.WindowHandler.Closing += _ => ShutDown();
 
             if (options.StartsAtMenu)
@@ -140,6 +141,7 @@ namespace Dino_Defenders
             _save = options.Saves ? SaveGame.Load() : null;
             _hero = _save?.Hero ?? HeroState.CreateNew();
             PrepareHero();
+            OpenStash();
 
             if (options.Join != null)
             {
@@ -147,18 +149,35 @@ namespace Dino_Defenders
                 return;
             }
 
-            StartOwnGame(_save != null
-                ? new WorldRequest(_save.WorldSeed, _save.WorldArchetype, _save.WorldLevel)
-                : new WorldRequest(options.Seed ?? Environment.TickCount, options.Archetype, options.Level), _save);
-
+            StartOwnGame(_save);
             if (options.Host) OpenToFriends();
+        }
+
+        // What everyone on this machine has put away, which only one copy of the game can have at once. A scripted run has one of its own that's never kept, unless it's told where.
+        private void OpenStash()
+        {
+            string? path = _options.Stash;
+            if (path == null && !_options.Scripted) path = Path.Combine(_options.Heroes ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DinoDefenders"), "stash.json");
+            StashStore.Claim(path);
+            _stash = StashStore.Held ? StashStore.Load() : null;
+            if (!StashStore.Held) Console.WriteLine("The stash is open in another copy of the game.");
+        }
+
+        // Where a hero's game starts: back in the land they were in, if they were in one, or the Haven. A scripted run goes straight to the land it's asked for, unless it asks for the Haven.
+        private (WorldRequest Request, LandTerms Terms) FirstWorld(SaveGame? save)
+        {
+            if (save is { InLand: true }) return (save.Land(), save.Terms);
+            bool scriptedLand = !_options.Haven && (_options.Seed != null || _options.Archetype != null || _options.Tour != null || (_options.Scripted && save == null));
+            if (!scriptedLand) return (Lands.Haven, new LandTerms());
+            int level = _options.Level;
+            return (new WorldRequest(_options.Seed ?? Environment.TickCount, _options.Archetype, level), _options.Terms(level));
         }
 
         private void PrepareHero()
         {
             _hero.Level = Math.Max(_hero.Level, _options.HeroLevel);
             _hero.Gold = Math.Max(_hero.Gold, _options.Gold);
-            _hero.PerilProven = Math.Max(_hero.PerilProven, _options.Proven);
+            _hero.LandLevel = Math.Max(_hero.LandLevel, _options.LandLevel);
             ApplyBuildOptions(_hero, _options);
             if (_options.Name == null && _hero.Name.Length > 0) HeroName = _hero.Name;
         }
@@ -208,9 +227,8 @@ namespace Dino_Defenders
             _title = null;
             _titleLoading = null;
             Music.End(1.2f);
-            StartOwnGame(_save != null
-                ? new WorldRequest(_save.WorldSeed, _save.WorldArchetype, _save.WorldLevel)
-                : new WorldRequest(save?.WorldSeed ?? Environment.TickCount), _save);
+            OpenStash();
+            StartOwnGame(_save);
         }
 
         private void ShowMenu()
@@ -275,6 +293,8 @@ namespace Dino_Defenders
             // Nobody's being played from here on, so there's nothing that can be saved over anyone.
             _hero = null!;
             _save = null;
+            _stash = null;
+            StashStore.Release();
             SaveGame.PathOverride = _options.SaveFile;
             ShowMenu();
         }
@@ -391,12 +411,13 @@ namespace Dino_Defenders
         }
 
         // Alone or hosting, the server is here. The world it holds and the hero it is given are the same as they would be anywhere.
-        private void StartOwnGame(WorldRequest request, SaveGame? save)
+        private void StartOwnGame(SaveGame? save)
         {
+            (WorldRequest request, LandTerms terms) = FirstWorld(save);
             var server = new GameServer(new ServerSettings
             {
                 Request = request,
-                Offering = save?.Offering ?? (_options.TravelAfterFrames < 0 ? _options.Offering : null),
+                Terms = terms,
                 Save = save,
                 AllowTeleport = _options.Bot || _options.Tour != null,
                 Start = _options.At,
@@ -416,7 +437,8 @@ namespace Dino_Defenders
             {
                 transport = new ImpairedTransport(transport, NetworkConditions.Parse(_options.NetSim), () => _simulatedLine.Elapsed.TotalMilliseconds);
             }
-            _client = new GameClient(transport, this, Dino_Engine.Core.Engine.Instance!.world, _hero, HeroName);
+            _client = new GameClient(transport, this, Dino_Engine.Core.Engine.Instance!.world, _hero, HeroName, _stash);
+            _client.StashKept += Keep;
             _effects = new ClientEffects(Dino_Engine.Core.Engine.Instance!.world, _client);
         }
 
@@ -530,17 +552,20 @@ namespace Dino_Defenders
             }
         }
 
-        /// <summary>Back to this player's own world.</summary>
+        /// <summary>Back to this player's own game: the land they were in, if they were in one of their own, or the Haven.</summary>
         public void ReturnHome(string? why)
         {
             LeaveCurrentGame();
             _firstWorldOfThisSession = false;
             _homecoming = why;
+            StartOwnGame(_save);
+        }
 
-            SaveGame? save = _save;
-            StartOwnGame(save != null
-                ? new WorldRequest(save.WorldSeed, save.WorldArchetype, save.WorldLevel)
-                : new WorldRequest(_options.Seed ?? Environment.TickCount, _options.Archetype, _options.Level), save);
+        // The stash has changed, as the server has said. It's kept before the hero is, so that if anything goes wrong in between, something is kept twice rather than lost.
+        private void Keep(Stash stash)
+        {
+            StashStore.Store(stash);
+            Save();
         }
 
         private string? _homecoming;
@@ -574,7 +599,7 @@ namespace Dino_Defenders
             if (_options.TravelAfterFrames > 0 && _travelled < _options.Travels && _frames >= _options.TravelAfterFrames * (_travelled + 1))
             {
                 _travelled++;
-                StepThroughWaygate();
+                TravelOn(session);
             }
             if (_frames == 90 && _options.Panel != null) OpenPanel(_options.Panel);
             if (_frames == 30 && _options.Loot is string loot && _server != null)
@@ -742,7 +767,9 @@ namespace Dino_Defenders
                 case "friends": _ui.Toggle(_ui.Multiplayer); break;
                 case "pause": _ui.Toggle(_ui.Pause); break;
                 case "settings": _ui.Toggle(_ui.Pause); _ui.Into(_ui.Settings); break;
-                case "waygate": _ui.Open(InteractKind.Waygate, GameSession.Current.Sites[0]); break;
+                case "table": _ui.Open(InteractKind.MapTable, GameSession.Current.Sites[0]); break;
+                case "travel": _ui.Open(InteractKind.Waygate, GameSession.Current.Sites[0]); break;
+                case "stash": _ui.Open(InteractKind.Stash, GameSession.Current.Sites[0]); break;
                 case "merchant":
                     // Through the server, as what's on a table is its to say.
                     int village = GameSession.Current.Sites.FindIndex(s => s.Site.Kind == SiteKind.Village);
@@ -798,20 +825,18 @@ namespace Dino_Defenders
             if (!_options.Saves || _hero == null || _ui.AtMenu) return;
 
             // A friend's world isn't this player's to keep, but the hero who went there is.
-            if (_server != null)
+            if (_server != null && _client?.State == ClientState.Playing)
             {
-                if (_client?.State != ClientState.Playing) return;
                 var world = new SaveGame();
-                if (!_server.Ask(server =>
+                if (_server.Ask(server =>
                 {
                     server.CaptureWorld(world);
                     return true;
-                })) return;
-                _save = world;
+                })) _save = world;
             }
 
-            // Someone whose first steps were in a friend's world has no land of their own yet: this is the one they'll go home to.
-            _save ??= new SaveGame { WorldSeed = Environment.TickCount };
+            // Someone whose first steps were in a friend's world, or who's never been anywhere, is in the Haven.
+            _save ??= new SaveGame();
             _save.Hero = _hero;
             _save.Store();
         }
@@ -834,18 +859,18 @@ namespace Dino_Defenders
             Audio.Stop();
         }
 
-        private void StepThroughWaygate()
-        {
-            GameSession session = GameSession.Current;
-            var random = new WorldRandom(session.World.Plan.Seed).Fork("test road");
-            Travel(new WorldRequest(random.Int(int.MaxValue), null, session.World.Plan.Level + 1), _options.Offering);
-        }
-
-        private void Travel(WorldRequest request, Offering offering)
+        // For a scripted run: home from a land, by the nearest waygate as if walked to, or out of the Haven to the first land the map table shows.
+        private void TravelOn(GameSession session)
         {
             Save();
             _ui.CloseAll();
-            _client?.StepThroughWaygate(request, offering);
+            bool haven = session.IsHaven;
+            _server?.Ask(server =>
+            {
+                if (haven) server.Venture(0);
+                else server.SendHome();
+                return true;
+            });
         }
 
         private void ShowLoading(string title, string detail)
@@ -858,14 +883,15 @@ namespace Dino_Defenders
             screen.Visible = true;
         }
 
-        void IClientHost.WorldNeeded(WorldRequest request, Offering offering)
+        void IClientHost.WorldNeeded(WorldRequest request, LandTerms terms)
         {
             _ui.CloseAll();
             Audio.StopWorld(1.2f);
             Music.End(1.2f);
             if (GameSession.Current != null) Audio.Play(Treasure.Waygate);
             WorldPlan plan = WorldPlan.Create(request);
-            ShowLoading(plan.Name, offering.Any ? $"{plan.Archetype.Name}, level {plan.Level}. {offering.Title()}" : $"{plan.Archetype.Name}, level {plan.Level}");
+            if (Lands.IsHaven(request)) ShowLoading(plan.Name, "Home, where the Reich has never been");
+            else ShowLoading(plan.Name, terms.Count > 0 ? $"{plan.Archetype.Name}, level {plan.Level}. {terms.Count} {(terms.Count == 1 ? "omen" : "omens")}: {string.Join(", ", terms.Chosen().Select(chosen => chosen.Omen.Name))}" : $"{plan.Archetype.Name}, level {plan.Level}");
 
             LoadingScreen screen = _ui.Loading;
             _worlds.Progress = (progress, stage) =>
@@ -949,12 +975,18 @@ namespace Dino_Defenders
                 session.Announce("Back on your own road", _homecoming, 6f);
                 _homecoming = null;
             }
-            else if (_save == null && _firstWorldOfThisSession && _options.Tour == null)
+            else if (session.IsHaven)
             {
-                session.Announce(session.World.Plan.Name, session.Chronicle.Prologue, 9f);
+                // Someone who's never been anywhere is told where they are, and anyone else is home.
+                bool first = _hero.Level == 1 && _hero.Experience == 0 && _hero.WorldsCleared == 0;
+                if (first && _options.Tour == null) session.Announce(session.World.Plan.Name, $"{session.Chronicle.Prologue} Choose a land at the map table, and the waygate will take you there.", 10f);
+                else if (!_firstWorldOfThisSession) session.Announce(session.World.Plan.Name, $"Home. Your next land is level {_hero.LandLevel}.", 5f);
+            }
+            else if (!session.Liberated && _options.Tour == null)
+            {
+                session.Announce(session.World.Plan.Name, $"Level {session.World.Plan.Level}. {session.Chronicle.Prologue}", 8f);
             }
             _firstWorldOfThisSession = false;
-            if (session.Offering.Any && !session.Liberated) session.Announce(session.Offering.Title(), session.Offering.OmenNames(), 6f);
             Save();
         }
 

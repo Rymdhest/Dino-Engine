@@ -22,11 +22,12 @@ namespace Dino_Engine.World.Generation
         public void Run(WorldData world)
         {
             world.Placement = new PlacementIndex(world.Size);
-            world.Style = StyleOf(world);
+            world.Style = world.Plan.Archetype.Peaceful ? BuildingStyle.Eastern : StyleOf(world);
             foreach (WorldSite site in world.Sites)
             {
                 if (site.Kind == SiteKind.Graveyard) EndRoadsShortOf(world, site.Position, StructureCatalog.Church.HalfExtents.Y + ChurchForecourt);
                 if (site.Kind is SiteKind.Shrine or SiteKind.StandingStones) EndRoadsShortOf(world, site.Position, StructureCatalog.Altar.HalfExtents.X + AltarForecourt);
+                if (site.Kind == SiteKind.Waygate) EndRoadsShortOf(world, site.Position, StructureCatalog.Waygate.HalfExtents.Y + AltarForecourt);
             }
             foreach (WorldRoad road in world.Roads) ReserveRoad(world, road);
 
@@ -39,10 +40,22 @@ namespace Dino_Engine.World.Generation
                 {
                     case SiteKind.Landing: BuildLanding(builder); break;
                     case SiteKind.Village: BuildVillage(builder, houses: builder.Random.Int(14, 24), fields: builder.Random.Int(4, 7)); break;
-                    case SiteKind.Hamlet: BuildVillage(builder, houses: builder.Random.Int(5, 9), fields: builder.Random.Int(2, 4)); break;
-                    case SiteKind.Farmstead: BuildFarmstead(builder); break;
-                    case SiteKind.FishingHamlet: BuildFishingHamlet(builder); break;
-                    case SiteKind.LumberCamp: BuildLumberCamp(builder); break;
+                    case SiteKind.Hamlet:
+                        BuildVillage(builder, houses: builder.Random.Int(5, 9), fields: builder.Random.Int(2, 4));
+                        Overrun(builder, SpawnRole.Beast, builder.Random.Int(2, 3));
+                        break;
+                    case SiteKind.Farmstead:
+                        BuildFarmstead(builder);
+                        Overrun(builder, SpawnRole.Beast, builder.Random.Int(3, 4));
+                        break;
+                    case SiteKind.FishingHamlet:
+                        BuildFishingHamlet(builder);
+                        Overrun(builder, SpawnRole.Raider, builder.Random.Int(3, 4));
+                        break;
+                    case SiteKind.LumberCamp:
+                        BuildLumberCamp(builder);
+                        Overrun(builder, SpawnRole.Raider, builder.Random.Int(2, 3));
+                        break;
                     case SiteKind.Shrine: BuildShrine(builder); break;
                     case SiteKind.StandingStones: BuildStandingStones(builder); break;
                     case SiteKind.Watchtower: BuildWatchtower(builder); break;
@@ -50,6 +63,8 @@ namespace Dino_Engine.World.Generation
                     case SiteKind.BanditCamp: BuildBanditCamp(builder); break;
                     case SiteKind.Graveyard: BuildGraveyard(builder); break;
                     case SiteKind.Keep: BuildKeep(builder); break;
+                    case SiteKind.Waygate: BuildWaygate(builder); break;
+                    case SiteKind.Haven: HavenBuilder.Build(builder); break;
                 }
             }
 
@@ -69,7 +84,7 @@ namespace Dino_Engine.World.Generation
 
         private static float ClearingShare(SiteKind kind) => kind switch
         {
-            SiteKind.Village or SiteKind.Hamlet or SiteKind.Keep => 1.25f,
+            SiteKind.Village or SiteKind.Hamlet or SiteKind.Keep or SiteKind.Haven => 1.25f,
             SiteKind.Ruins or SiteKind.Graveyard => 0.8f,
             _ => 1.05f,
         };
@@ -119,6 +134,7 @@ namespace Dino_Engine.World.Generation
             }
 
             b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, isVillage ? 13f : 7f), 9f);
+            if (isVillage) PlaceRefuge(b);
             PlaceSquare(b, isVillage);
 
             List<List<Vector3>> streets = b.StreetsWithin(site.Radius);
@@ -146,6 +162,99 @@ namespace Dino_Engine.World.Generation
             b.Scatter(StructureCatalog.Haystack, b.Centre, site.Radius, attempts: 10);
 
             PlaceStreetLanterns(b, streets);
+        }
+
+        // What a village in a land keeps for whoever fights for it: a waygate at the edge of its square, a shrine in it, and a strongbox where what's put away can be got at. These go
+        // down first, before anything else in the square, as a village is nothing to a hero without them, and WorldValidator fails one that lost any.
+        private static void PlaceRefuge(SiteBuilder b)
+        {
+            WorldSite site = b.Site;
+            float turn = b.Random.Float() * MathF.Tau;
+
+            // Off to one side of the road through, so that it doesn't stand in anyone's way.
+            Vector2 gateWay = AwayFromRoads(b, turn);
+            Vector2 gateAt = b.Centre + gateWay * 17f;
+            if (b.PlaceNear(StructureCatalog.Waygate, gateAt, YawFacing(-gateWay), site.Radius * EssentialReach, out Vector2 gate, padding: 0.6f))
+            {
+                Vector2 front = (b.Centre - gate).LengthSquared > 1f ? (b.Centre - gate).Normalized() : -gateWay;
+                b.Place(StructureCatalog.StoneLantern, gate + new Vector2(-front.Y, front.X) * 6.5f + front * 1.5f, 0f, padding: 0.3f);
+                b.Place(StructureCatalog.StoneLantern, gate - new Vector2(-front.Y, front.X) * 6.5f + front * 1.5f, 0f, padding: 0.3f);
+                b.Spawn(SpawnRole.Waygate, gate + front * 2.5f);
+            }
+
+            Vector2 shrineWay = Direction(MathF.Atan2(gateWay.Y, gateWay.X) + MathF.PI * 0.75f);
+            if (b.PlaceNear(StructureCatalog.Altar, b.Centre + shrineWay * 10f, YawFacing(-shrineWay), site.Radius * EssentialReach, out Vector2 altar, padding: 0.5f))
+            {
+                Vector2 front = (b.Centre - altar).LengthSquared > 1f ? (b.Centre - altar).Normalized() : -shrineWay;
+                b.Spawn(SpawnRole.Altar, altar + front * 3f);
+            }
+
+            Vector2 stashWay = Direction(MathF.Atan2(gateWay.Y, gateWay.X) - MathF.PI * 0.7f);
+            if (b.PlaceNear(StructureCatalog.Strongbox, b.Centre + stashWay * 12f, YawFacing(-stashWay), site.Radius * EssentialReach, out Vector2 box, padding: 0.5f))
+            {
+                Vector2 front = (b.Centre - box).LengthSquared > 1f ? (b.Centre - box).Normalized() : -stashWay;
+                b.Spawn(SpawnRole.Stash, box + front * (StructureCatalog.Strongbox.HalfExtents.Y + 1.6f));
+            }
+        }
+
+        // The way out of the middle of a place that's furthest from every road through it.
+        private static Vector2 AwayFromRoads(SiteBuilder b, float start)
+        {
+            Vector2 best = Direction(start);
+            float bestScore = float.NegativeInfinity;
+            for (int i = 0; i < 12; i++)
+            {
+                Vector2 candidate = Direction(start + i * (MathF.Tau / 12f));
+                float nearest = 2f;
+                foreach (WorldRoad road in b.World.Roads)
+                {
+                    foreach (Vector3 point in road.Points)
+                    {
+                        Vector2 offset = point.Xz - b.Centre;
+                        float length = offset.Length;
+                        if (length < 4f || length > b.Site.Radius) continue;
+                        nearest = MathF.Min(nearest, 1f - Vector2.Dot(offset / length, candidate));
+                    }
+                }
+                if (nearest <= bestScore) continue;
+                bestScore = nearest;
+                best = candidate;
+            }
+            return best;
+        }
+
+        // A place whose people are gone, and something else holds it now: whoever lived there is who holds it, and more besides, and what they've taken is in a chest.
+        private static void Overrun(SiteBuilder b, SpawnRole by, int more)
+        {
+            List<SiteSpawn> spawns = b.Site.Spawns;
+            for (int i = 0; i < spawns.Count; i++)
+            {
+                if (spawns[i].Role is SpawnRole.Villager or SpawnRole.Merchant or SpawnRole.Elder) spawns[i] = new SiteSpawn(by, spawns[i].Position);
+            }
+            b.SpawnAround(by, b.Centre, b.Site.Radius * 0.55f, more);
+            SpawnChest(b, b.Centre, b.Site.Radius * 0.45f);
+        }
+
+        // Every place a land asks to be freed has a chest, so there has to be one, wherever there's ground for it.
+        private static void SpawnChest(SiteBuilder b, Vector2 around, float radius)
+        {
+            int before = b.Site.Spawns.Count;
+            for (float reach = radius; reach <= radius * 3f && b.Site.Spawns.Count == before; reach += radius * 0.5f) b.SpawnAround(SpawnRole.Chest, around, reach, 1);
+            if (b.Site.Spawns.Count == before) b.Spawn(SpawnRole.Chest, around);
+        }
+
+        // A gate of the land's old roads, on its own beside a road, with a little paved ground before it and a lantern either side.
+        private static void BuildWaygate(SiteBuilder b)
+        {
+            Vector2 toRoad = b.Site.RoadDirection;
+            Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
+            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.6f), 6f);
+
+            b.PlaceNear(StructureCatalog.Waygate, b.Centre - toRoad * 2f, YawFacing(toRoad), b.Site.Radius * EssentialReach, out Vector2 gate, padding: 0.5f);
+            b.Spawn(SpawnRole.Waygate, gate + toRoad * 2.5f);
+            b.Place(StructureCatalog.StoneLantern, gate + side * 6.5f + toRoad * 1.5f, 0f, padding: 0.3f);
+            b.Place(StructureCatalog.StoneLantern, gate - side * 6.5f + toRoad * 1.5f, 0f, padding: 0.3f);
+            b.Scatter(StructureCatalog.Cairn, b.Centre + toRoad * 4f, b.Site.Radius * 0.8f, attempts: 6, padding: 0.6f);
         }
 
         // Short lanes off the square, in the directions the roads don't already take.
@@ -464,6 +573,10 @@ namespace Dino_Engine.World.Generation
             {
                 b.Place(StructureCatalog.StoneLantern, altar + side * (i * 4.6f) + toRoad * 2.2f, 0f, padding: 0.2f);
             }
+
+            // The Reich put it out, and keeps it out.
+            b.SpawnAround(SpawnRole.Raider, b.Centre + toRoad * 5f, b.Site.Radius * 0.7f, b.Random.Int(3, 4));
+            SpawnChest(b, altar - toRoad * 3.2f, 3f);
         }
 
         private static void BuildStandingStones(SiteBuilder b)
@@ -478,7 +591,10 @@ namespace Dino_Engine.World.Generation
             }
             b.PlaceNear(StructureCatalog.Altar, b.Centre, b.Random.Float() * MathF.Tau, b.Site.Radius * EssentialReach, out Vector2 altar, padding: 0.3f);
             b.Spawn(SpawnRole.Altar, altar + b.Site.RoadDirection * 3f);
-            if (b.Random.Chance(0.45f)) b.Spawn(SpawnRole.Chest, b.Centre - b.Site.RoadDirection * 3f);
+
+            // The old stones belong to whatever power the land has, and its cult keeps them.
+            b.SpawnAround(SpawnRole.Cultist, b.Centre, radius, b.Random.Int(3, 4));
+            SpawnChest(b, b.Centre - b.Site.RoadDirection * 3f, 3f);
         }
 
         private static void BuildWatchtower(SiteBuilder b)
@@ -487,9 +603,8 @@ namespace Dino_Engine.World.Generation
             b.Place(StructureCatalog.WatchTower, b.Centre, YawFacing(toRoad), padding: 0.5f);
             b.Place(StructureCatalog.Campfire, b.Centre + toRoad * 8f, 0f, padding: 0.3f);
             b.Scatter(StructureCatalog.Barrels, b.Centre, b.Site.Radius);
-            bool held = b.Site.Remoteness > 0.25f;
-            b.SpawnAround(held ? SpawnRole.Guard : SpawnRole.Villager, b.Centre + toRoad * 7f, 5f, held ? 2 : 1);
-            if (held) b.Spawn(SpawnRole.Chest, b.Centre - toRoad * 7f);
+            b.SpawnAround(SpawnRole.Guard, b.Centre + toRoad * 7f, 5f, b.Random.Int(2, 3));
+            SpawnChest(b, b.Centre - toRoad * 7f, 3f);
         }
 
         private static void BuildRuins(SiteBuilder b)
@@ -524,7 +639,7 @@ namespace Dino_Engine.World.Generation
             for (int i = 0; i < 6; i++) b.Scatter(StructureCatalog.Rubble, b.Centre, site.Radius * 0.9f);
 
             b.SpawnAround(b.Random.Chance(0.5f) ? SpawnRole.Undead : SpawnRole.Raider, b.Centre, site.Radius * 0.75f, b.Random.Int(3, 5));
-            b.SpawnAround(SpawnRole.Chest, b.Centre, site.Radius * 0.4f, 1);
+            SpawnChest(b, b.Centre, site.Radius * 0.4f);
         }
 
         private static void BuildBanditCamp(SiteBuilder b)

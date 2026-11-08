@@ -161,7 +161,7 @@ namespace Dino_Defenders.Client
         // Full night inside the walls, and none at all once they are far enough behind.
         private static float NightAt(GameSession session)
         {
-            if (session.Offering.Has(Omens.Night)) return 1f;
+            if (session.Terms.Has(Omens.Night)) return 1f;
 
             float night = 0f;
             foreach (SiteState state in session.Sites)

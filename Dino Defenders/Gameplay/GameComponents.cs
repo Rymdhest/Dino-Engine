@@ -132,6 +132,23 @@ namespace Dino_Defenders.Gameplay
         Waygate,
         Merchant,
         Elder,
+        Stash,          // Where what's put away is got at.
+        MapTable,       // Where the next land is chosen, in the Haven.
+        Portal,         // The way open to a land, in the Haven's great waygate.
+    }
+
+    /// <summary>The way out of the Haven, open to a land: what's seen in the great waygate's arch. Its colour is the land's first biome, so that what's ahead shows in it.</summary>
+    [Replicated]
+    public struct PortalComponent : IComponent
+    {
+        public int Biome;
+    }
+
+    /// <summary>Something that stands to be hit, to say how hard: a training dummy, in the Haven.</summary>
+    [Replicated]
+    public struct DummyComponent : IComponent
+    {
+        public int Group;   // Which of the training ground's groups it belongs to, so that what's dealt to all of them can be told together.
     }
 
     [Replicated]

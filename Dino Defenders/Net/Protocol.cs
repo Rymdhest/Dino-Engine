@@ -43,9 +43,9 @@ namespace Dino_Defenders.Net
         Sell,
         Buy,
         BuyFlasks,
-        TravelToSite,
+        TravelToSite,   // From one of a land's waygates to another that's been found.
         TravelToPoint,  // Only for scripted runs, where the server allows it.
-        Waygate,
+        ReturnHome,     // From one of a land's waygates to the Haven.
         ThankElder,
         PickUp,
         Move,
@@ -53,6 +53,11 @@ namespace Dino_Defenders.Net
         Sort,
         Write,
         Title,
+        OpenWay,        // At the Haven's map table: the way to one of the lands it shows, with orders given for it or not.
+        CloseWay,
+        Stow,           // Into the stash, from the hero.
+        Unstow,         // Out of the stash, into the pack.
+        Shift,          // From one cell of the stash to another.
     }
 
     public enum NoticeKind : byte
@@ -68,7 +73,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 9;
+        public const uint Version = 10;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -84,7 +89,9 @@ namespace Dino_Defenders.Net
         public const int MostItems = 128;
         public const int MostLines = 16;
         public const int MostBuffs = 64;
+        public const int MostStashCells = Stash.TabCount * Stash.TabSize;
         public const int SnapshotBudget = 1150;     // Bytes: inside the smallest MTU worth planning for.
+        public const int MostLandLevel = 100000;
 
         public static BitWriter Begin(Message type)
         {
@@ -110,31 +117,52 @@ namespace Dino_Defenders.Net
             return new WorldRequest(seed, archetype, level);
         }
 
-        public static void WriteOffering(BitWriter writer, Offering offering)
+        /// <summary>What a land holds: its omens by number with how much of each, its unique orders if it has them, and how many places it asks to be freed.</summary>
+        public static void WriteTerms(BitWriter writer, LandTerms terms)
         {
-            writer.WriteVarInt(offering.Peril);
-            writer.WriteVarInt(offering.Teeming);
-            writer.WriteVarInt(offering.Overrun);
-            var omens = offering.Chosen().ToList();
-            writer.WriteCount(omens.Count);
-            foreach (OmenDefinition omen in omens) writer.WriteVarInt(omen.Number);
+            writer.WriteCount(terms.Omens.Count);
+            foreach (ItemLine line in terms.Omens)
+            {
+                writer.WriteVarInt(Omens.Find(line.Affix)?.Number ?? 0);
+                writer.WriteFloat(line.Value);
+            }
+            writer.WriteVarInt(OrdersCatalog.All.ToList().FindIndex(orders => orders.Id == terms.Orders) + 1);
+            writer.WriteVarInt(terms.Places);
         }
 
-        public static Offering ReadOffering(BitReader reader)
+        public static LandTerms ReadTerms(BitReader reader)
         {
-            var offering = new Offering { Peril = reader.ReadVarInt(), Teeming = reader.ReadVarInt(), Overrun = reader.ReadVarInt() };
-            if (offering.Peril < 0 || offering.Peril > Offering.MostPeril) throw new NetReadException($"An offering of peril {offering.Peril}.");
-            if (offering.Teeming < 0 || offering.Teeming > Offering.MostCrowd || offering.Overrun < 0 || offering.Overrun > Offering.MostCrowd) throw new NetReadException("An offering of more than there can be.");
-
-            int count = reader.ReadCount(Omens.All.Count);
+            var terms = new LandTerms();
+            int count = reader.ReadCount(Lands.MostOmenLines);
             for (int i = 0; i < count; i++)
             {
                 int number = reader.ReadVarInt();
+                float value = Finite(reader.ReadFloat());
                 if (number < 0 || number >= Omens.All.Count) throw new NetReadException($"No such omen as {number}.");
-                offering.Omens.Add(Omens.All[number].Id);
+                terms.Omens.Add(new ItemLine(Omens.All[number].Id, value));
             }
-            offering.Sanitize();
-            return offering;
+            int orders = reader.ReadVarInt();
+            if (orders < 0 || orders > OrdersCatalog.All.Count) throw new NetReadException($"No such orders as {orders}.");
+            terms.Orders = orders > 0 ? OrdersCatalog.All[orders - 1].Id : null;
+            terms.Places = reader.ReadVarInt();
+            terms.Sanitize();
+            return terms;
+        }
+
+        /// <summary>What someone has put away, tab by tab, gaps and all. It's theirs, and only ever goes between their own machine and the server they're on.</summary>
+        public static void WriteStash(BitWriter writer, Stash stash)
+        {
+            writer.WriteCount(stash.Tabs.Count);
+            foreach (Item?[] tab in stash.Tabs) WriteCells(writer, tab);
+        }
+
+        public static Stash ReadStash(BitReader reader)
+        {
+            var stash = new Stash { Tabs = new List<Item?[]>() };
+            int tabs = reader.ReadCount(Stash.TabCount);
+            for (int i = 0; i < tabs; i++) stash.Tabs.Add(ReadCells(reader, Stash.TabSize));
+            stash.Sanitize();
+            return stash;
         }
 
         public static void WriteHeroSummary(BitWriter writer, HeroState hero)
@@ -144,7 +172,9 @@ namespace Dino_Defenders.Net
             writer.WriteVarInt(hero.Gold);
             writer.WriteVarInt(hero.Flasks);
             writer.WriteVarInt(hero.WorldsCleared);
-            writer.WriteVarInt(hero.PerilProven);
+            writer.WriteVarInt(hero.LandLevel);
+            writer.WriteVarInt(hero.BestLand);
+            writer.WriteVarULong(hero.Offers);
 
             writer.WriteCount(hero.Talents.Count);
             foreach (string id in hero.Talents) writer.WriteVarInt(TalentTree.Find(id)?.Index ?? 0);
@@ -157,7 +187,9 @@ namespace Dino_Defenders.Net
             hero.Gold = Math.Max(reader.ReadVarInt(), 0);
             hero.Flasks = Math.Clamp(reader.ReadVarInt(), 0, HeroState.MaxFlasks);
             hero.WorldsCleared = Math.Max(reader.ReadVarInt(), 0);
-            hero.PerilProven = Math.Clamp(reader.ReadVarInt(), 0, Offering.MostPeril);
+            hero.LandLevel = Math.Clamp(reader.ReadVarInt(), 1, MostLandLevel);
+            hero.BestLand = Math.Clamp(reader.ReadVarInt(), 0, MostLandLevel);
+            hero.Offers = reader.ReadVarULong();
 
             int talents = reader.ReadCount(TalentTree.Nodes.Length);
             var taken = new List<string>(talents);
@@ -441,7 +473,7 @@ namespace Dino_Defenders.Net
             {
                 // A name that means nothing here just means no such unique.
                 string unique = reader.ReadString(LongestName);
-                if (UniqueCatalog.Find(unique) != null) item.Unique = unique;
+                if (item.IsOrders ? OrdersCatalog.Find(unique) != null : UniqueCatalog.Find(unique) != null) item.Unique = unique;
             }
 
             int lines = reader.ReadCount(MostLines);
@@ -449,7 +481,7 @@ namespace Dino_Defenders.Net
             {
                 string affix = reader.ReadString(LongestName);
                 float value = Finite(reader.ReadFloat());
-                if (AffixCatalog.Find(affix) != null) item.Lines.Add(new ItemLine(affix, value));
+                if (item.IsOrders ? Omens.Find(affix) != null : AffixCatalog.Find(affix) != null) item.Lines.Add(new ItemLine(affix, value));
             }
 
             // What it's worn as says what it is, so nothing can arrive as a page with nothing on it, or as a sword with pages.
@@ -475,6 +507,7 @@ namespace Dino_Defenders.Net
                 if (item.IsBook && inside.IsPage || item.IsPage && inside.IsSticker) held[i] = inside;
             }
             if (item.IsBook || item.IsPage) item.Held = held;
+            if (item.IsOrders) OrdersMaker.Fix(item);
             return item;
         }
 

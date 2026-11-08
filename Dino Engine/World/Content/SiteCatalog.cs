@@ -18,6 +18,8 @@ namespace Dino_Engine.World.Content
         Graveyard,
         Keep,           // The stronghold at the far end of the world.
         Haunt,          // Anywhere a pack has settled. Not a place anyone would name, so these aren't on the map.
+        Waygate,        // One of a land's old roads: a gate to travel between, and to leave the land by.
+        Haven,          // The one village the Reich has never found, which is the whole of the Haven.
     }
 
     public enum RoadClass
@@ -60,7 +62,7 @@ namespace Dino_Engine.World.Content
         public float RoadChance = 1f;       // Below 1, some are left off the map of roads for the curious to find.
         public float Levelling = 0.8f;      // How flat its ground is made, 0..1.
 
-        public bool IsSettlement => Kind is SiteKind.Village or SiteKind.Hamlet or SiteKind.Farmstead or SiteKind.FishingHamlet or SiteKind.LumberCamp;
+        public bool IsSettlement => Kind is SiteKind.Village or SiteKind.Hamlet or SiteKind.Farmstead or SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.Haven;
         public bool IsDanger => Kind is SiteKind.BanditCamp or SiteKind.Graveyard or SiteKind.Ruins or SiteKind.Keep;
     }
 
@@ -295,6 +297,41 @@ namespace Dino_Engine.World.Content
             Levelling = 0.6f,
         };
 
+        /// <summary>
+        /// A gate of the land's old roads, standing on its own beside a road: somewhere to travel to once it's been found, and to leave the land by. They're spread out along the roads, as a gate is
+        /// worth most where none is near, and the landing and every village have one of their own as well.
+        /// </summary>
+        public static readonly SiteDefinition Waygate = new SiteDefinition
+        {
+            Kind = SiteKind.Waygate,
+            Label = "Waygate",
+            MapColour = new Vector3(0.38f, 0.78f, 1f),
+            Radius = new FloatRange(11f, 13f),
+            PerSquareKilometre = 2f,
+            Limits = new IntRange(3, 6),
+            Spacing = 380f,
+            Margin = 30f,
+            MaxSlope = 0.36f,
+            MinInland = 16f,
+            Remoteness = new FloatRange(0.2f, 1f),
+            Flatness = 0.8f,
+            Road = RoadClass.Track,
+            Levelling = 0.85f,
+        };
+
+        /// <summary>The Haven, which is only ever placed in the Haven's own world, by itself. It isn't in <see cref="All"/>.</summary>
+        public static readonly SiteDefinition Haven = new SiteDefinition
+        {
+            Kind = SiteKind.Haven,
+            Label = "Haven",
+            MapColour = new Vector3(1f, 0.9f, 0.6f),
+            Radius = new FloatRange(62f, 62f),
+            Limits = new IntRange(0, 0),
+            MaxSlope = 0.3f,
+            Road = RoadClass.Track,
+            Levelling = 0.75f,
+        };
+
         /// <summary>What every <see cref="WorldData.Haunts"/> is. It isn't in <see cref="All"/>, as these don't claim land the way places do.</summary>
         public static readonly SiteDefinition Haunt = new SiteDefinition
         {
@@ -306,7 +343,7 @@ namespace Dino_Engine.World.Content
 
         public static readonly IReadOnlyList<SiteDefinition> All = new[]
         {
-            Landing, Keep, Village, FishingHamlet, Hamlet, Farmstead, LumberCamp, BanditCamp, Graveyard, Ruins, Watchtower, Shrine, StandingStones,
+            Landing, Keep, Village, FishingHamlet, Hamlet, Farmstead, LumberCamp, BanditCamp, Graveyard, Ruins, Watchtower, Shrine, StandingStones, Waygate,
         };
 
         public static SiteDefinition Get(SiteKind kind)
@@ -315,6 +352,8 @@ namespace Dino_Engine.World.Content
             {
                 if (definition.Kind == kind) return definition;
             }
+            if (kind == SiteKind.Haven) return Haven;
+            if (kind == SiteKind.Haunt) return Haunt;
             throw new ArgumentException($"No site definition for {kind}.");
         }
     }

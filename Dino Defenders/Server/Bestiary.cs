@@ -352,6 +352,15 @@ namespace Dino_Defenders.Server
         };
 
         /// <summary>Every kind of creature there is.</summary>
+        /// <summary>
+        /// Something to try a build on, in the Haven. It stands and takes it, has more health than anything it would be fair to fight and nothing to fight back with, and is drawn as straw on a post. It
+        /// isn't anyone the world can field, so it isn't in <see cref="Everyone"/>.
+        /// </summary>
+        public static readonly EnemyKind Dummy = new EnemyKind
+        {
+            Id = "dummy", Name = "Training Dummy", Books = Array.Empty<BookPlan>(), MoveSpeed = 0f, Health = 40f, Damage = 0f, Look = "dummy", Bulk = 0.9f,
+        };
+
         public static readonly EnemyKind[] Everyone =
         {
             Outlaw, Cutthroat, Brute, Archer, Sentry, Firebrand, Rimewitch, Stormcaller, Bogseer, EmberAcolyte, RimeAcolyte, StormAcolyte, MireAcolyte,
@@ -400,6 +409,14 @@ namespace Dino_Defenders.Server
         {
             int wanted = PowerOf(rarity).Traits;
             while (System.Numerics.BitOperations.PopCount((uint)traits) < wanted) traits |= Trait(random.Int(Traits.Length));
+            return traits;
+        }
+
+        /// <summary>A set with one more trait in it than it had, if there's one it hasn't got.</summary>
+        public static int OneMore(int traits, WorldRandom random)
+        {
+            int wanted = System.Numerics.BitOperations.PopCount((uint)traits) + 1;
+            for (int attempt = 0; attempt < Traits.Length * 4 && System.Numerics.BitOperations.PopCount((uint)traits) < wanted; attempt++) traits |= Trait(random.Int(Traits.Length));
             return traits;
         }
 

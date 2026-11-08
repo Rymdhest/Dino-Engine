@@ -105,6 +105,15 @@ namespace Dino_Engine.World.Content
         public static readonly StructureDefinition Gatehouse = new StructureDefinition("gatehouse", new Vector2(6f, 3f), solid: false, spansRoad: true);
 
         public static readonly StructureDefinition Waygate = Prop("waygate", 4.4f, 1.6f, solid: false);
+
+        /// <summary>The Haven's waygate, which reaches the lands the Reich holds: the same old road as any other, raised higher and kept better.</summary>
+        public static readonly StructureDefinition GreatWaygate = Prop("waygate.great", 7.2f, 2.4f, solid: false);
+
+        /// <summary>Where the next land is chosen, in the Haven: a stone table with every land the waygate knows cut into it.</summary>
+        public static readonly StructureDefinition MapTable = Prop("table.map", 2.8f, 1.9f);
+
+        /// <summary>Where what's put away is kept: an iron-bound chest under a roof of its own, the same in every village and in the Haven.</summary>
+        public static readonly StructureDefinition Strongbox = Prop("strongbox", 2.2f, 1.7f);
         public static readonly StructureDefinition Altar = Round("altar", 1.8f);
         public static readonly StructureDefinition Grave = Prop("grave", 0.9f, 1.5f);
         public static readonly StructureDefinition Tomb = Prop("tomb", 3.6f, 5.4f);

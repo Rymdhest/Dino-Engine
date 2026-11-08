@@ -18,7 +18,7 @@ namespace Dino_Defenders.Server
     public sealed class ServerSettings
     {
         public WorldRequest Request;
-        public Offering? Offering;      // What was paid to make that world what it is.
+        public LandTerms? Terms;        // What the land holds, past its seed and level.
         public SaveGame? Save;
         public bool AllowTeleport;      // For scripted runs: a client may ask to be put anywhere.
         public Vector2? Start;
@@ -43,6 +43,8 @@ namespace Dino_Defenders.Server
         private const int FolioEvery = 4;   // One thing in this many on a table is for a book.
         private const float ModerateLoss = 0.08f;
         private const float HeavyLoss = 0.2f;
+        private const float GateReach = 9f;         // How near a waygate someone has to be to use one, a little more than the gate's own reach, as the server sees them a moment late.
+        private const float ArriveBefore = 7f;      // Metres in front of a waygate that someone steps out of it.
 
         private readonly ServerSettings _settings;
         private readonly WorldCache _worlds;
@@ -56,7 +58,7 @@ namespace Dino_Defenders.Server
 
         private Task<WorldData>? _loading;
         private WorldRequest _request;
-        private Offering _offering = new();
+        private LandTerms _terms = new();
         private SaveGame? _saved;
         private CharacterMover? _mover;
         private uint _structureHash;
@@ -105,7 +107,7 @@ namespace Dino_Defenders.Server
             _systems.Add(new VelocitySystem());
             _systems.Add(new FixToTerrainHeightSystem());
 
-            BeginWorld(settings.Request, settings.Offering ?? new Offering(), settings.Save);
+            BeginWorld(settings.Request, settings.Terms ?? new LandTerms(), settings.Save);
         }
 
         public void AddTransport(INetTransport transport) => _transports.Add(transport);
@@ -124,10 +126,18 @@ namespace Dino_Defenders.Server
                 foreach (SystemBase system in _systems) system.Step(Ecs, NetTime.TickSeconds);
                 Ecs.ApplyDeferredCommands();
                 Ecs.DirtyEntities.Clear();
+                if (Session.PortalChanged) ShowPortal(Session);
+                if (Session.HomeAt is double home && Session.Time >= home) GoHome();
             }
 
             SendUpdates();
             Tick++;
+
+            if (_next is var (request, terms))
+            {
+                _next = null;
+                BeginWorld(request, terms, null);
+            }
         }
 
         public void Dispose() => Close("The host has left.");
@@ -140,7 +150,7 @@ namespace Dino_Defenders.Server
             _transports.Clear();
         }
 
-        private void BeginWorld(WorldRequest request, Offering offering, SaveGame? save)
+        private void BeginWorld(WorldRequest request, LandTerms terms, SaveGame? save)
         {
             _epoch++;
             _heroes.Clear();
@@ -155,8 +165,8 @@ namespace Dino_Defenders.Server
             Ecs.ClearAllEntitiesExcept();
             Ecs.DirtyEntities.Clear();
 
-            _offering = offering;
-            _request = offering.Shape(request);
+            _terms = Lands.IsHaven(request) ? new LandTerms() : terms;
+            _request = Lands.IsHaven(request) ? request : _terms.Shape(request);
             _saved = save;
             _loading = _worlds.Get(_request);
 
@@ -180,7 +190,7 @@ namespace Dino_Defenders.Server
             }
 
             WorldData world = finished.Result;
-            Session = new ServerSession(this, world, _request, _offering);
+            Session = new ServerSession(this, world, _request, _terms);
             if (_saved != null) Session.Restore(_saved);
             _mover = new CharacterMover(world);
             (_structureHash, _groundHash) = Protocol.WorldHash(world);
@@ -200,18 +210,14 @@ namespace Dino_Defenders.Server
             bool first = _heroes.Count == 0;
             Vector2 start = StartPosition(session.World, first);
 
-            var actor = new Actor(Team.Heroes, HeroBuild.Compile(player.Hero), start, HeroRules.Radius) { Player = player, Body = "hero" };
+            player.LandMods = session.Terms.HeroMods();
+            player.Out = false;
+            player.Judged = false;
+            var actor = new Actor(Team.Heroes, HeroBuild.Compile(player.Hero, null, player.LandMods), start, HeroRules.Radius) { Player = player, Body = "hero" };
             player.Actor = actor;
             player.Kit = new HeroKit(player.Hero, actor.Sheet);
             player.WatchBooks();
-            player.Respawn = session.World.Sites[0].Position;
-            if (first && _saved != null)
-            {
-                if (_saved.Health > 0f) actor.Vitals.Health = Math.Min(_saved.Health, actor.Sheet.MaxHealth);
-
-                // A newer build can grow a different land from the same seed, and a hero is put here without anything asking the ground.
-                if (_saved.RespawnX >= 0f && TryFindGround(session.World, new Vector2(_saved.RespawnX, _saved.RespawnZ), out Vector2 wake)) player.Respawn = wake;
-            }
+            if (first && _saved is { InLand: true } && !session.IsHaven && _saved.Health > 0f) actor.Vitals.Health = Math.Min(_saved.Health, actor.Sheet.MaxHealth);
 
             player.Sim = HeroSimState.At(start, actor.Vitals.Mana);
             player.Sim.Health = actor.Vitals.Health;
@@ -257,12 +263,19 @@ namespace Dino_Defenders.Server
             // Friends arrive beside whoever is already here, not a long walk away.
             if (!first && _heroes.Count > 0 && TryFindGround(world, _heroes[0].Sim.Position + new Vector2(3f, 3f), out Vector2 beside)) return beside;
 
-            if (first && _saved != null && _saved.PlayerX >= 0f)
+            if (first && _saved is { InLand: true } && _saved.PlayerX >= 0f && !Session!.IsHaven)
             {
                 // Someone can stand closer to a wall than the passable map allows for, so the spot itself may not be on it.
                 if (TryFindGround(world, new Vector2(_saved.PlayerX, _saved.PlayerZ), out Vector2 ground)) return ground;
             }
-            if (_settings.Start.HasValue) return _settings.Start.Value;
+            if (_settings.Start.HasValue && !Session!.IsHaven) return _settings.Start.Value;
+
+            // Out of the waygate a hero came through: in the Haven its great one, and in a land the one at the landing.
+            if (WaygateSpawn(world, world.Sites[0]) is Vector2 gate)
+            {
+                Vector2 into = Session!.IsHaven ? -HavenNorth : (world.Sites[0].Position - gate).LengthSquared > 1f ? (world.Sites[0].Position - gate).Normalized() : Vector2.UnitY;
+                if (TryFindGround(world, gate + into * ArriveBefore, out Vector2 stepped)) return stepped;
+            }
             if (_settings.StartBiome != null && TryFindWood(world, _settings.StartBiome, out Vector2 wood)) return wood;
             if (_settings.StartSite != null)
             {
@@ -303,7 +316,20 @@ namespace Dino_Defenders.Server
             return found;
         }
 
-        private static bool TryFindGround(WorldData world, Vector2 near, out Vector2 ground)
+        private static readonly Vector2 HavenNorth = new Vector2(0f, 1f);
+
+        // Where a place's waygate is used from, if it has one.
+        private static Vector2? WaygateSpawn(WorldData world, WorldSite site)
+        {
+            foreach (SiteSpawn spawn in site.Spawns)
+            {
+                if (spawn.Role == SpawnRole.Waygate) return spawn.Position;
+            }
+            return null;
+        }
+
+        /// <summary>Somewhere to stand near a point, looking outward until there is.</summary>
+        public static bool TryFindGround(WorldData world, Vector2 near, out Vector2 ground)
         {
             ground = near;
             if (world.Passable.IsSet(near)) return true;
@@ -331,6 +357,9 @@ namespace Dino_Defenders.Server
 
                 // With others in the world there's no stopping it for one of them.
                 if (!alone) command.Buttons &= ~HeroButtons.Frozen;
+
+                // Someone who's fallen in a land is out of it, and only watches.
+                if (player.Out) command = new HeroCommand { Tick = command.Tick, ViewLag = command.ViewLag };
                 Paused = alone && command.Has(HeroButtons.Frozen);
 
                 Actor actor = player.Actor;
@@ -565,7 +594,7 @@ namespace Dino_Defenders.Server
             }, position.Xz);
         }
 
-        // A fallen hero wakes at the last shrine they lit, a little poorer.
+        // There's one life to a land: a fallen hero is out of it, a little poorer, and watches until everyone goes home. In the Haven, where nothing can hurt anyone, they're only stood back up.
         private void UpdateDown(ServerPlayer player)
         {
             if (!player.Sim.Down)
@@ -576,12 +605,14 @@ namespace Dino_Defenders.Server
                 player.Actor.RaresSlain = 0;
                 player.Hero.Gold -= lost;
                 player.SummaryChanged = true;
-                Announce(player, "You have fallen", lost > 0 ? $"{lost} gold lost on the road" : "The land goes on without you");
-                Session!.HeroFell();
+                bool freed = Session!.Liberated;
+                Announce(player, "You have fallen", Session.IsHaven ? "" : freed ? "The land is already free." : _heroes.Count > 1 && _heroes.Any(hero => hero != player && !hero.Out) ? "You're out of this land. Your friends fight on." : "The land is lost.");
+                if (lost > 0) Note(player, $"{lost} gold lost.");
+                Session.HeroFell(player);
             }
 
             player.DownFor += NetTime.TickSeconds;
-            if (player.DownFor < HeroRules.DeathDelay) return;
+            if (!Session!.IsHaven || player.DownFor < HeroRules.DeathDelay) return;
 
             player.Sim.Down = false;
             player.Actor.Dead = false;
@@ -589,7 +620,57 @@ namespace Dino_Defenders.Server
             player.Actor.Vitals = Vitals.Full(player.Actor.Sheet);
             player.Hero.Flasks = HeroState.MaxFlasks;
             player.SummaryChanged = true;
-            Teleport(player, player.Respawn);
+        }
+
+        // Back to the Haven, everyone, from wherever this is. What the land meant for each of them is settled first, and goes out before the world does.
+        private void GoHome()
+        {
+            if (_next != null) return;
+            Session?.Leave();
+            foreach (ServerPlayer hero in _heroes) hero.SummaryChanged = true;
+            SendHeroesNow();
+            _next = (Lands.Haven, new LandTerms());
+        }
+
+        // Where everyone goes next, once this tick is over: a world can't change under what's stepping through this one.
+        private (WorldRequest Request, LandTerms Terms)? _next;
+
+        // Whatever's changed about a hero goes out before the world does, so that their machine has it to keep.
+        private void SendHeroesNow()
+        {
+            foreach (ServerPlayer hero in _heroes)
+            {
+                if (hero.SummaryChanged || hero.GearChanged || hero.BuffsChanged || hero.StashChanged) SendHero(hero, hero.GearChanged || hero.StashChanged);
+            }
+        }
+
+        // The way out of the Haven, as it stands: a light in the great gate's arch, which is what's stepped through, or nothing.
+        private Entity _portal;
+
+        private void ShowPortal(ServerSession session)
+        {
+            session.PortalChanged = false;
+            if (_portal.IsValid() && Ecs.TryGetEntityLocation(_portal, out _, out _)) Ecs.DestroyEntity(_portal);
+            _portal = default;
+            if (session.Portal is not var (request, _, name) || WaygateSpawn(session.World, session.World.Sites[0]) is not Vector2 spot) return;
+
+            // The light hangs in the arch itself, which stands a little behind where it's used from.
+            Vector3 at = new Vector3(spot.X, session.World.Height.Sample(spot), spot.Y);
+            Quaternion facing = Quaternion.FromAxisAngle(Vector3.UnitY, MathF.PI);
+            if (session.World.Objects.TryNearest(StructureCatalog.GreatWaygate.Id, spot, 12f, out WorldObject gate))
+            {
+                at = gate.Position;
+                facing = gate.Rotation;
+            }
+            WorldPlan plan = WorldPlan.Create(request);
+            _portal = Ecs.CreateEntity("Portal",
+                new NetIdentityComponent(Ghosts.NextId(), importance: 3f, everywhere: true),
+                new PositionComponent(at),
+                new RotationComponent(facing),
+                new ScaleComponent(new Vector3(1f)),
+                new VisualComponent("portal", VisualKind.Prop),
+                new PortalComponent { Biome = Array.IndexOf(BiomeCatalog.All.ToArray(), plan.Biomes[0]) },
+                new InteractableComponent { Kind = InteractKind.Portal, SiteIndex = 0, SpawnIndex = session.World.Sites[0].Spawns.FindIndex(s => s.Role == SpawnRole.Waygate), Radius = 6.5f, Prompt = $"Step through to {name}" });
         }
 
         /// <summary>Puts a hero as near somewhere as there's ground to stand on, for a page that says so.</summary>
@@ -764,6 +845,7 @@ namespace Dino_Defenders.Server
 
             string name = reader.ReadString(Protocol.LongestName).Trim();
             HeroState hero = Protocol.ReadHero(reader);
+            Stash? stash = reader.ReadBool() ? Protocol.ReadStash(reader) : null;
 
             if (_players.Values.Count(p => p.Greeted) >= Protocol.MaxPlayers)
             {
@@ -773,6 +855,7 @@ namespace Dino_Defenders.Server
 
             player.Name = name.Length > 0 ? name : $"Hero {player.Id}";
             player.Hero = hero;
+            player.Stash = stash;
             TalentTree.Sanitize(hero);
             player.Greeted = true;
             SendWorld(player, Message.Welcome);
@@ -786,7 +869,7 @@ namespace Dino_Defenders.Server
             writer.WriteVarInt(player.Id);
             writer.WriteUInt(Tick);
             Protocol.WriteRequest(writer, _request);
-            Protocol.WriteOffering(writer, _offering);
+            Protocol.WriteTerms(writer, _terms);
             player.Connection.Send(writer.ToArray(), Delivery.Reliable);
         }
 
@@ -958,13 +1041,63 @@ namespace Dino_Defenders.Server
 
                 case HeroAction.TravelToSite:
                     int to = reader.ReadVarInt();
-                    if (to < 0 || to >= Session!.Sites.Count) break;
+                    if (to < 0 || to >= Session!.Sites.Count || Session.IsHaven || player.Out || !AtWaygate(player)) break;
                     SiteState destination = Session.Sites[to];
-                    if (destination.Kindled || destination.Site.Kind == SiteKind.Landing)
+                    if (!destination.Discovered || !WorldProgress.HasWaygate(destination) || WaygateSpawn(Session.World, destination.Site) is not Vector2 arrive) break;
+
+                    // Out in front of the gate, on the side it's used from, as the middle of a site can be built on.
+                    Vector2 outward = (destination.Site.Position - arrive).LengthSquared > 1f ? (destination.Site.Position - arrive).Normalized() : Vector2.UnitY;
+                    Teleport(player, TryFindGround(Session.World, arrive + outward * 2f, out Vector2 ground) ? ground : arrive);
+                    Broadcast(new SoundEvent { Position = HeroPosition(player), Cue = SoundCue.Waygate }, player.Sim.Position);
+                    break;
+
+                case HeroAction.ReturnHome:
+                    if (Session!.IsHaven || player.Out || !AtWaygate(player)) break;
+                    GoHome();
+                    break;
+
+                case HeroAction.OpenWay:
+                    player.Heard(reader.ReadVarInt());
+                    int choice = reader.ReadVarInt();
+                    int ordersCell = reader.ReadVarInt();
+                    OpenWay(player, choice, ordersCell);
+                    break;
+
+                case HeroAction.CloseWay:
+                    if (!Session!.IsHaven || Session.Portal == null) break;
+                    Session.Portal = null;
+                    Session.PortalChanged = true;
+                    SendChangedProgress();
+                    Note(null, $"{player.Name} has closed the way.");
+                    break;
+
+                case HeroAction.Stow:
+                    player.Heard(reader.ReadVarInt());
+                    var stowing = new ItemPlace(reader.ReadVarInt());
+                    int stowTab = reader.ReadVarInt();
+                    int stowCell = reader.ReadVarInt();
+                    if (player.Stash != null && player.Stash.Stow(hero, stowing, stowTab, stowCell))
                     {
-                        // The middle of a site can be built on, and a shrine's altar stands there.
-                        Teleport(player, TryFindGround(Session.World, destination.Site.Position, out Vector2 ground) ? ground : destination.Site.Position);
+                        player.StashChanged = true;
+                        if (!stowing.IsCell) player.RefreshLoadout();
                     }
+                    break;
+
+                case HeroAction.Unstow:
+                    player.Heard(reader.ReadVarInt());
+                    int fromTab = reader.ReadVarInt();
+                    int fromCell = reader.ReadVarInt();
+                    int? intoCell = reader.ReadBool() ? reader.ReadVarInt() : null;
+                    if (player.Stash != null && player.Stash.Take(hero, fromTab, fromCell, intoCell)) player.StashChanged = true;
+                    break;
+
+                case HeroAction.Shift:
+                    player.Heard(reader.ReadVarInt());
+                    int shiftTab = reader.ReadVarInt();
+                    int shiftCell = reader.ReadVarInt();
+                    int shiftToTab = reader.ReadVarInt();
+                    int shiftToCell = reader.ReadVarInt();
+                    if (player.Stash != null && player.Stash.Shift(shiftTab, shiftCell, shiftToTab, shiftToCell)) player.StashChanged = true;
                     break;
 
                 case HeroAction.TravelToPoint:
@@ -972,17 +1105,11 @@ namespace Dino_Defenders.Server
                     if (_settings.AllowTeleport && Session!.World.InBounds(point)) Teleport(player, point);
                     break;
 
-                case HeroAction.Waygate:
-                    WorldRequest road = Protocol.ReadRequest(reader);
-                    Offering offering = Protocol.ReadOffering(reader);
-                    if (Pay(player, offering, road.Level)) BeginWorld(road, offering, null);
-                    break;
-
                 case HeroAction.ThankElder:
                     int elderSite = reader.ReadVarInt();
                     if (elderSite < 0 || elderSite >= Session!.Sites.Count) break;
                     SiteState elder = Session.Sites[elderSite];
-                    if (elder.Rewarded || !Session.IsSafe(elder)) break;
+                    if (elder.Rewarded || !Session.IsSafe(elder) || Session.IsHaven) break;
                     elder.Rewarded = true;
                     elder.Changed = true;
                     hero.Gold += 45 * Session.World.Plan.Level;
@@ -998,27 +1125,54 @@ namespace Dino_Defenders.Server
             }
         }
 
-        // Whoever steps through pays, and for everyone going with them. It's asked here and nowhere else: what a client shows is only what it thinks this will say.
-        private bool Pay(ServerPlayer player, Offering offering, int level)
+        // Whether someone is standing at a waygate in a land, which is the only place the land's roads can be taken from.
+        private bool AtWaygate(ServerPlayer player)
         {
-            if (!offering.Any) return true;
-
-            if (offering.Peril > Offering.Reach(player.Hero))
+            foreach (SiteState state in Session!.Sites)
             {
-                Note(player, "The gate won't bear that much peril from you yet.");
-                return false;
+                if (!WorldProgress.HasWaygate(state) || WaygateSpawn(Session.World, state.Site) is not Vector2 gate) continue;
+                if ((gate - player.Sim.Position).Length <= GateReach) return true;
             }
+            return false;
+        }
 
-            long price = offering.Price(level);
-            if (price > player.Hero.Gold)
+        // The map table has been asked to open the way to one of the lands it shows this hero, with orders given for it or none. It's worked out here from their own hero, as their machine
+        // worked it out, and the orders come out of their pack whether the way opens or not only if it does: either way they're told the truth about what they carry.
+        private void OpenWay(ServerPlayer player, int choice, int ordersCell)
+        {
+            ServerSession session = Session!;
+            if (!session.IsHaven) return;
+            IReadOnlyList<LandOffer> offers = Lands.Offer(player.Hero);
+            if (choice < 0 || choice >= offers.Count) return;
+
+            LandOffer offer = offers[choice];
+            LandTerms terms = offer.Terms.Copy();
+            if (ordersCell >= 0)
             {
-                Note(player, $"That offering costs {price} gold.");
-                return false;
+                if (!ItemPlace.Cell(ordersCell).IsCell || player.Hero.Inventory[ordersCell] is not { IsOrders: true } orders) return;
+                player.Hero.Take(ItemPlace.Cell(ordersCell));
+                terms.Give(orders);
             }
+            terms.Sanitize();
 
-            player.Hero.Gold -= (int)price;
-            player.SummaryChanged = true;
-            return true;
+            session.Portal = (offer.Request, terms, offer.Plan.Name);
+            session.PortalChanged = true;
+            SendChangedProgress();
+            Broadcast(new SoundEvent { Position = HeroPosition(player), Cue = SoundCue.Waygate }, player.Sim.Position);
+            Announce(null, "The way is open", $"{offer.Plan.Name}, level {offer.Request.Level}. Step through the waygate when you're ready.", 5f);
+        }
+
+        /// <summary>Someone has stepped through the open way: everyone goes, to the land it leads to.</summary>
+        public void StepThrough()
+        {
+            if (_next != null || Session is not { IsHaven: true, Portal: var (request, terms, _) }) return;
+            foreach (ServerPlayer hero in _heroes)
+            {
+                hero.Hero.NextOffers();
+                hero.SummaryChanged = true;
+            }
+            SendHeroesNow();
+            _next = (request, terms);
         }
 
         private void SendUpdates()
@@ -1029,7 +1183,7 @@ namespace Dino_Defenders.Server
             foreach (ServerPlayer player in _players.Values)
             {
                 if (!player.InWorld) continue;
-                if (Tick % HeroUpdateEvery == 0 && (player.SummaryChanged || player.GearChanged || player.BuffsChanged)) SendHero(player, player.GearChanged);
+                if (Tick % HeroUpdateEvery == 0 && (player.SummaryChanged || player.GearChanged || player.BuffsChanged || player.StashChanged)) SendHero(player, player.GearChanged || player.StashChanged);
                 if (Tick % player.SendInterval == 0) _due.Add(player);
             }
 
@@ -1083,12 +1237,15 @@ namespace Dino_Defenders.Server
             {
                 writer.WriteVarInt(player.GearAnswered);
                 Protocol.WriteGear(writer, player.Hero);
+                writer.WriteBool(player.Stash != null);
+                if (player.Stash != null) Protocol.WriteStash(writer, player.Stash);
             }
             player.Connection.Send(writer.ToArray(), Delivery.Reliable);
             if (gear) SendWorn(player);
             player.SummaryChanged = false;
             player.GearChanged = false;
             player.BuffsChanged = false;
+            player.StashChanged = false;
         }
 
         // Everyone sees what a hero has on, and it's rarely said, so everyone is told. Whoever arrives later is told as they arrive.
@@ -1103,7 +1260,7 @@ namespace Dino_Defenders.Server
         private void SendChangedProgress()
         {
             ServerSession session = Session!;
-            bool any = session.ObjectivesChanged;
+            bool any = session.ObjectivesChanged || session.PortalChanged;
             foreach (SiteState state in session.Sites) any |= state.Changed;
             if (!any) return;
 
@@ -1121,7 +1278,15 @@ namespace Dino_Defenders.Server
             BitWriter writer = Protocol.Begin(Message.Progress);
             writer.WriteBool(session.Liberated);
             writer.WriteVarInt(session.Falls);
-            writer.WriteBool(session.Broken);
+            writer.WriteBool(session.Lost);
+            writer.WriteBool(player.Out);
+            writer.WriteBool(session.Portal != null);
+            if (session.Portal is var (portalRequest, portalTerms, portalName))
+            {
+                writer.WriteString(portalName);
+                Protocol.WriteRequest(writer, portalRequest);
+                Protocol.WriteTerms(writer, portalTerms);
+            }
 
             writer.WriteCount(session.Chronicle.Objectives.Count);
             foreach (Objective objective in session.Chronicle.Objectives) writer.WriteVarInt(objective.Progress);
@@ -1173,6 +1338,20 @@ namespace Dino_Defenders.Server
             if (Session != null && _heroes.Count > 0) _encounters.Parade(Ecs, Session, _heroes[0].Sim.Position, which, fighting);
         }
 
+        /// <summary>For a scripted run: home to the Haven from wherever this is, as if through a waygate.</summary>
+        public void SendHome()
+        {
+            if (Session != null && !Session.IsHaven) GoHome();
+        }
+
+        /// <summary>For a scripted run: out of the Haven to one of the lands the map table shows the first hero, at once.</summary>
+        public void Venture(int choice)
+        {
+            if (Session is not { IsHaven: true } || _heroes.Count == 0) return;
+            OpenWay(_heroes[0], choice, -1);
+            StepThrough();
+        }
+
         /// <summary>For a scripted run: loot in front of the first hero.</summary>
         public void ShowLoot(string which)
         {
@@ -1185,12 +1364,13 @@ namespace Dino_Defenders.Server
             Session.Capture(save);
             if (_heroes.Count == 0) return;
 
+            // A land the one who keeps it has fallen in is over for them, whatever's still going on in it.
             ServerPlayer host = _heroes[0];
+            if (host.Out) save.InLand = false;
+            if (!save.InLand) return;
             save.PlayerX = host.Sim.Position.X;
             save.PlayerZ = host.Sim.Position.Y;
             save.Health = host.Actor.Vitals.Health;
-            save.RespawnX = host.Respawn.X;
-            save.RespawnZ = host.Respawn.Y;
         }
     }
 }

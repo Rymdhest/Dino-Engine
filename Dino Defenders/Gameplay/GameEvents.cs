@@ -135,6 +135,8 @@ namespace Dino_Defenders.Gameplay
         Objective,
         Liberated,
         Discovered,
+        Waygate,        // A way opening, or someone going through one.
+        Blessed,        // A shrine's blessing taken.
     }
 
     /// <summary>Something that happened that has a sound of its own and no other way of being known. Value is whatever the cue needs: how much gold, what rarity.</summary>

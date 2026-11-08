@@ -231,5 +231,11 @@ namespace Dino_Defenders.Stats
         public const float WarhostLeaderRares = 2.5f;   // On the chance of a pack's leader being rare.
         public const float MostWarhostLeaderRares = 0.8f;
         public const float AbilityCooldown = 7f;        // Seconds before an enemy does what a trait gave it again, or it would do nothing else.
+
+        // Lands.
+        public const float DummyRest = 4f;              // Seconds a dummy is left alone before it's as good as new.
+        public const float ShrineBlessing = 120f;       // Seconds a shrine's blessing lasts.
+        public const float RiseDelay = 1.2f;            // Seconds from falling to rising again, on a land whose orders raise the dead.
+        public const float RisenBonesLess = 50f;        // Percent less health than they had, risen as bones.
     }
 }

@@ -39,8 +39,20 @@ namespace Dino_Defenders.Server
         public readonly float[] Pulses = new float[HeroState.BarSlots];
         public HeroSimState Sim;
         public float DownFor;
-        public Vector2 Respawn;
         public Entity Entity;
+
+        /// <summary>What they've put away, as their own machine keeps it: none if they couldn't bring it, as when another copy of the game has it. See NETWORKING.md.</summary>
+        public Stash? Stash;
+        public bool StashChanged;
+
+        /// <summary>What the land they're in puts on every hero, which their own machine puts on too.</summary>
+        public IReadOnlyList<Mod> LandMods = Array.Empty<Mod>();
+
+        /// <summary>Has fallen in this land, and is out of it until everyone leaves: there's one life to a land.</summary>
+        public bool Out;
+
+        /// <summary>Whether what this land means for their climb has been settled, freed or lost, so that it's never counted twice.</summary>
+        public bool Judged;
         public uint GhostId;
         public bool WindingUp;      // A blow's been started and hasn't landed.
         public Entity Mark;         // What friends have been shown of it.
@@ -73,7 +85,7 @@ namespace Dino_Defenders.Server
         /// <summary>Gear, talents or something else has changed, so everything is worked out again.</summary>
         public void RefreshLoadout()
         {
-            Actor.Adopt(HeroBuild.Compile(Hero, Actor.Buffs));
+            Actor.Adopt(HeroBuild.Compile(Hero, Actor.Buffs, LandMods));
             Kit = new HeroKit(Hero, Actor.Sheet);
             WatchBooks();
         }

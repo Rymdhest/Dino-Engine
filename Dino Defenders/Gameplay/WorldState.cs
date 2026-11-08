@@ -22,7 +22,6 @@ namespace Dino_Defenders.Gameplay
         public readonly List<Entity> Live = new();
         public readonly List<SiteFeature> Features = new();
         public readonly MerchantTable Table = new();    // What a merchant has out for this player, as far as they've been told.
-        public int ThreatIndex = -1;    // For settlements: the hostile site that preys on it.
         public bool Changed;        // Clients haven't heard the latest yet.
     }
 
@@ -43,24 +42,27 @@ namespace Dino_Defenders.Gameplay
     {
         public readonly WorldData World;
         public readonly WorldRequest Request;
-        public readonly Offering Offering;
+        public readonly LandTerms Terms;
         public readonly Chronicle Chronicle;
         public readonly List<SiteState> Sites = new();
 
-        public bool Liberated;      // The warlord has fallen.
-        public int Falls;           // Heroes who've fallen here, for a land that's had something paid on it.
-        public bool Broken;         // Too many have, and what was paid for is gone.
+        /// <summary>Whether this is the Haven, where nothing can reach anyone, rather than a land.</summary>
+        public readonly bool IsHaven;
 
-        protected WorldProgress(WorldData world, WorldRequest request, Offering? offering = null)
+        public bool Liberated;      // Everything the land asks has been done, and it's free.
+        public bool Lost;           // Everyone here has fallen, or they left it unfree.
+        public int Falls;           // Heroes who've fallen here.
+
+        protected WorldProgress(WorldData world, WorldRequest request, LandTerms? terms = null)
         {
             World = world;
             Request = request;
-            Offering = offering ?? new Offering();
-            Chronicle = Chronicle.Write(world);
+            Terms = terms ?? new LandTerms();
+            IsHaven = Lands.IsHaven(request);
+            Chronicle = Chronicle.Write(world, Terms, IsHaven);
 
             foreach (WorldSite site in world.Sites) Sites.Add(CreateState(site, wild: false));
             foreach (WorldSite haunt in world.Haunts) Sites.Add(CreateState(haunt, wild: true));
-            LinkThreats();
         }
 
         private static SiteState CreateState(WorldSite site, bool wild)
@@ -73,36 +75,13 @@ namespace Dino_Defenders.Gameplay
             return state;
         }
 
-        // Each settlement fears the nearest place that preys on it, and that fear is what the hero can lift.
-        private void LinkThreats()
-        {
-            for (int i = 0; i < Sites.Count; i++)
-            {
-                SiteState state = Sites[i];
-                if (state.Wild || !state.Site.Definition.IsSettlement) continue;
+        /// <summary>Whether people can breathe here: anywhere in the Haven, and anywhere in a land once it's free. Until then its people keep their heads down.</summary>
+        public bool IsSafe(SiteState state) => IsHaven || Liberated;
 
-                float best = float.PositiveInfinity;
-                for (int j = 0; j < Sites.Count; j++)
-                {
-                    SiteState other = Sites[j];
-                    if (other.Wild || other.Site.Kind is not (SiteKind.BanditCamp or SiteKind.Keep)) continue;
-                    float distance = (other.Site.Position - state.Site.Position).LengthSquared;
-                    if (distance < best)
-                    {
-                        best = distance;
-                        state.ThreatIndex = j;
-                    }
-                }
-            }
-        }
+        /// <summary>Whether a place is one of those a land asks to be freed: anywhere that's held and isn't the keep.</summary>
+        public static bool Counts(SiteState state) => !state.Wild && state.HostilesTotal > 0 && state.Site.Kind != SiteKind.Keep;
 
-        /// <summary>How many more can fall before the offering breaks. Everyone in a world shares these.</summary>
-        public int FallsLeft => Math.Max(Offering.AllowedFalls - Falls, 0);
-
-        /// <summary>Whether a place no longer lives in fear: of those who prey on it, or, with no one nearer, of the warlord.</summary>
-        public bool IsSafe(SiteState state)
-        {
-            return state.ThreatIndex >= 0 ? Sites[state.ThreatIndex].Cleared : Liberated;
-        }
+        /// <summary>Whether a place has a waygate in it that a hero can travel to and from, once they've found it.</summary>
+        public static bool HasWaygate(SiteState state) => !state.Wild && state.Site.Spawns.Any(spawn => spawn.Role == SpawnRole.Waygate);
     }
 }

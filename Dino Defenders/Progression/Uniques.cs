@@ -475,8 +475,8 @@ namespace Dino_Defenders.Progression
                 Gives(Rules(Rule.Lodestone)),
                 Costs(More(Stat.DamageTaken, 25f, Tags.Melee)));
             Add("keyholder", "The Keyholder's Chain", "Amulet", 5, "Every door it opens is worse than the last.",
-                Gives(More(Stat.Damage, 4f).For(Per.Peril, 1f, 120f)),
-                Costs(More(Stat.DamageTaken, 2f).For(Per.Peril, 1f, 60f)));
+                Gives(More(Stat.Damage, 2f).For(Per.LandLevel, 1f, 120f)),
+                Costs(More(Stat.DamageTaken, 1f).For(Per.LandLevel, 1f, 60f)));
             Add("omen-reader", "The Omen Reader", "Amulet", 8, "It saw this coming. It sees everything coming.",
                 Gives(More(Stat.Damage, 15f).For(Per.Omens, 1f, 75f), Inc(Stat.ItemRarity, 10f).For(Per.Omens, 1f, 50f)),
                 Costs(More(Stat.Health, -15f)));

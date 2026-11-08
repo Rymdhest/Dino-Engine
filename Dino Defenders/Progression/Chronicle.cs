@@ -6,9 +6,8 @@ namespace Dino_Defenders.Progression
 {
     public enum ObjectiveKind
     {
-        ClearSites,     // Clear every site of a kind, or the first few of them.
-        PrayAtShrines,
-        SlayWarlord,
+        FreePlaces,     // Free so many of the land's places, whichever they are.
+        SlayWarlord,    // Bring down the tyrant that holds the land.
     }
 
     public sealed class Objective
@@ -69,8 +68,14 @@ namespace Dino_Defenders.Progression
         public string Prologue { get; private set; } = "";
         public readonly List<Objective> Objectives = new();
 
-        public Objective Main => Objectives[0];
-        public bool WorldCleared => Main.Done;
+        /// <summary>The second tyrant, on a land whose orders gave it two: its name and what it is.</summary>
+        public string SecondBeast { get; private set; } = "";
+        public string SecondKind { get; private set; } = "";
+
+        public Objective? Main => Objectives.Count > 0 ? Objectives[0] : null;
+
+        /// <summary>Whether everything the land asks has been done. The Haven asks nothing, and is never freed.</summary>
+        public bool WorldCleared => Objectives.Count > 0 && Objectives.All(objective => objective.Done);
 
         /// <summary>What a land's tyrant is, which the story and the keep have to agree on. Most are bred and armoured; some lands have one the Ossuary raised from the rock, or one rotting where it stands.</summary>
         public static string BossKindOf(int seed)
@@ -79,16 +84,42 @@ namespace Dino_Defenders.Progression
             return roll < 0.7f ? "tyrant" : roll < 0.85f ? "bone-tyrant" : "rotting-tyrant";
         }
 
-        public static Chronicle Write(WorldData world)
+        /// <summary>Who holds a land, from its seed alone, so that the map table can tell of it before it's grown. The chronicle written once it is says the same.</summary>
+        public static Herald HeraldOf(int seed) => HeraldOf(seed, new WorldRandom(seed).Fork("chronicle"));
+
+        private static Herald HeraldOf(int seed, WorldRandom random)
         {
+            string beast = random.Pick(BeastNames);
+            string commander = $"{random.Pick(Ranks)} {random.Pick(Families)}";
+            string faction = $"the {random.Pick(Numbers)} {random.Pick(Broods)}";
+            return new Herald(beast, BossKindOf(seed), commander, faction);
+        }
+
+        /// <summary>What a tyrant is, in a few words: a bred one, or what the Ossuary made of one.</summary>
+        public static string KindName(string bossKind) => bossKind switch
+        {
+            "bone-tyrant" => "bone tyrant",
+            "rotting-tyrant" => "rotting tyrant",
+            _ => "tyrant",
+        };
+
+        public static Chronicle Write(WorldData world, LandTerms terms, bool haven)
+        {
+            // The same stream the herald reads from, so that what the map table told of a land is what's there.
             var random = new WorldRandom(world.Plan.Seed).Fork("chronicle");
+            Herald herald = HeraldOf(world.Plan.Seed, random);
             var chronicle = new Chronicle
             {
-                Beast = random.Pick(BeastNames),
-                BossKind = BossKindOf(world.Plan.Seed),
-                Commander = $"{random.Pick(Ranks)} {random.Pick(Families)}",
-                Faction = $"the {random.Pick(Numbers)} {random.Pick(Broods)}",
+                Beast = herald.Beast,
+                BossKind = herald.BossKind,
+                Commander = herald.Commander,
+                Faction = herald.Faction,
             };
+            if (haven)
+            {
+                chronicle.Prologue = "The one place the Reich has never found. Every waygate's road comes here first, and those who fight it rest here between lands.";
+                return chronicle;
+            }
 
             // A land's name starts a sentence as it is, and goes in the middle of one with a small "the".
             string name = world.Plan.Name;
@@ -98,65 +129,50 @@ namespace Dino_Defenders.Progression
 
             int level = world.Plan.Level;
             WorldSite keep = world.Sites.First(s => s.Kind == SiteKind.Keep);
+            WorldSite? twin = terms.Unique() == OrdersCatalog.TwinPens ? TwinSite(world) : null;
+            if (twin != null)
+            {
+                // The second has to be a different beast, with a name of its own.
+                var second = new WorldRandom(world.Plan.Seed).Fork("second tyrant");
+                chronicle.SecondBeast = second.Pick(BeastNames.Where(name => name != chronicle.Beast).ToList());
+                string[] kinds = { "tyrant", "bone-tyrant", "rotting-tyrant" };
+                chronicle.SecondKind = second.Pick(kinds.Where(kind => kind != chronicle.BossKind).ToList());
+            }
+
             chronicle.Objectives.Add(new Objective
             {
                 Kind = ObjectiveKind.SlayWarlord,
                 Site = SiteKind.Keep,
-                Text = chronicle.BossKind switch
+                Text = twin != null ? $"Bring down both tyrants: {chronicle.Beast} at {keep.Name}, and {chronicle.SecondBeast} at {twin.Name}" : chronicle.BossKind switch
                 {
                     "bone-tyrant" => $"Put {chronicle.Beast}, the Ossuary's bone tyrant, back in the ground at {keep.Name}",
                     "rotting-tyrant" => $"End {chronicle.Beast}, {chronicle.Commander}'s rotting tyrant, at {keep.Name}",
                     _ => $"Bring down {chronicle.Beast}, {chronicle.Commander}'s tyrant, at {keep.Name}",
                 },
-                Goal = 1,
+                Goal = twin != null ? 2 : 1,
                 IsMain = true,
                 RewardExperience = 400 * level,
                 RewardGold = 120 * level,
             });
 
-            int camps = world.Sites.Count(s => s.Kind == SiteKind.BanditCamp);
-            if (camps > 0)
+            int places = world.Sites.Count(Counts);
+            chronicle.Objectives.Add(new Objective
             {
-                chronicle.Objectives.Add(new Objective
-                {
-                    Kind = ObjectiveKind.ClearSites,
-                    Site = SiteKind.BanditCamp,
-                    Text = $"Burn out the pens of {chronicle.Faction}",
-                    Goal = Math.Min(camps, 3),
-                    RewardExperience = 150 * level,
-                    RewardGold = 60 * level,
-                });
-            }
-
-            int barrows = world.Sites.Count(s => s.Kind == SiteKind.Graveyard);
-            if (barrows > 0)
-            {
-                chronicle.Objectives.Add(new Objective
-                {
-                    Kind = ObjectiveKind.ClearSites,
-                    Site = SiteKind.Graveyard,
-                    Text = "Put what the Ossuary raised back in the ground",
-                    Goal = Math.Min(barrows, 2),
-                    RewardExperience = 120 * level,
-                    RewardGold = 50 * level,
-                });
-            }
-
-            int shrines = world.Sites.Count(s => s.Kind == SiteKind.Shrine);
-            if (shrines > 0)
-            {
-                chronicle.Objectives.Add(new Objective
-                {
-                    Kind = ObjectiveKind.PrayAtShrines,
-                    Site = SiteKind.Shrine,
-                    Text = "Rekindle the old shrines",
-                    Goal = Math.Min(shrines, 3),
-                    RewardExperience = 90 * level,
-                    RewardGold = 30 * level,
-                });
-            }
+                Kind = ObjectiveKind.FreePlaces,
+                Site = SiteKind.Haunt,
+                Text = "Free the land's places from those who hold them",
+                Goal = Math.Max(Math.Min(terms.Places, places), 1),
+                RewardExperience = 200 * level,
+                RewardGold = 80 * level,
+            });
             return chronicle;
         }
+
+        /// <summary>Whether a place is held, and isn't the keep, which is what the places a land asks to be freed are.</summary>
+        public static bool Counts(WorldSite site) => site.Kind != SiteKind.Keep && site.Spawns.Any(spawn => spawn.Role.IsHostile());
+
+        /// <summary>Where a second tyrant stands, on a land whose orders gave it two: the pen farthest from where heroes come in. None if the land has no pen.</summary>
+        public static WorldSite? TwinSite(WorldData world) => world.Sites.Where(site => site.Kind == SiteKind.BanditCamp).OrderByDescending(site => site.Remoteness).FirstOrDefault();
 
         /// <summary>A place's short history, for when the hero first comes upon it.</summary>
         public string Describe(WorldSite site, WorldData world)
@@ -165,47 +181,22 @@ namespace Dino_Defenders.Progression
             string biome = world.Plan.Biomes[site.Biome].Name.ToLowerInvariant();
             string[] lines = site.Kind switch
             {
-                SiteKind.Village => new[] { $"Market town of the {biome}. It pays {Faction} in grain, and in sons for the pens.", "Its people bar their doors when the roaring starts.", $"It was here first, and means to be here after {Commander}." },
-                SiteKind.Hamlet => new[] { "A few families who would not leave.", "Too small for the Reich to burn, so far.", "Their fields are all they have." },
-                SiteKind.Farmstead => new[] { "One family's stubborn acres.", "The raptors took the oxen last spring. Ask no questions." },
-                SiteKind.FishingHamlet => new[] { "They still put out at dawn, whoever rules the land.", "They watched the iron ships come in from here." },
-                SiteKind.LumberCamp => new[] { "Timber for the Reich's pens.", "The axes never stop." },
-                SiteKind.Shrine => new[] { "Its light has gone out. It can be kindled again.", "The Reich tore down what it could. The rest held.", "The path here is older than the road." },
+                SiteKind.Village => new[] { $"Market town of the {biome}. Its people hide from {Faction} behind barred doors, and trade with anyone who isn't the Reich.", "Its people bar their doors when the roaring starts.", $"It was here first, and means to be here after {Commander}." },
+                SiteKind.Hamlet => new[] { "A few families who would not leave. The raptors came for them anyway.", "Too small for the Reich to burn. It sent its beasts instead." },
+                SiteKind.Farmstead => new[] { "One family's stubborn acres, and what's eating them now.", "The raptors took the oxen last spring. Then they came back." },
+                SiteKind.FishingHamlet => new[] { "They watched the iron ships come in from here. The crews stayed.", "Nobody puts out at dawn any more." },
+                SiteKind.LumberCamp => new[] { "Timber for the Reich's pens, cut by those it took.", "The axes never stop, and the greycoats never leave." },
+                SiteKind.Shrine => new[] { "Its light has gone out, and the Reich keeps it out. It can be kindled again.", "The Reich tore down what it could. The rest held.", "The path here is older than the road." },
                 SiteKind.StandingStones => new[] { "Raised by no people anyone remembers, over bones nobody was meant to find.", "The stones hum faintly, like held breath." },
                 SiteKind.Watchtower => new[] { "From here you can see the next fire, when they are lit.", "The beacon has been cold since the ships came." },
                 SiteKind.Ruins => new[] { "Whoever lived here left in a hurry, long ago.", "The Reich's diggers have been at the old foundations." },
                 SiteKind.BanditCamp => new[] { $"A pen of {Faction}: cages, chains and the smell of blood.", "Where the Reich keeps its beasts between hunts." },
                 SiteKind.Graveyard => new[] { "The dead here do not lie quiet.", "The Ossuary has been digging here. It is always night in that churchyard." },
                 SiteKind.Keep => new[] { $"The seat of {Commander}, and the pen of {Beast}.", "Built with stolen stone, held with teeth." },
+                SiteKind.Waygate => new[] { "One of the land's old roads. It knows the way home, and to every other gate you've found.", "Raised by no people anyone remembers. It still answers." },
                 _ => new[] { "The way you came." },
             };
             return random.Pick(lines);
-        }
-
-        /// <summary>Where the current goal lies from a position: the nearest unfinished place of the first open objective.</summary>
-        public Vector2? NextTarget(WorldData world, Func<WorldSite, bool> isDone, Vector2 from)
-        {
-            // Side goals first: going straight for the warlord is a choice, not the suggestion.
-            for (int i = Objectives.Count - 1; i >= 0; i--)
-            {
-                Objective objective = Objectives[i];
-                if (objective.Done) continue;
-
-                WorldSite? nearest = null;
-                float best = float.PositiveInfinity;
-                foreach (WorldSite site in world.Sites)
-                {
-                    if (site.Kind != objective.Site || isDone(site)) continue;
-                    float distance = (site.Position - from).LengthSquared;
-                    if (distance < best)
-                    {
-                        best = distance;
-                        nearest = site;
-                    }
-                }
-                if (nearest != null) return nearest.Position;
-            }
-            return null;
         }
     }
 }

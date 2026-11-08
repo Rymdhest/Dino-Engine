@@ -474,8 +474,57 @@ namespace Dino_Defenders.Tooltips
         /// <summary>What rarity of what something is, in a few words.</summary>
         public static string KindOf(Item item) => $"{item.Rarity} {SlotName(item)}";
 
+        /// <summary>
+        /// Orders: what their kind always brings, then what enemies are and what the land is, or what a unique one does and what it costs. What it all pays is said last, as that's what
+        /// orders are weighed by, and so is where they go.
+        /// </summary>
+        public static Card Orders(Item item, string kind)
+        {
+            var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Rarity = item.Rarity, Picture = item };
+            var terms = new LandTerms();
+            terms.Give(item);
+
+            if (OrdersMaker.BaseOf(item) is OrdersBase basis)
+            {
+                card.Text($"{basis.Brings.Name}: {basis.Brings.Describe(basis.Brings.Fixed(item.Level))}", LineLook.Rolled);
+            }
+
+            if (item.Rarity == Rarity.Unique && OrdersCatalog.Find(item.Unique) is UniqueOrders unique)
+            {
+                card.Gap();
+                card.Text(unique.Gives, LineLook.Rolled);
+                card.Gap();
+                card.Text(unique.Costs, LineLook.Burden);
+                card.Gap();
+                card.Lore(unique.Lore);
+            }
+            else
+            {
+                OmenLines(card, item, OmenSide.Foe, "Enemies");
+                OmenLines(card, item, OmenSide.Land, "The land");
+            }
+
+            card.Gap();
+            if (terms.Pays() is { Length: > 0 } pays) card.Text($"Pays {pays}", LineLook.Good);
+            card.Text("Give them to the map table in the Haven before the way is opened, and the land it opens on holds what they say");
+            return card;
+        }
+
+        private static void OmenLines(Card card, Item item, OmenSide side, string heading)
+        {
+            bool first = true;
+            foreach (ItemLine line in item.Lines)
+            {
+                if (Progression.Omens.Find(line.Affix) is not OmenDefinition omen || omen.Side != side) continue;
+                if (first) card.Heading(heading);
+                first = false;
+                card.Text($"{omen.Name}: {omen.Describe(line.Value)}", LineLook.Rolled);
+            }
+        }
+
         private static string SlotName(Item item) => item.Slot switch
         {
+            ItemSlot.Orders => "Orders",
             ItemSlot.MainHand => item.IsTwoHanded ? $"Two-handed {item.Kind}" : item.Kind.ToString(),
             ItemSlot.OffHand => "Off hand",
             ItemSlot.Finger => "Ring",
@@ -486,6 +535,7 @@ namespace Dino_Defenders.Tooltips
         public static Card Item(Item item, ActorSheet? viewer, string kind)
         {
             if (item.IsFolio) return Folio(item, viewer, kind);
+            if (item.IsOrders) return Orders(item, kind);
 
             var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Rarity = item.Rarity, Picture = item, Tags = TagsOf(item.Mods()) };
             if (item.Slot == ItemSlot.MainHand) card.Tags |= item.Weapon().Tags;
@@ -584,11 +634,21 @@ namespace Dino_Defenders.Tooltips
             return card;
         }
 
-        public static Card Omen(OmenDefinition omen, ActorSheet? viewer)
+        /// <summary>An omen, for as much of it as a land holds: what it does, and what it pays for doing it.</summary>
+        public static Card Omen(OmenDefinition omen, float value, ActorSheet? viewer)
         {
-            var card = new Card { Title = omen.Name, Kind = "Omen", Tags = TagsOf(omen.Mods) };
-            card.Text(omen.Describe());
-            foreach (Mod mod in omen.Mods) Attach(card, mod, viewer);
+            Mod[] mods = omen.Mods(value).ToArray();
+            var card = new Card { Title = omen.Name, Kind = omen.Side == OmenSide.Foe ? "Omen of what Enemies are" : "Omen of what the land is", Tags = TagsOf(mods) };
+            card.Text(omen.Describe(value));
+            foreach (Mod mod in mods) Attach(card, mod, viewer);
+
+            var alone = new LandTerms();
+            alone.Omens.Add(new ItemLine(omen.Id, value));
+            if (alone.Pays() is { Length: > 0 } pays)
+            {
+                card.Gap();
+                card.Text($"Pays {pays}", LineLook.Good);
+            }
             return card;
         }
 

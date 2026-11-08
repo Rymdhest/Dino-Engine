@@ -224,8 +224,8 @@ namespace Dino_Defenders.Server
             counters.NormalWorn = (byte)normal;
             counters.UniquesWorn = (byte)uniques;
             counters.Carried = (byte)Math.Min(carried, 255);
-            counters.Peril = (byte)session.Offering.Peril;
-            counters.Omens = (byte)session.Offering.Omens.Count;
+            counters.LandLevel = (byte)(session.IsHaven ? 0 : Math.Min(session.World.Plan.Level, 255));
+            counters.Omens = (byte)Math.Min(session.Terms.Count, 255);
             counters.RaresSlain = (byte)Math.Min(actor.RaresSlain, 255);
             counters.FightSeconds = (byte)Math.Min((int)actor.FightFor, 255);
             counters.Streak = (byte)Math.Min(actor.Streak, 255);

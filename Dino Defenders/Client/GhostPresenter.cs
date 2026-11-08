@@ -698,6 +698,7 @@ namespace Dino_Defenders.Client
             client.Events.On<DamageEvent>(e =>
             {
                 Landed(client, e);
+                client.Session?.Meter.Landed(e, client, Engine.Time);
                 if (e.Note != HitNote.None)
                 {
                     client.Session?.Say(e.Position, e.Note.ToString(), new Vector3(0.8f, 0.8f, 0.75f), 14f, 0.7f);

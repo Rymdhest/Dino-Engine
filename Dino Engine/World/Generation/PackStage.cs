@@ -28,7 +28,7 @@ namespace Dino_Engine.World.Generation
         public float Cost => 0.2f;
 
         /// <summary>Metres between packs in this world.</summary>
-        public static float Spacing(int level, float morePacks = 0f) => MathF.Max(Lerp(66f, 56f, Saturate(MathF.Log(MathF.Max(level, 1)) / MathF.Log(30f))) / MathF.Sqrt(1f + morePacks), LeastSpacing);
+        public static float Spacing(int level, float morePacks = 0f) => MathF.Max(Lerp(66f, 56f, Saturate(MathF.Log(MathF.Max(level, 1)) / MathF.Log(30f))) / MathF.Sqrt(1f + MathF.Max(morePacks, 0f)), LeastSpacing);
 
         /// <summary>
         /// How many stand together, before anything is drawn. This climbs quickly and levels off, as worlds go up one at a time, and a player should
@@ -49,6 +49,9 @@ namespace Dino_Engine.World.Generation
 
         public void Run(WorldData world)
         {
+            // Nothing hostile ever stands in the Haven.
+            if (world.Plan.Archetype.Peaceful) return;
+
             WorldRandom random = world.Random.Fork("packs");
             var pass = new Pass(world, random);
 
@@ -57,12 +60,16 @@ namespace Dino_Engine.World.Generation
             // Camps are already there, so they go first, and the rest find room around them.
             for (int i = 0; i < world.Haunts.Count; i++) pass.FillCamp(world.Haunts[i], i);
 
-            foreach (WorldSite site in world.Sites)
+            // A land asked to be held only at its places has nobody between them.
+            if (!world.Plan.Request.Emptied)
             {
-                if (site.Definition.IsDanger) pass.PostPickets(site);
+                foreach (WorldSite site in world.Sites)
+                {
+                    if (site.Definition.IsDanger) pass.PostPickets(site);
+                }
+                foreach (WorldRoad road in world.Roads) pass.LineRoad(road);
+                pass.FillWild();
             }
-            foreach (WorldRoad road in world.Roads) pass.LineRoad(road);
-            pass.FillWild();
 
             // A place that has lost everyone to the land around it, as a camp on a cliff can, is no use to anybody, but its props can stay.
             world.Haunts.RemoveAll(haunt => haunt.Spawns.Count == 0);
@@ -98,12 +105,14 @@ namespace Dino_Engine.World.Generation
             /// <summary>More of whoever already holds a place. They go on the end, as what has happened to the first ones is kept by number.</summary>
             public void Reinforce(WorldSite site)
             {
+                // Every place a land asks to be freed is held by a group worth stopping for, and the keep by its whole garrison.
                 float share = site.Kind switch
                 {
                     SiteKind.Keep => 3f,
                     SiteKind.BanditCamp => 1.3f,
-                    SiteKind.Graveyard or SiteKind.Ruins => 1f,
-                    SiteKind.Watchtower => 0.5f,
+                    SiteKind.Graveyard or SiteKind.Ruins or SiteKind.Hamlet => 1f,
+                    SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.StandingStones => 0.9f,
+                    SiteKind.Watchtower or SiteKind.Shrine or SiteKind.Farmstead => 0.8f,
                     _ => 0f,
                 };
                 if (share <= 0f) return;
@@ -111,7 +120,7 @@ namespace Dino_Engine.World.Generation
                 SpawnRole? held = null;
                 foreach (SiteSpawn spawn in site.Spawns)
                 {
-                    if (spawn.Role is SpawnRole.Raider or SpawnRole.Undead) held = spawn.Role;
+                    if (spawn.Role is SpawnRole.Raider or SpawnRole.Undead or SpawnRole.Beast or SpawnRole.Cultist) held = spawn.Role;
                     else if (spawn.Role == SpawnRole.Guard) held ??= SpawnRole.Raider;
                 }
                 if (held is not SpawnRole role) return;

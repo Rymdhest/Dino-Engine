@@ -109,6 +109,7 @@ namespace Dino_Engine.World
 
         public WeatherField(WorldData world)
         {
+            _calm = world.Plan.Archetype.Peaceful;
             WorldRandom random = world.Random.Fork("weather");
             _seed = (uint)random.NextULong();
             _size = world.Size;
@@ -243,9 +244,14 @@ namespace Dino_Engine.World
 
         private static float SnowShare(in ClimateNode climate) => Smoothstep(0.36f, 0.24f, climate.Warmth);
 
+        // A place whose sky never changes, as the Haven's doesn't.
+        private readonly bool _calm;
+
         /// <summary>The weather at a point of the world, <paramref name="clock"/> seconds in.</summary>
         public WeatherSample Sample(Vector2 position, double clock)
         {
+            if (_calm && WeatherSample.TryNamed("clear", out WeatherSample clear)) return clear;
+
             float x = position.X, z = position.Y;
             ClimateNode climate = ClimateAt(x, z);
             float strength = Strength(x, z, clock, climate.Bias);

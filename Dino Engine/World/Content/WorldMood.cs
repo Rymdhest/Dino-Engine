@@ -34,12 +34,20 @@ namespace Dino_Engine.World.Content
             new("Windswept", new FloatRange(0.4f, 0.6f), new Vector3(1f, 0.9f, 0.76f), 13f, new Vector3(0.42f, 0.6f, 0.92f), 0.8f, 0.5f, 8f, 0.04f),
         };
 
-        public static WorldMood Draw(IReadOnlyList<BiomeDefinition> biomes, WorldRandom random)
+        public static WorldMood Draw(IReadOnlyList<BiomeDefinition> biomes, WorldRandom random, WorldArchetype? archetype = null)
         {
             Weather weather = random.Pick(Weathers);
 
             float azimuth = random.Float() * MathF.Tau;
             float height = random.Range(weather.SunHeight);
+
+            // A place that has to look one way is always seen in the same light.
+            if (archetype?.Light is string light)
+            {
+                weather = Weathers.First(w => w.Name == light);
+                azimuth = archetype.SunAzimuth;
+                height = archetype.SunHeight;
+            }
             // Sun height runs 0 (horizon) to 1 (overhead).
             float elevation = height * MathF.PI * 0.5f;
             Vector3 towardsSun = new Vector3(MathF.Cos(azimuth) * MathF.Cos(elevation), MathF.Sin(elevation), MathF.Sin(azimuth) * MathF.Cos(elevation));

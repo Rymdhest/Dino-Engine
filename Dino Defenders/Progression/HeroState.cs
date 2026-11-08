@@ -61,10 +61,17 @@ namespace Dino_Defenders.Progression
         public int Gold { get; set; }
         public int Flasks { get; set; } = 3;
         public float FlaskCharge { get; set; }
+        /// <summary>How many lands this hero has freed, in all.</summary>
         public int WorldsCleared { get; set; }
 
-        /// <summary>The highest peril this hero has come through, which is what says how much they can call down next.</summary>
-        public int PerilProven { get; set; }
+        /// <summary>The level of the next land the waygate opens for this hero: their climb. Freeing a land climbs it, and falling in one or leaving it unfree drops it, never below the first. Read LANDS.md.</summary>
+        public int LandLevel { get; set; } = 1;
+
+        /// <summary>The deepest land this hero has freed, which is what the talent points for freeing lands go by, so that climbing pays and freeing the same land again doesn't.</summary>
+        public int BestLand { get; set; }
+
+        /// <summary>Which three lands the waygate shows this hero next. It moves on once a land has been gone to, and never otherwise, so the choice is the same however often it's looked at.</summary>
+        public ulong Offers { get; set; }
 
         /// <summary>The nodes taken on the talent tree, by id, in the order they were taken.</summary>
         public List<string> Talents { get; set; } = new();
@@ -80,13 +87,41 @@ namespace Dino_Defenders.Progression
 
         public const int PointsPerLevel = 2;
 
-        /// <summary>Two a level, and one for each land set free, with three to start out with.</summary>
-        public int TalentPoints => 1 + PointsPerLevel * Level + WorldsCleared;
+        /// <summary>Two a level, and one for each level of land climbed and freed, with three to start out with.</summary>
+        public int TalentPoints => 1 + PointsPerLevel * Level + BestLand;
 
         public int UnspentPoints => Math.Max(TalentPoints - Talents.Count, 0);
 
         /// <summary>The wind answers those who've set a land free, and nobody before that.</summary>
-        public bool HasGuidingWind => WorldsCleared > 0;
+        public bool HasGuidingWind => BestLand > 0 || WorldsCleared > 0;
+
+        /// <summary>A land of this level has been freed, by a hero still standing in it. Climbs as far as the land's terms say, from that land, so freeing a friend's lower land never costs anyone their own climb.</summary>
+        public void Freed(int level, int climb)
+        {
+            LandLevel = Math.Max(LandLevel, level + climb);
+            BestLand = Math.Max(BestLand, level);
+            WorldsCleared++;
+            NextOffers();
+        }
+
+        /// <summary>A land has been lost: fallen in, or left before it was free. The climb drops as far as the land's terms say, from where it was, never below the first.</summary>
+        public void Lost(int climb)
+        {
+            LandLevel = Math.Max(1, LandLevel - climb);
+            NextOffers();
+        }
+
+        /// <summary>The waygate will show three other lands from now on. A method, so that it isn't saved.</summary>
+        public void NextOffers() => Offers = NewOffers(Offers + 0x9E3779B97F4A7C15UL);
+
+        /// <summary>A start for a new hero's offers, or a step on from the last.</summary>
+        public static ulong NewOffers(ulong from)
+        {
+            ulong mixed = (from ^ (from >> 30)) * 0xBF58476D1CE4E5B9UL;
+            mixed = (mixed ^ (mixed >> 27)) * 0x94D049BB133111EBUL;
+            mixed ^= mixed >> 31;
+            return mixed == 0 ? 1 : mixed;
+        }
 
         /// <summary>Adds experience. Returns how many levels it brought.</summary>
         public int GainExperience(int amount)
@@ -386,6 +421,7 @@ namespace Dino_Defenders.Progression
             hero.Equipped[WornSlot.MainHand] = new Item { Name = "Rusted Blade", Base = "Rusted Blade", Seed = ItemGenerator.NewSeed(looks.Fork(0)), Slot = ItemSlot.MainHand, Level = 1, WeaponDamage = 7f };
             hero.Equipped[WornSlot.Body] = new Item { Name = "Travelling Tunic", Base = "Leather Tunic", Seed = ItemGenerator.NewSeed(looks.Fork(1)), Slot = ItemSlot.Body, Level = 1, Evasion = 8f };
             hero.Bar[0] = ItemGenerator.Book(ItemGenerator.NewSeed(looks.Fork(2)));
+            hero.Offers = NewOffers(looks.Fork(3).NextULong());
             return hero;
         }
     }
@@ -409,7 +445,16 @@ namespace Dino_Defenders.Progression
             return hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? weapon) ? weapon.Weapon() : WeaponProfile.Fists;
         }
 
-        private static IEnumerable<Mod> Gather(HeroState hero, IReadOnlyList<ActiveBuff>? buffs)
+        private static IEnumerable<Mod> Gather(HeroState hero, IReadOnlyList<ActiveBuff>? buffs, IReadOnlyList<Mod>? land)
+        {
+            foreach (Mod mod in Gathered(hero, buffs)) yield return mod;
+
+            // What the land does to whoever's on it comes last, in its own order, on both ends.
+            if (land == null) yield break;
+            foreach (Mod mod in land) yield return mod;
+        }
+
+        private static IEnumerable<Mod> Gathered(HeroState hero, IReadOnlyList<ActiveBuff>? buffs)
         {
             foreach (Mod mod in Innate()) yield return mod;
             foreach (Mod mod in TalentTree.Mods(hero)) yield return mod;
@@ -435,14 +480,15 @@ namespace Dino_Defenders.Progression
         }
 
         /// <summary>Makes a hero's loadout, with what's on the bar in the order it's there.</summary>
-        public static Loadout Compile(HeroState hero, IReadOnlyList<ActiveBuff>? buffs = null)
+        /// <param name="land">What the land they're in puts on every hero: see <see cref="LandTerms.HeroMods"/>.</param>
+        public static Loadout Compile(HeroState hero, IReadOnlyList<ActiveBuff>? buffs = null, IReadOnlyList<Mod>? land = null)
         {
             var books = new List<BookPlan>(HeroState.BarSlots);
             foreach (Item? item in hero.Bar)
             {
                 if (item?.Written() is Book book) books.Add(Scribe.Read(book, item.Name));
             }
-            return new Loadout(hero.Level, WeaponOf(hero), Gather(hero, buffs), books);
+            return new Loadout(hero.Level, WeaponOf(hero), Gather(hero, buffs, land), books);
         }
 
         /// <summary>The place in a loadout of what's on a slot, or -1 if nothing is.</summary>

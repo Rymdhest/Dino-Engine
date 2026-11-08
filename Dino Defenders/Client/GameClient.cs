@@ -19,7 +19,7 @@ namespace Dino_Defenders.Client
         HeroIntent ReadIntent();
 
         /// <summary>A world is wanted. When it is ready, call <see cref="GameClient.EnterWorld"/>.</summary>
-        void WorldNeeded(WorldRequest request, Offering offering);
+        void WorldNeeded(WorldRequest request, LandTerms terms);
 
         /// <summary>The hero is standing in the world at last.</summary>
         void Arrived(Vector2 position);
@@ -60,7 +60,8 @@ namespace Dino_Defenders.Client
 
         private INetConnection? _connection;
         private WorldRequest _request;
-        private Offering _offering = new();
+        private LandTerms _terms = new();
+        private IReadOnlyList<Mod> _landMods = Array.Empty<Mod>();
         private CharacterMover? _mover;
         private int _epoch;
         private uint _ownGhost;
@@ -94,6 +95,18 @@ namespace Dino_Defenders.Client
 
         public HeroState Hero { get; }
 
+        /// <summary>What this player has put away, as far as the server has said, which is what's kept. None if this copy of the game couldn't have it, as when another copy already does.</summary>
+        public Stash? Stash { get; private set; }
+
+        /// <summary>The stash has changed, as the server has said, and is to be kept.</summary>
+        public event Action<Stash>? StashKept;
+
+        /// <summary>Whether this hero has fallen in the land they're in, and is out of it until everyone goes home.</summary>
+        public bool Out { get; private set; }
+
+        /// <summary>Where the way out of the Haven leads, once someone has opened it: what the land is called, and what it is.</summary>
+        public (string Name, WorldRequest Request, LandTerms Terms)? Portal { get; private set; }
+
         /// <summary>
         /// What this hero comes to right now, worked out here from the same record and the same state as the server's, so that the two can't
         /// disagree for longer than a message takes.
@@ -120,13 +133,14 @@ namespace Dino_Defenders.Client
         /// <summary>This hero's ghost, once it has one.</summary>
         public Ghost? OwnGhost { get; private set; }
 
-        public GameClient(INetTransport transport, IClientHost host, ECSWorld ecs, HeroState hero, string name)
+        public GameClient(INetTransport transport, IClientHost host, ECSWorld ecs, HeroState hero, string name, Stash? stash = null)
         {
             _transport = transport;
             _host = host;
             _ecs = ecs;
             _name = name;
             Hero = hero;
+            Stash = stash;
             _loadout = HeroBuild.Compile(hero);
             Sheet = _loadout.SheetFor(Condition.None);
             Kit = new HeroKit(hero, Sheet);
@@ -264,7 +278,7 @@ namespace Dino_Defenders.Client
         /// <summary>The world is ready: stands by to be put in it.</summary>
         public void EnterWorld(WorldData world)
         {
-            Session = new GameSession(this, world, _request, _offering);
+            Session = new GameSession(this, world, _request, _terms);
             _mover = new CharacterMover(world);
             State = ClientState.Waiting;
 
@@ -287,6 +301,8 @@ namespace Dino_Defenders.Client
             writer.WriteUInt(Protocol.Build);
             writer.WriteString(_name);
             Protocol.WriteHero(writer, Hero);
+            writer.WriteBool(Stash != null);
+            if (Stash != null) Protocol.WriteStash(writer, Stash);
             Send(writer);
         }
 
@@ -359,8 +375,12 @@ namespace Dino_Defenders.Client
             PlayerId = reader.ReadVarInt();
             reader.ReadUInt();
             WorldRequest request = Protocol.ReadRequest(reader);
-            _offering = Protocol.ReadOffering(reader);
-            _request = _offering.Shape(request);
+            _terms = Protocol.ReadTerms(reader);
+            _request = Lands.IsHaven(request) ? request : _terms.Shape(request);
+            _landMods = Lands.IsHaven(request) ? Array.Empty<Mod>() : _terms.HeroMods();
+            Out = false;
+            Portal = null;
+            Recompile();
 
             // Everything of the last world goes with it: ghosts, clocks, and any hero still running around in it.
             Ghosts.Clear();
@@ -372,7 +392,7 @@ namespace Dino_Defenders.Client
             _ownGhost = 0;
             Session = null;
             State = ClientState.Loading;
-            _host.WorldNeeded(_request, _offering);
+            _host.WorldNeeded(_request, _terms);
         }
 
         private void OnArrived(BitReader reader)
@@ -463,14 +483,21 @@ namespace Dino_Defenders.Client
             {
                 // Sent before the server had heard all that's been done here, this would only undo it for a moment. Whatever it's missing is on its way.
                 int answered = reader.ReadVarInt();
-                Protocol.ReadGear(reader, answered == _gearAsked ? Hero : new HeroState());
+                bool believed = answered == _gearAsked;
+                Protocol.ReadGear(reader, believed ? Hero : new HeroState());
+                Stash? stash = reader.ReadBool() ? Protocol.ReadStash(reader) : null;
+                if (believed && stash != null && Stash != null)
+                {
+                    Stash.Tabs = stash.Tabs;
+                    StashKept?.Invoke(Stash);
+                }
             }
             Recompile();
         }
 
         private void Recompile()
         {
-            _loadout = HeroBuild.Compile(Hero, Buffs);
+            _loadout = HeroBuild.Compile(Hero, Buffs, _landMods);
             Sheet = _loadout.SheetFor(_state, _counters);
             Kit = new HeroKit(Hero, Sheet);
         }
@@ -490,7 +517,9 @@ namespace Dino_Defenders.Client
         {
             bool liberated = reader.ReadBool();
             int falls = reader.ReadVarInt();
-            bool broken = reader.ReadBool();
+            bool lost = reader.ReadBool();
+            Out = reader.ReadBool();
+            Portal = reader.ReadBool() ? (reader.ReadString(Protocol.LongestName), Protocol.ReadRequest(reader), Protocol.ReadTerms(reader)) : null;
             int objectives = reader.ReadCount(64);
             var progress = new int[objectives];
             for (int i = 0; i < objectives; i++) progress[i] = reader.ReadVarInt();
@@ -524,7 +553,7 @@ namespace Dino_Defenders.Client
             if (session == null) return;
             session.Liberated = liberated;
             session.Falls = falls;
-            session.Broken = broken;
+            session.Lost = lost;
             for (int i = 0; i < objectives && i < session.Chronicle.Objectives.Count; i++) session.Chronicle.Objectives[i].Progress = progress[i];
         }
 
@@ -737,11 +766,58 @@ namespace Dino_Defenders.Client
             Send(writer);
         }
 
-        public void StepThroughWaygate(in WorldRequest request, Offering offering)
+        /// <summary>From a waygate, home to the Haven. The server decides whether this hero is at one.</summary>
+        public void ReturnHome() => Send(Action(HeroAction.ReturnHome));
+
+        /// <summary>Opens the way to one of the lands the map table shows this hero, with the orders in a cell of their pack given for it, or none. The orders are gone at once, and the server has the last word.</summary>
+        public void OpenWay(int choice, int ordersCell = -1)
         {
-            BitWriter writer = Action(HeroAction.Waygate);
-            Protocol.WriteRequest(writer, request);
-            Protocol.WriteOffering(writer, offering);
+            if (ordersCell >= 0 && ItemPlace.Cell(ordersCell).IsCell && Hero.Inventory[ordersCell] is { IsOrders: true }) Hero.Take(ItemPlace.Cell(ordersCell));
+            else ordersCell = -1;
+            BitWriter writer = AskGear(HeroAction.OpenWay);
+            writer.WriteVarInt(choice);
+            writer.WriteVarInt(ordersCell);
+            Send(writer);
+        }
+
+        public void CloseWay() => Send(Action(HeroAction.CloseWay));
+
+        /// <summary>Puts something from the hero into the stash. Done here at once by the same rules the server uses, which has the last word.</summary>
+        public void Stow(ItemPlace from, int tab, int cell)
+        {
+            if (Stash == null) return;
+            Stash.Stow(Hero, from, tab, cell);
+            BitWriter writer = AskGear(HeroAction.Stow);
+            writer.WriteVarInt(from.Number);
+            writer.WriteVarInt(tab);
+            writer.WriteVarInt(cell);
+            Send(writer);
+            Recompile();
+        }
+
+        /// <summary>Takes something out of the stash into the pack: into a cell, or the first that's free.</summary>
+        public void Unstow(int tab, int cell, int? into = null)
+        {
+            if (Stash == null) return;
+            Stash.Take(Hero, tab, cell, into);
+            BitWriter writer = AskGear(HeroAction.Unstow);
+            writer.WriteVarInt(tab);
+            writer.WriteVarInt(cell);
+            writer.WriteBool(into != null);
+            if (into != null) writer.WriteVarInt(into.Value);
+            Send(writer);
+        }
+
+        /// <summary>Moves something from one cell of the stash to another.</summary>
+        public void Shift(int tab, int cell, int toTab, int toCell)
+        {
+            if (Stash == null) return;
+            Stash.Shift(tab, cell, toTab, toCell);
+            BitWriter writer = AskGear(HeroAction.Shift);
+            writer.WriteVarInt(tab);
+            writer.WriteVarInt(cell);
+            writer.WriteVarInt(toTab);
+            writer.WriteVarInt(toCell);
             Send(writer);
         }
 

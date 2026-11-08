@@ -1,6 +1,7 @@
 using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
+using Dino_Engine.World;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -19,11 +20,11 @@ namespace Dino_Defenders.Progression
         public List<int> Opened { get; set; } = new();
     }
 
-    /// <summary>What survives closing the game: the hero, and where they are.</summary>
+    /// <summary>What survives closing the game: the hero, and the land they're in, if they're in one. Nothing about the Haven is kept, as it's always the same.</summary>
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 8;
+        public const int CurrentVersion = 9;
 
         /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
         private const int SlotsVersion = 4;
@@ -37,26 +38,34 @@ namespace Dino_Defenders.Progression
         /// <summary>The version that left four rarities with prefixes and suffixes of their own, which needs a copy of the old save kept. Most of what was rolled under the old rules comes out of it with a line or two changed.</summary>
         private const int AffixVersion = 8;
 
+        /// <summary>The version that made the game a climb through lands from the Haven, which needs a copy of the old save kept. The world a hero was in isn't a land, so they wake in the Haven, with a climb as far as they'd come.</summary>
+        private const int LandsVersion = 9;
+
         public int Version { get; set; } = CurrentVersion;
         public HeroState Hero { get; set; } = HeroState.CreateNew();
+
+        /// <summary>Whether the hero was in a land when this was written. If not, they're in the Haven, and nothing below means anything.</summary>
+        public bool InLand { get; set; }
         public int WorldSeed { get; set; }
         public string? WorldArchetype { get; set; }
         public int WorldLevel { get; set; } = 1;
 
-        /// <summary>What was paid to make that world what it is. It's part of which world it was, as anything saved by number is only right for the same one.</summary>
-        public Offering Offering { get; set; } = new();
-        public int OfferingFalls { get; set; }
-        public bool OfferingBroken { get; set; }
+        /// <summary>What the land holds. It's part of which land it was, as anything saved by number is only right for the same one.</summary>
+        public LandTerms Terms { get; set; } = new();
         public List<SiteRecord> Sites { get; set; } = new();
         public List<int> Objectives { get; set; } = new();
         public float PlayerX { get; set; } = -1f;
         public float PlayerZ { get; set; } = -1f;
         public float Health { get; set; } = -1f;
-        public float RespawnX { get; set; } = -1f;
-        public float RespawnZ { get; set; } = -1f;
 
-        /// <summary>Whether this is a hero who hasn't set foot anywhere yet, and has a land still to be grown. It's a method so that it isn't saved.</summary>
-        public bool NeverPlayed() => Sites.Count == 0 && PlayerX < 0f;
+        /// <summary>The waygates of the land the hero has found, by site, as only those can be travelled to.</summary>
+        public List<int> Found { get; set; } = new();
+
+        /// <summary>Whether this is a hero who's never been anywhere, and should be told where they are. It's a method so that it isn't saved.</summary>
+        public bool NeverPlayed() => !InLand && Hero.Level == 1 && Hero.Experience == 0 && Hero.WorldsCleared == 0;
+
+        /// <summary>The land this was written in, as it was asked for.</summary>
+        public WorldRequest Land() => new WorldRequest(WorldSeed, WorldArchetype, WorldLevel);
 
         private static readonly JsonSerializerOptions Options = new()
         {
@@ -94,6 +103,7 @@ namespace Dino_Defenders.Progression
                 else if (save != null && VersionOf(json) < BooksVersion) KeepOldCopy(path, ".before-books");
                 else if (save != null && VersionOf(json) < StickersVersion) KeepOldCopy(path, ".before-stickers");
                 else if (save != null && VersionOf(json) < AffixVersion) KeepOldCopy(path, ".before-affixes");
+                else if (save != null && VersionOf(json) < LandsVersion) KeepOldCopy(path, ".before-lands");
                 return save;
             }
             catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -138,10 +148,33 @@ namespace Dino_Defenders.Progression
             FixPack(save.Hero);
             FixBooks(save.Hero);
             if (version < BooksVersion) save.Hero.Bar[0] ??= ItemGenerator.Book(ItemGenerator.NewSeed(new Dino_Engine.World.WorldRandom((ulong)Random.Shared.NextInt64())));
+            if (version < LandsVersion) IntoTheHaven(save);
+            if (save.Hero.Offers == 0) save.Hero.Offers = HeroState.NewOffers((ulong)Random.Shared.NextInt64());
+            save.Hero.LandLevel = Math.Max(save.Hero.LandLevel, 1);
+            save.Hero.BestLand = Math.Max(save.Hero.BestLand, 0);
             TalentTree.Sanitize(save.Hero);
-            save.Offering.Sanitize();
+            save.Terms.Sanitize();
             return save;
         }
+
+        // Before lands there were worlds, one after another, each a level deeper once it was free. The world they were in goes, and they're in the Haven with a climb as far as they'd come, and the same
+        // talent points: one for each land freed.
+        private static void IntoTheHaven(SaveGame save)
+        {
+            HeroState hero = save.Hero;
+            hero.BestLand = Math.Max(hero.BestLand, hero.WorldsCleared);
+            hero.LandLevel = Math.Max(hero.LandLevel, hero.BestLand + 1);
+            save.InLand = false;
+            save.Sites.Clear();
+            save.Objectives.Clear();
+            save.Found.Clear();
+            save.PlayerX = -1f;
+            save.PlayerZ = -1f;
+            save.Health = -1f;
+        }
+
+        /// <summary>Brings anything kept somewhere else up to the rules, as everything a hero carries is brought when their save is read: the stash's, for one.</summary>
+        public static void FixItem(Item item) => Fix(item);
 
         // A bar used to be a list of skills, and the tree was made of them. What's carried comes through it all, and the talents are all there to be spent again.
         private static void ForgetSkills(JsonObject root)

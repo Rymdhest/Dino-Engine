@@ -1,3 +1,4 @@
+using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
@@ -23,6 +24,9 @@ namespace Dino_Defenders.Server
         private const float GuardArcherChance = 0.45f;
         private const float CheckInterval = 0.25f;
         private const int MostWakings = 4;      // At a check. A hero stepping out of a waygate is surrounded by places, and they needn't all arrive in one tick.
+        private const int FirstSteps = 2;       // Land levels whose places are led by something Magic, not Rare, as that's where someone is still learning what a land is.
+        private const float DummyScale = 1.25f;
+        private const int SmallGroup = 5;       // The training ground's dummies come one alone, then this many, then the rest.
 
         private readonly GameServer _server;
         private double _nextCheck;
@@ -40,6 +44,7 @@ namespace Dino_Defenders.Server
             _nextCheck = session.Time + CheckInterval;
 
             session.UpdateDiscovery();
+            session.Tend();
 
             int wakings = 0;
             for (int i = 0; i < session.Sites.Count; i++)
@@ -70,6 +75,7 @@ namespace Dino_Defenders.Server
             var random = new WorldRandom(session.World.Plan.Seed).Fork("people").Fork(siteIndex);
             var musters = new Dictionary<SpawnRole, PackOrders>();
 
+            int dummies = 0;
             for (int i = 0; i < state.Site.Spawns.Count; i++)
             {
                 SiteSpawn spawn = state.Site.Spawns[i];
@@ -89,8 +95,8 @@ namespace Dino_Defenders.Server
                         SpawnVillager(world, session, state, siteIndex, spawn, spawnRandom, stationary: false);
                         break;
                     case SpawnRole.Merchant:
-                        // The landing trades whatever happens: it's what a new arrival has to start from.
-                        if (session.IsSafe(state) || state.Site.Kind == SiteKind.Landing) SpawnMerchant(world, session, state, siteIndex, i, spawn, spawnRandom);
+                        // A land's people hide from the Reich, and trade with whoever isn't it.
+                        SpawnMerchant(world, session, state, siteIndex, i, spawn, spawnRandom);
                         break;
                     case SpawnRole.Elder:
                         SpawnElder(world, session, state, siteIndex, i, spawn, spawnRandom);
@@ -99,13 +105,42 @@ namespace Dino_Defenders.Server
                         if (!state.Opened.Contains(i)) SpawnChest(world, session, state, siteIndex, i, spawn);
                         break;
                     case SpawnRole.Altar:
-                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Shrine, state.Kindled ? "Rest at the shrine" : "Kindle the shrine", ShrineReach);
+                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Shrine, ShrinePrompt(session, state), ShrineReach);
                         break;
                     case SpawnRole.Waygate:
-                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Waygate, "Step through the waygate", 6f);
+                        // The Haven's is only ever stepped through, once the way is open, and that's a portal of its own.
+                        if (!session.IsHaven) SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Waygate, "Travel the old roads", 6f);
+                        break;
+                    case SpawnRole.Stash:
+                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Stash, "Open your stash", 4.5f);
+                        break;
+                    case SpawnRole.MapTable:
+                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.MapTable, "Choose your next land", 5.5f);
+                        break;
+                    case SpawnRole.Dummy:
+                        SpawnDummy(world, session, state, spawn, dummies == 0 ? 0 : dummies <= SmallGroup ? 1 : 2);
+                        dummies++;
                         break;
                 }
             }
+        }
+
+        /// <summary>What a shrine offers: kindling, if the Reich put it out and it hasn't been lit again, and its blessing once it's lit or in a village, where it never went out.</summary>
+        public static string ShrinePrompt(ServerSession session, SiteState state)
+        {
+            BuffDefinition blessing = BlessingOf(session, state);
+            if (Keeps(state.Site.Kind) || state.Kindled) return $"Pray for {blessing.Name.Replace("Blessing of ", "")}";
+            return "Kindle the shrine";
+        }
+
+        /// <summary>Whether a place's shrine was never put out: a village's, or the Haven's.</summary>
+        public static bool Keeps(SiteKind kind) => kind is SiteKind.Village or SiteKind.Haven;
+
+        /// <summary>Which blessing a shrine gives, which is always the same one.</summary>
+        public static BuffDefinition BlessingOf(ServerSession session, SiteState state)
+        {
+            var random = new WorldRandom(session.World.Plan.Seed).Fork("blessing").Fork(state.Site.Id);
+            return random.Pick(BuffCatalog.Blessings);
         }
 
         // Everyone of a folk at one place answers to the same orders.
@@ -114,36 +149,42 @@ namespace Dino_Defenders.Server
             SpawnRole folk = spawn.Role is SpawnRole.Guard or SpawnRole.Boss ? SpawnRole.Raider : spawn.Role;
             if (!musters.TryGetValue(folk, out PackOrders? orders))
             {
-                orders = new PackOrders(session.World, state.Site, folk, LevelAt(session, state), state.Wild, random.Fork("pack"), session.Offering);
+                orders = new PackOrders(session.World, state.Site, folk, LevelAt(session, state), state.Wild, random.Fork("pack"), session.Terms);
                 musters.Add(folk, orders);
             }
             return orders;
         }
 
-        /// <summary>How strong what's found at a place is. Danger climbs with the distance from where a hero came in.</summary>
-        public static int LevelAt(ServerSession session, SiteState state) => session.World.Plan.Level + (int)(state.Site.Remoteness * 3f);
+        /// <summary>How strong what's found at a place is, which is the land's level everywhere in it: a land's level is the whole of what makes one harder than another. In the Haven, the land the strongest climber there would go to next.</summary>
+        public static int LevelAt(ServerSession session, SiteState state) => session.IsHaven ? Math.Max(1, session.Heroes.Count > 0 ? session.Heroes.Max(hero => hero.Hero.LandLevel) : 1) : session.World.Plan.Level;
 
         private void SpawnEnemy(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, PackOrders orders, WorldRandom random)
         {
             int level = LevelAt(session, state);
-            bool boss = spawn.Role == SpawnRole.Boss;
+            bool twin = session.Terms.Unique() == OrdersCatalog.TwinPens && state.Site == Chronicle.TwinSite(session.World) && spawnIndex == FirstHostile(state.Site);
+            bool boss = spawn.Role == SpawnRole.Boss || twin;
             WorldRandom kinds = random.Fork("kind");
 
             EnemyKind kind;
             Rarity rarity;
             int traits;
             // What holds a land is the tyrant its story names, and what stands watch over what the Reich has taken is its soldiers.
-            if (boss) (kind, rarity, traits) = (Bestiary.Find(session.Chronicle.BossKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
+            if (twin) (kind, rarity, traits) = (Bestiary.Find(session.Chronicle.SecondKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
+            else if (boss) (kind, rarity, traits) = (Bestiary.Find(session.Chronicle.BossKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
             else if (spawn.Role == SpawnRole.Guard) (kind, rarity, traits) = (kinds.Chance(GuardArcherChance) ? Bestiary.Marksman : Bestiary.Legionary, Rarity.Normal, Bestiary.NoTraits);
             else (kind, rarity, traits) = orders.Draw(spawnIndex, kinds);
 
-            // The people of a place have their hard cases, where a pack has its leader.
+            // The people of a place are what it's worth stopping for: one of them leads, and is more than the rest, and they have their hard cases.
             if (!boss && !state.Wild)
             {
-                if (kinds.Chance(session.Offering.Has(Omens.Warhost) ? Rulebook.WarhostRareChance : Rulebook.RareChance)) rarity = Rarity.Rare;
-                else if (rarity == Rarity.Normal && kinds.Chance(Rulebook.MagicChance)) rarity = Rarity.Magic;
+                float bred = 1f + session.Terms.ValueOf(Omens.Bloodlines) / 100f;
+                if (spawnIndex == FirstHostile(state.Site)) rarity = session.World.Plan.Level <= FirstSteps ? Rarity.Magic : Rarity.Rare;
+                else if (kinds.Chance((session.Terms.Has(Omens.Warhost) ? Rulebook.WarhostRareChance : Rulebook.RareChance) * bred)) rarity = Rarity.Rare;
+                else if (rarity == Rarity.Normal && kinds.Chance(Rulebook.MagicChance * bred)) rarity = Rarity.Magic;
+                if (rarity == Rarity.Normal && session.Terms.Unique() == OrdersCatalog.Bred) rarity = Rarity.Magic;
             }
             traits = Bestiary.Fill(traits, rarity, random.Fork("traits"));
+            if (rarity == Rarity.Rare && session.Terms.Unique() == OrdersCatalog.Ledger) traits = Bestiary.OneMore(traits, random.Fork("ledger"));
 
             EnemyPower power = Bestiary.PowerOf(rarity);
             float scale = kind.Scale * (rarity == Rarity.Normal ? random.Range(0.94f, 1.06f) : power.Scale);
@@ -151,9 +192,9 @@ namespace Dino_Defenders.Server
 
             Dino_Defenders.Progression.Item[]? gear = null;
             string? title = null;
-            Loadout loadout = boss ? Bestiary.Boss(kind, level, traits, random.Fork("boss"), out gear, out title, session.Bestiary.Worn) : session.Bestiary.Shared(kind, level, rarity, traits);
+            Loadout loadout = boss ? Bestiary.Boss(kind, level, traits, random.Fork("boss"), out gear, out title, session.Bestiary.Worn.Concat(session.Terms.TyrantMods()).ToList()) : session.Bestiary.Shared(kind, level, rarity, traits);
 
-            string name = boss ? session.Chronicle.Beast : Bestiary.NameOf(kind, traits);
+            string name = twin ? session.Chronicle.SecondBeast : boss ? session.Chronicle.Beast : Bestiary.NameOf(kind, traits);
             if (title != null) name = $"{name}, {title}";
 
             var enemy = new EnemyComponent { Name = name, Rarity = rarity, Level = level };
@@ -162,7 +203,7 @@ namespace Dino_Defenders.Server
                 SiteIndex = siteIndex,
                 SpawnIndex = spawnIndex,
                 Home = spawn.Position,
-                AggroRadius = kind.AggroRadius * session.Offering.Notice,
+                AggroRadius = kind.AggroRadius * session.Terms.Notice,
                 LeashRadius = kind.LeashRadius,
                 KeepsAway = kind.KeepsAway,
                 Experience = Bestiary.ExperienceAt(level, power.Health * kind.Health),
@@ -179,9 +220,42 @@ namespace Dino_Defenders.Server
                 Gear = gear,
                 Height = position.Y,
                 Nature = boss ? Condition.Boss : rarity == Rarity.Rare ? Condition.Rare : Condition.None,
+                Tyrant = boss,
             };
 
             actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, power.Importance, radius, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            state.Live.Add(actor.Entity);
+        }
+
+        // The first of a place's people, who leads them.
+        private static int FirstHostile(WorldSite site)
+        {
+            for (int i = 0; i < site.Spawns.Count; i++)
+            {
+                if (site.Spawns[i].Role.IsHostile()) return i;
+            }
+            return -1;
+        }
+
+        // Straw on a post, to try a build on: as strong as what the land the strongest climber here would go to next, and never down for long. It belongs to no place, as there's nothing to free.
+        private void SpawnDummy(ECSWorld world, ServerSession session, SiteState state, SiteSpawn spawn, int group)
+        {
+            int level = LevelAt(session, state);
+            Loadout loadout = session.Bestiary.Shared(Bestiary.Dummy, level, Rarity.Normal, Bestiary.NoTraits);
+            Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
+            float radius = Bestiary.Dummy.RadiusAt(DummyScale);
+            var actor = new Actor(Team.Enemies, loadout, spawn.Position, radius) { Body = Bestiary.Dummy.Look, Height = position.Y, Still = true, Dummy = true };
+            actor.Entity = world.CreateEntity("Dummy",
+                new NetIdentityComponent(_server.Ghosts.NextId(), importance: 1f),
+                new PositionComponent(position),
+                new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, spawn.Position.X * 0.37f + spawn.Position.Y * 0.11f)),
+                new ScaleComponent(new Vector3(DummyScale)),
+                new VisualComponent(Bestiary.Dummy.Look, VisualKind.Prop),
+                new EnemyComponent { Name = Bestiary.Dummy.Name, Rarity = Rarity.Normal, Level = level },
+                new DummyComponent { Group = group },
+                new HealthComponent(actor.Sheet.MaxHealth),
+                new AfflictedComponent(),
+                new ActorComponent(actor));
             state.Live.Add(actor.Entity);
         }
 
@@ -328,6 +402,12 @@ namespace Dino_Defenders.Server
             "The road's safe again!", "Bless you, Defender.", "We can sleep at last.", "My boy came home from the pens.",
             "They're saying it was you.", "The market's open again.", "No more roaring in the night.", "There's bread for you here.",
         };
+        private static readonly string[] AtHome =
+        {
+            "Rest a while. Nothing reaches us here.", "Back again? Good.", "The gate's been humming all morning.", "Mind the dummies, they bite back. They don't, really.",
+            "We keep a lamp lit for whoever's out there.", "Every road comes here first.", "Sit down before you fall down.", "The boats are in, if you want fish.",
+            "Another land? Already?", "You look like you've seen a tyrant.",
+        };
 
         private readonly GameServer _server;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
@@ -358,7 +438,7 @@ namespace Dino_Defenders.Server
                 _server.Broadcast(new TextEvent
                 {
                     Position = position + Vector3.UnitY * (entity.Has<InteractableComponent>() ? SpeechOverMark : 5.6f),
-                    Text = _random.Pick(safe ? Grateful : Afraid),
+                    Text = _random.Pick(session.IsHaven ? AtHome : safe ? Grateful : Afraid),
                     Colour = new Vector3(0.92f, 0.9f, 0.8f),
                     Size = 14f,
                     Life = 3.2f,
@@ -472,10 +552,11 @@ namespace Dino_Defenders.Server
                     state.Opened.Add(interactable.SpawnIndex);
                     state.Changed = true;
                     state.Live.Remove(view.Entity);
-                    LootTier tier = state.Wild ? LootTier.Cache : state.Site.Kind == SiteKind.Keep ? LootTier.Hoard : LootTier.Chest;
-                    if (session.Gilded) tier = LootTables.Better(tier);
-                    session.Combat.OpenChest(hero, view.Get<PositionComponent>().value, EncounterSystem.LevelAt(session, state), tier);
+                    session.Combat.OpenChest(hero, view.Get<PositionComponent>().value, EncounterSystem.LevelAt(session, state), ChestTier(session, state));
                     world.DestroyEntity(view.Entity);
+                    break;
+                case InteractKind.Portal:
+                    _server.StepThrough();
                     break;
                 default:
                     _server.OpenPanel(hero, interactable.Kind, interactable.SiteIndex);
@@ -483,30 +564,47 @@ namespace Dino_Defenders.Server
             }
         }
 
+        // What a chest holds goes by where it is, and what the land holds can make it better: a gilded land now and then, and every place's on a land held as the last garrison.
+        private static LootTier ChestTier(ServerSession session, SiteState state)
+        {
+            LootTier tier = state.Wild ? LootTier.Cache : state.Site.Kind == SiteKind.Keep ? LootTier.Hoard : LootTier.Chest;
+            if (!state.Wild && session.Terms.Unique() == OrdersCatalog.Garrison) tier = LootTier.Hoard;
+            if (session.Terms.Has(Omens.Gilded) && session.Combat.Luck(session.Terms.Chance(Omens.Gilded))) tier = LootTables.Better(tier);
+            return tier;
+        }
+
         private void UseShrine(ServerSession session, ServerPlayer hero, SiteState state, EntityView view)
         {
             Vector3 position = view.Get<PositionComponent>().value;
+
+            // The Reich keeps its shrines out with its own people, who have to go first.
+            if (!EncounterSystem.Keeps(state.Site.Kind) && !state.Cleared && state.HostilesTotal > 0)
+            {
+                _server.Note(hero, $"{state.Site.Name} is still held. Free it first.");
+                return;
+            }
+
+            BuffDefinition blessing = EncounterSystem.BlessingOf(session, state);
             hero.Actor.Vitals = Vitals.Full(hero.Actor.Sheet);
             hero.Hero.Flasks = HeroState.MaxFlasks;
             hero.SummaryChanged = true;
-            hero.Respawn = position.Xz;
+            session.Combat.AddBuff(hero.Actor, blessing, blessing.Duration);
             _server.Broadcast(new SparkEvent { Position = position + Vector3.UnitY * 3f, Kind = SparkKind.Shrine, Count = 26, Speed = 7f }, position.Xz);
 
-            if (state.Kindled)
+            if (EncounterSystem.Keeps(state.Site.Kind) || state.Kindled)
             {
-                _server.Note(hero, "You rest at the shrine.");
-                _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.ShrineRest }, position.Xz);
+                _server.Note(hero, $"{blessing.Name}. Your flasks are full.");
+                _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Blessed }, position.Xz);
                 return;
             }
             state.Kindled = true;
             _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.ShrineKindled }, position.Xz);
             state.Changed = true;
             var interactable = view.Get<InteractableComponent>();
-            interactable.Prompt = "Rest at the shrine";
+            interactable.Prompt = EncounterSystem.ShrinePrompt(session, state);
             view.Set(interactable);
-            _server.Announce(hero, "Shrine kindled", "Your flasks are full, and you will wake here if you fall.");
+            _server.Announce(hero, "Shrine kindled", $"{blessing.Name}, and your flasks are full. Pray here again whenever you pass.");
             foreach (ServerPlayer everyone in session.Heroes) session.GiveExperience(everyone, 25 * session.World.Plan.Level);
-            if (state.Site.Kind == SiteKind.Shrine) session.Advance(ObjectiveKind.PrayAtShrines, SiteKind.Shrine);
         }
 
         private void UpdatePickups(ECSWorld world, ServerSession session, float deltaTime)

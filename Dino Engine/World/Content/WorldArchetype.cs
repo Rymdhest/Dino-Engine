@@ -51,6 +51,17 @@ namespace Dino_Engine.World.Content
         public float Settlements = 1f;
         public float Wilds = 1f;
         public float Dangers = 1f;
+
+        /// <summary>
+        /// A world of one village and nobody hostile, under a sky that doesn't change: the Haven. It has no landing, keep or packs, and its one place is <see cref="SiteKind.Haven"/>, built
+        /// by <see cref="Generation.HavenBuilder"/>. Never drawn from a seed, as it isn't in <see cref="ArchetypeCatalog.All"/>.
+        /// </summary>
+        public bool Peaceful;
+
+        /// <summary>The light it's always seen in, by name, and where the sun stands, in place of what's drawn from the seed. Only for a place that has to look one way.</summary>
+        public string? Light;
+        public float SunAzimuth;
+        public float SunHeight;
     }
 
     /// <summary>Every kind of world.</summary>
@@ -206,6 +217,34 @@ namespace Dino_Engine.World.Content
             Dangers = 1.3f,
         };
 
+        /// <summary>
+        /// The Haven: a small isle of blossom and gold in the last light of the day, with one village on it and the great waygate above the village. It's a world like any other, grown from its own seed,
+        /// so nothing about it is drawn by hand, but its seed never changes, so it's the same place every time a hero comes home.
+        /// </summary>
+        public static readonly WorldArchetype Haven = new WorldArchetype
+        {
+            Id = "haven",
+            Name = "Haven",
+            Titles = new[] { "The Haven" },
+            Landform = LandformKind.Island,
+            Size = new FloatRange(768f, 768f),
+            BaseHeight = new FloatRange(5f, 6f),
+            HillHeight = new FloatRange(7f, 9f),
+            MountainHeight = new FloatRange(24f, 28f),
+            MountainCoverage = new FloatRange(0.1f, 0.12f),
+            Cliffs = new FloatRange(0.35f, 0.45f),
+            Erosion = new FloatRange(0.8f, 0.9f),
+            Biomes = new[] { BiomeCatalog.BlossomGrove, BiomeCatalog.GoldenWood, BiomeCatalog.Meadow },
+            BiomeCount = new IntRange(3, 3),
+            Settlements = 0f,
+            Wilds = 0f,
+            Dangers = 0f,
+            Peaceful = true,
+            Light = "Golden evening",
+            SunAzimuth = 2.45f,
+            SunHeight = 0.3f,
+        };
+
         public static readonly IReadOnlyList<WorldArchetype> All = new[]
         {
             Isle, Archipelago, Peninsula, Vale, Lakeland, Highlands, Frostmark, Mire, Badlands, AshenIsle,
@@ -217,6 +256,7 @@ namespace Dino_Engine.World.Content
             {
                 if (archetype.Id == id) return archetype;
             }
+            if (id == Haven.Id) return Haven;
             throw new ArgumentException($"Unknown world archetype '{id}'.");
         }
     }

@@ -33,7 +33,11 @@ namespace Dino_Defenders.UI
         /// <summary>How much of the top of the Health bar is Barrier's, wherever it's shown. Anything written on the bar goes under it, as it's too pale to read over.</summary>
         public const float BarrierHeight = 3f;
 
+        private const float CornerWidth = 340f;
+        private const float OmenGap = 16f;
+
         private static readonly BitMask EnemyMask = new BitMask(typeof(EnemyComponent), typeof(HealthComponent), typeof(PositionComponent));
+        private static readonly BitMask DummyMask = new BitMask(typeof(DummyComponent), typeof(PositionComponent));
         private static readonly BitMask HeroMask = new BitMask(typeof(HeroComponent), typeof(HealthComponent), typeof(PositionComponent));
 
         public Hud()
@@ -85,6 +89,7 @@ namespace Dino_Defenders.UI
             if (session.Health <= 0f) draw.AddRect(screen, GuiColors.Rgba(20, 0, 0, 130));
 
             DrawEnemies(draw, session, screen);
+            DrawDummies(draw, session, screen);
             DrawCompanions(draw, session, screen);
             DrawOverHero(draw, session, screen);
             DrawFloatingTexts(draw, session, screen);
@@ -137,6 +142,9 @@ namespace Dino_Defenders.UI
                         draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * share, bar.Height), Ui.Good);
                         continue;
                     }
+
+                    // A dummy's bar would only ever be full, and what's dealt to it is said over its group.
+                    if (entity.Has<DummyComponent>()) continue;
 
                     if (enemy.Rarity == Rarity.Unique)
                     {
@@ -338,42 +346,167 @@ namespace Dino_Defenders.UI
             }
         }
 
+        // The corner where what the land asks is kept: its name, what's to be done, and under that its level and its omens, each of which a rested eye can read in full. In the Haven, the climb.
         private void DrawChronicle(GuiDrawList draw, GameSession session, GuiRect screen)
         {
-            float width = 330f;
+            float width = CornerWidth;
             float x = screen.Width - width - Margin;
             float y = Margin;
+            float wrap = width - 14f;
 
-            bool offered = session.Offering.Any;
-            float height = offered ? 46f : 26f;
+            if (session.IsHaven)
+            {
+                var portal = session.Client.Portal;
+                string next = portal is var (name, request, _) ? $"The way is open to {name}, level {request.Level}" : "Choose your next land at the map table";
+                List<string> nextLines = Ui.Wrap(Context!, next, 14f, wrap);
+                Shade(draw, new GuiRect(x, y, width, 46f + nextLines.Count * 18f));
+                Ui.Text(Context!, draw, session.World.Plan.Name, 17f, new GuiRect(x, y, width, 22f), Ui.Gold, Alignment.End);
+                y += 26f;
+                Ui.Text(Context!, draw, $"Your next land is level {session.Hero.LandLevel}", 14f, new GuiRect(x, y, width, 18f), Ui.Parchment, Alignment.End);
+                y += 20f;
+                foreach (string line in nextLines)
+                {
+                    Ui.Text(Context!, draw, line, 14f, new GuiRect(x, y, width, 18f), portal != null ? Ui.Good : Ui.Faded, Alignment.End);
+                    y += 18f;
+                }
+                return;
+            }
+
+            // What's to be done, and then what the land is.
+            var objectives = new List<(List<string> lines, Objective objective)>();
+            float height = 26f;
             foreach (Objective objective in session.Chronicle.Objectives)
             {
-                height += Ui.Wrap(Context!, objective.Summary, 14f, width - 14f).Count * 18f + 4f;
+                List<string> lines = Ui.Wrap(Context!, objective.Summary, 14f, wrap);
+                objectives.Add((lines, objective));
+                height += lines.Count * 18f + 4f;
             }
+
+            string? standing = session.Client.Out ? "You've fallen. You'll go home with the others." : session.Liberated ? "The land is free. Go home through any waygate." : null;
+            List<string> standingLines = standing != null ? Ui.Wrap(Context!, standing, 14f, wrap) : new List<string>();
+            height += standingLines.Count * 18f + (standingLines.Count > 0 ? 4f : 0f);
+
+            List<List<(OmenDefinition omen, float value, float width)>> omenRows = OmenRows(session, wrap);
+            UniqueOrders? unique = session.Terms.Unique();
+            height += 10f + 20f + omenRows.Count * 18f + (unique != null ? 18f : 0f);
             Shade(draw, new GuiRect(x, y, width, height));
 
             Ui.Text(Context!, draw, session.World.Plan.Name, 17f, new GuiRect(x, y, width, 22f), Ui.Gold, Alignment.End);
             y += 26f;
 
-            if (offered)
+            foreach ((List<string> lines, Objective objective) in objectives)
             {
-                Ui.Text(Context!, draw, WaygatePanel.Standing(session), 14f, new GuiRect(x, y, width, 18f), session.Broken ? Ui.Blood : Ui.Parchment, Alignment.End);
-                y += 20f;
-            }
-
-            for (int i = session.Chronicle.Objectives.Count - 1; i >= 0; i--)
-            {
-                Objective objective = session.Chronicle.Objectives[i];
                 Colour colour = objective.Done ? Ui.Faded : objective.IsMain ? Ui.Parchment : GuiColors.Rgba(206, 194, 170);
-                foreach (string line in Ui.Wrap(Context!, objective.Summary, 14f, width - 14f))
+                float top = y;
+                foreach (string line in lines)
                 {
-                    Ui.Text(Context!, draw, line, 14f, new GuiRect(x, y, width - 14f, 18f), colour, Alignment.End);
+                    Ui.Text(Context!, draw, line, 14f, new GuiRect(x, y, wrap, 18f), colour, Alignment.End);
                     y += 18f;
                 }
-                draw.AddCircle(new Vector2(x + width - 4f, y - 9f), 3f, objective.Done ? Ui.Good : Ui.Gold);
+                draw.AddCircle(new Vector2(x + width - 4f, top + 9f), 3f, objective.Done ? Ui.Good : Ui.Gold);
                 y += 4f;
             }
+
+            foreach (string line in standingLines)
+            {
+                Ui.Text(Context!, draw, line, 14f, new GuiRect(x, y, width, 18f), session.Client.Out ? Ui.Blood : Ui.Good, Alignment.End);
+                y += 18f;
+            }
+            if (standingLines.Count > 0) y += 4f;
+
+            // Under what's to be done: how deep the land is, and what it holds.
+            y += 10f;
+            draw.AddLine(new Vector2(x + width * 0.35f, y - 5f), new Vector2(x + width, y - 5f), Ui.Gold.MultiplyAlpha(0.35f), 1f);
+            int omens = session.Terms.Count;
+            Ui.Text(Context!, draw, omens > 0 ? $"Level {session.World.Plan.Level}, with {(omens == 1 ? "one omen" : $"{omens} omens")}" : $"Level {session.World.Plan.Level}", 15f, new GuiRect(x, y, width, 20f), Ui.Parchment, Alignment.End);
+            y += 20f;
+
+            foreach (List<(OmenDefinition omen, float value, float width)> row in omenRows)
+            {
+                float rowWidth = row.Sum(entry => entry.width) + OmenGap * (row.Count - 1);
+                float at = x + width - rowWidth;
+                foreach ((OmenDefinition omen, float value, float nameWidth) in row)
+                {
+                    GuiRect place = new GuiRect(at, y, nameWidth, 18f);
+                    bool resting = Resting(place);
+                    Ui.Text(Context!, draw, omen.Name, 13.5f, place, resting ? Ui.Bright : OmenColour(omen));
+                    if (resting)
+                    {
+                        draw.AddLine(new Vector2(place.X, place.Bottom - 1f), new Vector2(place.Right, place.Bottom - 1f), Ui.Gold.MultiplyAlpha(0.7f), 1f);
+                        OmenDefinition shown = omen;
+                        float amount = value;
+                        GameUi.Current.Tips.Show(() => Cards.Omen(shown, amount, GameSession.Current?.Sheet), place);
+                    }
+                    at += nameWidth + OmenGap;
+                }
+                y += 18f;
+            }
+            if (unique != null) Ui.Text(Context!, draw, unique.Name, 13.5f, new GuiRect(x, y, width, 18f), Ui.RarityColour(Rarity.Unique), Alignment.End);
         }
+
+        // What enemies are reads warm and what's done to a hero reads red, so that the worst of a land stands out among the rest of it.
+        private static Colour OmenColour(OmenDefinition omen)
+        {
+            if (omen.Heroes(1f).Length > 0) return GuiColors.Rgba(214, 120, 104);
+            return omen.Side == OmenSide.Foe ? GuiColors.Rgba(222, 200, 160) : GuiColors.Rgba(200, 190, 214);
+        }
+
+        // The land's omens by name, in as few rows as fit the corner.
+        private List<List<(OmenDefinition omen, float value, float width)>> OmenRows(GameSession session, float wrap)
+        {
+            var rows = new List<List<(OmenDefinition omen, float value, float width)>>();
+            var row = new List<(OmenDefinition omen, float value, float width)>();
+            float used = 0f;
+            foreach ((OmenDefinition omen, float value) in session.Terms.Chosen())
+            {
+                float nameWidth = GuiText.MeasureWidth(Context!, omen.Name, Ui.Face, 13.5f);
+                if (row.Count > 0 && used + OmenGap + nameWidth > wrap)
+                {
+                    rows.Add(row);
+                    row = new List<(OmenDefinition omen, float value, float width)>();
+                    used = 0f;
+                }
+                used += (row.Count > 0 ? OmenGap : 0f) + nameWidth;
+                row.Add((omen, value, nameWidth));
+            }
+            if (row.Count > 0) rows.Add(row);
+            return rows;
+        }
+
+        // Over each group of training dummies, what's been dealt to it a second, since they were last left alone, and in all.
+        private void DrawDummies(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            if (!session.IsHaven) return;
+            double now = Engine.Time;
+            Span<Vector3> sum = stackalloc Vector3[DummyMeter.Groups];
+            Span<int> count = stackalloc int[DummyMeter.Groups];
+            ECSWorld world = Engine.Instance!.world;
+            foreach (Archetype archetype in world.QueryArchetypes(DummyMask, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    int group = Math.Clamp(entity.Get<DummyComponent>().Group, 0, DummyMeter.Groups - 1);
+                    sum[group] += entity.Get<PositionComponent>().value;
+                    count[group]++;
+                }
+            }
+
+            for (int group = 0; group < DummyMeter.Groups; group++)
+            {
+                if (count[group] == 0 || !session.Meter.Showing(group, now)) continue;
+                Vector3 middle = sum[group] / count[group];
+                if (!Project(middle + Vector3.UnitY * 7.5f, screen, out Vector2 at)) continue;
+
+                DummyMeter.Reading reading = session.Meter[group];
+                float fade = Math.Clamp((float)(Rulebook.DummyRest * 2f - (now - reading.Last)) / 1.5f, 0f, 1f);
+                draw.PushOpacity(fade);
+                Ui.Text(Context!, draw, $"{Short(reading.PerSecond)} a second", 22f, new GuiRect(at.X - 160f, at.Y - 26f, 320f, 28f), Ui.Gold, Alignment.Center);
+                Ui.Text(Context!, draw, $"{Short(reading.Dealt)} in {reading.Seconds:0.0} s, the biggest blow {Short(reading.Biggest)}", 13.5f, new GuiRect(at.X - 200f, at.Y + 2f, 400f, 18f), Ui.Parchment, Alignment.Center);
+                draw.PopOpacity();
+            }
+        }
+
+        private static string Short(float amount) => amount >= 1e6f ? $"{amount / 1e6f:0.##}m" : amount >= 1e4f ? $"{amount / 1e3f:0.#}k" : $"{amount:0}";
 
         // A soft dark patch behind text, so it holds up over snow, sand and sunlit walls as well as it does over grass.
         private static void Shade(GuiDrawList draw, GuiRect rect)

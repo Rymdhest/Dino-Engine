@@ -200,6 +200,9 @@ namespace Dino_Defenders.Server
         public float CarrierClock;
         public bool Critical;           // The next hit is sure to crit.
         public bool Still;              // Stands and takes it: a training dummy.
+        public bool Dummy;              // Can't be killed: it's there to be hit, and to say how hard.
+        public bool Tyrant;             // What holds the land, and what freeing it means bringing down.
+        public bool Risen;              // Has come back once already, on a land whose orders raise the dead.
         public int Alarm;               // Someone close has raised a cry: how much further it has to travel, counting this one.
         public bool Dead;
         public bool LoadoutChanged;

@@ -91,10 +91,13 @@ namespace Dino_Defenders.Server
         {
             _session = session;
             Grid = new ActorGrid(session.World.Size);
-            Land = new LandReader(session.World, session.Offering.Has(Omens.Night));
+            Land = new LandReader(session.World, session.Terms.Has(Omens.Night));
         }
 
         private GameServer Server => _session.Server;
+
+        /// <summary>Whether something with this chance happens, for what the fight's own luck should decide.</summary>
+        public bool Luck(float chance) => _luck.Chance(chance);
         private ECSWorld World => Server.Ecs;
         private double Now => _session.Time;
 
@@ -1575,6 +1578,9 @@ namespace Dino_Defenders.Server
             }
 
             Hits.Recover(sheet, ref actor.Vitals, seconds, actor.SinceHit);
+
+            // A dummy left alone a while is as good as new, so that a second try starts where the first did.
+            if (actor.Dummy && actor.SinceHit > DummyRest && actor.Vitals.Health < sheet.MaxHealth) actor.Vitals = Vitals.Full(sheet);
             if (actor.Vitals.Health <= 0f && !actor.Dead) Die(actor, actor, null, actor.Position, Vector3.Zero);
 
             // Death is waiting for a kill, and doesn't wait long.
@@ -1623,6 +1629,13 @@ namespace Dino_Defenders.Server
         {
             if (actor.Dead) return;
 
+            // A dummy is there to be hit, and never goes down.
+            if (actor.Dummy)
+            {
+                actor.Vitals = Vitals.Full(actor.Sheet);
+                return;
+            }
+
             // Gasping, they can't die until the time's up.
             if (actor.GaspLeft > 0f)
             {
@@ -1664,8 +1677,8 @@ namespace Dino_Defenders.Server
 
             Actor credit = killer.Owner ?? killer;
             if (credit != actor && credit.IsFoeOf(actor)) Credit(credit, actor, skill);
-            if (actor.Sheet.Has(Rule.BurstsOnDeath)) BeginBurst(actor);
-            if (actor.Sheet.Has(Rule.RalliesOnDeath)) Defer(new Consequence { Kind = Later.Rally, At = Now, Source = actor });
+            if (actor.Sheet.Has(Rule.BurstsOnDeath) && Goes(actor, Omens.Volatile)) BeginBurst(actor);
+            if (actor.Sheet.Has(Rule.RalliesOnDeath) && Goes(actor, Omens.Rallying)) Defer(new Consequence { Kind = Later.Rally, At = Now, Source = actor });
 
             if (actor.Player != null)
             {
@@ -1675,11 +1688,18 @@ namespace Dino_Defenders.Server
             _session.Fell(actor, thrown);
         }
 
+        // Whether something an omen gives every enemy happens for this one, as the omen says how many of them it's true of. Anyone who has it from anywhere else always does.
+        private bool Goes(Actor actor, OmenDefinition omen)
+        {
+            if (actor.Team != Team.Enemies || actor.Owner != null || !_session.Terms.Has(omen)) return true;
+            return _luck.Chance(_session.Terms.Chance(omen));
+        }
+
         // It's the ring that's the danger, so there's long enough to see it and get clear. A crowd going up at once can kill whoever stands in the middle of it, and that's the omen working.
         private void BeginBurst(Actor actor)
         {
             Warn(GroundShape.Circle(actor.Position, BurstRadius), MarkTier.Grave, actor.Team == Team.Enemies, BurstDelay);
-            float amount = Bestiary.DamageAt(actor.Loadout.Level) * BurstShare * _session.Offering.EnemyDamage;
+            float amount = Bestiary.DamageAt(actor.Loadout.Level) * BurstShare * _session.Terms.EnemyDamage;
             Defer(new Consequence { Kind = Later.Burst, At = Now + BurstDelay, Source = actor, Origin = actor.Position, Radius = BurstRadius, Type = DamageType.Fire, Amount = amount, Tags = Tags.Reaction });
         }
 
@@ -1924,8 +1944,16 @@ namespace Dino_Defenders.Server
             // A world holds a thousand of these. What's worth having comes from those that took some beating, and how much beating is in the health it really had.
             // What's been paid for on this land comes out of that, or peril would turn its fodder into champions and pay for them twice.
             LootBoon boon = _session.Boon;
-            LootTier tier = LootTables.TierOf(enemy.Rarity, actor.Sheet.MaxHealth / (Bestiary.HealthAt(enemy.Level) * _session.Offering.EnemyHealth));
+            float health = Bestiary.HealthAt(enemy.Level) * _session.Terms.EnemyHealth * (actor.Tyrant ? _session.TyrantHealth : 1f);
+            LootTier tier = LootTables.TierOf(enemy.Rarity, actor.Sheet.MaxHealth / health);
+
+            // What makes a tyrant worse makes it richer, and a ledger's rares are worth twice what they'd be.
+            if (actor.Tyrant) boon = boon with { Quantity = boon.Quantity * (1f + _session.Terms.ValueOf(Omens.Wrath) / 100f) };
+            if (enemy.Rarity == Rarity.Rare && _session.Terms.Unique() == OrdersCatalog.Ledger) boon = boon with { Quantity = boon.Quantity * OrdersCatalog.LedgerLoot };
             List<Item> items = Loot.Roll(tier, enemy.Level, StrongestHero, BestOfParty(s => s.ItemRarity) / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)), boon);
+
+            // A tyrant always has its brood's orders on it, which is where the next land's come from.
+            if (actor.Tyrant) items.Add(Loot.OrdersFrom(enemy.Level, _luck.Fork(_luck.Int(1 << 30)), boon));
 
             // What it was wearing is yours now. That's the whole point of having seen it used.
             if (actor.Gear != null) items.AddRange(actor.Gear);

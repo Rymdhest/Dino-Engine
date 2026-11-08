@@ -21,11 +21,14 @@ namespace Dino_Defenders
     ///   --carry N       Fills N cells of the pack with things rolled from the seed, to try anything to do with a pack.
     ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar, or one of each rarity with rarities.
     ///   --loot all      Drops one find of every rarity in front of the hero, or everything a tier gives, as boss, rare, magic, chest or hoard. folios adds books, pages and stickers among them.
-    ///   --panel name    Opens map, hero, talents, book, glossary, chronicle, merchant, elder, waygate, friends, pause or sound once the world is up.
-    ///   --travel N      Steps through a waygate after N frames, to a world drawn from the current one, with whatever offering is below.
-    ///   --peril N  --teeming N  --overrun N  --omens a,b   What's been paid on the first world, or on the way through a waygate with --travel.
+    ///   --panel name    Opens map, hero, talents, book, glossary, chronicle, merchant, elder, table, travel, stash, friends, pause or sound once the world is up.
+    ///   --travel N      After N frames: from a land, goes home to the Haven through a waygate; from the Haven, opens the way to the first land the map table shows and steps through.
+    ///   --omens a,b     Puts these omens on the first land, at the best tier its level reaches, and on any land opened with --travel.
+    ///   --orders id     Gives the first land these unique orders, by id, as if they'd been given to the map table.
+    ///   --haven true    Starts in the Haven, as a hero who isn't in a land does.
+    ///   --landlevel N   Starts the hero's climb here: the level of the next land the map table shows.
+    ///   --stash file    Keeps the stash here on a scripted run, which otherwise has one of its own that's never kept.
     ///   --gold N        Starts the hero with this much gold.
-    ///   --proven N      Starts the hero having come through this much peril.
     ///   --savefile path Keeps the save here, and uses it even on a scripted run.
     ///   --host true     Opens the game to others straight away. --port N and --secret text say where and with what.
     ///   --join place    Joins a game: an invite code, or address:port with --secret.
@@ -111,9 +114,12 @@ namespace Dino_Defenders
         public string? Wear;
         public int TravelAfterFrames = -1;
         public int Travels = 1;
-        public readonly Offering Offering = new();
+        public readonly List<string> Omens = new();
+        public string? Orders;
+        public bool Haven;
+        public int LandLevel;
+        public string? Stash;
         public int Gold;
-        public int Proven;
         public string? SaveFile;
         public bool Host;
         public int Port = UdpTransport.DefaultPort;
@@ -210,12 +216,12 @@ namespace Dino_Defenders
                     case "wear": options.Wear = value; break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
                     case "travels": options.Travels = int.Parse(value); break;
-                    case "peril": options.Offering.Peril = int.Parse(value); break;
-                    case "teeming": options.Offering.Teeming = int.Parse(value); break;
-                    case "overrun": options.Offering.Overrun = int.Parse(value); break;
-                    case "omens": options.Offering.Omens.AddRange(value.Split(',')); break;
+                    case "omens": options.Omens.AddRange(value.Split(',')); break;
+                    case "orders": options.Orders = value; break;
+                    case "haven": options.Haven = value == "true"; break;
+                    case "landlevel": options.LandLevel = int.Parse(value); break;
+                    case "stash": options.Stash = value; break;
                     case "gold": options.Gold = int.Parse(value); break;
-                    case "proven": options.Proven = int.Parse(value); break;
                     case "savefile": options.SaveFile = value; break;
                     case "host": options.Host = value == "true"; break;
                     case "port": options.Port = int.Parse(value); break;
@@ -263,8 +269,20 @@ namespace Dino_Defenders
                         break;
                 }
             }
-            options.Offering.Sanitize();
             return options;
+        }
+
+        /// <summary>What a land opened by a scripted run holds: the omens asked for, each at the best tier a land of this level reaches, and the unique orders asked for.</summary>
+        public LandTerms Terms(int level)
+        {
+            var terms = new LandTerms { Orders = Orders, Places = LandTerms.LeastPlaces };
+            foreach (string id in Omens)
+            {
+                if (Progression.Omens.Find(id) is OmenDefinition omen) terms.Omens.Add(new ItemLine(omen.Id, omen.Fixed(Math.Max(level, omen.FirstLevel))));
+                else Console.WriteLine($"No omen called '{id}'.");
+            }
+            terms.Sanitize();
+            return terms;
         }
     }
 }

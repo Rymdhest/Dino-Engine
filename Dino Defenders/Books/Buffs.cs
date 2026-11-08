@@ -166,6 +166,50 @@ namespace Dino_Defenders.Books
             Mods = new[] { More(Stat.DamageTaken, -50f, DamageKinds.Tag(type)) },
         })).ToArray();
 
+        // What a shrine gives whoever prays at it, in a village or once it's kindled: one of these, by the shrine, for a while.
+        public static readonly BuffDefinition Swiftness = Add(new BuffDefinition
+        {
+            Id = "blessing-swiftness",
+            Name = "Blessing of Swiftness",
+            Duration = Rulebook.ShrineBlessing,
+            Mods = new[] { Inc(Stat.MoveSpeed, 20f), Inc(Stat.AttackSpeed, 12f), Inc(Stat.CastSpeed, 12f) },
+        });
+
+        public static readonly BuffDefinition Iron = Add(new BuffDefinition
+        {
+            Id = "blessing-iron",
+            Name = "Blessing of Iron",
+            Duration = Rulebook.ShrineBlessing,
+            Mods = new[] { More(Stat.DamageTaken, -15f), Resist(Tags.Elemental, 12f) },
+        });
+
+        public static readonly BuffDefinition Fury = Add(new BuffDefinition
+        {
+            Id = "blessing-fury",
+            Name = "Blessing of Fury",
+            Duration = Rulebook.ShrineBlessing,
+            Mods = new[] { Inc(Stat.Damage, 30f) },
+        });
+
+        public static readonly BuffDefinition Plenty = Add(new BuffDefinition
+        {
+            Id = "blessing-plenty",
+            Name = "Blessing of Plenty",
+            Duration = Rulebook.ShrineBlessing,
+            Mods = new[] { Flat(Stat.ItemRarity, 30f), Flat(Stat.GoldFind, 25f) },
+        });
+
+        public static readonly BuffDefinition Wind = Add(new BuffDefinition
+        {
+            Id = "blessing-wind",
+            Name = "Blessing of the Wind",
+            Duration = Rulebook.ShrineBlessing,
+            Mods = new[] { Inc(Stat.CooldownRecovery, 25f), Flat(Stat.ManaRegen, 6f) },
+        });
+
+        /// <summary>Every shrine's blessing, one of which each shrine gives.</summary>
+        public static readonly BuffDefinition[] Blessings = { Swiftness, Iron, Fury, Plenty, Wind };
+
         private static BuffDefinition Add(BuffDefinition buff)
         {
             Everything.Add(buff);

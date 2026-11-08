@@ -19,11 +19,12 @@ namespace Dino_Defenders.Server
     {
         private const float DiscoverRadius = 60f;
         private const float MinionSight = 28f;
-
-        private const int PaidHoards = 1;
-        private const int FlawlessHoards = 2;
+        private const float RisenReach = 160f;      // Metres from every hero past which what the Ossuary raised is let go, as it belongs to no place to be kept by.
+        private const float RisenAggro = 34f;
 
         private readonly List<Actor> _nearby = new();
+        private readonly List<(double At, Vector2 Where, bool Beast, int Level)> _rising = new();
+        private readonly List<Actor> _risen = new();
         private readonly LootBoon _boon;
 
         public readonly GameServer Server;
@@ -41,17 +42,26 @@ namespace Dino_Defenders.Server
         /// <summary>Set while the game is held still, as it can be for someone playing alone.</summary>
         public bool Paused => Server.Paused;
 
-        /// <summary>What's being paid out here, which is nothing once the offering has broken.</summary>
-        public LootBoon Boon => Broken ? LootBoon.None : _boon;
+        /// <summary>What the land's omens pay on top of what anything here gives anyway.</summary>
+        public LootBoon Boon => _boon;
 
-        /// <summary>Whether this land's chests are worth more than they look.</summary>
-        public bool Gilded => Offering.Has(Omens.Gilded) && !Broken;
+        /// <summary>What the tyrant's health is multiplied by on top of what every enemy's is, which what it's worth has to take out again.</summary>
+        public float TyrantHealth => 1f + Terms.ValueOf(Omens.Wrath) / 100f;
 
-        public ServerSession(GameServer server, WorldData world, WorldRequest request, Offering? offering = null) : base(world, request, offering)
+        /// <summary>Where the way out of the Haven leads, once it's been opened at the map table: the land, what it holds, and what it's called.</summary>
+        public (WorldRequest Request, LandTerms Terms, string Name)? Portal;
+
+        /// <summary>The way's been opened, or shut, and the portal and everyone's heads-up need to catch up.</summary>
+        public bool PortalChanged;
+
+        /// <summary>When everyone has fallen, the moment they all go home.</summary>
+        public double? HomeAt;
+
+        public ServerSession(GameServer server, WorldData world, WorldRequest request, LandTerms? terms = null) : base(world, request, terms)
         {
             Server = server;
-            Bestiary = new Bestiary(Offering.EnemyMods());
-            _boon = Offering.Boon();
+            Bestiary = new Bestiary(Terms.FoeMods());
+            _boon = Terms.Boon();
             Combat = new Combat(this);
             Ground = new GroundLoot(this);
         }
@@ -206,6 +216,11 @@ namespace Dino_Defenders.Server
                 Minions.Remove(actor);
                 return;
             }
+            if (_risen.Remove(actor))
+            {
+                ShareExperience(position.Xz, (int)(brain.Experience * Boon.Experience));
+                return;
+            }
 
             if (actor.Site is not SiteState state) return;
             state.Dead.Add(brain.SpawnIndex);
@@ -215,44 +230,98 @@ namespace Dino_Defenders.Server
             ChargeFlasks(position.Xz, enemy.Rarity);
             Combat.DropLoot(enemy, position, actor);
 
-            bool wasHeld = !Liberated;
+            // Nobody here stays down, on a land whose orders say so. Only once, and never the tyrant.
+            if (Terms.Unique() == OrdersCatalog.Writ && !actor.Tyrant) _rising.Add((Time + Rulebook.RiseDelay, position.Xz, actor.Body.StartsWith("dino:"), enemy.Level));
+
+            if (actor.Tyrant) Advance(ObjectiveKind.SlayWarlord);
             OnHostileKilled(state);
-            if (wasHeld && Liberated) Reckon(position, enemy.Level);
         }
 
-        /// <summary>A hero has fallen. On a land that's been paid for, that's what the offering is measured in.</summary>
-        public void HeroFell()
+        /// <summary>What has to happen every so often that isn't anyone's to do: the fallen getting up, on a land whose orders raise them, and what they raised going when nobody's near.</summary>
+        public void Tend()
         {
-            if (!Offering.AtStake || Broken || Liberated) return;
+            for (int i = _rising.Count - 1; i >= 0; i--)
+            {
+                if (_rising[i].At > Time) continue;
+                (_, Vector2 where, bool beast, int level) = _rising[i];
+                _rising.RemoveAt(i);
+                if (DistanceToAnyHero(where) < RisenReach) Rise(where, beast, level);
+            }
 
+            for (int i = _risen.Count - 1; i >= 0; i--)
+            {
+                Actor risen = _risen[i];
+                if (risen.Dead || DistanceToAnyHero(risen.Position) < RisenReach) continue;
+                _risen.RemoveAt(i);
+                risen.Dead = true;
+                if (risen.Entity.IsValid()) Server.Ecs.DestroyEntity(risen.Entity);
+            }
+        }
+
+        // Bones where something fell, belonging to no place: nothing it does keeps a place held, and nothing about it is kept.
+        private void Rise(Vector2 where, bool beast, int level)
+        {
+            EnemyKind kind = beast ? Bestiary.BoneRaptor : Bestiary.Restless;
+            Loadout loadout = Bestiary.Shared(kind, level, Rarity.Normal, Bestiary.NoTraits);
+            float height = World.Height.Sample(where);
+            string model = Bestiary.ModelOf(kind, new WorldRandom((ulong)Server.Tick));
+            float radius = kind.RadiusAt(kind.Scale);
+            var actor = new Actor(Team.Enemies, loadout, where, radius) { Body = model, Height = height, Risen = true };
+            var enemy = new EnemyComponent { Name = kind.Name, Rarity = Rarity.Normal, Level = level };
+            var brain = new EnemyBrainComponent
+            {
+                SiteIndex = -1,
+                SpawnIndex = -1,
+                Home = where,
+                AggroRadius = RisenAggro,
+                LeashRadius = kind.LeashRadius,
+                Experience = Bestiary.ExperienceAt(level, kind.Health * (1f - Rulebook.RisenBonesLess / 100f)),
+                Abilities = Bestiary.AbilitiesOf(kind, Bestiary.NoTraits),
+            };
+            var position = new Vector3(where.X, height, where.Y);
+            actor.Entity = Server.Ecs.CreateEntity(kind.Name, Bodies.Walking(Server, model, position, kind.Scale, 1.5f, radius, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            _risen.Add(actor);
+            Server.Broadcast(new SparkEvent { Position = position + Vector3.UnitY * 1.5f, Kind = SparkKind.Shrine, Count = 14, Speed = 5f }, where);
+        }
+
+        /// <summary>
+        /// A hero has fallen. There's one life to a land, so they're out of it: what it means for their climb is settled at once, so that closing the game can't take it back, and once everyone
+        /// has fallen the land is lost and they all go home. Falling once the land is free costs nothing, as it's already been freed.
+        /// </summary>
+        public void HeroFell(ServerPlayer player)
+        {
+            if (IsHaven) return;
+
+            player.Out = true;
             Falls++;
             ObjectivesChanged = true;
-            if (Falls <= Offering.AllowedFalls)
+            if (!Liberated) Judge(player, freed: false);
+
+            if (Heroes.All(hero => hero.Out) && HomeAt == null)
             {
-                Server.Note(null, FallsLeft > 0 ? $"The offering holds. {FallsLeft} more can fall." : "The offering holds, but only just. One more fall will break it.");
+                Lost = !Liberated;
+                HomeAt = Time + HeroRules.DeathDelay;
+                if (!Lost) return;
+                foreach (ServerPlayer hero in Heroes) Server.Announce(hero, "The land is lost", $"Your next land will be level {hero.Hero.LandLevel}.", HeroRules.DeathDelay);
                 return;
             }
-
-            Broken = true;
-            Server.Announce(null, "The offering is broken", "What was paid is gone. The land stays as it is, and pays no more than any other.", 6f);
+            if (!Liberated) Server.Note(null, $"{player.Name} has fallen, and is out of this land.");
         }
 
-        // The land is free and the offering held, so the gate pays what it owes. A clean run is worth a step more on the climb, and a second hoard.
-        private void Reckon(Vector3 at, int level)
+        /// <summary>What a land means for someone's climb: freed or lost, from this land, and only ever once.</summary>
+        public void Judge(ServerPlayer player, bool freed)
         {
-            if (!Offering.AtStake || Broken) return;
+            if (player.Judged || IsHaven) return;
+            player.Judged = true;
+            if (freed) player.Hero.Freed(World.Plan.Level, Terms.Climb);
+            else player.Hero.Lost(Terms.Climb);
+            player.SummaryChanged = true;
+        }
 
-            bool flawless = Falls == 0;
-            int proven = Offering.Peril > 0 ? Offering.Peril + (flawless ? 1 : 0) : 0;
-            foreach (ServerPlayer hero in Heroes)
-            {
-                if (proven <= hero.Hero.PerilProven) continue;
-                hero.Hero.PerilProven = Math.Min(proven, Offering.MostPeril);
-                hero.SummaryChanged = true;
-            }
-
-            Combat.PayOut(at, level, flawless ? FlawlessHoards : PaidHoards);
-            Server.Announce(null, flawless ? "The offering is paid in full" : "The offering is paid", Offering.Peril > 0 ? $"The gate will bear Peril {Math.Min(proven + Offering.ReachBeyondProven, Offering.MostPeril)} now." : "", 6f);
+        /// <summary>Everyone is going home through a waygate. Anyone whose land isn't free has lost it.</summary>
+        public void Leave()
+        {
+            foreach (ServerPlayer hero in Heroes) Judge(hero, Liberated);
         }
 
         /// <summary>Puts someone's minions on their feet, as many as they're allowed, oldest going first.</summary>
@@ -338,28 +407,15 @@ namespace Dino_Defenders.Server
             state.Cleared = true;
             if (state.Wild) return;
 
-            Server.Note(null, $"{state.Site.Name} is cleared.");
-            Advance(state.Site.Kind == SiteKind.Keep ? ObjectiveKind.SlayWarlord : ObjectiveKind.ClearSites, state.Site.Kind);
-            MarkFreedVillages(state);
+            Server.Note(null, $"{state.Site.Name} is freed.");
+            if (Counts(state)) Advance(ObjectiveKind.FreePlaces);
         }
 
-        private void MarkFreedVillages(SiteState cleared)
-        {
-            foreach (SiteState state in Sites)
-            {
-                if (state.ThreatIndex < 0 || Sites[state.ThreatIndex] != cleared) continue;
-                if (state.Site.Definition.Kind is SiteKind.Village or SiteKind.Hamlet)
-                {
-                    Server.Note(null, $"{state.Site.Name} breathes easier.");
-                }
-            }
-        }
-
-        public void Advance(ObjectiveKind kind, SiteKind site)
+        public void Advance(ObjectiveKind kind)
         {
             foreach (Objective objective in Chronicle.Objectives)
             {
-                if (objective.Kind != kind || objective.Site != site || objective.Done) continue;
+                if (objective.Kind != kind || objective.Done) continue;
                 objective.Progress++;
                 ObjectivesChanged = true;
                 if (!objective.Done) continue;
@@ -370,32 +426,39 @@ namespace Dino_Defenders.Server
                     hero.Hero.Gold += objective.RewardGold;
                     hero.SummaryChanged = true;
                 }
-                foreach (ServerPlayer hero in Heroes) Server.Broadcast(new SoundEvent { Cue = objective.IsMain ? SoundCue.Liberated : SoundCue.Objective }, hero.Sim.Position);
-                Server.Announce(null, objective.IsMain ? "The land is free" : "Chronicle fulfilled", objective.Text, 5f);
-
-                if (objective.IsMain)
+                if (!Chronicle.WorldCleared)
                 {
-                    Liberated = true;
-                    foreach (ServerPlayer hero in Heroes)
-                    {
-                        hero.Hero.WorldsCleared++;
-                        hero.SummaryChanged = true;
-                    }
-                    Server.Note(null, "The waygate will reach further now.");
+                    foreach (ServerPlayer hero in Heroes) Server.Broadcast(new SoundEvent { Cue = SoundCue.Objective }, hero.Sim.Position);
+                    Server.Announce(null, objective.IsMain ? "The tyrant has fallen" : "The land's places are free", objective.Text, 5f);
                 }
             }
+            if (Chronicle.WorldCleared && !Liberated) Free();
         }
 
-        /// <summary>Writes where the world stands into a save. The hero goes in on the player's own machine.</summary>
+        // Everything the land asked is done. Everyone still standing has freed it, which is a level on their climb, and the way home is open from any waygate.
+        private void Free()
+        {
+            Liberated = true;
+            ObjectivesChanged = true;
+            foreach (ServerPlayer hero in Heroes)
+            {
+                if (!hero.Out) Judge(hero, freed: true);
+                Server.Broadcast(new SoundEvent { Cue = SoundCue.Liberated }, hero.Sim.Position);
+            }
+            Server.Announce(null, "The land is free", "Go home through any waygate when you're ready. There's still what it holds, for whoever wants it.", 7f);
+        }
+
+        /// <summary>Writes where the world stands into a save. The hero goes in on the player's own machine. The Haven is always the same, so there's nothing to write, and a land that's over is over.</summary>
         public void Capture(SaveGame save)
         {
+            save.InLand = !IsHaven && !Lost && HomeAt == null;
+            if (!save.InLand) return;
+
             // The request, not what it became: drawing an archetype is part of what a seed makes, so naming it would make another world.
             save.WorldSeed = Request.Seed;
             save.WorldArchetype = Request.ArchetypeId;
             save.WorldLevel = Request.Level;
-            save.Offering = Offering;
-            save.OfferingFalls = Falls;
-            save.OfferingBroken = Broken;
+            save.Terms = Terms.Copy();
 
             save.Objectives = Chronicle.Objectives.Select(o => o.Progress).ToList();
             save.Sites.Clear();
@@ -416,15 +479,13 @@ namespace Dino_Defenders.Server
             }
         }
 
-        /// <summary>Puts a saved world back as it was left.</summary>
+        /// <summary>Puts a saved land back as it was left.</summary>
         public void Restore(SaveGame save)
         {
+            if (IsHaven || !save.InLand) return;
             foreach (SiteRecord record in save.Sites)
             {
                 if (record.Index >= Sites.Count) continue;
-
-                // Packs were numbered differently before version 3, and a mark against one of those would be a mark against somebody else.
-                if (save.Version < 3 && record.Index >= World.Sites.Count) continue;
                 SiteState state = Sites[record.Index];
                 state.Discovered = record.Discovered;
                 state.Cleared = record.Cleared;
@@ -438,10 +499,7 @@ namespace Dino_Defenders.Server
             {
                 Chronicle.Objectives[i].Progress = save.Objectives[i];
             }
-
             Liberated = Chronicle.WorldCleared;
-            Falls = save.OfferingFalls;
-            Broken = save.OfferingBroken;
         }
     }
 }

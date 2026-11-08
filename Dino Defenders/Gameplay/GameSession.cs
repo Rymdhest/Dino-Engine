@@ -61,6 +61,7 @@ namespace Dino_Defenders.Gameplay
         public readonly Dictionary<int, long> Taken = new();    // What's been asked for and is drawn as gone, until when, by the client's clock.
         public readonly HashSet<int> Heard = new();             // Finds this player has already been told about, with a sound and all.
         public readonly LootFetch Fetch = new();
+        public readonly DummyMeter Meter = new();
 
         public HeroState Hero => Client.Hero;
         public ActorSheet Sheet => Client.Sheet;
@@ -83,7 +84,7 @@ namespace Dino_Defenders.Gameplay
         public InteractKind? Offered;
         public Entity OfferedThing;     // What the key would use: the same one the server will pick.
 
-        public GameSession(GameClient client, WorldData world, WorldRequest request, Offering offering) : base(world, request, offering)
+        public GameSession(GameClient client, WorldData world, WorldRequest request, LandTerms terms) : base(world, request, terms)
         {
             Client = client;
             Health = Sheet.MaxHealth;
@@ -106,14 +107,53 @@ namespace Dino_Defenders.Gameplay
             if (Log.Count > 6) Log.RemoveAt(0);
         }
 
-        /// <summary>The nearest goal still open, for the guiding wind and the marker on the screen. Once they are all done, the way out.</summary>
+        /// <summary>
+        /// Where to go next, for the guiding wind and the mark on the screen: the nearest place still to free while the land asks for more, then its tyrant, and once the land is free the nearest
+        /// waygate home. In the Haven, the map table, until the way is open, and then the waygate.
+        /// </summary>
         public void UpdateGuidance()
         {
-            Guidance = Chronicle.NextTarget(World, site =>
+            Guidance = null;
+            Vector2 at = PlayerPosition;
+            if (IsHaven)
             {
-                SiteState state = Sites[site.Id];
-                return site.Kind == SiteKind.Shrine ? state.Kindled : state.Cleared;
-            }, PlayerPosition) ?? World.Sites[0].Position;
+                SpawnRole wanted = Client.Portal != null ? SpawnRole.Waygate : SpawnRole.MapTable;
+                foreach (SiteSpawn spawn in World.Sites[0].Spawns)
+                {
+                    if (spawn.Role == wanted) Guidance = spawn.Position;
+                }
+                return;
+            }
+
+            if (Liberated || Client.Out)
+            {
+                Guidance = Nearest(at, state => HasWaygate(state) && state.Discovered) ?? Nearest(at, HasWaygate);
+                return;
+            }
+
+            Objective? places = Chronicle.Objectives.FirstOrDefault(objective => objective.Kind == ObjectiveKind.FreePlaces);
+            if (places is { Done: false })
+            {
+                Guidance = Nearest(at, state => Counts(state) && !state.Cleared);
+                if (Guidance != null) return;
+            }
+
+            Guidance = Nearest(at, state => state.Site.Kind == SiteKind.Keep && !state.Cleared) ?? Nearest(at, state => state.Site.Kind == SiteKind.Keep);
+        }
+
+        private Vector2? Nearest(Vector2 from, Func<SiteState, bool> wanted)
+        {
+            Vector2? best = null;
+            float distance = float.PositiveInfinity;
+            foreach (SiteState state in Sites)
+            {
+                if (state.Wild || !wanted(state)) continue;
+                float away = (state.Site.Position - from).LengthSquared;
+                if (away >= distance) continue;
+                distance = away;
+                best = state.Site.Position;
+            }
+            return best;
         }
     }
 }

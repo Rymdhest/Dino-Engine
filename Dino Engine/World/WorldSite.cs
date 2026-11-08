@@ -18,6 +18,9 @@ namespace Dino_Engine.World
         Waygate,        // The way in and out of the world.
         Beast,          // A hostile that lives wild.
         Cultist,        // A hostile in the service of the land's powers.
+        Stash,          // Where what's put away can be got at.
+        MapTable,       // Where the next land is chosen, in the Haven.
+        Dummy,          // Something to try a build on, in the Haven, that stands and takes it.
     }
 
     public static class SpawnRoles

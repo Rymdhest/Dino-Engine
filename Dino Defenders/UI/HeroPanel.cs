@@ -30,12 +30,15 @@ namespace Dino_Defenders.UI
         Sold,
         Bar,
         Held,       // Inside something: its index is the place's own number.
+        Stash,      // Put away: its index is the tab times the size of one, and the cell.
     }
 
-    /// <summary>A place something can be in this panel: on the hero, or on a merchant's table.</summary>
+    /// <summary>A place something can be in this panel: on the hero, on a merchant's table, or in the stash.</summary>
     internal readonly record struct Spot(Shelf Shelf, int Index)
     {
         public bool OnHero => Shelf is Shelf.Pack or Shelf.Worn or Shelf.Bar or Shelf.Held;
+        public int Tab => Index / Stash.TabSize;
+        public int Cell => Index % Stash.TabSize;
         public ItemPlace Place => Shelf switch
         {
             Shelf.Pack => ItemPlace.Cell(Index),
@@ -62,8 +65,11 @@ namespace Dino_Defenders.UI
 
         private readonly HeroPanel _panel;
         private readonly ItemSlot? _slot;
+        private readonly Spot _spot;
+        private readonly Func<Spot>? _spotNow;
 
-        public readonly Spot Spot;
+        /// <summary>Where this cell is. A stash cell is a different place on each tab.</summary>
+        public Spot Spot => _spotNow?.Invoke() ?? _spot;
 
         /// <summary>What's keeping this place from being used, and shows in it, faintly: something two-handed, in the off hand.</summary>
         public Func<Item?>? TakenBy;
@@ -74,10 +80,11 @@ namespace Dino_Defenders.UI
         /// <summary>Whether what's in it shows how much room it has.</summary>
         protected bool ShowsPlaces = true;
 
-        public ItemCell(HeroPanel panel, Spot spot, float size = Size, ItemSlot? slot = null)
+        public ItemCell(HeroPanel panel, Spot spot, float size = Size, ItemSlot? slot = null, Func<Spot>? spotNow = null)
         {
             _panel = panel;
-            Spot = spot;
+            _spot = spot;
+            _spotNow = spotNow;
             _slot = slot;
             Width = size;
             Height = size;
@@ -225,6 +232,10 @@ namespace Dino_Defenders.UI
 
         private readonly GuiElement _sheet;
         private readonly GuiElement _market;
+        private readonly GuiElement _stash;
+        private readonly List<Button> _tabs = new();
+        private bool _stashing;
+        private int _tab;
         private readonly Label _title;
         private readonly TextBox _search;
         private readonly Button _clear;
@@ -266,6 +277,7 @@ namespace Dino_Defenders.UI
             AddStats(sheet.Content.Add(new StackPanel(Orientation.Vertical, 1f) { Width = UIValue.Fill, Height = UIValue.Auto }));
             _sheet = sheet;
             _market = left.Add(BuildMarket());
+            _stash = left.Add(BuildStash());
 
             columns.Add(BuildStage());
 
@@ -297,7 +309,7 @@ namespace Dino_Defenders.UI
 
             var help = right.Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Auto, Margin = new Thickness(0f, 6f, 0f, 0f) });
             help.Add(Ui.Line("Click to pick up and put down, or drag", 13f, Ui.Faded));
-            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => _merchant != null ? $"{Bindings.Label(GameAction.Details)}-click to sell, right-click to wear" : $"{Bindings.Label(GameAction.Details)}-click or right-click to wear"));
+            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => _stashing ? $"{Bindings.Label(GameAction.Details)}-click to put away or take out, right-click to wear" : _merchant != null ? $"{Bindings.Label(GameAction.Details)}-click to sell, right-click to wear" : $"{Bindings.Label(GameAction.Details)}-click or right-click to wear"));
             help.Add(Ui.Line("Right-click a Book or a Page to open it, and drag a Book to the bar to use it", 13f, Ui.Faded));
             help.Add(Ui.Line("Drag off the panel to drop on the ground", 13f, Ui.Faded));
             help.Add(Ui.Line("Click a place on the hero to see what fits it", 13f, Ui.Faded));
@@ -325,6 +337,44 @@ namespace Dino_Defenders.UI
             Button flasks = market.Add(Ui.Action($"Fill flasks ({FlaskPrice} gold each)", BuyFlasks));
             flasks.Height = 28f;
             return market;
+        }
+
+        private const float StashCell = 44f;
+        private const float StashGap = 4f;
+
+        // What's put away, shared by every hero on this machine, a tab at a time, with the same cells and the same ways of moving things as the pack.
+        private GuiElement BuildStash()
+        {
+            var stash = new StackPanel(Orientation.Vertical, 6f) { Width = UIValue.Fill, Height = UIValue.Fill, Visible = false };
+            stash.MouseDown += e => PressOn(stash, e);
+
+            stash.Add(Ui.Line("Shared by all your heroes", 13.5f, Ui.Faded));
+            var tabs = stash.Add(new StackPanel(Orientation.Horizontal, 4f) { Width = UIValue.Fill, Height = 28f });
+            for (int t = 0; t < Stash.TabCount; t++)
+            {
+                int tab = t;
+                Button button = tabs.Add(Ui.Action(Numeral(tab), () => ShowTab(tab)));
+                button.Width = UIValue.Relative(1f / Stash.TabCount, -3f);
+                button.Height = 28f;
+                _tabs.Add(button);
+            }
+
+            var cells = stash.Add(new GridPanel(Stash.Columns, StashGap, StashGap));
+            for (int i = 0; i < Stash.TabSize; i++)
+            {
+                int cell = i;
+                cells.Add(new ItemCell(this, new Spot(Shelf.Stash, cell), StashCell, spotNow: () => new Spot(Shelf.Stash, _tab * Stash.TabSize + cell)));
+            }
+            stash.Add(Ui.Paragraph("", 13.5f, Ui.Blood).Bind(() => Session.Client.Stash == null ? "Your stash is open in another copy of the game." : ""));
+            return stash;
+        }
+
+        private static string Numeral(int tab) => tab switch { 0 => "I", 1 => "II", 2 => "III", _ => "IV" };
+
+        private void ShowTab(int tab)
+        {
+            Audio.Play(Interface.Click);
+            _tab = tab;
         }
 
         // Head to toe down one side, what's on them down the other, and both hands below.
@@ -394,12 +444,24 @@ namespace Dino_Defenders.UI
         public void Open(SiteState? merchant)
         {
             _merchant = merchant;
+            _stashing = false;
+            _stash.Visible = false;
             _market.Visible = merchant != null;
             _sheet.Visible = merchant == null;
             _title.Text = merchant != null ? merchant.Site.Name : "The Hero";
             _looking = null;
             _lookingAt = null;
             Forget();
+        }
+
+        /// <summary>Shows the panel with the stash beside the pack, as it is at a strongbox.</summary>
+        public void OpenStash()
+        {
+            Open(null);
+            _stashing = true;
+            _sheet.Visible = false;
+            _stash.Visible = true;
+            _title.Text = "The Stash";
         }
 
         /// <summary>Puts down whatever's been picked up, which is only to say it was never anywhere else.</summary>
@@ -456,6 +518,7 @@ namespace Dino_Defenders.UI
 
             IEnumerable<Item> looking = Hero.Carried();
             if (_merchant != null) looking = looking.Concat(_merchant.Table.Stock.OfType<Item>()).Concat(_merchant.Table.Sold.OfType<Item>());
+            if (_stashing && Session.Client.Stash is Stash stash) looking = looking.Concat(stash.Kept());
             return $"{looking.Count(item => ItemSearch.Finds(item, _words))} found";
         }
 
@@ -464,13 +527,14 @@ namespace Dino_Defenders.UI
         {
             Shelf.Stock => OnShelf(_merchant?.Table.Stock, spot.Index),
             Shelf.Sold => OnShelf(_merchant?.Table.Sold, spot.Index),
+            Shelf.Stash => Session.Client.Stash?.At(spot.Tab, spot.Cell),
             _ => Hero.At(spot.Place),
         };
 
         private static Item? OnShelf(Item?[]? shelf, int index) => shelf != null && index < shelf.Length ? shelf[index] : null;
 
         /// <summary>What something on the table costs, to show on it.</summary>
-        public int? PriceOn(Spot spot, Item item) => spot.OnHero ? null : MerchantTable.PriceOf(item, spot.Shelf == Shelf.Sold);
+        public int? PriceOn(Spot spot, Item item) => spot.OnHero || spot.Shelf == Shelf.Stash ? null : MerchantTable.PriceOf(item, spot.Shelf == Shelf.Sold);
 
         public CellMood MoodOf(ItemCell cell, Item? item)
         {
@@ -509,6 +573,27 @@ namespace Dino_Defenders.UI
 
             var cell = under as ItemCell;
             if (cell != null && cell.Spot == from) return new Plan("", () => Audio.Play(Interface.Click));
+
+            // Out of the stash, into the pack, or to another of its cells.
+            if (from.Shelf == Shelf.Stash)
+            {
+                if (cell?.Spot.Shelf == Shelf.Pack) return new Plan(Hero.Inventory[cell.Spot.Index] != null ? "Swap" : "Take out", () => Unstow(from, cell.Spot.Index));
+                if (cell?.Spot.Shelf == Shelf.Stash) return new Plan(ItemAt(cell.Spot) != null ? "Swap" : "", () => Restack(from, cell.Spot));
+                return Plan.Nothing;
+            }
+
+            // Into the stash, from anywhere on the hero. Only the pack can take back what's there.
+            if (_stashing && cell?.Spot.Shelf == Shelf.Stash)
+            {
+                if (ItemAt(cell.Spot) != null && from.Shelf != Shelf.Pack) return Plan.Refuse("Put it in your pack first");
+                if (from.Shelf == Shelf.Held) return Plan.Refuse("Take it out of the Book first");
+                return new Plan(ItemAt(cell.Spot) != null ? "Swap" : "Put away", () => Stow(from, cell.Spot));
+            }
+            if (_stashing && _stash.Contains(under) && from.OnHero)
+            {
+                if (from.Shelf == Shelf.Held) return Plan.Refuse("Take it out of the Book first");
+                return Session.Client.Stash?.FreeCell(_tab) is int free and >= 0 ? new Plan("Put away", () => Stow(from, new Spot(Shelf.Stash, _tab * Stash.TabSize + free))) : Plan.Refuse("This tab is full");
+            }
 
             // From the table, the only place it can go is the pack.
             if (!from.OnHero)
@@ -665,6 +750,12 @@ namespace Dino_Defenders.UI
                 case Shelf.Held:
                     Unslot(spot);
                     break;
+                case Shelf.Stash:
+                    TakeOut(spot);
+                    break;
+                case Shelf.Pack when _stashing && !rightClick:
+                    PutAway(spot);
+                    break;
                 case Shelf.Pack when _merchant != null && !rightClick:
                     Sell(spot);
                     break;
@@ -688,6 +779,55 @@ namespace Dino_Defenders.UI
                     break;
             }
             GameUi.Current.Tips.LetGo();
+        }
+
+        // Into the first free cell of the tab that's showing, or of any tab.
+        private void PutAway(Spot from)
+        {
+            if (Session.Client.Stash is not Stash stash)
+            {
+                Refuse("Your stash is open in another copy of the game");
+                return;
+            }
+            for (int look = 0; look < Stash.TabCount; look++)
+            {
+                int tab = (_tab + look) % Stash.TabCount;
+                int free = stash.FreeCell(tab);
+                if (free < 0) continue;
+                Stow(from, new Spot(Shelf.Stash, tab * Stash.TabSize + free));
+                return;
+            }
+            Refuse("Your stash is full");
+        }
+
+        private void TakeOut(Spot from)
+        {
+            if (!Hero.HasRoom())
+            {
+                Refuse("Your pack is full");
+                return;
+            }
+            Audio.Play(Interface.Click);
+            Session.Client.Unstow(from.Tab, from.Cell);
+        }
+
+        // All of these are done here at once and asked of the server, which has the last word, the same as anything else that moves what's carried.
+        private static void Stow(Spot from, Spot to)
+        {
+            Audio.Play(Interface.Click);
+            Session.Client.Stow(from.Place, to.Tab, to.Cell);
+        }
+
+        private static void Unstow(Spot from, int into)
+        {
+            Audio.Play(Interface.Click);
+            Session.Client.Unstow(from.Tab, from.Cell, into);
+        }
+
+        private static void Restack(Spot from, Spot to)
+        {
+            Audio.Play(Interface.Click);
+            Session.Client.Shift(from.Tab, from.Cell, to.Tab, to.Cell);
         }
 
         private static void ToBar(Spot from)
@@ -812,8 +952,13 @@ namespace Dino_Defenders.UI
         {
             if (Context == null) return;
 
-            // Where it can be sold is all of the merchant's side.
+            // Where it can be sold is all of the merchant's side, and where it can be put away all of the stash.
             if (_merchant != null && _hand is Spot held && held.OnHero) draw.AddRect(_market.Bounds.Inflate(5f), GuiColors.Rgba(214, 172, 92, 18), 3f, 1.5f, Ui.Gold.MultiplyAlpha(0.8f));
+            if (_stashing && _hand is Spot lifted && lifted.OnHero) draw.AddRect(_stash.Bounds.Inflate(5f), GuiColors.Rgba(214, 188, 146, 14), 3f, 1.5f, GuiColors.Rgba(214, 188, 146, 160));
+            for (int t = 0; t < _tabs.Count && _stashing; t++)
+            {
+                if (t == _tab) draw.AddRect(_tabs[t].Bounds.Inflate(1f), GuiColors.Transparent, 2f, 1.5f, Ui.Gold);
+            }
 
             if (_lookingAt is StatLine line) GameUi.Current.Tips.Show(line.Card, line.Bounds);
             if (_hand != null || _looking is not Spot spot) return;

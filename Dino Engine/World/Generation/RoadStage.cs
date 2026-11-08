@@ -44,7 +44,7 @@ namespace Dino_Engine.World.Generation
             var waiting = new List<WorldSite>();
             foreach (WorldSite site in world.Sites)
             {
-                if (site.Kind == SiteKind.Landing) connected.Add(site);
+                if (site.Kind is SiteKind.Landing or SiteKind.Haven) connected.Add(site);
                 else waiting.Add(site);
             }
             connected[0].OnRoad = true;

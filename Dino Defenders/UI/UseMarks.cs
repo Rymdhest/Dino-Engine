@@ -198,6 +198,9 @@ namespace Dino_Defenders.UI
             {
                 InteractKind.Shrine => StructureCatalog.Altar.Id,
                 InteractKind.Waygate => StructureCatalog.Waygate.Id,
+                InteractKind.Portal => StructureCatalog.GreatWaygate.Id,
+                InteractKind.MapTable => StructureCatalog.MapTable.Id,
+                InteractKind.Stash => StructureCatalog.Strongbox.Id,
                 _ => null,
             };
             if (model == null) return position;
@@ -278,8 +281,10 @@ namespace Dino_Defenders.UI
         {
             InteractKind.Shrine => "Shrine",
             InteractKind.Chest => "Chest",
-            InteractKind.Waygate => "Waygate",
+            InteractKind.Waygate or InteractKind.Portal => "Waygate",
             InteractKind.Merchant => "Merchant",
+            InteractKind.Stash => "Stash",
+            InteractKind.MapTable => "Map Table",
             _ => "Elder",
         };
 
@@ -289,6 +294,9 @@ namespace Dino_Defenders.UI
             InteractKind.Shrine => 4.4f,
             InteractKind.Chest => 2.3f,
             InteractKind.Waygate => 5f,
+            InteractKind.Portal => 7.5f,
+            InteractKind.MapTable => 3f,
+            InteractKind.Stash => 3.6f,
             _ => 5.2f,
         };
 
@@ -297,7 +305,9 @@ namespace Dino_Defenders.UI
         {
             InteractKind.Shrine => GuiColors.Rgba(112, 236, 176),
             InteractKind.Chest => GuiColors.Rgba(246, 190, 84),
-            InteractKind.Waygate => GuiColors.Rgba(104, 206, 255),
+            InteractKind.Waygate or InteractKind.Portal => GuiColors.Rgba(104, 206, 255),
+            InteractKind.MapTable => GuiColors.Rgba(150, 214, 255),
+            InteractKind.Stash => GuiColors.Rgba(214, 188, 146),
             _ => GuiColors.Rgba(240, 228, 204),
         };
 
@@ -311,7 +321,29 @@ namespace Dino_Defenders.UI
                     draw.AddLine(c + new Vector2(-s, -s * 0.05f), c + new Vector2(s, -s * 0.05f), colour, Stroke);
                     draw.AddCircle(c + new Vector2(0f, -s * 0.05f), s * 0.3f, colour);
                     break;
+                case InteractKind.Stash:
+                    draw.AddRect(new GuiRect(c.X - s, c.Y - s * 0.55f, s * 2f, s * 1.4f), GuiColors.Transparent, s * 0.2f, Stroke, colour);
+                    draw.AddLine(c + new Vector2(-s, -s * 0.05f), c + new Vector2(s, -s * 0.05f), colour, Stroke);
+                    draw.AddRect(new GuiRect(c.X - s * 0.28f, c.Y - s * 1.05f, s * 0.56f, s * 0.6f), GuiColors.Transparent, s * 0.28f, Stroke, colour);
+                    draw.AddCircle(c + new Vector2(0f, s * 0.35f), s * 0.2f, colour);
+                    break;
+                case InteractKind.MapTable:
+                    _line.Clear();
+                    _line.Add(c + new Vector2(-s, -s * 0.7f));
+                    _line.Add(c + new Vector2(-s * 0.33f, -s * 0.9f));
+                    _line.Add(c + new Vector2(s * 0.33f, -s * 0.7f));
+                    _line.Add(c + new Vector2(s, -s * 0.9f));
+                    _line.Add(c + new Vector2(s, s * 0.7f));
+                    _line.Add(c + new Vector2(s * 0.33f, s * 0.9f));
+                    _line.Add(c + new Vector2(-s * 0.33f, s * 0.7f));
+                    _line.Add(c + new Vector2(-s, s * 0.9f));
+                    _line.Add(c + new Vector2(-s, -s * 0.7f));
+                    draw.AddPolyline(_line, colour, Stroke);
+                    draw.AddLine(c + new Vector2(-s * 0.33f, -s * 0.9f), c + new Vector2(-s * 0.33f, s * 0.7f), colour, 1.2f);
+                    draw.AddLine(c + new Vector2(s * 0.33f, -s * 0.7f), c + new Vector2(s * 0.33f, s * 0.9f), colour, 1.2f);
+                    break;
                 case InteractKind.Waygate:
+                case InteractKind.Portal:
                     _line.Clear();
                     for (int i = 0; i <= 12; i++)
                     {

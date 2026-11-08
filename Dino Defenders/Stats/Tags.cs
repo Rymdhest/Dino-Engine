@@ -245,7 +245,7 @@ namespace Dino_Defenders.Stats
         NormalWorn,
         UniquesWorn,
         Carried,                // Things in the pack.
-        Peril,                  // Of the land you're in.
+        LandLevel,              // Of the land you're in.
         Omens,                  // On the land you're in.
         RaresSlain,             // Rare enemies and bosses, since you last fell.
         FightSeconds,           // Spent fighting without a break.
@@ -274,7 +274,7 @@ namespace Dino_Defenders.Stats
         public byte NormalWorn;
         public byte UniquesWorn;
         public byte Carried;
-        public byte Peril;
+        public byte LandLevel;
         public byte Omens;
         public byte RaresSlain;
         public byte FightSeconds;
@@ -286,7 +286,7 @@ namespace Dino_Defenders.Stats
             return Gold == other.Gold && ShrinesKindled == other.ShrinesKindled && RecentKills == other.RecentKills
                 && HealthSpent == other.HealthSpent && Minions == other.Minions && AlliesNear == other.AlliesNear
                 && EnemiesNear == other.EnemiesNear && Ailments == other.Ailments && EmptySlots == other.EmptySlots && NormalWorn == other.NormalWorn
-                && UniquesWorn == other.UniquesWorn && Carried == other.Carried && Peril == other.Peril && Omens == other.Omens
+                && UniquesWorn == other.UniquesWorn && Carried == other.Carried && LandLevel == other.LandLevel && Omens == other.Omens
                 && RaresSlain == other.RaresSlain && FightSeconds == other.FightSeconds && Streak == other.Streak && Variety == other.Variety;
         }
 
@@ -313,7 +313,7 @@ namespace Dino_Defenders.Stats
             Per.NormalWorn => NormalWorn,
             Per.UniquesWorn => UniquesWorn,
             Per.Carried => Carried,
-            Per.Peril => Peril,
+            Per.LandLevel => LandLevel,
             Per.Omens => Omens,
             Per.RaresSlain => RaresSlain,
             Per.FightSeconds => FightSeconds,
@@ -341,7 +341,7 @@ namespace Dino_Defenders.Stats
             if ((read & Bit(Per.NormalWorn)) != 0) only.NormalWorn = NormalWorn;
             if ((read & Bit(Per.UniquesWorn)) != 0) only.UniquesWorn = UniquesWorn;
             if ((read & Bit(Per.Carried)) != 0) only.Carried = Carried;
-            if ((read & Bit(Per.Peril)) != 0) only.Peril = Peril;
+            if ((read & Bit(Per.LandLevel)) != 0) only.LandLevel = LandLevel;
             if ((read & Bit(Per.Omens)) != 0) only.Omens = Omens;
             if ((read & Bit(Per.RaresSlain)) != 0) only.RaresSlain = RaresSlain;
             if ((read & Bit(Per.FightSeconds)) != 0) only.FightSeconds = FightSeconds;
@@ -364,7 +364,7 @@ namespace Dino_Defenders.Stats
             writer.WriteByte(NormalWorn);
             writer.WriteByte(UniquesWorn);
             writer.WriteByte(Carried);
-            writer.WriteByte(Peril);
+            writer.WriteByte(LandLevel);
             writer.WriteByte(Omens);
             writer.WriteByte(RaresSlain);
             writer.WriteByte(FightSeconds);
@@ -386,7 +386,7 @@ namespace Dino_Defenders.Stats
             NormalWorn = reader.ReadByte(),
             UniquesWorn = reader.ReadByte(),
             Carried = reader.ReadByte(),
-            Peril = reader.ReadByte(),
+            LandLevel = reader.ReadByte(),
             Omens = reader.ReadByte(),
             RaresSlain = reader.ReadByte(),
             FightSeconds = reader.ReadByte(),

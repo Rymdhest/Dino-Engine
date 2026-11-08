@@ -138,6 +138,15 @@ namespace Dino_Defenders.Progression
         /// <summary>Of what comes out, how much is something for a book, as what a book can do is half of what a build is.</summary>
         public const float FolioShare = 0.3f;
 
+        /// <summary>Of what comes out, how much is orders, which is what the next land is made of.</summary>
+        public const float OrdersShare = 0.05f;
+
+        // The orders a tyrant always has on it, by rarity: better than what's found lying about, as what's at the end of a land should be worth the end of one.
+        private const float TyrantOrdersUnique = 0.08f;
+        private const float TyrantOrdersRare = 0.45f;
+        private const float TyrantOrdersMagic = 0.4f;
+        private const float TyrantOrdersQuality = 0.5f;
+
         /// <summary>From where a hero can pick something up. The server allows a little more than a client walks to, as it sees the hero a moment late.</summary>
         public const float Reach = 3f;
         public const float ServerReach = Reach + 2.5f;
@@ -192,6 +201,9 @@ namespace Dino_Defenders.Progression
         // A unique is one of a kind, and the same one twice out of one chest reads as a mistake. Where there's nothing else it can be, it can be that.
         private static Item Fresh(List<Item> others, int level, WorldRandom random, Rarity rarity, float quality)
         {
+            WorldRandom orders = random.Fork("orders");
+            if (orders.Chance(OrdersShare)) return OrdersMaker.Roll(level, orders, rarity, quality);
+
             WorldRandom folio = random.Fork("folio");
             if (rarity != Rarity.Unique && folio.Chance(FolioShare)) return ItemGenerator.Folio(level, folio, rarity);
 
@@ -201,6 +213,16 @@ namespace Dino_Defenders.Progression
                 item = ItemGenerator.Forge(level, random, rarity, quality);
             }
             return item;
+        }
+
+        /// <summary>The orders a tyrant has on it.</summary>
+        public static Item OrdersFrom(int level, WorldRandom random, in LootBoon boon)
+        {
+            float roll = random.Float();
+            Rarity rarity = (roll -= MathF.Min(TyrantOrdersUnique * boon.Uniques, MostUnique)) < 0f ? Rarity.Unique
+                : (roll -= TyrantOrdersRare) < 0f ? Rarity.Rare
+                : roll - TyrantOrdersMagic < 0f ? Rarity.Magic : Rarity.Normal;
+            return OrdersMaker.Roll(level, random.Fork("orders"), rarity, MathF.Min(TyrantOrdersQuality + boon.Quality, 1f));
         }
 
         private static Rarity Draw(LootTable table, float fortune, LootLuck luck, float uniques, WorldRandom random)

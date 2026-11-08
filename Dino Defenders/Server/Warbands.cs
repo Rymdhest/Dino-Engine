@@ -37,30 +37,39 @@ namespace Dino_Defenders.Server
         private readonly int _leaderTraits;
         private readonly int _sharedTrait;
         private readonly float _magicFollowers;
+        private readonly bool _noneNormal;
 
         /// <param name="free">Whether this is a pack of its own, rather than some of the people of a place.</param>
-        /// <param name="offering">What's been paid on this land. Whoever has paid for trouble isn't taking their first steps.</param>
-        public PackOrders(WorldData world, WorldSite site, SpawnRole folk, int level, bool free, WorldRandom random, Offering offering)
+        /// <param name="terms">What the land holds. Whoever has asked for trouble isn't taking their first steps.</param>
+        public PackOrders(WorldData world, WorldSite site, SpawnRole folk, int level, bool free, WorldRandom random, LandTerms terms)
         {
-            bool warhost = offering.Has(Omens.Warhost);
+            float warhost = terms.ValueOf(Omens.Warhost);
+            float bred = 1f + terms.ValueOf(Omens.Bloodlines) / 100f;
+            UniqueOrders? unique = terms.Unique();
+            _noneNormal = unique == OrdersCatalog.Bred;
             _recipe = Warbands.RecipeFor(world, site, folk, random.Fork("recipe"));
-            _firstSteps = world.Plan.Level <= 1 && site.Remoteness < 0.2f && !offering.AtStake;
+            _firstSteps = world.Plan.Level <= 1 && site.Remoteness < 0.2f && !terms.Any;
             _leaderTraits = Bestiary.NoTraits;
             _sharedTrait = Bestiary.NoTraits;
             if (!free || _firstSteps) return;
 
-            _magicFollowers = MathF.Min(MagicFollowersAtFirst + MagicFollowersPerLevel * level, MostMagicFollowers);
-            _led = _recipe.Leaders.Length > 0 && (site.Haunt == HauntKind.Camp || random.Chance(warhost ? 1f : MathF.Min(LedAtFirst + LedPerLevel * level, MostLed)));
+            _magicFollowers = MathF.Min((MagicFollowersAtFirst + MagicFollowersPerLevel * level) * bred, MostMagicFollowers * bred);
+            bool ledger = unique == OrdersCatalog.Ledger;
+            _led = _recipe.Leaders.Length > 0 && (site.Haunt == HauntKind.Camp || ledger || random.Chance(warhost > 0f ? 1f : MathF.Min(LedAtFirst + LedPerLevel * level, MostLed)));
             if (!_led) return;
 
-            float rares = MathF.Min(RareLeaderAtFirst + RareLeaderPerLevel * level, MostRareLeaders);
-            if (random.Chance(warhost ? MathF.Min(rares * Rulebook.WarhostLeaderRares, Rulebook.MostWarhostLeaderRares) : rares))
+            float rares = MathF.Min(RareLeaderAtFirst + RareLeaderPerLevel * level, MostRareLeaders) * bred;
+            if (warhost > 0f) rares = MathF.Min(rares * (1f + warhost / 100f), Rulebook.MostWarhostLeaderRares);
+            if (ledger || random.Chance(rares))
             {
                 _leaderRarity = Rarity.Rare;
                 if (random.Chance(MathF.Min(SharedTraitAtFirst + SharedTraitPerLevel * level, MostSharedTraits))) _sharedTrait = Bestiary.Trait(random.Int(Bestiary.Traits.Length));
             }
-            else if (random.Chance(MagicLeaders)) _leaderRarity = Rarity.Magic;
+            else if (random.Chance(MagicLeaders) || _noneNormal) _leaderRarity = Rarity.Magic;
             _leaderTraits = Bestiary.Fill(_sharedTrait, _leaderRarity, random.Fork("leader"));
+
+            // A ledger's leaders were bred for more than the rest.
+            if (ledger) _leaderTraits = Bestiary.OneMore(_leaderTraits, random.Fork("ledger"));
         }
 
         /// <summary>Who stands at this place in the pack. The first place is the leader's, if it has one.</summary>
@@ -74,7 +83,7 @@ namespace Dino_Defenders.Server
 
             // Nothing normal has a trait, so whoever has taken after their leader is more than that.
             if (_sharedTrait != Bestiary.NoTraits) return (kind, Rarity.Magic, _sharedTrait);
-            return (kind, random.Chance(_magicFollowers) ? Rarity.Magic : Rarity.Normal, Bestiary.NoTraits);
+            return (kind, _noneNormal || random.Chance(_magicFollowers) ? Rarity.Magic : Rarity.Normal, Bestiary.NoTraits);
         }
     }
 

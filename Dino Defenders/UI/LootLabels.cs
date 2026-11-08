@@ -164,7 +164,7 @@ namespace Dino_Defenders.UI
                         _widths[pickup.Find] = width;
                     }
 
-                    float boxWidth = width + PaddingX * 2f + (item.IsFolio ? IconRoom(size) : 0f);
+                    float boxWidth = width + PaddingX * 2f + (Iconed(item) ? IconRoom(size) : 0f);
                     float boxHeight = size + 5f + PaddingY * 2f;
                     _labels.Add(new Label
                     {
@@ -224,17 +224,28 @@ namespace Dino_Defenders.UI
             Colour dark = GuiColors.Rgba(14, 10, 8);
             Colour text = hovered ? dark : colour;
             float size = Sizes[rarity];
-            float room = label.Item.IsFolio ? IconRoom(size) : 0f;
+            float room = Iconed(label.Item) ? IconRoom(size) : 0f;
             Ui.Text(Context!, draw, label.Name, size, new GuiRect(rect.X, rect.Y, rect.Width - room, rect.Height), text, Alignment.Center);
-            if (label.Item.IsFolio) DrawIcon(draw, label.Item, new Vector2(rect.Right - PaddingX - size * IconShare, rect.Y + rect.Height * 0.5f), size * IconShare, text, hovered ? colour : dark);
+            if (Iconed(label.Item)) DrawIcon(draw, label.Item, new Vector2(rect.Right - PaddingX - size * IconShare, rect.Y + rect.Height * 0.5f), size * IconShare, text, hovered ? colour : dark);
         }
 
         private static float IconRoom(float size) => size * IconShare * 2f + IconGap;
 
-        // Told apart by their outlines, as details are lost at this size: a book is solid, a page is open and a sticker is round. They're in the label's colour, as colour is what rarity says.
+        // What's marked as more than gear: what goes in a book, and orders, which are what the next land is made of.
+        private static bool Iconed(Item item) => item.IsFolio || item.IsOrders;
+
+        // Told apart by their outlines, as details are lost at this size: a book is solid, a page is open, a sticker is round and orders are rolled and sealed. They're in the label's colour, as colour is what rarity says.
         private static void DrawIcon(GuiDrawList draw, Item item, Vector2 c, float s, Colour ink, Colour cut)
         {
             const float Stroke = 1.8f;
+            if (item.IsOrders)
+            {
+                draw.AddRect(new GuiRect(c.X - s * 0.95f, c.Y - s * 0.55f, s * 1.9f, s * 1.1f), ink, s * 0.55f);
+                draw.AddLine(c + new Vector2(-s * 0.55f, -s * 0.55f), c + new Vector2(-s * 0.55f, s * 0.55f), cut, Stroke);
+                draw.AddLine(c + new Vector2(s * 0.55f, -s * 0.55f), c + new Vector2(s * 0.55f, s * 0.55f), cut, Stroke);
+                draw.AddCircle(c, s * 0.28f, cut);
+                return;
+            }
             if (item.IsBook)
             {
                 draw.AddRect(new GuiRect(c.X - s * 0.8f, c.Y - s, s * 1.6f, s * 2f), ink, s * 0.2f);

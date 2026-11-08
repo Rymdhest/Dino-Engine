@@ -1,4 +1,5 @@
 ﻿using Dino_Defenders.Net;
+using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.ECS_Architecture;
@@ -49,8 +50,8 @@ namespace Dino_Defenders
             NetSchema.Build();
 
             uint secret = options.Secret != null ? NetSchema.Fnv(options.Secret) : InviteCode.NewSecret();
-            var request = new WorldRequest(options.Seed ?? Environment.TickCount, options.Archetype, options.Level);
-            var server = new GameServer(new ServerSettings { Request = request, Offering = options.Offering, StartSite = options.Site }, new WorldCache());
+            var request = options.Haven ? Lands.Haven : new WorldRequest(options.Seed ?? Environment.TickCount, options.Archetype, options.Level);
+            var server = new GameServer(new ServerSettings { Request = request, Terms = options.Terms(options.Level), StartSite = options.Site }, new WorldCache());
             server.AddTransport(UdpTransport.Host(options.Port, InviteCode.KeyFor(secret)));
             using var host = new ServerHost(server);
 

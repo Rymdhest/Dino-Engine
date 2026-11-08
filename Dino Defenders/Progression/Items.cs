@@ -23,6 +23,7 @@ namespace Dino_Defenders.Progression
         Book,       // Worn nowhere: it goes on the bar. See BOOKS.md.
         Page,       // Goes in a book.
         Sticker,    // Goes on a page.
+        Orders,     // Given to the waygate in the Haven, for the next land. See LANDS.md.
     }
 
     /// <summary>A place on a hero. These line up with <see cref="ItemSlot"/> as far as the first finger, which <see cref="WornSlots"/> relies on.</summary>
@@ -188,9 +189,13 @@ namespace Dino_Defenders.Progression
         public bool IsBook => Slot == ItemSlot.Book;
         public bool IsPage => Slot == ItemSlot.Page;
         public bool IsSticker => Slot == ItemSlot.Sticker;
+        public bool IsOrders => Slot == ItemSlot.Orders;
 
         /// <summary>Whether it's something that goes in a book, or a book, rather than something worn.</summary>
-        public bool IsFolio => Slot >= ItemSlot.Book;
+        public bool IsFolio => Slot is ItemSlot.Book or ItemSlot.Page or ItemSlot.Sticker;
+
+        /// <summary>Whether it's something that can be worn somewhere on a hero.</summary>
+        public bool IsWorn => Slot < ItemSlot.Book;
 
         /// <summary>How many places it has for something else.</summary>
         public int Places => Held?.Length ?? 0;
@@ -694,6 +699,11 @@ namespace Dino_Defenders.Progression
         /// </summary>
         public static void Fix(Item item)
         {
+            if (item.IsOrders)
+            {
+                OrdersMaker.Fix(item);
+                return;
+            }
             if (item.Unique != null && UniqueCatalog.Find(item.Unique) == null) item.Unique = null;
             if (item.Unique != null)
             {

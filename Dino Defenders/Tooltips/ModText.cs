@@ -396,7 +396,7 @@ namespace Dino_Defenders.Tooltips
                 Per.NormalWorn => one ? "Normal Item worn" : "Normal Items worn",
                 Per.UniquesWorn => one ? "Unique Item worn" : "Unique Items worn",
                 Per.Carried => one ? "Item carried" : "Items carried",
-                Per.Peril => "Peril",
+                Per.LandLevel => "Land Level",
                 Per.Omens => one ? "Omen on this land" : "Omens on this land",
                 Per.RaresSlain => one ? "Rare Enemy or Boss slain since you last fell" : "Rare Enemies or Bosses slain since you last fell",
                 Per.FightSeconds => one ? "second spent Fighting" : "seconds spent Fighting",
