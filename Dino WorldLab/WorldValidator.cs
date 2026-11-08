@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.World;
 using Dino_Engine.World.Generation;
 using Dino_Engine.World.Content;
@@ -15,6 +16,7 @@ namespace Dino_WorldLab
         private const float RoadGradeLimit = 0.3f;
         private const float BareStretchLimit = 330f;    // 30 seconds at a run.
         private const float GradeWindow = 4f;           // Grades are measured over at least this much road, as walked.
+        private const float FenceLean = 3f;             // Degrees a fence's uprights may lean by: a span is built for its slope, and only what's left over tilts it.
 
         public readonly List<string> Problems = new();
         public float LongestBareStretch { get; private set; }
@@ -26,6 +28,7 @@ namespace Dino_WorldLab
             CheckFields(world);
             CheckFootprints(world);
             CheckObjectsOnGround(world);
+            CheckFences(world);
             CheckRoads(world);
             CheckBiomes(world);
             CheckTravel(world);
@@ -207,6 +210,29 @@ namespace Dino_WorldLab
                     }
                 }
             }
+        }
+
+        // Every post and every span stands upright, as anything leaning further than the leftover of a slope step reads as a fence knocked flat.
+        private void CheckFences(WorldData world)
+        {
+            int leaning = 0;
+            float worst = 0f;
+            string where = "";
+            foreach (WorldObject item in world.Objects.All())
+            {
+                string id = world.Objects.AssetIds[item.Asset];
+                if (!FenceSpec.TryParse(id, out _)) continue;
+                Vector3 up = Vector3.Transform(Vector3.UnitY, item.Rotation);
+                float lean = MathHelper.RadiansToDegrees(MathF.Acos(Math.Clamp(up.Y, -1f, 1f)));
+                if (lean <= FenceLean) continue;
+                leaning++;
+                if (lean > worst)
+                {
+                    worst = lean;
+                    where = $"{id} at {item.Position.Xz}";
+                }
+            }
+            if (leaning > 0) Problem($"{leaning} pieces of fence lean more than {FenceLean} degrees, the worst {worst:0} degrees: {where}");
         }
 
         private void CheckRoads(WorldData world)

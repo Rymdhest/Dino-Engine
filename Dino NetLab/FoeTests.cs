@@ -463,6 +463,8 @@ namespace Dino_NetLab
             using var arena = new Arena(worlds, request, Tough());
             var seen = new int[Enum.GetValues<Rarity>().Length];
             int wrongNature = 0, wrongAbilities = 0, wrongTraits = 0, weak = 0, withAbilities = 0;
+            // The share of health the weakest creature there is has, which was a wolf's 0.42 until skitters came, at 0.22: no rarer one may fall below it.
+            float weakest = Bestiary.Everyone.Min(kind => kind.Health);
             ECSWorld world = arena.Lab.Server.Ecs;
 
             foreach (SiteState state in arena.Session.Sites.Where(site => site.Site.Kind == SiteKind.Keep).Concat(arena.Session.Sites.Where(site => site.Wild).Take(40)))
@@ -483,7 +485,7 @@ namespace Dino_NetLab
                     if (brain.Abilities > Bestiary.PowerOf(enemy.Rarity).Traits || brain.Abilities >= actor.Loadout.Books.Length) wrongAbilities++;
                     if (brain.Abilities > 0) withAbilities++;
                     if (enemy.Rarity != Rarity.Unique && Bestiary.Traits.Count(trait => enemy.Name.Contains(trait.Name)) != Bestiary.PowerOf(enemy.Rarity).Traits) wrongTraits++;
-                    if (enemy.Rarity != Rarity.Normal && actor.Sheet.MaxHealth < Bestiary.HealthAt(enemy.Level) * 0.42f * Bestiary.PowerOf(enemy.Rarity).Health * 0.7f) weak++;
+                    if (enemy.Rarity != Rarity.Normal && actor.Sheet.MaxHealth < Bestiary.HealthAt(enemy.Level) * weakest * Bestiary.PowerOf(enemy.Rarity).Health * 0.7f) weak++;
                 }
             }
 

@@ -112,16 +112,16 @@ namespace Dino_Engine.Modelling.Procedural.Fence
             float roll = random.Float();
             return use switch
             {
+                // A field is fenced light and in wood, as it's long and has only to keep beasts in: stone is for walls round holy ground and gardens by a house.
                 FenceUse.Field => style switch
                 {
-                    BuildingStyle.Eastern => roll < 0.75f ? Bamboo : Rails,
-                    BuildingStyle.Stone => roll < 0.7f ? DryStone : Rails,
-                    _ => roll < 0.8f ? Rails : Wattle,
+                    BuildingStyle.Eastern => roll < 0.55f ? Bamboo : Rails,
+                    _ => roll < 0.65f ? Rails : roll < 0.85f ? Wattle : Paling,
                 },
                 FenceUse.Garden => style switch
                 {
                     BuildingStyle.Eastern => Bamboo,
-                    BuildingStyle.Stone => roll < 0.55f ? DryStone : Paling,
+                    BuildingStyle.Stone => roll < 0.45f ? Paling : roll < 0.75f ? DryStone : Wattle,
                     _ => roll < 0.5f ? Wattle : Paling,
                 },
                 FenceUse.Yard => style == BuildingStyle.Eastern ? Bamboo : Rails,

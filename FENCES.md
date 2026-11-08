@@ -39,17 +39,21 @@ A wall that meets a tower can't stand in it, so it's tried up to the tower's foo
 | Kind | Form | Where | What it is |
 |---|---|---|---|
 | `rails` | Rails | Fields | Split rails let into hewn or round posts, two to four of them |
-| `paling` | Paling | Gardens | Pointed, rounded, clipped or flat pales on two rails, sometimes limewashed |
+| `paling` | Paling | Gardens, and now and then a field | Pointed, rounded, clipped or flat pales on two rails, sometimes limewashed |
 | `wattle` | Wattle | Gardens, and now and then a field, where they build in timber | Hurdles of rods woven in and out of stakes, lashed to stout posts |
 | `bamboo` | Bamboo | Gardens and fields in the East, and the Haven's training yard | A lattice of culms tied with black cord at every crossing |
 | `stockade` | Stockade | A fortified village | Sharpened logs, lashed with rope, pinned to rails inside |
 | `pen` | Pen | A camp, which is a brood's pen | The Reich's: bigger, tarred logs with fire-hardened points, black iron straps, hewn posts capped and spiked in iron, oxblood on the gateposts |
-| `dry-stone` | DryStone | Fields and gardens where they build in stone | Field stones in courses, narrowing as they rise, copes on edge along the top, all of the world's own rock |
+| `dry-stone` | DryStone | Some gardens where they build in stone | Field stones in courses, narrowing as they rise, copes on edge along the top, all of the world's own rock |
 | `churchyard` | Churchyard | A churchyard | Coursed stone on a plinth under a saddleback coping, with piers capped by a pyramid, a ball or a step |
 | `roofed` | Roofed | A churchyard in the East | Plaster over a stone plinth between dark posts, sometimes earthen with white lines, under a little roof with hipped caps at its ends |
 | `curtain` | Curtain | A keep | Battered at its foot, a walk along the top behind merlons with arrow slits, a low parapet inside |
 
 What a site puts up for a use is `FenceCatalog.Choose`, from how the world builds and a fork of the site's own, once per use, so a village's gardens all match. A world draws `StylesPerWorld` styles of each kind from its seed, and a site takes one of them.
+
+**A field is fenced light and in wood**: rails mostly, wattle or a paling now and then, bamboo or rails in the East. Stone was tried round fields and read as a churchyard's, and a stone wall's wider footing took a waygate's ground. A field's gate faces the nearest road, and a footpath runs from it to that road when there's one within `LongestFieldTrack` and nothing built is in the way (`SettlementStage.LayFieldTrack`), so a farm is somewhere people walk to.
+
+**A run stops where nobody could stand**, on rock or ground too steep to walk, and starts again beyond with an end post each side (`SiteBuilder.Wall`), as a village's stockade once climbed a cliff and its spans, out of slope steps, leaned 42 degrees.
 
 Black iron and oxblood are on the pen alone, as nothing but the Reich wears them. Dry stone uses the stone material, which the shader draws as the world's own rock at that height, so a wall matches the boulders it was cleared from.
 
@@ -75,7 +79,9 @@ A style is a seed, and its genes say everything pieces of it have to agree on: h
 
 - `Dino FloraLab fencecheck`: every piece of every kind in several styles is sound (no bad numbers, normals with their faces), within budget and quick to build; no wider at a body's height than what's solid, past an overhang; every span of a laid-out scene reaches its post within 2 cm and leans under 2 degrees; every run's end has a post; and styles really differ, in shape and colour. Exit code 1 if not.
 - `Dino FloraLab fences [--kinds a,b] [--styles N] [--span m] [--focus x,z]`: every kind laid out over a hill, round a right angle and a shallow turn, through a gate and on in a line, from the game's height and low down.
-- `Dino WorldLab check` and `plan --site Kind`, which draws fences in white.
+- `Dino WorldLab check`, which fails any post or span leaning more than 3 degrees, and `plan --site Kind`, which draws fences in white.
+
+A tall wall near the edge of a wide screen looks knocked flat: it's seen nearly side on, as the camera's verticals fan out from straight below it. Check the lean in `check`, not by eye, before chasing it.
 
 ## Where it stands
 

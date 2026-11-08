@@ -32,8 +32,10 @@ namespace Dino_Engine.World.Generation
             }
             foreach (WorldRoad road in world.Roads) ReserveRoad(world, road);
 
+            // What a land can't be done without goes down first, so that nothing a neighbour lays out, a field or the track to it, takes its ground. Each site draws on a
+            // fork of its own, so the order changes nothing it draws.
             WorldRandom random = world.Random.Fork("settlements");
-            foreach (WorldSite site in world.Sites)
+            foreach (WorldSite site in world.Sites.OrderBy(site => BuiltFirst(site.Kind) ? 0 : 1))
             {
                 world.Clearings.Add(new Clearing(site.Position, site.Radius * ClearingShare(site.Kind), 34f));
                 var builder = new SiteBuilder(world, site, random.Fork(site.Id));
@@ -72,6 +74,9 @@ namespace Dino_Engine.World.Generation
 
             PlaceWayside(world, random.Fork("wayside"));
         }
+
+        // The way out of a land, and the altars a hero kindles: a site is nothing without them, and WorldValidator fails one that lost its own.
+        private static bool BuiltFirst(SiteKind kind) => kind is SiteKind.Landing or SiteKind.Waygate or SiteKind.Shrine or SiteKind.StandingStones;
 
         // Each language has its people, and they build the way they build.
         private static BuildingStyle StyleOf(WorldData world)
@@ -455,10 +460,43 @@ namespace Dino_Engine.World.Generation
                 float distance = site.Radius * b.Random.Range(0.75f, 1.55f);
                 Vector2 position = site.Position + direction * distance;
                 Vector2 half = new Vector2(b.Random.Range(11f, 20f), b.Random.Range(8f, 15f));
-                // Fields line up with the road they lie along, not with the compass.
-                float yaw = YawFacing(TowardsNearestRoad(b, position));
-                if (b.Field(position, half, yaw, -direction)) placed++;
+                // Fields line up with the road they lie along, not with the compass, and open onto it.
+                Vector2 towardsRoad = TowardsNearestRoad(b, position);
+                if (!b.Field(position, half, YawFacing(towardsRoad), towardsRoad, out Vector2 gate)) continue;
+                placed++;
+                LayFieldTrack(b, gate, position);
             }
+        }
+
+        private const float LongestFieldTrack = 80f;    // Metres a field's track runs to a road. A field further out than that is reached across the open ground.
+        private const float FieldTrackStart = 2.5f;     // Metres out from the gate that the track starts, clear of the gateposts.
+
+        // A field is worked from somewhere, so a footpath runs from its gate to the nearest road, if there's one near enough and nothing built stands in the way.
+        private static void LayFieldTrack(SiteBuilder b, Vector2 gate, Vector2 field)
+        {
+            Vector2 outward = (gate - field).Normalized();
+            Vector2 start = gate + outward * FieldTrackStart;
+            float best = float.PositiveInfinity;
+            Vector3 end = default;
+            foreach (WorldRoad road in b.World.Roads)
+            {
+                foreach (Vector3 point in road.Points)
+                {
+                    float distance = (point.Xz - start).LengthSquared;
+                    if (distance >= best) continue;
+                    best = distance;
+                    end = point;
+                }
+            }
+            float length = MathF.Sqrt(best);
+            if (length > LongestFieldTrack || length < 3f) return;
+
+            // Straight out of the gate first, and then round to the road, so that it doesn't run along the fence.
+            var corners = new List<Vector2> { start, start + outward * MathF.Min(4f, length * 0.4f), end.Xz };
+            WorldRoad? track = RoadStage.BuildRoad(b.World, corners, RoadClass.Footpath, endHeight: end.Y);
+            if (track == null || LaneIsBlocked(b.World, track)) return;
+            b.World.Roads.Add(track);
+            ReserveRoad(b.World, track);
         }
 
         private static Vector2 TowardsNearestRoad(SiteBuilder b, Vector2 position)
@@ -520,9 +558,11 @@ namespace Dino_Engine.World.Generation
                 Vector2 direction = Direction(b.Random.Float() * MathF.Tau);
                 Vector2 position = b.Centre + direction * b.Random.Range(28f, 46f);
                 Vector2 half = new Vector2(b.Random.Range(12f, 20f), b.Random.Range(9f, 14f));
-                if (b.Field(position, half, YawFacing(TowardsNearestRoad(b, position)), -direction))
+                Vector2 towardsRoad = TowardsNearestRoad(b, position);
+                if (b.Field(position, half, YawFacing(towardsRoad), towardsRoad, out Vector2 gate))
                 {
                     placed++;
+                    LayFieldTrack(b, gate, position);
                     if (b.Random.Chance(0.5f)) b.World.Pending.Add(new PendingObject(StructureCatalog.Scarecrow.Id, position, b.Random.Float() * MathF.Tau, Vector3.One, null));
                 }
             }

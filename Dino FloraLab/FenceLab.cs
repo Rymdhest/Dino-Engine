@@ -9,7 +9,7 @@ namespace Dino_FloraLab
 {
     /// <summary>
     /// Builds fences with no window and no GPU, laid out over uneven ground exactly as a world lays them, to look at them and to check that they hold up.
-    ///   fences     [--kinds a,b] [--styles N] [--seed N] [--tile px] [--span metres] [--focus x,z] [--out file.png]   Every kind round a corner, over a hill and through a gate, from the game's height and low down.
+    ///   fences     [--kinds a,b] [--styles N | --style hex] [--seed N] [--tile px] [--span metres] [--focus x,z] [--out file.png]   Every kind round a corner, over a hill and through a gate, from the game's height and low down.
     ///   fencecheck [--count N]                                                                        Is every piece sound, within budget and no wider than what's solid; does every span meet its posts; are two styles really different? Exit code 1 if not.
     /// </summary>
     internal static class FenceLab
@@ -99,7 +99,8 @@ namespace Dino_FloraLab
             var jobs = new List<(int row, FenceKind kind, ulong style)>();
             foreach (FenceKind kind in kinds)
             {
-                for (int s = 0; s < styles; s++) jobs.Add((jobs.Count, kind, FenceCatalog.StyleSeed(seed, kind, s)));
+                if (options.Has("style")) jobs.Add((jobs.Count, kind, Convert.ToUInt64(options.Text("style", "0"), 16)));
+                else for (int s = 0; s < styles; s++) jobs.Add((jobs.Count, kind, FenceCatalog.StyleSeed(seed, kind, s)));
             }
 
             int columns = 2;

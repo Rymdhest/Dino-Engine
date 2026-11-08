@@ -187,6 +187,36 @@ namespace Dino_Engine.World.Generation
                 if (!World.InBounds(point) || World.Elevation.Sample(point) < WorldPlan.SeaLevel + MinGroundAboveWater) return false;
             }
 
+            // Where it crosses ground nobody could stand on, rock or a slope too steep to walk, it stops and starts again beyond, as nobody builds a fence up a rock face.
+            int steps = Math.Max(1, (int)MathF.Ceiling(length / StandStep));
+            bool placed = false;
+            float? start = null;
+            for (int i = 0; i <= steps; i++)
+            {
+                float t = i / (float)steps;
+                bool stands = Stands(Vector2.Lerp(from, to, t));
+                if (stands && start == null) start = t;
+                if (start == null || (stands && i < steps)) continue;
+                float end = stands ? t : (i - 1f) / steps;
+                if ((end - start.Value) * length >= ShortestRun)
+                {
+                    placed |= PutRun(kind, style, Vector2.Lerp(from, to, start.Value), Vector2.Lerp(from, to, end), inside, start.Value <= 0f ? tuckFrom : 0f, end >= 1f ? tuckTo : 0f);
+                }
+                start = null;
+            }
+            return placed;
+        }
+
+        private const float StandStep = 2f;         // Metres between the points a run of fence looks at the ground by.
+        private const float ShortestRun = 1.5f;     // Metres a piece of a run has to be to be put up at all.
+
+        private bool Stands(Vector2 point) => World.Reachable.Sample(point) >= 0.5f && World.Elevation.SlopeAt(point) <= WorldData.WalkableSlope;
+
+        private bool PutRun(FenceKind kind, ulong style, Vector2 from, Vector2 to, Vector2? inside, float tuckFrom, float tuckTo)
+        {
+            Vector2 span = to - from;
+            float length = span.Length;
+            if (length < 0.5f) return false;
             Footprint footprint = Footprint.Segment(from, to, kind.HalfThickness);
             if (World.Placement.Overlaps(footprint, PlacementLayer.Structure | PlacementLayer.Prop | PlacementLayer.Road, 0.4f)) return false;
 
@@ -273,8 +303,12 @@ namespace Dino_Engine.World.Generation
         /// A fenced field beside <paramref name="position"/>: painted earth, rows of crops and a gap in the fence on the side
         /// facing <paramref name="gateSide"/>.
         /// </summary>
-        public bool Field(Vector2 position, Vector2 halfExtents, float yaw, Vector2 gateSide)
+        public bool Field(Vector2 position, Vector2 halfExtents, float yaw, Vector2 gateSide) => Field(position, halfExtents, yaw, gateSide, out _);
+
+        /// <param name="gate">The middle of the gap in its fence.</param>
+        public bool Field(Vector2 position, Vector2 halfExtents, float yaw, Vector2 gateSide, out Vector2 gate)
         {
+            gate = position;
             Footprint footprint = Footprint.Box(position, halfExtents, yaw);
             if (!GroundFits(footprint, 0.17f)) return false;
             if (World.Placement.Overlaps(footprint, Blockers, 2f)) return false;
@@ -296,12 +330,15 @@ namespace Dino_Engine.World.Generation
                 }
             }
 
-            FenceAround(footprint, gateSide, FenceUse.Field);
+            FenceAround(footprint, gateSide, FenceUse.Field, out gate);
             return true;
         }
 
         /// <summary>Fences a box, leaving a gate in the side nearest <paramref name="gateSide"/>.</summary>
-        public void FenceAround(in Footprint box, Vector2 gateSide, FenceUse use)
+        public void FenceAround(in Footprint box, Vector2 gateSide, FenceUse use) => FenceAround(box, gateSide, use, out _);
+
+        /// <param name="gate">The middle of the gap left for a gate.</param>
+        public void FenceAround(in Footprint box, Vector2 gateSide, FenceUse use, out Vector2 gate)
         {
             Vector2 half = box.HalfExtents + new Vector2(0.8f);
             Vector2[] corners =
@@ -325,6 +362,7 @@ namespace Dino_Engine.World.Generation
                 }
             }
 
+            gate = (corners[gateEdge] + corners[(gateEdge + 1) % 4]) * 0.5f;
             for (int i = 0; i < 4; i++)
             {
                 Vector2 from = corners[i];
