@@ -16,6 +16,7 @@ namespace Dino_Defenders.Gameplay
         public bool Cleared;
         public bool Kindled;        // A shrine whose light has been relit.
         public bool Rewarded;       // A village's thanks have been given.
+        public bool Lit;            // A waygate someone has come near, which has woken and can be travelled to from any other.
         public int HostilesTotal;
         public readonly HashSet<int> Dead = new();
         public readonly HashSet<int> Opened = new();
@@ -81,7 +82,10 @@ namespace Dino_Defenders.Gameplay
         /// <summary>Whether a place is one of those a land asks to be freed: anywhere that's held and isn't the keep.</summary>
         public static bool Counts(SiteState state) => !state.Wild && state.HostilesTotal > 0 && state.Site.Kind != SiteKind.Keep;
 
-        /// <summary>Whether a place has a waygate in it that a hero can travel to and from, once they've found it.</summary>
+        /// <summary>Whether a place has a waygate in it, which a hero can travel to once it's lit.</summary>
         public static bool HasWaygate(SiteState state) => !state.Wild && state.Site.Spawns.Any(spawn => spawn.Role == SpawnRole.Waygate);
+
+        /// <summary>Whether a place's waygate can be travelled to: it has one, and someone has come near enough to wake it.</summary>
+        public static bool CanTravelTo(SiteState state) => state.Lit && HasWaygate(state);
     }
 }

@@ -290,6 +290,34 @@ namespace Dino_Engine.World
             return false;
         }
 
+        /// <summary>
+        /// Whether something flying at <paramref name="above"/> metres over the ground, <paramref name="radius"/> across, runs into anything solid. Only what stands taller than that
+        /// stops it, so what's thrown goes over a grave or a fence as it would in the world.
+        /// </summary>
+        public bool BlocksFlight(Vector2 centre, float radius, float above)
+        {
+            Visits visits = BeginQuery();
+            var probe = Footprint.Circle(centre, radius);
+            CellRange(centre, radius + MaxReachInCell, out int minX, out int minZ, out int maxX, out int maxZ);
+            for (int z = minZ; z <= maxZ; z++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    List<int>? cell = _cells[z * _cellsPerSide + x];
+                    if (cell == null) continue;
+                    for (int i = 0; i < cell.Count; i++)
+                    {
+                        int index = cell[i];
+                        if (visits.Stamps[index] == visits.Stamp) continue;
+                        visits.Stamps[index] = visits.Stamp;
+                        Entry entry = _entries[index];
+                        if (entry.Solid && entry.Height > above && probe.Overlaps(entry.Footprint)) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         /// <summary>Adds every solid footprint near <paramref name="centre"/> to <paramref name="results"/>.</summary>
         public void CollectSolids(Vector2 centre, float radius, List<Footprint> results)
         {

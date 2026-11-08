@@ -31,6 +31,7 @@ namespace Dino_Defenders.Client
         Details,
         Compare,
         ForceAttack,
+        Roads,
     }
 
     /// <summary>One key or one mouse button.</summary>
@@ -53,7 +54,7 @@ namespace Dino_Defenders.Client
         {
             ("Action Bar", new[] { (GameAction.Slot0, "Slot 1"), (GameAction.Slot1, "Slot 2"), (GameAction.Slot2, "Slot 3"), (GameAction.Slot3, "Slot 4"), (GameAction.Slot4, "Slot 5"), (GameAction.Slot5, "Slot 6") }),
             ("Movement", new[] { (GameAction.MoveUp, "Move up"), (GameAction.MoveDown, "Move down"), (GameAction.MoveLeft, "Move left"), (GameAction.MoveRight, "Move right"), (GameAction.Dodge, "Dodge") }),
-            ("Actions", new[] { (GameAction.Interact, "Interact"), (GameAction.Flask, "Drink flask"), (GameAction.Guide, "Guiding wind"), (GameAction.ForceAttack, "Attack without picking up") }),
+            ("Actions", new[] { (GameAction.Interact, "Interact"), (GameAction.Flask, "Drink flask"), (GameAction.Guide, "Guiding wind"), (GameAction.Roads, "Call the waygates"), (GameAction.ForceAttack, "Attack without picking up") }),
             ("Menus", new[] { (GameAction.Menu, "Menu"), (GameAction.Hero, "Hero"), (GameAction.Talents, "Talents"), (GameAction.Books, "Books"), (GameAction.Map, "Map"), (GameAction.Chronicle, "Chronicle"), (GameAction.Glossary, "Glossary") }),
             ("Items and cards", new[] { (GameAction.Details, "Hold card, quick move"), (GameAction.Compare, "Compare") }),
         };
@@ -84,6 +85,7 @@ namespace Dino_Defenders.Client
             [GameAction.Details] = new(Keys.LeftControl),
             [GameAction.Compare] = new(Keys.LeftAlt),
             [GameAction.ForceAttack] = new(Keys.LeftShift),
+            [GameAction.Roads] = new(Keys.B),
         };
 
         private static readonly Dictionary<GameAction, Bound> Current = new(Defaults);

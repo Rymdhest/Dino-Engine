@@ -6,7 +6,7 @@ namespace Dino_Defenders.Progression
 {
     public enum ObjectiveKind
     {
-        FreePlaces,     // Free so many of the land's places, whichever they are.
+        FreePlaces,     // Free the places the land names, which are a few of those held.
         SlayWarlord,    // Bring down the tyrant that holds the land.
     }
 
@@ -20,6 +20,7 @@ namespace Dino_Defenders.Progression
         public int RewardExperience;
         public int RewardGold;
         public bool IsMain;
+        public readonly List<WorldSite> Places = new();     // The places it asks to be freed, and only those count: freeing any other is its own reward.
 
         public bool Done => Progress >= Goal;
         public string Summary => Goal > 1 ? $"{Text} ({Math.Min(Progress, Goal)}/{Goal})" : Text;
@@ -155,18 +156,25 @@ namespace Dino_Defenders.Progression
                 RewardGold = 120 * level,
             });
 
-            int places = world.Sites.Count(Counts);
-            chronicle.Objectives.Add(new Objective
+            // Which places, on a stream of their own so that nothing else in the story moves. A land holds far more than it asks for, and a map showing every one of them was too much to read.
+            List<WorldSite> held = world.Sites.Where(Counts).ToList();
+            new WorldRandom(world.Plan.Seed).Fork("places asked").Shuffle(held);
+            var freeing = new Objective
             {
                 Kind = ObjectiveKind.FreePlaces,
                 Site = SiteKind.Haunt,
-                Text = "Free the land's places from those who hold them",
-                Goal = Math.Max(Math.Min(terms.Places, places), 1),
+                Text = "Free the places marked on your map from those who hold them",
                 RewardExperience = 200 * level,
                 RewardGold = 80 * level,
-            });
+            };
+            freeing.Places.AddRange(held.Take(Math.Min(terms.Places, held.Count)));
+            freeing.Goal = Math.Max(freeing.Places.Count, 1);
+            chronicle.Objectives.Add(freeing);
             return chronicle;
         }
+
+        /// <summary>Whether freeing a place is something the land asks.</summary>
+        public bool Asks(WorldSite site) => Objectives.Any(objective => objective.Kind == ObjectiveKind.FreePlaces && objective.Places.Contains(site));
 
         /// <summary>Whether a place is held, and isn't the keep, which is what the places a land asks to be freed are.</summary>
         public static bool Counts(WorldSite site) => site.Kind != SiteKind.Keep && site.Spawns.Any(spawn => spawn.Role.IsHostile());

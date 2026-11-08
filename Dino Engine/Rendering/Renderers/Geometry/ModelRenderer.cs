@@ -131,6 +131,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(3);
             GL.EnableVertexAttribArray(4);
             GL.EnableVertexAttribArray(5);
+            _modelShader.loadUniformVector3f("modelSize", glmodel.Size);
 
             for (int i = 0; i < command.matrices.Count; i++)
             {

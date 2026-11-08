@@ -222,6 +222,7 @@ namespace Dino_Defenders.Client
             session.PlayerPosition = Predictor.DrawnPosition(Commands.Alpha);
             session.Sim = hero;
             session.Intent = intent;
+            session.UpdateCalling();
         }
 
         private void RunTick()
@@ -533,6 +534,7 @@ namespace Dino_Defenders.Client
                 bool cleared = reader.ReadBool();
                 bool kindled = reader.ReadBool();
                 bool rewarded = reader.ReadBool();
+                bool lit = reader.ReadBool();
                 var dead = new int[reader.ReadCount(100000)];
                 for (int j = 0; j < dead.Length; j++) dead[j] = reader.ReadVarInt();
                 var opened = new int[reader.ReadCount(100000)];
@@ -544,6 +546,7 @@ namespace Dino_Defenders.Client
                 state.Cleared = cleared;
                 state.Kindled = kindled;
                 state.Rewarded = rewarded;
+                state.Lit = lit;
                 state.Dead.Clear();
                 state.Dead.UnionWith(dead);
                 state.Opened.Clear();
@@ -772,6 +775,9 @@ namespace Dino_Defenders.Client
 
         /// <summary>From a waygate, home to the Haven. The server decides whether this hero is at one.</summary>
         public void ReturnHome() => Send(Action(HeroAction.ReturnHome));
+
+        /// <summary>Begins calling the old roads open from where the hero stands. The server watches it, and opens the map to travel by if it isn't broken.</summary>
+        public void CallRoads() => Send(Action(HeroAction.CallRoads));
 
         /// <summary>Opens the way to one of the lands the map table shows this hero, with the orders in a cell of their pack given for it, or none. The orders are gone at once, and the server has the last word.</summary>
         public void OpenWay(int choice, int ordersCell = -1)

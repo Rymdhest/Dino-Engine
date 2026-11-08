@@ -23,6 +23,9 @@ uniform vec4 hitFlash;
 #ifdef WILDLIFE
 flat in float fragFade;
 #endif
+#if !defined(CHARACTER) && !defined(WILDLIFE)
+flat in float fragFocusOccluder;
+#endif
 
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gNormal;
@@ -44,9 +47,10 @@ const float HIT_SHINE = 7.0;
 void main() {
 
 	vec3 worldPosition = (invViewMatrix * vec4(viewSpacePos, 1.0)).xyz;
-	// Characters' own shader keeps them whole; for everything else this opens the view to the player.
-#ifndef CHARACTER
-	applyFocusCutout(worldPosition);
+	// Only what's big enough to hide the player opens for them (FocusOccluder.glsl). Characters keep whole, and so does
+	// wildlife, as a bird flying over the hero is never in the way.
+#if !defined(CHARACTER) && !defined(WILDLIFE)
+	if (fragFocusOccluder > 0.5) applyFocusCutout(worldPosition);
 #endif
 #ifdef WILDLIFE
 	// What comes and goes does it by thinning out, as nothing that's only for looking at should ever be seen to pop.

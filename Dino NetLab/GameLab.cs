@@ -1345,6 +1345,18 @@ namespace Dino_NetLab
                 return null;
             }
 
+            bool Shown(string model, Vector2 near, float within)
+            {
+                foreach (Archetype archetype in player.Ecs.QueryArchetypes(new BitMask(typeof(VisualComponent), typeof(PositionComponent)), BitMask.Empty))
+                {
+                    foreach (EntityView entity in new ComponentAccessor(archetype))
+                    {
+                        if (entity.Get<VisualComponent>().Model == model && (entity.Get<PositionComponent>().value.Xz - near).Length <= within) return true;
+                    }
+                }
+                return false;
+            }
+
             void Use(Vector2 where)
             {
                 player.Client.TravelTo(where);
@@ -1383,13 +1395,54 @@ namespace Dino_NetLab
                 Use(gate.Value);
                 report.Check("Using a waygate offers the way", player.PanelsOpened.Any(p => p.kind == InteractKind.Waygate));
             }
+            OldRoads(report, lab, player, session, truth);
 
             // A shrine and a chest are somewhere else in the world, and exist only once a hero is near. The Reich keeps people from its shrines, so those who hold it go first.
-            WorldSite shrine = session.World.Sites.First(s => s.Kind == SiteKind.Shrine);
+            // One the land names, if it names one, as freeing any other is its own reward and moves nothing on.
+            WorldSite shrine = session.World.Sites.Where(s => s.Kind == SiteKind.Shrine).OrderByDescending(s => session.Chronicle.Asks(s)).First();
+            bool asked = session.Chronicle.Asks(shrine);
             player.Client.TravelTo(shrine.Position);
             lab.Run(3);
             Vector2? altar = Find(InteractKind.Shrine);
             report.Check("Going to a site wakes it, and its shrine arrives", altar != null);
+
+            // Those holding it reach the client saying so, and are marked if it's a place the land names, and only then.
+            int shrineIndex = session.World.Sites.IndexOf(shrine);
+            int holding = 0, marked = 0;
+            foreach (Archetype archetype in player.Ecs.QueryArchetypes(new BitMask(typeof(EnemyComponent)), BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var enemy = entity.Get<EnemyComponent>();
+                    if (enemy.Holds != shrineIndex + 1 || enemy.State == EnemyState.Dead) continue;
+                    holding++;
+                    if (player.Client.Session!.Sought(enemy)) marked++;
+                }
+            }
+            report.Check("Those holding a place reach the client saying which", holding > 0, $"{holding}");
+            report.Check(asked ? "And are marked, as the land names it" : "And aren't marked, as the land doesn't name it", asked ? marked == holding : marked == 0, $"{marked} of {holding}");
+
+            // And at a place the land does name, everyone holding it is.
+            if (session.Sites.FirstOrDefault(s => !s.Wild && !s.Cleared && session.Chronicle.Asks(s.Site)) is SiteState named)
+            {
+                int namedIndex = session.Sites.IndexOf(named);
+                player.Client.TravelTo(named.Site.Position);
+                lab.Run(3);
+                int there = 0, shown = 0;
+                foreach (Archetype archetype in player.Ecs.QueryArchetypes(new BitMask(typeof(EnemyComponent)), BitMask.Empty))
+                {
+                    foreach (EntityView entity in new ComponentAccessor(archetype))
+                    {
+                        var enemy = entity.Get<EnemyComponent>();
+                        if (enemy.Holds != namedIndex + 1 || enemy.State == EnemyState.Dead) continue;
+                        there++;
+                        if (player.Client.Session!.Sought(enemy)) shown++;
+                    }
+                }
+                report.Check("Everyone holding a place the land names is marked", there > 0 && shown == there, $"{shown} of {there}");
+                player.Client.TravelTo(shrine.Position);
+                lab.Run(2);
+            }
             if (altar != null)
             {
                 int index = session.Sites.FindIndex(s => s.Site == shrine);
@@ -1403,7 +1456,9 @@ namespace Dino_NetLab
                 lab.Run(1);
                 report.Check("And for the client", player.Client.Session!.Sites[index].Kindled);
                 report.Check("And blesses whoever kindled it", truth.Actor.Buffs.Any(b => BuffCatalog.Blessings.Contains(b.Buff)));
-                report.Check("And freeing it moved the chronicle on, for both", session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0) && player.Client.Session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0));
+                bool moved = session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0) && player.Client.Session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0);
+                if (asked) report.Check("And freeing it moved the chronicle on, for both", moved);
+                else report.Check("And freeing one the land didn't name moves nothing on", !session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0));
             }
 
             foreach (SiteState state in session.Sites)
@@ -1423,9 +1478,60 @@ namespace Dino_NetLab
                 report.Check("Opening a chest leaves it open", state.Opened.Count > 0);
                 lab.Run(3);
                 report.Check("And what's in it can be collected", truth.Hero.Gold > goldBefore || truth.Hero.Carried().Count() > carried, $"gold {goldBefore}->{truth.Hero.Gold}, items {carried}->{truth.Hero.Carried().Count()}");
-                report.Check("The chest has gone from the client's world", Find(InteractKind.Chest) == null || (Find(InteractKind.Chest)!.Value - chest.Value).Length > 0.1f);
+                report.Check("The chest can't be used again", Find(InteractKind.Chest) == null || (Find(InteractKind.Chest)!.Value - chest.Value).Length > 0.1f);
+                report.Check("But it stays where it stood, open, with its lid up", Shown(ChestLook.Open, chest.Value, 0.1f) && Shown(ChestLook.Opening, chest.Value, 3f));
                 break;
             }
+        }
+
+        // The old roads: a gate lights as someone comes near it, a dark one can't be gone to, and standing still and unhurt for long enough calls the lit ones from anywhere.
+        private static void OldRoads(Report report, GameLab lab, LabPlayer player, ServerSession session, ServerPlayer truth)
+        {
+            GameSession seen = player.Client.Session!;
+            int Index(SiteState state) => session.Sites.IndexOf(state);
+            float FromGate(Vector2 at) => session.Sites.Where(WorldProgress.HasWaygate).Min(s => (GameServer.WaygateSpawn(session.World, s.Site)!.Value - at).Length);
+
+            SiteState? lit = session.Sites.FirstOrDefault(s => s.Lit);
+            report.Check("Coming near a waygate lights it, for the client too", lit != null && seen.Sites[Index(lit)].Lit);
+            report.Check("And lights nothing far off", session.Sites.Any(s => WorldProgress.HasWaygate(s) && !s.Lit));
+            SiteState? dark = session.Sites.FirstOrDefault(s => WorldProgress.HasWaygate(s) && !s.Lit);
+            if (lit == null || dark == null) return;
+
+            Vector2 before = truth.Sim.Position;
+            player.Client.TravelToSite(Index(dark));
+            lab.Run(1);
+            report.Check("A dark waygate can't be travelled to", (truth.Sim.Position - before).Length < 3f && !dark.Lit);
+
+            // Somewhere held, well away from every gate.
+            WorldSite away = session.World.Sites.Where(s => s.Kind is SiteKind.Shrine or SiteKind.Farmstead or SiteKind.Ruins).OrderByDescending(s => FromGate(s.Position)).First();
+            player.Client.TravelTo(away.Position);
+            lab.Run(2);
+            report.Check("Away from every waygate the roads can't be taken", FromGate(truth.Sim.Position) > Rulebook.GateWake);
+
+            int offered = player.PanelsOpened.Count(p => p.kind == InteractKind.Waygate);
+            seen.BeginCalling();
+            lab.Run(Rulebook.CallRoads * 0.5);
+            report.Check("Calling the waygates takes a while", player.PanelsOpened.Count(p => p.kind == InteractKind.Waygate) == offered && seen.Calling is > 0f and < 1f);
+            lab.Run(Rulebook.CallRoads * 0.5 + 1.0);
+            report.Check("And then offers the way, from where the hero stands", player.PanelsOpened.Count(p => p.kind == InteractKind.Waygate) == offered + 1);
+
+            player.Client.TravelToSite(Index(lit));
+            lab.Run(1);
+            Vector2 gate = GameServer.WaygateSpawn(session.World, lit.Site)!.Value;
+            report.Check("Which takes them to a lit one", (truth.Sim.Position - gate).Length < Rulebook.GateWake);
+
+            // Moving breaks a call, and nothing opens.
+            player.Client.TravelTo(away.Position);
+            lab.Run(2);
+            offered = player.PanelsOpened.Count(p => p.kind == InteractKind.Waygate);
+            seen.BeginCalling();
+            lab.Run(0.5);
+            player.Client.TravelTo(away.Position + new Vector2(6f, 0f));
+            lab.Run(Rulebook.CallRoads + 1.0);
+            report.Check("Moving breaks the call", player.PanelsOpened.Count(p => p.kind == InteractKind.Waygate) == offered && seen.Calling == null && truth.CallingSince == null);
+            player.Client.TravelToSite(Index(lit));
+            lab.Run(1);
+            report.Check("And a broken call opens no roads", (truth.Sim.Position - gate).Length > Rulebook.GateWake);
         }
 
         private static HeroState LabHero()

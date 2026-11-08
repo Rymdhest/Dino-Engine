@@ -38,6 +38,7 @@ namespace Dino_Defenders.Gameplay
         public int Level;
         public EnemyState State;
         public bool Friendly;       // Someone's minion: the same creature, on the other side.
+        public int Holds;           // One more than the index of the place it holds, and nothing for anything that holds none: all a client needs to mark whoever the land asks to be beaten.
 
         /// <summary>How hard it was thrown as it died, in metres a second. A blow that was far too much for it sends it flying.</summary>
         [NetStep(1f / 8f), NetSnap] public Vector3 Thrown;
@@ -74,6 +75,14 @@ namespace Dino_Defenders.Gameplay
         public List<Vector2>? Path;
         public int PathStep;
         public double NextPathTime;
+
+        // Whether it's getting anywhere. Something that stops dead against what's in its way finds a path round it, and if that doesn't help either, steps aside.
+        public Vector2 Last;        // Where it was a tick ago.
+        public float Asked;         // How fast it meant to walk then.
+        public float Stalled;       // Seconds it's been going nowhere.
+        public double DetourUntil;  // Until then it keeps to a path, whatever the straight line looks like.
+        public double SideUntil;
+        public float Side;          // Which way it steps aside: 1 or -1, and the other way next time.
     }
 
     /// <summary>A hero, whoever's it is.</summary>
@@ -112,6 +121,48 @@ namespace Dino_Defenders.Gameplay
             Model = model;
             Kind = kind;
         }
+    }
+
+    /// <summary>
+    /// A chest, which stays where it stood once it's opened, with its lid thrown back and nothing left to use. The server swaps the closed one for a body and a lid on its hinge, and a client raises the
+    /// lid, as a ghost's turn is sent as a yaw alone: swinging it up if it's opening, so the moment it's opened needs nothing sent but the two of them.
+    /// </summary>
+    public static class ChestLook
+    {
+        public const string Closed = "chest";
+        public const string Open = "chest:open";
+        public const string Lid = "chest:lid";                  // Thrown back already: a chest opened before anyone here came.
+        public const string Opening = "chest:lid:opening";      // Comes up as it's seen.
+        public const float Swing = 0.55f;                       // Seconds for the lid to come up, before anything comes out.
+        public const float Thrown = 1.9f;                       // Radians it goes back from shut, past upright, to rest.
+        public static readonly Vector3 Hinge = new Vector3(0f, 1.2f, -0.66f);  // Along the back of the top, in the model's own space, where the lid's own model starts.
+
+        /// <summary>How far up the lid is a moment after the chest was opened: thrown, quickly, a little past where it rests, and back.</summary>
+        public static float AngleAt(float seconds)
+        {
+            float t = Math.Clamp(seconds / Swing, 0f, 1f);
+            float eased = 1f - (1f - t) * (1f - t) * (1f - t);
+            return Thrown * eased + 0.18f * MathF.Sin(MathF.PI * t) * t;
+        }
+
+        /// <summary>A lid on a chest turned <paramref name="yaw"/>, raised by <paramref name="angle"/> about its hinge.</summary>
+        public static Quaternion Raised(Quaternion yaw, float angle) => yaw * Quaternion.FromAxisAngle(Vector3.UnitX, -angle);
+    }
+
+    /// <summary>
+    /// The old roads: a land's waygates are dark until someone comes near one, when it's lit, and a lit one can be travelled to from any other, or from anywhere by calling them, which is standing still and
+    /// unhurt for <see cref="Rulebook.CallRoads"/>. Both ends watch a call by the same rule, so what a client shows of one is what the server does.
+    /// </summary>
+    public static class Roads
+    {
+        public const string Lit = "waygate:lit";    // What stands in a gate once it's lit, with its light, as the gate itself is the world's and the same for everyone.
+
+        /// <summary>
+        /// Whether a call that began at <paramref name="from"/> has been broken by moving, by doing anything, or by being hurt: losing a share of Life from <paramref name="health"/>, the most they've had
+        /// since it began, as a blow does and the little a prediction is put right by doesn't.
+        /// </summary>
+        public static bool Broken(in HeroSimState hero, Vector2 from, float health, float maxHealth) =>
+            (hero.Position - from).LengthSquared > Rulebook.CallStill * Rulebook.CallStill || hero.Health < health - maxHealth * Rulebook.CallHurt || hero.BusyFor > 0f;
     }
 
     public struct VillagerComponent : IComponent
@@ -218,6 +269,16 @@ namespace Dino_Defenders.Gameplay
         [NotReplicated] public ArrowHeard Heard;
 
         public readonly Vector3 PositionAt(double tick) => Origin + Velocity * (float)((tick - StartTick) * NetTime.TickSecondsPrecise);
+
+        /// <summary>What it's thought of as, for what it runs into: a little across.</summary>
+        public const float Girth = 0.3f;
+
+        /// <summary>Whether the world stops what's flying here: the ground, or something solid that stands taller than it's flying. The server decides by this and a client shows by it.</summary>
+        public static bool Stopped(Dino_Engine.World.WorldData world, Vector3 position)
+        {
+            float above = position.Y - world.Height.Sample(position.Xz);
+            return above < 0f || world.Placement.BlocksFlight(position.Xz, Girth, above);
+        }
     }
 
     /// <summary>What ailments someone is under, for those watching. The numbers behind them stay on the server.</summary>

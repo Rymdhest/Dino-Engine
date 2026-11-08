@@ -34,10 +34,15 @@ namespace Dino_Defenders.Server
         private const float AlarmSight = 60f;           // A cry only sends someone after a foe that's near enough to be what it's about.
         private const int NoticedAlarm = 2;             // Whoever notices calls, and those who hear pass it on once.
         public const int StruckAlarm = 3;
-        private const float PersonalSpace = 2.5f;
+        private const float Elbow = 0.3f;               // Room wanted between two bodies, past touching. Two people want 2.5 m between their middles.
+        private const float BiggestBody = 3.2f;         // Further than any body reaches, so a look round finds whoever could be in the way.
         private const float CrowdReach = 16f;           // Only a crowd around a foe has to sort itself out.
         private const int SpreadEvery = 3;              // Ticks between each one looking around it.
         private const int MostNeighbours = 8;
+        private const float StallShare = 0.3f;          // Of the step it meant to take, less than which is going nowhere.
+        private const float StallTime = 0.35f;          // Seconds of going nowhere before it does something about it.
+        private const float DetourTime = 2.5f;          // Seconds it keeps to a path once the straight way has failed it.
+        private const float SideTime = 0.6f;
 
         private readonly GameServer _server;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
@@ -75,6 +80,7 @@ namespace Dino_Defenders.Server
                     brain.Mark = default;
                     Change(ref enemy, ref brain, EnemyState.Recovering);
                 }
+                brain.Asked = 0f;
                 entity.Set(new VelocityComponent(Carried(actor, Vector2.Zero, deltaTime)));
                 entity.Set(brain);
                 entity.Set(enemy);
@@ -83,6 +89,11 @@ namespace Dino_Defenders.Server
 
             float rate = actor.Afflictions.ActionRate;
             Vector2 position = actor.Position;
+
+            // Whether the last step got it anywhere.
+            if (brain.Asked > 0.5f && (position - brain.Last).Length < brain.Asked * deltaTime * StallShare) brain.Stalled += deltaTime;
+            else brain.Stalled = MathF.Max(brain.Stalled - deltaTime, 0f);
+            brain.Last = position;
             float speed = actor.Sheet.MoveSpeed * rate;
 
             if (actor.Owner is Actor owner)
@@ -108,7 +119,7 @@ namespace Dino_Defenders.Server
             switch (enemy.State)
             {
                 case EnemyState.Idle:
-                    velocity = actor.Owner != null ? Heel(ref brain, session, position, speed) : Wander(ref brain, enemy, position, speed);
+                    velocity = actor.Owner != null ? Heel(ref brain, session, actor, position, speed) : Wander(ref brain, enemy, position, speed);
                     if (!noFoe && (toTarget < Noticing(brain, target!) || (actor.Alarm > 0 && toTarget < AlarmSight)))
                     {
                         Call(session, actor);
@@ -134,7 +145,7 @@ namespace Dino_Defenders.Server
                     }
                     else if (toTarget > wants * 0.75f)
                     {
-                        velocity = MoveTowards(ref brain, session, position, foe) * speed;
+                        velocity = MoveTowards(ref brain, session, actor, position, foe) * speed;
                     }
                     else if (brain.KeepsAway)
                     {
@@ -142,7 +153,7 @@ namespace Dino_Defenders.Server
                         velocity = (position - foe).Normalized() * speed * 0.6f;
                     }
                     Face(entity, foe - position, deltaTime);
-                    velocity += Spread(session, actor, ref brain, entity.Entity.Id, toTarget) * speed;
+                    velocity += Onward(velocity, Spread(session, actor, ref brain, entity.Entity.Id, toTarget)) * speed;
                     break;
 
                 case EnemyState.WindingUp:
@@ -169,7 +180,7 @@ namespace Dino_Defenders.Server
                     }
                     else
                     {
-                        velocity = MoveTowards(ref brain, session, position, brain.Home) * speed;
+                        velocity = MoveTowards(ref brain, session, actor, position, brain.Home) * speed;
                         Face(entity, velocity, deltaTime);
                     }
                     break;
@@ -182,6 +193,7 @@ namespace Dino_Defenders.Server
                 velocity *= ReelingSpeed;
             }
 
+            brain.Asked = velocity.Length;
             entity.Set(new VelocityComponent(Carried(actor, velocity, deltaTime)));
             entity.Set(brain);
             entity.Set(enemy);
@@ -257,39 +269,56 @@ namespace Dino_Defenders.Server
             if ((session.Server.Tick + id) % SpreadEvery != 0) return brain.Apart;
 
             _near.Clear();
-            session.Combat.Grid.Foes(actor.Team == Team.Enemies ? Team.Heroes : Team.Enemies, actor.Position, PersonalSpace, _near);
+            session.Combat.Grid.Foes(actor.Team == Team.Enemies ? Team.Heroes : Team.Enemies, actor.Position, actor.Radius + BiggestBody + Elbow, _near);
 
             Vector2 push = Vector2.Zero;
             int counted = 0;
             foreach (Actor other in _near)
             {
                 if (other == actor) continue;
-                if (++counted > MostNeighbours) break;
-
                 Vector2 away = actor.Position - other.Position;
                 float distance = away.Length;
+                float room = actor.Radius + other.Radius + Elbow;
+                if (distance >= room) continue;
+                if (++counted > MostNeighbours) break;
 
                 // Two in exactly one place have nothing to tell them apart but who they are.
                 if (distance < 0.05f) away = new Vector2(MathF.Cos(id * 2.4f), MathF.Sin(id * 2.4f));
                 else away /= distance;
-                push += away * (1f - MathF.Min(distance / PersonalSpace, 1f));
+
+                // The smaller gives way: a tyrant hardly notices the soldiers round its feet, who scatter from it.
+                float gives = 2f * other.Radius / (actor.Radius + other.Radius);
+                push += away * ((1f - distance / room) * gives);
             }
 
             brain.Apart = push.LengthSquared > 1f ? push.Normalized() : push;
             return brain.Apart;
         }
 
+        // Being crowded moves something round whoever's in its way, and never back from where it's going: a push straight against it would stop it dead, and a
+        // pack's own people standing in front of their leader would hold it there for good.
+        private static Vector2 Onward(Vector2 walking, Vector2 apart)
+        {
+            if (walking.LengthSquared < 1e-4f) return apart;
+            Vector2 way = walking.Normalized();
+            float back = Vector2.Dot(apart, way);
+            return back < 0f ? apart - way * back : apart;
+        }
+
         // The quieter a hero, the closer they can get.
         private static float Noticing(in EnemyBrainComponent brain, Actor foe) => brain.AggroRadius * (1f - foe.Sheet.Stealth / 100f);
 
-        // How close it wants to be before it's happy.
+        // How close it wants to be before it's happy. Only what it would ever choose to do counts: a book that goes off by itself, or one it never reaches for,
+        // is no reason to stand off, or a tyrant whose gear sets off a zone 30 m out waits there for good for a blow it never strikes.
         private static float Comfort(Actor actor)
         {
             float best = 0f, waiting = 0f;
             for (int i = 0; i < actor.Loadout.Books.Length; i++)
             {
-                if (actor.Cooldowns[i] > 0f) waiting = MathF.Max(waiting, Reach(actor.Sheet.Profile(i)));
-                else best = MathF.Max(best, Reach(actor.Sheet.Profile(i)));
+                BookProfile book = actor.Sheet.Profile(i);
+                if (!Chosen(book)) continue;
+                if (actor.Cooldowns[i] > 0f) waiting = MathF.Max(waiting, Reach(book));
+                else best = MathF.Max(best, Reach(book));
             }
 
             // What can't be used yet is no reason to hang back, or a swordsman with a thrown knife stands off between throws and does nothing.
@@ -310,11 +339,13 @@ namespace Dino_Defenders.Server
             {
                 if (actor.Cooldowns[i] > 0f) continue;
                 BookProfile book = actor.Sheet.Profile(i);
-                if ((book.First.Tags & Tags.Triggered) != 0 || book.Sign.Form is PageForm.Buff or PageForm.Summon or PageForm.Leap) continue;
-                if (distance <= Reach(book)) return i;
+                if (Chosen(book) && distance <= Reach(book)) return i;
             }
             return -1;
         }
+
+        // What it reaches for itself when a foe is in reach. The rest go off by themselves, or aren't aimed at anyone.
+        private static bool Chosen(BookProfile book) => (book.First.Tags & Tags.Triggered) == 0 && book.Sign.Form is not (PageForm.Buff or PageForm.Summon or PageForm.Leap);
 
         private static void Let(ServerSession session, Actor actor, in EnemyBrainComponent brain)
         {
@@ -353,32 +384,51 @@ namespace Dino_Defenders.Server
             return offset.Normalized() * speed * 0.3f;
         }
 
-        private Vector2 Heel(ref EnemyBrainComponent brain, ServerSession session, Vector2 position, float speed)
+        private Vector2 Heel(ref EnemyBrainComponent brain, ServerSession session, Actor actor, Vector2 position, float speed)
         {
             if ((brain.Home - position).Length < FollowDistance) return Vector2.Zero;
-            return MoveTowards(ref brain, session, position, brain.Home) * speed;
+            return MoveTowards(ref brain, session, actor, position, brain.Home) * speed;
         }
 
-        // The straight line if it is clear; otherwise a path, refreshed now and then as the target moves.
-        private Vector2 MoveTowards(ref EnemyBrainComponent brain, ServerSession session, Vector2 position, Vector2 target)
+        // The straight line if it's clear for all of it; otherwise a path, refreshed now and then as the target moves. What's walked into and stopped by sends it
+        // round by a path for a while, whatever the straight line looked like, and if it stops on that too it steps aside, one way and then the other.
+        private Vector2 MoveTowards(ref EnemyBrainComponent brain, ServerSession session, Actor actor, Vector2 position, Vector2 target)
         {
             WorldData world = session.World;
-            if (WorldPathfinder.HasClearLine(world, position, target))
+            float wider = WorldPathfinder.Wider(actor.Radius);
+            double now = session.Time;
+            Vector2 toward = target - position;
+            toward = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.Zero;
+
+            if (brain.Stalled > StallTime)
+            {
+                brain.Stalled = 0f;
+                if (now < brain.DetourUntil)
+                {
+                    brain.Side = brain.Side > 0f ? -1f : 1f;
+                    brain.SideUntil = now + SideTime;
+                }
+                brain.DetourUntil = now + DetourTime;
+                brain.Path = null;
+            }
+            if (now < brain.SideUntil) return (new Vector2(-toward.Y, toward.X) * brain.Side + toward * 0.25f).Normalized();
+
+            if (now >= brain.DetourUntil && WorldPathfinder.HasClearLine(world, position, target, wider: wider))
             {
                 brain.Path = null;
-                return (target - position).Normalized();
+                return toward;
             }
 
-            if (brain.Path == null || session.Time >= brain.NextPathTime)
+            if (brain.Path == null || now >= brain.NextPathTime)
             {
-                brain.Path = _paths.Find(world, position, target);
+                brain.Path = _paths.Find(world, position, target, wider);
                 brain.PathStep = 0;
 
                 // Each at its own moment, or a pack blocked by the same wall all search in the same tick.
                 brain.NextPathTime = session.Time + PathRefresh * _random.Range(0.75f, 1.25f);
             }
 
-            if (brain.Path == null || brain.Path.Count == 0) return (target - position).Normalized();
+            if (brain.Path == null || brain.Path.Count == 0) return toward;
 
             while (brain.PathStep < brain.Path.Count - 1 && (brain.Path[brain.PathStep] - position).Length < WaypointReach) brain.PathStep++;
             Vector2 offset = brain.Path[brain.PathStep] - position;
@@ -434,21 +484,42 @@ namespace Dino_Defenders.Server
             _searchLimit = exact ? ExactSearch : 700;
         }
 
-        public static bool HasClearLine(WorldData world, Vector2 from, Vector2 to, float spacing = 1.5f)
+        /// <param name="wider">How much further a body reaches than a person's, which is what <see cref="WorldData.Passable"/> was worked out for. A tyrant's flanks have to get through too.</param>
+        public static bool HasClearLine(WorldData world, Vector2 from, Vector2 to, float spacing = 1.5f, float wider = 0f)
         {
-            float length = (to - from).Length;
+            Vector2 span = to - from;
+            float length = span.Length;
             int steps = Math.Max((int)(length / spacing), 1);
+            Vector2 flank = length > 1e-4f ? new Vector2(-span.Y, span.X) / length * wider : Vector2.Zero;
             for (int i = 1; i <= steps; i++)
             {
-                if (!world.Passable.IsSet(Vector2.Lerp(from, to, (float)i / steps))) return false;
+                Vector2 point = Vector2.Lerp(from, to, (float)i / steps);
+                if (!world.Passable.IsSet(point)) return false;
+                if (wider > 0f && (!world.Passable.IsSet(point + flank) || !world.Passable.IsSet(point - flank))) return false;
             }
             return true;
+        }
+
+        /// <summary>How much further a body of <paramref name="radius"/> reaches than the person <see cref="WorldData.Passable"/> was worked out for.</summary>
+        public static float Wider(float radius) => MathF.Max(radius - WorldData.CharacterRadius, 0f);
+
+        // Whether a body that much wider than a person stands here: the middle, and round it.
+        private static bool Fits(WorldData world, Vector2 at, float wider)
+        {
+            if (!world.Passable.IsSet(at)) return false;
+            if (wider <= 0f) return true;
+            float slant = wider * 0.7071f;
+            return world.Passable.IsSet(at + new Vector2(wider, 0f)) && world.Passable.IsSet(at - new Vector2(wider, 0f))
+                && world.Passable.IsSet(at + new Vector2(0f, wider)) && world.Passable.IsSet(at - new Vector2(0f, wider))
+                && world.Passable.IsSet(at + new Vector2(slant, slant)) && world.Passable.IsSet(at - new Vector2(slant, slant))
+                && world.Passable.IsSet(at + new Vector2(slant, -slant)) && world.Passable.IsSet(at - new Vector2(slant, -slant));
         }
 
         private static long Key(int x, int z) => ((long)x << 32) | (uint)z;
         private Vector2 Position(long key) => new Vector2((int)(key >> 32), (int)(key & 0xFFFFFFFF)) * _step;
 
-        public List<Vector2>? Find(WorldData world, Vector2 from, Vector2 to)
+        /// <param name="wider">See <see cref="Wider"/>: a path for something bigger than a person only goes where all of it fits.</param>
+        public List<Vector2>? Find(WorldData world, Vector2 from, Vector2 to, float wider = 0f)
         {
             _visited.Clear();
             _frontier.Clear();
@@ -484,8 +555,8 @@ namespace Dino_Defenders.Server
                         if (dx == 0 && dz == 0) continue;
                         long next = Key(x + dx, z + dz);
                         Vector2 there = Position(next);
-                        if (!world.Passable.IsSet(there)) continue;
-                        if (_exact && dx != 0 && dz != 0 && !(world.Passable.IsSet(Position(Key(x + dx, z))) && world.Passable.IsSet(Position(Key(x, z + dz))))) continue;
+                        if (!Fits(world, there, wider)) continue;
+                        if ((_exact || wider > 0f) && dx != 0 && dz != 0 && !(Fits(world, Position(Key(x + dx, z)), wider) && Fits(world, Position(Key(x, z + dz)), wider))) continue;
 
                         float total = cost + (dx != 0 && dz != 0 ? _step * 1.414f : _step);
                         if (_visited.TryGetValue(next, out var seen) && seen.cost <= total) continue;

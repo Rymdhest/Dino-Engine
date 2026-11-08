@@ -183,6 +183,20 @@ namespace Dino_Defenders.Server
                 Server.Announce(null, state.Site.Name, Chronicle.Describe(state.Site, World), 4.5f);
                 foreach (ServerPlayer hero in Heroes) GiveExperience(hero, 6 * World.Plan.Level);
             }
+
+            // A waygate wakes when someone comes near it, and from then on can be travelled to. The one at the landing wakes as heroes step out of it.
+            if (IsHaven) return;
+            foreach (SiteState state in Sites)
+            {
+                if (state.Lit || state.Wild || GameServer.WaygateSpawn(World, state.Site) is not Vector2 gate) continue;
+                if (DistanceToAnyHero(gate) > Rulebook.GateWake) continue;
+
+                state.Lit = true;
+                state.Changed = true;
+                if (state.Active) EncounterSystem.LightGate(Server.Ecs, Server, this, state, gate);
+                Server.Broadcast(new SoundEvent { Position = new Vector3(gate.X, World.Height.Sample(gate), gate.Y), Cue = SoundCue.Waygate }, gate);
+                if (state.Site != World.Sites[0]) Server.Note(null, $"The waygate at {state.Site.Name} is lit.");
+            }
         }
 
         /// <summary>A hero has been struck down, and how hard, for those watching.</summary>
@@ -425,7 +439,7 @@ namespace Dino_Defenders.Server
             if (state.Wild) return;
 
             Server.Note(null, $"{state.Site.Name} is freed.");
-            if (Counts(state)) Advance(ObjectiveKind.FreePlaces);
+            if (Chronicle.Asks(state.Site)) Advance(ObjectiveKind.FreePlaces);
         }
 
         public void Advance(ObjectiveKind kind)
@@ -482,7 +496,7 @@ namespace Dino_Defenders.Server
             for (int i = 0; i < Sites.Count; i++)
             {
                 SiteState state = Sites[i];
-                if (!state.Discovered && !state.Cleared && !state.Kindled && state.Dead.Count == 0 && state.Opened.Count == 0) continue;
+                if (!state.Discovered && !state.Cleared && !state.Kindled && !state.Lit && state.Dead.Count == 0 && state.Opened.Count == 0) continue;
                 save.Sites.Add(new SiteRecord
                 {
                     Index = i,
@@ -490,6 +504,7 @@ namespace Dino_Defenders.Server
                     Cleared = state.Cleared,
                     Kindled = state.Kindled,
                     Rewarded = state.Rewarded,
+                    Lit = state.Lit,
                     Dead = state.Dead.ToList(),
                     Opened = state.Opened.ToList(),
                 });
@@ -511,13 +526,18 @@ namespace Dino_Defenders.Server
                 state.Cleared = record.Cleared;
                 state.Kindled = record.Kindled;
                 state.Rewarded = record.Rewarded;
+                state.Lit = record.Lit;
                 state.Dead.UnionWith(record.Dead);
                 state.Opened.UnionWith(record.Opened);
             }
 
             for (int i = 0; i < save.Objectives.Count && i < Chronicle.Objectives.Count; i++)
             {
-                Chronicle.Objectives[i].Progress = save.Objectives[i];
+                Objective objective = Chronicle.Objectives[i];
+                objective.Progress = save.Objectives[i];
+
+                // A land saved when any place counted is brought up to the places it names now, unless it was already done.
+                if (objective.Kind == ObjectiveKind.FreePlaces && !objective.Done) objective.Progress = Sites.Count(state => !state.Wild && state.Cleared && objective.Places.Contains(state.Site));
             }
             Liberated = Chronicle.WorldCleared;
         }

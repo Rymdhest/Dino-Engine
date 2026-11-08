@@ -2,6 +2,7 @@
 
 #include globals.glsl
 #include Plant.glsl
+#include FocusOccluder.glsl
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
@@ -18,8 +19,10 @@ out mat3 normalTBN;
 out vec3 worldNormal;
 out vec3 viewSpacePos;
 out float textureIndex;
+flat out float fragFocusOccluder;
 
 uniform int plant;
+uniform vec3 modelSize;
 
 void main() {
 	// Only what bends has any business reading what's pushing it: everything else stands as it was built.
@@ -39,6 +42,7 @@ void main() {
 	if (dot(modelView[0], normalMatrix[0]) < 0.0) normalMatrix = -normalMatrix;
 	fragUV = uv;
 	textureIndex = materialIndex;
+	fragFocusOccluder = focusOccluder(modelSize, modelMatrix);
 	worldNormal = N;
 	
     vec3 B = normalize( cross(T, N));

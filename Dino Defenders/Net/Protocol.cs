@@ -58,6 +58,7 @@ namespace Dino_Defenders.Net
         Unstow,         // Out of the stash, into the pack.
         Shift,          // From one cell of the stash to another.
         TakeOffer,      // From the beta vendor in the Haven, into the pack.
+        CallRoads,      // Begin calling the old roads open from wherever the hero stands, in a land.
     }
 
     public enum NoticeKind : byte

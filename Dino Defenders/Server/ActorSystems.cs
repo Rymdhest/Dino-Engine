@@ -260,7 +260,7 @@ namespace Dino_Defenders.Server
             Vector3 position = flight.PositionAt(_server.Tick);
             entity.Set(new PositionComponent(position));
 
-            bool blocked = position.Y < session.World.Height.Sample(position.Xz) || session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f));
+            bool blocked = BallisticComponent.Stopped(session.World, position);
             bool flying = session.Combat.Touch(projectile, position);
 
             // What's falling isn't stopped by anything: it comes down where it said it would.

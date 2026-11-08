@@ -16,6 +16,7 @@ namespace Dino_Defenders.Progression
         public bool Cleared { get; set; }
         public bool Kindled { get; set; }
         public bool Rewarded { get; set; }
+        public bool Lit { get; set; }
         public List<int> Dead { get; set; } = new();
         public List<int> Opened { get; set; } = new();
     }

@@ -25,6 +25,13 @@ namespace Dino_Defenders.Client
         public bool Seen;
     }
 
+    /// <summary>A chest's lid, raised on the client alone, as only a yaw is sent: how long it's been coming up, and which way its chest faces.</summary>
+    public struct ChestLidComponent : IComponent
+    {
+        public Quaternion Yaw;
+        public float Age;
+    }
+
     /// <summary>
     /// Gives ghosts a body. A server only says what something is; this adds everything that takes to draw on this machine. New kinds of
     /// thing need nothing here: a <see cref="VisualComponent"/> is enough.
@@ -90,6 +97,16 @@ namespace Dino_Defenders.Client
                 }
             }
 
+            if (visual?.Model is ChestLook.Opening or ChestLook.Lid)
+            {
+                for (int i = 0; i < components.Count; i++)
+                {
+                    if (components[i] is not RotationComponent shut) continue;
+                    components.Add(new ChestLidComponent { Yaw = shut.quaternion, Age = visual.Value.Model == ChestLook.Lid ? ChestLook.Swing : 0f });
+                    break;
+                }
+            }
+
             if (!placed) components.Add(new PositionComponent(position));
             if (!turned) components.Add(new RotationComponent(new Vector3(0f)));
             if (!sized) components.Add(new ScaleComponent(new Vector3(1f)));
@@ -109,7 +126,7 @@ namespace Dino_Defenders.Client
             foreach (IComponent component in components)
             {
                 if (component is not InteractableComponent place) continue;
-                if (place.Kind is InteractKind.Waygate or InteractKind.Portal) components.Add(new SoundEmitterComponent(Life.Gate, gain: place.Kind == InteractKind.Portal ? PortalHum : PlaceHum));
+                if (place.Kind == InteractKind.Portal) components.Add(new SoundEmitterComponent(Life.Gate, gain: PortalHum));
                 else if (place.Kind == InteractKind.Shrine) components.Add(new SoundEmitterComponent(Life.ShrineGlow, gain: PlaceHum));
                 break;
             }
@@ -169,6 +186,15 @@ namespace Dino_Defenders.Client
                     }
                 }
 
+                // A land's waygate, once it's lit, hums and lights what's around it, which a dark one doesn't.
+                if (visual.Value.Model == Roads.Lit)
+                {
+                    components.Add(new PointLightTag());
+                    components.Add(new LightRangeComponent(GateLightRadius, 0.25f, lightsFog: true));
+                    components.Add(new ColorComponent(new Colour(0.35f, 0.85f, 1f, GateLight)));
+                    components.Add(new SoundEmitterComponent(Life.Gate, gain: PlaceHum));
+                }
+
                 // The way to a land lights the square in that land's colour.
                 if (visual.Value.Model.StartsWith(CharacterFactory.PortalPrefix) && int.TryParse(visual.Value.Model.AsSpan(CharacterFactory.PortalPrefix.Length), out int biome))
                 {
@@ -195,6 +221,8 @@ namespace Dino_Defenders.Client
         private const float PortalLight = 120f;
         private const float PortalHum = 0.8f;
         private const float PlaceHum = 0.55f;   // It never stops, so it sits under the land's own sound. At full level it's as loud as all the rest together.
+        private const float GateLightRadius = 20f;
+        private const float GateLight = 60f;
         private const float ChestLightRadius = 9f;
         private const float ChestLight = 14f;
         private const float BoltLightRadius = 11f;
@@ -239,6 +267,7 @@ namespace Dino_Defenders.Client
         private readonly BitMask _heroMask = new BitMask(typeof(HeroComponent), typeof(HealthComponent), typeof(AnimatorComponent));
         private readonly BitMask _dressedMask = new BitMask(typeof(HeroComponent), typeof(CharacterModelComponent));
         private readonly BitMask _arrowMask = new BitMask(typeof(BallisticComponent), typeof(PositionComponent), typeof(ScaleComponent));
+        private readonly BitMask _lidMask = new BitMask(typeof(ChestLidComponent), typeof(RotationComponent));
 
         public GhostPresentationSystem(Func<GameClient?> client, Func<ClientEffects?> effects, Wardrobe wardrobe)
             : base(new BitMask(typeof(PositionComponent)))
@@ -271,9 +300,28 @@ namespace Dino_Defenders.Client
                 shown.Trails.Update(world, deltaTime);
             }
             FlyArrows(world, client, session);
+            SwingLids(world, deltaTime);
             LootShow.Update(world, client, session, _effects(), _wardrobe, deltaTime);
             DressHeroes(world, client);
             ShowLasting(world, deltaTime);
+        }
+
+        // A chest's lid comes up on its hinge when it's opened, and stays up. It's set every frame, as what the server sends would turn it back to its yaw, and a few in a world cost nothing.
+        private void SwingLids(ECSWorld world, float deltaTime)
+        {
+            foreach (Archetype archetype in world.QueryArchetypes(_lidMask, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var lid = entity.Get<ChestLidComponent>();
+                    if (lid.Age < ChestLook.Swing)
+                    {
+                        lid.Age = MathF.Min(lid.Age + deltaTime, ChestLook.Swing);
+                        entity.Set(lid);
+                    }
+                    entity.Set(new RotationComponent(ChestLook.Raised(lid.Yaw, ChestLook.AngleAt(lid.Age))));
+                }
+            }
         }
 
         // A hero is drawn in what they have on, and keeps being asked for by what's drawing them. Whoever hasn't been described yet just stands there as they are.
@@ -555,8 +603,7 @@ namespace Dino_Defenders.Client
 
                     // It's the server that decides, and word of that is on the way. Meanwhile an arrow shouldn't be seen flying on through what it hit.
                     bool spent = (!arrow.FromHeroes && (position.Xz - session.PlayerPosition).LengthSquared < ArrowHitReach * ArrowHitReach)
-                        || position.Y < session.World.Height.Sample(position.Xz)
-                        || session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f));
+                        || (arrow.Velocity.Xz == Vector2.Zero ? position.Y < session.World.Height.Sample(position.Xz) : BallisticComponent.Stopped(session.World, position));
 
                     entity.Set(new PositionComponent(position));
                     if (entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model.StartsWith(Thrown.Prefix)) Tumble(entity, arrow, tick);

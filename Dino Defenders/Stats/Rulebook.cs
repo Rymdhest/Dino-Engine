@@ -219,6 +219,11 @@ namespace Dino_Defenders.Stats
 
         // Getting about.
         public const float GuideCooldown = 14f;         // Seconds. The guiding wind is the client's own, and nothing is sent.
+        public const float CallRoads = 3f;              // Seconds standing still and unhurt to call the old roads open, from anywhere in a land.
+        public const float CallStill = 0.4f;            // Metres a hero can drift while calling them.
+        public const float CallHurt = 0.02f;            // Of their Life a hero can lose while calling them.
+        public const float RoadsStray = 1.5f;           // Metres from where they were called that they stay open.
+        public const float GateWake = 16f;              // Metres from a waygate that someone has to come to light it.
 
         // Enemies.
         public const float NightNotice = 1.4f;          // How much further enemies notice a hero under an endless night.

@@ -1,6 +1,7 @@
 using Dino_Defenders.Client;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
+using Dino_Engine.Networking;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
@@ -17,6 +18,7 @@ namespace Dino_Defenders.Gameplay
         public float Life;
         public Vector3 Colour;
         public float Size;
+        public int Slot;            // Which place around its spot it takes, so that hits landing together don't cover each other.
     }
 
     /// <summary>A message across the screen.</summary>
@@ -80,6 +82,9 @@ namespace Dino_Defenders.Gameplay
         public Vector2 PlayerPosition;
         public HeroSimState Sim;
         public float GuideCooldown;
+        public uint? CallingSince;      // The tick this player began calling the old roads on, by their own clock, as far as they can tell: the server has the last word.
+        public Vector2 CallingFrom;
+        public float CallingHealth;
         public string? InteractPrompt;
         public InteractKind? Offered;
         public Entity OfferedThing;     // What the key would use: the same one the server will pick.
@@ -89,11 +94,31 @@ namespace Dino_Defenders.Gameplay
             Client = client;
             Health = Sheet.MaxHealth;
             PlayerPosition = world.Sites[0].Position;
+            _twin = Terms.Unique() == OrdersCatalog.TwinPens ? Chronicle.TwinSite(world) : null;
         }
+
+        private readonly WorldSite? _twin;    // Where a second tyrant stands, on a land whose orders gave it two.
 
         public void Say(Vector3 position, string text, Vector3 colour, float size = 15f, float life = 2.4f)
         {
-            FloatingTexts.Add(new FloatingText { Text = text, Position = position, Colour = colour, Size = size, Life = life });
+            FloatingTexts.Add(new FloatingText { Text = text, Position = position, Colour = colour, Size = size, Life = life, Slot = FreeSlot(position) });
+        }
+
+        // Texts that have just come up near here hold their places: a new one takes the first that's free. One that's old enough has
+        // drifted clear, so its place goes back.
+        private int FreeSlot(Vector3 position)
+        {
+            const float Near = 1.5f, Young = 0.45f;
+            ulong taken = 0;
+            foreach (FloatingText other in FloatingTexts)
+            {
+                if (other.Age >= Young || other.Slot >= 64) continue;
+                float dx = other.Position.X - position.X, dz = other.Position.Z - position.Z;
+                if (dx * dx + dz * dz < Near * Near) taken |= 1UL << other.Slot;
+            }
+            int slot = 0;
+            while (slot < 63 && (taken & (1UL << slot)) != 0) slot++;
+            return slot;
         }
 
         public void Announce(string title, string subtitle = "", float life = 4f)
@@ -107,9 +132,69 @@ namespace Dino_Defenders.Gameplay
             if (Log.Count > 6) Log.RemoveAt(0);
         }
 
+        /// <summary>Whether the old roads can be called from where the hero is now.</summary>
+        public bool CanCall => !IsHaven && !Client.Out && Sim.Health > 0f && Sim.BusyFor <= 0f && CallingSince == null;
+
+        /// <summary>Begins calling the old roads, which is standing still and unhurt for a while, and then the map opens to travel by.</summary>
+        public void BeginCalling()
+        {
+            if (!CanCall) return;
+            CallingSince = Client.Commands.Tick;
+            CallingFrom = Sim.Position;
+            CallingHealth = Sim.Health;
+            Client.CallRoads();
+        }
+
+        /// <summary>How far through a call this player is, from nothing to done, or nothing if they aren't calling.</summary>
+        public float? Calling => CallingSince is uint since ? Math.Clamp(CalledFor(since) / Rulebook.CallRoads, 0f, 1f) : null;
+
+        private float CalledFor(uint since) => (float)((Client.Commands.Tick - since) * NetTime.TickSecondsPrecise);
+
+        /// <summary>Breaks a call by the server's rule, and lets it go a little after it's done, by when the map has opened. Asked each time the hero has been predicted.</summary>
+        public void UpdateCalling()
+        {
+            if (CallingSince is not uint since) return;
+            float gone = CalledFor(since);
+            if (gone >= Rulebook.CallRoads + CallingLinger || (gone < Rulebook.CallRoads && (Client.Out || Roads.Broken(Sim, CallingFrom, CallingHealth, Sheet.MaxHealth))))
+            {
+                CallingSince = null;
+                return;
+            }
+            CallingHealth = MathF.Max(CallingHealth, Sim.Health);
+        }
+
+        private const float CallingLinger = 0.6f;
+
         /// <summary>
-        /// Where to go next, for the guiding wind and the mark on the screen: the nearest place still to free while the land asks for more, then its tyrant, and once the land is free the nearest
-        /// waygate home. In the Haven, the map table, until the way is open, and then the waygate.
+        /// Whether an enemy is one the land asks to be beaten, and is marked as such: anyone holding a place it names while it asks for those, and its tyrants, whenever they stand. Nothing is marked
+        /// once the land is free, or for a hero who's out of it.
+        /// </summary>
+        public bool Sought(in EnemyComponent enemy)
+        {
+            int site = enemy.Holds - 1;
+            if (enemy.Friendly || site < 0 || site >= Sites.Count || IsHaven || Liberated || Client.Out) return false;
+            SiteState state = Sites[site];
+            if (enemy.Rarity == Rarity.Unique && (state.Site.Kind == SiteKind.Keep || state.Site == _twin)) return true;
+            return PlacesAsked && !state.Cleared && Chronicle.Asks(state.Site);
+        }
+
+        /// <summary>Whether the land still asks for more of its places to be freed before its tyrant.</summary>
+        public bool PlacesAsked => Chronicle.Objectives.Any(objective => objective.Kind == ObjectiveKind.FreePlaces && !objective.Done);
+
+        /// <summary>
+        /// Whether a place is one the land asks of the hero now, found or not: each of the places it names that's still held, and once those are free, where its tyrants are. The map shows these and
+        /// nothing else that hasn't been found, and the mark on the screen points to the nearest.
+        /// </summary>
+        public bool IsGoal(SiteState state)
+        {
+            if (state.Wild || state.Cleared || IsHaven || Liberated || Client.Out) return false;
+            if (PlacesAsked) return Chronicle.Asks(state.Site);
+            return state.Site.Kind == SiteKind.Keep || state.Site == _twin;
+        }
+
+        /// <summary>
+        /// Where to go next, for the guiding wind and the mark on the screen: the nearest of the land's goals, and once the land is free the nearest waygate home. In the Haven, the map table, until
+        /// the way is open, and then the waygate.
         /// </summary>
         public void UpdateGuidance()
         {
@@ -131,14 +216,7 @@ namespace Dino_Defenders.Gameplay
                 return;
             }
 
-            Objective? places = Chronicle.Objectives.FirstOrDefault(objective => objective.Kind == ObjectiveKind.FreePlaces);
-            if (places is { Done: false })
-            {
-                Guidance = Nearest(at, state => Counts(state) && !state.Cleared);
-                if (Guidance != null) return;
-            }
-
-            Guidance = Nearest(at, state => state.Site.Kind == SiteKind.Keep && !state.Cleared) ?? Nearest(at, state => state.Site.Kind == SiteKind.Keep);
+            Guidance = Nearest(at, IsGoal) ?? Nearest(at, state => state.Site.Kind == SiteKind.Keep);
         }
 
         private Vector2? Nearest(Vector2 from, Func<SiteState, bool> wanted)

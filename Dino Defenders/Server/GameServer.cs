@@ -395,6 +395,7 @@ namespace Dino_Defenders.Server
                         if (player.Sim.Moves == wasMoved) session.Combat.Watch(actor, BookWhen.Moved, (player.Sim.Position - wasAt).Length);
                         Act(session, player, command, events, manaBefore);
                         GoOff(session, player);
+                        StepCalling(session, player);
                     }
                     else
                     {
@@ -1080,7 +1081,8 @@ namespace Dino_Defenders.Server
                     int to = reader.ReadVarInt();
                     if (to < 0 || to >= Session!.Sites.Count || Session.IsHaven || player.Out || !AtWaygate(player)) break;
                     SiteState destination = Session.Sites[to];
-                    if (!destination.Discovered || !WorldProgress.HasWaygate(destination) || WaygateSpawn(Session.World, destination.Site) is not Vector2 arrive) break;
+                    if (!WorldProgress.CanTravelTo(destination) || WaygateSpawn(Session.World, destination.Site) is not Vector2 arrive) break;
+                    player.RoadsOpenAt = null;
 
                     // Out in front of the gate, on the side it's used from, as the middle of a site can be built on.
                     Vector2 outward = (destination.Site.Position - arrive).LengthSquared > 1f ? (destination.Site.Position - arrive).Normalized() : Vector2.UnitY;
@@ -1091,6 +1093,14 @@ namespace Dino_Defenders.Server
                 case HeroAction.ReturnHome:
                     if (Session!.IsHaven || player.Out || !AtWaygate(player)) break;
                     GoHome();
+                    break;
+
+                case HeroAction.CallRoads:
+                    if (Session!.IsHaven || player.Out || player.Sim.Health <= 0f || player.Sim.BusyFor > 0f || player.CallingSince != null) break;
+                    player.CallingSince = Session.Time;
+                    player.CallingFrom = player.Sim.Position;
+                    player.CallingHealth = player.Sim.Health;
+                    Broadcast(new FlourishEvent { Who = player.GhostId, Kind = Flourish.Use }, player.Sim.Position);
                     break;
 
                 case HeroAction.OpenWay:
@@ -1162,9 +1172,28 @@ namespace Dino_Defenders.Server
             }
         }
 
-        // Whether someone is standing at a waygate in a land, which is the only place the land's roads can be taken from.
+        // A call to the old roads goes on while the hero stands still and unhurt, and opens them where they stand once it's gone on long enough. They stay open there until they step away.
+        private void StepCalling(ServerSession session, ServerPlayer player)
+        {
+            if (player.RoadsOpenAt is Vector2 open && (player.Sim.Position - open).LengthSquared > Rulebook.RoadsStray * Rulebook.RoadsStray) player.RoadsOpenAt = null;
+            if (player.CallingSince is not double since) return;
+            if (player.Out || Roads.Broken(player.Sim, player.CallingFrom, player.CallingHealth, player.Actor.Sheet.MaxHealth))
+            {
+                player.CallingSince = null;
+                return;
+            }
+            player.CallingHealth = MathF.Max(player.CallingHealth, player.Sim.Health);
+            if (session.Time - since < Rulebook.CallRoads) return;
+
+            player.CallingSince = null;
+            player.RoadsOpenAt = player.Sim.Position;
+            OpenPanel(player, InteractKind.Waygate, 0);
+        }
+
+        // Whether someone can take the land's roads from where they stand: at a waygate, or where they've called them open.
         private bool AtWaygate(ServerPlayer player)
         {
+            if (player.RoadsOpenAt is Vector2 open && (player.Sim.Position - open).LengthSquared <= Rulebook.RoadsStray * Rulebook.RoadsStray) return true;
             foreach (SiteState state in Session!.Sites)
             {
                 if (!WorldProgress.HasWaygate(state) || WaygateSpawn(Session.World, state.Site) is not Vector2 gate) continue;
@@ -1342,6 +1371,7 @@ namespace Dino_Defenders.Server
                 writer.WriteBool(state.Cleared);
                 writer.WriteBool(state.Kindled);
                 writer.WriteBool(state.Rewarded);
+                writer.WriteBool(state.Lit);
                 writer.WriteCount(state.Dead.Count);
                 foreach (int dead in state.Dead) writer.WriteVarInt(dead);
                 writer.WriteCount(state.Opened.Count);
@@ -1352,7 +1382,7 @@ namespace Dino_Defenders.Server
 
         private static bool Tells(SiteState state, bool everything)
         {
-            return state.Changed || (everything && (state.Discovered || state.Cleared || state.Kindled || state.Rewarded || state.Dead.Count > 0 || state.Opened.Count > 0));
+            return state.Changed || (everything && (state.Discovered || state.Cleared || state.Kindled || state.Rewarded || state.Lit || state.Dead.Count > 0 || state.Opened.Count > 0));
         }
 
         private void SendParty()

@@ -6,6 +6,7 @@ using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Defenders.Tooltips;
+using Dino_Engine.Core;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Widgets;
@@ -20,14 +21,22 @@ using OpenTK.Mathematics;
 namespace Dino_Defenders.UI
 {
     /// <summary>
-    /// The land as a map, turned the way the land is seen: the hero knows its shape, but a place only appears on it once they have found it. Opened at a waygate, it's also the way to travel: every gate
-    /// found in the land can be clicked, and so can the way home to the Haven, which asks first if the land isn't free.
+    /// The land as a map, turned the way the land is seen: the hero knows its shape, and on it are what the land still asks of them, from the start, and the waygates that are lit, and nothing else:
+    /// the places it names that are still held, and once those are free, where its tyrant is. Opened at a waygate, it's also the way to travel: every gate found in the land can be clicked, and so can the way home
+    /// to the Haven, which asks first if the land isn't free.
     /// </summary>
     internal sealed class MapPanel : GuiElement
     {
         public const int Resolution = 1024;
         private const float PickRadius = 16f;
         private const float GateIcon = 7f;
+        private const float GoalIcon = 7f;
+        private const float TyrantIcon = 10f;
+        private const float HeroIcon = 11f;
+        private const float PulseRate = 2.2f;
+        private static readonly Colour GoalColour = GuiColors.Rgba(255, 190, 70);
+        private static readonly Colour HeroColour = GuiColors.Rgba(255, 255, 255);
+        private static readonly Colour Halo = GuiColors.Rgba(0, 0, 0, 210);
 
         private int _texture;
         private readonly Action _close;
@@ -140,7 +149,7 @@ namespace Dino_Defenders.UI
             }
         }
 
-        private static bool CanTravelTo(SiteState state) => state.Discovered && WorldProgress.HasWaygate(state);
+        private static bool CanTravelTo(SiteState state) => WorldProgress.CanTravelTo(state);
 
         protected override void OnDraw(GuiDrawList draw)
         {
@@ -156,35 +165,100 @@ namespace Dino_Defenders.UI
             Ui.Text(Context, draw, session.World.Plan.Name, 26f, new GuiRect(0f, map.Y - 62f, Bounds.Width, 32f), Ui.Parchment, Alignment.Center);
 
             Vector2 mouse = Context.MousePosition;
+            bool placesAsked = session.PlacesAsked;
+            // Besides what the land asks, only the gates that are lit, as they're how the land is travelled: the rest of what's been found was too much to read. A gate's name is there when it's pointed at.
             foreach (SiteState state in session.Sites)
             {
-                if (state.Wild || !state.Discovered) continue;
+                if (!CanTravelTo(state) || session.IsGoal(state)) continue;
                 Vector2 at = ToMap(map, state.Site.Position, size);
-                bool gate = WorldProgress.HasWaygate(state);
-                bool hovered = Travelling && gate && (at - mouse).Length <= PickRadius;
-                if (gate) DrawGate(draw, at, hovered ? GuiColors.Rgba(190, 236, 255) : GuiColors.Rgba(104, 206, 255));
-                else
-                {
-                    Vector3 c = state.Site.Definition.MapColour;
-                    Colour colour = state.Cleared ? Ui.Faded : GuiColors.Rgba(c.X, c.Y, c.Z);
-                    draw.AddCircle(at, 4.5f, colour, 1.5f, GuiColors.Rgba(0, 0, 0, 200));
-                }
-                Ui.Text(Context, draw, state.Site.Name, 13.5f, new GuiRect(at.X - 110f, at.Y + 7f, 220f, 18f), hovered ? Ui.Bright : Ui.Parchment, Alignment.Center);
+                bool hovered = (at - mouse).Length <= PickRadius;
+                DrawGate(draw, at, hovered && Travelling ? GuiColors.Rgba(190, 236, 255) : GuiColors.Rgba(104, 206, 255));
+                if (hovered) Ui.Text(Context, draw, state.Site.Name, 13f, new GuiRect(at.X - 110f, at.Y + 9f, 220f, 18f), Ui.Bright, Alignment.Center);
             }
 
-            if (session.Guidance is Vector2 goal)
+            // What the land asks goes over everything else, found or not, with the nearest of it ringed, as that's where the mark on the screen points.
+            float pulse = 0.5f + 0.5f * MathF.Sin(Engine.Time * PulseRate);
+            foreach (SiteState state in session.Sites)
             {
-                Vector2 at = ToMap(map, goal, size);
-                draw.AddCircle(at, 9f, GuiColors.Transparent, 2f, Ui.Gold);
+                if (!session.IsGoal(state)) continue;
+                Vector2 at = ToMap(map, state.Site.Position, size);
+                bool tyrant = !placesAsked;
+                float radius = tyrant ? TyrantIcon : GoalIcon;
+                if (session.Guidance is Vector2 goal && (goal - state.Site.Position).LengthSquared < 1f)
+                {
+                    draw.AddCircle(at, radius + 5f + pulse * 6f, GuiColors.Transparent, 2f, GoalColour.MultiplyAlpha(1f - pulse * 0.8f));
+                }
+                if (tyrant) DrawTyrant(draw, at);
+                else DrawGoal(draw, at);
+
+                bool hovered = Travelling && CanTravelTo(state) && (at - mouse).Length <= PickRadius;
+                // On a plate of its own, as the map's snow and heath are as bright as the gold.
+                float wide = GuiText.MeasureWidth(Context, state.Site.Name, Ui.Face, 14f) + 10f;
+                draw.AddRect(new GuiRect(at.X - wide * 0.5f, at.Y + radius + 4f, wide, 17f), GuiColors.Rgba(8, 6, 5, 190), 3f);
+                Ui.Text(Context, draw, state.Site.Name, 14f, new GuiRect(at.X - 120f, at.Y + radius + 3f, 240f, 18f), hovered ? Ui.Bright : GoalColour, Alignment.Center);
             }
 
-            Vector2 hero = ToMap(map, session.PlayerPosition, size);
-            draw.AddCircle(hero, 5f, Ui.Parchment, 2f, GuiColors.Rgba(150, 30, 24));
+            DrawHero(draw, ToMap(map, session.PlayerPosition, size), session.Sim.Yaw);
+            DrawLegend(draw, map, !placesAsked);
 
             string help = Travelling
-                ? "Click a waygate you've found to go there."
-                : session.IsHaven ? $"{Bindings.Label(GameAction.Map)} to close." : $"{Bindings.Label(GameAction.Map)} to close.  Waygates are travelled between, and home from, at any waygate.";
+                ? "Click a lit waygate to go there."
+                : session.IsHaven ? $"{Bindings.Label(GameAction.Map)} to close." : $"{Bindings.Label(GameAction.Map)} to close.  A waygate lights as you come near it.  {Bindings.Label(GameAction.Roads)} calls the lit ones, from anywhere.";
             Ui.Text(Context, draw, help, 14f, new GuiRect(0f, map.Y - 28f, Bounds.Width, 20f), Ui.Faded, Alignment.Center);
+        }
+
+        // A place still to free: a bright gold disc with a dark rim, which nothing else on the map is.
+        private static void DrawGoal(GuiDrawList draw, Vector2 at)
+        {
+            draw.AddCircle(at, GoalIcon + 2.5f, Halo);
+            draw.AddCircle(at, GoalIcon, GoalColour, 2f, GuiColors.Rgba(60, 36, 10));
+            draw.AddCircle(at, GoalIcon * 0.35f, GuiColors.Rgba(60, 36, 10));
+        }
+
+        // Where a tyrant is: bigger, red within gold, and crossed through, so that the end of a land reads as that.
+        private static void DrawTyrant(GuiDrawList draw, Vector2 at)
+        {
+            draw.AddCircle(at, TyrantIcon + 3f, Halo);
+            draw.AddCircle(at, TyrantIcon, Ui.Blood, 2.5f, GoalColour);
+            float arm = TyrantIcon * 0.5f;
+            draw.AddLine(at + new Vector2(-arm, -arm), at + new Vector2(arm, arm), Ui.Bright, 2.5f, roundCaps: true);
+            draw.AddLine(at + new Vector2(arm, -arm), at + new Vector2(-arm, arm), Ui.Bright, 2.5f, roundCaps: true);
+        }
+
+        // The hero: a white arrowhead on a dark disc, pointing the way they face. +x is to the left on the map and ahead is up, as in ToMap.
+        private static void DrawHero(GuiDrawList draw, Vector2 at, float yaw)
+        {
+            Vector2 facing = new Vector2(-MathF.Sin(yaw), -MathF.Cos(yaw));
+            Vector2 side = new Vector2(-facing.Y, facing.X);
+            draw.AddCircle(at, HeroIcon + 3f, Halo, 2f, HeroColour.MultiplyAlpha(0.85f));
+            Vector2 tip = at + facing * HeroIcon * 0.95f;
+            Vector2 tail = at - facing * HeroIcon * 0.55f;
+            // Filled by lines fanned from the tip to a notched base, as the draw list has no triangles.
+            for (int i = 0; i <= 8; i++)
+            {
+                float t = i / 8f * 2f - 1f;
+                Vector2 corner = tail + facing * HeroIcon * 0.3f * (1f - MathF.Abs(t)) + side * t * HeroIcon * 0.7f;
+                draw.AddLine(tip, corner, HeroColour, 2.2f, roundCaps: true);
+            }
+        }
+
+        // What each mark is, in a corner of the map.
+        private void DrawLegend(GuiDrawList draw, GuiRect map, bool tyrants)
+        {
+            const float Row = 24f;
+            GuiRect box = new GuiRect(map.X + 10f, map.Y + 10f, 160f, Row * 3f + 10f);
+            draw.AddRect(box, GuiColors.Rgba(8, 6, 5, 200), 4f, 1f, GuiColors.Rgba(120, 96, 58));
+            float x = box.X + 22f, y = box.Y + 5f + Row * 0.5f;
+
+            DrawHero(draw, new Vector2(x, y), 0f);
+            Ui.Text(Context!, draw, "You", 14f, new GuiRect(x + 22f, y - 9f, 120f, 18f), HeroColour);
+            y += Row;
+            if (tyrants) DrawTyrant(draw, new Vector2(x, y));
+            else DrawGoal(draw, new Vector2(x, y));
+            Ui.Text(Context!, draw, tyrants ? "Tyrant" : "Place to free", 14f, new GuiRect(x + 22f, y - 9f, 120f, 18f), GoalColour);
+            y += Row;
+            DrawGate(draw, new Vector2(x, y), GuiColors.Rgba(104, 206, 255));
+            Ui.Text(Context!, draw, "Waygate", 14f, new GuiRect(x + 22f, y - 9f, 120f, 18f), Ui.Parchment);
         }
 
         // A little arch, as the mark on a gate is, so that a gate reads as one wherever it is.

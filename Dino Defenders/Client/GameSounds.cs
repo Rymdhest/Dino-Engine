@@ -561,7 +561,7 @@ namespace Dino_Defenders.Client
                         entity.Set(arrow);
                         Audio.Play(session.World.WaterDepthAt(position.Xz) > 0.05f ? Archery.OnWater : Footsteps.GroundOf(session.World.SurfaceAt(position.Xz)) == Ground.Stone ? Archery.OnStone : Archery.InGround, position);
                     }
-                    else if (arrow.Heard != ArrowHeard.Landed && session.World.Placement.OverlapsSolid(Footprint.Circle(position.Xz, 0.3f)))
+                    else if (arrow.Heard != ArrowHeard.Landed && BallisticComponent.Stopped(session.World, position))
                     {
                         arrow.Heard = ArrowHeard.Landed;
                         entity.Set(arrow);

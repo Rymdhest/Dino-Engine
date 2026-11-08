@@ -49,6 +49,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             Systems.Add(new FollowCameraSystem());
 
             Systems.Add(new CharacterAnimationSystem());
+            Systems.Add(new BreakageSystem());
 
             Systems.Add(new LocalToWorldTransformRootSystem());
             Systems.Add(new LocalToWorldTransformChildSystem());

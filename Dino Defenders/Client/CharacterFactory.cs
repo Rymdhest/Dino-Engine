@@ -1,3 +1,4 @@
+using Dino_Defenders.Gameplay;
 using Dino_Engine.Animation;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
@@ -113,7 +114,10 @@ namespace Dino_Defenders.Client
             if (key.StartsWith("brute") && int.TryParse(key.AsSpan(5), out int brute)) return Model(key, () => HumanoidGenerator.Generate(BruteLook(brute)));
             if (key == "arrow") return Model(key, Arrow);
             if (key.StartsWith(Books.Thrown.Prefix)) return Model(key, () => ThrownThing(key.Substring(Books.Thrown.Prefix.Length)));
-            if (key == "chest") return Model(key, Chest);
+            if (key == Roads.Lit) return Model(key, PropGenerator.GenerateWaygateLight);
+            if (key == ChestLook.Closed) return Model(key, () => Chest(open: false));
+            if (key == ChestLook.Open) return Model(key, () => Chest(open: true));
+            if (key is ChestLook.Lid or ChestLook.Opening) return Model(ChestLook.Lid, ChestLid);
             if (key == "dummy") return Model(key, Dummy);
             if (key.StartsWith(PortalPrefix) && int.TryParse(key.AsSpan(PortalPrefix.Length), out int biome)) return Model(key, () => Portal(biome));
             if (key == Progression.LootModels.Gold) return Model(key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
@@ -501,12 +505,32 @@ namespace Dino_Defenders.Client
             return builder.Build();
         }
 
-        private static Mesh Chest()
+        // A chest that's been opened is its box, empty and dark inside, with nothing glowing on it any more: its lid is a model of its own, on its hinge.
+        private static Mesh Chest(bool open)
         {
             var builder = new MeshBuilder();
             VertexMaterial boards = new VertexMaterial(TextureGenerator.wood, new Colour(120, 84, 56));
             VertexMaterial iron = new VertexMaterial(TextureGenerator.iron, new Colour(90, 90, 96));
             VertexMaterial glow = new VertexMaterial(TextureGenerator.flatGlow, new Colour(1f, 0.4f, 0.02f, 1.6f));
+            if (open)
+            {
+                VertexMaterial inside = new VertexMaterial(TextureGenerator.wood, new Colour(46, 32, 22));
+                const float Wall = 0.07f;
+                builder.Box(new Vector3(0f, 0.2f, 0f), new Vector3(1f, 0.2f, 0.66f), boards);
+                builder.Box(new Vector3(0f, 0.41f, 0f), new Vector3(1f - Wall, 0.01f, 0.66f - Wall), inside);
+                foreach (float z in new[] { -1f, 1f })
+                {
+                    builder.Box(new Vector3(0f, 0.8f, z * (0.66f - Wall * 0.5f)), new Vector3(1f, 0.4f, Wall * 0.5f), boards);
+                }
+                foreach (float x in new[] { -1f, 1f })
+                {
+                    builder.Box(new Vector3(x * (1f - Wall * 0.5f), 0.8f, 0f), new Vector3(Wall * 0.5f, 0.4f, 0.66f - Wall), boards);
+                    builder.Box(new Vector3(x * 0.7f, 0.6f, 0.68f), new Vector3(0.09f, 0.6f, 0.03f), iron);
+                }
+                builder.Box(new Vector3(0f, 1.1f, 0.7f), new Vector3(0.14f, 0.12f, 0.05f), iron);
+                return builder.Build();
+            }
+
             builder.Box(new Vector3(0f, 0.6f, 0f), new Vector3(1f, 0.6f, 0.66f), boards);
             builder.Surface(6, 1, (u, v) =>
             {
@@ -525,6 +549,37 @@ namespace Dino_Defenders.Client
                 }, glow);
             }
             builder.Box(new Vector3(0f, 1.1f, 0.7f), new Vector3(0.14f, 0.18f, 0.05f), glow);
+            return builder.Build();
+        }
+
+        // The lid alone, thrown back, from its hinge along the back of the top (ChestLook.Hinge), which is where its model starts, so that it turns about that. Iron where the shut one glowed.
+        private static Mesh ChestLid()
+        {
+            var builder = new MeshBuilder();
+            VertexMaterial boards = new VertexMaterial(TextureGenerator.wood, new Colour(120, 84, 56));
+            VertexMaterial inside = new VertexMaterial(TextureGenerator.wood, new Colour(70, 48, 32));
+            VertexMaterial iron = new VertexMaterial(TextureGenerator.iron, new Colour(90, 90, 96));
+            Vector3 hinge = ChestLook.Hinge;
+            builder.Surface(6, 1, (u, v) =>
+            {
+                float angle = u * MathF.PI;
+                return new Vector3((v * 2f - 1f) * 1f, 1.2f + MathF.Sin(angle) * 0.34f, MathF.Cos(angle) * 0.66f) - hinge;
+            }, boards);
+            foreach (float x in new[] { -1f, 1f })
+            {
+                // Its ends, which a shut chest hides and an open one shows.
+                builder.Surface(6, 1, (u, v) =>
+                {
+                    float angle = u * MathF.PI;
+                    return new Vector3(x, 1.2f + MathF.Sin(angle) * 0.34f * v, MathF.Cos(angle) * 0.66f) - hinge;
+                }, boards);
+                builder.Surface(6, 1, (u, v) =>
+                {
+                    float angle = u * MathF.PI;
+                    return new Vector3(x * 0.7f + (v * 2f - 1f) * 0.1f, 1.2f + MathF.Sin(angle) * 0.37f, MathF.Cos(angle) * 0.69f) - hinge;
+                }, iron);
+            }
+            builder.Box(new Vector3(0f, 0.015f, 0.66f), new Vector3(1f, 0.015f, 0.66f), inside, closeBottom: true);
             return builder.Build();
         }
     }

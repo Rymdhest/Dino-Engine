@@ -18,6 +18,7 @@ namespace Dino_Defenders.Server
     public class EncounterSystem : SystemBase
     {
         private const float ShrineReach = 6.5f;     // It's used from one side of the altar, and has to reach anyone standing at the far side.
+        private const float GateFromSpawn = 14f;    // Metres from where a waygate is used to the gate itself, at the most.
         private const float ChestScale = 1.35f;     // A size bigger than life, like anything else that matters seen from up where the camera is.
         private const float WakeDistance = 100f;
         private const float SleepDistance = 160f;
@@ -106,14 +107,16 @@ namespace Dino_Defenders.Server
                         if (BetaVendor.GivesIn(session.IsHaven)) SpawnBetaVendor(world, session, state, siteIndex, i, spawn, spawnRandom);
                         break;
                     case SpawnRole.Chest:
-                        if (!state.Opened.Contains(i)) SpawnChest(world, session, state, siteIndex, i, spawn);
+                        PlaceChest(world, _server, session, state, siteIndex, i, opening: false);
                         break;
                     case SpawnRole.Altar:
                         SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Shrine, ShrinePrompt(session, state), ShrineReach);
                         break;
                     case SpawnRole.Waygate:
                         // The Haven's is only ever stepped through, once the way is open, and that's a portal of its own.
-                        if (!session.IsHaven) SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Waygate, "Travel the old roads", 6f);
+                        if (session.IsHaven) break;
+                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Waygate, "Travel the old roads", 6f);
+                        if (state.Lit) LightGate(world, _server, session, state, spawn.Position);
                         break;
                     case SpawnRole.Stash:
                         SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Stash, "Open your stash", 4.5f);
@@ -201,7 +204,7 @@ namespace Dino_Defenders.Server
             string name = twin ? session.Chronicle.SecondBeast : boss ? session.Chronicle.Beast : Bestiary.NameOf(kind, traits);
             if (title != null) name = $"{name}, {title}";
 
-            var enemy = new EnemyComponent { Name = name, Rarity = rarity, Level = level };
+            var enemy = new EnemyComponent { Name = name, Rarity = rarity, Level = level, Holds = siteIndex + 1 };
             var brain = new EnemyBrainComponent
             {
                 SiteIndex = siteIndex,
@@ -345,16 +348,52 @@ namespace Dino_Defenders.Server
             state.Live.Add(world.CreateEntity("Elder", Bodies.Walking(_server, $"villager{random.Int(12)}", position, 1.02f, 1f, villager, interactable)));
         }
 
-        private void SpawnChest(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn)
+        /// <summary>What stands in a lit waygate, where the world has the gate, for as long as the place does.</summary>
+        internal static void LightGate(ECSWorld world, GameServer server, ServerSession session, SiteState state, Vector2 spawn)
         {
+            if (!session.World.Objects.TryNearest(StructureCatalog.Waygate.Id, spawn, GateFromSpawn, out WorldObject gate)) return;
+            state.Live.Add(world.CreateEntity("Lit waygate",
+                new NetIdentityComponent(server.Ghosts.NextId(), importance: 0.5f),
+                new PositionComponent(gate.Position),
+                new RotationComponent(gate.Rotation),
+                new ScaleComponent(gate.Scale),
+                new VisualComponent(Roads.Lit, VisualKind.Prop)));
+        }
+
+        /// <summary>
+        /// A chest where it stands: shut, to be used, or once it's been opened, a body and a lid on its hinge with nothing to use, which stays for as long as the place does. Only a yaw is ever sent,
+        /// so a client raises the lid: swinging it up if the chest is <paramref name="opening"/> this moment, and thrown back already if not.
+        /// </summary>
+        internal static void PlaceChest(ECSWorld world, GameServer server, ServerSession session, SiteState state, int siteIndex, int spawnIndex, bool opening)
+        {
+            SiteSpawn spawn = state.Site.Spawns[spawnIndex];
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
-            state.Live.Add(world.CreateEntity("Chest",
-                new NetIdentityComponent(_server.Ghosts.NextId(), importance: 0.5f),
+            Quaternion yaw = new Quaternion(new Vector3(0f, spawn.Position.X, 0f));
+            if (!state.Opened.Contains(spawnIndex))
+            {
+                state.Live.Add(world.CreateEntity("Chest",
+                    new NetIdentityComponent(server.Ghosts.NextId(), importance: 0.5f),
+                    new PositionComponent(position),
+                    new RotationComponent(yaw),
+                    new ScaleComponent(new Vector3(ChestScale)),
+                    new VisualComponent(ChestLook.Closed, VisualKind.Prop),
+                    new InteractableComponent { Kind = InteractKind.Chest, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = 4.5f, Prompt = "Open the chest" }));
+                return;
+            }
+
+            Vector3 hinge = position + Vector3.Transform(ChestLook.Hinge * ChestScale, yaw);
+            state.Live.Add(world.CreateEntity("Open chest",
+                new NetIdentityComponent(server.Ghosts.NextId(), importance: 0.5f),
                 new PositionComponent(position),
-                new RotationComponent(new Vector3(0f, spawn.Position.X, 0f)),
+                new RotationComponent(yaw),
                 new ScaleComponent(new Vector3(ChestScale)),
-                new VisualComponent("chest", VisualKind.Prop),
-                new InteractableComponent { Kind = InteractKind.Chest, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = 4.5f, Prompt = "Open the chest" }));
+                new VisualComponent(ChestLook.Open, VisualKind.Prop)));
+            state.Live.Add(world.CreateEntity("Chest lid",
+                new NetIdentityComponent(server.Ghosts.NextId(), importance: 0.5f),
+                new PositionComponent(hinge),
+                new RotationComponent(yaw),
+                new ScaleComponent(new Vector3(ChestScale)),
+                new VisualComponent(opening ? ChestLook.Opening : ChestLook.Lid, VisualKind.Prop)));
         }
 
         private void SpawnMarker(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, InteractKind kind, string prompt, float radius)
@@ -566,6 +605,7 @@ namespace Dino_Defenders.Server
                     state.Live.Remove(view.Entity);
                     session.Combat.OpenChest(hero, view.Get<PositionComponent>().value, EncounterSystem.LevelAt(session, state), ChestTier(session, state));
                     world.DestroyEntity(view.Entity);
+                    EncounterSystem.PlaceChest(world, _server, session, state, interactable.SiteIndex, interactable.SpawnIndex, opening: true);
                     break;
                 case InteractKind.Portal:
                     _server.StepThrough();

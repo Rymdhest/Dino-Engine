@@ -86,6 +86,9 @@ public class glModel
     /// The sphere, in world space, that everything this model draws stays inside, as far over as the wind can ever lean it. Culling rests on this: what it
     /// leaves out, the model must never reach. A model with no box has no bounds, and its radius says so.
     /// </summary>
+    /// <summary>The size of the model's box in its own units, which is what says whether it's big enough to open for the player (FocusOccluder.glsl). A model with no box counts as huge.</summary>
+    public Vector3 Size => box.Min.X > box.Max.X ? new Vector3(float.MaxValue) : box.Max - box.Min;
+
     public void WorldBounds(in Matrix4 localToWorld, out Vector3 centre, out float radius)
     {
         if (!_boundsKnown)

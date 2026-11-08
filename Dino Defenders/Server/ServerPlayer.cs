@@ -55,6 +55,10 @@ namespace Dino_Defenders.Server
         public bool Judged;
         public uint GhostId;
         public bool WindingUp;      // A blow's been started and hasn't landed.
+        public double? CallingSince;    // When they began calling the old roads, in the session's seconds, and from where, and at the least health they've had since.
+        public Vector2 CallingFrom;
+        public float CallingHealth;
+        public Vector2? RoadsOpenAt;    // Where they called them open: they can be taken from there as from a gate, until they step away.
         public Entity Mark;         // What friends have been shown of it.
 
         public bool Greeted;        // Has said hello, and been let in.

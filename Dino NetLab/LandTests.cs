@@ -95,8 +95,7 @@ namespace Dino_NetLab
             /// <summary>Everything a land asks: as many of its places as it wants freed, then its tyrant, or both of them.</summary>
             public void Free()
             {
-                int places = Session.Chronicle.Objectives.First(o => o.Kind == ObjectiveKind.FreePlaces).Goal;
-                foreach (SiteState place in Session.Sites.Where(WorldProgress.Counts).OrderBy(s => s.Site.Remoteness).Take(places).ToList()) Clear(place);
+                foreach (SiteState place in Session.Sites.Where(s => !s.Wild && Session.Chronicle.Asks(s.Site)).ToList()) Clear(place);
                 if (Chronicle.TwinSite(Session.World) is WorldSite twin && Session.Terms.Unique() == OrdersCatalog.TwinPens) Clear(Session.Sites.First(s => s.Site == twin));
                 Clear(Session.Sites.First(s => s.Site.Kind == SiteKind.Keep));
                 Lab.Run(2);

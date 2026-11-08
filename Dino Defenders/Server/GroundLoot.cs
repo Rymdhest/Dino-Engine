@@ -16,7 +16,7 @@ namespace Dino_Defenders.Server
     /// </summary>
     public sealed class GroundLoot
     {
-        public const float ChestDelay = 0.55f;      // Seconds for the lid to come up.
+        public const float ChestDelay = ChestLook.Swing;    // Seconds for the lid to come up.
 
         private const float FountainStep = 0.11f;   // Seconds between one thing coming out and the next.
         private const float NearestLanding = 2.2f;

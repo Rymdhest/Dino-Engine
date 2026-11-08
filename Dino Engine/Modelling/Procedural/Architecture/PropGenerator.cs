@@ -81,6 +81,46 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             return b.Build();
         }
 
+        /// <summary>
+        /// What a loose prop breaks into: a few kinds of piece, in the stuff it was made of. Each is about its own middle and thinnest along y, so that lying flat
+        /// on the ground is lying on y.
+        /// </summary>
+        public static Mesh[] Pieces(StructureDefinition definition)
+        {
+            Mesh Piece(Action<MeshBuilder> build)
+            {
+                var b = new MeshBuilder();
+                build(b);
+                return b.Build();
+            }
+
+            switch (definition.Id)
+            {
+                case "barrels":
+                {
+                    VertexMaterial staves = Wood(126, 92, 62);
+                    return new[]
+                    {
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.17f, 0.05f, 0.92f), staves)),
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.16f, 0.05f, 0.55f), staves)),
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.6f, 0.03f, 0.05f), Iron)),
+                        Piece(b => b.Tube(new Vector3(0f, -0.05f, 0f), new Vector3(0f, 0.05f, 0f), 0.5f, 0.5f, 10, staves)),
+                    };
+                }
+                case "crates":
+                {
+                    VertexMaterial boards = Wood(150, 118, 84);
+                    return new[]
+                    {
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.7f, 0.05f, 0.18f), boards)),
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.42f, 0.05f, 0.17f), boards)),
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.7f, 0.06f, 0.07f), DarkWood)),
+                    };
+                }
+                default: throw new ArgumentException($"'{definition.Id}' doesn't break.");
+            }
+        }
+
         /// <summary>One length of log fence: a pair of posts holding stacked rails, running one metre along +x at scale 1.</summary>
         public static Mesh GenerateFence()
         {
@@ -637,35 +677,48 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             }
         }
 
-        // The way between worlds: a ring of old stone with a pale light standing in it.
+        private const int WaygateBlocks = 11;
+        private const float WaygateRadius = 4.4f;
+
+        // A stone of a waygate's ring, and which way is out from it.
+        private static (Vector3 at, Vector3 outward) WaygateStone(int i)
+        {
+            float angle = MathF.PI * i / WaygateBlocks;
+            Vector3 at = new Vector3(MathF.Cos(angle) * WaygateRadius, 1.2f + MathF.Sin(angle) * WaygateRadius * 1.25f, 0f);
+            return (at, new Vector3(MathF.Cos(angle), MathF.Sin(angle) * 1.25f, 0f).Normalized());
+        }
+
+        // The way between worlds: a ring of old stone, dark until someone comes near and the game stands its light in it (GenerateWaygateLight), so it has none of its own.
         private static void BuildWaygate(MeshBuilder b, List<AssetLight> lights)
         {
-            lights.Add(AssetLight.Glow(new Vector3(0f, 3.4f, 0f), new Vector3(0.35f, 0.85f, 1f), 75f, 20f));
-
             VertexMaterial stone = Rough(158);
-            const int Blocks = 11;
-            const float Radius = 4.4f;
-            for (int i = 0; i <= Blocks; i++)
+            for (int i = 0; i <= WaygateBlocks; i++)
             {
-                float angle = MathF.PI * i / Blocks;
-                Vector3 at = new Vector3(MathF.Cos(angle) * Radius, 1.2f + MathF.Sin(angle) * Radius * 1.25f, 0f);
-                Vector3 outward = new Vector3(MathF.Cos(angle), MathF.Sin(angle) * 1.25f, 0f).Normalized();
-                Vector3 next = at + outward * 1.1f;
-                b.Beam(at, next, 0.74f, stone);
-                if (i % 2 == 0)
-                {
-                    b.Box(at + outward * 0.55f + Vector3.UnitZ * 0.76f, new Vector3(0.18f), Glow(0.35f, 0.95f, 1f, 1.1f));
-                }
+                (Vector3 at, Vector3 outward) = WaygateStone(i);
+                b.Beam(at, at + outward * 1.1f, 0.74f, stone);
             }
             b.Box(new Vector3(0f, 0f, 0f), new Vector3(4.6f, 0.34f, 1.5f), stone);
+        }
 
+        /// <summary>What's lit in a waygate once someone has woken it: the runes on its ring and the pale light standing in it, in the gate's own space. Its light is the game's to add.</summary>
+        public static Mesh GenerateWaygateLight()
+        {
+            var b = new MeshBuilder();
+            for (int i = 0; i <= WaygateBlocks; i += 2)
+            {
+                (Vector3 at, Vector3 outward) = WaygateStone(i);
+                b.Box(at + outward * 0.55f + Vector3.UnitZ * 0.76f, new Vector3(0.18f), Glow(0.35f, 0.95f, 1f, 1.1f));
+            }
+
+            const float Inner = WaygateRadius - 0.5f;
             b.Surface(16, 8, (u, v) =>
             {
                 float angle = MathF.PI * (1f - u);
-                float radius = (Radius - 0.5f) * v;
+                float radius = Inner * v;
                 return new Vector3(MathF.Cos(angle) * radius, 1.2f + MathF.Sin(angle) * radius * 1.25f, 0f);
             }, Glow(0.22f, 0.6f, 0.75f, 0.32f));
-            b.Quad(new Vector3(-(Radius - 0.5f), 0.3f, 0f), new Vector3(Radius - 0.5f, 0.3f, 0f), new Vector3(Radius - 0.5f, 1.2f, 0f), new Vector3(-(Radius - 0.5f), 1.2f, 0f), Glow(0.22f, 0.6f, 0.75f, 0.32f));
+            b.Quad(new Vector3(-Inner, 0.3f, 0f), new Vector3(Inner, 0.3f, 0f), new Vector3(Inner, 1.2f, 0f), new Vector3(-Inner, 1.2f, 0f), Glow(0.22f, 0.6f, 0.75f, 0.32f));
+            return b.Build();
         }
 
         /// <summary>

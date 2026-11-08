@@ -750,6 +750,7 @@ namespace Dino_Defenders
             if (Bindings.Asked(GameAction.Talents)) _ui.Toggle(_ui.Talents);
             if (Bindings.Asked(GameAction.Books)) _ui.Toggle(_ui.Book);
             if (Bindings.Asked(GameAction.Glossary)) _ui.Toggle(_ui.Glossary);
+            if (Bindings.Asked(GameAction.Roads)) GameSession.Current?.BeginCalling();
         }
 
         private void WriteTrace(string path)

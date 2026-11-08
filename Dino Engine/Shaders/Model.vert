@@ -1,6 +1,7 @@
 #version 420
 
 #include globals.glsl
+#include FocusOccluder.glsl
 
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 color;
@@ -17,9 +18,11 @@ out vec3 worldNormal;
 out vec3 viewSpacePos;
 
 out float textureIndex;
+flat out float fragFocusOccluder;
 
 uniform mat4 modelMatrix;
 uniform mat4 normalModelViewMatrix;
+uniform vec3 modelSize;
 
 void main() {
 	vec4 viewPos = viewMatrix*modelMatrix*vec4(position, 1.0);
@@ -28,6 +31,7 @@ void main() {
 
 	fragUV = uv;
 	textureIndex = materialIndex;
+	fragFocusOccluder = focusOccluder(modelSize, modelMatrix);
 	worldNormal = normal;
 	
 	vec3 T = tangent;

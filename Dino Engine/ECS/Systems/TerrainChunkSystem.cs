@@ -131,7 +131,11 @@ namespace Dino_Engine.ECS.Systems
                 if (SectorDistance(kv.Key, camera) > dropReach)
                     _sectorsToDrop.Add(kv.Key);
             for (int i = 0; i < _sectorsToDrop.Count; i++)
+            {
+                int count = objects.InSector(_sectorsToDrop[i])?.Count ?? 0;
+                for (int j = 0; j < count; j++) stream.Loose.Remove(WorldStreamSingleton.Key(_sectorsToDrop[i], j));
                 DespawnEntities(_sectorsToDrop[i], stream.Sectors, world, grid);
+            }
 
             _sectorsToLoad.Clear();
             int minX = (int)MathF.Floor((camera.X - reach) / size);
@@ -173,7 +177,13 @@ namespace Dino_Engine.ECS.Systems
                 for (int i = 0; i < objects.Count; i++)
                 {
                     WorldObject item = objects[i];
-                    entities.Add(SpawnModel(stream.ObjectModels[item.Asset], item.Position, item.Rotation, item.Scale, world, grid));
+                    long key = WorldStreamSingleton.Key(sector, i);
+                    StructureDefinition? loose = stream.ObjectLoose[item.Asset];
+                    if (loose != null && stream.Broken.Contains(key)) continue;
+
+                    Entity entity = SpawnModel(stream.ObjectModels[item.Asset], item.Position, item.Rotation, item.Scale, world, grid);
+                    entities.Add(entity);
+                    if (loose != null) stream.Loose[key] = new LooseObject(entity, sector, item.Position, item.Rotation, item.Scale, loose);
                     foreach (AssetLight light in stream.ObjectLights[item.Asset]) entities.Add(SpawnLight(light, item, world));
                 }
             }

@@ -94,6 +94,7 @@ namespace Dino_Defenders.UI
             DrawOverHero(draw, session, screen);
             DrawFloatingTexts(draw, session, screen);
             DrawGuidance(draw, session, screen);
+            DrawCalling(draw, session, screen);
             DrawStanding(draw, session, screen);
             DrawChronicle(draw, session, screen);
             DrawLog(draw, session, screen);
@@ -146,18 +147,21 @@ namespace Dino_Defenders.UI
                     // A dummy's bar would only ever be full, and what's dealt to it is said over its group.
                     if (entity.Has<DummyComponent>()) continue;
 
+                    bool sought = session.Sought(enemy);
+                    float height = 5.4f * entity.Get<ScaleComponent>().value.Y;
                     if (enemy.Rarity == Rarity.Unique)
                     {
                         bool engaged = enemy.State != EnemyState.Idle || share < 1f;
                         if (engaged && (position.Xz - session.PlayerPosition).Length < BossRange) DrawBossBar(draw, enemy, share, screen);
+                        if (sought && Project(position + Vector3.UnitY * height, screen, out Vector2 over)) DrawSought(draw, over, entity.Entity.Id);
                         continue;
                     }
 
                     bool marked = enemy.Rarity != Rarity.Normal;
-                    if (share >= 1f && !marked) continue;
+                    if (share >= 1f && !marked && !sought) continue;
 
-                    float height = 5.4f * entity.Get<ScaleComponent>().value.Y;
                     if (!Project(position + Vector3.UnitY * height, screen, out Vector2 at)) continue;
+                    if (sought) DrawSought(draw, new Vector2(at.X, at.Y - (marked ? 22f : 4f)), entity.Entity.Id);
 
                     float width = marked ? 76f : 52f;
                     GuiRect back = new GuiRect(at.X - width * 0.5f, at.Y, width, 5f);
@@ -167,6 +171,29 @@ namespace Dino_Defenders.UI
                 }
             }
         }
+
+        // Over whoever the land asks to be beaten: a gold point down at them, in the gold of the places on the map, as a line round them says how strong they are and that's another thing. It bobs a little,
+        // each out of step with the rest, so that a crowd of them reads as marks and not as a pattern.
+        private static void DrawSought(GuiDrawList draw, Vector2 over, uint order)
+        {
+            const float Size = 9f;
+            Vector2 tip = over + new Vector2(0f, -6f + MathF.Sin(Engine.Time * SoughtBob + order * 0.7f) * 2.5f);
+            Vector2 top = tip - new Vector2(0f, Size * 1.6f);
+            draw.AddLine(tip, top + new Vector2(-Size, 0f), SoughtRim, 5f, roundCaps: true);
+            draw.AddLine(tip, top + new Vector2(Size, 0f), SoughtRim, 5f, roundCaps: true);
+            draw.AddLine(top + new Vector2(-Size, 0f), top + new Vector2(Size, 0f), SoughtRim, 5f, roundCaps: true);
+
+            // Filled by lines fanned from the tip, as the draw list has no triangles.
+            for (int i = 0; i <= 8; i++)
+            {
+                float t = i / 8f * 2f - 1f;
+                draw.AddLine(tip, top + new Vector2(t * Size, 0f), SoughtGold, 2.2f, roundCaps: true);
+            }
+        }
+
+        private const float SoughtBob = 3.2f;
+        private static readonly Colour SoughtGold = GuiColors.Rgba(255, 190, 70);
+        private static readonly Colour SoughtRim = GuiColors.Rgba(30, 18, 6, 230);
 
         // Everyone else in the world: their name and health over their head, and along the side of the screen wherever they are.
         private void DrawCompanions(GuiDrawList draw, GameSession session, GuiRect screen)
@@ -273,8 +300,19 @@ namespace Dino_Defenders.UI
                 float left = text.Life - text.Age;
                 float alpha = Math.Clamp(left / 0.3f, 0f, 1f);
                 Colour colour = GuiColors.Rgba(text.Colour.X, text.Colour.Y, text.Colour.Z, alpha);
+                at += SlotOffset(text.Slot, text.Size);
                 Ui.Text(Context!, draw, text.Text, text.Size, new GuiRect(at.X - 200f, at.Y - 14f, 400f, 28f), colour, Alignment.Center);
             }
+        }
+
+        // Where the nth text at one spot sits: the first on the spot, then rows above it, each fanned to either side of the one below,
+        // so that two hits landing together read as two numbers.
+        private static Vector2 SlotOffset(int slot, float size)
+        {
+            if (slot == 0) return Vector2.Zero;
+            int row = (slot + 1) / 2;
+            float side = (slot & 1) == 1 ? -1f : 1f;
+            return new Vector2(side * size * (row % 2 == 1 ? 1.4f : 0.7f), -row * size * 1.05f);
         }
 
         // A mark that circles the hero, pointing the way to the next goal. Where it points comes from the world, projected, so it's
@@ -304,6 +342,17 @@ namespace Dino_Defenders.UI
 
             string label = distance >= 1000f ? $"{distance / 1000f:0.0} km" : $"{distance:0} m";
             Ui.Text(Context!, draw, label, 13f, new GuiRect(back.X - 60f, back.Y - direction.Y * -14f - 9f, 120f, 18f), Ui.Parchment, Alignment.Center);
+        }
+
+        // A call to the old roads fills a bar over the hero's bar, in the colour of a lit gate.
+        private void DrawCalling(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            if (session.Calling is not float done) return;
+            const float Width = 280f, Height = 12f;
+            GuiRect bar = new GuiRect((screen.Width - Width) * 0.5f, screen.Height - 210f, Width, Height);
+            draw.AddRect(new GuiRect(bar.X - 2f, bar.Y - 2f, bar.Width + 4f, bar.Height + 4f), Ui.Ink, 3f, 1f, GuiColors.Rgba(120, 96, 58));
+            draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * done, bar.Height), GuiColors.Rgba(104, 206, 255), 2f);
+            Ui.Text(Context!, draw, "Calling the waygates", 14f, new GuiRect(bar.X, bar.Y - 22f, bar.Width, 18f), Ui.Parchment, Alignment.Center);
         }
 
         private void DrawStanding(GuiDrawList draw, GameSession session, GuiRect screen)
