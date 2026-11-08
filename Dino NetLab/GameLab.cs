@@ -305,6 +305,14 @@ namespace Dino_NetLab
             return hero;
         }
 
+        /// <summary>A strong hero who won't fall to a stray blow, for anything that isn't about falling: there's one life to a land, and one lost spoils whatever came after it.</summary>
+        public static HeroState SturdyHero()
+        {
+            HeroState hero = StrongHero();
+            hero.Equipped[WornSlot.Neck].Lines[0].Value = 200000f;
+            return hero;
+        }
+
         /// <summary>A copy of something on the shelf, in a book of a hero's own.</summary>
         public static Item Written(BookPlan plan)
         {
@@ -646,14 +654,16 @@ namespace Dino_NetLab
         // A blow can stun someone on any line at all, and it's the server's word. A hero who's walking is what shows it, as one standing still has nothing to be wrong about.
         private static void StunnedWalking(Report report, WorldCache worlds, WorldRequest request)
         {
-            using var lab = new GameLab(worlds, request);
-            LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 30, Jitter = 5 }, 6);
+            // From the landing, inland, where nothing else can stop them: what a held place's raptors do to someone walking through is a fight, and not what's being looked at.
+            using var lab = new GameLab(worlds, request, "Landing");
+            LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 30, Jitter = 5 }, 6, hero: GameLab.SturdyHero());
             lab.Run(6);
 
             ServerPlayer truth = lab.Server.Players.First();
-            // On through whatever's about: a hero who turns to fight stands still, and the camp's raptors can catch anyone they like.
             player.Fights = false;
-            player.Heading = truth.Sim.Position + new Vector2(80f, 0f);
+            WorldData world = lab.Server.Session!.World;
+            Vector2 inland = new Vector2(world.Size * 0.5f) - truth.Sim.Position;
+            player.Heading = truth.Sim.Position + inland.Normalized() * 80f;
             lab.Run(1.5);
             int before = player.Client.Predictor.Corrections;
             Vector2 walking = truth.Sim.Position;
@@ -665,7 +675,7 @@ namespace Dino_NetLab
             report.Check("A stun stops someone in their tracks", (truth.Sim.Position - stopped).Length < 0.05f && (stopped - walking).Length < 2f, $"{(truth.Sim.Position - stopped).Length:0.00} m");
             lab.Run(1.5);
             report.Check("And being stopped isn't counted as a wrong guess", player.Client.Predictor.Corrections == before, $"{player.Client.Predictor.Corrections - before}");
-            report.Check("With the hero walking again after it", (truth.Sim.Position - stopped).Length > 2f, $"{(truth.Sim.Position - stopped).Length:0.00} m");
+            report.Check("With the hero walking again after it", (truth.Sim.Position - stopped).Length > 2f, $"{(truth.Sim.Position - stopped).Length:0.00} m, from {stopped} towards {player.Heading}, having walked {(stopped - walking).Length:0.00} m before, out {truth.Out}, down {truth.Sim.Down}, health {truth.Actor.Vitals.Health:0}");
         }
 
         // A host on fibre and a friend on bad wifi: one player's line mustn't become everyone's problem.
@@ -943,8 +953,9 @@ namespace Dino_NetLab
         // past from then on, with every blow, health bar and enemy swing that late: a first frame of 3.7 s once made a game of it for good.
         private static void ThePictureKeepsUp(Report report, WorldCache worlds, WorldRequest request, string name, NetworkConditions conditions)
         {
-            using var lab = new GameLab(worlds, request);
-            LabPlayer player = lab.AddPlayer("Hero", conditions, 60);
+            // Somewhere quiet, as it's the line that's being measured: a held place's crowd on the worst line there is costs a little time of its own, which isn't this.
+            using var lab = new GameLab(worlds, request, "Landing");
+            LabPlayer player = lab.AddPlayer("Hero", conditions, 60, hero: GameLab.SturdyHero());
             double allowed = AllowedBehind(conditions);
 
             // The first frames in a world are the longest of all, and come just as the clock has begun.
