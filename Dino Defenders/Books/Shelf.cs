@@ -139,5 +139,17 @@ namespace Dino_Defenders.Books
         public static readonly BookPlan BoneSpurs = Write("bone-spurs", "Bone Spurs", new[] { Bolt(Say("five-at-once"), Deal()).Going("anywhere") }, page => page.Potency = 0.5f, triggered: true);
         public static readonly BookPlan LastWord = Write("last-word", "The Last Word", new[] { Area("circle", Plain, Deal("magic", "of-barrier")) }, page => { page.Potency = 2.5f; page.Length = 8f; }, triggered: true);
         public static readonly BookPlan Steam = Write("steam", "Scalding Steam", new[] { Area("circle", Plain, Deal("fire")).Lasting("lingering") }, page => { page.Potency = 0.4f; page.Length = 4f; }, triggered: true);
+
+        // What dinosaurs fight with: their jaws, their tails, their weight and their voices. Each reaches as far as the animal does from where it stands, which is its hips: a raptor's head is five metres
+        // out in front of them, and a tyrant's ten.
+        public static readonly BookPlan RakingBite = Write("raking-bite", "Raking Bite", new[] { Area("cone", Say("tight"), Deal()) }, page => { page.Potency = 1f; page.Length = 5.6f; page.UseTime = 0.45f; page.Mods = new[] { Chance(Tags.Bleed, 35f) }; });
+        public static readonly BookPlan CrushingJaws = Write("crushing-jaws", "Crushing Jaws", new[] { Area("cone", Say("tight"), Deal()) }, page => { page.Potency = 1.5f; page.Length = 10.5f; page.Mods = new[] { Chance(Tags.Bleed, 50f), Flat(Stat.ArmourIgnore, 30f) }; });
+        // An enemy does the first thing it has that's ready and reaches, and these come first, so each has a rest after it: a tyrant without them roared its stun at anyone in reach every second and a half.
+        public static readonly BookPlan TailSweep = Write("tail-sweep", "Tail Sweep", new[] { Area("circle", Say("rest"), Deal()) }, page => { page.Potency = 1.6f; page.Length = 9.5f; page.Cooldown = 5f; page.Mods = new[] { Chance(Tags.Stun, 35f) }; });
+        public static readonly BookPlan Stomp = Write("stomp", "Stomp", new[] { Area("cone", Say("broad", "deliberate"), Deal()) }, page => { page.Potency = 1.8f; page.Length = 8.5f; page.Cooldown = 4f; page.Mods = new[] { Chance(Tags.Stun, 60f) }; });
+        // A roar takes long enough to look heavy, which is what tells it from a tail swept round the same circle. A gore is a blow, so it's a cone like a bite: a rectangle is a beam, and goes off like one.
+        public static readonly BookPlan Roar = Write("roar", "Terrible Roar", new[] { Area("circle", Say("rest"), Inflict("stun")) }, page => { page.Length = 13f; page.UseTime = 1.2f; page.Cooldown = 9f; });
+        public static readonly BookPlan Gore = Write("gore", "Gore", new[] { Area("cone", Say("tight"), Deal()) }, page => { page.Potency = 1.5f; page.Length = 7.5f; page.Mods = new[] { Chance(Tags.Stun, 45f) }; });
+        public static readonly BookPlan HungryBite = Write("hungry-bite", "Hungry Bite", new[] { Area("cone", Say("tight"), Deal()) }, page => { page.Potency = 0.9f; page.Length = 3.4f; page.UseTime = 0.4f; page.Mods = new[] { Chance(Tags.Bleed, 20f) }; });
     }
 }

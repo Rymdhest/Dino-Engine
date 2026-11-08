@@ -2,9 +2,11 @@ using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
+using Dino_Engine.Animation;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Modelling.Procedural.Saurian;
 using Dino_Engine.Physics;
 using Dino_Engine.Sound;
 using Dino_Engine.Sound.Content;
@@ -203,8 +205,34 @@ namespace Dino_Defenders.Client
         private static HitBody BodyOf(in EntityView entity)
         {
             string model = entity.Has<VisualComponent>() ? entity.Get<VisualComponent>().Model : "";
-            return model.StartsWith("skeleton") ? HitBody.Bone : model is "warlord" or "revenant" ? HitBody.Armour : CharacterFactory.BeastOf(model) != null ? HitBody.Beast : HitBody.Flesh;
+            if (SaurianSpec.Parse(model) is SaurianSpec dinosaur) return dinosaur.Condition == SaurianCondition.Bones ? HitBody.Bone : HitBody.Beast;
+            return model.StartsWith("skeleton") ? HitBody.Bone : model is "warlord" or "revenant" or "reich:legionary" ? HitBody.Armour : CharacterFactory.BeastOf(model) != null ? HitBody.Beast : HitBody.Flesh;
         }
+
+        // What a dinosaur says, by what it is and what's been done to it. Bones have no throat, and what's rotting only hisses.
+        internal static SoundDefinition? DinosaurVoice(string model, DinosaurMoment moment)
+        {
+            if (SaurianSpec.Parse(model) is not SaurianSpec dinosaur) return null;
+            if (dinosaur.Condition == SaurianCondition.Bones) return moment == DinosaurMoment.Dies ? Voices.DeadDeath : Voices.DeadMoan;
+            if (dinosaur.Condition == SaurianCondition.Rotting && moment != DinosaurMoment.Dies) return dinosaur.Species == "tyrant" && moment == DinosaurMoment.Notices ? Saurians.TyrantRoar : Saurians.RotHiss;
+            return (dinosaur.Species, moment) switch
+            {
+                ("tyrant", DinosaurMoment.Notices) => Saurians.TyrantRoar,
+                ("tyrant", DinosaurMoment.Strikes) => Saurians.TyrantGrowl,
+                ("tyrant", _) => Saurians.TyrantDeath,
+                ("raptor", DinosaurMoment.Dies) => Saurians.RaptorDeath,
+                ("raptor", _) => Saurians.RaptorCall,
+                ("skitter", _) => Saurians.Chirp,
+                ("spitter", DinosaurMoment.Dies) => Saurians.RaptorDeath,
+                ("spitter", _) => Saurians.Hiss,
+                ("hornback", DinosaurMoment.Dies) => Saurians.Death,
+                ("hornback", _) => Saurians.Bellow,
+                (_, DinosaurMoment.Dies) => Saurians.Death,
+                _ => Saurians.Growl,
+            };
+        }
+
+        internal enum DinosaurMoment { Notices, Strikes, Dies }
 
         private static SoundDefinition BodyHit(HitBody body) => body switch
         {
@@ -295,6 +323,7 @@ namespace Dino_Defenders.Client
         private const float FastestWalk = 6.5f;
         private const float SlowestStep = 1.2f;
         private const float FarFootfall = 44f;
+        private const float GiantStride = 1.6f;    // Of a person's legs. Anything bigger shakes the ground as well as stepping on it.
         private const float WhizzDistance = 16f;
         private const float FallDelay = 0.42f;
         private const float ShinDepth = 0.28f;      // Metres of water at which a leg is pushing through it, not stepping in it.
@@ -350,8 +379,11 @@ namespace Dino_Defenders.Client
                     Vector3 position = entity.Get<PositionComponent>().value;
                     if (speed < SlowestStep || (position.Xz - listener).LengthSquared > FarFootfall * FarFootfall) continue;
 
+                    // How big a body is goes by how long its legs are as well as how it's scaled: a tyrant at a scale of one stands twice a person's height at the hip.
                     float size = entity.Has<ScaleComponent>() ? entity.Get<ScaleComponent>().value.Y : 1f;
+                    size *= entity.Get<AnimatorComponent>().Animator.Rig.HipHeight / Rig.Humanoid.HipHeight;
                     foot.InWater = Step(world, session.World, position, speed, size, foot.InWater);
+                    if (size >= GiantStride) Audio.Play(Saurians.Tread, position, AudioFormat.GainToDecibels(MathF.Min(size / GiantStride, 2.5f)) - 3f, MathF.Sqrt(GiantStride / size));
                     entity.Set(foot);
                 }
             }
@@ -429,12 +461,17 @@ namespace Dino_Defenders.Client
                     if (entity.Entity.Id == own) continue;
                     Vector3 position = entity.Get<PositionComponent>().value;
                     string model = entity.Get<VisualComponent>().Model;
-                    if (model.EndsWith("True") || model.EndsWith(":bow")) Audio.Play(Archery.Draw, position);
+                    if (model.EndsWith("True") || model.EndsWith(":bow") || model == "reich:marksman") Audio.Play(Archery.Draw, position);
+                    else if (GameSounds.DinosaurVoice(model, Roars(model, action.Sign) ? GameSounds.DinosaurMoment.Notices : GameSounds.DinosaurMoment.Strikes) is SoundDefinition strikes) Audio.Play(strikes, position);
                     else if (CharacterFactory.BeastOf(model) != null) Audio.Play(Voices.BeastSnarl, position);
                     else Audio.Play(model is "warlord" or "revenant" ? Blades.HeavySwing : Blades.Swing, position);
                 }
             }
         }
+
+        // A dinosaur seen roaring is heard roaring, and whatever else it does sounds like what it does it with.
+        private static bool Roars(string model, int sign) => SaurianSpec.Parse(model) is SaurianSpec dinosaur
+            && SkillMotions.Saurian(PageSign.Read(sign), SaurianForge.SpeciesOf(dinosaur).Form == SaurianForm.Theropod ? BodyPlan.Biped : BodyPlan.Quadruped) == Gestures.Roar;
 
         private void Enemies(ECSWorld world, GameSounds sounds)
         {
@@ -452,17 +489,18 @@ namespace Dino_Defenders.Client
                     string model = entity.Get<VisualComponent>().Model;
                     if (enemy.State == EnemyState.Dead)
                     {
-                        if (model.StartsWith("skeleton")) Audio.Play(Voices.DeadDeath, position);
+                        SoundDefinition? dies = GameSounds.DinosaurVoice(model, GameSounds.DinosaurMoment.Dies);
+                        if (model.StartsWith("skeleton") || dies == Voices.DeadDeath) Audio.Play(Voices.DeadDeath, position);
                         else
                         {
-                            Audio.Play(model == "warlord" ? Voices.WarlordDeath : CharacterFactory.BeastOf(model) != null ? Voices.BeastDeath : Voices.OutlawDeath, position);
+                            Audio.Play(dies ?? (model == "warlord" ? Voices.WarlordDeath : CharacterFactory.BeastOf(model) != null ? Voices.BeastDeath : Voices.OutlawDeath), position);
                             bool drowned = GameSession.Current?.World.WaterDepthAt(position.Xz) > 0.2f;
                             sounds.After(FallDelay, drowned ? Splashes.Body : Impacts.BodyFall, position);
                         }
                     }
                     else if (enemy.State == EnemyState.Chasing && was is EnemyState.Idle or EnemyState.Returning)
                     {
-                        Audio.Play(model == "warlord" ? Voices.WarlordRoar : model.StartsWith("skeleton") || model == "revenant" ? Voices.DeadMoan : CharacterFactory.BeastOf(model) != null ? Voices.BeastSnarl : Voices.OutlawShout, position);
+                        Audio.Play(GameSounds.DinosaurVoice(model, GameSounds.DinosaurMoment.Notices) ?? (model == "warlord" ? Voices.WarlordRoar : model.StartsWith("skeleton") || model == "revenant" ? Voices.DeadMoan : CharacterFactory.BeastOf(model) != null ? Voices.BeastSnarl : Voices.OutlawShout), position);
                     }
                 }
             }

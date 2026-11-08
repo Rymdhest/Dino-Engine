@@ -9,6 +9,34 @@ namespace Dino_Defenders.Client
     /// </summary>
     public static class SkillMotions
     {
+        /// <summary>What a body built like <paramref name="rig"/> does for a page.</summary>
+        public static Gesture Of(PageSign sign, Carry carry, Rig rig, int serial)
+        {
+            if (rig.Saurian) return Saurian(sign, rig.Plan);
+            return Of(sign, carry, rig.Plan == BodyPlan.Quadruped, serial);
+        }
+
+        /// <summary>What a dinosaur does for a page, which is also what it's heard doing.</summary>
+        public static Gesture Saurian(PageSign sign, BodyPlan plan) => plan == BodyPlan.Biped ? Theropod(sign) : Horned(sign);
+
+        // On two legs everything is done with the mouth or the tail, and what's done to oneself or called down is a roar, as is anything round it that takes long enough to look heavy.
+        private static Gesture Theropod(PageSign sign) => sign.Form switch
+        {
+            PageForm.Strike => sign.Heavy ? Gestures.Stomp : Gestures.Chomp,
+            PageForm.Leap => Gestures.Pounce,
+            PageForm.Bolt => Gestures.Spit,
+            PageForm.Nova => sign.Heavy ? Gestures.Roar : Gestures.TailSweep,
+            _ => Gestures.Roar,
+        };
+
+        // On four it's horns, weight and a bellow.
+        private static Gesture Horned(PageSign sign) => sign.Form switch
+        {
+            PageForm.Strike or PageForm.Leap => sign.Heavy || sign.Wide ? Gestures.Trample : Gestures.Gore,
+            PageForm.Nova => Gestures.Trample,
+            _ => Gestures.Roar,
+        };
+
         /// <param name="serial">Which blow in a run of them this is, as blows go to and fro.</param>
         public static Gesture Of(PageSign sign, Carry carry, bool animal, int serial)
         {

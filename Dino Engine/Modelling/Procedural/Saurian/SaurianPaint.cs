@@ -137,6 +137,21 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 colour = Vector3.Lerp(colour, colour * 0.55f + c.Pattern * 0.15f, low);
             }
 
+            // The Reich marks what's theirs in oxblood: a band over the snout and a ring round the tail, which is how one pack is told from another across a field.
+            if (_body.Harnessed)
+            {
+                float paint = 0f;
+                if (part == SaurianPart.Head)
+                {
+                    Vector3 local = _body.Head.ToHead(p);
+                    float band = 1f - Smooth(_body.Head.Length * 0.05f, _body.Head.Length * 0.075f, MathF.Abs(local.Z - _body.Head.Length * 0.6f));
+                    paint = band * Smooth(_body.Head.Lip(local.Z) + _body.Head.DepthAt(local.Z) * 0.4f, _body.Head.Lip(local.Z) + _body.Head.DepthAt(local.Z) * 0.7f, local.Y);
+                }
+                else if (onTail) paint = 1f - Smooth(c.StripeEvery * 0.35f, c.StripeEvery * 0.55f, MathF.Abs(along - _body.HipAt * 0.68f));
+                float ragged = 0.75f + 0.25f * FloraNoise.Value(p / (scale * 0.01f), _seed + 61u);
+                colour = Vector3.Lerp(colour, SaurianHarness.Oxblood, Math.Clamp(paint * ragged, 0f, 1f));
+            }
+
             return colour;
         }
     }

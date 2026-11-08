@@ -792,8 +792,12 @@ namespace Dino_BuildLab
             report.Check("The core of a pack is less than one ordinary enemy", recipes.All(r => r.Core.Min(k => k.Health) <= 1f && r.Core.Average(k => k.Health) < 1f));
             report.Check("What leads it is more than what follows", recipes.Where(r => r.Leaders.Length > 0).All(r => r.Leaders.Average(k => k.Health) > r.Core.Average(k => k.Health)));
 
-            var looks = new[] { "bandit", "cutthroat", "brute", "skeleton", "skeleton:bow", "revenant", "wolf", "direwolf", "boar", "bear", "warlord" };
-            report.Check("Everything is drawn as something", Bestiary.Everyone.All(k => looks.Contains(k.Look) || k.Look.StartsWith("robed:") || k.Look.StartsWith("acolyte:")), string.Join(" ", Bestiary.Everyone.Select(k => k.Look)));
+            var looks = new[] { "bandit", "cutthroat", "brute", "skeleton", "skeleton:bow", "revenant", "wolf", "direwolf", "boar", "bear", "warlord", "reich:legionary", "reich:marksman", "reich:wrangler" };
+            bool Drawn(EnemyKind k) => looks.Contains(k.Look) || k.Look.StartsWith("robed:") || k.Look.StartsWith("acolyte:") || Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec.Parse(k.Look) != null;
+            report.Check("Everything is drawn as something", Bestiary.Everyone.All(Drawn), string.Join(" ", Bestiary.Everyone.Where(k => !Drawn(k)).Select(k => k.Look)));
+
+            // A tyrant is only ever what holds a land, and each land's story names one the bestiary has.
+            report.Check("Every land's tyrant is a kind there is", Enumerable.Range(0, 200).All(seed => Bestiary.Find(Chronicle.BossKindOf(seed)) != null));
 
             report.Check("Even the least kill is worth something", Bestiary.ExperienceAt(1, 0.42f) >= 1);
             report.Check("A leader is worth more than a follower", Bestiary.ExperienceAt(5, 2.6f) > Bestiary.ExperienceAt(5, 0.5f));

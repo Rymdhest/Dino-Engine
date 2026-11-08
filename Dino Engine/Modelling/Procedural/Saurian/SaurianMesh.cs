@@ -1,5 +1,6 @@
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Modelling.Procedural.Gear;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 
@@ -230,7 +231,8 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             var vertices = new List<Vertex>(Positions.Count);
             for (int i = 0; i < Positions.Count; i++)
             {
-                Vector3 c = Colours[i];
+                // Every colour here is an albedo, and the shader multiplies it by its material's own: a hide is drawn on leather for its grain, and leather is brown.
+                Vector3 c = Colours[i] / GearMaterials.AlbedoOf(Materials[i]);
                 Hang hang = Hangs[i];
                 float share = Math.Clamp(hang.Share, 0f, 1f);
                 vertices.Add(new Vertex(Positions[i], Materials[i], new Colour(c.X, c.Y, c.Z, Glows[i]),

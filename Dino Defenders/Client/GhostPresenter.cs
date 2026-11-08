@@ -441,7 +441,7 @@ namespace Dino_Defenders.Client
 
             return new ActionInput
             {
-                Gesture = SkillMotions.Of(PageSign.Read(action.Sign), animator.Carrying, animator.Rig.Plan == BodyPlan.Quadruped, action.Serial),
+                Gesture = SkillMotions.Of(PageSign.Read(action.Sign), animator.Carrying, animator.Rig, action.Serial),
                 Elapsed = (float)((clock - action.Start) * NetTime.TickSecondsPrecise),
                 Impact = (action.Lands - action.Start) * NetTime.TickSeconds,
                 Length = (action.Ends - action.Start) * NetTime.TickSeconds,

@@ -29,15 +29,23 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     {
         private const float SmallestPiece = 0.002f;    // Of the whole, for a loose piece to be kept.
 
+        /// <summary>Where the time goes, for a lab to print. Nothing is written unless something's listening.</summary>
+        public static Action<string>? Report;
+
         public static void Grow(SaurianMesh mesh, SaurianField field, float cell, int budget, float longestEdge, ISkinDresser dress)
         {
+            var watch = Report != null ? System.Diagnostics.Stopwatch.StartNew() : null;
             float[] grid = field.Sample(cell, out Vector3 origin, out int nx, out int ny, out int nz);
+            double sampled = watch?.Elapsed.TotalMilliseconds ?? 0;
             var points = new List<Vector3>();
             var triangles = new List<int>();
             SurfaceNets.Extract(grid, nx, ny, nz, origin, cell, points, triangles);
             if (triangles.Count == 0) return;
             SweepUp(points, triangles);
+            int extracted = triangles.Count / 3;
+            double meshed = watch?.Elapsed.TotalMilliseconds ?? 0;
             Decimator.Reduce(points, triangles, budget, longestEdge);
+            double reduced = watch?.Elapsed.TotalMilliseconds ?? 0;
 
             int count = points.Count;
             var normals = new Vector3[count];
@@ -106,6 +114,8 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 // Surface nets wind outward; keep it so.
                 mesh.Triangle(corner[0], corner[1], corner[2]);
             }
+
+            if (watch != null) Report!($"    {nx}x{ny}x{nz} grid in {sampled:0} ms, {extracted} triangles in {meshed - sampled:0} ms, down to {triangles.Count / 3} in {reduced - meshed:0} ms, dressed in {watch.Elapsed.TotalMilliseconds - reduced:0} ms");
         }
 
         // Loose bits a field leaves where two pieces nearly touched.

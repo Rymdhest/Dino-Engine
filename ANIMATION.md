@@ -39,11 +39,19 @@ Conventions, as getting them wrong is the commonest mistake here: model space is
 
 `CharacterFactory.BearingOf` says all three for a model, and `CharacterAnimator` is one body.
 
+**Dinosaurs** are bodies like any other, with more to them. A rig with a `SaurianFrame` (`Rig.Saurian`) has a jaw, a neck in two, a tail of five bones and toes, all of which move, and its limbs are built bent, as the animal stands, so each keeps how it was built (`Limb.RestUpperInverse`) and a knee bends the way that animal's does. Read `DINOSAURS.md` for how the body is grown.
+
+`CharacterAnimator.PoseSaurian` treats a theropod as a beam balanced on its hips. It tips forward into speed and back as it stops, comes down as far as it has to to bite someone standing (`BiteHeight`, a person's chest, which is next to nothing for a raptor and a long way for a tyrant), and rears back on its tail to roar. The head looks about in quick turns held still between, as a bird's does, and stays level while the neck takes up whatever the body does beneath it, and a strike is the neck straightening and throwing the head forward, with the jaw going with the blow. The little arms are carried folded with the palms facing. The tail swings in time with the legs, as the muscle that pulls each thigh back runs down it, and the swing goes down it as a wave: it trails out on the outside of a turn, lifts with speed, and each joint follows on a spring of its own, slower towards the tip, which is all it takes for a lash to come off the end. On four legs it's any animal, with a heavy head carried low.
+
+`MotionStyle` has a number for each of these (`TailSway`, `TailStiff`, `Gape`, `Pant`, `HeadLow`, `ToeIn`, `Gallop`), and a style for each kind: `Raptor`, `Scurrier`, `Stalker`, `Tyrant` and `Horned`, with `Bones` and `Rotting` for what the Ossuary raised. `SaurianForge.StyleOf` says which.
+
 ## Feet
 
 `Gait` is the only thing that moves a foot, and the rule is simple: **a foot on the ground stays exactly there, until it lifts.** That's what ends sliding. Feet aren't placed by a cycle: each leg has a clock, a share of the time it's down (duty) and a reason to step, and lands where Raibert's rule says, ahead of the hips by how fast they're going. Cadence comes from a table scaled by Froude number, so a big body strides and a small one scurries at the same speed.
 
 The hips go as low as the feet need them to, so nothing stretches. Arm swing comes from how long the stride really is. Four legs are the same with walk, trot and gallop as triggers between the legs, blended by speed.
+
+A dinosaur walks on its toes, which have a bone of their own. Down, they lie on the ground however the foot above them turns, so the foot rolls over them as a bird's does, and off the ground they curl under and open out again to land.
 
 `IGround` is all that's asked of a world: `WorldGround` for a real one, and a lab can have a floor or a staircase. Slopes need nothing more.
 
@@ -55,6 +63,8 @@ The blow itself always takes the same time (`Snap`), and what changes is how lon
 
 `Gesture.Next` is what a blow turns into if another follows within `ChainWithin`, which is how forehand and backhand alternate without anyone counting. `SkillMotions.Of` picks a gesture from a page's `PageSign`, so a new book looks right with nothing added. `FreeHand` says a gesture is done with an empty hand, so an arm with a shield on it stays where it is.
 
+A dinosaur fights with its mouth, its tail, its weight and its voice: `Chomp` (and `ChompBack` after it), `Stomp`, `Pounce`, `Spit`, `TailSweep` and `Roar` on two legs, and `Gore` and `Trample` on four. Their keys move the jaw and the tail as well as the hands (`BodyKey.Jaw`, `BodyKey.Tail`), and `SkillMotions.Of` picks one by what the body is built like, so a book a dinosaur is given looks right with nothing added. A nova that takes long enough to look heavy is a roar and a quicker one a tail sweep, as the sign says nothing else to tell the two circles apart.
+
 What isn't a book goes by `FlourishEvent`: drinking, and putting a hand out to use something. It's for show, so it can go missing.
 
 ## Falling
@@ -64,6 +74,8 @@ What isn't a book goes by `FlourishEvent`: drinking, and putting a hand out to u
 It's read off the rig, so anything with bones can fall. It starts from the real pose and what each joint was doing, so going down is continuous with whatever came before. Bones get their turn from where their joints end up, and the twist along a limb is carried on from the moment it fell.
 
 Bodies stop at what's standing there. `IGround.LookAround` is asked once a step for the whole body, and each point is then pushed out of what was found. A point looks along the way it came as well as where it got to, as something thrown hard goes further in a step than a fence is thick. `PlacementIndex` knows how tall things are for this, so a body can go over a fence and stop at a house. Nothing that walks cares.
+
+A dinosaur falls as what it's made of. Each bone says how thick the body is there (`SaurianFrame.Thickness`), its toes are points of their own, as they reach well ahead of an ankle and would go through a wall the foot stopped at, and each point hangs from the nearest point above it. Bones that aren't part of the fall are carried by what they hang from, as a jaw goes with a head, and only a dinosaur's are: a bear's were once carried too, and it went through a wall.
 
 How hard a body goes is how far past dead it was: `Combat.Throw` works it out from how much more than enough the blow was, and only just dying lets it drop. It's `EnemyComponent.Thrown` that reaches a client, and the fall itself is worked out there, so every player sees their own.
 
@@ -107,6 +119,8 @@ A dodge goes the tick it's pressed, and nothing gets in its way. Whatever was go
 
 **A new kind of animal**: a `BeastLook`. Its rig, its gait and how it falls all come from that. It needs a line in `CharacterFactory.Resolve` and `BearingOf`.
 
+**A new kind of dinosaur**: a species in `SaurianCatalog`, as `DINOSAURS.md` says. Its rig, its gait and how it falls come from its body, and `CharacterFactory` already knows any model named `dino:`. A new way of moving is a style in `SaurianForge.StyleOf`.
+
 **A new shape of attack**: a `ShapeKind`, a case in `Covers`, and the same in `Shaders/Marks/Mark_Shape.frag`. Those two have to agree.
 
 **Something solid that's low**: give `PlacementIndex.Add` a height.
@@ -132,7 +146,7 @@ dotnet "Dino AnimLab/bin/Release/net8.0/Dino AnimLab.dll" sheet --body wolf --do
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" combat     # What a fight promises, against a real server and clients
 ```
 
-`check` is every body in every situation, 18,000 frames of the worst input a game could give, and bodies thrown at the buildings and trees of a real world. `sheet` draws frames with no GPU: `--body` is bare, sword, shield, spear, bow, robe, brute, cutthroat, skeleton, wolf, boar or bear, and `--do` is any script in `Script.Named`.
+`check` is every body in every situation, 18,000 frames of the worst input a game could give, and bodies thrown at the buildings and trees of a real world. `sheet` draws frames with no GPU: `--body` is bare, sword, shield, spear, bow, robe, brute, cutthroat, skeleton, wolf, boar or bear, any of the six dinosaurs (raptor, skitter, spitter, ravager, tyrant, hornback) or any dinosaur's model name, such as `dino:tyrant.bones.0`, and `--do` is any script in `Script.Named`. `zoo` stands dinosaurs side by side.
 
 `combat` is the one to run after changing anything here. Every edge of every shape is tried from both sides, each timing to the tick, and everything that can stop a blow. Every bug it was written for has been put back to see it fail. Keep it that way: a test that's only ever passed proves nothing.
 
@@ -145,6 +159,8 @@ A lab can't say a body moves well, and judging it takes a person. To look at a f
 **Nobody has played this.** Everything above is measured or was looked at in stills and short films. What it feels like in the hands is the whole point, and only a person can say.
 
 **Nobody has heard it either.** Most hit sounds never played before this, as each new listener for an event replaced the last one. They all play now, and that mix is untested.
+
+**Dinosaurs have only been seen in the lab's stills**, walking, running, roaring and biting, from the side and from the game's angle. Nobody has watched one move in the game, or fought one.
 
 Not built:
 
@@ -180,4 +196,6 @@ Choices made without asking, as none of them block anything. Say if any are wron
 - Marc Raibert, *Legged Robots That Balance*: where a foot should land.
 - Thomas Jakobsen, "Advanced Character Physics" (GDC 2001), from Hitman: Codename 47.
 - Masahiro Sakurai on hit-stop.
+- Peter Bishop and others, on making theropods walk from their muscles in simulation: a tail that swings in time with the legs.
+- How birds hold their heads still while their bodies move under them: a dinosaur's head.
 - Inigo Quilez on signed distances: the shapes in `Mark_Shape.frag`.

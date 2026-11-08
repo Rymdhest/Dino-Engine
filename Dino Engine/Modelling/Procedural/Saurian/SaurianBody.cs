@@ -58,8 +58,25 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             return (Points[Math.Min(i + 1, Points.Length - 1)] - Points[Math.Max(i, 0)]).Normalized();
         }
 
-        /// <summary>The nearest point on it to <paramref name="p"/>, as how far along it is and how far off it is, across and up, in its own frame there.</summary>
+        // The last point asked about, as a skin asks about each of its points several times over. One body is grown on one thread.
+        private Vector3 _asked = new Vector3(float.NaN);
+        private float _answer, _answerDistance;
+
+        /// <summary>The nearest point on it to <paramref name="p"/>, as how far along it is, and how far off it that is.</summary>
         public float Nearest(Vector3 p, out float distance)
+        {
+            if (p == _asked)
+            {
+                distance = _answerDistance;
+                return _answer;
+            }
+            _asked = p;
+            _answer = Search(p, out _answerDistance);
+            distance = _answerDistance;
+            return _answer;
+        }
+
+        private float Search(Vector3 p, out float distance)
         {
             float best = float.MaxValue;
             float bestAlong = 0f;
@@ -212,6 +229,12 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public float Quills;            // How long the mane is, or 0 for none.
         public float Scutes;
         public bool Feathered => Quills > 0f;
+
+        /// <summary>In the Reich's harness, which comes with its paint.</summary>
+        public bool Harnessed;
+
+        /// <summary>Where it's rotted open, for one that's rotting.</summary>
+        public readonly List<Wound> Wounds = new();
 
         public bool OnFour => Species.Form == SaurianForm.Horned;
 

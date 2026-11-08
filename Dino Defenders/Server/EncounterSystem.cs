@@ -132,8 +132,9 @@ namespace Dino_Defenders.Server
             EnemyKind kind;
             Rarity rarity;
             int traits;
-            if (boss) (kind, rarity, traits) = (Bestiary.Warlord, Rarity.Unique, Bestiary.NoTraits);
-            else if (spawn.Role == SpawnRole.Guard) (kind, rarity, traits) = (kinds.Chance(GuardArcherChance) ? Bestiary.Archer : Bestiary.Sentry, Rarity.Normal, Bestiary.NoTraits);
+            // What holds a land is the tyrant its story names, and what stands watch over what the Reich has taken is its soldiers.
+            if (boss) (kind, rarity, traits) = (Bestiary.Find(session.Chronicle.BossKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
+            else if (spawn.Role == SpawnRole.Guard) (kind, rarity, traits) = (kinds.Chance(GuardArcherChance) ? Bestiary.Marksman : Bestiary.Legionary, Rarity.Normal, Bestiary.NoTraits);
             else (kind, rarity, traits) = orders.Draw(spawnIndex, kinds);
 
             // The people of a place have their hard cases, where a pack has its leader.
@@ -152,7 +153,7 @@ namespace Dino_Defenders.Server
             string? title = null;
             Loadout loadout = boss ? Bestiary.Boss(kind, level, traits, random.Fork("boss"), out gear, out title, session.Bestiary.Worn) : session.Bestiary.Shared(kind, level, rarity, traits);
 
-            string name = boss ? session.Chronicle.Warlord : Bestiary.NameOf(kind, traits);
+            string name = boss ? session.Chronicle.Beast : Bestiary.NameOf(kind, traits);
             if (title != null) name = $"{name}, {title}";
 
             var enemy = new EnemyComponent { Name = name, Rarity = rarity, Level = level };
@@ -170,7 +171,8 @@ namespace Dino_Defenders.Server
             };
 
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
-            var actor = new Actor(Team.Enemies, loadout, spawn.Position, WorldData.CharacterRadius * MathF.Min(scale, 1.4f))
+            float radius = kind.RadiusAt(scale);
+            var actor = new Actor(Team.Enemies, loadout, spawn.Position, radius)
             {
                 Site = state,
                 Body = model,
@@ -179,7 +181,7 @@ namespace Dino_Defenders.Server
                 Nature = boss ? Condition.Boss : rarity == Rarity.Rare ? Condition.Rare : Condition.None,
             };
 
-            actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, power.Importance, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, power.Importance, radius, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
             state.Live.Add(actor.Entity);
         }
 
@@ -187,21 +189,36 @@ namespace Dino_Defenders.Server
         public void Parade(ECSWorld world, ServerSession session, Vector2 at, string which, bool fighting = false)
         {
             const int perRow = 7;
+            const float slot = 5.5f, rowDepth = 7f;
             var random = new WorldRandom(1);
             (EnemyKind kind, Rarity rarity)[] line = which == "rarities"
                 ? Enum.GetValues<Rarity>().Select(rarity => (Bestiary.Outlaw, rarity)).ToArray()
                 : (which == "all" ? Bestiary.Everyone : Bestiary.Everyone.Where(kind => which.Split(',').Contains(kind.Id))).Select(kind => (kind, Rarity.Normal)).ToArray();
+            float ScaleOf(int index) => line[index].kind.Scale * (line[index].rarity == Rarity.Normal ? 1f : Bestiary.PowerOf(line[index].rarity).Scale);
+            // Whatever fits a slot stands where it always has, on a grid centred on the hero, as a test swings at the first of a parade without looking. Anything bigger takes a space as wide
+            // as it is and puts more room between its row and the next, as a tyrant is longer than a row of outlaws is apart. The first row stays where it is, as the screen ends not far behind it.
+            float SpaceOf(int index) => MathF.Max(slot, line[index].kind.RadiusAt(ScaleOf(index)) * 4.5f);
+            IEnumerable<int> Row(int first) => Enumerable.Range(first, Math.Min(perRow, line.Length - first));
+            float DepthOf(int first) => rowDepth + (Row(first).Max(SpaceOf) - slot) * 2f;
+            float rowAt = 0f, across = 0f;
             for (int i = 0; i < line.Length; i++)
             {
                 (EnemyKind kind, Rarity rarity) = line[i];
                 int traits = Bestiary.Fill(Bestiary.NoTraits, rarity, random.Fork(i));
-                float scale = kind.Scale * (rarity == Rarity.Normal ? 1f : Bestiary.PowerOf(rarity).Scale);
-                Vector2 spot = at + new Vector2((i % perRow - (perRow - 1) * 0.5f) * 5.5f, -7f - i / perRow * 7f);
+                float scale = ScaleOf(i);
+                if (i % perRow == 0)
+                {
+                    rowAt -= i == 0 ? rowDepth : (DepthOf(i - perRow) + DepthOf(i)) * 0.5f;
+                    across = MathF.Min(-slot * perRow, -Row(i).Sum(SpaceOf)) * 0.5f;
+                }
+                Vector2 spot = at + new Vector2(across + SpaceOf(i) * 0.5f, rowAt);
+                across += SpaceOf(i);
                 Vector3 position = new Vector3(spot.X, session.World.Height.Sample(spot), spot.Y);
                 Loadout loadout = session.Bestiary.Shared(kind, 1, rarity, traits);
-                var actor = new Actor(Team.Enemies, loadout, spot, WorldData.CharacterRadius) { Body = kind.Look, Height = position.Y, Still = !fighting };
+                string model = Bestiary.ModelOf(kind, random);
+                var actor = new Actor(Team.Enemies, loadout, spot, kind.RadiusAt(scale)) { Body = model, Height = position.Y, Still = !fighting };
                 var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = spot, AggroRadius = 60f, LeashRadius = 200f, KeepsAway = kind.KeepsAway, Abilities = Bestiary.AbilitiesOf(kind, traits) };
-                IComponent[] body = Bodies.Walking(_server, Bestiary.ModelOf(kind, random), position, scale, 2f,
+                IComponent[] body = Bodies.Walking(_server, model, position, scale, 2f, kind.RadiusAt(scale),
                     new EnemyComponent { Name = Bestiary.NameOf(kind, traits), Rarity = rarity, Level = 1 }, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor));
                 for (int part = 0; part < body.Length; part++)
                 {
@@ -267,7 +284,11 @@ namespace Dino_Defenders.Server
     /// <summary>The components every walking character has on the server: where it is, how it moves, and what clients should draw.</summary>
     public static class Bodies
     {
-        public static IComponent[] Walking(GameServer server, string model, Vector3 position, float scale, float importance, params IComponent[] extra)
+        public static IComponent[] Walking(GameServer server, string model, Vector3 position, float scale, float importance, params IComponent[] extra) =>
+            Walking(server, model, position, scale, importance, WorldData.CharacterRadius * MathF.Min(scale, 1.4f), extra);
+
+        /// <param name="radius">How far its body reaches, which is what's solid about it: a person's, or a dinosaur's, which is far more.</param>
+        public static IComponent[] Walking(GameServer server, string model, Vector3 position, float scale, float importance, float radius, params IComponent[] extra)
         {
             var components = new List<IComponent>
             {
@@ -278,7 +299,7 @@ namespace Dino_Defenders.Server
                 new VisualComponent(model, VisualKind.Character),
                 new VelocityComponent(),
                 new FixToTerrainHeightComponent(),
-                new CharacterMotorComponent(WorldData.CharacterRadius * MathF.Min(scale, 1.4f)),
+                new CharacterMotorComponent(radius),
             };
             components.AddRange(extra);
             return components.ToArray();
@@ -295,15 +316,17 @@ namespace Dino_Defenders.Server
         private const float SpeechReach = 9f;
         private const float SpeechOverMark = 11.5f;     // Whoever can be used has a mark over their head, and the camera looks so far down that it takes this to clear it.
 
+        // What people say under the Reich, and once it's gone from their land. Read LORE.md.
         private static readonly string[] Afraid =
         {
-            "Keep your voice down.", "They come at night now.", "Mind yourself on the road.", "There's nothing left to take.",
-            "Someone ought to do something.", "You're not one of theirs, are you?", "We've buried too many.",
+            "Keep your voice down. They hear everything.", "The roaring comes at night now.", "Mind yourself on the road. The raptors hunt in packs.", "There's nothing left to take.",
+            "Someone ought to do something.", "You're not one of theirs, are you?", "They took my brother for the pens.", "We've buried too many.",
+            "Did you hear it, up at the keep? Every night.", "The greycoats came for the harvest.",
         };
         private static readonly string[] Grateful =
         {
-            "The road's safe again!", "Bless you, traveller.", "We can sleep at last.", "My boy came home.",
-            "They're saying it was you.", "The market's open again.", "There's bread for you here.",
+            "The road's safe again!", "Bless you, Defender.", "We can sleep at last.", "My boy came home from the pens.",
+            "They're saying it was you.", "The market's open again.", "No more roaring in the night.", "There's bread for you here.",
         };
 
         private readonly GameServer _server;

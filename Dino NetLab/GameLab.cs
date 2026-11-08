@@ -35,7 +35,7 @@ namespace Dino_NetLab
         public int Swings;
         public int HitsSeen;
         public bool Fights = true;
-        public Vector2? Heading;        // With nothing to fight: where to walk to, in place of wandering.
+        public Vector2? Heading;        // With nothing to fight: where to walk to, in place of wandering. Not fighting: where to walk to, whatever's about.
         public Vector2? StrikeAt;       // Swings once at this place.
         public const int WhirlSlot = 2;
         public int WhirlEveryFrames;    // Instead of fighting: a press of whirl, this often.
@@ -160,7 +160,13 @@ namespace Dino_NetLab
                 return press;
             }
 
-            if (!Fights || Client.Session == null) return default;
+            if (Client.Session == null) return default;
+            if (!Fights)
+            {
+                if (Heading is not Vector2 destination) return default;
+                Vector2 onward = destination - Client.Predictor.Current.Position;
+                return new HeroIntent { Aim = onward, Move = onward };
+            }
 
             var intent = new HeroIntent();
             Vector2 here = Client.Predictor.Current.Position;
@@ -641,6 +647,8 @@ namespace Dino_NetLab
             lab.Run(6);
 
             ServerPlayer truth = lab.Server.Players.First();
+            // On through whatever's about: a hero who turns to fight stands still, and the camp's raptors can catch anyone they like.
+            player.Fights = false;
             player.Heading = truth.Sim.Position + new Vector2(80f, 0f);
             lab.Run(1.5);
             int before = player.Client.Predictor.Corrections;

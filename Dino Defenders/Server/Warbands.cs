@@ -78,9 +78,24 @@ namespace Dino_Defenders.Server
         }
     }
 
-    /// <summary>The packs of the world, by who they are and where they're found.</summary>
+    /// <summary>
+    /// The packs of the world, by who they are and where they're found. The roads and the strongholds are the Saurian Reich's, and its war-bands are what hold them, with the outlaws who sold the land to it
+    /// working what's left. The dead have the Ossuary's bone-beasts among them, the wet places have its failures, and the deep woods have broods that got out of its pens. Read LORE.md.
+    /// </summary>
     public static class Warbands
     {
+        private const float TurncoatShare = 0.28f;  // Of what holds the roads, outlaws rather than the Reich's own.
+        private const float RotShare = 0.45f;       // Of the dead, where the land is wet enough to take what's dumped there.
+        private const float FeralShare = 0.4f;      // Of what lives wild, broods that got out of the pens.
+        private const float SwarmShare = 0.2f;
+
+        // Raptors out in front, soldiers behind them, something big leading, and venom or arrows from the back.
+        private static readonly Recipe Reich = new(
+            new[] { Bestiary.Ravager, Bestiary.Hornback, Bestiary.Wrangler, Bestiary.Wrangler },
+            new[] { Bestiary.WarRaptor, Bestiary.WarRaptor, Bestiary.WarRaptor, Bestiary.Legionary },
+            new[] { Bestiary.Spitter, Bestiary.Spitter, Bestiary.Marksman },
+            0.26f);
+
         private static readonly Recipe Outlaws = new(
             new[] { Bestiary.Brute, Bestiary.Brute, Bestiary.Outlaw },
             new[] { Bestiary.Cutthroat, Bestiary.Cutthroat, Bestiary.Outlaw },
@@ -88,10 +103,15 @@ namespace Dino_Defenders.Server
             0.28f);
 
         private static readonly Recipe Dead = new(
-            new[] { Bestiary.GraveKnight, Bestiary.GraveKnight, Bestiary.Mourner },
-            new[] { Bestiary.Shambler, Bestiary.Shambler, Bestiary.Restless },
+            new[] { Bestiary.GraveKnight, Bestiary.BoneRavager, Bestiary.Mourner },
+            new[] { Bestiary.Shambler, Bestiary.BoneRaptor, Bestiary.BoneRaptor, Bestiary.Restless },
             new[] { Bestiary.BoneArcher, Bestiary.BoneArcher, Bestiary.Mourner },
             0.26f);
+
+        private static readonly Recipe Rotting = new(new[] { Bestiary.RottingHornback }, new[] { Bestiary.RottingRaptor }, Array.Empty<EnemyKind>(), 0f);
+
+        private static readonly Recipe Feral = new(new[] { Bestiary.WildRavager }, new[] { Bestiary.Raptor }, new[] { Bestiary.FeralSpitter }, 0.2f);
+        private static readonly Recipe Swarm = new(new[] { Bestiary.Raptor }, new[] { Bestiary.Skitter }, Array.Empty<EnemyKind>(), 0f);
 
         private static readonly Recipe Wolves = new(new[] { Bestiary.DireWolf }, new[] { Bestiary.Wolf }, Array.Empty<EnemyKind>(), 0f);
         private static readonly Recipe WinterWolves = new(new[] { Bestiary.DireWolf, Bestiary.Bear }, new[] { Bestiary.Wolf }, Array.Empty<EnemyKind>(), 0f);
@@ -108,8 +128,12 @@ namespace Dino_Defenders.Server
         /// <summary>Every recipe there is, for anything that wants to look through them.</summary>
         public static IEnumerable<Recipe> All()
         {
+            yield return Reich;
             yield return Outlaws;
             yield return Dead;
+            yield return Rotting;
+            yield return Feral;
+            yield return Swarm;
             yield return Wolves;
             yield return WinterWolves;
             yield return Boars;
@@ -122,14 +146,18 @@ namespace Dino_Defenders.Server
             switch (folk)
             {
                 case SpawnRole.Undead:
-                    return Dead;
+                    return biome.Moisture >= 0.6f && random.Chance(RotShare) ? Rotting : Dead;
                 case SpawnRole.Beast:
-                    if (biome.Temperature <= 0.35f) return WinterWolves;
+                    // Cold-blooded things don't last the winter, so the snow is still the wolves'.
+                    if (biome.Temperature <= 0.35f) return random.Chance(FeralShare * 0.4f) ? Feral : WinterWolves;
+                    float roll = random.Float();
+                    if (roll < FeralShare) return Feral;
+                    if (roll < FeralShare + SwarmShare) return Swarm;
                     return random.Chance(biome.Temperature >= 0.55f ? 0.6f : 0.3f) ? Boars : Wolves;
                 case SpawnRole.Cultist:
                     return CultOf(biome, random);
                 default:
-                    return Outlaws;
+                    return random.Chance(TurncoatShare) ? Outlaws : Reich;
             }
         }
 

@@ -1038,7 +1038,7 @@ namespace Dino_Engine.Textures
         private int createClothTexture()
         {
             var weave = procTextGen.TileWeave(new Vector2(48f, 48f), count: 2, smoothness: 0.8f, width: 0.6f);
-            weave.setMaterial(new Material(new Colour(178, 172, 158), 0.96f, 0f, 0f, 0.3f));
+            weave.setMaterial(new Material(new Colour(GearMaterials.ClothAlbedo), 0.96f, 0f, 0f, 0.3f));
             weave.scaleHeight(0.3f);
             weave.addHeight(0.5f);
             return FinishTexture(weave, normalFlatness: 80f);
@@ -1047,7 +1047,7 @@ namespace Dino_Engine.Textures
         private int createLeatherTexture()
         {
             var hide = procTextGen.Cellular(new Vector2(30f, 30f), jitter: 1f, metric: Metric.SquaredEuclidean);
-            hide.setMaterial(new Material(new Colour(112, 76, 50), 0.62f, 0f, 0f));
+            hide.setMaterial(new Material(new Colour(GearMaterials.LeatherAlbedo), 0.62f, 0f, 0f));
             hide.scaleHeight(0.3f);
             hide.addHeight(0.5f);
             return FinishTexture(hide, normalFlatness: 80f);

@@ -20,6 +20,14 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public static int Glow = 8;
         public static int Skin = 9;
         public static int Straw = 10;
+
+        // Leather, cloth and bone are each a colour of their own, which the shader multiplies into whatever's drawn on them. Wood and straw are patterned in theirs, and the rest are white.
+        public static readonly Vector3 LeatherAlbedo = new Vector3(112f, 76f, 50f) / 255f;
+        public static readonly Vector3 ClothAlbedo = new Vector3(178f, 172f, 158f) / 255f;
+        public static Vector3 BoneAlbedo => Material.BONE.Colour.ToVector3();
+
+        /// <summary>What a material does to the colour drawn on it. A colour meant as an albedo divides by this, and a picture drawn with no textures multiplies by it to show what the game will.</summary>
+        public static Vector3 AlbedoOf(int material) => material == Leather ? LeatherAlbedo : material == Cloth ? ClothAlbedo : material == Bone ? BoneAlbedo : Vector3.One;
     }
 
     /// <summary>

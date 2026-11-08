@@ -28,6 +28,12 @@ namespace Dino_Defenders.Server
         public string Look = "bandit";  // What it's drawn as, which CharacterFactory.Resolve has to know.
         public int Variants;        // How many ways it's drawn, numbered onto Look.
         public float Scale = 1f;
+
+        /// <summary>How far its body reaches from where it stands, in metres at a scale of one, for what's solid and what's struck. Nothing means a person's, which grows a little with them and no further.</summary>
+        public float Bulk;
+
+        /// <summary>How far its body reaches at this scale.</summary>
+        public float RadiusAt(float scale) => Bulk > 0f ? Bulk * scale : WorldData.CharacterRadius * MathF.Min(scale, 1.4f);
     }
 
     /// <summary>A quality an enemy can have on top of what it is, and something it can do because of it. They're the same modifiers a hero's gear is made of, and the same books.</summary>
@@ -203,6 +209,135 @@ namespace Dino_Defenders.Server
 
         public static readonly EnemyKind[] Casters = { Firebrand, Rimewitch, Stormcaller, Bogseer };
 
+        // ---- The Saurian Reich, and what it has raised. Read LORE.md.
+
+        // What the Reich's beasts have against the land's: tough hides, and blood bred hot.
+        private static readonly Mod[] Hide = { Resist(Tags.Poison, 15f), Resist(Tags.Cold, -10f) };
+
+        // What the Ossuary's failures have: rot that poisons what it bites, no blood to lose, and no love of fire.
+        private static readonly Mod[] Rot = { GainAs(DamageType.Physical, DamageType.Poison, 40f), Chance(Tags.Venom, 35f), Resist(Tags.Poison, 60f), Resist(Tags.Fire, -25f), Flat(Stat.AilmentAvoid, 100f, Tags.Bleed) };
+
+        /// <summary>The Reich's hounds. They hunt in packs ahead of its soldiers, and most of a war-band is these.</summary>
+        public static readonly EnemyKind WarRaptor = new EnemyKind
+        {
+            Id = "war-raptor", Name = "War Raptor", Books = new[] { Shelf.RakingBite }, MoveSpeed = 9.6f, Health = 0.45f, Damage = 0.42f, AggroRadius = 24f,
+            Mods = Hide.Append(Inc(Stat.AttackSpeed, 20f)).ToArray(), Look = "dino:raptor.reich.", Variants = 6, Bulk = 1.25f,
+        };
+
+        /// <summary>Raptors the Reich lost, breeding in the deep woods. Life finds a way out of any pen.</summary>
+        public static readonly EnemyKind Raptor = new EnemyKind
+        {
+            Id = "raptor", Name = "Raptor", Books = new[] { Shelf.RakingBite }, MoveSpeed = 9.6f, Health = 0.45f, Damage = 0.42f, AggroRadius = 24f,
+            Mods = Hide.Append(Inc(Stat.AttackSpeed, 20f)).ToArray(), Look = "dino:raptor.", Variants = 6, Bulk = 1.25f,
+        };
+
+        /// <summary>Little scavengers in their dozens, wherever anything has died, which is everywhere the Reich has been.</summary>
+        public static readonly EnemyKind Skitter = new EnemyKind
+        {
+            Id = "skitter", Name = "Skitter", Books = new[] { Shelf.HungryBite }, MoveSpeed = 10.4f, Health = 0.22f, Damage = 0.22f, AggroRadius = 20f,
+            Mods = new[] { Inc(Stat.AttackSpeed, 30f), Inc(Stat.Evasion, 40f) }, Look = "dino:skitter.", Variants = 5, Bulk = 0.6f,
+        };
+
+        /// <summary>Venom the blood-doctors bred into it, spat from behind the pack.</summary>
+        public static readonly EnemyKind Spitter = new EnemyKind
+        {
+            Id = "spitter", Name = "Spitter", Books = new[] { Shelf.VenomSpit, Shelf.RakingBite }, MoveSpeed = 8f, Health = 0.6f, Damage = 0.6f, AggroRadius = 28f, KeepsAway = true,
+            Mods = new[] { Resist(Tags.Poison, 50f) }, Look = "dino:spitter.reich.", Variants = 4, Bulk = 1.3f,
+        };
+
+        public static readonly EnemyKind FeralSpitter = new EnemyKind
+        {
+            Id = "feral-spitter", Name = "Wild Spitter", Books = new[] { Shelf.VenomSpit, Shelf.RakingBite }, MoveSpeed = 8f, Health = 0.6f, Damage = 0.6f, AggroRadius = 28f, KeepsAway = true,
+            Mods = new[] { Resist(Tags.Poison, 50f) }, Look = "dino:spitter.", Variants = 4, Bulk = 1.3f,
+        };
+
+        /// <summary>What leads a war-band when raptors won't do: a heavy-skulled killer with horns over its eyes.</summary>
+        public static readonly EnemyKind Ravager = new EnemyKind
+        {
+            Id = "ravager", Name = "Ravager", Books = new[] { Shelf.Stomp, Shelf.RakingBite }, MoveSpeed = 7.6f, Health = 2.3f, Damage = 1.3f, AggroRadius = 26f,
+            Mods = Hide.Append(More(Stat.Armour, 30f)).Append(Inc(Stat.AilmentTaken, -20f)).ToArray(), Look = "dino:ravager.reich.", Variants = 4, Scale = 0.85f, Bulk = 1.9f,
+        };
+
+        /// <summary>One that got away from its handlers and leads what else did.</summary>
+        public static readonly EnemyKind WildRavager = new EnemyKind
+        {
+            Id = "wild-ravager", Name = "Wild Ravager", Books = new[] { Shelf.Stomp, Shelf.RakingBite }, MoveSpeed = 7.8f, Health = 2.1f, Damage = 1.3f, AggroRadius = 26f,
+            Mods = Hide.Append(More(Stat.Armour, 20f)).ToArray(), Look = "dino:ravager.", Variants = 4, Scale = 0.85f, Bulk = 1.9f,
+        };
+
+        /// <summary>Driven at walls, and walls go.</summary>
+        public static readonly EnemyKind Hornback = new EnemyKind
+        {
+            Id = "hornback", Name = "Hornback", Books = new[] { Shelf.Gore, Shelf.Stomp }, MoveSpeed = 7.2f, Health = 2.8f, Damage = 1.35f, AggroRadius = 22f,
+            Mods = Hide.Append(More(Stat.Armour, 60f)).Append(Flat(Stat.PhysicalReduction, 8f)).ToArray(), Look = "dino:hornback.reich.", Variants = 4, Scale = 0.85f, Bulk = 2.1f,
+        };
+
+        /// <summary>A commander's war-beast, and what holds a land for the Reich. Tyrants are only ever met as what a land's freedom depends on.</summary>
+        public static readonly EnemyKind Tyrant = new EnemyKind
+        {
+            Id = "tyrant", Name = "Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 6.6f, Health = 1.35f, Damage = 1.15f, AggroRadius = 30f, LeashRadius = 75f,
+            Mods = Hide.Append(More(Stat.Armour, 80f)).Append(Inc(Stat.AilmentTaken, -50f)).ToArray(), Look = "dino:tyrant.reich.", Scale = 0.9f, Bulk = 1.7f,
+        };
+
+        /// <summary>A tyrant the Ossuary raised straight out of the rock it lay in, with nothing on its bones but the light that moves them.</summary>
+        public static readonly EnemyKind BoneTyrant = new EnemyKind
+        {
+            Id = "bone-tyrant", Name = "Bone Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 6.2f, Health = 1.25f, Damage = 1.2f, AggroRadius = 30f, LeashRadius = 75f,
+            Mods = Undead.Append(More(Stat.Armour, 60f)).Append(Inc(Stat.AilmentTaken, -50f)).ToArray(), Look = "dino:tyrant.bones.", Scale = 0.9f, Bulk = 1.5f,
+        };
+
+        /// <summary>A tyrant that hatched dying, and wasn't let die.</summary>
+        public static readonly EnemyKind RottingTyrant = new EnemyKind
+        {
+            Id = "rotting-tyrant", Name = "Rotting Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 5.8f, Health = 1.5f, Damage = 1.1f, AggroRadius = 30f, LeashRadius = 75f,
+            Mods = Rot.Append(More(Stat.Armour, 40f)).Append(Inc(Stat.AilmentTaken, -50f)).ToArray(), Look = "dino:tyrant.rot.", Scale = 0.9f, Bulk = 1.7f,
+        };
+
+        public static readonly EnemyKind BoneRaptor = new EnemyKind
+        {
+            Id = "bone-raptor", Name = "Bone Raptor", Books = new[] { Shelf.RakingBite }, MoveSpeed = 8.2f, Health = 0.5f, Damage = 0.45f,
+            Mods = Undead, Look = "dino:raptor.bones.", Variants = 4, Bulk = 1.2f,
+        };
+
+        public static readonly EnemyKind BoneRavager = new EnemyKind
+        {
+            Id = "bone-ravager", Name = "Bone Ravager", Books = new[] { Shelf.Stomp, Shelf.RakingBite }, MoveSpeed = 6.8f, Health = 2.4f, Damage = 1.3f,
+            Mods = Undead.Append(More(Stat.Armour, 40f)).ToArray(), Look = "dino:ravager.bones.", Variants = 3, Scale = 0.85f, Bulk = 1.8f,
+        };
+
+        public static readonly EnemyKind RottingRaptor = new EnemyKind
+        {
+            Id = "rotting-raptor", Name = "Rotting Raptor", Books = new[] { Shelf.RakingBite }, MoveSpeed = 6.2f, Health = 0.7f, Damage = 0.45f,
+            Mods = Rot, Look = "dino:raptor.rot.", Variants = 4, Bulk = 1.25f,
+        };
+
+        public static readonly EnemyKind RottingHornback = new EnemyKind
+        {
+            Id = "rotting-hornback", Name = "Rotting Hornback", Books = new[] { Shelf.Gore, Shelf.Stomp }, MoveSpeed = 5.8f, Health = 3f, Damage = 1.3f,
+            Mods = Rot.Append(More(Stat.Armour, 40f)).ToArray(), Look = "dino:hornback.rot.", Variants = 3, Scale = 0.85f, Bulk = 2.1f,
+        };
+
+        /// <summary>The Reich's soldiers: greycoats in iron helms, who march behind the beasts.</summary>
+        public static readonly EnemyKind Legionary = new EnemyKind
+        {
+            Id = "legionary", Name = "Reich Legionary", Books = new[] { Shelf.Strike }, Damage = 0.9f, Mods = new[] { More(Stat.Armour, 50f), Flat(Stat.BlockChance, 10f) }, Look = "reich:legionary",
+        };
+
+        public static readonly EnemyKind Marksman = new EnemyKind
+        {
+            Id = "marksman", Name = "Reich Marksman", Books = new[] { Shelf.Shot }, Weapon = Tags.Bow | Tags.TwoHanded, KeepsAway = true, AggroRadius = 30f, Damage = 0.75f, Look = "reich:marksman",
+        };
+
+        /// <summary>A beast-handler with a goad, who drives a war-band and knows what each of its animals will do.</summary>
+        public static readonly EnemyKind Wrangler = new EnemyKind
+        {
+            Id = "wrangler", Name = "Reich Wrangler", Books = new[] { Shelf.Maul, Shelf.Strike }, MoveSpeed = 6.6f, Health = 1.8f, Damage = 1.1f, Mods = new[] { More(Stat.Armour, 40f) },
+            Look = "reich:wrangler", Scale = 1.12f,
+        };
+
+        /// <summary>A kind by its id, as a land's story names the tyrant that holds it.</summary>
+        public static EnemyKind? Find(string id) => Array.Find(Everyone, kind => kind.Id == id);
+
         // What people raise and whistle for. Minions are enemies on your side, and share everything else with them.
         public static readonly EnemyKind Bones = new EnemyKind
         {
@@ -221,6 +356,8 @@ namespace Dino_Defenders.Server
         {
             Outlaw, Cutthroat, Brute, Archer, Sentry, Firebrand, Rimewitch, Stormcaller, Bogseer, EmberAcolyte, RimeAcolyte, StormAcolyte, MireAcolyte,
             Restless, Shambler, BoneArcher, GraveKnight, Mourner, Wolf, DireWolf, Boar, Bear, Warlord, Bones, Hound,
+            WarRaptor, Raptor, Skitter, Spitter, FeralSpitter, Ravager, WildRavager, Hornback, Tyrant, BoneTyrant, RottingTyrant, BoneRaptor, BoneRavager, RottingRaptor, RottingHornback,
+            Legionary, Marksman, Wrangler,
         };
 
         public static EnemyKind? Minion(string? id) => id switch

@@ -8,6 +8,7 @@ namespace Dino_AnimLab
     /// Moves bodies with no window and no GPU, to look at them and to check that they hold up. See ANIMATION.md.
     ///   sheet  [--body b] [--do script] [--view side|front|back|top|three|game] [--frames N] [--columns N] [--tile N] [--out file.png]
     ///   zoo    [--species a,b] [--variants N] [--as living,rot,bones,reich] [--view v] [--tile N] [--out file.png]   Dinosaurs standing, one of each.
+    ///   grow   [--dino dino:raptor.0,dino:tyrant.bones.0]   Grows each on one thread and says where the time went.
     ///   check  Does everything hold, whatever's thrown at it? Exit code 1 if not.
     ///   bench  What a body costs.
     /// </summary>
@@ -23,6 +24,8 @@ namespace Dino_AnimLab
                     return Sheet(options);
                 case "zoo":
                     return Zoo(options);
+                case "grow":
+                    return Grow(options);
                 case "check":
                     return AnimCheck.Run(options);
                 case "bench":
@@ -47,6 +50,25 @@ namespace Dino_AnimLab
             max = Vector3.ComponentMax(max, body.Rig.Frame.HeadTip);
             Vector3 size = max - min;
             return (MathF.Max(size.Z, size.Y) * 1.15f, new Vector3(0f, (min.Y + max.Y) * 0.5f, (min.Z + max.Z) * 0.5f));
+        }
+
+        /// <summary>Grows each dinosaur named on one thread and says where the time went, which is what a loading screen waits for.</summary>
+        private static int Grow(Options options)
+        {
+            Dino_Engine.Modelling.Procedural.Saurian.SaurianSkin.Report = Console.WriteLine;
+            foreach (string key in options.Text("dino", "dino:raptor.0,dino:tyrant.0,dino:raptor.bones.0").Split(','))
+            {
+                var spec = Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec.Parse(key);
+                if (spec == null)
+                {
+                    Console.WriteLine($"No dinosaur called {key}.");
+                    return 1;
+                }
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                var mesh = Dino_Engine.Modelling.Procedural.Saurian.SaurianForge.Make(spec.Value);
+                Console.WriteLine($"{key}: {watch.Elapsed.TotalMilliseconds:0} ms, {mesh.faces.Count} triangles");
+            }
+            return 0;
         }
 
         /// <summary>Every kind asked for, a few of each, standing still after a moment to settle, so that what's different between them can be seen at once.</summary>

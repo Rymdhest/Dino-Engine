@@ -6,6 +6,7 @@ using Dino_Engine.Modelling.Procedural.Architecture;
 using Dino_Engine.Modelling.Procedural.Character;
 using Dino_Engine.Modelling.Procedural.Gear;
 using Dino_Engine.Modelling.Procedural.Indoor;
+using Dino_Engine.Modelling.Procedural.Saurian;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using Dino_Engine.World;
@@ -32,6 +33,22 @@ namespace Dino_Defenders.Client
         };
 
         private readonly Dictionary<string, glModel> _models = new();
+
+        // Dinosaurs are grown, which takes a few hundred milliseconds each, so they're begun the moment there's a factory, while the menu and the first world's generation go on. They
+        // take half the cores, as the world takes longer with fewer and they were done before it was. A world only waits for what isn't done when it's entered, and only the upload is left for this thread.
+        private Task<(string key, Mesh mesh)[]>? _growing = Task.Run(() => DinosaurKeys().AsParallel().WithDegreeOfParallelism(Math.Max(Environment.ProcessorCount / 2, 1))
+            .Select(key => (key, SaurianForge.Make(SaurianSpec.Parse(key)!.Value))).ToArray());
+
+        // Every dinosaur a server can send: each kind's look, with each of its seeds.
+        private static IEnumerable<string> DinosaurKeys()
+        {
+            foreach (Server.EnemyKind kind in Server.Bestiary.Everyone)
+            {
+                if (SaurianSpec.Parse(kind.Look) == null) continue;
+                if (kind.Variants == 0) yield return kind.Look;
+                for (int variant = 0; variant < kind.Variants; variant++) yield return $"{kind.Look}{variant}";
+            }
+        }
 
         private glModel Model(string key, Func<Mesh> build)
         {
@@ -61,15 +78,29 @@ namespace Dino_Defenders.Client
                 }
                 else if (kind.Variants > 0)
                 {
-                    for (int variant = 0; variant < kind.Variants; variant++) Resolve($"{kind.Look}{variant}");
+                    for (int variant = 0; variant < kind.Variants; variant++) Queue($"{kind.Look}{variant}");
                 }
-                else Resolve(kind.Look);
+                else Queue(kind.Look);
             }
+
+            void Queue(string key)
+            {
+                if (SaurianSpec.Parse(key) == null) Resolve(key);
+            }
+
+            if (_growing == null) return;
+            foreach ((string key, Mesh mesh) in _growing.Result)
+            {
+                if (!_models.ContainsKey(key)) _models[key] = glLoader.loadToVAO(mesh);
+            }
+            _growing = null;
         }
 
         /// <summary>The model a server means by <paramref name="key"/>.</summary>
         public glModel Resolve(string key)
         {
+            if (SaurianSpec.Parse(key) is SaurianSpec dinosaur) return Model(key, () => SaurianForge.Make(dinosaur));
+            if (key.StartsWith(ReichPrefix)) return Model(key, () => HumanoidGenerator.Generate(ReichLook(key.Substring(ReichPrefix.Length))));
             if (key == "skeleton") return Skeleton;
             if (key == "skeleton:bow") return Model(key, SkeletonGenerator.GenerateArcher);
             if (key == "warlord") return Warlord;
@@ -113,15 +144,18 @@ namespace Dino_Defenders.Client
         /// <summary>The animal a server means by <paramref name="key"/>, if it means one. Those stand on a rig of their own.</summary>
         public static BeastLook? BeastOf(string key) => Beasts.GetValueOrDefault(key);
 
-        /// <summary>The joints of an animal, shared by everyone of its kind.</summary>
+        /// <summary>The joints of an animal, shared by everyone of its kind. A dinosaur's are its own, as each is grown from its seed.</summary>
         public static Rig RigOf(string key)
         {
-            if (!Rigs.TryGetValue(key, out Rig? rig))
+            lock (Rigs)
             {
-                rig = BeastGenerator.RigOf(Beasts[key]);
-                Rigs.Add(key, rig);
+                if (!Rigs.TryGetValue(key, out Rig? rig))
+                {
+                    rig = SaurianSpec.Parse(key) is SaurianSpec dinosaur ? SaurianForge.RigOf(dinosaur) : BeastGenerator.RigOf(Beasts[key]);
+                    Rigs.Add(key, rig);
+                }
+                return rig;
             }
-            return rig;
         }
 
         private static readonly Dictionary<string, Rig> Rigs = new();
@@ -131,6 +165,7 @@ namespace Dino_Defenders.Client
 
         public static Bearing BearingOf(string key)
         {
+            if (SaurianSpec.Parse(key) is SaurianSpec dinosaur) return new Bearing(RigOf(key), SaurianForge.StyleOf(dinosaur), Carry.Nothing, false);
             if (BeastOf(key) != null)
             {
                 MotionStyle moves = key == "boar" ? MotionStyle.Boar : key == "bear" ? MotionStyle.Bear : MotionStyle.Hound;
@@ -138,6 +173,9 @@ namespace Dino_Defenders.Client
             }
 
             Rig person = Rig.Humanoid;
+            if (key == ReichPrefix + "marksman") return new Bearing(person, MotionStyle.Armoured, Carry.Bow, false);
+            if (key == ReichPrefix + "legionary") return new Bearing(person, MotionStyle.Armoured, Carry.Spear, false);
+            if (key == ReichPrefix + "wrangler") return new Bearing(person, MotionStyle.Brute, Carry.Spear, false);
             if (key == "skeleton") return new Bearing(person, MotionStyle.Dead, Carry.Sword, true);
             if (key == "skeleton:bow") return new Bearing(person, MotionStyle.Dead, Carry.Bow, false);
             if (key is "warlord" or "revenant") return new Bearing(person, MotionStyle.Armoured, Carry.Sword, true);
@@ -249,6 +287,31 @@ namespace Dino_Defenders.Client
             Held = look == 2 ? HeldItem.Spear : HeldItem.Sword,
             Armoured = look == 0,
             Bulk = 1.34f,
+        };
+
+        public const string ReichPrefix = "reich:";
+
+        // The Saurian Reich's own: greycoats in charcoal and oxblood under iron helms, and its beast-handlers in oxblood leather. Nobody else wears these colours. Read LORE.md.
+        private static readonly Vector3 Greycoat = new Vector3(0.07f, 0.07f, 0.075f);
+        private static readonly Vector3 Oxblood = new Vector3(0.28f, 0.03f, 0.03f);
+
+        private static HumanoidLook ReichLook(string who) => who switch
+        {
+            "wrangler" => new HumanoidLook
+            {
+                Tunic = new Vector3(0.16f, 0.035f, 0.03f), Legs = Greycoat * 0.8f, Boots = new Vector3(0.04f, 0.035f, 0.03f), Trim = new Vector3(0.42f, 0.3f, 0.11f),
+                Head = Headwear.Hood, HeadColour = new Vector3(0.08f, 0.03f, 0.025f), Held = HeldItem.Spear, Armoured = true, Bulk = 1.22f,
+            },
+            "marksman" => new HumanoidLook
+            {
+                Tunic = Greycoat, Legs = Greycoat * 0.85f, Boots = new Vector3(0.035f, 0.03f, 0.03f), Trim = Oxblood,
+                Head = Headwear.Helm, HeadColour = new Vector3(0.09f, 0.09f, 0.1f), Held = HeldItem.Bow, LongGarment = true, Bulk = 1f,
+            },
+            _ => new HumanoidLook
+            {
+                Tunic = Greycoat, Legs = Greycoat * 0.85f, Boots = new Vector3(0.035f, 0.03f, 0.03f), Trim = Oxblood,
+                Head = Headwear.Helm, HeadColour = new Vector3(0.09f, 0.09f, 0.1f), Held = HeldItem.Spear, Armoured = true, LongGarment = true, Bulk = 1.06f,
+            },
         };
 
         private static readonly HumanoidLook RevenantLook = new HumanoidLook

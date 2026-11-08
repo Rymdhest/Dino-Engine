@@ -361,7 +361,7 @@ namespace Dino_Defenders.UI
             _offering.Sanitize();
             _note.Text = free
                 ? "With this land free, the old roads open further. Beyond them the lands are harder, and richer."
-                : $"While {session.Chronicle.Warlord} holds this land, the gate reaches only as far as lands like it. You may go, and it will not wait for you.";
+                : $"While {session.Chronicle.Beast} holds this land for the Reich, the gate reaches only as far as lands like it. You may go, and it will not wait for you.";
 
             _cards.ClearChildren();
             var random = new WorldRandom(session.World.Plan.Seed).Fork("roads onward").Fork(level);

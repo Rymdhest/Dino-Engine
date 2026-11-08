@@ -1,4 +1,5 @@
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
 
 namespace Dino_AnimLab
@@ -36,7 +37,7 @@ namespace Dino_AnimLab
                 index[vertex] = i;
                 Positions[i] = vertex.position;
                 Normals[i] = vertex.normal;
-                Colours[i] = vertex.colour.ToVector3();
+                Colours[i] = vertex.colour.ToVector3() * GearMaterials.AlbedoOf(vertex.materialTextureIndex);    // What the game's material makes of it.
                 FirstBone[i] = (int)vertex.boneIndices.X;
                 SecondBone[i] = (int)vertex.boneIndices.Y;
                 float total = vertex.BoneWeights.X + vertex.BoneWeights.Y;

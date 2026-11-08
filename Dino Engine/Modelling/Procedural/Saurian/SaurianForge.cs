@@ -50,11 +50,25 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     /// </summary>
     public static class SaurianForge
     {
-        private const int Grid = 230;           // Cells along the body: far finer than is drawn, for the decimator to spend well.
         private const float JawGrid = 0.55f;    // Of a body's cell, for the jaw, which shows when it opens.
 
         /// <summary>The rig of the animal a spec names, without growing it.</summary>
         public static Rig RigOf(SaurianSpec spec) => new SaurianBody(SpeciesOf(spec), spec.Seed).BuildRig();
+
+        /// <summary>How the animal a spec names moves: by its kind while it lives, and by what's been done to it once it doesn't.</summary>
+        public static MotionStyle StyleOf(SaurianSpec spec) => spec.Condition switch
+        {
+            SaurianCondition.Bones => MotionStyle.Bones,
+            SaurianCondition.Rotting => MotionStyle.Rotting,
+            _ => spec.Species switch
+            {
+                "raptor" => MotionStyle.Raptor,
+                "skitter" => MotionStyle.Scurrier,
+                "tyrant" => MotionStyle.Tyrant,
+                "hornback" => MotionStyle.Horned,
+                _ => MotionStyle.Stalker,
+            },
+        };
 
         public static SaurianSpecies SpeciesOf(SaurianSpec spec) => SaurianCatalog.Find(spec.Species) ?? SaurianCatalog.Raptor;
 
@@ -62,7 +76,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
         public static Mesh Make(SaurianSpec spec, out SaurianBody body)
         {
-            body = new SaurianBody(SpeciesOf(spec), spec.Seed);
+            body = new SaurianBody(SpeciesOf(spec), spec.Seed) { Harnessed = spec.Harnessed && spec.Condition == SaurianCondition.Living };
             var mesh = new SaurianMesh();
             switch (spec.Condition)
             {
@@ -85,7 +99,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             SaurianSpecies species = body.Species;
             var paint = new SaurianPaint(body);
             SaurianDress dress = rotting ? new SaurianRot.Dress(body, paint) : new SaurianDress(body, paint);
-            float cell = body.Length / Grid;
+            float cell = CellFor(body, species.Budget);
             float longest = body.Length / 42f;
 
             SaurianField flesh = SaurianSculpt.Flesh(body);
@@ -107,6 +121,31 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             if (!rotting) SaurianParts.Quills(mesh, body, dress);
             SaurianParts.Scutes(mesh, body, dress);
             if (rotting) SaurianRot.Bare(mesh, body, dress);
+        }
+
+        // How fine to sample a body so that its surface comes out at about three times what it's allowed to keep, which is plenty for the decimator to choose from and no more: surface nets make about
+        // two triangles for each cell the surface crosses. A thick animal has far more surface than a slender one of the same length, so this goes by its surface and not its length.
+        private static float CellFor(SaurianBody body, int budget)
+        {
+            float area = 0f;
+            SaurianAxis axis = body.Axis;
+            for (int i = 0; i + 1 < axis.Points.Length && axis.Along[i] < body.HeadAt; i++)
+            {
+                area += MathF.PI * (axis.Deep[i] + axis.Wide[i]) * (axis.Along[i + 1] - axis.Along[i]);
+            }
+            SaurianHead head = body.Head;
+            area += MathF.PI * (head.BackWidth + head.BackDepth) * 0.5f * head.Length;
+            foreach (SaurianLeg leg in body.Legs)
+            {
+                area += MathF.PI * (leg.HipRadius + leg.KneeRadius) * (leg.Knee - leg.Hip).Length;
+                area += MathF.PI * (leg.KneeRadius + leg.AnkleRadius) * (leg.Ankle - leg.Knee).Length;
+                area += MathF.PI * (leg.AnkleRadius + leg.BallRadius) * (leg.Ball - leg.Ankle).Length;
+            }
+            foreach (SaurianArm arm in body.Arms) area += MathF.PI * arm.Radius * 1.6f * ((arm.Elbow - arm.Shoulder).Length + (arm.Hand - arm.Elbow).Length);
+
+            // What this leaves out (a belly, the muscle on the thighs, the head's detail) comes to about half as much again.
+            float cell = MathF.Sqrt(2f * area * 1.5f / (budget * 3f));
+            return Math.Clamp(cell, body.Length / 320f, body.Length / 120f);
         }
 
         /// <summary>

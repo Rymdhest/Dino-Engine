@@ -19,7 +19,9 @@ The code is under the MIT licence, but for [`ErosionFilter.cs`](Dino%20Engine/Wo
 
 ## Dino Defenders
 
-The game built on the engine: a fantasy action RPG in randomized worlds. No two worlds are alike and none are made by hand. Each seed grows its own land, biomes, weather, roads, settlements and building style, and writes its own chronicle: who holds the land, and what it will take to free it. Free one and the waygate reaches harder lands, as far as you care to go. The hero and what they carry go with you, and progress is saved automatically.
+The game built on the engine: an action RPG about a land invaded by dinosaurs. The Saurian Reich, an empire from over the sea, grows them from blood found in amber, raises their bones out of the ground, and sends them ahead of its soldiers in harness, and every land you'll see is one it has taken. You're a Defender, and you take it back a place at a time: burn out the pens, put what the Ossuary raised back in the ground, rekindle the shrines, and bring down the tyrant that holds the land. Think Jurassic Park meets Ghost of Tsushima. See [LORE.md](LORE.md).
+
+No two worlds are alike and none are made by hand. Each seed grows its own land, biomes, weather, roads, settlements and building style, and writes its own chronicle: which commander holds the land, what their tyrant is called, and what it will take to free it. Every dinosaur is grown from a species and a seed as well, raptors, spitters, ravagers, hornbacks and tyrants, living, in the Reich's harness, rotting or bare bones, so no two of them are alike either. See [DINOSAURS.md](DINOSAURS.md). Free a land and the waygate reaches harder ones, as far as you care to go. The hero and what they carry go with you, and progress is saved automatically.
 
 There are no classes. There is one great talent tree, of over 850 nodes, and what a hero is depends on where they've walked on it. Stats stack in the way anyone who has played a big ARPG will know: flat, then all increases together, then each "more" on its own. What's less usual is that the land itself is part of a build, that elements react when they meet, and that enemies are built from exactly the same parts as you: bosses fight with what they wear, and drop it. See [BUILDS.md](BUILDS.md).
 
@@ -46,7 +48,7 @@ To play without building it, [download the launcher](https://github.com/Rymdhest
 
 Up to five heroes can share a world, with no server to run: in the pause menu, **Travel with friends** opens your world and gives you an invite to send, and takes an invite you've been sent. See [NETWORKING.md](NETWORKING.md).
 
-`Dino WorldLab` generates and checks worlds with no window, for example `check --seed 1 --count 100`, or `map` to draw one. `Dino NetLab` tests the networking the same way: `core` for replication alone, `game` for the whole game on every kind of bad line, and `build` for every skill and keystone on a running server. `Dino BuildLab` does it for the build system: `check` for the sums and the content, `bench` for what it costs, `balance` for how a fight goes at each level. `Dino LaunchLab` does it for the launcher and release tool: `core`, `release` and `live`. `Dino SoundLab` does it for sound and music: `check` for everything that can be known without ears, `render` to listen to it, `sheet` to see it, `musiccheck` and `music` for the score. See [SOUND.md](SOUND.md). `Dino LifeLab` does it for what's alive: `check` walks someone through real worlds, and `sheet` draws any creature doing anything. See [WILDLIFE.md](WILDLIFE.md).
+`Dino WorldLab` generates and checks worlds with no window, for example `check --seed 1 --count 100`, or `map` to draw one. `Dino NetLab` tests the networking the same way: `core` for replication alone, `game` for the whole game on every kind of bad line, and `build` for every skill and keystone on a running server. `Dino BuildLab` does it for the build system: `check` for the sums and the content, `bench` for what it costs, `balance` for how a fight goes at each level. `Dino LaunchLab` does it for the launcher and release tool: `core`, `release` and `live`. `Dino SoundLab` does it for sound and music: `check` for everything that can be known without ears, `render` to listen to it, `sheet` to see it, `musiccheck` and `music` for the score. See [SOUND.md](SOUND.md). `Dino LifeLab` does it for what's alive: `check` walks someone through real worlds, and `sheet` draws any creature doing anything. See [WILDLIFE.md](WILDLIFE.md). `Dino AnimLab` does it for bodies: `check` throws everything at them, `sheet` draws anyone doing anything, and `zoo` stands dinosaurs side by side, living, harnessed, rotting or bones. See [ANIMATION.md](ANIMATION.md) and [DINOSAURS.md](DINOSAURS.md).
 
 ---
 
@@ -74,6 +76,7 @@ Up to five heroes can share a world, with no server to run: in the pause menu, *
 ### Procedural Content
 - **Procedural terrain** and landscape generation
 - **Procedural modeling** for all objects
+- **Procedural dinosaurs**: each grown from a species and a seed as a field of signed distances, skinned by surface nets and quadric decimation, rigged from the same body, and moved with nothing recorded
 - **Procedural textures** for all textures
 - **GPU-driven grass** in the style of Ghost of Tsushima: a compute pass grows, clumps, thins and culls the blades every frame, drawn as curved Bézier blades with indirect draws; nothing per blade is stored
 

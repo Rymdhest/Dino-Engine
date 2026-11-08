@@ -32,20 +32,8 @@ namespace Dino_AnimLab
             return new Body(name, SaurianForge.RigOf(spec), style, Carry.Nothing, false, () => SaurianForge.Make(spec));
         }
 
-        /// <summary>How each kind of dinosaur moves.</summary>
-        public static MotionStyle StyleOf(SaurianSpec spec) => spec.Condition switch
-        {
-            SaurianCondition.Bones => MotionStyle.Bones,
-            SaurianCondition.Rotting => MotionStyle.Rotting,
-            _ => spec.Species switch
-            {
-                "raptor" => MotionStyle.Raptor,
-                "skitter" => MotionStyle.Scurrier,
-                "tyrant" => MotionStyle.Tyrant,
-                "hornback" => MotionStyle.Horned,
-                _ => MotionStyle.Stalker,
-            },
-        };
+        /// <summary>How each kind of dinosaur moves, as the game has it.</summary>
+        public static MotionStyle StyleOf(SaurianSpec spec) => SaurianForge.StyleOf(spec);
 
         public static readonly Body[] All =
         {
