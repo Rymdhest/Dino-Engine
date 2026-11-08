@@ -77,7 +77,8 @@ namespace Dino_Defenders.Server
 
         // Worked out for a world of a thousand enemies, of which a player meets a good part, and a hero who should come out of it a few levels up. A
         // kill is worth what it took, so a pack's followers are worth less than what leads them.
-        public static int ExperienceAt(int level, float rankHealth) => (int)MathF.Ceiling(6f * MathF.Pow(1.11f, level) * rankHealth);
+        // It stops growing where heroes stop, at the hundredth level, as nobody past that can use it and it would soon be more than a number holds.
+        public static int ExperienceAt(int level, float rankHealth) => (int)MathF.Ceiling(6f * MathF.Pow(1.11f, Math.Min(level, HeroState.MaxLevel)) * rankHealth);
 
         private static readonly Mod[] Undead = { Resist(Tags.Poison, 40f), Resist(Tags.Cold, 30f), Resist(Tags.Fire, -20f), Flat(Stat.AilmentAvoid, 100f, Tags.Bleed) };
 

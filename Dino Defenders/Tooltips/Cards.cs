@@ -498,8 +498,8 @@ namespace Dino_Defenders.Tooltips
             }
             else
             {
-                OmenLines(card, item, OmenSide.Foe, "Enemies");
-                OmenLines(card, item, OmenSide.Land, "The land");
+                OmenLines(card, item, OmenSide.Prefix, "What the land gives");
+                OmenLines(card, item, OmenSide.Suffix, "What it asks");
             }
 
             card.Gap();
@@ -636,7 +636,7 @@ namespace Dino_Defenders.Tooltips
         public static Card Omen(OmenDefinition omen, float value, ActorSheet? viewer)
         {
             Mod[] mods = omen.Mods(value).ToArray();
-            var card = new Card { Title = omen.Name, Kind = omen.Side == OmenSide.Foe ? "Omen of what Enemies are" : "Omen of what the land is", Tags = TagsOf(mods) };
+            var card = new Card { Title = omen.Name, Kind = omen.IsPrefix ? "Omen the land gives" : "Omen of what it asks", Tags = TagsOf(mods) };
             card.Text(omen.Describe(value));
             foreach (Mod mod in mods) Attach(card, mod, viewer);
 

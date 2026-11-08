@@ -3,12 +3,12 @@ using Dino_Engine.World;
 
 namespace Dino_Defenders.Progression
 {
-    /// <summary>A kind of orders: what the Reich wrote them for, which is the one omen they always bring, at what their level makes of it.</summary>
+    /// <summary>A kind of orders: what the Reich wrote them for, which is the one reward they always bring, at what their level makes of it, as a base item has what it always has.</summary>
     public sealed record OrdersBase(string Name, OmenDefinition Brings, string Lore);
 
     /// <summary>
     /// Orders that are one of a kind, and do what nothing else can. Like every unique, each is a trade: what it gives and what it costs are said apart. What they do is read where it matters, by
-    /// <see cref="LandTerms.Unique"/>. The id is saved, so it stays.
+    /// <see cref="LandTerms.Has(UniqueOrders)"/>. The id is saved, so it stays.
     /// </summary>
     public sealed class UniqueOrders
     {
@@ -24,21 +24,25 @@ namespace Dino_Defenders.Progression
         public float Quantity;
         public float Rarity;
 
-        /// <summary>How far freeing the land climbs, and failing it falls.</summary>
+        /// <summary>How many levels freeing the land opens, counting its own.</summary>
         public int Climb = 1;
     }
 
     /// <summary>
     /// Every unique orders there is. What each does is checked for by name where it happens: <see cref="Server.EncounterSystem"/> for who stands where, <see cref="Server.ServerSession"/> for what
-    /// the land asks and what it pays, and <see cref="Dino_Engine.World.Generation.PackStage"/> for a land with nothing on its roads.
+    /// the land asks and what it pays, <see cref="Server.ArenaSystem"/> for who comes through an arena's gates, and <see cref="Dino_Engine.World.Generation.PackStage"/> for a land with nothing on
+    /// its roads.
     /// </summary>
     public static class OrdersCatalog
     {
-        /// <summary>How many more stand at each place of a land held as the last garrison, as a share.</summary>
+        /// <summary>How many more stand at each place of a land held as the last garrison, and come through each gate of an arena, as a share.</summary>
         public const float GarrisonPeople = 2f;
 
         /// <summary>How much more a rare enemy drops on a land run by the ledger.</summary>
         public const float LedgerLoot = 2f;
+
+        /// <summary>How much more health and damage the tyrant of a land given the wager has, in percent.</summary>
+        public const float WagerTyrant = 60f;
 
         private const int WagerClimb = 2;
         private const float WagerQuantity = 0.3f;
@@ -61,8 +65,8 @@ namespace Dino_Defenders.Progression
         {
             Id = "kommandants-wager", Name = "The Kommandant's Wager", Base = "Hunting Orders", MinLevel = 3,
             Lore = "He bet his tyrant against any Defender born. He hasn't lost yet.",
-            Gives = $"Freeing this land raises your Land Level by {Say.N(WagerClimb)} instead of one",
-            Costs = $"Falling in it, or leaving it unfree, lowers it by {Say.N(WagerClimb)}",
+            Gives = $"Freeing this land opens the {Say.N(WagerClimb)} levels after it at once, though never past a tyrant's arena that hasn't been fought",
+            Costs = $"The tyrant has {Say.Percent(WagerTyrant)} more Health and deals {Say.Percent(WagerTyrant)} more Damage",
             Quantity = WagerQuantity, Climb = WagerClimb,
         });
 
@@ -88,7 +92,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "twin-pens", Name = "Orders for the Twin Pens", Base = "Hunting Orders", MinLevel = 8,
             Lore = "Two tyrants, two keepers, and one land that can't feed them both.",
-            Gives = "A second tyrant holds one of the land's farthest places, and drops all that a tyrant drops",
+            Gives = "A second tyrant holds one of the land's farthest places, or waits in the arena beside the first, and drops all that a tyrant drops",
             Costs = "Both tyrants have to fall before the land is free",
             Quantity = TwinQuantity,
         });
@@ -98,7 +102,7 @@ namespace Dino_Defenders.Progression
             Id = "last-garrison", Name = "The Last Garrison", Base = "Muster Orders", MinLevel = 12,
             Lore = "Pull everyone back to the walls. Leave the roads to the crows.",
             Gives = "Nothing waits on the roads or between places, and every chest at a place holds what a keep's chest holds",
-            Costs = $"Every place holds {Say.Share(GarrisonPeople)} more of those who hold it",
+            Costs = $"Every place holds {Say.Share(GarrisonPeople)} more of those who hold it, and an arena's gates let as many more through",
         });
 
         public static readonly UniqueOrders Writ = Add(new UniqueOrders
@@ -121,27 +125,29 @@ namespace Dino_Defenders.Progression
     }
 
     /// <summary>
-    /// Sealed orders taken from the Reich, which say where a brood is bound and what it brings. Given to the waygate in the Haven before the way is opened, they're used up, and the land it opens on is
-    /// what they say. They're items like any other, of the same four rarities: Normal orders only bring what their kind is for, Magic ones one omen of what enemies are and one of what the land is, Rare
-    /// ones two of each, and a Unique does something nothing else can. Each line is an omen's id and how much of it, the same as a land's own. Read LANDS.md.
+    /// Sealed orders taken from the Reich, which say where a brood is bound and what it brings. Given to the map table in the Haven before the way is opened, they're used up, and the land it opens on
+    /// is what they say. They're items like any other, of the same four rarities, and their lines are affixes like any other's: a prefix is a reward and a suffix a danger. Normal orders only bring
+    /// what their kind is for, Magic ones a prefix and a suffix, Rare ones two of each, and a Unique does something nothing else can. Each line is an omen's id and how much of it. Read LANDS.md.
     /// </summary>
     public static class OrdersMaker
     {
         private const int MagicPerSide = 1;
         private const int RarePerSide = 2;
 
+        /// <summary>Every kind of orders. The names are saved, so a new one goes on the end.</summary>
         public static readonly OrdersBase[] Bases =
         {
             new("Muster Orders", Omens.Teeming, "Raise every pack to strength."),
             new("Patrol Orders", Omens.Overrun, "Put more bands on the roads."),
-            new("Supply Orders", Omens.Gilded, "Fill the stores before the winter."),
+            new("Supply Orders", Omens.Riches, "Fill the stores before the winter."),
             new("Breeding Orders", Omens.Bloodlines, "Send the pens their best."),
-            new("Hunting Orders", Omens.Wrath, "Let the tyrant feed."),
+            new("Hunting Orders", Omens.Trophies, "Let the tyrant feed."),
+            new("Survey Orders", Omens.Expanse, "Push the pens out past the last fence."),
         };
 
         public static OrdersBase? BaseOf(Item orders) => Bases.FirstOrDefault(b => b.Name == orders.Base);
 
-        /// <summary>How many of each side's omens something of this rarity has. Nothing normal has any, and a unique is what it is.</summary>
+        /// <summary>How many of each side's affixes something of this rarity has. Nothing normal has any, and a unique is what it is.</summary>
         public static int PerSide(Rarity rarity) => rarity switch
         {
             Rarity.Magic => MagicPerSide,
@@ -149,10 +155,10 @@ namespace Dino_Defenders.Progression
             _ => 0,
         };
 
-        /// <summary>Everything orders bring: what their kind always does, then each line.</summary>
+        /// <summary>Everything orders bring: what their kind always does, then each line. A unique is only what it does.</summary>
         public static IEnumerable<(OmenDefinition Omen, float Value)> OmensOf(Item orders)
         {
-            if (BaseOf(orders) is OrdersBase kind) yield return (kind.Brings, kind.Brings.Fixed(orders.Level));
+            if (orders.Rarity != Rarity.Unique && BaseOf(orders) is OrdersBase kind) yield return (kind.Brings, kind.Brings.Fixed(orders.Level));
             foreach (ItemLine line in orders.Lines)
             {
                 if (Omens.Find(line.Affix) is OmenDefinition omen) yield return (omen, line.Value);
@@ -194,19 +200,19 @@ namespace Dino_Defenders.Progression
             Unique = unique.Id,
         };
 
-        // Tops each side up to what its rarity has, what enemies are first, so that a card always reads the same way round. Nothing is what the kind already brings.
+        // Tops each side up to what its rarity has, prefixes first, so that a card always reads the same way round. Nothing is what the kind already brings.
         private static void Deal(Item orders, WorldRandom random, float quality)
         {
             int each = PerSide(orders.Rarity);
             OmenDefinition? brings = BaseOf(orders)?.Brings;
             var dealt = new List<ItemLine>(each * 2);
-            foreach (OmenSide side in new[] { OmenSide.Foe, OmenSide.Land })
+            foreach (OmenSide side in new[] { OmenSide.Prefix, OmenSide.Suffix })
             {
                 List<ItemLine> lines = orders.Lines.Where(line => Omens.Find(line.Affix)?.Side == side).ToList();
                 var options = Omens.All.Where(omen => omen.Side == side && omen != brings && omen.FirstLevel <= orders.Level && lines.All(line => line.Affix != omen.Id)).ToList();
                 while (lines.Count < each && options.Count > 0)
                 {
-                    OmenDefinition omen = options[random.Int(options.Count)];
+                    OmenDefinition omen = PickWeighted(options, random);
                     options.Remove(omen);
                     lines.Add(new ItemLine(omen.Id, MathF.Round(omen.Roll(orders.Level, random.Fork(omen.Id), quality))));
                 }
@@ -215,19 +221,32 @@ namespace Dino_Defenders.Progression
             orders.Lines = dealt;
         }
 
-        /// <summary>What they're called: what their first omen of each side reads as, around what they are.</summary>
+        private static OmenDefinition PickWeighted(List<OmenDefinition> options, WorldRandom random)
+        {
+            float total = 0f;
+            foreach (OmenDefinition omen in options) total += omen.Weight;
+            float roll = random.Float() * total;
+            foreach (OmenDefinition omen in options)
+            {
+                roll -= omen.Weight;
+                if (roll < 0f) return omen;
+            }
+            return options[^1];
+        }
+
+        /// <summary>What they're called: what their first prefix reads as before what they are, and their first suffix after, as anything else of their rarity is named.</summary>
         public static string NameOf(Item orders)
         {
             if (orders.Rarity == Rarity.Unique && OrdersCatalog.Find(orders.Unique) is UniqueOrders unique) return unique.Name;
-            string foe = "";
-            string land = "";
+            string before = "";
+            string after = "";
             foreach (ItemLine line in orders.Lines)
             {
                 if (Omens.Find(line.Affix) is not OmenDefinition omen) continue;
-                if (omen.Side == OmenSide.Foe && foe.Length == 0) foe = omen.Affix + " ";
-                if (omen.Side == OmenSide.Land && land.Length == 0) land = " " + omen.Affix;
+                if (omen.IsPrefix && before.Length == 0) before = omen.Affix + " ";
+                if (!omen.IsPrefix && after.Length == 0) after = " " + omen.Affix;
             }
-            return foe + orders.Base + land;
+            return before + orders.Base + after;
         }
 
         /// <summary>
@@ -257,17 +276,20 @@ namespace Dino_Defenders.Progression
 
             int each = PerSide(orders.Rarity);
             OmenDefinition? brings = BaseOf(orders)?.Brings;
-            var kept = new List<ItemLine>(each * 2);
-            int foes = 0, lands = 0;
+            var prefixes = new List<ItemLine>(each);
+            var suffixes = new List<ItemLine>(each);
             foreach (ItemLine line in orders.Lines)
             {
-                if (Omens.Find(line.Affix) is not OmenDefinition omen || omen == brings || kept.Any(other => other.Affix == line.Affix) || !float.IsFinite(line.Value) || line.Value <= 0f) continue;
-                if ((omen.Side == OmenSide.Foe ? foes : lands) >= each) continue;
-                if (omen.Side == OmenSide.Foe) foes++;
-                else lands++;
-                kept.Add(new ItemLine(line.Affix, MathF.Min(line.Value, omen.Tiers[^1].High)));
+                if (Omens.Find(line.Affix) is not OmenDefinition omen || omen == brings || !float.IsFinite(line.Value) || line.Value <= 0f) continue;
+                List<ItemLine> side = omen.IsPrefix ? prefixes : suffixes;
+                if (side.Count >= each || prefixes.Concat(suffixes).Any(other => other.Affix == line.Affix)) continue;
+                side.Add(new ItemLine(line.Affix, MathF.Min(line.Value, omen.Tiers[^1].High)));
             }
-            if (kept.Count != orders.Lines.Count || foes != each || lands != each || !kept.Zip(orders.Lines).All(pair => pair.First.Value == pair.Second.Value))
+
+            // Prefixes before suffixes, as they're dealt, so that the same orders always read the same way round.
+            List<ItemLine> kept = prefixes.Concat(suffixes).ToList();
+            bool same = kept.Count == orders.Lines.Count && kept.Zip(orders.Lines).All(pair => pair.First.Affix == pair.Second.Affix && pair.First.Value == pair.Second.Value);
+            if (!same || prefixes.Count != each || suffixes.Count != each)
             {
                 orders.Lines = kept;
                 Deal(orders, new WorldRandom(orders.LookSeed()).Fork("lines"), 0f);

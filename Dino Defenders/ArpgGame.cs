@@ -177,7 +177,7 @@ namespace Dino_Defenders
         {
             _hero.Level = Math.Max(_hero.Level, _options.HeroLevel);
             _hero.Gold = Math.Max(_hero.Gold, _options.Gold);
-            _hero.LandLevel = Math.Max(_hero.LandLevel, _options.LandLevel);
+            _hero.BestLand = Math.Max(_hero.BestLand, _options.LandLevel - 1);
             ApplyBuildOptions(_hero, _options);
             if (_options.Name == null && _hero.Name.Length > 0) HeroName = _hero.Name;
         }
@@ -994,7 +994,7 @@ namespace Dino_Defenders
                 // Someone who's never been anywhere is told where they are, and anyone else is home.
                 bool first = _hero.Level == 1 && _hero.Experience == 0 && _hero.WorldsCleared == 0;
                 if (first && _options.Tour == null) session.Announce(session.World.Plan.Name, $"{session.Chronicle.Prologue} Choose a land at the map table, and the waygate will take you there.", 10f);
-                else if (!_firstWorldOfThisSession) session.Announce(session.World.Plan.Name, $"Home. Your next land is level {_hero.LandLevel}.", 5f);
+                else if (!_firstWorldOfThisSession) session.Announce(session.World.Plan.Name, $"Home. The map table opens any level up to {_hero.LandLevel}.", 5f);
             }
             else if (!session.Liberated && _options.Tour == null)
             {

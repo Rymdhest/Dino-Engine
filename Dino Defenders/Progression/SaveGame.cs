@@ -24,7 +24,7 @@ namespace Dino_Defenders.Progression
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 10;
+        public const int CurrentVersion = 11;
 
         /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
         private const int SlotsVersion = 4;
@@ -46,6 +46,12 @@ namespace Dino_Defenders.Progression
         /// dealt anything but physical damage is a Spell Page, and anything a found page can't do is dealing damage.
         /// </summary>
         private const int FoundPagesVersion = 10;
+
+        /// <summary>
+        /// The version that made a land what orders make it, at a level of the hero's choosing, and every tenth one an arena. A land grown under the old rules isn't the one the same request grows now,
+        /// so a hero in one wakes in the Haven, free to open it again, and every level they'd climbed to is theirs to open.
+        /// </summary>
+        private const int ArenasVersion = 11;
 
         public int Version { get; set; } = CurrentVersion;
         public HeroState Hero { get; set; } = HeroState.CreateNew();
@@ -108,6 +114,7 @@ namespace Dino_Defenders.Progression
                 else if (save != null && VersionOf(json) < AffixVersion) KeepOldCopy(path, ".before-affixes");
                 else if (save != null && VersionOf(json) < LandsVersion) KeepOldCopy(path, ".before-lands");
                 else if (save != null && VersionOf(json) < FoundPagesVersion) KeepOldCopy(path, ".before-found-pages");
+                else if (save != null && VersionOf(json) < ArenasVersion) KeepOldCopy(path, ".before-arenas");
                 return save;
             }
             catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -145,6 +152,7 @@ namespace Dino_Defenders.Progression
             if (version < BooksVersion) ForgetSkills(root);
             if (version < AffixVersion) RenameRarities(root["Hero"]);
             if (version < FoundPagesVersion) FoundPages(root);
+            if (version < ArenasVersion) OutOfOldLands(root);
 
             SaveGame? save = root.Deserialize<SaveGame>(Options);
             if (save == null) return null;
@@ -155,8 +163,8 @@ namespace Dino_Defenders.Progression
             if (version < BooksVersion) save.Hero.Bar[0] ??= ItemGenerator.Book(ItemGenerator.NewSeed(new Dino_Engine.World.WorldRandom((ulong)Random.Shared.NextInt64())));
             if (version < LandsVersion) IntoTheHaven(save);
             if (save.Hero.Offers == 0) save.Hero.Offers = HeroState.NewOffers((ulong)Random.Shared.NextInt64());
-            save.Hero.LandLevel = Math.Max(save.Hero.LandLevel, 1);
             save.Hero.BestLand = Math.Max(save.Hero.BestLand, 0);
+            save.Hero.Rerolls = (save.Hero.Rerolls ?? new()).Where(pair => pair.Key >= 1 && pair.Value > 0).ToDictionary(pair => pair.Key, pair => pair.Value);
             TalentTree.Sanitize(save.Hero);
             save.Terms.Sanitize();
             return save;
@@ -168,13 +176,31 @@ namespace Dino_Defenders.Progression
         {
             HeroState hero = save.Hero;
             hero.BestLand = Math.Max(hero.BestLand, hero.WorldsCleared);
-            hero.LandLevel = Math.Max(hero.LandLevel, hero.BestLand + 1);
             save.InLand = false;
             save.Sites.Clear();
             save.Objectives.Clear();
             save.PlayerX = -1f;
             save.PlayerZ = -1f;
             save.Health = -1f;
+        }
+
+        // A climb used to be a level that freeing raised and falling lowered, and the deepest land freed was kept apart from it: every level below the climb is now one that can be opened again. The land
+        // a hero was in goes, with what it held, as the same request grows a different land now.
+        private static void OutOfOldLands(JsonObject root)
+        {
+            if (root["Hero"] is JsonObject hero && hero["LandLevel"] is JsonValue climb && climb.TryGetValue(out int level))
+            {
+                int best = hero["BestLand"] is JsonValue freed && freed.TryGetValue(out int deepest) ? deepest : 0;
+                hero["BestLand"] = Math.Max(best, level - 1);
+                hero.Remove("LandLevel");
+            }
+            root["InLand"] = false;
+            root.Remove("Terms");
+            root.Remove("Sites");
+            root.Remove("Objectives");
+            root["PlayerX"] = -1f;
+            root["PlayerZ"] = -1f;
+            root["Health"] = -1f;
         }
 
         /// <summary>Brings anything kept somewhere else up to the rules, as everything a hero carries is brought when their save is read: the stash's, for one.</summary>

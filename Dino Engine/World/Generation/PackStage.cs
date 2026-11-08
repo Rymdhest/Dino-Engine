@@ -49,8 +49,8 @@ namespace Dino_Engine.World.Generation
 
         public void Run(WorldData world)
         {
-            // Nothing hostile ever stands in the Haven.
-            if (world.Plan.Archetype.Peaceful) return;
+            // Nothing hostile ever stands in the Haven, and in an arena only what the arena holds, which the game brings in.
+            if (world.Plan.Archetype.Enclosed) return;
 
             WorldRandom random = world.Random.Fork("packs");
             var pass = new Pass(world, random);

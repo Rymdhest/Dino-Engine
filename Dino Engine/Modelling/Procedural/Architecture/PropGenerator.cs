@@ -76,6 +76,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "waygate.great": BuildGreatWaygate(b, lights); break;
                 case "table.map": BuildMapTable(b, random, lights); break;
                 case "strongbox": BuildStrongbox(b, lights); break;
+                case "arena.gate": BuildArenaGate(b, lights); break;
+                case "arena.column": BuildArenaColumn(b, lights); break;
                 default: throw new ArgumentException($"No model for structure '{id}'.");
             }
             return b.Build();
@@ -806,6 +808,61 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Beam(new Vector3(-1.75f, 4.15f, -1f), new Vector3(-1.75f, 4.15f, -0.35f), 0.06f, DarkWood);
             b.Box(new Vector3(-1.75f, 3.55f, -0.35f), new Vector3(0.2f, 0.28f, 0.2f), Glow(1f, 0.5f, 0.16f, 3f));
             b.Box(new Vector3(-1.75f, 3.88f, -0.35f), new Vector3(0.26f, 0.05f, 0.26f), Iron);
+        }
+
+        // The Reich's own metal, which nothing else wears. Read LORE.md.
+        private static VertexMaterial Brass => new VertexMaterial(TextureGenerator.iron, new Colour(176, 132, 62));
+
+        /// <summary>
+        /// An arena's gate, at the foot of its stands: two piers and a solid block over an opening tall enough for a tyrant's kin, a passage behind it into the dark, and a torch on each pier. The
+        /// block over the opening is deep enough that the portcullis, which the game raises out of it, disappears into it. Its face is +z, at the front of its footprint, and its passage runs back
+        /// into the stands behind it.
+        /// </summary>
+        private static void BuildArenaGate(MeshBuilder b, List<AssetLight> lights)
+        {
+            const float Front = 1.7f;
+            const float Opening = 1.6f;     // Half its width.
+            const float Tall = 3.8f;
+            VertexMaterial dressed = Stone(168);
+            VertexMaterial rough = Rough(140);
+            VertexMaterial dark = Stone(26);
+
+            foreach (float side in new[] { -1f, 1f })
+            {
+                // A pier, with iron bands round it.
+                b.Box(new Vector3(side * 2.5f, 3.6f, Front - 0.75f), new Vector3(0.9f, 3.6f, 0.75f), dressed);
+                for (int band = 0; band < 3; band++) b.Box(new Vector3(side * 2.5f, 1.2f + band * 2.1f, Front - 0.75f), new Vector3(0.94f, 0.08f, 0.79f), Iron);
+
+                // The passage's wall, back into the stands.
+                b.Box(new Vector3(side * (Opening + 0.3f), Tall * 0.5f, -0.35f), new Vector3(0.3f, Tall * 0.5f, 1.35f), rough);
+
+                // A torch on the pier's face.
+                Vector3 torch = new Vector3(side * 2.5f, 4.6f, Front + 0.25f);
+                b.Box(torch - new Vector3(0f, 0.25f, 0f), new Vector3(0.1f, 0.25f, 0.1f), Iron);
+                b.Box(torch + new Vector3(0f, 0.12f, 0f), new Vector3(0.14f, 0.14f, 0.14f), FireGlow);
+                lights.Add(AssetLight.Lantern(torch + new Vector3(0f, 0.3f, 0.2f)));
+            }
+
+            // Over the opening, the block the portcullis rises into, with brass at its brow.
+            b.Box(new Vector3(0f, (Tall + 7.2f) * 0.5f, Front - 0.75f), new Vector3(Opening, (7.2f - Tall) * 0.5f, 0.75f), dressed);
+            b.Box(new Vector3(0f, Tall + 0.12f, Front + 0.02f), new Vector3(Opening + 0.1f, 0.12f, 0.06f), Brass);
+            b.Box(new Vector3(0f, 7.35f, Front - 0.75f), new Vector3(3.5f, 0.15f, 0.9f), rough);
+
+            // The passage's roof and the dark at the end of it.
+            b.Box(new Vector3(0f, Tall + 0.15f, -0.35f), new Vector3(Opening + 0.6f, 0.15f, 1.35f), rough);
+            b.Box(new Vector3(0f, Tall * 0.5f, -1.6f), new Vector3(Opening, Tall * 0.5f, 0.1f), dark);
+        }
+
+        /// <summary>A column round an arena's rim: a plinth, a shaft, a capital and a brass brazier burning on top.</summary>
+        private static void BuildArenaColumn(MeshBuilder b, List<AssetLight> lights)
+        {
+            VertexMaterial dressed = Stone(176);
+            b.Box(new Vector3(0f, 0.3f, 0f), new Vector3(0.8f, 0.3f, 0.8f), Rough(150));
+            b.Tube(new Vector3(0f, 0.6f, 0f), new Vector3(0f, 5.4f, 0f), 0.48f, 0.42f, 12, dressed);
+            b.Box(new Vector3(0f, 5.6f, 0f), new Vector3(0.7f, 0.2f, 0.7f), dressed);
+            b.Tube(new Vector3(0f, 5.8f, 0f), new Vector3(0f, 6.25f, 0f), 0.32f, 0.55f, 10, Brass);
+            b.Box(new Vector3(0f, 6.3f, 0f), new Vector3(0.32f, 0.12f, 0.32f), FireGlow);
+            lights.Add(AssetLight.Lantern(new Vector3(0f, 6.8f, 0f)));
         }
 
         private static void BuildAltar(MeshBuilder b, WorldRandom random, List<AssetLight> lights)

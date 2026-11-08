@@ -773,14 +773,32 @@ namespace Dino_Defenders.Client
         /// <summary>From a waygate, home to the Haven. The server decides whether this hero is at one.</summary>
         public void ReturnHome() => Send(Action(HeroAction.ReturnHome));
 
-        /// <summary>Opens the way to one of the lands the map table shows this hero, with the orders in a cell of their pack given for it, or none. The orders are gone at once, and the server has the last word.</summary>
-        public void OpenWay(int choice, int ordersCell = -1)
+        /// <summary>
+        /// Opens the way to one of the lands the map table shows this hero at a level, with the orders in these cells of their pack given for it, as many as they have slots for. The orders are gone at
+        /// once, and the server has the last word.
+        /// </summary>
+        public void OpenWay(int level, int choice, IReadOnlyList<int> ordersCells)
         {
-            if (ordersCell >= 0 && ItemPlace.Cell(ordersCell).IsCell && Hero.Inventory[ordersCell] is { IsOrders: true }) Hero.Take(ItemPlace.Cell(ordersCell));
-            else ordersCell = -1;
+            var given = new List<int>();
+            foreach (int cell in ordersCells)
+            {
+                if (given.Count >= Lands.OrderSlots(Hero) || given.Contains(cell) || !ItemPlace.Cell(cell).IsCell || Hero.Inventory[cell] is not { IsOrders: true }) continue;
+                given.Add(cell);
+            }
+            foreach (int cell in given) Hero.Take(ItemPlace.Cell(cell));
             BitWriter writer = AskGear(HeroAction.OpenWay);
+            writer.WriteVarInt(level);
             writer.WriteVarInt(choice);
-            writer.WriteVarInt(ordersCell);
+            writer.WriteCount(given.Count);
+            foreach (int cell in given) writer.WriteVarInt(cell);
+            Send(writer);
+        }
+
+        /// <summary>Asks for three other lands at a level, for gold. Only the server changes the gold and the lands, and says so with the hero's summary.</summary>
+        public void Reroll(int level)
+        {
+            BitWriter writer = Action(HeroAction.Reroll);
+            writer.WriteVarInt(level);
             Send(writer);
         }
 

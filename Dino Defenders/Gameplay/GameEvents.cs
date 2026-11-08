@@ -137,6 +137,7 @@ namespace Dino_Defenders.Gameplay
         Discovered,
         Waygate,        // A way opening, or someone going through one.
         Blessed,        // A shrine's blessing taken.
+        ArenaGate,      // An arena's gate going up, to let more of the brood in.
     }
 
     /// <summary>Something that happened that has a sound of its own and no other way of being known. Value is whatever the cue needs: how much gold, what rarity.</summary>

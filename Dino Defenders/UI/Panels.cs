@@ -229,14 +229,14 @@ namespace Dino_Defenders.UI
             if (session.IsHaven)
             {
                 _body.Add(Ui.Paragraph(chronicle.Prologue, 16f));
-                _body.Add(Ui.Line($"Your next land is level {session.Hero.LandLevel}. You've freed {session.Hero.WorldsCleared} in all, as deep as level {session.Hero.BestLand}.", 14f, Ui.Gold));
+                _body.Add(Ui.Line(session.Hero.BestLand > 0 ? $"You've freed {session.Hero.WorldsCleared} lands in all, as deep as level {session.Hero.BestLand}. The map table opens any level up to {session.Hero.LandLevel}." : "The map table opens your first land.", 14f, Ui.Gold));
                 _body.Add(new Spacer(height: 4f));
                 _body.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => $"{Bindings.Label(GameAction.Chronicle)} to close"));
                 return;
             }
             _body.Add(Ui.Line($"{session.World.Plan.Archetype.Name}, under {chronicle.Faction}. Level {session.World.Plan.Level}.", 14f, Ui.Faded));
             foreach ((OmenDefinition omen, float value) in session.Terms.Chosen()) _body.Add(Ui.Paragraph($"{omen.Name}. {omen.Describe(value)}", 13f, Ui.Faded));
-            if (session.Terms.Unique() is UniqueOrders unique) _body.Add(Ui.Paragraph($"{unique.Name}. {unique.Gives}. {unique.Costs}.", 13f, Ui.RarityColour(Rarity.Unique)));
+            foreach (UniqueOrders unique in session.Terms.Uniques()) _body.Add(Ui.Paragraph($"{unique.Name}. {unique.Gives}. {unique.Costs}.", 13f, Ui.RarityColour(Rarity.Unique)));
             _body.Add(Ui.Paragraph(chronicle.Prologue, 16f));
             _body.Add(new Spacer(height: 6f));
 

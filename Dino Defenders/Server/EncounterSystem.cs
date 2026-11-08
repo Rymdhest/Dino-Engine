@@ -95,6 +95,13 @@ namespace Dino_Defenders.Server
                     case SpawnRole.Villager:
                         SpawnVillager(world, session, state, siteIndex, spawn, spawnRandom, stationary: false);
                         break;
+                    case SpawnRole.Spectator:
+                        SpawnSpectator(world, session, state, siteIndex, spawn, spawnRandom);
+                        break;
+                    case SpawnRole.Rival:
+                        // An arena's second tyrant is only let in on a land whose orders asked for two.
+                        if (session.Terms.Has(OrdersCatalog.TwinPens) && !state.Dead.Contains(i) && !state.Cleared) SpawnEnemy(world, session, state, siteIndex, i, spawn, Orders(session, state, spawn, random, musters), spawnRandom);
+                        break;
                     case SpawnRole.Merchant:
                         // A land's people hide from the Reich, and trade with whoever isn't it.
                         SpawnMerchant(world, session, state, siteIndex, i, spawn, spawnRandom);
@@ -165,7 +172,7 @@ namespace Dino_Defenders.Server
         private void SpawnEnemy(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, PackOrders orders, WorldRandom random)
         {
             int level = LevelAt(session, state);
-            bool twin = session.Terms.Unique() == OrdersCatalog.TwinPens && state.Site == Chronicle.TwinSite(session.World) && spawnIndex == FirstHostile(state.Site);
+            bool twin = session.IsArena ? spawn.Role == SpawnRole.Rival : session.Terms.Has(OrdersCatalog.TwinPens) && state.Site == Chronicle.TwinSite(session.World) && spawnIndex == FirstHostile(state.Site);
             bool boss = spawn.Role == SpawnRole.Boss || twin;
             WorldRandom kinds = random.Fork("kind");
 
@@ -185,10 +192,10 @@ namespace Dino_Defenders.Server
                 if (spawnIndex == FirstHostile(state.Site)) rarity = session.World.Plan.Level <= FirstSteps ? Rarity.Magic : Rarity.Rare;
                 else if (kinds.Chance((session.Terms.Has(Omens.Warhost) ? Rulebook.WarhostRareChance : Rulebook.RareChance) * bred)) rarity = Rarity.Rare;
                 else if (rarity == Rarity.Normal && kinds.Chance(Rulebook.MagicChance * bred)) rarity = Rarity.Magic;
-                if (rarity == Rarity.Normal && session.Terms.Unique() == OrdersCatalog.Bred) rarity = Rarity.Magic;
+                if (rarity == Rarity.Normal && session.Terms.Has(OrdersCatalog.Bred)) rarity = Rarity.Magic;
             }
             traits = Bestiary.Fill(traits, rarity, random.Fork("traits"));
-            if (rarity == Rarity.Rare && session.Terms.Unique() == OrdersCatalog.Ledger) traits = Bestiary.OneMore(traits, random.Fork("ledger"));
+            if (rarity == Rarity.Rare && session.Terms.Has(OrdersCatalog.Ledger)) traits = Bestiary.OneMore(traits, random.Fork("ledger"));
 
             EnemyPower power = Bestiary.PowerOf(rarity);
             float scale = kind.Scale * (rarity == Rarity.Normal ? random.Range(0.94f, 1.06f) : power.Scale);
@@ -196,7 +203,7 @@ namespace Dino_Defenders.Server
 
             Dino_Defenders.Progression.Item[]? gear = null;
             string? title = null;
-            Loadout loadout = boss ? Bestiary.Boss(kind, level, traits, random.Fork("boss"), out gear, out title, session.Bestiary.Worn.Concat(session.Terms.TyrantMods()).ToList()) : session.Bestiary.Shared(kind, level, rarity, traits);
+            Loadout loadout = boss ? Bestiary.Boss(kind, level, traits, random.Fork("boss"), out gear, out title, session.Bestiary.Worn.Concat(session.TyrantMods()).ToList()) : session.Bestiary.Shared(kind, level, rarity, traits);
 
             string name = twin ? session.Chronicle.SecondBeast : boss ? session.Chronicle.Beast : Bestiary.NameOf(kind, traits);
             if (title != null) name = $"{name}, {title}";
@@ -321,6 +328,26 @@ namespace Dino_Defenders.Server
             state.Live.Add(world.CreateEntity("Villager", Bodies.Walking(_server, $"villager{random.Int(12)}", position, random.Range(0.92f, 1.04f), 0.5f, villager)));
         }
 
+        // The people of the land, marched to an arena's stands to watch: they stay where they're put and look to the fight.
+        private void SpawnSpectator(ECSWorld world, ServerSession session, SiteState state, int siteIndex, SiteSpawn spawn, WorldRandom random)
+        {
+            Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
+            var villager = new VillagerComponent
+            {
+                SiteIndex = siteIndex,
+                Home = spawn.Position,
+                Goal = spawn.Position,
+                Stationary = true,
+                Crowd = true,
+                Watch = state.Site.Position,
+                NextSpeech = session.Time + random.Range(4f, 30f),
+            };
+            Vector2 facing = state.Site.Position - spawn.Position;
+            Entity entity = world.CreateEntity("Spectator", Bodies.Walking(_server, $"villager{random.Int(12)}", position, random.Range(0.92f, 1.04f), 0.4f, villager));
+            if (facing.LengthSquared > 0.01f && world.TryGetEntityLocation(entity, out _, out _)) world.GetEntityView(entity).Set(new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, MathF.Atan2(facing.X, facing.Y))));
+            state.Live.Add(entity);
+        }
+
         private void SpawnMerchant(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)
         {
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
@@ -414,6 +441,13 @@ namespace Dino_Defenders.Server
             "The road's safe again!", "Bless you, Defender.", "We can sleep at last.", "My boy came home from the pens.",
             "They're saying it was you.", "The market's open again.", "No more roaring in the night.", "There's bread for you here.",
         };
+        private static readonly string[] Cheering =
+        {
+            "Get up! Get up!", "Mind the gates!", "Don't look away. They're counting.", "It's bleeding!", "Behind you!", "Quiet. The greycoats are watching.",
+            "Come on, Defender.", "Not like the last one. Please, not like the last one.", "They've opened another!", "Down it goes!",
+        };
+        private const float CrowdReach = 60f;           // Metres from a hero inside which those watching from the stands call out.
+
         private static readonly string[] AtHome =
         {
             "Rest a while. Nothing reaches us here.", "Back again? Good.", "The gate's been humming all morning.", "Mind the dummies, they bite back. They don't, really.",
@@ -443,6 +477,28 @@ namespace Dino_Defenders.Server
 
             ServerPlayer? nearest = session.NearestHero(position.Xz, out float toNearest);
             Vector2 toHero = nearest != null ? nearest.Sim.Position - position.Xz : Vector2.Zero;
+
+            if (villager.Crowd)
+            {
+                // Those watching look to the fight, or to where it will be, and call down to it now and then.
+                EnemyBrainSystem.Face(entity, nearest != null && toNearest < CrowdReach ? toHero : villager.Watch - position.Xz, deltaTime, 2f);
+                if (nearest != null && toNearest < CrowdReach && session.Time >= villager.NextSpeech)
+                {
+                    _server.Broadcast(new TextEvent
+                    {
+                        Position = position + Vector3.UnitY * 5.6f,
+                        Text = _random.Pick(Cheering),
+                        Colour = new Vector3(0.92f, 0.9f, 0.8f),
+                        Size = 14f,
+                        Life = 2.6f,
+                        Speech = true,
+                    }, position.Xz);
+                    villager.NextSpeech = session.Time + _random.Range(25f, 60f);
+                }
+                entity.Set(new VelocityComponent());
+                entity.Set(villager);
+                return;
+            }
 
             if (nearest != null && toNearest < SpeechReach && session.Time >= villager.NextSpeech)
             {
@@ -580,7 +636,7 @@ namespace Dino_Defenders.Server
         private static LootTier ChestTier(ServerSession session, SiteState state)
         {
             LootTier tier = state.Wild ? LootTier.Cache : state.Site.Kind == SiteKind.Keep ? LootTier.Hoard : LootTier.Chest;
-            if (!state.Wild && session.Terms.Unique() == OrdersCatalog.Garrison) tier = LootTier.Hoard;
+            if (!state.Wild && session.Terms.Has(OrdersCatalog.Garrison)) tier = LootTier.Hoard;
             if (session.Terms.Has(Omens.Gilded) && session.Combat.Luck(session.Terms.Chance(Omens.Gilded))) tier = LootTables.Better(tier);
             return tier;
         }

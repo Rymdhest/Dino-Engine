@@ -58,6 +58,15 @@ namespace Dino_Engine.World.Content
         /// </summary>
         public bool Peaceful;
 
+        /// <summary>
+        /// A world that's nothing but one arena, where a land's boss is fought every tenth level: a bowl of tiered stands with the floor sunk into the ground, built by
+        /// <see cref="Generation.ArenaBuilder"/>. Never drawn from a seed: they're in <see cref="ArenaCatalog"/>, as biomes are, so there can be more than one kind.
+        /// </summary>
+        public bool Arena;
+
+        /// <summary>A world of one place and nothing else, which is either of the two above.</summary>
+        public bool Enclosed => Peaceful || Arena;
+
         /// <summary>The light it's always seen in, by name, and where the sun stands, in place of what's drawn from the seed. Only for a place that has to look one way.</summary>
         public string? Light;
         public float SunAzimuth;
@@ -257,7 +266,47 @@ namespace Dino_Engine.World.Content
                 if (archetype.Id == id) return archetype;
             }
             if (id == Haven.Id) return Haven;
+            foreach (WorldArchetype arena in ArenaCatalog.All)
+            {
+                if (arena.Id == id) return arena;
+            }
             throw new ArgumentException($"Unknown world archetype '{id}'.");
         }
+    }
+
+    /// <summary>
+    /// Every kind of arena, where a land's boss is fought every tenth level, as there are kinds of world for every other land. A kind is a world of one place: what it looks like is
+    /// <see cref="Generation.ArenaBuilder"/>'s, and what's here is the land it stands in. More kinds go on the end.
+    /// </summary>
+    public static class ArenaCatalog
+    {
+        /// <summary>
+        /// The Reich's colosseum: a bowl of stone stands dug into a low hill, its floor sand, its people made to watch from the tiers, with gates round it that the brood's handlers open when
+        /// the fight goes against their tyrant.
+        /// </summary>
+        public static readonly WorldArchetype Colosseum = new WorldArchetype
+        {
+            Id = "colosseum",
+            Name = "Colosseum",
+            Titles = new[] { "The Arena of {0}", "The Pit of {0}", "{0} Arena" },
+            Landform = LandformKind.Island,
+            Size = new FloatRange(384f, 384f),      // Enough isle that its heart is well in from the shore, with room for the bowl, the ramp and the waygate above it.
+            BaseHeight = new FloatRange(13f, 14f),
+            HillHeight = new FloatRange(3f, 4f),
+            MountainHeight = new FloatRange(10f, 12f),
+            MountainCoverage = new FloatRange(0f, 0f),
+            Cliffs = new FloatRange(0.3f, 0.45f),
+            Erosion = new FloatRange(0.7f, 0.8f),
+            Biomes = new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Meadow, BiomeCatalog.Savanna, BiomeCatalog.Badlands },
+            BiomeCount = new IntRange(2, 3),
+            Settlements = 0f,
+            Wilds = 0f,
+            Dangers = 0f,
+            Arena = true,
+        };
+
+        public static readonly IReadOnlyList<WorldArchetype> All = new[] { Colosseum };
+
+        public static bool Is(string? id) => id != null && All.Any(arena => arena.Id == id);
     }
 }

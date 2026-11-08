@@ -46,6 +46,23 @@ namespace Dino_Defenders.Progression
             "The shrines of {4} went dark the year {3} landed, and the old bones began to walk.",
             "{1} came to {4} with {3} and a tyrant called {2}, and took it in a single season.",
         };
+        // What an arena is, from the stands: {0} its name, {1} the commander, {2} the tyrant, {3} the brood and {4} its name inside a sentence.
+        private static readonly string[] ArenaOpenings =
+        {
+            "{1} had {4} dug out of the hill so that {2} would never feed without an audience.",
+            "{3} march the people of the land to {4} on fight days, and count them going in.",
+            "Nobody who has fought {2} in {4} has walked back up the ramp. The stands are made to watch anyway.",
+        };
+        private static readonly string[] ArenaClosings =
+        {
+            "When it goes badly for the tyrant, its keepers open the gates.",
+            "The handlers wait behind the gates with the rest of the brood.",
+            "The crowd is silent. It always is, until something falls.",
+        };
+
+        /// <summary>Every kind of tyrant there is, as a land's boss: bred, raised from bones by the Ossuary, or rotting where it stands.</summary>
+        public static readonly string[] TyrantKinds = { "tyrant", "bone-tyrant", "rotting-tyrant" };
+
         private static readonly string[] Closings =
         {
             "The people have stopped waiting for anyone to come.",
@@ -81,7 +98,7 @@ namespace Dino_Defenders.Progression
         public static string BossKindOf(int seed)
         {
             float roll = new WorldRandom((ulong)(uint)seed).Fork("boss").Float();
-            return roll < 0.7f ? "tyrant" : roll < 0.85f ? "bone-tyrant" : "rotting-tyrant";
+            return roll < 0.7f ? TyrantKinds[0] : roll < 0.85f ? TyrantKinds[1] : TyrantKinds[2];
         }
 
         /// <summary>Who holds a land, from its seed alone, so that the map table can tell of it before it's grown. The chronicle written once it is says the same.</summary>
@@ -124,19 +141,42 @@ namespace Dino_Defenders.Progression
             // A land's name starts a sentence as it is, and goes in the middle of one with a small "the".
             string name = world.Plan.Name;
             string within = name.StartsWith("The ") ? "the " + name.Substring(4) : name;
-            string opening = string.Format(random.Pick(Openings), name, chronicle.Commander, chronicle.Beast, chronicle.Faction, within);
-            chronicle.Prologue = $"{opening} {random.Pick(Closings)}";
+            bool arena = world.Plan.Archetype.Arena;
+            string opening = string.Format(random.Pick(arena ? ArenaOpenings : Openings), name, chronicle.Commander, chronicle.Beast, chronicle.Faction, within);
+            chronicle.Prologue = $"{opening} {random.Pick(arena ? ArenaClosings : Closings)}";
 
             int level = world.Plan.Level;
-            WorldSite keep = world.Sites.First(s => s.Kind == SiteKind.Keep);
-            WorldSite? twin = terms.Unique() == OrdersCatalog.TwinPens ? TwinSite(world) : null;
-            if (twin != null)
+            bool twinned = terms.Has(OrdersCatalog.TwinPens);
+            if (twinned)
             {
                 // The second has to be a different beast, with a name of its own.
                 var second = new WorldRandom(world.Plan.Seed).Fork("second tyrant");
                 chronicle.SecondBeast = second.Pick(BeastNames.Where(name => name != chronicle.Beast).ToList());
-                string[] kinds = { "tyrant", "bone-tyrant", "rotting-tyrant" };
-                chronicle.SecondKind = second.Pick(kinds.Where(kind => kind != chronicle.BossKind).ToList());
+                chronicle.SecondKind = second.Pick(TyrantKinds.Where(kind => kind != chronicle.BossKind).ToList());
+            }
+
+            if (arena)
+            {
+                // An arena asks for its tyrant and nothing else, and pays for it as a land does for everything.
+                chronicle.Objectives.Add(new Objective
+                {
+                    Kind = ObjectiveKind.SlayWarlord,
+                    Site = SiteKind.Arena,
+                    Text = twinned ? $"Bring down both tyrants in {within}: {chronicle.Beast}, and {chronicle.SecondBeast}" : $"Bring down {chronicle.Beast}, {chronicle.Commander}'s {KindName(chronicle.BossKind)}, in {within}",
+                    Goal = twinned ? 2 : 1,
+                    IsMain = true,
+                    RewardExperience = ArenaExperience * level,
+                    RewardGold = ArenaGold * level,
+                });
+                return chronicle;
+            }
+
+            WorldSite keep = world.Sites.First(s => s.Kind == SiteKind.Keep);
+            WorldSite? twin = twinned ? TwinSite(world) : null;
+            if (twin == null && twinned)
+            {
+                chronicle.SecondBeast = "";
+                chronicle.SecondKind = "";
             }
 
             chronicle.Objectives.Add(new Objective
@@ -167,6 +207,10 @@ namespace Dino_Defenders.Progression
             });
             return chronicle;
         }
+
+        // What an arena pays for its tyrant, for each level: what a land pays for its tyrant and its places together.
+        private const int ArenaExperience = 600;
+        private const int ArenaGold = 200;
 
         /// <summary>Whether a place is held, and isn't the keep, which is what the places a land asks to be freed are.</summary>
         public static bool Counts(WorldSite site) => site.Kind != SiteKind.Keep && site.Spawns.Any(spawn => spawn.Role.IsHostile());

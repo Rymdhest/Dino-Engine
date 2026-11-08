@@ -595,6 +595,9 @@ namespace Dino_Defenders.Progression
     /// </summary>
     public static class ItemGenerator
     {
+        /// <summary>The highest level anything worn or put in a book is found at, as the highest a hero can be: lands go on deeper, and what's found in them stops here.</summary>
+        public const int MostItemLevel = HeroState.MaxLevel;
+
         private sealed record BaseItem(string Name, ItemSlot Slot, int MinLevel, float Damage = 0f, float Armour = 0f, float Evasion = 0f, float Barrier = 0f, WeaponKind Kind = WeaponKind.Sword, DamageType Type = DamageType.Physical);
 
         /// <summary>What type of Attack Damage a base deals, which is physical for anything that isn't a caster's.</summary>
@@ -707,6 +710,7 @@ namespace Dino_Defenders.Progression
 
         private static Item Compose(int level, WorldRandom random, Rarity rarity, ItemSlot? slot, float quality)
         {
+            level = Math.Min(level, MostItemLevel);
             ItemSlot chosen = slot ?? (ItemSlot)random.Int((int)ItemSlot.Book);
             if (rarity == Rarity.Unique && UniqueCatalog.Pick(level, slot, random) is UniqueDefinition unique) return UniqueCatalog.Make(unique, level, random);
             if (rarity == Rarity.Unique) rarity = Rarity.Rare;
@@ -913,6 +917,7 @@ namespace Dino_Defenders.Progression
         /// <param name="only">Which of the three it's to be, for what has to have one in particular. It's drawn for all the same, so nothing else about it changes.</param>
         public static Item Folio(int level, WorldRandom random, Rarity rarity, ItemSlot? only = null)
         {
+            level = Math.Min(level, MostItemLevel);
             ulong seed = NewSeed(random);
             if (rarity == Rarity.Unique) return StickerItem(Stickers.Roll(rarity, random), seed, level, rarity);
             int table = (int)rarity;

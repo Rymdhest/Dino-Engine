@@ -58,6 +58,7 @@ namespace Dino_Defenders.Net
         Unstow,         // Out of the stash, into the pack.
         Shift,          // From one cell of the stash to another.
         TakeOffer,      // From the beta vendor in the Haven, into the pack.
+        Reroll,         // At the Haven's map table: three other lands for a level, for gold.
     }
 
     public enum NoticeKind : byte
@@ -73,7 +74,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 11;
+        public const uint Version = 12;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -92,6 +93,9 @@ namespace Dino_Defenders.Net
         public const int MostStashCells = Stash.TabCount * Stash.TabSize;
         public const int SnapshotBudget = 1150;     // Bytes: inside the smallest MTU worth planning for.
         public const int MostLandLevel = 100000;
+
+        /// <summary>How many levels' rerolls a hero's summary carries, the deepest first: past this, the shallowest ones a client shows are its own guess until it asks again.</summary>
+        public const int MostRerolledLevels = 512;
 
         public static BitWriter Begin(Message type)
         {
@@ -117,7 +121,7 @@ namespace Dino_Defenders.Net
             return new WorldRequest(seed, archetype, level);
         }
 
-        /// <summary>What a land holds: its omens by number with how much of each, its unique orders if it has them, and how many places it asks to be freed.</summary>
+        /// <summary>What a land holds: its omens by number with how much of each, its unique orders by number, and how many places it asks to be freed.</summary>
         public static void WriteTerms(BitWriter writer, LandTerms terms)
         {
             writer.WriteCount(terms.Omens.Count);
@@ -126,7 +130,8 @@ namespace Dino_Defenders.Net
                 writer.WriteVarInt(Omens.Find(line.Affix)?.Number ?? 0);
                 writer.WriteFloat(line.Value);
             }
-            writer.WriteVarInt(OrdersCatalog.All.ToList().FindIndex(orders => orders.Id == terms.Orders) + 1);
+            writer.WriteCount(terms.Orders.Count);
+            foreach (string id in terms.Orders) writer.WriteVarInt(OrdersCatalog.All.ToList().FindIndex(orders => orders.Id == id));
             writer.WriteVarInt(terms.Places);
         }
 
@@ -141,9 +146,13 @@ namespace Dino_Defenders.Net
                 if (number < 0 || number >= Omens.All.Count) throw new NetReadException($"No such omen as {number}.");
                 terms.Omens.Add(new ItemLine(Omens.All[number].Id, value));
             }
-            int orders = reader.ReadVarInt();
-            if (orders < 0 || orders > OrdersCatalog.All.Count) throw new NetReadException($"No such orders as {orders}.");
-            terms.Orders = orders > 0 ? OrdersCatalog.All[orders - 1].Id : null;
+            int uniques = reader.ReadCount(OrdersCatalog.All.Count);
+            for (int i = 0; i < uniques; i++)
+            {
+                int orders = reader.ReadVarInt();
+                if (orders < 0 || orders >= OrdersCatalog.All.Count) throw new NetReadException($"No such orders as {orders}.");
+                terms.Orders.Add(OrdersCatalog.All[orders].Id);
+            }
             terms.Places = reader.ReadVarInt();
             terms.Sanitize();
             return terms;
@@ -172,9 +181,17 @@ namespace Dino_Defenders.Net
             writer.WriteVarInt(hero.Gold);
             writer.WriteVarInt(hero.Flasks);
             writer.WriteVarInt(hero.WorldsCleared);
-            writer.WriteVarInt(hero.LandLevel);
             writer.WriteVarInt(hero.BestLand);
             writer.WriteVarULong(hero.Offers);
+
+            // How often each level's lands have been changed, deepest first, as only the deepest few are ever looked at much and a long climb has a long list.
+            List<KeyValuePair<int, int>> rerolls = hero.Rerolls.Where(pair => pair.Key >= 1 && pair.Value > 0).OrderByDescending(pair => pair.Key).Take(MostRerolledLevels).ToList();
+            writer.WriteCount(rerolls.Count);
+            foreach ((int level, int count) in rerolls)
+            {
+                writer.WriteVarInt(level);
+                writer.WriteVarInt(count);
+            }
 
             writer.WriteCount(hero.Talents.Count);
             foreach (string id in hero.Talents) writer.WriteVarInt(TalentTree.Find(id)?.Index ?? 0);
@@ -187,9 +204,17 @@ namespace Dino_Defenders.Net
             hero.Gold = Math.Max(reader.ReadVarInt(), 0);
             hero.Flasks = Math.Clamp(reader.ReadVarInt(), 0, HeroState.MaxFlasks);
             hero.WorldsCleared = Math.Max(reader.ReadVarInt(), 0);
-            hero.LandLevel = Math.Clamp(reader.ReadVarInt(), 1, MostLandLevel);
             hero.BestLand = Math.Clamp(reader.ReadVarInt(), 0, MostLandLevel);
             hero.Offers = reader.ReadVarULong();
+
+            int rerolled = reader.ReadCount(MostRerolledLevels);
+            var rerolls = new Dictionary<int, int>(rerolled);
+            for (int i = 0; i < rerolled; i++)
+            {
+                int level = Math.Clamp(reader.ReadVarInt(), 1, MostLandLevel);
+                rerolls[level] = Math.Max(reader.ReadVarInt(), 0);
+            }
+            hero.Rerolls = rerolls;
 
             int talents = reader.ReadCount(TalentTree.Nodes.Length);
             var taken = new List<string>(talents);

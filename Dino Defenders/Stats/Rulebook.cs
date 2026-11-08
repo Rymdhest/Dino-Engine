@@ -234,5 +234,14 @@ namespace Dino_Defenders.Stats
         public const float ShrineBlessing = 120f;       // Seconds a shrine's blessing lasts.
         public const float RiseDelay = 1.2f;            // Seconds from falling to rising again, on a land whose orders raise the dead.
         public const float RisenBonesLess = 50f;        // Percent less health than they had, risen as bones.
+
+        // Arenas, every tenth level, where a tyrant is fought before the people of the land.
+        public const float ArenaTyrantHealth = 200f;    // Percent more health a tyrant has in its arena than in its keep.
+        public const float ArenaTyrantDamage = 35f;     // Percent more damage.
+        public const float ArenaWaveEvery = 0.25f;      // Of its health, each share of which a tyrant loses opens gates.
+        public const int ArenaWaveGates = 2;            // Gates each opening throws up, the last all of them.
+        public const int ArenaWaveSize = 2;             // Who comes through each gate that's opened.
+        public const float ArenaWaveRareChance = 0.35f; // Of each who comes through, and every other one is Magic.
+        public const float ArenaGateOpen = 7f;          // Seconds a gate stays up once it's opened.
     }
 }

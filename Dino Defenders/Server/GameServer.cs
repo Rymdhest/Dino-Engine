@@ -106,6 +106,7 @@ namespace Dino_Defenders.Server
             _systems.Add(new DyingSystem());
             _systems.Add(_interaction);
             _systems.Add(_encounters = new EncounterSystem(this));
+            _systems.Add(new ArenaSystem(this));
             _systems.Add(new CharacterMotorSystem());
             _systems.Add(new VelocitySystem());
             _systems.Add(new FixToTerrainHeightSystem());
@@ -768,14 +769,14 @@ namespace Dino_Defenders.Server
         }
 
         // Each hero has their own table: what one buys isn't taken from another. In a land it's stocked a level above the land, and turns over as they free more lands. In the Haven it's stocked
-        // for the next land they'll go to, with orders among it, and turns over every time they've been to one.
+        // for the deepest land they can open, with orders among it, and turns over every time they free one.
         private MerchantTable TableFor(ServerPlayer hero, int siteIndex)
         {
             if (hero.Tables.TryGetValue(siteIndex, out MerchantTable? table)) return table;
 
             ServerSession session = Session!;
             var stock = new Item?[StockSize];
-            int turnover = session.IsHaven ? (int)(hero.Hero.Offers % int.MaxValue) : hero.Hero.WorldsCleared;
+            int turnover = hero.Hero.WorldsCleared;
             var random = new WorldRandom(session.World.Plan.Seed).Fork("market").Fork(session.Sites[siteIndex].Site.Id).Fork(turnover);
             int level = session.IsHaven ? hero.Hero.LandLevel : session.World.Plan.Level + 1;
             for (int i = 0; i < StockSize; i++) stock[i] = i % FolioEvery == FolioEvery - 1 ? ItemGenerator.Folio(level, random.Fork(i), random.Chance(0.3f) ? Rarity.Magic : Rarity.Normal) : ItemGenerator.Roll(level, random.Fork(i), rarityBonus: 0.4f);
@@ -1095,9 +1096,16 @@ namespace Dino_Defenders.Server
 
                 case HeroAction.OpenWay:
                     player.Heard(reader.ReadVarInt());
+                    int wayLevel = reader.ReadVarInt();
                     int choice = reader.ReadVarInt();
-                    int ordersCell = reader.ReadVarInt();
-                    OpenWay(player, choice, ordersCell);
+                    int given = reader.ReadCount(Lands.MostOrderSlots);
+                    var ordersCells = new int[given];
+                    for (int i = 0; i < given; i++) ordersCells[i] = reader.ReadVarInt();
+                    OpenWay(player, wayLevel, choice, ordersCells);
+                    break;
+
+                case HeroAction.Reroll:
+                    Reroll(player, reader.ReadVarInt());
                     break;
 
                 case HeroAction.CloseWay:
@@ -1173,42 +1181,59 @@ namespace Dino_Defenders.Server
             return false;
         }
 
-        // The map table has been asked to open the way to one of the lands it shows this hero, with orders given for it or none. It's worked out here from their own hero, as their machine
-        // worked it out, and the orders come out of their pack whether the way opens or not only if it does: either way they're told the truth about what they carry.
-        private void OpenWay(ServerPlayer player, int choice, int ordersCell)
+        // The map table has been asked to open the way to one of the lands it shows this hero at a level they can open, with as many orders given for it as they have slots for, or none. It's
+        // worked out here from their own hero, as their machine worked it out, and the orders only come out of their pack if the way opens: either way they're told the truth about what they carry.
+        private void OpenWay(ServerPlayer player, int level, int choice, IReadOnlyList<int> ordersCells)
         {
             ServerSession session = Session!;
-            if (!session.IsHaven) return;
-            IReadOnlyList<LandOffer> offers = Lands.Offer(player.Hero);
+            if (!session.IsHaven || !player.Hero.CanOpen(level)) return;
+            IReadOnlyList<LandOffer> offers = Lands.Offer(player.Hero, level);
             if (choice < 0 || choice >= offers.Count) return;
+            if (ordersCells.Count > Lands.OrderSlots(player.Hero) || ordersCells.Distinct().Count() != ordersCells.Count) return;
+            foreach (int cell in ordersCells)
+            {
+                if (!ItemPlace.Cell(cell).IsCell || player.Hero.Inventory[cell] is not { IsOrders: true }) return;
+            }
 
             LandOffer offer = offers[choice];
             LandTerms terms = offer.Terms.Copy();
-            if (ordersCell >= 0)
+            foreach (int cell in ordersCells)
             {
-                if (!ItemPlace.Cell(ordersCell).IsCell || player.Hero.Inventory[ordersCell] is not { IsOrders: true } orders) return;
-                player.Hero.Take(ItemPlace.Cell(ordersCell));
+                Item orders = player.Hero.Inventory[cell]!;
+                player.Hero.Take(ItemPlace.Cell(cell));
                 terms.Give(orders);
             }
             terms.Sanitize();
 
             session.Portal = (offer.Request, terms, offer.Plan.Name);
             session.PortalChanged = true;
-            Console.WriteLine($"{player.Name} opened the way to {offer.Plan.Name}, level {offer.Request.Level}, with {terms.Count} omens{(terms.Orders != null ? $" and {terms.Orders}" : "")}.");
+            Console.WriteLine($"{player.Name} opened the way to {offer.Plan.Name}, level {offer.Request.Level}, with {terms.Count} omens{(terms.Orders.Count > 0 ? $" and {string.Join(", ", terms.Orders)}" : "")}.");
             SendChangedProgress();
             Broadcast(new SoundEvent { Position = HeroPosition(player), Cue = SoundCue.Waygate }, player.Sim.Position);
             Announce(null, "The way is open", $"{offer.Plan.Name}, level {offer.Request.Level}. Step through the waygate when you're ready.", 5f);
+        }
+
+        // Three other lands for a level, for gold that grows with it. What the map table showed for it before is gone for this hero, though a way already open stays open.
+        private void Reroll(ServerPlayer player, int level)
+        {
+            ServerSession session = Session!;
+            if (!session.IsHaven || !player.Hero.CanOpen(level)) return;
+            int cost = Lands.RerollCost(level);
+            if (player.Hero.Gold < cost)
+            {
+                Note(player, "You can't afford other lands for that level.");
+                return;
+            }
+            player.Hero.Gold -= cost;
+            player.Hero.Reroll(level);
+            player.SummaryChanged = true;
+            Console.WriteLine($"{player.Name} paid {cost} gold for other lands at level {level}.");
         }
 
         /// <summary>Someone has stepped through the open way: everyone goes, to the land it leads to.</summary>
         public void StepThrough()
         {
             if (_next != null || Session is not { IsHaven: true, Portal: var (request, terms, _) }) return;
-            foreach (ServerPlayer hero in _heroes)
-            {
-                hero.Hero.NextOffers();
-                hero.SummaryChanged = true;
-            }
             SendHeroesNow();
             _next = (request, terms);
         }
@@ -1381,11 +1406,11 @@ namespace Dino_Defenders.Server
             if (Session != null && !Session.IsHaven) GoHome();
         }
 
-        /// <summary>For a scripted run: out of the Haven to one of the lands the map table shows the first hero, at once, or only opening the way to it.</summary>
+        /// <summary>For a scripted run: out of the Haven to one of the lands the map table shows the first hero at the deepest level they can open, at once, or only opening the way to it.</summary>
         public void Venture(int choice, bool step = true)
         {
             if (Session is not { IsHaven: true } || _heroes.Count == 0) return;
-            OpenWay(_heroes[0], choice, -1);
+            OpenWay(_heroes[0], _heroes[0].Hero.LandLevel, choice, Array.Empty<int>());
             if (step) StepThrough();
         }
 

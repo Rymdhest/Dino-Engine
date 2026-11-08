@@ -10,6 +10,7 @@ namespace Dino_Engine.World
         public readonly int Level;              // How dangerous the world is, 1 and up.
         public readonly float MorePeople;       // How much bigger every pack and garrison is than usual, as a share: 0.5 is half as many again.
         public readonly float MorePacks;        // How many more packs stand on the land, as a share, or NoPacks. Neither touches anything but PackStage.
+        public readonly float Larger;           // How much larger than its usual size the land is, as a share, never past the most its kind can be.
 
         /// <summary>Asked of <see cref="MorePacks"/>: nobody stands on the roads, in the wild or at a camp, and only places are held.</summary>
         public const float NoPacks = -1f;
@@ -17,13 +18,14 @@ namespace Dino_Engine.World
         /// <summary>Whether this asks for the land between places to be empty.</summary>
         public bool Emptied => MorePacks <= NoPacks;
 
-        public WorldRequest(int seed, string? archetypeId = null, int level = 1, float morePeople = 0f, float morePacks = 0f)
+        public WorldRequest(int seed, string? archetypeId = null, int level = 1, float morePeople = 0f, float morePacks = 0f, float larger = 0f)
         {
             Seed = seed;
             ArchetypeId = archetypeId;
             Level = level;
             MorePeople = morePeople;
             MorePacks = morePacks;
+            Larger = larger;
         }
     }
 
@@ -34,6 +36,12 @@ namespace Dino_Engine.World
     public sealed class WorldPlan
     {
         public const float SeaLevel = 0f;
+
+        /// <summary>
+        /// How much of the most its kind can be a land usually is, drawn for each. A land is a visit of a quarter of an hour, and the whole of what its kind can be is longer than that, so it's only
+        /// that large when orders ask for it.
+        /// </summary>
+        public static readonly FloatRange UsualExtent = new FloatRange(0.6f, 0.8f);
 
         public WorldRequest Request { get; private init; }
         public WorldArchetype Archetype { get; private init; } = null!;
@@ -87,7 +95,7 @@ namespace Dino_Engine.World
                 Archetype = archetype,
                 Name = PlaceNames.WorldName(archetype, request.Seed, random.Fork("name")),
                 // A whole number of 8 m climate cells, so the coarser maps end exactly on the world's edge.
-                Size = MathF.Round(random.Range(archetype.Size) / 8f) * 8f,
+                Size = MathF.Round(SizeOf(archetype, random.Range(archetype.Size), root.Fork("extent"), request.Larger) / 8f) * 8f,
                 BaseHeight = random.Range(archetype.BaseHeight),
                 HillHeight = random.Range(archetype.HillHeight),
                 MountainHeight = random.Range(archetype.MountainHeight),
@@ -99,6 +107,14 @@ namespace Dino_Engine.World
                 BiomeShares = shares,
                 Mood = WorldMood.Draw(biomes, random.Fork("mood"), archetype),
             };
+        }
+
+        // A land is a share of the most its kind can be, larger as orders ask, up to all of it. The Haven and an arena are always what they are. The share has a fork of its own, so that
+        // nothing else about a world moves with it.
+        private static float SizeOf(WorldArchetype archetype, float most, WorldRandom random, float larger)
+        {
+            if (archetype.Peaceful || archetype.Arena) return most;
+            return MathF.Min(most * random.Range(UsualExtent) * (1f + MathF.Max(larger, 0f)), most);
         }
 
         private static List<BiomeDefinition> DrawBiomes(WorldArchetype archetype, WorldRandom random)
