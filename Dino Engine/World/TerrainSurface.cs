@@ -28,7 +28,7 @@ namespace Dino_Engine.World
         public const int MaxMaterials = 12;
 
         /// <summary>How much of its height grass that's kept short loses. It's still all there, as a lawn is, and only its seed heads and most of its flowers go.</summary>
-        private const float LawnCut = 0.62f;
+        private const float LawnCut = 0.8f;
 
         private readonly WorldData _world;
         private readonly WorldNoise _noise;

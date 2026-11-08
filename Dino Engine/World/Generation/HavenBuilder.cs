@@ -234,6 +234,7 @@ namespace Dino_Engine.World.Generation
                 Plant(b, Broadleaves.WhiteCherry, gate + East * (side * 16f) + North * 16f, 0.75f);
                 Plant(b, Broadleaves.JapaneseMaple, c + East * (side * 18f) + North * (TableAhead + 2f), 0.6f);
                 Plant(b, side < 0f ? Broadleaves.WisteriaTree : Broadleaves.WhiteCherry, c + East * (side * 21f) + North * -14f, 0.65f);
+                Plant(b, side < 0f ? Broadleaves.Sakura : Broadleaves.JapaneseMaple, c + East * (side * 27f) + North * -26f, 0.7f);
 
                 // Azaleas up either side of the walk, below the lanterns.
                 for (int step = 0; step < 3; step++) Plant(b, step % 2 == 0 ? Undergrowth.Azalea : Undergrowth.WhiteAzalea, c + North * (TableAhead + 5f + step * 4.5f) + East * (side * 8f), 0.6f);
