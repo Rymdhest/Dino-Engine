@@ -674,9 +674,13 @@ namespace Dino_NetLab
                 report.Check("The last time every gate goes up", gates.All(g => Lift(g) > 2f), string.Join(", ", gates.Select(g => Lift(g).ToString("0.0"))));
                 report.Check("And as many come through as each time asks, however quickly they come", scene.Session.Arrivals.Count + first == all, $"{scene.Session.Arrivals.Count + first} of {all}");
 
+                // Sixteen of the brood wear anyone down in the end, and how that goes is no part of this.
+                foreach (Actor brood in scene.Session.Arrivals.ToList()) scene.Session.Combat.Harm(scene.Hero, brood, 1e12f, DamageType.Magic);
+                scene.Hero.Vitals = Vitals.Full(scene.Hero.Sheet);
+                scene.Lab.Run(1);
                 scene.Session.Combat.Harm(scene.Hero, tyrant, 1e12f, DamageType.Magic);
                 scene.Lab.Run(3);
-                report.Check("Bringing it down frees the arena", scene.Session.Liberated && scene.Seen.Liberated);
+                report.Check("Bringing it down frees the arena", scene.Session.Liberated && scene.Seen.Liberated, $"{(scene.Truth.Out ? "the hero is out" : "the hero stands")}, the tyrant {(tyrant.Dead ? "is down" : $"has {tyrant.Vitals.Health:0}")}");
                 report.Check("And opens the next level, and room at the table for one more orders", scene.Truth.Hero.BestLand == 10 && Lands.OrderSlots(scene.Truth.Hero) == 2 && Lands.OrderSlots(scene.Player.Client.Hero) == 2);
             }
 
@@ -974,7 +978,15 @@ namespace Dino_NetLab
             report.Check("Far more enemies stand on the land", moreCount >= usualCount * 2, $"{usualCount} to {moreCount}");
             report.Check("In more packs", more.Haunts.Count > usualPacks * 1.3f, $"{usualPacks} to {more.Haunts.Count}");
             report.Check("And more hold the places too", more.Sites.Sum(s => s.Spawns.Count(p => p.Role.IsHostile())) > usualSites * 1.3f);
-            report.Check("It's the same land under them", Protocol.WorldHash(more).ground == usualGround);
+            report.Check("A land with more packs is larger, to hold them", more.Plan.Size > usual.Plan.Size || more.Plan.Size == usual.Plan.Archetype.Size.Max);
+
+            // The same land asked for larger is another world, and the cache that keeps the last one grown has to know it, or opening it again with Sprawling orders would be the small one.
+            var cache = new WorldCache();
+            WorldData small = cache.Get(Home).Result;
+            WorldData sprawling = cache.Get(new LandTerms { Omens = { new ItemLine(Omens.Expanse.Id, 60f) } }.Shape(Home)).Result;
+            report.Check("A land asked for larger is grown again, not taken from what was kept", sprawling.Plan.Size > small.Plan.Size, $"{small.Plan.Size} and {sprawling.Plan.Size}");
+            WorldData crowded = worlds.Get(new LandTerms { Omens = { new ItemLine(Omens.Teeming.Id, 80f) } }.Shape(Home)).Result;
+            report.Check("And larger packs alone stand on the same land as ever", Protocol.WorldHash(crowded).ground == usualGround);
 
             using var scene = new Scene(worlds, Home, crowd, Sturdy());
             report.Check("Nobody's any stronger for it", scene.Session.Bestiary.Worn.Count == 0);
@@ -1106,9 +1118,15 @@ namespace Dino_NetLab
             report.Check("Under a warhost, far more packs are led", hostLed > usualLed * 1.3f, $"{usualLed} to {hostLed} of {world.Haunts.Count}");
             report.Check("And far more of those who lead are rare", hostRare > usualRare * 1.8f, $"{usualRare} to {hostRare}");
 
+            // A wild camp with a chest is what's tried, and whether a land has one is luck: a den keeps none and others mostly do. So the first land that has one is tried.
             var gilded = new LandTerms { Omens = { new ItemLine(Omens.Gilded.Id, 100f) } };
-            worlds.Get(gilded.Shape(Home)).Wait();
-            using (var scene = new Scene(worlds, Home, gilded, Sturdy()))
+            WorldRequest boxed = Home;
+            for (int seed = Home.Seed; seed < Home.Seed + 12; seed++)
+            {
+                boxed = new WorldRequest(seed, Home.ArchetypeId, Home.Level);
+                if (worlds.Get(gilded.Shape(boxed)).Result.Haunts.Any(h => h.Spawns.Any(s => s.Role == SpawnRole.Chest))) break;
+            }
+            using (var scene = new Scene(worlds, boxed, gilded, Sturdy()))
             {
                 SiteState? camp = null;
                 SiteSpawn chest = default;

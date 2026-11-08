@@ -121,6 +121,9 @@ namespace Dino_Defenders.Progression
         /// <summary>How far down from the best tier a roll tends to fall, each step a chance of this.</summary>
         public const float TierDrop = 0.35f;
 
+        /// <summary>How much larger a land is for each share more packs on it, as a small land has no room for them otherwise.</summary>
+        public const float PackRoom = 0.5f;
+
         /// <summary>How far past its best tier one omen can be pushed, by several orders holding the same.</summary>
         public const float MostStacked = 1.5f;
 
@@ -160,7 +163,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "overrun", Name = "Swarming", Affix = "Swarming", Side = OmenSide.Prefix,
             Tiers = Ladder((1, 10, 18), (Second, 19, 30), (Third, 31, 45), (Fourth, 46, 60)),
-            Says = v => $"{Say.Percent(v)} more packs on the land, and no stronger for it",
+            Says = v => $"{Say.Percent(v)} more packs on the land, which is {Say.Percent(v * PackRoom)} larger to hold them, and no stronger for it",
             Packs = 0.01f,
         });
 

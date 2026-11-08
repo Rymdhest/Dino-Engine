@@ -14,8 +14,8 @@ namespace Dino_Defenders.Progression
     /// </summary>
     public sealed class LandTerms
     {
-        public const int LeastPlaces = 4;
-        public const int MostPlaces = 6;
+        public const int LeastPlaces = 3;
+        public const int MostPlaces = 5;
 
         private const float MostPeople = 1.5f;
         private const float MostPacks = 1f;
@@ -85,7 +85,7 @@ namespace Dino_Defenders.Progression
         [JsonIgnore] public float MorePacks => Has(OrdersCatalog.Garrison) ? WorldRequest.NoPacks : MathF.Min(Sum(omen => omen.Packs), MostPacks);
 
         /// <summary>How much larger than usual the land is, as a share: the world never grows past the most its kind can be, whatever this says.</summary>
-        [JsonIgnore] public float Larger => MathF.Min(Sum(omen => omen.Size), MostLarger);
+        [JsonIgnore] public float Larger => MathF.Min(Sum(omen => omen.Size) + Progression.Omens.PackRoom * MathF.Max(MorePacks, 0f), MostLarger);
 
         private float Sum(Func<OmenDefinition, float> per)
         {
@@ -97,8 +97,11 @@ namespace Dino_Defenders.Progression
         /// <summary>How much further enemies notice a hero from.</summary>
         [JsonIgnore] public float Notice => 1f + ValueOf(Progression.Omens.Night) / 100f;
 
-        /// <summary>The world this makes of a request. Who's on the land and how large it is are part of the world, so that both ends of a connection grow the same one.</summary>
-        public WorldRequest Shape(in WorldRequest request) => new WorldRequest(request.Seed, request.ArchetypeId, request.Level, MorePeople, MorePacks, Larger);
+        /// <summary>
+        /// The world this makes of a request. Who's on the land and how large it is are part of the world, so that both ends of a connection grow the same one. A request can ask for a larger land
+        /// itself, as a scripted run or a lab does, and the larger of that and what orders ask for is what it is.
+        /// </summary>
+        public WorldRequest Shape(in WorldRequest request) => new WorldRequest(request.Seed, request.ArchetypeId, request.Level, MorePeople, MorePacks, MathF.Max(request.Larger, Larger));
 
         /// <summary>What everything hostile on this land wears on top of what it is.</summary>
         public List<Mod> FoeMods()

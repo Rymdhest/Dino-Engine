@@ -72,6 +72,7 @@ namespace Dino_Engine.World.Content
             relaxed.MinInland = MinInland * 0.6f;
             relaxed.Radius = new FloatRange(Radius.Min, Radius.Min);
             relaxed.Margin = Margin * 0.6f;
+            relaxed.Spacing = Spacing * 0.5f;
             return relaxed;
         }
 

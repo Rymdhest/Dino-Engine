@@ -37,11 +37,14 @@ namespace Dino_Engine.World
     {
         public const float SeaLevel = 0f;
 
+
         /// <summary>
-        /// How much of the most its kind can be a land usually is, drawn for each. A land is a visit of a quarter of an hour, and the whole of what its kind can be is longer than that, so it's only
-        /// that large when orders ask for it.
+        /// How much closer together places of a kind stand than on a land as large as its kind can be: a land is a fraction of that, and still has to hold everything a land needs. Never closer than
+        /// <see cref="ClosestSpacing"/> of the usual.
         /// </summary>
-        public static readonly FloatRange UsualExtent = new FloatRange(0.6f, 0.8f);
+        public float Closeness => Math.Clamp(Size / MathF.Max(Archetype.Size.Max, 1f), ClosestSpacing, 1f);
+
+        private const float ClosestSpacing = 0.3f;
 
         public WorldRequest Request { get; private init; }
         public WorldArchetype Archetype { get; private init; } = null!;
@@ -109,12 +112,12 @@ namespace Dino_Engine.World
             };
         }
 
-        // A land is a share of the most its kind can be, larger as orders ask, up to all of it. The Haven and an arena are always what they are. The share has a fork of its own, so that
-        // nothing else about a world moves with it.
+        // A land is its kind's usual size, larger as orders ask, up to the most this one could be, drawn from what its kind can be. The Haven and an arena are always what they are, as is a kind with
+        // no usual size. The usual size has a fork of its own, so that nothing else about a world moves with it.
         private static float SizeOf(WorldArchetype archetype, float most, WorldRandom random, float larger)
         {
-            if (archetype.Peaceful || archetype.Arena) return most;
-            return MathF.Min(most * random.Range(UsualExtent) * (1f + MathF.Max(larger, 0f)), most);
+            if (archetype.Peaceful || archetype.Arena || archetype.UsualSize.Max <= 0f) return most;
+            return MathF.Min(random.Range(archetype.UsualSize) * (1f + MathF.Max(larger, 0f)), most);
         }
 
         private static List<BiomeDefinition> DrawBiomes(WorldArchetype archetype, WorldRandom random)

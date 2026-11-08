@@ -9,7 +9,7 @@ Status: the loop was built on 2026-11-08, and the arenas, free choice of level, 
 1. **The Haven.** A hero starts there, and comes back there after every land. It's a world like any other, grown from its own seed (`Lands.HavenSeed`) and a kind of world nothing else is (`WorldArchetype.Haven`, `Peaceful`), so it's the same place every time and never saved. Nothing hostile stands in it, and falling there only knocks a hero down for a moment.
 2. **The map table** lists every level the hero can open down its side, deepest first: any they've freed, and the one after (`HeroState.LandLevel`). For the level chosen it shows three lands (`Lands.Offer(hero, level)`), each a different kind of world with its own story, biomes, weather and tyrant, or at every tenth level three arenas, each with a different kind of tyrant. They come from what's saved on the hero alone (`HeroState.Offers` and `Rerolls`), so both ends of a connection see the same three, and they stay the same however often the table is looked at and however many tries they take. A land comes with no omens of its own: what it is to a hero is its layout, biomes, weather, tyrant and what it asks.
 3. **Opening the way** to one of them, with as many orders given for it as the table has slots for (`GameServer.OpenWay`), lights the great waygate in that land's colour. Stepping through takes everyone in the Haven there (`StepThrough`), and changes nobody's lands.
-4. **The land** asks for two things, in the corner under its name: bring down its tyrant at the keep, and free a number of its places (`LandTerms.Places`, four to six). An arena asks only for its tyrant. Done, it's free (`ServerSession.Free`).
+4. **The land** asks for two things, in the corner under its name: bring down its tyrant at the keep, and free a number of its places (`LandTerms.Places`, three to five). An arena asks only for its tyrant. Done, it's free (`ServerSession.Free`).
 5. **Home**, through any waygate in the land once it's free, or before then, giving up on it. If everyone falls, they go home a few seconds later anyway.
 
 ## The climb
@@ -36,13 +36,13 @@ There's **one life to a land**. A hero who falls is out of it (`ServerPlayer.Out
 
 A land is a world grown for one visit: a kind of world, a road network joining its places, and the Reich in it.
 
-- **Most lands are smaller than their kind can be**: `WorldPlan.UsualExtent`, between 60% and 80% of the size drawn for it, on a fork of its own so nothing else about a world moves with it. Sprawling orders make one larger, up to all of it (`WorldRequest.Larger`), with room for more packs, more places and their chests. The Haven and an arena are always the size they are.
+- **A land is its kind's usual size** (`WorldArchetype.UsualSize`), about 900 m a side for an isle up to about 1,150 m for an archipelago or a lakeland, drawn on a fork of its own so nothing else about a world moves with it. Each kind's was measured to leave about 0.3 km² that anyone can walk, a fifth of what lands had at first, as water, mountains and coasts don't shrink with a land: a kind with more of them is larger. Sprawling orders make one larger, up to the most its kind can be (`WorldArchetype.Size`, `WorldRequest.Larger`), with room for more packs, more places and their chests. The Haven and an arena are always the size they are. Places of a kind stand closer together on a smaller land (`WorldPlan.Closeness`), and `SiteStage.MakeEnough` looks again, more loosely, for whatever a land is still short of: five held places (`SiteStage.LeastHeld`) and two waygates.
 - **Every held place has a chest**, and a group worth stopping for: the first hostile at a place leads it, Magic in the first two levels and Rare from the third (`EncounterSystem`). Shrines are held by raiders, standing stones by cultists, watchtowers are always guarded, and hamlets, farmsteads, fishing hamlets and lumber camps are overrun. A shrine can't be kindled until its holders are down.
 - **Villages are hiding.** Each has a refuge (`SettlementStage.PlaceRefuge`): a waygate, a shrine whose blessing lasts two minutes (`Rulebook.ShrineBlessing`), a strongbox for the stash, and a merchant whose stall is always there. Villagers keep their heads down until the land is free.
-- **Waygates are scattered about** (`SiteKind.Waygate`, three to six a land, at least `Spacing` apart). A hero at one can travel to any other they've found, and go home from any of them (`TravelToSite`, `ReturnHome`). The landing has one, and that's where everyone arrives.
+- **Waygates are scattered about** (`SiteKind.Waygate`, two to six a land counting the landing's and the villages', at least `Spacing` apart, closer on a smaller land). A hero at one can travel to any other they've found, and go home from any of them (`TravelToSite`, `ReturnHome`). The landing has one, and that's where everyone arrives.
 - **The tyrant** is what `Chronicle.BossKindOf` names, and the main objective. It always has orders on it (`Loot.OrdersFrom`).
 
-A smaller land has less room for a keep: when there isn't room on the usual terms, `SiteStage` looks again on easier ones (`SiteDefinition.Relaxed`), from a fork of its own. `WorldValidator` holds all of this: at least six places to free (`CheckLandPlaces`), at least two waygates, a keep, a chest at every held place, a stash in every village, and nothing standing on a waygate's spawn.
+A smaller land has less room for what it must have: when there isn't room on the usual terms, `SiteStage` looks again on easier ones (`SiteDefinition.Relaxed`), from a fork of its own. `WorldValidator` holds all of this: at least five places to free (`CheckLandPlaces`), at least two waygates, a keep, a chest at every held place, a stash in every village, and nothing standing on a waygate's spawn.
 
 ## Arenas
 
@@ -128,7 +128,7 @@ Orders come from tyrants, always, one in twenty of everything else that drops (`
 | The travel map | `MapPanel`, in its travel mode |
 | The Haven | `World/Generation/HavenBuilder.cs`, `WorldArchetype.Haven` |
 | Refuges, held places and their chests | `SettlementStage` |
-| A land's size | `WorldPlan.SizeOf`, `UsualExtent` |
+| A land's size | `WorldArchetype.UsualSize`, `WorldPlan.SizeOf`, `Closeness`, `SiteStage.MakeEnough` |
 | A land held only at its places | `PackStage`, through `WorldRequest.Emptied` |
 | On the wire | `Protocol.WriteTerms`, `WriteStash`, the hero summary's climb and rerolls, `HeroAction.OpenWay` and `Reroll` |
 
@@ -156,12 +156,12 @@ Choices made without asking. Say if any are wrong.
 - **"Orders" for map items**, and **"omens" for their lines**, a prefix a reward and a suffix a danger.
 - **The arena's numbers**: the tyrant with 200% more health and 35% more damage than in a keep, gates every quarter of its health, two then two then all four, two through each, a third of them Rare, and seven seconds up.
 - **Who watches**: the land's people, made to by the Reich, who want the Defender to win and say so quietly.
-- **Lands at 60% to 80% of what their kind can be**, as the old ones took longer than a visit should.
+- **Lands of about 0.3 km² to walk**, a fifth of the first ones, after two rounds of "still too big".
 - **Rerolling** at 25 gold a level, growing as the level does, and freeing a level showing other lands for it next time.
 - **Orders slots**: one, and one more for each arena freed, up to a pack's worth.
 - **Losing a land costs only the try and the orders**, and the same three lands wait for another go.
 - **Talent points from lands stop at the hundredth**, as a hero's level does.
-- **Four to six places to free**, four in the first two levels, as that's where someone learns what a land is.
+- **Three to five places to free**, three in the first two levels, as a land is small and that's where someone learns what a land is. Two waygates are enough on a land this size.
 - **Leaving a friend's game halfway costs nothing.**
 - **One player going home through a waygate takes everyone**, as a server only holds one world.
 - **The stash**: four tabs of 48, shared by every hero on one machine, and not shared with friends.

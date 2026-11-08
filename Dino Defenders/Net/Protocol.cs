@@ -94,6 +94,9 @@ namespace Dino_Defenders.Net
         public const int SnapshotBudget = 1150;     // Bytes: inside the smallest MTU worth planning for.
         public const int MostLandLevel = 100000;
 
+        /// <summary>The most a request can ask for a land to be larger by itself, past which it's as large as its kind can be anyway.</summary>
+        public const float MostLarger = 8f;
+
         /// <summary>How many levels' rerolls a hero's summary carries, the deepest first: past this, the shallowest ones a client shows are its own guess until it asks again.</summary>
         public const int MostRerolledLevels = 512;
 
@@ -110,6 +113,7 @@ namespace Dino_Defenders.Net
             writer.WriteBool(request.ArchetypeId != null);
             if (request.ArchetypeId != null) writer.WriteString(request.ArchetypeId);
             writer.WriteVarInt(request.Level);
+            writer.WriteFloat(request.Larger);
         }
 
         public static WorldRequest ReadRequest(BitReader reader)
@@ -118,7 +122,8 @@ namespace Dino_Defenders.Net
             string? archetype = reader.ReadBool() ? reader.ReadString(LongestName) : null;
             int level = reader.ReadVarInt();
             if (level < 1 || level > 100000) throw new NetReadException($"A world of level {level}.");
-            return new WorldRequest(seed, archetype, level);
+            float larger = Math.Clamp(Finite(reader.ReadFloat()), 0f, MostLarger);
+            return new WorldRequest(seed, archetype, level, larger: larger);
         }
 
         /// <summary>What a land holds: its omens by number with how much of each, its unique orders by number, and how many places it asks to be freed.</summary>

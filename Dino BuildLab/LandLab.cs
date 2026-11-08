@@ -460,7 +460,7 @@ namespace Dino_BuildLab
             WorldRequest shaped = crowd.Shape(new WorldRequest(12, "isle", 7));
             report.Near("Teeming makes packs larger", shaped.MorePeople, 0.5f, 0.0001f);
             report.Near("And Swarming makes more of them", shaped.MorePacks, 0.3f, 0.0001f);
-            report.Near("And Sprawling makes the land larger", shaped.Larger, 0.4f, 0.0001f);
+            report.Near("And Sprawling makes the land larger, as more packs do to hold them", shaped.Larger, 0.4f + 0.3f * Omens.PackRoom, 0.0001f);
             report.Check("And nothing else about the world changes", shaped.Seed == 12 && shaped.ArchetypeId == "isle" && shaped.Level == 7);
             report.Check("A crowd makes nobody stronger", crowd.FoeMods().Count == 0 && crowd.EnemyHealth == 1f && crowd.EnemyDamage == 1f && crowd.HeroMods().Count == 0);
 
@@ -471,7 +471,7 @@ namespace Dino_BuildLab
             for (int seed = 0; seed < 40; seed++)
             {
                 WorldPlan plan = WorldPlan.Create(new WorldRequest(seed, null, 5));
-                if (plan.Size < plan.Archetype.Size.Max * WorldPlan.UsualExtent.Max + 8f) smaller++;
+                if (plan.Size <= plan.Archetype.UsualSize.Max + 8f && plan.Size < plan.Archetype.Size.Min) smaller++;
             }
             report.Check("A land is usually smaller than the most its kind can be", smaller == 40, $"{smaller} of 40");
 
@@ -840,7 +840,7 @@ namespace Dino_BuildLab
             SaveGame.PathOverride = file;
             try
             {
-                var terms = new LandTerms { Places = 6, Orders = { OrdersCatalog.TwinPens.Id, OrdersCatalog.Writ.Id }, Omens = { new ItemLine(Omens.Keen.Id, 20f), new ItemLine(Omens.Teeming.Id, 30f) } };
+                var terms = new LandTerms { Places = LandTerms.MostPlaces, Orders = { OrdersCatalog.TwinPens.Id, OrdersCatalog.Writ.Id }, Omens = { new ItemLine(Omens.Keen.Id, 20f), new ItemLine(Omens.Teeming.Id, 30f) } };
                 var save = new SaveGame { InLand = true, WorldSeed = 99, WorldArchetype = "isle", WorldLevel = 12, Terms = terms, Hero = new HeroState { BestLand = 11, Offers = 42, Rerolls = { [12] = 3 } } };
                 save.Store();
                 SaveGame? loaded = SaveGame.Load();

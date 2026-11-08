@@ -312,8 +312,10 @@ namespace Dino_WorldLab
             }
         }
 
-        // The places a land can ask to be freed: there have to be more than the most it ever asks for.
-        private const int LeastPlaces = 6;
+        // The places a land can ask to be freed: there have to be at least the most it ever asks for (LandTerms.MostPlaces). And waygates, the landing's among them: a land is small enough now
+        // that two are enough to travel between.
+        private const int LeastPlaces = SiteStage.LeastHeld;
+        private const int LeastWaygates = SiteStage.LeastWaygates;
         private const int Dummies = 21;
 
         private void CheckLandPlaces(WorldData world)
@@ -321,7 +323,7 @@ namespace Dino_WorldLab
             int places = world.Sites.Count(site => site.Kind != SiteKind.Keep && site.Spawns.Any(s => s.Role.IsHostile()));
             if (places < LeastPlaces) Problem($"only {places} places to free");
             int gates = world.Sites.Count(site => site.Spawns.Any(s => s.Role == SpawnRole.Waygate));
-            if (gates < 3) Problem($"only {gates} waygates");
+            if (gates < LeastWaygates) Problem($"only {gates} waygates");
         }
 
         // The Haven: one village, everything it's for standing where it can be reached, and nobody hostile anywhere.

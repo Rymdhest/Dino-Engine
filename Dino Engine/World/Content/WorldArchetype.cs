@@ -26,6 +26,12 @@ namespace Dino_Engine.World.Content
 
         public FloatRange Size = new FloatRange(1536f, 2048f);
 
+        /// <summary>
+        /// How large a land of this kind usually is, in metres a side, and the most it can be is <see cref="Size"/>, which only orders asking for a larger land reach. Measured to leave each kind about
+        /// the same ground to walk, about 0.3 km2, as water, mountains and coasts don't shrink with a land: a kind with more of them is larger. Nothing here means its <see cref="Size"/> is all it is.
+        /// </summary>
+        public FloatRange UsualSize;
+
         // --- Relief, in metres above the water ---
         public FloatRange BaseHeight = new FloatRange(6f, 10f);
         public FloatRange HillHeight = new FloatRange(10f, 20f);
@@ -83,6 +89,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The Isle of {0}", "{0} Isle", "The Isle of {0}" },
             Landform = LandformKind.Island,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(830f, 960f),
             Biomes = new[] { BiomeCatalog.Meadow, BiomeCatalog.PineForest, BiomeCatalog.CrimsonWood, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood, BiomeCatalog.BlossomGrove, BiomeCatalog.Highland, BiomeCatalog.CedarWood, BiomeCatalog.GoldenWood },
             BiomeCount = new IntRange(3, 5),
         };
@@ -94,6 +101,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Isles", "The Shoals of {0}", "The {0} Reach" },
             Landform = LandformKind.Archipelago,
             Size = new FloatRange(2048f, 2560f),
+            UsualSize = new FloatRange(1090f, 1260f),
             HillHeight = new FloatRange(8f, 16f),
             MountainHeight = new FloatRange(20f, 40f),
             MountainCoverage = new FloatRange(0.1f, 0.2f),
@@ -109,6 +117,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Coast", "The Cape of {0}", "{0} Strand" },
             Landform = LandformKind.Peninsula,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(900f, 1050f),
             RimHeight = 75f,
             Biomes = new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.PineForest, BiomeCatalog.Dunes, BiomeCatalog.Highland, BiomeCatalog.Savanna, BiomeCatalog.Jungle },
             BiomeCount = new IntRange(3, 4),
@@ -121,6 +130,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The Vale of {0}", "{0} Vale", "The Forest of {0}", "{0} Weald" },
             Landform = LandformKind.Vale,
             Size = new FloatRange(1536f, 2048f),
+            UsualSize = new FloatRange(870f, 1010f),
             BaseHeight = new FloatRange(8f, 13f),
             RimHeight = 85f,
             StillWater = true,
@@ -136,6 +146,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "{0} Mere", "The Lakes of {0}", "Lake {0}" },
             Landform = LandformKind.Lakeland,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(1040f, 1200f),
             RimHeight = 70f,
             StillWater = true,
             Biomes = new[] { BiomeCatalog.BirchWood, BiomeCatalog.PineForest, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.BlossomGrove, BiomeCatalog.GoldenWood, BiomeCatalog.RedwoodGrove },
@@ -149,6 +160,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Heights", "The {0} Fells", "{0} Pass" },
             Landform = LandformKind.Highlands,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(880f, 1020f),
             BaseHeight = new FloatRange(14f, 22f),
             HillHeight = new FloatRange(14f, 26f),
             MountainHeight = new FloatRange(45f, 80f),
@@ -168,6 +180,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Wastes", "{0} Hold", "The Frozen March of {0}" },
             Landform = LandformKind.Island,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(850f, 990f),
             MountainCoverage = new FloatRange(0.25f, 0.4f),
             Biomes = new[] { BiomeCatalog.Snowfield, BiomeCatalog.Highland, BiomeCatalog.PineForest, BiomeCatalog.DarkWood },
             BiomeCount = new IntRange(3, 3),
@@ -182,6 +195,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Fens", "{0} Mire", "The Drowned Lands of {0}" },
             Landform = LandformKind.Marsh,
             Size = new FloatRange(1536f, 2048f),
+            UsualSize = new FloatRange(920f, 1080f),
             RimHeight = 60f,
             StillWater = true,
             Biomes = new[] { BiomeCatalog.Marsh, BiomeCatalog.BirchWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.DarkWood },
@@ -198,6 +212,7 @@ namespace Dino_Engine.World.Content
             Landform = LandformKind.Badlands,
             Bedrock = RockKind.Sandstone,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(880f, 1030f),
             BaseHeight = new FloatRange(10f, 16f),
             HillHeight = new FloatRange(10f, 16f),
             MountainHeight = new FloatRange(28f, 46f),
@@ -219,6 +234,7 @@ namespace Dino_Engine.World.Content
             Landform = LandformKind.Island,
             Bedrock = RockKind.Basalt,
             Size = new FloatRange(1536f, 2048f),
+            UsualSize = new FloatRange(850f, 980f),
             MountainCoverage = new FloatRange(0.3f, 0.4f),
             Biomes = new[] { BiomeCatalog.Ashland, BiomeCatalog.GoldenSteppe, BiomeCatalog.Highland, BiomeCatalog.Dunes, BiomeCatalog.DarkWood },
             BiomeCount = new IntRange(2, 3),

@@ -271,7 +271,10 @@ namespace Dino_NetLab
         /// The whole of an isle, as large as its kind can be, for suites that shoot across open ground at the landing or walk past packs to see something else: they were laid out against it, and a
         /// land of the usual size has its places and packs closer in, with walls where their shots would fly and bodies in the way. What they test is the rules, not the ground.
         /// </summary>
-        public static WorldRequest OpenIsle(int seed, int level = 1) => new WorldRequest(seed, "isle", level, larger: 1f);
+        public static WorldRequest OpenIsle(int seed, int level = 1) => new WorldRequest(seed, "isle", level, larger: AsLargeAsItCanBe);
+
+        // Past the most an isle can be over the least it usually is, so that the size drawn for the land is what it comes to.
+        private const float AsLargeAsItCanBe = 3f;
 
         public GameLab(WorldCache worlds, WorldRequest request, string? startSite = "BanditCamp", LandTerms? terms = null, SaveGame? save = null)
         {
@@ -447,7 +450,7 @@ namespace Dino_NetLab
         public static int Run(Options options)
         {
             var report = new Report();
-            var request = new WorldRequest(options.Int("seed", 303), "isle");
+            var request = GameLab.OpenIsle(options.Int("seed", 303));
             var worlds = new WorldCache();
             Console.WriteLine("Growing a world...");
             WorldData world = worlds.Get(request).Result;
