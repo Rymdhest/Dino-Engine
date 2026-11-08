@@ -31,6 +31,7 @@ namespace Dino_Defenders.UI
         Bar,
         Held,       // Inside something: its index is the place's own number.
         Stash,      // Put away: its index is the tab times the size of one, and the cell.
+        Vendor,     // On the beta vendor's table: its index is the tab times BetaVendorPanel.Stride, and the place.
     }
 
     /// <summary>A place something can be in this panel: on the hero, on a merchant's table, or in the stash.</summary>
@@ -229,10 +230,15 @@ namespace Dino_Defenders.UI
         private const float MarketCell = 68f;
         private const float MarketGap = 8f;
         private const float StageWidth = 450f;
+        private const float SheetWidth = 300f;
 
         private readonly GuiElement _sheet;
         private readonly GuiElement _market;
         private readonly GuiElement _stash;
+        private readonly GuiElement _left;
+        private readonly GuiElement _stage;
+        private readonly BetaVendorPanel _vendor;
+        private bool _vending;
         private readonly List<Button> _tabs = new();
         private bool _stashing;
         private int _tab;
@@ -267,7 +273,11 @@ namespace Dino_Defenders.UI
 
             var columns = Add(new StackPanel(Orientation.Horizontal, 18f) { Width = UIValue.Fill, Height = UIValue.Fill });
 
-            var left = columns.Add(new StackPanel(Orientation.Vertical, 3f) { Width = 300f, Height = UIValue.Fill });
+            // The beta vendor takes the place of the sheet and the hero both, as there's a lot of him.
+            _vendor = columns.Add(new BetaVendorPanel(this, SheetWidth + 18f + StageWidth));
+
+            var left = columns.Add(new StackPanel(Orientation.Vertical, 3f) { Width = SheetWidth, Height = UIValue.Fill });
+            _left = left;
             _title = left.Add(Ui.Heading("The Hero"));
             left.Add(Ui.Line("", 15f, Ui.Parchment).Bind(() => TalentTree.TitleOf(Hero)));
             left.Add(Ui.Line().Bind(() => $"Level {Hero.Level}, {Hero.Gold} gold"));
@@ -279,7 +289,7 @@ namespace Dino_Defenders.UI
             _market = left.Add(BuildMarket());
             _stash = left.Add(BuildStash());
 
-            columns.Add(BuildStage());
+            _stage = columns.Add(BuildStage());
 
             var right = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill });
             var heading = right.Add(new StackPanel(Orientation.Horizontal, 8f) { Width = UIValue.Fill, Height = 26f });
@@ -309,7 +319,7 @@ namespace Dino_Defenders.UI
 
             var help = right.Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Auto, Margin = new Thickness(0f, 6f, 0f, 0f) });
             help.Add(Ui.Line("Click to pick up and put down, or drag", 13f, Ui.Faded));
-            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => _stashing ? $"{Bindings.Label(GameAction.Details)}-click to put away or take out, right-click to wear" : _merchant != null ? $"{Bindings.Label(GameAction.Details)}-click to sell, right-click to wear" : $"{Bindings.Label(GameAction.Details)}-click or right-click to wear"));
+            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => _vending ? $"Right-click or {Bindings.Label(GameAction.Details)}-click the vendor's things to take them at once" : _stashing ? $"{Bindings.Label(GameAction.Details)}-click to put away or take out, right-click to wear" : _merchant != null ? $"{Bindings.Label(GameAction.Details)}-click to sell, right-click to wear" : $"{Bindings.Label(GameAction.Details)}-click or right-click to wear"));
             help.Add(Ui.Line("Right-click a Book or a Page to open it, and drag a Book to the bar to use it", 13f, Ui.Faded));
             help.Add(Ui.Line("Drag off the panel to drop on the ground", 13f, Ui.Faded));
             help.Add(Ui.Line("Click a place on the hero to see what fits it", 13f, Ui.Faded));
@@ -445,6 +455,10 @@ namespace Dino_Defenders.UI
         {
             _merchant = merchant;
             _stashing = false;
+            _vending = false;
+            _vendor.Visible = false;
+            _left.Visible = true;
+            _stage.Visible = true;
             _stash.Visible = false;
             _market.Visible = merchant != null;
             _sheet.Visible = merchant == null;
@@ -462,6 +476,26 @@ namespace Dino_Defenders.UI
             _sheet.Visible = false;
             _stash.Visible = true;
             _title.Text = "The Stash";
+        }
+
+        /// <summary>Shows the panel with the beta vendor's table in place of the sheet and the hero, as it is at his stall.</summary>
+        public void OpenVendor()
+        {
+            Open(null);
+            _vending = true;
+            _left.Visible = false;
+            _stage.Visible = false;
+            _vendor.Visible = true;
+            _vendor.Opened();
+        }
+
+        /// <summary>The beta vendor's side of this, for a scripted run to open at a tab.</summary>
+        public BetaVendorPanel Vendor => _vendor;
+
+        /// <summary>Puts back anything of the vendor's that's on the cursor, for when what he has out has changed under it.</summary>
+        public void ForgetVendor()
+        {
+            if (_hand is Spot { Shelf: Shelf.Vendor }) _hand = null;
         }
 
         /// <summary>Puts down whatever's been picked up, which is only to say it was never anywhere else.</summary>
@@ -483,6 +517,11 @@ namespace Dino_Defenders.UI
 
         public void FocusSearch()
         {
+            if (_vending && _vendor.LookingUp)
+            {
+                _vendor.FocusSearch();
+                return;
+            }
             _search.Focus();
             _search.SelectAll();
         }
@@ -504,8 +543,9 @@ namespace Dino_Defenders.UI
             Tend();
             _clear.Visible = _search.Text.Length > 0;
 
-            _leftSearch = _wasTyping && !_search.IsFocused;
-            _wasTyping = _search.IsFocused;
+            bool typing = _search.IsFocused || (_vending && _vendor.Typing);
+            _leftSearch = _wasTyping && !typing;
+            _wasTyping = typing;
 
             bool down = Context.IsMouseDown(MouseButton.Left) || Context.IsMouseDown(MouseButton.Right);
             if (down && !_mouseWasDown && _picker.Visible && !_picker.Bounds.Contains(Context.MousePosition) && !_pickerFrom.Contains(Context.MousePosition)) _picker.Visible = false;
@@ -519,6 +559,7 @@ namespace Dino_Defenders.UI
             IEnumerable<Item> looking = Hero.Carried();
             if (_merchant != null) looking = looking.Concat(_merchant.Table.Stock.OfType<Item>()).Concat(_merchant.Table.Sold.OfType<Item>());
             if (_stashing && Session.Client.Stash is Stash stash) looking = looking.Concat(stash.Kept());
+            if (_vending) looking = looking.Concat(_vendor.Showing());
             return $"{looking.Count(item => ItemSearch.Finds(item, _words))} found";
         }
 
@@ -528,13 +569,14 @@ namespace Dino_Defenders.UI
             Shelf.Stock => OnShelf(_merchant?.Table.Stock, spot.Index),
             Shelf.Sold => OnShelf(_merchant?.Table.Sold, spot.Index),
             Shelf.Stash => Session.Client.Stash?.At(spot.Tab, spot.Cell),
+            Shelf.Vendor => _vending ? _vendor.At(spot.Index) : null,
             _ => Hero.At(spot.Place),
         };
 
         private static Item? OnShelf(Item?[]? shelf, int index) => shelf != null && index < shelf.Length ? shelf[index] : null;
 
         /// <summary>What something on the table costs, to show on it.</summary>
-        public int? PriceOn(Spot spot, Item item) => spot.OnHero || spot.Shelf == Shelf.Stash ? null : MerchantTable.PriceOf(item, spot.Shelf == Shelf.Sold);
+        public int? PriceOn(Spot spot, Item item) => spot.OnHero || spot.Shelf is Shelf.Stash or Shelf.Vendor ? null : MerchantTable.PriceOf(item, spot.Shelf == Shelf.Sold);
 
         public CellMood MoodOf(ItemCell cell, Item? item)
         {
@@ -593,6 +635,15 @@ namespace Dino_Defenders.UI
             {
                 if (from.Shelf == Shelf.Held) return Plan.Refuse("Take it out of the Book first");
                 return Session.Client.Stash?.FreeCell(_tab) is int free and >= 0 ? new Plan("Put away", () => Stow(from, new Spot(Shelf.Stash, _tab * Stash.TabSize + free))) : Plan.Refuse("This tab is full");
+            }
+
+            // From the beta vendor, into the pack, for nothing, and it stays where it was.
+            if (from.Shelf == Shelf.Vendor)
+            {
+                if (cell == null || cell.Spot.Shelf != Shelf.Pack) return Plan.Nothing;
+                if (!Hero.HasRoom()) return Plan.Refuse("Your pack is full");
+                int into = cell.Spot.Index;
+                return new Plan("Take", () => TakeOffer(from, into));
             }
 
             // From the table, the only place it can go is the pack.
@@ -752,6 +803,9 @@ namespace Dino_Defenders.UI
                     break;
                 case Shelf.Stash:
                     TakeOut(spot);
+                    break;
+                case Shelf.Vendor:
+                    TakeOffer(spot, null);
                     break;
                 case Shelf.Pack when _stashing && !rightClick:
                     PutAway(spot);
@@ -925,6 +979,18 @@ namespace Dino_Defenders.UI
             Session.Client.Buy(Session.Sites.IndexOf(_merchant), from.Index, buyingBack, cell);
         }
 
+        private void TakeOffer(Spot from, int? cell)
+        {
+            if (!_vending || ItemAt(from) == null) return;
+            if (!Hero.HasRoom())
+            {
+                Refuse("Your pack is full");
+                return;
+            }
+            Audio.Play(Interface.Trade);
+            _vendor.Take(from.Index, cell);
+        }
+
         private static void Drop(Spot from)
         {
             Audio.Play(Interface.Click);
@@ -969,6 +1035,15 @@ namespace Dino_Defenders.UI
             // The list opened from a place goes right where that place's card would.
             if (_picker.Visible && spot.Shelf == Shelf.Worn) return;
 
+            // What the vendor has out changes under the mouse, as his tabs turn and his lookup is narrowed, so his card is of whatever's under it now, if anything is.
+            GuiRect from = _lookingFrom;
+            if (spot.Shelf == Shelf.Vendor)
+            {
+                if (Context.HoveredElement is not ItemCell over || over.Spot.Shelf != Shelf.Vendor) return;
+                spot = over.Spot;
+                from = over.Bounds;
+            }
+
             Item? item = ItemAt(spot) ?? (spot == new Spot(Shelf.Worn, (int)WornSlot.OffHand) ? TwoHandedHeld() : null);
             if (item == null) return;
 
@@ -976,9 +1051,10 @@ namespace Dino_Defenders.UI
             {
                 Shelf.Stock => Cards.Costs(item),
                 Shelf.Sold => Cards.BuyBack(item),
+                Shelf.Vendor => "Free to take",
                 _ => null,
             };
-            Ui.DrawTooltip(Hero, item, _lookingFrom, price, compare: spot.Shelf != Shelf.Worn, loose: true);
+            Ui.DrawTooltip(Hero, item, from, price, compare: spot.Shelf != Shelf.Worn, loose: true);
         }
     }
 }

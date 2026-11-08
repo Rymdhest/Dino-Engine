@@ -9,11 +9,17 @@ namespace Dino_Defenders.Books
         Area,
     }
 
+    /// <summary>What a page deals, if it deals anything: all of your Attack Damage or all of your Spell Damage, whatever types those are. It's found that way and never changes, and it's also what decides how long it takes.</summary>
+    public enum Hand : byte
+    {
+        Attack,
+        Spell,
+    }
+
     /// <summary>One thing that happens at an impact, as sentences. Which of these mean anything goes by the deed: see <see cref="Sentences.BlanksOf"/>.</summary>
     public sealed class Outcome
     {
         public string Deed { get; set; } = Sentences.PlainDeed;
-        public string Element { get; set; } = Sentences.PlainElement;
         public string Measure { get; set; } = Sentences.PlainMeasure;
         public string Ailment { get; set; } = Sentences.PlainAilment;
         public string Gift { get; set; } = Sentences.PlainGift;
@@ -21,24 +27,23 @@ namespace Dino_Defenders.Books
         public string Pool { get; set; } = Sentences.PlainPool;
         public string Whom { get; set; } = Sentences.PlainWhom;
 
+        /// <summary>What kind of damage it dealt, which only a save from before pages were found as they are has. See <see cref="Progression.SaveGame"/>.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Element { get; set; }
+
         public Outcome Copy() => (Outcome)MemberwiseClone();
     }
 
     /// <summary>
-    /// A page as it's written, which is sentence ids. It's what's saved and what's sent, and what it comes to is <see cref="Scribe"/>'s business, so a change to a sentence reaches every book there is. Its stickers are items
-    /// of their own, held by the item the page belongs to, and are only here once <see cref="Scribe.Bind"/> has gathered them, or on what's already written.
+    /// A page as it was found, which is what kind it is, what it deals and sentence ids. Nothing about it can be changed: it's what's saved and what's sent, and what it comes to is <see cref="Scribe"/>'s business, so a change
+    /// to a sentence reaches every book there is. Where it starts and where it goes aren't written, as every page starts from you or from where the last struck, and goes towards the cursor or on the way the last was going:
+    /// only a sticker changes that. Its stickers are items of their own, held by the item the page belongs to, and are only here once <see cref="Scribe.Bind"/> has gathered them, or on what's already written.
     /// </summary>
     public sealed class Page
     {
         public PageKind Kind { get; set; }
 
-        /// <summary>Where it begins. A page that follows another begins where that one struck, whatever this says.</summary>
-        public string From { get; set; } = Sentences.PlainFrom;
-        public string? FromWithin { get; set; }
-
-        /// <summary>Where a projectile goes.</summary>
-        public string Towards { get; set; } = Sentences.PlainTowards;
-        public string? TowardsWithin { get; set; }
+        public Hand Hand { get; set; }
 
         /// <summary>What an area covers, and for how long.</summary>
         public string Shape { get; set; } = Sentences.PlainShape;

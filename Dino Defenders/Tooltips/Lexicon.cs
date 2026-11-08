@@ -162,8 +162,8 @@ namespace Dino_Defenders.Tooltips
         private static void KindsOfBook()
         {
             Basic("Book", "What you fight with: anything on your Bar, or anything that Triggers. It holds Pages. Right click one to read it.", "Books");
-            Basic("Page", "Goes in a Book, and holds Stickers. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
-            Basic("Sticker", "Goes on a Page. Always does one thing for it and one thing against it.", "Stickers");
+            Basic("Page", "Goes in a Book and holds Stickers. Found as an Attack or a Spell, and never changes. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
+            Basic("Sticker", "Goes on a Page. Always does one thing for it and one thing against it. A Unique one does something nothing else can.", "Stickers");
             Basic("Trigger Book", "Can't be used by hand. Goes off by itself on your Bar, paying its Cost, each time what it waits for has happened.", "Trigger Books");
             Basic("Toggle Book", $"Press it on your Bar to turn it on or off. While on, each Pulse does {Share(AuraStrength)} of what it would by hand, and its Cost comes off your Mana Regeneration.", "Toggle Books");
             On(Stat.Potency, Word("Potency", $"How strong everything a Page does is, up to {Share(MostPotency)}. Each Page starts from where the last left off. Counts for healing too."));
@@ -176,8 +176,8 @@ namespace Dino_Defenders.Tooltips
             Basic("Circle", "Everything within its Radius.");
             Basic("Line", "A narrow strip, starting from where it starts.");
             Basic("Rectangle", "A wide box. Away from you, it's centred on where it starts.");
-            On(Tags.Attack, Word("Attack", "Any Book, unless you hold a Wand or a Staff. Speed comes from Attack Speed. Can be Evaded and Blocked.", "Attacks"));
-            On(Tags.Spell, Word("Spell", "Any Book while you hold a Wand or a Staff. Speed comes from Cast Speed. Can be Blocked, but not Evaded.", "Spells"));
+            On(Tags.Attack, Word("Attack", "A Page dealing all your Weapon's Damage, and any more for Attacks. Opening a Book, it takes your Weapon's time, and later ones none. Can be Evaded and Blocked.", "Attacks", "Attack Page", "Attack Pages"));
+            On(Tags.Spell, Word("Spell", "A Page dealing all your Damage for Spells, mostly from Wands and Staves. Each adds its own cast time, cut by Cast Speed. Can be Blocked, but not Evaded.", "Spells", "Spell Page", "Spell Pages"));
             On(Tags.Hit, Word("Hit", "One Page striking one target. Striking several targets is several Hits.", "Hits"));
             On(Tags.DamageOverTime, Word("Damage over Time", "Dealt each second instead of on a Hit. Only Resistance and Damage Taken reduce it."));
             Word("Indirect Damage", "Damage that isn't a Hit. Armour and Resistance reduce it, but it can't be Blocked, Evaded or Dodged. It can't be a Critical Hit, Leech or cause Ailments.");
@@ -186,7 +186,7 @@ namespace Dino_Defenders.Tooltips
             On(Tags.Movement, Word("Movement", "Takes you somewhere, up to its Range."));
             On(Tags.Minion, Word("Minion", "Fights for you. Raising more of a kind replaces them.", "Minions"));
             Basic("Use Time", $"How long one use takes. The shortest possible is {Seconds(ShortestUse)}.");
-            Basic("Impact", "When a use lands. A Dodge or a Stun before then cancels it.");
+            Basic("Impact", "When a use lands, or a Projectile reaches someone. A miss or a wall is no Impact. A Dodge or a Stun before a use lands cancels it.");
             Basic("Cost", $"Paid on each use: what every Page Costs, together. Grows by {Share(CostPerLevel)} per Level.", "Book Cost", "Book Costs", "Costs");
             Stats[Stat.BookCost] = ByForm["Book Cost"];
             On(Stat.CooldownRecovery, Word("Cooldown Recovery", "Makes Cooldowns pass faster."));
@@ -196,7 +196,7 @@ namespace Dino_Defenders.Tooltips
 
         private static void KindsOfDamage()
         {
-            On(Stat.Damage, Basic("Damage", "What your Weapon deals. Numbers on a Page are before the target's defences."));
+            On(Stat.Damage, Basic("Damage", "What a Page deals, from your Weapon for an Attack and from your gear for a Spell. Numbers on a Page are before the target's defences."));
             On(Tags.Elemental, Word("Elemental", "Fire, Cold and Lightning."));
             On(Tags.Physical, Word("Physical", "Reduced by Armour, not Resistance. Can Bleed, Stun and Envenom."));
             On(Tags.Fire, Word("Fire", "Can Burn."));
@@ -287,7 +287,7 @@ namespace Dino_Defenders.Tooltips
             On(Stat.Accuracy, Basic("Accuracy", "Makes your Attacks harder to Evade."));
             On(Stat.Penetration, Word("Penetrates", "Ignores this much of the target's Resistance on Hits, but can't take it below zero.", "Resistance Penetration", "Penetration"));
             On(Stat.ArmourIgnore, Word("Enemy Armour Ignored", "Share of the target's Armour your Hits ignore."));
-            Basic("Weapon Damage", "The Damage of your Weapon. Attacks deal a share of it.");
+            Basic("Weapon Damage", "The Damage of your Weapon, of its own type. It's part of your Attack Damage.");
             Basic("Attacks per Second", "Base speed of a Weapon, before Attack Speed.");
         }
 

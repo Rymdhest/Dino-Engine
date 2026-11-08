@@ -50,7 +50,7 @@ namespace Dino_NetLab
         /// <summary>Something to hit that won't hit back.</summary>
         public Actor Dummy(Vector2 offset, float health = 1000000f, params Mod[] mods)
         {
-            var all = new List<Mod> { Flat(Stat.Health, health), Flat(Stat.MoveSpeed, 1f), Flat(Stat.Mana, 100f), Flat(Stat.Accuracy, 1000000f) };
+            var all = new List<Mod> { Flat(Stat.Health, health), Flat(Stat.MoveSpeed, 1f), Flat(Stat.Mana, 100f), Flat(Stat.Accuracy, 1000000f), Added(DamageType.Physical, 10f, Tags.Spell) };
             all.AddRange(mods);
             Loadout loadout = new Loadout(1, new WeaponProfile(10f, 10f, 0.6f, 0f, Tags.Sword), all, new[] { Shelf.Strike, Shelf.Firebolt });
             return Place(loadout, offset);
@@ -91,10 +91,12 @@ namespace Dino_NetLab
         private static readonly Vector2 East = new Vector2(1f, 0f);
         private static readonly Vector2 West = new Vector2(-1f, 0f);
 
+        // Spell Damage only comes from gear, so a charm gives some, or what's written as a Spell would do nothing.
         private static HeroState Hero(params string[] talents)
         {
             HeroState hero = HeroState.CreateNew();
             hero.Level = 60;
+            hero.Equipped[WornSlot.Neck] = new Item { Name = "Lab Charm", Slot = ItemSlot.Neck, Level = 60, Rarity = Rarity.Magic, Lines = { new ItemLine("spell-physical", 40f) } };
             GameLab.Learn(hero, talents);
             return hero;
         }
@@ -108,11 +110,11 @@ namespace Dino_NetLab
             return hero;
         }
 
-        // Something in the hands that makes everything a Spell.
+        // A wand in the hands, with the Spell Damage a wand has.
         private static HeroState Casting(params string[] talents)
         {
             HeroState hero = Hero(talents);
-            hero.Equipped[WornSlot.MainHand] = new Item { Name = "Lab Wand", Slot = ItemSlot.MainHand, Level = 60, Kind = WeaponKind.Wand, WeaponDamage = 40f };
+            hero.Equipped[WornSlot.MainHand] = new Item { Name = "Lab Wand", Slot = ItemSlot.MainHand, Level = 60, Kind = WeaponKind.Wand, WeaponDamage = 40f, Rarity = Rarity.Magic, Lines = { new ItemLine("spell-fire", 60f) } };
             return hero;
         }
 
@@ -532,7 +534,7 @@ namespace Dino_NetLab
             using (Arena plain = Enter(worlds, request))
             using (Arena arena = Enter(worlds, request, "key.wild-margins"))
             {
-                report.Check("Wild Margins: what's left to chance is worth more", arena.Skill(Shelf.RainOfArrows).First.Potency > plain.Skill(Shelf.RainOfArrows).First.Potency * 1.3f);
+                report.Check("Wild Margins: what's left to chance is worth more", arena.Skill(Shelf.BoneSpurs).First.Potency > plain.Skill(Shelf.BoneSpurs).First.Potency * 1.3f && arena.Skill(Shelf.Volley).First.Potency == plain.Skill(Shelf.Volley).First.Potency);
                 report.Check("And what isn't, isn't", arena.Page(Shelf.Strike).Potency == plain.Page(Shelf.Strike).Potency);
             }
 
@@ -986,6 +988,7 @@ namespace Dino_NetLab
         {
             var all = new List<Mod> { Flat(Stat.Health, 1000f), Flat(Stat.Mana, 1000f) };
             all.AddRange(mods);
+            all.Add(Added(DamageType.Physical, 3f, Tags.Spell));
             return arena.Place(new Loadout(10, new WeaponProfile(2f, 4f, WeaponProfile.BareTime, 5f, Tags.Wand), all, new[] { skill }), West * 2f, Team.Heroes);
         }
 

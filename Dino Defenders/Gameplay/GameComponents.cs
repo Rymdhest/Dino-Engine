@@ -135,6 +135,7 @@ namespace Dino_Defenders.Gameplay
         Stash,          // Where what's put away is got at.
         MapTable,       // Where the next land is chosen, in the Haven.
         Portal,         // The way open to a land, in the Haven's great waygate.
+        BetaVendor,     // Gives anything away, for testing the game, in the Haven.
     }
 
     /// <summary>The way out of the Haven, open to a land: what's seen in the great waygate's arch. Its colour is the land's first biome, so that what's ahead shows in it.</summary>

@@ -486,6 +486,10 @@ namespace Dino_Defenders.UI
                     Hero.Visible = true;
                     Hero.OpenStash();
                     break;
+                case InteractKind.BetaVendor:
+                    Hero.Visible = true;
+                    Hero.OpenVendor();
+                    break;
             }
         }
     }

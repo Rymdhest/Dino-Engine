@@ -13,8 +13,8 @@ using static Dino_Defenders.Stats.M;
 namespace Dino_NetLab
 {
     /// <summary>
-    /// What a book says, against what a running server does with it. A sentence that reads well and does something else is the worst thing this system could have, so everything here is a page written the way a
-    /// player would write it, let off for real, and looked for in the world.
+    /// What a book says, against what a running server does with it. A sentence that reads well and does something else is the worst thing this system could have, so everything here is a page as it could be found,
+    /// with what could be stuck on it, let off for real, and looked for in the world.
     /// </summary>
     internal static class BookTests
     {
@@ -22,7 +22,7 @@ namespace Dino_NetLab
         private static readonly Vector2 West = new Vector2(-1f, 0f);
         private static readonly Vector2 North = new Vector2(0f, 1f);
 
-        private static Outcome Deal(string element = Sentences.PlainElement) => new Outcome { Element = element };
+        private static Outcome Deal() => new Outcome();
 
         private static Page Flight(params string[] stickers)
         {
@@ -45,17 +45,9 @@ namespace Dino_NetLab
             return page;
         }
 
-        private static Page Going(this Page page, string towards, string? within = null)
+        private static Page Cast(this Page page)
         {
-            page.Towards = towards;
-            page.TowardsWithin = within;
-            return page;
-        }
-
-        private static Page Starting(this Page page, string from, string? within = null)
-        {
-            page.From = from;
-            page.FromWithin = within;
+            page.Hand = Hand.Spell;
             return page;
         }
 
@@ -74,11 +66,12 @@ namespace Dino_NetLab
 
         private static void Cast(Arena arena, BookProfile book, Vector2 facing, float reach) => arena.Combat.Release(arena.Hero, book, arena.At, facing, reach);
 
+        // Fists for Attacks, and a charm with Spell Damage on it, so that both kinds of page do something.
         private static HeroState Hero()
         {
             HeroState hero = HeroState.CreateNew();
             hero.Level = 30;
-            hero.Equipped[WornSlot.Neck] = new Item { Name = "Lab Charm", Slot = ItemSlot.Neck, Level = 30, Lines = { new ItemLine("health", 1000f), new ItemLine("mana", 400f) } };
+            hero.Equipped[WornSlot.Neck] = new Item { Name = "Lab Charm", Slot = ItemSlot.Neck, Level = 30, Lines = { new ItemLine("health", 1000f), new ItemLine("mana", 400f), new ItemLine("spell-fire", 20f) } };
             return hero;
         }
 
@@ -103,11 +96,14 @@ namespace Dino_NetLab
             report.Section("Where a projectile goes");
             Flights(report, worlds, request);
 
-            report.Section("Turning the page");
+            report.Section("Turning the page, which only reaching someone does");
             Turning(report, worlds, request);
 
             report.Section("Areas");
             Areas(report, worlds, request);
+
+            report.Section("Attack and Spell");
+            Hands(report, worlds, request);
 
             report.Section("Outcomes");
             Outcomes(report, worlds, request);
@@ -121,7 +117,7 @@ namespace Dino_NetLab
             report.Section("Everything on the shelf works");
             Everything(report, worlds, request);
 
-            report.Section("Writing, on both ends");
+            report.Section("Carrying, on both ends");
             Writing(report, worlds, request);
             Modes(report, worlds, request);
 
@@ -132,11 +128,19 @@ namespace Dino_NetLab
         {
             using (var arena = new Arena(worlds, request, Hero()))
             {
+                Actor near = arena.Dummy(East * 2f);
+                Actor far = arena.Dummy(East * 14f);
+                Cast(arena, Read(arena, Area("circle", "tight")), East, 14f);
+                report.Check("Every first page starts from you, wherever they aim", Arena.Lost(near) > 0f && Arena.Lost(far) == 0f, $"{Arena.Lost(near)} near, {Arena.Lost(far)} far");
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
                 Actor near = arena.Dummy(East * 5f);
                 Actor far = arena.Dummy(East * 14f);
-                BookProfile cursor = Read(arena, Area("circle", "tight").Starting("from-cursor"));
+                BookProfile cursor = Read(arena, Area("circle", "tight", "from-cursor"));
                 Cast(arena, cursor, East, 14f);
-                report.Check("From the cursor: it happens where it was aimed", Arena.Lost(far) > 0f);
+                report.Check("Unless a sticker says from the cursor: then it happens where it was aimed", Arena.Lost(far) > 0f);
                 report.Check("And not where they're standing", Arena.Lost(near) == 0f);
             }
 
@@ -144,7 +148,7 @@ namespace Dino_NetLab
             {
                 Actor near = arena.Dummy(East * 8f);
                 Actor far = arena.Dummy(West * 20f);
-                BookProfile nearest = Read(arena, Area("circle", "tight").Starting("from-nearest"));
+                BookProfile nearest = Read(arena, Area("circle", "tight", "from-nearest"));
                 Cast(arena, nearest, West, 20f);
                 report.Check("From the nearest Enemy: wherever they were aiming", Arena.Lost(near) > 0f && Arena.Lost(far) == 0f, $"{Arena.Lost(near)} near, {Arena.Lost(far)} far");
             }
@@ -153,7 +157,7 @@ namespace Dino_NetLab
             {
                 Actor one = arena.Dummy(East * 12f);
                 Actor other = arena.Dummy(West * 12f);
-                BookProfile random = Read(arena, Area("circle", "tight").Starting("from-random"));
+                BookProfile random = Read(arena, Area("circle", "tight", "from-random"));
                 for (int i = 0; i < 40 && (Arena.Lost(one) == 0f || Arena.Lost(other) == 0f); i++) Cast(arena, random, North, 2f);
                 report.Check("From a random Enemy: any of them, in time", Arena.Lost(one) > 0f && Arena.Lost(other) > 0f);
             }
@@ -162,7 +166,7 @@ namespace Dino_NetLab
             {
                 float beyond = Rulebook.SeekReach + 6f;
                 Actor aimed = arena.Dummy(East * beyond);
-                BookProfile nearest = Read(arena, Area("circle", "tight").Starting("from-nearest"));
+                BookProfile nearest = Read(arena, Area("circle", "tight", "from-nearest"));
                 Cast(arena, nearest, East, beyond);
                 report.Check("With nobody in reach it falls back on where they aimed, rather than doing nothing", Arena.Lost(aimed) > 0f);
             }
@@ -171,25 +175,11 @@ namespace Dino_NetLab
             {
                 float beyond = Rulebook.SeekReach + 6f;
                 Actor aimed = arena.Dummy(East * beyond);
-                BookProfile nearest = Read(arena, Flight("far").Going("towards-nearest").With(Deal()));
+                BookProfile nearest = Read(arena, Flight("far", "towards-nearest").With(Deal()));
                 report.Check("A flight long enough to tell", nearest.First.Range > beyond, $"{nearest.First.Range} m");
                 Cast(arena, nearest, East, beyond);
                 arena.Run(1.6);
                 report.Check("And a flight towards nobody goes where they aimed", Arena.Lost(aimed) > 0f);
-            }
-
-            using (var arena = new Arena(worlds, request, Hero()))
-            {
-                Actor aimed = arena.Dummy(East * 12f);
-                var hits = 0;
-                BookProfile scattered = Read(arena, Area("circle", "tight").Starting("from-cursor", "within-far"));
-                for (int i = 0; i < 30; i++)
-                {
-                    float before = Arena.Lost(aimed);
-                    Cast(arena, scattered, East, 12f);
-                    if (Arena.Lost(aimed) > before) hits++;
-                }
-                report.Check("Somewhere within a radius: some land there and some don't", hits is > 0 and < 30, $"{hits} of 30");
             }
         }
 
@@ -207,20 +197,9 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor beyond = arena.Dummy(East * 20f);
-                Actor burst = arena.Dummy(East * 7f + North * 3f);
-                BookProfile stopping = Read(arena, Flight("stops").With(new Outcome { Deed = "pass" }), Area("circle", "tight").With(Deal()));
-                Cast(arena, stopping, East, 7f);
-                arena.Run(1.2);
-                report.Check("Stopping at its target: it goes no further", Arena.Lost(beyond) == 0f);
-                report.Check("And has its impact there, with nobody to take it", Arena.Lost(burst) > 0f);
-            }
-
-            using (var arena = new Arena(worlds, request, Hero()))
-            {
                 Actor target = arena.Dummy(West * 10f);
                 Actor further = arena.Dummy(East * 16f);
-                BookProfile seeking = Read(arena, Flight().Going("towards-nearest").With(Deal()));
+                BookProfile seeking = Read(arena, Flight("towards-nearest").With(Deal()));
                 Cast(arena, seeking, North, 3f);
                 arena.Run(1f);
                 report.Check("Towards the nearest Enemy: whichever way they were aiming", Arena.Lost(target) > 0f && Arena.Lost(further) == 0f, $"{Arena.Lost(target)}, {Arena.Lost(further)}");
@@ -229,8 +208,8 @@ namespace Dino_NetLab
             using (var arena = new Arena(worlds, request, Hero()))
             {
                 int flying = 0;
-                Actor anyone = arena.Dummy(East * 15f);
-                BookProfile wild = Read(arena, Flight("three-at-once").Going("anywhere").With(Deal()));
+                arena.Dummy(East * 15f);
+                BookProfile wild = Read(arena, Flight("three-at-once", "anywhere").With(Deal()));
                 var ways = new HashSet<int>();
                 Cast(arena, wild, East, 10f);
                 arena.Run(0.05);
@@ -250,19 +229,19 @@ namespace Dino_NetLab
             using (var arena = new Arena(worlds, request, Hero()))
             {
                 Actor under = arena.Dummy(East * 10f);
-                BookProfile falling = Read(arena, Flight().Starting("from-cursor").Going("downwards").With(Deal()));
+                BookProfile falling = Read(arena, Flight("falls").With(Deal()));
                 Cast(arena, falling, East, 10f);
-                report.Check("Straight down: nothing yet", Arena.Lost(under) == 0f);
+                report.Check("Falling out of the sky: nothing yet", Arena.Lost(under) == 0f);
                 arena.Run(falling.Delay * 0.5);
                 report.Check("Nor half way", Arena.Lost(under) == 0f);
                 arena.Run(falling.Delay * 0.5 + 0.1);
-                report.Check("And then it lands on whatever's under it", Arena.Lost(under) > 0f);
+                report.Check("And then it lands on whatever's under where it was aimed", Arena.Lost(under) > 0f);
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
                 Actor wall = arena.Dummy(East * 8f);
-                BookProfile falling = Read(arena, Flight().Starting("from-cursor").Going("downwards").With(Deal()));
+                BookProfile falling = Read(arena, Flight("falls").With(Deal()));
                 Cast(arena, falling, East, 20f);
                 arena.Run(falling.Delay + 0.2);
                 report.Check("And nothing it passes over on the way", Arena.Lost(wall) == 0f);
@@ -292,7 +271,7 @@ namespace Dino_NetLab
             {
                 BookProfile quick = Read(arena, Flight("swift").With(Deal()));
                 BookProfile slow = Read(arena, Flight("slow").With(Deal()));
-                report.Check("How fast it goes is what the sentence says", quick.First.Speed > Rulebook.ProjectileSpeed && slow.First.Speed < Rulebook.ProjectileSpeed);
+                report.Check("How fast it goes is what the sticker says", quick.First.Speed > Rulebook.ProjectileSpeed && slow.First.Speed < Rulebook.ProjectileSpeed);
                 Actor target = arena.Dummy(East * 24f);
                 Cast(arena, quick, East, 24f);
                 arena.Run(24f / quick.First.Speed + 0.1);
@@ -311,40 +290,66 @@ namespace Dino_NetLab
                 Actor target = arena.Dummy(East * 12f);
                 Actor beside = arena.Dummy(East * 12f + North * 4f);
                 Actor away = arena.Dummy(West * 12f);
-                BookProfile fireball = Read(arena, Flight().With(new Outcome { Deed = "pass" }), Area("circle").With(Deal("fire")));
+                BookProfile fireball = Read(arena, Flight().With(new Outcome { Deed = "pass" }), Area("circle").With(Deal()));
                 Cast(arena, fireball, East, 12f);
                 arena.Run(0.7);
-                report.Check("A page follows from where the last struck", Arena.Lost(target) > 0f && Arena.Lost(beside) > 0f);
+                report.Check("A page follows from where the last struck someone", Arena.Lost(target) > 0f && Arena.Lost(beside) > 0f);
                 report.Check("And nowhere else", Arena.Lost(away) == 0f);
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor behind = arena.Dummy(West * 6f);
-                BookProfile returning = Read(arena, Flight("stops").With(Deal()), Flight().Going("towards-you").With(Deal()));
-                Cast(arena, returning, East, 10f);
-                arena.Run(0.2);
-                report.Check("Going out: not on its way back yet", Arena.Lost(behind) == 0f);
-                arena.Run(1f);
-                report.Check("And then coming back, past them and on", Arena.Lost(behind) > 0f, $"{Arena.Lost(behind)}");
+                BookProfile missing = Read(arena, Flight("short").With(Deal()), Area("circle").With(Deal()));
+                Actor end = arena.Dummy(East * missing.First.Range + North * 3f);
+                Cast(arena, missing, East, 30f);
+                arena.Run(1.2);
+                report.Check("Reaching the end of its Range is no impact, so the book stops there", Arena.Lost(end) == 0f, $"{missing.First.Range} m");
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                Actor beside = arena.Dummy(East * 10f + North * 3f);
+                BookProfile landing = Read(arena, Flight("falls").With(Deal()), Area("circle").With(Deal()));
+                Cast(arena, landing, East, 10f);
+                arena.Run(landing.Delay + 0.3);
+                report.Check("Nor is landing on nobody", Arena.Lost(beside) == 0f);
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                Actor beside = arena.Dummy(East * 10f + North * 3f);
+                BookProfile meteor = Read(arena, Flight("falls", "grounded").With(Deal()), Area("circle").With(Deal()));
+                Cast(arena, meteor, East, 10f);
+                arena.Run(meteor.Delay + 0.3);
+                report.Check("Unless a sticker says the ground counts", Arena.Lost(beside) > 0f);
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                var line = new[] { arena.Dummy(East * 6f), arena.Dummy(East * 12f), arena.Dummy(East * 18f) };
+                Cast(arena, Read(arena, Flight().With(Deal()), Flight().With(Deal())), East, 20f);
+                arena.Run(1.4);
+                report.Check("Two projectile pages are a pierce: on through the first, the way it was going, and no further", Arena.Lost(line[0]) > 0f && Arena.Lost(line[1]) > 0f && Arena.Lost(line[2]) == 0f, string.Join(", ", line.Select(Arena.Lost)));
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
                 Actor out_ = arena.Dummy(East * 10f);
                 Actor behind = arena.Dummy(West * 6f);
-                BookProfile returning = Read(arena, Flight().Going("towards-nearest").With(Deal()), Flight().Going("towards-you").With(Deal()));
+                BookProfile returning = Read(arena, Flight().With(Deal()), Flight("towards-you").With(Deal()));
                 Cast(arena, returning, East, 10f);
+                arena.Run(0.2);
+                report.Check("Going out: not on its way back yet", Arena.Lost(behind) == 0f);
                 arena.Run(1.2);
                 float once = Arena.Lost(out_);
-                report.Check("To an Enemy and back: what it came off isn't struck again by leaving it", once > 0f && Arena.Lost(behind) > 0f, $"{once}, {Arena.Lost(behind)}");
+                report.Check("To an Enemy and back past them, and what it came off isn't struck again by leaving it", once > 0f && Arena.Lost(behind) > 0f, $"{once}, {Arena.Lost(behind)}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
                 var line = new[] { arena.Dummy(East * 6f), arena.Dummy(East * 12f), arena.Dummy(East * 18f), arena.Dummy(West * 25f) };
-                BookProfile chain = Read(arena, Flight().Going("towards-nearest").With(Deal("lightning")), Flight().Going("towards-nearest").With(Deal("lightning")), Flight().Going("towards-nearest").With(Deal("lightning")));
-                Cast(arena, chain, East, 6f);
+                Page Seeking() => Flight("towards-nearest").With(Deal());
+                Cast(arena, Read(arena, Seeking(), Seeking(), Seeking()), East, 6f);
                 arena.Run(2f);
                 int struck = line.Take(3).Count(a => Arena.Lost(a) > 0f);
                 report.Check("Going to the nearest each time: nobody twice, so it goes on to someone new", struck == 3, $"{struck} of 3");
@@ -355,7 +360,7 @@ namespace Dino_NetLab
                 Actor first = arena.Dummy(East * 6f);
                 Actor corner = arena.Dummy(East * 6f - North * 8f);
                 Actor last = arena.Dummy(West * 3f - North * 8f);
-                Page Seeking() => Flight().Going("towards-nearest").With(Deal());
+                Page Seeking() => Flight("towards-nearest").With(Deal());
                 Cast(arena, Read(arena, Seeking(), Seeking(), Seeking()), East, 6f);
                 arena.Run(2f);
                 bool open = Enumerable.Range(0, 10).All(metre => !arena.Session.World.Placement.OverlapsSolid(Footprint.Circle(arena.At + new Vector2(6f - metre, -8f), 0.3f)));
@@ -365,18 +370,9 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                BookProfile missing = Read(arena, Flight("short").With(Deal()), Area("circle", "tight").With(Deal()));
-                Actor end = arena.Dummy(East * (missing.First.Range + 1f));
-                Cast(arena, missing, East, 30f);
-                arena.Run(1.2);
-                report.Check("Reaching the end of its Range is an impact, so the page still turns", Arena.Lost(end) > 0f, $"{missing.First.Range} m");
-            }
-
-            using (var arena = new Arena(worlds, request, Hero()))
-            {
                 Actor third = arena.Dummy(East * 20f);
                 Actor target = arena.Dummy(East * 10f);
-                BookProfile onward = Read(arena, Flight().With(new Outcome { Deed = "pass" }), Flight().Going("onward").With(Deal()));
+                BookProfile onward = Read(arena, Flight().With(new Outcome { Deed = "pass" }), Flight().With(Deal()));
                 Cast(arena, onward, East, 10f);
                 arena.Run(1.2);
                 report.Check("The way it was going: on from where it struck", Arena.Lost(third) > 0f && Arena.Lost(target) == 0f, $"{Arena.Lost(third)}, {Arena.Lost(target)}");
@@ -441,7 +437,7 @@ namespace Dino_NetLab
             {
                 Actor before = arena.Dummy(East * 11f);
                 Actor after = arena.Dummy(East * 19f);
-                Cast(arena, Read(arena, Area("rectangle").Starting("from-cursor")), East, 15f);
+                Cast(arena, Read(arena, Area("rectangle", "from-cursor")), East, 15f);
                 report.Check("Away from them, it's centred on where it starts", Arena.Lost(before) > 0f && Arena.Lost(after) > 0f);
             }
 
@@ -471,10 +467,46 @@ namespace Dino_NetLab
             {
                 Actor inside = arena.Dummy(East * 15f);
                 Actor outside = arena.Dummy(East * 15f + North * 8f);
-                BookProfile line = Read(arena, Area("line").Lasting("lingering").With(Deal()));
+                BookProfile line = Read(arena, Area("line", "from-cursor").Lasting("lingering").With(Deal()));
                 Cast(arena, line, East, 15f);
                 arena.Run(1f);
                 report.Check("And in whatever shape it's in", Arena.Lost(inside) > 0f && Arena.Lost(outside) == 0f);
+            }
+        }
+
+        // What an Attack Page and a Spell Page each deal, done for real.
+        private static void Hands(Report report, WorldCache worlds, WorldRequest request)
+        {
+            HeroState unread = HeroState.CreateNew();
+            unread.Level = 30;
+            using (var arena = new Arena(worlds, request, unread))
+            {
+                Actor target = arena.Dummy(East * 3f);
+                Cast(arena, Read(arena, Area("circle")), East, 3f);
+                float swung = Arena.Lost(target);
+                Cast(arena, Read(arena, Area("circle").Cast()), East, 3f);
+                report.Check("With no Spell Damage, an Attack still strikes and a Spell does nothing", swung > 0f && Arena.Lost(target) == swung, $"{swung}, {Arena.Lost(target) - swung}");
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                Actor target = arena.Dummy(East * 3f);
+                Cast(arena, Read(arena, Area("circle").Cast()), East, 3f);
+                report.Check("With some, a Spell deals it", Arena.Lost(target) > 0f);
+            }
+
+            HeroState armed = Hero();
+            armed.Equipped[WornSlot.MainHand] = new Item { Name = "Lab Sword", Slot = ItemSlot.MainHand, Level = 30, Kind = WeaponKind.Sword, WeaponDamage = 300f };
+            using (var arena = new Arena(worlds, request, armed))
+            {
+                Actor struck = arena.Dummy(East * 3f);
+                Actor cast = arena.Dummy(West * 3f);
+                for (int i = 0; i < 10; i++)
+                {
+                    Cast(arena, Read(arena, Area("cone")), East, 3f);
+                    Cast(arena, Read(arena, Area("cone").Cast()), West, 3f);
+                }
+                report.Check("A big sword makes Attacks bigger and Spells no bigger", Arena.Lost(struck) > Arena.Lost(cast) * 3f, $"{Arena.Lost(struck)} against {Arena.Lost(cast)}");
             }
         }
 
@@ -482,17 +514,10 @@ namespace Dino_NetLab
         {
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Actor target = arena.Dummy(East * 4f);
-                Cast(arena, Read(arena, Area().With(new Outcome { Element = "fire", Measure = "of-health" })), East, 4f);
-                report.Check("Deal Damage from anything: a share of Maximum Health", Arena.Lost(target) > arena.Hero.Sheet.MaxHealth * 0.03f);
-            }
-
-            using (var arena = new Arena(worlds, request, Hero()))
-            {
                 arena.Hero.Vitals.Health = 100f;
                 float heal = arena.Hero.Sheet.MaxMana * 0.1f;
                 Cast(arena, Read(arena, Area().With(new Outcome { Deed = "heal", Measure = "of-mana" })), East, 4f);
-                report.Near("Heal yourself for a share of your Maximum Mana", arena.Hero.Vitals.Health - 100f, heal * arena.Hero.Sheet.RecoveryScale, 1f);
+                report.Near("A written book heals you for a share of your Maximum Mana", arena.Hero.Vitals.Health - 100f, heal * arena.Hero.Sheet.RecoveryScale, 1f);
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
@@ -508,7 +533,7 @@ namespace Dino_NetLab
                 friend.Vitals.Health = 50f;
                 arena.Hero.Vitals.Health = 50f;
                 Vector2 toward = friend.Position - arena.At;
-                BookProfile mending = Read(arena, Area("circle").Starting("from-cursor").With(new Outcome { Deed = "heal", Whom = "friends", Measure = "of-health" }));
+                BookProfile mending = Read(arena, Area("circle", "from-cursor").With(new Outcome { Deed = "heal", Whom = "friends", Measure = "of-health" }));
                 arena.Combat.Release(arena.Hero, mending, arena.At, toward.Normalized(), toward.Length);
                 report.Check("Friends there: a friend in it is healed", friend.Vitals.Health > 50f, $"{friend.Vitals.Health}");
             }
@@ -517,7 +542,6 @@ namespace Dino_NetLab
             {
                 Actor foe = arena.Dummy(East * 8f);
                 BookProfile friendly = Read(arena, Flight().With(new Outcome { Deed = "heal", Whom = "friends", Measure = "of-health" }));
-                Actor beyond = arena.Dummy(East * 8.3f);
                 report.Check("What only helps friends stops at friends", friendly.First.Page.SeeksFriends);
                 Cast(arena, friendly, East, 8f);
                 arena.Run(0.4);
@@ -546,25 +570,41 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                Cast(arena, Read(arena, Area().Starting("from-cursor").With(new Outcome { Deed = "raise", Kin = "bones" })), East, 10f);
+                Cast(arena, Read(arena, Area("circle", "from-cursor").With(new Outcome { Deed = "raise", Kin = "bones" })), East, 10f);
                 arena.Run(0.2);
                 report.Check("Raise a Minion, where it happens", arena.Session.Minions.Count == 2 && (arena.Session.Minions[0].Position - (arena.At + East * 10f)).Length < 6f, $"{arena.Session.Minions.Count}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
+                Cast(arena, Read(arena, Flight().With(new Outcome { Deed = "raise", Kin = "bones" })), East, 10f);
+                arena.Run(1.5);
+                report.Check("A Minion raised by a projectile that reached nobody isn't", arena.Session.Minions.Count == 0, $"{arena.Session.Minions.Count}");
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
                 Vector2 before = arena.At;
-                Cast(arena, Read(arena, Area().Starting("from-cursor").With(new Outcome { Deed = "move" })), East, 15f);
-                arena.Run(0.3);
+                arena.Dummy(East * 14f);
+                Cast(arena, Read(arena, Flight().With(new Outcome { Deed = "move" })), East, 14f);
+                arena.Run(0.8);
                 float moved = (arena.Truth.Sim.Position - before).Length;
-                report.Check("Move you there", moved is > 10f and < 20f, $"{moved} m");
+                report.Check("Move you there: to whoever it reached", moved is > 10f and < 18f, $"{moved} m");
                 report.Check("And the client believes it at once", (arena.Player.Client.Predictor.Current.Position - arena.Truth.Sim.Position).Length < 1f);
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
+                Vector2 before = arena.At;
+                Cast(arena, Read(arena, Flight().With(new Outcome { Deed = "move" })), East, 14f);
+                arena.Run(1.5);
+                report.Check("And nowhere, if it reached nobody", (arena.Truth.Sim.Position - before).Length < 1f, $"{(arena.Truth.Sim.Position - before).Length} m");
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
                 Vector2 at = arena.At + East * 8f;
-                Cast(arena, Read(arena, Area().Starting("from-cursor").With(new Outcome { Deed = "water" })), East, 8f);
+                Cast(arena, Read(arena, Area("circle", "from-cursor").With(new Outcome { Deed = "water" })), East, 8f);
                 report.Check("Make Water there", arena.Combat.Land.InWater(at));
             }
 
@@ -579,14 +619,6 @@ namespace Dino_NetLab
                 Cast(arena, Read(arena, Area().With(new Outcome { Deed = "pull" })), East, 4f);
                 report.Check("Drag them in: towards it", Vector2.Dot(pushed.Push, East) < 0f, $"{pushed.Push}");
             }
-
-            using (var arena = new Arena(worlds, request, Hero()))
-            {
-                Actor target = arena.Dummy(East * 4f);
-                arena.Hero.Vitals.Health = 100f;
-                Cast(arena, Read(arena, Area().With(Deal("cold"), new Outcome { Deed = "heal", Measure = "of-health" }, new Outcome { Deed = "afflict", Ailment = "burn" })), East, 4f);
-                report.Check("Several Outcomes all happen", Arena.Lost(target) > 0f && arena.Hero.Vitals.Health > 100f && target.Afflictions.BurnLeft > 0f);
-            }
         }
 
         private static void Limits(Report report, WorldCache worlds, WorldRequest request)
@@ -597,7 +629,7 @@ namespace Dino_NetLab
 
                 // As many as can be fitted on, at every page of the longest book there is. It would be five to the sixth without a limit.
                 var pages = new List<Page>();
-                for (int i = 0; i < Rulebook.MostPages; i++) pages.Add(Flight("five-at-once", "pierce-three").Going("anywhere").With(Deal()));
+                for (int i = 0; i < Rulebook.MostPages; i++) pages.Add(Flight("five-at-once", "pierce-three", "anywhere").With(Deal()));
                 BookProfile branching = Read(arena, pages.ToArray());
                 int most = 0;
                 Cast(arena, branching, East, 8f);
@@ -619,15 +651,15 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                BookProfile bones = Read(arena, Flight("five-at-once").With(new Outcome { Deed = "raise", Kin = "bones" }));
-                for (int i = 0; i < 4; i++) Cast(arena, bones, East, 4f);
+                BookProfile bones = Read(arena, Area("circle").With(new Outcome { Deed = "raise", Kin = "bones" }));
+                for (int i = 0; i < Rulebook.MostMinions; i++) Cast(arena, bones, East, 4f);
                 arena.Run(1.5);
                 report.Check($"Nor more than {Rulebook.MostMinions} minions of a kind", arena.Session.Minions.Count(m => !m.Dead) <= Rulebook.MostMinions, $"{arena.Session.Minions.Count(m => !m.Dead)}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                BookPlan bones = Scribe.Read(new Book { Pages = { Flight().With(new Outcome { Deed = "raise", Kin = "bones" }) } }, "Crowd");
+                BookPlan bones = Scribe.Read(new Book { Pages = { Flight().With(new Outcome { Deed = "raise", Kin = "bones" }).Cast() } }, "Crowd");
                 var crowded = new Loadout(30, arena.Hero.Loadout.Weapon, new[] { Flat(Stat.MinionCount, 40f) }, Array.Empty<BookPlan>()).SheetFor(Condition.None).Preview(bones);
                 report.Check("A build can ask for more than that", crowded.First.MinionCount > Rulebook.MostMinions, $"{crowded.First.MinionCount}");
                 arena.Session.Summon(arena.Hero, crowded.First, arena.At);
@@ -641,13 +673,11 @@ namespace Dino_NetLab
             archer.Equipped[WornSlot.MainHand] = new Item { Name = "Lab Bow", Slot = ItemSlot.MainHand, Level = 30, Kind = WeaponKind.Bow, WeaponDamage = 40f };
             HeroState mage = Hero();
             mage.Equipped[WornSlot.MainHand] = new Item { Name = "Lab Wand", Slot = ItemSlot.MainHand, Level = 30, Kind = WeaponKind.Wand, WeaponDamage = 40f };
-            HeroState staff = Hero();
-            staff.Equipped[WornSlot.MainHand] = new Item { Name = "Lab Staff", Slot = ItemSlot.MainHand, Level = 30, Kind = WeaponKind.Staff, WeaponDamage = 40f };
 
-            string ModelOf(HeroState hero, out bool thrown)
+            string ModelOf(HeroState hero, Page page, out bool thrown)
             {
                 using var arena = new Arena(worlds, request, hero);
-                Cast(arena, Read(arena, Flight().With(Deal("fire"))), East, 10f);
+                Cast(arena, Read(arena, page), East, 10f);
                 arena.Run(0.05);
                 string model = "";
                 bool real = false;
@@ -663,11 +693,24 @@ namespace Dino_NetLab
                 return model;
             }
 
-            report.Check("A bow makes it an arrow", ModelOf(archer, out _) == "arrow");
-            report.Check("A wand makes it a ball of magic, of what it deals", ModelOf(mage, out _) == "bolt:Fire");
-            report.Check("And so does a staff, for now", ModelOf(staff, out _) == "bolt:Fire");
-            report.Check("Anything else is thrown", ModelOf(Hero(), out bool thrown).StartsWith(Thrown.Prefix), ModelOf(Hero(), out _));
+            report.Check("A Spell is a ball of what it deals, whatever's in the hand", ModelOf(Hero(), Flight().With(Deal()).Cast(), out _) == "bolt:Fire" && ModelOf(archer, Flight().With(Deal()).Cast(), out _) == "bolt:Fire");
+            report.Check("A bow's Attack is an arrow", ModelOf(archer, Flight().With(Deal()), out _) == "arrow");
+            report.Check("A wand's is a ball too, of what the wand deals", ModelOf(mage, Flight().With(Deal()), out _) == "bolt:Physical", ModelOf(mage, Flight().With(Deal()), out _));
+            report.Check("Anything else is thrown", ModelOf(Hero(), Flight().With(Deal()), out bool thrown).StartsWith(Thrown.Prefix), ModelOf(Hero(), Flight().With(Deal()), out _));
             report.Check("And it's what they're really holding", thrown);
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                Actor target = arena.Dummy(East * 4f, 1000000f, Flat(Stat.Evasion, 100000f));
+                float hits = 0f;
+                for (int i = 0; i < 40; i++)
+                {
+                    float before = Arena.Lost(target);
+                    Cast(arena, Read(arena, Area("cone").Cast()), East, 4f);
+                    if (Arena.Lost(target) > before) hits++;
+                }
+                report.Check("A Spell can't be Evaded", hits == 40f, $"{hits} of 40");
+            }
 
             using (var arena = new Arena(worlds, request, mage))
             {
@@ -679,20 +722,7 @@ namespace Dino_NetLab
                     Cast(arena, Read(arena, Area("cone")), East, 4f);
                     if (Arena.Lost(target) > before) hits++;
                 }
-                report.Check("A Spell can't be Evaded", hits == 40f, $"{hits} of 40");
-            }
-
-            using (var arena = new Arena(worlds, request, Hero()))
-            {
-                Actor target = arena.Dummy(East * 4f, 1000000f, Flat(Stat.Evasion, 100000f));
-                float hits = 0f;
-                for (int i = 0; i < 40; i++)
-                {
-                    float before = Arena.Lost(target);
-                    Cast(arena, Read(arena, Area("cone")), East, 4f);
-                    if (Arena.Lost(target) > before) hits++;
-                }
-                report.Check("And the same page with a sword can", hits < 40f, $"{hits} of 40");
+                report.Check("And an Attack can, even with a wand", hits < 40f, $"{hits} of 40");
             }
         }
 
@@ -731,9 +761,12 @@ namespace Dino_NetLab
         // Books that nobody presses, as what happens on a real server.
         private static void Modes(Report report, WorldCache worlds, WorldRequest request)
         {
+            // Two that one ring's worth of Mana Regeneration pays for and the rest of it doesn't.
+            Book dearer = Shelf.Inferno.Source!.Copy();
+            dearer.Pages[0].Stickers.Add(new Sticker { Good = PageEffect.Potency, GoodBy = 10f, Bad = PageEffect.Cost, BadBy = 1f });
             HeroState aura = Hero();
-            aura.Bar[1] = ItemGenerator.Copied(Shelf.Inferno.Source!, "Inferno", 4);
-            aura.Bar[2] = ItemGenerator.Copied(Shelf.Inferno.Source!, "Inferno Too", 5);
+            aura.Bar[1] = ItemGenerator.Copied(dearer, "Inferno", 4);
+            aura.Bar[2] = ItemGenerator.Copied(dearer, "Inferno Too", 5);
             aura.Equipped[WornSlot.Finger1] = new Item { Name = "Lab Ring", Slot = ItemSlot.Finger, Level = 30, Lines = { new ItemLine("mana-regen", 10f) } };
             using (var arena = new Arena(worlds, request, aura))
             {
@@ -801,7 +834,7 @@ namespace Dino_NetLab
 
             HeroState poor = HeroState.CreateNew();
             poor.Level = 30;
-            var dear = new Book { Mode = BookMode.Toggle, Pages = { Area("circle").With(Deal("fire"), new Outcome { Deed = "afflict", Ailment = "burn" }) } };
+            var dear = new Book { Mode = BookMode.Toggle, Pages = { Area("circle", "broad").With(Deal()) } };
             poor.Bar[1] = ItemGenerator.Copied(dear, "Too Dear", 4);
             using (var arena = new Arena(worlds, request, poor))
             {
@@ -855,7 +888,7 @@ namespace Dino_NetLab
             })
             {
                 HeroState hero = Hero();
-                var trigger = new Book { Mode = BookMode.Trigger, When = new BookTrigger { When = when, Amount = when == BookWhen.Damaged ? 15f : 3f }, Pages = { Area("circle").With(Deal("cold")) } };
+                var trigger = new Book { Mode = BookMode.Trigger, When = new BookTrigger { When = when, Amount = when == BookWhen.Damaged ? 15f : 3f }, Pages = { Area("circle").With(Deal()) } };
                 hero.Bar[2] = ItemGenerator.Copied(trigger, "Waiter", 4);
                 using var arena = new Arena(worlds, request, hero);
                 arena.Run(0.3);
@@ -864,7 +897,7 @@ namespace Dino_NetLab
             }
 
             HeroState spending = Hero();
-            spending.Bar[1] = ItemGenerator.Copied(new Book { Mode = BookMode.Trigger, When = new BookTrigger { When = BookWhen.Used, Amount = 2f }, Pages = { Area("circle").With(Deal("cold")) } }, "Echo", 4);
+            spending.Bar[1] = ItemGenerator.Copied(new Book { Mode = BookMode.Trigger, When = new BookTrigger { When = BookWhen.Used, Amount = 2f }, Pages = { Area("circle").With(Deal()) } }, "Echo", 4);
             using (var arena = new Arena(worlds, request, spending))
             {
                 arena.Run(0.3);
@@ -877,7 +910,7 @@ namespace Dino_NetLab
             }
         }
 
-        // A hero with something to put in a book, as nobody can write one out of nothing now.
+        // A hero with something to put in a book, as nobody can write one.
         private static HeroState Stocked()
         {
             HeroState hero = Hero();
@@ -901,15 +934,9 @@ namespace Dino_NetLab
 
                 player.Move(book.In(0), book.In(1));
                 player.Move(ItemPlace.Cell(0), book.In(0));
-                report.Check($"{name}: a Page slotted into a Book shows at once", client.Bar[0]!.Written() is { Pages.Count: 2 } && client.Inventory[0] == null);
-                report.Check("  And changes what the Kit does at once, on this end", player.Kit.Slots[0]!.Pages.Length == 2);
-
-                Page fire = client.At(book.In(1))!.Page!.Copy();
-                fire.Shape = "circle";
-                fire.Outcomes = new List<Outcome> { Deal("fire") };
-                player.Write(book.In(1), fire);
                 player.Title(book, "Fireball");
-                report.Check("  What's written shows at once", client.Bar[0]!.Name == "Fireball" && player.Kit.Slots[0]!.Pages[1].Page.Shape == AreaShape.Circle);
+                report.Check($"{name}: a Page slotted into a Book shows at once", client.Bar[0]!.Written() is { Pages.Count: 2 } && client.Inventory[0] == null);
+                report.Check("  And changes what the Kit does at once, on this end", player.Kit.Slots[0]!.Pages.Length == 2 && client.Bar[0]!.Name == "Fireball");
                 arena.Run(3);
                 report.Check("  The server has it", truth.Bar[0]!.Name == "Fireball" && Text(truth.Bar[0]) == Text(client.Bar[0]));
                 report.Check("  And what it comes to is the same on both ends", arena.Truth.Kit.Slots[0]!.Cost == player.Kit.Slots[0]!.Cost && arena.Truth.Kit.Slots[0]!.UseTime == player.Kit.Slots[0]!.UseTime);
@@ -934,9 +961,8 @@ namespace Dino_NetLab
 
                 for (int i = 0; i < 20; i++)
                 {
-                    Page quick = Flight().With(Deal());
-                    quick.Towards = i % 2 == 0 ? "towards-you" : Sentences.PlainTowards;
-                    player.Write(ItemPlace.OnBar(3).In(0), quick);
+                    player.Move(ItemPlace.OnBar(3).In(0), ItemPlace.Cell(3));
+                    player.Move(ItemPlace.Cell(3), ItemPlace.OnBar(3).In(0));
                     player.Title(ItemPlace.OnBar(3), $"Draft {i}");
                 }
                 arena.Run(5);
@@ -946,7 +972,7 @@ namespace Dino_NetLab
                 arena.Player.Script = () => { var press = new HeroIntent { Aim = East * 10f }; press.Use(3); return press; };
                 arena.Run(4);
                 arena.Player.Script = () => new HeroIntent();
-                report.Check("  A written book is predicted like any other", arena.Player.Client.Predictor.Corrections - corrected < 25, $"{arena.Player.Client.Predictor.Corrections - corrected}");
+                report.Check("  A book of found pages is predicted like any other", arena.Player.Client.Predictor.Corrections - corrected < 25, $"{arena.Player.Client.Predictor.Corrections - corrected}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
@@ -956,7 +982,7 @@ namespace Dino_NetLab
             }
 
             HeroState rider = Hero();
-            rider.Bar[0] = ItemGenerator.Copied(new Book { Pages = { Flight("rides").With(new Outcome { Deed = "pass" }), Area("cone").With(Deal()) } }, "Charge", 4);
+            rider.Bar[0] = ItemGenerator.Copied(Shelf.Charge.Source!, "Charge", 4);
             using (var arena = new Arena(worlds, request, rider))
             {
                 arena.Run(0.5);

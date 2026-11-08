@@ -46,8 +46,11 @@ namespace Dino_Defenders.Stats
         /// <summary>What it looks like to anyone watching.</summary>
         public readonly PageSign Sign;
 
+        /// <summary>What it mostly deals, which is what it looks like.</summary>
+        public readonly DamageType Look;
+
+        /// <summary>Seconds it adds to its book's use, before anything on the book's pages makes that more or less: see <see cref="BookProfile.UseTime"/>.</summary>
         public readonly float UseTime;
-        public readonly float ImpactTime;
         public readonly float Cooldown;
         public readonly float Cost;
 
@@ -99,7 +102,7 @@ namespace Dino_Defenders.Stats
         /// <summary>How long what it gives lasts, in the order of <see cref="PagePlan.Gifts"/>.</summary>
         public readonly float[] GiftSeconds;
 
-        /// <summary>What it starts from, by type, before flat damage is added to it.</summary>
+        /// <summary>What it starts from, by type, before flat damage is added to it: a weapon's, for an Attack Page, and nothing for a Spell Page.</summary>
         public DamageTable BaseMin;
         public DamageTable BaseMax;
 
@@ -118,15 +121,16 @@ namespace Dino_Defenders.Stats
             Page = page;
             WeaponProfile weapon = sheet.Loadout.Weapon;
 
-            // A wand or a staff makes it a Spell, and anything else an Attack. What's thrown or shot is no more Melee than a Spell is.
-            bool spell = (weapon.Tags & (Tags.Wand | Tags.Staff)) != 0;
-            Tags tags = page.Tags | weapon.Tags | (spell ? Tags.Spell : Tags.Attack);
+            // The page says Attack or Spell, and only an Attack is done with the weapon in the hand, so only an Attack counts as it. What's thrown or shot is no more Melee than a Spell is.
+            bool spell = page.Hand == Hand.Spell;
+            Tags tags = page.Tags | (spell ? Tags.None : weapon.Tags);
             if (!spell && page.Kind == PageKind.Area && page.From == Start.You && (weapon.Tags & Tags.Bow) == 0) tags |= Tags.Melee;
 
             // What's lobbed comes down out of the sky, and counts as that.
             if (page.Kind == PageKind.Projectile && !page.Rides && sheet.Has(Rule.Lobbed)) tags |= Tags.Falling;
 
-            _flows = BuildFlows(sheet, page, tags, weapon);
+            HandDamage(sheet, page, tags, weapon);
+            _flows = BuildFlows(sheet, page, tags);
 
             int lineage = 0;
             foreach (ref readonly DamageFlow flow in _flows.AsSpan()) lineage |= flow.Lineage;
@@ -144,11 +148,9 @@ namespace Dino_Defenders.Stats
                 flow.More = sum.More * Potency;
             }
 
-            // Using it. It's the weapon that sets the pace, whichever of the two this is.
-            float useTime = page.UseTime * weapon.AttackTime / WeaponProfile.BareTime;
-            useTime /= MathF.Max(sheet.Total(spell ? Stat.CastSpeed : Stat.AttackSpeed, 1f, all, page), 0.05f);
-            UseTime = MathF.Max(useTime, Rulebook.ShortestUse);
-            ImpactTime = UseTime * page.ImpactAt;
+            // Using it. An Attack takes the weapon's own pace, and only once, on the first page: every other Attack Page goes along with it. Each Spell Page takes its own time to cast.
+            float useTime = spell ? page.UseTime : page.Index == 0 ? page.UseTime * weapon.AttackTime / WeaponProfile.BareTime : 0f;
+            UseTime = useTime / MathF.Max(sheet.Total(spell ? Stat.CastSpeed : Stat.AttackSpeed, 1f, all, page), 0.05f);
 
             Cost = MathF.Max(sheet.Total(Stat.BookCost, page.Cost * CostAtLevel(sheet.Loadout.Level), all, page), 0f);
             Cooldown = page.Cooldown / MathF.Max(sheet.Total(Stat.CooldownRecovery, 100f, all, page) / 100f, 0.05f);
@@ -206,25 +208,41 @@ namespace Dino_Defenders.Stats
 
             foreach (AilmentPart part in page.Ailments)
             {
-                (float low, float high) = Reading(sheet, part.Measure, weapon);
+                (float low, float high) = Reading(sheet, part.Measure);
                 Inflicts[(int)part.Ailment] += (low + high) * 0.5f * part.Share * Potency;
             }
 
             Heals = new float[page.Heals.Length];
             for (int i = 0; i < Heals.Length; i++)
             {
-                (float low, float high) = Reading(sheet, page.Heals[i].Measure, weapon);
+                (float low, float high) = Reading(sheet, page.Heals[i].Measure);
                 Heals[i] = (low + high) * 0.5f * page.Heals[i].Share * Potency;
             }
 
             GiftSeconds = new float[page.Gifts.Length];
             for (int i = 0; i < GiftSeconds.Length; i++) GiftSeconds[i] = sheet.Total(Stat.PageDuration, page.Gifts[i].Buff.Duration, all, page);
 
-            Sign = PageSign.Of(page, spell, UseTime);
+            Look = LookOf(page);
+            Sign = PageSign.Of(page, Look, UseTime);
         }
 
-        /// <summary>What a measure comes to on this sheet, as the two ends of a roll: only a weapon has any spread.</summary>
-        private static (float low, float high) Reading(ActorSheet sheet, Measure measure, in WeaponProfile weapon)
+        // What it looks and sounds like: whatever it deals most of, and otherwise what it leaves.
+        private DamageType LookOf(PagePlan page)
+        {
+            float most = 0f;
+            DamageType look = page.Look;
+            foreach (ref readonly DamageFlow flow in _flows.AsSpan())
+            {
+                float each = flow.Min + flow.Max;
+                if (each <= most) continue;
+                most = each;
+                look = flow.Type;
+            }
+            return look;
+        }
+
+        /// <summary>What a measure comes to on this sheet, as the two ends of a roll: only Damage has any spread, which is all of whichever kind the page deals.</summary>
+        private (float low, float high) Reading(ActorSheet sheet, Measure measure)
         {
             float value = measure switch
             {
@@ -238,7 +256,7 @@ namespace Dino_Defenders.Stats
                 Measure.Intellect => sheet.Total(Stat.Intellect),
                 _ => -1f,
             };
-            return value >= 0f ? (value, value) : (weapon.Min, weapon.Max);
+            return value >= 0f ? (value, value) : (BaseMin.Total + Added.Total * (1f - Rulebook.AddedSpread), BaseMax.Total + Added.Total * (1f + Rulebook.AddedSpread));
         }
 
         public static float CostAtLevel(int level) => 1f + Rulebook.CostPerLevel * Math.Max(level - 1, 0);
@@ -258,29 +276,32 @@ namespace Dino_Defenders.Stats
             return sum.Scale;
         }
 
-        private DamageFlow[] BuildFlows(ActorSheet sheet, PagePlan page, Tags tags, in WeaponProfile weapon)
+        // All of whichever Damage the page deals, by type: an Attack's is the weapon's and whatever's added to Attacks, and a Spell's only whatever's added to Spells.
+        private void HandDamage(ActorSheet sheet, PagePlan page, Tags tags, in WeaponProfile weapon)
         {
-            if (sheet.Has(Rule.NoOwnDamage) || !page.DealsDamage) return Array.Empty<DamageFlow>();
-
             DamageTable min = default;
             DamageTable max = default;
-            foreach (DamagePart part in page.Damage)
-            {
-                (float low, float high) = Reading(sheet, part.Measure, weapon);
-                min[(int)part.Type] += low * part.Share;
-                max[(int)part.Type] += high * part.Share;
-            }
-
+            if (page.Hand == Hand.Attack) weapon.AddTo(ref min, ref max);
             BaseMin = min;
             BaseMax = max;
 
             for (int i = 0; i < DamageKinds.Count; i++)
             {
                 var type = (DamageType)i;
-                float added = sheet.Total(M.AddedStat(type), 0f, tags | DamageKinds.TagsOf(type), page);
-                Added[i] = added;
-                min[i] += added * (1f - Rulebook.AddedSpread);
-                max[i] += added * (1f + Rulebook.AddedSpread);
+                Added[i] = sheet.Total(M.AddedStat(type), 0f, tags | DamageKinds.TagsOf(type), page);
+            }
+        }
+
+        private DamageFlow[] BuildFlows(ActorSheet sheet, PagePlan page, Tags tags)
+        {
+            if (sheet.Has(Rule.NoOwnDamage) || !page.DealsDamage) return Array.Empty<DamageFlow>();
+
+            DamageTable min = BaseMin;
+            DamageTable max = BaseMax;
+            for (int i = 0; i < DamageKinds.Count; i++)
+            {
+                min[i] += Added[i] * (1f - Rulebook.AddedSpread);
+                max[i] += Added[i] * (1f + Rulebook.AddedSpread);
             }
 
             var flows = new List<DamageFlow>(8);

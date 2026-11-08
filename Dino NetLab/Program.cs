@@ -15,6 +15,7 @@ namespace Dino_NetLab
     ///   lands                                       The loop: the Haven, the way, one life to a land, leaving, freeing, the climb, the stash, and what omens and orders do.
     ///   foes  [--seed N]                            What an enemy's rarity comes to: who turns up as what, that a trait's ability gets used, and what a client is told
     ///   uniques [--seed N]                          Every unique's rule, done for real on a running server.
+    ///   vendor [--seed N]                           The beta vendor: what's taken is what was shown, at once and on both ends, only in the Haven, and nothing lost or doubled on a bad line.
     ///   combat                                      What a fight promises: what's marked is what's hit, on the tick it says, what's called off is seen to be, and a dodge is there when it's asked for.
     /// Exit code 1 on any failure.
     /// </summary>
@@ -55,6 +56,8 @@ namespace Dino_NetLab
                     return FoeTests.Run(options);
                 case "uniques":
                     return UniqueTests.Run(options);
+                case "vendor":
+                    return VendorTests.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

@@ -33,16 +33,16 @@ namespace Dino_NetLab
             hero.Level = 60;
 
             // Levels give no life, and these stand and take a great many blows in a row. One that dies part way through ignores all the rest.
-            hero.Equipped[WornSlot.Neck] = new Item { Name = "Lab Charm", Slot = ItemSlot.Neck, Level = 60, Lines = { new ItemLine("health", 100000f) } };
+            hero.Equipped[WornSlot.Neck] = new Item { Name = "Lab Charm", Slot = ItemSlot.Neck, Level = 60, Lines = { new ItemLine("health", 100000f), new ItemLine("spell-physical", 40f) } };
             GameLab.Learn(hero, talents);
             hero.Bar[1] = GameLab.Written(Shelf.FrostNova);
             return hero;
         }
 
-        // Someone with one thing to do, who doesn't miss. They stand still until told otherwise.
+        // Someone with one thing to do, who doesn't miss, and as much Spell Damage as Attack Damage, as an enemy has. They stand still until told otherwise.
         private static Actor Fighter(Arena arena, Vector2 offset, BookPlan skill, float health = 1000000f, Team team = Team.Enemies)
         {
-            var mods = new List<Mod> { Flat(Stat.Health, health), Flat(Stat.MoveSpeed, 1f), Flat(Stat.Mana, 100f), Flat(Stat.Accuracy, SureAccuracy) };
+            var mods = new List<Mod> { Flat(Stat.Health, health), Flat(Stat.MoveSpeed, 1f), Flat(Stat.Mana, 100f), Flat(Stat.Accuracy, SureAccuracy), Added(DamageType.Physical, 10f, Tags.Spell) };
             return arena.Place(new Loadout(1, new WeaponProfile(10f, 10f, 0.6f, 0f, Tags.Sword), mods, new[] { skill }), offset, team);
         }
 

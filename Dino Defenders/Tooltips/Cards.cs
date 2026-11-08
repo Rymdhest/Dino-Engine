@@ -207,7 +207,7 @@ namespace Dino_Defenders.Tooltips
                 card.Gap();
                 if (plan.Source != null)
                 {
-                    card.Text(BookText.Says(plan.Source.Pages[i], i));
+                    card.Text(BookText.Says(plan.Source.Pages[i], page.Page, page.Potency));
                     foreach (Sticker sticker in plan.Source.Pages[i].Stickers)
                     {
                         card.Text(BookText.Bad(sticker).Length > 0 ? $"{BookText.Good(sticker)}, {BookText.Bad(sticker)}" : BookText.Good(sticker), LineLook.Rolled);
@@ -239,7 +239,7 @@ namespace Dino_Defenders.Tooltips
         public static Card Sentence(Sentence sentence)
         {
             var card = new Card { Title = sentence.Words };
-            foreach (string line in BookText.Trade(sentence.Weights)) card.Text(line);
+            foreach (string line in BookText.Trades(sentence.Weights)) card.Text(line);
             if (sentence.Buff != null) card.Attached.Add(Buff(sentence.Buff, null));
             return card;
         }
@@ -424,11 +424,9 @@ namespace Dino_Defenders.Tooltips
         // Everything between what a page starts from and what it deals, so that there's nothing left to guess about how it scales.
         private static void Breakdown(Card card, PageProfile skill)
         {
-            WeaponProfile weapon = skill.Sheet.Loadout.Weapon;
-            foreach (DamagePart part in skill.Page.Damage)
+            foreach (DamageType type in DamageKinds.All)
             {
-                string from = part.Measure == Measure.Damage ? $" ({Range(weapon.Min, weapon.Max)})" : "";
-                card.Detail($"{Share(part.Share)} of {BookText.NameOf(part.Measure)}{from}, as {part.Type}");
+                if (skill.BaseMax[(int)type] > 0f) card.Detail($"{Range(skill.BaseMin[(int)type], skill.BaseMax[(int)type])} {type} Damage from your Weapon");
             }
 
             foreach (DamageType type in DamageKinds.All)

@@ -102,6 +102,9 @@ namespace Dino_Defenders.Server
                     case SpawnRole.Elder:
                         SpawnElder(world, session, state, siteIndex, i, spawn, spawnRandom);
                         break;
+                    case SpawnRole.BetaVendor:
+                        if (BetaVendor.GivesIn(session.IsHaven)) SpawnBetaVendor(world, session, state, siteIndex, i, spawn, spawnRandom);
+                        break;
                     case SpawnRole.Chest:
                         if (!state.Opened.Contains(i)) SpawnChest(world, session, state, siteIndex, i, spawn);
                         break;
@@ -324,6 +327,14 @@ namespace Dino_Defenders.Server
             var villager = new VillagerComponent { SiteIndex = siteIndex, Home = spawn.Position, Goal = spawn.Position, Stationary = true };
             var interactable = new InteractableComponent { Kind = InteractKind.Merchant, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = 5f, Prompt = "Trade" };
             state.Live.Add(world.CreateEntity("Merchant", Bodies.Walking(_server, $"villager{random.Int(12)}", position, 1f, 1f, villager, interactable)));
+        }
+
+        private void SpawnBetaVendor(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)
+        {
+            Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
+            var villager = new VillagerComponent { SiteIndex = siteIndex, Home = spawn.Position, Goal = spawn.Position, Stationary = true };
+            var interactable = new InteractableComponent { Kind = InteractKind.BetaVendor, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = 5f, Prompt = "See what's free" };
+            state.Live.Add(world.CreateEntity("Beta Vendor", Bodies.Walking(_server, $"villager{random.Int(12)}", position, 1f, 1f, villager, interactable)));
         }
 
         private void SpawnElder(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, WorldRandom random)

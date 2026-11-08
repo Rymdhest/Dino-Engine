@@ -24,7 +24,7 @@ namespace Dino_Defenders.Progression
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 9;
+        public const int CurrentVersion = 10;
 
         /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
         private const int SlotsVersion = 4;
@@ -40,6 +40,12 @@ namespace Dino_Defenders.Progression
 
         /// <summary>The version that made the game a climb through lands from the Haven, which needs a copy of the old save kept. The world a hero was in isn't a land, so they wake in the Haven, with a climb as far as they'd come.</summary>
         private const int LandsVersion = 9;
+
+        /// <summary>
+        /// The version that made pages what they're found as, which needs a copy of the old save kept. Where a page started and went, and every Outcome but its first, can't be written any more and are gone: a page that
+        /// dealt anything but physical damage is a Spell Page, and anything a found page can't do is dealing damage.
+        /// </summary>
+        private const int FoundPagesVersion = 10;
 
         public int Version { get; set; } = CurrentVersion;
         public HeroState Hero { get; set; } = HeroState.CreateNew();
@@ -101,6 +107,7 @@ namespace Dino_Defenders.Progression
                 else if (save != null && VersionOf(json) < StickersVersion) KeepOldCopy(path, ".before-stickers");
                 else if (save != null && VersionOf(json) < AffixVersion) KeepOldCopy(path, ".before-affixes");
                 else if (save != null && VersionOf(json) < LandsVersion) KeepOldCopy(path, ".before-lands");
+                else if (save != null && VersionOf(json) < FoundPagesVersion) KeepOldCopy(path, ".before-found-pages");
                 return save;
             }
             catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -137,6 +144,7 @@ namespace Dino_Defenders.Progression
             if (version < SlotsVersion) RenameSlots(root);
             if (version < BooksVersion) ForgetSkills(root);
             if (version < AffixVersion) RenameRarities(root["Hero"]);
+            if (version < FoundPagesVersion) FoundPages(root);
 
             SaveGame? save = root.Deserialize<SaveGame>(Options);
             if (save == null) return null;
@@ -207,6 +215,35 @@ namespace Dino_Defenders.Progression
 
         // Before there were ten places on a hero, what an item was worn as and where it was worn were the same word, and some of those words have gone. Any place that's already
         // called something else is left alone, so doing this twice does nothing.
+        // Every page anywhere in a save from before pages were found, as what a found page could have been: its first Outcome, as long as a found page can do that, which is dealing unless it was raising,
+        // or moving from a projectile. What dealt anything but physical damage, or does anything but deal, is a Spell. Where it started and went are left to be ignored.
+        private static void FoundPages(JsonNode? node)
+        {
+            if (node is JsonArray array)
+            {
+                foreach (JsonNode? each in array) FoundPages(each);
+                return;
+            }
+            if (node is not JsonObject found) return;
+            foreach (JsonNode? each in found.Select(pair => pair.Value).ToList()) FoundPages(each);
+            if (found["Outcomes"] is not JsonArray outcomes) return;
+
+            JsonObject first = outcomes.FirstOrDefault() is JsonObject was ? (JsonObject)was.DeepClone() : new JsonObject();
+            string deed = first["Deed"] is JsonValue said && said.TryGetValue(out string? id) ? id : Sentences.PlainDeed;
+            bool projectile = found["Kind"] is JsonValue kind && kind.TryGetValue(out string? named) && named == nameof(PageKind.Projectile);
+            Deed doing = Sentences.Find(deed)?.Deed ?? Deed.Deal;
+            if (Sentences.Find(deed) is not { Found: > 0f } || doing == Deed.Move && !projectile)
+            {
+                deed = Sentences.PlainDeed;
+                doing = Deed.Deal;
+            }
+            bool magic = outcomes.OfType<JsonObject>().Any(outcome => outcome["Element"] is JsonValue element && element.TryGetValue(out string? type) && type != "physical");
+            first["Deed"] = deed;
+            first.Remove("Element");
+            found["Outcomes"] = new JsonArray(first);
+            found["Hand"] = magic || doing != Deed.Deal ? nameof(Hand.Spell) : nameof(Hand.Attack);
+        }
+
         private static void RenameSlots(JsonObject root)
         {
             if (root["Hero"] is not JsonObject hero) return;
@@ -292,14 +329,14 @@ namespace Dino_Defenders.Progression
             else if (item.IsPage)
             {
                 item.Page ??= Scribe.NewPage(PageKind.Projectile);
-                Scribe.Fix(item.Page, following: true);
+                Scribe.Fix(item.Page);
                 PageKind kind = item.Page.Kind;
                 item.Held = Held(item.Held, 0, Rulebook.MostStickers, held => held.Sticker is Sticker sticker && Stickers.GoesOn(sticker, kind));
             }
             else
             {
                 item.Sticker ??= new Sticker();
-                Stickers.Fix(item.Sticker);
+                Stickers.Fix(item.Sticker, item.Rarity == Rarity.Unique);
                 item.Held = null;
             }
             foreach (Item? held in item.Held ?? Array.Empty<Item?>())

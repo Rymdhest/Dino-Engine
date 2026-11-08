@@ -59,19 +59,16 @@ namespace Dino_BuildLab
             report.Check("Numbers run from one, in order, as that's what's sent", Sentences.All.Select((s, i) => s.Number == i + 1).All(x => x));
             report.Check("Every blank has something to go in it", Enum.GetValues<Blank>().All(blank => Sentences.For(blank).Any()));
             report.Check("Every deed has a way of being said", Enum.GetValues<Deed>().All(deed => Sentences.For(Blank.Deed).Any(s => s.Deed == deed)));
-            report.Check("Every Start and every way of going can be chosen", Enum.GetValues<Start>().Where(s => s != Start.Impact).All(start => Sentences.For(Blank.From).Any(s => s.Start == start)) && Enum.GetValues<Bearing>().All(bearing => Sentences.For(Blank.Towards).Any(s => s.Bearing == bearing)));
-            report.Check("Every shape can be chosen", Enum.GetValues<AreaShape>().All(shape => Sentences.For(Blank.Shape).Any(s => s.Shape == shape)));
-            report.Check("Every type of Damage and every ailment can be chosen", DamageKinds.All.All(type => Sentences.For(Blank.Element).Any(s => s.Element == type)) && Enum.GetValues<Ailment>().All(ailment => Sentences.For(Blank.Ailment).Any(s => s.Ailment == ailment)));
-            report.Check("Every measure can be chosen", Enum.GetValues<Measure>().All(measure => Sentences.For(Blank.Measure).Any(s => s.Measure == measure)));
-            report.Check("What every plain sentence says exists, in its own blank", new[] { (Sentences.PlainFrom, Blank.From), (Sentences.PlainTowards, Blank.Towards), (Sentences.PlainShape, Blank.Shape), (Sentences.PlainTiming, Blank.Timing), (Sentences.PlainDeed, Blank.Deed), (Sentences.PlainElement, Blank.Element), (Sentences.PlainMeasure, Blank.Measure), (Sentences.PlainAilment, Blank.Ailment), (Sentences.PlainGift, Blank.Gift), (Sentences.PlainKin, Blank.Kin), (Sentences.PlainPool, Blank.Pool), (Sentences.PlainWhom, Blank.Whom) }.All(pair => Sentences.Find(pair.Item1)?.Blank == pair.Item2));
+            report.Check("Every shape can be found", Enum.GetValues<AreaShape>().All(shape => Sentences.For(Blank.Shape).Any(s => s.Shape == shape && s.Found > 0f)));
+            report.Check("Every ailment can be written", Enum.GetValues<Ailment>().All(ailment => Sentences.For(Blank.Ailment).Any(s => s.Ailment == ailment)));
+            report.Check("Every measure can be written", Enum.GetValues<Measure>().All(measure => Sentences.For(Blank.Measure).Any(s => s.Measure == measure)));
+            report.Check("What every plain sentence says exists, in its own blank", new[] { (Sentences.PlainShape, Blank.Shape), (Sentences.PlainTiming, Blank.Timing), (Sentences.PlainDeed, Blank.Deed), (Sentences.PlainMeasure, Blank.Measure), (Sentences.PlainAilment, Blank.Ailment), (Sentences.PlainGift, Blank.Gift), (Sentences.PlainKin, Blank.Kin), (Sentences.PlainPool, Blank.Pool), (Sentences.PlainWhom, Blank.Whom) }.All(pair => Sentences.Find(pair.Item1)?.Blank == pair.Item2));
 
-            // Something that's worse for you has to pay for it, and something that's better has to cost. That's what keeps a free hand from being a free lunch.
-            var unpaid = Sentences.All.Where(s => s.Wild && s.Weights.Cost >= 0f && s.Weights.Potency <= 0f).Select(s => s.Id).ToList();
-            report.Check("Anything left to chance pays for itself", unpaid.Count == 0, string.Join(", ", unpaid));
-
-            var aimed = Sentences.All.Where(s => s.Blank is Blank.From or Blank.Towards && s.Start == Start.Nearest | s.Bearing == Bearing.Nearest).Where(s => s.Weights.Potency >= 0f).Select(s => s.Id).ToList();
-            report.Check("Finding someone by itself takes something off", aimed.Count == 0, string.Join(", ", aimed));
-
+            // A found page deals damage, nearly always. What else turns up is what a person asked to keep: raising and moving.
+            var found = Sentences.For(Blank.Deed).Where(s => s.Found > 0f).Select(s => s.Deed).ToHashSet();
+            report.Check("What a found page can do is deal, raise or move", found.SetEquals(new[] { Deed.Deal, Deed.Raise, Deed.Move }), string.Join(", ", found));
+            float deal = Sentences.Find(Sentences.PlainDeed)!.Found;
+            report.Check("And the last two are rare", Sentences.For(Blank.Deed).Where(s => s.Found > 0f && s.Deed != Deed.Deal).All(s => s.Found * 5f < deal));
             report.Check("Waiting for a book pays, and waiting longer pays more", Stickers.Written("rest")!.Good == PageEffect.Potency && Stickers.Written("rest-long")!.GoodBy > Stickers.Written("rest")!.GoodBy);
         }
 
@@ -81,11 +78,11 @@ namespace Dino_BuildLab
             Scribe.Fix(empty);
             report.Check("A book with nothing in it gets a plain page", empty.Pages.Count == 1 && empty.Pages[0].Outcomes.Count == 1);
 
-            var nonsense = new Book { Pages = { new Page { Kind = (PageKind)99, From = "no-such", FromWithin = "no-such", Towards = "from-you", Shape = "deal", Timing = "", Stickers = { Stickers.Written("two-at-once")! }, Outcomes = { new Outcome { Deed = "cone", Element = "cursor" } } } } };
+            var nonsense = new Book { Pages = { new Page { Kind = (PageKind)99, Hand = (Hand)77, Shape = "deal", Timing = "", Stickers = { Stickers.Written("two-at-once")! }, Outcomes = { new Outcome { Deed = "cone", Element = "fire" } } } } };
             Scribe.Fix(nonsense);
             Page fixedUp = nonsense.Pages[0];
-            report.Check("Nonsense goes back to plain", fixedUp.Kind == PageKind.Area && fixedUp.From == Sentences.PlainFrom && fixedUp.FromWithin == null && fixedUp.Towards == Sentences.PlainTowards && fixedUp.Shape == Sentences.PlainShape && fixedUp.Timing == Sentences.PlainTiming);
-            report.Check("Nothing of one blank can sit in another", fixedUp.Outcomes[0].Deed == Sentences.PlainDeed && fixedUp.Outcomes[0].Element == Sentences.PlainElement);
+            report.Check("Nonsense goes back to plain", fixedUp.Kind == PageKind.Area && fixedUp.Hand == Hand.Attack && fixedUp.Shape == Sentences.PlainShape && fixedUp.Timing == Sentences.PlainTiming);
+            report.Check("Nothing of one blank can sit in another", fixedUp.Outcomes[0].Deed == Sentences.PlainDeed && fixedUp.Outcomes[0].Element == null);
             report.Check("A sticker for another kind of page comes out", fixedUp.Stickers.Count == 0);
 
             var tall = new Book();
@@ -102,19 +99,23 @@ namespace Dino_BuildLab
             for (int i = 0; i < Rulebook.MostStickers + 3; i++) crowded.Stickers.Add(Stickers.Written("swift")!);
             var book = new Book { Pages = { crowded } };
             Scribe.Fix(book);
-            report.Check($"A page has {Rulebook.MostOutcomes} Outcomes at most", crowded.Outcomes.Count == Rulebook.MostOutcomes);
-            report.Check($"And {Rulebook.MostStickers} Stickers", crowded.Stickers.Count == Rulebook.MostStickers);
+            report.Check("A page does one thing", crowded.Outcomes.Count == 1);
+            report.Check($"And has {Rulebook.MostStickers} Stickers at most", crowded.Stickers.Count == Rulebook.MostStickers);
+
+            // Nobody writes a page, so anything a sentence can say stays: a book that's already written and copied out has to come through the wire and a save as it is.
+            Page writtenHeal = Scribe.NewPage(PageKind.Area, Hand.Attack);
+            writtenHeal.Outcomes[0].Deed = "heal";
+            Scribe.Fix(writtenHeal);
+            report.Check("Whatever a sentence can say stays said, as it was", writtenHeal.Outcomes[0].Deed == "heal" && writtenHeal.Hand == Hand.Attack);
 
             Page turned = Scribe.NewPage(PageKind.Projectile);
             turned.Stickers.Add(Stickers.Written("rides")!);
             var carried = new Book { Pages = { Scribe.NewPage(PageKind.Projectile), turned } };
-            carried.Pages[0].Towards = "onward";
             Scribe.Fix(carried);
             report.Check("Nothing carries anyone but the first page", !Scribe.Read(carried).Pages[1].Rides);
-            report.Check("The first page has no way it was going", carried.Pages[0].Towards == Sentences.PlainTowards);
 
             Page down = Scribe.NewPage(PageKind.Projectile);
-            down.Towards = "downwards";
+            down.Stickers.Add(Stickers.Written("falls")!);
             down.Stickers.Add(Stickers.Written("rides")!);
             var fall = new Book { Pages = { down } };
             Scribe.Fix(fall);
@@ -137,19 +138,16 @@ namespace Dino_BuildLab
                 var page = new Page
                 {
                     Kind = random.Next(3) == 0 ? PageKind.Area : PageKind.Projectile,
-                    From = Any(Blank.From),
-                    FromWithin = random.Next(3) == 0 ? Any(Blank.Within) : null,
-                    Towards = Any(Blank.Towards),
-                    TowardsWithin = random.Next(3) == 0 ? Any(Blank.Within) : null,
+                    Hand = (Hand)random.Next(3),
                     Shape = Any(Blank.Shape),
                     Timing = Any(Blank.Timing),
                 };
                 int stickers = random.Next(8);
-                for (int c = 0; c < stickers; c++) page.Stickers.Add(Stickers.Roll((Dino_Defenders.Progression.Rarity)random.Next(3), new Dino_Engine.World.WorldRandom((ulong)random.Next())));
+                for (int c = 0; c < stickers; c++) page.Stickers.Add(Stickers.Roll((Dino_Defenders.Progression.Rarity)random.Next(4), new Dino_Engine.World.WorldRandom((ulong)random.Next())));
                 int outcomes = random.Next(6);
                 for (int o = 0; o < outcomes; o++)
                 {
-                    page.Outcomes.Add(new Outcome { Deed = Any(Blank.Deed), Element = Any(Blank.Element), Measure = Any(Blank.Measure), Ailment = Any(Blank.Ailment), Gift = Any(Blank.Gift), Kin = Any(Blank.Kin), Pool = Any(Blank.Pool), Whom = Any(Blank.Whom) });
+                    page.Outcomes.Add(new Outcome { Deed = Any(Blank.Deed), Measure = Any(Blank.Measure), Ailment = Any(Blank.Ailment), Gift = Any(Blank.Gift), Kin = Any(Blank.Kin), Pool = Any(Blank.Pool), Whom = Any(Blank.Whom) });
                 }
                 book.Pages.Add(page);
             }
@@ -219,48 +217,38 @@ namespace Dino_BuildLab
             Page bolt = Scribe.NewPage(PageKind.Projectile);
             BookProfile flying = Profile(new Book { Pages = { bolt } }, Sword);
             report.Near("A projectile costs something, for flying", flying.Cost, Rulebook.ProjectileCost);
+            report.Check("And goes from you towards the cursor", flying.First.Page is { From: Start.You, To: Bearing.Cursor });
+
+            var chain = new Book { Pages = { Scribe.NewPage(PageKind.Projectile), Scribe.NewPage(PageKind.Projectile), Scribe.NewPage(PageKind.Area) } };
+            BookPlan chained = Scribe.Read(chain);
+            report.Check("Every page after the first goes on from where the last struck, the way it was going", chained.Pages.Skip(1).All(page => page.From == Start.Impact) && chained.Pages[1].To == Bearing.Onward);
 
             Page wild = Scribe.NewPage(PageKind.Projectile);
-            wild.Towards = "anywhere";
+            wild.Stickers.Add(Stickers.Written("anywhere")!);
             BookProfile random = Profile(new Book { Pages = { wild } }, Sword);
-            report.Near("A sentence's Cost is what it says", random.Cost, Rulebook.ProjectileCost * (1f + S("anywhere").Weights.Cost / 100f));
-            report.Near("And so is its Potency", random.First.Potency, 1f + S("anywhere").Weights.Potency / 100f);
+            Weights anywhere = Stickers.Weighting(PageEffect.ToAnywhere);
+            report.Check("What's left to chance pays for itself", anywhere.Potency > 0f && anywhere.Cost < 0f && Stickers.Weighting(PageEffect.FromRandom).Potency > 0f);
+            report.Near("And is what it says, Cost", random.Cost, Rulebook.ProjectileCost * (1f + anywhere.Cost / 100f));
+            report.Near("And Potency", random.First.Potency, 1f + anywhere.Potency / 100f);
+            report.Check("And counts as Wild", (random.First.Tags & Tags.Wild) != 0 && (flying.First.Tags & Tags.Wild) == 0);
 
             Page twice = Scribe.NewPage(PageKind.Projectile);
-            twice.Towards = "anywhere";
-            twice.TowardsWithin = "within-far";
+            twice.Stickers.Add(Stickers.Written("anywhere")!);
             twice.Stickers.Add(Stickers.Written("slow")!);
-            float each = (1f + S("anywhere").Weights.Potency / 100f) * (1f + S("within-far").Weights.Potency / 100f) * (1f + Stickers.Written("slow")!.GoodBy / 100f);
+            float each = (1f + anywhere.Potency / 100f) * (1f + Stickers.Written("slow")!.GoodBy / 100f);
             report.Near("Each is a multiplier of its own, as more and less always are", Profile(new Book { Pages = { twice } }, Sword).First.Potency, each);
 
-            var pages = new Book { Pages = { Scribe.NewPage(PageKind.Projectile), Scribe.NewPage(PageKind.Projectile), Scribe.NewPage(PageKind.Area) } };
-            BookProfile three = Profile(pages, Sword);
+            BookProfile three = Profile(chain, Sword);
             report.Near("A book's Cost is every page's added up", three.Cost, three.Pages.Sum(page => page.Cost));
             report.Check("And that's more than any of them", three.Cost > three.Pages.Max(page => page.Cost));
             report.Near("Unless a book only pays for its first", Profile(new Book { Pages = { Scribe.NewPage(PageKind.Projectile), Scribe.NewPage(PageKind.Projectile) } }, Sword, Rules(Rule.OneCost)).Cost, Rulebook.ProjectileCost);
 
-            Page more = Scribe.NewPage(PageKind.Area);
-            more.Outcomes.Add(new Outcome { Deed = "push" });
-            report.Near("An Outcome past the first is a thing more to pay for", Profile(new Book { Pages = { more } }, Sword).Cost, Rulebook.OutcomeCost + S("push").Weights.Added);
-
-            float hit = plain.First.AverageHit;
-            Page split = Scribe.NewPage(PageKind.Area);
-            split.Outcomes.Add(new Outcome { Element = "fire" });
-            BookProfile both = Profile(new Book { Pages = { split } }, Sword);
-            report.Near("Two lots of Damage on one page are one Hit of both", both.First.AverageHit, hit * 2f, 0.01f);
-            report.Check("Of each type", both.First.Flows.Length == 2);
-
-            Page health = Scribe.NewPage(PageKind.Area);
-            health.Outcomes[0].Measure = "of-health";
-            report.Near("Damage can be worked out from anything", Profile(new Book { Pages = { health } }, Sword).First.Flows[0].Max, 100f * S("of-health").Share);
-
             Page heal = Scribe.NewPage(PageKind.Area);
             heal.Outcomes[0] = new Outcome { Deed = "heal", Measure = "of-mana" };
             BookProfile healing = Profile(new Book { Pages = { heal } }, Sword, Flat(Stat.Mana, 200f));
-            report.Near("Healing is what it says, of whatever it says", healing.First.Heals[0], 200f * S("of-mana").Share);
+            report.Near("A written heal is what it says, of whatever it says", healing.First.Heals[0], 200f * S("of-mana").Share);
             report.Check("And isn't a blow", !healing.First.Page.Hostile && !healing.First.DealsDamage);
 
-            Page once = Scribe.NewPage(PageKind.Area);
             Page lasting = Scribe.NewPage(PageKind.Area);
             lasting.Timing = "lingering";
             BookProfile laid = Profile(new Book { Pages = { lasting } }, Sword);
@@ -283,30 +271,66 @@ namespace Dino_BuildLab
             report.Near("Potency has a ceiling, whatever's stacked on it", Profile(Starter(), Sword, More(Stat.Potency, 100000f)).First.Potency, Rulebook.MostPotency);
         }
 
+        private static Book Of(params Page[] pages) => new Book { Pages = pages.ToList() };
+
+        private static Page Spell(PageKind kind) => Scribe.NewPage(kind, Hand.Spell);
+
+        // Attack or Spell is the page's, and what each deals is a different Damage. As a person put it: an Attack Page deals all your Attack Damage, and a Spell Page all your Spell Damage, of every type there is.
         private static void Weapons(Report report)
         {
-            Book bolt = new Book { Pages = { Scribe.NewPage(PageKind.Projectile) } };
+            Book bolt = Of(Scribe.NewPage(PageKind.Projectile));
             Book cone = Starter();
+            Book spell = Of(Spell(PageKind.Area));
 
-            report.Check("A sword makes an Attack", Profile(cone, Sword).First.IsAttack);
-            report.Check("Which is Melee by hand", (Profile(cone, Sword).First.Tags & Tags.Melee) != 0);
+            report.Check("An Attack Page is an Attack, whatever's in the hand", Profile(cone, Sword).First.IsAttack && Profile(cone, Wand).First.IsAttack);
+            report.Check("And a Spell Page a Spell", !Profile(spell, Sword).First.IsAttack && (Profile(spell, Wand).First.Tags & Tags.Spell) != 0 && (Profile(spell, Sword).First.Tags & Tags.Spell) != 0);
+            report.Check("An Attack by hand is Melee", (Profile(cone, Sword).First.Tags & Tags.Melee) != 0);
             report.Check("And not when it's thrown", (Profile(bolt, Sword).First.Tags & Tags.Melee) == 0 && (Profile(bolt, Sword).First.Tags & Tags.Projectile) != 0);
             Book away = Starter();
-            away.Pages[0].From = "from-cursor";
+            away.Pages[0].Stickers.Add(Stickers.Written("from-cursor")!);
             report.Check("Nor when it happens somewhere other than where they stand", (Profile(away, Sword).First.Tags & Tags.Melee) == 0);
-            report.Check("A wand makes a Spell", !Profile(cone, Wand).First.IsAttack && (Profile(cone, Wand).First.Tags & Tags.Spell) != 0);
-            report.Check("And so does a staff", !Profile(cone, Staff).First.IsAttack && (Profile(cone, Staff).First.Tags & Tags.Spell) != 0);
+            report.Check("A Spell is never Melee, nor done with a sword", (Profile(spell, Sword).First.Tags & (Tags.Melee | Tags.Sword)) == 0);
             report.Check("A bow makes an Attack that's no sort of Melee", Profile(cone, Bow).First.IsAttack && (Profile(cone, Bow).First.Tags & Tags.Melee) == 0);
 
-            report.Near("Attack Speed hurries an Attack", Profile(cone, Sword, Inc(Stat.AttackSpeed, 100f)).UseTime, Profile(cone, Sword).UseTime / 2f);
-            report.Near("And not a Spell", Profile(cone, Wand, Inc(Stat.AttackSpeed, 100f)).UseTime, Profile(cone, Wand).UseTime);
-            report.Near("Cast Speed hurries a Spell", Profile(cone, Wand, Inc(Stat.CastSpeed, 100f)).UseTime, Profile(cone, Wand).UseTime / 2f);
+            // What each deals.
+            var fiery = new WeaponProfile(20f, 30f, 0.6f, 5f, Tags.Wand | Tags.OneHanded, DamageType.Fire);
+            report.Near("An Attack deals all of the weapon's damage", Profile(cone, Sword).First.Flows.ToArray().Sum(flow => flow.Max), 30f);
+            report.Check("Of the weapon's own type", Profile(cone, fiery).First.Flows is { Length: 1 } flows && flows[0].Type == DamageType.Fire);
+            report.Check("A Spell deals none of it", !Profile(spell, Sword).First.DealsDamage || Profile(spell, Sword).First.AverageHit == 0f);
+            BookProfile cast = Profile(spell, Wand, Added(DamageType.Cold, 10f, Tags.Spell), Added(DamageType.Physical, 50f, Tags.Attack));
+            report.Check("Only what's added to Spells", cast.First.Flows is { Length: 1 } only && only[0].Type == DamageType.Cold, string.Join(", ", cast.First.Flows.ToArray().Select(flow => $"{flow.Type} {flow.Max}")));
+            BookProfile struck = Profile(cone, Sword, Added(DamageType.Cold, 10f, Tags.Spell), Added(DamageType.Lightning, 5f, Tags.Attack));
+            report.Check("And an Attack only what's added to Attacks, beside the weapon", struck.First.Flows.Length == 2 && struck.First.Flows.ToArray().All(flow => flow.Type is DamageType.Physical or DamageType.Lightning));
+            BookProfile everything = Profile(Of(Spell(PageKind.Area)), Wand, Added(DamageType.Fire, 4f, Tags.Spell), Added(DamageType.Cold, 4f, Tags.Spell), Added(DamageType.Poison, 4f));
+            report.Check("Of every type there is", everything.First.Flows.Length == 3);
+            report.Check("And looks like what it deals most of", Profile(spell, Wand, Added(DamageType.Fire, 1f, Tags.Spell), Added(DamageType.Cold, 9f, Tags.Spell)).First.Look == DamageType.Cold);
+
+            var paired = Item.Paired(new WeaponProfile(10f, 10f, 0.6f, 5f, Tags.Sword | Tags.OneHanded), new WeaponProfile(10f, 10f, 0.6f, 5f, Tags.Wand | Tags.OneHanded, DamageType.Lightning));
+            report.Check("Two weapons deal both their types", Profile(cone, paired).First.Flows.Length == 2);
+
+            // How long it takes.
+            float swing = Profile(cone, Sword).UseTime;
+            report.Near("A book that opens with an Attack takes the weapon's time", swing, Rulebook.PageUseTime);
+            report.Near("And Attacks after it take nothing more", Profile(Of(Scribe.NewPage(PageKind.Projectile), Scribe.NewPage(PageKind.Projectile), Scribe.NewPage(PageKind.Area)), Sword).UseTime, swing);
+            report.Near("Each Spell Page adds its own time to cast", Profile(Of(Scribe.NewPage(PageKind.Projectile), Spell(PageKind.Projectile), Spell(PageKind.Area)), Sword).UseTime, swing + 2f * Rulebook.CastTime);
+            report.Near("A book that opens with a Spell takes only that", Profile(Of(Spell(PageKind.Projectile), Scribe.NewPage(PageKind.Area)), Sword).UseTime, Rulebook.CastTime);
+            report.Near("Attack Speed hurries an Attack", Profile(cone, Sword, Inc(Stat.AttackSpeed, 100f)).UseTime, swing / 2f);
+            report.Near("And not a Spell", Profile(spell, Wand, Inc(Stat.AttackSpeed, 100f)).UseTime, Profile(spell, Wand).UseTime);
+            report.Near("Cast Speed hurries a Spell", Profile(spell, Wand, Inc(Stat.CastSpeed, 100f)).UseTime, Profile(spell, Wand).UseTime / 2f);
+            report.Near("And only the Spell in a book that's both", Profile(Of(Scribe.NewPage(PageKind.Projectile), Spell(PageKind.Area)), Sword, Inc(Stat.CastSpeed, 100f)).UseTime, swing + Rulebook.CastTime / 2f);
+
+            Page hasty = Scribe.NewPage(PageKind.Area);
+            hasty.Stickers.Add(Stickers.Written("hasty")!);
+            float quicker = 1f - Stickers.Written("hasty")!.GoodBy / 100f;
+            report.Near("What a sticker says of Use Time goes for the whole book, from whatever page it's on", Profile(Of(Scribe.NewPage(PageKind.Projectile), hasty), Sword).UseTime, swing * quicker);
+            report.Near("A Spell's too", Profile(Of(Scribe.NewPage(PageKind.Projectile), Spell(PageKind.Projectile), hasty), Sword).UseTime, (swing + Rulebook.CastTime) * quicker);
 
             var slow = new WeaponProfile(20f, 30f, WeaponProfile.BareTime * 2f, 5f, Tags.Sword);
-            report.Near("And what's in the hands sets the pace", Profile(cone, slow).UseTime, Rulebook.PageUseTime * 2f);
+            report.Near("What's in the hands sets an Attack's pace", Profile(cone, slow).UseTime, Rulebook.PageUseTime * 2f);
+            report.Near("And not a Spell's", Profile(spell, slow).UseTime, Rulebook.CastTime);
 
             report.Near("Melee Reach only reaches Melee", Profile(cone, Sword, Flat(Stat.MeleeReach, 2f)).First.Length, Rulebook.ConeReach + 2f);
-            report.Near("A Spell's Cone stays as it is", Profile(cone, Wand, Flat(Stat.MeleeReach, 2f)).First.Length, Rulebook.ConeReach);
+            report.Near("A Spell's Cone stays as it is", Profile(spell, Wand, Flat(Stat.MeleeReach, 2f)).First.Length, Rulebook.ConeReach);
             report.Near("Area of Effect scales the space, so a side by its root", Profile(cone, Sword, Inc(Stat.AreaOfEffect, 300f)).First.Length, Rulebook.ConeReach * 2f, 0.01f);
         }
 
@@ -315,13 +339,14 @@ namespace Dino_BuildLab
         {
             BookProfile Of(BookPlan plan) => new Loadout(20, Sword, new[] { Flat(Stat.Health, 100f), Flat(Stat.Mana, 100f) }, new[] { plan }).SheetFor(Condition.None).Profile(0);
 
-            report.Check("A plain swing", Of(Shelf.Strike).First.Page is { Kind: PageKind.Area, Shape: AreaShape.Cone, From: Start.You });
+            report.Check("A plain swing", Of(Shelf.Strike).First.Page is { Kind: PageKind.Area, Shape: AreaShape.Cone, From: Start.You, Hand: Hand.Attack });
             report.Check("A swing all round", Of(Shelf.Whirl).Sign.Form == PageForm.Nova);
             report.Check("An arrow", Of(Shelf.Shot).Sign.Form == PageForm.Bolt);
             report.Check("A fan of arrows", Of(Shelf.Volley).First.Projectiles == 5);
-            report.Check("A rain of them", Of(Shelf.RainOfArrows).First is { Projectiles: 5, Page: { To: Bearing.Down, From: Start.Cursor } });
+            report.Check("A rain of them", Of(Shelf.RainOfArrows).First is { Projectiles: 5, Page.Falls: true });
             report.Check("A fireball that bursts", Of(Shelf.Fireball).Pages.Length == 2 && !Of(Shelf.Fireball).First.Page.Hostile && Of(Shelf.Fireball).Pages[1].Page.Kind == PageKind.Area);
-            report.Check("A meteor", Of(Shelf.Meteor).First.Page.To == Bearing.Down && Of(Shelf.Meteor).Delay > 0f);
+            report.Check("Which is a Spell, and fire", Of(Shelf.Fireball).Pages[1].Page.Hand == Hand.Spell && Of(Shelf.Firebolt).First.Page.Mods.Any(mod => mod.Stat == Stat.Convert && mod.To == DamageType.Fire));
+            report.Check("A meteor, which bursts on the ground", Of(Shelf.Meteor).First.Page is { Falls: true, Grounded: true } && Of(Shelf.Meteor).Delay > 0f);
             report.Check("Something that comes back", Of(Shelf.Boomerang).Pages[1].Page.To == Bearing.You);
             report.Check("Chain lightning", Of(Shelf.ChainLightning).Pages.All(page => page.Page.To == Bearing.Nearest));
             report.Check("Something that splits", Of(Shelf.Split).Pages[1] is { Projectiles: 3, Page.To: Bearing.Onward });
@@ -332,6 +357,7 @@ namespace Dino_BuildLab
             report.Check("A heal", Of(Shelf.Mend).First.Heals.Length == 1);
             report.Check("A buff", Of(Shelf.StoneSkin).Sign.Form == PageForm.Buff && Of(Shelf.StoneSkin).Cooldown > 0f);
             report.Check("A summon", Of(Shelf.RaiseBones).Sign.Form == PageForm.Summon && Of(Shelf.RaiseBones).First.MinionCount == 2);
+            report.Check("Everything set off by something else is an Attack, as everyone has some of that", Shelf.All.Where(book => (book.First.Tags & Tags.Triggered) != 0 && book.Pages.Any(page => page.DealsDamage) && book.Id != "last-word").All(book => book.Pages.All(page => page.Hand == Hand.Attack)));
         }
 
         private static Book Starter() => new Book { Pages = { Scribe.NewPage(PageKind.Area) } };
@@ -357,11 +383,13 @@ namespace Dino_BuildLab
             var seen = new HashSet<string>();
             for (int i = 0; i < 5000; i++)
             {
-                Sticker sticker = Stickers.Roll((Rarity)(i % 3), random.Fork(i));
+                Rarity rarity = (Rarity)(i % 4);
+                Sticker sticker = Stickers.Roll(rarity, random.Fork(i));
                 goods.Add(sticker.Good);
                 bads.Add(sticker.Bad);
                 seen.Add($"{sticker.Good} {sticker.GoodBy} {sticker.Bad} {sticker.BadBy}");
-                bool flag = sticker.Good is PageEffect.Stops or PageEffect.Rides;
+                if (Stickers.IsUnique(sticker.Good) != (rarity == Rarity.Unique) || Stickers.IsUnique(sticker.Bad)) faults++;
+                bool flag = sticker.Good is PageEffect.Stops or PageEffect.Rides || Stickers.IsUnique(sticker.Good);
                 if (sticker.Good == PageEffect.None || sticker.Bad == PageEffect.None || sticker.Good == sticker.Bad) faults++;
                 if (!flag && sticker.GoodBy <= 0f || sticker.BadBy <= 0f) faults++;
                 if (BookText.Good(sticker).Length == 0 || BookText.Bad(sticker).Length == 0) faults++;
@@ -373,7 +401,7 @@ namespace Dino_BuildLab
                 if (either == PageKind.Area && sticker.Bad is PageEffect.Speed or PageEffect.Range) faults++;
                 if (either == PageKind.Projectile && (sticker.Good == PageEffect.Area || sticker.Bad == PageEffect.Area)) faults++;
             }
-            report.Check("Every sticker has one good thing and one bad thing, and they aren't the same thing", faults == 0, $"{faults}");
+            report.Check("Every sticker has one good thing and one bad thing, and they aren't the same thing, and only a Unique one has what only those have", faults == 0, $"{faults}");
             report.Check("Everything that can be good turns up", goods.SetEquals(Stickers.Goods), string.Join(", ", goods));
             report.Check("And everything that can be bad", bads.SetEquals(Stickers.Bads), string.Join(", ", bads));
             report.Check("No two need be alike", seen.Count > 1500, $"{seen.Count} different of 5000");
@@ -396,7 +424,7 @@ namespace Dino_BuildLab
             page.Stickers.Add(both);
             PagePlan plan = Scribe.Read(new Book { Pages = { page } }).First;
             report.Near("A sticker does what its good side says", plan.Potency, 1.4f);
-            report.Near("And its bad side", plan.UseTime, Rulebook.PageUseTime * 1.5f);
+            report.Near("And its bad side", plan.UseScale, 1.5f);
 
             Page free = Scribe.NewPage(PageKind.Area);
             free.Stickers.Add(new Sticker { Good = PageEffect.Potency, GoodBy = 10f, Bad = PageEffect.Cost, BadBy = 3f });
@@ -415,6 +443,32 @@ namespace Dino_BuildLab
             report.Check("But not past what a page can make", Scribe.Read(new Book { Pages = { flood } }).First.Projectiles == Rulebook.MostProjectiles);
 
             report.Check("Everything already written has what a sticker can say", Stickers.Names.All(name => BookText.Good(Stickers.Written(name)!).Length > 0));
+            report.Check("Every Unique effect has a name to be found by, and words", Stickers.Uniques.All(effect => ItemGenerator.StickerItem(new Sticker { Good = effect }, 1, 1, Rarity.Unique).Name != "Sticker" && BookText.Good(new Sticker { Good = effect }).Length > 0));
+
+            // Where a page starts only means anything on the first, and the rest are only where a sticker says.
+            Page aimed = Scribe.NewPage(PageKind.Projectile);
+            aimed.Stickers.Add(Stickers.Written("from-nearest")!);
+            aimed.Stickers.Add(Stickers.Written("towards-you")!);
+            Page second = Scribe.NewPage(PageKind.Projectile);
+            second.Stickers.Add(Stickers.Written("from-cursor")!);
+            second.Stickers.Add(Stickers.Written("towards-nearest")!);
+            BookPlan steered = Scribe.Read(new Book { Pages = { aimed, second } });
+            report.Check("A Unique sticker moves where the first page starts", steered.Pages[0].From == Start.Nearest && steered.Pages[0].To == Bearing.You);
+            report.Check("But a later page still starts where the last struck, wherever it goes", steered.Pages[1].From == Start.Impact && steered.Pages[1].To == Bearing.Nearest);
+            Page solid = Scribe.NewPage(PageKind.Projectile);
+            solid.Stickers.Add(Stickers.Written("grounded")!);
+            report.Check("And only a sticker makes a wall an Impact", Scribe.Read(new Book { Pages = { solid } }).First.Grounded && !Scribe.Read(new Book { Pages = { Scribe.NewPage(PageKind.Projectile) } }).First.Grounded);
+
+            Sticker uniqueOne = Stickers.Roll(Rarity.Unique, random.Fork(424242));
+            var uniqueItem = ItemGenerator.StickerItem(uniqueOne, 7, 10, Rarity.Unique);
+            ItemGenerator.Fix(uniqueItem);
+            report.Check("A Unique sticker stays one when it's put right", uniqueItem.Rarity == Rarity.Unique && Stickers.IsUnique(uniqueItem.Sticker!.Good));
+            var forged = ItemGenerator.StickerItem(new Sticker { Good = PageEffect.Potency, GoodBy = 10f, Bad = PageEffect.Cost, BadBy = 1f }, 7, 10, Rarity.Unique);
+            ItemGenerator.Fix(forged);
+            report.Check("And one that only says it is isn't", forged.Rarity == Rarity.Rare);
+            Sticker cheat = new Sticker { Good = PageEffect.Falls, Bad = PageEffect.Grounded };
+            Stickers.Fix(cheat);
+            report.Check("Nothing that isn't Unique can have what only those have, on either side", !Stickers.IsUnique(cheat.Good) && !Stickers.IsUnique(cheat.Bad));
             report.Check("Nothing written says more than a sticker can", Stickers.Names.All(name => Stickers.Written(name)!.GoodBy <= Rulebook.MostStickerGood && Stickers.Written(name)!.BadBy <= Rulebook.MostStickerBad));
         }
 
@@ -702,16 +756,10 @@ namespace Dino_BuildLab
             report.Check("And doesn't throw off what's beside it", HeroBuild.SlotIndex(hero, 2) == 0);
 
             var writer = HeroState.CreateNew();
-            Page written = Scribe.NewPage(PageKind.Projectile);
-            written.Stickers.Add(Stickers.Written("hasty")!);
-            report.Check("A Page can be written on where it is", writer.Write(bar.In(0), written));
-            report.Check("But it stays the kind it was found as", writer.At(bar.In(0))!.Page!.Kind == PageKind.Area);
-            report.Check("And nothing can be stuck on by writing it", writer.At(bar.In(0))!.Page!.Stickers.Count == 0);
-            report.Check("Without what's written staying tied to what wrote it", !ReferenceEquals(writer.At(bar.In(0))!.Page, written));
             report.Check("A Book can be called something", writer.Title(bar, " Fireball ") && writer.Bar[0]!.Name == "Fireball");
             report.Check("A name can't go on for ever", writer.Title(bar, new string('x', 400)) && writer.Bar[0]!.Name.Length == HeroState.LongestBookName);
             report.Check("Leaving it blank leaves what it was", !writer.Title(bar, "   ") && writer.Bar[0]!.Name.Length == HeroState.LongestBookName);
-            report.Check("Nothing but a Page can be written on, or a Book called anything", !writer.Write(bar, written) && !writer.Write(ItemPlace.Worn(WornSlot.Body), written) && !writer.Title(bar.In(0), "Leaf"));
+            report.Check("Nothing but a Book can be called anything", !writer.Title(bar.In(0), "Leaf") && !writer.Title(ItemPlace.Worn(WornSlot.Body), "Shirt"));
 
             var random = new Dino_Engine.World.WorldRandom(21);
             int wrongRarity = 0, wrongPlaces = 0;
@@ -732,7 +780,31 @@ namespace Dino_BuildLab
                 if (rarity == Rarity.Rare && (mostPages != Rulebook.MostPages || mostStickers != Rulebook.MostStickers)) wrongPlaces++;
             }
             report.Check("What's found is the rarity it was rolled at", wrongRarity == 0, $"{wrongRarity}");
-            report.Check("Nothing for a Book is one of a kind, so rare is as far as it goes", Enumerable.Range(0, 200).All(i => ItemGenerator.Folio(20, random.Fork(9000 + i), Rarity.Unique).Rarity == Rarity.Rare));
+            report.Check("What's found Unique for a Book is always a Sticker with what only those have", Enumerable.Range(0, 200).All(i => ItemGenerator.Folio(20, random.Fork(9000 + i), Rarity.Unique) is { IsSticker: true, Rarity: Rarity.Unique, Sticker: Sticker unique } && Stickers.IsUnique(unique.Good)));
+
+            // What a found page says is what it keeps.
+            var dealt = new HashSet<Hand>();
+            var shapes = new HashSet<string>();
+            int raised = 0, moved = 0, odd = 0, total = 0;
+            for (int i = 0; i < 3000; i++)
+            {
+                Page found = Scribe.Roll(random.Fork(20000 + i));
+                Page kept = found.Copy();
+                Scribe.Fix(kept);
+                if (System.Text.Json.JsonSerializer.Serialize(kept) != System.Text.Json.JsonSerializer.Serialize(found)) odd++;
+                total++;
+                Deed deed = Sentences.Find(found.Outcomes[0].Deed)!.Deed;
+                if (deed == Deed.Deal) dealt.Add(found.Hand);
+                else if (found.Hand != Hand.Spell) odd++;
+                if (deed == Deed.Raise) raised++;
+                if (deed == Deed.Move) moved++;
+                if (deed == Deed.Move && found.Kind != PageKind.Projectile) odd++;
+                if (found.Kind == PageKind.Area) shapes.Add(found.Shape);
+            }
+            report.Check("A found page is already within the rules", odd == 0, $"{odd}");
+            report.Check("Pages are found as Attacks and as Spells", dealt.Count == 2);
+            report.Check("And as every shape", shapes.Count == Sentences.For(Blank.Shape).Count());
+            report.Check("A few raise or move, and only a few", raised > 0 && moved > 0 && raised + moved < total / 8, $"{raised}, {moved} of {total}");
             report.Check("And only the best has all the places there can be", wrongPlaces == 0, $"{wrongPlaces}");
             report.Check("Books, Pages and Stickers can all be found, Stickers most and Books least", stickers > pages && pages > books && books > 0, $"{stickers}, {pages}, {books}");
 
@@ -826,8 +898,31 @@ namespace Dino_BuildLab
             }
             """;
 
+        private const string BeforeFoundPages = """
+            {
+              "Version": 9,
+              "Hero": {
+                "Level": 8, "Gold": 20, "Talents": [],
+                "Inventory": [ { "Name": "Healer", "Slot": "Page", "Rarity": "Normal", "Level": 1, "Seed": 7, "Page": { "Kind": "Area", "From": "from-cursor", "Outcomes": [ { "Deed": "heal" }, { "Deed": "deal", "Element": "fire" } ] }, "Held": [ null ] },
+                               { "Name": "Raiser", "Slot": "Page", "Rarity": "Normal", "Level": 1, "Seed": 8, "Page": { "Kind": "Projectile", "Towards": "towards-you", "Outcomes": [ { "Deed": "raise", "Kin": "hound" } ] }, "Held": [ null ] },
+                               { "Name": "Mover", "Slot": "Page", "Rarity": "Normal", "Level": 1, "Seed": 9, "Page": { "Kind": "Area", "Outcomes": [ { "Deed": "move" } ] }, "Held": [ null ] },
+                               { "Name": "Striker", "Slot": "Page", "Rarity": "Normal", "Level": 1, "Seed": 10, "Page": { "Kind": "Projectile", "Outcomes": [ { "Deed": "deal", "Element": "physical" } ] }, "Held": [ null ] } ],
+                "Equipped": { }
+              },
+              "WorldSeed": 7
+            }
+            """;
+
         private static void Saving(Report report)
         {
+            SaveGame? pages = SaveGame.Read(BeforeFoundPages);
+            Page? Found(int cell) => pages?.Hero.Inventory[cell]?.Page;
+            report.Check("A save from before pages were found loads", pages != null);
+            report.Check("A page keeps only its first Outcome, as what a found page could do: a heal becomes dealing, a Spell as it dealt fire", Found(0) is { Hand: Hand.Spell, Outcomes.Count: 1 } healer && healer.Outcomes[0].Deed == Sentences.PlainDeed);
+            report.Check("Raising stays raising, and is a Spell", Found(1) is { Hand: Hand.Spell } raiser && raiser.Outcomes[0] is { Deed: "raise", Kin: "hound" });
+            report.Check("Moving from an area becomes dealing, as it would leave you where you are", Found(2) is { Hand: Hand.Attack } mover && mover.Outcomes[0].Deed == Sentences.PlainDeed);
+            report.Check("And a physical page is an Attack", Found(3) is { Hand: Hand.Attack });
+
             SaveGame? save = SaveGame.Read(BeforeBooks);
             report.Check("A save from before books loads", save != null);
             if (save == null) return;
@@ -853,9 +948,9 @@ namespace Dino_BuildLab
             report.Check("A copy of the old save is kept, as nothing brings a tree back", kept);
             report.Check("And a book comes through being saved and loaded", again?.Hero.Bar[0]?.Written() is { Pages.Count: 1 });
 
-            string edited = JsonSerializer.Serialize(new { Version = SaveGame.CurrentVersion, Hero = new { Level = 5, Bar = new object?[] { new { Name = "Bad", Slot = "Book", Book = new { Pages = new object[] { new { From = "no-such", Outcomes = Array.Empty<object>() } } } }, new { Name = "Sword", Slot = "MainHand" } } } });
+            string edited = JsonSerializer.Serialize(new { Version = SaveGame.CurrentVersion, Hero = new { Level = 5, Bar = new object?[] { new { Name = "Bad", Slot = "Book", Book = new { Pages = new object[] { new { Shape = "no-such", Outcomes = Array.Empty<object>() } } } }, new { Name = "Sword", Slot = "MainHand" } } } });
             SaveGame? hand = SaveGame.Read(edited);
-            report.Check("A book edited by hand is put right", hand?.Hero.Bar[0]?.Written()?.Pages[0].From == Sentences.PlainFrom && hand.Hero.Bar[0]!.Written()!.Pages[0].Outcomes.Count == 1);
+            report.Check("A book edited by hand is put right", hand?.Hero.Bar[0]?.Written()?.Pages[0].Shape == Sentences.PlainShape && hand.Hero.Bar[0]!.Written()!.Pages[0].Outcomes.Count == 1);
             report.Check("And a sword can't be left on the bar", hand?.Hero.Bar[1] == null);
 
             SaveGame? written = SaveGame.Read(BeforeStickers);
@@ -864,7 +959,7 @@ namespace Dino_BuildLab
             report.Check("With its Book made of Pages, as many as it had and no more", fireball is { Name: "Fireball", Places: 2 } && fireball.Held!.All(page => page is { IsPage: true }));
             report.Check("Each with its Clauses turned into Stickers, and room for them", fireball?.Held![1]?.Held is { Length: 1 } held && held[0]?.Sticker?.Good == PageEffect.Potency && held[0]!.Sticker!.Bad == PageEffect.Area);
             report.Check("A Page with none still has a place for one", fireball?.Held![0]?.Places == 1);
-            report.Check("Saying what it said", fireball?.Written() is { Pages.Count: 2 } read && read.Pages[0].Towards == "towards-nearest" && read.Pages[1].Shape == "circle" && read.Pages[1].Outcomes[0].Element == "fire");
+            report.Check("Saying what it still can: a fire page is a Spell, and where a page went is gone", fireball?.Written() is { Pages.Count: 2 } read && read.Pages[0].Outcomes[0].Deed == Sentences.PlainDeed && read.Pages[0].Hand == Hand.Attack && read.Pages[1].Shape == "circle" && read.Pages[1].Hand == Hand.Spell);
             report.Check("A Clause that's gone only goes, and costs nothing else", written?.Hero.Inventory[0]?.Held?[0] is { IsPage: true, Places: 1 } gone && gone.Held![0] == null);
             report.Check("And none of the old way of saving it is left", written != null && !written.Hero.Bar.Concat(written.Hero.Carried()).Any(item => item?.Book != null));
 
@@ -879,6 +974,7 @@ namespace Dino_BuildLab
             File.Delete(stickered);
             SaveGame.PathOverride = null;
             report.Check("A copy of that kept too", copied);
+            report.Check("And what's saved now says nothing of where a page went, or what kind of damage it dealt", !stored.Contains("\"Towards\"") && !stored.Contains("\"Element\""));
             report.Check("And nothing of what's stuck on is lost by saving", stable?.Hero.Bar[0]?.Written()?.Pages[1].Stickers.Count == 1 && !stored.Contains("\"Clauses\""));
 
             var writer = new BitWriter();
@@ -900,12 +996,13 @@ namespace Dino_BuildLab
             report.Check("Something inside something for ever is refused at the door", refused);
 
             var strange = new BitWriter();
-            strange.WriteByte((byte)PageKind.Projectile);
-            for (int i = 0; i < 6; i++) strange.WriteVarInt(99999);
+            strange.WriteByte((byte)PageKind.Area);
+            strange.WriteByte((byte)Hand.Spell);
+            for (int i = 0; i < 2; i++) strange.WriteVarInt(99999);
             strange.WriteCount(1);
-            for (int i = 0; i < 8; i++) strange.WriteVarInt(99999);
+            for (int i = 0; i < 7; i++) strange.WriteVarInt(99999);
             Page read2 = Protocol.ReadPage(new BitReader(strange.ToArray()));
-            report.Check("And sentences nobody has heard of are put right, whatever a stranger sends", read2.From == Sentences.PlainFrom && read2.Outcomes[0].Deed == Sentences.PlainDeed);
+            report.Check("And sentences nobody has heard of are put right, whatever a stranger sends", read2.Shape == Sentences.PlainShape && read2.Outcomes[0].Deed == Sentences.PlainDeed && read2.Hand == Hand.Spell);
 
             var empty = new Item { Name = "Empty", Slot = ItemSlot.Page };
             var item = new BitWriter();

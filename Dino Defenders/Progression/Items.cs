@@ -279,12 +279,12 @@ namespace Dino_Defenders.Progression
             foreach (Mod mod in RolledMods()) yield return mod;
         }
 
-        /// <summary>This item in a hand, as far as an attack goes.</summary>
+        /// <summary>This item in a hand, as far as an attack goes. What it deals is Attack Damage of whatever type its base is.</summary>
         public WeaponProfile Weapon()
         {
             WeaponTraits traits = WeaponKinds.Of(Kind);
             Tags tags = traits.Tag | (traits.TwoHanded ? Tags.TwoHanded : Tags.OneHanded);
-            return new WeaponProfile(WeaponDamage * (1f - WeaponSpread), WeaponDamage * (1f + WeaponSpread), traits.AttackTime, traits.CritChance, tags);
+            return new WeaponProfile(WeaponDamage * (1f - WeaponSpread), WeaponDamage * (1f + WeaponSpread), traits.AttackTime, traits.CritChance, tags, ItemGenerator.DamageTypeOf(Base));
         }
 
         /// <summary>
@@ -294,7 +294,9 @@ namespace Dino_Defenders.Progression
         public static WeaponProfile Paired(WeaponProfile a, WeaponProfile b)
         {
             float time = (a.AttackTime + b.AttackTime) * 0.5f / (1f + Rulebook.DualWieldSpeed / 100f);
-            return new WeaponProfile((a.Min + b.Min) * 0.5f, (a.Max + b.Max) * 0.5f, time, (a.CritChance + b.CritChance) * 0.5f, a.Tags | b.Tags);
+            if (b.Type < a.Type) (a, b) = (b, a);
+            float offShare = a.Type == b.Type ? 0f : (b.Min + b.Max) / MathF.Max(a.Min + a.Max + b.Min + b.Max, 0.001f);
+            return new WeaponProfile((a.Min + b.Min) * 0.5f, (a.Max + b.Max) * 0.5f, time, (a.CritChance + b.CritChance) * 0.5f, a.Tags | b.Tags, a.Type, b.Type, offShare);
         }
 
         /// <summary>What it is before anything has been rolled on it, as names and numbers.</summary>
@@ -303,7 +305,7 @@ namespace Dino_Defenders.Progression
             if (WeaponDamage > 0f)
             {
                 WeaponProfile weapon = Weapon();
-                yield return ("Weapon Damage", Say.Range(weapon.Min, weapon.Max));
+                yield return ("Weapon Damage", $"{Say.Range(weapon.Min, weapon.Max)} {DamageKinds.Name(weapon.Type)}");
                 yield return ("Attacks per Second", Say.N(1f / weapon.AttackTime));
                 yield return ("Critical Chance", Say.Percent(weapon.CritChance));
             }
@@ -343,8 +345,14 @@ namespace Dino_Defenders.Progression
         public bool Prefix;
         public string[] Names = Array.Empty<string>();
         public ItemSlot[] Slots = Array.Empty<ItemSlot>();
+
+        /// <summary>The only kinds of weapon it goes on, if it's for a weapon and not every one.</summary>
+        public WeaponKind[]? Kinds;
         public Tier[] Tiers = Array.Empty<Tier>();
         public Func<float, Mod[]> Build = _ => Array.Empty<Mod>();
+
+        /// <summary>Whether something of this slot, and this kind if it's a weapon, can have it.</summary>
+        public bool Fits(ItemSlot slot, WeaponKind kind) => Slots.Contains(slot) && (Kinds == null || slot != ItemSlot.MainHand || Kinds.Contains(kind));
     }
 
     /// <summary>
@@ -426,20 +434,24 @@ namespace Dino_Defenders.Progression
         private static readonly Tier[] Percent = Ladder((1, 8, 15), (6, 16, 26), (12, 27, 40), (20, 41, 58), (30, 59, 80));
         private static readonly Tier[] SmallPercent = Ladder((1, 4, 8), (8, 9, 14), (16, 15, 22), (28, 23, 32));
         private static readonly Tier[] Added = Ladder((1, 1, 3), (6, 4, 7), (12, 8, 13), (20, 14, 22), (30, 23, 36), (42, 37, 55));
+
+        // Spell Damage comes from nowhere else, so what a caster's weapon rolls is what a caster lives on, as its base damage once was.
+        private static readonly Tier[] SpellAdded = Ladder((1, 5, 15), (6, 20, 35), (12, 40, 65), (20, 70, 110), (30, 115, 180), (42, 185, 275));
+        private static readonly WeaponKind[] Casters = { WeaponKind.Wand, WeaponKind.Staff };
         private static readonly Tier[] Pool = Ladder((1, 10, 20), (6, 21, 40), (12, 41, 70), (20, 71, 110), (32, 111, 160), (45, 161, 230));
         private static readonly Tier[] Resistance = Ladder((1, 6, 12), (7, 13, 20), (14, 21, 30), (24, 31, 42));
         private static readonly Tier[] Rating = Ladder((1, 3, 7), (6, 8, 16), (12, 17, 30), (20, 31, 50), (30, 51, 85), (42, 86, 130));
         private static readonly Tier[] Chances = Ladder((2, 5, 10), (10, 11, 18), (20, 19, 28));
 
         // Which side it's on goes by what it builds, so that it can't be written down as the other.
-        private static void Add(string id, string[] names, ItemSlot[] slots, Tier[] tiers, Func<float, Mod[]> build)
+        private static void Add(string id, string[] names, ItemSlot[] slots, Tier[] tiers, Func<float, Mod[]> build, WeaponKind[]? kinds = null)
         {
-            var affix = new Affix { Id = id, Prefix = StatSides.IsDefensive(build(1f)[0].Stat), Names = names, Slots = slots, Tiers = tiers, Build = build };
+            var affix = new Affix { Id = id, Prefix = StatSides.IsDefensive(build(1f)[0].Stat), Names = names, Slots = slots, Kinds = kinds, Tiers = tiers, Build = build };
             ById.Add(id, affix);
             Everything.Add(affix);
         }
 
-        private static void Add(string id, string[] names, ItemSlot[] slots, Tier[] tiers, Func<float, Mod> build) => Add(id, names, slots, tiers, v => new[] { build(v) });
+        private static void Add(string id, string[] names, ItemSlot[] slots, Tier[] tiers, Func<float, Mod> build, WeaponKind[]? kinds = null) => Add(id, names, slots, tiers, v => new[] { build(v) }, kinds);
 
         static AffixCatalog()
         {
@@ -497,12 +509,20 @@ namespace Dino_Defenders.Progression
 
             // Suffixes: what a hero kills with. First what a blow is made of. These ids are what saves from before this system map onto, so they stay.
             Add("damage", new[] { "of Sharpness", "of the Edge", "of Cruelty", "of No Mercy", "of Ruination" }, Weapon, Ladder((1, 8, 15), (5, 16, 28), (10, 29, 45), (16, 46, 70), (24, 71, 100)), v => Inc(Stat.Damage, v));
-            Add("added-physical", new[] { "of Jags", "of Barbs", "of Rending", "of Brutality", "of Savagery", "of Flaying" }, WeaponRing, Added, v => M.Added(DamageType.Physical, v));
-            Add("added-fire", new[] { "of Warmth", "of Smouldering", "of Burning", "of the Blaze", "of the Inferno", "of the Sun" }, WeaponRing, Added, v => M.Added(DamageType.Fire, v));
-            Add("added-cold", new[] { "of Chill", "of Frost", "of Biting Cold", "of Ice", "of Polar Night", "of Absolute Zero" }, WeaponRing, Added, v => M.Added(DamageType.Cold, v));
-            Add("added-lightning", new[] { "of Humming", "of Sparks", "of Crackling", "of Arcs", "of Thunder", "of the Heavens" }, WeaponRing, Added, v => M.Added(DamageType.Lightning, v));
-            Add("added-magic", new[] { "of Whispers", "of Charms", "of Ensorcelling", "of the Eldritch", "of the Unbound", "of Sovereignty" }, WeaponRing, Added, v => M.Added(DamageType.Magic, v));
-            Add("added-poison", new[] { "of Taint", "of Sickness", "of Foulness", "of Venom", "of Virulence", "of Plague" }, WeaponRing, Added, v => M.Added(DamageType.Poison, v));
+            Add("added-physical", new[] { "of Jags", "of Barbs", "of Rending", "of Brutality", "of Savagery", "of Flaying" }, WeaponRing, Added, v => M.Added(DamageType.Physical, v, Tags.Attack));
+            Add("added-fire", new[] { "of Warmth", "of Smouldering", "of Burning", "of the Blaze", "of the Inferno", "of the Sun" }, WeaponRing, Added, v => M.Added(DamageType.Fire, v, Tags.Attack));
+            Add("added-cold", new[] { "of Chill", "of Frost", "of Biting Cold", "of Ice", "of Polar Night", "of Absolute Zero" }, WeaponRing, Added, v => M.Added(DamageType.Cold, v, Tags.Attack));
+            Add("added-lightning", new[] { "of Humming", "of Sparks", "of Crackling", "of Arcs", "of Thunder", "of the Heavens" }, WeaponRing, Added, v => M.Added(DamageType.Lightning, v, Tags.Attack));
+            Add("added-magic", new[] { "of Whispers", "of Charms", "of Ensorcelling", "of the Eldritch", "of the Unbound", "of Sovereignty" }, WeaponRing, Added, v => M.Added(DamageType.Magic, v, Tags.Attack));
+            Add("added-poison", new[] { "of Taint", "of Sickness", "of Foulness", "of Venom", "of Virulence", "of Plague" }, WeaponRing, Added, v => M.Added(DamageType.Poison, v, Tags.Attack));
+
+            // Spell Damage, which only a wand or a staff has.
+            Add("spell-physical", new[] { "of the Stone Word", "of the Iron Word", "of the Grinding Word", "of the Crushing Word", "of the Shattering Word", "of the Breaking Word" }, Weapon, SpellAdded, v => M.Added(DamageType.Physical, v, Tags.Spell), Casters);
+            Add("spell-fire", new[] { "of Kindling", "of Cinders", "of Flames", "of the Pyre", "of the Furnace", "of the Firestorm" }, Weapon, SpellAdded, v => M.Added(DamageType.Fire, v, Tags.Spell), Casters);
+            Add("spell-cold", new[] { "of Rimefall", "of Sleet", "of Glaciers", "of the Long Winter", "of the Frozen Deep", "of the White Death" }, Weapon, SpellAdded, v => M.Added(DamageType.Cold, v, Tags.Spell), Casters);
+            Add("spell-lightning", new[] { "of Crackle", "of Sparking", "of Lightning", "of the Storm", "of the Tempest", "of the Thunderbolt" }, Weapon, SpellAdded, v => M.Added(DamageType.Lightning, v, Tags.Spell), Casters);
+            Add("spell-magic", new[] { "of Incantation", "of Invocation", "of Conjuring", "of the Arcane", "of the Mystic", "of the Starlit Word" }, Weapon, SpellAdded, v => M.Added(DamageType.Magic, v, Tags.Spell), Casters);
+            Add("spell-poison", new[] { "of Miasma", "of Mildew", "of Contagion", "of the Plague Word", "of the Bog", "of the Black Rot" }, Weapon, SpellAdded, v => M.Added(DamageType.Poison, v, Tags.Spell), Casters);
 
             Add("spell-damage", new[] { "of the Apprentice", "of the Adept", "of the Learned", "of the Magus", "of the Archmage" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Spell));
             Add("attack-damage", new[] { "of the Soldier", "of the Veteran", "of the Champion", "of the Warmaster", "of the Conqueror" }, WeaponAmulet, Percent, v => Inc(Stat.Damage, v, Tags.Attack));
@@ -563,7 +583,7 @@ namespace Dino_Defenders.Progression
                 "health-regen-percent", "physical-damage", "attack-damage", "stun-chance");
             Suit(GearFamily.Leather, "dexterity", "evasion", "evasion-percent", "attack-speed", "crit-chance", "crit-increased", "crit-multiplier", "accuracy", "move-speed", "dodge-cooldown", "stealth",
                 "ailment-avoid", "projectile-speed", "bleed-chance", "venom-chance");
-            Suit(GearFamily.Cloth, "intellect", "mana", "mana-percent", "mana-regen", "barrier", "barrier-percent", "barrier-recharge", "spell-damage", "cast-speed", "cooldown", "cost", "potency",
+            Suit(GearFamily.Cloth, "intellect", "mana", "mana-percent", "mana-regen", "barrier", "barrier-percent", "barrier-recharge", "spell-damage", "spell-physical", "spell-fire", "spell-cold", "spell-lightning", "spell-magic", "spell-poison", "cast-speed", "cooldown", "cost", "potency",
                 "taken-from-mana", "duration", "minion-damage", "mana-on-hit", "mana-leech", "mana-on-kill");
         }
     }
@@ -575,7 +595,10 @@ namespace Dino_Defenders.Progression
     /// </summary>
     public static class ItemGenerator
     {
-        private sealed record BaseItem(string Name, ItemSlot Slot, int MinLevel, float Damage = 0f, float Armour = 0f, float Evasion = 0f, float Barrier = 0f, WeaponKind Kind = WeaponKind.Sword);
+        private sealed record BaseItem(string Name, ItemSlot Slot, int MinLevel, float Damage = 0f, float Armour = 0f, float Evasion = 0f, float Barrier = 0f, WeaponKind Kind = WeaponKind.Sword, DamageType Type = DamageType.Physical);
+
+        /// <summary>What type of Attack Damage a base deals, which is physical for anything that isn't a caster's.</summary>
+        public static DamageType DamageTypeOf(string baseName) => Array.Find(Bases, item => item.Name == baseName)?.Type ?? DamageType.Physical;
 
         private static readonly BaseItem[] Bases =
         {
@@ -605,14 +628,15 @@ namespace Dino_Defenders.Progression
             new("Hunting Bow", ItemSlot.MainHand, 6, 18f, Kind: WeaponKind.Bow),
             new("Yew Longbow", ItemSlot.MainHand, 15, 36f, Kind: WeaponKind.Bow),
             new("Horn Recurve", ItemSlot.MainHand, 28, 64f, Kind: WeaponKind.Bow),
-            new("Walking Staff", ItemSlot.MainHand, 1, 10f, Kind: WeaponKind.Staff),
-            new("Ash Staff", ItemSlot.MainHand, 4, 24f, Kind: WeaponKind.Staff),
-            new("Bound Staff", ItemSlot.MainHand, 9, 44f, Kind: WeaponKind.Staff),
-            new("Runed Staff", ItemSlot.MainHand, 20, 96f, Kind: WeaponKind.Staff),
-            new("Twig", ItemSlot.MainHand, 1, 7f, Kind: WeaponKind.Wand),
-            new("Carved Wand", ItemSlot.MainHand, 4, 17f, Kind: WeaponKind.Wand),
-            new("Bone Wand", ItemSlot.MainHand, 8, 33f, Kind: WeaponKind.Wand),
-            new("Sceptre", ItemSlot.MainHand, 20, 72f, Kind: WeaponKind.Wand),
+            // A caster's weapon strikes softly, as what it's for is Spell Damage, which its suffixes are. What it does strike with is the same element as the look of it.
+            new("Walking Staff", ItemSlot.MainHand, 1, 6f, Kind: WeaponKind.Staff),
+            new("Ash Staff", ItemSlot.MainHand, 4, 14f, Kind: WeaponKind.Staff, Type: DamageType.Fire),
+            new("Bound Staff", ItemSlot.MainHand, 9, 26f, Kind: WeaponKind.Staff, Type: DamageType.Cold),
+            new("Runed Staff", ItemSlot.MainHand, 20, 58f, Kind: WeaponKind.Staff, Type: DamageType.Lightning),
+            new("Twig", ItemSlot.MainHand, 1, 4f, Kind: WeaponKind.Wand, Type: DamageType.Lightning),
+            new("Carved Wand", ItemSlot.MainHand, 4, 10f, Kind: WeaponKind.Wand, Type: DamageType.Fire),
+            new("Bone Wand", ItemSlot.MainHand, 8, 20f, Kind: WeaponKind.Wand, Type: DamageType.Poison),
+            new("Sceptre", ItemSlot.MainHand, 20, 43f, Kind: WeaponKind.Wand, Type: DamageType.Magic),
 
             new("Buckler", ItemSlot.OffHand, 1, Evasion: 6f),
             new("Round Shield", ItemSlot.OffHand, 4, Armour: 11f),
@@ -704,7 +728,7 @@ namespace Dino_Defenders.Progression
             foreach (bool prefix in new[] { true, false })
             {
                 List<ItemLine> side = item.Lines.Where(line => AffixCatalog.Find(line.Affix)!.Prefix == prefix).ToList();
-                while (side.Count < each && PickAffix(item.Slot, prefix, level, side, item.Shares(), random) is Affix affix)
+                while (side.Count < each && PickAffix(item.Slot, item.Kind, prefix, level, side, item.Shares(), random) is Affix affix)
                 {
                     Tier rolled = affix.Tiers[BestTier(affix, level, random, quality)];
                     side.Add(new ItemLine(affix.Id, Rise(rolled.Low, rolled.High, quality, random)));
@@ -732,6 +756,12 @@ namespace Dino_Defenders.Progression
                 return;
             }
 
+            // A sticker is Unique for what's on it and nothing else is that's for a book, so a sticker's rarity is what it says.
+            if (item.Sticker is Sticker held && item.IsSticker && (item.Rarity == Rarity.Unique || Stickers.IsUnique(held.Good)))
+            {
+                item.Rarity = Stickers.IsUnique(held.Good) ? Rarity.Unique : Rarity.Rare;
+                return;
+            }
             if (!Enum.IsDefined(item.Rarity) || item.Rarity == Rarity.Unique) item.Rarity = Rarity.Rare;
             if (item.IsFolio)
             {
@@ -744,7 +774,7 @@ namespace Dino_Defenders.Progression
             int prefixes = 0, suffixes = 0;
             foreach (ItemLine line in item.Lines)
             {
-                if (AffixCatalog.Find(line.Affix) is not Affix affix || !affix.Slots.Contains(item.Slot) || kept.Any(other => other.Affix == line.Affix)) continue;
+                if (AffixCatalog.Find(line.Affix) is not Affix affix || !affix.Fits(item.Slot, item.Kind) || kept.Any(other => other.Affix == line.Affix)) continue;
                 if ((affix.Prefix ? prefixes : suffixes) >= each) continue;
                 if (affix.Prefix) prefixes++;
                 else suffixes++;
@@ -803,7 +833,7 @@ namespace Dino_Defenders.Progression
         public static Item Book(ulong seed)
         {
             Item book = EmptyBook(StarterPlaces, "Worn Book", seed, 1, Rarity.Normal);
-            book.Held![0] = Leaf(Scribe.NewPage(PageKind.Area), StarterStickers, "Area Page", NextSeed(seed), 1, Rarity.Normal);
+            book.Held![0] = Leaf(Scribe.NewPage(PageKind.Area), StarterStickers, "Attack Area Page", NextSeed(seed), 1, Rarity.Normal);
             return book;
         }
 
@@ -829,6 +859,14 @@ namespace Dino_Defenders.Progression
             PageEffect.Chains => "Sticker of Leaping",
             PageEffect.Stops => "Sticker of Aim",
             PageEffect.Rides => "Sticker of Flight",
+            PageEffect.Grounded => "Stonecatcher Sticker",
+            PageEffect.FromCursor => "Farcaster Sticker",
+            PageEffect.FromNearest => "Huntsman's Sticker",
+            PageEffect.FromRandom => "Gambler's Sticker",
+            PageEffect.ToNearest => "Seeker's Sticker",
+            PageEffect.ToYou => "Homing Sticker",
+            PageEffect.ToAnywhere => "Madcap Sticker",
+            PageEffect.Falls => "Skyfall Sticker",
             _ => "Sticker",
         };
 
@@ -842,11 +880,11 @@ namespace Dino_Defenders.Progression
             {
                 seed = NextSeed(seed);
                 Page page = book.Pages[i].Copy();
-                Item leaf = Leaf(page, Math.Max(page.Stickers.Count, 1), $"{page.Kind} Page", seed, level, Rarity.Normal);
+                Item leaf = Leaf(page, Math.Max(page.Stickers.Count, 1), PageName(page), seed, level, Rarity.Normal);
                 for (int s = 0; s < page.Stickers.Count; s++)
                 {
                     seed = NextSeed(seed);
-                    leaf.Held![s] = StickerItem(page.Stickers[s], seed, level, Rarity.Normal);
+                    leaf.Held![s] = StickerItem(page.Stickers[s], seed, level, Stickers.IsUnique(page.Stickers[s].Good) ? Rarity.Unique : Rarity.Normal);
                 }
                 page.Stickers = new List<Sticker>();
                 item.Held![i] = leaf;
@@ -854,22 +892,38 @@ namespace Dino_Defenders.Progression
             return item;
         }
 
+        // What a page is called, by what it does.
+        private static string PageName(Page page)
+        {
+            Deed deed = Sentences.Find(page.Outcomes.FirstOrDefault()?.Deed)?.Deed ?? Deed.Deal;
+            string what = deed switch
+            {
+                Deed.Deal => page.Hand.ToString(),
+                Deed.Raise => "Raising",
+                Deed.Move => "Blinking",
+                _ => "",
+            };
+            return $"{what} {page.Kind} Page".TrimStart();
+        }
+
         /// <summary>
-        /// Something that goes in a book, or a book. What it can hold is what it's worth, so the better it is the more places it has, and a sticker the better it rolls.
-        /// Nothing of the kind is one of a kind, so rare is as far as it goes.
+        /// Something that goes in a book, or a book. What it can hold is what it's worth, so the better it is the more places it has, and a sticker the better it rolls. What a page says is found with it and never changes.
+        /// Only a sticker can be Unique, for something on it nothing else can have, and what's found as Unique is a sticker or nothing: see <see cref="Loot"/>.
         /// </summary>
-        public static Item Folio(int level, WorldRandom random, Rarity rarity)
+        /// <param name="only">Which of the three it's to be, for what has to have one in particular. It's drawn for all the same, so nothing else about it changes.</param>
+        public static Item Folio(int level, WorldRandom random, Rarity rarity, ItemSlot? only = null)
         {
             ulong seed = NewSeed(random);
-            if (rarity > Rarity.Rare) rarity = Rarity.Rare;
+            if (rarity == Rarity.Unique) return StickerItem(Stickers.Roll(rarity, random), seed, level, rarity);
             int table = (int)rarity;
 
             float kind = random.Float();
+            if (only is ItemSlot wanted) kind = wanted == ItemSlot.Sticker ? 0f : wanted == ItemSlot.Page ? StickerShare : 1f;
             if (kind < StickerShare) return StickerItem(Stickers.Roll(rarity, random), seed, level, rarity);
             if (kind < StickerShare + PageShare)
             {
-                PageKind pageKind = random.Chance(0.5f) ? PageKind.Projectile : PageKind.Area;
-                return Leaf(Scribe.NewPage(pageKind), PlacesOf(LeastStickers[table], MostStickers[table], random), $"{FolioWords[table]} {pageKind} Page", seed, level, rarity);
+                Page page = Scribe.Roll(random.Fork("page"));
+                return Leaf(page, PlacesOf(LeastStickers[table], MostStickers[table], random), $"{FolioWords[table]} {PageName(page)}", seed, level, rarity);
             }
 
             float mode = random.Float();
@@ -951,12 +1005,12 @@ namespace Dino_Defenders.Progression
             return random.Chance(0.7f + 0.3f * quality) ? kin[^1] : first;
         }
 
-        private static Affix? PickAffix(ItemSlot slot, bool prefix, int level, List<ItemLine> taken, in FamilyShares shares, WorldRandom random)
+        private static Affix? PickAffix(ItemSlot slot, WeaponKind kind, bool prefix, int level, List<ItemLine> taken, in FamilyShares shares, WorldRandom random)
         {
             var options = new List<Affix>();
             foreach (Affix affix in AffixCatalog.All)
             {
-                if (affix.Prefix != prefix || !affix.Slots.Contains(slot) || taken.Any(line => line.Affix == affix.Id)) continue;
+                if (affix.Prefix != prefix || !affix.Fits(slot, kind) || taken.Any(line => line.Affix == affix.Id)) continue;
                 if (affix.Tiers[0].MinLevel <= level) options.Add(affix);
             }
             if (options.Count == 0) return null;

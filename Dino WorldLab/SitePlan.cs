@@ -58,7 +58,7 @@ namespace Dino_WorldLab
                     Vector3 colour = spawn.Role switch
                     {
                         SpawnRole.Villager => new Vector3(0.2f, 0.7f, 1f),
-                        SpawnRole.Merchant or SpawnRole.Elder => new Vector3(1f, 1f, 0.3f),
+                        SpawnRole.Merchant or SpawnRole.Elder or SpawnRole.BetaVendor => new Vector3(1f, 1f, 0.3f),
                         SpawnRole.Chest => new Vector3(1f, 0.85f, 0f),
                         SpawnRole.Boss => new Vector3(1f, 0f, 1f),
                         _ => new Vector3(1f, 0.1f, 0.1f),

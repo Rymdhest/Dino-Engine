@@ -3,95 +3,72 @@ using static Dino_Defenders.Tooltips.Say;
 
 namespace Dino_Defenders.Tooltips
 {
-    /// <summary>Which part of a page something is, for whoever wants to change it: a blank, and if there are several of those, which.</summary>
-    public readonly record struct PagePlace(Blank Blank, int Outcome = -1, bool Towards = false);
-
-    /// <summary>A stretch of a page as it reads. Something that was chosen says where it is, and what only joins those up doesn't.</summary>
-    public readonly record struct PagePart(string Text, PagePlace? Place = null);
-
     /// <summary>
-    /// How a page reads, which is only ever its sentences one after another. A card reads this as a sentence and a book's own page as parts that can each be changed, so what's shown in the one is what's chosen in
-    /// the other, and neither has any words of its own for what a page does.
+    /// How a page reads, which is only ever what it comes to, one part after another: where it starts, where it goes or what it covers, and what happens on Impact. It reads what a page comes to and not what's written on
+    /// it, as a sticker can change where it starts and where it goes, and a card and a book's own page both say the same.
     /// </summary>
     public static class BookText
     {
-        private static PagePart Chosen(string? id, PagePlace place) => new PagePart(Sentences.Find(id)!.Words, place);
-
-        /// <summary>A page, a line at a time: where it starts, where it goes, what's been added to that, and each Outcome.</summary>
-        public static List<List<PagePart>> Parts(Page page, int index)
+        /// <summary>A page, a line at a time: where it starts, where it goes or what it covers, and what it does on Impact.</summary>
+        /// <param name="written">What it was found as, for the words of what it does.</param>
+        /// <param name="potency">What it deals, of all of its Damage.</param>
+        public static List<string> Lines(Page written, PagePlan page, float potency)
         {
-            var lines = new List<List<PagePart>>();
-
-            var start = new List<PagePart>();
-            start.Add(index == 0 ? Chosen(page.From, new PagePlace(Blank.From)) : new PagePart("from where it struck"));
-            if (page.FromWithin != null) start.Add(Chosen(page.FromWithin, new PagePlace(Blank.Within)));
-            lines.Add(start);
-
-            var then = new List<PagePart>();
-            if (page.Kind == PageKind.Projectile)
-            {
-                then.Add(Chosen(page.Towards, new PagePlace(Blank.Towards)));
-                if (page.TowardsWithin != null) then.Add(Chosen(page.TowardsWithin, new PagePlace(Blank.Within, Towards: true)));
-            }
-            else
-            {
-                then.Add(Chosen(page.Shape, new PagePlace(Blank.Shape)));
-                then.Add(Chosen(page.Timing, new PagePlace(Blank.Timing)));
-            }
-            lines.Add(then);
-
-            for (int i = 0; i < page.Outcomes.Count; i++) lines.Add(OutcomeParts(page.Outcomes[i], i));
+            var lines = new List<string> { StartOf(page) };
+            if (page.Kind == PageKind.Projectile) lines.Add(page.Falls ? FallOf(page) : WayOf(page));
+            else lines.Add($"{Sentences.Find(written.Shape)!.Words}, {Sentences.Find(written.Timing)!.Words}");
+            lines.Add($"On Impact, {Deed(written.Outcomes[0], page, potency)}");
             return lines;
         }
 
-        private static List<PagePart> OutcomeParts(Outcome outcome, int index)
+        private static string StartOf(PagePlan page) => page.From switch
         {
-            PagePart Word(Blank blank) => new PagePart(Scribe.Word(outcome, blank).Words, new PagePlace(blank, index));
+            Start.Impact => "From where the last struck",
+            Start.Cursor => "From the cursor",
+            Start.Nearest => "From the nearest Enemy",
+            Start.Random => "From a random Enemy nearby",
+            _ => "From you",
+        };
 
-            var parts = new List<PagePart>();
+        private static string WayOf(PagePlan page) => page.To switch
+        {
+            Bearing.Onward => "the way the last was going",
+            Bearing.Nearest => "towards the nearest Enemy",
+            Bearing.You => "towards you",
+            Bearing.Anywhere => "in a random direction",
+            _ => "towards the cursor",
+        };
+
+        private static string FallOf(PagePlan page) => page.To switch
+        {
+            Bearing.Onward => "down out of the sky, ahead of where the last struck",
+            Bearing.Nearest => "down out of the sky onto the nearest Enemy",
+            Bearing.You => "down out of the sky onto you",
+            Bearing.Anywhere => "down out of the sky somewhere at random",
+            _ => "down out of the sky onto the cursor",
+        };
+
+        private static string Deed(Outcome outcome, PagePlan page, float potency)
+        {
+            string Word(Blank blank) => Scribe.Word(outcome, blank).Words;
+
             Sentence deed = Sentences.Find(outcome.Deed)!;
-            parts.Add(new PagePart(deed.Words, new PagePlace(Blank.Deed, index)));
-            switch (deed.Deed)
+            return deed.Deed switch
             {
-                case Deed.Deal:
-                    parts.Add(Word(Blank.Element));
-                    parts.Add(new PagePart("Damage equal to"));
-                    parts.Add(Word(Blank.Measure));
-                    break;
-                case Deed.Heal:
-                    parts.Add(Word(Blank.Pool));
-                    parts.Add(new PagePart("to"));
-                    parts.Add(Word(Blank.Whom));
-                    parts.Add(new PagePart("equal to"));
-                    parts.Add(Word(Blank.Measure));
-                    break;
-                case Deed.Afflict:
-                    parts.Add(Word(Blank.Ailment));
-                    parts.Add(new PagePart("as strong as a Hit of"));
-                    parts.Add(Word(Blank.Measure));
-                    break;
-                case Deed.Give:
-                    parts.Add(Word(Blank.Gift));
-                    parts.Add(new PagePart("to"));
-                    parts.Add(Word(Blank.Whom));
-                    break;
-                case Deed.Raise:
-                    parts.Add(Word(Blank.Kin));
-                    break;
-            }
-            return parts;
+                Books.Deed.Deal => $"deal {Share(potency)} of your {page.Hand} Damage",
+                Books.Deed.Heal => $"{deed.Words} {Word(Blank.Pool)} to {Word(Blank.Whom)} equal to {Word(Blank.Measure)}",
+                Books.Deed.Afflict => $"{deed.Words} {Word(Blank.Ailment)} as strong as a Hit of {Word(Blank.Measure)}",
+                Books.Deed.Give => $"{deed.Words} {Word(Blank.Gift)} to {Word(Blank.Whom)}",
+                Books.Deed.Raise => $"{deed.Words} {Word(Blank.Kin)}",
+                _ => deed.Words,
+            };
         }
 
-        private static string Joined(List<PagePart> parts) => string.Join(" ", parts.Select(part => part.Text));
-
         /// <summary>A page as a sentence or two, for a card.</summary>
-        public static string Says(Page page, int index)
+        public static string Says(Page written, PagePlan page, float potency)
         {
-            List<List<PagePart>> lines = Parts(page, index);
-            int before = lines.Count - page.Outcomes.Count;
-            string way = string.Join(", ", lines.Take(before).Select(Joined));
-            string outcomes = List(lines.Skip(before).Select(Joined).ToList());
-            return $"{char.ToUpperInvariant(way[0])}{way.Substring(1)}. On Impact, {outcomes}";
+            List<string> lines = Lines(written, page, potency);
+            return $"{lines[0]}, {lines[1]}. {lines[2]}";
         }
 
         /// <summary>What a Trigger Book waits for.</summary>
@@ -131,6 +108,14 @@ namespace Dino_Defenders.Tooltips
             PageEffect.Chains => $"Chains to {N(sticker.GoodBy)} more Enemies",
             PageEffect.Stops => "Stops at its target",
             PageEffect.Rides => "Carries you with it, from an Opening Page that starts from you",
+            PageEffect.Grounded => "Hitting the ground or anything solid is an Impact",
+            PageEffect.FromCursor => "As the Opening Page, starts from the cursor",
+            PageEffect.FromNearest => "As the Opening Page, starts from the nearest Enemy",
+            PageEffect.FromRandom => $"As the Opening Page, starts from a random Enemy nearby, with {Trade(Stickers.Weighting(sticker.Good))}",
+            PageEffect.ToNearest => "Flies towards the nearest Enemy",
+            PageEffect.ToYou => "Flies back towards you",
+            PageEffect.ToAnywhere => $"Flies in a random direction, with {Trade(Stickers.Weighting(sticker.Good))}",
+            PageEffect.Falls => "Falls out of the sky onto where it's going",
             _ => "",
         };
 
@@ -153,8 +138,11 @@ namespace Dino_Defenders.Tooltips
             if (percent < 0f) yield return $"{N(-percent)}% less {what}";
         }
 
-        /// <summary>What a sentence does to the page it's on, in the words those things are always said in.</summary>
-        public static IEnumerable<string> Trade(in Weights weights)
+        /// <summary>What a sentence does to the page it's on, in the words those things are always said in, as one line.</summary>
+        public static string Trade(in Weights weights) => List(Trades(weights).ToList());
+
+        /// <summary>The same, a line for each.</summary>
+        public static IEnumerable<string> Trades(in Weights weights)
         {
             var lines = new List<string>();
             if (weights.Added != 0f) lines.Add($"{Signed(weights.Added)} Cost");
@@ -167,16 +155,12 @@ namespace Dino_Defenders.Tooltips
             return lines;
         }
 
-        /// <summary>What a blank on a page is called, for whoever's choosing what goes in it.</summary>
+        /// <summary>What a blank on a page is called, for a list of them.</summary>
         public static string NameOf(Blank blank) => blank switch
         {
-            Blank.From => "Where it begins",
-            Blank.Towards => "Where it goes",
             Blank.Shape => "Its shape",
             Blank.Timing => "How long it stays",
-            Blank.Within => "How far off",
             Blank.Deed => "What happens",
-            Blank.Element => "What kind",
             Blank.Measure => "How much",
             Blank.Ailment => "Which",
             Blank.Gift => "Which",
@@ -191,7 +175,7 @@ namespace Dino_Defenders.Tooltips
             Measure.Health => "Maximum Health",
             Measure.Mana => "Maximum Mana",
             Measure.Barrier => "Maximum Barrier",
-            Measure.Damage => "Weapon Damage",
+            Measure.Damage => "Damage",
             _ => measure.ToString(),
         };
     }

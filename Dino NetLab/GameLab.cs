@@ -1179,7 +1179,7 @@ namespace Dino_NetLab
             player.Client.Allocate(99999);
             player.Client.Allocate(-1);
             player.Client.Refund(99999);
-            player.Client.Write(new ItemPlace(9999), new Dino_Defenders.Books.Page());
+            player.Client.Title(new ItemPlace(9999), "Nothing");
             lab.Run(0.5);
             report.Check("Nonsense requests are ignored", player.Client.State == ClientState.Playing);
 

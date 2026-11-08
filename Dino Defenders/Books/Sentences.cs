@@ -3,16 +3,12 @@ using Dino_Defenders.Tooltips;
 
 namespace Dino_Defenders.Books
 {
-    /// <summary>A place on a page that takes a sentence. Each has its own list to choose from.</summary>
+    /// <summary>A place on a page that takes a sentence. Each has its own list, which is what a page can be found with.</summary>
     public enum Blank : byte
     {
-        From,
-        Towards,
         Shape,
         Timing,
-        Within,
         Deed,
-        Element,
         Measure,
         Ailment,
         Gift,
@@ -21,24 +17,22 @@ namespace Dino_Defenders.Books
         Whom,
     }
 
-    /// <summary>Where a page begins.</summary>
+    /// <summary>Where a page begins. The first starts from you and every other where the last struck, unless a sticker says otherwise.</summary>
     public enum Start : byte
     {
         You,
         Cursor,
         Nearest,
         Random,
-        Impact,     // Where the last page struck. Nobody chooses this: it's what a following page is.
+        Impact,     // Where the last page struck.
     }
 
-    /// <summary>Which way a projectile goes.</summary>
+    /// <summary>Which way a projectile goes. The first goes towards the cursor and every other on the way the last was going, unless a sticker says otherwise.</summary>
     public enum Bearing : byte
     {
         Cursor,
         You,
         Nearest,
-        Random,
-        Down,
         Anywhere,
         Onward,
     }
@@ -114,21 +108,14 @@ namespace Dino_Defenders.Books
         /// <summary>Only makes sense on one kind of page, if it isn't null.</summary>
         public PageKind? Fits;
 
-        /// <summary>Leaves something to chance, which a build can make something of.</summary>
-        public bool Wild;
+        /// <summary>How often a found page has it, against everything else in its blank, or never if nothing. What's only for written books has none.</summary>
+        public float Found;
 
-        /// <summary>Only means something on a page that follows another.</summary>
-        public bool FollowsOnly;
-
-        public Start Start;
-        public Bearing Bearing;
         public AreaShape Shape;
         public float Length;            // Metres: how far a shape reaches, or its radius.
         public float Width;             // Radians for a cone, and otherwise metres either side of the middle.
         public float Duration;          // Seconds, for what lingers.
-        public float Scatter;           // Metres.
         public Deed Deed;
-        public DamageType Element;
         public Measure Measure;
         public float Share;             // Of whatever it measures.
         public Ailment Ailment;
@@ -141,16 +128,14 @@ namespace Dino_Defenders.Books
 
     /// <summary>
     /// Everything that can be written. Ids are saved in books, and the order is what's sent, so a new sentence goes on the end of its own group and an old one keeps its id: its words and numbers can change at any
-    /// time, and every book there is changes with them. For now every sentence is open to everyone. When they're something to be found, this is the list to narrow.
+    /// time, and every book there is changes with them. Nobody writes anything: a page is found with what it says (<see cref="Scribe.Roll"/>), and only what has a <see cref="Sentence.Found"/> share turns up on one.
+    /// The rest is for books that are already written, in <see cref="Shelf"/>.
     /// </summary>
     public static class Sentences
     {
-        public const string PlainFrom = "from-you";
-        public const string PlainTowards = "towards-cursor";
         public const string PlainShape = "cone";
         public const string PlainTiming = "at-once";
         public const string PlainDeed = "deal";
-        public const string PlainElement = "physical";
         public const string PlainMeasure = "of-damage";
         public const string PlainAilment = "burn";
         public const string PlainGift = "stone-skin";
@@ -170,10 +155,9 @@ namespace Dino_Defenders.Books
         /// <summary>What can go in a blank, in the order it's offered.</summary>
         public static IEnumerable<Sentence> For(Blank blank) => Everything.Where(sentence => sentence.Blank == blank);
 
-        /// <summary>What a deed needs saying about it, in the order it reads.</summary>
+        /// <summary>What a deed needs saying about it, in the order it reads. Dealing needs nothing, as what a page deals is all of whichever Damage its <see cref="Hand"/> says.</summary>
         public static Blank[] BlanksOf(Deed deed) => deed switch
         {
-            Deed.Deal => new[] { Blank.Element, Blank.Measure },
             Deed.Heal => new[] { Blank.Pool, Blank.Whom, Blank.Measure },
             Deed.Afflict => new[] { Blank.Ailment, Blank.Measure },
             Deed.Give => new[] { Blank.Gift, Blank.Whom },
@@ -189,19 +173,11 @@ namespace Dino_Defenders.Books
             return sentence;
         }
 
-        private static void From(string id, string words, Start start, Weights weights, bool wild = false) => Add(new Sentence { Id = id, Blank = Blank.From, Words = words, Start = start, Weights = weights, Wild = wild });
+        private static void Shape(string id, string words, AreaShape shape, float length, float width, Weights weights, float found) => Add(new Sentence { Id = id, Blank = Blank.Shape, Words = words, Shape = shape, Length = length, Width = width, Weights = weights, Fits = PageKind.Area, Found = found });
 
-        private static void Towards(string id, string words, Bearing bearing, Weights weights, bool wild = false, bool follows = false) => Add(new Sentence { Id = id, Blank = Blank.Towards, Words = words, Bearing = bearing, Weights = weights, Fits = PageKind.Projectile, Wild = wild, FollowsOnly = follows });
+        private static void Timing(string id, string words, float duration, Weights weights, float found) => Add(new Sentence { Id = id, Blank = Blank.Timing, Words = words, Duration = duration, Weights = weights, Fits = PageKind.Area, Found = found });
 
-        private static void Shape(string id, string words, AreaShape shape, float length, float width, Weights weights) => Add(new Sentence { Id = id, Blank = Blank.Shape, Words = words, Shape = shape, Length = length, Width = width, Weights = weights, Fits = PageKind.Area });
-
-        private static void Timing(string id, string words, float duration, Weights weights) => Add(new Sentence { Id = id, Blank = Blank.Timing, Words = words, Duration = duration, Weights = weights, Fits = PageKind.Area });
-
-        private static void Within(string id, float metres, Weights weights) => Add(new Sentence { Id = id, Blank = Blank.Within, Words = $"somewhere within {Say.Metres(metres)}", Scatter = metres, Weights = weights, Wild = true });
-
-        private static void Doing(string id, string words, Deed deed, Weights weights) => Add(new Sentence { Id = id, Blank = Blank.Deed, Words = words, Deed = deed, Weights = weights });
-
-        private static void Type(string id, DamageType element, Weights weights) => Add(new Sentence { Id = id, Blank = Blank.Element, Words = element.ToString(), Element = element, Weights = weights });
+        private static void Doing(string id, string words, Deed deed, Weights weights, float found = 0f) => Add(new Sentence { Id = id, Blank = Blank.Deed, Words = words, Deed = deed, Weights = weights, Found = found });
 
         private static void Of(string id, string what, Measure measure, float share) => Add(new Sentence { Id = id, Blank = Blank.Measure, Words = $"{Say.Share(share)} of your {what}", Measure = measure, Share = share });
 
@@ -217,52 +193,28 @@ namespace Dino_Defenders.Books
 
         static Sentences()
         {
-            // Finding someone by itself is worth something, and leaving it to chance is worth having back.
-            From(PlainFrom, "from you", Start.You, default);
-            From("from-cursor", "from the cursor", Start.Cursor, new Weights(Added: 2f));
-            From("from-nearest", "from the nearest Enemy", Start.Nearest, new Weights(Added: 3f, Potency: -15f));
-            From("from-random", "from a random Enemy nearby", Start.Random, new Weights(Added: 1f, Potency: 10f), wild: true);
+            // How often each turns up on a found page is against the rest of its own list.
+            Shape(PlainShape, "in a Cone", AreaShape.Cone, Rulebook.ConeReach, Rulebook.ConeArc, default, 1f);
+            Shape("circle", "in a Circle", AreaShape.Circle, Rulebook.CircleRadius, 0f, new Weights(Added: 2f), 1f);
+            Shape("line", "in a Line", AreaShape.Line, Rulebook.LineLength, Rulebook.LineWidth, new Weights(Added: 2f), 1f);
+            Shape("rectangle", "in a Rectangle", AreaShape.Rectangle, Rulebook.BoxLength, Rulebook.BoxWidth, new Weights(Added: 2f), 1f);
 
-            Towards(PlainTowards, "towards the cursor", Bearing.Cursor, default);
-            Towards("towards-you", "towards you", Bearing.You, default);
-            Towards("towards-nearest", "towards the nearest Enemy", Bearing.Nearest, new Weights(Added: 2f, Potency: -15f));
-            Towards("towards-random", "towards a random Enemy nearby", Bearing.Random, new Weights(Cost: -15f), wild: true);
-            Towards("downwards", "straight down out of the sky", Bearing.Down, new Weights(Added: 2f));
-            Towards("anywhere", "in a random direction", Bearing.Anywhere, new Weights(Cost: -50f, Potency: 30f), wild: true);
-            Towards("onward", "the way it was going", Bearing.Onward, default, follows: true);
+            Timing(PlainTiming, "at once", 0f, default, 6f);
+            Timing("lingering", $"lingering for {Say.Seconds(Rulebook.LingerShort)}", Rulebook.LingerShort, new Weights(Added: 3f), 1.5f);
+            Timing("lingering-long", $"lingering for {Say.Seconds(Rulebook.LingerLong)}", Rulebook.LingerLong, new Weights(Added: 5f), 0.5f);
 
-            Shape(PlainShape, "in a Cone", AreaShape.Cone, Rulebook.ConeReach, Rulebook.ConeArc, default);
-            Shape("circle", "in a Circle", AreaShape.Circle, Rulebook.CircleRadius, 0f, new Weights(Added: 2f));
-            Shape("line", "in a Line", AreaShape.Line, Rulebook.LineLength, Rulebook.LineWidth, new Weights(Added: 2f));
-            Shape("rectangle", "in a Rectangle", AreaShape.Rectangle, Rulebook.BoxLength, Rulebook.BoxWidth, new Weights(Added: 2f));
-
-            Timing(PlainTiming, "at once", 0f, default);
-            Timing("lingering", $"lingering for {Say.Seconds(Rulebook.LingerShort)}", Rulebook.LingerShort, new Weights(Added: 3f));
-            Timing("lingering-long", $"lingering for {Say.Seconds(Rulebook.LingerLong)}", Rulebook.LingerLong, new Weights(Added: 5f));
-
-            Within("within-near", Rulebook.ScatterNear, new Weights(Potency: 8f));
-            Within("within-mid", Rulebook.ScatterMid, new Weights(Cost: -10f, Potency: 15f));
-            Within("within-far", Rulebook.ScatterFar, new Weights(Cost: -20f, Potency: 25f));
-
-
-            Doing(PlainDeed, "deal", Deed.Deal, default);
+            // Dealing damage is what nearly every page does. Raising and moving are rarer finds, and the rest only written books do. Moving goes by a projectile that reached someone, as an area that starts from
+            // you would leave you where you are.
+            Doing(PlainDeed, "deal", Deed.Deal, default, 20f);
             Doing("heal", "restore", Deed.Heal, new Weights(Added: 4f));
             Doing("afflict", "inflict", Deed.Afflict, new Weights(Added: 2f));
             Doing("give", "give", Deed.Give, new Weights(Added: 5f));
-            Doing("raise", "raise", Deed.Raise, new Weights(Added: 8f));
-            Doing("move", "move you there", Deed.Move, new Weights(Added: 4f));
+            Doing("raise", "raise", Deed.Raise, new Weights(Added: 8f), 1f);
+            Doing("move", "move you there", Deed.Move, new Weights(Added: 4f), 1f);
             Doing("water", "make Water there", Deed.Water, new Weights(Added: 3f));
             Doing("push", "throw them back", Deed.Push, new Weights(Added: 1f));
             Doing("pull", "drag them in", Deed.Pull, new Weights(Added: 1f));
             Doing("pass", "do nothing but turn the Page", Deed.Pass, default);
-
-            // Anything but what a weapon already is takes some doing.
-            Type(PlainElement, DamageType.Physical, default);
-            Type("fire", DamageType.Fire, new Weights(Added: 1f));
-            Type("cold", DamageType.Cold, new Weights(Added: 1f));
-            Type("lightning", DamageType.Lightning, new Weights(Added: 1f));
-            Type("magic", DamageType.Magic, new Weights(Added: 1f));
-            Type("poison", DamageType.Poison, new Weights(Added: 1f));
 
             // What each comes to at the same level is close, so that what's chosen is what a build has most of.
             Of(PlainMeasure, "Damage", Measure.Damage, 1f);

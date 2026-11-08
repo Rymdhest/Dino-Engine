@@ -1016,13 +1016,6 @@ namespace Dino_Defenders.Server
                     if (hero.Move(moving, movingTo) && !(moving.IsCell && movingTo.IsCell)) player.RefreshLoadout();
                     break;
 
-                case HeroAction.Write:
-                    player.Heard(reader.ReadVarInt());
-                    var writing = new ItemPlace(reader.ReadVarInt());
-                    Page written = Protocol.ReadPage(reader);
-                    if (hero.Write(writing, written) && writing.IsHeld) player.RefreshLoadout();
-                    break;
-
                 case HeroAction.Title:
                     player.Heard(reader.ReadVarInt());
                     var titling = new ItemPlace(reader.ReadVarInt());
@@ -1062,6 +1055,16 @@ namespace Dino_Defenders.Server
                     TableFor(player, site).Buy(hero, buyingBack, buy, into);
                     player.SummaryChanged = true;
                     SendMarket(player, site);
+                    break;
+
+                case HeroAction.TakeOffer:
+                    player.Heard(reader.ReadVarInt());
+                    int offerTab = reader.ReadVarInt();
+                    int offerRoll = reader.ReadInt();
+                    int offerLevel = reader.ReadVarInt();
+                    int offer = reader.ReadVarInt();
+                    int? offerInto = reader.ReadBool() ? reader.ReadVarInt() : null;
+                    if (BetaVendor.GivesIn(Session!.IsHaven)) BetaVendor.Take(hero, offerTab, offerRoll, offerLevel, offer, offerInto);
                     break;
 
                 case HeroAction.BuyFlasks:

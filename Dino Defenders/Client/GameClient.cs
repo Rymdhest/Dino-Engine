@@ -683,17 +683,6 @@ namespace Dino_Defenders.Client
             Recompile();
         }
 
-        /// <summary>Writes on a page, all of it at once.</summary>
-        public void Write(ItemPlace place, Page page)
-        {
-            Hero.Write(place, page);
-            BitWriter writer = AskGear(HeroAction.Write);
-            writer.WriteVarInt(place.Number);
-            Protocol.WritePage(writer, page);
-            Send(writer);
-            Recompile();
-        }
-
         /// <summary>Calls a book something.</summary>
         public void Title(ItemPlace place, string name)
         {
@@ -742,6 +731,21 @@ namespace Dino_Defenders.Client
             _tableAsked = _gearAsked;
             writer.WriteVarInt(site);
             writer.WriteBool(buyingBack);
+            writer.WriteVarInt(index);
+            writer.WriteBool(cell != null);
+            if (cell != null) writer.WriteVarInt(cell.Value);
+            Send(writer);
+        }
+
+        /// <summary>Takes something from the beta vendor in the Haven into the pack: into a cell, or the first that's free. The server makes the very same thing again from what's sent, and has the last word.</summary>
+        /// <param name="roll">Which of his rolls it's from, which is what the client chose to show.</param>
+        public void TakeOffer(int tab, int roll, int level, int index, int? cell = null)
+        {
+            if (BetaVendor.GivesIn(Session?.IsHaven == true)) BetaVendor.Take(Hero, tab, roll, level, index, cell);
+            BitWriter writer = AskGear(HeroAction.TakeOffer);
+            writer.WriteVarInt(tab);
+            writer.WriteInt(roll);
+            writer.WriteVarInt(level);
             writer.WriteVarInt(index);
             writer.WriteBool(cell != null);
             if (cell != null) writer.WriteVarInt(cell.Value);

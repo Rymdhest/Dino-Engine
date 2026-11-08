@@ -2,12 +2,24 @@ using Dino_Defenders.Books;
 
 namespace Dino_Defenders.Stats
 {
-    /// <summary>What a weapon brings to an attack. Someone with nothing in their hands has one of these as well.</summary>
-    public readonly record struct WeaponProfile(float Min, float Max, float AttackTime, float CritChance, Tags Tags)
+    /// <summary>
+    /// What a weapon brings to an attack, which is Attack Damage of a type, and only an Attack Page deals it. Someone with nothing in their hands has one of these as well. Two weapons in two hands are both their types at once,
+    /// <paramref name="OffShare"/> of it the second's.
+    /// </summary>
+    public readonly record struct WeaponProfile(float Min, float Max, float AttackTime, float CritChance, Tags Tags, DamageType Type = DamageType.Physical, DamageType Off = DamageType.Physical, float OffShare = 0f)
     {
         public const float BareTime = 0.6f;
 
         public static readonly WeaponProfile Fists = new WeaponProfile(2f, 4f, BareTime, 5f, Tags.Unarmed);
+
+        /// <summary>Adds what it deals, by type, to the two ends of a roll.</summary>
+        public void AddTo(ref DamageTable min, ref DamageTable max)
+        {
+            min[(int)Type] += Min * (1f - OffShare);
+            max[(int)Type] += Max * (1f - OffShare);
+            min[(int)Off] += Min * OffShare;
+            max[(int)Off] += Max * OffShare;
+        }
     }
 
     /// <summary>

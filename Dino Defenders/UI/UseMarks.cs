@@ -285,6 +285,7 @@ namespace Dino_Defenders.UI
             InteractKind.Merchant => "Merchant",
             InteractKind.Stash => "Stash",
             InteractKind.MapTable => "Map Table",
+            InteractKind.BetaVendor => "Beta Vendor",
             _ => "Elder",
         };
 
@@ -363,6 +364,14 @@ namespace Dino_Defenders.UI
                     draw.AddLine(bottom, left, colour, Stroke, roundCaps: true);
                     draw.AddLine(left, top, colour, Stroke, roundCaps: true);
                     draw.AddCircle(c, s * 0.26f, colour);
+                    break;
+                case InteractKind.BetaVendor:
+                    // Something wrapped as a gift, as everything he has is free.
+                    draw.AddRect(new GuiRect(c.X - s * 0.9f, c.Y - s * 0.3f, s * 1.8f, s * 1.2f), GuiColors.Transparent, s * 0.15f, Stroke, colour);
+                    draw.AddLine(c + new Vector2(0f, -s * 0.3f), c + new Vector2(0f, s * 0.9f), colour, Stroke);
+                    draw.AddLine(c + new Vector2(-s * 0.9f, s * 0.25f), c + new Vector2(s * 0.9f, s * 0.25f), colour, Stroke);
+                    draw.AddCircle(c + new Vector2(-s * 0.3f, -s * 0.62f), s * 0.28f, GuiColors.Transparent, Stroke, colour);
+                    draw.AddCircle(c + new Vector2(s * 0.3f, -s * 0.62f), s * 0.28f, GuiColors.Transparent, Stroke, colour);
                     break;
                 case InteractKind.Merchant:
                     draw.AddCircle(c + new Vector2(0f, s * 0.25f), s * 0.8f, GuiColors.Transparent, Stroke, colour);

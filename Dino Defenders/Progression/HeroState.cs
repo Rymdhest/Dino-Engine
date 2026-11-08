@@ -390,21 +390,6 @@ namespace Dino_Defenders.Progression
             }
         }
 
-        /// <summary>
-        /// Writes on a page, whatever it says now: a page only ever changes as a whole, and what's written is put right first, so that nobody can write what can't be read. What kind of page it is isn't anyone's to write,
-        /// as that's what was found. Both ends do this, as a client shows what it's asked for at once. Says whether there was a page there.
-        /// </summary>
-        public bool Write(ItemPlace place, Page page)
-        {
-            if (At(place) is not { IsPage: true, Page: Page old } item) return false;
-            Page written = page.Copy();
-            written.Kind = old.Kind;
-            written.Stickers = new List<Sticker>();
-            Scribe.Fix(written, following: true);
-            item.Page = written;
-            return true;
-        }
-
         /// <summary>Calls a book something. Says whether there was a book there and a name to call it.</summary>
         public bool Title(ItemPlace place, string name)
         {

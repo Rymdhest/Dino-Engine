@@ -13,6 +13,7 @@ namespace Dino_BuildLab
     ///   loot [--level N]   What each source gives, what a whole world comes to, and the longest dry spells.
     ///   lands [--rolls N]   What a land of each level holds, and what each omen and unique orders comes to.
     ///   books [--level N] [--weapon sword|wand|bow]   What every sentence comes to on a plain page, and what's on the shelf comes to.
+    ///   lookup [--find words] [--type weapon|armour|jewellery|sticker|orders] [--kind Ring] [--order slot|name|level] [--level N]   Every unique a search finds, as the beta vendor's lookup does.
     /// </summary>
     internal static class Program
     {
@@ -42,6 +43,8 @@ namespace Dino_BuildLab
                     return LandLab.Run(options);
                 case "books":
                     return BookLab.Run(options);
+                case "lookup":
+                    return VendorChecks.List(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;
@@ -103,6 +106,7 @@ namespace Dino_BuildLab
             TooltipChecks.Run(report);
             LandLab.Checks(report);
             LootLab.Check(report);
+            VendorChecks.Run(report);
             FuzzChecks.Run(report, options.Int("rounds", 3000));
             return report.Finish();
         }

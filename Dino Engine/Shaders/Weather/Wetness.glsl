@@ -64,7 +64,7 @@ void weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, floa
     vec4 here = weatherSurfaceAt(worldPosition.xz);
     if (here.x + here.y + here.z + here.w < 0.004) return;
 
-    float reach = rainReach(worldPosition);
+    float reach = rainReach(worldPosition, geometryNormal);
     // What's turned to the rain catches it; what's turned from it stays dry, however hard it comes down.
     float catching = smoothstep(-0.3, 0.3, dot(geometryNormal, -weatherFalling.xyz));
     float upward = smoothstep(0.55, 0.92, geometryNormal.y);

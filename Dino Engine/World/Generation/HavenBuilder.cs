@@ -19,6 +19,7 @@ namespace Dino_Engine.World.Generation
         private const float TerraceRadius = 11f;
         private const float StallAside = 18f;
         private const float StashAside = 18f;
+        private const float BetaBelow = 9f;             // Metres south of the square's middle that the beta vendor's stall stands, along from the merchant's.
         private const float GroundSouth = 47f;          // Of the training ground's middle, from the square's.
         private const float HomesBeyond = 15f;          // Metres of open ground between the square's edge and the nearest wall.
         private const float GroundWest = 6f;
@@ -125,7 +126,7 @@ namespace Dino_Engine.World.Generation
             b.Spawn(SpawnRole.MapTable, table - North * (StructureCatalog.MapTable.HalfExtents.Y + 1.8f));
         }
 
-        // The merchant on one side of the square and the strongbox on the other, each facing in.
+        // The merchant on one side of the square and the strongbox on the other, each facing in, and the beta vendor below the merchant.
         private static void PlaceTrade(SiteBuilder b, Vector2 c)
         {
             Vector2 stallAt = c - East * StallAside + North * 2f;
@@ -134,6 +135,12 @@ namespace Dino_Engine.World.Generation
                 b.Spawn(SpawnRole.Merchant, stall + East * 3.6f);
                 b.Place(StructureCatalog.Crates, stall - East * 1.5f + North * 4.2f, 0f, padding: 0.3f);
                 b.Place(StructureCatalog.Barrels, stall - East * 1f - North * 4f, 0f, padding: 0.3f);
+            }
+
+            // The beta vendor along from the merchant, who gives away anything there is, for testing the game.
+            if (b.PlaceNear(StructureCatalog.MarketStall, c - East * StallAside - North * BetaBelow, YawFacing(East), ReachForEssentials, out Vector2 beta, padding: 0.6f))
+            {
+                b.Spawn(SpawnRole.BetaVendor, beta + East * 3.6f);
             }
 
             Vector2 boxAt = c + East * StashAside + North * 2f;

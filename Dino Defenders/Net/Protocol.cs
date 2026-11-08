@@ -51,13 +51,13 @@ namespace Dino_Defenders.Net
         Move,
         Drop,
         Sort,
-        Write,
         Title,
         OpenWay,        // At the Haven's map table: the way to one of the lands it shows, with orders given for it or not.
         CloseWay,
         Stow,           // Into the stash, from the hero.
         Unstow,         // Out of the stash, into the pack.
         Shift,          // From one cell of the stash to another.
+        TakeOffer,      // From the beta vendor in the Haven, into the pack.
     }
 
     public enum NoticeKind : byte
@@ -73,7 +73,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 10;
+        public const uint Version = 11;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules
@@ -377,7 +377,7 @@ namespace Dino_Defenders.Net
         private static Sticker ReadSticker(BitReader reader)
         {
             var sticker = new Sticker { Good = Checked<PageEffect>(reader.ReadByte()), GoodBy = Finite(reader.ReadFloat()), Bad = Checked<PageEffect>(reader.ReadByte()), BadBy = Finite(reader.ReadFloat()) };
-            Stickers.Fix(sticker);
+            Stickers.Fix(sticker, Stickers.IsUnique(sticker.Good));
             return sticker;
         }
 
@@ -385,23 +385,17 @@ namespace Dino_Defenders.Net
 
         private static string ReadSentence(BitReader reader, string plain) => Sentences.Get(reader.ReadVarInt())?.Id ?? plain;
 
-        private static string? ReadChosen(BitReader reader) => Sentences.Get(reader.ReadVarInt())?.Id;
-
-        /// <summary>What's written on a page, as the numbers of its sentences. What's stuck on it isn't written, and goes as the items those are. Whoever's at the other end, what's read here has been put right before anything sees it.</summary>
+        /// <summary>What a page was found as: its kind, Attack or Spell, and the numbers of its sentences. What's stuck on it isn't written, and goes as the items those are. Whoever's at the other end, what's read here has been put right before anything sees it.</summary>
         public static void WritePage(BitWriter writer, Page page)
         {
             writer.WriteByte((byte)page.Kind);
-            WriteSentence(writer, page.From);
-            WriteSentence(writer, page.FromWithin);
-            WriteSentence(writer, page.Towards);
-            WriteSentence(writer, page.TowardsWithin);
+            writer.WriteByte((byte)page.Hand);
             WriteSentence(writer, page.Shape);
             WriteSentence(writer, page.Timing);
             writer.WriteCount(page.Outcomes.Count);
             foreach (Outcome outcome in page.Outcomes)
             {
                 WriteSentence(writer, outcome.Deed);
-                WriteSentence(writer, outcome.Element);
                 WriteSentence(writer, outcome.Measure);
                 WriteSentence(writer, outcome.Ailment);
                 WriteSentence(writer, outcome.Gift);
@@ -416,21 +410,17 @@ namespace Dino_Defenders.Net
             var page = new Page
             {
                 Kind = Checked<PageKind>(reader.ReadByte()),
-                From = ReadSentence(reader, Sentences.PlainFrom),
-                FromWithin = ReadChosen(reader),
-                Towards = ReadSentence(reader, Sentences.PlainTowards),
-                TowardsWithin = ReadChosen(reader),
+                Hand = Checked<Hand>(reader.ReadByte()),
                 Shape = ReadSentence(reader, Sentences.PlainShape),
                 Timing = ReadSentence(reader, Sentences.PlainTiming),
             };
 
-            int outcomes = reader.ReadCount(Rulebook.MostOutcomes);
+            int outcomes = reader.ReadCount(1);
             for (int o = 0; o < outcomes; o++)
             {
                 page.Outcomes.Add(new Outcome
                 {
                     Deed = ReadSentence(reader, Sentences.PlainDeed),
-                    Element = ReadSentence(reader, Sentences.PlainElement),
                     Measure = ReadSentence(reader, Sentences.PlainMeasure),
                     Ailment = ReadSentence(reader, Sentences.PlainAilment),
                     Gift = ReadSentence(reader, Sentences.PlainGift),
@@ -440,7 +430,7 @@ namespace Dino_Defenders.Net
                 });
             }
 
-            Scribe.Fix(page, following: true);
+            Scribe.Fix(page);
             return page;
         }
 

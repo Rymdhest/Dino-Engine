@@ -19,11 +19,19 @@ namespace Dino_BuildLab
 
         private static BookPlan One(PagePlan page) => new BookPlan { Id = "probe", Pages = new[] { page } };
 
-        private static BookPlan Spell(DamageType type, float damage, params Mod[] mods) => One(new PagePlan { Kind = PageKind.Area, Tags = Tags.Area, Damage = new[] { new DamagePart(type, Measure.Damage, damage) }, Mods = mods });
+        // What a probe deals is what's in the hand, of exactly the type and amount asked for, as flat damage added to it would have a spread.
+        private static readonly Dictionary<BookPlan, WeaponProfile> Held = new();
+
+        private static BookPlan Spell(DamageType type, float damage, params Mod[] mods)
+        {
+            BookPlan plan = One(new PagePlan { Kind = PageKind.Area, Tags = Tags.Area | Tags.Spell, Deals = true, Mods = mods });
+            Held[plan] = new WeaponProfile(damage, damage, 0.6f, 0f, Tags.Wand | Tags.OneHanded, type);
+            return plan;
+        }
 
         private static BookProfile Profile(BookPlan skill, params Mod[] mods)
         {
-            ActorSheet sheet = new Loadout(1, Wand, mods, new[] { skill }).SheetFor(Condition.None);
+            ActorSheet sheet = new Loadout(1, Held.GetValueOrDefault(skill, Wand), mods, new[] { skill }).SheetFor(Condition.None);
             return sheet.Profile(0);
         }
 
@@ -103,13 +111,15 @@ namespace Dino_BuildLab
             report.Near("A scope of two needs both", HitWith(Profile(fire, Inc(Stat.Damage, 50f, Tags.Fire | Tags.Attack)))[Fire], 100f);
             report.Near("Elemental doesn't reach poison", HitWith(Profile(Spell(DamageType.Poison, 100f), Inc(Stat.Damage, 50f, Tags.Elemental)))[(int)DamageType.Poison], 100f);
 
-            BookPlan strike = One(new PagePlan { Kind = PageKind.Area, From = Start.You, Tags = Tags.Area, Damage = new[] { new DamagePart(DamageType.Physical, Measure.Damage, 1f) } });
+            BookPlan strike = One(new PagePlan { Kind = PageKind.Area, From = Start.You, Tags = Tags.Area | Tags.Attack, Deals = true });
             ActorSheet swordsman = new Loadout(1, Sword, new[] { Inc(Stat.Damage, 100f, Tags.Sword) }, new[] { strike }).SheetFor(Condition.None);
             report.Near("A weapon's kind reaches what's done with it", HitWith(swordsman.Profile(0))[(int)DamageType.Physical], 20f);
             ActorSheet other = new Loadout(1, Sword, new[] { Inc(Stat.Damage, 100f, Tags.Axe) }, new[] { strike }).SheetFor(Condition.None);
             report.Near("And not what's done with anything else", HitWith(other.Profile(0))[(int)DamageType.Physical], 10f);
             report.Check("A sword makes a book an Attack, and Melee when it's done by hand", (swordsman.Profile(0).First.Tags & (Tags.Attack | Tags.Melee)) == (Tags.Attack | Tags.Melee) && (swordsman.Profile(0).First.Tags & Tags.Spell) == 0);
-            report.Check("A wand makes the same book a Spell, and no kind of Melee", Profile(strike).First.Tags.HasFlag(Tags.Spell) && (Profile(strike).First.Tags & (Tags.Attack | Tags.Melee)) == 0);
+            BookPlan cast = One(new PagePlan { Kind = PageKind.Area, From = Start.You, Hand = Hand.Spell, Tags = Tags.Area | Tags.Spell, Deals = true });
+            ActorSheet casting = new Loadout(1, Sword, new[] { Inc(Stat.Damage, 100f, Tags.Sword) }, new[] { cast }).SheetFor(Condition.None);
+            report.Check("A Spell Page is a Spell in a sword's hand, and no kind of Melee, nor done with the sword", casting.Profile(0).First.Tags.HasFlag(Tags.Spell) && (casting.Profile(0).First.Tags & (Tags.Attack | Tags.Melee | Tags.Sword)) == 0);
 
             float added = HitWith(Profile(fire, Added(DamageType.Fire, 50f), Inc(Stat.Damage, 100f)))[Fire];
             report.Check("Added damage is damage like any other: 50 around 100, then doubled", added is >= 280f and <= 320f, $"{added}");
@@ -200,7 +210,7 @@ namespace Dino_BuildLab
 
         private static void Diversions(Report report)
         {
-            BookPlan swing = One(new PagePlan { Kind = PageKind.Area, From = Start.You, Tags = Tags.Area, UseTime = 0.6f, Damage = new[] { new DamagePart(DamageType.Physical, Measure.Damage, 1f) } });
+            BookPlan swing = One(new PagePlan { Kind = PageKind.Area, From = Start.You, Tags = Tags.Area | Tags.Attack, UseTime = 0.6f, Deals = true });
             Mod[] mods = { Inc(Stat.AttackSpeed, 50f), Divert(Stat.AttackSpeed, Stat.Damage, 200f, Tags.Attack) };
             BookProfile diverted = new Loadout(1, Sword, mods, new[] { swing }).SheetFor(Condition.None).Profile(0);
             report.Near("A diverted stat no longer moves", diverted.First.UseTime, 0.6f);

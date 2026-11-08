@@ -93,6 +93,9 @@ namespace Dino_NetLab
             var mods = new List<Mod> { Flat(Stat.Health, 1000f), Flat(Stat.Mana, 1000f) };
             if (unique != null) mods.AddRange(Of(unique));
             mods.AddRange(more);
+
+            // A wand is where Spell Damage comes from, as much of it as the wand deals.
+            if (weapon is WeaponProfile held && (held.Tags & Tags.Wand) != 0) mods.Add(Added(DamageType.Physical, held.Max, Tags.Spell));
             return arena.Place(new Loadout(20, weapon ?? Sword, mods, books), at ?? Post, Team.Heroes);
         }
 
@@ -519,7 +522,7 @@ namespace Dino_NetLab
 
             using (Arena arena = Enter(worlds, request))
             {
-                Actor caster = Wielder(arena, "second-opinion", new[] { Shelf.Strike }, Wand);
+                Actor caster = Wielder(arena, "second-opinion", new[] { Shelf.Lance }, Wand);
                 Actor target = Near(arena, East * 3f);
                 float single = Blow(arena, caster, target);
                 float before = Arena.Lost(target);
@@ -612,7 +615,7 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request))
             {
                 Actor wielder = Wielder(arena, "eater-of-words", Shelf.Strike);
-                Actor foe = arena.Place(new Loadout(1, Wand, new[] { Flat(Stat.Health, 1000f) }, new[] { Shelf.Firebolt }), Post + North * 3f);
+                Actor foe = arena.Place(new Loadout(1, Wand, new[] { Flat(Stat.Health, 1000f), Added(DamageType.Physical, 20f, Tags.Spell) }, new[] { Shelf.Firebolt }), Post + North * 3f);
                 wielder.Vitals.Mana = 0f;
                 for (int i = 0; i < 60; i++) arena.Combat.Hit(foe, foe.Sheet.Profile(0).First, wielder, 1f, foe.Position);
                 report.Check("Eater of Words: a Blocked Spell is Mana", wielder.Vitals.Mana > 0f, $"{wielder.Vitals.Mana}");
@@ -676,8 +679,8 @@ namespace Dino_NetLab
             using (Arena arena = Enter(worlds, request))
             {
                 Actor wielder = Wielder(arena, "second-skin", Shelf.Strike);
-                Actor burner = arena.Place(new Loadout(1, Wand, new[] { Flat(Stat.Health, 1000f) }, new[] { Shelf.Firebolt }), Post + North * 3f);
-                Actor freezer = arena.Place(new Loadout(1, Wand, new[] { Flat(Stat.Health, 1000f) }, new[] { Shelf.FrostShards }), Post + North * -3f);
+                Actor burner = arena.Place(new Loadout(1, Wand, new[] { Flat(Stat.Health, 1000f), Added(DamageType.Physical, 20f, Tags.Spell) }, new[] { Shelf.Firebolt }), Post + North * 3f);
+                Actor freezer = arena.Place(new Loadout(1, Wand, new[] { Flat(Stat.Health, 1000f), Added(DamageType.Physical, 20f, Tags.Spell) }, new[] { Shelf.FrostShards }), Post + North * -3f);
                 arena.Combat.Hit(burner, burner.Sheet.Profile(0).First, wielder, 1f, burner.Position);
                 bool fire = Has(wielder, BuffCatalog.Inured[(int)DamageType.Fire]);
                 arena.Combat.Hit(freezer, freezer.Sheet.Profile(0).First, wielder, 1f, freezer.Position);

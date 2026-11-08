@@ -39,7 +39,8 @@ namespace Dino_Defenders.Stats
         public const float FlightGrace = 0.25f;         // Seconds a projectile flies past its range.
 
         // What a page is before anything's written on it.
-        public const float PageUseTime = 0.6f;          // Seconds, with bare hands. A weapon goes by how it compares with those.
+        public const float PageUseTime = 0.6f;          // Seconds, with bare hands, for a book whose first page is an Attack Page. A weapon goes by how it compares with those.
+        public const float CastTime = 0.6f;             // Seconds each Spell Page adds to a book's use.
         public const float PageImpactAt = 0.5f;         // Of its use, for what leaves the hands.
         public const float PageStrikeAt = 0.25f;        // The same, for what's done with them.
         public const float PageMoveFactor = 0.55f;      // Of how fast its user walks, while it's going.
@@ -47,7 +48,6 @@ namespace Dino_Defenders.Stats
         public const float ProjectileSpeed = 40f;       // Metres a second.
         public const float ProjectileSpread = 0.16f;    // Radians between neighbouring projectiles.
         public const float ProjectileCost = 3f;         // Of the Cost of a page, for making anything fly.
-        public const float OutcomeCost = 3f;            // Onto a page's Cost, for each Outcome past the first.
         public const float ConeReach = 6.4f;            // Metres.
         public const float ConeArc = 2.4f;              // Radians.
         public const float CircleRadius = 7f;
@@ -59,9 +59,6 @@ namespace Dino_Defenders.Stats
         public const float LingerShort = 4f;            // Seconds.
         public const float LingerLong = 8f;
         public const float LingerPremium = 1.5f;        // What a lingering page does over its whole length, of what it says, as anything can walk out of it.
-        public const float ScatterNear = 3f;            // Metres.
-        public const float ScatterMid = 6f;
-        public const float ScatterFar = 12f;
         public const float RainScatter = 3f;            // Metres apart that several falling at once come down, if nothing says.
         public const float RestShort = 4f;              // Seconds.
         public const float RestLong = 10f;
@@ -77,7 +74,6 @@ namespace Dino_Defenders.Stats
 
         // How far a book can go, however it's written. No number on a page can stop one branching, so these do.
         public const int MostPages = 6;
-        public const int MostOutcomes = 3;
         public const int MostStickers = 5;              // On a page.
         public const float AuraPulse = 1f;              // Seconds between a Toggle Book's pulses, at bare hands' pace.
         public const float FastestAura = 0.25f;         // Seconds. However it's quickened, it goes no faster than this.

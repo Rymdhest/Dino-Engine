@@ -275,7 +275,7 @@ namespace Dino_WorldLab
                     if (spawn.Role == SpawnRole.Altar && !Stands(world, StructureCatalog.Altar, spawn.Position)) Problem($"{site.Name} can be prayed at, but has no altar");
                     if (spawn.Role == SpawnRole.Waygate && !Stands(world, StructureCatalog.Waygate, spawn.Position)) Problem($"{site.Name} can be left by, but has no waygate");
                     if (spawn.Role == SpawnRole.Stash && !Stands(world, StructureCatalog.Strongbox, spawn.Position)) Problem($"{site.Name} has a stash, but no strongbox");
-                    if (spawn.Role is SpawnRole.MapTable or SpawnRole.Dummy) Problem($"{site.Name} has a {spawn.Role}, which only the Haven has");
+                    if (spawn.Role is SpawnRole.MapTable or SpawnRole.Dummy or SpawnRole.BetaVendor) Problem($"{site.Name} has a {spawn.Role}, which only the Haven has");
                 }
 
                 // A village is where a land's people hide, and where a hero can rest, trade, put things away and go home.
@@ -333,7 +333,7 @@ namespace Dino_WorldLab
             (SpawnRole role, StructureDefinition? on)[] needed =
             {
                 (SpawnRole.Waygate, StructureCatalog.GreatWaygate), (SpawnRole.MapTable, StructureCatalog.MapTable), (SpawnRole.Stash, StructureCatalog.Strongbox),
-                (SpawnRole.Merchant, null),
+                (SpawnRole.Merchant, null), (SpawnRole.BetaVendor, null),
             };
             if (haven.Spawns.Any(s => s.Role == SpawnRole.Altar)) Problem("the Haven has a shrine, and nothing to be blessed for");
             foreach ((SpawnRole role, StructureDefinition? on) in needed)

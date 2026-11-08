@@ -469,6 +469,9 @@ namespace Dino_Defenders.Server
             return new WeaponProfile(damage * 0.85f, damage * 1.15f, WeaponProfile.BareTime, 5f, kind.Weapon);
         }
 
+        // As much Spell Damage as it has Attack Damage, as its Spell Pages are as much of what it does as its Attack Pages. Whatever it's made of turns that into its own kind of damage, as it does a blow.
+        private static Mod SpellFor(EnemyKind kind, int level, float rarityDamage) => Added(DamageType.Physical, DamageAt(level) * rarityDamage * kind.Damage, Tags.Spell);
+
         /// <summary>What a body of this kind is drawn as. Some come in several, so that a pack isn't one person many times over.</summary>
         public static string ModelOf(EnemyKind kind, WorldRandom random)
         {
@@ -483,7 +486,7 @@ namespace Dino_Defenders.Server
             if (_shared.TryGetValue((kind.Id, level, rarity, traits), out Loadout? loadout)) return loadout;
 
             EnemyPower power = PowerOf(rarity);
-            IEnumerable<Mod> mods = Base(kind, level, power.Health).Concat(ModsOf(traits, level, power.Health));
+            IEnumerable<Mod> mods = Base(kind, level, power.Health).Append(SpellFor(kind, level, power.Damage)).Concat(ModsOf(traits, level, power.Health));
             loadout = new Loadout(level, WeaponFor(kind, level, power.Damage), mods.Concat(Worn), BooksOf(kind, traits));
             _shared.Add((kind.Id, level, rarity, traits), loadout);
             return loadout;
@@ -497,7 +500,7 @@ namespace Dino_Defenders.Server
         public static Loadout Boss(EnemyKind kind, int level, int traits, WorldRandom random, out Item[] gear, out string? title, IReadOnlyList<Mod>? landWide = null)
         {
             EnemyPower power = PowerOf(Rarity.Unique);
-            var mods = new List<Mod>(Base(kind, level, power.Health));
+            var mods = new List<Mod>(Base(kind, level, power.Health)) { SpellFor(kind, level, power.Damage) };
             WorldRandom gearDraw = random.Fork("gear");
 
             ItemSlot[] slots = { ItemSlot.Neck, ItemSlot.Body, ItemSlot.Finger };
@@ -549,7 +552,7 @@ namespace Dino_Defenders.Server
         /// <summary>What a minion comes to, for someone with this loadout. Whatever its owner has for minions it has for itself.</summary>
         public static Loadout MinionOf(Loadout owner, ActorSheet sheet, EnemyKind kind)
         {
-            var mods = new List<Mod>(Base(kind, owner.Level, 1f));
+            var mods = new List<Mod>(Base(kind, owner.Level, 1f)) { SpellFor(kind, owner.Level, 1f) };
             bool puppet = sheet.Has(Rule.Puppeteer);
             foreach (Mod mod in owner.Mods)
             {

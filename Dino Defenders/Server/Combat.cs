@@ -402,8 +402,7 @@ namespace Dino_Defenders.Server
                 Start.Random => Seek(cast, cast.Source.Position, steady)?.Position ?? cast.Cursor,
                 _ => at,
             };
-            if (Remote(cast, plan)) from = cast.Cursor;
-            return Scattered(from, steady ? 0f : plan.FromWithin);
+            return Remote(cast, plan) ? cast.Cursor : from;
         }
 
         // Whether what would happen around them happens where they're aiming instead.
@@ -423,9 +422,6 @@ namespace Dino_Defenders.Server
                 case Bearing.Nearest:
                     target = Seek(cast, from, true)?.Position ?? cast.Cursor;
                     break;
-                case Bearing.Random:
-                    target = Seek(cast, from, steady)?.Position ?? cast.Cursor;
-                    break;
                 case Bearing.Anywhere when !steady:
                     float angle = _luck.Float() * MathF.Tau;
                     target = from + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * page.Range;
@@ -437,7 +433,7 @@ namespace Dino_Defenders.Server
                     target = cast.Cursor;
                     break;
             }
-            return Scattered(target, steady ? 0f : plan.ToWithin);
+            return target;
         }
 
         private void Spread(Cast cast, PageProfile page, Vector2 at, Vector2 way)
@@ -459,7 +455,7 @@ namespace Dino_Defenders.Server
         {
             Vector2 at = shape.Origin;
             Show(new PageEvent { Position = Ground(at), Sign = page.Sign.Number, Kind = shape.Kind, Facing = shape.Facing, Length = shape.Length, Width = shape.Width, Quiet = quiet }, at);
-            if (page.Sign.Form == PageForm.Beam) Show(new LinkEvent { From = Ground(at) + Vector3.UnitY * 3f, To = Ground(at + shape.Facing * shape.Length) + Vector3.UnitY * 3f, Look = page.Page.Look, Wide = true }, at);
+            if (page.Sign.Form == PageForm.Beam) Show(new LinkEvent { From = Ground(at) + Vector3.UnitY * 3f, To = Ground(at + shape.Facing * shape.Length) + Vector3.UnitY * 3f, Look = page.Look, Wide = true }, at);
         }
 
         // Everything a shape has in it. An enemy is where the attacker saw it, which is where it was a moment ago: a client draws others slightly in the past, and a blow that connects on
@@ -595,10 +591,10 @@ namespace Dino_Defenders.Server
                 if (!Spend(cast)) return;
                 Vector2 from = Where(cast, page, at);
 
-                if (plan.To == Bearing.Down || cast.Source.Sheet.Has(Rule.Lobbed))
+                if (plan.Falls || cast.Source.Sheet.Has(Rule.Lobbed))
                 {
-                    Vector2 lands = plan.To == Bearing.Down ? from : Aimed(cast, page, from, way);
-                    Drop(cast, page, count > 1 && plan.FromWithin <= 0f ? Scattered(lands, RainScatter) : lands, way);
+                    Vector2 lands = Aimed(cast, page, from, way);
+                    Drop(cast, page, count > 1 ? Scattered(lands, RainScatter) : lands, way);
                     continue;
                 }
 
@@ -620,11 +616,12 @@ namespace Dino_Defenders.Server
             }
         }
 
+        // A Spell is a ball of what it deals, and so is anything a wand or a staff does. Any other Attack is whatever's in the hand: an arrow from a bow, and anything else thrown.
         private static string ModelOf(Actor user, PageProfile page)
         {
             Tags weapon = user.Loadout.Weapon.Tags;
+            if (page.Page.Hand == Hand.Spell || (weapon & (Tags.Wand | Tags.Staff)) != 0) return $"bolt:{page.Look}";
             if ((weapon & Tags.Bow) != 0) return "arrow";
-            if ((weapon & (Tags.Wand | Tags.Staff)) != 0) return $"bolt:{page.Page.Look}";
             return Thrown.Prefix + Thrown.Of(weapon);
         }
 
@@ -651,7 +648,7 @@ namespace Dino_Defenders.Server
             if (parent != null) projectile.Spent.AddRange(parent.Spent);
             if (off != null) projectile.Spent.Add(off);
 
-            World.CreateEntity("Projectile", Parts(user,
+            World.CreateEntity("Projectile", Parts(user, page,
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 2f),
                 new PositionComponent(origin),
                 new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, yaw)),
@@ -661,10 +658,10 @@ namespace Dino_Defenders.Server
         }
 
         // What leaves a hero's hands is what was in them, down to the look of it.
-        private static IComponent[] Parts(Actor user, params IComponent[] parts)
+        private static IComponent[] Parts(Actor user, PageProfile page, params IComponent[] parts)
         {
             if (user.Player is not ServerPlayer hero || !hero.Hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? weapon)) return parts;
-            if ((user.Loadout.Weapon.Tags & (Tags.Bow | Tags.Wand | Tags.Staff)) != 0) return parts;
+            if (page.Page.Hand == Hand.Spell || (user.Loadout.Weapon.Tags & (Tags.Bow | Tags.Wand | Tags.Staff)) != 0) return parts;
 
             ulong seed = weapon.LookSeed();
             return parts.Append(new ThrownComponent { SeedLow = (uint)seed, SeedHigh = (uint)(seed >> 32), Traits = ItemLook.Traits(weapon) }).ToArray();
@@ -679,7 +676,7 @@ namespace Dino_Defenders.Server
             var origin = new Vector3(ground.X, ground.Y + SkyHeight, ground.Z);
             Actor user = cast.Source;
 
-            World.CreateEntity("Projectile", Parts(user,
+            World.CreateEntity("Projectile", Parts(user, page,
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 2f),
                 new PositionComponent(origin),
                 new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitX, MathF.PI * 0.5f)),
@@ -692,12 +689,22 @@ namespace Dino_Defenders.Server
 
         private void Fell(Cast cast, PageProfile page, Vector2 at, Vector2 way, float strength) => Reached(cast, page, at, way, strength);
 
-        // Whatever's where it came to an end, for what doesn't fly into anyone: what fell, and whoever's ridden there.
+        // Whatever's where it came to an end, for what doesn't fly into anyone: what fell, and whoever's ridden there. It's only an impact if there's someone there to take it, or the ground counts.
         private void Reached(Cast cast, PageProfile page, Vector2 at, Vector2 way, float strength)
         {
             GroundShape spot = GroundShape.Circle(at, GroundShape.FlightWidth);
+            if (!page.Page.Grounded && !Occupied(cast, page, spot)) return;
             Cover(cast, page, spot, strength);
             Turn(cast, page, at, way);
+        }
+
+        // Whether anyone a page could reach is in a place: an Enemy, or a friend for one that only helps.
+        private bool Occupied(Cast cast, PageProfile page, in GroundShape spot)
+        {
+            Team source = cast.Source.Team;
+            _found.Clear();
+            Within(spot, page.Page.SeeksFriends ? (source == Team.Enemies ? Team.Heroes : Team.Enemies) : source, _found);
+            return _found.Count > 0;
         }
 
         /// <summary>A projectile has reached something, or the end of its strength. Returns whether it flies on.</summary>
@@ -761,10 +768,14 @@ namespace Dino_Defenders.Server
             }
         }
 
-        /// <summary>A flight has come to an end against something that isn't a body, or at the end of its range. That's an impact as well: only there's nobody to take it.</summary>
-        public void Ended(Projectile projectile, Vector3 at)
+        /// <summary>
+        /// A flight has come to an end against something that isn't a body, or at the end of its range. Nothing's been reached, so that's no impact and the book stops there, unless what it hit was solid and a sticker
+        /// says that counts.
+        /// </summary>
+        /// <param name="blocked">Whether it ended against something solid, rather than running out.</param>
+        public void Ended(Projectile projectile, Vector3 at, bool blocked)
         {
-            if (projectile.Falling) return;
+            if (projectile.Falling || !blocked || !projectile.Page.Page.Grounded) return;
             Do(projectile.Cast, projectile.Page, GroundShape.Circle(at.Xz, GroundShape.FlightWidth), projectile.Strength, false);
             Turn(projectile.Cast, projectile.Page, at.Xz, projectile.Way);
         }

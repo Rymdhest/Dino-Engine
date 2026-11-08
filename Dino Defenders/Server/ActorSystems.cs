@@ -267,8 +267,8 @@ namespace Dino_Defenders.Server
             if (projectile.Falling) blocked = false;
             if (flying && !blocked && projectile.Life > 0f) return;
 
-            // It ended on something other than a body, which is an impact all the same.
-            if (flying) session.Combat.Ended(projectile, position);
+            // It ended on something other than a body, which is no impact unless a sticker says it is.
+            if (flying) session.Combat.Ended(projectile, position, blocked);
             session.Combat.Returns(projectile, position);
             world.DestroyEntity(entity.Entity);
         }

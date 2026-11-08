@@ -21,6 +21,7 @@ namespace Dino_Engine.World
         Stash,          // Where what's put away can be got at.
         MapTable,       // Where the next land is chosen, in the Haven.
         Dummy,          // Something to try a build on, in the Haven, that stands and takes it.
+        BetaVendor,     // Gives anything away, for testing the game, in the Haven.
     }
 
     public static class SpawnRoles

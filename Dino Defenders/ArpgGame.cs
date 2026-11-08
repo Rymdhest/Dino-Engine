@@ -357,7 +357,7 @@ namespace Dino_Defenders
 
             var carried = new Dino_Engine.World.WorldRandom(options.Seed ?? 1).Fork("carried");
             for (int i = 0; i < options.Carry; i++) hero.Pickup(ItemGenerator.Roll(Math.Max(hero.Level, 10), carried.Fork(i), rarityBonus: 2f));
-            for (int i = 0; i < options.Folios; i++) hero.Pickup(ItemGenerator.Folio(Math.Max(hero.Level, 10), carried.Fork("folio").Fork(i), (Rarity)(i % 3)));
+            for (int i = 0; i < options.Folios; i++) hero.Pickup(ItemGenerator.Folio(Math.Max(hero.Level, 10), carried.Fork("folio").Fork(i), (Rarity)(i % 4)));
         }
 
         // For a scripted run: something for every place, as much of one family as can be had, to look at.
@@ -779,6 +779,11 @@ namespace Dino_Defenders
                 case "table": _ui.Open(InteractKind.MapTable, GameSession.Current.Sites[0]); break;
                 case "travel": _ui.Open(InteractKind.Waygate, GameSession.Current.Sites[0]); break;
                 case "stash": _ui.Open(InteractKind.Stash, GameSession.Current.Sites[0]); break;
+                case "vendor": _ui.Open(InteractKind.BetaVendor, GameSession.Current.Sites[0]); break;
+                case "uniques":
+                    _ui.Open(InteractKind.BetaVendor, GameSession.Current.Sites[0]);
+                    _ui.Hero.Vendor.ShowLookup();
+                    break;
                 case "merchant":
                     // Through the server, as what's on a table is its to say.
                     int village = GameSession.Current.Sites.FindIndex(s => s.Site.Kind == SiteKind.Village);

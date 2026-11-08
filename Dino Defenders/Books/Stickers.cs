@@ -20,6 +20,16 @@ namespace Dino_Defenders.Books
         Stops,
         Rides,
         Rest,
+
+        // What only a Unique sticker does: where a page starts or goes, and what counts as reaching anything.
+        Grounded,
+        FromCursor,
+        FromNearest,
+        FromRandom,
+        ToNearest,
+        ToYou,
+        ToAnywhere,
+        Falls,
     }
 
     /// <summary>What's on a sticker: one thing that's good for a page and one that's bad for it, each by how much it rolled. See BOOKS.md.</summary>
@@ -35,7 +45,8 @@ namespace Dino_Defenders.Books
 
     /// <summary>
     /// How stickers are rolled and what they come to. Nothing about one is decided by hand: a roll picks any good thing and any bad thing that make sense together, and how far each goes, so no two need be alike. A rarer
-    /// sticker goes further on its good side and less far on its bad. What's <see cref="Written"/> is for books that are already written, which have to come out the same every time.
+    /// sticker goes further on its good side and less far on its bad. A Unique one has something on its good side that nothing else can have, which is where a page starts or goes, and a bad side rolled as a rare's would
+    /// be. What's <see cref="Written"/> is for books that are already written, which have to come out the same every time.
     /// </summary>
     public static class Stickers
     {
@@ -46,7 +57,8 @@ namespace Dino_Defenders.Books
         /// <param name="Good">From how little to how much it can do for a page, or nothing if it can't. Something that has no amount has both at nothing, and <paramref name="Flag"/>.</param>
         /// <param name="Bad">The same, for what it can do against one.</param>
         /// <param name="Whole">Only goes in whole numbers.</param>
-        private readonly record struct Line(PageEffect Effect, PageKind? Fits, (float Least, float Most) Good, (float Least, float Most) Bad, bool Whole = false, bool Flag = false);
+        /// <param name="Unique">Only a Unique sticker has it, and it's what makes one.</param>
+        private readonly record struct Line(PageEffect Effect, PageKind? Fits, (float Least, float Most) Good, (float Least, float Most) Bad, bool Whole = false, bool Flag = false, bool Unique = false);
 
         private static readonly (float, float) Never = (0f, 0f);
 
@@ -61,10 +73,22 @@ namespace Dino_Defenders.Books
             new(PageEffect.Projectiles, PageKind.Projectile, (1f, 4f), Never, Whole: true),
             new(PageEffect.Pierce, PageKind.Projectile, (1f, 4f), Never, Whole: true),
             new(PageEffect.Chains, PageKind.Projectile, (1f, 3f), Never, Whole: true),
-            new(PageEffect.Stops, PageKind.Projectile, Never, Never, Flag: true),
             new(PageEffect.Rides, PageKind.Projectile, Never, Never, Flag: true),
             new(PageEffect.Area, PageKind.Area, (15f, 100f), (15f, 50f)),
+
+            new(PageEffect.Grounded, PageKind.Projectile, Never, Never, Flag: true, Unique: true),
+            new(PageEffect.FromCursor, null, Never, Never, Flag: true, Unique: true),
+            new(PageEffect.FromNearest, null, Never, Never, Flag: true, Unique: true),
+            new(PageEffect.FromRandom, null, Never, Never, Flag: true, Unique: true),
+            new(PageEffect.ToNearest, PageKind.Projectile, Never, Never, Flag: true, Unique: true),
+            new(PageEffect.ToYou, PageKind.Projectile, Never, Never, Flag: true, Unique: true),
+            new(PageEffect.ToAnywhere, PageKind.Projectile, Never, Never, Flag: true, Unique: true),
+            new(PageEffect.Falls, PageKind.Projectile, Never, Never, Flag: true, Unique: true),
         };
+
+        // What's left to chance pays for itself, as the sentences that once said so did.
+        private static readonly Weights Wild = new Weights(Cost: -50f, Potency: 30f);
+        private static readonly Weights Chance = new Weights(Potency: 10f);
 
         private static readonly Dictionary<string, Sticker> ByName = new()
         {
@@ -75,7 +99,6 @@ namespace Dino_Defenders.Books
             ["pierce-three"] = Fixed(PageEffect.Pierce, 3f, PageEffect.Potency, 25f),
             ["chain-one"] = Fixed(PageEffect.Chains, 1f, PageEffect.Potency, 15f),
             ["chain-three"] = Fixed(PageEffect.Chains, 3f, PageEffect.Potency, 30f),
-            ["stops"] = Fixed(PageEffect.Stops, 0f, PageEffect.None, 0f),
             ["swift"] = Fixed(PageEffect.Speed, 60f, PageEffect.Potency, 10f),
             ["slow"] = Fixed(PageEffect.Potency, 15f, PageEffect.Speed, 40f),
             ["far"] = Fixed(PageEffect.Range, 50f, PageEffect.Cost, 1f),
@@ -87,6 +110,16 @@ namespace Dino_Defenders.Books
             ["deliberate"] = Fixed(PageEffect.Potency, 40f, PageEffect.UseTime, 60f),
             ["rest"] = Fixed(PageEffect.Potency, 60f, PageEffect.Rest, Rulebook.RestShort),
             ["rest-long"] = Fixed(PageEffect.Potency, 130f, PageEffect.Rest, Rulebook.RestLong),
+
+            // What written books do that only a Unique sticker can, which is what those are named after.
+            ["grounded"] = Fixed(PageEffect.Grounded, 0f, PageEffect.None, 0f),
+            ["from-cursor"] = Fixed(PageEffect.FromCursor, 0f, PageEffect.None, 0f),
+            ["from-nearest"] = Fixed(PageEffect.FromNearest, 0f, PageEffect.None, 0f),
+            ["from-random"] = Fixed(PageEffect.FromRandom, 0f, PageEffect.None, 0f),
+            ["towards-nearest"] = Fixed(PageEffect.ToNearest, 0f, PageEffect.None, 0f),
+            ["towards-you"] = Fixed(PageEffect.ToYou, 0f, PageEffect.None, 0f),
+            ["anywhere"] = Fixed(PageEffect.ToAnywhere, 0f, PageEffect.None, 0f),
+            ["falls"] = Fixed(PageEffect.Falls, 0f, PageEffect.None, 0f),
         };
 
         private static Sticker Fixed(PageEffect good, float goodBy, PageEffect bad, float badBy) => new Sticker { Good = good, GoodBy = goodBy, Bad = bad, BadBy = badBy };
@@ -97,8 +130,14 @@ namespace Dino_Defenders.Books
         /// <summary>A sticker that always says the same thing, or nothing if there's no such name.</summary>
         public static Sticker? Written(string name) => ByName.GetValueOrDefault(name)?.Copy();
 
-        /// <summary>Every effect a sticker can be rolled with on its good side.</summary>
+        /// <summary>Every effect a sticker can be rolled with on its good side, Unique ones among them.</summary>
         public static IEnumerable<PageEffect> Goods => Lines.Where(CanHelp).Select(line => line.Effect);
+
+        /// <summary>Every effect only a Unique sticker has.</summary>
+        public static IEnumerable<PageEffect> Uniques => Lines.Where(line => line.Unique).Select(line => line.Effect);
+
+        /// <summary>Whether only a Unique sticker can have this.</summary>
+        public static bool IsUnique(PageEffect effect) => LineOf(effect).Unique;
 
         /// <summary>Every effect a sticker can be rolled with on its bad side.</summary>
         public static IEnumerable<PageEffect> Bads => Lines.Where(CanHurt).Select(line => line.Effect);
@@ -116,16 +155,28 @@ namespace Dino_Defenders.Books
         public static bool GoesOn(Sticker sticker, PageKind kind) => Fits(sticker) is not PageKind only || only == kind;
 
         /// <summary>Rolls one.</summary>
-        /// <param name="rarity">How good it is, which is how far its good side goes and how little its bad side does.</param>
-        public static Sticker Roll(Rarity rarity, WorldRandom random)
+        /// <param name="rarity">How good it is, which is how far its good side goes and how little its bad side does. A Unique one has a good side nothing else can have, and a bad side as a rare's.</param>
+        /// <param name="only">For a Unique one, which of the things only those have it's to have, for what has to show every one. It's drawn for all the same, so nothing else about it changes.</param>
+        public static Sticker Roll(Rarity rarity, WorldRandom random, PageEffect only = PageEffect.None)
         {
-            // A page for projectiles, for areas, or either: whichever it is, everything on it has to mean something there.
+            bool unique = rarity == Rarity.Unique;
+            if (unique) rarity = Rarity.Rare;
+
+            // A page for projectiles, for areas, or either: whichever it is, everything on it has to mean something there. What only a Unique one has decides that for itself.
             int kind = random.Int(3);
             PageKind? fits = kind == 0 ? null : kind == 1 ? PageKind.Projectile : PageKind.Area;
+            Line chosen = default;
+            if (unique)
+            {
+                Line[] uniques = Array.FindAll(Lines, line => line.Unique);
+                chosen = uniques[random.Int(uniques.Length)];
+                if (Array.Exists(uniques, line => line.Effect == only)) chosen = LineOf(only);
+                fits = chosen.Fits;
+            }
             bool Belongs(Line line) => line.Fits is null || line.Fits == fits;
 
-            Line[] goods = Array.FindAll(Lines, line => CanHelp(line) && Belongs(line));
-            Line good = goods[random.Int(goods.Length)];
+            Line[] goods = Array.FindAll(Lines, line => CanHelp(line) && !line.Unique && Belongs(line));
+            Line good = unique ? chosen : goods[random.Int(goods.Length)];
             Line[] bads = Array.FindAll(Lines, line => CanHurt(line) && Belongs(line) && line.Effect != good.Effect);
             Line bad = bads[random.Int(bads.Length)];
 
@@ -151,6 +202,8 @@ namespace Dino_Defenders.Books
 
         private static Weights Add(Weights weights, PageEffect effect, float by, float sign) => effect switch
         {
+            PageEffect.ToAnywhere => Wild,
+            PageEffect.FromRandom => Chance,
             PageEffect.Potency => weights with { Potency = by * sign },
             PageEffect.Speed => weights with { Speed = by * sign },
             PageEffect.Area => weights with { Area = by * sign },
@@ -162,11 +215,23 @@ namespace Dino_Defenders.Books
             _ => weights,
         };
 
-        /// <summary>A value that's arrived from outside brought back to what could have been rolled, for a save that's been edited.</summary>
-        public static void Fix(Sticker sticker)
+        /// <summary>What something only a Unique sticker has does to a page's numbers by itself, which is something only for what's left to chance.</summary>
+        public static Weights Weighting(PageEffect effect) => effect switch
         {
-            if (!Enum.IsDefined(sticker.Good)) sticker.Good = PageEffect.None;
-            if (!Enum.IsDefined(sticker.Bad)) sticker.Bad = PageEffect.None;
+            PageEffect.ToAnywhere => Wild,
+            PageEffect.FromRandom => Chance,
+            _ => default,
+        };
+
+        /// <summary>Whether what's on it leaves anything to chance, which a build can make something of.</summary>
+        public static bool IsWild(Sticker sticker) => sticker.Good is PageEffect.ToAnywhere or PageEffect.FromRandom;
+
+        /// <summary>A value that's arrived from outside brought back to what could have been rolled, for a save that's been edited.</summary>
+        /// <param name="unique">Whether it's a Unique sticker, which is the only kind that can have what only those have, and has to.</param>
+        public static void Fix(Sticker sticker, bool unique = false)
+        {
+            if (!Enum.IsDefined(sticker.Good) || IsUnique(sticker.Good) != unique) sticker.Good = unique ? PageEffect.Grounded : PageEffect.None;
+            if (!Enum.IsDefined(sticker.Bad) || IsUnique(sticker.Bad)) sticker.Bad = PageEffect.None;
             sticker.GoodBy = Math.Clamp(float.IsFinite(sticker.GoodBy) ? sticker.GoodBy : 0f, 0f, Rulebook.MostStickerGood);
             sticker.BadBy = Math.Clamp(float.IsFinite(sticker.BadBy) ? sticker.BadBy : 0f, 0f, Rulebook.MostStickerBad);
         }

@@ -28,15 +28,16 @@ uniform vec3 groundLight;
 const int OPENNESS_STEPS = 5;
 
 // How much of the sky a ray leaving here can see, by walking it up through the rain shadow: anything below what's overhead there has run into it.
-float skyOpenness(vec3 world, vec3 direction, float roughness)
+float skyOpenness(vec3 world, vec3 direction, vec3 normal, float roughness)
 {
     if (rainShadowInfo.x < 0.5 || direction.y <= 0.02) return 1.0;
 
+    vec2 slope = rainShadowSlope(normal);
     float open = 1.0;
     float along = 1.2;
     for (int i = 0; i < OPENNESS_STEPS; i++)
     {
-        open *= 1.0 - rainShadowCover(world + direction * along) / float(OPENNESS_STEPS - i);
+        open *= 1.0 - rainShadowCover(world + direction * along, slope) / float(OPENNESS_STEPS - i);
         along *= 2.1;
         if (open <= 0.01) break;
     }
@@ -97,7 +98,7 @@ void main(void)
 
     vec3 ground = groundLight;
     vec3 sky = skyEnvironment(worldReflection, roughness, ground);
-    float openness = skyOpenness(world, worldReflection, roughness);
+    float openness = skyOpenness(world, worldReflection, viewToWorld * s.normal, roughness);
     vec3 reflected = mix(ground * 0.6, sky, openness);
 
     float rayFound = 0.0;

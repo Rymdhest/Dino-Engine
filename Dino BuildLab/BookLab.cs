@@ -2,11 +2,12 @@ using Dino_Defenders.Books;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Tooltips;
+using static Dino_Defenders.Stats.M;
 
 namespace Dino_BuildLab
 {
     /// <summary>
-    /// What every sentence comes to, written on a plain page in the hands of a plain hero, and what the books on the shelf come to in the same hands. Nobody has played any
+    /// What every shape, timing and sticker comes to, on a plain Attack or Spell page in the hands of a plain hero, and what the books on the shelf come to in the same hands. Nobody has played any
     /// of these, so these numbers are only what to start arguing from. A sentence that's far better than its neighbours in its own list stands out here.
     /// </summary>
     internal static class BookLab
@@ -20,40 +21,41 @@ namespace Dino_BuildLab
             float damage = 10f + level * 4f;
             var weapon = new WeaponProfile(damage * 0.8f, damage * 1.2f, 0.6f, 5f, held);
 
-            ActorSheet sheet = new Loadout(level, weapon, Array.Empty<Mod>(), Array.Empty<BookPlan>()).SheetFor(Condition.None);
-            Console.WriteLine($"Level {level}, {damage:0} a hit from the weapon, nothing else.");
+            ActorSheet sheet = new Loadout(level, weapon, new[] { Added(DamageType.Physical, damage, Tags.Spell) }, Array.Empty<BookPlan>()).SheetFor(Condition.None);
+            Console.WriteLine($"Level {level}, {damage:0} a hit from the weapon and as much Spell Damage, nothing else.");
 
-            foreach (PageKind kind in Enum.GetValues<PageKind>())
+            foreach (Hand hand in Enum.GetValues<Hand>())
             {
-                Page plain = Scribe.NewPage(kind);
-                if (kind == PageKind.Area) plain.Shape = "circle";
-
-                Console.WriteLine($"\n{kind} page, with one plain Outcome");
-                Console.WriteLine($"{"",-46}  {"cost",5}  {"hit",6}  {"per sec",7}  {"per cost",8}  {"use",5}  {"reach",6}");
-                Row("as it comes", Read(sheet, plain));
-
-                foreach (Blank blank in new[] { Blank.From, Blank.Towards, Blank.Shape, Blank.Timing, Blank.Within })
+                foreach (PageKind kind in Enum.GetValues<PageKind>())
                 {
-                    foreach (Sentence sentence in Sentences.For(blank))
+                    Page plain = Scribe.NewPage(kind, hand);
+                    if (kind == PageKind.Area) plain.Shape = "circle";
+
+                    Console.WriteLine($"\n{hand} {kind} page");
+                    Console.WriteLine($"{"",-46}  {"cost",5}  {"hit",6}  {"per sec",7}  {"per cost",8}  {"use",5}  {"reach",6}");
+                    Row("as it comes", Read(sheet, plain));
+
+                    foreach (Blank blank in new[] { Blank.Shape, Blank.Timing })
                     {
-                        if (sentence.Fits != null && sentence.Fits != kind) continue;
-                        if (sentence.FollowsOnly) continue;
-                        if (blank is Blank.Towards && kind == PageKind.Area) continue;
-                        if (blank is Blank.Shape or Blank.Timing && kind == PageKind.Projectile) continue;
-
-                        Page page = plain.Copy();
-                        Write(page, sentence);
-                        Row(sentence.Words, Read(sheet, page));
+                        if (kind == PageKind.Projectile) continue;
+                        foreach (Sentence sentence in Sentences.For(blank))
+                        {
+                            Page page = plain.Copy();
+                            if (blank == Blank.Shape) page.Shape = sentence.Id;
+                            else page.Timing = sentence.Id;
+                            Row(sentence.Words, Read(sheet, page));
+                        }
                     }
-                }
 
-                foreach (string name in Stickers.Names)
-                {
-                    Sticker sticker = Stickers.Written(name)!;
-                    if (!Stickers.GoesOn(sticker, kind)) continue;
-                    Page page = plain.Copy();
-                    page.Stickers.Add(sticker);
-                    Row($"{BookText.Good(sticker)}, {BookText.Bad(sticker)}", Read(sheet, page));
+                    foreach (string name in Stickers.Names)
+                    {
+                        Sticker sticker = Stickers.Written(name)!;
+                        if (!Stickers.GoesOn(sticker, kind)) continue;
+                        Page page = plain.Copy();
+                        page.Stickers.Add(sticker);
+                        string bad = BookText.Bad(sticker);
+                        Row(bad.Length > 0 ? $"{BookText.Good(sticker)}, {bad}" : BookText.Good(sticker), Read(sheet, page));
+                    }
                 }
             }
 
@@ -75,18 +77,6 @@ namespace Dino_BuildLab
             var book = new Book { Pages = { page } };
             Scribe.Fix(book);
             return sheet.Preview(Scribe.Read(book, "Lab"));
-        }
-
-        private static void Write(Page page, Sentence sentence)
-        {
-            switch (sentence.Blank)
-            {
-                case Blank.From: page.From = sentence.Id; break;
-                case Blank.Towards: page.Towards = sentence.Id; break;
-                case Blank.Shape: page.Shape = sentence.Id; break;
-                case Blank.Timing: page.Timing = sentence.Id; break;
-                case Blank.Within: page.FromWithin = sentence.Id; break;
-            }
         }
 
         private static float PerCost(float hit, BookProfile book) => book.Cost > 0f ? hit / book.Cost : 0f;

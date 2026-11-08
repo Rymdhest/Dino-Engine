@@ -92,6 +92,7 @@ Orders come from tyrants, always, one in twenty of everything else that drops (`
 - **The merchant** stocks for the hero's climb rather than for the Haven, turns over every time they've been to a land, and sells a couple of orders (`GameServer.TableFor`).
 - **The stash** is in the strongbox (`Progression/Stash.cs`): four tabs of 48 cells, shared by every hero on the machine, where nothing moves unless it's moved. It runs on both ends by the same rules, as the pack does: the client changes it at once and the server has the last word (`Stow`, `Unstow` and `Shift` go through `AskGear`, and `ServerPlayer.Heard` answers). It's the player's own, so a friend's server only holds a copy while they're there, and it's their machine that keeps it (`StashStore`), in one file that only one copy of the game can hold at once. One that can't be read is kept aside rather than written over.
 - **The world cache keeps the Haven** apart from the last land grown (`WorldCache`), as everyone goes back to it between every two lands.
+- **The beta vendor** stands below the merchant, there for testing the game and for nothing else, and gives away whatever he has (`Progression/BetaVendor.cs`). Each of his tabs is a line in `BetaVendor.Tabs`: random gear, books, pages, stickers and orders, and every unique there is, worn, Unique stickers and unique orders. What's out is a pure function of which tab, which roll and what level, so a client shows it with nothing sent, and asks for one by those (`HeroAction.TakeOffer`, through `AskGear`); the server makes the very same thing again, and only in the Haven (`BetaVendor.GivesIn`). Nothing leaves his table, so anything can be had twice. His panel takes the place of the hero's sheet and picture (`UI/BetaVendorPanel.cs`), with the level he stocks for, which starts at the hero's climb, and a button that rolls everything again. His uniques are a lookup rather than a table (`Tooltips/UniqueLookup.cs`): every one as a row that says what it gives and what it costs, searched by everything about it, its card, what it sets off, its lore and the names its rules go by in the code, so "gold" finds everything that does something with gold, and narrowed by type and then by slot or kind, with how many each choice holds. A word is found in its other forms ("carry" finds "carried"), and after `gives:` or `costs:` only on that side. `BetaVendor.Standing` sends him away when the game isn't being tested any more.
 
 ## Where it is
 
@@ -109,6 +110,7 @@ Orders come from tyrants, always, one in twenty of everything else that drops (`
 | The corner | `Hud.DrawChronicle` |
 | The travel map | `MapPanel`, in its travel mode |
 | The Haven | `World/Generation/HavenBuilder.cs`, `WorldArchetype.Haven` |
+| The beta vendor and the unique lookup | `Progression/BetaVendor.cs`, `Tooltips/UniqueLookup.cs`, `UI/BetaVendorPanel.cs` |
 | Refuges, held places and their chests | `SettlementStage` |
 | A land held only at its places | `PackStage`, through `WorldRequest.Emptied` |
 | On the wire | `Protocol.WriteTerms`, `WriteStash`, the hero summary's climb |
@@ -122,9 +124,11 @@ Orders come from tyrants, always, one in twenty of everything else that drops (`
 - **A new unique orders** needs a cost a player would notice, a line in the table above, its effect checked for by name where it happens, and a test in `Dino NetLab lands`.
 - **After any change here** run `Dino BuildLab check` and `lands` (the table of what each level holds and what each omen pays), `Dino NetLab lands`, `game`, `loot`, `pack` and `build`, and `Dino WorldLab check`, with `--people 150 --packs 100` for crowded lands, `--packs -100` for a land held only at its places, and `--seed 1610 --count 1 --archetype haven` for the Haven. A change to how orders look needs `Dino GearLab check` and `variety --kind Orders`.
 
+- **The beta vendor**: a new tab is a line in `BetaVendor.Tabs`. Whatever he makes has to be the same for the same tab, roll and level on any machine, so it draws from nothing but the random it's given, and has to be within the rules already, or `ItemGenerator.Fix` changes it when a save is loaded. After any change to him run `Dino BuildLab check` and `Dino NetLab vendor` and `pack`.
+
 ## Seeing it
 
-`--haven true` starts in the Haven, `--landlevel N` sets the climb, `--openway N` opens the way to the Nth land after a second, `--travel N` goes home or out after N frames, `--omens a,b` and `--orders id` set up the first land, `--stash file` keeps the stash somewhere, and `--panel table`, `stash` or `travel` opens those. The Haven's square is about `--at 160,174`, the walk up to its gate `--at 160,195`, and its training ground `--at 154,112`.
+`--haven true` starts in the Haven, `--landlevel N` sets the climb, `--openway N` opens the way to the Nth land after a second, `--travel N` goes home or out after N frames, `--omens a,b` and `--orders id` set up the first land, `--stash file` keeps the stash somewhere, and `--panel table`, `stash`, `travel`, `vendor` or `uniques` (the beta vendor at his uniques) opens those. `Dino BuildLab lookup --find words [--type sticker] [--kind Ring] [--order level]` searches the uniques as the lookup does, with no game. The Haven's square is about `--at 160,174`, the walk up to its gate `--at 160,195`, and its training ground `--at 154,112`.
 
 ## Decided, and open to change
 
@@ -139,6 +143,7 @@ Choices made without asking. Say if any are wrong.
 - **What falling costs in the Haven**: nothing but a moment.
 - **The stash**: four tabs of 48, shared by every hero on one machine, and not shared with friends.
 - **Twelve things on a table, two of them orders in the Haven**, and one in twenty drops orders.
+- **The beta vendor**: free, in every build for as long as the game is being tested, below the merchant, with nothing ever leaving his table. Seventy pieces of gear, thirty books, forty pages, forty stickers and twenty orders a roll, a fifth of them Normal, a third Magic and the rest Rare, and every unique at the least level it's found at or the level asked for, whichever is higher.
 - **The training ground**: one, five and fifteen dummies, four seconds to reset, and the number shown being what a build does over a whole fight rather than its best moment.
 
 ## Where it stands

@@ -256,13 +256,14 @@ namespace Dino_BuildLab
             report.Note($"{Shelf.All.Count} written books");
             report.Check("Ids are all different", Shelf.All.Select(s => s.Id).Distinct().Count() == Shelf.All.Count);
 
-            var deals = Shelf.All.SelectMany(book => book.Pages).SelectMany(page => page.Damage).Select(part => part.Type).ToHashSet();
+            // A page deals whatever its user has, so what's written deals something else by turning it into that.
+            ActorSheet sheet = new Loadout(1, WeaponProfile.Fists, new[] { Flat(Stat.Health, 100f), Added(DamageType.Physical, 10f, Tags.Spell) }, Shelf.All).SheetFor(Condition.None);
+            var deals = Shelf.All.SelectMany(book => sheet.Preview(book).Pages).SelectMany(page => page.Flows.ToArray()).Select(flow => flow.Type).ToHashSet();
             foreach (DamageType type in DamageKinds.All)
             {
                 report.Check($"Something written deals {type}", deals.Contains(type));
             }
 
-            ActorSheet sheet = new Loadout(1, WeaponProfile.Fists, new[] { Flat(Stat.Health, 100f) }, Shelf.All).SheetFor(Condition.None);
             var forms = Shelf.All.SelectMany(book => sheet.Preview(book).Pages).Select(page => page.Sign.Form).ToHashSet();
             foreach (PageForm form in Enum.GetValues<PageForm>())
             {

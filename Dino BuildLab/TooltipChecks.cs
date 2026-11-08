@@ -406,17 +406,18 @@ namespace Dino_BuildLab
 
         private static bool Mentions(Card card, string word) => card.Lines.Any(l => l.Look != LineLook.Lore && l.Text.Contains(word)) || card.Details != null && Mentions(card.Details, word);
 
+        // A sword, and a little Spell Damage, as a book on the shelf can be either and each needs something to deal.
         private static Loadout Kit(params Mod[] mods)
         {
-            var all = new List<Mod> { Flat(Stat.Health, 100f) };
+            var all = new List<Mod> { Flat(Stat.Health, 100f), Added(DamageType.Physical, 25f, Tags.Spell) };
             all.AddRange(mods);
             return new Loadout(10, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, Tags.Sword | Tags.OneHanded), all, Shelf.All);
         }
 
-        // The same, with something in hand that makes a book a Spell.
+        // The same, with a wand in hand.
         private static Loadout Caster(params Mod[] mods)
         {
-            var all = new List<Mod> { Flat(Stat.Health, 100f) };
+            var all = new List<Mod> { Flat(Stat.Health, 100f), Added(DamageType.Physical, 25f, Tags.Spell) };
             all.AddRange(mods);
             return new Loadout(10, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, Tags.Wand | Tags.OneHanded), all, Shelf.All);
         }
@@ -481,10 +482,10 @@ namespace Dino_BuildLab
             report.Check("And Magic can Hex", Mentions(CardOf(plain, Shelf.ArcaneDart), "Chance to Hex"));
 
             Card strike = CardOf(plain, Shelf.Strike);
-            report.Check("A page says what it's made of", Mentions(strike, "100% of Weapon Damage"));
+            report.Check("A page says what it's made of", Mentions(strike, "Physical Damage from your Weapon"));
             report.Check("And it's all shown", Value(strike, "Arc") != null && Value(strike, "Reach") != null && Value(strike, "Critical Chance") == "5%" && Value(strike, "Potency") == "100%");
-            report.Check("What's on a page reads as what's on it", Mentions(CardOf(plain, Shelf.Meteor), "straight down out of the sky") && Mentions(CardOf(plain, Shelf.Meteor), "On Impact, deal Fire Damage equal to 100% of your Damage"));
-            report.Check("Every page of a book is on its card", Mentions(CardOf(plain, Shelf.Meteor), "From where it struck"));
+            report.Check("What's on a page reads as what's on it", Mentions(CardOf(plain, Shelf.Meteor), "down out of the sky onto the cursor") && Mentions(CardOf(plain, Shelf.Meteor), "On Impact, deal 100% of your Spell Damage") && Mentions(CardOf(plain, Shelf.Strike), "From you, in a Cone, at once. On Impact, deal 100% of your Attack Damage"));
+            report.Check("Every page of a book is on its card", Mentions(CardOf(plain, Shelf.Meteor), "From where the last struck"));
 
             Card carrier = Cards.Talent(TalentTree.Find("key.carrier")!, plain);
             report.Check("Carrier says how near is nearby, on the card itself", Mentions(carrier, $"within {Say.Metres(Shelf.VenomCloud.First.Length)}"));
@@ -492,7 +493,7 @@ namespace Dino_BuildLab
             report.Check("What a whole build gets isn't on a Book's card", !Cards.Book(Kit(Flat(Stat.HealthOnKill, 9f)).SheetFor(Condition.None).Preview(Shelf.Firebolt)).Lines.Any(l => l.Text.Contains("on Kill")));
             report.Check("But it's in the details", Mentions(Cards.Book(Kit(Flat(Stat.HealthOnKill, 9f)).SheetFor(Condition.None).Preview(Shelf.Firebolt)), "on Kill"));
             report.Check("A Spell is a tag anyone can check", Cards.TagNames(Caster().SheetFor(Condition.None).Preview(Shelf.Firebolt).First.Tags).Contains("Spell") && Lexicon.Named("Spell")!.Says.Contains("Cast Speed"));
-            report.Check("And what's in the hands is what makes it one", Cards.TagNames(plain.Preview(Shelf.Firebolt).First.Tags).Contains("Attack") && !Cards.TagNames(plain.Preview(Shelf.Firebolt).First.Tags).Contains("Spell"));
+            report.Check("And the page is what makes it one, whatever's in the hands", Cards.TagNames(plain.Preview(Shelf.Firebolt).First.Tags).Contains("Spell") && !Cards.TagNames(plain.Preview(Shelf.Firebolt).First.Tags).Contains("Attack") && Cards.TagNames(Caster().SheetFor(Condition.None).Preview(Shelf.Strike).First.Tags).Contains("Attack"));
             report.Check("What Leech is, is said: instantly", Lexicon.Named("Leech")!.Says.Contains("Instantly"));
 
             ActorSheet sheet = Kit(Inc(Stat.Damage, 40f), More(Stat.Damage, 25f, Tags.Spell), Added(DamageType.Fire, 6f), Flat(Stat.CritChance, 0f)).SheetFor(Condition.None);
@@ -550,7 +551,7 @@ namespace Dino_BuildLab
         private static void Live(Report report)
         {
             var hero = new HeroState { Level = 20 };
-            hero.Equipped[WornSlot.MainHand] = new Item { Name = "Wand", Slot = ItemSlot.MainHand, Level = 20, Kind = WeaponKind.Wand, WeaponDamage = 30f };
+            hero.Equipped[WornSlot.MainHand] = new Item { Name = "Wand", Slot = ItemSlot.MainHand, Level = 20, Kind = WeaponKind.Wand, WeaponDamage = 30f, Rarity = Rarity.Magic, Lines = { new ItemLine("spell-fire", 40f) } };
             foreach (int step in TalentTree.PathTo(hero, TalentTree.Find("pyre.kindled-bolt")!.Index)) hero.Talents.Add(TalentTree.Nodes[step].Id);
 
             string? Damage() => Value(CardOf(HeroBuild.Compile(hero).SheetFor(Condition.None), Shelf.Firebolt), "Fire Damage");
@@ -632,9 +633,11 @@ namespace Dino_BuildLab
             mods.AddRange(extra);
 
             // What's in the hands decides what a book is, so it takes one of each to find out what a line can do.
+            // A caster's weapon is where Spell Damage comes from, so the one that stands for them has some.
             foreach (Tags weapon in new[] { Tags.Sword | Tags.OneHanded | Tags.Unarmed | Tags.Axe | Tags.Mace | Tags.Dagger | Tags.Spear | Tags.TwoHanded, Tags.Bow | Tags.TwoHanded, Tags.Staff | Tags.Wand | Tags.OneHanded | Tags.TwoHanded })
             {
-                yield return new Loadout(hero.Level, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, weapon), mods, Shelf.All);
+                IEnumerable<Mod> held = (weapon & Tags.Wand) != 0 ? mods.Append(Added(DamageType.Physical, 25f, Tags.Spell)) : mods;
+                yield return new Loadout(hero.Level, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, weapon), held, Shelf.All);
             }
         }
 

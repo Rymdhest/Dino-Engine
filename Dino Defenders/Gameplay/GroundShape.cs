@@ -104,8 +104,8 @@ namespace Dino_Defenders.Gameplay
             if (plan.Kind == PageKind.Area) return Of(page, from, facing);
             if (book.Lobs || plan.Rides)
             {
-                // What's lobbed comes down where it's aimed; what's written to fall comes down where it starts.
-                Vector2 at = plan.Rides || plan.To != Bearing.Down ? target : from;
+                // Whatever falls comes down where it's aimed, and whoever rides gets there.
+                Vector2 at = plan.To == Bearing.You ? origin : target;
                 return book.Pages.Length > 1 && book.Pages[1].Page.Kind == PageKind.Area ? Of(book.Pages[1], at, facing) : Circle(at, FlightWidth);
             }
 

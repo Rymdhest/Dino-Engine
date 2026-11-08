@@ -90,272 +90,69 @@ namespace Dino_Defenders.UI
         }
     }
 
-    /// <summary>
-    /// What's written on a page, for reading and for changing. Each part of it that was chosen sits in a box of its own, however many words and lines it runs to, and the whole of that box is one thing to click,
-    /// which is how anything on a page is ever changed. What's still missing from it is an empty box that does the same. There's no form to fill in: the page is the form.
-    /// </summary>
+    /// <summary>What a page says, which is what it was found as and never changes: where it starts, where it goes or what it covers, and what it does on Impact. It reads what the page comes to, stickers and all.</summary>
     internal sealed class PageView : GuiElement
     {
         private const float Size = 16f;
         private const float LineHeight = 27f;
         private const float Indent = 18f;
-        private const float Pad = 5f;
-        private const float Round = 4f;
 
         private readonly BookPanel _panel;
-        private readonly List<(GuiRect rect, PagePlace place)> _spots = new();
-        private readonly List<(string text, float x, float y)> _runs = new();
-        private readonly List<GuiRect> _boxes = new();
         private readonly List<HotSpot> _marked = new();
-        private bool _over;
 
         public PageView(BookPanel panel)
         {
             _panel = panel;
             Width = UIValue.Fill;
             Height = UIValue.Fill;
-            HitTest = HitTestMode.Block;
-            Clicked += e =>
-            {
-                if (e.Button != MouseButton.Left) return;
-                foreach ((GuiRect rect, PagePlace place) in _spots)
-                {
-                    if (!rect.Contains(e.Position)) continue;
-                    _panel.Pick(place, _spots.FindAll(spot => spot.place == place).ConvertAll(spot => spot.rect));
-                    return;
-                }
-                _panel.PutDown();
-            };
+            HitTest = HitTestMode.PassThrough;
         }
 
-        // One part of a page, which is laid out first, as a part is lit or not as a whole and the mouse can be over any of its lines. Long parts break over the end of a line, as anything written does.
-        private void Flow(GuiDrawList draw, string text, PagePlace? place, ref float x, ref float y, float left, float right, bool faint = false)
+        // One line of a page, broken over the end of a line as anything written is.
+        private void Flow(GuiDrawList draw, string text, ref float y, float left, float right)
         {
             if (Context == null) return;
             float space = GuiText.MeasureWidth(Context, " ", Ui.Face, Size);
-            float pad = place != null ? Pad : 0f;
-
-            _runs.Clear();
-            _boxes.Clear();
-            float from = x;
-            float end = x;
-            bool empty = true;
-            x += pad;
-            float runFrom = x;
+            float x = left;
             int runStart = 0;
             int reached = 0;
             foreach (string word in text.Split(' '))
             {
                 float width = GuiText.MeasureWidth(Context, word, Ui.Face, Size);
-                if (x + width + pad > right && x > left + pad)
+                if (x + width > right && x > left)
                 {
-                    if (!empty)
-                    {
-                        _boxes.Add(new GuiRect(from, y + 2f, end + pad - from, LineHeight - 4f));
-                        _runs.Add((text.Substring(runStart, reached - 1 - runStart), runFrom, y));
-                    }
-                    from = left;
-                    x = left + pad;
+                    Vellum.Mark(Context, draw, text.Substring(runStart, reached - 1 - runStart), Size, new GuiRect(left, y + 1f, right - left, LineHeight), Vellum.Ink, _marked, _panel.Links);
+                    x = left;
                     y += LineHeight;
-                    empty = true;
-                    runFrom = x;
                     runStart = reached;
                 }
-                end = x + width;
-                x = end + space;
+                x += width + space;
                 reached += word.Length + 1;
-                empty = false;
             }
-            _boxes.Add(new GuiRect(from, y + 2f, end + pad - from, LineHeight - 4f));
-            _runs.Add((text.Substring(runStart), runFrom, y));
-            x = end + pad + space;
-
-            bool open = place != null && place == _panel.Open;
-            bool over = false;
-            if (place is PagePlace at)
-            {
-                foreach (GuiRect box in _boxes)
-                {
-                    _spots.Add((box, at));
-                    over |= IsHovered && box.Contains(Context.MousePosition);
-                }
-                _over |= over;
-
-                foreach (GuiRect box in _boxes)
-                {
-                    if (open) draw.AddRect(box, Vellum.Rubric, Round);
-                    else if (over) draw.AddRect(box, Vellum.Slip, Round, 1.5f, Vellum.Rubric);
-                    else if (faint) draw.AddRect(box, GuiColors.Transparent, Round, 1f, Vellum.Edge);
-                    else draw.AddRect(box, Vellum.Lit, Round, 1f, Vellum.Edge);
-                }
-            }
-
-            Colour colour = open ? Vellum.Slip : faint && !over ? Vellum.Pale : place != null ? Vellum.Rubric : Vellum.Ink;
-            foreach ((string run, float runX, float runY) in _runs) Vellum.Mark(Context, draw, run, Size, new GuiRect(runX, runY + 1f, right - runX, LineHeight), colour, _marked, _panel.Links, open ? Vellum.OnRubric : Vellum.Written);
+            Vellum.Mark(Context, draw, text.Substring(runStart), Size, new GuiRect(left, y + 1f, right - left, LineHeight), Vellum.Ink, _marked, _panel.Links);
+            y += LineHeight;
         }
 
         protected override void OnDraw(GuiDrawList draw)
         {
             base.OnDraw(draw);
-            _spots.Clear();
-            Cursor = _over ? MouseCursor.Hand : null;
-            _over = false;
             if (Context == null) return;
 
             _marked.Clear();
             GameUi.Current.Tips.Placed(_marked, Bounds);
-            if (_panel.Page is not Page page)
+            if (_panel.Page is not Page page || _panel.Shown is not PageProfile shown)
             {
                 Vellum.Mark(Context, draw, "Drag a Page into this Book.", Size, new GuiRect(Bounds.X, Bounds.Y, Bounds.Width, LineHeight), Vellum.Pale, _marked);
                 return;
             }
 
-            int index = _panel.PageIndex;
-            float left = Bounds.X;
-            float right = Bounds.Right;
+            // Where it starts, then where it goes or what it covers, and set apart from those, what happens.
+            List<string> lines = BookText.Lines(page, shown.Page, shown.Potency);
             float y = Bounds.Y;
-            List<List<PagePart>> lines = BookText.Parts(page, index);
-            int outcomes = page.Outcomes.Count;
-            int before = lines.Count - outcomes;
-
-            for (int i = 0; i < lines.Count; i++)
-            {
-                if (i == before)
-                {
-                    y += 6f;
-                    float heading = left;
-                    Flow(draw, "On Impact,", null, ref heading, ref y, left, right);
-                    y += LineHeight;
-                }
-
-                float start = i >= before ? left + Indent : left;
-                float x = start;
-                foreach (PagePart part in lines[i]) Flow(draw, part.Text, part.Place, ref x, ref y, start, right);
-
-                // What could still be said goes at the end of what it would be said about.
-                if (i == 0 && page.FromWithin == null) Flow(draw, "+ how far off", new PagePlace(Blank.Within), ref x, ref y, start, right, faint: true);
-                if (i == 1 && page.Kind == PageKind.Projectile && page.TowardsWithin == null) Flow(draw, "+ how far off", new PagePlace(Blank.Within, Towards: true), ref x, ref y, start, right, faint: true);
-                y += LineHeight;
-            }
-
-            if (outcomes < Rulebook.MostOutcomes)
-            {
-                float x = left + Indent;
-                Flow(draw, "+ another Outcome", new PagePlace(Blank.Deed, outcomes), ref x, ref y, left + Indent, right, faint: true);
-            }
-        }
-    }
-
-    /// <summary>One thing that could go in the blank that's open, with what it does to the page, and a click writes it in.</summary>
-    internal sealed class ChoiceRow : GuiElement
-    {
-        private const float WordSize = 15f;
-        private const float TradeSize = 12.5f;
-
-        private readonly string _words;
-        private readonly string _trade;
-        private readonly bool _chosen;
-        private readonly IReadOnlyList<Card> _links;
-        private readonly List<HotSpot> _spots;
-
-        public readonly float RowHeight;
-
-        /// <param name="links">Cards whose names in these words open them.</param>
-        /// <param name="spots">Gets where each marked word ended up.</param>
-        public ChoiceRow(string words, string trade, bool chosen, IReadOnlyList<Card> links, List<HotSpot> spots, Action pressed)
-        {
-            _words = words;
-            _trade = trade;
-            _chosen = chosen;
-            _links = links;
-            _spots = spots;
-            RowHeight = trade.Length > 0 ? 42f : 26f;
-            Width = UIValue.Fill;
-            Height = RowHeight;
-            HitTest = HitTestMode.Block;
-            Clicked += e =>
-            {
-                if (e.Button == MouseButton.Left) pressed();
-            };
-        }
-
-        protected override void OnDraw(GuiDrawList draw)
-        {
-            base.OnDraw(draw);
-            if (Context == null) return;
-            if (IsHovered || _chosen) draw.AddRect(Bounds, Vellum.Lit.MultiplyAlpha(_chosen ? 1f : 0.6f), 2f);
-
-            float x = Bounds.X + 8f;
-            float width = Bounds.Width - 12f;
-            Vellum.Mark(Context, draw, _words, WordSize, new GuiRect(x, Bounds.Y + 3f, width, 20f), _chosen ? Vellum.Rubric : Vellum.Ink, _spots, _links);
-            if (_trade.Length > 0) Vellum.Mark(Context, draw, _trade, TradeSize, new GuiRect(x, Bounds.Y + 23f, width, 16f), Vellum.Pale, _spots);
-        }
-    }
-
-    /// <summary>Whatever could go in the part of a page that's been clicked, on a slip laid over that page and beside what it's about.</summary>
-    internal sealed class ChoiceSlip : GuiElement
-    {
-        private const float Pad = 8f;
-        private const float Gap = 3f;
-        private const float RowGap = 2f;
-        private const float Heading = 24f;
-
-        private static readonly List<HotSpot> Nothing = new();
-
-        private readonly PageLine _title;
-
-        /// <summary>Where what's marked in the rows ended up, for them to add to.</summary>
-        public readonly List<HotSpot> Spots = new();
-
-        public readonly ScrollPanel Rows;
-
-        public ChoiceSlip()
-        {
-            Padding = new Thickness(Pad);
-            BackgroundColor = Vellum.Slip;
-            BorderColor = Vellum.Rubric;
-            BorderWidth = 1f;
-            CornerRadius = 3f;
-            HitTest = HitTestMode.Block;
-            Visible = false;
-
-            var body = Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Fill });
-            _title = body.Add(new PageLine("", 14f, Vellum.Pale) { Height = Heading - 2f });
-            Rows = body.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
-            Rows.Content.Layout = new StackLayout(Orientation.Vertical, RowGap);
-        }
-
-        // It lies over a page, and what's on that page can't be rested on through it.
-        protected override void OnDraw(GuiDrawList draw)
-        {
-            base.OnDraw(draw);
-            Spots.Clear();
-            GameUi.Current.Tips.Placed(Nothing, Bounds);
-            GameUi.Current.Tips.Placed(Spots, Rows.Bounds);
-        }
-
-        /// <summary>Lays it over a page, below what it's about if it fits there, and otherwise wherever there's more room.</summary>
-        /// <param name="title">What's being chosen.</param>
-        /// <param name="from">What it's about, a line at a time, none of which it should cover.</param>
-        /// <param name="page">What it has to stay inside of.</param>
-        /// <param name="within">What it's placed from.</param>
-        public void Lay(string title, List<GuiRect> from, GuiRect page, GuiRect within)
-        {
-            _title.Text = title;
-            float top = from[0].Y;
-            float bottom = from[^1].Bottom;
-            float wanted = Pad * 2f + Heading;
-            foreach (GuiElement row in Rows.Content.Children) wanted += ((ChoiceRow)row).RowHeight + RowGap;
-
-            float below = page.Bottom - bottom - Gap - Pad;
-            float above = top - page.Y - Gap - Pad;
-            bool under = below >= wanted || below >= above;
-            float height = MathF.Min(wanted, under ? below : above);
-
-            Width = page.Width - Pad * 2f;
-            Height = height;
-            X = page.X + Pad - within.X;
-            Y = (under ? bottom + Gap : top - Gap - height) - within.Y;
+            Flow(draw, lines[0], ref y, Bounds.X, Bounds.Right);
+            Flow(draw, $"then {lines[1]}", ref y, Bounds.X + Indent, Bounds.Right);
+            y += 6f;
+            Flow(draw, lines[2], ref y, Bounds.X, Bounds.Right);
         }
     }
 
@@ -391,7 +188,7 @@ namespace Dino_Defenders.UI
 
     /// <summary>
     /// An open book, or a loose page, and nothing else: to open another, right click it. The pack is beside it, as everything that goes in a book comes from there. The left is the page that's turned to and everything about
-    /// it, and clicking a part of it lays what could go there over it. The right is the whole book: what it's called, the places it has for pages, and what it comes to.
+    /// it, which is only read, as a page is what it was found as. The right is the whole book: what it's called, the places it has for pages, and what it comes to.
     /// </summary>
     internal sealed class BookPanel : GuiElement
     {
@@ -415,8 +212,6 @@ namespace Dino_Defenders.UI
         private readonly StackPanel _stickers;
         private readonly PageLine _stickerHeading;
         private readonly StackPanel _pages;
-        private readonly GuiElement _sheet;
-        private readonly ChoiceSlip _slip;
 
         private ItemPlace _place;
         private int _turnedTo;
@@ -427,15 +222,15 @@ namespace Dino_Defenders.UI
         private static GameSession Session => GameSession.Current;
         private static HeroState Hero => Session.Hero;
 
-        /// <summary>The part of the page whose choices are showing, if any.</summary>
-        public PagePlace? Open { get; private set; }
-
         private Item? Opened => At(_place);
 
         // Where the page that's turned to is: a place in the book, or the page itself if it's loose.
         private ItemPlace PagePlace => Opened is { IsPage: true } ? _place : _place.In(_turnedTo);
 
         public Page? Page => At(PagePlace)?.Page;
+
+        /// <summary>What the page that's turned to comes to in this hero's hands, if there's anything to read.</summary>
+        public PageProfile? Shown { get; private set; }
 
         /// <summary>Which page of what's written it is, which a gap in a book doesn't count towards.</summary>
         public int PageIndex
@@ -490,7 +285,6 @@ namespace Dino_Defenders.UI
             left.BackgroundColor = Vellum.Sheet;
             left.BorderColor = Vellum.Edge;
             left.BorderWidth = 1f;
-            _sheet = left;
 
             var turning = left.Add(new StackPanel(Orientation.Horizontal, 6f) { Width = UIValue.Fill, Height = 26f });
             turning.Stack!.CrossAlignment = Alignment.Center;
@@ -516,7 +310,6 @@ namespace Dino_Defenders.UI
             right.BorderColor = Vellum.Edge;
             right.BorderWidth = 1f;
             right.HitTest = HitTestMode.Block;
-            right.Clicked += _ => PutDown();
 
             _whole = right.Add(new PageLine("", 16f, Vellum.Rubric) { Height = 26f });
             _name = right.Add(new TextBox("", "Name this book") { Width = UIValue.Fill, Height = 30f, MaxLength = HeroState.LongestBookName });
@@ -528,8 +321,6 @@ namespace Dino_Defenders.UI
 
             var reading = right.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
             reading.Content.Add(new CardView(() => _summary, Vellum.Written, reading));
-
-            _slip = Add(new ChoiceSlip());
         }
 
         protected override void OnUpdate(float deltaTime)
@@ -555,7 +346,6 @@ namespace Dino_Defenders.UI
             if (item.IsBook && At(PagePlace) == null) TurnToFirst();
             Rebuilt();
 
-            _slip.Visible = Open != null;
             bool book = item.IsBook;
             _whole.Text = book ? "The whole Book" : "Not in any Book";
             _name.Visible = book;
@@ -568,14 +358,14 @@ namespace Dino_Defenders.UI
             _next.Visible = book && Neighbour(1) >= 0;
 
             Item? shown = At(PagePlace);
-            _kind.Text = shown?.Page is Page page ? $"{page.Kind} Page" : "";
+            _kind.Text = shown?.Page is Page page ? $"{page.Hand} {page.Kind} Page" : "";
             _stickerHeading.Text = shown == null ? "" : shown.Places == 0 ? "No room for Stickers" : "Stickers";
 
             BookProfile? written = Reading;
             _summary = written != null ? Summary(written) : null;
-            if (written is BookProfile reading && PageIndex < reading.Pages.Length)
+            Shown = written is BookProfile read && PageIndex < read.Pages.Length ? read.Pages[PageIndex] : null;
+            if (Shown is PageProfile profile)
             {
-                PageProfile profile = reading.Pages[PageIndex];
                 string size = profile.Page.Kind == PageKind.Projectile ? $"Projectile Speed {Say.Amount(profile.Speed)} m a second" : profile.Page.Shape == AreaShape.Circle ? $"Radius {Say.Metres(profile.Length)}" : $"Reach {Say.Metres(profile.Length)}";
                 string carried = MathF.Abs(profile.Page.Carried - 1f) > 0.001f ? $" (from {Say.Share(profile.Page.Carried)})" : "";
                 _numbers.Text = $"Cost {Say.Amount(profile.Cost)}   Potency {Say.Share(profile.Potency)}{carried}   {size}";
@@ -620,7 +410,6 @@ namespace Dino_Defenders.UI
         private void Close()
         {
             Visible = false;
-            Open = null;
         }
 
         /// <summary>Opens at whatever comes first: what's on the bar, or else what's in the pack.</summary>
@@ -641,10 +430,8 @@ namespace Dino_Defenders.UI
             _place = place;
             _name.Text = item.Name;
             _naming = false;
-            Open = null;
             _turnedTo = 0;
             TurnToFirst();
-            Offer();
         }
 
         private void TurnToFirst()
@@ -668,9 +455,7 @@ namespace Dino_Defenders.UI
         {
             if (place.Holder != _place) return;
             _turnedTo = place.Index;
-            Open = null;
             Audio.Play(Interface.Click);
-            Offer();
         }
 
         /// <summary>Whatever's in a cell of the pack, into the first place in what's open that takes it. Says whether it found one.</summary>
@@ -704,130 +489,12 @@ namespace Dino_Defenders.UI
             return item.IsSticker ? "There's no room on this Page" : "There's no place in this Book for that";
         }
 
-        // Everything that could go in what's open, as a row each.
-        private void Offer()
-        {
-            _slip.Rows.Content.ClearChildren();
-            _slip.Rows.ScrollToTop();
-            if (Open is not PagePlace open || Page is not Page page) return;
-
-            string? chosen = Current(page, open);
-            if (open.Blank == Blank.Within && chosen != null || open.Blank == Blank.Deed && open.Outcome < page.Outcomes.Count && page.Outcomes.Count > 1)
-            {
-                _slip.Rows.Content.Add(new ChoiceRow("Strike this out", "", false, Array.Empty<Card>(), _slip.Spots, () => Strike(open)));
-            }
-
-            foreach (Sentence sentence in Sentences.For(open.Blank))
-            {
-                if (!Fits(sentence, page)) continue;
-                Sentence offered = sentence;
-                _slip.Rows.Content.Add(new ChoiceRow(sentence.Words, string.Join(", ", BookText.Trade(sentence.Weights)), sentence.Id == chosen, Cards.Sentence(sentence).Attached, _slip.Spots, () => Choose(offered)));
-            }
-        }
-
-        private bool Fits(Sentence sentence, Page page)
-        {
-            if (sentence.Fits is PageKind kind && kind != page.Kind) return false;
-            return !sentence.FollowsOnly || PageIndex > 0;
-        }
-
-        private static string? Current(Page page, in PagePlace open)
-        {
-            Outcome? outcome = open.Outcome >= 0 && open.Outcome < page.Outcomes.Count ? page.Outcomes[open.Outcome] : null;
-            return open.Blank switch
-            {
-                Blank.From => page.From,
-                Blank.Towards => page.Towards,
-                Blank.Shape => page.Shape,
-                Blank.Timing => page.Timing,
-                Blank.Within => open.Towards ? page.TowardsWithin : page.FromWithin,
-                Blank.Deed => outcome?.Deed,
-                Blank.Element => outcome?.Element,
-                Blank.Measure => outcome?.Measure,
-                Blank.Ailment => outcome?.Ailment,
-                Blank.Gift => outcome?.Gift,
-                Blank.Kin => outcome?.Kin,
-                Blank.Pool => outcome?.Pool,
-                _ => outcome?.Whom,
-            };
-        }
-
-        /// <summary>Opens a part of the page, or closes it if it's open already.</summary>
-        /// <param name="place">Which part.</param>
-        /// <param name="from">Where it is, a line at a time, for what opens to be laid beside it.</param>
-        public void Pick(PagePlace place, List<GuiRect> from)
-        {
-            Audio.Play(Interface.Click);
-            Open = Open == place ? null : place;
-            Offer();
-            if (Open != null) _slip.Lay(BookText.NameOf(place.Blank), from, _sheet.Bounds, ContentBounds);
-        }
-
-        /// <summary>Closes whatever part of the page is open.</summary>
-        public void PutDown()
-        {
-            Open = null;
-            Offer();
-        }
-
-        private void Choose(Sentence sentence)
-        {
-            if (Open is not PagePlace open || Page is not Page page) return;
-
-            string id = sentence.Id;
-            Outcome? outcome = open.Outcome >= 0 && open.Outcome < page.Outcomes.Count ? page.Outcomes[open.Outcome] : null;
-            switch (open.Blank)
-            {
-                case Blank.From: page.From = id; break;
-                case Blank.Towards: page.Towards = id; break;
-                case Blank.Shape: page.Shape = id; break;
-                case Blank.Timing: page.Timing = id; break;
-                case Blank.Within when open.Towards: page.TowardsWithin = id; break;
-                case Blank.Within: page.FromWithin = id; break;
-                case Blank.Deed when outcome == null: page.Outcomes.Add(new Outcome { Deed = id }); break;
-                case Blank.Deed: outcome.Deed = id; break;
-                case Blank.Element when outcome != null: outcome.Element = id; break;
-                case Blank.Measure when outcome != null: outcome.Measure = id; break;
-                case Blank.Ailment when outcome != null: outcome.Ailment = id; break;
-                case Blank.Gift when outcome != null: outcome.Gift = id; break;
-                case Blank.Kin when outcome != null: outcome.Kin = id; break;
-                case Blank.Pool when outcome != null: outcome.Pool = id; break;
-                case Blank.Whom when outcome != null: outcome.Whom = id; break;
-            }
-            Open = null;
-            Audio.Play(Interface.Equip);
-            Commit(page);
-        }
-
-        private void Strike(in PagePlace place)
-        {
-            if (Page is not Page page) return;
-            switch (place.Blank)
-            {
-                case Blank.Within when place.Towards: page.TowardsWithin = null; break;
-                case Blank.Within: page.FromWithin = null; break;
-                case Blank.Deed when place.Outcome < page.Outcomes.Count: page.Outcomes.RemoveAt(place.Outcome); break;
-            }
-            Open = null;
-            Audio.Play(Interface.Click);
-            Commit(page);
-        }
-
         private void Turn(int way)
         {
             int next = Neighbour(way);
             if (next < 0) return;
             _turnedTo = next;
-            Open = null;
             Audio.Play(Interface.Click);
-            Offer();
-        }
-
-        // Done at once and asked of the server, which has the last word: see GameClient.AskGear.
-        private void Commit(Page page)
-        {
-            Session.Client.Write(PagePlace, page);
-            Offer();
         }
     }
 

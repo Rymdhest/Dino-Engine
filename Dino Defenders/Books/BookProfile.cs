@@ -43,11 +43,11 @@ namespace Dino_Defenders.Books
         /// <summary>A burst of something, for what isn't on any page: a body going up.</summary>
         public static PageSign Blast(DamageType look) => new PageSign(PageForm.Nova, look, true, false, false);
 
-        public static PageSign Of(PagePlan page, bool spell, float useTime) => new PageSign(FormOf(page), page.Look, spell, useTime >= Rulebook.HeavyUse, page.Length >= Rulebook.WideReach);
+        public static PageSign Of(PagePlan page, DamageType look, float useTime) => new PageSign(FormOf(page), look, page.Hand == Hand.Spell, useTime >= Rulebook.HeavyUse, page.Length >= Rulebook.WideReach);
 
         private static PageForm FormOf(PagePlan page)
         {
-            if (page.Kind == PageKind.Projectile) return page.Rides ? PageForm.Leap : page.To == Bearing.Down ? PageForm.Burst : PageForm.Bolt;
+            if (page.Kind == PageKind.Projectile) return page.Rides ? PageForm.Leap : page.Falls ? PageForm.Burst : PageForm.Bolt;
 
             bool here = page.From == Start.You;
             if (page.Minion != null) return PageForm.Summon;
@@ -93,15 +93,20 @@ namespace Dino_Defenders.Books
         public readonly bool CostsMinion;
         public readonly float Cooldown;
 
+        /// <summary>
+        /// Seconds it takes to use: what its first page takes if that's an Attack Page, which is a weapon's own pace, and what every Spell Page in it takes to cast, all of it more or less by what anything on any of its
+        /// pages says about Use Time.
+        /// </summary>
+        public readonly float UseTime;
+
         public PageProfile First => Pages[0];
-        public float UseTime => First.UseTime;
-        public float ImpactTime => First.ImpactTime;
+        public float ImpactTime => UseTime * First.Page.ImpactAt;
         public float MoveFactor => First.Page.MoveFactor;
         public bool Rides => First.Page.Rides;
-        public PageSign Sign => First.Sign;
+        public PageSign Sign => First.Sign with { Heavy = UseTime >= Rulebook.HeavyUse };
 
         /// <summary>Whether its first page comes down out of the sky, written that way or lobbed.</summary>
-        public bool Lobs => First.Page.Kind == PageKind.Projectile && !First.Page.Rides && (First.Page.To == Bearing.Down || Sheet.Has(Rule.Lobbed));
+        public bool Lobs => First.Page.Kind == PageKind.Projectile && !First.Page.Rides && (First.Page.Falls || Sheet.Has(Rule.Lobbed));
 
         /// <summary>How long after it's let go that what's marked lands, for what has a way to fall.</summary>
         public float Delay => Lobs ? Rulebook.SkyHeight / MathF.Max(First.Speed, 1f) : 0f;
@@ -114,12 +119,17 @@ namespace Dino_Defenders.Books
             Sheet = sheet;
             Book = book;
             Pages = new PageProfile[book.Pages.Length];
+            float useTime = 0f;
+            float useScale = 1f;
             for (int i = 0; i < Pages.Length; i++)
             {
                 Pages[i] = new PageProfile(sheet, book.Pages[i]);
                 if (i == 0 || !sheet.Has(Rule.OneCost)) Cost += Pages[i].Cost;
                 Cooldown += Pages[i].Cooldown;
+                useTime += Pages[i].UseTime;
+                useScale *= book.Pages[i].UseScale;
             }
+            UseTime = MathF.Max(useTime * useScale, Rulebook.ShortestUse);
             CostsHealth = sheet.Has(Rule.CostsHealth);
             CostsGold = sheet.Has(Rule.CostsGold);
 
