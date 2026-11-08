@@ -358,6 +358,7 @@ namespace Dino_Defenders
             var carried = new Dino_Engine.World.WorldRandom(options.Seed ?? 1).Fork("carried");
             for (int i = 0; i < options.Carry; i++) hero.Pickup(ItemGenerator.Roll(Math.Max(hero.Level, 10), carried.Fork(i), rarityBonus: 2f));
             for (int i = 0; i < options.Folios; i++) hero.Pickup(ItemGenerator.Folio(Math.Max(hero.Level, 10), carried.Fork("folio").Fork(i), (Rarity)(i % 4)));
+            for (int i = 0; i < options.CarryOrders; i++) hero.Pickup(OrdersMaker.Roll(Math.Max(hero.LandLevel, 1), carried.Fork("orders").Fork(i), (Rarity)(i % 4)));
         }
 
         // For a scripted run: something for every place, as much of one family as can be had, to look at.

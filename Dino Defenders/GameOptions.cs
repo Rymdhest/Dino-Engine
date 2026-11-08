@@ -103,6 +103,7 @@ namespace Dino_Defenders
 
         /// <summary>How many things that go in a book to carry, of every rarity in turn: --folios N.</summary>
         public int Folios;
+        public int CarryOrders;     // Orders of every rarity in the pack, for the map table.
         public string? Parade;
 
         /// <summary>The same as <see cref="Parade"/>, but they're awake and want a fight.</summary>
@@ -210,6 +211,7 @@ namespace Dino_Defenders
                     case "settings": options.Settings = value; break;
                     case "quality": options.Quality = Enum.Parse<Dino_Engine.Rendering.GraphicsQuality>(value, ignoreCase: true); break;
                     case "folios": options.Folios = int.Parse(value); break;
+                    case "carryorders": options.CarryOrders = int.Parse(value); break;
                     case "parade": options.Parade = value; break;
                     case "brawl": options.Brawl = value; break;
                     case "trace": options.Trace = value; break;
