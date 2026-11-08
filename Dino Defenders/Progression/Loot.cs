@@ -202,7 +202,11 @@ namespace Dino_Defenders.Progression
         private static Item Fresh(List<Item> others, int level, WorldRandom random, Rarity rarity, float quality)
         {
             WorldRandom orders = random.Fork("orders");
-            if (orders.Chance(OrdersShare)) return OrdersMaker.Roll(level, orders, rarity, quality);
+            if (orders.Chance(OrdersShare))
+            {
+                Item found = OrdersMaker.Roll(level, orders, rarity, quality);
+                if (found.Unique == null || others.All(other => other.Unique != found.Unique)) return found;
+            }
 
             WorldRandom folio = random.Fork("folio");
             if (rarity != Rarity.Unique && folio.Chance(FolioShare)) return ItemGenerator.Folio(level, folio, rarity);

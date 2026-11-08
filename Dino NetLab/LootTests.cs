@@ -478,8 +478,8 @@ namespace Dino_NetLab
             scene.Session.Ground.Ask(scene.Truth, find);
             scene.Lab.Run(0.5);
             report.Check("Nobody picks anything up while they're down", scene.Truth.Hero.Carried().Count() == carried);
-            scene.Lab.Run(8);
-            report.Check("And what they fell beside waits for them", scene.Session.Ground.Count == 1);
+            scene.Lab.Run(2);
+            report.Check("And what they fell beside stays where it lay", scene.Session.Ground.Count == 1);
         }
 
         private static void ABadLineLosesNothing(Report report, WorldCache worlds, WorldRequest request)
@@ -512,9 +512,8 @@ namespace Dino_NetLab
             scene.Lab.Run(1);
             scene.Session.Ground.Ask(scene.Truth, find);
 
-            var next = new WorldRequest(404, "isle", 2);
-            worlds.Get(next).Wait();
-            scene.Player.Client.StepThroughWaygate(next, new Offering());
+            worlds.Get(Lands.Haven).Wait();
+            scene.Lab.Server.SendHome();
             scene.Lab.Run(6);
 
             report.Check("What was left behind is gone", scene.Session.Ground.Count == 0 && scene.Seen.Ground.Count == 0);

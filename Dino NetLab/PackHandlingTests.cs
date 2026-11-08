@@ -232,9 +232,10 @@ namespace Dino_NetLab
             MerchantTable again = scene.OpenTable();
             report.Check("Coming back to it finds it still there", again.Sold[0]?.Name == "Ring");
 
-            scene.Player.Client.StepThroughWaygate(new WorldRequest(request.Seed + 1, "isle", 1), new Offering());
+            worlds.Get(Lands.Haven).Wait();
+            scene.Lab.Server.SendHome();
             scene.Lab.Run(10);
-            report.Check("A new land has nothing kept for the hero", scene.Truth.Tables.Count == 0);
+            report.Check("Another world has nothing kept for the hero", scene.Truth.Tables.Count == 0);
         }
 
         private static void Dropping(Report report, WorldCache worlds, WorldRequest request)

@@ -58,6 +58,9 @@ namespace Dino_Defenders.Server
         /// <summary>When everyone has fallen, the moment they all go home.</summary>
         public double? HomeAt;
 
+        /// <summary>Who has fallen here, by name, so that leaving and coming back in isn't a second life.</summary>
+        public readonly HashSet<string> Fallen = new();
+
         public ServerSession(GameServer server, WorldData world, WorldRequest request, LandTerms? terms = null) : base(world, request, terms)
         {
             Server = server;
@@ -294,20 +297,28 @@ namespace Dino_Defenders.Server
             if (IsHaven) return;
 
             player.Out = true;
+            Fallen.Add(player.Name);
             Falls++;
             ObjectivesChanged = true;
             Console.WriteLine($"{player.Name} fell in {World.Plan.Name}, level {World.Plan.Level}{(Liberated ? ", which was already free" : "")}.");
             if (!Liberated) Judge(player, freed: false);
-
-            if (Heroes.All(hero => hero.Out) && HomeAt == null)
-            {
-                Lost = !Liberated;
-                HomeAt = Time + LostLinger;
-                if (!Lost) return;
-                foreach (ServerPlayer hero in Heroes) Server.Announce(hero, "The land is lost", $"Your next land will be level {hero.Hero.LandLevel}.", LostLinger);
-                return;
-            }
+            if (SettleIfAllOut()) return;
             if (!Liberated) Server.Note(null, $"{player.Name} has fallen, and is out of this land.");
+        }
+
+        /// <summary>
+        /// Once everyone here is out of the land, it's lost if it wasn't free, and in a little while they all go home. Asked whenever someone falls, arrives or leaves, as someone still standing
+        /// going their own way can leave only the fallen. Says whether it's settled now.
+        /// </summary>
+        public bool SettleIfAllOut()
+        {
+            if (IsHaven || HomeAt != null || !Heroes.All(hero => hero.Out)) return false;
+            Lost = !Liberated;
+            HomeAt = Time + LostLinger;
+            ObjectivesChanged = true;
+            if (!Lost) return true;
+            foreach (ServerPlayer hero in Heroes) Server.Announce(hero, "The land is lost", $"Your next land will be level {hero.Hero.LandLevel}.", LostLinger);
+            return true;
         }
 
         /// <summary>What a land means for someone's climb: freed or lost, from this land, and only ever once.</summary>
@@ -489,6 +500,9 @@ namespace Dino_Defenders.Server
             foreach (SiteRecord record in save.Sites)
             {
                 if (record.Index >= Sites.Count) continue;
+
+                // Packs were numbered differently before version 3, and a mark against one of those would be a mark against somebody else.
+                if (save.Version < 3 && record.Index >= World.Sites.Count) continue;
                 SiteState state = Sites[record.Index];
                 state.Discovered = record.Discovered;
                 state.Cleared = record.Cleared;

@@ -466,8 +466,8 @@ namespace Dino_Defenders.Net
                 Barrier = Finite(reader.ReadFloat()),
             };
 
-            // Anyone may be at the other end. A base that means nothing here is only somewhere for a look to start from, and one has to be found some other way.
-            if (!ItemGenerator.HasBase(item.Base)) item.Base = "";
+            // Anyone may be at the other end. A base that means nothing here is only somewhere for a look to start from, and one has to be found some other way. Orders' kinds are bases of their own.
+            if (item.IsOrders ? OrdersMaker.Bases.All(kind => kind.Name != item.Base) : !ItemGenerator.HasBase(item.Base)) item.Base = "";
 
             if (reader.ReadBool())
             {

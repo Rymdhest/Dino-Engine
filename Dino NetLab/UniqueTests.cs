@@ -70,11 +70,11 @@ namespace Dino_NetLab
 
         private static Mod[] Of(string unique) => UniqueCatalog.Find(unique)!.Mods;
 
-        private static Arena Enter(WorldCache worlds, WorldRequest request, HeroState? hero = null, Offering? offering = null)
+        private static Arena Enter(WorldCache worlds, WorldRequest request, HeroState? hero = null, LandTerms? terms = null)
         {
             hero ??= HeroState.CreateNew();
             hero.Level = 60;
-            return new Arena(worlds, request, hero, offering: offering);
+            return new Arena(worlds, request, hero, terms: terms);
         }
 
         private static HeroState Wearing(string unique)
@@ -1056,10 +1056,10 @@ namespace Dino_NetLab
                 report.Check("The Hermit's Habit: with nobody near, you're Alone", (arena.Hero.State & Condition.Alone) != 0);
             }
 
-            using (Arena arena = Enter(worlds, request, Wearing("keyholder"), new Offering { Peril = 5, Omens = { "volatile" } }))
+            using (Arena arena = Enter(worlds, request, Wearing("keyholder"), new LandTerms { Omens = { new ItemLine(Omens.Volatile.Id, 50f) } }))
             {
                 arena.Run(0.3);
-                report.Check("The Keyholder's Chain: Peril and Omens are counted", arena.Hero.Counters.Peril == 5 && arena.Hero.Counters.Omens == 1, $"{arena.Hero.Counters.Peril}, {arena.Hero.Counters.Omens}");
+                report.Check("The Keyholder's Chain: the Land Level and Omens are counted", arena.Hero.Counters.LandLevel == request.Level && arena.Hero.Counters.Omens == 1, $"{arena.Hero.Counters.LandLevel}, {arena.Hero.Counters.Omens}");
             }
 
             using (Arena arena = Enter(worlds, request, Wearing("bare-truth")))

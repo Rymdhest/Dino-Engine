@@ -61,8 +61,8 @@ namespace Dino_Defenders.Progression
         {
             Id = "kommandants-wager", Name = "The Kommandant's Wager", Base = "Hunting Orders", MinLevel = 3,
             Lore = "He bet his tyrant against any Defender born. He hasn't lost yet.",
-            Gives = $"Freeing this land climbs {Say.N(WagerClimb)} levels instead of one",
-            Costs = $"Falling in it, or leaving it unfree, drops {Say.N(WagerClimb)}",
+            Gives = $"Freeing this land raises your Land Level by {Say.N(WagerClimb)} instead of one",
+            Costs = $"Falling in it, or leaving it unfree, lowers it by {Say.N(WagerClimb)}",
             Quantity = WagerQuantity, Climb = WagerClimb,
         });
 
@@ -88,7 +88,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "twin-pens", Name = "Orders for the Twin Pens", Base = "Hunting Orders", MinLevel = 8,
             Lore = "Two tyrants, two keepers, and one land that can't feed them both.",
-            Gives = "A second tyrant holds the land's farthest pen, and drops all that a tyrant drops",
+            Gives = "A second tyrant holds one of the land's farthest places, and drops all that a tyrant drops",
             Costs = "Both tyrants have to fall before the land is free",
             Quantity = TwinQuantity,
         });
@@ -97,7 +97,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "last-garrison", Name = "The Last Garrison", Base = "Muster Orders", MinLevel = 12,
             Lore = "Pull everyone back to the walls. Leave the roads to the crows.",
-            Gives = "Nothing waits on the roads or in the wild, and every chest at a place holds what a keep's chest holds",
+            Gives = "Nothing waits on the roads or between places, and every chest at a place holds what a keep's chest holds",
             Costs = $"Every place holds {Say.Share(GarrisonPeople)} more of those who hold it",
         });
 
@@ -242,9 +242,11 @@ namespace Dino_Defenders.Progression
             if (BaseOf(orders) == null) orders.Base = Bases[(int)(orders.LookSeed() % (ulong)Bases.Length)].Name;
             if (orders.Rarity == Rarity.Unique)
             {
-                if (OrdersCatalog.Find(orders.Unique) != null)
+                if (OrdersCatalog.Find(orders.Unique) is UniqueOrders unique)
                 {
                     orders.Lines.Clear();
+                    orders.Base = unique.Base;
+                    orders.Name = unique.Name;
                     return;
                 }
                 orders.Unique = null;
@@ -265,10 +267,13 @@ namespace Dino_Defenders.Progression
                 else lands++;
                 kept.Add(new ItemLine(line.Affix, MathF.Min(line.Value, omen.Tiers[^1].High)));
             }
-            if (kept.Count == orders.Lines.Count && foes == each && lands == each && kept.Zip(orders.Lines).All(pair => pair.First.Value == pair.Second.Value)) return;
+            if (kept.Count != orders.Lines.Count || foes != each || lands != each || !kept.Zip(orders.Lines).All(pair => pair.First.Value == pair.Second.Value))
+            {
+                orders.Lines = kept;
+                Deal(orders, new WorldRandom(orders.LookSeed()).Fork("lines"), 0f);
+            }
 
-            orders.Lines = kept;
-            Deal(orders, new WorldRandom(orders.LookSeed()).Fork("lines"), 0f);
+            // A name is only ever what the lines make of it, so whatever one came with is replaced.
             orders.Name = NameOf(orders);
         }
     }

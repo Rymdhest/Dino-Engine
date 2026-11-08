@@ -11,7 +11,7 @@ namespace Dino_Engine.World
         public readonly float MorePeople;       // How much bigger every pack and garrison is than usual, as a share: 0.5 is half as many again.
         public readonly float MorePacks;        // How many more packs stand on the land, as a share, or NoPacks. Neither touches anything but PackStage.
 
-        /// <summary>Asked of <see cref="MorePacks"/>: nobody stands on the roads or in the wild at all, and only places and camps are held.</summary>
+        /// <summary>Asked of <see cref="MorePacks"/>: nobody stands on the roads, in the wild or at a camp, and only places are held.</summary>
         public const float NoPacks = -1f;
 
         /// <summary>Whether this asks for the land between places to be empty.</summary>

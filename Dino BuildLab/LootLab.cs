@@ -42,9 +42,10 @@ namespace Dino_BuildLab
             float total = 0f;
             foreach (ItemLine line in item.Lines)
             {
-                Affix affix = AffixCatalog.Find(line.Affix)!;
-                Tier top = affix.Tiers[0];
-                foreach (Tier tier in affix.Tiers)
+                // Orders' lines are omens, which have tiers of their own.
+                Tier[] tiers = item.IsOrders ? Omens.Find(line.Affix)!.Tiers : AffixCatalog.Find(line.Affix)!.Tiers;
+                Tier top = tiers[0];
+                foreach (Tier tier in tiers)
                 {
                     if (tier.MinLevel <= item.Level) top = tier;
                 }

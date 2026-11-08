@@ -117,6 +117,15 @@ namespace Dino_WorldLab
                 Console.WriteLine(line);
             }
             Console.WriteLine($"height {world.Height.Sample(at):0.00} slope {world.Height.SlopeAt(at):0.00} water {world.WaterDepthAt(at):0.00} boundary {world.Boundary.Sample(at):0.00} rock {world.Rock.Sample(at):0.00} reachable {world.Reachable.Sample(at):0.00} ponds {world.Ponds.Count}");
+
+            // What's near, as a fault at a spot is usually something else's doing.
+            foreach (WorldSite site in world.Sites.Where(site => (site.Position - at).Length < 200f)) Console.WriteLine($"  {site.Kind} {site.Name} at {site.Position}, radius {site.Radius:0}, {(site.Position - at).Length:0} m away");
+            foreach (WorldRoad road in world.Roads)
+            {
+                int nearest = Enumerable.Range(0, road.Points.Count).MinBy(i => (road.Points[i].Xz - at).LengthSquared);
+                float distance = (road.Points[nearest].Xz - at).Length;
+                if (distance < 40f) Console.WriteLine($"  {road.Class} road of {road.Length:0} m passes {distance:0.0} m away, at point {nearest} of {road.Points.Count}, planned {road.Points[nearest].Y:0.00} where the ground is {world.Height.Sample(road.Points[nearest].Xz):0.00}");
+            }
             return 0;
         }
 

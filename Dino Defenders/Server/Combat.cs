@@ -1942,7 +1942,7 @@ namespace Dino_Defenders.Server
         public void DropLoot(in EnemyComponent enemy, Vector3 position, Actor actor)
         {
             // A world holds a thousand of these. What's worth having comes from those that took some beating, and how much beating is in the health it really had.
-            // What's been paid for on this land comes out of that, or peril would turn its fodder into champions and pay for them twice.
+            // What a land's omens add comes out of that, or they'd turn its fodder into champions and pay for them twice.
             LootBoon boon = _session.Boon;
             float health = Bestiary.HealthAt(enemy.Level) * _session.Terms.EnemyHealth * (actor.Tyrant ? _session.TyrantHealth : 1f);
             LootTier tier = LootTables.TierOf(enemy.Rarity, actor.Sheet.MaxHealth / health);
@@ -1992,20 +1992,5 @@ namespace Dino_Defenders.Server
             _session.Ground.Spill(position, items, gold, LootTables.Of(tier).GoldPiles, GroundLoot.ChestDelay);
         }
 
-        /// <summary>What a land pays out on top of everything else, for an offering seen through to the end. It comes as hoards, on the spot.</summary>
-        public void PayOut(Vector3 position, int level, int hoards)
-        {
-            LootBoon boon = _session.Boon;
-            float find = BestOfParty(s => s.ItemRarity) / 100f;
-            var items = new List<Item>();
-            int gold = 0;
-            for (int i = 0; i < hoards; i++)
-            {
-                items.AddRange(Loot.Roll(LootTier.Hoard, level, StrongestHero, find, _lootLuck, _luck.Fork(_luck.Int(1 << 30)), boon));
-                gold += Loot.RollGold(LootTier.Hoard, level, BestOfParty(s => s.GoldFind) / 100f, _luck, boon.Gold);
-            }
-            Server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Chest }, position.Xz);
-            _session.Ground.Spill(position, items, gold, LootTables.Of(LootTier.Hoard).GoldPiles * hoards, GroundLoot.ChestDelay);
-        }
     }
 }

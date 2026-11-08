@@ -26,9 +26,9 @@ namespace Dino_NetLab
         public readonly LabPlayer Player;
         public readonly ServerPlayer Truth;
 
-        public Arena(WorldCache worlds, WorldRequest request, HeroState hero, int heroes = 1, Offering? offering = null, NetworkConditions? line = null)
+        public Arena(WorldCache worlds, WorldRequest request, HeroState hero, int heroes = 1, LandTerms? terms = null, NetworkConditions? line = null)
         {
-            Lab = new GameLab(worlds, request, "Landing", offering);
+            Lab = new GameLab(worlds, request, "Landing", terms);
             Player = Lab.AddPlayer("Hero", line ?? new NetworkConditions(), 1, hero: hero);
             Player.Fights = false;
             for (int i = 1; i < heroes; i++)
@@ -444,7 +444,7 @@ namespace Dino_NetLab
                 arena.Run(0.2);
                 report.Check("And everyone can see a hero fall", GhostHealth(arena) <= 0f, $"{GhostHealth(arena)}");
                 arena.Run(HeroRules.DeathDelay + 0.5);
-                report.Check("A fallen hero gets up again", !arena.Hero.Dead && arena.Hero.Vitals.Health > 0f);
+                report.Check("And a hero who falls in a land stays down, as there's one life to it", arena.Hero.Dead && arena.Truth.Out && arena.Truth.Sim.Down);
             }
 
             using (Arena arena = Enter(worlds, request, "key.turn-the-blade"))
@@ -1148,7 +1148,7 @@ namespace Dino_NetLab
         private static void HeldKeys(Report report, WorldCache worlds, WorldRequest request)
         {
             const int OnOne = 3, OnTwo = 4;
-            using var lab = new GameLab(worlds, request);
+            using var lab = new GameLab(worlds, request, "Landing");
             HeroState hero = GameLab.StrongHero();
             hero.Equipped[WornSlot.Finger1] = new Item { Name = "Lab Ring", Slot = ItemSlot.Finger, Level = 1, Lines = { new ItemLine("mana-regen", 1000f) } };
             hero.Bar[OnOne] = GameLab.Written(Shelf.Firebolt);

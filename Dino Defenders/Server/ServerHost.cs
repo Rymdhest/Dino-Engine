@@ -8,13 +8,15 @@ namespace Dino_Defenders.Server
 {
     /// <summary>
     /// Keeps a world's generation from being done twice in one process: a host's server and its own client ask for the same world,
-    /// and between them need only the one copy. Across a network each machine grows its own, from the same seed.
+    /// and between them need only the one copy. Across a network each machine grows its own, from the same seed. The Haven is kept
+    /// apart from whatever land was grown last, as everyone goes back to it between every two lands.
     /// </summary>
     public sealed class WorldCache
     {
         private readonly object _lock = new();
         private WorldRequest _request;
         private Task<WorldData>? _world;
+        private Task<WorldData>? _haven;
 
         /// <summary>Told how far the most recent generation has got.</summary>
         public Action<float, string>? Progress;
@@ -23,6 +25,13 @@ namespace Dino_Defenders.Server
         {
             lock (_lock)
             {
+                if (Progression.Lands.IsHaven(request))
+                {
+                    if (_haven is { IsFaulted: false } kept) return kept;
+                    Action<float, string>? growing = Progress;
+                    _haven = Task.Run(() => new Dino_Engine.World.Generation.WorldGenerator().Generate(request, growing));
+                    return _haven;
+                }
                 if (_world != null && Same(_request, request)) return _world;
                 _request = request;
                 Action<float, string>? progress = Progress;

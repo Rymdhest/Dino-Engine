@@ -11,7 +11,7 @@ namespace Dino_BuildLab
     ///   list [--what keystones|uniques|notables|affixes|slots|items|skills|cards|terms|sheet]   Everything a player can read.
     ///   density [--seed N] [--count N] [--level N] [--archetype id]   How much there is to fight in a world, and how long it is between fights.
     ///   loot [--level N]   What each source gives, what a whole world comes to, and the longest dry spells.
-    ///   offering [--level N] [--worlds N]   What each step of peril costs and pays.
+    ///   lands [--rolls N]   What a land of each level holds, and what each omen and unique orders comes to.
     ///   books [--level N] [--weapon sword|wand|bow]   What every sentence comes to on a plain page, and what's on the shelf comes to.
     /// </summary>
     internal static class Program
@@ -38,8 +38,8 @@ namespace Dino_BuildLab
                     return Density.Run(options);
                 case "loot":
                     return LootLab.Run(options);
-                case "offering":
-                    return OfferingLab.Run(options);
+                case "lands":
+                    return LandLab.Run(options);
                 case "books":
                     return BookLab.Run(options);
                 default:
@@ -101,7 +101,7 @@ namespace Dino_BuildLab
             ContentChecks.Run(report);
             BookChecks.Run(report);
             TooltipChecks.Run(report);
-            OfferingLab.Checks(report);
+            LandLab.Checks(report);
             LootLab.Check(report);
             FuzzChecks.Run(report, options.Int("rounds", 3000));
             return report.Finish();

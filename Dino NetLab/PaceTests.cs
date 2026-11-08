@@ -46,12 +46,19 @@ namespace Dino_NetLab
             int minutes = options.Int("minutes", 5);
             var request = new WorldRequest(seed, options.Text("archetype") ?? "isle", level);
 
-            var offering = new Offering { Peril = options.Int("peril", 0), Teeming = options.Int("teeming", 0), Overrun = options.Int("overrun", 0) };
-            if (options.Text("omens") is string omens) offering.Omens.AddRange(omens.Split(','));
-            offering.Sanitize();
+            // A land's own omens as it would roll them, or those asked for, each as much as the land's level would have it.
+            LandTerms terms = options.Text("rolled") != null ? Lands.Roll(level, new WorldRandom((ulong)seed)) : new LandTerms();
+            if (options.Text("omens") is string omens)
+            {
+                foreach (string id in omens.Split(','))
+                {
+                    if (Omens.Find(id) is OmenDefinition omen) terms.Omens.Add(new ItemLine(omen.Id, omen.Fixed(level)));
+                }
+            }
+            terms.Sanitize();
 
             var worlds = new WorldCache();
-            using var lab = new GameLab(worlds, request, "Landing", offering);
+            using var lab = new GameLab(worlds, request, "Landing", terms);
             HeroState hero = options.Text("strong") != null ? GameLab.StrongHero() : HeroState.CreateNew();
             hero.Level = Math.Max(hero.Level, heroLevel);
             LabPlayer player = lab.AddPlayer("Walker", new NetworkConditions { Latency = 30, Jitter = 5 }, 11, hero: hero);
@@ -66,7 +73,7 @@ namespace Dino_NetLab
             int sinceRoute = 0;
             int sidestep = 0;
 
-            Console.WriteLine($"World level {level}, hero level {heroLevel}, on foot from pack to pack{(offering.Any ? $", {offering.Title()} {offering.OmenNames()}" : "")}");
+            Console.WriteLine($"Land level {level}, hero level {heroLevel}, on foot from pack to pack{(terms.Count > 0 ? $", with {string.Join(", ", terms.Chosen().Select(chosen => chosen.Omen.Name))}" : "")}");
             Console.WriteLine("minute  level  kills  /min  in a fight  falls  flasks  health  walked");
 
             var near = new List<Actor>();
@@ -74,7 +81,7 @@ namespace Dino_NetLab
             bool wasDown = false;
             int lastKills = 0;
             int startKills = 0;
-            for (int minute = 1; minute <= minutes; minute++)
+            for (int minute = 1; minute <= minutes && falls == 0; minute++)
             {
                 int ticks = 0;
                 int fighting = 0;
@@ -105,6 +112,7 @@ namespace Dino_NetLab
                 float walked = (truth.Sim.Position - session.World.Sites[0].Position).Length;
                 Console.WriteLine($"{minute,6} {truth.Hero.Level,6} {kills,6} {kills - lastKills,5} {(float)fighting / ticks,11:0%} {falls,6} {truth.Hero.Flasks,7} {truth.Actor.Vitals.Health / truth.Actor.Sheet.MaxHealth,7:0%} {walked,6:0}m");
                 lastKills = kills;
+                if (falls > 0) Console.WriteLine("Fell, and a land has one life: that's as far as this one goes.");
                 if (options.Text("trace") != null)
                 {
                     var next = session.Sites.Where(s => !s.Cleared && s.HostilesTotal > 0).OrderBy(s => (s.Site.Position - truth.Sim.Position).LengthSquared).First();

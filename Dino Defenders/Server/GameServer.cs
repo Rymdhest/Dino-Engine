@@ -41,6 +41,9 @@ namespace Dino_Defenders.Server
         private const int FlaskPrice = 12;
         private const int StockSize = 12;
         private const int FolioEvery = 4;   // One thing in this many on a table is for a book.
+        private const int OrdersOnTable = 2;        // The last cells of the Haven's table: orders taken from the Reich, the one place besides a tyrant they come from for sure.
+        private const float RareOrders = 0.15f;
+        private const float MagicOrders = 0.45f;
         private const float ModerateLoss = 0.08f;
         private const float HeavyLoss = 0.2f;
         private const float GateReach = 9f;         // How near a waygate someone has to be to use one, a little more than the gate's own reach, as the server sees them a moment late.
@@ -210,9 +213,11 @@ namespace Dino_Defenders.Server
             bool first = _heroes.Count == 0;
             Vector2 start = StartPosition(session.World, first);
 
+            // There's one life to a land, and leaving and coming back in isn't another: whoever fell here arrives as they left, fallen, and with what it meant for their climb already settled.
+            bool fallen = !session.IsHaven && session.Fallen.Contains(player.Name);
             player.LandMods = session.Terms.HeroMods();
-            player.Out = false;
-            player.Judged = false;
+            player.Out = fallen;
+            player.Judged = fallen;
             var actor = new Actor(Team.Heroes, HeroBuild.Compile(player.Hero, null, player.LandMods), start, HeroRules.Radius) { Player = player, Body = "hero" };
             player.Actor = actor;
             player.Kit = new HeroKit(player.Hero, actor.Sheet);
@@ -220,6 +225,12 @@ namespace Dino_Defenders.Server
             if (first && _saved is { InLand: true } && !session.IsHaven && _saved.Health > 0f) actor.Vitals.Health = Math.Min(_saved.Health, actor.Sheet.MaxHealth);
 
             player.Sim = HeroSimState.At(start, actor.Vitals.Mana);
+            if (fallen)
+            {
+                actor.Vitals.Health = 0f;
+                actor.Dead = true;
+                player.Sim.Down = true;
+            }
             player.Sim.Health = actor.Vitals.Health;
             player.View = new GhostView { Focus = start };
             player.GhostId = Ghosts.NextId();
@@ -242,6 +253,7 @@ namespace Dino_Defenders.Server
 
             _heroes.Add(player);
             player.InWorld = true;
+            if (fallen) session.SettleIfAllOut();
 
             BitWriter arrived = Protocol.Begin(Message.Arrived);
             arrived.WriteVarInt(_epoch);
@@ -268,14 +280,8 @@ namespace Dino_Defenders.Server
                 // Someone can stand closer to a wall than the passable map allows for, so the spot itself may not be on it.
                 if (TryFindGround(world, new Vector2(_saved.PlayerX, _saved.PlayerZ), out Vector2 ground)) return ground;
             }
+            // A scripted run asks for a place to look at, which wins over where anyone would really arrive.
             if (_settings.Start.HasValue) return _settings.Start.Value;
-
-            // Out of the waygate a hero came through: in the Haven its great one, and in a land the one at the landing.
-            if (WaygateSpawn(world, world.Sites[0]) is Vector2 gate)
-            {
-                Vector2 into = Session!.IsHaven ? -HavenNorth : (world.Sites[0].Position - gate).LengthSquared > 1f ? (world.Sites[0].Position - gate).Normalized() : Vector2.UnitY;
-                if (TryFindGround(world, gate + into * ArriveBefore, out Vector2 stepped)) return stepped;
-            }
             if (_settings.StartBiome != null && TryFindWood(world, _settings.StartBiome, out Vector2 wood)) return wood;
             if (_settings.StartSite != null)
             {
@@ -284,6 +290,13 @@ namespace Dino_Defenders.Server
                     // The middle of a site can be built on.
                     if (site.Kind.ToString() == _settings.StartSite) return TryFindGround(world, site.Position, out Vector2 ground) ? ground : site.Position;
                 }
+            }
+
+            // Out of the waygate a hero came through: in the Haven its great one, and in a land the one at the landing.
+            if (WaygateSpawn(world, world.Sites[0]) is Vector2 gate)
+            {
+                Vector2 into = Session!.IsHaven ? -HavenNorth : (world.Sites[0].Position - gate).LengthSquared > 1f ? (world.Sites[0].Position - gate).Normalized() : Vector2.UnitY;
+                if (TryFindGround(world, gate + into * ArriveBefore, out Vector2 stepped)) return stepped;
             }
             return world.Sites[0].Position;
         }
@@ -318,8 +331,8 @@ namespace Dino_Defenders.Server
 
         private static readonly Vector2 HavenNorth = new Vector2(0f, 1f);
 
-        // Where a place's waygate is used from, if it has one.
-        private static Vector2? WaygateSpawn(WorldData world, WorldSite site)
+        /// <summary>Where a place's waygate is used from, if it has one.</summary>
+        public static Vector2? WaygateSpawn(WorldData world, WorldSite site)
         {
             foreach (SiteSpawn spawn in site.Spawns)
             {
@@ -754,16 +767,27 @@ namespace Dino_Defenders.Server
             hero.Connection.Send(writer.ToArray(), Delivery.Reliable);
         }
 
-        // Each hero has their own table: what one buys isn't taken from another, and it turns over as they free more lands.
+        // Each hero has their own table: what one buys isn't taken from another. In a land it's stocked a level above the land, and turns over as they free more lands. In the Haven it's stocked
+        // for the next land they'll go to, with orders among it, and turns over every time they've been to one.
         private MerchantTable TableFor(ServerPlayer hero, int siteIndex)
         {
             if (hero.Tables.TryGetValue(siteIndex, out MerchantTable? table)) return table;
 
             ServerSession session = Session!;
             var stock = new Item?[StockSize];
-            var random = new WorldRandom(session.World.Plan.Seed).Fork("market").Fork(session.Sites[siteIndex].Site.Id).Fork(hero.Hero.WorldsCleared);
-            int level = session.World.Plan.Level + 1;
+            int turnover = session.IsHaven ? (int)(hero.Hero.Offers % int.MaxValue) : hero.Hero.WorldsCleared;
+            var random = new WorldRandom(session.World.Plan.Seed).Fork("market").Fork(session.Sites[siteIndex].Site.Id).Fork(turnover);
+            int level = session.IsHaven ? hero.Hero.LandLevel : session.World.Plan.Level + 1;
             for (int i = 0; i < StockSize; i++) stock[i] = i % FolioEvery == FolioEvery - 1 ? ItemGenerator.Folio(level, random.Fork(i), random.Chance(0.3f) ? Rarity.Magic : Rarity.Normal) : ItemGenerator.Roll(level, random.Fork(i), rarityBonus: 0.4f);
+            if (session.IsHaven)
+            {
+                for (int i = StockSize - OrdersOnTable; i < StockSize; i++)
+                {
+                    WorldRandom orders = random.Fork("orders").Fork(i);
+                    float roll = orders.Float();
+                    stock[i] = OrdersMaker.Roll(level, orders, roll < RareOrders ? Rarity.Rare : roll < RareOrders + MagicOrders ? Rarity.Magic : Rarity.Normal);
+                }
+            }
             table = new MerchantTable { Stock = stock };
             hero.Tables[siteIndex] = table;
             return table;
@@ -796,6 +820,7 @@ namespace Dino_Defenders.Server
                 player.Actor.Dead = true;
                 Ecs.DestroyEntity(player.Entity);
                 Note(null, $"{player.Name} has gone their own way.");
+                if (_heroes.Count > 0) Session?.SettleIfAllOut();
             }
             SendParty();
         }
@@ -1341,7 +1366,6 @@ namespace Dino_Defenders.Server
             foreach (ServerPlayer player in greeted) player.Connection.Send(data, Delivery.Reliable);
         }
 
-        /// <summary>Writes the world, and where the first hero stands in it, into a save. The hero's own record is added on their machine.</summary>
         /// <summary>For a scripted run: one of everything, in front of the first hero, standing still or not.</summary>
         public void Parade(string which, bool fighting = false)
         {
@@ -1368,6 +1392,7 @@ namespace Dino_Defenders.Server
             if (Session != null && _heroes.Count > 0) Session.Ground.Show(_heroes[0].Sim.Position, which);
         }
 
+        /// <summary>Writes the world, and where the first hero stands in it, into a save. The hero's own record is added on their machine.</summary>
         public void CaptureWorld(SaveGame save)
         {
             if (Session == null) return;

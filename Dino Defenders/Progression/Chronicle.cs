@@ -171,8 +171,9 @@ namespace Dino_Defenders.Progression
         /// <summary>Whether a place is held, and isn't the keep, which is what the places a land asks to be freed are.</summary>
         public static bool Counts(WorldSite site) => site.Kind != SiteKind.Keep && site.Spawns.Any(spawn => spawn.Role.IsHostile());
 
-        /// <summary>Where a second tyrant stands, on a land whose orders gave it two: the pen farthest from where heroes come in. None if the land has no pen.</summary>
-        public static WorldSite? TwinSite(WorldData world) => world.Sites.Where(site => site.Kind == SiteKind.BanditCamp).OrderByDescending(site => site.Remoteness).FirstOrDefault();
+        /// <summary>Where a second tyrant stands, on a land whose orders gave it two: the pen farthest from where heroes come in, or the farthest place that's held if the land has no pen.</summary>
+        public static WorldSite? TwinSite(WorldData world) => world.Sites.Where(site => site.Kind == SiteKind.BanditCamp).OrderByDescending(site => site.Remoteness).FirstOrDefault()
+            ?? world.Sites.Where(Counts).OrderByDescending(site => site.Remoteness).FirstOrDefault();
 
         /// <summary>A place's short history, for when the hero first comes upon it.</summary>
         public string Describe(WorldSite site, WorldData world)

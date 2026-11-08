@@ -60,7 +60,7 @@ namespace Dino_NetLab
                 for (int i = 0; i < world.Haunts.Count; i++)
                 {
                     var random = new WorldRandom((ulong)(i + level * 10000));
-                    var orders = new PackOrders(world, world.Haunts[i], world.Haunts[i].Folk, level, true, random.Fork("pack"), new Offering());
+                    var orders = new PackOrders(world, world.Haunts[i], world.Haunts[i].Folk, level, true, random.Fork("pack"), new LandTerms());
                     for (int place = 0; place < 12; place++)
                     {
                         (_, Rarity rarity, int traits) = orders.Draw(place, random.Fork(place));

@@ -142,7 +142,7 @@ namespace Dino_Defenders.Tooltips
             Word("Debt", "Damage you still owe, shown dark at the end of your Health.");
             Word("Enemy near you", $"An Enemy within {Metres(CrowdReach)}.", "Enemies near you");
             Word("Fighting", $"Having Hit something, or been Hit, in the last {Seconds(Recently)}.");
-            Word("Land Level", "How deep a land is: its enemies, and what they drop, are that level. Freeing a land climbs one, and losing one drops one.");
+            Word("Land Level", "How deep a land is. Its Enemies, and what they drop, are of that Level. Freeing a land raises it by one, and losing one lowers it by one, never below the first.");
             Word("Omen", "Something a land holds that makes it harder, and pays for it in what drops.", "Omens");
             Word("Orders", "Taken from the Reich. Given to the map table in the Haven, they're used up, and the land opened next holds what they say.");
             Word("Haven", "Home: the one place the Reich has never found. Nothing can hurt you there.");

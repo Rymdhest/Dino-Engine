@@ -120,7 +120,23 @@ namespace Dino_BuildLab
             }
             foreach (BuffDefinition buff in BuffCatalog.All) yield return Cards.Buff(buff, sheet);
             foreach (TalentNode node in TalentTree.Nodes) yield return Cards.Talent(node, sheet);
-            foreach (OmenDefinition omen in Omens.All) yield return Cards.Omen(omen, sheet);
+            foreach (OmenDefinition omen in Omens.All)
+            {
+                foreach (Tier tier in omen.Tiers) yield return Cards.Omen(omen, tier.High, sheet);
+            }
+
+            // Orders of every rarity at every depth, and each unique one, as they're read at the map table.
+            var orders = new WorldRandom(37);
+            for (int i = 0; i < 200; i++)
+            {
+                Item found = OrdersMaker.Roll(1 + i % 60, orders.Fork(i), (Rarity)(i % 3));
+                yield return Cards.Priced(found, sheet, Cards.KindOf(found));
+            }
+            foreach (UniqueOrders unique in OrdersCatalog.All)
+            {
+                Item found = OrdersMaker.Make(unique, 30, orders.Fork(unique.Id));
+                yield return Cards.Priced(found, sheet, Cards.KindOf(found));
+            }
             foreach (StatRow row in StatBook.Rows) yield return Cards.OfRow(row, sheet);
 
             var random = new WorldRandom(11);
@@ -144,7 +160,18 @@ namespace Dino_BuildLab
             }
             foreach (Term term in Lexicon.All) yield return (term.Name, term.Says);
             foreach (Sentence sentence in Dino_Defenders.Books.Sentences.All) yield return (sentence.Id, sentence.Words);
-            foreach (OmenDefinition omen in Omens.All) yield return (omen.Name, omen.Describe());
+            foreach (OmenDefinition omen in Omens.All)
+            {
+                foreach (Tier tier in omen.Tiers) yield return (omen.Name, omen.Describe(tier.Low));
+            }
+            foreach (UniqueOrders unique in OrdersCatalog.All)
+            {
+                yield return (unique.Name, unique.Gives);
+                yield return (unique.Name, unique.Costs);
+            }
+            var terms = new LandTerms();
+            foreach (OmenDefinition omen in Omens.All) terms.Omens.Add(new ItemLine(omen.Id, omen.Tiers[^1].High));
+            yield return ("What a land pays", terms.Pays());
         }
 
         // Names of things are their own, and nothing has to define them. They're shown with a card of their own.
@@ -159,6 +186,8 @@ namespace Dino_BuildLab
             foreach (BookPlan skill in Shelf.All) Add(skill.Name);
             foreach (BuffDefinition buff in BuffCatalog.All) Add(buff.Name);
             foreach (OmenDefinition omen in Omens.All) Add(omen.Name);
+            foreach (UniqueOrders unique in OrdersCatalog.All) Add(unique.Name);
+            foreach (OrdersBase basis in OrdersMaker.Bases) Add(basis.Name);
             foreach (string reaction in new[] { "Scald", "Crackle", "Flashfire", "Shatter", "Conduction" }) Add(reaction);
             foreach (EnemyKind kind in Bestiary.Everyone) Add(kind.Name);
             return names;
@@ -217,7 +246,7 @@ namespace Dino_BuildLab
             foreach (TalentNode node in TalentTree.Nodes) foreach (Mod mod in node.Mods) yield return mod;
             foreach (Affix affix in AffixCatalog.All) foreach (Mod mod in affix.Build(affix.Tiers[^1].High)) yield return mod;
             foreach (UniqueDefinition unique in UniqueCatalog.All) foreach (Mod mod in unique.Mods) yield return mod;
-            foreach (OmenDefinition omen in Omens.All) foreach (Mod mod in omen.Mods) yield return mod;
+            foreach (OmenDefinition omen in Omens.All) foreach (Mod mod in omen.Mods(omen.Tiers[^1].High)) yield return mod;
             foreach (BookPlan book in Shelf.All) foreach (PagePlan page in book.Pages) foreach (Mod mod in page.Mods) yield return mod;
             foreach (BuffDefinition buff in BuffCatalog.All) foreach (Mod mod in buff.Mods) yield return mod;
             foreach (EnemyTrait trait in Bestiary.Traits) foreach (Mod mod in trait.Mods) yield return mod;
@@ -336,7 +365,7 @@ namespace Dino_BuildLab
             }
 
             var typed = new List<string>();
-            foreach (string path in Directory.GetFiles(Path.Combine(sources, "Tooltips")).Append(Path.Combine(sources, "Progression", "Offering.cs")).Append(Path.Combine(sources, "Books", "Sentences.cs")))
+            foreach (string path in Directory.GetFiles(Path.Combine(sources, "Tooltips")).Concat(new[] { "Omens.cs", "Lands.cs", "Orders.cs" }.Select(name => Path.Combine(sources, "Progression", name))).Append(Path.Combine(sources, "Books", "Sentences.cs")))
             {
                 foreach (string line in File.ReadLines(path))
                 {

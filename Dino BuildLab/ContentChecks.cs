@@ -174,7 +174,7 @@ namespace Dino_BuildLab
             }
             foreach (OmenDefinition omen in Omens.All)
             {
-                foreach (Mod mod in omen.Mods) yield return (omen.Id, mod);
+                foreach (Mod mod in omen.Mods(omen.Tiers[^1].High)) yield return (omen.Id, mod);
             }
             foreach (BookPlan book in Shelf.All)
             {
@@ -811,7 +811,7 @@ namespace Dino_BuildLab
 
             HeroState hero = save.Hero;
             report.Check("With the hero as they were", hero.Level == 3 && hero.Gold == 368 && hero.Experience == 76 && hero.Carried().Count() == 2 && hero.Equipped.Count == 2);
-            report.Check("With the world as it was", save.WorldSeed == 12345 && save.Sites.Count == 1 && save.Sites[0].Kindled && save.Objectives[0] == 1);
+            report.Check("Waking in the Haven, as the world it was in isn't a land", !save.InLand && save.Sites.Count == 0 && save.Objectives.Count == 0);
             report.Check("Every point goes back into talents", hero.Talents.Count == 0 && hero.UnspentPoints == 7, $"{hero.UnspentPoints}");
             report.Check("A sword someone edited by hand stays as it was", hero.Equipped[WornSlot.MainHand].WeaponDamage == 700f);
 

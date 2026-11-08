@@ -59,14 +59,14 @@ namespace Dino_NetLab
         private double _lastLanded = double.NegativeInfinity;
         private double _firstLanded = -1.0;
 
-        public LabPlayer(string name, INetTransport transport, WorldCache worlds, HeroState hero, double frameSeconds, int seed)
+        public LabPlayer(string name, INetTransport transport, WorldCache worlds, HeroState hero, double frameSeconds, int seed, Stash? stash = null)
         {
             Name = name;
             _worlds = worlds;
             _random = new Random(seed);
             FrameSeconds = frameSeconds;
             _line = transport as ImpairedTransport;
-            Client = new GameClient(transport, this, Ecs, hero, name);
+            Client = new GameClient(transport, this, Ecs, hero, name, stash);
             Client.Events.On<DamageEvent>(e =>
             {
                 if (!e.ToHero) HitsSeen++;
@@ -223,7 +223,7 @@ namespace Dino_NetLab
             return intent;
         }
 
-        public void WorldNeeded(WorldRequest request, Offering offering) => _wanted = request;
+        public void WorldNeeded(WorldRequest request, LandTerms terms) => _wanted = request;
         public void Arrived(Vector2 position) => Arrivals++;
         public void HeroActed(HeroStepEvents events, in HeroSimState hero)
         {
@@ -259,6 +259,7 @@ namespace Dino_NetLab
 
         public readonly GameServer Server;
         public readonly List<LabPlayer> Players = new();
+        public WorldCache Worlds => _worlds;
         public double SecondsRun => _now;
 
         /// <summary>What a server tick really costs, in milliseconds of this machine's time.</summary>
@@ -266,22 +267,25 @@ namespace Dino_NetLab
         public double TickCostWorst;
         public int TicksTimed;
 
-        public GameLab(WorldCache worlds, WorldRequest request, string startSite = "BanditCamp", Offering? offering = null, SaveGame? save = null)
+        public GameLab(WorldCache worlds, WorldRequest request, string? startSite = "BanditCamp", LandTerms? terms = null, SaveGame? save = null)
         {
             _worlds = worlds;
 
             // Generation takes real time, and this clock doesn't wait for it.
-            worlds.Get((offering ?? new Offering()).Shape(request)).Wait();
-            Server = new GameServer(new ServerSettings { Request = request, Offering = offering, Save = save, StartSite = startSite, AllowTeleport = true }, worlds);
+            worlds.Get(Shaped(request, terms)).Wait();
+            Server = new GameServer(new ServerSettings { Request = request, Terms = terms, Save = save, StartSite = startSite, AllowTeleport = true }, worlds);
             Server.Clock = () => (long)(_now * 1000.0);
         }
 
-        public LabPlayer AddPlayer(string name, NetworkConditions conditions, int seed, double frameRate = 60.0, HeroState? hero = null)
+        /// <summary>The world a request and what's on it grow, as both ends work it out.</summary>
+        public static WorldRequest Shaped(WorldRequest request, LandTerms? terms) => Lands.IsHaven(request) ? request : (terms ?? new LandTerms()).Shape(request);
+
+        public LabPlayer AddPlayer(string name, NetworkConditions conditions, int seed, double frameRate = 60.0, HeroState? hero = null, Stash? stash = null)
         {
             (LoopbackTransport serverEnd, LoopbackTransport clientEnd) = LoopbackTransport.CreatePair();
             Server.AddTransport(serverEnd);
             var impaired = new ImpairedTransport(clientEnd, conditions, () => _now * 1000.0, seed);
-            var player = new LabPlayer(name, impaired, _worlds, hero ?? StrongHero(), 1.0 / frameRate, seed);
+            var player = new LabPlayer(name, impaired, _worlds, hero ?? StrongHero(), 1.0 / frameRate, seed, stash);
             player.Client.Clock = () => (long)(_now * 1000.0);
             Players.Add(player);
             return player;
@@ -806,23 +810,40 @@ namespace Dino_NetLab
         {
             using var lab = new GameLab(worlds, request);
             var line = new NetworkConditions { Latency = 80, Jitter = 20, LossChance = 0.02 };
-            for (int i = 0; i < 3; i++) lab.AddPlayer($"Hero {i + 1}", line, 10 + i);
+            for (int i = 0; i < 3; i++) lab.AddPlayer($"Hero {i + 1}", line, 10 + i).Fights = false;
             lab.Run(8);
 
-            int goldBefore = lab.Players[0].Client.Hero.Gold;
-            var next = new WorldRequest(request.Seed + 1, "isle", 2);
-            lab.Players[1].Client.StepThroughWaygate(next, new Offering());
-
             // A new world takes real time to grow, however fast this clock runs.
-            for (int i = 0; i < 600 && lab.Players.Any(p => p.Arrivals < 2); i++)
+            void Arrive(int arrivals)
             {
-                lab.Run(0.1);
-                if (lab.Server.Session == null) Thread.Sleep(10);
+                for (int i = 0; i < 900 && lab.Players.Any(p => p.Arrivals < arrivals); i++)
+                {
+                    lab.Run(0.1);
+                    if (lab.Server.Session == null) Thread.Sleep(10);
+                }
+                lab.Run(6);
             }
 
-            report.Check("One hero stepping through the waygate brings the party", lab.Players.All(p => p.Arrivals == 2), string.Join(",", lab.Players.Select(p => p.Arrivals)));
-            lab.Run(6);
-            report.Check("They all play on in the new world", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.World.Plan.Seed == next.Seed));
+            // Home through the landing's waygate, which one of them walks up to.
+            int goldBefore = lab.Players[0].Client.Hero.Gold;
+            worlds.Get(Lands.Haven).Wait();
+            LabPlayer walker = lab.Players[1];
+            walker.Client.TravelTo(GameServer.WaygateSpawn(lab.Server.Session!.World, lab.Server.Session.World.Sites[0])!.Value);
+            lab.Run(1.5);
+            walker.Client.ReturnHome();
+            Arrive(2);
+            report.Check("One hero going home through a waygate brings the party", lab.Players.All(p => p.Arrivals == 2), string.Join(",", lab.Players.Select(p => p.Arrivals)));
+            report.Check("They all play on in the Haven", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.IsHaven));
+
+            // And out again, by the way one of them opens.
+            LandOffer offer = Lands.Offer(walker.Client.Hero)[0];
+            worlds.Get(offer.Terms.Shape(offer.Request)).Wait();
+            walker.Client.OpenWay(0);
+            lab.Run(2);
+            lab.Server.StepThrough();
+            Arrive(3);
+            report.Check("One hero stepping through the open way brings the party", lab.Players.All(p => p.Arrivals == 3), string.Join(",", lab.Players.Select(p => p.Arrivals)));
+            report.Check("They all play on in the new land", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.World.Plan.Seed == offer.Request.Seed));
             report.Check("Nothing from the old world came along", lab.Players.All(p => p.Client.Ghosts.Mismatches == 0));
             report.Check("What they carried came with them", lab.Players[0].Client.Hero.Gold >= goldBefore);
         }
@@ -1157,6 +1178,22 @@ namespace Dino_NetLab
             report.Check("Being moved by the server is believed at once", (player.Client.Predictor.Current.Position - far).Length < 0.1f);
         }
 
+        /// <summary>Goes to a place and brings down everyone who holds it, the way it's really done.</summary>
+        public static void FreePlace(GameLab lab, ServerPlayer truth, SiteState state)
+        {
+            ServerSession session = lab.Server.Session!;
+            lab.Players.First(p => p.Name == truth.Name).Client.TravelTo(state.Site.Position);
+            lab.Run(1.5);
+            for (int attempt = 0; attempt < 80 && !state.Cleared; attempt++)
+            {
+                foreach (Entity entity in state.Live.ToList())
+                {
+                    if (lab.Server.Ecs.TryGetEntityLocation(entity, out _, out _) && lab.Server.Ecs.GetEntityView(entity).Has<ActorComponent>()) session.Combat.Harm(truth.Actor, lab.Server.Ecs.GetEntityView(entity).Get<ActorComponent>().Actor, 1e12f, DamageType.Magic);
+                }
+                lab.Run(0.3);
+            }
+        }
+
         private static bool SheetsAgree(ServerPlayer truth, LabPlayer player)
         {
             ActorSheet server = truth.Actor.Sheet;
@@ -1239,12 +1276,13 @@ namespace Dino_NetLab
                 report.Check("Clicking a waygate walks up and offers the way", player.PanelsOpened.Any(p => p.kind == InteractKind.Waygate), $"{(truth.Sim.Position - gate).Length:0.0} m away");
             }
 
-            // These stand seven metres apart, so the reach of each covers the way to the other: a press too soon goes to the wrong one.
+            // These stand seven metres apart, so the reach of each covers the way to the other: a press too soon goes to the wrong one. Those who hold the stones go first.
             WorldSite stones = seen.World.Sites.First(s => s.Kind == SiteKind.StandingStones && s.Spawns.Any(p => p.Role == SpawnRole.Chest));
             SiteState state = session.Sites.First(s => s.Site.Id == stones.Id);
             Vector2 altarAt = stones.Spawns.First(s => s.Role == SpawnRole.Altar).Position;
             Vector2 chestAt = stones.Spawns.First(s => s.Role == SpawnRole.Chest).Position;
             Vector2 past = (chestAt - altarAt).Normalized();
+            FreePlace(lab, truth, state);
 
             player.Client.TravelTo(chestAt + past * 6f);
             lab.Run(3);
@@ -1335,7 +1373,7 @@ namespace Dino_NetLab
                 report.Check("Using a waygate offers the way", player.PanelsOpened.Any(p => p.kind == InteractKind.Waygate));
             }
 
-            // A shrine and a chest are somewhere else in the world, and exist only once a hero is near.
+            // A shrine and a chest are somewhere else in the world, and exist only once a hero is near. The Reich keeps people from its shrines, so those who hold it go first.
             WorldSite shrine = session.World.Sites.First(s => s.Kind == SiteKind.Shrine);
             player.Client.TravelTo(shrine.Position);
             lab.Run(3);
@@ -1344,20 +1382,17 @@ namespace Dino_NetLab
             if (altar != null)
             {
                 int index = session.Sites.FindIndex(s => s.Site == shrine);
+                SiteState held = session.Sites[index];
                 Use(altar.Value);
-                report.Check("Kindling a shrine lights it for the server", session.Sites[index].Kindled);
+                report.Check("A shrine still held can't be kindled", !held.Kindled && held.HostilesTotal > 0);
+
+                FreePlace(lab, truth, held);
+                Use(altar.Value);
+                report.Check("Once it's free, kindling it lights it for the server", held.Kindled);
                 lab.Run(1);
                 report.Check("And for the client", player.Client.Session!.Sites[index].Kindled);
-                report.Check("And that's where the hero wakes", (truth.Respawn - altar.Value).Length < 0.5f);
-                report.Check("And the chronicle moves on, for both", session.Chronicle.Objectives.Any(o => o.Progress > 0) && player.Client.Session.Chronicle.Objectives.Any(o => o.Progress > 0));
-
-                player.Client.TravelTo(session.World.Sites[0].Position);
-                lab.Run(1);
-                player.Client.TravelToSite(index);
-                lab.Run(1);
-                Vector2 arrived = player.Client.Predictor.Current.Position;
-                report.Check("A kindled shrine can be travelled to", (arrived - shrine.Position).Length < 8f);
-                report.Check("And the hero arrives beside its altar, not inside it", session.World.Passable.IsSet(arrived));
+                report.Check("And blesses whoever kindled it", truth.Actor.Buffs.Any(b => BuffCatalog.Blessings.Contains(b.Buff)));
+                report.Check("And freeing it moved the chronicle on, for both", session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0) && player.Client.Session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0));
             }
 
             foreach (SiteState state in session.Sites)

@@ -198,18 +198,19 @@ namespace Dino_NetLab
 
             Vector2 WakesAt(Vector2 saved)
             {
-                using var lab = new GameLab(worlds, request, "Landing", save: new SaveGame { RespawnX = saved.X, RespawnZ = saved.Y });
+                var save = new SaveGame { InLand = true, WorldSeed = request.Seed, WorldArchetype = request.ArchetypeId, WorldLevel = request.Level, PlayerX = saved.X, PlayerZ = saved.Y };
+                using var lab = new GameLab(worlds, request, "Landing", save: save);
                 lab.AddPlayer("Returning", new NetworkConditions(), 1).Fights = false;
                 lab.Run(3);
-                return lab.Server.Heroes[0].Respawn;
+                return lab.Server.Heroes[0].Sim.Position;
             }
 
             Vector2 inside = Spots(land).First(at => !land.Passable.IsSet(at) && land.Passable.IsSet(at + new Vector2(MovedAside, 0f)));
             Vector2 wakes = WakesAt(inside);
-            report.Check("A place to wake that the land has moved under becomes the ground beside it", land.Passable.IsSet(wakes) && (wakes - inside).Length <= MovedAside * 2f, $"{inside} to {wakes}");
+            report.Check("A place the land has moved under becomes the ground beside it", land.Passable.IsSet(wakes) && (wakes - inside).Length <= MovedAside * 2f, $"{inside} to {wakes}");
 
             Vector2 nowhere = Spots(land).First(at => !Enumerable.Range(0, 64).Any(i => land.Passable.IsSet(at + new Vector2(MathF.Cos(i * 0.4f), MathF.Sin(i * 0.4f)) * (i % 8 + 1) * 4f)));
-            report.Check("And with no ground near it, a hero wakes at the landing", WakesAt(nowhere) == land.Sites[0].Position);
+            report.Check("And with no ground near it, a hero wakes at the landing", (WakesAt(nowhere) - land.Sites[0].Position).Length < land.Sites[0].Radius + 8f);
         }
 
         private static IEnumerable<Vector2> Spots(WorldData land)

@@ -57,12 +57,12 @@ namespace Dino_Engine.World.Generation
 
             foreach (WorldSite site in world.Sites) pass.Reinforce(site);
 
-            // Camps are already there, so they go first, and the rest find room around them.
-            for (int i = 0; i < world.Haunts.Count; i++) pass.FillCamp(world.Haunts[i], i);
-
-            // A land asked to be held only at its places has nobody between them.
+            // A land asked to be held only at its places has nobody between them: its camps stand empty, and its roads and wilds too.
             if (!world.Plan.Request.Emptied)
             {
+                // Camps are already there, so they go first, and the rest find room around them.
+                for (int i = 0; i < world.Haunts.Count; i++) pass.FillCamp(world.Haunts[i], i);
+
                 foreach (WorldSite site in world.Sites)
                 {
                     if (site.Definition.IsDanger) pass.PostPickets(site);

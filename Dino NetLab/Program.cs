@@ -9,10 +9,10 @@ namespace Dino_NetLab
     ///   core  [--seed N] [--fuzz N]                 The replication layer on its own.
     ///   game  [--seed N] [--seconds N] [--fuzz N]   The whole game: real server, real clients, every kind of line.
     ///   build [--seed N]                            Every skill, ailment, reaction and keystone, done for real on a running server.
-    ///   pace  [--seed N] [--level N] [--hero N] [--minutes N] [--archetype id] [--peril N] [--teeming N] [--overrun N] [--omens a,b]   How playing goes: time in fights, kills, falls, and what's dropped.
+    ///   pace  [--seed N] [--level N] [--hero N] [--minutes N] [--archetype id] [--rolled true] [--omens a,b]   How playing goes: time in fights, kills, falls, and what's dropped.
     ///   loot  [--seed N]                            What's on the ground: who sees it, who gets it, and that nobody gets it without asking.
     ///   pack  [--seed N]                            What a pack does across a line: shown at once, the server has the last word, and nothing is lost or doubled however bad the line.
-    ///   offering                                    What's paid at a waygate: who pays, what it does to the land, what falling costs, and what it pays out.
+    ///   lands                                       The loop: the Haven, the way, one life to a land, leaving, freeing, the climb, the stash, and what omens and orders do.
     ///   foes  [--seed N]                            What an enemy's rarity comes to: who turns up as what, that a trait's ability gets used, and what a client is told
     ///   uniques [--seed N]                          Every unique's rule, done for real on a running server.
     ///   combat                                      What a fight promises: what's marked is what's hit, on the tick it says, what's called off is seen to be, and a dodge is there when it's asked for.
@@ -45,8 +45,8 @@ namespace Dino_NetLab
                     return PackHandlingTests.Run(options);
                 case "gear":
                     return GearTests.Run(options);
-                case "offering":
-                    return OfferingTests.Run(options);
+                case "lands":
+                    return LandTests.Run(options);
                 case "combat":
                     return CombatTests.Run(options);
                 case "books":

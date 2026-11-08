@@ -58,9 +58,6 @@ namespace Dino_Defenders.Progression
         public float PlayerZ { get; set; } = -1f;
         public float Health { get; set; } = -1f;
 
-        /// <summary>The waygates of the land the hero has found, by site, as only those can be travelled to.</summary>
-        public List<int> Found { get; set; } = new();
-
         /// <summary>Whether this is a hero who's never been anywhere, and should be told where they are. It's a method so that it isn't saved.</summary>
         public bool NeverPlayed() => !InLand && Hero.Level == 1 && Hero.Experience == 0 && Hero.WorldsCleared == 0;
 
@@ -167,7 +164,6 @@ namespace Dino_Defenders.Progression
             save.InLand = false;
             save.Sites.Clear();
             save.Objectives.Clear();
-            save.Found.Clear();
             save.PlayerX = -1f;
             save.PlayerZ = -1f;
             save.Health = -1f;
