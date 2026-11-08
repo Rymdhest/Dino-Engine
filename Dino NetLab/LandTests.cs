@@ -476,6 +476,10 @@ namespace Dino_NetLab
 
                 scene.Free();
                 report.Check("The land can be freed", scene.Session.Liberated && scene.Seen.Liberated, string.Join(", ", scene.Session.Chronicle.Objectives.Select(o => o.Summary)));
+                int steps = scene.Session.Chronicle.Objectives.Sum(o => o.Goal);
+                List<Banner> told = scene.Seen.Banners.Where(b => b.Title == "Objective complete").ToList();
+                report.Check("Every step of what it asked was told across the screen", told.Count == steps, $"{told.Count} of {steps}: {string.Join(" | ", told.Select(b => b.Subtitle))}");
+                report.Check("And then that it's free", scene.Seen.Banners.Any(b => b.Title == "The land is free") && scene.Seen.Banners.FindIndex(b => b.Title == "The land is free") > scene.Seen.Banners.FindLastIndex(b => b.Title == "Objective complete"));
                 report.Check("Which opens the next level, on both ends", scene.Truth.Hero.LandLevel == 7 && scene.Player.Client.Hero.LandLevel == 7, $"{scene.Truth.Hero.LandLevel}, {scene.Player.Client.Hero.LandLevel}");
                 report.Check("And is worth a talent point", scene.Truth.Hero.BestLand == 6 && scene.Truth.Hero.TalentPoints == 1 + HeroState.PointsPerLevel * scene.Truth.Hero.Level + 6, $"{scene.Truth.Hero.TalentPoints} at level {scene.Truth.Hero.Level}, from {points}");
                 report.Check("A friend with less of a climb climbs from this land", scene.TruthOf(friend).Hero.LandLevel == 7 && friend.Client.Hero.LandLevel == 7);

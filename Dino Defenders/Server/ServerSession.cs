@@ -482,17 +482,28 @@ namespace Dino_Defenders.Server
             if (state.Wild) return;
 
             Server.Note(null, $"{state.Site.Name} is freed.");
-            if (Chronicle.Asks(state.Site)) Advance(ObjectiveKind.FreePlaces);
+            if (Chronicle.Asks(state.Site)) Advance(ObjectiveKind.FreePlaces, $"{state.Site.Name} is freed");
         }
 
-        public void Advance(ObjectiveKind kind)
+        /// <summary>
+        /// Something the land asks has been done: a place it names freed, which <paramref name="what"/> says, or a tyrant brought down. Every step of an objective is told across the middle of the screen,
+        /// with how far it's got, and finishing one says what's left. When that was the last of it, the land being free comes straight after.
+        /// </summary>
+        public void Advance(ObjectiveKind kind, string? what = null)
         {
             foreach (Objective objective in Chronicle.Objectives)
             {
                 if (objective.Kind != kind || objective.Done) continue;
                 objective.Progress++;
                 ObjectivesChanged = true;
-                if (!objective.Done) continue;
+                foreach (ServerPlayer hero in Heroes) Server.Broadcast(new SoundEvent { Cue = SoundCue.Objective }, hero.Sim.Position);
+
+                string done = what ?? (objective.IsMain ? "A tyrant has fallen" : "A place is freed");
+                if (!objective.Done)
+                {
+                    Server.Announce(null, "Objective complete", $"{done}: {objective.Progress} of {objective.Goal}", 4f);
+                    continue;
+                }
 
                 foreach (ServerPlayer hero in Heroes)
                 {
@@ -500,11 +511,9 @@ namespace Dino_Defenders.Server
                     hero.Hero.Gold += objective.RewardGold;
                     hero.SummaryChanged = true;
                 }
-                if (!Chronicle.WorldCleared)
-                {
-                    foreach (ServerPlayer hero in Heroes) Server.Broadcast(new SoundEvent { Cue = SoundCue.Objective }, hero.Sim.Position);
-                    Server.Announce(null, objective.IsMain ? "The tyrant has fallen" : "The land's places are free", objective.Text, 5f);
-                }
+                string finished = objective.IsMain ? (objective.Goal > 1 ? "Both tyrants have fallen" : "The tyrant has fallen") : "Every place the land named is free";
+                string next = Chronicle.WorldCleared ? "" : objective.IsMain ? "  Now free the places marked on your map." : $"  Now the tyrant, at {World.Sites.First(site => site.Kind == SiteKind.Keep).Name}.";
+                Server.Announce(null, "Objective complete", objective.IsMain || objective.Goal <= 1 ? $"{finished}.{next}" : $"{done}, and {char.ToLowerInvariant(finished[0])}{finished.Substring(1)}.{next}", 5f);
             }
             if (Chronicle.WorldCleared && !Liberated) Free();
         }
