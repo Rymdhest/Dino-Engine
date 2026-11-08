@@ -17,8 +17,9 @@ using OpenTK.Mathematics;
 namespace Dino_NetLab
 {
     /// <summary>
-    /// The loop the game is, for real, on a running server with clients on the other end of a bad line: the Haven, the way opened at the map table and the orders given for it, stepping through,
-    /// one life to a land, leaving it, freeing it, what each of those does to a climb on both ends, the stash, and everything a land's omens and orders do to what stands on it. Read LANDS.md.
+    /// The loop the game is, for real, on a running server with clients on the other end of a bad line: the Haven, the way opened at the map table to any level that can be opened and the orders
+    /// given for it, other lands bought with gold, stepping through, one life to a land, leaving it, freeing it, what each of those does to a climb on both ends, the arenas every tenth level, the
+    /// stash, and everything a land's omens and orders do to what stands on it. Read LANDS.md.
     /// </summary>
     internal static class LandTests
     {
@@ -95,9 +96,15 @@ namespace Dino_NetLab
             /// <summary>Everything a land asks: as many of its places as it wants freed, then its tyrant, or both of them.</summary>
             public void Free()
             {
+                if (Session.IsArena)
+                {
+                    Clear(Session.Sites.First(s => s.Site.Kind == SiteKind.Arena));
+                    Lab.Run(2);
+                    return;
+                }
                 int places = Session.Chronicle.Objectives.First(o => o.Kind == ObjectiveKind.FreePlaces).Goal;
                 foreach (SiteState place in Session.Sites.Where(WorldProgress.Counts).OrderBy(s => s.Site.Remoteness).Take(places).ToList()) Clear(place);
-                if (Chronicle.TwinSite(Session.World) is WorldSite twin && Session.Terms.Unique() == OrdersCatalog.TwinPens) Clear(Session.Sites.First(s => s.Site == twin));
+                if (Chronicle.TwinSite(Session.World) is WorldSite twin && Session.Terms.Has(OrdersCatalog.TwinPens)) Clear(Session.Sites.First(s => s.Site == twin));
                 Clear(Session.Sites.First(s => s.Site.Kind == SiteKind.Keep));
                 Lab.Run(2);
             }
@@ -129,10 +136,10 @@ namespace Dino_NetLab
                 Lab.Run(3);
             }
 
-            /// <summary>Opens the way to one of the lands the map table shows, grows it ahead of time, and steps through.</summary>
-            public void Venture(int choice, int ordersCell = -1)
+            /// <summary>Opens the way to one of the lands the map table shows at a level, the deepest that can be opened unless another is asked for, grows it ahead of time, and steps through.</summary>
+            public void Venture(int choice, int level = 0, params int[] ordersCells)
             {
-                Player.Client.OpenWay(choice, ordersCell);
+                Player.Client.OpenWay(level > 0 ? level : Player.Client.Hero.LandLevel, choice, ordersCells);
                 Lab.Run(2);
                 if (Session.Portal is var (request, terms, _)) Lab.Worlds.Get(GameLab.Shaped(request, terms)).Wait();
                 UsePortal();
@@ -185,7 +192,7 @@ namespace Dino_NetLab
         {
             HeroState hero = GameLab.StrongHero();
             hero.Equipped[WornSlot.Neck].Lines[0].Value = 200000f;
-            hero.LandLevel = landLevel;
+            hero.BestLand = landLevel - 1;
             hero.Gold = 1000;
             return hero;
         }
@@ -202,6 +209,8 @@ namespace Dino_NetLab
             OneLifeEach(report, worlds);
             Leaving(report, worlds);
             Freeing(report, worlds);
+            ChoosingLevels(report, worlds);
+            Arenas(report, worlds);
             Travelling(report, worlds);
             TheStash(report, worlds);
             UniqueOrders(report, worlds);
@@ -305,13 +314,13 @@ namespace Dino_NetLab
             Item sword = ItemGenerator.Roll(5, new WorldRandom(4));
             hero.Inventory[5] = orders;
             hero.Inventory[6] = sword;
-            IReadOnlyList<LandOffer> offers = Lands.Offer(hero);
+            IReadOnlyList<LandOffer> offers = Lands.Offer(hero, 5);
 
             using var scene = new Scene(worlds, Lands.Haven, hero: hero);
-            report.Check("Both ends see the same three lands", Lands.Offer(scene.Player.Client.Hero).Select(o => o.Request.Seed).SequenceEqual(offers.Select(o => o.Request.Seed)) && Lands.Offer(scene.Truth.Hero).Select(o => o.Request.Seed).SequenceEqual(offers.Select(o => o.Request.Seed)));
-            report.Check("At the level of the climb", offers.All(o => o.Request.Level == 5));
+            report.Check("Both ends see the same three lands", Lands.Offer(scene.Player.Client.Hero, 5).Select(o => o.Request.Seed).SequenceEqual(offers.Select(o => o.Request.Seed)) && Lands.Offer(scene.Truth.Hero, 5).Select(o => o.Request.Seed).SequenceEqual(offers.Select(o => o.Request.Seed)));
+            report.Check("At the level asked for", offers.All(o => o.Request.Level == 5));
 
-            scene.Player.Client.OpenWay(1);
+            scene.Player.Client.OpenWay(5, 1, Array.Empty<int>());
             scene.Lab.Run(2);
             report.Check("Opening the way opens it to the land chosen", scene.Session.Portal is var (request, _, _) && request.Seed == offers[1].Request.Seed);
             report.Check("With what the map table said it holds", scene.Session.Portal is var (_, held, _) && held.Chosen().SequenceEqual(offers[1].Terms.Chosen()));
@@ -322,19 +331,26 @@ namespace Dino_NetLab
             scene.Lab.Run(2);
             report.Check("Closing it closes it", scene.Session.Portal == null && scene.Player.Client.Portal == null && scene.Portal() == null && !scene.ClientSees<PortalComponent>());
 
-            scene.Player.Client.OpenWay(0, 6);
+            scene.Player.Client.OpenWay(5, 0, new[] { 6 });
             report.Check("Something that isn't orders isn't given", scene.Player.Client.Hero.Inventory[6]?.Seed == sword.Seed);
             scene.Lab.Run(2);
-            report.Check("And the way opens without it", scene.Session.Portal is var (_, plain, _) && plain.Orders == null && plain.Chosen().SequenceEqual(offers[0].Terms.Chosen()) && scene.Truth.Hero.Inventory[6] != null);
+            report.Check("And the way opens without it", scene.Session.Portal is var (_, plain, _) && plain.Orders.Count == 0 && !plain.Any && scene.Truth.Hero.Inventory[6] != null);
 
-            scene.Player.Client.OpenWay(2, 5);
+            scene.Player.Client.OpenWay(6, 0, Array.Empty<int>());
+            scene.Lab.Run(2);
+            report.Check("A level deeper than the next can't be opened", scene.Session.Portal is var (deeper, _, _) && deeper.Level == 5);
+            scene.Player.Client.OpenWay(3, 2, Array.Empty<int>());
+            scene.Lab.Run(2);
+            report.Check("But any freed one can", scene.Session.Portal is var (lower, _, _) && lower.Level == 3 && lower.Seed == Lands.Offer(hero, 3)[2].Request.Seed);
+
+            scene.Player.Client.OpenWay(5, 2, new[] { 5 });
             report.Check("Orders given are gone from the pack at once", scene.Player.Client.Hero.Inventory[5] == null);
             scene.Lab.Run(2);
             var expected = offers[2].Terms.Copy();
             expected.Give(orders);
             expected.Sanitize();
             report.Check("And from the server's", scene.Truth.Hero.Inventory[5] == null && scene.Player.Client.Hero.Inventory[5] == null);
-            report.Check("And the land holds what they say, on top of its own", scene.Session.Portal is var (_, given, _) && given.Chosen().SequenceEqual(expected.Chosen()) && given.Count > offers[2].Terms.Count);
+            report.Check("And the land holds what they say, and nothing else", scene.Session.Portal is var (_, given, _) && given.Chosen().SequenceEqual(expected.Chosen()) && given.Count > 0 && !offers[2].Terms.Any);
             report.Check("Which the client is told", scene.Player.Client.Portal is var (_, _, told) && told.Chosen().SequenceEqual(expected.Chosen()));
         }
 
@@ -342,7 +358,7 @@ namespace Dino_NetLab
         {
             report.Section("Stepping through");
             HeroState hero = Sturdy(6);
-            IReadOnlyList<LandOffer> offers = Lands.Offer(hero);
+            IReadOnlyList<LandOffer> offers = Lands.Offer(hero, 6);
             ulong offersBefore = hero.Offers;
 
             using var scene = new Scene(worlds, Lands.Haven, hero: hero);
@@ -359,7 +375,7 @@ namespace Dino_NetLab
 
             WorldData grown = new WorldGenerator().Generate(offer.Terms.Shape(offer.Request));
             report.Check("A machine of its own grows the same land from what it was told", Protocol.WorldHash(grown).structure == Protocol.WorldHash(scene.Session.World).structure);
-            report.Check("Everyone's offers have moved on", scene.Truth.Hero.Offers != offersBefore && scene.TruthOf(friend).Hero.Offers != friendsBefore && scene.Player.Client.Hero.Offers == scene.Truth.Hero.Offers);
+            report.Check("Going somewhere changes nobody's lands", scene.Truth.Hero.Offers == offersBefore && scene.TruthOf(friend).Hero.Offers == friendsBefore && scene.Truth.Hero.Rerolls.Count == 0 && Lands.Offer(scene.Truth.Hero, 6).Select(o => o.Request.Seed).SequenceEqual(offers.Select(o => o.Request.Seed)));
             report.Check("And nothing of the Haven came along", scene.Player.Client.Ghosts.Mismatches == 0 && scene.Portal() == null);
             report.Check("They arrive out of the landing's waygate", (scene.Truth.Sim.Position - scene.GateOf(scene.Landing)).Length < 14f, $"{(scene.Truth.Sim.Position - scene.GateOf(scene.Landing)).Length:0.0} m from it");
         }
@@ -369,9 +385,10 @@ namespace Dino_NetLab
             report.Section("One life");
             using (var scene = new Scene(worlds, Home, hero: Sturdy(6)))
             {
+                ulong[] before = Lands.Offer(scene.Truth.Hero, 6).Select(o => (ulong)o.Request.Seed).ToArray();
                 scene.Fall();
                 report.Check("A hero who falls in a land is out of it, on both ends", scene.Truth.Out && scene.Player.Client.Out);
-                report.Check("And their climb drops at once, on both ends", scene.Truth.Hero.LandLevel == 5 && scene.Player.Client.Hero.LandLevel == 5, $"{scene.Truth.Hero.LandLevel}, {scene.Player.Client.Hero.LandLevel}");
+                report.Check("And it costs nothing from their climb", scene.Truth.Hero.LandLevel == 6 && scene.Player.Client.Hero.LandLevel == 6 && scene.Truth.Hero.BestLand == 5, $"{scene.Truth.Hero.LandLevel}, {scene.Player.Client.Hero.LandLevel}");
                 report.Check("And the land is lost", scene.Session.Lost && scene.Seen.Lost);
 
                 Vector2 at = scene.Truth.Sim.Position;
@@ -384,14 +401,8 @@ namespace Dino_NetLab
                 scene.WaitForWorld();
                 report.Check("A moment later everyone is home", scene.Session.IsHaven && scene.Player.Arrivals == 2 && scene.Seen.IsHaven);
                 report.Check("On their feet, and no longer out of anything", !scene.Truth.Sim.Down && !scene.Truth.Out && !scene.Player.Client.Out && scene.Hero.Vitals.Health > 0f);
-                report.Check("With the climb as it was left", scene.Truth.Hero.LandLevel == 5 && scene.Player.Client.Hero.LandLevel == 5);
-                report.Check("And three new lands to choose from, a level down", Lands.Offer(scene.Truth.Hero).All(o => o.Request.Level == 5));
-            }
-
-            using (var scene = new Scene(worlds, Home, hero: Sturdy(1)))
-            {
-                scene.Fall();
-                report.Check("At the first level there's nowhere lower to go", scene.Truth.Hero.LandLevel == 1);
+                report.Check("With the climb as it was", scene.Truth.Hero.LandLevel == 6 && scene.Player.Client.Hero.LandLevel == 6);
+                report.Check("And the same lands to try again", Lands.Offer(scene.Truth.Hero, 6).Select(o => (ulong)o.Request.Seed).SequenceEqual(before) && Lands.Offer(scene.Player.Client.Hero, 6).Select(o => (ulong)o.Request.Seed).SequenceEqual(before));
             }
         }
 
@@ -403,7 +414,7 @@ namespace Dino_NetLab
 
             scene.Fall(friend);
             report.Check("A friend who falls is out", scene.TruthOf(friend).Out && friend.Client.Out && !scene.Truth.Out && !scene.Player.Client.Out);
-            report.Check("And loses their own climb", scene.TruthOf(friend).Hero.LandLevel == 5 && scene.Truth.Hero.LandLevel == 6);
+            report.Check("And loses nothing of their climb", scene.TruthOf(friend).Hero.LandLevel == 6 && scene.Truth.Hero.LandLevel == 6);
             report.Check("But the land isn't lost while someone stands", !scene.Session.Lost && scene.Session.HomeAt == null);
             report.Check("And the rest fight on", scene.Player.Client.State == ClientState.Playing && !scene.Truth.Sim.Down);
 
@@ -413,7 +424,7 @@ namespace Dino_NetLab
             scene.Lab.Run(2);
             LabPlayer back = scene.Join("Friend", Sturdy(5), seed: 7);
             report.Check("Someone who fell and comes back in arrives fallen", scene.TruthOf(back).Out && scene.TruthOf(back).Sim.Down && back.Client.Out);
-            report.Check("With nothing more taken from their climb", scene.TruthOf(back).Hero.LandLevel == 5);
+            report.Check("With nothing taken from their climb", scene.TruthOf(back).Hero.LandLevel == 5);
 
             scene.Fall();
             report.Check("Once everyone's fallen the land is lost", scene.Session.Lost);
@@ -445,7 +456,7 @@ namespace Dino_NetLab
 
             scene.GoHomeThroughGate();
             report.Check("From a waygate everyone goes home", scene.Session.IsHaven && scene.Player.Arrivals == 2);
-            report.Check("Having lost the land they left unfree", scene.Truth.Hero.LandLevel == 5 && scene.Player.Client.Hero.LandLevel == 5, $"{scene.Truth.Hero.LandLevel}, {scene.Player.Client.Hero.LandLevel}");
+            report.Check("Leaving a land unfree costs nothing but the try", scene.Truth.Hero.LandLevel == 6 && scene.Player.Client.Hero.LandLevel == 6 && scene.Truth.Hero.Rerolls.Count == 0, $"{scene.Truth.Hero.LandLevel}, {scene.Player.Client.Hero.LandLevel}");
             report.Check("And the Haven has nothing to go home from", scene.Find(InteractKind.Waygate) == null);
 
             int level = scene.Truth.Hero.LandLevel;
@@ -466,10 +477,10 @@ namespace Dino_NetLab
 
                 scene.Free();
                 report.Check("The land can be freed", scene.Session.Liberated && scene.Seen.Liberated, string.Join(", ", scene.Session.Chronicle.Objectives.Select(o => o.Summary)));
-                report.Check("Which climbs a level, on both ends", scene.Truth.Hero.LandLevel == 7 && scene.Player.Client.Hero.LandLevel == 7, $"{scene.Truth.Hero.LandLevel}, {scene.Player.Client.Hero.LandLevel}");
+                report.Check("Which opens the next level, on both ends", scene.Truth.Hero.LandLevel == 7 && scene.Player.Client.Hero.LandLevel == 7, $"{scene.Truth.Hero.LandLevel}, {scene.Player.Client.Hero.LandLevel}");
                 report.Check("And is worth a talent point", scene.Truth.Hero.BestLand == 6 && scene.Truth.Hero.TalentPoints == 1 + HeroState.PointsPerLevel * scene.Truth.Hero.Level + 6, $"{scene.Truth.Hero.TalentPoints} at level {scene.Truth.Hero.Level}, from {points}");
                 report.Check("A friend with less of a climb climbs from this land", scene.TruthOf(friend).Hero.LandLevel == 7 && friend.Client.Hero.LandLevel == 7);
-                report.Check("And whoever fell before it was free has already had what falling costs", scene.TruthOf(fallen).Hero.LandLevel == 5 && scene.TruthOf(fallen).Hero.BestLand == 0);
+                report.Check("And whoever fell before it was free doesn't share in it, but loses nothing", scene.TruthOf(fallen).Hero.LandLevel == 6 && scene.TruthOf(fallen).Hero.BestLand == 5);
                 report.Check("They're told", scene.Seen.Banners.Any(b => b.Title.Contains("free")));
                 report.Check("The land's people are safe now", scene.Session.Sites.Where(s => !s.Wild).All(scene.Session.IsSafe));
 
@@ -482,22 +493,226 @@ namespace Dino_NetLab
 
             using (var scene = new Scene(worlds, Home, hero: Sturdy(6)))
             {
+                int[] before = Lands.Offer(scene.Truth.Hero, 6).Select(o => o.Request.Seed).ToArray();
                 scene.Free();
                 scene.GoHomeThroughGate();
                 report.Check("Going home from a free land keeps the climb", scene.Session.IsHaven && scene.Truth.Hero.LandLevel == 7);
-                report.Check("And the next lands are a level deeper", Lands.Offer(scene.Truth.Hero).All(o => o.Request.Level == 7));
+                report.Check("And the level it was shows other lands, on both ends", Lands.Offer(scene.Truth.Hero, 6).All(o => !before.Contains(o.Request.Seed)) && Lands.Offer(scene.Player.Client.Hero, 6).Select(o => o.Request.Seed).SequenceEqual(Lands.Offer(scene.Truth.Hero, 6).Select(o => o.Request.Seed)));
             }
 
-            var wager = new LandTerms { Orders = OrdersCatalog.Wager.Id };
+            var wager = new LandTerms { Orders = { OrdersCatalog.Wager.Id } };
             using (var scene = new Scene(worlds, Home, wager, Sturdy(6)))
             {
                 scene.Free();
-                report.Check("The Kommandant's Wager climbs two", scene.Truth.Hero.LandLevel == 8 && scene.Player.Client.Hero.LandLevel == 8);
+                report.Check("The Kommandant's Wager opens two levels", scene.Truth.Hero.LandLevel == 8 && scene.Player.Client.Hero.LandLevel == 8);
             }
             using (var scene = new Scene(worlds, Home, wager, Sturdy(6)))
             {
                 scene.Fall();
-                report.Check("And falls two", scene.Truth.Hero.LandLevel == 4);
+                report.Check("And losing it costs nothing either", scene.Truth.Hero.LandLevel == 6);
+            }
+        }
+
+        private static void ChoosingLevels(Report report, WorldCache worlds)
+        {
+            report.Section("Choosing a level, and other lands");
+            HeroState hero = Sturdy(13);
+            hero.Gold = 100000;
+            Item magic = OrdersMaker.Roll(12, new WorldRandom(51), Rarity.Magic);
+            Item rare = OrdersMaker.Roll(12, new WorldRandom(52), Rarity.Rare);
+            Item plain = OrdersMaker.Roll(12, new WorldRandom(53), Rarity.Normal);
+            hero.Inventory[3] = magic;
+            hero.Inventory[4] = rare;
+            hero.Inventory[5] = plain;
+            int[] twelve = Lands.Offer(hero, 12).Select(o => o.Request.Seed).ToArray();
+            int[] eleven = Lands.Offer(hero, 11).Select(o => o.Request.Seed).ToArray();
+
+            using (var scene = new Scene(worlds, Lands.Haven, hero: hero))
+            {
+                int gold = scene.Truth.Hero.Gold;
+                scene.Player.Client.Reroll(12);
+                scene.Lab.Run(2);
+                report.Check("Gold buys three other lands for a level", scene.Truth.Hero.Gold == gold - Lands.RerollCost(12) && scene.Truth.Hero.RerollsAt(12) == 1 && Lands.Offer(scene.Truth.Hero, 12).All(o => !twelve.Contains(o.Request.Seed)), $"{gold} to {scene.Truth.Hero.Gold}");
+                report.Check("Which the client is shown", scene.Player.Client.Hero.Gold == scene.Truth.Hero.Gold && Lands.Offer(scene.Player.Client.Hero, 12).Select(o => o.Request.Seed).SequenceEqual(Lands.Offer(scene.Truth.Hero, 12).Select(o => o.Request.Seed)));
+                report.Check("And no other level changes", Lands.Offer(scene.Truth.Hero, 11).Select(o => o.Request.Seed).SequenceEqual(eleven));
+
+                scene.Player.Client.Reroll(20);
+                scene.Lab.Run(1.5);
+                report.Check("Nobody pays for lands they can't open", scene.Truth.Hero.RerollsAt(20) == 0 && scene.Truth.Hero.Gold == gold - Lands.RerollCost(12));
+                scene.Truth.Hero.Gold = Lands.RerollCost(13) - 1;
+                scene.Truth.SummaryChanged = true;
+                scene.Lab.Run(1);
+                scene.Player.Client.Reroll(13);
+                scene.Lab.Run(1.5);
+                report.Check("Nor for what they can't afford", scene.Truth.Hero.RerollsAt(13) == 0 && scene.Truth.Hero.Gold == Lands.RerollCost(13) - 1);
+
+                report.Check("Past the first arena the table takes two orders", Lands.OrderSlots(scene.Player.Client.Hero) == 2 && Lands.OrderSlots(scene.Truth.Hero) == 2);
+                scene.Player.Client.OpenWay(12, 1, new[] { 3, 4, 5 });
+                report.Check("Orders past what it takes stay in the pack", scene.Player.Client.Hero.Inventory[3] == null && scene.Player.Client.Hero.Inventory[4] == null && scene.Player.Client.Hero.Inventory[5]?.Seed == plain.Seed);
+                scene.Lab.Run(2);
+                var expected = new LandTerms();
+                expected.Give(magic);
+                expected.Give(rare);
+                report.Check("And the land holds what both say", scene.Session.Portal is var (request, terms, _) && request.Level == 12 && terms.Chosen().SequenceEqual(expected.Chosen()) && scene.Truth.Hero.Inventory[5] != null && scene.Truth.Hero.Inventory[3] == null);
+            }
+
+            using (var scene = new Scene(worlds, Home, hero: Sturdy(13)))
+            {
+                int[] six = Lands.Offer(scene.Truth.Hero, 6).Select(o => o.Request.Seed).ToArray();
+                scene.Free();
+                report.Check("Freeing a level already freed moves nobody's climb", scene.Truth.Hero.BestLand == 12 && scene.Player.Client.Hero.LandLevel == 13);
+                report.Check("But shows other lands for it next time", scene.Truth.Hero.RerollsAt(6) == 1 && Lands.Offer(scene.Truth.Hero, 6).All(o => !six.Contains(o.Request.Seed)));
+            }
+        }
+
+        // An arena's tyrant, left with this share of its health. Set rather than struck, as a blow can carry it past more than one share at once, and how blows land is no part of this.
+        private static void Wound(Scene scene, Actor tyrant, float share)
+        {
+            tyrant.Vitals.Health = MathF.Min(tyrant.Vitals.Health, tyrant.Sheet.MaxHealth * share);
+            scene.Lab.Run(0.1);
+        }
+
+        private static List<Entity> Portcullises(ECSWorld ecs)
+        {
+            var found = new List<Entity>();
+            foreach (Archetype archetype in ecs.QueryArchetypes(new BitMask(typeof(VisualComponent), typeof(PositionComponent)), BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    if (entity.Get<VisualComponent>().Model == ArenaSystem.PortcullisModel) found.Add(entity.Entity);
+                }
+            }
+            return found;
+        }
+
+        private static void Arenas(Report report, WorldCache worlds)
+        {
+            report.Section("Arenas");
+            HeroState climber = Sturdy(10);
+            IReadOnlyList<LandOffer> offers = Lands.Offer(climber, 10);
+            report.Check("The tenth level's lands are three arenas", offers.Count == Lands.Choices && offers.All(o => o.Arena));
+            LandOffer offer = offers[0];
+            worlds.Get(offer.Request).Wait();
+
+            using (var scene = new Scene(worlds, offer.Request, hero: Sturdy(10)))
+            {
+                List<Objective> asked = scene.Session.Chronicle.Objectives;
+                report.Check("An arena asks for its tyrant and nothing else", asked.Count == 1 && asked[0].Kind == ObjectiveKind.SlayWarlord && asked[0].Goal == 1 && asked[0].Site == SiteKind.Arena, string.Join(", ", asked.Select(o => o.Summary)));
+                report.Check("Told of on both ends", scene.Seen.Chronicle.Objectives.Count == 1);
+
+                SiteState arena = scene.Session.Sites.First(s => s.Site.Kind == SiteKind.Arena);
+                GameServer.TryFindGround(scene.Session.World, arena.Site.Position - new Vector2(0f, 9f), out Vector2 floor);
+                scene.Go(floor);
+                scene.Lab.Run(2);
+
+                var crowd = new List<(Vector2 at, float height)>();
+                foreach (Archetype archetype in scene.Lab.Server.Ecs.QueryArchetypes(new BitMask(typeof(VillagerComponent), typeof(PositionComponent)), BitMask.Empty))
+                {
+                    foreach (EntityView entity in new ComponentAccessor(archetype))
+                    {
+                        if (entity.Get<VillagerComponent>().Crowd) crowd.Add((entity.Get<PositionComponent>().value.Xz, entity.Get<PositionComponent>().value.Y));
+                    }
+                }
+                float floorHeight = scene.Session.World.Height.Sample(arena.Site.Position);
+                report.Check("The people of the land are made to watch from the stands", crowd.Count >= 24 && crowd.All(c => c.height > floorHeight + ArenaBuilder.TierRise * 0.5f), $"{crowd.Count}");
+                scene.Lab.Run(3);
+                int still = 0;
+                foreach (Archetype archetype in scene.Lab.Server.Ecs.QueryArchetypes(new BitMask(typeof(VillagerComponent), typeof(PositionComponent)), BitMask.Empty))
+                {
+                    foreach (EntityView entity in new ComponentAccessor(archetype))
+                    {
+                        if (entity.Get<VillagerComponent>().Crowd && crowd.Any(c => (c.at - entity.Get<PositionComponent>().value.Xz).Length < 0.05f)) still++;
+                    }
+                }
+                report.Check("And stay where they're put", still == crowd.Count, $"{still} of {crowd.Count}");
+
+                Actor? tyrant = scene.Members(arena).FirstOrDefault(a => a.Tyrant);
+                report.Check("Its tyrant is there, and only one", tyrant != null && (tyrant.Nature & Condition.Boss) != 0 && scene.Members(arena).Count(a => a.Tyrant) == 1);
+                if (tyrant == null) return;
+
+                // The same tyrant without what being fought in an arena puts on it, which is what it would be in a keep.
+                var plain = new List<Mod>(tyrant.Innate.Mods);
+                plain.AddRange(tyrant.Innate.RuleMods);
+                plain.AddRange(tyrant.Innate.Triggers);
+                if (tyrant.Innate.Granted != Condition.None) plain.Add(M.Grant(tyrant.Innate.Granted));
+                bool marked = plain.Remove(M.More(Stat.Health, Rulebook.ArenaTyrantHealth)) & plain.Remove(M.More(Stat.Damage, Rulebook.ArenaTyrantDamage));
+                Loadout inKeep = new Loadout(tyrant.Innate.Level, tyrant.Innate.Weapon, plain, tyrant.Innate.Books);
+                report.Check("It wears what being fought in an arena puts on it", marked);
+                report.Near("And it's far stronger than it would be in a keep", tyrant.Sheet.MaxHealth / inKeep.SheetFor(tyrant.Nature).MaxHealth, 1f + Rulebook.ArenaTyrantHealth / 100f, 0.01f);
+                report.Near("Which what it's worth knows", scene.Session.TyrantHealth, 1f + Rulebook.ArenaTyrantHealth / 100f, 0.0001f);
+
+                List<Entity> gates = Portcullises(scene.Lab.Server.Ecs);
+                report.Check("Its gates are shut", gates.Count == ArenaBuilder.GateBearings.Length && Portcullises(scene.Player.Ecs).Count == gates.Count, $"{gates.Count} on the server, {Portcullises(scene.Player.Ecs).Count} seen");
+                float Lift(Entity gate) => scene.Lab.Server.Ecs.GetEntityView(gate).Get<PositionComponent>().value.Y - scene.Session.World.Height.Sample(scene.Lab.Server.Ecs.GetEntityView(gate).Get<PositionComponent>().value.Xz);
+                report.Check("All the way down", gates.All(g => Lift(g) < 0.5f));
+                report.Check("And nobody's come through them", scene.Session.Arrivals.Count == 0);
+
+                Wound(scene, tyrant, 1f - Rulebook.ArenaWaveEvery - 0.03f);
+                scene.Lab.Run(2.2);
+                int first = Rulebook.ArenaWaveGates * Rulebook.ArenaWaveSize;
+                report.Check("As the tyrant weakens its handlers open some of the gates", gates.Count(g => Lift(g) > 2f) == Rulebook.ArenaWaveGates, string.Join(", ", gates.Select(g => Lift(g).ToString("0.0"))));
+                report.Check("And let more of the brood in", scene.Session.Arrivals.Count == first, $"{scene.Session.Arrivals.Count} of {first}");
+                var rarities = scene.Session.Arrivals.Select(a => scene.Lab.Server.Ecs.GetEntityView(a.Entity).Get<EnemyComponent>().Rarity).ToList();
+                report.Check("Every one Magic or Rare", rarities.Count > 0 && rarities.All(r => r is Rarity.Magic or Rarity.Rare));
+                report.Check("And looking for whoever's on the floor", scene.Session.Arrivals.All(a => scene.Lab.Server.Ecs.GetEntityView(a.Entity).Get<EnemyBrainComponent>().AggroRadius > ArenaBuilder.RimRadius * 2f));
+
+                // One Magic enemy can drop nothing, as anything can: the whole of what came through can't, all but never.
+                int before = scene.Session.Ground.Count;
+                List<Actor> wave = scene.Session.Arrivals.ToList();
+                foreach (Actor arrival in wave) scene.Session.Combat.Harm(scene.Hero, arrival, 1e12f, DamageType.Magic);
+                scene.Lab.Run(1);
+                report.Check("What comes through drops what anything does", scene.Session.Ground.Count > before && wave.All(a => !scene.Session.Arrivals.Contains(a)), $"{scene.Session.Ground.Count - before} finds from {wave.Count}");
+                report.Check("And belongs to no place", arena.Dead.Count == 0 && !arena.Cleared);
+
+                scene.Lab.Run(Rulebook.ArenaGateOpen + 3.5);
+                report.Check("The gates come down again", gates.All(g => Lift(g) < 0.5f), string.Join(", ", gates.Select(g => Lift(g).ToString("0.0"))));
+                report.Check("No more come while the tyrant holds", scene.Session.Arrivals.Count == 0);
+
+                Wound(scene, tyrant, Rulebook.ArenaWaveEvery - 0.05f);
+                scene.Lab.Run(2.2);
+                int all = first + Rulebook.ArenaWaveGates * Rulebook.ArenaWaveSize + ArenaBuilder.GateBearings.Length * Rulebook.ArenaWaveSize;
+                report.Check("The last time every gate goes up", gates.All(g => Lift(g) > 2f), string.Join(", ", gates.Select(g => Lift(g).ToString("0.0"))));
+                report.Check("And as many come through as each time asks, however quickly they come", scene.Session.Arrivals.Count + first == all, $"{scene.Session.Arrivals.Count + first} of {all}");
+
+                scene.Session.Combat.Harm(scene.Hero, tyrant, 1e12f, DamageType.Magic);
+                scene.Lab.Run(3);
+                report.Check("Bringing it down frees the arena", scene.Session.Liberated && scene.Seen.Liberated);
+                report.Check("And opens the next level, and room at the table for one more orders", scene.Truth.Hero.BestLand == 10 && Lands.OrderSlots(scene.Truth.Hero) == 2 && Lands.OrderSlots(scene.Player.Client.Hero) == 2);
+            }
+
+            var twins = new LandTerms { Orders = { OrdersCatalog.TwinPens.Id } };
+            worlds.Get(twins.Shape(offer.Request)).Wait();
+            using (var scene = new Scene(worlds, offer.Request, twins, Sturdy(10)))
+            {
+                SiteState arena = scene.Session.Sites.First(s => s.Site.Kind == SiteKind.Arena);
+                scene.Go(arena.Site.Position);
+                List<Actor> tyrants = scene.Members(arena).Where(a => a.Tyrant).ToList();
+                report.Check("Orders for the Twin Pens let a second tyrant in beside the first", tyrants.Count == 2 && scene.Session.Chronicle.Objectives[0].Goal == 2 && arena.HostilesTotal == 2);
+                scene.Session.Combat.Harm(scene.Hero, tyrants[0], 1e12f, DamageType.Magic);
+                scene.Lab.Run(2);
+                report.Check("And one isn't enough", !scene.Session.Liberated);
+            }
+
+            var garrison = new LandTerms { Orders = { OrdersCatalog.Garrison.Id } };
+            worlds.Get(garrison.Shape(offer.Request)).Wait();
+            using (var scene = new Scene(worlds, offer.Request, garrison, Sturdy(10)))
+            {
+                SiteState arena = scene.Session.Sites.First(s => s.Site.Kind == SiteKind.Arena);
+                scene.Go(arena.Site.Position);
+                Actor? tyrant = scene.Members(arena).FirstOrDefault(a => a.Tyrant);
+                if (tyrant != null) Wound(scene, tyrant, 1f - Rulebook.ArenaWaveEvery - 0.03f);
+                scene.Lab.Run(2.2);
+                int expected = Rulebook.ArenaWaveGates * (int)MathF.Round(Rulebook.ArenaWaveSize * (1f + garrison.MorePeople));
+                report.Check("The Last Garrison lets as many more through each gate as it puts at a place", scene.Session.Arrivals.Count == expected, $"{scene.Session.Arrivals.Count} of {expected}");
+            }
+
+            // A boss that hasn't been fought can't be passed by.
+            HeroState wagerer = Sturdy(9);
+            var wager = new LandTerms { Orders = { OrdersCatalog.Wager.Id } };
+            using (var scene = new Scene(worlds, new WorldRequest(303, "isle", 9), wager, wagerer))
+            {
+                scene.Free();
+                report.Check("Nothing opens past an arena that hasn't been fought, wager or not", scene.Truth.Hero.LandLevel == 10 && Lands.IsBossLevel(scene.Truth.Hero.LandLevel));
             }
         }
 
@@ -589,13 +804,13 @@ namespace Dino_NetLab
         {
             report.Section("Unique orders");
 
-            var garrison = new LandTerms { Orders = OrdersCatalog.Garrison.Id };
+            var garrison = new LandTerms { Orders = { OrdersCatalog.Garrison.Id } };
             WorldData usual = worlds.Get(Home).Result;
             WorldData held = worlds.Get(garrison.Shape(Home)).Result;
             report.Check("The Last Garrison leaves nothing on the roads or between places", held.Haunts.All(h => h.Spawns.All(s => !s.Role.IsHostile())) || held.Haunts.Count == 0, $"{held.Haunts.Count} haunts");
             report.Check("And holds every place with far more", held.Sites.Where(Chronicle.Counts).Sum(s => s.Spawns.Count(p => p.Role.IsHostile())) > usual.Sites.Where(Chronicle.Counts).Sum(s => s.Spawns.Count(p => p.Role.IsHostile())) * 2);
 
-            var twins = new LandTerms { Orders = OrdersCatalog.TwinPens.Id };
+            var twins = new LandTerms { Orders = { OrdersCatalog.TwinPens.Id } };
             worlds.Get(twins.Shape(Home)).Wait();
             using (var scene = new Scene(worlds, Home, twins, Sturdy(9)))
             {
@@ -614,7 +829,7 @@ namespace Dino_NetLab
                 report.Check("And with both down, there's only the places left to free", tyrants.Done);
             }
 
-            var writ = new LandTerms { Orders = OrdersCatalog.Writ.Id };
+            var writ = new LandTerms { Orders = { OrdersCatalog.Writ.Id } };
             worlds.Get(writ.Shape(Home)).Wait();
             using (var scene = new Scene(worlds, Home, writ, Sturdy(9)))
             {
@@ -636,7 +851,7 @@ namespace Dino_NetLab
                 }
             }
 
-            var bred = new LandTerms { Orders = OrdersCatalog.Bred.Id };
+            var bred = new LandTerms { Orders = { OrdersCatalog.Bred.Id } };
             worlds.Get(bred.Shape(Home)).Wait();
             using (var scene = new Scene(worlds, Home, bred, Sturdy(9)))
             {
@@ -652,7 +867,7 @@ namespace Dino_NetLab
                 report.Check("Bred for War: nothing met is Normal", met.Count > 10 && met.All(r => r != Rarity.Normal), $"{met.Count(r => r == Rarity.Normal)} of {met.Count}");
             }
 
-            var ledger = new LandTerms { Orders = OrdersCatalog.Ledger.Id };
+            var ledger = new LandTerms { Orders = { OrdersCatalog.Ledger.Id } };
             WorldData world = worlds.Get(ledger.Shape(Home)).Result;
             int Leaders(LandTerms terms, out int traits)
             {
@@ -926,7 +1141,7 @@ namespace Dino_NetLab
         private static void Keeping(Report report, WorldCache worlds)
         {
             report.Section("Keeping it");
-            var terms = new LandTerms { Places = 5, Orders = OrdersCatalog.TwinPens.Id, Omens = { new ItemLine(Omens.Keen.Id, 20f), new ItemLine(Omens.Teeming.Id, 40f) } };
+            var terms = new LandTerms { Places = 5, Orders = { OrdersCatalog.TwinPens.Id, OrdersCatalog.Writ.Id }, Omens = { new ItemLine(Omens.Keen.Id, 20f), new ItemLine(Omens.Teeming.Id, 40f) } };
             worlds.Get(terms.Shape(Home)).Wait();
 
             var save = new SaveGame();
@@ -948,14 +1163,14 @@ namespace Dino_NetLab
             SaveGame? loaded = SaveGame.Load();
             SaveGame.PathOverride = null;
             File.Delete(file);
-            report.Check("A land is written down, with what it holds", loaded != null && loaded.InLand && loaded.Terms.Has(Omens.Keen) && loaded.Terms.Orders == OrdersCatalog.TwinPens.Id && loaded.Terms.Places == 5);
+            report.Check("A land is written down, with what it holds", loaded != null && loaded.InLand && loaded.Terms.Has(Omens.Keen) && loaded.Terms.Orders.SequenceEqual(terms.Orders) && loaded.Terms.Places == 5);
             if (loaded == null) return;
 
             using (var again = new Scene(worlds, loaded.Land(), loaded.Terms, Sturdy(6), loaded))
             {
                 report.Check("Loading it makes the same land", again.Session.World.Haunts.Count == worlds.Get(terms.Shape(Home)).Result.Haunts.Count && Protocol.WorldHash(again.Session.World).structure == Protocol.WorldHash(worlds.Get(terms.Shape(Home)).Result).structure);
                 report.Check("With the same dead in it", index < again.Session.Sites.Count && again.Session.Sites[index].Dead.Count == deadBefore);
-                report.Check("Under the same omens and orders, on both ends", again.Session.Terms.Chosen().SequenceEqual(terms.Chosen()) && again.Seen.Terms.Chosen().SequenceEqual(terms.Chosen()) && again.Seen.Terms.Orders == terms.Orders);
+                report.Check("Under the same omens and orders, on both ends", again.Session.Terms.Chosen().SequenceEqual(terms.Chosen()) && again.Seen.Terms.Chosen().SequenceEqual(terms.Chosen()) && again.Seen.Terms.Orders.SequenceEqual(terms.Orders));
                 report.Check("Asking the same of them", again.Session.Chronicle.Objectives.Select(o => o.Goal).SequenceEqual(new[] { 2, Math.Min(5, again.Session.Sites.Count(WorldProgress.Counts)) }));
 
                 again.Fall();
@@ -980,6 +1195,8 @@ namespace Dino_NetLab
             {
                 LandTerms terms = Lands.Roll(40, new WorldRandom((ulong)seed));
                 terms.Give(OrdersMaker.Roll(40, new WorldRandom((ulong)seed + 10), Rarity.Rare));
+                terms.Give(OrdersMaker.Roll(40, new WorldRandom((ulong)seed + 20), Rarity.Rare));
+                terms.Give(OrdersMaker.Roll(40, new WorldRandom((ulong)seed + 30), Rarity.Rare));
                 terms.Sanitize();
                 worlds.Get(terms.Shape(Home)).Wait();
 

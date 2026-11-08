@@ -519,6 +519,8 @@ namespace Dino_WorldLab
                 }
             }
 
+            // A place that's held is a fight as much as a pack is, and packs keep off its doorstep, so ground beside one has something to fight near it too. A smaller land is more of that.
+            var held = world.Sites.Where(site => site.Spawns.Any(spawn => spawn.Role.IsHostile())).ToList();
             int land = 0;
             int near = 0;
             for (float z = 12f; z < world.Size; z += 24f)
@@ -528,12 +530,7 @@ namespace Dino_WorldLab
                     var at = new Vector2(x, z);
                     if (!world.Passable.IsSet(at)) continue;
                     land++;
-                    foreach (WorldSite haunt in world.Haunts)
-                    {
-                        if ((haunt.Position - at).LengthSquared > PackReach * PackReach) continue;
-                        near++;
-                        break;
-                    }
+                    if (world.Haunts.Any(haunt => (haunt.Position - at).LengthSquared <= PackReach * PackReach) || held.Any(site => (site.Position - at).Length <= site.Radius + PackReach)) near++;
                 }
             }
             if (land > 0 && (float)near / land < LeastSpread) Problem($"only {(float)near / land:0%} of the land has a pack near it");

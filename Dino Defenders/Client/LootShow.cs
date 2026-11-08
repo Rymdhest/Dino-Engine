@@ -214,6 +214,7 @@ namespace Dino_Defenders.Client
         private int _replans;
         private Vector2 _lastAt;
         private long _lastMoved;
+        private bool _trustLines = true;
 
         public bool Active => _find != 0 || _use != null;
 
@@ -237,6 +238,7 @@ namespace Dino_Defenders.Client
             _step = 0;
             _replans = 0;
             _lastMoved = 0;
+            _trustLines = true;
         }
 
         public void Cancel()
@@ -288,6 +290,9 @@ namespace Dino_Defenders.Client
                 }
                 _lastMoved = now;
                 _path = null;
+
+                // A straight line that looked clear and went nowhere wasn't: from now on the way found is walked point by point.
+                _trustLines = false;
             }
 
             intent.Move = NextStop(session.World, here) - here;
@@ -325,7 +330,7 @@ namespace Dino_Defenders.Client
         // The furthest point along the way that can be walked to in a straight line, so a hero heads for where they're going and doesn't pick their way from point to point.
         private Vector2 NextStop(WorldData world, Vector2 here)
         {
-            if (WorldPathfinder.HasClearLine(world, here, _at, LookSpacing)) return _at;
+            if (_trustLines && WorldPathfinder.HasClearLine(world, here, _at, LookSpacing)) return _at;
 
             // A search gives up on a long enough walk and says how far it got, so running out of path only means looking again from there.
             if (_path == null || _step >= _path.Count)
@@ -335,7 +340,7 @@ namespace Dino_Defenders.Client
                 if (_path == null || _path.Count == 0) return _at;
             }
 
-            while (_step + 1 < _path.Count && WorldPathfinder.HasClearLine(world, here, _path[_step + 1], LookSpacing)) _step++;
+            while (_trustLines && _step + 1 < _path.Count && WorldPathfinder.HasClearLine(world, here, _path[_step + 1], LookSpacing)) _step++;
             if ((_path[_step] - here).Length < WaypointReach) _step++;
             return _step < _path.Count ? _path[_step] : _at;
         }

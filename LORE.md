@@ -32,6 +32,8 @@ Not everything the Reich brought stays in harness. Raptors, spitters and ravager
 
 The Reich came by sea. The Defenders go by the waygates, the land's own old roads, raised by no people anyone remembers, and every one of those roads comes first to **the Haven**: a small isle of blossom in the last light of the day, and the one place the Reich has never found. Defenders rest there between lands, and choose the next at the map table, where every land the great waygate knows is drawn in light. What they take from the Reich comes with them: its **orders**, sealed in oxblood wax, which say where a brood is bound and what it's bringing, and which, given to the map table, open the way onto exactly that.
 
+Where the Reich has held a land long enough, it digs an **arena** into a hill: a bowl of stone stands round a floor of sand, with gates at the foot of the stands where the brood's handlers wait. The people of the land are marched in on fight days and counted going in, made to watch the commander's tyrant feed on whoever's thrown to it, so that nobody forgets whose land it is. A Defender who gets that far walks down the ramp to it. When the fight goes against the tyrant, the handlers throw up the gates and let in the rest of the brood. The crowd is silent, and wants the Defender to win, and only says so under its breath.
+
 In the lands the Reich holds, the villages that are left are **hiding**. They keep a waygate, a shrine and a little trade going behind barred doors, and they let in anyone who isn't the Reich.
 
 Up to five can share a land, and they're the Dino Defenders.
@@ -112,6 +114,7 @@ What each kind of place is under the Reich, as `Chronicle.Describe` tells it:
 | Shrine, standing stones, watchtower | Held, so that nobody can kindle them or light the beacon |
 | Waygate | One of the land's old roads: it knows the way home, and to every other gate a Defender has found |
 | The Haven | The one place the Reich has never found, where every waygate's road comes first |
+| Arena (`SiteKind.Arena`) | Where the Reich shows the conquered its tyrant, every tenth land: stone stands, a sand floor and gates of black iron, and the land's people made to watch |
 
 ## Where the game says it
 

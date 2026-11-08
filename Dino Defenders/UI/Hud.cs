@@ -362,7 +362,7 @@ namespace Dino_Defenders.UI
                 Shade(draw, new GuiRect(x, y, width, 46f + nextLines.Count * 18f));
                 Ui.Text(Context!, draw, session.World.Plan.Name, 17f, new GuiRect(x, y, width, 22f), Ui.Gold, Alignment.End);
                 y += 26f;
-                Ui.Text(Context!, draw, $"Your next land is level {session.Hero.LandLevel}", 14f, new GuiRect(x, y, width, 18f), Ui.Parchment, Alignment.End);
+                Ui.Text(Context!, draw, $"Levels up to {session.Hero.LandLevel} are open", 14f, new GuiRect(x, y, width, 18f), Ui.Parchment, Alignment.End);
                 y += 20f;
                 foreach (string line in nextLines)
                 {

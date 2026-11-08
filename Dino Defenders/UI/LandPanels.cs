@@ -27,6 +27,9 @@ namespace Dino_Defenders.UI
         private const float LevelListWidth = 168f;
         private const float LevelRowHeight = 30f;
         private const float LevelListHeight = 520f;
+        private const float PanelWidth = 1240f;
+        private const float PanelPadding = 24f;
+        private const float TableGap = 16f;
 
         private static readonly Colour Chosen = GuiColors.Rgba(112, 74, 28);
         private static readonly Colour ArenaInk = GuiColors.Rgba(196, 92, 70);
@@ -55,9 +58,9 @@ namespace Dino_Defenders.UI
         public MapTablePanel()
         {
             Anchor = Anchor.Center;
-            Width = 1240f;
+            Width = PanelWidth;
             Height = UIValue.Auto;
-            Padding = new Thickness(24f);
+            Padding = new Thickness(PanelPadding);
             Ui.Dress(this);
             Visible = false;
 
@@ -72,14 +75,15 @@ namespace Dino_Defenders.UI
             Button close = _openRow.Add(Ui.Action("Close the way", CloseWay));
             close.Width = 160f;
 
-            var table = body.Add(new StackPanel(Orientation.Horizontal, 16f) { Width = UIValue.Fill, Height = UIValue.Auto });
+            var table = body.Add(new StackPanel(Orientation.Horizontal, TableGap) { Width = UIValue.Fill, Height = UIValue.Auto });
 
             var side = table.Add(new StackPanel(Orientation.Vertical, 6f) { Width = LevelListWidth, Height = UIValue.Auto });
             side.Add(Ui.Line("Levels", 17f, Ui.Gold));
             var listFrame = side.Add(new GuiElement { Width = UIValue.Fill, Height = LevelListHeight, BackgroundColor = Ui.InkLight, BorderColor = GuiColors.Rgba(84, 68, 46), BorderWidth = 1f, CornerRadius = 2f });
             _levels = listFrame.Add(Kit.Scroll());
 
-            var right = table.Add(new StackPanel(Orientation.Vertical, 10f) { Width = UIValue.Fill, Height = UIValue.Auto });
+            // A width of its own, as text that wraps is measured before a share of a row is worked out.
+            var right = table.Add(new StackPanel(Orientation.Vertical, 10f) { Width = PanelWidth - PanelPadding * 2f - LevelListWidth - TableGap, Height = UIValue.Auto });
             var top = right.Add(new StackPanel(Orientation.Horizontal, 12f) { Width = UIValue.Fill, Height = 34f });
             top.Stack!.CrossAlignment = Alignment.Center;
             _levelTitle = top.Add(Ui.Line("", 20f, Ui.Parchment));

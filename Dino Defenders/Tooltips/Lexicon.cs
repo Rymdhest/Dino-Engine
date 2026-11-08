@@ -142,9 +142,9 @@ namespace Dino_Defenders.Tooltips
             Word("Debt", "Damage you still owe, shown dark at the end of your Health.");
             Word("Enemy near you", $"An Enemy within {Metres(CrowdReach)}.", "Enemies near you");
             Word("Fighting", $"Having Hit something, or been Hit, in the last {Seconds(Recently)}.");
-            Word("Land Level", "How deep a land is. Its Enemies, and what they drop, are of that Level. Freeing one opens the next, any freed one can be opened again, and every tenth is a tyrant's arena.");
+            Word("Land Level", "How deep a land is: its Enemies and what they drop are of that Level. Freeing one opens the next, and every tenth is a tyrant's arena.");
             Word("Omen", "Something Orders put on a land: a Prefix is a reward, and a Suffix a danger.", "Omens");
-            Word("Orders", "Taken from the Reich. Given to the map table in the Haven, they're used up, and the land opened next holds what they say. Every tyrant's arena freed gives the table room for one more.");
+            Word("Orders", "Taken from the Reich. Given to the map table in the Haven, they're used up, and the land opened next holds what they say.");
             Word("Haven", "Home: the one place the Reich has never found. Nothing can hurt you there.");
             Word("Normal", "An Item with nothing rolled on it.");
             Word("Unique", "One of a kind. What it gives always comes at a price.");

@@ -441,10 +441,15 @@ namespace Dino_Defenders.Server
             "The road's safe again!", "Bless you, Defender.", "We can sleep at last.", "My boy came home from the pens.",
             "They're saying it was you.", "The market's open again.", "No more roaring in the night.", "There's bread for you here.",
         };
+        // What the people made to watch from an arena's stands say, before anyone's on the floor and once someone is.
+        private static readonly string[] Waiting =
+        {
+            "Don't look away. They're counting.", "Quiet. The greycoats are watching.", "Another one for the tyrant.", "Not like the last one. Please, not like the last one.",
+            "Come on, Defender.", "They say this one walked here on purpose.",
+        };
         private static readonly string[] Cheering =
         {
-            "Get up! Get up!", "Mind the gates!", "Don't look away. They're counting.", "It's bleeding!", "Behind you!", "Quiet. The greycoats are watching.",
-            "Come on, Defender.", "Not like the last one. Please, not like the last one.", "They've opened another!", "Down it goes!",
+            "Get up! Get up!", "Mind the gates!", "It's bleeding!", "Behind you!", "Come on, Defender.", "Don't let it corner you!", "It's slowing!",
         };
         private const float CrowdReach = 60f;           // Metres from a hero inside which those watching from the stands call out.
 
@@ -484,10 +489,11 @@ namespace Dino_Defenders.Server
                 EnemyBrainSystem.Face(entity, nearest != null && toNearest < CrowdReach ? toHero : villager.Watch - position.Xz, deltaTime, 2f);
                 if (nearest != null && toNearest < CrowdReach && session.Time >= villager.NextSpeech)
                 {
+                    bool fighting = (nearest.Sim.Position - villager.Watch).Length < Dino_Engine.World.Generation.ArenaBuilder.RimRadius;
                     _server.Broadcast(new TextEvent
                     {
                         Position = position + Vector3.UnitY * 5.6f,
-                        Text = _random.Pick(Cheering),
+                        Text = _random.Pick(fighting ? Cheering : Waiting),
                         Colour = new Vector3(0.92f, 0.9f, 0.8f),
                         Size = 14f,
                         Life = 2.6f,

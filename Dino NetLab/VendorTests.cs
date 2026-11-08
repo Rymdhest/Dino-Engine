@@ -39,7 +39,7 @@ namespace Dino_NetLab
                 Lab = new GameLab(worlds, request, startSite);
                 HeroState hero = HeroState.CreateNew();
                 Array.Clear(hero.Inventory);
-                hero.LandLevel = 3;
+                hero.BestLand = 2;
                 Player = Lab.AddPlayer("Hero", line, 1, hero: hero);
                 Player.Fights = false;
                 Lab.Run(line == Awful ? 10 : 5);

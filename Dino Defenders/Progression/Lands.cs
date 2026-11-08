@@ -255,6 +255,7 @@ namespace Dino_Defenders.Progression
         // What it costs to show three other lands for a level: gold that grows with the level, a little faster than what a land pays does.
         private const float RerollGold = 25f;
         private const float RerollGrowth = 25f;
+        private const int MostRerollCost = 1_000_000_000;
 
         private const int LevelsBeforeVariety = 2;     // The first lands ask for the fewest places, as that's where someone learns what a land is.
         private const int MostSeedTries = 4096;
@@ -279,7 +280,7 @@ namespace Dino_Defenders.Progression
         public static int OrderSlots(HeroState hero) => Math.Min(1 + Math.Max(hero.BestLand, 0) / BossEvery, MostOrderSlots);
 
         /// <summary>What it costs to show three other lands for a level.</summary>
-        public static int RerollCost(int level) => (int)MathF.Round(RerollGold * Math.Max(level, 1) * (1f + Math.Max(level, 1) / RerollGrowth));
+        public static int RerollCost(int level) => (int)Math.Min(Math.Round(RerollGold * (double)Math.Max(level, 1) * (1.0 + Math.Max(level, 1) / RerollGrowth)), MostRerollCost);
 
         /// <summary>
         /// How deep freeing a land of this level, that climbs this far, has a hero been: never past a boss's level that hasn't been fought, so that nothing a boss opens can be had without it.

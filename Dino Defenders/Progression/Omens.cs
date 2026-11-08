@@ -192,7 +192,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "wisdom", Name = "Instructive", Affix = "Instructive", Side = OmenSide.Prefix,
             Tiers = Ladder((1, 8, 14), (Second, 15, 22), (Third, 23, 32), (Fourth, 33, 45)),
-            Says = v => $"{Say.Percent(v)} more experience from everything killed",
+            Says = v => $"{Say.Percent(v)} more experience from every Kill",
             Experience = 0.01f,
         });
 

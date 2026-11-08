@@ -660,7 +660,7 @@ namespace Dino_Engine.World.Generation
             WorldSite site = b.Site;
             Vector2 toRoad = site.RoadDirection;
             b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, site.Radius * 0.62f), 12f);
-            b.Ring(StructureCatalog.Palisade, site.Radius, b.Random.Int(9, 13), 4f, 1f, 0.55f, toRoad, 8f);
+            b.Ring(StructureCatalog.Palisade, site.Radius, b.Random.Int(9, 13), 4f, 1f, 0.55f, toRoad, 8f, gateOnEdge: true);
 
             b.Place(StructureCatalog.Campfire, b.Centre, 0f);
             Vector2 side = new Vector2(-toRoad.Y, toRoad.X);

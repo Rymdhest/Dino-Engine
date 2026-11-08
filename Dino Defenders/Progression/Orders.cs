@@ -65,7 +65,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "kommandants-wager", Name = "The Kommandant's Wager", Base = "Hunting Orders", MinLevel = 3,
             Lore = "He bet his tyrant against any Defender born. He hasn't lost yet.",
-            Gives = $"Freeing this land opens the {Say.N(WagerClimb)} levels after it at once, though never past a tyrant's arena that hasn't been fought",
+            Gives = $"Freeing this land lets the map table open {Say.N(WagerClimb)} Levels deeper at once, though never past a tyrant's arena that hasn't been fought",
             Costs = $"The tyrant has {Say.Percent(WagerTyrant)} more Health and deals {Say.Percent(WagerTyrant)} more Damage",
             Quantity = WagerQuantity, Climb = WagerClimb,
         });

@@ -132,30 +132,38 @@ namespace Dino_Defenders.Server
             for (int i = 0; i < count; i++)
             {
                 Gate gate = _gates[(wave - 1 + i * _gates.Count / count) % _gates.Count];
-                if (gate.OpenedAt != null) continue;
-                gate.OpenedAt = session.Time;
-                gate.Letting = each;
+
+                // A gate still up from the last time stays up longer and lets the next ones through too, and one coming down goes back up from where it is.
+                gate.OpenedAt = session.Time - RiseTime * LiftOf(session, gate);
+                gate.Letting += each;
                 gate.Wave = wave;
                 _server.Broadcast(new SoundEvent { Position = gate.Shut, Cue = SoundCue.ArenaGate }, gate.Shut.Xz);
             }
             Console.WriteLine($"The arena's gates open, for the {wave} time of {MostWaves}.");
         }
 
+        // How far up a gate is, from shut to open.
+        private static float LiftOf(ServerSession session, Gate gate)
+        {
+            if (gate.OpenedAt is not double opened) return 0f;
+            float since = (float)(session.Time - opened);
+            float shutting = since - RiseTime - Rulebook.ArenaGateOpen;
+            return Math.Clamp(since < RiseTime ? since / RiseTime : shutting < 0f ? 1f : 1f - shutting / RiseTime, 0f, 1f);
+        }
+
         // A gate rises, lets through whoever it's letting through once it's high enough to walk under, stays up a while, and comes down.
         private void Move(ECSWorld world, ServerSession session, Gate gate)
         {
-            float lift = 0f;
+            float lift = LiftOf(session, gate);
             if (gate.OpenedAt is double opened)
             {
                 float since = (float)(session.Time - opened);
-                float shutting = since - RiseTime - Rulebook.ArenaGateOpen;
-                lift = since < RiseTime ? since / RiseTime : shutting < 0f ? 1f : 1f - shutting / RiseTime;
                 if (gate.Letting > 0 && since >= RiseTime * 0.6f)
                 {
                     LetThrough(world, session, gate);
                     gate.Letting = 0;
                 }
-                if (shutting >= RiseTime)
+                if (since - RiseTime - Rulebook.ArenaGateOpen >= RiseTime)
                 {
                     gate.OpenedAt = null;
                     lift = 0f;

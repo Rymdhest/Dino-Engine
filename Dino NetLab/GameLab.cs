@@ -267,6 +267,12 @@ namespace Dino_NetLab
         public double TickCostWorst;
         public int TicksTimed;
 
+        /// <summary>
+        /// The whole of an isle, as large as its kind can be, for suites that shoot across open ground at the landing or walk past packs to see something else: they were laid out against it, and a
+        /// land of the usual size has its places and packs closer in, with walls where their shots would fly and bodies in the way. What they test is the rules, not the ground.
+        /// </summary>
+        public static WorldRequest OpenIsle(int seed, int level = 1) => new WorldRequest(seed, "isle", level, larger: 1f);
+
         public GameLab(WorldCache worlds, WorldRequest request, string? startSite = "BanditCamp", LandTerms? terms = null, SaveGame? save = null)
         {
             _worlds = worlds;
@@ -846,9 +852,9 @@ namespace Dino_NetLab
             report.Check("They all play on in the Haven", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.IsHaven));
 
             // And out again, by the way one of them opens.
-            LandOffer offer = Lands.Offer(walker.Client.Hero)[0];
+            LandOffer offer = Lands.Offer(walker.Client.Hero, walker.Client.Hero.LandLevel)[0];
             worlds.Get(offer.Terms.Shape(offer.Request)).Wait();
-            walker.Client.OpenWay(0);
+            walker.Client.OpenWay(walker.Client.Hero.LandLevel, 0, Array.Empty<int>());
             lab.Run(2);
             lab.Server.StepThrough();
             Arrive(3);
