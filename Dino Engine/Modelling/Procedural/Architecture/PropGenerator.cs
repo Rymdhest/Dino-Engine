@@ -73,6 +73,9 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "palisade": BuildPalisade(b, random); break;
                 case "wall.stone": BuildStoneWall(b); break;
                 case "tower.watch": BuildWatchTower(b, style); break;
+                case "waygate.great": BuildGreatWaygate(b, lights); break;
+                case "table.map": BuildMapTable(b, random, lights); break;
+                case "strongbox": BuildStrongbox(b, lights); break;
                 default: throw new ArgumentException($"No model for structure '{id}'.");
             }
             return b.Build();
@@ -663,6 +666,146 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 return new Vector3(MathF.Cos(angle) * radius, 1.2f + MathF.Sin(angle) * radius * 1.25f, 0f);
             }, Glow(0.22f, 0.6f, 0.75f, 0.32f));
             b.Quad(new Vector3(-(Radius - 0.5f), 0.3f, 0f), new Vector3(Radius - 0.5f, 0.3f, 0f), new Vector3(Radius - 0.5f, 1.2f, 0f), new Vector3(-(Radius - 0.5f), 1.2f, 0f), Glow(0.22f, 0.6f, 0.75f, 0.32f));
+        }
+
+        /// <summary>
+        /// The Haven's waygate: the same old road as any other, raised higher on a stepped plinth, with pillars of dressed stone, an arch of runes and a crystal over the keystone. It's seen from
+        /// high above the square, so what reads is the plinth, the tops of the pillars and the ring of light.
+        /// </summary>
+        private static void BuildGreatWaygate(MeshBuilder b, List<AssetLight> lights)
+        {
+            const float Span = 5.6f;            // From the middle to each pillar's face.
+            const float Spring = 7.1f;          // Where the arch begins.
+            const int Stones = 15;
+            Vector3 rune = new Vector3(0.35f, 0.9f, 1f);
+            lights.Add(AssetLight.Glow(new Vector3(0f, Spring + Span + 2.4f, 0f), rune, 140f, 30f));
+            lights.Add(AssetLight.Glow(new Vector3(0f, 2.2f, 1.6f), rune, 60f, 16f));
+
+            VertexMaterial dressed = Stone(176);
+            VertexMaterial rough = Rough(150);
+            VertexMaterial runeGlow = Glow(rune.X, rune.Y, rune.Z, 1.6f);
+
+            // Three steps up to it, so that it stands over the square.
+            b.Box(new Vector3(0f, 0.05f, 0f), new Vector3(7.6f, 0.35f, 2.6f), rough);
+            b.Box(new Vector3(0f, 0.45f, 0f), new Vector3(6.9f, 0.3f, 2.1f), dressed);
+            b.Box(new Vector3(0f, 0.8f, 0f), new Vector3(6.2f, 0.25f, 1.6f), dressed);
+
+            foreach (float side in new[] { -1f, 1f })
+            {
+                float x = side * (Span + 0.8f);
+                b.Box(new Vector3(x, 1.35f, 0f), new Vector3(1.15f, 0.35f, 1.15f), rough);
+                b.Box(new Vector3(x, 4.1f, 0f), new Vector3(0.8f, 2.6f, 0.8f), dressed);
+                b.Box(new Vector3(x, 6.85f, 0f), new Vector3(1.05f, 0.22f, 1.05f), rough);
+
+                // Runes down the face of each pillar, front and back.
+                for (int r = 0; r < 4; r++)
+                {
+                    float y = 2.4f + r * 1.15f;
+                    b.Box(new Vector3(x, y, 0.82f), new Vector3(0.22f, 0.32f, 0.03f), runeGlow);
+                    b.Box(new Vector3(x, y, -0.82f), new Vector3(0.22f, 0.32f, 0.03f), runeGlow);
+                }
+            }
+
+            for (int i = 0; i <= Stones; i++)
+            {
+                float angle = MathF.PI * i / Stones;
+                Vector3 outward = new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0f);
+                Vector3 at = new Vector3(0f, Spring, 0f) + outward * Span;
+                b.Beam(at, at + outward * 1.5f, i == Stones / 2 ? 1.05f : 0.8f, i % 2 == 0 ? dressed : rough);
+                if (i % 2 == 1)
+                {
+                    b.Box(at + outward * 0.75f + Vector3.UnitZ * 0.82f, new Vector3(0.2f), runeGlow);
+                    b.Box(at + outward * 0.75f - Vector3.UnitZ * 0.82f, new Vector3(0.2f), runeGlow);
+                }
+            }
+
+            // The crystal over the keystone, which is what's seen first from anywhere in the village.
+            b.Box(new Vector3(0f, Spring + Span + 1.9f, 0f), new Vector3(0.7f, 0.3f, 0.7f), rough);
+            Mesh crystal = IcoSphereGenerator.CreateIcosphere(1, Glow(0.3f, 0.92f, 1f, 3.2f));
+            b.Add(crystal, new Vector3(0f, Spring + Span + 3.2f, 0f), new Vector3(0.62f, 1.2f, 0.62f));
+
+            // A breath of light round the inside of the arch even when it's shut, so that it reads as a way and not a doorframe. The way itself, when it's open, fills it.
+            VertexMaterial veil = Glow(0.3f, 0.8f, 1f, 0.9f);
+            foreach (float face in new[] { 0.05f, -0.05f })
+            {
+                b.Surface(24, 1, (u, v) =>
+                {
+                    float angle = MathF.PI * (face > 0f ? 1f - u : u);
+                    float radius = Span - 0.2f - v * 0.28f;
+                    return new Vector3(MathF.Cos(angle) * radius, Spring + MathF.Sin(angle) * radius, face);
+                }, veil);
+            }
+        }
+
+        /// <summary>The map table: a slab of stone on two piers, with every land the waygate knows drawn into its top in light, and the three it reaches marked.</summary>
+        private static void BuildMapTable(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
+        {
+            lights.Add(AssetLight.Glow(new Vector3(0f, 2.4f, 0f), new Vector3(1f, 0.82f, 0.52f), 34f, 11f));
+            VertexMaterial stone = Stone(168);
+            VertexMaterial rough = Rough(148);
+
+            b.Box(new Vector3(0f, 0.05f, 0f), new Vector3(2.75f, 0.2f, 1.85f), rough);
+            foreach (float side in new[] { -1f, 1f })
+            {
+                b.Box(new Vector3(side * 1.75f, 0.9f, 0f), new Vector3(0.45f, 0.66f, 1.15f), stone);
+                b.Box(new Vector3(side * 1.75f, 0.32f, 0f), new Vector3(0.62f, 0.12f, 1.32f), rough);
+            }
+            b.Box(new Vector3(0f, 1.72f, 0f), new Vector3(2.6f, 0.16f, 1.72f), stone);
+
+            // What's drawn on it: warm light where the land is, a dark line round its shores, and a mark for each land the gate reaches.
+            const float Top = 1.885f;
+            b.Quad(new Vector3(-2.3f, Top, 1.45f), new Vector3(2.3f, Top, 1.45f), new Vector3(2.3f, Top, -1.45f), new Vector3(-2.3f, Top, -1.45f), Glow(0.86f, 0.7f, 0.42f, 0.3f));
+            VertexMaterial ink = new VertexMaterial(TextureGenerator.flat, new Colour(48, 36, 24));
+            int corners = 13;
+            Vector3 previous = default;
+            for (int i = 0; i <= corners; i++)
+            {
+                float angle = MathF.Tau * (i % corners) / corners;
+                float reach = random.Range(0.72f, 1f);
+                Vector3 shore = new Vector3(MathF.Cos(angle) * 1.9f * reach, Top + 0.02f, MathF.Sin(angle) * 1.15f * reach);
+                if (i > 0) b.Beam(previous, shore, 0.035f, ink);
+                previous = shore;
+            }
+            Vector3[] lands = { new Vector3(-1f, 0f, -0.4f), new Vector3(0.3f, 0f, 0.55f), new Vector3(1.1f, 0f, -0.3f) };
+            foreach (Vector3 land in lands)
+            {
+                b.Box(new Vector3(land.X, Top + 0.07f, land.Z), new Vector3(0.09f, 0.07f, 0.09f), Glow(0.35f, 0.9f, 1f, 2.2f));
+            }
+        }
+
+        /// <summary>Where what's put away is kept: a great iron-bound chest on a stone step, with a lantern on a post beside it so that it can be found at night.</summary>
+        private static void BuildStrongbox(MeshBuilder b, List<AssetLight> lights)
+        {
+            lights.Add(AssetLight.Lantern(new Vector3(-1.75f, 3.55f, -0.35f)));
+            VertexMaterial boards = new VertexMaterial(TextureGenerator.wood, new Colour(132, 92, 60));
+            VertexMaterial iron = new VertexMaterial(TextureGenerator.iron, new Colour(96, 98, 104));
+
+            b.Box(new Vector3(0f, 0.05f, 0f), new Vector3(2f, 0.2f, 1.4f), Rough(156));
+            b.Box(new Vector3(0f, 0.85f, 0f), new Vector3(1.35f, 0.6f, 0.82f), boards);
+            b.Surface(8, 1, (u, v) =>
+            {
+                float angle = u * MathF.PI;
+                return new Vector3((v * 2f - 1f) * 1.38f, 1.45f + MathF.Sin(angle) * 0.42f, MathF.Cos(angle) * 0.84f);
+            }, boards);
+
+            // Bands over the lid and down the sides, as the lid is most of what's seen of it from above.
+            foreach (float x in new[] { -1.05f, 0f, 1.05f })
+            {
+                b.Box(new Vector3(x, 0.85f, 0.84f), new Vector3(0.1f, 0.62f, 0.03f), iron);
+                b.Box(new Vector3(x, 0.85f, -0.84f), new Vector3(0.1f, 0.62f, 0.03f), iron);
+                b.Surface(8, 1, (u, v) =>
+                {
+                    float angle = u * MathF.PI;
+                    return new Vector3(x + (v * 2f - 1f) * 0.11f, 1.45f + MathF.Sin(angle) * 0.45f, MathF.Cos(angle) * 0.87f);
+                }, iron);
+            }
+            b.Box(new Vector3(0f, 1.25f, 0.88f), new Vector3(0.2f, 0.24f, 0.05f), iron);
+
+            // The lantern's post, at the back corner, out of the way of whoever comes to it.
+            b.Tube(new Vector3(-1.75f, 0.2f, -1f), new Vector3(-1.75f, 4.3f, -1f), 0.12f, 0.09f, 6, DarkWood);
+            b.Beam(new Vector3(-1.75f, 4.15f, -1f), new Vector3(-1.75f, 4.15f, -0.35f), 0.06f, DarkWood);
+            b.Box(new Vector3(-1.75f, 3.55f, -0.35f), new Vector3(0.2f, 0.28f, 0.2f), Glow(1f, 0.5f, 0.16f, 3f));
+            b.Box(new Vector3(-1.75f, 3.88f, -0.35f), new Vector3(0.26f, 0.05f, 0.26f), Iron);
         }
 
         private static void BuildAltar(MeshBuilder b, WorldRandom random, List<AssetLight> lights)

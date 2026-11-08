@@ -195,6 +195,14 @@ namespace Dino_Engine.World.Generation
                 Vector2 front = (b.Centre - box).LengthSquared > 1f ? (b.Centre - box).Normalized() : -stashWay;
                 b.Spawn(SpawnRole.Stash, box + front * (StructureCatalog.Strongbox.HalfExtents.Y + 1.6f));
             }
+
+            // Someone always trades, whatever room the square has left for stalls.
+            Vector2 stallWay = Direction(MathF.Atan2(gateWay.Y, gateWay.X) + MathF.PI * 1.35f);
+            if (b.PlaceNear(StructureCatalog.MarketStall, b.Centre + stallWay * 11f, YawFacing(-stallWay), site.Radius * EssentialReach, out Vector2 stall, padding: 0.6f))
+            {
+                Vector2 front = (b.Centre - stall).LengthSquared > 1f ? (b.Centre - stall).Normalized() : -stallWay;
+                b.Spawn(SpawnRole.Merchant, stall + front * 3.6f);
+            }
         }
 
         // The way out of the middle of a place that's furthest from every road through it.

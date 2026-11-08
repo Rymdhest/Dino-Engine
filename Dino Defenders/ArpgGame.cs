@@ -611,6 +611,15 @@ namespace Dino_Defenders
                 });
             }
             if (_frames == 30 && _options.Garden is string garden) PlantGarden(garden);
+            if (_frames == 60 && _options.OpenWay >= 0 && _server != null)
+            {
+                int choice = _options.OpenWay;
+                _server.Ask(server =>
+                {
+                    server.Venture(choice, step: false);
+                    return true;
+                });
+            }
             if (_frames == 30 && _options.Bring is string bring) BringCreatures(session, bring);
             if (_frames == _options.StartleAfterFrames) Nature.Startle(session.PlayerPosition, 40f);
             if (_frames == 30 && _options.Parade is string parade && _server != null)

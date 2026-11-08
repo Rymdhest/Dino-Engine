@@ -254,6 +254,7 @@ namespace Dino_Defenders.Progression
             Id = "unyielding", Name = "Unyielding", Affix = "Unyielding", Side = OmenSide.Foe,
             Tiers = Ladder((4, 20, 30), (Third, 31, 45)),
             Foes = v => new[] { Inc(Stat.AilmentTaken, -v), Inc(Stat.StunThreshold, v * 2f) },
+            Says = v => $"Ailments on Enemies wear off {Say.Percent(v)} sooner, and Enemies have {Say.Percent(v * 2f)} increased Stun Threshold",
             Quantity = 0.003f, Rarity = 0.0025f,
         });
 

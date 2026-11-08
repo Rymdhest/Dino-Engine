@@ -12,13 +12,14 @@ namespace Dino_Engine.World.Generation
     /// </summary>
     internal static class HavenBuilder
     {
-        private const float SquareRadius = 13f;
-        private const float TableAhead = 11f;          // Metres north of the square's middle.
-        private const float GateAhead = 25f;
+        private const float SquareRadius = 16f;
+        private const float TableAhead = 14f;          // Metres north of the square's middle.
+        private const float GateAhead = 29f;
         private const float TerraceRadius = 11f;
-        private const float StallAside = 15f;
-        private const float StashAside = 15f;
-        private const float GroundSouth = 38f;          // Of the training ground's middle, from the square's.
+        private const float StallAside = 18f;
+        private const float StashAside = 18f;
+        private const float GroundSouth = 47f;          // Of the training ground's middle, from the square's.
+        private const float HomesBeyond = 15f;          // Metres of open ground between the square's edge and the nearest wall.
         private const float GroundWest = 6f;
         private static readonly Vector2 GroundHalf = new Vector2(23f, 12f);
         private const float DummyGap = 3.4f;            // Between the dummies of a group: close enough that what hits one can reach the next.
@@ -191,7 +192,7 @@ namespace Dino_Engine.World.Generation
                 StructureDefinition kind = kinds[i];
                 for (int attempt = 0; attempt < 10; attempt++)
                 {
-                    float distance = SquareRadius + 9f + kind.HalfExtents.Y + attempt * 2.5f;
+                    float distance = SquareRadius + HomesBeyond + kind.HalfExtents.Y + attempt * 2.5f;
                     Vector2 outward = new Vector2(MathF.Sin(bearings[i]), MathF.Cos(bearings[i]));
                     Vector2 at = c + outward * distance;
                     if (!b.Place(kind, at, YawFacing(-outward), padding: 1.8f, maxSlope: 0.34f)) continue;

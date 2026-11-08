@@ -268,7 +268,7 @@ namespace Dino_Defenders.Server
                 // Someone can stand closer to a wall than the passable map allows for, so the spot itself may not be on it.
                 if (TryFindGround(world, new Vector2(_saved.PlayerX, _saved.PlayerZ), out Vector2 ground)) return ground;
             }
-            if (_settings.Start.HasValue && !Session!.IsHaven) return _settings.Start.Value;
+            if (_settings.Start.HasValue) return _settings.Start.Value;
 
             // Out of the waygate a hero came through: in the Haven its great one, and in a land the one at the landing.
             if (WaygateSpawn(world, world.Sites[0]) is Vector2 gate)
@@ -647,6 +647,15 @@ namespace Dino_Defenders.Server
         // The way out of the Haven, as it stands: a light in the great gate's arch, which is what's stepped through, or nothing.
         private Entity _portal;
 
+        private static int BiomeIndex(BiomeDefinition biome)
+        {
+            for (int i = 0; i < BiomeCatalog.All.Count; i++)
+            {
+                if (BiomeCatalog.All[i] == biome) return i;
+            }
+            return -1;
+        }
+
         private void ShowPortal(ServerSession session)
         {
             session.PortalChanged = false;
@@ -668,8 +677,8 @@ namespace Dino_Defenders.Server
                 new PositionComponent(at),
                 new RotationComponent(facing),
                 new ScaleComponent(new Vector3(1f)),
-                new VisualComponent("portal", VisualKind.Prop),
-                new PortalComponent { Biome = Array.IndexOf(BiomeCatalog.All.ToArray(), plan.Biomes[0]) },
+                new VisualComponent($"portal:{BiomeIndex(plan.Biomes[0])}", VisualKind.Prop),
+                new PortalComponent { Biome = BiomeIndex(plan.Biomes[0]) },
                 new InteractableComponent { Kind = InteractKind.Portal, SiteIndex = 0, SpawnIndex = session.World.Sites[0].Spawns.FindIndex(s => s.Role == SpawnRole.Waygate), Radius = 6.5f, Prompt = $"Step through to {name}" });
         }
 
@@ -1157,6 +1166,7 @@ namespace Dino_Defenders.Server
 
             session.Portal = (offer.Request, terms, offer.Plan.Name);
             session.PortalChanged = true;
+            Console.WriteLine($"{player.Name} opened the way to {offer.Plan.Name}, level {offer.Request.Level}, with {terms.Count} omens{(terms.Orders != null ? $" and {terms.Orders}" : "")}.");
             SendChangedProgress();
             Broadcast(new SoundEvent { Position = HeroPosition(player), Cue = SoundCue.Waygate }, player.Sim.Position);
             Announce(null, "The way is open", $"{offer.Plan.Name}, level {offer.Request.Level}. Step through the waygate when you're ready.", 5f);
@@ -1344,12 +1354,12 @@ namespace Dino_Defenders.Server
             if (Session != null && !Session.IsHaven) GoHome();
         }
 
-        /// <summary>For a scripted run: out of the Haven to one of the lands the map table shows the first hero, at once.</summary>
-        public void Venture(int choice)
+        /// <summary>For a scripted run: out of the Haven to one of the lands the map table shows the first hero, at once, or only opening the way to it.</summary>
+        public void Venture(int choice, bool step = true)
         {
             if (Session is not { IsHaven: true } || _heroes.Count == 0) return;
             OpenWay(_heroes[0], choice, -1);
-            StepThrough();
+            if (step) StepThrough();
         }
 
         /// <summary>For a scripted run: loot in front of the first hero.</summary>

@@ -246,6 +246,11 @@ namespace Dino_WorldLab
         // who lives there standing where they can be reached.
         private void CheckPlayable(WorldData world)
         {
+            if (world.Plan.Archetype.Peaceful)
+            {
+                CheckHaven(world);
+                return;
+            }
             if (world.Sites.Count == 0 || world.Sites[0].Kind != SiteKind.Landing)
             {
                 Problem("the first site is not the landing");
@@ -269,7 +274,23 @@ namespace Dino_WorldLab
                 {
                     if (spawn.Role == SpawnRole.Altar && !Stands(world, StructureCatalog.Altar, spawn.Position)) Problem($"{site.Name} can be prayed at, but has no altar");
                     if (spawn.Role == SpawnRole.Waygate && !Stands(world, StructureCatalog.Waygate, spawn.Position)) Problem($"{site.Name} can be left by, but has no waygate");
+                    if (spawn.Role == SpawnRole.Stash && !Stands(world, StructureCatalog.Strongbox, spawn.Position)) Problem($"{site.Name} has a stash, but no strongbox");
+                    if (spawn.Role is SpawnRole.MapTable or SpawnRole.Dummy) Problem($"{site.Name} has a {spawn.Role}, which only the Haven has");
                 }
+
+                // A village is where a land's people hide, and where a hero can rest, trade, put things away and go home.
+                if (site.Kind == SiteKind.Village)
+                {
+                    foreach (SpawnRole needed in new[] { SpawnRole.Waygate, SpawnRole.Stash, SpawnRole.Altar, SpawnRole.Merchant })
+                    {
+                        if (!site.Spawns.Any(s => s.Role == needed)) Problem($"{site.Name} is a village with no {needed}");
+                    }
+                    if (site.Spawns.Any(s => s.Role.IsHostile())) Problem($"{site.Name} is a village with hostiles in it");
+                }
+
+                // Every place a land asks to be freed is held, and has a chest of what they took.
+                if (site.Kind != SiteKind.Keep && site.Spawns.Any(s => s.Role.IsHostile()) && !site.Spawns.Any(s => s.Role == SpawnRole.Chest)) Problem($"{site.Name} is held, but has no chest");
+                if (site.Kind == SiteKind.Waygate && !site.Spawns.Any(s => s.Role == SpawnRole.Waygate)) Problem($"{site.Name} is a waygate with no gate");
                 if (site.Kind == SiteKind.Graveyard)
                 {
                     foreach (SiteSpawn spawn in site.Spawns)
@@ -283,6 +304,49 @@ namespace Dino_WorldLab
                 {
                     if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of {site.Name} can't be reached at {spawn.Position}");
                 }
+            }
+        }
+
+        // The places a land can ask to be freed: there have to be more than the most it ever asks for.
+        private const int LeastPlaces = 6;
+        private const int Dummies = 21;
+
+        private void CheckLandPlaces(WorldData world)
+        {
+            int places = world.Sites.Count(site => site.Kind != SiteKind.Keep && site.Spawns.Any(s => s.Role.IsHostile()));
+            if (places < LeastPlaces) Problem($"only {places} places to free");
+            int gates = world.Sites.Count(site => site.Spawns.Any(s => s.Role == SpawnRole.Waygate));
+            if (gates < 3) Problem($"only {gates} waygates");
+        }
+
+        // The Haven: one village, everything it's for standing where it can be reached, and nobody hostile anywhere.
+        private void CheckHaven(WorldData world)
+        {
+            if (world.Sites.Count != 1 || world.Sites[0].Kind != SiteKind.Haven)
+            {
+                Problem("the Haven is not one village");
+                return;
+            }
+            if (world.Haunts.Count > 0) Problem($"the Haven has {world.Haunts.Count} packs in it");
+
+            WorldSite haven = world.Sites[0];
+            (SpawnRole role, StructureDefinition? on)[] needed =
+            {
+                (SpawnRole.Waygate, StructureCatalog.GreatWaygate), (SpawnRole.MapTable, StructureCatalog.MapTable), (SpawnRole.Stash, StructureCatalog.Strongbox),
+                (SpawnRole.Altar, StructureCatalog.Altar), (SpawnRole.Merchant, null),
+            };
+            foreach ((SpawnRole role, StructureDefinition? on) in needed)
+            {
+                SiteSpawn[] spawns = haven.Spawns.Where(s => s.Role == role).ToArray();
+                if (spawns.Length != 1) Problem($"the Haven has {spawns.Length} of {role}");
+                if (on != null && spawns.Length > 0 && !Stands(world, on, spawns[0].Position)) Problem($"the Haven's {role} has no {on.Id}");
+            }
+            int dummies = haven.Spawns.Count(s => s.Role == SpawnRole.Dummy);
+            if (dummies != Dummies) Problem($"the Haven has {dummies} dummies, not {Dummies}");
+            if (haven.Spawns.Any(s => s.Role.IsHostile())) Problem("the Haven has hostiles in it");
+            foreach (SiteSpawn spawn in haven.Spawns)
+            {
+                if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of the Haven can't be reached at {spawn.Position}");
             }
         }
 
@@ -362,6 +426,9 @@ namespace Dino_WorldLab
 
         private void CheckPacks(WorldData world)
         {
+            if (world.Plan.Archetype.Peaceful) return;
+            CheckLandPlaces(world);
+            if (world.Plan.Request.Emptied) return;
             if (world.Haunts.Count == 0)
             {
                 Problem("nothing to fight between the sites");

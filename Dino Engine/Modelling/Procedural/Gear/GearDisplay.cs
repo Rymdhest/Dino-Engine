@@ -64,6 +64,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             GearKind.Body or GearKind.Legs => new Angle(-MathF.PI / 2f, 0.3f, 0.12f, 0f),
             GearKind.Head => new Angle(0f, 0.5f, 0.32f, 0f),
             GearKind.OpenBook or GearKind.Page or GearKind.Sticker => new Angle(0f, 0.25f, 0.8f, 0f),
+            GearKind.Orders => new Angle(0f, 0.62f, 0.55f, 0f),
             _ => new Angle(0f, 0.55f, 0.35f, 0f),
         };
     }

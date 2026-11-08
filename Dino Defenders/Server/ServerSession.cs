@@ -21,6 +21,7 @@ namespace Dino_Defenders.Server
         private const float MinionSight = 28f;
         private const float RisenReach = 160f;      // Metres from every hero past which what the Ossuary raised is let go, as it belongs to no place to be kept by.
         private const float RisenAggro = 34f;
+        private const float LostLinger = 5f;        // Seconds between the last hero falling and everyone going home, long enough to take in what happened.
 
         private readonly List<Actor> _nearby = new();
         private readonly List<(double At, Vector2 Where, bool Beast, int Level)> _rising = new();
@@ -295,14 +296,15 @@ namespace Dino_Defenders.Server
             player.Out = true;
             Falls++;
             ObjectivesChanged = true;
+            Console.WriteLine($"{player.Name} fell in {World.Plan.Name}, level {World.Plan.Level}{(Liberated ? ", which was already free" : "")}.");
             if (!Liberated) Judge(player, freed: false);
 
             if (Heroes.All(hero => hero.Out) && HomeAt == null)
             {
                 Lost = !Liberated;
-                HomeAt = Time + HeroRules.DeathDelay;
+                HomeAt = Time + LostLinger;
                 if (!Lost) return;
-                foreach (ServerPlayer hero in Heroes) Server.Announce(hero, "The land is lost", $"Your next land will be level {hero.Hero.LandLevel}.", HeroRules.DeathDelay);
+                foreach (ServerPlayer hero in Heroes) Server.Announce(hero, "The land is lost", $"Your next land will be level {hero.Hero.LandLevel}.", LostLinger);
                 return;
             }
             if (!Liberated) Server.Note(null, $"{player.Name} has fallen, and is out of this land.");
@@ -316,6 +318,7 @@ namespace Dino_Defenders.Server
             if (freed) player.Hero.Freed(World.Plan.Level, Terms.Climb);
             else player.Hero.Lost(Terms.Climb);
             player.SummaryChanged = true;
+            Console.WriteLine($"{player.Name} {(freed ? "freed" : "lost")} {World.Plan.Name}: their next land is level {player.Hero.LandLevel}.");
         }
 
         /// <summary>Everyone is going home through a waygate. Anyone whose land isn't free has lost it.</summary>

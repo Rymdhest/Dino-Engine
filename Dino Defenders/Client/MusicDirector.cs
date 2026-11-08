@@ -63,6 +63,16 @@ namespace Dino_Defenders.Client
 
         private void Direct(ECSWorld world, GameSession session)
         {
+            // Home has nothing to fear in it, whatever's being done to the dummies.
+            if (session.IsHaven)
+            {
+                _fightLeft = 0f;
+                _intensity += Math.Clamp(HavenIntensity - _intensity, -FallSpeed * Interval, RiseSpeed * Interval);
+                Music.Mood = _hold.Update(MusicMood.Town, Interval);
+                Music.Intensity = _intensity;
+                return;
+            }
+
             Vector2 at = session.PlayerPosition;
             float closest = float.MaxValue;
             float pressure = 0f;
@@ -140,10 +150,13 @@ namespace Dino_Defenders.Client
             Music.Intensity = _intensity;
         }
 
+        private const float HavenIntensity = 0.55f;
+
         // With nothing around, what's playing is the place.
         private static MusicMood Place(ECSWorld world, GameSession session, out float intensity)
         {
             Vector2 at = session.PlayerPosition;
+
             float night = world.TryGetSingleton<NightfallSingleton>(out Entity entity) ? world.GetComponent<NightfallSingleton>(entity).Amount : 0f;
             if (night > 0.4f)
             {

@@ -313,6 +313,12 @@ namespace Dino_Defenders.Client
                 case SoundCue.Discovered:
                     Audio.Play(Treasure.Discovery);
                     break;
+                case SoundCue.Waygate:
+                    Audio.Play(Treasure.Waygate, Mine(e) ? 0f : -8f);
+                    break;
+                case SoundCue.Blessed:
+                    Audio.Play(Treasure.Rest);
+                    break;
             }
         }
     }

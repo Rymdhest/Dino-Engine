@@ -26,6 +26,7 @@ namespace Dino_Defenders.Server
         private const int MostWakings = 4;      // At a check. A hero stepping out of a waygate is surrounded by places, and they needn't all arrive in one tick.
         private const int FirstSteps = 2;       // Land levels whose places are led by something Magic, not Rare, as that's where someone is still learning what a land is.
         private const float DummyScale = 1.25f;
+        private const float DummyTurn = 0.35f;  // Radians either side of facing the camera, which looks north, so that a row of them doesn't stand to attention.
         private const int SmallGroup = 5;       // The training ground's dummies come one alone, then this many, then the rest.
 
         private readonly GameServer _server;
@@ -248,7 +249,7 @@ namespace Dino_Defenders.Server
             actor.Entity = world.CreateEntity("Dummy",
                 new NetIdentityComponent(_server.Ghosts.NextId(), importance: 1f),
                 new PositionComponent(position),
-                new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, spawn.Position.X * 0.37f + spawn.Position.Y * 0.11f)),
+                new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, MathF.PI + MathF.Sin(spawn.Position.X * 1.7f + spawn.Position.Y) * DummyTurn)),
                 new ScaleComponent(new Vector3(DummyScale)),
                 new VisualComponent(Bestiary.Dummy.Look, VisualKind.Prop),
                 new EnemyComponent { Name = Bestiary.Dummy.Name, Rarity = Rarity.Normal, Level = level },

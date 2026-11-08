@@ -109,7 +109,7 @@ namespace Dino_Defenders.Client
             foreach (IComponent component in components)
             {
                 if (component is not InteractableComponent place) continue;
-                if (place.Kind == InteractKind.Waygate) components.Add(new SoundEmitterComponent(Life.Gate, gain: PlaceHum));
+                if (place.Kind is InteractKind.Waygate or InteractKind.Portal) components.Add(new SoundEmitterComponent(Life.Gate, gain: place.Kind == InteractKind.Portal ? PortalHum : PlaceHum));
                 else if (place.Kind == InteractKind.Shrine) components.Add(new SoundEmitterComponent(Life.ShrineGlow, gain: PlaceHum));
                 break;
             }
@@ -169,6 +169,15 @@ namespace Dino_Defenders.Client
                     }
                 }
 
+                // The way to a land lights the square in that land's colour.
+                if (visual.Value.Model.StartsWith(CharacterFactory.PortalPrefix) && int.TryParse(visual.Value.Model.AsSpan(CharacterFactory.PortalPrefix.Length), out int biome))
+                {
+                    Colour light = CharacterFactory.PortalColour(biome);
+                    components.Add(new PointLightTag());
+                    components.Add(new LightRangeComponent(PortalLightRadius, 0.25f, lightsFog: true));
+                    components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, PortalLight)));
+                }
+
                 // The only thing that can be used with no light of its own, and it's brown on brown ground.
                 foreach (IComponent component in components)
                 {
@@ -182,6 +191,9 @@ namespace Dino_Defenders.Client
         }
 
         private const float GoldLightRadius = 6f;
+        private const float PortalLightRadius = 30f;
+        private const float PortalLight = 220f;
+        private const float PortalHum = 0.8f;
         private const float PlaceHum = 0.55f;   // It never stops, so it sits under the land's own sound. At full level it's as loud as all the rest together.
         private const float ChestLightRadius = 9f;
         private const float ChestLight = 14f;

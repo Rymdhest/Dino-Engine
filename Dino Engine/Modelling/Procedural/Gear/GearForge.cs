@@ -70,6 +70,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 case GearKind.Sticker:
                     BookGenerator.Seal(mesh, style);
                     break;
+                case GearKind.Orders:
+                    BookGenerator.Orders(mesh, style);
+                    break;
             }
             return mesh;
         }

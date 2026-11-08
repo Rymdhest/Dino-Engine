@@ -1,3 +1,4 @@
+using Dino_Engine.Util;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling.Procedural.Gear
@@ -189,6 +190,71 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 {
                     mesh.Lathe(section, height * 0.5f, 1, t => radius * 0.78f, genes.Pick("seal.face", 2f, 2f, 1f) switch { 0 => palette.Leather, 1 => palette.Cloth, _ => palette.Trim });
                     mesh.At(Matrix4.CreateTranslation(0f, height * 0.5f, 0f), () => mesh.Gem(Math.Max(sides, 4), radius * genes.Range("seal.stone", 0.3f, 0.5f), radius * 0.2f, radius * 0.05f, 0.6f, palette.Glow));
+                });
+            });
+        }
+
+        // The Reich's colours, which its orders are sealed in, and nobody else's are. Read LORE.md.
+        private static readonly Vector3 Oxblood = new Vector3(0.28f, 0.03f, 0.03f);
+        private static readonly Vector3 Brass = new Vector3(0.62f, 0.44f, 0.16f);
+
+        /// <summary>
+        /// Sealed orders: a roll of parchment lying on its side, tied round the middle and sealed in oxblood wax pressed with brass, as the Reich seals everything it sends. Better orders are rolled tighter
+        /// and tied more than once, and the best come in a case. Every number comes from its own gene, so no two are the same roll.
+        /// </summary>
+        public static void Orders(GearMesh mesh, GearStyle style)
+        {
+            Genes genes = style.Genes;
+            GearPalette palette = style.Palette;
+            int grade = style.Spec.Grade;
+
+            float length = genes.Range("orders.length", 0.62f, 0.92f);
+            float radius = genes.Range("orders.radius", 0.065f, 0.1f);
+            float lip = radius * genes.Range("orders.lip", 1.12f, 1.3f);
+            float lipWidth = length * genes.Range("orders.lip.width", 0.05f, 0.09f);
+            var wax = new Model.VertexMaterial(GearMaterials.Gem, new Colour(Oxblood * genes.Range("orders.wax", 0.85f, 1.15f)));
+            var brass = new Model.VertexMaterial(GearMaterials.Metal, new Colour(Brass * genes.Range("orders.brass", 0.85f, 1.1f)));
+            var parchment = genes.Chance("orders.paper", 0.7f) ? palette.Bone : new Model.VertexMaterial(GearMaterials.Bone, new Colour(GearPalette.Hsv(genes.Range("orders.paper.hue", 28f, 42f) / 360f, genes.Range("orders.paper.sat", 0.2f, 0.36f), genes.Range("orders.paper.value", 0.48f, 0.66f))));
+            bool cased = grade >= 3 || genes.Chance("orders.cased", grade * 0.12f);
+
+            // Built along +y, then laid on its side along +x with its middle at the origin.
+            mesh.At(Matrix4.CreateTranslation(0f, -length * 0.5f, 0f) * Matrix4.CreateRotationZ(MathF.PI / 2f) * Matrix4.CreateTranslation(0f, lip, 0f), () =>
+            {
+                if (cased)
+                {
+                    // A leather case with brass caps, for orders somebody meant to arrive.
+                    mesh.Lathe(Section.Round(12), length, 1, t => lip * 1.05f, palette.Leather);
+                    foreach (float end in new[] { 0f, length - lipWidth * 1.4f })
+                    {
+                        mesh.At(Matrix4.CreateTranslation(0f, end, 0f), () => mesh.Lathe(Section.Round(12), lipWidth * 1.4f, 1, t => lip * 1.18f, brass));
+                    }
+                }
+                else
+                {
+                    mesh.Lathe(Section.Round(10), length, 1, t => radius, parchment);
+                    foreach (float end in new[] { 0f, length - lipWidth })
+                    {
+                        mesh.At(Matrix4.CreateTranslation(0f, end, 0f), () => mesh.Lathe(Section.Round(10), lipWidth, 1, t => lip, parchment));
+                    }
+                }
+
+                // Tied, once round the middle and once more for each grade past the first, in oxblood.
+                int ties = Math.Clamp(1 + grade / 2, 1, 3);
+                for (int tie = 0; tie < ties; tie++)
+                {
+                    float along = length * (ties == 1 ? genes.Range("orders.tie", 0.42f, 0.58f) : 0.3f + 0.4f * tie / (ties - 1f));
+                    float outer = (cased ? lip * 1.08f : radius) * 1.06f;
+                    mesh.At(Matrix4.CreateTranslation(0f, along, 0f), () => mesh.Lathe(Section.Round(10), length * 0.035f, 1, t => outer, new Model.VertexMaterial(GearMaterials.Cloth, new Colour(Oxblood))));
+                }
+
+                // The seal, pressed on where it's tied, facing up.
+                float sealAt = length * genes.Range("orders.seal.at", 0.4f, 0.6f);
+                float sealRadius = radius * genes.Range("orders.seal.size", 0.75f, 1.05f) * (cased ? 1.25f : 1f);
+                float surface = cased ? lip * 1.05f : radius;
+                mesh.At(Matrix4.CreateRotationZ(-MathF.PI / 2f) * Matrix4.CreateTranslation(surface * 0.82f, sealAt, 0f), () =>
+                {
+                    mesh.Lathe(Section.Polygon(genes.Count("orders.seal.sides", 7, 11)), sealRadius * 0.55f, 1, t => sealRadius * (1f - 0.18f * t), wax);
+                    mesh.At(Matrix4.CreateTranslation(0f, sealRadius * 0.55f, 0f), () => mesh.Lathe(Section.Round(10), sealRadius * 0.12f, 1, t => sealRadius * 0.48f, brass));
                 });
             });
         }

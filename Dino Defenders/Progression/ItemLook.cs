@@ -88,6 +88,7 @@ namespace Dino_Defenders.Progression
             ItemSlot.Book => GearKind.Book,
             ItemSlot.Page => GearKind.Page,
             ItemSlot.Sticker => GearKind.Sticker,
+            ItemSlot.Orders => GearKind.Orders,
             _ => GearKind.Finger,
         };
 

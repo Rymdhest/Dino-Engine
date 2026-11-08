@@ -47,11 +47,13 @@ namespace Dino_Defenders.UI
             Visible = false;
             Clicked += OnPick;
 
+            // Up in a corner, as the bar along the bottom of the screen is drawn over everything.
             _home = Add(Ui.Action("Go home to the Haven", GoHome));
-            _home.Anchor = Anchor.Bottom;
-            _home.Width = 280f;
-            _home.Height = 34f;
-            _home.Y = -46f;
+            _home.Anchor = Anchor.TopLeft;
+            _home.X = 30f;
+            _home.Y = 30f;
+            _home.Width = 300f;
+            _home.Height = 36f;
             _home.Visible = false;
 
             _prompt = Add(new LeavePrompt(Leave, () => _prompt!.Visible = false));
@@ -107,10 +109,11 @@ namespace Dino_Defenders.UI
             GL.BindTexture(TextureTarget.Texture2D, 0);
         }
 
+        // Clear of the bar along the bottom, with room above for its name and what can be done with it.
         private GuiRect MapRect()
         {
-            float side = MathF.Min(Bounds.Width, Bounds.Height) * 0.8f;
-            return new GuiRect((Bounds.Width - side) * 0.5f, (Bounds.Height - side) * 0.5f, side, side);
+            float side = MathF.Min(Bounds.Width * 0.8f, Bounds.Height - 190f);
+            return new GuiRect((Bounds.Width - side) * 0.5f, 70f, side, side);
         }
 
         // +x runs to the left of the screen in play, so the map runs that way too, and what's ahead on the land is up on the map.
@@ -150,7 +153,7 @@ namespace Dino_Defenders.UI
             draw.AddRect(new GuiRect(map.X - 3f, map.Y - 3f, map.Width + 6f, map.Height + 6f), Ui.Ink, 2f, 1f, GuiColors.Rgba(120, 96, 58));
             draw.AddImage(_texture, map, new Vector2(1f, 0f), new Vector2(0f, 1f), GuiColors.White);
 
-            Ui.Text(Context, draw, session.World.Plan.Name, 26f, new GuiRect(0f, map.Y - 40f, Bounds.Width, 32f), Ui.Parchment, Alignment.Center);
+            Ui.Text(Context, draw, session.World.Plan.Name, 26f, new GuiRect(0f, map.Y - 62f, Bounds.Width, 32f), Ui.Parchment, Alignment.Center);
 
             Vector2 mouse = Context.MousePosition;
             foreach (SiteState state in session.Sites)
@@ -181,7 +184,7 @@ namespace Dino_Defenders.UI
             string help = Travelling
                 ? "Click a waygate you've found to go there."
                 : session.IsHaven ? $"{Bindings.Label(GameAction.Map)} to close." : $"{Bindings.Label(GameAction.Map)} to close.  Waygates are travelled between, and home from, at any waygate.";
-            Ui.Text(Context, draw, help, 14f, new GuiRect(0f, map.Bottom + 6f, Bounds.Width, 20f), Ui.Faded, Alignment.Center);
+            Ui.Text(Context, draw, help, 14f, new GuiRect(0f, map.Y - 28f, Bounds.Width, 20f), Ui.Faded, Alignment.Center);
         }
 
         // A little arch, as the mark on a gate is, so that a gate reads as one wherever it is.

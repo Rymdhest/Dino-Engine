@@ -10,6 +10,7 @@ using Dino_Engine.Modelling.Procedural.Saurian;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using Dino_Engine.World;
+using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
 namespace Dino_Defenders.Client
@@ -113,6 +114,8 @@ namespace Dino_Defenders.Client
             if (key == "arrow") return Model(key, Arrow);
             if (key.StartsWith(Books.Thrown.Prefix)) return Model(key, () => ThrownThing(key.Substring(Books.Thrown.Prefix.Length)));
             if (key == "chest") return Model(key, Chest);
+            if (key == "dummy") return Model(key, Dummy);
+            if (key.StartsWith(PortalPrefix) && int.TryParse(key.AsSpan(PortalPrefix.Length), out int biome)) return Model(key, () => Portal(biome));
             if (key == Progression.LootModels.Gold) return Model(key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
             if (key == Progression.LootModels.Find) return Model(key, () => Ball(new Colour(0f, 0f, 0f)));
             if (key.StartsWith(BoltPrefix) && Enum.TryParse(key.AsSpan(BoltPrefix.Length), out Stats.DamageType look))
@@ -419,6 +422,77 @@ namespace Dino_Defenders.Client
             var builder = new MeshBuilder();
             builder.Tube(new Vector3(0f, 0f, -0.9f), new Vector3(0f, 0f, 0.9f), 0.05f, 0.05f, 4, new VertexMaterial(TextureGenerator.wood, new Colour(150, 120, 90)));
             builder.Tube(new Vector3(0f, 0f, 0.9f), new Vector3(0f, 0f, 1.2f), 0.1f, 0.01f, 4, new VertexMaterial(TextureGenerator.iron));
+            return builder.Build();
+        }
+
+        public const string PortalPrefix = "portal:";
+
+        /// <summary>The colour the way to a land is lit in: its first biome's, made bright enough to glow and saturated enough to keep its hue.</summary>
+        public static Colour PortalColour(int biome)
+        {
+            Vector3 colour = biome >= 0 && biome < BiomeCatalog.All.Count ? BiomeCatalog.All[biome].MapColour : new Vector3(0.35f, 0.85f, 1f);
+            float most = MathF.Max(colour.X, MathF.Max(colour.Y, colour.Z));
+            colour /= MathF.Max(most, 0.01f);
+            return new Colour(Vector3.Lerp(colour, new Vector3(0.35f, 0.85f, 1f), 0.35f));
+        }
+
+        // The way to a land, open in the Haven's great waygate: layers of light filling its arch, brightest at the heart, in the colour of where it leads. It matches the arch in PropGenerator.
+        private static Mesh Portal(int biome)
+        {
+            const float Span = 5.35f;
+            const float Spring = 7.1f;
+            Colour hue = PortalColour(biome);
+            var builder = new MeshBuilder();
+            (float reach, float strength, float depth)[] layers = { (1f, 1.1f, 0f), (0.78f, 1.8f, 0.06f), (0.52f, 2.8f, 0.12f), (0.26f, 4f, 0.18f) };
+            foreach ((float reach, float strength, float depth) in layers)
+            {
+                var light = new VertexMaterial(TextureGenerator.flatGlow, new Colour(hue.Red, hue.Green, hue.Blue, strength));
+                float radius = Span * reach;
+                float floor = 1.05f + (1f - reach) * 2.6f;
+                foreach (float face in new[] { depth, -depth })
+                {
+                    builder.Surface(18, 6, (u, v) =>
+                    {
+                        float angle = MathF.PI * (face >= 0f ? 1f - u : u);
+                        return new Vector3(MathF.Cos(angle) * radius * v, Spring + MathF.Sin(angle) * radius * v, face);
+                    }, light);
+                    if (face >= 0f) builder.Quad(new Vector3(-radius, floor, face), new Vector3(radius, floor, face), new Vector3(radius, Spring, face), new Vector3(-radius, Spring, face), light);
+                    else builder.Quad(new Vector3(radius, floor, face), new Vector3(-radius, floor, face), new Vector3(-radius, Spring, face), new Vector3(radius, Spring, face), light);
+                }
+            }
+            return builder.Build();
+        }
+
+        // Straw on a post, to be hit: a cross of planks to stand on, a bundle tied twice, a sack for a head and a target painted where the heart would be. Its front is +z.
+        private static Mesh Dummy()
+        {
+            var builder = new MeshBuilder();
+            VertexMaterial wood = new VertexMaterial(TextureGenerator.wood, new Colour(118, 86, 58));
+            VertexMaterial straw = new VertexMaterial(TextureGenerator.thatch, new Colour(226, 196, 128));
+            VertexMaterial rope = new VertexMaterial(TextureGenerator.cloth, new Colour(70, 52, 34));
+            VertexMaterial sack = new VertexMaterial(TextureGenerator.cloth, new Colour(176, 152, 112));
+            VertexMaterial red = new VertexMaterial(TextureGenerator.cloth, new Colour(150, 30, 24));
+            VertexMaterial white = new VertexMaterial(TextureGenerator.cloth, new Colour(222, 212, 190));
+
+            builder.Box(new Vector3(0f, 0.07f, 0f), new Vector3(0.85f, 0.07f, 0.11f), wood);
+            builder.Box(new Vector3(0f, 0.07f, 0f), new Vector3(0.11f, 0.07f, 0.85f), wood);
+            builder.Tube(new Vector3(0f, 0f, 0f), new Vector3(0f, 2.25f, 0f), 0.09f, 0.08f, 6, wood);
+            builder.Beam(new Vector3(-0.78f, 1.72f, 0f), new Vector3(0.78f, 1.72f, 0f), 0.055f, wood);
+
+            builder.Tube(new Vector3(0f, 0.85f, 0f), new Vector3(0f, 1.9f, 0f), 0.36f, 0.31f, 10, straw);
+            foreach (float side in new[] { -1f, 1f }) builder.Tube(new Vector3(side * 0.28f, 1.72f, 0f), new Vector3(side * 0.74f, 1.68f, 0f), 0.11f, 0.08f, 6, straw);
+            foreach (float y in new[] { 1.08f, 1.62f }) builder.Tube(new Vector3(0f, y - 0.03f, 0f), new Vector3(0f, y + 0.03f, 0f), 0.37f, 0.37f, 10, rope);
+
+            builder.Add(IcoSphereGenerator.CreateIcosphere(1, sack), new Vector3(0f, 2.2f, 0f), new Vector3(0.25f, 0.29f, 0.25f));
+            builder.Tube(new Vector3(0f, 1.96f, 0f), new Vector3(0f, 2.01f, 0f), 0.15f, 0.15f, 8, rope);
+
+            // Painted on, a little proud of the straw, so it's the first thing seen of it.
+            (float radius, VertexMaterial paint)[] rings = { (0.25f, red), (0.17f, white), (0.08f, red) };
+            for (int i = 0; i < rings.Length; i++)
+            {
+                float z = 0.36f + i * 0.012f;
+                builder.Tube(new Vector3(0f, 1.38f, z), new Vector3(0f, 1.38f, z + 0.01f), rings[i].radius, rings[i].radius, 14, rings[i].paint);
+            }
             return builder.Build();
         }
 
