@@ -65,6 +65,7 @@ namespace Dino_Engine.World.Generation
                     case SiteKind.Keep: BuildKeep(builder); break;
                     case SiteKind.Waygate: BuildWaygate(builder); break;
                     case SiteKind.Haven: HavenBuilder.Build(builder); break;
+                    case SiteKind.Arena: ArenaBuilder.Build(builder); break;
                 }
             }
 
@@ -86,6 +87,7 @@ namespace Dino_Engine.World.Generation
         {
             SiteKind.Village or SiteKind.Hamlet or SiteKind.Keep => 1.25f,
             SiteKind.Haven => 1.05f,    // Its own trees are planted, and the woods come close round them.
+            SiteKind.Arena => 1.3f,     // Bare ground all round, as an arena is a thing to be seen from far off.
             SiteKind.Ruins or SiteKind.Graveyard => 0.8f,
             _ => 1.05f,
         };
@@ -247,8 +249,10 @@ namespace Dino_Engine.World.Generation
         // Every place a land asks to be freed has a chest, so there has to be one, wherever there's ground for it.
         private static void SpawnChest(SiteBuilder b, Vector2 around, float radius)
         {
+            // Out as far as the edge of the place if it has to, as a held place with no chest is a promise broken, and only then where it was asked for, whatever stands there.
             int before = b.Site.Spawns.Count;
-            for (float reach = radius; reach <= radius * 3f && b.Site.Spawns.Count == before; reach += radius * 0.5f) b.SpawnAround(SpawnRole.Chest, around, reach, 1);
+            float furthest = MathF.Max(radius * 3f, b.Site.Radius);
+            for (float reach = radius; reach <= furthest && b.Site.Spawns.Count == before; reach += radius * 0.5f) b.SpawnAround(SpawnRole.Chest, around, reach, 1);
             if (b.Site.Spawns.Count == before) b.Spawn(SpawnRole.Chest, around);
         }
 
@@ -656,7 +660,7 @@ namespace Dino_Engine.World.Generation
             WorldSite site = b.Site;
             Vector2 toRoad = site.RoadDirection;
             b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, site.Radius * 0.62f), 12f);
-            b.Ring(StructureCatalog.Palisade, site.Radius, b.Random.Int(9, 13), 4f, 1f, 0.55f, toRoad, 8f);
+            b.Ring(StructureCatalog.Palisade, site.Radius, b.Random.Int(9, 13), 4f, 1f, 0.55f, toRoad, 8f, gateOnEdge: true);
 
             b.Place(StructureCatalog.Campfire, b.Centre, 0f);
             Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
@@ -677,7 +681,7 @@ namespace Dino_Engine.World.Generation
 
             b.SpawnAround(SpawnRole.Raider, b.Centre, site.Radius * 0.6f, b.Random.Int(3, 6));
             b.SpawnAround(SpawnRole.Guard, b.Centre + toRoad * site.Radius * 0.8f, 5f, 2);
-            b.Spawn(SpawnRole.Chest, b.Centre - toRoad * site.Radius * 0.42f);
+            SpawnChest(b, b.Centre - toRoad * site.Radius * 0.42f, 3f);
         }
 
         private const float ChurchForecourt = 2f;

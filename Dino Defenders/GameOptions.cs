@@ -116,7 +116,7 @@ namespace Dino_Defenders
         public int TravelAfterFrames = -1;
         public int Travels = 1;
         public readonly List<string> Omens = new();
-        public string? Orders;
+        public readonly List<string> Orders = new();
         public bool Haven;
         public int OpenWay = -1;
         public int LandLevel;
@@ -219,7 +219,7 @@ namespace Dino_Defenders
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
                     case "travels": options.Travels = int.Parse(value); break;
                     case "omens": options.Omens.AddRange(value.Split(',')); break;
-                    case "orders": options.Orders = value; break;
+                    case "orders": options.Orders.AddRange(value.Split(',')); break;
                     case "haven": options.Haven = value == "true"; break;
                     case "openway": options.OpenWay = int.Parse(value); break;
                     case "landlevel": options.LandLevel = int.Parse(value); break;
@@ -278,7 +278,11 @@ namespace Dino_Defenders
         /// <summary>What a land opened by a scripted run holds: the omens asked for, each at the best tier a land of this level reaches, and the unique orders asked for.</summary>
         public LandTerms Terms(int level)
         {
-            var terms = new LandTerms { Orders = Orders, Places = LandTerms.LeastPlaces };
+            var terms = new LandTerms { Orders = Orders.ToList(), Places = LandTerms.LeastPlaces };
+            foreach (string id in Orders)
+            {
+                if (OrdersCatalog.Find(id) == null) Console.WriteLine($"No unique orders called '{id}'.");
+            }
             foreach (string id in Omens)
             {
                 if (Progression.Omens.Find(id) is OmenDefinition omen) terms.Omens.Add(new ItemLine(omen.Id, omen.Fixed(Math.Max(level, omen.FirstLevel))));

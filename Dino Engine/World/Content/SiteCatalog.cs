@@ -20,6 +20,7 @@ namespace Dino_Engine.World.Content
         Haunt,          // Anywhere a pack has settled. Not a place anyone would name, so these aren't on the map.
         Waygate,        // One of a land's old roads: a gate to travel between, and to leave the land by.
         Haven,          // The one village the Reich has never found, which is the whole of the Haven.
+        Arena,          // Where a land's boss is fought, every tenth level: the whole of an arena's world.
     }
 
     public enum RoadClass
@@ -61,6 +62,19 @@ namespace Dino_Engine.World.Content
         public RoadClass Road = RoadClass.Track;
         public float RoadChance = 1f;       // Below 1, some are left off the map of roads for the curious to find.
         public float Levelling = 0.8f;      // How flat its ground is made, 0..1.
+
+        /// <summary>The same, looked for less fussily: further from the far end, steeper, nearer the water and at its smallest, for a land too small to hold it otherwise.</summary>
+        public SiteDefinition Relaxed()
+        {
+            var relaxed = (SiteDefinition)MemberwiseClone();
+            relaxed.Remoteness = new FloatRange(Remoteness.Min * 0.6f, Remoteness.Max);
+            relaxed.MaxSlope = MaxSlope + 0.12f;
+            relaxed.MinInland = MinInland * 0.6f;
+            relaxed.Radius = new FloatRange(Radius.Min, Radius.Min);
+            relaxed.Margin = Margin * 0.6f;
+            relaxed.Spacing = Spacing * 0.5f;
+            return relaxed;
+        }
 
         public bool IsSettlement => Kind is SiteKind.Village or SiteKind.Hamlet or SiteKind.Farmstead or SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.Haven;
         public bool IsDanger => Kind is SiteKind.BanditCamp or SiteKind.Graveyard or SiteKind.Ruins or SiteKind.Keep;
@@ -309,7 +323,7 @@ namespace Dino_Engine.World.Content
             Radius = new FloatRange(11f, 13f),
             PerSquareKilometre = 2f,
             Limits = new IntRange(3, 6),
-            Spacing = 380f,
+            Spacing = 280f,     // Far enough apart to be worth travelling between, near enough that three fit on a small land.
             Margin = 30f,
             MaxSlope = 0.36f,
             MinInland = 16f,
@@ -330,6 +344,19 @@ namespace Dino_Engine.World.Content
             MaxSlope = 0.3f,
             Road = RoadClass.Track,
             Levelling = 0.75f,
+        };
+
+        /// <summary>An arena, which is only ever placed in an arena's own world, by itself. It isn't in <see cref="All"/>.</summary>
+        public static readonly SiteDefinition Arena = new SiteDefinition
+        {
+            Kind = SiteKind.Arena,
+            Label = "Arena",
+            MapColour = new Vector3(0.75f, 0.2f, 0.16f),
+            Radius = new FloatRange(46f, 46f),
+            Limits = new IntRange(0, 0),
+            MaxSlope = 0.35f,
+            Road = RoadClass.Track,
+            Levelling = 0.8f,
         };
 
         /// <summary>What every <see cref="WorldData.Haunts"/> is. It isn't in <see cref="All"/>, as these don't claim land the way places do.</summary>
@@ -353,6 +380,7 @@ namespace Dino_Engine.World.Content
                 if (definition.Kind == kind) return definition;
             }
             if (kind == SiteKind.Haven) return Haven;
+            if (kind == SiteKind.Arena) return Arena;
             if (kind == SiteKind.Haunt) return Haunt;
             throw new ArgumentException($"No site definition for {kind}.");
         }

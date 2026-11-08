@@ -130,8 +130,8 @@ namespace Dino_Defenders.Tooltips
             Basic("Enemy", "Anyone on the other side.", "Enemies");
             Basic("Kill", "Landing the killing blow. Your Minions' Kills count as yours.", "Killed", "Kills");
             Basic("Item", "Something you wear or hold. Its Level decides what it can roll, and wearing it has no requirement.", "Items");
-            Word("Prefix", "A defensive modifier rolled on an Item.", "Prefixes");
-            Word("Suffix", "An offensive modifier rolled on an Item.", "Suffixes");
+            Word("Prefix", "A modifier rolled on an Item: defensive on what's worn, and a reward on Orders.", "Prefixes");
+            Word("Suffix", "A modifier rolled on an Item: offensive on what's worn, and a danger on Orders.", "Suffixes");
             Basic("Bar", "Your Books along the bottom of the screen.");
             Basic("Gold", "Currency.");
             Basic("Level", $"Each Level gives {HeroState.PointsPerLevel} talent points, and Books Cost more.", "Levels");
@@ -142,8 +142,8 @@ namespace Dino_Defenders.Tooltips
             Word("Debt", "Damage you still owe, shown dark at the end of your Health.");
             Word("Enemy near you", $"An Enemy within {Metres(CrowdReach)}.", "Enemies near you");
             Word("Fighting", $"Having Hit something, or been Hit, in the last {Seconds(Recently)}.");
-            Word("Land Level", "How deep a land is. Its Enemies, and what they drop, are of that Level. Freeing a land raises it by one, and losing one lowers it by one, never below the first.");
-            Word("Omen", "Something a land holds that makes it harder, and pays for it in what drops.", "Omens");
+            Word("Land Level", "How deep a land is: its Enemies and what they drop are of that Level. Freeing one opens the next, and every tenth is a tyrant's arena.");
+            Word("Omen", "Something Orders put on a land: a Prefix is a reward, and a Suffix a danger.", "Omens");
             Word("Orders", "Taken from the Reich. Given to the map table in the Haven, they're used up, and the land opened next holds what they say.");
             Word("Haven", "Home: the one place the Reich has never found. Nothing can hurt you there.");
             Word("Normal", "An Item with nothing rolled on it.");

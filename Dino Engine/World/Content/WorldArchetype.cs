@@ -26,6 +26,12 @@ namespace Dino_Engine.World.Content
 
         public FloatRange Size = new FloatRange(1536f, 2048f);
 
+        /// <summary>
+        /// How large a land of this kind usually is, in metres a side, and the most it can be is <see cref="Size"/>, which only orders asking for a larger land reach. Measured to leave each kind about
+        /// the same ground to walk, about 0.3 km2, as water, mountains and coasts don't shrink with a land: a kind with more of them is larger. Nothing here means its <see cref="Size"/> is all it is.
+        /// </summary>
+        public FloatRange UsualSize;
+
         // --- Relief, in metres above the water ---
         public FloatRange BaseHeight = new FloatRange(6f, 10f);
         public FloatRange HillHeight = new FloatRange(10f, 20f);
@@ -58,6 +64,15 @@ namespace Dino_Engine.World.Content
         /// </summary>
         public bool Peaceful;
 
+        /// <summary>
+        /// A world that's nothing but one arena, where a land's boss is fought every tenth level: a bowl of tiered stands with the floor sunk into the ground, built by
+        /// <see cref="Generation.ArenaBuilder"/>. Never drawn from a seed: they're in <see cref="ArenaCatalog"/>, as biomes are, so there can be more than one kind.
+        /// </summary>
+        public bool Arena;
+
+        /// <summary>A world of one place and nothing else, which is either of the two above.</summary>
+        public bool Enclosed => Peaceful || Arena;
+
         /// <summary>The light it's always seen in, by name, and where the sun stands, in place of what's drawn from the seed. Only for a place that has to look one way.</summary>
         public string? Light;
         public float SunAzimuth;
@@ -74,6 +89,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The Isle of {0}", "{0} Isle", "The Isle of {0}" },
             Landform = LandformKind.Island,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(830f, 960f),
             Biomes = new[] { BiomeCatalog.Meadow, BiomeCatalog.PineForest, BiomeCatalog.CrimsonWood, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood, BiomeCatalog.BlossomGrove, BiomeCatalog.Highland, BiomeCatalog.CedarWood, BiomeCatalog.GoldenWood },
             BiomeCount = new IntRange(3, 5),
         };
@@ -85,6 +101,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Isles", "The Shoals of {0}", "The {0} Reach" },
             Landform = LandformKind.Archipelago,
             Size = new FloatRange(2048f, 2560f),
+            UsualSize = new FloatRange(1090f, 1260f),
             HillHeight = new FloatRange(8f, 16f),
             MountainHeight = new FloatRange(20f, 40f),
             MountainCoverage = new FloatRange(0.1f, 0.2f),
@@ -100,6 +117,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Coast", "The Cape of {0}", "{0} Strand" },
             Landform = LandformKind.Peninsula,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(900f, 1050f),
             RimHeight = 75f,
             Biomes = new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.PineForest, BiomeCatalog.Dunes, BiomeCatalog.Highland, BiomeCatalog.Savanna, BiomeCatalog.Jungle },
             BiomeCount = new IntRange(3, 4),
@@ -112,6 +130,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The Vale of {0}", "{0} Vale", "The Forest of {0}", "{0} Weald" },
             Landform = LandformKind.Vale,
             Size = new FloatRange(1536f, 2048f),
+            UsualSize = new FloatRange(870f, 1010f),
             BaseHeight = new FloatRange(8f, 13f),
             RimHeight = 85f,
             StillWater = true,
@@ -127,6 +146,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "{0} Mere", "The Lakes of {0}", "Lake {0}" },
             Landform = LandformKind.Lakeland,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(1040f, 1200f),
             RimHeight = 70f,
             StillWater = true,
             Biomes = new[] { BiomeCatalog.BirchWood, BiomeCatalog.PineForest, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.BlossomGrove, BiomeCatalog.GoldenWood, BiomeCatalog.RedwoodGrove },
@@ -140,6 +160,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Heights", "The {0} Fells", "{0} Pass" },
             Landform = LandformKind.Highlands,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(880f, 1020f),
             BaseHeight = new FloatRange(14f, 22f),
             HillHeight = new FloatRange(14f, 26f),
             MountainHeight = new FloatRange(45f, 80f),
@@ -159,6 +180,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Wastes", "{0} Hold", "The Frozen March of {0}" },
             Landform = LandformKind.Island,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(850f, 990f),
             MountainCoverage = new FloatRange(0.25f, 0.4f),
             Biomes = new[] { BiomeCatalog.Snowfield, BiomeCatalog.Highland, BiomeCatalog.PineForest, BiomeCatalog.DarkWood },
             BiomeCount = new IntRange(3, 3),
@@ -173,6 +195,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Fens", "{0} Mire", "The Drowned Lands of {0}" },
             Landform = LandformKind.Marsh,
             Size = new FloatRange(1536f, 2048f),
+            UsualSize = new FloatRange(920f, 1080f),
             RimHeight = 60f,
             StillWater = true,
             Biomes = new[] { BiomeCatalog.Marsh, BiomeCatalog.BirchWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.DarkWood },
@@ -189,6 +212,7 @@ namespace Dino_Engine.World.Content
             Landform = LandformKind.Badlands,
             Bedrock = RockKind.Sandstone,
             Size = new FloatRange(1792f, 2304f),
+            UsualSize = new FloatRange(880f, 1030f),
             BaseHeight = new FloatRange(10f, 16f),
             HillHeight = new FloatRange(10f, 16f),
             MountainHeight = new FloatRange(28f, 46f),
@@ -210,6 +234,7 @@ namespace Dino_Engine.World.Content
             Landform = LandformKind.Island,
             Bedrock = RockKind.Basalt,
             Size = new FloatRange(1536f, 2048f),
+            UsualSize = new FloatRange(850f, 980f),
             MountainCoverage = new FloatRange(0.3f, 0.4f),
             Biomes = new[] { BiomeCatalog.Ashland, BiomeCatalog.GoldenSteppe, BiomeCatalog.Highland, BiomeCatalog.Dunes, BiomeCatalog.DarkWood },
             BiomeCount = new IntRange(2, 3),
@@ -257,7 +282,47 @@ namespace Dino_Engine.World.Content
                 if (archetype.Id == id) return archetype;
             }
             if (id == Haven.Id) return Haven;
+            foreach (WorldArchetype arena in ArenaCatalog.All)
+            {
+                if (arena.Id == id) return arena;
+            }
             throw new ArgumentException($"Unknown world archetype '{id}'.");
         }
+    }
+
+    /// <summary>
+    /// Every kind of arena, where a land's boss is fought every tenth level, as there are kinds of world for every other land. A kind is a world of one place: what it looks like is
+    /// <see cref="Generation.ArenaBuilder"/>'s, and what's here is the land it stands in. More kinds go on the end.
+    /// </summary>
+    public static class ArenaCatalog
+    {
+        /// <summary>
+        /// The Reich's colosseum: a bowl of stone stands dug into a low hill, its floor sand, its people made to watch from the tiers, with gates round it that the brood's handlers open when
+        /// the fight goes against their tyrant.
+        /// </summary>
+        public static readonly WorldArchetype Colosseum = new WorldArchetype
+        {
+            Id = "colosseum",
+            Name = "Colosseum",
+            Titles = new[] { "The Arena of {0}", "The Pit of {0}", "{0} Arena" },
+            Landform = LandformKind.Island,
+            Size = new FloatRange(384f, 384f),      // Enough isle that its heart is well in from the shore, with room for the bowl, the ramp and the waygate above it.
+            BaseHeight = new FloatRange(13f, 14f),
+            HillHeight = new FloatRange(3f, 4f),
+            MountainHeight = new FloatRange(10f, 12f),
+            MountainCoverage = new FloatRange(0f, 0f),
+            Cliffs = new FloatRange(0.3f, 0.45f),
+            Erosion = new FloatRange(0.7f, 0.8f),
+            Biomes = new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Meadow, BiomeCatalog.Savanna, BiomeCatalog.Badlands },
+            BiomeCount = new IntRange(2, 3),
+            Settlements = 0f,
+            Wilds = 0f,
+            Dangers = 0f,
+            Arena = true,
+        };
+
+        public static readonly IReadOnlyList<WorldArchetype> All = new[] { Colosseum };
+
+        public static bool Is(string? id) => id != null && All.Any(arena => arena.Id == id);
     }
 }

@@ -174,6 +174,10 @@ namespace Dino_Defenders.Gameplay
         public float WanderRadius;
         public double NextSpeech;
         public bool Stationary;
+
+        /// <summary>Made to watch a fight from an arena's stands, looking towards where it is.</summary>
+        public bool Crowd;
+        public Vector2 Watch;
     }
 
     public enum InteractKind

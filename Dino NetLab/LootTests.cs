@@ -70,7 +70,7 @@ namespace Dino_NetLab
         {
             var report = new Report();
             var worlds = new WorldCache();
-            var request = new WorldRequest(options.Int("seed", 303), "isle", 1);
+            var request = GameLab.OpenIsle(options.Int("seed", 303));
             worlds.Get(request).Wait();
 
             NothingIsPickedUpByWalking(report, worlds, request);

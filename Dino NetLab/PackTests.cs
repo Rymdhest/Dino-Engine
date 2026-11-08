@@ -18,7 +18,7 @@ namespace Dino_NetLab
 
         public static void Run(Report report, WorldCache worlds)
         {
-            var request = new WorldRequest(303, "isle", 6);
+            var request = GameLab.OpenIsle(303, 6);
             OneBody(report, worlds, request);
             Crowding(report, worlds, request);
             Waking(report, worlds, request);

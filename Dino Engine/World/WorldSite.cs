@@ -22,12 +22,15 @@ namespace Dino_Engine.World
         MapTable,       // Where the next land is chosen, in the Haven.
         Dummy,          // Something to try a build on, in the Haven, that stands and takes it.
         BetaVendor,     // Gives anything away, for testing the game, in the Haven.
+        Spectator,      // Someone made to watch from an arena's stands, who stands where they're put and never comes down.
+        ArenaGate,      // One of an arena's gates, which the brood's handlers open as the fight goes against their tyrant.
+        Rival,          // Where a second tyrant waits in an arena, if orders brought one.
     }
 
     public static class SpawnRoles
     {
         /// <summary>Whether someone standing here has to be fought.</summary>
-        public static bool IsHostile(this SpawnRole role) => role is SpawnRole.Guard or SpawnRole.Raider or SpawnRole.Undead or SpawnRole.Boss or SpawnRole.Beast or SpawnRole.Cultist;
+        public static bool IsHostile(this SpawnRole role) => role is SpawnRole.Guard or SpawnRole.Raider or SpawnRole.Undead or SpawnRole.Boss or SpawnRole.Beast or SpawnRole.Cultist or SpawnRole.Rival;
     }
 
     /// <summary>Why a pack is where it is. Places on the map have a <see cref="SiteKind"/>; these are what stands between them.</summary>

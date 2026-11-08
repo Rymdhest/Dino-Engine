@@ -119,6 +119,7 @@ namespace Dino_Defenders.Client
             if (key == ChestLook.Open) return Model(key, () => Chest(open: true));
             if (key is ChestLook.Lid or ChestLook.Opening) return Model(ChestLook.Lid, ChestLid);
             if (key == "dummy") return Model(key, Dummy);
+            if (key == Server.ArenaSystem.PortcullisModel) return Model(key, Portcullis);
             if (key.StartsWith(PortalPrefix) && int.TryParse(key.AsSpan(PortalPrefix.Length), out int biome)) return Model(key, () => Portal(biome));
             if (key == Progression.LootModels.Gold) return Model(key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
             if (key == Progression.LootModels.Find) return Model(key, () => Ball(new Colour(0f, 0f, 0f)));
@@ -501,6 +502,28 @@ namespace Dino_Defenders.Client
             {
                 float z = 0.36f + i * 0.012f;
                 builder.Tube(new Vector3(0f, 1.38f, z), new Vector3(0f, 1.38f, z + 0.01f), rings[i].radius, rings[i].radius, 14, rings[i].paint);
+            }
+            return builder.Build();
+        }
+
+        // An arena gate's portcullis, the Reich's black iron: upright bars through cross bars, with spikes at the foot, filling the gate's opening. It matches the gate in PropGenerator, and the
+        // server lifts the whole of it into the block above.
+        private static Mesh Portcullis()
+        {
+            const float HalfWidth = 1.6f;
+            const float Tall = 3.8f;
+            const int Uprights = 7;
+            var builder = new MeshBuilder();
+            VertexMaterial iron = new VertexMaterial(TextureGenerator.iron, new Colour(34, 32, 34));
+            for (int i = 0; i < Uprights; i++)
+            {
+                float x = -HalfWidth + (i + 0.5f) * (HalfWidth * 2f / Uprights);
+                builder.Box(new Vector3(x, Tall * 0.5f + 0.1f, 0f), new Vector3(0.07f, Tall * 0.5f - 0.1f, 0.07f), iron);
+                builder.Box(new Vector3(x, 0.1f, 0f), new Vector3(0.05f, 0.1f, 0.05f), iron);
+            }
+            foreach (float y in new[] { 0.9f, 2f, 3.1f })
+            {
+                builder.Box(new Vector3(0f, y, 0f), new Vector3(HalfWidth, 0.06f, 0.09f), iron);
             }
             return builder.Build();
         }

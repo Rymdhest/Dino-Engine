@@ -42,7 +42,7 @@ namespace Dino_Defenders.Server
 
         private static bool Same(in WorldRequest a, in WorldRequest b)
         {
-            return a.Seed == b.Seed && a.Level == b.Level && a.ArchetypeId == b.ArchetypeId && a.MorePeople == b.MorePeople && a.MorePacks == b.MorePacks;
+            return a.Seed == b.Seed && a.Level == b.Level && a.ArchetypeId == b.ArchetypeId && a.MorePeople == b.MorePeople && a.MorePacks == b.MorePacks && a.Larger == b.Larger;
         }
     }
 

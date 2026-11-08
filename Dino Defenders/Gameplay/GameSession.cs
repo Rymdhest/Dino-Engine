@@ -94,7 +94,7 @@ namespace Dino_Defenders.Gameplay
             Client = client;
             Health = Sheet.MaxHealth;
             PlayerPosition = world.Sites[0].Position;
-            _twin = Terms.Unique() == OrdersCatalog.TwinPens ? Chronicle.TwinSite(world) : null;
+            _twin = Terms.Has(OrdersCatalog.TwinPens) && !world.Plan.Archetype.Arena ? Chronicle.TwinSite(world) : null;
         }
 
         private readonly WorldSite? _twin;    // Where a second tyrant stands, on a land whose orders gave it two.
@@ -189,7 +189,7 @@ namespace Dino_Defenders.Gameplay
         {
             if (state.Wild || state.Cleared || IsHaven || Liberated || Client.Out) return false;
             if (PlacesAsked) return Chronicle.Asks(state.Site);
-            return state.Site.Kind == SiteKind.Keep || state.Site == _twin;
+            return state.Site.Kind is SiteKind.Keep or SiteKind.Arena || state.Site == _twin;
         }
 
         /// <summary>

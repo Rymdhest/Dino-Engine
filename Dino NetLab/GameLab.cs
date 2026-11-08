@@ -267,6 +267,15 @@ namespace Dino_NetLab
         public double TickCostWorst;
         public int TicksTimed;
 
+        /// <summary>
+        /// The whole of an isle, as large as its kind can be, for suites that shoot across open ground at the landing or walk past packs to see something else: they were laid out against it, and a
+        /// land of the usual size has its places and packs closer in, with walls where their shots would fly and bodies in the way. What they test is the rules, not the ground.
+        /// </summary>
+        public static WorldRequest OpenIsle(int seed, int level = 1) => new WorldRequest(seed, "isle", level, larger: AsLargeAsItCanBe);
+
+        // Past the most an isle can be over the least it usually is, so that the size drawn for the land is what it comes to.
+        private const float AsLargeAsItCanBe = 3f;
+
         public GameLab(WorldCache worlds, WorldRequest request, string? startSite = "BanditCamp", LandTerms? terms = null, SaveGame? save = null)
         {
             _worlds = worlds;
@@ -441,7 +450,7 @@ namespace Dino_NetLab
         public static int Run(Options options)
         {
             var report = new Report();
-            var request = new WorldRequest(options.Int("seed", 303), "isle");
+            var request = GameLab.OpenIsle(options.Int("seed", 303));
             var worlds = new WorldCache();
             Console.WriteLine("Growing a world...");
             WorldData world = worlds.Get(request).Result;
@@ -846,9 +855,9 @@ namespace Dino_NetLab
             report.Check("They all play on in the Haven", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.IsHaven));
 
             // And out again, by the way one of them opens.
-            LandOffer offer = Lands.Offer(walker.Client.Hero)[0];
+            LandOffer offer = Lands.Offer(walker.Client.Hero, walker.Client.Hero.LandLevel)[0];
             worlds.Get(offer.Terms.Shape(offer.Request)).Wait();
-            walker.Client.OpenWay(0);
+            walker.Client.OpenWay(walker.Client.Hero.LandLevel, 0, Array.Empty<int>());
             lab.Run(2);
             lab.Server.StepThrough();
             Arrive(3);
@@ -1345,6 +1354,21 @@ namespace Dino_NetLab
                 return null;
             }
 
+            Vector2? FindNear(InteractKind kind, Vector2 near)
+            {
+                Vector2? best = null;
+                foreach (Archetype archetype in player.Ecs.QueryArchetypes(new BitMask(typeof(InteractableComponent), typeof(PositionComponent)), BitMask.Empty))
+                {
+                    foreach (EntityView entity in new ComponentAccessor(archetype))
+                    {
+                        if (entity.Get<InteractableComponent>().Kind != kind) continue;
+                        Vector2 at = entity.Get<PositionComponent>().value.Xz;
+                        if (best == null || (at - near).LengthSquared < (best.Value - near).LengthSquared) best = at;
+                    }
+                }
+                return best;
+            }
+
             bool Shown(string model, Vector2 near, float within)
             {
                 foreach (Archetype archetype in player.Ecs.QueryArchetypes(new BitMask(typeof(VisualComponent), typeof(PositionComponent)), BitMask.Empty))
@@ -1468,14 +1492,16 @@ namespace Dino_NetLab
 
                 player.Client.TravelTo(state.Site.Spawns[spawn].Position);
                 lab.Run(3);
-                Vector2? chest = Find(InteractKind.Chest);
+
+                // This place's, as a land is small enough that the chests of others nearby are awake too.
+                Vector2? chest = FindNear(InteractKind.Chest, state.Site.Spawns[spawn].Position);
                 if (chest == null) continue;
 
                 int siteIndex = session.Sites.IndexOf(state);
                 int carried = truth.Hero.Carried().Count();
                 int goldBefore = truth.Hero.Gold;
                 Use(chest.Value);
-                report.Check("Opening a chest leaves it open", state.Opened.Count > 0);
+                report.Check("Opening a chest leaves it open", state.Opened.Count > 0, $"{(truth.Sim.Position - chest.Value).Length:0.0} m from it at {state.Site.Name}");
                 lab.Run(3);
                 report.Check("And what's in it can be collected", truth.Hero.Gold > goldBefore || truth.Hero.Carried().Count() > carried, $"gold {goldBefore}->{truth.Hero.Gold}, items {carried}->{truth.Hero.Carried().Count()}");
                 report.Check("The chest can't be used again", Find(InteractKind.Chest) == null || (Find(InteractKind.Chest)!.Value - chest.Value).Length > 0.1f);

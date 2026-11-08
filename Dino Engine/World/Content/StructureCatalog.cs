@@ -128,6 +128,12 @@ namespace Dino_Engine.World.Content
 
         /// <summary>Where what's put away is kept: an iron-bound chest under a roof of its own, the same in every village and in the Haven.</summary>
         public static readonly StructureDefinition Strongbox = Prop("strongbox", 2.2f, 1.7f, 1.5f);
+
+        /// <summary>An arena's gate at the foot of its stands: a tall stone arch with a passage behind it into the dark of the pens. What rises out of it, a portcullis, is the game's.</summary>
+        public static readonly StructureDefinition ArenaGate = Prop("arena.gate", 3.4f, 1.7f, 7.5f);
+
+        /// <summary>A column round the rim of an arena, with a brazier on top.</summary>
+        public static readonly StructureDefinition ArenaColumn = Round("arena.column", 0.8f, 6.4f);
         public static readonly StructureDefinition Altar = Round("altar", 1.8f, 1.6f);
         public static readonly StructureDefinition Grave = Prop("grave", 0.9f, 1.5f, 2f);
         public static readonly StructureDefinition Tomb = Prop("tomb", 3.6f, 5.4f, 5.2f);

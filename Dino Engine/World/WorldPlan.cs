@@ -10,6 +10,7 @@ namespace Dino_Engine.World
         public readonly int Level;              // How dangerous the world is, 1 and up.
         public readonly float MorePeople;       // How much bigger every pack and garrison is than usual, as a share: 0.5 is half as many again.
         public readonly float MorePacks;        // How many more packs stand on the land, as a share, or NoPacks. Neither touches anything but PackStage.
+        public readonly float Larger;           // How much larger than its usual size the land is, as a share, never past the most its kind can be.
 
         /// <summary>Asked of <see cref="MorePacks"/>: nobody stands on the roads, in the wild or at a camp, and only places are held.</summary>
         public const float NoPacks = -1f;
@@ -17,13 +18,14 @@ namespace Dino_Engine.World
         /// <summary>Whether this asks for the land between places to be empty.</summary>
         public bool Emptied => MorePacks <= NoPacks;
 
-        public WorldRequest(int seed, string? archetypeId = null, int level = 1, float morePeople = 0f, float morePacks = 0f)
+        public WorldRequest(int seed, string? archetypeId = null, int level = 1, float morePeople = 0f, float morePacks = 0f, float larger = 0f)
         {
             Seed = seed;
             ArchetypeId = archetypeId;
             Level = level;
             MorePeople = morePeople;
             MorePacks = morePacks;
+            Larger = larger;
         }
     }
 
@@ -34,6 +36,15 @@ namespace Dino_Engine.World
     public sealed class WorldPlan
     {
         public const float SeaLevel = 0f;
+
+
+        /// <summary>
+        /// How much closer together places of a kind stand than on a land as large as its kind can be: a land is a fraction of that, and still has to hold everything a land needs. Never closer than
+        /// <see cref="ClosestSpacing"/> of the usual.
+        /// </summary>
+        public float Closeness => Math.Clamp(Size / MathF.Max(Archetype.Size.Max, 1f), ClosestSpacing, 1f);
+
+        private const float ClosestSpacing = 0.3f;
 
         public WorldRequest Request { get; private init; }
         public WorldArchetype Archetype { get; private init; } = null!;
@@ -87,7 +98,7 @@ namespace Dino_Engine.World
                 Archetype = archetype,
                 Name = PlaceNames.WorldName(archetype, request.Seed, random.Fork("name")),
                 // A whole number of 8 m climate cells, so the coarser maps end exactly on the world's edge.
-                Size = MathF.Round(random.Range(archetype.Size) / 8f) * 8f,
+                Size = MathF.Round(SizeOf(archetype, random.Range(archetype.Size), root.Fork("extent"), request.Larger) / 8f) * 8f,
                 BaseHeight = random.Range(archetype.BaseHeight),
                 HillHeight = random.Range(archetype.HillHeight),
                 MountainHeight = random.Range(archetype.MountainHeight),
@@ -99,6 +110,14 @@ namespace Dino_Engine.World
                 BiomeShares = shares,
                 Mood = WorldMood.Draw(biomes, random.Fork("mood"), archetype),
             };
+        }
+
+        // A land is its kind's usual size, larger as orders ask, up to the most this one could be, drawn from what its kind can be. The Haven and an arena are always what they are, as is a kind with
+        // no usual size. The usual size has a fork of its own, so that nothing else about a world moves with it.
+        private static float SizeOf(WorldArchetype archetype, float most, WorldRandom random, float larger)
+        {
+            if (archetype.Peaceful || archetype.Arena || archetype.UsualSize.Max <= 0f) return most;
+            return MathF.Min(random.Range(archetype.UsualSize) * (1f + MathF.Max(larger, 0f)), most);
         }
 
         private static List<BiomeDefinition> DrawBiomes(WorldArchetype archetype, WorldRandom random)

@@ -46,8 +46,37 @@ namespace Dino_Defenders.Server
         /// <summary>What the land's omens pay on top of what anything here gives anyway.</summary>
         public LootBoon Boon => _boon;
 
+        /// <summary>Whether this land is an arena, where a tyrant is fought every tenth level.</summary>
+        public bool IsArena => World.Plan.Archetype.Arena;
+
+        /// <summary>Whoever came through an arena's gates, who belongs to no place: nothing about them is kept, and they drop what anything else drops.</summary>
+        public readonly List<Actor> Arrivals = new();
+
+        /// <summary>What only a tyrant wears, on top of what everyone does: what the land's omens and orders put on it, and in an arena, what being fought there is worth.</summary>
+        public List<Mod> TyrantMods()
+        {
+            List<Mod> mods = Terms.TyrantMods();
+            if (IsArena)
+            {
+                mods.Add(M.More(Stat.Health, Rulebook.ArenaTyrantHealth));
+                mods.Add(M.More(Stat.Damage, Rulebook.ArenaTyrantDamage));
+            }
+            return mods;
+        }
+
         /// <summary>What the tyrant's health is multiplied by on top of what every enemy's is, which what it's worth has to take out again.</summary>
-        public float TyrantHealth => 1f + Terms.ValueOf(Omens.Wrath) / 100f;
+        public float TyrantHealth
+        {
+            get
+            {
+                float factor = 1f;
+                foreach (Mod mod in TyrantMods())
+                {
+                    if (mod.Stat == Stat.Health && mod.Kind == ModKind.More && mod.Scope == Tags.None) factor *= 1f + mod.Value / 100f;
+                }
+                return factor;
+            }
+        }
 
         /// <summary>Where the way out of the Haven leads, once it's been opened at the map table: the land, what it holds, and what it's called.</summary>
         public (WorldRequest Request, LandTerms Terms, string Name)? Portal;
@@ -243,6 +272,16 @@ namespace Dino_Defenders.Server
                 return;
             }
 
+            // What came through an arena's gates is worth what it is, and belongs to no place to be marked down at.
+            if (Arrivals.Remove(actor))
+            {
+                ShareExperience(position.Xz, (int)(brain.Experience * Boon.Experience));
+                ChargeFlasks(position.Xz, enemy.Rarity);
+                Combat.DropLoot(enemy, position, actor);
+                if (Terms.Has(OrdersCatalog.Writ)) _rising.Add((Time + Rulebook.RiseDelay, position.Xz, actor.Body.StartsWith("dino:"), enemy.Level));
+                return;
+            }
+
             if (actor.Site is not SiteState state) return;
             state.Dead.Add(brain.SpawnIndex);
             state.Live.Remove(actor.Entity);
@@ -252,7 +291,7 @@ namespace Dino_Defenders.Server
             Combat.DropLoot(enemy, position, actor);
 
             // Nobody here stays down, on a land whose orders say so. Only once, and never the tyrant.
-            if (Terms.Unique() == OrdersCatalog.Writ && !actor.Tyrant) _rising.Add((Time + Rulebook.RiseDelay, position.Xz, actor.Body.StartsWith("dino:"), enemy.Level));
+            if (Terms.Has(OrdersCatalog.Writ) && !actor.Tyrant) _rising.Add((Time + Rulebook.RiseDelay, position.Xz, actor.Body.StartsWith("dino:"), enemy.Level));
 
             if (actor.Tyrant) Advance(ObjectiveKind.SlayWarlord);
             OnHostileKilled(state);
@@ -306,8 +345,8 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>
-        /// A hero has fallen. There's one life to a land, so they're out of it: what it means for their climb is settled at once, so that closing the game can't take it back, and once everyone
-        /// has fallen the land is lost and they all go home. Falling once the land is free costs nothing, as it's already been freed.
+        /// A hero has fallen. There's one life to a land, so they're out of it, and can't free it with the others: that's settled at once, so that closing the game can't take it back. Once everyone
+        /// has fallen the land is lost and they all go home, which costs nothing but the try: the map table shows the same lands for that level until one is freed.
         /// </summary>
         public void HeroFell(ServerPlayer player)
         {
@@ -334,22 +373,26 @@ namespace Dino_Defenders.Server
             HomeAt = Time + LostLinger;
             ObjectivesChanged = true;
             if (!Lost) return true;
-            foreach (ServerPlayer hero in Heroes) Server.Announce(hero, "The land is lost", $"Your next land will be level {hero.Hero.LandLevel}.", LostLinger);
+            foreach (ServerPlayer hero in Heroes) Server.Announce(hero, "The land is lost", $"The map table will show it again, to try once more at level {World.Plan.Level}.", LostLinger);
             return true;
         }
 
-        /// <summary>What a land means for someone's climb: freed or lost, from this land, and only ever once.</summary>
+        /// <summary>What a land means for someone's climb, only ever once: freeing it opens the next level, and losing it costs nothing.</summary>
         public void Judge(ServerPlayer player, bool freed)
         {
             if (player.Judged || IsHaven) return;
             player.Judged = true;
-            if (freed) player.Hero.Freed(World.Plan.Level, Terms.Climb);
-            else player.Hero.Lost(Terms.Climb);
+            if (!freed)
+            {
+                Console.WriteLine($"{player.Name} lost {World.Plan.Name}, level {World.Plan.Level}, and can try it again.");
+                return;
+            }
+            player.Hero.Freed(World.Plan.Level, Terms.Climb);
             player.SummaryChanged = true;
-            Console.WriteLine($"{player.Name} {(freed ? "freed" : "lost")} {World.Plan.Name}: their next land is level {player.Hero.LandLevel}.");
+            Console.WriteLine($"{player.Name} freed {World.Plan.Name}: the map table opens any level up to {player.Hero.LandLevel}.");
         }
 
-        /// <summary>Everyone is going home through a waygate. Anyone whose land isn't free has lost it.</summary>
+        /// <summary>Everyone is going home through a waygate. Anyone whose land isn't free can try it again.</summary>
         public void Leave()
         {
             foreach (ServerPlayer hero in Heroes) Judge(hero, Liberated);

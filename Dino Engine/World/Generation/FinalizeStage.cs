@@ -196,6 +196,9 @@ namespace Dino_Engine.World.Generation
                     SiteSpawn spawn = site.Spawns[i];
                     if (passable.IsSet(spawn.Position)) continue;
 
+                    // Whoever watches from an arena's stands stands where nobody else can go, and is meant to.
+                    if (spawn.Role == SpawnRole.Spectator) continue;
+
                     if (TryFindPassable(passable, spawn.Position, MaxSpawnShift, out Vector2 moved))
                     {
                         site.Spawns[i] = new SiteSpawn(spawn.Role, moved);

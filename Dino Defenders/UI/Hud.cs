@@ -411,7 +411,7 @@ namespace Dino_Defenders.UI
                 Shade(draw, new GuiRect(x, y, width, 46f + nextLines.Count * 18f));
                 Ui.Text(Context!, draw, session.World.Plan.Name, 17f, new GuiRect(x, y, width, 22f), Ui.Gold, Alignment.End);
                 y += 26f;
-                Ui.Text(Context!, draw, $"Your next land is level {session.Hero.LandLevel}", 14f, new GuiRect(x, y, width, 18f), Ui.Parchment, Alignment.End);
+                Ui.Text(Context!, draw, $"Levels up to {session.Hero.LandLevel} are open", 14f, new GuiRect(x, y, width, 18f), Ui.Parchment, Alignment.End);
                 y += 20f;
                 foreach (string line in nextLines)
                 {
@@ -436,8 +436,8 @@ namespace Dino_Defenders.UI
             height += standingLines.Count * 18f + (standingLines.Count > 0 ? 4f : 0f);
 
             List<List<(OmenDefinition omen, float value, float width)>> omenRows = OmenRows(session, wrap);
-            UniqueOrders? unique = session.Terms.Unique();
-            height += 10f + 20f + omenRows.Count * 18f + (unique != null ? 18f : 0f);
+            List<UniqueOrders> uniques = session.Terms.Uniques().ToList();
+            height += 10f + 20f + omenRows.Count * 18f + uniques.Count * 18f;
             Shade(draw, new GuiRect(x, y, width, height));
 
             Ui.Text(Context!, draw, session.World.Plan.Name, 17f, new GuiRect(x, y, width, 22f), Ui.Gold, Alignment.End);
@@ -490,14 +490,19 @@ namespace Dino_Defenders.UI
                 }
                 y += 18f;
             }
-            if (unique != null) Ui.Text(Context!, draw, unique.Name, 13.5f, new GuiRect(x, y, width, 18f), Ui.RarityColour(Rarity.Unique), Alignment.End);
+            foreach (UniqueOrders unique in uniques)
+            {
+                Ui.Text(Context!, draw, unique.Name, 13.5f, new GuiRect(x, y, width, 18f), Ui.RarityColour(Rarity.Unique), Alignment.End);
+                y += 18f;
+            }
         }
 
-        // What enemies are reads warm and what's done to a hero reads red, so that the worst of a land stands out among the rest of it.
+        // What a land gives reads as the colour of good news, what it does to enemies warm, and what it does to a hero red, so that the worst of a land stands out among the rest of it.
         private static Colour OmenColour(OmenDefinition omen)
         {
+            if (omen.IsPrefix) return Ui.Good;
             if (omen.Heroes(1f).Length > 0) return GuiColors.Rgba(214, 120, 104);
-            return omen.Side == OmenSide.Foe ? GuiColors.Rgba(222, 200, 160) : GuiColors.Rgba(200, 190, 214);
+            return GuiColors.Rgba(222, 200, 160);
         }
 
         // The land's omens by name, in as few rows as fit the corner.

@@ -251,6 +251,11 @@ namespace Dino_WorldLab
                 CheckHaven(world);
                 return;
             }
+            if (world.Plan.Archetype.Arena)
+            {
+                CheckArena(world);
+                return;
+            }
             if (world.Sites.Count == 0 || world.Sites[0].Kind != SiteKind.Landing)
             {
                 Problem("the first site is not the landing");
@@ -307,8 +312,10 @@ namespace Dino_WorldLab
             }
         }
 
-        // The places a land can ask to be freed: there have to be more than the most it ever asks for.
-        private const int LeastPlaces = 6;
+        // The places a land can ask to be freed: there have to be at least the most it ever asks for (LandTerms.MostPlaces). And waygates, the landing's among them: a land is small enough now
+        // that two are enough to travel between.
+        private const int LeastPlaces = SiteStage.LeastHeld;
+        private const int LeastWaygates = SiteStage.LeastWaygates;
         private const int Dummies = 21;
 
         private void CheckLandPlaces(WorldData world)
@@ -316,10 +323,52 @@ namespace Dino_WorldLab
             int places = world.Sites.Count(site => site.Kind != SiteKind.Keep && site.Spawns.Any(s => s.Role.IsHostile()));
             if (places < LeastPlaces) Problem($"only {places} places to free");
             int gates = world.Sites.Count(site => site.Spawns.Any(s => s.Role == SpawnRole.Waygate));
-            if (gates < 3) Problem($"only {gates} waygates");
+            if (gates < LeastWaygates) Problem($"only {gates} waygates");
         }
 
         // The Haven: one village, everything it's for standing where it can be reached, and nobody hostile anywhere.
+        private const int LeastSpectators = 24;
+
+        // An arena is one bowl with its tyrant in the middle, gates round it with something standing in each, a way in from a waygate, and its people up in the stands, above the floor.
+        private void CheckArena(WorldData world)
+        {
+            if (world.Sites.Count != 1 || world.Sites[0].Kind != SiteKind.Arena)
+            {
+                Problem("the arena is not one arena");
+                return;
+            }
+            if (world.Haunts.Count > 0) Problem($"the arena has {world.Haunts.Count} packs in it");
+
+            WorldSite arena = world.Sites[0];
+            int Count(SpawnRole role) => arena.Spawns.Count(s => s.Role == role);
+            if (Count(SpawnRole.Boss) != 1) Problem($"the arena has {Count(SpawnRole.Boss)} tyrants");
+            if (Count(SpawnRole.Rival) != 1) Problem($"the arena has {Count(SpawnRole.Rival)} places for a second tyrant");
+            if (arena.Spawns.Any(s => s.Role.IsHostile() && s.Role is not (SpawnRole.Boss or SpawnRole.Rival))) Problem("the arena has someone hostile in it who isn't a tyrant");
+
+            SiteSpawn[] waygates = arena.Spawns.Where(s => s.Role == SpawnRole.Waygate).ToArray();
+            if (waygates.Length != 1) Problem($"the arena has {waygates.Length} waygates");
+            else if (!Stands(world, StructureCatalog.Waygate, waygates[0].Position)) Problem("the arena's waygate has nothing standing on it");
+
+            SiteSpawn[] gates = arena.Spawns.Where(s => s.Role == SpawnRole.ArenaGate).ToArray();
+            if (gates.Length != ArenaBuilder.GateBearings.Length) Problem($"the arena has {gates.Length} gates, not {ArenaBuilder.GateBearings.Length}");
+            foreach (SiteSpawn gate in gates)
+            {
+                if (!world.Objects.TryNearest(StructureCatalog.ArenaGate.Id, gate.Position, 6f, out _)) Problem($"the arena's gate at {gate.Position} has nothing standing at it");
+            }
+
+            float floor = world.Height.Sample(arena.Position);
+            if (world.WaterDepthAt(arena.Position) > 0f) Problem("the arena's floor is under water");
+            SiteSpawn[] watching = arena.Spawns.Where(s => s.Role == SpawnRole.Spectator).ToArray();
+            if (watching.Length < LeastSpectators) Problem($"only {watching.Length} watch from the arena's stands");
+            int low = watching.Count(s => world.Height.Sample(s.Position) < floor + ArenaBuilder.TierRise * 0.6f);
+            if (low > 0) Problem($"{low} of those watching aren't up in the stands");
+            foreach (SiteSpawn spawn in arena.Spawns)
+            {
+                if (spawn.Role is SpawnRole.Spectator) continue;
+                if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of the arena can't be reached at {spawn.Position}");
+            }
+        }
+
         private void CheckHaven(WorldData world)
         {
             if (world.Sites.Count != 1 || world.Sites[0].Kind != SiteKind.Haven)
@@ -410,7 +459,8 @@ namespace Dino_WorldLab
             }
             float share = slopes.Count / (float)Math.Max(land, 1);
             // The Haven is a garden on a small isle, and needs none.
-            if (share < LeastRockShare && !world.Plan.Archetype.Peaceful) Problem($"only {share:P1} of the land is rock");
+            // The Haven is a garden on a small isle, and an arena a bowl in level ground, and neither needs any.
+            if (share < LeastRockShare && !world.Plan.Archetype.Enclosed) Problem($"only {share:P1} of the land is rock");
             if (slopes.Count > 0)
             {
                 slopes.Sort();
@@ -428,7 +478,7 @@ namespace Dino_WorldLab
 
         private void CheckPacks(WorldData world)
         {
-            if (world.Plan.Archetype.Peaceful) return;
+            if (world.Plan.Archetype.Enclosed) return;
             CheckLandPlaces(world);
             if (world.Plan.Request.Emptied) return;
             if (world.Haunts.Count == 0)
@@ -471,6 +521,8 @@ namespace Dino_WorldLab
                 }
             }
 
+            // A place that's held is a fight as much as a pack is, and packs keep off its doorstep, so ground beside one has something to fight near it too. A smaller land is more of that.
+            var held = world.Sites.Where(site => site.Spawns.Any(spawn => spawn.Role.IsHostile())).ToList();
             int land = 0;
             int near = 0;
             for (float z = 12f; z < world.Size; z += 24f)
@@ -480,12 +532,7 @@ namespace Dino_WorldLab
                     var at = new Vector2(x, z);
                     if (!world.Passable.IsSet(at)) continue;
                     land++;
-                    foreach (WorldSite haunt in world.Haunts)
-                    {
-                        if ((haunt.Position - at).LengthSquared > PackReach * PackReach) continue;
-                        near++;
-                        break;
-                    }
+                    if (world.Haunts.Any(haunt => (haunt.Position - at).LengthSquared <= PackReach * PackReach) || held.Any(site => (site.Position - at).Length <= site.Radius + PackReach)) near++;
                 }
             }
             if (land > 0 && (float)near / land < LeastSpread) Problem($"only {(float)near / land:0%} of the land has a pack near it");
@@ -514,6 +561,8 @@ namespace Dino_WorldLab
 
         private void CheckBiomes(WorldData world)
         {
+            // An arena is one bowl on a little level ground: its biomes are only what it's seen against.
+            if (world.Plan.Archetype.Arena) return;
             int[] area = new int[world.Plan.Biomes.Count];
             int land = 0;
             for (float z = 0f; z < world.Size; z += 16f)
@@ -607,6 +656,8 @@ namespace Dino_WorldLab
 
                 foreach (SiteSpawn spawn in site.Spawns)
                 {
+                    // Those watching from an arena's stands are where nobody can reach them, on purpose.
+                    if (spawn.Role == SpawnRole.Spectator) continue;
                     if (!AnyReachedNear(reached, size, spawn.Position, Cell, 3f))
                     {
                         Problem($"{spawn.Role} of {site.Definition.Label} {site.Name} at {spawn.Position} can't be reached on foot");

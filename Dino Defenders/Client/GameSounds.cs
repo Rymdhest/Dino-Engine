@@ -32,6 +32,7 @@ namespace Dino_Defenders.Client
     {
         private const float PredictionLife = 0.3f;      // Seconds the server has to agree with a hit heard early.
         private const float Effort = 0.3f;              // Share of swings that get a grunt.
+        private const float ArenaGatePitch = 0.55f;
         private const float OwnReach = 6f;              // Metres from this hero within which something happened to them.
         private const float HeavyBlow = 0.5f;           // Of what something has, for the camera to feel it.
         private const float BlowHeard = 22f;            // Metres off that anything living takes fright at a blow.
@@ -318,6 +319,10 @@ namespace Dino_Defenders.Client
                     break;
                 case SoundCue.Blessed:
                     Audio.Play(Treasure.Rest);
+                    break;
+                case SoundCue.ArenaGate:
+                    // Iron as heavy as a portcullis rings low.
+                    Audio.Play(Impacts.Armour, e.Position, 0f, ArenaGatePitch);
                     break;
             }
         }

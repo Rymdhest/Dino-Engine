@@ -30,7 +30,7 @@ namespace Dino_NetLab
         public static int Run(Options options)
         {
             var report = new Report();
-            var request = new WorldRequest(options.Int("seed", 303), "isle");
+            var request = GameLab.OpenIsle(options.Int("seed", 303));
             var worlds = new WorldCache();
             Console.WriteLine("Growing a world...");
             worlds.Get(request).Wait();

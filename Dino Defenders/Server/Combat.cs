@@ -1958,9 +1958,9 @@ namespace Dino_Defenders.Server
             float health = Bestiary.HealthAt(enemy.Level) * _session.Terms.EnemyHealth * (actor.Tyrant ? _session.TyrantHealth : 1f);
             LootTier tier = LootTables.TierOf(enemy.Rarity, actor.Sheet.MaxHealth / health);
 
-            // What makes a tyrant worse makes it richer, and a ledger's rares are worth twice what they'd be.
-            if (actor.Tyrant) boon = boon with { Quantity = boon.Quantity * (1f + _session.Terms.ValueOf(Omens.Wrath) / 100f) };
-            if (enemy.Rarity == Rarity.Rare && _session.Terms.Unique() == OrdersCatalog.Ledger) boon = boon with { Quantity = boon.Quantity * OrdersCatalog.LedgerLoot };
+            // A trophied land's tyrant drops more, and a ledger's rares are worth twice what they'd be.
+            if (actor.Tyrant) boon = boon with { Quantity = boon.Quantity * (1f + _session.Terms.ValueOf(Omens.Trophies) / 100f) };
+            if (enemy.Rarity == Rarity.Rare && _session.Terms.Has(OrdersCatalog.Ledger)) boon = boon with { Quantity = boon.Quantity * OrdersCatalog.LedgerLoot };
             List<Item> items = Loot.Roll(tier, enemy.Level, StrongestHero, BestOfParty(s => s.ItemRarity) / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)), boon);
 
             // A tyrant always has its brood's orders on it, which is where the next land's come from.

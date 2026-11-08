@@ -39,12 +39,13 @@ namespace Dino_Engine.World.Generation
             List<Candidate> candidates = GatherCandidates(world, random.Fork("candidates"));
             if (candidates.Count == 0) throw new InvalidOperationException("World has no usable land.");
 
-            // The Haven is one village, where the island is broadest and the ground kindest, and nothing else.
-            if (world.Plan.Archetype.Peaceful)
+            // The Haven is one village, and an arena one arena, where the island is broadest and the ground kindest, and nothing else.
+            if (world.Plan.Archetype.Enclosed)
             {
                 Candidate heart = PickHeart(world, candidates);
                 BuildRemoteness(world, heart.Position);
-                AddSite(world, SiteCatalog.Haven, heart, random.Fork("haven"));
+                if (world.Plan.Archetype.Peaceful) AddSite(world, SiteCatalog.Haven, heart, random.Fork("haven"));
+                else AddSite(world, SiteCatalog.Arena, heart, random.Fork("arena"));
                 LevelSites(world);
                 return;
             }
@@ -67,14 +68,62 @@ namespace Dino_Engine.World.Generation
 
                 WorldRandom kindRandom = random.Fork(definition.Label);
                 int count = TargetCount(world.Plan.Archetype, definition, landSquareKilometres, kindRandom);
+                int placed = 0;
                 for (int i = 0; i < count; i++)
                 {
                     if (!TryPick(world, definition, candidates, kindRandom, out Candidate pick)) break;
                     AddSite(world, definition, pick, kindRandom);
+                    placed++;
+                }
+
+                // A land too small for what has to be on it, such as its keep, looks again a little less fussily. Its own fork, so that no land that didn't need it changes.
+                if (placed < definition.Limits.Min)
+                {
+                    WorldRandom again = kindRandom.Fork("relaxed");
+                    SiteDefinition relaxed = definition.Relaxed();
+                    for (int i = placed; i < definition.Limits.Min; i++)
+                    {
+                        if (!TryPick(world, relaxed, candidates, again, out Candidate pick)) break;
+                        AddSite(world, definition, pick, again);
+                    }
                 }
             }
 
+            MakeEnough(world, candidates, random.Fork("enough"));
             LevelSites(world);
+        }
+
+        /// <summary>The fewest places a land can ask to be freed, which is the most it ever asks for (the game's <c>LandTerms.MostPlaces</c>), and the fewest waygates to travel between.</summary>
+        public const int LeastHeld = 5;
+        public const int LeastWaygates = 2;
+
+        private static readonly SiteDefinition[] HeldToFill = { SiteCatalog.Shrine, SiteCatalog.Ruins, SiteCatalog.BanditCamp, SiteCatalog.Watchtower };
+
+        /// <summary>Whether a kind of place is held by the Reich or its like until it's freed: everything but where people still live, the waygates, the landing and the keep.</summary>
+        public static bool IsHeld(SiteKind kind) => kind is not (SiteKind.Village or SiteKind.Waygate or SiteKind.Landing or SiteKind.Keep or SiteKind.Haven or SiteKind.Arena);
+
+        // However little ground a land has, it has to have enough places to free and enough waygates. What's short is looked for again, as loosely as anything is, and twice as loosely after
+        // that. Its own fork, so that a land that has enough doesn't change.
+        private static void MakeEnough(WorldData world, List<Candidate> candidates, WorldRandom random)
+        {
+            int held = world.Sites.Count(site => IsHeld(site.Kind));
+            for (int attempt = 0; held < LeastHeld && attempt < HeldToFill.Length * 2; attempt++)
+            {
+                SiteDefinition definition = HeldToFill[attempt % HeldToFill.Length];
+                SiteDefinition loose = attempt < HeldToFill.Length ? definition.Relaxed() : definition.Relaxed().Relaxed();
+                if (!TryPick(world, loose, candidates, random.Fork(attempt), out Candidate pick)) continue;
+                AddSite(world, definition, pick, random.Fork(attempt));
+                held++;
+            }
+
+            int gates = world.Sites.Count(site => site.Kind is SiteKind.Waygate or SiteKind.Village or SiteKind.Landing);
+            for (int attempt = 0; gates < LeastWaygates && attempt < 2; attempt++)
+            {
+                SiteDefinition loose = attempt == 0 ? SiteCatalog.Waygate.Relaxed() : SiteCatalog.Waygate.Relaxed().Relaxed();
+                if (!TryPick(world, loose, candidates, random.Fork("gate").Fork(attempt), out Candidate pick)) continue;
+                AddSite(world, SiteCatalog.Waygate, pick, random.Fork("gate").Fork(attempt));
+                gates++;
+            }
         }
 
         private static int TargetCount(WorldArchetype archetype, SiteDefinition definition, float squareKilometres, WorldRandom random)
@@ -339,7 +388,7 @@ namespace Dino_Engine.World.Generation
             {
                 float distance = (site.Position - candidate.Position).Length;
                 if (distance < radius + site.Radius + definition.Margin) return false;
-                if (site.Kind == definition.Kind && distance < definition.Spacing) return false;
+                if (site.Kind == definition.Kind && distance < definition.Spacing * world.Plan.Closeness) return false;
             }
             return true;
         }
@@ -410,6 +459,8 @@ namespace Dino_Engine.World.Generation
                     return PlaceNames.Height(seed, random) + " Gate";
                 case SiteKind.Haven:
                     return "The Haven";
+                case SiteKind.Arena:
+                    return "The Arena";
                 default:
                     return "The Landing";
             }

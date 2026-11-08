@@ -45,8 +45,7 @@ namespace Dino_Defenders.Server
         {
             float warhost = terms.ValueOf(Omens.Warhost);
             float bred = 1f + terms.ValueOf(Omens.Bloodlines) / 100f;
-            UniqueOrders? unique = terms.Unique();
-            _noneNormal = unique == OrdersCatalog.Bred;
+            _noneNormal = terms.Has(OrdersCatalog.Bred);
             _recipe = Warbands.RecipeFor(world, site, folk, random.Fork("recipe"));
             _firstSteps = world.Plan.Level <= 1 && site.Remoteness < 0.2f && !terms.Any;
             _leaderTraits = Bestiary.NoTraits;
@@ -54,7 +53,7 @@ namespace Dino_Defenders.Server
             if (!free || _firstSteps) return;
 
             _magicFollowers = MathF.Min((MagicFollowersAtFirst + MagicFollowersPerLevel * level) * bred, MostMagicFollowers * bred);
-            bool ledger = unique == OrdersCatalog.Ledger;
+            bool ledger = terms.Has(OrdersCatalog.Ledger);
             _led = _recipe.Leaders.Length > 0 && (site.Haunt == HauntKind.Camp || ledger || random.Chance(warhost > 0f ? 1f : MathF.Min(LedAtFirst + LedPerLevel * level, MostLed)));
             if (!_led) return;
 
@@ -132,6 +131,14 @@ namespace Dino_Defenders.Server
             new(new[] { Bestiary.Rimewitch }, new[] { Bestiary.RimeAcolyte }, new[] { Bestiary.Rimewitch }, 0.24f),
             new(new[] { Bestiary.Stormcaller }, new[] { Bestiary.StormAcolyte }, new[] { Bestiary.Stormcaller }, 0.24f),
             new(new[] { Bestiary.Bogseer }, new[] { Bestiary.MireAcolyte }, new[] { Bestiary.Bogseer }, 0.24f),
+        };
+
+        /// <summary>Who an arena's handlers let in when the fight goes against their tyrant: its own brood, which for a tyrant the Ossuary raised or left rotting is the Ossuary's.</summary>
+        public static Recipe ArenaRecipe(string bossKind) => bossKind switch
+        {
+            "bone-tyrant" => Dead,
+            "rotting-tyrant" => Rotting,
+            _ => Reich,
         };
 
         /// <summary>Every recipe there is, for anything that wants to look through them.</summary>

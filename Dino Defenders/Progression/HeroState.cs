@@ -1,6 +1,7 @@
 using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
+using System.Text.Json.Serialization;
 using static Dino_Defenders.Stats.M;
 
 namespace Dino_Defenders.Progression
@@ -45,7 +46,7 @@ namespace Dino_Defenders.Progression
     /// <summary>The hero as they carry on from world to world. Saved as it stands.</summary>
     public sealed class HeroState
     {
-        public const int MaxLevel = 60;
+        public const int MaxLevel = 100;
         public const float BaseMoveSpeed = 10f;
         public const int MaxFlasks = 4;
         public const float KillsPerFlask = 15f;
@@ -64,14 +65,23 @@ namespace Dino_Defenders.Progression
         /// <summary>How many lands this hero has freed, in all.</summary>
         public int WorldsCleared { get; set; }
 
-        /// <summary>The level of the next land the waygate opens for this hero: their climb. Freeing a land climbs it, and falling in one or leaving it unfree drops it, never below the first. Read LANDS.md.</summary>
-        public int LandLevel { get; set; } = 1;
-
-        /// <summary>The deepest land this hero has freed, which is what the talent points for freeing lands go by, so that climbing pays and freeing the same land again doesn't.</summary>
+        /// <summary>
+        /// The deepest land this hero has freed. Every level up to it can be opened again, and the one after it, which is their climb. Nothing ever lowers it: falling in a land or leaving it costs
+        /// only the try. It's what the talent points for freeing lands and the orders the map table takes go by. Read LANDS.md.
+        /// </summary>
         public int BestLand { get; set; }
 
-        /// <summary>Which three lands the waygate shows this hero next. It moves on once a land has been gone to, and never otherwise, so the choice is the same however often it's looked at.</summary>
+        /// <summary>The deepest level the map table opens for this hero: the one after the deepest they've freed.</summary>
+        [JsonIgnore] public int LandLevel => Math.Max(BestLand, 0) + 1;
+
+        /// <summary>Where the lands the map table shows this hero come from, with how many times each level's have been shown again, so the choice is the same however often it's looked at.</summary>
         public ulong Offers { get; set; }
+
+        /// <summary>
+        /// How many times the lands of each level have been changed for others, by level: once each time gold is paid for it, and once each time a land of that level is freed. A level that isn't
+        /// here never has been.
+        /// </summary>
+        public Dictionary<int, int> Rerolls { get; set; } = new();
 
         /// <summary>The nodes taken on the talent tree, by id, in the order they were taken.</summary>
         public List<string> Talents { get; set; } = new();
@@ -87,32 +97,33 @@ namespace Dino_Defenders.Progression
 
         public const int PointsPerLevel = 2;
 
-        /// <summary>Two a level, and one for each level of land climbed and freed, with three to start out with.</summary>
-        public int TalentPoints => 1 + PointsPerLevel * Level + BestLand;
+        /// <summary>Two a level, and one for each level of land climbed and freed up to the hundredth, with three to start out with.</summary>
+        public int TalentPoints => 1 + PointsPerLevel * Level + Math.Clamp(BestLand, 0, Lands.MostCountedLand);
 
         public int UnspentPoints => Math.Max(TalentPoints - Talents.Count, 0);
 
         /// <summary>The wind answers those who've set a land free, and nobody before that.</summary>
         public bool HasGuidingWind => BestLand > 0 || WorldsCleared > 0;
 
-        /// <summary>A land of this level has been freed, by a hero still standing in it. Climbs as far as the land's terms say, from that land, so freeing a friend's lower land never costs anyone their own climb.</summary>
+        /// <summary>
+        /// A land of this level has been freed, by a hero still standing in it. Climbs as far as the land's terms say, from that land, but never past a boss that hasn't been fought, so freeing a friend's
+        /// lower land never costs anyone their own climb. The map table shows other lands for that level from now on.
+        /// </summary>
         public void Freed(int level, int climb)
         {
-            LandLevel = Math.Max(LandLevel, level + climb);
-            BestLand = Math.Max(BestLand, level);
+            BestLand = Math.Max(BestLand, Lands.FreedTo(level, climb));
             WorldsCleared++;
-            NextOffers();
+            Reroll(level);
         }
 
-        /// <summary>A land has been lost: fallen in, or left before it was free. The climb drops as far as the land's terms say, from where it was, never below the first.</summary>
-        public void Lost(int climb)
-        {
-            LandLevel = Math.Max(1, LandLevel - climb);
-            NextOffers();
-        }
+        /// <summary>How many times the lands of a level have been changed for others. A method, so that it isn't saved.</summary>
+        public int RerollsAt(int level) => Rerolls.TryGetValue(level, out int count) ? count : 0;
 
-        /// <summary>The waygate will show three other lands from now on. A method, so that it isn't saved.</summary>
-        public void NextOffers() => Offers = NewOffers(Offers + 0x9E3779B97F4A7C15UL);
+        /// <summary>The map table shows other lands for this level from now on.</summary>
+        public void Reroll(int level) => Rerolls[level] = RerollsAt(level) + 1;
+
+        /// <summary>Whether a land of this level can be opened by this hero: any they've freed, or the one after.</summary>
+        public bool CanOpen(int level) => level >= 1 && level <= LandLevel;
 
         /// <summary>A start for a new hero's offers, or a step on from the last.</summary>
         public static ulong NewOffers(ulong from)
@@ -127,7 +138,14 @@ namespace Dino_Defenders.Progression
         public int GainExperience(int amount)
         {
             int levels = 0;
-            Experience += amount;
+
+            // At the last level there's nothing more to count towards.
+            if (Level >= MaxLevel)
+            {
+                Experience = 0;
+                return 0;
+            }
+            Experience = (int)Math.Min((long)Experience + Math.Max(amount, 0), int.MaxValue);
             while (Level < MaxLevel && Experience >= ExperienceToNext)
             {
                 Experience -= ExperienceToNext;
