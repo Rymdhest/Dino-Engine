@@ -225,16 +225,22 @@ namespace Dino_NetLab
 
             var groups = new int[DummyMeter.Groups];
             var dummies = new List<Actor>();
+            var grouped = new List<(int group, Vector2 at)>();
             foreach (Archetype archetype in scene.Lab.Server.Ecs.QueryArchetypes(new BitMask(typeof(DummyComponent), typeof(ActorComponent)), BitMask.Empty))
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
-                    groups[entity.Get<DummyComponent>().Group]++;
+                    int group = entity.Get<DummyComponent>().Group;
+                    groups[group]++;
                     dummies.Add(entity.Get<ActorComponent>().Actor);
+                    grouped.Add((group, entity.Get<ActorComponent>().Actor.Position));
                 }
             }
             report.Check("There's a dummy alone, a group of five and a crowd of fifteen", groups.SequenceEqual(new[] { 1, 5, 15 }), string.Join(", ", groups));
-            report.Check("And a merchant, a stash, the map table and a shrine", scene.Find(InteractKind.Merchant) != null && scene.Find(InteractKind.Stash) != null && scene.Find(InteractKind.MapTable) != null && scene.Find(InteractKind.Shrine) != null);
+            float apart = grouped.SelectMany(a => grouped.Where(b => b.group != a.group).Select(b => (a.at - b.at).Length)).DefaultIfEmpty(0f).Min();
+            report.Check("Far enough apart that what's aimed at one group meets no other", apart >= 10f, $"{apart:0.0} m");
+            report.Check("And a merchant, a stash and the map table", scene.Find(InteractKind.Merchant) != null && scene.Find(InteractKind.Stash) != null && scene.Find(InteractKind.MapTable) != null);
+            report.Check("But no shrine, as there's nothing here to be blessed for", scene.Find(InteractKind.Shrine) == null);
             report.Check("But no waygate to the land's roads, as it has none", scene.Find(InteractKind.Waygate) == null);
 
             if (dummies.Count > 0)
@@ -263,13 +269,25 @@ namespace Dino_NetLab
                 scene.Lab.Run(1.5);
                 report.Check("So does the stash", scene.Player.PanelsOpened.Any(p => p.kind == InteractKind.Stash));
             }
-            if (scene.Find(InteractKind.Shrine) is Vector2 shrine)
+            if (scene.Find(InteractKind.Merchant) is Vector2 stall)
             {
-                scene.Go(shrine);
+                scene.Go(stall);
                 scene.Player.PressUse = true;
                 scene.Lab.Run(1.5);
-                ActiveBuff? blessing = scene.Hero.Buffs.Cast<ActiveBuff?>().FirstOrDefault(b => BuffCatalog.Blessings.Contains(b!.Value.Buff));
-                report.Check("The shrine blesses whoever comes to it, for two minutes", blessing is ActiveBuff buff && MathF.Abs(buff.Left - Rulebook.ShrineBlessing) < 3f, blessing?.Left.ToString() ?? "none");
+                (InteractKind kind, SiteState site) opened = scene.Player.PanelsOpened.LastOrDefault(p => p.kind == InteractKind.Merchant);
+                Item?[] stock = opened.site?.Table.Stock ?? Array.Empty<Item?>();
+                List<Item> orders = stock.OfType<Item>().Where(item => item.IsOrders).ToList();
+                report.Check("The merchant sells a few orders, for the land the hero's going to next", orders.Count == 2 && orders.All(o => o.Level >= scene.Truth.Hero.LandLevel), $"{orders.Count}");
+                bool safe = true;
+                try
+                {
+                    foreach (Item item in stock.OfType<Item>()) _ = scene.Player.Client.Hero.WornBeside(item);
+                }
+                catch (Exception)
+                {
+                    safe = false;
+                }
+                report.Check("And anything on the table can be looked at beside what's worn", safe);
             }
 
             int level = scene.Truth.Hero.LandLevel;

@@ -333,8 +333,9 @@ namespace Dino_WorldLab
             (SpawnRole role, StructureDefinition? on)[] needed =
             {
                 (SpawnRole.Waygate, StructureCatalog.GreatWaygate), (SpawnRole.MapTable, StructureCatalog.MapTable), (SpawnRole.Stash, StructureCatalog.Strongbox),
-                (SpawnRole.Altar, StructureCatalog.Altar), (SpawnRole.Merchant, null),
+                (SpawnRole.Merchant, null),
             };
+            if (haven.Spawns.Any(s => s.Role == SpawnRole.Altar)) Problem("the Haven has a shrine, and nothing to be blessed for");
             foreach ((SpawnRole role, StructureDefinition? on) in needed)
             {
                 SiteSpawn[] spawns = haven.Spawns.Where(s => s.Role == role).ToArray();
@@ -408,7 +409,8 @@ namespace Dino_WorldLab
                 }
             }
             float share = slopes.Count / (float)Math.Max(land, 1);
-            if (share < LeastRockShare) Problem($"only {share:P1} of the land is rock");
+            // The Haven is a garden on a small isle, and needs none.
+            if (share < LeastRockShare && !world.Plan.Archetype.Peaceful) Problem($"only {share:P1} of the land is rock");
             if (slopes.Count > 0)
             {
                 slopes.Sort();

@@ -89,7 +89,6 @@ namespace Dino_Engine.World
         public ByteField Yard = null!;
         public ByteField Plaza = null!;
         public ByteField Farmland = null!;
-        public ByteField Lawn = null!;
         /// <summary>1 on bare mountain, where nobody goes. Everything else is ground as it always was.</summary>
         public ByteField Rock = null!;
         /// <summary>1 where broken rock has gathered, down the creases of a mountain.</summary>

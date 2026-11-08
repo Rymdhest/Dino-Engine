@@ -117,6 +117,9 @@ namespace Dino_WorldLab
                 Console.WriteLine(line);
             }
             Console.WriteLine($"height {world.Height.Sample(at):0.00} slope {world.Height.SlopeAt(at):0.00} water {world.WaterDepthAt(at):0.00} boundary {world.Boundary.Sample(at):0.00} rock {world.Rock.Sample(at):0.00} reachable {world.Reachable.Sample(at):0.00} ponds {world.Ponds.Count}");
+            Console.WriteLine($"plaza {world.Plaza.Sample(at):0.00} yard {world.Yard.Sample(at):0.00} farmland {world.Farmland.Sample(at):0.00} paved {world.PavedRoad.Sample(at):0.00} trail {world.TrailRoad.Sample(at):0.00} canopy {world.Canopy.Sample(at):0.00}");
+
+            foreach (var group in world.Objects.All().Where(o => (o.Position.Xz - at).Length < 8f).GroupBy(o => world.Objects.AssetIds[o.Asset])) Console.WriteLine($"  {group.Count()} of {group.Key} within 8 m");
 
             // What's near, as a fault at a spot is usually something else's doing.
             foreach (WorldSite site in world.Sites.Where(site => (site.Position - at).Length < 200f)) Console.WriteLine($"  {site.Kind} {site.Name} at {site.Position}, radius {site.Radius:0}, {(site.Position - at).Length:0} m away");

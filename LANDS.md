@@ -85,10 +85,10 @@ Orders come from tyrants, always, one in twenty of everything else that drops (`
 
 ## The Haven
 
-`HavenBuilder` lays it out for the game's camera, which looks north from high in the south. The great waygate stands at the head of everything on a terrace of its own, among blossom; the map table is at the top of the square in front of it; the merchant and the strongbox face each other across the square; the shrine is in a garden off it; homes stand round it, kept out of the gate's way (`GateClear`); and the training ground is south, past the well.
+`HavenBuilder` lays it out for the game's camera, which looks north from high in the south. The great waygate stands at the head of everything on a terrace of its own, among blossom; the map table is at the top of the square in front of it; the merchant and the strongbox face each other across the square; a quiet garden is off it; homes stand round it, kept out of the gate's way (`GateClear`); and the training ground is south, past the well. The isle is little more than the village and a ring of woods (`WorldArchetype.Haven.Size`), as a player who finds open ground goes looking for something to fight on it, and there's nothing. There's no shrine, as there's nothing here to be blessed for, and `WorldValidator` fails one.
 
-- **Its trees were planted** (`WorldData.Plantings`, which `VegetationStage.PlantOnPurpose` plants before the woods, on the same rules as anything else, smaller or not at all where there isn't room), and its grass is kept short (`GroundPaint.Lawn`, which `TerrainSurface` cuts and `WorldGroundCover` thins). Nobody else's are.
-- **The training ground** has a dummy alone, a group of five and a crowd of fifteen (`SpawnRole.Dummy`, `DummyComponent.Group`). A dummy can't die, is as good as new once it's been left alone for `Rulebook.DummyRest`, and its group shows what's been dealt to it a second, from the first blow after it was last left alone to the last (`DummyMeter`, which only reads what's shown and goes by nothing).
+- **Its trees were planted** (`WorldData.Plantings`, which `VegetationStage.PlantOnPurpose` plants before the woods, on the same rules as anything else, smaller or not at all where there isn't room), Nobody else's are. Its grass is the land's own: cutting it short was tried, and from this camera short grass is a field of stubs.
+- **The training ground** is a gravel yard with three pens along it, divided by low fences: a dummy alone, a group of five and a crowd of fifteen (`SpawnRole.Dummy`, `DummyComponent.Group`), at least ten metres from one another so that what's aimed at one meets no other, which `Dino NetLab lands` holds. Gravel runs a little way past its fence, as grass grows in tufts that reach in as far again as they stand. A dummy can't die, is as good as new once it's been left alone for `Rulebook.DummyRest`, and its group shows what's been dealt to it a second, from the first blow after it was last left alone to the last (`DummyMeter`, which only reads what's shown and goes by nothing).
 - **The merchant** stocks for the hero's climb rather than for the Haven, turns over every time they've been to a land, and sells a couple of orders (`GameServer.TableFor`).
 - **The stash** is in the strongbox (`Progression/Stash.cs`): four tabs of 48 cells, shared by every hero on the machine, where nothing moves unless it's moved. It runs on both ends by the same rules, as the pack does: the client changes it at once and the server has the last word (`Stow`, `Unstow` and `Shift` go through `AskGear`, and `ServerPlayer.Heard` answers). It's the player's own, so a friend's server only holds a copy while they're there, and it's their machine that keeps it (`StashStore`), in one file that only one copy of the game can hold at once. One that can't be read is kept aside rather than written over.
 - **The world cache keeps the Haven** apart from the last land grown (`WorldCache`), as everyone goes back to it between every two lands.
@@ -104,7 +104,7 @@ Orders come from tyrants, always, one in twenty of everything else that drops (`
 | The stash | `Progression/Stash.cs`, `HeroPanel` (the strongbox is a shelf beside the pack) |
 | Opening the way, stepping through, going home, travelling | `GameServer.OpenWay`, `StepThrough`, `GoHome`, the `TravelToSite` and `ReturnHome` actions |
 | One life, judging a land, freeing it | `ServerSession.HeroFell`, `Judge`, `Leave`, `Free`, `SettleIfAllOut` |
-| What's in a place, who leads it, the dummies, the shrine's blessing | `EncounterSystem` |
+| What's in a place, who leads it, the dummies, a shrine's blessing | `EncounterSystem` |
 | The map table and the leave prompt | `UI/LandPanels.cs` |
 | The corner | `Hud.DrawChronicle` |
 | The travel map | `MapPanel`, in its travel mode |
@@ -124,7 +124,7 @@ Orders come from tyrants, always, one in twenty of everything else that drops (`
 
 ## Seeing it
 
-`--haven true` starts in the Haven, `--landlevel N` sets the climb, `--openway N` opens the way to the Nth land after a second, `--travel N` goes home or out after N frames, `--omens a,b` and `--orders id` set up the first land, `--stash file` keeps the stash somewhere, and `--panel table`, `stash` or `travel` opens those. The Haven's square is about `--at 372,407`, the walk up to its gate `--at 372,428`, and its training ground `--at 366,352`.
+`--haven true` starts in the Haven, `--landlevel N` sets the climb, `--openway N` opens the way to the Nth land after a second, `--travel N` goes home or out after N frames, `--omens a,b` and `--orders id` set up the first land, `--stash file` keeps the stash somewhere, and `--panel table`, `stash` or `travel` opens those. The Haven's square is about `--at 160,174`, the walk up to its gate `--at 160,195`, and its training ground `--at 154,112`.
 
 ## Decided, and open to change
 

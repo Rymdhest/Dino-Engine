@@ -227,7 +227,7 @@ namespace Dino_Engine.World.Content
             Name = "Haven",
             Titles = new[] { "The Haven" },
             Landform = LandformKind.Island,
-            Size = new FloatRange(768f, 768f),
+            Size = new FloatRange(320f, 320f),     // Little more than the village and the woods round it, so that nobody goes looking for a fight that isn't there.
             BaseHeight = new FloatRange(5f, 6f),
             HillHeight = new FloatRange(7f, 9f),
             MountainHeight = new FloatRange(24f, 28f),

@@ -8,8 +8,7 @@ namespace Dino_Engine.World.Generation
     /// <summary>
     /// Builds the Haven, the one village the Reich has never found, where a hero spends more time than anywhere else. It's laid out for the game's camera, which looks north from the south and high up:
     /// the great waygate stands at the head of everything on a terrace of its own among blossom, the map table in front of it at the top of the square, and the square opens south onto the village, with
-    /// the merchant on one side and the strongbox on the other, a shrine in a garden, and the training ground beyond. Its grass is kept short and its trees were planted by somebody, as nowhere else's
-    /// are. Everything here goes through <see cref="SiteBuilder"/> like anything else built, so walls, paths and plants keep to the same rules, and what can be used is placed with
+    /// the merchant on one side and the strongbox on the other, a garden off it, and the training ground beyond. Its trees were planted by somebody, as nowhere else's are. Everything here goes through <see cref="SiteBuilder"/> like anything else built, so walls, paths and plants keep to the same rules, and what can be used is placed with
     /// <see cref="SiteBuilder.PlaceNear"/>, as a mark with nothing under it is a prompt in an empty field.
     /// </summary>
     internal static class HavenBuilder
@@ -23,7 +22,14 @@ namespace Dino_Engine.World.Generation
         private const float GroundSouth = 47f;          // Of the training ground's middle, from the square's.
         private const float HomesBeyond = 15f;          // Metres of open ground between the square's edge and the nearest wall.
         private const float GroundWest = 6f;
-        private static readonly Vector2 GroundHalf = new Vector2(23f, 12f);
+        private static readonly Vector2 GroundHalf = new Vector2(36f, 12f);
+        private const float SingleAlong = 27f;          // Metres east of the training ground's middle, and the handful and the crowd west of it, each far enough from the next that nothing aimed at one reaches another.
+        private const float SmallAlong = 7f;
+        private const float BigAlong = -20f;
+        private const float PenReach = 4f;
+        private const float FencePiece = 5f;            // Metres of the yard's fence placed at a time, so that whatever stands in the way of one piece leaves the rest standing.
+        private const float YardGate = 3.2f;            // Half the width of the way into it.
+        private const float Apron = 3f;                 // Metres of gravel outside the fence: grass grows in tufts that reach as far again as they stand, and the yard's edge would be overgrown.              // Metres north of the yard's middle that the low fences between them run to, leaving a way along the top.
         private const float DummyGap = 3.4f;            // Between the dummies of a group: close enough that what hits one can reach the next.
         private const int SmallGroup = 5;
         private const int BigGroup = 15;
@@ -41,7 +47,6 @@ namespace Dino_Engine.World.Generation
 
             LayPaths(b);
 
-            b.Paint(GroundPaint.Lawn, Footprint.Circle(c, b.Site.Radius * 1.15f), 16f);
             b.Paint(GroundPaint.Plaza, Footprint.Circle(c, SquareRadius), 7f);
             b.Paint(GroundPaint.Plaza, Footprint.Segment(c, c + North * GateAhead, 4.2f), 3f);
             b.Paint(GroundPaint.Plaza, Footprint.Circle(c + North * GateAhead, TerraceRadius), 5f);
@@ -49,7 +54,7 @@ namespace Dino_Engine.World.Generation
             PlaceGate(b, c);
             PlaceTable(b, c);
             PlaceTrade(b, c);
-            PlaceShrine(b, c);
+            PlaceGarden(b, c);
             PlaceTrainingGround(b, c + North * -GroundSouth + East * -GroundWest);
             PlaceHomes(b, c);
             PlaceShore(b, c);
@@ -66,7 +71,7 @@ namespace Dino_Engine.World.Generation
             b.SpawnAround(SpawnRole.Villager, c, b.Site.Radius * 0.7f, 4);
         }
 
-        // Paths first, so that everything built keeps off them: down from the gate through the square to the training ground, and out to the shore.
+        // Paths first, so that everything built keeps off them: down from the gate through the square to the training ground's gate, as a path through the yard would wear its gravel away, and out to the shore.
         private static void LayPaths(SiteBuilder b)
         {
             Vector2 c = b.Centre;
@@ -74,7 +79,7 @@ namespace Dino_Engine.World.Generation
             var paths = new List<(List<Vector2> corners, RoadClass kind)>
             {
                 (new List<Vector2> { c + North * (GateAhead - TerraceRadius * 0.6f), c + North * 4f }, RoadClass.Track),
-                (new List<Vector2> { c + North * -4f, c + North * -(GroundSouth - GroundHalf.Y - 4f) + East * -GroundWest * 0.5f, c + North * -GroundSouth + East * -GroundWest }, RoadClass.Track),
+                (new List<Vector2> { c + North * -4f, c + North * -(GroundSouth - GroundHalf.Y - 6f) + East * -GroundWest * 0.5f, c + North * -(GroundSouth - GroundHalf.Y - 2.5f) + East * -GroundWest }, RoadClass.Track),
             };
             if (b.FindWater(220f, out Vector2 toWater, out float distance) && distance > SquareRadius + 20f)
             {
@@ -139,24 +144,22 @@ namespace Dino_Engine.World.Generation
             }
         }
 
-        // A shrine in a garden off the square, lit, as every village's is.
-        private static void PlaceShrine(SiteBuilder b, Vector2 c)
+        // A quiet garden off the square, to sit in: lanterns, a bench under a tree and flowers. There's no shrine, as nothing here needs a blessing to face.
+        private static void PlaceGarden(SiteBuilder b, Vector2 c)
         {
             Vector2 at = c + East * 16f + North * -14f;
             Vector2 facing = (c - at).Normalized();
-            if (!b.PlaceNear(StructureCatalog.Altar, at, YawFacing(facing), ReachForEssentials, out Vector2 altar, padding: 0.5f)) return;
             Vector2 side = new Vector2(-facing.Y, facing.X);
-            b.Spawn(SpawnRole.Altar, altar + facing * 3f);
-            b.Place(StructureCatalog.StoneLantern, altar + side * 4.2f + facing * 1.6f, 0f, padding: 0.2f);
-            b.Place(StructureCatalog.StoneLantern, altar - side * 4.2f + facing * 1.6f, 0f, padding: 0.2f);
-            b.Place(StructureCatalog.Bench, altar + facing * 7f + side * 3f, YawFacing(-facing), padding: 0.2f);
+            b.Paint(GroundPaint.Plaza, Footprint.Circle(at, 3.2f), 2f);
+            b.Place(StructureCatalog.StoneLantern, at + side * 3.6f, 0f, padding: 0.2f);
+            b.Place(StructureCatalog.StoneLantern, at - side * 3.6f, 0f, padding: 0.2f);
+            b.Place(StructureCatalog.Bench, at - facing * 1.5f, YawFacing(facing), padding: 0.2f);
 
-            // A tree over it from behind, and flowers either side, past its lanterns.
-            Plant(b, Broadleaves.Sakura, altar - facing * 9f, 0.8f);
+            Plant(b, Broadleaves.Sakura, at - facing * 8f, 0.8f);
             foreach (float flank in new[] { -1f, 1f })
             {
-                Plant(b, Undergrowth.Azalea, altar + side * (flank * 6.4f) + facing * 1.2f, 0.55f);
-                Plant(b, Undergrowth.Lavender, altar + side * (flank * 7.6f) + facing * 2.6f, 0.6f);
+                Plant(b, Undergrowth.Azalea, at + side * (flank * 6.2f) - facing * 1f, 0.55f);
+                Plant(b, Undergrowth.Lavender, at + side * (flank * 5.6f) + facing * 2.4f, 0.6f);
             }
         }
 
@@ -164,23 +167,27 @@ namespace Dino_Engine.World.Generation
         private static void PlaceTrainingGround(SiteBuilder b, Vector2 centre)
         {
             Footprint yard = Footprint.Box(centre, GroundHalf, 0f);
-            // Packed gravel, as a yard that's drilled in every day is, so that what's in it stands out.
-            b.Paint(GroundPaint.Plaza, Footprint.Box(centre, GroundHalf - new Vector2(1.5f), 0f), 2.5f);
+            // Packed gravel, as a yard that's drilled in every day is, so that what's in it stands out, and a little way past its fence.
+            b.Paint(GroundPaint.Plaza, Footprint.Box(centre, GroundHalf + new Vector2(Apron), 0f), Apron + 2f);
             b.World.Placement.Add(yard, PlacementLayer.Keepout);
-            b.FenceAround(yard, North);
+            FenceYard(b, centre);
 
-            // From the gap in the fence nearest the square: one alone, then a handful, then a crowd, so that walking in meets the simplest first.
-            Vector2 single = centre + North * 4f + East * (GroundHalf.X - 7f);
-            b.Spawn(SpawnRole.Dummy, single);
+            // Three pens along the yard, one alone, a handful and a crowd, far enough apart that whatever's aimed at one meets only that one, with low fences between them.
+            b.Spawn(SpawnRole.Dummy, centre + East * SingleAlong);
 
-            Vector2 small = centre + North * 0.5f;
+            Vector2 small = centre + East * SmallAlong - North * 1f;
             for (int i = 0; i < SmallGroup; i++)
             {
                 float angle = i * MathF.Tau / SmallGroup + 0.3f;
                 b.Spawn(SpawnRole.Dummy, small + Direction(angle) * DummyGap);
             }
 
-            Vector2 big = centre - East * (GroundHalf.X - 9f) - North * 1f;
+            foreach (float between in new[] { (SingleAlong + SmallAlong + DummyGap) * 0.5f, (SmallAlong - DummyGap + BigAlong + DummyGap * 2.7f) * 0.5f })
+            {
+                b.Fence(centre + East * between - North * (GroundHalf.Y - 0.5f), centre + East * between + North * PenReach);
+            }
+
+            Vector2 big = centre + East * BigAlong - North * 1f;
             for (int i = 0; i < BigGroup; i++)
             {
                 int row = i / SmallGroup;
@@ -190,12 +197,39 @@ namespace Dino_Engine.World.Generation
             }
 
             Vector2 benches = centre + North * (GroundHalf.Y + 2.4f);
-            b.Place(StructureCatalog.Bench, benches + East * 8f, YawFacing(-North), padding: 0.2f);
-            b.Place(StructureCatalog.Bench, benches - East * 8f, YawFacing(-North), padding: 0.2f);
+            b.Place(StructureCatalog.Bench, benches + East * 10f, YawFacing(-North), padding: 0.2f);
+            b.Place(StructureCatalog.Bench, benches - East * 10f, YawFacing(-North), padding: 0.2f);
             b.Place(StructureCatalog.DryingRack, centre - North * (GroundHalf.Y + 2f) + East * 4f, 0f, padding: 0.3f);
             b.Place(StructureCatalog.Barrels, centre + East * (GroundHalf.X + 2.4f) - North * 5f, 0f, padding: 0.2f);
             b.Place(StructureCatalog.Lantern, centre + East * (GroundHalf.X + 1.6f) + North * (GroundHalf.Y + 1.6f), 0f, padding: 0.2f);
             b.Place(StructureCatalog.Lantern, centre - East * (GroundHalf.X + 1.6f) + North * (GroundHalf.Y + 1.6f), 0f, padding: 0.2f);
+        }
+
+        // A fence round the yard, open in the middle of its north side, where the path from the square comes in.
+        private static void FenceYard(SiteBuilder b, Vector2 centre)
+        {
+            Vector2 half = GroundHalf + new Vector2(0.8f);
+            Vector2[] corners = { centre + new Vector2(-half.X, -half.Y), centre + new Vector2(half.X, -half.Y), centre + new Vector2(half.X, half.Y), centre + new Vector2(-half.X, half.Y) };
+            for (int side = 0; side < 4; side++)
+            {
+                Vector2 from = corners[side];
+                Vector2 to = corners[(side + 1) % 4];
+                float length = (to - from).Length;
+                int pieces = Math.Max(1, (int)MathF.Ceiling(length / FencePiece));
+                for (int i = 0; i < pieces; i++)
+                {
+                    Vector2 start = Vector2.Lerp(from, to, i / (float)pieces);
+                    Vector2 end = Vector2.Lerp(from, to, (i + 1f) / pieces);
+                    // The north side is the third, from the north-east corner to the north-west.
+                    if (side == 2 && MathF.Max(start.X, end.X) > centre.X - YardGate && MathF.Min(start.X, end.X) < centre.X + YardGate)
+                    {
+                        if (start.X > centre.X + YardGate) b.Fence(start, new Vector2(centre.X + YardGate, start.Y));
+                        if (end.X < centre.X - YardGate) b.Fence(new Vector2(centre.X - YardGate, end.Y), end);
+                        continue;
+                    }
+                    b.Fence(start, end);
+                }
+            }
         }
 
         // Homes around the square, facing it, leaving the north to the gate and its trees and the south for the way to the training ground.

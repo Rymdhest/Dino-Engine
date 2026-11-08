@@ -202,8 +202,8 @@ namespace Dino_Defenders.Progression
             return places[0];
         }
 
-        /// <summary>What something would be set beside, if anything. A book is worn nowhere, so it has no place to look in.</summary>
-        public Item? WornBeside(Item item) => !item.IsFolio && Equipped.TryGetValue(PlaceFor(item), out Item? worn) && worn != item ? worn : null;
+        /// <summary>What something would be set beside, if anything. A book or orders are worn nowhere, so they have no place to look in.</summary>
+        public Item? WornBeside(Item item) => item.IsWorn && Equipped.TryGetValue(PlaceFor(item), out Item? worn) && worn != item ? worn : null;
 
         /// <summary>What wearing something would take off: whatever's in its place, both rings for a ring, and for something that changes how the hands are used, whatever's in the other one.</summary>
         public IEnumerable<Item> WornInPlaceOf(Item item)
@@ -222,7 +222,7 @@ namespace Dino_Defenders.Progression
         /// </summary>
         public bool Equip(int cell, WornSlot? asked = null)
         {
-            if (!ItemPlace.Cell(cell).IsCell || Inventory[cell] is not Item item || item.IsFolio) return false;
+            if (!ItemPlace.Cell(cell).IsCell || Inventory[cell] is not Item item || !item.IsWorn) return false;
             WornSlot place = PlaceFor(item, asked);
 
             // Two hands are two hands.

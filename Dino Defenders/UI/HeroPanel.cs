@@ -608,7 +608,7 @@ namespace Dino_Defenders.UI
 
             if (_merchant != null && _market.Contains(under)) return new Plan($"Sell for {item.SellValue} gold", () => Sell(from));
             if (under is GroundCatcher) return new Plan("Drop on the ground", () => Drop(from));
-            if (under is HeroStage && from.Shelf == Shelf.Pack && !item.IsFolio) return new Plan("Wear", () => Wear(from.Index, null));
+            if (under is HeroStage && from.Shelf == Shelf.Pack && item.IsWorn) return new Plan("Wear", () => Wear(from.Index, null));
             if (cell == null) return Plan.Nothing;
 
             ItemPlace to = cell.Spot.Place;
@@ -765,6 +765,9 @@ namespace Dino_Defenders.UI
                 case Shelf.Pack when item.IsFolio:
                     if (GameUi.Current.Book.Visible && !GameUi.Current.Book.Slot(spot.Place)) Refuse(GameUi.Current.Book.WhyNot(item));
                     break;
+                case Shelf.Pack when item.IsOrders:
+                    Refuse("Orders are given to the map table in the Haven");
+                    break;
                 case Shelf.Bar:
                     FromBar(spot);
                     break;
@@ -874,7 +877,7 @@ namespace Dino_Defenders.UI
         /// <summary>Puts on what's in a cell, and what comes off takes its place.</summary>
         public void Wear(int cell, WornSlot? place)
         {
-            if (Hero.Inventory[cell] is not Item item || item.IsBook) return;
+            if (Hero.Inventory[cell] is not Item item || !item.IsWorn) return;
             if (!Hero.CanMove(ItemPlace.Cell(cell), ItemPlace.Worn(Hero.PlaceFor(item, place))))
             {
                 Refuse("Your pack is full");

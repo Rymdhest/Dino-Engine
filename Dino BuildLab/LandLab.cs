@@ -513,6 +513,20 @@ namespace Dino_BuildLab
             report.Check("And unique orders what they are", wagered.Orders == OrdersCatalog.Wager.Id && wagered.Has(Omens.Wrath) && wager.Level == OrdersCatalog.Wager.MinLevel);
             report.Check("Every unique orders pays something, or climbs", OrdersCatalog.All.All(o => o.Quantity > 0f || o.Rarity > 0f || o.Climb > 1 || o == OrdersCatalog.Garrison));
 
+            // Orders are carried and never worn, so anything that asks where something would be worn has to leave them be.
+            HeroState carrier = HeroState.CreateNew();
+            carrier.Inventory[4] = OrdersMaker.Roll(10, new WorldRandom(14), Rarity.Rare);
+            bool asked = true;
+            try
+            {
+                asked = carrier.WornBeside(carrier.Inventory[4]!) == null && !carrier.Equip(4) && !carrier.Move(ItemPlace.Cell(4), ItemPlace.Worn(WornSlot.MainHand)) && carrier.Inventory[4]!.IsOrders;
+            }
+            catch (Exception)
+            {
+                asked = false;
+            }
+            report.Check("Orders can't be worn, and asking where they would be breaks nothing", asked);
+
             // Where orders come from: now and then among what drops, and always on a tyrant.
             var drops = new WorldRandom(31);
             int found = 0, all = 0;
