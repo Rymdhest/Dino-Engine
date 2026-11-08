@@ -52,6 +52,10 @@ namespace Dino_Defenders.Gameplay
 
     public struct EnemyBrainComponent : IComponent
     {
+        public bool Heeling;        // A minion on its way back to its place at its owner's side, which it keeps on until it's there.
+        public Vector2 OwnerWay;    // Which way its owner was last going, for where behind them it walks,
+        public Vector2 OwnerMark;   // worked out from where they were when it last looked.
+        public float Passing;       // Which side it's going past its owner on, to get round them to its place, and nothing while it isn't.
         public int SiteIndex;
         public int SpawnIndex;
         public Vector2 Home;

@@ -30,6 +30,16 @@ namespace Dino_Defenders.Server
         private const float ReelingSpeed = 0.2f;        // What's left of how fast it was going.
         private const float MeleeSlack = 1.2f;
         private const float FollowDistance = 7f;
+        private const float HeelSlack = 3f;             // Metres from its place at heel a minion lets itself be before it goes back to it.
+        private const float HeelArrive = 0.6f;          // And how near it gets before it stops.
+        private const float HeelEase = 2.5f;            // Metres out from its place that it starts to slow, so it walks up to it and doesn't stop dead.
+        private const float HeelRoom = 1.8f;            // Between its owner's edge and its own, in the first row.
+        private const float HeelRow = 2.4f;             // Between one row and the next.
+        private const float HeelFan = 0.6f;             // Radians between places in a row.
+        private const int HeelPerRow = 5;
+        private const float CatchUp = 1.35f;            // How much faster it goes when it's fallen well behind.
+        private const float HeelPass = 0.5f;            // Metres it keeps off its owner going past them.
+        private const float OwnerStride = 1.5f;         // Metres its owner has to go before it takes that as the way they're going.
         private const float CallReach = 20f;            // How far a cry carries. Less than the gap between packs, so one pack doesn't bring the next.
         private const float AlarmSight = 60f;           // A cry only sends someone after a foe that's near enough to be what it's about.
         private const int NoticedAlarm = 2;             // Whoever notices calls, and those who hear pass it on once.
@@ -98,6 +108,15 @@ namespace Dino_Defenders.Server
 
             if (actor.Owner is Actor owner)
             {
+                // Which way they're going, which only changes once they've really gone somewhere: they turn and step every which way in a fight, and a way read off each step
+                // flipped with every step back, and sent each minion's place from one side of them to the other every tick.
+                if (brain.OwnerMark == default) brain.OwnerMark = owner.Position;
+                Vector2 went = owner.Position - brain.OwnerMark;
+                if (went.LengthSquared > OwnerStride * OwnerStride)
+                {
+                    brain.OwnerWay = went.Normalized();
+                    brain.OwnerMark = owner.Position;
+                }
                 brain.Home = owner.Position;
                 if (owner.Dead || (actor.MinionLeft -= deltaTime) <= 0f)
                 {
@@ -119,7 +138,8 @@ namespace Dino_Defenders.Server
             switch (enemy.State)
             {
                 case EnemyState.Idle:
-                    velocity = actor.Owner != null ? Heel(ref brain, session, actor, position, speed) : Wander(ref brain, enemy, position, speed);
+                    velocity = actor.Owner is Actor master ? Heel(ref brain, session, actor, master, position, speed) : Wander(ref brain, enemy, position, speed);
+                    Face(entity, velocity, deltaTime);
                     if (!noFoe && (toTarget < Noticing(brain, target!) || (actor.Alarm > 0 && toTarget < AlarmSight)))
                     {
                         Call(session, actor);
@@ -384,10 +404,61 @@ namespace Dino_Defenders.Server
             return offset.Normalized() * speed * 0.3f;
         }
 
-        private Vector2 Heel(ref EnemyBrainComponent brain, ServerSession session, Actor actor, Vector2 position, float speed)
+        // A minion has a place of its own behind its owner, so that a pack of them walks along as a pack and doesn't all go for one spot. It lets itself be a little out of it, or it would be
+        // forever shuffling, and once it sets off it keeps going until it's there, slowing as it comes up to it.
+        private Vector2 Heel(ref EnemyBrainComponent brain, ServerSession session, Actor actor, Actor owner, Vector2 position, float speed)
         {
-            if ((brain.Home - position).Length < FollowDistance) return Vector2.Zero;
-            return MoveTowards(ref brain, session, actor, position, brain.Home) * speed;
+            Vector2 place = PlaceAtHeel(session, actor, owner, brain.OwnerWay);
+            float off = (place - position).Length;
+            if (!brain.Heeling && off < HeelSlack) return Vector2.Zero;
+            brain.Heeling = off > HeelArrive;
+            if (!brain.Heeling) return Vector2.Zero;
+
+            float pace = Math.Clamp(off / HeelEase, 0.35f, 1f);
+            if ((owner.Position - position).Length > FollowDistance * 2f) pace *= CatchUp;
+            return MoveTowards(ref brain, session, actor, position, RoundOwner(ref brain, actor, owner, position, place)) * speed * pace;
+        }
+
+        // Its place can be on the far side of its owner, who turned round, and walking straight there is walking into them. So the nearer its owner is to its line, the more it bends
+        // away from them, on a side it keeps until it's past: a side picked afresh each tick flips as it crosses the line, and it shakes.
+        private static Vector2 RoundOwner(ref EnemyBrainComponent brain, Actor actor, Actor owner, Vector2 position, Vector2 place)
+        {
+            Vector2 toPlace = place - position;
+            float length = toPlace.Length;
+            Vector2 toOwner = owner.Position - position;
+            float clear = owner.Radius + actor.Radius + HeelPass;
+            Vector2 way = length > 1e-3f ? toPlace / length : Vector2.Zero;
+            float along = Vector2.Dot(toOwner, way);
+            float off = way.X * toOwner.Y - way.Y * toOwner.X;     // Which side of its line its owner is, and how far.
+            if (length < 1e-3f || along <= 0f || along >= length || MathF.Abs(off) >= clear)
+            {
+                brain.Passing = 0f;
+                return place;
+            }
+
+            if (brain.Passing == 0f) brain.Passing = off > 0.05f ? -1f : off < -0.05f ? 1f : (actor.Entity.Id & 1) == 0 ? 1f : -1f;
+            float bend = 1f - MathF.Abs(off) / clear;
+            Vector2 across = new Vector2(-way.Y, way.X) * brain.Passing;
+            Vector2 heading = (way + across * (bend * 2f)).Normalized();
+            return position + heading * MathF.Min(length, clear * 2f);
+        }
+
+        // Rows fanned out behind the way its owner's going, in the order its owner's minions came.
+        private static Vector2 PlaceAtHeel(ServerSession session, Actor actor, Actor owner, Vector2 way)
+        {
+            int index = 0;
+            foreach (Actor other in session.Minions)
+            {
+                if (other == actor) break;
+                if (other.Owner == owner && !other.Dead) index++;
+            }
+
+            if (way == Vector2.Zero) way = Vector2.UnitY;
+            int row = index / HeelPerRow, seat = index % HeelPerRow;
+            float angle = MathF.PI + (seat + 1) / 2 * (seat % 2 == 0 ? 1f : -1f) * HeelFan;
+            float cos = MathF.Cos(angle), sin = MathF.Sin(angle);
+            Vector2 turned = new Vector2(way.X * cos - way.Y * sin, way.X * sin + way.Y * cos);
+            return owner.Position + turned * (owner.Radius + actor.Radius + HeelRoom + row * HeelRow);
         }
 
         // The straight line if it's clear for all of it; otherwise a path, refreshed now and then as the target moves. What's walked into and stopped by sends it

@@ -107,6 +107,7 @@ namespace Dino_Defenders.Server
             _systems.Add(_interaction);
             _systems.Add(_encounters = new EncounterSystem(this));
             _systems.Add(new ArenaSystem(this));
+            _systems.Add(new BodySystem(this));
             _systems.Add(new CharacterMotorSystem());
             _systems.Add(new VelocitySystem());
             _systems.Add(new FixToTerrainHeightSystem());

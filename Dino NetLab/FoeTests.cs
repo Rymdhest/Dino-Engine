@@ -51,6 +51,10 @@ namespace Dino_NetLab
             ComesIn(report, worlds, request);
             Chases(report, worlds, new[] { request }.Concat(Enumerable.Range(1, options.Int("chaseworlds", 3)).Select(i => new WorldRequest(options.Int("seed", 303) + i * 101, options.Text("chasearchetype")))));
 
+            report.Section("Bodies keep apart");
+            PackKeepsApart(report, worlds, request);
+            MinionsKeepApart(report, worlds, request);
+
             return report.Finish();
         }
 
@@ -260,6 +264,155 @@ namespace Dino_NetLab
         }
 
         // Like what's put in the world, and awake.
+        // How far two bodies are inside each other, as a share of how far apart their middles should be.
+        private static float Overlap(Actor a, Actor b) => MathF.Max(0f, 1f - (a.Position - b.Position).Length / (a.Radius + b.Radius));
+
+        private static float WorstOverlap(IReadOnlyList<Actor> bodies)
+        {
+            float worst = 0f;
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                for (int j = i + 1; j < bodies.Count; j++)
+                {
+                    if (!bodies[i].Dead && !bodies[j].Dead) worst = MathF.Max(worst, Overlap(bodies[i], bodies[j]));
+                }
+            }
+            return worst;
+        }
+
+        // Somewhere a body can stand, this far out from the hero, as near the way asked as there is.
+        private static Vector2 Standing(Arena arena, float angle, float distance)
+        {
+            for (float turn = 0f; turn < MathF.Tau; turn += 0.2f)
+            {
+                Vector2 at = arena.At + new Vector2(MathF.Cos(angle + turn), MathF.Sin(angle + turn)) * distance;
+                if (arena.Session.World.Passable.IsSet(at)) return at;
+            }
+            return arena.At;
+        }
+
+        // Eight close on a hero who stands there. However they jostle, none of them stands in another or in the hero.
+        private static void PackKeepsApart(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Tough());
+            GameServer server = arena.Lab.Server;
+            arena.Player.Fights = false;
+            var pack = new List<Actor>();
+            for (int i = 0; i < 8; i++) pack.Add(Spawn(arena, Bestiary.Outlaw, Rarity.Normal, Bestiary.NoTraits, Standing(arena, i * MathF.Tau / 8f, 12f) - arena.At).actor);
+
+            float worstPack = 0f, worstHero = 0f;
+            for (double waited = 0.0; waited < 7.0; waited += NetTime.TickSeconds)
+            {
+                arena.Run(NetTime.TickSeconds);
+                if (waited < 3.0) continue;
+                worstPack = MathF.Max(worstPack, WorstOverlap(pack));
+                foreach (Actor foe in pack)
+                {
+                    if (!foe.Dead) worstHero = MathF.Max(worstHero, Overlap(foe, arena.Hero));
+                }
+            }
+            report.Check("A pack closing on a hero doesn't stand in itself", worstPack < BodySlack, $"{worstPack:P0} at worst");
+            report.Check("Or in the hero", worstHero < BodySlack, $"{worstHero:P0} at worst");
+
+            // Idle, nobody steers round anybody, so four standing in one place only come apart by not being able to be there.
+            var idle = new List<Actor>();
+            Vector2 heap = Standing(arena, MathF.PI, 30f) - arena.At;
+            for (int i = 0; i < 4; i++) idle.Add(Spawn(arena, Bestiary.Outlaw, Rarity.Normal, Bestiary.NoTraits, heap).actor);
+            server.Ecs.ApplyDeferredCommands();
+            foreach (Actor foe in idle)
+            {
+                EntityView view = server.Ecs.GetEntityView(foe.Entity);
+                var brain = view.Get<EnemyBrainComponent>();
+                brain.AggroRadius = 0f;
+                view.Set(brain);
+            }
+            arena.Run(1.0);
+            report.Check("Bodies standing in one place push each other out of it", WorstOverlap(idle) < BodySlack, $"{WorstOverlap(idle):P0} at worst");
+        }
+
+        private const float BodySlack = 0.15f;      // Of how far apart two should be, that they can be pressed into each other at the worst moment.
+
+        // Minions raised all in one place step out of each other, then follow their owner on a walk, each in a place of its own, facing where it's going, and stand still once it's there.
+        private static void MinionsKeepApart(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Tough());
+            arena.Player.Fights = false;
+            GameServer server = arena.Lab.Server;
+            Actor owner = arena.Hero;
+            Loadout loadout = Bestiary.MinionOf(owner.Loadout, owner.Sheet, Bestiary.Hound);
+            Vector2 start = Standing(arena, MathF.PI * 0.5f, 3f);
+            var pets = new List<Actor>();
+            for (int i = 0; i < 5; i++)
+            {
+                float height = arena.Session.World.Height.Sample(start);
+                var pet = new Actor(Team.Heroes, loadout, start, WorldData.CharacterRadius * 0.85f) { Owner = owner, Body = Bestiary.Hound.Look, Height = height, MinionLeft = 1000f };
+                pet.Entity = server.Ecs.CreateEntity("Hound", Bodies.Walking(server, Bestiary.Hound.Look, new Vector3(start.X, height, start.Y), 0.85f, 1.5f,
+                    new EnemyComponent { Name = "Hound", Level = owner.Loadout.Level, Friendly = true },
+                    new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = owner.Position, AggroRadius = 26f, LeashRadius = 45f },
+                    new HealthComponent(pet.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(pet)));
+                arena.Session.Minions.Add(pet);
+                pets.Add(pet);
+            }
+
+            arena.Run(2.0);
+            report.Check("Minions raised in one place step out of each other", WorstOverlap(pets) < BodySlack, $"{WorstOverlap(pets):P0} at worst");
+
+            // Across the way everything starts out facing (+z), so that facing where they go is something they have to do.
+            arena.Player.Heading = Standing(arena, 0f, 30f);
+            float worst = 0f;
+            int moving = 0, facing = 0;
+            var last = pets.Select(p => p.Position).ToArray();
+            for (double walked = 0.0; walked < 9.0; walked += NetTime.TickSeconds)
+            {
+                arena.Run(NetTime.TickSeconds);
+                worst = MathF.Max(worst, WorstOverlap(pets));
+                for (int i = 0; i < pets.Count; i++)
+                {
+                    Vector2 step = pets[i].Position - last[i];
+                    last[i] = pets[i].Position;
+                    if (step.Length < 2f * NetTime.TickSeconds) continue;
+                    moving++;
+                    Quaternion turned = server.Ecs.GetEntityView(pets[i].Entity).Get<RotationComponent>().quaternion;
+                    Vector3 ahead = Vector3.Transform(Vector3.UnitZ, turned);
+                    if (Vector2.Dot(new Vector2(ahead.X, ahead.Z).Normalized(), step.Normalized()) > MathF.Cos(MathF.PI / 4f)) facing++;
+                }
+            }
+            report.Check("They follow without standing in each other", worst < BodySlack, $"{worst:P0} at worst");
+            report.Check("Facing where they're going, not gliding sideways", moving > 0 && facing >= moving * 0.85f, $"{facing} of {moving} steps");
+
+            arena.Player.Heading = null;
+            arena.Player.Fights = false;
+            arena.Run(3.0);
+            float still = 0f;
+            last = pets.Select(p => p.Position).ToArray();
+            arena.Run(1.0);
+            for (int i = 0; i < pets.Count; i++) still = MathF.Max(still, (pets[i].Position - last[i]).Length);
+            float farthest = pets.Max(p => (p.Position - owner.Position).Length);
+            report.Check("Once their owner stops, they stand still near them", still < 0.3f && farthest < 12f, $"moved {still:0.00} m in the last second, the farthest {farthest:0.0} m off");
+
+            // Back the way they came, which is through them, and then they have to get round to behind again.
+            arena.Player.Heading = Standing(arena, MathF.PI, 25f);
+            float throughHero = 0f;
+            int backMoving = 0, backFacing = 0;
+            last = pets.Select(p => p.Position).ToArray();
+            for (double walked = 0.0; walked < 6.0; walked += NetTime.TickSeconds)
+            {
+                arena.Run(NetTime.TickSeconds);
+                for (int i = 0; i < pets.Count; i++)
+                {
+                    throughHero = MathF.Max(throughHero, Overlap(pets[i], owner));
+                    Vector2 step = pets[i].Position - last[i];
+                    last[i] = pets[i].Position;
+                    if (step.Length < 2f * NetTime.TickSeconds) continue;
+                    backMoving++;
+                    Vector3 ahead = Vector3.Transform(Vector3.UnitZ, server.Ecs.GetEntityView(pets[i].Entity).Get<RotationComponent>().quaternion);
+                    if (Vector2.Dot(new Vector2(ahead.X, ahead.Z).Normalized(), step.Normalized()) > MathF.Cos(MathF.PI / 4f)) backFacing++;
+                }
+            }
+            report.Check("A hero walking back through their minions doesn't walk through them", throughHero < BodySlack, $"{throughHero:P0} at worst");
+            report.Check("And they turn to follow, facing where they go", backMoving > 0 && backFacing >= backMoving * 0.75f, $"{backFacing} of {backMoving} steps");
+        }
+
         private static (Actor actor, Entity entity) Spawn(Arena arena, EnemyKind kind, Rarity rarity, int traits, Vector2 offset)
         {
             GameServer server = arena.Lab.Server;

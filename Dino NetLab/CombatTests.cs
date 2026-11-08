@@ -875,27 +875,32 @@ namespace Dino_NetLab
             arena.Combat.Hit(arena.Hero, strike, dummy, 6f, arena.At);
             report.Check("What stands and takes it stands", dummy.Push == Vector2.Zero);
 
-            Actor moved = arena.Dummy(East * 3f, 2000f);
+            // Each somewhere of its own round the hero, as bodies don't go through each other and one would be pushed into the last.
+            Vector2 Round(int quarter) => new Vector2(MathF.Cos(quarter * MathF.PI * 0.5f), MathF.Sin(quarter * MathF.PI * 0.5f));
+            Actor moved = arena.Dummy(Round(1) * 3f, 2000f);
             moved.Still = false;
             Vector2 was = moved.Position;
+            Vector2 outward = (was - arena.Hero.Position).Normalized();
             arena.Combat.Hit(arena.Hero, strike, moved, 40f, arena.At);
             float carries = moved.Push.Length / 9f * (1f - MathF.Exp(-9f * 0.4f));
             arena.Run(0.4);
             moved.Still = true;
-            float along = Vector2.Dot(moved.Position - was, East);
+            float along = Vector2.Dot(moved.Position - was, outward);
             report.Check("And it really goes that far", along > carries * 0.75f && along < carries * 1.25f, $"{along} m, for a shove worth {carries} m");
 
+            int quarter = 2;
             foreach ((string name, Action<Actor> hold) in new (string, Action<Actor>)[] { ("stunned", a => a.Afflictions.StunLeft = 3f), ("frozen", a => a.Afflictions.FreezeLeft = 3f) })
             {
-                Actor held = arena.Dummy(East * 3f, 2000f);
+                Actor held = arena.Dummy(Round(quarter++) * 3f, 2000f);
                 held.Still = false;
                 hold(held);
                 arena.Run(0.05);
                 Vector2 was2 = held.Position;
+                Vector2 out2 = (was2 - arena.Hero.Position).Normalized();
                 arena.Combat.Hit(arena.Hero, strike, held, 40f, arena.At);
                 float worth = held.Push.Length / 9f * (1f - MathF.Exp(-9f * 0.4f));
                 arena.Run(0.4);
-                float went = Vector2.Dot(held.Position - was2, East);
+                float went = Vector2.Dot(held.Position - was2, out2);
                 report.Check($"Someone {name} goes with a blow just the same, and not when they wake", went > worth * 0.75f && held.Push.Length < 0.5f, $"{went} m for a shove worth {worth} m, {held.Push.Length} m/s left");
                 held.Still = true;
             }
