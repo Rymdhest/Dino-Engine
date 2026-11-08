@@ -1,3 +1,4 @@
+using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.World
@@ -70,7 +71,11 @@ namespace Dino_Engine.World
         Yard,       // Trampled earth around houses.
         Plaza,      // Packed gravel of market squares and camps.
         Farmland,
+        Lawn,       // Grass kept short, as somewhere looked after is.
     }
+
+    /// <summary>A plant put somewhere on purpose by whoever built a site, as a garden's trees are. They're planted before the woods, which grow around them, and only if nothing built stands there.</summary>
+    public readonly record struct Planting(WorldAsset Asset, Vector2 Position, float Scale, float Yaw);
 
     /// <summary>A soft-edged patch of painted ground.</summary>
     public readonly struct PaintPatch

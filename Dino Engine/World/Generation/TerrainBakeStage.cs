@@ -43,6 +43,7 @@ namespace Dino_Engine.World.Generation
             world.Yard = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Plaza = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Farmland = ByteField.ForWorld(size, WorldData.DetailCell);
+            world.Lawn = ByteField.ForWorld(size, WorldData.DetailCell);
 
             ApplyPads(world, world.Pads, height);
             StampRoads(world, height, detail);
@@ -147,6 +148,7 @@ namespace Dino_Engine.World.Generation
             {
                 GroundPaint.Yard => world.Yard,
                 GroundPaint.Plaza => world.Plaza,
+                GroundPaint.Lawn => world.Lawn,
                 _ => world.Farmland,
             };
             Footprint shape = patch.Shape;

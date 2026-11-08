@@ -191,8 +191,8 @@ namespace Dino_Defenders.Client
         }
 
         private const float GoldLightRadius = 6f;
-        private const float PortalLightRadius = 30f;
-        private const float PortalLight = 220f;
+        private const float PortalLightRadius = 24f;
+        private const float PortalLight = 120f;
         private const float PortalHum = 0.8f;
         private const float PlaceHum = 0.55f;   // It never stops, so it sits under the land's own sound. At full level it's as loud as all the rest together.
         private const float ChestLightRadius = 9f;

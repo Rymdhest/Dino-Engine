@@ -27,6 +27,9 @@ namespace Dino_Engine.World
         /// <summary>Most materials a world can paint with. The terrain shader reads this many weights per texel.</summary>
         public const int MaxMaterials = 12;
 
+        /// <summary>How much of its height grass that's kept short loses. It's still all there, as a lawn is, and only its seed heads and most of its flowers go.</summary>
+        private const float LawnCut = 0.62f;
+
         private readonly WorldData _world;
         private readonly WorldNoise _noise;
         private readonly int[] _slot = new int[Enum.GetValues<SurfaceMaterial>().Length];
@@ -104,6 +107,7 @@ namespace Dino_Engine.World
             float yard = world.Yard.Sample(x, z);
             float plaza = world.Plaza.Sample(x, z);
             float farm = world.Farmland.Sample(x, z);
+            float lawn = world.Lawn.Sample(x, z);
             float canopy = world.Canopy.Sample(x, z);
 
             // Noise at a couple of scales keeps every border below from being a clean line.
@@ -184,11 +188,11 @@ namespace Dino_Engine.World
             grass = new GrassCell
             {
                 Cover = Saturate(cover * small * broad * grows * normalY),
-                Height = Saturate(blade * (1f - canopy * 0.3f)),
-                Dryness = Saturate(dry + drift * 0.08f),
+                Height = Saturate(blade * (1f - canopy * 0.3f) * (1f - lawn * LawnCut)),
+                Dryness = Saturate(dry + drift * 0.08f) * (1f - lawn * 0.5f),
                 Colour = colour * tint,
-                Plumes = Saturate(plumes),
-                Bloom = Saturate(bloom * Smoothstep(0.42f, 0.62f, _noise.Fbm01(x - 57f, z + 133f, 31f, 2)) * (1f - canopy)),
+                Plumes = Saturate(plumes) * (1f - lawn),
+                Bloom = Saturate(bloom * Smoothstep(0.42f, 0.62f, _noise.Fbm01(x - 57f, z + 133f, 31f, 2)) * (1f - canopy)) * (1f - lawn * 0.6f),
                 BloomColour = bloomColour,
                 Hollow = hollow,
             };

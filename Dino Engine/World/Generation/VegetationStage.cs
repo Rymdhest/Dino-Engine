@@ -34,6 +34,7 @@ namespace Dino_Engine.World.Generation
             var objects = new WorldObjects(world.Size);
             world.Objects = objects;
 
+            PlantOnPurpose(world, objects);
             PlantTrees(world, objects, random.Fork("trees"), patches);
             PlantShrubs(world, objects, random.Fork("shrubs"), patches);
             PlaceDeadwood(world, objects, random.Fork("deadwood"));
@@ -142,6 +143,29 @@ namespace Dino_Engine.World.Generation
                 if (pick <= 0f) return species.Asset;
             }
             return list[^1].Asset;
+        }
+
+        // What sites asked for, first, so that the woods grow around a garden and not through it. They keep to the same room as anything planted, so a tree too big for its spot is grown smaller,
+        // and one that still won't fit isn't planted.
+        private static void PlantOnPurpose(WorldData world, WorldObjects objects)
+        {
+            PlacementIndex placement = world.Placement;
+            foreach (Planting planting in world.Plantings)
+            {
+                WorldAsset asset = planting.Asset;
+                bool tree = asset.Kind == WorldAssetKind.Tree;
+                PlacementLayer layer = tree ? PlacementLayer.Tree : PlacementLayer.Shrub;
+                PlacementLayer avoid = tree ? PlacementLayer.Tree | PlacementLayer.Built | PlacementLayer.Road : PlacementLayer.Shrub | PlacementLayer.Rock | PlacementLayer.Built | PlacementLayer.Road;
+                if (!GroundFits(world, planting.Position, MaxTreeSlope)) continue;
+
+                float scale = planting.Scale;
+                if (placement.Overlaps(Footprint.Circle(planting.Position, asset.Footprint * scale), avoid)) scale = asset.Scale.Min;
+                if (placement.Overlaps(Footprint.Circle(planting.Position, asset.Footprint * scale), avoid)) continue;
+
+                placement.Add(Footprint.Circle(planting.Position, asset.Footprint * scale), layer);
+                if (asset.SolidRadius > 0f) placement.Add(Footprint.Circle(planting.Position, asset.SolidRadius * scale), PlacementLayer.None, solid: true);
+                AddPlant(world, objects, asset, planting.Position, scale, planting.Yaw, sink: tree ? 0.15f : 0.05f);
+            }
         }
 
         private static void PlantTrees(WorldData world, WorldObjects objects, WorldRandom random, WorldNoise patches)

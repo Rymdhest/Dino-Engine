@@ -431,22 +431,27 @@ namespace Dino_Defenders.Client
         public static Colour PortalColour(int biome)
         {
             Vector3 colour = biome >= 0 && biome < BiomeCatalog.All.Count ? BiomeCatalog.All[biome].MapColour : new Vector3(0.35f, 0.85f, 1f);
+
+            // A land's colour on the map is soft, and light that soft goes white. Pushed away from grey it keeps its hue however bright it is.
+            float grey = (colour.X + colour.Y + colour.Z) / 3f;
+            colour = Vector3.ComponentMax(new Vector3(grey) + (colour - new Vector3(grey)) * PortalSaturation, new Vector3(0.02f));
             float most = MathF.Max(colour.X, MathF.Max(colour.Y, colour.Z));
-            colour /= MathF.Max(most, 0.01f);
-            return new Colour(Vector3.Lerp(colour, new Vector3(0.35f, 0.85f, 1f), 0.35f));
+            return new Colour(colour / MathF.Max(most, 0.01f));
         }
 
-        // The way to a land, open in the Haven's great waygate: layers of light filling its arch, brightest at the heart, in the colour of where it leads. It matches the arch in PropGenerator.
+        private const float PortalSaturation = 2.4f;
+
+        // The way to a land, open in the Haven's great waygate: layers of light filling its arch, a deep rim of the colour of where it leads brightening to its heart. It matches the arch in PropGenerator.
         private static Mesh Portal(int biome)
         {
             const float Span = 5.35f;
             const float Spring = 7.1f;
             Colour hue = PortalColour(biome);
             var builder = new MeshBuilder();
-            (float reach, float strength, float depth)[] layers = { (1f, 1.1f, 0f), (0.78f, 1.8f, 0.06f), (0.52f, 2.8f, 0.12f), (0.26f, 4f, 0.18f) };
-            foreach ((float reach, float strength, float depth) in layers)
+            (float reach, float strength, float depth, float tone)[] layers = { (1f, 0.45f, 0f, 0.5f), (0.78f, 0.75f, 0.06f, 0.75f), (0.52f, 1.1f, 0.12f, 0.92f), (0.26f, 1.6f, 0.18f, 1f) };
+            foreach ((float reach, float strength, float depth, float tone) in layers)
             {
-                var light = new VertexMaterial(TextureGenerator.flatGlow, new Colour(hue.Red, hue.Green, hue.Blue, strength));
+                var light = new VertexMaterial(TextureGenerator.flatGlow, new Colour(hue.Red * tone, hue.Green * tone, hue.Blue * tone, strength));
                 float radius = Span * reach;
                 float floor = 1.05f + (1f - reach) * 2.6f;
                 foreach (float face in new[] { depth, -depth })

@@ -84,7 +84,8 @@ namespace Dino_Engine.World.Generation
 
         private static float ClearingShare(SiteKind kind) => kind switch
         {
-            SiteKind.Village or SiteKind.Hamlet or SiteKind.Keep or SiteKind.Haven => 1.25f,
+            SiteKind.Village or SiteKind.Hamlet or SiteKind.Keep => 1.25f,
+            SiteKind.Haven => 1.05f,    // Its own trees are planted, and the woods come close round them.
             SiteKind.Ruins or SiteKind.Graveyard => 0.8f,
             _ => 1.05f,
         };

@@ -25,6 +25,7 @@ namespace Dino_Engine.World
     {
         /// <summary>Metres between plants. Divides the terrain chunk size, so cells never straddle a chunk.</summary>
         public const float Cell = 1.6f;
+        private const float LawnThinning = 0.7f;   // Of what would grow on ground at its most kept, how much doesn't.
 
         private const PlacementLayer Avoid = PlacementLayer.Built | PlacementLayer.Road | PlacementLayer.Rock | PlacementLayer.Deadwood | PlacementLayer.Shrub;
 
@@ -67,6 +68,10 @@ namespace Dino_Engine.World
 
             WorldData world = _world;
             if (world.PavedRoad.Sample(point) + world.TrailRoad.Sample(point) + world.Plaza.Sample(point) + world.Yard.Sample(point) + world.Farmland.Sample(point) > 0.25f) return;
+
+            // Grass kept short has few flowers left in it, and nothing taller.
+            float lawn = world.Lawn.Sample(point);
+            if (lawn > 0.25f && Random01(ref state) < lawn * LawnThinning) return;
 
             float height = world.Height.Sample(point);
             float above = height - world.WaterLevelAt(point);

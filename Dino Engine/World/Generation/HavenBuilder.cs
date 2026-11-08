@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using static Dino_Engine.World.Generation.SiteBuilder;
@@ -6,9 +7,10 @@ namespace Dino_Engine.World.Generation
 {
     /// <summary>
     /// Builds the Haven, the one village the Reich has never found, where a hero spends more time than anywhere else. It's laid out for the game's camera, which looks north from the south and high up:
-    /// the great waygate stands at the head of everything on a terrace of its own, the map table in front of it at the top of the square, and the square opens south onto the village, with the merchant on
-    /// one side and the strongbox on the other, a shrine in a garden, and the training ground beyond. Everything here goes through <see cref="SiteBuilder"/> like anything else built, so walls, paths and
-    /// plants keep to the same rules, and what can be used is placed with <see cref="SiteBuilder.PlaceNear"/>, as a mark with nothing under it is a prompt in an empty field.
+    /// the great waygate stands at the head of everything on a terrace of its own among blossom, the map table in front of it at the top of the square, and the square opens south onto the village, with
+    /// the merchant on one side and the strongbox on the other, a shrine in a garden, and the training ground beyond. Its grass is kept short and its trees were planted by somebody, as nowhere else's
+    /// are. Everything here goes through <see cref="SiteBuilder"/> like anything else built, so walls, paths and plants keep to the same rules, and what can be used is placed with
+    /// <see cref="SiteBuilder.PlaceNear"/>, as a mark with nothing under it is a prompt in an empty field.
     /// </summary>
     internal static class HavenBuilder
     {
@@ -26,6 +28,9 @@ namespace Dino_Engine.World.Generation
         private const int SmallGroup = 5;
         private const int BigGroup = 15;
         private const float ReachForEssentials = 30f;
+        private const float GateClear = 1.1f;           // Radians either side of north that no home stands in, so that the gate stands free among its trees.
+        private const float HedgeRing = 2.2f;           // Metres beyond the square's edge that its shrubs are set.
+        private const int HedgeShrubs = 28;
 
         public static readonly Vector2 North = new Vector2(0f, 1f);
         public static readonly Vector2 East = new Vector2(1f, 0f);
@@ -36,6 +41,7 @@ namespace Dino_Engine.World.Generation
 
             LayPaths(b);
 
+            b.Paint(GroundPaint.Lawn, Footprint.Circle(c, b.Site.Radius * 1.15f), 16f);
             b.Paint(GroundPaint.Plaza, Footprint.Circle(c, SquareRadius), 7f);
             b.Paint(GroundPaint.Plaza, Footprint.Segment(c, c + North * GateAhead, 4.2f), 3f);
             b.Paint(GroundPaint.Plaza, Footprint.Circle(c + North * GateAhead, TerraceRadius), 5f);
@@ -47,6 +53,7 @@ namespace Dino_Engine.World.Generation
             PlaceTrainingGround(b, c + North * -GroundSouth + East * -GroundWest);
             PlaceHomes(b, c);
             PlaceShore(b, c);
+            PlantGardens(b, c);
 
             b.Place(StructureCatalog.Well, c + East * 6f + North * -7f, 0f, padding: 0.6f);
             for (int i = 0; i < 4; i++)
@@ -143,13 +150,22 @@ namespace Dino_Engine.World.Generation
             b.Place(StructureCatalog.StoneLantern, altar + side * 4.2f + facing * 1.6f, 0f, padding: 0.2f);
             b.Place(StructureCatalog.StoneLantern, altar - side * 4.2f + facing * 1.6f, 0f, padding: 0.2f);
             b.Place(StructureCatalog.Bench, altar + facing * 7f + side * 3f, YawFacing(-facing), padding: 0.2f);
+
+            // A tree over it from behind, and flowers either side, past its lanterns.
+            Plant(b, Broadleaves.Sakura, altar - facing * 9f, 0.8f);
+            foreach (float flank in new[] { -1f, 1f })
+            {
+                Plant(b, Undergrowth.Azalea, altar + side * (flank * 6.4f) + facing * 1.2f, 0.55f);
+                Plant(b, Undergrowth.Lavender, altar + side * (flank * 7.6f) + facing * 2.6f, 0.6f);
+            }
         }
 
         // A fenced yard south of the square with three groups to try a build on: one alone, a handful, and a crowd.
         private static void PlaceTrainingGround(SiteBuilder b, Vector2 centre)
         {
             Footprint yard = Footprint.Box(centre, GroundHalf, 0f);
-            b.Paint(GroundPaint.Yard, Footprint.Box(centre, GroundHalf - new Vector2(1f), 0f), 3f);
+            // Packed gravel, as a yard that's drilled in every day is, so that what's in it stands out.
+            b.Paint(GroundPaint.Plaza, Footprint.Box(centre, GroundHalf - new Vector2(1.5f), 0f), 2.5f);
             b.World.Placement.Add(yard, PlacementLayer.Keepout);
             b.FenceAround(yard, North);
 
@@ -182,11 +198,11 @@ namespace Dino_Engine.World.Generation
             b.Place(StructureCatalog.Lantern, centre - East * (GroundHalf.X + 1.6f) + North * (GroundHalf.Y + 1.6f), 0f, padding: 0.2f);
         }
 
-        // Homes around the square, facing it, leaving the north for the gate and the south for the way to the training ground.
+        // Homes around the square, facing it, leaving the north to the gate and its trees and the south for the way to the training ground.
         private static void PlaceHomes(SiteBuilder b, Vector2 c)
         {
             StructureDefinition[] kinds = { StructureCatalog.Inn, StructureCatalog.Hall, StructureCatalog.House, StructureCatalog.House, StructureCatalog.Cottage, StructureCatalog.Cottage, StructureCatalog.Longhouse, StructureCatalog.Cottage, StructureCatalog.House, StructureCatalog.Shed };
-            float[] bearings = { 0.62f, -0.62f, 1.05f, -1.05f, 1.45f, -1.45f, 1.9f, -1.9f, 2.35f, -2.35f };
+            float[] bearings = { GateClear, -GateClear, GateClear + 0.38f, -GateClear - 0.38f, GateClear + 0.76f, -GateClear - 0.76f, GateClear + 1.12f, -GateClear - 1.12f, GateClear + 1.46f, -GateClear - 1.46f };
             for (int i = 0; i < kinds.Length; i++)
             {
                 StructureDefinition kind = kinds[i];
@@ -203,6 +219,43 @@ namespace Dino_Engine.World.Generation
                     break;
                 }
             }
+        }
+
+        // Blossom, planted: great trees either side of the gate and behind it, so that its arch frames them, more at the top corners of the square, a ring of shrubs round the square, and trees
+        // off its lower corners. These are the Haven's own and nobody else's, so every one is chosen here rather than drawn from the woods. A tree needs room for its crown, so they stand well
+        // apart and clear of the walk, and the gardens between them are shrubs.
+        private static void PlantGardens(SiteBuilder b, Vector2 c)
+        {
+            Vector2 gate = c + North * GateAhead;
+            Plant(b, Broadleaves.Sakura, gate + North * 14f, 1f);
+            foreach (float side in new[] { -1f, 1f })
+            {
+                Plant(b, Broadleaves.Sakura, gate + East * (side * 17f) + North * 1.5f, 0.9f);
+                Plant(b, Broadleaves.WhiteCherry, gate + East * (side * 16f) + North * 16f, 0.75f);
+                Plant(b, Broadleaves.JapaneseMaple, c + East * (side * 18f) + North * (TableAhead + 2f), 0.6f);
+                Plant(b, side < 0f ? Broadleaves.WisteriaTree : Broadleaves.WhiteCherry, c + East * (side * 21f) + North * -14f, 0.65f);
+
+                // Azaleas up either side of the walk, below the lanterns.
+                for (int step = 0; step < 3; step++) Plant(b, step % 2 == 0 ? Undergrowth.Azalea : Undergrowth.WhiteAzalea, c + North * (TableAhead + 5f + step * 4.5f) + East * (side * 8f), 0.6f);
+            }
+
+            // A low ring of shrubs round the square, broken where the walk, the paths, the stall and the strongbox meet it.
+            for (int i = 0; i < HedgeShrubs; i++)
+            {
+                float bearing = i * MathF.Tau / HedgeShrubs;
+                if (Near(bearing, 0f, 0.4f) || Near(bearing, MathF.PI, 0.45f) || Near(bearing, MathF.PI * 0.5f, 0.4f) || Near(bearing, -MathF.PI * 0.5f, 0.4f)) continue;
+                WorldAsset shrub = (i % 3) switch { 0 => Undergrowth.Boxwood, 1 => Undergrowth.Azalea, _ => Undergrowth.WhiteAzalea };
+                Plant(b, shrub, c + Toward(bearing) * (SquareRadius + HedgeRing), 0.5f);
+            }
+        }
+
+        private static Vector2 Toward(float bearing) => new Vector2(MathF.Sin(bearing), MathF.Cos(bearing));
+
+        private static bool Near(float bearing, float to, float within) => MathF.Abs(MathF.IEEERemainder(bearing - to, MathF.Tau)) < within;
+
+        private static void Plant(SiteBuilder b, WorldAsset asset, Vector2 at, float growth)
+        {
+            b.World.Plantings.Add(new Planting(asset, at, asset.Scale.Lerp(growth), b.Random.Float() * MathF.Tau));
         }
 
         // A jetty where the path meets the water, with a boat or two drawn up beside it, as the Haven is an island and everyone came by water once.
