@@ -152,17 +152,19 @@ namespace Dino_Defenders.Progression
                 Experience: 1f + quantity * ExperienceShare);
         }
 
-        /// <summary>What it all comes to, as a few words: how many more finds, and how much rarer.</summary>
+        /// <summary>What it all comes to, as a few words: how many more finds, and how much rarer. Whole shares, as these are weighed against each other at a glance.</summary>
         public string Pays()
         {
             LootBoon boon = Boon();
             var parts = new List<string>();
-            if (boon.Quantity > 1f) parts.Add($"{Say.Share(boon.Quantity - 1f)} more Items");
-            if (boon.Rarity > 1f) parts.Add($"{Say.Share(boon.Rarity - 1f)} more Item Rarity");
-            if (MorePeople > 0f) parts.Add($"{Say.Share(MorePeople)} larger packs");
-            if (MorePacks > 0f) parts.Add($"{Say.Share(MorePacks)} more packs");
+            if (boon.Quantity > 1f) parts.Add($"{Say.Share(Whole(boon.Quantity - 1f))} more Items");
+            if (boon.Rarity > 1f) parts.Add($"{Say.Share(Whole(boon.Rarity - 1f))} more Item Rarity");
+            if (MorePeople > 0f) parts.Add($"{Say.Share(Whole(MorePeople))} larger packs");
+            if (MorePacks > 0f) parts.Add($"{Say.Share(Whole(MorePacks))} more packs");
             return string.Join(", ", parts);
         }
+
+        private static float Whole(float share) => MathF.Max(MathF.Round(share * 100f), 1f) / 100f;
 
         /// <summary>Puts orders on the land: what their kind always brings, what's rolled on them, and what a unique one does.</summary>
         public void Give(Item orders)

@@ -28,9 +28,11 @@ It came over the water in iron ships. It took the coasts first, then the valleys
 
 Not everything the Reich brought stays in harness. Raptors, spitters and ravagers that got out of the pens breed in the deep woods now, and skitters swarm wherever anything has died, which is everywhere the Reich has been.
 
-**The hero is a Defender.** Nobody sent them. They come ashore at the Landing, and the people call them what they call anyone who stands between them and the teeth. They free a land the way it was taken, a place at a time: they burn out the pens, put what the Ossuary raised back in the ground, rekindle the shrines, and bring down the tyrant at the keep. Then the wind turns to guide them, and the waygate opens on the next land the Reich holds, a little deeper into what it has taken and a little harder.
+**The hero is a Defender.** Nobody sent them. They come ashore at the Landing, and the people call them what they call anyone who stands between them and the teeth. They free a land the way it was taken, a place at a time: they burn out the pens, put what the Ossuary raised back in the ground, rekindle the shrines, and bring down the tyrant at the keep. Then the wind turns to guide them home, and the next land they go to is a little deeper into what the Reich has taken and a little harder.
 
-The Reich came by sea. The Defenders go by the waygates, the land's own old roads, raised by no people anyone remembers.
+The Reich came by sea. The Defenders go by the waygates, the land's own old roads, raised by no people anyone remembers, and every one of those roads comes first to **the Haven**: a small isle of blossom in the last light of the day, and the one place the Reich has never found. Defenders rest there between lands, and choose the next at the map table, where every land the great waygate knows is drawn in light. What they take from the Reich comes with them: its **orders**, sealed in oxblood wax, which say where a brood is bound and what it's bringing, and which, given to the map table, open the way onto exactly that.
+
+In the lands the Reich holds, the villages that are left are **hiding**. They keep a waygate, a shrine and a little trade going behind barred doors, and they let in anyone who isn't the Reich.
 
 Up to five can share a land, and they're the Dino Defenders.
 
@@ -105,8 +107,11 @@ What each kind of place is under the Reich, as `Chronicle.Describe` tells it:
 | Camp (`SiteKind.BanditCamp`) | A brood's pen: cages, chains and the smell of blood, where the beasts are kept between hunts |
 | Churchyard | Where the Ossuary digs |
 | Shrine | Put out by the Reich, and kindled again by a Defender |
-| Village, hamlet, farmstead | People who pay the tithe, and remember |
-| Waygate | The land's old road to the next land |
+| Village | People hiding behind barred doors, with a waygate, a shrine and a merchant, who trade with anyone who isn't the Reich |
+| Hamlet, farmstead, fishing hamlet, lumber camp | Overrun: the Reich's people or its beasts are in them now |
+| Shrine, standing stones, watchtower | Held, so that nobody can kindle them or light the beacon |
+| Waygate | One of the land's old roads: it knows the way home, and to every other gate a Defender has found |
+| The Haven | The one place the Reich has never found, where every waygate's road comes first |
 
 ## Where the game says it
 
@@ -144,6 +149,7 @@ Not built:
 - **Music of its own.** The score doesn't change for the Reich.
 - **A first screen that says any of this.** The menu shows the title and a hero standing in a world, with nothing of the invasion.
 - **Who a Defender is**, beyond the name the people give them.
+- **Who lives in the Haven**, and how it's stayed hidden. It's a village of people who got out, and nothing more is said.
 
 ## Decided, and open to change
 
@@ -160,6 +166,8 @@ Choices made without asking. Say if any are wrong.
 - **Broods that got out** are two in five of the beasts in the wild, with swarms of raptors and skitters another one in five. In the snow they're one in six, and the rest is still the wolves'.
 - **Dinosaurs roar like film monsters**, not with the closed-mouth booming the evidence suggests, because these are bred and wrong. See `SOUND.md`.
 - **A raptor is a little slower than a hero**, 9.6 m/s against 10, so a pack can be got away from by someone who stops fighting.
+- **The Haven is an isle of blossom in a golden evening**, peaceful and warm, with no black iron, oxblood or brass anywhere in it but the orders a Defender brings back.
+- **Orders' names** are the Reich's plain army words and its tongue: a Kommandant, a Brutmeister, a garrison and a writ.
 
 ## Where this came from
 

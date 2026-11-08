@@ -127,6 +127,8 @@ Nothing about this can be proved by a bot. To drive it with real mouse messages 
 
 Ctrl-clicks and right clicks happen on the press, so a run of them needn't wait for each to be let go. A card in the pack is `loose`, for why: read `TOOLTIPS.md`.
 
+**The stash** is the same cells with gaps, in four tabs, beside the pack when the strongbox is open, and moves by the same clicks: Ctrl-click or right click puts something away or takes it out, and dragging moves it anywhere. Its rules are on `Stash` and both ends run them: read `LANDS.md`.
+
 **A merchant's table** (`MerchantTable`) is one per hero and site, and stays as it is too: what's bought leaves a gap, so a double click buys one thing. What's sold goes on it to be bought back at what it paid, so a slip costs nothing. The oldest goes once it's full. It lasts as long as `ServerPlayer.Tables`, which is until they leave the land or the game: what's for sale has always worked that way, and nothing about a table is saved.
 
 **Something put down** has `PickupComponent.Laid`, which leaves out everything that says a find is exciting: the long flight, the sting, the flash, the callout. It can be picked up by anyone like anything else, and is lost on leaving the world like anything else. The drop catcher is `GroundCatcher`, which only stops the mouse with something on the cursor, and only really over the game: losing the focus part way through a drag mustn't count as bringing it to the ground.
@@ -205,6 +207,8 @@ A book is gear like anything else: one mesh from `BookGenerator`, by `GearKind.B
 The one that's being read shows open, wherever it shows (`BookPanel.IsOpen`, `Ui.DrawItem`). That's the only other mesh anything has: `GearKind.OpenBook` draws from the genes of `Book`, by the same names, so it's the same book laid open and `check` fails if it isn't. No item is ever that kind, so nothing but `Wardrobe.Picture` asks for it, and until there's a picture of it the shut one shows.
 
 A page is `GearKind.Page` and a sticker `GearKind.Sticker`, one mesh each like anything else. Nothing about a look says what's on one, so `Ui.DrawPlaces` puts what matters on the picture: which kind of page, and how many places something has with how many taken.
+
+Orders are `GearKind.Orders` (`BookGenerator.Orders`): parchment rolled and tied in oxblood and sealed in oxblood wax pressed with brass, as they're the Reich's own and those are its colours. A roll can be one or a bundle of two or three, rolled tighter at one end with its inner turns slipping out, and better orders are tied more often and come in a leather case with brass caps. Nothing about the look says what's in them: their card does. `variety --kind Orders` holds that no two are alike.
 
 A hero with nothing that shoots throws what's in their hand, and that's the same mesh again: `ThrownComponent` carries the weapon's seed and traits, and `GhostPresenter.Tumble` keeps asking for it, as anything using a model from `GearWorkshop` has to. Something with no item to show, such as an enemy whose sword is only a word, is thrown as `Thrown.Of` says, from one model for each kind of weapon (`CharacterFactory.ThrownThing`).
 

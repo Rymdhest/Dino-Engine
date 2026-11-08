@@ -85,9 +85,9 @@ Everything is one message on a connection, reliable or not.
 | `GroundItem` | reliable | What a find on the ground is, and that it's gone. Sent to everyone as it drops, and to whoever arrives later |
 | `Worn` | reliable | What a hero has on: a seed and traits for each place. Sent to everyone when it changes, and to whoever arrives later. No mesh is ever sent: see `GEAR.md` |
 
-Worlds are never sent: the seed is, with the `Offering` paid on it, and each machine grows its own. An offering decides how many stand on the land, so `Offering.Shape` has to be what makes the request on both ends. Both ends compare a hash of the result. Sites and spawns must match exactly. Ground only has to match closely, as worlds are grown with floating point and the C runtime can round differently from one machine to the next, which at worst costs a correction.
+Worlds are never sent: the seed is, with the land's terms (`LandTerms`: its omens, any unique orders, and how many places it asks to be freed), and each machine grows its own. Some omens decide how many stand on the land, so `LandTerms.Shape` has to be what makes the request on both ends. The Haven has no terms and is the same everywhere. Both ends compare a hash of the result. Sites and spawns must match exactly. Ground only has to match closely, as worlds are grown with floating point and the C runtime can round differently from one machine to the next, which at worst costs a correction.
 
-The hero's own data lives on the server during a game and is copied to the client, which is what ends up in that player's save. World progress belongs to the host.
+The hero's own data lives on the server during a game and is copied to the client, which is what ends up in that player's save. World progress belongs to the host. The stash is the player's too: it comes in their hello, the server keeps a copy for as long as they're there and runs it by the pack's rules (`Stow`, `Unstow` and `Shift` go through `AskGear` and are answered with the truth), and their own machine keeps it. The climb (`LandLevel`, `BestLand`, `Offers`) is in the hero summary, and what a land meant for it is settled on the server the moment it happens, and sent before any world changes, so that closing the game can't take it back.
 
 ## Time
 

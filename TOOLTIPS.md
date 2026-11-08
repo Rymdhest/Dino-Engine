@@ -46,7 +46,7 @@ A sentence names everything its modifier is narrowed to: every tag in its scope,
 
 - a capitalised word that isn't a term (the start of a sentence and the names of books and buffs aside), which is what a magic word is
 - a term written in lower case, which is a magic word in disguise: it means something and nothing says so
-- a digit typed into a string in `Tooltips/` or `Offering.cs`
+- a digit typed into a string in `Tooltips/`, `Omens.cs`, `Lands.cs` or `Orders.cs`
 - a number in the code of a fight that isn't in the `Rulebook`
 - a line that changes no number: every modifier a player can read is tried on a plain hero, and has to change something. That's how `increased` on a stat that starts from nothing was found, which reads well and does nothing
 

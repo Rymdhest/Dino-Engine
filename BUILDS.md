@@ -191,7 +191,7 @@ What they're made of, so that a new one is mostly a line:
 | More `TriggerEvent`s | Stun, Reaction, BarrierBroke, Dash, MinionDied, Used | Nothing past `Flask` is something a Trigger Book can wait for |
 | Foe conditions | Marked, Unaware, Up Close, At Range, Isolated and Wounded, and their opposites | Worked out by the blow, and only when something asks (`Condition.Relations`) |
 | Own conditions | Surrounded and Alone, which a hero counts once everyone's moved. In Rain and In Snow, from the same weather function a client draws, a few times a second for those who care | |
-| More `Per` counters | Enemies near, Ailments on you, empty places, Normal and Unique items worn, items carried, Peril, Omens, Rares slain, seconds Fighting, the same Book in a row, different Books Recently | A sheet is keyed on only the counters it reads (`Loadout.CountersRead`), so gold changing doesn't remake a sheet that only counts enemies |
+| More `Per` counters | Enemies near, Ailments on you, empty places, Normal and Unique items worn, items carried, the Land Level, Omens, Rares slain, seconds Fighting, the same Book in a row, different Books Recently | A sheet is keyed on only the counters it reads (`Loadout.CountersRead`), so gold changing doesn't remake a sheet that only counts enemies |
 | `Rule`s | Everything else, in `Combat`, `HeroRules`, `GameServer` and the sheet | `Rule` is a number and a sheet keeps a `RuleSet`, so there's room for as many as there are uniques |
 
 What only uniques do is listed after the keystones in `Rule`. A new one is a value there, a `RuleInfo` in `ModText` with its numbers in the `Rulebook` (and `Hurts` if it's a cost), the code where it matters, and a check in `Dino NetLab uniques`, which does every unique's rule for real on a running server and has been seen to fail with each of a sample of them broken. None of these numbers has been played by a person.
@@ -264,29 +264,17 @@ Loot is shared: whoever gets there first has it. What's left on the ground is lo
 
 To see it: `--loot all` drops one of every rarity in front of the hero, and `--loot boss`, `rare`, `magic`, `chest` or `hoard` what that tier gives. `--loot folios` adds books, pages and stickers among them.
 
-## Offerings
+## Lands
 
-Gold burned at a waygate makes the land beyond it worse and richer, in the way a Mythic+ key and a rolled map do. It's the game's reason to want gold, and it's chosen on the way to a new land, never for the one a hero is standing in. Everything comes from a few choices in `Offering` (`Progression/Offering.cs`), which is all that's saved or sent. There are three kinds of thing to pay for, and they're kept apart on purpose.
+What a land holds beyond its seed and level is in `LANDS.md`: the climb, omens, orders and the Haven. What it means for builds is here.
 
-| Choice | Is | Costs a player | Pays |
-|---|---|---|---|
-| Peril, 0 to 30 | The key level. Enemies get 15% more health and 8% more damage a step, compounding | Fights | More finds, rarer finds, better rolls, higher item levels, more gold and experience. Nothing normal from Peril 3 |
-| Teeming and Overrun, 0 to 3 each | Packs up to 150% larger, and up to 100% more of them: about 4.3 times the enemies at the top of both | Gold alone | Nothing more per enemy. There are simply more of them, none any stronger, and that's the reward |
-| Omens, 1 to 5 by peril | What a map's mods are. Dangers that pay in what drops, and things that change the land | Whatever each does | What each says |
+**Danger is what enemies wear.** A land's omens of what enemies are (`LandTerms.FoeMods`) go into the session's `Bestiary` and onto every loadout it hands out, bosses too, so there's no new rule in `Combat` and nothing a hero couldn't meet anyway. The tyrant's wrath goes on the tyrant alone (`TyrantMods`). `TierOf` reads a find's worth from real health, which omens have just changed, so `DropLoot` divides `EnemyHealth`, and the tyrant's wrath, back out. Forget that and omens turn fodder into champions and pay for them twice. `Volatile` and `Rallying` are `Rule`s, and `Die` sets them off through the deferred list, as it can be running inside a loop over what's nearby.
 
-**A crowd is part of the world.** `WorldRequest.MorePeople` and `MorePacks` are read by `PackStage` and nothing else, so the ground, the sites and everything before it come out exactly the same, and both ends grow one world from what they're told. `Offering.Shape` makes the request, and it's the only thing that does. `LeastSpacing` holds packs clear of `CallReach` however many are paid for, so a fight can spread to the next pack but can't wake the whole land.
-
-**Danger is what enemies wear.** `Offering.EnemyMods` goes into the session's `Bestiary` and onto every loadout it hands out, bosses too, so there's no new rule in `Combat` and nothing a hero couldn't meet anyway. `TierOf` reads a find's worth from real health, which peril has just changed, so `DropLoot` divides `EnemyHealth` back out. Forget that and peril turns fodder into champions and pays for them twice. `Volatile` and `Rallying` are `Rule`s, and `Die` sets them off through the deferred list, as it can be running inside a loop over what's nearby.
+**What a land does to heroes** goes on last, through `HeroBuild.Compile(hero, buffs, land)`, on both ends, as it's part of every step.
 
 **What it pays** is a `LootBoon`, handed to `Loot.Roll` and `RollGold`. `LootBoon.None` leaves a roll exactly as it was. Sure things, a boss or a chest, take half of the quantity, or the top of the climb is a carpet rather than a heap. `MostUnique` caps a single find's chance, as past that a boss drops nothing else.
 
-**It can be failed.** Everyone in a world shares `Offering.AllowedFalls`. One more than that and the offering is `Broken`: the land stays as it is and pays no more than any other, and nothing is proven. That's what a timer is in a dungeon, on a game with no dungeons. An offering of more enemies alone can't break, as there's nothing there to take back.
-
-**It's a climb.** A hero can call down `PerilProven + 2`. Freeing a land under an unbroken offering proves its peril, and doing it without a fall proves one more and pays two hoards instead of one, on the spot. Everyone there at the time gets the credit. Whoever steps through pays for everyone with them, and it's `GameServer.Pay` that decides: what a client shows is only what it thinks that will say.
-
-**The sums are what stands behind this.** `Dino BuildLab offering` runs whole worlds at each step, and `check` holds that each step pays more than the last and that through Peril 15 a kill pays more than it takes, for a hero no stronger than before. Past that it's the hero who has to have grown. A step of peril is priced against about half a world's gold, and grows faster than gold does. A crowd is priced so that it pays for itself several times over, as it's the one thing here with no risk in it. None of these numbers have been played by a person.
-
-An omen's id is saved, and the order of `Omens` is what's sent, so a new one goes on the end. To see one: `--peril 5 --teeming 2 --overrun 1 --omens volatile,night`, with `--gold` and `--proven` for walking up to a waygate with `--panel waygate`.
+**The sums are what stands behind this.** `Dino BuildLab lands` prints what a land of each level holds and what each omen comes to over whole worlds, and `check` holds that deeper lands hold more omens, each worse, and pay more, that every omen pays for itself somehow, and that whatever an omen names an enemy or a hero really wears. None of these numbers have been played by a person.
 
 ## Networking
 
@@ -317,4 +305,4 @@ dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" uniques        # Every u
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" books          # Every sentence, for real on a running server
 ```
 
-Run `check` and `build` after any change here, `uniques` if a unique or anything one reads moved, `game` if the hero's step or the protocol moved, `loot` and `pace` if anything about drops did, and `offering` if anything about a waygate or what's paid at one did. A bot proves nothing about clicking: post real mouse messages for that. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.
+Run `check` and `build` after any change here, `uniques` if a unique or anything one reads moved, `game` if the hero's step or the protocol moved, `loot` and `pace` if anything about drops did, and `lands` if anything about a land's terms, the climb or the stash did. A bot proves nothing about clicking: post real mouse messages for that. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.
