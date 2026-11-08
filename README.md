@@ -81,6 +81,7 @@ Up to five heroes can share a world, with no server to run: in the pause menu, *
 - **Procedural dinosaurs**: each grown from a species and a seed as a field of signed distances, skinned by surface nets and quadric decimation, rigged from the same body, and moved with nothing recorded
 - **Procedural textures** for all textures
 - **GPU-driven grass** in the style of Ghost of Tsushima: a compute pass grows, clumps, thins and culls the blades every frame, drawn as curved Bézier blades with indirect draws; nothing per blade is stored
+- **GPU particles**: spawned, simulated in the wind, lit once each in six directions and sorted in compute, with nothing read back. Flames are grown at load by a fluid simulation and coloured as a black body, smoke is six-way lit puffs, and what lies on the ground is painted as a decal. One recipe sets a candle, a body or a whole field on fire
 
 ### Anti-aliasing
 - **Deferred MSAA** (2x/4x/8x): multisampled G-buffer, lights and composites shaded per sample only where a pixel's samples are on different things and once from their average elsewhere, sky/water/particles multisampled in hardware, tone-mapped-weighted resolve; no temporal accumulation, so no ghosting

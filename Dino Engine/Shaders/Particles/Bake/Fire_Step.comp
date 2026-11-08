@@ -1,0 +1,278 @@
+#version 430
+
+// A sheet of fire, simulated at load to grow the flame flipbooks (ParticleBaker). It's Stam's stable fluids in two dimensions with the fire model of Nguyen, Fedkiw and
+// Jensen (2002) cut down to what can be seen: fuel comes up unevenly from a bed, burns where it's hot and gives off heat, heat rises, and radiation cools what's hottest
+// fastest (as the fourth power of its temperature), which is what gives a flame its sharp tips. Vorticity confinement (Fedkiw, Stam and Jensen, 2001) keeps the swirls that
+// make it lick, and MacCormack advection (Selle et al., 2008) keeps it from blurring. One stage a dispatch: reads come through samplers and writes go to images, so nothing reads
+// what's being written. Cells are the unit of length, and the bed is at the bottom.
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+#include Particles/ParticleNoise.glsl
+
+const int STAGE_SOURCE = 0;
+const int STAGE_CURL = 1;
+const int STAGE_FORCES = 2;
+const int STAGE_ADVECT = 3;
+const int STAGE_CORRECT = 4;
+const int STAGE_DIVERGENCE = 5;
+const int STAGE_JACOBI = 6;
+const int STAGE_PROJECT = 7;
+const int STAGE_CAPTURE = 8;
+const int STAGE_BLEND = 9;
+
+uniform int stage;
+uniform ivec2 gridSize;
+uniform float dt;
+uniform float simTime;
+uniform float buoyancy;     // Cells a second squared, per unit of temperature.
+uniform float vorticity;
+uniform float burnRate;     // A second, at full heat.
+uniform float heatRelease;  // Temperature per unit of fuel burnt.
+uniform float cooling;      // Of the fourth power of temperature, a second.
+uniform float fade;         // Of all heat, a second.
+uniform vec4 source;        // x the bed's middle (cells), y half its width, z its top, w fuel a second (0 for none)
+uniform float sourceNoise;  // How unevenly the fuel comes up, 0 to 1.
+uniform float sourceRound;  // 1 for a ball of fuel off the ground, as a gout starts from, rather than a bed along it.
+uniform float pilot;        // How hot the source keeps itself, which lights what comes out of it.
+uniform float jet;          // Cells a second the bed blows upwards.
+uniform float seed;
+uniform float frameSeconds; // Of the flipbook's frames, for how far the fire moves from one to the next.
+uniform ivec2 captureSize;
+uniform int captureLayer;
+uniform int blendFrom;
+uniform int blendTo;
+uniform float blendShare;
+
+uniform sampler2D velocityIn;
+uniform sampler2D fieldsIn;
+uniform sampler2D scalarIn;
+uniform sampler2D velocityHat;
+uniform sampler2D fieldsHat;
+uniform sampler2DArray capturedFrames;
+
+layout(rg32f, binding = 0) uniform writeonly image2D velocityOut;
+layout(rgba32f, binding = 1) uniform writeonly image2D fieldsOut;
+layout(r32f, binding = 2) uniform writeonly image2D scalarOut;
+layout(rgba16f, binding = 3) uniform writeonly image2DArray frameOut;
+
+ivec2 cellAt(ivec2 c)
+{
+    return clamp(c, ivec2(0), gridSize - 1);
+}
+
+vec2 velocityAt(ivec2 c)
+{
+    // The ground is a wall: nothing comes up through it or goes down into it. The sides and the top are open air, which a fire draws in and lets out.
+    vec2 inside = texelFetch(velocityIn, cellAt(c), 0).xy;
+    if (c.y < 0) return vec2(inside.x, -inside.y);
+    return inside;
+}
+
+float pressureAt(ivec2 c, float here)
+{
+    if (c.y < 0) return here;
+    if (c.x < 0 || c.x >= gridSize.x || c.y >= gridSize.y) return 0.0;
+    return texelFetch(scalarIn, c, 0).r;
+}
+
+// Near the sides the air is calmed, and anything drifting sideways slows everywhere, so no current builds up across the sheet to blow the fire over or pin it to an edge.
+const float SPONGE_WIDTH = 14.0;
+const float SPONGE_CALM = 10.0;
+const float DRIFT_CALM = 0.6;
+
+vec2 toUv(vec2 cellPosition)
+{
+    return cellPosition / vec2(gridSize);
+}
+
+// Where what's at p now was a step ago, by the midpoint rule.
+vec2 backtrace(vec2 p, vec2 velocity)
+{
+    vec2 middle = texture(velocityIn, toUv(p - 0.5 * dt * velocity)).xy;
+    return p - dt * middle;
+}
+
+void main()
+{
+    ivec2 c = ivec2(gl_GlobalInvocationID.xy);
+
+    if (stage == STAGE_CAPTURE || stage == STAGE_BLEND)
+    {
+        if (any(greaterThanEqual(c, captureSize))) return;
+        if (stage == STAGE_BLEND)
+        {
+            vec4 a = texelFetch(capturedFrames, ivec3(c, blendFrom), 0);
+            vec4 b = texelFetch(capturedFrames, ivec3(c, blendTo), 0);
+            imageStore(frameOut, ivec3(c, captureLayer), mix(a, b, blendShare));
+            return;
+        }
+
+        vec2 uv = (vec2(c) + 0.5) / vec2(captureSize);
+        vec4 fields = texture(fieldsIn, uv);
+        vec2 velocity = texture(velocityIn, uv).xy;
+        float temperature = fields.x;
+        // What glows is soot hot enough to: below that it's only hot air.
+        float burning = smoothstep(0.28, 0.75, temperature);
+        // Soft at the edges of the frame, so a card never shows its border, and over the bed, which the coals under a fire are for.
+        float edge = smoothstep(0.0, 0.07, uv.x) * smoothstep(1.0, 0.93, uv.x) * smoothstep(1.0, 0.88, uv.y) * smoothstep(0.02, 0.13, uv.y);
+        burning *= edge;
+        float heat = clamp(temperature / 1.3, 0.0, 1.0);
+        vec2 flow = velocity * frameSeconds / vec2(gridSize);
+        imageStore(frameOut, ivec3(c, captureLayer), vec4(burning, burning * heat, flow));
+        return;
+    }
+
+    if (any(greaterThanEqual(c, gridSize))) return;
+    vec2 p = vec2(c) + 0.5;
+
+    if (stage == STAGE_SOURCE)
+    {
+        vec2 velocity = texelFetch(velocityIn, c, 0).xy;
+        vec4 fields = texelFetch(fieldsIn, c, 0);
+        float temperature = fields.x;
+        float fuel = fields.y;
+        float soot = fields.z;
+
+        if (source.w > 0.0)
+        {
+            float across = abs(p.x - source.x) / source.y;
+            float bed = smoothstep(1.0, 0.65, across) * smoothstep(source.z, source.z * 0.4, p.y);
+            if (sourceRound > 0.5)
+            {
+                // A ball, ragged at its edge.
+                vec2 inBall = (p - vec2(source.x, source.z * 0.5)) / vec2(source.y, source.z * 0.5);
+                float ragged = particleValueNoise(p * 0.15 + seed * 31.0) * 0.5;
+                bed = smoothstep(1.0, 0.5, length(inBall) + ragged - 0.25);
+            }
+            if (bed > 0.0)
+            {
+                // Fuel comes up in clumps along the bed, with gaps between them, and they waver: each clump feeds a tongue of its own.
+                float slow = particleValueNoise(vec2(p.x * 0.07 + seed * 13.0, simTime * 1.3 + seed));
+                float quick = particleValueNoise(vec2(p.x * 0.21 - seed * 7.0, simTime * 4.1 - seed * 3.0));
+                float clumps = slow * slow * 2.2 + quick * 0.6;
+                float supply = bed * mix(1.0, clumps, sourceNoise);
+                fuel += supply * source.w * dt;
+                // The bed is hot, and lights whatever comes up out of it.
+                temperature = max(temperature, bed * pilot);
+                velocity.y = mix(velocity.y, jet * (0.6 + 0.8 * quick), bed * 0.25);
+            }
+        }
+
+        // Fuel burns where it's hot, and the heat it gives off is what burns more.
+        float burnt = min(fuel, fuel * burnRate * smoothstep(0.25, 0.55, temperature) * dt);
+        fuel -= burnt;
+        temperature += burnt * heatRelease;
+        soot += burnt * 0.5;
+
+        // Radiation takes most from what's hottest.
+        float t2 = temperature * temperature;
+        temperature = max(temperature - cooling * t2 * t2 * dt, 0.0) * exp(-fade * dt);
+        soot *= exp(-0.7 * dt);
+        fuel *= exp(-0.35 * dt);
+
+        imageStore(velocityOut, c, vec4(velocity, 0.0, 0.0));
+        imageStore(fieldsOut, c, vec4(temperature, fuel, soot, 0.0));
+        return;
+    }
+
+    if (stage == STAGE_CURL)
+    {
+        float dvdx = 0.5 * (velocityAt(c + ivec2(1, 0)).y - velocityAt(c - ivec2(1, 0)).y);
+        float dudy = 0.5 * (velocityAt(c + ivec2(0, 1)).x - velocityAt(c - ivec2(0, 1)).x);
+        imageStore(scalarOut, c, vec4(dvdx - dudy, 0.0, 0.0, 0.0));
+        return;
+    }
+
+    if (stage == STAGE_FORCES)
+    {
+        vec2 velocity = texelFetch(velocityIn, c, 0).xy;
+        vec4 fields = texelFetch(fieldsIn, c, 0);
+        velocity.y += (buoyancy * fields.x - buoyancy * 0.08 * fields.z) * dt;
+
+        float curl = texelFetch(scalarIn, c, 0).r;
+        float left = abs(texelFetch(scalarIn, cellAt(c - ivec2(1, 0)), 0).r);
+        float right = abs(texelFetch(scalarIn, cellAt(c + ivec2(1, 0)), 0).r);
+        float below = abs(texelFetch(scalarIn, cellAt(c - ivec2(0, 1)), 0).r);
+        float above = abs(texelFetch(scalarIn, cellAt(c + ivec2(0, 1)), 0).r);
+        vec2 gradient = 0.5 * vec2(right - left, above - below);
+        vec2 toward = gradient / (length(gradient) + 1e-5);
+        velocity += vorticity * vec2(toward.y * curl, -toward.x * curl) * dt;
+
+        velocity *= exp(-0.3 * dt);
+        float fromSide = min(p.x, float(gridSize.x) - p.x);
+        velocity *= exp(-(1.0 - smoothstep(0.0, SPONGE_WIDTH, fromSide)) * SPONGE_CALM * dt);
+        velocity.x *= exp(-DRIFT_CALM * dt);
+        if (c.y == 0) velocity.y = max(velocity.y, 0.0);
+        imageStore(velocityOut, c, vec4(velocity, 0.0, 0.0));
+        return;
+    }
+
+    if (stage == STAGE_ADVECT)
+    {
+        vec2 back = backtrace(p, texelFetch(velocityIn, c, 0).xy);
+        imageStore(velocityOut, c, vec4(texture(velocityIn, toUv(back)).xy, 0.0, 0.0));
+        imageStore(fieldsOut, c, texture(fieldsIn, toUv(back)));
+        return;
+    }
+
+    if (stage == STAGE_CORRECT)
+    {
+        vec2 velocity = texelFetch(velocityIn, c, 0).xy;
+        vec2 back = backtrace(p, velocity);
+        vec2 ahead = p + dt * velocity;
+
+        vec2 velocityHere = texelFetch(velocityHat, c, 0).xy;
+        vec4 fieldsHere = texelFetch(fieldsHat, c, 0);
+        vec2 velocityError = velocity - texture(velocityHat, toUv(ahead)).xy;
+        vec4 fieldsError = texelFetch(fieldsIn, c, 0) - texture(fieldsHat, toUv(ahead));
+        vec2 velocityNext = velocityHere + 0.5 * velocityError;
+        vec4 fieldsNext = fieldsHere + 0.5 * fieldsError;
+
+        // Never past what was around where it came from, or it rings.
+        ivec2 corner = ivec2(floor(back - 0.5));
+        vec2 vLow = vec2(1e9), vHigh = vec2(-1e9);
+        vec4 fLow = vec4(1e9), fHigh = vec4(-1e9);
+        for (int i = 0; i < 4; i++)
+        {
+            ivec2 at = cellAt(corner + ivec2(i & 1, i >> 1));
+            vec2 v = texelFetch(velocityIn, at, 0).xy;
+            vec4 f = texelFetch(fieldsIn, at, 0);
+            vLow = min(vLow, v);
+            vHigh = max(vHigh, v);
+            fLow = min(fLow, f);
+            fHigh = max(fHigh, f);
+        }
+        imageStore(velocityOut, c, vec4(clamp(velocityNext, vLow, vHigh), 0.0, 0.0));
+        imageStore(fieldsOut, c, clamp(fieldsNext, fLow, fHigh));
+        return;
+    }
+
+    if (stage == STAGE_DIVERGENCE)
+    {
+        float du = velocityAt(c + ivec2(1, 0)).x - velocityAt(c - ivec2(1, 0)).x;
+        float dv = velocityAt(c + ivec2(0, 1)).y - velocityAt(c - ivec2(0, 1)).y;
+        imageStore(scalarOut, c, vec4(0.5 * (du + dv), 0.0, 0.0, 0.0));
+        return;
+    }
+
+    if (stage == STAGE_JACOBI)
+    {
+        // scalarIn holds the pressure so far, and fieldsHat (as a spare input) the divergence.
+        float here = texelFetch(scalarIn, c, 0).r;
+        float sum = pressureAt(c + ivec2(1, 0), here) + pressureAt(c - ivec2(1, 0), here) + pressureAt(c + ivec2(0, 1), here) + pressureAt(c - ivec2(0, 1), here);
+        float divergence = texelFetch(fieldsHat, c, 0).r;
+        imageStore(scalarOut, c, vec4((sum - divergence) * 0.25, 0.0, 0.0, 0.0));
+        return;
+    }
+
+    if (stage == STAGE_PROJECT)
+    {
+        float here = texelFetch(scalarIn, c, 0).r;
+        vec2 gradient = 0.5 * vec2(pressureAt(c + ivec2(1, 0), here) - pressureAt(c - ivec2(1, 0), here), pressureAt(c + ivec2(0, 1), here) - pressureAt(c - ivec2(0, 1), here));
+        vec2 velocity = texelFetch(velocityIn, c, 0).xy - gradient;
+        if (c.y == 0) velocity.y = max(velocity.y, 0.0);
+        imageStore(velocityOut, c, vec4(velocity, 0.0, 0.0));
+        return;
+    }
+}

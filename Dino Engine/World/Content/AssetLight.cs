@@ -5,7 +5,8 @@ namespace Dino_Engine.World.Content
     /// <summary>
     /// A light that is part of a model, in model space: whatever glows also shines. The generators say where theirs are, as they
     /// do for chimneys, and <see cref="Dino_Engine.ECS.Systems.TerrainChunkSystem"/> brings them in and out with the objects
-    /// they belong to, so anything placed anywhere lights its surroundings. A <see cref="ConeAngle"/> of 0 is a point light.
+    /// they belong to, so anything placed anywhere lights its surroundings. A <see cref="ConeAngle"/> of 0 is a point light. One with a
+    /// <see cref="FlameWidth"/> is an open flame burning there, as particles (Particles/Content/Fire.cs), whose light is the light beside it.
     /// </summary>
     public readonly record struct AssetLight
     {
@@ -20,6 +21,7 @@ namespace Dino_Engine.World.Content
         public bool LightsFog { get; init; }
         public Vector3 Direction { get; init; }     // Spotlights: the way it shines.
         public float ConeAngle { get; init; }       // Spotlights: radians, edge to edge.
+        public float FlameWidth { get; init; }      // Metres across an open flame burning here, or 0: a candle's, a torch's, a brazier's.
 
         private static readonly Vector3 Flame = new Vector3(1f, 0.52f, 0.2f);
         private static readonly Vector3 Oil = new Vector3(1f, 0.66f, 0.34f);
@@ -70,6 +72,9 @@ namespace Dino_Engine.World.Content
             Position = at, Colour = colour, Intensity = 340f, Radius = 20f, Fill = 0.05f,
             Direction = (outward - Vector3.UnitY * 1.1f).Normalized(), ConeAngle = MathHelper.DegreesToRadians(84f),
         };
+
+        /// <summary>An open flame <paramref name="width"/> metres across, with its foot here and no light of its own: what it burns in carries that.</summary>
+        public static AssetLight Burning(Vector3 at, float width) => new AssetLight { Position = at, FlameWidth = width };
 
         /// <summary>The cold light of old stones and holy places.</summary>
         public static AssetLight Glow(Vector3 at, Vector3 colour, float intensity, float radius) => new AssetLight

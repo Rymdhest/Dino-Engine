@@ -1,0 +1,204 @@
+#version 430
+
+// Puffs of smoke, grown at load for the smoke flipbook (ParticleBaker). Each frame is a volume:
+// 1. Density: a few lobes, their surfaces pushed out by turbulence (sums of |noise|), which gives the rounded billows and sharp creases of real smoke, a pyroclastic cloud after
+//    Wrenninge's Production Volume Rendering. The noise lives in the puff's own space, so its billows swell with it, and it rolls slowly upward as it goes.
+// 2. Sweeps along x and along y: how much smoke lies between each voxel and either side.
+// 3. Render: a march from the eye's side through each pixel, lighting each voxel from each of the six ways through the smoke towards that way (z is along the march itself), with
+//    Wrenninge's octaves of multiple scattering, Henyey-Greenstein's phase, and the smoke's own alpha. The result is six-way lightmaps as Unity and EmberGen bake them.
+// Volume space is -1 to 1 on every side, z towards the eye.
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+#include Particles/ParticleNoise.glsl
+#include Particles/ParticleFlipbooks.glsl
+
+const int STAGE_DENSITY = 0;
+const int STAGE_SWEEP_X = 1;
+const int STAGE_SWEEP_Y = 2;
+const int STAGE_RENDER = 3;
+
+// Extinction of the densest smoke, per unit of volume space.
+const float SIGMA = 70.0;
+// How much each octave of multiple scattering gives of the one before: it's what lights the shadowed side of a puff, and too much of it leaves the puff flat.
+const float OCTAVE_SHARE = 0.4;
+// How light forward of a puff outshines light to the side, and backward under it.
+const float PHASE_G = 0.3;
+
+uniform int stage;
+uniform ivec3 volumeSize;
+uniform float puffTime;
+uniform float puffSeed;
+uniform int puffLayer;
+
+uniform sampler3D density;
+uniform sampler3D sideX;
+uniform sampler3D sideY;
+
+layout(r16f, binding = 0) uniform writeonly image3D densityOut;
+layout(rg16f, binding = 1) uniform writeonly image3D sideXOut;
+layout(rg16f, binding = 2) uniform writeonly image3D sideYOut;
+layout(rgba16f, binding = 3) uniform writeonly image2DArray puffAOut;
+layout(rgba16f, binding = 4) uniform writeonly image2DArray puffBOut;
+
+vec3 lobeCentre(int i)
+{
+    return vec3(particleHash21(vec2(puffSeed * 13.0, float(i) * 7.0)), particleHash21(vec2(float(i) * 3.0, puffSeed * 29.0)), particleHash21(vec2(puffSeed * 5.0 + float(i), 11.0))) * 2.0 - 1.0;
+}
+
+float puffDensity(vec3 p)
+{
+    float t = puffTime;
+    float radius = puffRadius(t);
+    vec3 q = p / radius;
+
+    // A few lobes, so that no puff is a ball.
+    float body = -1.0;
+    for (int i = 0; i < 4; i++)
+    {
+        vec3 centre = lobeCentre(i) * vec3(0.38, 0.3, 0.3);
+        float lobeRadius = 0.5 + 0.22 * particleHash21(vec2(float(i) * 17.0, puffSeed * 41.0));
+        body = max(body, 1.0 - length(q - centre) / lobeRadius);
+    }
+
+    // Billows: rounded where the noise is far from nought and creased where it crosses, in the puff's own space, rolling up as it goes.
+    vec3 n = q * 1.9 + vec3(puffSeed * 37.0, puffSeed * 11.0 - t * 0.9, puffSeed * 23.0);
+    float billow = 0.0;
+    float amplitude = 0.55;
+    for (int o = 0; o < 5; o++)
+    {
+        billow += amplitude * abs(particleNoise3(n));
+        n = n * 2.07 + vec3(5.3, -2.1, 7.9);
+        amplitude *= 0.5;
+    }
+    float swell = mix(0.75, 0.5, t);
+    float softness = mix(0.07, 0.3, t);
+    float shape = body + (billow - 0.3) * swell;
+    float d = smoothstep(0.0, softness, shape);
+
+    // Thinner inside in places, which shows once it's thin enough to see into, and thinning as it spreads.
+    float inside = 0.55 + 0.45 * particleNoise3(q * 3.1 + vec3(puffSeed * 19.0, -t * 1.3, 0.0));
+    d *= inside * mix(1.0, 0.28, pow(t, 0.85));
+
+    // Nothing near the edge of the frame.
+    return d * smoothstep(0.99, 0.86, length(p));
+}
+
+vec3 volumePoint(ivec3 voxel)
+{
+    return (vec3(voxel) + 0.5) / vec3(volumeSize) * 2.0 - 1.0;
+}
+
+float henyeyGreenstein(float g, float cosTheta)
+{
+    float denominator = 1.0 + g * g - 2.0 * g * cosTheta;
+    return (1.0 - g * g) / (4.0 * 3.14159265 * denominator * sqrt(denominator));
+}
+
+// Light reaching a voxel through this much smoke, scattered towards the eye at this angle: three octaves of multiple scattering, each fainter, reaching deeper and less forward
+// than the last. Side light (cos 0) through no smoke comes to 1.
+float scattered(float depth, float cosTheta)
+{
+    float light = 0.0;
+    float a = 1.0;
+    float b = 1.0;
+    float g = PHASE_G;
+    for (int n = 0; n < 3; n++)
+    {
+        light += a * exp(-depth * b) * henyeyGreenstein(g, cosTheta) / henyeyGreenstein(g, 0.0);
+        a *= OCTAVE_SHARE;
+        b *= 0.5;
+        g *= 0.5;
+    }
+    return light / (1.0 + OCTAVE_SHARE + OCTAVE_SHARE * OCTAVE_SHARE);
+}
+
+void main()
+{
+    ivec3 id = ivec3(gl_GlobalInvocationID);
+
+    if (stage == STAGE_DENSITY)
+    {
+        if (any(greaterThanEqual(id, volumeSize))) return;
+        imageStore(densityOut, id, vec4(puffDensity(volumePoint(id)), 0.0, 0.0, 0.0));
+        return;
+    }
+
+    if (stage == STAGE_SWEEP_X)
+    {
+        // One thread a row along x, at (y, z) = id.xy.
+        if (id.x >= volumeSize.y || id.y >= volumeSize.z || id.z > 0) return;
+        float step = 2.0 / float(volumeSize.x) * SIGMA;
+        float total = 0.0;
+        for (int x = 0; x < volumeSize.x; x++) total += texelFetch(density, ivec3(x, id.x, id.y), 0).r * step;
+        float before = 0.0;
+        for (int x = 0; x < volumeSize.x; x++)
+        {
+            float here = texelFetch(density, ivec3(x, id.x, id.y), 0).r * step;
+            // r: smoke between it and the +x side, g: and the -x side.
+            imageStore(sideXOut, ivec3(x, id.x, id.y), vec4(total - before - here * 0.5, before + here * 0.5, 0.0, 0.0));
+            before += here;
+        }
+        return;
+    }
+
+    if (stage == STAGE_SWEEP_Y)
+    {
+        // One thread a column along y, at (x, z) = id.xy.
+        if (id.x >= volumeSize.x || id.y >= volumeSize.z || id.z > 0) return;
+        float step = 2.0 / float(volumeSize.y) * SIGMA;
+        float total = 0.0;
+        for (int y = 0; y < volumeSize.y; y++) total += texelFetch(density, ivec3(id.x, y, id.y), 0).r * step;
+        float before = 0.0;
+        for (int y = 0; y < volumeSize.y; y++)
+        {
+            float here = texelFetch(density, ivec3(id.x, y, id.y), 0).r * step;
+            imageStore(sideYOut, ivec3(id.x, y, id.y), vec4(total - before - here * 0.5, before + here * 0.5, 0.0, 0.0));
+            before += here;
+        }
+        return;
+    }
+
+    // STAGE_RENDER: one thread a pixel, marching from the eye's side (+z) into the puff.
+    if (id.x >= volumeSize.x || id.y >= volumeSize.y || id.z > 0) return;
+    float step = 2.0 / float(volumeSize.z) * SIGMA;
+    float total = 0.0;
+    for (int z = 0; z < volumeSize.z; z++) total += texelFetch(density, ivec3(id.xy, z), 0).r * step;
+
+    float transmittance = 1.0;
+    float infront = 0.0;
+    vec3 positive = vec3(0.0);  // Lit from +x, +y, +z.
+    vec3 negative = vec3(0.0);  // From -x, -y, -z.
+    float core = 0.0;
+    float radius = puffRadius(puffTime);
+    for (int z = volumeSize.z - 1; z >= 0; z--)
+    {
+        ivec3 voxel = ivec3(id.xy, z);
+        float here = texelFetch(density, voxel, 0).r * step;
+        if (here <= 1e-5)
+        {
+            continue;
+        }
+        vec2 sx = texelFetch(sideX, voxel, 0).rg;
+        vec2 sy = texelFetch(sideY, voxel, 0).rg;
+        float frontDepth = infront + here * 0.5;
+        float backDepth = total - infront - here * 0.5;
+
+        // Light from +z comes from behind the eye and has to turn right round; from -z it comes through the smoke towards the eye.
+        vec3 fromPositive = vec3(scattered(sx.r, 0.0), scattered(sy.r, 0.0), scattered(frontDepth, -1.0));
+        vec3 fromNegative = vec3(scattered(sx.g, 0.0), scattered(sy.g, 0.0), scattered(backDepth, 1.0));
+
+        float alpha = 1.0 - exp(-here);
+        positive += transmittance * alpha * fromPositive;
+        negative += transmittance * alpha * fromNegative;
+        float deep = clamp(1.0 - length(volumePoint(voxel)) / radius, 0.0, 1.0);
+        core += transmittance * alpha * deep;
+
+        transmittance *= exp(-here);
+        infront += here;
+        if (transmittance < 1e-3) break;
+    }
+
+    imageStore(puffAOut, ivec3(id.xy, puffLayer), vec4(positive, 1.0 - transmittance));
+    imageStore(puffBOut, ivec3(id.xy, puffLayer), vec4(negative, core));
+}

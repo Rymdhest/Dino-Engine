@@ -378,7 +378,6 @@ namespace Dino_Engine.Rendering
         private void PostGeometryPass()
         {
             _skyRenderer.RenderPass(this);
-            _particleRenderer.RenderPass(this);
             _beamRenderer.RenderPass(this);
             _trailRenderer.RenderPass(this);
         }
@@ -386,6 +385,8 @@ namespace Dino_Engine.Rendering
         {
             // The fog's composite is the last pass over the multisampled scene, which is then resolved into the dual buffer.
             _volumetricFogRenderer.RenderPass(this);
+            // Particles come over the fog and are hazed as far as they are from the eye: a fire or a spell is what's going on, and has to be seen. A ground fog's light is in the scene behind them.
+            _particleRenderer.RenderPass(this);
             // What's about to hit someone comes over the fog: it isn't atmosphere, and nothing is allowed to hide it.
             _groundMarkRenderer.RenderPass(this);
             // And so is who's doing it.

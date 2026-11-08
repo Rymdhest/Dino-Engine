@@ -26,6 +26,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         /// <summary>What the ground throws back up, this frame. It's what a reflection pointing down sees.</summary>
         public Vector3 GroundLight { get; private set; }
 
+        /// <summary>What the sky gives a surface facing up, this frame, for what's lit after the light passes: particles.</summary>
+        public Vector3 SkyLight { get; private set; }
+
         public AmbientLightRenderer() : base("Ambient and Sun")
         {
             foreach (ShaderProgram shader in new[] { _shader, _sampleShader })
@@ -65,6 +68,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         {
             LightingSettings lighting = renderEngine.Lighting;
             GroundLight = command.ground;
+            SkyLight = command.sky;
 
             DirectionalLightRenderer directional = renderEngine._directionalLightRenderer;
             bool sunUp = directional.TakeSun(out DirectionallightRenderCommand sun);

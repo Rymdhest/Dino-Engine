@@ -849,6 +849,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 b.Box(torch - new Vector3(0f, 0.25f, 0f), new Vector3(0.1f, 0.25f, 0.1f), Iron);
                 b.Box(torch + new Vector3(0f, 0.12f, 0f), new Vector3(0.14f, 0.14f, 0.14f), FireGlow);
                 lights.Add(AssetLight.Lantern(torch + new Vector3(0f, 0.3f, 0.2f)));
+                lights.Add(AssetLight.Burning(torch + new Vector3(0f, 0.26f, 0f), 0.32f));
             }
 
             // Over the opening, the block the portcullis rises into, with brass at its brow.
@@ -871,6 +872,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Tube(new Vector3(0f, 5.8f, 0f), new Vector3(0f, 6.25f, 0f), 0.32f, 0.55f, 10, Brass);
             b.Box(new Vector3(0f, 6.3f, 0f), new Vector3(0.32f, 0.12f, 0.32f), FireGlow);
             lights.Add(AssetLight.Lantern(new Vector3(0f, 6.8f, 0f)));
+            lights.Add(AssetLight.Burning(new Vector3(0f, 6.4f, 0f), 0.9f));
         }
 
         private static void BuildAltar(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
@@ -917,10 +919,11 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
         private static VertexMaterial Wax => new VertexMaterial(TextureGenerator.flat, new Colour(226, 216, 190));
         private static VertexMaterial Flame => Glow(1f, 0.42f, 0.08f, 3f);
 
-        private static void AddCandle(MeshBuilder b, Vector3 foot, float height, float radius)
+        // A candle, and its flame, which burns as particles.
+        private static void AddCandle(MeshBuilder b, Vector3 foot, float height, float radius, List<AssetLight> lights)
         {
             b.Tube(foot, foot + Vector3.UnitY * height, radius, radius * 0.92f, 6, Wax);
-            b.Add(IcoSphereGenerator.CreateIcosphere(1, Flame), foot + Vector3.UnitY * (height + radius * 1.5f), new Vector3(radius * 0.8f, radius * 1.9f, radius * 0.8f));
+            lights.Add(AssetLight.Burning(foot + Vector3.UnitY * height, radius * 0.8f));
         }
 
         private static void BuildCandles(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
@@ -928,11 +931,11 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             lights.Add(AssetLight.Candles(new Vector3(0f, 1.3f, 0f)));
 
             b.Tube(new Vector3(0f, -0.1f, 0f), new Vector3(0f, 0.06f, 0f), 0.46f, 0.4f, 8, Rough(96));
-            AddCandle(b, new Vector3(0f, 0.06f, 0f), random.Range(0.75f, 1f), 0.11f);
+            AddCandle(b, new Vector3(0f, 0.06f, 0f), random.Range(0.75f, 1f), 0.11f, lights);
             for (int i = 0; i < 4; i++)
             {
                 float angle = i * (MathF.Tau / 4f) + random.Range(-0.3f, 0.3f);
-                AddCandle(b, new Vector3(MathF.Cos(angle) * 0.26f, 0.06f, MathF.Sin(angle) * 0.26f), random.Range(0.3f, 0.7f), random.Range(0.07f, 0.1f));
+                AddCandle(b, new Vector3(MathF.Cos(angle) * 0.26f, 0.06f, MathF.Sin(angle) * 0.26f), random.Range(0.3f, 0.7f), random.Range(0.07f, 0.1f), lights);
             }
         }
 
@@ -951,7 +954,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 for (int i = 0; i < 5; i++)
                 {
                     Vector3 foot = new Vector3(-0.72f + i * 0.36f + random.Range(-0.05f, 0.05f), y, z + random.Range(-0.06f, 0.06f));
-                    AddCandle(b, foot, random.Range(0.28f, 0.42f) + row * 0.16f, random.Range(0.07f, 0.095f));
+                    AddCandle(b, foot, random.Range(0.28f, 0.42f) + row * 0.16f, random.Range(0.07f, 0.095f), lights);
                 }
             }
         }
@@ -967,7 +970,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 float y = x == 0f ? 3.5f : 3.3f;
                 if (x != 0f) b.Beam(new Vector3(0f, 3f, 0f), new Vector3(x, y, 0f), 0.035f, Iron);
                 b.Tube(new Vector3(x, y - 0.02f, 0f), new Vector3(x, y + 0.04f, 0f), 0.17f, 0.2f, 7, Iron);
-                AddCandle(b, new Vector3(x, y + 0.04f, 0f), x == 0f ? 0.5f : 0.38f, 0.085f);
+                AddCandle(b, new Vector3(x, y + 0.04f, 0f), x == 0f ? 0.5f : 0.38f, 0.085f, lights);
             }
         }
 

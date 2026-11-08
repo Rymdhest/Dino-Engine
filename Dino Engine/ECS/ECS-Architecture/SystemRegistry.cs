@@ -40,7 +40,6 @@ namespace Dino_Engine.ECS.ECS_Architecture
             // update
 
             Systems.Add(new GravitySystem());
-            Systems.Add(new ParticleEmitterSystem());
             Systems.Add(new SelfDestroySystem());
             Systems.Add(new PhysicsSystem());
             Systems.Add(new CharacterMotorSystem());
@@ -68,7 +67,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             // render
             Systems.Add(new SkySYstem());
             Systems.Add(new ModelRenderSystem());
-            Systems.Add(new ParticleRenderSystem());
+            Systems.Add(new ParticleEffectSystem());
             Systems.Add(new BeamRenderSystem());
             Systems.Add(new PointLightShadowSystem());
             Systems.Add(new PointLightSystem());

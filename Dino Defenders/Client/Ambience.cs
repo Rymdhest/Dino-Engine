@@ -5,6 +5,8 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.ECS.Systems;
 using Dino_Engine.Networking;
+using Dino_Engine.Particles;
+using Dino_Engine.Particles.Content;
 using Dino_Engine.Physics;
 using Dino_Engine.Sound;
 using Dino_Engine.Sound.Content;
@@ -296,7 +298,6 @@ namespace Dino_Defenders.Client
 
             MoteStyle style = StyleOf(kind);
             _moteDebt += style.Rate * LeftInTheAir(world, kind) * deltaTime;
-            Colour colour = _moteColour is Vector3 tint ? new Colour(tint.X, tint.Y, tint.Z, style.Colour.Intensity) : style.Colour;
             Vector3 centre = new Vector3(session.PlayerPosition.X, session.World.Height.Sample(session.PlayerPosition), session.PlayerPosition.Y);
 
             Vector2 drift = Carried(world.GetComponent<WindSingleton>(world.GetSingleton<WindSingleton>()).Velocity) * style.Drift;
@@ -305,15 +306,12 @@ namespace Dino_Defenders.Client
             {
                 _moteDebt -= 1f;
                 Vector3 at = centre + new Vector3(_random.Range(-MoteRadius, MoteRadius), _random.Range(style.LowestHeight, style.HighestHeight), _random.Range(-MoteRadius, MoteRadius));
-                Vector3 velocity = new Vector3(drift.X + _random.Range(-0.5f, 0.5f), style.Rise + _random.Range(-0.2f, 0.2f), drift.Y + _random.Range(-0.5f, 0.5f));
-                world.CreateEntity(
-                    new ParticleRenderTag { Lit = !style.Glows },
-                    new LocalToWorldMatrixComponent(),
-                    new PositionComponent(at),
-                    new ScaleComponent(new Vector3(style.Size * _random.Range(0.7f, 1.2f))),
-                    new ColorComponent(colour),
-                    new VelocityComponent(velocity),
-                    new selfDestroyComponent(style.Life * _random.Range(0.7f, 1.2f)));
+                var spawn = new ParticleSpawn(at, style.Size * _random.Range(0.7f, 1.2f), style.Life * _random.Range(0.7f, 1.2f))
+                {
+                    Velocity = new Vector3(drift.X + _random.Range(-0.5f, 0.5f), style.Rise + _random.Range(-0.2f, 0.2f), drift.Y + _random.Range(-0.5f, 0.5f)),
+                    Tint = _moteColour is Vector3 tint ? tint / style.Look.Colour[0f] : Vector3.One,
+                };
+                Particles.Spawn(style.Look, spawn, ParticlePriority.Ambient);
             }
         }
 
@@ -332,16 +330,16 @@ namespace Dino_Defenders.Client
             return 1f - MathF.Max(here.Wet, here.Rain);
         }
 
-        private readonly record struct MoteStyle(float Rate, float Size, float Life, float LowestHeight, float HighestHeight, float Rise, float Drift, Colour Colour, bool Glows = false);
+        private readonly record struct MoteStyle(float Rate, float Size, float Life, float LowestHeight, float HighestHeight, float Rise, float Drift, ParticleStyle Look);
 
         private static MoteStyle StyleOf(AmbientMotes kind) => kind switch
         {
-            AmbientMotes.Pollen => new(14f, 0.05f, 5f, 0.6f, 5f, 0.1f, 0.25f, new Colour(1f, 0.92f, 0.55f, 1.3f)),
-            AmbientMotes.Snow => new(34f, 0.07f, 6f, 4f, 15f, -1.5f, 0.5f, new Colour(0.95f, 0.97f, 1f, 1.2f)),
-            AmbientMotes.Embers => new(16f, 0.06f, 3.2f, 0.3f, 4f, 1.4f, 0.4f, new Colour(1f, 0.4f, 0.1f, 4f), Glows: true),
-            AmbientMotes.Fireflies => new(9f, 0.06f, 3.5f, 0.6f, 3.5f, 0.1f, 0.05f, new Colour(0.75f, 1f, 0.35f, 4f), Glows: true),
-            AmbientMotes.Dust => new(12f, 0.1f, 3.4f, 0.2f, 3f, 0.05f, 0.5f, new Colour(0.8f, 0.68f, 0.48f, 0.7f)),
-            AmbientMotes.Wisps => new(2.5f, 0.13f, 7f, 0.6f, 3f, 0.1f, 0.05f, new Colour(0.3f, 1f, 0.6f, 4f), Glows: true),
+            AmbientMotes.Pollen => new(14f, 0.05f, 5f, 0.6f, 5f, 0.1f, 0.25f, Motes.Pollen),
+            AmbientMotes.Snow => new(34f, 0.07f, 6f, 4f, 15f, -1.5f, 0.5f, Motes.Snow),
+            AmbientMotes.Embers => new(16f, 0.06f, 3.2f, 0.3f, 4f, 1.4f, 0.4f, Motes.Ember),
+            AmbientMotes.Fireflies => new(9f, 0.06f, 3.5f, 0.6f, 3.5f, 0.1f, 0.05f, Motes.Firefly),
+            AmbientMotes.Dust => new(12f, 0.1f, 3.4f, 0.2f, 3f, 0.05f, 0.5f, Motes.Dust),
+            AmbientMotes.Wisps => new(2.5f, 0.13f, 7f, 0.6f, 3f, 0.1f, 0.05f, Motes.Wisp),
             _ => default,
         };
     }
@@ -401,7 +399,6 @@ namespace Dino_Defenders.Client
 
                     case SiteFeatureKind.Campfire:
                         state.Live.Add(Flames(world, feature.Position));
-                        state.Live.Add(Smoke(world, feature.Position + Vector3.UnitY * 1.6f));
                         break;
                 }
             }
@@ -410,40 +407,20 @@ namespace Dino_Defenders.Client
         private static Entity Smoke(ECSWorld world, Vector3 position)
         {
             return world.CreateEntity("Smoke",
-                new ParticleEmitterComponent
-                {
-                    particlesPerSecond = 5f,
-                    particleSpeed = 1.5f,
-                    particleDuration = 5.5f,
-                    particleSizeStart = 1.1f,
-                    particleWeight = -0.04f,
-                    particleDirectionError = 0.28f,
-                    particleColourStart = new Colour(0.56f, 0.55f, 0.54f, 0.6f, 0.55f),
-                    particlesLit = true,
-                },
+                new ParticleEffectComponent(Dino_Engine.Particles.Content.Smoke.Chimney, EffectShape.Point),
                 new PositionComponent(position),
-                new DirectionNormalizedComponent(Vector3.UnitY),
-                new LocalToWorldMatrixComponent());
+                new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(position) });
         }
 
+        // The fire burns on the bed of its logs, a little under where it's heard from.
         private static Entity Flames(ECSWorld world, Vector3 position)
         {
+            Vector3 bed = position - Vector3.UnitY * 0.45f;
             return world.CreateEntity("Flames",
                 new SoundEmitterComponent(Soundscape.Fire, 0.55f),
-                new ParticleEmitterComponent
-                {
-                    particlesPerSecond = 18f,
-                    particleSpeed = 2.4f,
-                    particleDuration = 0.8f,
-                    particleSizeStart = 0.34f,
-                    particleWeight = -0.25f,
-                    particleDirectionError = 0.3f,
-                    // Deep and dim for a flame: these are added together where they overlap, and many of them burn out to white.
-                    particleColourStart = new Colour(1f, 0.34f, 0.06f, 1.3f),
-                },
-                new PositionComponent(position),
-                new DirectionNormalizedComponent(Vector3.UnitY),
-                new LocalToWorldMatrixComponent());
+                new ParticleEffectComponent(Fire.Campfire, EffectShape.Point),
+                new PositionComponent(bed),
+                new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(bed) });
         }
     }
 }

@@ -570,6 +570,7 @@ namespace Dino_Defenders
         }
 
         private string? _homecoming;
+        private EffectStage? _stage;
         private int _travelled;
 
         public override void update()
@@ -612,6 +613,9 @@ namespace Dino_Defenders
                 });
             }
             if (_frames == 30 && _options.Garden is string garden) PlantGarden(garden);
+            if (_frames == 30 && _options.Fx is string fx) _stage = new EffectStage(fx, session.PlayerPosition + _options.FxAt, session.World);
+            _stage?.Update(Dino_Engine.Core.Engine.Delta);
+            if (_frames == 2 && _options.ParticleSheet is string sheet) Dino_Engine.Core.Engine.RenderEngine._particleRenderer.Flipbooks.WriteSheets(sheet);
             if (_frames == 60 && _options.OpenWay >= 0 && _server != null)
             {
                 int choice = _options.OpenWay;

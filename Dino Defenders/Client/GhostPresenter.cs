@@ -8,6 +8,8 @@ using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
+using Dino_Engine.Particles;
+using Dino_Engine.Particles.Content;
 using Dino_Engine.Physics;
 using Dino_Engine.Sound;
 using Dino_Engine.Sound.Content;
@@ -111,14 +113,12 @@ namespace Dino_Defenders.Client
             if (!turned) components.Add(new RotationComponent(new Vector3(0f)));
             if (!sized) components.Add(new ScaleComponent(new Vector3(1f)));
 
+            // A patch of ground doing something shows it all over, with the light of it.
             for (int i = 0; i < components.Count; i++)
             {
                 if (components[i] is not ZoneComponent zone) continue;
-                Colour light = ClientEffects.LightOf(PageSign.Read(zone.Sign).Look);
                 components.Add(new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(position) });
-                components.Add(new PointLightTag());
-                components.Add(new LightRangeComponent(zone.Length * 1.6f, 0.2f, lightsFog: false));
-                components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, 26f)));
+                components.Add(new ParticleEffectComponent(ParticleShow.GroundOf(PageSign.Read(zone.Sign).Look), EffectShape.Over(new GroundArea(zone.ShapeAt(position.Xz)))));
                 break;
             }
 
@@ -184,6 +184,9 @@ namespace Dino_Defenders.Client
                         components.Add(new LightRangeComponent(BoltLightRadius, 0.2f, lightsFog: false));
                         components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, 40f)));
                     }
+
+                    // What it leaves in the air behind it as it flies.
+                    if (ParticleShow.BoltOf(look) is ParticleEffect trail) components.Add(new ParticleEffectComponent(trail, EffectShape.Point, prewarm: false));
                 }
 
                 // A land's waygate, once it's lit, hums and lights what's around it, which a dark one doesn't.
@@ -354,14 +357,12 @@ namespace Dino_Defenders.Client
                     var zone = entity.Get<ZoneComponent>();
                     if (zone.Age == 0f) effects.Sounds.ZoneOpens(PageSign.Read(zone.Sign).Look, entity.Get<PositionComponent>().value);
                     zone.Age += deltaTime;
-                    zone.NextMote -= deltaTime;
-                    if (zone.NextMote <= 0f)
-                    {
-                        zone.NextMote = 0.09f;
-                        Vector3 middle = entity.Get<PositionComponent>().value;
-                        effects.Mote(zone.ShapeAt(middle.Xz), middle.Y, PageSign.Read(zone.Sign).Look);
-                    }
                     entity.Set(zone);
+
+                    // The ground it covers goes wherever it does, and dies down as its time runs out.
+                    if (!entity.Has<ParticleEffectComponent>() || entity.Get<ParticleEffectComponent>().Run is not EffectRun run || run.Shape.Area is not GroundArea area) continue;
+                    area.Shape = zone.ShapeAt(entity.Get<PositionComponent>().value.Xz);
+                    run.Strength = zone.Life > 0f ? Math.Clamp((zone.Life - zone.Age) / ZoneDyingTime, 0f, 1f) : 1f;
                 }
             }
 
@@ -369,20 +370,13 @@ namespace Dino_Defenders.Client
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
-                    var afflicted = entity.Get<AfflictedComponent>();
-                    if (afflicted.Flags == 0) continue;
-                    afflicted.NextSpark -= deltaTime;
-                    if (afflicted.NextSpark > 0f)
-                    {
-                        entity.Set(afflicted);
-                        continue;
-                    }
-                    afflicted.NextSpark = 0.16f;
-                    entity.Set(afflicted);
-                    effects.Ailing(entity.Get<PositionComponent>().value, afflicted);
+                    effects.Ailments.Show(entity, entity.Entity.Id, entity.Get<AfflictedComponent>());
                 }
             }
+            effects.Ailments.EndFrame();
         }
+
+        private const float ZoneDyingTime = 0.6f;
 
         private static void MoveOwnHero(ECSWorld world, GameClient client, GameSession session)
         {
@@ -609,7 +603,8 @@ namespace Dino_Defenders.Client
                     if (entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model.StartsWith(Thrown.Prefix)) Tumble(entity, arrow, tick);
                     bool bolt = entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model.StartsWith(CharacterFactory.BoltPrefix);
                     entity.Set(new ScaleComponent(new Vector3(spent ? 0.001f : bolt ? BoltSize : 1f)));
-                    if (!spent && bolt && _effects() is ClientEffects effects) effects.Wake(entity.Get<VisualComponent>().Model, position);
+                    // Its trail ends where it does, though the server's word on it is still to come.
+                    if (entity.Has<ParticleEffectComponent>() && entity.Get<ParticleEffectComponent>().Run is EffectRun trail) trail.Strength = spent ? 0f : 1f;
                 }
             }
         }
@@ -768,14 +763,26 @@ namespace Dino_Defenders.Client
             {
                 Colour colour = ReactionColour(e.Kind);
                 client.Session?.Say(e.Position + Vector3.UnitY * 2.2f, $"{e.Kind}!", new Vector3(colour.Red, colour.Green, colour.Blue), 20f, 1.2f);
-                Flash(e.Position, new Colour(colour.Red, colour.Green, colour.Blue, 240f), e.Radius * 2.2f, 0.45f);
-                Ring(e.Position, e.Radius, new Colour(colour.Red, colour.Green * 0.7f, colour.Blue * 0.6f, 1.6f), 22);
+                Burst(ReactionOf(e.Kind), e.Position, e.Radius);
             });
             client.Events.On<TextEvent>(e => client.Session?.Say(e.Position, e.Text, e.Colour, e.Size, e.Life));
             client.Events.On<SparkEvent>(e =>
             {
-                Spark(e.Position, ColourOf(e.Kind), e.Count, e.Speed, lit: e.Kind == SparkKind.Blood);
-                if (e.Kind == SparkKind.Shrine) Flash(e.Position, new Colour(0.5f, 1f, 0.75f, 300f), 26f, 1.6f);
+                switch (e.Kind)
+                {
+                    case SparkKind.Shrine:
+                        Particles.Play(Arcane.Shrine, e.Position);
+                        break;
+                    case SparkKind.Blood:
+                        Particles.Play(Blood.Hit, e.Position);
+                        break;
+                    case SparkKind.Blade:
+                        Particles.Play(Impact.Sparks, e.Position);
+                        break;
+                    default:
+                        Burst(Impact.Shockwave, e.Position, 2f);
+                        break;
+                }
             });
             client.Events.On<HeroMoveEvent>(e => Show(e.Move, e.Position, e.Aim, e.Sign));
             client.Reached += (item, room) => Sounds.Reached(item, room);
@@ -795,17 +802,25 @@ namespace Dino_Defenders.Client
             bool own = ghost == client.OwnGhost;
             Vector3 way = new Vector3(e.Way.X, 0f, e.Way.Y);
 
-            // This player's own blow was shown the moment it landed. All that's left to say is whether it turned out to be a good one.
+            // This player's own blow was shown the moment it landed. All that's left to say is whether it turned out to be a good one, and what it was made of.
             if (body.JustStruck && !own)
             {
                 if (e.Critical) Jolt(e.Way, JoltSpeed);
+                if (ParticleShow.HitOf(e.Type) is Dino_Engine.Particles.ParticleEffect element) Particles.Play(element, e.Position, forward: way);
                 return;
             }
 
             Vector3 colour = e.Note == HitNote.Blocked ? new Vector3(0.9f, 0.9f, 0.85f) : own ? new Vector3(1f, 0.16f, 0.1f) : FlashOf(e.Type);
             Strike(body, way, e.Weight, e.Critical, colour, own ? HeroHeld : HeldBy(e.Weight, e.Critical));
             if (own || e.Weight >= BigBlow) Jolt(e.Way, own ? JoltSpeed * 0.6f : JoltSpeed);
+
+            // What comes off the blow: sparks off a shield, or what the body's made of, or the element it was dealt in.
+            if (e.Note == HitNote.Blocked) Particles.Play(Impact.Sparks, e.Position, forward: way);
+            else if (ParticleShow.HitOf(e.Type) is Dino_Engine.Particles.ParticleEffect hit) Particles.Play(hit, e.Position, forward: way);
+            else ParticleShow.Wound(e.Position, e.Way, e.Body == HitBody.Bone ? ParticleShow.Flesh.Bone : FleshOf(view), e.Body == HitBody.Armour, e.Weight, e.Critical);
         }
+
+        private static ParticleShow.Flesh FleshOf(in EntityView view) => view.Has<VisualComponent>() ? ParticleShow.FleshOf(view.Get<VisualComponent>().Model) : ParticleShow.Flesh.Blood;
 
         /// <summary>This player has just struck something, as far as can be seen from here.</summary>
         public void Connected(EntityView target, Vector2 way, float weight, bool heavy, Vector3 at)
@@ -813,7 +828,7 @@ namespace Dino_Defenders.Client
             CharacterAnimator body = target.Get<AnimatorComponent>().Animator;
             float held = HeldBy(weight, false);
             Strike(body, new Vector3(way.X, 0f, way.Y), weight, false, new Vector3(1f, 0.95f, 0.85f), held);
-            Spark(at, ColourOf(SparkKind.Blade), 4, 6f);
+            ParticleShow.Wound(at, way, FleshOf(target), false, weight, false);
 
             if (_client.OwnGhost is not Ghost own || !_world.TryGetEntityLocation(own.Entity, out _, out _)) return;
             _world.GetEntityView(own.Entity).Get<AnimatorComponent>().Animator.Connected(held);
@@ -858,18 +873,17 @@ namespace Dino_Defenders.Client
             if (gold || rarity < Rarity.Magic) return;
 
             Colour glow = LootShow.GlowOf(rarity);
-            Vector3 foot = position + Vector3.UnitY * 0.5f;
+            Vector3 tint = new Vector3(glow.Red, glow.Green, glow.Blue);
             if (rarity == Rarity.Magic)
             {
-                Spark(foot, glow, 5, 3f);
+                Particles.Play(Impact.Landing, position, 0.45f, tint: tint, strength: 0.6f);
                 return;
             }
 
             // A unique is bigger in every way, and moves the land itself.
             int step = rarity == Rarity.Unique ? UniqueStep : 0;
             Flash(position + Vector3.UnitY * 2.5f, new Colour(glow.Red, glow.Green, glow.Blue, 260f + 240f * step), 16f + 13f * step, 0.6f + 0.4f * step);
-            Ring(foot, 2.6f + 1.6f * step, glow, 16 + 10 * step);
-            Spark(foot, glow, 14 + 18 * step, 6f + 3f * step);
+            Particles.Play(Impact.Landing, position, 1f + 0.6f * step, tint: tint, strength: 1f + 0.5f * step);
             if (step > 0) Wind.AddBlast(_world, position, 9f + 9f * step, 12f + 12f * step, 0.5f + 0.3f * step);
             if (step > 0) Announce(find, rarity);
         }
@@ -896,7 +910,13 @@ namespace Dino_Defenders.Client
         public void LootMote(Rarity rarity, Vector3 position, float height)
         {
             Vector3 at = position + new Vector3(_random.Range(-0.5f, 0.5f), _random.Range(0f, height), _random.Range(-0.5f, 0.5f));
-            Spark(at, LootShow.GlowOf(rarity), 1, 1.6f);
+            Colour glow = LootShow.GlowOf(rarity);
+            var spawn = new ParticleSpawn(at, _random.Range(0.1f, 0.16f), _random.Range(0.7f, 1.1f))
+            {
+                Velocity = new Vector3(_random.Range(-0.3f, 0.3f), _random.Range(0.8f, 1.6f), _random.Range(-0.3f, 0.3f)),
+                Tint = new Vector3(glow.Red, glow.Green, glow.Blue),
+            };
+            Particles.Spawn(Glows.Glint(ParticlePalette.White), spawn, ParticlePriority.Ambient);
         }
 
         /// <summary>
@@ -952,86 +972,89 @@ namespace Dino_Defenders.Client
         private void ShowPage(PageEvent e)
         {
             PageSign sign = PageSign.Read(e.Sign);
-            Colour light = LightOf(sign.Look);
-            Colour glow = GlowOf(sign.Look);
             var shape = new GroundShape(e.Kind, e.Position.Xz, e.Facing, e.Length, e.Width);
+            var area = new GroundArea(shape);
+            Vector3 centre = new Vector3(area.Middle.X, e.Position.Y, area.Middle.Y);
 
-            // Where a flash goes is the middle of what it covers, which is only where it started for a circle.
-            Vector2 middle = shape.Anywhere(0.5f, e.Kind == ShapeKind.Line ? 0.5f : 0.25f);
-            Vector3 centre = new Vector3(middle.X, e.Position.Y, middle.Y);
+            if (!e.Quiet) Sounds.Burst(sign.Look, e.Position);
 
-            if (!e.Quiet)
-            {
-                Sounds.Burst(sign.Look, e.Position);
-                Flash(centre + Vector3.UnitY * 2f, new Colour(light.Red, light.Green, light.Blue, 200f), MathF.Max(e.Length * 2f, 8f), 0.4f);
-            }
-            if (e.Kind == ShapeKind.Circle) Ring(e.Position + Vector3.UnitY * 1.2f, e.Length, glow, 26);
-            else Scatter(shape, e.Position.Y, glow, 26);
-            Spark(centre + Vector3.UnitY * 1.6f, glow, 12, 7f);
+            // A round blast goes off all over its circle, with a ring out to its edge, and anything else all over its ground. What goes on doing this is seen more faintly each time.
+            bool round = e.Kind == ShapeKind.Circle;
+            float radius = round ? e.Length : MathF.Sqrt(area.SquareMetres / MathF.PI);
+            Particles.Play(ParticleShow.BurstOf(sign.Look), round ? e.Position : centre, BurstScale(radius), round ? EffectShape.Ball(MathF.Max(e.Length, 0.5f)) : EffectShape.Over(area),
+                new Vector3(e.Facing.X, 0f, e.Facing.Y), strength: e.Quiet ? 0.5f : 1f);
             if (e.Length > 4f && !e.Quiet) Wind.AddBlast(_world, centre, e.Length * 1.6f, 14f, 0.6f);
             Marks.Struck(shape, _client.Commands.Tick);
         }
 
-        // All over a shape that isn't round.
-        private void Scatter(in GroundShape shape, float height, Colour colour, int count)
+        // Bursts are made for a blast a few metres across and spread over anything wider, so what's in them grows only a little with it.
+        private static float BurstScale(float radius) => Math.Clamp(MathF.Sqrt(radius / EffectRun.SpreadRadius), 0.7f, 1.6f);
+
+        private static void Burst(ParticleEffect effect, Vector3 position, float radius)
         {
-            for (int i = 0; i < count; i++)
-            {
-                Vector2 at = shape.Anywhere(_random.Float(), _random.Float());
-                Spark(new Vector3(at.X, height + 1.2f, at.Y), colour, 1, 1.6f);
-            }
+            Particles.Play(effect, position, BurstScale(radius), EffectShape.Ball(MathF.Max(radius, 0.5f)));
         }
 
+        private static ParticleEffect ReactionOf(Reaction reaction) => reaction switch
+        {
+            Reaction.Scald => Smoke.Scald,
+            Reaction.Crackle => Frost.Burst,
+            Reaction.Flashfire => Fire.Burst,
+            Reaction.Shatter => Frost.Burst,
+            _ => Lightning.Burst,
+        };
+
+        // From one to the next, as a chain jumps: lightning arcs across, and anything else leaves a streak of itself along the way.
         private void ShowLink(LinkEvent e)
         {
-            Colour light = GlowOf(e.Look);
             Vector3 way = e.To - e.From;
-            int steps = Math.Clamp((int)(way.Length / 1.4f), 3, 24);
-            for (int i = 0; i <= steps; i++)
+            if (e.Look == DamageType.Lightning)
             {
-                float share = (float)i / steps;
-                Vector3 jitter = e.Wide ? Vector3.Zero : new Vector3(_random.Range(-0.5f, 0.5f), _random.Range(-0.4f, 0.4f), _random.Range(-0.5f, 0.5f));
-                Spark(e.From + way * share + jitter, light, e.Wide ? 2 : 1, 1.2f);
+                float width = e.Wide ? 0.16f : 0.1f;
+                Arcs.Strike(Lightning.Arc, e.From, e.To, width, 0.26f, Vector3.One, 1f, forks: 2, priority: ParticlePriority.Vital);
+                Arcs.Strike(Lightning.Arc, e.From, e.To, width * 0.7f, 0.12f, Vector3.One, 0.8f, forks: 1, priority: ParticlePriority.Vital);
             }
+            else
+            {
+                Trace(e.From, e.To, e.Look, e.Wide);
+            }
+            if (ParticleShow.HitOf(e.Look) is ParticleEffect hit) Particles.Play(hit, e.To, 0.8f, forward: way);
+
+            Colour light = GlowOf(e.Look);
             Flash(e.To, new Colour(light.Red, light.Green, light.Blue, 90f), 9f, 0.2f);
         }
 
-        private void Ring(Vector3 centre, float radius, Colour colour, int count)
+        private void Trace(Vector3 from, Vector3 to, DamageType look, bool wide)
         {
-            for (int i = 0; i < count; i++)
+            ParticleStyle style = look == DamageType.Fire ? Fire.Gout : Glows.Core(PaletteOf(look));
+            float size = (look == DamageType.Fire ? 0.55f : 0.45f) * (wide ? 1.5f : 1f);
+            Vector3 way = to - from;
+            int steps = Math.Clamp((int)(way.Length / (size * 0.7f)), 3, 48);
+            for (int i = 0; i <= steps; i++)
             {
-                float angle = i * (MathF.Tau / count);
-                Spark(centre + new Vector3(MathF.Cos(angle) * radius, 0.4f, MathF.Sin(angle) * radius), colour, 1, 1.4f);
+                float share = (float)i / steps;
+                Vector3 jitter = new Vector3(_random.Range(-0.15f, 0.15f), _random.Range(-0.15f, 0.15f), _random.Range(-0.15f, 0.15f)) * size;
+                var spawn = new ParticleSpawn(from + way * share + jitter, size * _random.Range(0.8f, 1.2f), _random.Range(0.2f, 0.32f) + share * 0.12f)
+                {
+                    Velocity = new Vector3(_random.Range(-0.4f, 0.4f), _random.Range(0f, 0.6f), _random.Range(-0.4f, 0.4f)),
+                    Angle = _random.Range(0f, MathF.Tau),
+                };
+                Particles.Spawn(style, spawn, ParticlePriority.Vital);
             }
         }
 
-        /// <summary>A moment of whatever a patch of ground is doing.</summary>
-        public void Mote(in GroundShape shape, float height, DamageType look)
+        private static ParticlePalette PaletteOf(DamageType type) => type switch
         {
-            Vector2 at = shape.Anywhere(_random.Float(), _random.Float());
-            Spark(new Vector3(at.X, height + 0.4f, at.Y), GlowOf(look), 1, 2.4f);
-        }
+            DamageType.Fire => ParticlePalette.Fire,
+            DamageType.Cold => ParticlePalette.Frost,
+            DamageType.Lightning => ParticlePalette.Lightning,
+            DamageType.Poison => ParticlePalette.Poison,
+            DamageType.Magic => ParticlePalette.Arcane,
+            _ => ParticlePalette.Fire,
+        };
 
-        /// <summary>What someone is suffering from, as it shows.</summary>
-        public void Ailing(Vector3 position, in AfflictedComponent afflicted)
-        {
-            Vector3 at = position + new Vector3(_random.Range(-1f, 1f), _random.Range(1f, 4.4f), _random.Range(-1f, 1f));
-            if (afflicted.Has(Condition.Frozen)) Spark(at, GlowOf(DamageType.Cold), 2, 0.5f);
-            else if (afflicted.Has(Condition.Burning)) Spark(at, GlowOf(DamageType.Fire), 1, 2.4f);
-            else if (afflicted.Has(Condition.Chilled)) Spark(at, GlowOf(DamageType.Cold), 1, 0.8f);
-            else if (afflicted.Has(Condition.Shocked)) Spark(at, GlowOf(DamageType.Lightning), 1, 3f);
-            else if (afflicted.Has(Condition.Envenomed)) Spark(at, GlowOf(DamageType.Poison), 1, 1f);
-            else if (afflicted.Has(Condition.Hexed)) Spark(at, GlowOf(DamageType.Magic), 1, 1f);
-            else if (afflicted.Has(Condition.Bleeding)) Spark(at, new Colour(0.8f, 0.1f, 0.06f, 1.5f), 1, 1.4f, lit: true);
-        }
-
-        /// <summary>What a spell leaves in the air behind it.</summary>
-        public void Wake(string model, Vector3 position)
-        {
-            if (!model.StartsWith(CharacterFactory.BoltPrefix) || _random.Float() > 0.4f) return;
-            if (!Enum.TryParse(model.AsSpan(CharacterFactory.BoltPrefix.Length), out DamageType look)) return;
-            Spark(position, GlowOf(look), 1, 1f);
-        }
+        /// <summary>What everyone suffering from something gives off, kept going for as long as it lasts.</summary>
+        public readonly Ailments Ailments = new Ailments();
 
         /// <summary>This player's hero, the moment they acted.</summary>
         public void HeroActed(GameClient client, HeroStepEvents events, in HeroSimState hero)
@@ -1073,20 +1096,18 @@ namespace Dino_Defenders.Client
             {
                 Wind.AddBlast(_world, position, 14f, 22f, 1f);
                 Flash(position + Vector3.UnitY * 2.4f, new Colour(0.8f, 0.92f, 1f, 90f), 14f, 0.5f);
-                for (int i = 0; i < 18; i++)
-                {
-                    float angle = i * (MathF.Tau / 18f);
-                    Spark(position + new Vector3(MathF.Cos(angle) * 6f, 2.4f, MathF.Sin(angle) * 6f), ColourOf(SparkKind.Whirl), 1, 2f);
-                }
+                Burst(Impact.Shockwave, position, 6f);
             }
-            else if (sign.Form is PageForm.Strike or PageForm.Leap)
+            else if (sign.Form == PageForm.Leap)
             {
-                Spark(position + new Vector3(aim.X * 3f, 3f, aim.Y * 3f), ColourOf(SparkKind.Blade), 3, 4f);
+                // Coming down hard throws the dust up.
+                Burst(Impact.Shockwave, position, 2.5f);
             }
             else if (sign.Spell)
             {
                 Colour light = LightOf(sign.Look);
-                Spark(position + new Vector3(aim.X * 1.5f, 3.2f, aim.Y * 1.5f), GlowOf(sign.Look), 5, 3.4f);
+                Vector3 hand = position + new Vector3(aim.X * 1.5f, 3.2f, aim.Y * 1.5f);
+                if (ParticleShow.HitOf(sign.Look) is ParticleEffect cast) Particles.Play(cast, hand, 0.6f, forward: new Vector3(aim.X, 0f, aim.Y));
                 Flash(position + Vector3.UnitY * 3f, new Colour(light.Red, light.Green, light.Blue, 40f), 8f, 0.2f);
             }
         }
@@ -1102,32 +1123,6 @@ namespace Dino_Defenders.Client
                 new LightRangeComponent(radius, 0.3f),
                 new ColorComponent(colour),
                 new selfDestroyComponent(life));
-        }
-
-        private static Colour ColourOf(SparkKind kind) => kind switch
-        {
-            SparkKind.Blade => new Colour(1f, 0.95f, 0.8f, 1.2f),
-            SparkKind.Whirl => new Colour(0.85f, 0.95f, 1f, 1.6f),
-            SparkKind.Shrine => new Colour(0.5f, 1f, 0.75f, 2.5f),
-            _ => new Colour(0.8f, 0.1f, 0.06f, 1.5f),
-        };
-
-        /// <summary>A short burst of particles.</summary>
-        private void Spark(Vector3 position, Colour colour, int count, float speed, bool lit = false)
-        {
-            for (int i = 0; i < Math.Min(count, 64); i++)
-            {
-                Vector3 direction = new Vector3(_random.Range(-1f, 1f), _random.Range(0.2f, 1.2f), _random.Range(-1f, 1f)).Normalized();
-                _world.CreateEntity(
-                    new ParticleRenderTag { Lit = lit },
-                    new LocalToWorldMatrixComponent(),
-                    new PositionComponent(position),
-                    new ScaleComponent(new Vector3(_random.Range(0.1f, 0.22f))),
-                    new ColorComponent(colour),
-                    new VelocityComponent(direction * speed * _random.Range(0.5f, 1.2f)),
-                    new MassComponent(1f),
-                    new selfDestroyComponent(_random.Range(0.25f, 0.6f)));
-            }
         }
     }
 

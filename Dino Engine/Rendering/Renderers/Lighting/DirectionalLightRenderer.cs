@@ -79,8 +79,17 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             if (index < 0) return false;
 
             sun = commands[index];
+            Sun = sun;
             commands.RemoveAll(command => command.cascades.Length > 0);
             return true;
+        }
+
+        /// <summary>This frame's sun, once <see cref="TakeSun"/> has had it, for what's drawn after the light passes and is lit by it too: particles.</summary>
+        public DirectionallightRenderCommand? Sun { get; private set; }
+
+        public override void Update()
+        {
+            Sun = null;
         }
 
         /// <summary>Points a shader's shadow samplers (Lighting/SunShadow.glsl) at the units <see cref="BindShadows"/> fills.</summary>

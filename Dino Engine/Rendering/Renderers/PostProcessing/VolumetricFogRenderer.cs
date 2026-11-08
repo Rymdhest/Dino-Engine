@@ -92,6 +92,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         /// <summary>The tiling noise fog and clouds are made of: r billows, g and b detail, a broad swells.</summary>
         public int NoiseTexture => _noiseTexture;
 
+        /// <summary>The haze laid over the scene this frame, extinction per metre, for what's drawn over it afterwards and has to be hazed as much: particles.</summary>
+        public float HazeDensity { get; private set; }
+
         public VolumetricFogRenderer() : base("Volumetric Fog")
         {
             // Timed in parts, which can't nest inside a timer of the whole.
@@ -228,6 +231,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             if (commands.Count == 0)
             {
                 _historyValid = false;
+                HazeDensity = 0f;
                 return;
             }
 
@@ -508,6 +512,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.ActiveTexture(TextureUnit.Texture0);
 
             float hazeDensity = Math.Max(settings.HazeDensity, 0f);
+            HazeDensity = hazeDensity;
             msaa.DrawSplit(_compositeShader, _compositeSampleShader, shader =>
             {
                 shader.loadUniformFloat("hazeDensity", hazeDensity);

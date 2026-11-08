@@ -110,6 +110,14 @@ namespace Dino_Engine.Rendering
         {
             GL.Uniform2(uniforms[variableName], value);
         }
+        public void loadUniformVector2i(string variableName, Vector2i value)
+        {
+            GL.Uniform2(uniforms[variableName], value.X, value.Y);
+        }
+        public void loadUniformVector3i(string variableName, Vector3i value)
+        {
+            GL.Uniform3(uniforms[variableName], value.X, value.Y, value.Z);
+        }
         public void loadUniformVector2fArray(string variableName, Vector2[] values)
         {
             for (int i = 0; i < values.Length; i++)

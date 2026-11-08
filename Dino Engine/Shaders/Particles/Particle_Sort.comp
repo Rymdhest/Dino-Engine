@@ -1,0 +1,88 @@
+#version 430
+
+// A bitonic sort of the particles' keys, farthest first, so that what's in front is drawn over what's behind. The number of keys is a power of two of at least 512, and each
+// workgroup holds 512 of them in shared memory: sortMode 0 sorts each block of 512 there, 1 takes one step of a merge across the whole buffer (for strides of 512 and more),
+// and 2 finishes a merge of sequences of blockSize within each block. ParticleRenderer runs them in that pattern.
+
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 2) buffer KeyBuffer {
+    uvec2 keys[];
+};
+
+uniform int sortMode;
+uniform int blockSize;
+uniform int stride;
+
+shared uvec2 block[512];
+
+// The pair a thread compares for a stride, as an index of the first and a gap to the second.
+uint pairStart(uint thread, uint j)
+{
+    return ((thread & ~(j - 1u)) << 1u) + (thread & (j - 1u));
+}
+
+void sortInBlock(uint thread, uint base, uint k, uint j)
+{
+    uint lo = pairStart(thread, j);
+    uint hi = lo + j;
+    bool ascending = ((base + lo) & k) == 0u;
+    uvec2 a = block[lo];
+    uvec2 b = block[hi];
+    if ((a.x > b.x) == ascending)
+    {
+        block[lo] = b;
+        block[hi] = a;
+    }
+}
+
+void main()
+{
+    uint thread = gl_LocalInvocationID.x;
+
+    if (sortMode == 1)
+    {
+        uint global = gl_GlobalInvocationID.x;
+        uint j = uint(stride);
+        uint lo = pairStart(global, j);
+        uint hi = lo + j;
+        bool ascending = (lo & uint(blockSize)) == 0u;
+        uvec2 a = keys[lo];
+        uvec2 b = keys[hi];
+        if ((a.x > b.x) == ascending)
+        {
+            keys[lo] = b;
+            keys[hi] = a;
+        }
+        return;
+    }
+
+    uint base = gl_WorkGroupID.x * 512u;
+    block[thread] = keys[base + thread];
+    block[thread + 256u] = keys[base + thread + 256u];
+    barrier();
+
+    if (sortMode == 0)
+    {
+        for (uint k = 2u; k <= 512u; k <<= 1u)
+        {
+            for (uint j = k >> 1u; j > 0u; j >>= 1u)
+            {
+                sortInBlock(thread, base, k, j);
+                barrier();
+            }
+        }
+    }
+    else
+    {
+        uint k = uint(blockSize);
+        for (uint j = 256u; j > 0u; j >>= 1u)
+        {
+            sortInBlock(thread, base, k, j);
+            barrier();
+        }
+    }
+
+    keys[base + thread] = block[thread];
+    keys[base + thread + 256u] = block[thread + 256u];
+}

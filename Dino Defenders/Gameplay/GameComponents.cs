@@ -295,7 +295,6 @@ namespace Dino_Defenders.Gameplay
     {
         public uint Flags;
 
-        [NotReplicated] public float NextSpark;
 
         public readonly bool Has(Condition condition) => ((Condition)Flags & condition) != 0;
     }
@@ -324,7 +323,6 @@ namespace Dino_Defenders.Gameplay
         [NetStep(0.25f)] public float Life;
 
         [NotReplicated] public float Age;
-        [NotReplicated] public float NextMote;
 
         public readonly GroundShape ShapeAt(Vector2 origin) => new GroundShape(Kind, origin, Facing, Length, Width);
     }

@@ -152,6 +152,9 @@ namespace Dino_Defenders
         public string? Perf;
         public string? Biome;
         public string? Garden;
+        public string? Fx;              // Effects by name (Particles/Content), or "all", stood in a row in front of the hero.
+        public string? ParticleSheet;   // A folder to write the grown flame and smoke flipbooks to, as pictures.
+        public Vector2 FxAt = new Vector2(0f, 4f);  // Metres from the hero the first of them stands, across and away from the camera.
         public string? Bring;
         public bool NoLife;
         public string? LifeLog;
@@ -257,6 +260,12 @@ namespace Dino_Defenders
                     case "maxfps": options.MaxFps = int.Parse(value); break;
                     case "perf": options.Perf = value; break;
                     case "garden": options.Garden = value; break;
+                    case "fx": options.Fx = value; break;
+                    case "particlesheet": options.ParticleSheet = value; break;
+                    case "fxat":
+                        string[] at = value.Split(',');
+                        options.FxAt = new Vector2(float.Parse(at[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(at[1], System.Globalization.CultureInfo.InvariantCulture));
+                        break;
                     case "bring": options.Bring = value; break;
                     case "nolife": options.NoLife = bool.Parse(value); break;
                     case "lifelog": options.LifeLog = value; break;
