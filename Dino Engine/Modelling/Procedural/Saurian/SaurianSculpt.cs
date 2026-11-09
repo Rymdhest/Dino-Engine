@@ -14,10 +14,22 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             var field = new SaurianField { Head = body.Head };
             Line(field, body);
             Trunk(field, body);
-            for (int i = 0; i < body.Legs.Length; i++) Leg(field, body.Legs[i], LegPart(body.Legs[i]));
+            for (int i = 0; i < body.Legs.Length; i++)
+            {
+                if (body.Sauropod) Pillar(field, body.Legs[i], LegPart(body.Legs[i]));
+                else Leg(field, body.Legs[i], LegPart(body.Legs[i]));
+            }
             foreach (SaurianArm arm in body.Arms) Arm(field, arm);
-            HeadVolume(field, body.Head);
-            HeadDetail(field, body.Head);
+            if (body.Head.Sauropod)
+            {
+                SauropodHead(field, body.Head);
+                SauropodHeadDetail(field, body.Head);
+            }
+            else
+            {
+                HeadVolume(field, body.Head);
+                HeadDetail(field, body.Head);
+            }
             field.JoinAt(SaurianPart.Head, body.Head.Origin, body.Head.Length * 0.16f, body.Head.Length * 1.3f);
             return field;
         }
@@ -27,6 +39,12 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         {
             SaurianHead head = body.Head;
             var field = new SaurianField { Head = head, Jaw = true, Gap = head.Length * 0.004f };
+            // A browser's jaw sits inside its upper lip, a little narrower all round, so that the lip hangs over it and the line between them is a crease and not a step.
+            if (head.Sauropod)
+            {
+                SauropodHead(field, head, JawInset);
+                return field;
+            }
             HeadVolume(field, head);
             float z = head.Length * 0.16f;
             field.Ellipsoid(SaurianPart.Head, new Vector3(0f, head.Lip(z) - head.DepthAt(z) * 0.5f, z), new Vector3(head.WidthAt(z) * 0.86f, head.DepthAt(z) * 0.5f, head.Length * 0.2f), head.Length * 0.06f, inHead: true);
@@ -107,6 +125,41 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             field.Ellipsoid(part, leg.Ball + new Vector3(0f, -leg.BallRadius * 0.15f, leg.BallRadius * 0.15f), new Vector3(leg.BallRadius * 1.5f, leg.BallRadius * 0.85f, leg.BallRadius * 1.35f), leg.BallRadius * 0.4f);
         }
 
+        // A sauropod's pillar. Behind, a thigh that's all muscle, a straight shin, and an ankle a little off the ground over a broad oval pad with a heel behind it, as an elephant's foot is. In
+        // front, a big shoulder and upper arm, a forearm, and below the wrist a hand that's a column of bone standing on its own pad.
+        private static void Pillar(SaurianField field, SaurianLeg leg, SaurianPart part)
+        {
+            Vector3 upper = leg.Knee - leg.Hip;
+            float top = leg.HipRadius;
+            float knee = leg.KneeRadius;
+            field.JoinAt(part, leg.Hip, top * (leg.Front ? 0.9f : 1f), top * 3.4f);
+            field.Cone(part, leg.Hip + new Vector3(0f, top * 0.12f, 0f), leg.Knee, top * 0.96f, knee * 1.02f, knee * 0.5f);
+            field.Ellipsoid(part, leg.Hip + upper * 0.38f, new Vector3(top * 0.92f, top * 1.04f, upper.Length * 0.58f), top * 0.5f, upper);
+            field.Ellipsoid(part, leg.Knee, new Vector3(knee * 0.94f, knee * 0.9f, knee * 0.98f), knee * 0.45f);
+
+            // A straight shin, a little muscle behind it at the top, and an ankle as thick as the foot under it, so that the whole leg reads as one column.
+            Vector3 lower = leg.Ankle - leg.Knee;
+            Vector3 behind = Vector3.Cross(Vector3.UnitX, lower).Normalized();
+            if (Vector3.Dot(behind, Vector3.UnitZ) > 0f) behind = -behind;
+            field.Cone(part, leg.Knee, leg.Ankle, knee, leg.AnkleRadius, knee * 0.4f);
+            field.Ellipsoid(part, leg.Knee + lower * 0.28f + behind * knee * 0.1f, new Vector3(knee * 0.9f, knee * 0.94f, lower.Length * 0.36f), knee * 0.45f, lower);
+            field.Ellipsoid(part, leg.Ankle, new Vector3(leg.AnkleRadius * 1.04f), leg.AnkleRadius * 0.45f);
+
+            float pad = leg.BallRadius;
+            if (leg.Front)
+            {
+                // The hand: a column from the wrist to the ground, standing on a pad a little wider than it is.
+                field.Cone(part, leg.Ankle, leg.Ball + new Vector3(0f, pad * 0.3f, 0f), leg.AnkleRadius * 1.04f, pad * 0.98f, leg.AnkleRadius * 0.3f);
+                field.Ellipsoid(part, leg.Ball + new Vector3(0f, pad * 0.36f, 0f), new Vector3(pad * 1.1f, pad * 0.42f, pad * 1.06f), pad * 0.3f);
+                return;
+            }
+
+            // The foot is a column too, a little longer than it's wide, coming down from the ankle onto a round pad that reaches a little way behind it for the heel and further in front for the toes.
+            Vector3 middle = new Vector3(leg.Ankle.X, pad * 0.4f, MathHelper.Lerp(leg.Ankle.Z, leg.Ball.Z, 0.45f));
+            field.Cone(part, leg.Ankle, middle + new Vector3(0f, pad * 0.1f, 0f), leg.AnkleRadius * 1.03f, pad * 0.97f, leg.AnkleRadius * 0.4f);
+            field.Ellipsoid(part, middle, new Vector3(pad * 1.02f, pad * 0.42f, pad * 1.08f), pad * 0.3f);
+        }
+
         // An arm carried folded, with a narrow hand whose palm faces the other.
         private static void Arm(SaurianField field, SaurianArm arm)
         {
@@ -166,11 +219,68 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             }
         }
 
+        /// <summary>
+        /// A sauropod's head: a long low snout, broad and round at its end, a dome over the nostrils standing up out of the rest, and under the mouth a slender jaw, deep only at its back. Each
+        /// station spans from the bottom of the jaw to the top of the skull, and the mouth cuts it in two.
+        /// </summary>
+        private const float JawInset = 0.88f;
+
+        /// <param name="narrow">How much of the head's width this is, for a jaw tucked inside the lip.</param>
+        public static void SauropodHead(SaurianField field, SaurianHead head, float narrow = 1f)
+        {
+            float length = head.Length;
+            (float at, float reach)[] stations = { (0.07f, 0.12f), (0.22f, 0.15f), (0.38f, 0.16f), (0.55f, 0.16f), (0.72f, 0.15f), (0.88f, 0.12f) };
+            foreach ((float at, float reach) in stations)
+            {
+                float z = at * length;
+                float top = head.DepthAt(z) * 1.24f;
+                float jaw = head.JawDepth(z);
+                field.Ellipsoid(SaurianPart.Head, new Vector3(0f, head.Lip(z) + (top - jaw) * 0.5f, z), new Vector3(head.WidthAt(z) * narrow, (top + jaw) * 0.5f, reach * length), length * 0.1f, inHead: true);
+            }
+
+            // The end of the snout, round as seen from above, as a browser's that crops rather than bites.
+            float tip = length * 0.94f;
+            float tipTop = head.DepthAt(tip) * 1.24f, tipJaw = head.JawDepth(tip);
+            field.Ellipsoid(SaurianPart.Head, new Vector3(0f, head.Lip(tip) + (tipTop - tipJaw) * 0.5f, tip), new Vector3(head.WidthAt(tip) * 0.92f * narrow, (tipTop + tipJaw) * 0.5f, length * 0.07f), length * 0.06f, inHead: true);
+
+            // The dome over the nostrils: narrower than the head, and rising out of the top of it.
+            if (head.Arch > 0f)
+            {
+                float z = head.ArchAt * length;
+                float roof = head.Lip(z) + head.DepthAt(z) * 1.24f;
+                field.Ellipsoid(SaurianPart.Head, new Vector3(0f, roof - head.Arch * 0.3f, z), new Vector3(head.WidthAt(z) * 0.6f, head.Arch * 1.1f, length * 0.17f), length * 0.08f, inHead: true);
+            }
+        }
+
+        // A soft brow over each eye, the muscle that works the jaw bulging behind it, the eyes set in, and nostrils near the front of the snout, where a living sauropod's were (Witmer 2001) and
+        // not up on the dome, where the opening in the bone is.
+        private static void SauropodHeadDetail(SaurianField field, SaurianHead head)
+        {
+            float length = head.Length;
+            float eyeZ = head.EyeAt * length;
+            float eyeY = EyeHeight(head);
+            float width = head.WidthAt(eyeZ);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                if (head.Brow > 0f) field.Ellipsoid(SaurianPart.Head, new Vector3(side * width * 0.8f, eyeY + head.EyeSize * 0.72f, eyeZ - head.EyeSize * 0.1f), new Vector3(head.Brow * 1.2f, head.Brow * 0.7f, head.Brow * 2f), head.Brow * 0.8f, inHead: true);
+                if (head.Jowls > 0f)
+                {
+                    float z = length * 0.2f;
+                    field.Ellipsoid(SaurianPart.Head, new Vector3(side * head.WidthAt(z) * 0.8f, head.Lip(z) + head.Jowls * 0.6f, z), new Vector3(head.Jowls * 1.1f, head.Jowls * 1.5f, head.Jowls * 2.2f), head.Jowls, inHead: true);
+                }
+
+                field.Ellipsoid(SaurianPart.Head, new Vector3(side * width * 0.98f, eyeY, eyeZ), new Vector3(head.EyeSize * 0.7f, head.EyeSize * 0.8f, head.EyeSize * 0.9f), head.EyeSize * 0.35f, inHead: true, carve: true);
+
+                float noseZ = length * 0.87f;
+                field.Ellipsoid(SaurianPart.Head, new Vector3(side * head.WidthAt(noseZ) * 0.42f, head.Lip(noseZ) + head.DepthAt(noseZ) * 1.24f * 0.9f, noseZ), new Vector3(length * 0.028f, length * 0.018f, length * 0.04f), length * 0.012f, inHead: true, carve: true);
+            }
+        }
+
         /// <summary>How high on the side of the head the eyes are, in its own frame.</summary>
         public static float EyeHeight(SaurianHead head)
         {
             float eyeZ = head.EyeAt * head.Length;
-            return head.Lip(eyeZ) + head.DepthAt(eyeZ) * 1.24f * 0.64f;
+            return head.Lip(eyeZ) + head.DepthAt(eyeZ) * 1.24f * (head.Sauropod ? 0.7f : 0.64f);
         }
     }
 }

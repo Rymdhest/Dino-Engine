@@ -72,6 +72,10 @@ namespace Dino_Engine.Animation
 
         /// <summary>How wide to stand, on top of how this person stands anyway.</summary>
         public float Spread;
+
+        /// <summary>Somewhere no foot is to come down, and how far round it: someone standing by a giant's foot. A foot that would come down there lands at the edge instead, and one standing there steps off.</summary>
+        public Vector2 KeepOff;
+        public float KeepOffRadius;
     }
 
     /// <summary>
@@ -162,7 +166,7 @@ namespace Dino_Engine.Animation
             Landed = 0;
             for (int i = 0; i < Feet.Length; i++)
             {
-                Vector3 at = Spot(i, input.Position, input.Yaw, input);
+                Vector3 at = KeptOff(Spot(i, input.Position, input.Yaw, input), input);
                 at.Y = ground.HeightAt(at.X, at.Z);
                 Feet[i] = new Foot { At = at, Yaw = input.Yaw, Planted = 1f, StandFor = 1f };
                 ReadGround(ref Feet[i], ground, input.Scale);
@@ -281,7 +285,7 @@ namespace Dino_Engine.Animation
                 ref Foot foot = ref Feet[i];
                 if (foot.Planted < ShortestStand * 2f) continue;
 
-                Vector3 home = Spot(i, input.Position, input.Yaw, input);
+                Vector3 home = KeptOff(Spot(i, input.Position, input.Yaw, input), input);
                 float drift = (home.Xz - foot.At.Xz).Length;
                 float turned = MathF.Abs(Spring.Shortest(input.Yaw - foot.Yaw));
                 if (turned > TurnAllowed) drift = MathF.Max(drift, allowed + turned);
@@ -365,9 +369,22 @@ namespace Dino_Engine.Animation
 
             Vector2 hips = input.Position.Xz + input.Velocity.Xz * left;
             float yaw = input.Yaw + input.TurnRate * (left + standing * LandAhead);
-            Vector3 spot = Spot(i, new Vector3(hips.X, input.Position.Y, hips.Y), yaw, input) + new Vector3(ahead.X, 0f, ahead.Y);
+            Vector3 spot = KeptOff(Spot(i, new Vector3(hips.X, input.Position.Y, hips.Y), yaw, input) + new Vector3(ahead.X, 0f, ahead.Y), input);
             spot.Y = ground.HeightAt(spot.X, spot.Z);
             return spot;
+        }
+
+        // Out of where no foot is to come down, to its edge, on the side it was already on, or away from the hips if it's right in the middle.
+        private static Vector3 KeptOff(Vector3 spot, in GaitInput input)
+        {
+            if (input.KeepOffRadius <= 0f) return spot;
+            Vector2 off = spot.Xz - input.KeepOff;
+            float distance = off.Length;
+            if (distance >= input.KeepOffRadius) return spot;
+            Vector2 away = input.KeepOff - input.Position.Xz;
+            Vector2 way = distance > 1e-3f ? off / distance : away.LengthSquared > 1e-6f ? -away.Normalized() : Vector2.UnitX;
+            Vector2 edge = input.KeepOff + way * input.KeepOffRadius;
+            return new Vector3(edge.X, spot.Y, edge.Y);
         }
 
         /// <summary>Where a foot stands in the world, for a body somewhere.</summary>

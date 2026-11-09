@@ -1,0 +1,98 @@
+#version 430
+
+// An exclusive prefix sum over a buffer of counts, in three stages (GlobalIlluminationRenderer.Scan): each group sums its own 512, the
+// groups' totals are summed by one group, and each group then adds what came before it. It's how everything compact is laid out:
+// surface voxels in a level's pool, and probes in their cascades.
+
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 15) buffer GiScanData { uint giScanData[]; };
+layout(std430, binding = 14) buffer GiScanSums { uint giScanSums[]; };
+
+uniform int count;
+uniform int stage;
+
+shared uint partial[512];
+
+void main()
+{
+    uint local = gl_LocalInvocationID.x;
+    uint group = gl_WorkGroupID.x;
+
+    if (stage == 2)
+    {
+        uint add = giScanSums[group];
+        uint a = group * 512u + local;
+        uint b = a + 256u;
+        if (a < uint(count)) giScanData[a] += add;
+        if (b < uint(count)) giScanData[b] += add;
+        return;
+    }
+
+    // Stages 0 and 1 scan 512 values in shared memory: the data's, or the sums of every group's.
+    uint base = stage == 0 ? group * 512u : 0u;
+    uint a = base + local;
+    uint b = a + 256u;
+    uint valueA = 0u, valueB = 0u;
+    if (stage == 0)
+    {
+        if (a < uint(count)) valueA = giScanData[a];
+        if (b < uint(count)) valueB = giScanData[b];
+    }
+    else
+    {
+        if (a < uint(count)) valueA = giScanSums[a];
+        if (b < uint(count)) valueB = giScanSums[b];
+    }
+    partial[local] = valueA;
+    partial[local + 256u] = valueB;
+
+    // Up the tree, then down it (Blelloch).
+    uint offset = 1u;
+    for (uint d = 256u; d > 0u; d >>= 1)
+    {
+        barrier();
+        if (local < d)
+        {
+            uint ai = offset * (2u * local + 1u) - 1u;
+            uint bi = offset * (2u * local + 2u) - 1u;
+            partial[bi] += partial[ai];
+        }
+        offset <<= 1;
+    }
+    barrier();
+    uint total = 0u;
+    if (local == 0u)
+    {
+        total = partial[511];
+        partial[511] = 0u;
+    }
+    for (uint d = 1u; d < 512u; d <<= 1)
+    {
+        offset >>= 1;
+        barrier();
+        if (local < d)
+        {
+            uint ai = offset * (2u * local + 1u) - 1u;
+            uint bi = offset * (2u * local + 2u) - 1u;
+            uint swap = partial[ai];
+            partial[ai] = partial[bi];
+            partial[bi] += swap;
+        }
+    }
+    barrier();
+
+    if (stage == 0)
+    {
+        if (a < uint(count)) giScanData[a] = partial[local];
+        if (b < uint(count)) giScanData[b] = partial[local + 256u];
+        if (local == 0u) giScanSums[group] = total;
+    }
+    else
+    {
+        if (a < uint(count)) giScanSums[a] = partial[local];
+        if (b < uint(count)) giScanSums[b] = partial[local + 256u];
+        // The grand total goes after the last group's sum.
+        if (local == 0u) giScanSums[uint(count)] = total;
+    }
+}

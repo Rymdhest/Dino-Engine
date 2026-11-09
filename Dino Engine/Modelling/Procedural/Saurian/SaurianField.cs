@@ -158,11 +158,14 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 part[i] = SmoothMax(part[i], -Distance(piece, piece.InHead ? inHead : p), piece.Blend);
             }
 
-            // The head is cut along the line of the mouth: the skull keeps what's above it and the jaw what's below.
+            // The head is cut along the line of the mouth: the skull keeps what's above it and the jaw what's below. A sauropod's lips are soft and round over, as a browser's are, and a big head
+            // seen close shows a sharp edge as a saw's.
             if (Head != null && part[(int)SaurianPart.Head] != float.MaxValue)
             {
                 float lip = Head.Lip(inHead.Z);
-                part[(int)SaurianPart.Head] = Jaw ? MathF.Max(part[(int)SaurianPart.Head], inHead.Y - (lip - Gap)) : MathF.Max(part[(int)SaurianPart.Head], lip - inHead.Y);
+                float cut = Jaw ? inHead.Y - (lip - Gap) : lip - inHead.Y;
+                float head = part[(int)SaurianPart.Head];
+                part[(int)SaurianPart.Head] = Head.Sauropod ? SmoothMax(head, cut, Head.Length * 0.03f) : MathF.Max(head, cut);
             }
 
             if (!perPart.IsEmpty) part.CopyTo(perPart);

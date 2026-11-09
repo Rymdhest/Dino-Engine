@@ -39,6 +39,21 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         /// <summary>What world generation knows of it: nothing that needs it to be grown.</summary>
         public WorldAsset Asset => _asset ??= new WorldAsset(Id, Kind, Footprint, SolidRadius, Scale, Kind == WorldAssetKind.Tree ? TreeImposter : PlantImposter, Sways, Variants, SolidLength);
 
+        /// <summary>
+        /// How tall one of these grows from <paramref name="seed"/>, at a scale of one, and where its crown is, without growing it: the very numbers its form draws, by the same names, as a draw is
+        /// the same whenever and in whatever order it's asked for. False for anything without a living crown of leaves.
+        /// </summary>
+        public bool TryCrown(ulong seed, out float height, out float crownBase, out float crownRadius)
+        {
+            height = crownBase = crownRadius = 0f;
+            if (Form is not TreeForm { Dead: null, Foliage: not null } tree) return false;
+            Gear.Genes genes = new Gear.Genes(seed).Part(Id);
+            height = genes.Range("height", tree.Height);
+            crownBase = genes.Range("crown base", tree.CrownBase) * height;
+            crownRadius = genes.Range("crown radius", tree.CrownRadius) * height;
+            return true;
+        }
+
         private const float TreeImposter = 62f;
         private const float PlantImposter = 34f;
 

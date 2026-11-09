@@ -1,0 +1,61 @@
+#version 430
+
+// Which of its parents each probe listed this frame can see (GI_Probe_Init.comp), now that GI_Probe_Place.comp has put every probe of
+// every cascade where it stands: a thread to each parent, eight to a probe. A parent on the far side of a wall doesn't count in the merge,
+// which is what keeps the sun outside a house from shining through its walls into the room; any parent that isn't buried can still be
+// fallen back on, as a buried probe sees only black. Whether a probe can see a parent ignores the voxels it starts against and those the
+// parent stands against, as both are in the open: only something solid between them counts.
+
+#include GI/GI.glsl
+#include GI/GI_Voxels.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 27) readonly buffer GiFresh { int giFresh[]; };
+
+shared uint parentBits[64];
+
+bool sees(vec3 from, vec3 to, int finest)
+{
+    int level = giLevelOf(from, finest);
+    if (level >= GI_LEVELS) return true;
+    vec3 along = to - from;
+    float length_ = length(along);
+    float shy = giVoxel[level].x * 0.6;
+    if (length_ <= shy) return true;
+    return !giTrace(from, along / length_, 0.0, length_ - shy, level, 1).hit;
+}
+
+void main()
+{
+    uint fresh = giCounts[GI_COUNT_FRESH];
+    uint entry = gl_GlobalInvocationID.x >> 3u;
+    int j = int(gl_GlobalInvocationID.x & 7u);
+    int slot = -1;
+    uint bits = 0u;
+    if (entry < fresh)
+    {
+        slot = giFresh[entry];
+        int c = giCascadeOfSlot(slot);
+        int parent = c + 1 < GI_CASCADES ? giProbeParent[slot * 8 + j] : -1;
+        if (parent >= 0)
+        {
+            vec4 parentPlace = giProbePlace[GI_PROBE_BASE[c + 1] + parent];
+            if ((floatBitsToUint(parentPlace.w) & GI_PROBE_BURIED) == 0u)
+            {
+                bits |= 1u << uint(16 + j);
+                vec4 place = giProbePlace[slot];
+                if ((floatBitsToUint(place.w) & GI_PROBE_BURIED) == 0u && sees(place.xyz, parentPlace.xyz, GI_TRACE_LEVEL[c])) bits |= 1u << uint(8 + j);
+            }
+        }
+    }
+    parentBits[gl_LocalInvocationID.x] = bits;
+    barrier();
+    if (j == 0 && slot >= 0)
+    {
+        uint all_ = 0u;
+        for (int k = 0; k < 8; k++) all_ |= parentBits[gl_LocalInvocationID.x + uint(k)];
+        giProbePlace[slot].w = uintBitsToFloat(floatBitsToUint(giProbePlace[slot].w) | all_);
+    }
+}

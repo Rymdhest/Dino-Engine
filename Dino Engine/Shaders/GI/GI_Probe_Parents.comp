@@ -1,0 +1,45 @@
+#version 430
+
+// Wants, for every probe of a cascade, the eight of the next cascade around it, which it merges with (GI_Probe_Merge.comp).
+
+#include GI/GI.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 64) in;
+
+uniform int cascade;    // The finer one: its probes want parents in the next.
+
+void main()
+{
+    int local = int(gl_GlobalInvocationID.x);
+    int columns = GI_COLUMN_START[cascade + 1] - GI_COLUMN_START[cascade];
+    if (local >= columns) return;
+    int column = GI_COLUMN_START[cascade] + local;
+    uint mask = giColumnMask[column];
+    if (mask == 0u) return;
+    ivec2 xz = giColumns[cascade].xy + ivec2(local % giColumns[cascade].z, local / giColumns[cascade].z);
+    int base = giColumnBase[column];
+    int parent = cascade + 1;
+
+    // A column's probes stack up, and their parents' columns are the same four for all of them.
+    ivec3 bottom = giParentLow(ivec3(xz.x, base + findLSB(mask), xz.y));
+    for (int j = 0; j < 4; j++)
+    {
+        ivec2 parentXZ = bottom.xz + ivec2(j & 1, j >> 1);
+        int parentColumn = giColumnIndex(parent, parentXZ);
+        if (parentColumn < 0) continue;
+        int parentBase = giColumnBase[parentColumn];
+        uint bits = 0u;
+        uint rest = mask;
+        while (rest != 0u)
+        {
+            int k = findLSB(rest);
+            rest &= rest - 1u;
+            int lowY = ((base + k) - 1) >> 1;
+            int a = lowY - parentBase;
+            if (a >= 0 && a <= 31) bits |= 1u << uint(a);
+            if (a + 1 >= 0 && a + 1 <= 31) bits |= 1u << uint(a + 1);
+        }
+        if (bits != 0u) atomicOr(giColumnMask[parentColumn], bits);
+    }
+}

@@ -1,0 +1,228 @@
+#version 430
+
+// The light around each surface on screen, at half the resolution each way: blended from the eight finest probes around it, by where
+// it stands among them, by whether they're in front of it, and only those it can see, as a probe through a wall or under the floor
+// would light it with what's on the other side. Where none of them can, the next cascade's probes do. The ambient pass reads this
+// and fills in the pixels between with the depth of each to go by (Ambient_Light.frag).
+
+#include Globals.glsl
+#include gBufferUtil.glsl
+#include GI/GI.glsl
+#include GI/GI_Voxels.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+uniform sampler2D gDepth;
+uniform sampler2D gNormal;
+uniform ivec2 outSize;
+uniform int nearest;    // 1 for --render gidebug=5: each pixel takes only the probe that counts most, so that each probe shows as a patch of its own.
+uniform ivec2 probePixel;   // The texel whose probes are written to giReport, for --render giprobe; negative for none.
+
+// What was gathered last frame, where the same spot of the world was then. Whether a texel can see a probe is a yes or a no from one
+// point, and as the camera moves the point a texel stands for slides over the world, so where a ray grazes a fence's rails the answer
+// would flicker from frame to frame. Kept a little while, it settles into how much of the spot sees the probe, as light near a rail is.
+// Only what lay at the same depth then counts, so nothing is carried onto what's just come out from behind something.
+uniform sampler2DArray previousGathered;
+uniform mat4 previousView;
+uniform mat4 previousViewProjection;
+uniform float keep;     // How much of last frame's is kept, from the time between frames (GlobalIlluminationSettings.Settle); 0 for none.
+
+layout(std430, binding = 16) readonly buffer GiProbeSH { vec4 giProbeSH[]; };
+layout(std430, binding = 26) writeonly buffer GiReport { vec4 giReport[]; };
+layout(rgba16f, binding = 0) uniform writeonly image2DArray giGathered;
+
+// What each of the sixteen probes a texel could take did, for the console (GlobalIlluminationRenderer.Report): four vec4s of the texel
+// itself, then five for each, where it stands, why it counted or didn't, and its light.
+const float GI_NONE = 0.0, GI_BURIED_ = 1.0, GI_BEHIND_ = 2.0, GI_WEIGHTLESS = 3.0, GI_BLOCKED = 4.0, GI_USED = 5.0;
+void report(bool reporting, int c, int j, float reason, int slot, vec4 place, float w)
+{
+    if (!reporting) return;
+    int at = 4 + (c * 8 + j) * 5;
+    giReport[at + 0] = place;
+    giReport[at + 1] = vec4(float(c), intBitsToFloat(slot), reason, w);
+    giReport[at + 2] = slot >= 0 ? giProbeSH[slot * 3 + 0] : vec4(0.0);
+    giReport[at + 3] = slot >= 0 ? giProbeSH[slot * 3 + 1] : vec4(0.0);
+    giReport[at + 4] = slot >= 0 ? giProbeSH[slot * 3 + 2] : vec4(0.0);
+}
+
+const float GI_LIFT = 0.05;
+const float GI_BEHIND = 0.04;   // Metres in front of a surface a probe has to be to light it.
+
+vec3 viewPositionAt(ivec2 pixel)
+{
+    return ReconstructViewSpacePosition(vec2(pixel) + 0.5, texelFetch(gDepth, pixel, 0).r, invProjectionMatrix, resolution);
+}
+
+// The way the surface itself faces, from the depth around the pixel, with the normal map's bumps left out: a shingle's normal leans far
+// enough that a probe under the roof can seem to be in front of it. Each axis takes the neighbour that's nearer in depth, so as not to
+// reach across an edge, and the shading normal stands in where there's nothing to go by.
+vec3 geometricNormal(ivec2 pixel, vec3 view, vec3 shading)
+{
+    ivec2 last = ivec2(resolution) - 1;
+    vec3 right = viewPositionAt(min(pixel + ivec2(1, 0), last)) - view;
+    vec3 left = view - viewPositionAt(max(pixel - ivec2(1, 0), ivec2(0)));
+    vec3 up = viewPositionAt(min(pixel + ivec2(0, 1), last)) - view;
+    vec3 down = view - viewPositionAt(max(pixel - ivec2(0, 1), ivec2(0)));
+    vec3 dx = abs(right.z) < abs(left.z) ? right : left;
+    vec3 dy = abs(up.z) < abs(down.z) ? up : down;
+    vec3 n = cross(dx, dy);
+    float length_ = length(n);
+    if (length_ < 1e-8) return shading;
+    n /= length_;
+    n = dot(n, -view) < 0.0 ? -n : n;
+    return normalize(mat3(invViewMatrix) * n);
+}
+
+void main()
+{
+    ivec2 q = ivec2(gl_GlobalInvocationID.xy);
+    if (q.x >= outSize.x || q.y >= outSize.y) return;
+    ivec2 pixel = min(q * 2, ivec2(resolution) - 1);
+    float depth = texelFetch(gDepth, pixel, 0).r;
+    if (depth >= 1.0)
+    {
+        for (int layer = 0; layer < 3; layer++) imageStore(giGathered, ivec3(q, layer), vec4(0.0));
+        imageStore(giGathered, ivec3(q, 3), vec4(-1e4, 0.0, 0.0, 0.0));
+        return;
+    }
+
+    vec3 view = ReconstructViewSpacePosition(vec2(pixel) + 0.5, depth, invProjectionMatrix, resolution);
+    vec3 world = (invViewMatrix * vec4(view, 1.0)).xyz;
+    vec3 normal = normalize(mat3(invViewMatrix) * unCompressNormal(texelFetch(gNormal, pixel, 0).xyz));
+    vec3 surface = geometricNormal(pixel, view, normal);
+    // A probe behind the surface never lights it: that's what keeps the probes inside a house from lighting its roof, or the sunlit
+    // side of a wall from lighting the room behind it. For the rest the ray to a probe may pass the solid voxels it starts in, as the
+    // voxels of a surface stand proud of the surface itself and a point on it is often inside them; past those, anything stops it.
+    int level = giLevelOf(world, 0);
+    float voxel = level < GI_LEVELS ? giVoxel[level].x : 1.0;
+    vec3 from = world + surface * max(0.06, 0.6 * voxel);
+
+    bool reporting = q == probePixel;
+    if (reporting)
+    {
+        giReport[0] = vec4(world, depth);
+        giReport[1] = vec4(surface, 0.0);
+        giReport[2] = vec4(normal, 0.0);
+        for (int i = 0; i < 16; i++) report(true, i >> 3, i & 7, GI_NONE, -1, vec4(0.0), 0.0);
+    }
+
+    vec4 sum0 = vec4(0.0), sum1 = vec4(0.0), sum2 = vec4(0.0);
+    float total = 0.0;
+    for (int c = 0; c < 2 && total <= 0.0; c++)
+    {
+        float spacing = giCascade[c].x;
+        vec3 f = (world + surface * GI_LIFT) / spacing - 0.5;
+        ivec3 low = ivec3(floor(f));
+        vec3 frac = f - vec3(low);
+        for (int j = 0; j < 8; j++)
+        {
+            ivec3 corner = ivec3(j & 1, (j >> 1) & 1, j >> 2);
+            int probe = giProbeAt(c, low + corner);
+            if (probe < 0) continue;
+            int slot = GI_PROBE_BASE[c] + probe;
+            vec4 place = giProbePlace[slot];
+            if ((floatBitsToUint(place.w) & GI_PROBE_BURIED) != 0u)
+            {
+                report(reporting, c, j, GI_BURIED_, slot, place, 0.0);
+                continue;
+            }
+            vec3 w3 = mix(1.0 - frac, frac, vec3(corner));
+            float w = w3.x * w3.y * w3.z;
+            vec3 toProbe = place.xyz - world;
+            if (dot(toProbe, surface) < GI_BEHIND)
+            {
+                report(reporting, c, j, GI_BEHIND_, slot, place, w);
+                continue;
+            }
+            float facing = max(dot(toProbe, normal), 0.0) / max(length(toProbe), 1e-4);
+            float open = c == 0 ? float(floatBitsToUint(place.w) >> 24) / 12.0 : 1.0;
+            w *= (0.25 + 0.75 * facing) * (0.1 + 0.9 * open);
+            if (w <= 1e-6)
+            {
+                report(reporting, c, j, GI_WEIGHTLESS, slot, place, w);
+                continue;
+            }
+            if (!giClearNear(from, place.xyz, 0, 3))
+            {
+                report(reporting, c, j, GI_BLOCKED, slot, place, w);
+                continue;
+            }
+            report(reporting, c, j, GI_USED, slot, place, w);
+            if (nearest != 0)
+            {
+                if (w <= total) continue;
+                total = w;
+                sum0 = giProbeSH[slot * 3 + 0];
+                sum1 = giProbeSH[slot * 3 + 1];
+                sum2 = giProbeSH[slot * 3 + 2];
+                continue;
+            }
+            sum0 += giProbeSH[slot * 3 + 0] * w;
+            sum1 += giProbeSH[slot * 3 + 1] * w;
+            sum2 += giProbeSH[slot * 3 + 2] * w;
+            total += w;
+        }
+    }
+
+    if (reporting) giReport[3] = vec4(from, total);
+    float confidence = clamp(total * 20.0, 0.0, 1.0);
+    if (total > 0.0 && nearest == 0)
+    {
+        sum0 /= total;
+        sum1 /= total;
+        sum2 /= total;
+    }
+
+    if (keep > 0.0)
+    {
+        vec4 clip = previousViewProjection * vec4(world, 1.0);
+        float then = (previousView * vec4(world, 1.0)).z;
+        if (clip.w > 1e-4)
+        {
+            vec2 at = (clip.xy / clip.w * 0.5 + 0.5) * vec2(outSize) - 0.5;
+            ivec2 low = ivec2(floor(at));
+            vec2 f = at - vec2(low);
+            vec4 h0 = vec4(0.0), h1 = vec4(0.0), h2 = vec4(0.0);
+            float hc = 0.0, weight = 0.0;
+            for (int j = 0; j < 4; j++)
+            {
+                ivec2 t = low + ivec2(j & 1, j >> 1);
+                if (any(lessThan(t, ivec2(0))) || any(greaterThanEqual(t, outSize))) continue;
+                vec4 guide = texelFetch(previousGathered, ivec3(t, 3), 0);
+                // The same surface: as far from last frame's camera as this point was, within a little of the distance.
+                if (abs(guide.x - then) > 0.02 * abs(then) + 0.05) continue;
+                vec2 b = mix(1.0 - f, f, vec2(j & 1, j >> 1));
+                float w = b.x * b.y;
+                float sure = guide.y * w;
+                h0 += texelFetch(previousGathered, ivec3(t, 0), 0) * sure;
+                h1 += texelFetch(previousGathered, ivec3(t, 1), 0) * sure;
+                h2 += texelFetch(previousGathered, ivec3(t, 2), 0) * sure;
+                hc += sure;
+                weight += w;
+            }
+            if (reporting) giReport[2].w = weight;
+            // Mostly the same surface then: what it had, by how sure it was, blended with what's found now, by how sure that is.
+            if (weight > 0.5)
+            {
+                float k = keep * clamp(weight * 2.0 - 1.0, 0.0, 1.0);
+                float historySure = hc / weight;
+                float a = confidence * (1.0 - k);
+                float b = historySure * k;
+                if (a + b > 1e-5)
+                {
+                    float c = hc > 1e-6 ? b / (a + b) / hc : 0.0;
+                    float n = a / (a + b);
+                    sum0 = sum0 * n + h0 * c;
+                    sum1 = sum1 * n + h1 * c;
+                    sum2 = sum2 * n + h2 * c;
+                }
+                confidence = a + b;
+            }
+        }
+    }
+    imageStore(giGathered, ivec3(q, 0), sum0);
+    imageStore(giGathered, ivec3(q, 1), sum1);
+    imageStore(giGathered, ivec3(q, 2), sum2);
+    imageStore(giGathered, ivec3(q, 3), vec4(view.z, confidence, 0.0, 0.0));
+}

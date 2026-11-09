@@ -48,6 +48,7 @@ namespace Dino_Engine.ECS.Systems
             Engine.RenderEngine._spotLightRenderer.SubmitCommand(command);
             if (range.LightsFog) Engine.RenderEngine._volumetricFogRenderer.SubmitSpotLight(command);
             Engine.RenderEngine._waterRenderer.SubmitSpotLight(command);
+            Engine.RenderEngine._globalIllumination.SubmitSpotLight(command);
         }
 
     }

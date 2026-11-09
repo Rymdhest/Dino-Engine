@@ -1,0 +1,47 @@
+#version 430
+
+// Finds each probe of a cascade among last frame's, by where it stands. The world doesn't change from one frame to the next, so a probe
+// that was there then needn't look for room, or again ask which of its parents it can see, and the coarse cascades, whose light changes
+// slowly and whose rays are long, needn't look along every direction again every frame (GI_Probe_Init.comp, GI_Probe_Trace.comp).
+
+#include GI/GI.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 17) readonly buffer GiPreviousMask { uint giPreviousMask[]; };
+layout(std430, binding = 18) readonly buffer GiPreviousBase { int giPreviousBase[]; };
+layout(std430, binding = 19) readonly buffer GiPreviousOffset { uint giPreviousOffset[]; };
+layout(std430, binding = 22) readonly buffer GiPreviousStart { uint giPreviousStart[]; };
+layout(std430, binding = 23) writeonly buffer GiProbePrevious { int giProbePrevious[]; };
+
+uniform int cascade;
+uniform int remembered;         // 0 when last frame's probes can't be trusted: the first frame, or a new world.
+uniform ivec2 previousOrigin;   // Last frame's giColumns[cascade].xy.
+
+void main()
+{
+    int local = int(gl_GlobalInvocationID.x);
+    if (local >= giProbeCount(cascade)) return;
+    int slot = GI_PROBE_BASE[cascade] + local;
+    int previous = -1;
+    if (remembered != 0)
+    {
+        ivec3 lattice = giUnpackKey(giProbeKey[slot]);
+        ivec2 r = lattice.xz - previousOrigin;
+        ivec2 size = giColumns[cascade].zw;
+        if (all(greaterThanEqual(r, ivec2(0))) && all(lessThan(r, size)))
+        {
+            int column = GI_COLUMN_START[cascade] + r.y * size.x + r.x;
+            uint mask = giPreviousMask[column];
+            int k = lattice.y - giPreviousBase[column];
+            if (k >= 0 && k <= 31 && ((mask >> uint(k)) & 1u) != 0u)
+            {
+                uint global = giPreviousOffset[column] + uint(bitCount(mask & ((1u << uint(k)) - 1u)));
+                previous = int(global) - int(giPreviousStart[cascade]);
+                if (previous < 0 || previous >= GI_PROBE_CAPACITY[cascade]) previous = -1;
+            }
+        }
+    }
+    giProbePrevious[slot] = previous;
+}

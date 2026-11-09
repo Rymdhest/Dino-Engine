@@ -35,6 +35,7 @@ namespace Dino_AnimLab
             Actions();
             Falling();
             FirstSeenFrozen();
+            Reaching();
             Standing();
 
             Console.WriteLine();
@@ -575,12 +576,15 @@ namespace Dino_AnimLab
                 Check("How far a body goes is how hard it was hit", dropped < shoved && shoved < launched && launched > 18f, $"{dropped:0} m, {shoved:0} m and {launched:0} m");
             }
 
-            // What's standing is in the way. The hardest of these goes further in a step than the wall is thick.
+            // What's standing is in the way. The hardest of these goes further in a step than the wall is thick. It stands a little in front of whatever the body reaches to, which for anything but a
+            // long-necked giant is 7 m off: a giant's head is further than that in front of its hips, and would start the fall through the wall.
             foreach (Body body in Body.All)
             {
+                float front = body.Rig.Frame?.HeadTip.Z ?? 0f;
+                foreach (Vector3 pivot in body.Rig.Pivots) front = MathF.Max(front, pivot.Z);
                 foreach ((string name, float speed) in new[] { ("thrown at a wall", 9f), ("thrown hard at a wall", 30f), ("hurled at a wall", 90f) })
                 {
-                    var wall = new Wall { Z = 7f, Thickness = 0.2f, Height = PlacementTall };
+                    var wall = new Wall { Z = MathF.Max(7f, front + 1f), Thickness = 0.2f, Height = PlacementTall };
                     CharacterAnimator animator = Thrown(body, wall, new Vector3(0f, speed * 0.2f, speed));
                     bool sound = true;
                     string problem = "";
@@ -594,7 +598,7 @@ namespace Dino_AnimLab
                             if (animator.Rig.Parents[bone] >= 0 || bone == (int)BoneType.Pelvis) furthest = MathF.Max(furthest, animator.JointOf((BoneType)bone).Z);
                         }
                     }
-                    Check($"{body.Name} {name}: stops at it", furthest <= wall.Z && sound && animator.Resting, sound ? (animator.Resting ? $"reached {furthest:0.00} m of {wall.Z} m" : "still going") : problem);
+                    Check($"{body.Name} {name}: stops at it", furthest <= wall.Z && sound && animator.Resting, sound ? (animator.Resting ? $"reached {furthest:0.00} m of {wall.Z:0.00} m" : "still going") : problem);
                 }
             }
 
@@ -674,6 +678,83 @@ namespace Dino_AnimLab
 
                 float off = WorstAgainstAlive(0f);
                 Check($"{body.Name}: stands the way anyone stands", off < 0.05f, $"a joint is {off:0.00} m from where it should be");
+            }
+        }
+
+        // A long neck goes where it's told: the mouth gets to a point anywhere a giant would eat or look from, high in a tree, low in front of it and off to either side, and up over the tallest
+        // trees there are, and it gets there without a jump.
+        private static void Reaching()
+        {
+            Console.WriteLine("Reaching");
+            Body body = Body.Named("giant");
+            SaurianFrame frame = body.Rig.Frame!;
+            var flat = new FlatGround();
+            Vector3 root = body.Rig.Pivots[(int)BoneType.Neck];
+            Vector3 rest = body.Rig.Pivots[(int)BoneType.Head] + frame.Mouth;
+            float reach = (rest - root).Length;
+
+            Vector3 Mouth(CharacterAnimator animator) => animator.JointOf(BoneType.Head) + Vector3.Transform(frame.Mouth, animator.RotationOf(BoneType.Head));
+
+            float worst = 0f;
+            string worstAt = "";
+            int tried = 0;
+            foreach (float height in new[] { 0.42f, 0.6f, 0.85f, 1.05f, 1.2f })
+            {
+                foreach (float side in new[] { -0.55f, 0f, 0.55f })
+                {
+                    foreach (float out_ in new[] { 0.76f, 0.9f })
+                    {
+                        // As a herd asks: no further from the root of the neck than it reaches comfortably, and no nearer than a neck that long folds, which isn't far.
+                        Vector3 target = new Vector3(MathF.Sin(side) * reach * out_, rest.Y * height, root.Z + MathF.Cos(side) * reach * out_);
+                        Vector3 fromRoot = target - root;
+                        if (fromRoot.Length > reach * 0.93f) target = root + fromRoot.Normalized() * reach * 0.93f;
+                        CharacterAnimator animator = body.NewAnimator();
+                        var input = AnimationInput.At(Vector3.Zero, 0f);
+                        input.ReachFor = target;
+                        input.Reaching = 1f;
+                        for (int i = 0; i < 360; i++) animator.Step(input, Step, flat);
+                        float off = (Mouth(animator) - target).Length;
+                        tried++;
+                        if (off <= worst) continue;
+                        worst = off;
+                        worstAt = $"{target.Y:0.0} m up, {(target - root).Length / reach:P0} of the neck's reach out, {side:0.00} rad round";
+                    }
+                }
+            }
+            Check("A long neck puts its mouth where it's told", worst < 1.2f, $"{tried} places, {worst:0.00} m off at worst, {worstAt}");
+
+            {
+                CharacterAnimator animator = body.NewAnimator();
+                var input = AnimationInput.At(Vector3.Zero, 0f);
+                input.ReachFor = root + new Vector3(0f, reach * 2f, reach * 0.3f);
+                input.Reaching = 1f;
+                for (int i = 0; i < 360; i++) animator.Step(input, Step, flat);
+                float highest = Mouth(animator).Y;
+                Check("And reaches over the tallest tree there is", highest > 24f, $"{highest:0.0} m up, as against 21.9 m for the tallest in the Haven");
+            }
+
+            {
+                // Sent somewhere new each frame, from high to low and side to side, it follows without a joint ever jumping.
+                CharacterAnimator animator = body.NewAnimator();
+                var random = new Random(3);
+                var input = AnimationInput.At(Vector3.Zero, 0f);
+                float jump = 0f;
+                Vector3 last = Vector3.Zero;
+                for (int i = 0; i < 1200; i++)
+                {
+                    if (i % 40 == 0)
+                    {
+                        input.ReachFor = root + new Vector3(random.NextSingle() * 2f - 1f, random.NextSingle() * 1.6f - 0.6f, random.NextSingle()) * reach;
+                        input.Reaching = random.NextDouble() < 0.8 ? 1f : 0f;
+                        input.Looking = random.NextDouble() < 0.5;
+                        input.LookAt = new Vector3(random.NextSingle() * 60f - 30f, 4f, random.NextSingle() * 60f - 10f);
+                    }
+                    animator.Step(input, Step, flat);
+                    Vector3 head = animator.JointOf(BoneType.Head);
+                    if (i > 0) jump = MathF.Max(jump, (head - last).Length);
+                    last = head;
+                }
+                Check("A long neck never jumps, however it's told", jump < 0.6f && animator.Faults == 0, $"the head moved at most {jump:0.00} m in a frame");
             }
         }
 
@@ -812,7 +893,7 @@ namespace Dino_AnimLab
         public static int Bench()
         {
             var ground = new Slope();
-            foreach (string name in new[] { "bare", "sword", "shield", "twin", "wolf", "raptor", "tyrant", "hornback" })
+            foreach (string name in new[] { "bare", "sword", "shield", "twin", "wolf", "raptor", "tyrant", "hornback", "giant" })
             {
                 Body body = Body.Named(name);
                 CharacterAnimator[] crowd = new CharacterAnimator[200];
@@ -838,6 +919,39 @@ namespace Dino_AnimLab
                 long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
                 double each = watch.Elapsed.TotalMilliseconds * 1000.0 / (frames * crowd.Length);
                 Console.WriteLine($"{name,-8} {each,6:0.0} us a body a frame, {each * 200.0 / 1000.0:0.00} ms for two hundred, {allocated / (frames * crowd.Length)} bytes allocated each");
+            }
+
+            {
+                // A herd of giants as the Haven has them, walking slowly with their necks in a tree, chewing, and keeping their feet off someone, which is every part of a giant's body at once.
+                Body body = Body.Named("giant");
+                CharacterAnimator[] herd = new CharacterAnimator[30];
+                for (int i = 0; i < herd.Length; i++) herd[i] = body.NewAnimator(i);
+                float time = 0f;
+                void Frame()
+                {
+                    time += Step;
+                    for (int i = 0; i < herd.Length; i++)
+                    {
+                        float z = time * 1.5f + i * 30f;
+                        var position = new Vector3(i * 30f, ground.HeightAt(i * 30f, z), z);
+                        var input = AnimationInput.At(position, 0f);
+                        input.ReachFor = position + new Vector3(MathF.Sin(time + i) * 3f, 17f, 15f);
+                        input.Reaching = 1f;
+                        input.Chewing = 1f;
+                        input.KeepOff = position.Xz + new Vector2(2.5f, 6f);
+                        input.KeepOffRadius = 2.2f;
+                        herd[i].Step(input, Step, ground);
+                    }
+                }
+                for (int i = 0; i < 120; i++) Frame();
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                var watch = Stopwatch.StartNew();
+                const int frames = 300;
+                for (int i = 0; i < frames; i++) Frame();
+                watch.Stop();
+                long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                double each = watch.Elapsed.TotalMilliseconds * 1000.0 / (frames * herd.Length);
+                Console.WriteLine($"browsing {each,6:0.0} us a giant a frame, reaching into a tree as it walks, {allocated / (frames * herd.Length)} bytes allocated each");
             }
 
             {

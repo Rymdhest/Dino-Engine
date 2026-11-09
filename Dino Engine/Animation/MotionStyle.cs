@@ -68,6 +68,9 @@ namespace Dino_Engine.Animation
         /// <summary>Whether four legs ever go into a gallop, from 0 for something too heavy to, which trots, to 1.</summary>
         public float Gallop = 1f;
 
+        /// <summary>How far something on four legs rolls its weight over to whichever side has more feet down, as an elephant does, from 0 for nothing at all.</summary>
+        public float WeightShift;
+
         public static readonly MotionStyle Hero = new MotionStyle { Lean = 1.15f, Crouch = 0.02f };
 
         public static readonly MotionStyle Villager = new MotionStyle { Cadence = 0.92f, Lean = 0.6f, ArmSwing = 0.75f, Bounce = 0.8f };
@@ -112,6 +115,12 @@ namespace Dino_Engine.Animation
         /// <summary>Bones with nothing to hold them up but what raised them: stiff, jerky and slow to look round.</summary>
         public static readonly MotionStyle Bones = new MotionStyle { Cadence = 0.92f, Stance = 0.5f, Bounce = 0.45f, Sway = 1.3f, Lean = 0.55f, Twist = 0.5f, Liveliness = 0.25f, Give = 1.2f, TailSway = 0.55f, TailStiff = 0.45f, ToeIn = 0.04f, Gape = 1.1f, Variety = 0.16f };
 
+        /// <summary>
+        /// A long-necked giant: long slow strides that never hurry, the weight rolling from side to side over the feet that are down, as an elephant's does, the tail swinging long behind, and nothing
+        /// a blow could do to it that it would show.
+        /// </summary>
+        public static readonly MotionStyle Giant = new MotionStyle { Cadence = 0.8f, Stance = 1f, Bounce = 0.4f, Sway = 0.6f, Lean = 0.45f, Twist = 0.5f, Liveliness = 0.55f, Give = 0.15f, TailSway = 0.75f, TailStiff = 0.12f, Gape = 0.45f, Gallop = 0f, WeightShift = 1f, Variety = 0.06f };
+
         /// <summary>What's rotting on its feet: head hung, weight rolling from side to side, the tail dragging along behind.</summary>
         public static readonly MotionStyle Rotting = new MotionStyle { Cadence = 0.8f, Stance = 0.65f, Bounce = 0.5f, Sway = 2f, Lean = 0.45f, Twist = 0.6f, Liveliness = 0.3f, Give = 1.1f, TailSway = 0.5f, TailStiff = 0f, ToeIn = 0f, Gape = 0.9f, HeadLow = 0.18f, Crouch = 0.04f, Variety = 0.18f, Gallop = 0f };
 
@@ -149,6 +158,7 @@ namespace Dino_Engine.Animation
                 Pant = Pant,
                 HeadLow = HeadLow,
                 Gallop = Gallop,
+                WeightShift = WeightShift,
             };
         }
     }

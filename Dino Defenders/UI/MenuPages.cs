@@ -161,6 +161,7 @@ namespace Dino_Defenders.UI
 
             var quality = new MenuStops(qualities, () => (int)video.Quality, at => Change(() => video.Quality = (GraphicsQuality)at, video.ApplyQuality));
             part.Add(new MenuRow("Graphics quality", quality) { Height = 56f });
+            part.Add(new MenuRow("Global illumination", new MenuToggle(() => video.GlobalIllumination, on => Change(() => video.GlobalIllumination = on, video.ApplyGlobalIllumination))));
             return part;
         }
 

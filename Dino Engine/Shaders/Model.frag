@@ -20,6 +20,7 @@ uniform sampler2DArray albedoMapModelTextureArray;
 uniform sampler2DArray normalMapModelTextureArray;
 uniform sampler2DArray materialMapModelTextureArray;
 uniform vec4 hitFlash;
+uniform vec4 characterSight;
 #ifdef WILDLIFE
 flat in float fragFade;
 #endif
@@ -56,6 +57,9 @@ void main() {
 	// What comes and goes does it by thinning out, as nothing that's only for looking at should ever be seen to pop.
 	if (fragFade < 1.0 && fragFade <= focusDither(gl_FragCoord.xy)) discard;
 #endif
+	// Only a character is told these: one big enough to hide the player opens for them as a tree does, and one coming or going thins in or out. Everything else is told nothing, which is 0.
+	if (characterSight.x > 0.5) applyFocusCutout(worldPosition);
+	if (characterSight.y > 0.0 && 1.0 - characterSight.y <= focusDither(gl_FragCoord.xy)) discard;
 
 	vec2 uvDX = dFdx(fragUV);
 	vec2 uvDY = dFdy(fragUV);

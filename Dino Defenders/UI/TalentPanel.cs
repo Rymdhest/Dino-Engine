@@ -49,7 +49,6 @@ namespace Dino_Defenders.UI
         private static readonly Colour Planned = GuiColors.Rgba(252, 236, 182);
         private static readonly Colour Open = GuiColors.Rgba(196, 188, 164);
         private static readonly Colour Locked = GuiColors.Rgba(66, 72, 98);
-        private static readonly Colour RoadRing = GuiColors.Rgba(160, 136, 88);
         private static readonly Colour Hovered = GuiColors.Rgba(255, 250, 230);
         private static readonly Colour Found = GuiColors.Rgba(255, 226, 120);
 
@@ -76,6 +75,11 @@ namespace Dino_Defenders.UI
         private bool _placed;
         private StarSky? _sky;
         private float _skyClock;
+        private int _gateFrom = -1;     // The waygate the mouse is on, whose way across is being drawn,
+        private float _gateTime;        // and how long it's been on it.
+
+        private const float GateReach = 0.9f;       // How long the way across takes to reach the other side.
+        private const float GateSparkEvery = 1.5f;  // Once it has, a spark runs along it this often.
 
         private static GameSession Session => GameSession.Current;
         private static HeroState Hero => Session.Hero;
@@ -265,6 +269,15 @@ namespace Dino_Defenders.UI
                 Array.Clear(_onPath);
                 foreach (int node in _path) _onPath[node] = true;
             }
+
+            // A waygate under the mouse draws its way across from the start, every time it's come back to.
+            if (hover >= 0 && TalentTree.Nodes[hover].Twin >= 0)
+            {
+                if (hover != _gateFrom) _gateTime = 0f;
+                else _gateTime += deltaTime;
+                _gateFrom = hover;
+            }
+            else _gateFrom = -1;
         }
 
         protected override void OnDraw(GuiDrawList draw)
@@ -275,7 +288,9 @@ namespace Dino_Defenders.UI
             draw.PushClip(Bounds);
             DrawSky(draw);
             DrawLinks(draw);
+            DrawGateWay(draw, under: true);
             DrawNodes(draw);
+            DrawGateWay(draw, under: false);
             DrawRegionNames(draw);
             DrawLabels(draw);
             if (_hover >= 0) DrawTip(TalentTree.Nodes[_hover]);
@@ -290,7 +305,7 @@ namespace Dino_Defenders.UI
             {
                 "Drag to move, wheel to zoom",
                 "Click to take the lit path, right click to give a node back",
-                "The gold roads reach far for few points",
+                "Roads reach far for few points",
                 $"{Bindings.Label(GameAction.Talents)} to close",
             };
             float y = Bounds.Bottom - 22f - 18f * lines.Length;
@@ -337,17 +352,15 @@ namespace Dino_Defenders.UI
                     bool both = _taken[node.Index] && _taken[link];
                     bool planned = !both && (_onPath[node.Index] || _taken[node.Index]) && (_onPath[link] || _taken[link]);
                     bool either = _taken[node.Index] || _taken[link];
-                    bool road = node.Highway && other.Highway;
                     Vector3 hue = (Hues[node.Index] + Hues[link]) * 0.5f;
                     Colour colour = both ? Taken
                         : planned ? Planned
-                        : road ? GuiColors.Rgba(196, 166, 108, 170)
                         : either ? GuiColors.Rgba(150, 128, 86, 210)
                         : Rgb(Vector3.Lerp(Unlit, hue, 0.28f), 0.62f);
-                    float width = both ? thin * 1.7f : planned ? thin * 1.5f : road ? thin * 1.3f : thin;
+                    float width = both ? thin * 1.7f : planned ? thin * 1.5f : thin;
 
                     bool arc = node.OrbitRadius > 0f && MathF.Abs(node.OrbitRadius - other.OrbitRadius) < 0.5f && (node.Orbit - other.Orbit).LengthSquared < 0.25f;
-                    if (both || road) Stroke(draw, node, from, to, arc, Fade(both ? Taken : colour, both ? 0.16f : 0.14f), width * 4.5f);
+                    if (both) Stroke(draw, node, from, to, arc, Fade(Taken, 0.16f), width * 4.5f);
                     Stroke(draw, node, from, to, arc, colour, width);
                 }
 
@@ -357,6 +370,72 @@ namespace Dino_Defenders.UI
                     draw.AddLine(from, ToScreen(nodes[node.Twin].Position), Rgb(GateHue, 0.22f), 1f);
                 }
             }
+        }
+
+        // Where a waygate under the mouse leads: a long bow across the tree that sets off from it and fills in until it reaches its twin. The line goes under
+        // the nodes it passes, and what's moving along it over them.
+        private void DrawGateWay(GuiDrawList draw, bool under)
+        {
+            if (_gateFrom < 0) return;
+            TalentNode gate = TalentTree.Nodes[_gateFrom];
+            TalentNode twin = TalentTree.Nodes[gate.Twin];
+            Vector2 a = ToScreen(gate.Position);
+            Vector2 b = ToScreen(twin.Position);
+            Vector2 across = b - a;
+            float length = across.Length;
+            if (length < 1f) return;
+
+            // Twins are on opposite sides, so a straight line would go through the root: it bows round the middle instead, always to the same side of the
+            // pair, so that either end draws the same arc.
+            Vector2 side = new Vector2(-across.Y, across.X) / length;
+            if (gate.Index > gate.Twin) side = -side;
+            Vector2 bend = (a + b) * 0.5f + side * length * 0.5f;
+            Vector2 At(float t) => (1f - t) * (1f - t) * a + 2f * (1f - t) * t * bend + t * t * b;
+
+            float t = Math.Clamp(_gateTime / GateReach, 0f, 1f);
+            float reached = 1f - (1f - t) * (1f - t) * (1f - t);
+            float width = Math.Clamp(3f * _zoom, 1.8f, 4f);
+
+            if (under)
+            {
+                int steps = Math.Clamp((int)(length / 8f), 24, 120);
+                int shown = (int)MathF.Ceiling(steps * reached);
+                Vector2 last = a;
+                for (int i = 1; i <= shown; i++)
+                {
+                    Vector2 next = At(MathF.Min((float)i / steps, reached));
+                    float along = (float)i / steps;
+                    draw.AddLine(last, next, Rgb(GateHue, 0.1f), width * 5f);
+                    draw.AddLine(last, next, Rgb(Vector3.Lerp(GateHue, Vector3.One, 0.25f), 0.55f + 0.3f * along), width);
+                    last = next;
+                }
+                return;
+            }
+
+            if (t < 1f)
+            {
+                // The head of it, still on its way.
+                Vector2 head = At(reached);
+                Glow(draw, head, 18f, Rgb(GateHue, 0.45f));
+                draw.AddCircle(head, width * 1.4f, Rgb(Vector3.Lerp(GateHue, Vector3.One, 0.7f)));
+                return;
+            }
+
+            // Arrived: the twin rings out once, keeps a glow, and a spark runs across now and then so that it reads as a way and not a scratch.
+            float since = _gateTime - GateReach;
+            float radius = RadiusOf(twin);
+            Glow(draw, b, radius * 2.6f, Rgb(GateHue, 0.3f));
+            if (since < 0.7f)
+            {
+                float ring = since / 0.7f;
+                draw.AddCircle(b, radius + 4f + ring * 36f, Clear, 2f, Rgb(Vector3.Lerp(GateHue, Vector3.One, 0.4f), (1f - ring) * 0.8f));
+            }
+            float spark = since % GateSparkEvery / GateSparkEvery;
+            float eased = spark * spark * (3f - 2f * spark);
+            Vector2 at = At(eased);
+            float fade = MathF.Sin(spark * MathF.PI);
+            Glow(draw, at, 14f, Rgb(GateHue, 0.4f * fade));
+            draw.AddCircle(at, width * 1.2f, Rgb(Vector3.Lerp(GateHue, Vector3.One, 0.7f), fade));
         }
 
         // A link, straight, or along the circle both its ends sit on.
@@ -410,7 +489,7 @@ namespace Dino_Defenders.UI
                 Vector3 hue = Hues[i];
                 bool taken = _taken[i];
                 bool near = _onPath[i] || _open[i];
-                Colour ring = i == _hover ? Hovered : taken ? Taken : _onPath[i] ? Planned : _open[i] ? Open : node.Highway ? RoadRing : Locked;
+                Colour ring = i == _hover ? Hovered : taken ? Taken : _onPath[i] ? Planned : _open[i] ? Open : Locked;
                 Vector3 fill = taken ? Vector3.Lerp(Night, hue, 0.36f) : near ? Vector3.Lerp(Night, hue, 0.16f) : Night;
                 Vector3 ink = taken ? Vector3.Lerp(hue, Vector3.One, 0.55f) : near ? Vector3.Lerp(hue, Vector3.One, 0.3f) * 0.9f : Vector3.Lerp(new Vector3(0.36f, 0.4f, 0.52f), hue, 0.18f);
 

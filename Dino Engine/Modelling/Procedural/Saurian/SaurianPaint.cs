@@ -77,13 +77,14 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             bool onNeck = part == SaurianPart.Body && along > _body.NeckAt;
 
             bool striped = onTrunk || onNeck || (onTail && along > _body.HipAt * 0.45f);
+            float contrast = c.Contrast;
             if ((c.Patterns & HidePattern.Stripes) != 0 && striped)
             {
                 // Bands across the back that fade down the flanks, ragged at their edges.
                 float phase = along / c.StripeEvery + c.StripePhase + Noise(p, scale * 0.05f, 21u) * 0.35f;
                 float wave = MathF.Sin(phase * MathF.Tau);
                 float band = Smooth(0.35f, 0.75f, wave) * Smooth(-0.45f, 0.35f, h);
-                colour = Vector3.Lerp(colour, c.Pattern, band * 0.82f);
+                colour = Vector3.Lerp(colour, c.Pattern, band * 0.82f * contrast);
             }
 
             if ((c.Patterns & HidePattern.Bands) != 0 && onTail && along < _body.HipAt * 0.7f)
@@ -91,26 +92,26 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 // Rings all the way round the end of the tail.
                 float rings = MathF.Sin((along / (c.StripeEvery * 1.15f) + c.StripePhase * 0.5f) * MathF.Tau);
                 float strength = Smooth(_body.HipAt * 0.7f, _body.HipAt * 0.45f, along);
-                colour = Vector3.Lerp(colour, c.Pattern, Smooth(0.2f, 0.6f, rings) * strength * 0.9f);
+                colour = Vector3.Lerp(colour, c.Pattern, Smooth(0.2f, 0.6f, rings) * strength * 0.9f * contrast);
             }
 
             if ((c.Patterns & HidePattern.Spots) != 0 && h > -0.5f)
             {
                 float spots = FloraNoise.Value(p / c.SpotSize, _seed + 31u);
                 float spot = Smooth(0.68f, 0.78f, spots) * Smooth(-0.5f, 0.1f, h);
-                colour = Vector3.Lerp(colour, c.Pattern, spot * 0.85f);
+                colour = Vector3.Lerp(colour, c.Pattern, spot * 0.85f * contrast);
             }
 
             if ((c.Patterns & HidePattern.Saddles) != 0 && part == SaurianPart.Body && h > 0f)
             {
                 float saddle = FloraNoise.Value(new Vector3(along / (scale * 0.09f), 0.5f, 0.5f), _seed + 41u);
-                colour = Vector3.Lerp(colour, c.Pattern, Smooth(0.55f, 0.7f, saddle) * Smooth(0f, 0.55f, h) * 0.8f);
+                colour = Vector3.Lerp(colour, c.Pattern, Smooth(0.55f, 0.7f, saddle) * Smooth(0f, 0.55f, h) * 0.8f * contrast);
             }
 
             if ((c.Patterns & HidePattern.Mottle) != 0)
             {
                 float mottle = FloraNoise.Value(p / (scale * 0.006f), _seed + 51u);
-                colour *= 0.88f + 0.24f * mottle;
+                colour *= 1f - 0.12f * contrast + 0.24f * contrast * mottle;
             }
 
             if ((c.Patterns & HidePattern.Mask) != 0 && part == SaurianPart.Head)
@@ -121,7 +122,28 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 float eyeY = _body.Head.Lip(eyeZ) + _body.Head.DepthAt(eyeZ) * 1.24f * 0.62f;
                 float across = MathF.Abs(local.Y - (eyeY + (local.Z - eyeZ) * -0.12f)) / (_body.Head.Length * 0.07f);
                 float mask = (1f - Smooth(0.5f, 1f, across)) * Smooth(_body.Head.Length * 0.85f, eyeZ, local.Z) * Smooth(0.2f, 0.6f, MathF.Abs(normal.X));
-                colour = Vector3.Lerp(colour, c.Pattern, mask * 0.85f);
+                colour = Vector3.Lerp(colour, c.Pattern, mask * 0.85f * contrast);
+            }
+
+            if (part == SaurianPart.Head && _body.Head.Sauropod)
+            {
+                SaurianHead head = _body.Head;
+                Vector3 local = head.ToHead(p);
+
+                // A sauropod's dome is the one thing about it that's shown off, a little brighter than the rest, as a cassowary's casque is.
+                if (head.Arch > 0f)
+                {
+                    float roof = head.Lip(local.Z) + head.DepthAt(local.Z) * 1.24f;
+                    float near = MathF.Exp(-MathF.Pow((local.Z - head.ArchAt * head.Length) / (head.Length * 0.2f), 2f));
+                    float dome = near * Smooth(roof - head.Arch * 0.3f, roof + head.Arch * 0.4f, local.Y);
+                    colour = Vector3.Lerp(colour, c.Display, dome * 0.55f);
+                }
+
+                // A soft dark ring round each eye, which is what lets an eye be found at all from far off.
+                float eyeZ = head.EyeAt * head.Length;
+                Vector3 eye = new Vector3(MathF.Sign(local.X) * head.WidthAt(eyeZ) * 0.98f, SaurianSculpt.EyeHeight(head), eyeZ);
+                float ring = 1f - Smooth(0.55f, 1f, (local - eye).Length / (head.EyeSize * 1.6f));
+                colour *= 1f - 0.4f * ring;
             }
 
             // A throat that's shown off.

@@ -1,0 +1,51 @@
+#version 430
+
+// Turns what a probe sees in each of the twelve directions of the finest cascade into the light it gives a surface facing any way:
+// first-order spherical harmonics, kept as irradiance E(n) = A + B.n for each colour, which blends between probes as it should and is
+// a dot product to read. The twelve cells are equal in area, so each counts the same. Run for the finest cascade, and for the next,
+// which is what a surface with no probe of the finest near it falls back on.
+
+#include GI/GI.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 12) readonly buffer GiMerged { uint giMerged[]; };
+layout(std430, binding = 16) writeonly buffer GiProbeSH { vec4 giProbeSH[]; };
+layout(std430, binding = 11) readonly buffer GiIntervals { uint giIntervals[]; };     // The finest cascade's own, for how open it stands.
+
+uniform int cascade;
+
+void main()
+{
+    int local = int(gl_GlobalInvocationID.x);
+    if (local >= giProbeCount(cascade)) return;
+    int slot = GI_PROBE_BASE[cascade] + local;
+    vec3 sum = vec3(0.0);
+    vec3 sumX = vec3(0.0), sumY = vec3(0.0), sumZ = vec3(0.0);
+    for (int d = 0; d < 12; d++)
+    {
+        vec3 radiance = giUnpackRadiance(giMerged[uint(local) * 12u + uint(d)]);
+        vec3 dir = giDirections[d].xyz;
+        sum += radiance;
+        sumX += radiance * dir.x;
+        sumY += radiance * dir.y;
+        sumZ += radiance * dir.z;
+    }
+    // A = pi Y00^2 (4pi/12) sum, B = (2pi/3) Y1^2 (4pi/12) sum of L d: pi/12 and pi/6.
+    vec3 a = sum * (GI_PI / 12.0);
+    vec3 bx = sumX * (GI_PI / 6.0), by = sumY * (GI_PI / 6.0), bz = sumZ * (GI_PI / 6.0);
+    giProbeSH[slot * 3 + 0] = vec4(a.r, bx.r, by.r, bz.r);
+    giProbeSH[slot * 3 + 1] = vec4(a.g, bx.g, by.g, bz.g);
+    giProbeSH[slot * 3 + 2] = vec4(a.b, bx.b, by.b, bz.b);
+
+    // How open a probe of the finest cascade stands: how many of its rays find nothing within half a metre. One in a pocket of the
+    // steps a slope's voxels make sees mostly the inside of the surface, and the gather trusts it less (GI_Gather.comp).
+    if (cascade == 0)
+    {
+        uint open = 0u;
+        for (int d = 0; d < 12; d++) open += giIntervals[uint(local) * 12u + uint(d)] == GI_MISSED ? 1u : 0u;
+        uint flags = floatBitsToUint(giProbePlace[slot].w) & 0x00FFFFFFu;
+        giProbePlace[slot].w = uintBitsToFloat(flags | (open << 24));
+    }
+}

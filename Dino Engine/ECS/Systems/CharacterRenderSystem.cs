@@ -61,6 +61,7 @@ namespace Dino_Engine.ECS.Systems
                         ModelMatrix = modelMatrix,
                         SkinningMatrices = skeletonArray[i].SkinningMatrices,
                         Flash = animatorArray != null ? new Vector4(animatorArray[i].Animator.FlashColour, animatorArray[i].Animator.Flash) : Vector4.Zero,
+                        Sight = new Vector4(modelArray[i].Opens ? 1f : 0f, modelArray[i].Faded, 0f, 0f),
                     });
                 }
             }

@@ -31,7 +31,7 @@ The rig is made from the same body as the skin, so the bones are always where th
 
 ## Species
 
-There are six, and a new one is an entry in `SaurianCatalog` and a kind in the game's `Bestiary`:
+There are seven, and a new one is an entry in `SaurianCatalog` and a kind in the game's `Bestiary`:
 
 | Species | After | Length | Skin budget | Form |
 |---|---|---|---|---|
@@ -41,6 +41,9 @@ There are six, and a new one is an entry in `SaurianCatalog` and a kind in the g
 | Ravager | Allosaurus and Carnotaurus | 11.5 to 13 m | 9,000 | On two legs |
 | Tyrant | Tyrannosaurus | 14.2 to 15.4 m | 15,000 | On two legs |
 | Hornback | Triceratops and its kin | 9.4 to 10.6 m | 10,000 | On four |
+| Giant | Brachiosaurus and Giraffatitan | 37 to 41 m | 50,000 | On four pillars |
+
+**The giant is the Haven's alone** (`LORE.md`). It's `Free`, so it can't be harnessed, rot or be bones, and `SaurianSpec.Parse` refuses any name that says it is. It isn't in the `Bestiary` either, as nothing fights it. Its skin is finer than any other's by far, as it's the one dinosaur a player can stand under and look up at, and the one in the picture behind the menu.
 
 Lengths are the game's metres, where a person stands 4.7 m tall, which is about 2.7 times life: a raptor's head is about a person's height. Proportions are shares of the whole length, taken from skeletons (Hartman's for the tyrant) and then bent towards what reads from 33 m up, which is mostly the head, the tail and how it stands. Everything else on a species is a range: how long the skull, neck and trunk are, how deep and wide the chest, how folded the legs stand, the head's depth, width, snout and profile, teeth, horns, crests, frill, quills and spines, and three or four colour schemes, each of which an animal drifts from.
 
@@ -49,6 +52,8 @@ So two raptors differ in length, build, posture, the shape of the head, how many
 ## The body
 
 `SaurianBody` is every measurement of one animal. It's built around a line (`SaurianAxis`), from the tip of the tail to the back of the skull, down the middle of the body: Bézier curves from the tail tip to the hips, sagging a little as a tail does, then to the shoulders, up the neck in the S every theropod has, and along the skull. It's sampled finely, and everything along a body is said by how far along that line it is: how thick the flesh is, which bone a stretch of skin hangs from, and which way a hide's stripes run.
+
+**A giant is a sauropod** (`SaurianForm.Sauropod`, `BuildSauropodAxis`): its shoulder stands higher than its hip (`Withers`), its neck is longer than the body in front of its tail and goes up from the shoulders as a giraffe's does, as the necks of living animals at their ease say it did, and its tail is carried clear of the ground, drooping to the tip. Its legs are columns on round feet (`BuildPillars`), with a thumb claw on each forefoot and three claws on each hind one, as a sauropod's feet had, and its head is small and long with a dome over the nostrils (`Arch`, after Giraffatitan's), a blunt mouth, and no teeth showing, as a browser's lips cover them.
 
 Legs are hip, knee, ankle and the ball of the foot, **built folded, as they stand**, as that's where a skin bends best from. Small fast animals stand more folded on long shins and giants on near columns, which is `Crouch` and `LegBones`. Arms are carried folded too, and on four legs they're forelegs. The head has a frame of its own, from the back of the skull, which is where it turns on the neck.
 
@@ -74,7 +79,7 @@ It's coloured in its vertices, on the gear materials (`GearMaterials`), with lea
 
 ## Colour
 
-`SaurianPaint` works out a colour at each point from **where it is on the body, not in space**: how far up the side it is, from the belly to the spine, and how far along. So stripes run across the back and rings go round the tail whatever the mesh is like, and every pattern is something living animals wear (`HidePattern`): stripes, spots, rings, a mask through the eye, saddles and mottling. Everything is dark above and lighter below, as nearly every animal is and as *Sinosauropteryx* is known to have been. Feet and what's near the ground are darker, and a throat or crest that's shown off is the scheme's display colour.
+`SaurianPaint` works out a colour at each point from **where it is on the body, not in space**: how far up the side it is, from the belly to the spine, and how far along. So stripes run across the back and rings go round the tail whatever the mesh is like, and every pattern is something living animals wear (`HidePattern`): stripes, spots, rings, a mask through the eye, saddles and mottling. Everything is dark above and lighter below, as nearly every animal is and as *Sinosauropteryx* is known to have been. Feet and what's near the ground are darker, and a throat or crest that's shown off is the scheme's display colour. A giant's patterns are faint (`Contrast`), as something with nothing to hide from or ambush needs no bold ones, and what it shows off is the dome over its nose and a ring round each eye. Its eyes are dark and soft, as a grazer's are.
 
 Colours are albedos under a sun of about 13, so all of them are deep, as anything pale goes white. Judge them in the game, as the lab's pictures are brighter.
 
@@ -94,7 +99,7 @@ The same seed is the same animal whatever's been done to it, so a raptor's bones
 
 ## The rig
 
-`SaurianBody.BuildRig` makes a `Rig` with a `SaurianFrame`, which is what tells the animator it has a dinosaur. It adds to a person's bones a jaw, a neck in two (`Neck`, `NeckTop`), a tail of five (`TailBase`, `Tail1` to `Tail3`, `TailTip`) and toes, all of which move, and says how thick the body is at each bone, so it falls as what it's made of. The shaders take 32 bones for it (`u_Bones[32]`). How it moves is in `ANIMATION.md`.
+`SaurianBody.BuildRig` makes a `Rig` with a `SaurianFrame`, which is what tells the animator it has a dinosaur. It adds to a person's bones a jaw, a neck in two (`Neck`, `NeckTop`), a tail of five (`TailBase`, `Tail1` to `Tail3`, `TailTip`) and toes, all of which move, and says how thick the body is at each bone, so it falls as what it's made of. A giant's neck is in five (`SaurianFrame.LongNeck`: `Neck`, `Neck1` to `Neck3`, `NeckTop`), so that it curves rather than bends, and on anything else those three sit on the neck's root and move nothing. That's 31 bones, and the shaders take 32 (`u_Bones[32]`). How it moves is in `ANIMATION.md`.
 
 ## In the game
 
@@ -102,13 +107,14 @@ The same seed is the same animal whatever's been done to it, so a raptor's bones
 - A dinosaur is far thicker than a person, so its body is solid that far out: `EnemyKind.Bulk` is its radius at a scale of one (`RadiusAt`), for the server's body, the motor and the parade alike.
 - `CharacterFactory.BearingOf` gives it its own rig and `SaurianForge.StyleOf`, and `SkillMotions.Of` picks its gestures from a page by what it's built like: a theropod bites, stomps, pounces, spits, sweeps its tail and roars, and a horned one gores, tramples and bellows.
 - Its voice is in `Sound/Content/Saurians.cs`, picked by `GameSounds.DinosaurVoice` from its species and condition, and anything with legs over 1.6 times a person's shakes the ground as it walks (`Saurians.Tread`).
+- **The giants aren't sent by any server.** They're the Haven's, only ever looked at, and this client's alone: a `Herd` decides where each stands and what its head is doing, and `GiantShow` is their bodies (`WILDLIFE.md`). Each takes three seconds to grow, so they're begun the moment the game starts, before anything else, as they're in the picture behind the menu (`CharacterFactory.GrowGiants`), and nothing ever waits for them.
 - Its books are on `Shelf`, and what comes first in its list rests after use, or it would do nothing else: an enemy does the first thing that's ready and reaches. A blow is a cone, as a rectangle is a beam and a circle a nova, which go off like spells.
 
 ## Adding things
 
 **A new kind of dinosaur of a form there already is**: an entry in `SaurianCatalog`, a line in `SaurianForge.StyleOf` if it moves like none of them, a kind in the `Bestiary` with its `Look`, `Variants` and `Bulk`, and its voice in `GameSounds.DinosaurVoice`. Look at it with `zoo --species` and `sheet --body dino:name.0`.
 
-**A new form** (a long-necked giant, an armoured one): a `SaurianForm`, its axis and legs in `SaurianBody`, and whatever its head needs in `SaurianSculpt`. Its rig follows from the body.
+**A new form** (an armoured one, as the giant was a long-necked one): a `SaurianForm`, its axis and legs in `SaurianBody`, and whatever its head needs in `SaurianSculpt`. Its rig follows from the body.
 
 **A new thing done to them**: a `SaurianCondition`, a word for it in `SaurianSpec.Parse`, and a way of moving in `StyleOf`.
 
@@ -139,17 +145,18 @@ A lab can't say an animal looks alive. Judge them from the game's own camera, mo
 
 ## Where it stands
 
-Growing one takes 0.16 to 0.9 s on one thread: a raptor about half a second and 10,000 triangles, a tyrant 0.8 s and 22,000, its bones 0.3 s. All 54 that the game can send are grown at once at the first loading screen and kept, which on a machine with few cores is a few seconds. A body's pose costs what a person's does, about 2.5 µs a frame, and allocates nothing.
+Growing one takes 0.16 to 0.9 s on one thread: a raptor about half a second and 10,000 triangles, a tyrant 0.8 s and 22,000, its bones 0.3 s. All 54 that the game can send are grown at once at the first loading screen and kept, which on a machine with few cores is a few seconds. A body's pose costs what a person's does, about 2.5 µs a frame, and allocates nothing. A giant takes 3 s and has 53,000 triangles, and its pose 5 µs, as its neck is worked out afresh each frame.
 
 **Nobody has seen one but in the lab's stills.** Ask how they look in the game, and especially:
 
 - Whether a tyrant reads as a tyrant from the game's camera, and as big enough as a boss.
 - Whether the harness and war paint tell the Reich's from the wild at a glance.
 - Whether the rotting and the bones read as different things.
+- Whether the giants read as gentle and as big as they are, close up in the Haven and far off behind the menu, and whether their faces are kind.
 
 Not built:
 
-- A long-necked giant, an armoured one, and anything that flies or swims.
+- An armoured one, and anything that flies or swims.
 - Blood and wounds that come from a fight. A dinosaur looks the same at the end of one.
 - Feathers beyond the quills. The evidence says raptors were feathered all over, and the quills are a nod to it that reads from up here.
 
@@ -165,3 +172,5 @@ Not built:
 - Alan Turner and others, "Feather quill knobs in the dinosaur *Velociraptor*", *Science* (2007): quills and arm feathers on raptors.
 - John Ostrom on *Deinonychus*: the killing claw and the tail stiffened into a rod.
 - Adam Marsh and Timothy Rowe on *Dilophosaurus* (2020): its thin paired crests.
+- Michael Taylor, "A re-evaluation of *Brachiosaurus altithorax*" (2009), and Gregory Paul's skeletals: the giant's proportions, and Giraffatitan's domed nose.
+- Michael Taylor, Mathew Wedel and Darren Naish, "Head and neck posture in sauropod dinosaurs inferred from extant animals" (2009): a neck held up at its ease.

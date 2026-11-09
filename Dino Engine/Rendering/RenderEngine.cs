@@ -4,6 +4,7 @@ using Dino_Engine.Rendering.Renderers;
 using Dino_Engine.Rendering.Renderers.AntiAliasing;
 using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Rendering.Renderers.Lighting;
+using Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
 using Dino_Engine.Rendering.Renderers.PostProcessing;
 using Dino_Engine.Rendering.Renderers.Simulation;
@@ -96,6 +97,7 @@ namespace Dino_Engine.Rendering
         public TrailRenderer _trailRenderer;
         public GrassRenderer _grassRenderer;
         public CelestialBodyRenderer _sunRenderer;
+        public GlobalIlluminationRenderer _globalIllumination;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
         private MsaaRenderer _msaa;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
@@ -126,6 +128,8 @@ namespace Dino_Engine.Rendering
         public LightingSettings Lighting { get; } = new LightingSettings();
         /// <summary>How reflections are traced, read each frame.</summary>
         public ReflectionSettings Reflections { get; } = new ReflectionSettings();
+        /// <summary>How light bounces, read each frame (GI.md).</summary>
+        public GlobalIlluminationSettings GlobalIllumination { get; } = new GlobalIlluminationSettings();
         /// <summary>The multisampled G-buffer and scene, and the passes that resolve them.</summary>
         public MsaaRenderer Msaa { get => _msaa; }
         /// <summary>This frame's screen-space ambient occlusion, for the light passes.</summary>
@@ -202,6 +206,7 @@ namespace Dino_Engine.Rendering
             _depthOfFieldRenderer = new DepthOfFieldRenderer();
             _grassRenderer = new GrassRenderer();
             _sunRenderer = new CelestialBodyRenderer();
+            _globalIllumination = new GlobalIlluminationRenderer(GlobalIllumination);
 
         }
 
@@ -257,7 +262,7 @@ namespace Dino_Engine.Rendering
         }
         public void Render()
         {
-
+            textureGenerator.FinishCards(wait: Engine.Instance.WorldReady);
 
             Studio.RenderPass();
             PrepareFrame();
@@ -361,6 +366,8 @@ namespace Dino_Engine.Rendering
         }
         private void LightPass()
         {
+            // Bounced light first: the ambient pass reads what it gathers, and the occlusion only has the contact left to do while it's on.
+            _globalIllumination.RenderPass(this);
             _sSAORenderer.RenderPass(this);
 
             // Lighting adds up in the multisampled scene, which shares the G-buffer's depth and edge stencil.
@@ -373,7 +380,7 @@ namespace Dino_Engine.Rendering
             _pointLightRenderer.RenderPass(this);
             _spotLightRenderer.RenderPass(this);
             _screenSpaceReflectionRenderer.RenderPass(this);
-
+            _globalIllumination.DrawDebug(this);
         }
         private void PostGeometryPass()
         {

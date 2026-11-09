@@ -7,6 +7,7 @@ namespace Dino_LifeLab
     ///   check  [--seed N] [--count N] [--seconds S] [--archetype id]   Walks someone through real worlds and runs them at everything. Exit code 1 if anything goes wrong.
     ///   sheet  [--do scene] [--view side|front|top|three|game] [--frames N] [--columns N] [--tile N] [--metres M] [--out file.png]   Any body doing anything.
     ///   leaf   What each falling card does.
+    ///   giants [--seed N] [--minutes M] [--out map.png]   The Haven's giants in the real Haven for a while, with someone coming to see them. Exit code 1 if anything goes wrong.
     /// </summary>
     internal static class Program
     {
@@ -21,6 +22,8 @@ namespace Dino_LifeLab
                     return Sheet.Run(new Options(args));
                 case "check":
                     return LifeCheck.Run(new Options(args));
+                case "giants":
+                    return GiantCheck.Run(new Options(args)) > 0 ? 1 : 0;
                 default:
                     Console.WriteLine($"No command called {command}.");
                     return 1;

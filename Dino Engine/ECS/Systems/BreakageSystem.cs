@@ -91,6 +91,8 @@ namespace Dino_Engine.ECS.Systems
             {
                 foreach (EntityView body in new ComponentAccessor(archetype))
                 {
+                    // A body carried high over everything walks over it, and only ever sets its feet down clear of it.
+                    if (body.Get<PlantContactComponent>().feetOnly) continue;
                     Vector2 at = body.Get<PositionComponent>().value.Xz;
                     float radius = body.Get<PlantContactComponent>().radius * BodyShare;
                     Vector2 walking = body.Has<VelocityComponent>() ? body.Get<VelocityComponent>().value.Xz : Vector2.Zero;

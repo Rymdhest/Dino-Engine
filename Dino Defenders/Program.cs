@@ -24,6 +24,7 @@ namespace Dino_Defenders
             }
 
             if (options.MeshSeed is int meshSeed) Dino_Engine.Util.MyMath.rand = new Random(meshSeed);
+            ArpgGame.Begin(options);
             Client.SettingsStore.Use(options.Settings, options.Scripted);
             Client.Bindings.Load();
             UI.VideoSettings video = UI.VideoSettings.Load();

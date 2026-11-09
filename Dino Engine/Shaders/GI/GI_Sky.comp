@@ -1,0 +1,40 @@
+#version 430
+
+// What the whole sky gives a face of each of the six directions with nothing in the way, this frame: what a voxel face gets from the
+// sky is this times how much of it it can see (GI_Voxel_Light.comp). One group, 256 directions spread evenly over the sphere.
+
+#include Globals.glsl
+#include GI/GI.glsl
+#include Weather/Weather.glsl
+#include Weather/Sky.glsl
+#include GI/GI_Sky.glsl
+
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 4) buffer GiSkyLight { vec4 giSkyLight[8]; };
+
+shared vec3 partial[256];
+
+void main()
+{
+    uint i = gl_LocalInvocationID.x;
+    float z = 1.0 - (float(i) + 0.5) / 128.0;
+    float r = sqrt(max(1.0 - z * z, 0.0));
+    float phi = 2.39996323 * float(i);
+    vec3 dir = vec3(r * cos(phi), z, r * sin(phi));
+    vec3 radiance = giSkyRadiance(dir, 0.6);
+    const float solidAngle = 4.0 * GI_PI / 256.0;
+
+    for (int f = 0; f < 6; f++)
+    {
+        partial[i] = radiance * max(dot(GI_FACE_NORMAL[f], dir), 0.0) * solidAngle;
+        barrier();
+        for (uint stride = 128u; stride > 0u; stride >>= 1)
+        {
+            if (i < stride) partial[i] += partial[i + stride];
+            barrier();
+        }
+        if (i == 0u) giSkyLight[f] = vec4(partial[0], 0.0);
+        barrier();
+    }
+}

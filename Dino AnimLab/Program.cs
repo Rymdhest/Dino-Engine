@@ -6,7 +6,7 @@ namespace Dino_AnimLab
 {
     /// <summary>
     /// Moves bodies with no window and no GPU, to look at them and to check that they hold up. See ANIMATION.md.
-    ///   sheet  [--body b] [--do script] [--view side|front|back|top|three|game] [--frames N] [--columns N] [--tile N] [--out file.png]
+    ///   sheet  [--body b] [--do script] [--view side|front|back|top|three|game] [--frames N] [--columns N] [--tile N] [--metres m] [--look m] [--up m] [--out file.png]   --look and --up move what's framed forward and up.
     ///   zoo    [--species a,b] [--variants N] [--as living,rot,bones,reich] [--view v] [--tile N] [--out file.png]   Dinosaurs standing, one of each.
     ///   grow   [--dino dino:raptor.0,dino:tyrant.bones.0]   Grows each on one thread and says where the time went.
     ///   check  Does everything hold, whatever's thrown at it? Exit code 1 if not.
@@ -193,7 +193,7 @@ namespace Dino_AnimLab
                 Matrix4 world = Matrix4.CreateFromQuaternion(Frames.Yaw(yaw)) * Matrix4.CreateTranslation(position);
                 mesh.Pose(animator.Skinning, world);
 
-                Vector3 centre = position + Vector3.Transform(middle, Frames.Yaw(yaw)) + new Vector3(0f, 0f, options.Float("look", 0f));
+                Vector3 centre = position + Vector3.Transform(middle, Frames.Yaw(yaw)) + new Vector3(0f, options.Float("up", 0f), options.Float("look", 0f));
                 render.Clear(new Vector3(0.05f, 0.052f, 0.06f));
                 render.Floor((x, z) => script.Ground.HeightAt(x, z), centre, metres * 1.1f, MathF.Max(1f, MathF.Round(metres / 10f)), view, pixels);
                 render.Draw(mesh, view, centre, pixels);

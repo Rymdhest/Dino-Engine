@@ -139,7 +139,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformFloat("lightRadius", command.radius);
                 shader.loadUniformFloat("softness", command.softness);
                 shader.loadUniformFloat("cutoffCosine", command.cutoffCosine);
-                shader.loadUniformFloat("lightFill", command.fill);
+                // Global illumination bounces the light for real while it's in, so the stand-in fades out.
+                shader.loadUniformFloat("lightFill", command.fill * renderEngine._globalIllumination.FillKept(command.positionWorld, command.radius));
 
                 GL.DrawElements(PrimitiveType.Triangles, ModelGenerator.UNIT_CONE.getVertexCount(), DrawElementsType.UnsignedInt, 0);
             });

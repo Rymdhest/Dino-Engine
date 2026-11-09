@@ -1,0 +1,57 @@
+#version 430
+
+// Which faces of each solid voxel are open to the air: only those can be struck by a ray, so only those are lit. A thin wall has two,
+// its inside and its outside, each lit on its own. Run over a rebuilt region and a voxel around it, whose neighbours may have changed.
+// What's new, or open on a different side than before, has its sun and sky worked out again (GI_Voxel_Cache.comp); until then it
+// takes a guess: in the sun, and the sky that a face looking that way usually sees.
+
+#include GI/GI.glsl
+#include GI/GI_Voxels.glsl
+
+layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
+
+layout(r32ui, binding = 1) uniform uimage3D voxInfo;
+
+uniform ivec3 regionMin;
+uniform ivec3 regionSize;
+uniform ivec3 rebuiltMin;
+uniform ivec3 rebuiltMax;
+uniform int level;
+
+const uint GI_GUESS_SKY[6] = uint[](4u, 4u, 7u, 1u, 4u, 4u);
+
+void main()
+{
+    ivec3 r = ivec3(gl_GlobalInvocationID);
+    if (any(greaterThanEqual(r, regionSize))) return;
+    ivec3 voxel = regionMin + r;
+    if (!giInWindow(voxel, level)) return;
+    ivec3 t = giTexel(voxel, level);
+    uint info = imageLoad(voxInfo, t).r;
+    if ((info & GI_INFO_SOLID) == 0u) return;
+
+    uint faces = 0u;
+    for (int f = 0; f < 6; f++)
+    {
+        ivec3 neighbour = voxel + GI_FACE_STEP[f];
+        if (!giInWindow(neighbour, level) || !giSolid(neighbour, level)) faces |= 1u << uint(f);
+    }
+
+    bool rebuilt = all(greaterThanEqual(voxel, rebuiltMin)) && all(lessThan(voxel, rebuiltMax));
+    uint old = info & GI_INFO_FACES;
+    info = (info & ~GI_INFO_FACES) | faces;
+    if (faces == 0u)
+    {
+        info &= ~GI_INFO_PENDING;
+    }
+    else if (rebuilt || faces != old)
+    {
+        info |= GI_INFO_PENDING;
+        if (rebuilt)
+        {
+            info |= 15u << GI_INFO_SUN_SHIFT;
+            for (int f = 0; f < 6; f++) info |= GI_GUESS_SKY[f] << uint(GI_INFO_SKY_SHIFT + 3 * f);
+        }
+    }
+    imageStore(voxInfo, t, uvec4(info));
+}

@@ -1,0 +1,75 @@
+#version 430
+
+// Gives every surface voxel of a level its place in the level's pool, in the order of the bricks, and tells the pool where each one
+// is and which of its faces are open. Everything else is told it has no place. Run whenever any part of the level has been built.
+// Those whose sun and sky are still to be worked out are listed as well, for GI_Voxel_Cache.comp to go through a few at a time.
+
+#include GI/GI.glsl
+
+layout(local_size_x = 64) in;
+
+layout(r32ui, binding = 1) uniform readonly uimage3D voxInfo;
+layout(r32ui, binding = 2) uniform writeonly uimage3D voxIndex;
+layout(std430, binding = 15) readonly buffer GiScanData { uint giScanData[]; };
+layout(std430, binding = 14) readonly buffer GiScanSums { uint giScanSums[]; };
+layout(std430, binding = 2) buffer GiPool { uint giPool[]; };
+layout(std430, binding = 0) buffer GiCounts { uint giCounts[]; };
+layout(std430, binding = 28) writeonly buffer GiPending { uint giPending[]; };    // Each level's pending voxels, by their place in the pool.
+
+uniform int level;
+uniform int groups;     // Of the scan, whose grand total follows their sums.
+
+void main()
+{
+    uint b = gl_GlobalInvocationID.x;
+    uint bricks = uint(GI_BRICKS.x * GI_BRICKS.y * GI_BRICKS.z);
+    if (b == 0u)
+    {
+        uint surfaces = min(giScanSums[uint(groups)], GI_POOL_CAPACITY);
+        giCounts[level] = surfaces;
+        giCounts[4 + level * 4] = (surfaces + 63u) / 64u;
+        giCounts[5 + level * 4] = 1u;
+        giCounts[6 + level * 4] = 1u;
+    }
+    if (b >= bricks) return;
+
+    ivec3 brick = ivec3(int(b) % GI_BRICKS.x, (int(b) / GI_BRICKS.x) % GI_BRICKS.y, int(b) / (GI_BRICKS.x * GI_BRICKS.y));
+    ivec3 first = brick * 4;
+    uint start = giScanData[b];
+    uint next = start;
+    uvec2 pending = uvec2(0u);      // Which of the brick's places in the pool, from its first, are pending: 64 at most.
+    for (int i = 0; i < 64; i++)
+    {
+        ivec3 texel = first + ivec3(i & 3, (i >> 2) & 3, i >> 4);
+        ivec3 stacked = texel + ivec3(0, level * GI_DIM.y, 0);
+        uint info = imageLoad(voxInfo, stacked).r;
+        uint faces = info & GI_INFO_FACES;
+        if ((info & GI_INFO_SOLID) == 0u || faces == 0u || next >= GI_POOL_CAPACITY)
+        {
+            imageStore(voxIndex, stacked, uvec4(0u));
+            continue;
+        }
+        uint e = (uint(level) * GI_POOL_CAPACITY + next) * GI_POOL_STRIDE;
+        giPool[e] = uint(texel.x) | (uint(texel.z) << 8) | (uint(texel.y) << 16) | (uint(level) << 24);
+        giPool[e + 7u] = faces;
+        if ((info & GI_INFO_PENDING) != 0u)
+        {
+            uint k = next - start;
+            if (k < 32u) pending.x |= 1u << k; else pending.y |= 1u << (k - 32u);
+        }
+        next++;
+        imageStore(voxIndex, stacked, uvec4(next));
+    }
+
+    // One addition to the list's length for the whole brick.
+    uint count = uint(bitCount(pending.x) + bitCount(pending.y));
+    if (count == 0u) return;
+    uint at = atomicAdd(giCounts[GI_COUNT_PENDING + level], count);
+    for (uint k = 0u; k < 64u; k++)
+    {
+        bool set = k < 32u ? ((pending.x >> k) & 1u) != 0u : ((pending.y >> (k - 32u)) & 1u) != 0u;
+        if (!set) continue;
+        giPending[uint(level) * GI_POOL_CAPACITY + at] = start + k;
+        at++;
+    }
+}

@@ -91,11 +91,29 @@ namespace Dino_Engine.Animation
         /// <summary>The tail's bones that have any length, from the hips out.</summary>
         public BoneType[] Tail = { BoneType.TailBase, BoneType.Tail1, BoneType.Tail2, BoneType.Tail3, BoneType.TailTip };
 
+        /// <summary>The neck's bones, from the shoulders up to the head. Two on most, and five on a sauropod's, whose neck is longer than its body and curves along all of it.</summary>
+        public BoneType[] Neck = ShortNeck;
+
+        public static readonly BoneType[] ShortNeck = { BoneType.Neck, BoneType.NeckTop };
+        public static readonly BoneType[] LongNeck = { BoneType.Neck, BoneType.Neck1, BoneType.Neck2, BoneType.Neck3, BoneType.NeckTop };
+
+        /// <summary>Whether its neck is long enough to have bones all along it.</summary>
+        public bool Long => Neck.Length > 2;
+
         /// <summary>Where the tail ends, past its last joint.</summary>
         public Vector3 TailEnd;
 
         /// <summary>How long its toes are, from the ball of the foot, which the toes turn about.</summary>
         public float ToeLength;
+
+        /// <summary>
+        /// How far a foot rolls over its toes as it goes, from 1 for a bird's foot, which stands on its toes and peels off them, to nearly nothing for a sauropod's, which is a column on a pad, as an
+        /// elephant's is, and comes down and leaves nearly flat.
+        /// </summary>
+        public float FootRoll = 1f;
+
+        /// <summary>Where its mouth is, from the head's joint, in the pose it was built in: what something that browses reaches into a tree with.</summary>
+        public Vector3 Mouth;
     }
 
     /// <summary>
@@ -160,6 +178,13 @@ namespace Dino_Engine.Animation
                 pivots[(int)BoneType.ToeL] = pivots[(int)BoneType.FootL];
                 pivots[(int)BoneType.ToeR] = pivots[(int)BoneType.FootR];
             }
+            bool longNeck = frame is { Long: true };
+            if (!longNeck)
+            {
+                pivots[(int)BoneType.Neck1] = pivots[(int)BoneType.Neck];
+                pivots[(int)BoneType.Neck2] = pivots[(int)BoneType.Neck];
+                pivots[(int)BoneType.Neck3] = pivots[(int)BoneType.Neck];
+            }
 
             Parents = new int[BoneCount];
             Array.Fill(Parents, -1);
@@ -168,7 +193,10 @@ namespace Dino_Engine.Animation
             Join(BoneType.Spine, BoneType.Pelvis);
             Join(BoneType.Chest, BoneType.Spine);
             Join(BoneType.Neck, BoneType.Chest);
-            Join(BoneType.NeckTop, BoneType.Neck);
+            Join(BoneType.Neck1, BoneType.Neck);
+            Join(BoneType.Neck2, BoneType.Neck1);
+            Join(BoneType.Neck3, BoneType.Neck2);
+            Join(BoneType.NeckTop, longNeck ? BoneType.Neck3 : BoneType.Neck);
             Join(BoneType.Head, BoneType.NeckTop);
             Join(BoneType.Jaw, BoneType.Head);
             Join(BoneType.ClavicleL, BoneType.Chest);

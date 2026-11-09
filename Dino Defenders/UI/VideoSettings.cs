@@ -23,6 +23,9 @@ namespace Dino_Defenders.UI
         public bool VSync { get; set; }
         public GraphicsQuality Quality { get; set; } = GraphicsQuality.High;
 
+        /// <summary>Light that bounces (GI.md). Its own toggle for now, apart from the graphics quality.</summary>
+        public bool GlobalIllumination { get; set; } = true;
+
         private static VideoSettings? _current;
 
         public static VideoSettings Load() => _current ??= SettingsStore.Read<VideoSettings>(File) ?? new VideoSettings();
@@ -60,6 +63,12 @@ namespace Dino_Defenders.UI
         {
             GraphicsPresets.Apply(Engine.RenderEngine, Quality);
             if (Engine.Instance?.WorldReady == true) GraphicsPresets.Apply(Engine.Instance.world, Quality);
+            ApplyGlobalIllumination();
+        }
+
+        public void ApplyGlobalIllumination()
+        {
+            Engine.RenderEngine.GlobalIllumination.Enabled = GlobalIllumination;
         }
     }
 }

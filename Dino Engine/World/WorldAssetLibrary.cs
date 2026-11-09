@@ -46,20 +46,24 @@ namespace Dino_Engine.World
         /// <summary>Grows every plant on the list that isn't there yet, on as many threads as there are. Safe from any thread, and it touches no GPU.</summary>
         public void Grow(IEnumerable<string> ids)
         {
-            var wanted = new List<(string id, Func<FloraMesh> make)>();
+            var wanted = new List<(string id, int slowness, Func<FloraMesh> make)>();
             foreach (string id in ids)
             {
                 if (_models.ContainsKey(id) || _grown.ContainsKey(id)) continue;
                 if (FenceSpec.TryParse(id, out FenceSpec fence))
                 {
-                    wanted.Add((id, () => FenceForge.Make(fence)));
+                    wanted.Add((id, 0, () => FenceForge.Make(fence)));
                     continue;
                 }
                 string name = NatureCatalog.SpeciesOf(id, out ulong seed);
-                if (FloraCatalog.TryGet(name, out PlantSpecies species)) wanted.Add((id, () => FloraForge.Grow(species, seed)));
-                else if (NatureCatalog.TryGetRock(name, out RockKind kind, out RockForm form)) wanted.Add((id, () => RockForge.Forge(form, kind, seed)));
+                if (FloraCatalog.TryGet(name, out PlantSpecies species)) wanted.Add((id, 1, () => FloraForge.Grow(species, seed)));
+                else if (NatureCatalog.TryGetRock(name, out RockKind kind, out RockForm form)) wanted.Add((id, 2, () => RockForge.Forge(form, kind, seed)));
             }
-            Parallel.ForEach(wanted, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
+
+            // One at a time, and stones first, as a stone can take a hundred times as long as a fern. Handed out in fixed runs, as a list otherwise is, a world's stones,
+            // which come one after another, all fell to one thread, and everything waited seconds on it with the other cores idle.
+            var queue = Partitioner.Create(wanted.OrderByDescending(item => item.slowness), EnumerablePartitionerOptions.NoBuffering);
+            Parallel.ForEach(queue, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
             {
                 _grown[item.id] = item.make();
             });

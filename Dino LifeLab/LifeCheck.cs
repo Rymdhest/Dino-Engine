@@ -54,7 +54,10 @@ namespace Dino_LifeLab
             Frightens(tally);
             Cards(tally);
             Report(tally, seconds);
-            return tally.Failures == 0 ? 0 : 1;
+
+            Console.WriteLine("The Haven's giants");
+            int giants = GiantCheck.Run(1, 12f, "", true);
+            return tally.Failures == 0 && giants == 0 ? 0 : 1;
         }
 
         // What the falling leaves stand on. These are the regimes of Andersen, Pesavento and Wang's figure 3, and getting one term of their equations wrong moves every one of them while still looking like a falling leaf.

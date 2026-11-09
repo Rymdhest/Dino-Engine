@@ -1,6 +1,7 @@
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
 using OpenTK.Mathematics;
+using System.Runtime.CompilerServices;
 
 namespace Dino_Defenders.Talents
 {
@@ -105,9 +106,45 @@ namespace Dino_Defenders.Talents
             Root = Add(new TalentNode { Id = "root", Name = "The Root", Kind = TalentKind.Root, Position = Vector2.Zero });
             new Grower().Grow();
             _space = null;
+            Prune();
             Nodes = Built.ToArray();
             foreach (TalentNode node in Nodes) node.Icon = TalentIcons.Of(node);
             DepthOf = Depths();
+        }
+
+        // A path that goes nowhere ends on something worth going to. Small nodes left at the end of one, where a lane ran on past its last cluster, are
+        // taken away back to where it meets something, and what's left is numbered again.
+        private static void Prune()
+        {
+            var gone = new bool[Built.Count];
+            var ends = new Stack<TalentNode>(Built.Where(n => n.Kind == TalentKind.Small && n.Links.Count == 1));
+            while (ends.TryPop(out TalentNode? node))
+            {
+                if (gone[node.Index] || node.Kind != TalentKind.Small || node.Links.Count != 1) continue;
+                gone[node.Index] = true;
+                TalentNode other = Built[node.Links[0]];
+                other.Links.Remove(node.Index);
+                node.Links.Clear();
+                ends.Push(other);
+            }
+
+            var map = new int[Built.Count];
+            var kept = new List<TalentNode>();
+            foreach (TalentNode node in Built)
+            {
+                map[node.Index] = gone[node.Index] ? -1 : kept.Count;
+                if (!gone[node.Index]) kept.Add(node);
+            }
+            ById.Clear();
+            foreach (TalentNode node in kept)
+            {
+                for (int i = 0; i < node.Links.Count; i++) node.Links[i] = map[node.Links[i]];
+                if (node.Twin >= 0) node.Twin = map[node.Twin];
+                node.Index = map[node.Index];
+                ById.Add(node.Id, node.Index);
+            }
+            Built.Clear();
+            Built.AddRange(kept);
         }
 
         private static TalentNode Add(TalentNode node)
@@ -133,7 +170,10 @@ namespace Dino_Defenders.Talents
         {
             private const float Cell = 240f;
             private readonly Dictionary<long, List<TalentNode>> _nodes = new();
-            private readonly Dictionary<long, List<(TalentNode a, TalentNode b)>> _links = new();
+            private readonly Dictionary<long, List<Drawn>> _links = new();
+            private int _query;
+            private readonly List<Drawn> _found = new();
+            private readonly List<TalentNode> _near = new();
 
             private static long Key(int x, int y) => ((long)x << 32) ^ (uint)y;
             private static int C(float value) => (int)MathF.Floor(value / Cell);
@@ -145,41 +185,103 @@ namespace Dino_Defenders.Talents
                 list.Add(node);
             }
 
+            // With room around it for the bow of an arc, as a road's ends only find out they share a circle after they're joined.
             public void Put(TalentNode a, TalentNode b)
             {
-                for (int x = C(MathF.Min(a.Position.X, b.Position.X)); x <= C(MathF.Max(a.Position.X, b.Position.X)); x++)
+                const float Bow = 60f;
+                var drawn = new Drawn(a, b);
+                for (int x = C(MathF.Min(a.Position.X, b.Position.X) - Bow); x <= C(MathF.Max(a.Position.X, b.Position.X) + Bow); x++)
                 {
-                    for (int y = C(MathF.Min(a.Position.Y, b.Position.Y)); y <= C(MathF.Max(a.Position.Y, b.Position.Y)); y++)
+                    for (int y = C(MathF.Min(a.Position.Y, b.Position.Y) - Bow); y <= C(MathF.Max(a.Position.Y, b.Position.Y) + Bow); y++)
                     {
                         long key = Key(x, y);
                         if (!_links.TryGetValue(key, out var list)) _links[key] = list = new();
-                        list.Add((a, b));
+                        list.Add(drawn);
                     }
                 }
             }
 
-            public IEnumerable<TalentNode> Near(Vector2 at, float reach)
+            /// <summary>Every node in the cells round a spot, in one list used again by every query, as nothing that reads one asks for another before it's done.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+            public List<TalentNode> Near(Vector2 at, float reach)
             {
+                List<TalentNode> found = _near;
+                found.Clear();
                 for (int x = C(at.X - reach); x <= C(at.X + reach); x++)
                 {
                     for (int y = C(at.Y - reach); y <= C(at.Y + reach); y++)
                     {
-                        if (!_nodes.TryGetValue(Key(x, y), out List<TalentNode>? list)) continue;
-                        foreach (TalentNode node in list) yield return node;
+                        if (_nodes.TryGetValue(Key(x, y), out List<TalentNode>? list)) found.AddRange(list);
                     }
                 }
+                return found;
             }
 
-            public IEnumerable<(TalentNode a, TalentNode b)> Along(Vector2 from, Vector2 to)
+            /// <summary>Every link in the cells a box covers, each once, with its drawn shape up to date.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+            public List<Drawn> Along(Vector2 from, Vector2 to)
             {
+                // One list, used again by every query: nothing that reads one asks for another before it's done.
+                List<Drawn> found = _found;
+                found.Clear();
+                int query = ++_query;
                 for (int x = C(MathF.Min(from.X, to.X)); x <= C(MathF.Max(from.X, to.X)); x++)
                 {
                     for (int y = C(MathF.Min(from.Y, to.Y)); y <= C(MathF.Max(from.Y, to.Y)); y++)
                     {
                         if (!_links.TryGetValue(Key(x, y), out var list)) continue;
-                        foreach (var link in list) yield return link;
+                        foreach (Drawn link in list)
+                        {
+                            if (link.Seen == query) continue;
+                            link.Seen = query;
+                            link.Refresh();
+                            found.Add(link);
+                        }
                     }
                 }
+                return found;
+            }
+        }
+
+        // Growing the tree is one long run of these few methods, on the main thread before the first frame, so they're compiled at their best from the
+        // first call rather than starting slow and being compiled again.
+
+        /// <summary>A link as it will be drawn, worked out once and again only if its ends find out later that they share a circle, as a road's do.</summary>
+        private sealed class Drawn
+        {
+            public readonly TalentNode A, B;
+            public Vector2[] Shape = Array.Empty<Vector2>();
+            public Vector2 Min, Max;
+            public int Seen;
+            private bool _arced;
+            private Vector2 _orbit;
+            private float _radius;
+
+            public Drawn(TalentNode a, TalentNode b)
+            {
+                A = a;
+                B = b;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+            public void Refresh()
+            {
+                bool arced = Arcs(A, B);
+                if (Shape.Length > 0 && arced == _arced && (!arced || (A.Orbit == _orbit && A.OrbitRadius == _radius))) return;
+                _arced = arced;
+                _orbit = A.Orbit;
+                _radius = A.OrbitRadius;
+                Shape = TalentTree.Shape(A, B);
+                (Min, Max) = Bounds(Shape);
+            }
+
+            /// <summary>Whether a point is at least this far from this link's box, and so from the link.</summary>
+            public bool Beyond(Vector2 at, float distance)
+            {
+                if (distance <= 0f) return true;
+                float dx = MathF.Max(MathF.Max(Min.X - at.X, at.X - Max.X), 0f);
+                float dy = MathF.Max(MathF.Max(Min.Y - at.Y, at.Y - Max.Y), 0f);
+                return dx * dx + dy * dy >= distance * distance;
             }
         }
 
@@ -549,11 +651,15 @@ namespace Dino_Defenders.Talents
             // ------------------------------------------------------------ finding room
 
             /// <summary>How far a spot is from the nearest node, link or block, less what it needs around it. Below zero, it doesn't fit.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
             private float Clearance(Vector2 at, float size)
             {
                 float clear = 200f;
                 foreach (TalentNode node in _space!.Near(at, size + 200f)) clear = MathF.Min(clear, (node.Position - at).Length - size);
-                foreach ((TalentNode a, TalentNode b) in _space.Along(at - new Vector2(size), at + new Vector2(size))) clear = MathF.Min(clear, DistanceToSegment(at, a.Position, b.Position) - size);
+                foreach (Drawn link in _space.Along(at - new Vector2(size), at + new Vector2(size)))
+                {
+                    if (!link.Beyond(at, clear + size)) clear = MathF.Min(clear, DistanceToShape(at, link.Shape) - size);
+                }
                 foreach ((Vector2 block, float room) in _blocks) clear = MathF.Min(clear, (block - at).Length - room - size + Clear);
                 foreach (Vector2 pod in _pods) clear = MathF.Min(clear, (pod - at).Length - PodArc - size);
                 return clear;
@@ -811,6 +917,7 @@ namespace Dino_Defenders.Talents
             }
 
             // The first place that has plenty of room, going out from where it ought to be, or else the one with the most.
+            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
             private Candidate? Place(Region region, Pod pod, List<TalentNode> lane, float ideal, float side)
             {
                 bool chain = Unit($"{region.Id}.{pod.Id}.shape") < 0.22f;
@@ -859,7 +966,7 @@ namespace Dino_Defenders.Talents
                         if (node != last && (node.Position - at).Length < Clear * 1.2f) crowded = true;
                     }
                     foreach (Vector2 pod in _pods) crowded |= (pod - at).Length < PodArc + Clear;
-                    if (crowded || Crosses(last.Position, at, last)) continue;
+                    if (crowded || LinkRoom(at, last) < SmallRoom || Crosses(last.Position, at, last)) continue;
 
                     var grown = Add(new TalentNode { Id = $"{region.Id}.{lane.Id}.{nodes.Count + 1}", Name = region.Name, Kind = TalentKind.Small, Region = index, Travel = true, Position = at });
                     Link(last, grown);
@@ -873,6 +980,7 @@ namespace Dino_Defenders.Talents
             private readonly record struct Candidate(int At, float Facing, Vector2 Anchor, Vector2[] Smalls, Vector2[] Stem, float Room, bool Chain);
 
             // Where a cluster would go, and how much room it would have there. No room at all, or a link across another, is as bad as can be.
+            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
             private Candidate Try(Pod pod, List<TalentNode> lane, int at, float facing, float reach, float curl, bool chain)
             {
                 TalentNode attach = lane[at];
@@ -903,28 +1011,50 @@ namespace Dino_Defenders.Talents
                     for (int i = 0; i < between; i++) stem[i] = Vector2.Lerp(attach.Position, points[0], (i + 1f) / (between + 1f));
                 }
 
+                // No new link may cross an old one, or pass too near a node on its way, as it will be drawn: a cluster's small nodes are joined round its arc.
+                // One that does is as bad as can be whatever else is true, so nothing more need be asked of it.
+                Vector2 last = attach.Position;
+                int index = 0;
+                foreach (Vector2 point in stem.Concat(points))
+                {
+                    // Only the first link starts at the lane, so only it may touch what else meets the lane there.
+                    bool round = !chain && index > stem.Length;
+                    if (Crosses(last, point, index == 0 ? attach : null, null, round ? anchor : null, PodArc)) return new Candidate(at, facing, anchor, points, stem, -1000f, chain);
+                    last = point;
+                    index++;
+                }
+                if (Crosses(last, anchor, null)) return new Candidate(at, facing, anchor, points, stem, -1000f, chain);
+
+                // A node at least the room there is so far from the box round all of it, and twice the clearance further from the notable, can't make it
+                // any less, so most need nothing worked out.
+                Vector2 low = anchor, high = anchor;
+                foreach (Vector2 point in points) { low = Vector2.ComponentMin(low, point); high = Vector2.ComponentMax(high, point); }
+                foreach (Vector2 point in stem) { low = Vector2.ComponentMin(low, point); high = Vector2.ComponentMax(high, point); }
                 float room = 160f;
                 foreach (TalentNode node in _space!.Near(anchor, reach + 2f * Clear + 60f))
                 {
                     if (node == attach) continue;
-                    room = MathF.Min(room, (node.Position - anchor).Length - 2f * Clear);
-                    foreach (Vector2 point in points) room = MathF.Min(room, (node.Position - point).Length - Clear);
-                    foreach (Vector2 point in stem) room = MathF.Min(room, (node.Position - point).Length - Clear);
+                    Vector2 p = node.Position;
+                    float dx = MathF.Max(MathF.Max(low.X - p.X, p.X - high.X), 0f);
+                    float dy = MathF.Max(MathF.Max(low.Y - p.Y, p.Y - high.Y), 0f);
+                    float far = room + Clear;
+                    float apart = room + 2f * Clear;
+                    if (far > 0f && dx * dx + dy * dy >= far * far && (p - anchor).LengthSquared >= apart * apart) continue;
+                    room = MathF.Min(room, (p - anchor).Length - 2f * Clear);
+                    foreach (Vector2 point in points) room = MathF.Min(room, (p - point).Length - Clear);
+                    foreach (Vector2 point in stem) room = MathF.Min(room, (p - point).Length - Clear);
                 }
-                foreach (Vector2 other in _pods) room = MathF.Min(room, (other - anchor).Length - PodRoom);
+                foreach (Vector2 other in _pods)
+                {
+                    float apart = room + PodRoom;
+                    if (apart > 0f && (other - anchor).LengthSquared >= apart * apart) continue;
+                    room = MathF.Min(room, (other - anchor).Length - PodRoom);
+                }
                 foreach ((Vector2 block, float size) in _blocks) room = MathF.Min(room, (block - anchor).Length - size - PodArc);
 
-                // No new link may cross an old one, or pass too near a node on its way.
-                Vector2 last = attach.Position;
-                bool first = true;
-                foreach (Vector2 point in stem.Concat(points))
-                {
-                    // Only the first link starts at the lane, so only it may touch what else meets the lane there.
-                    if (Crosses(last, point, first ? attach : null)) room = -1000f;
-                    first = false;
-                    last = point;
-                }
-                if (Crosses(last, anchor, null)) room = -1000f;
+                // And no new node may sit on an old link.
+                foreach (Vector2 point in stem.Concat(points)) room = MathF.Min(room, LinkRoom(point, attach) - SmallRoom);
+                room = MathF.Min(room, LinkRoom(anchor, attach) - NotableRoom);
                 return new Candidate(at, facing, anchor, points, stem, room, chain);
             }
 
@@ -998,17 +1128,48 @@ namespace Dino_Defenders.Talents
                 Link(previous, to);
             }
 
-            private static bool Crosses(Vector2 a, Vector2 b, TalentNode? ignoreA, TalentNode? ignoreB = null)
+            private const float SmallRoom = 30f;      // What a new node keeps from any link that isn't its own, as drawn,
+            private const float NotableRoom = 42f;    // and a notable.
+
+            // Whether a new link would cross an old one, or pass through a node that isn't one of its ends, as both will be drawn.
+            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+            private static bool Crosses(Vector2 a, Vector2 b, TalentNode? ignoreA, TalentNode? ignoreB = null, Vector2? orbit = null, float radius = 0f)
             {
-                foreach ((TalentNode c, TalentNode d) in _space!.Along(a, b))
+                Vector2[] shape = Shape(a, b, orbit, radius);
+                (Vector2 min, Vector2 max) = Bounds(shape);
+                foreach (Drawn link in _space!.Along(min, max))
                 {
-                    if (c == ignoreA || d == ignoreA || c == ignoreB || d == ignoreB) continue;
-                    if (Intersect(a, b, c.Position, d.Position)) return true;
+                    if (link.A == ignoreA || link.B == ignoreA || link.A == ignoreB || link.B == ignoreB) continue;
+                    if (link.Max.X < min.X || link.Min.X > max.X || link.Max.Y < min.Y || link.Min.Y > max.Y) continue;
+                    if (ShapesCross(shape, link.Shape)) return true;
+                }
+                Vector2 middle = (min + max) * 0.5f;
+                foreach (TalentNode node in _space.Near(middle, (max - min).Length * 0.5f + 60f))
+                {
+                    if (node == ignoreA || node == ignoreB || (node.Position - a).LengthSquared < 1f || (node.Position - b).LengthSquared < 1f) continue;
+                    float room = RoomOf(node);
+                    Vector2 at = node.Position;
+                    if (at.X < min.X - room || at.X > max.X + room || at.Y < min.Y - room || at.Y > max.Y + room) continue;
+                    if (DistanceToShape(at, shape) < room) return true;
                 }
                 return false;
             }
 
+            // How near the nearest link is to a spot, as drawn. Even those from the node it will be joined to count, as a link that runs on towards
+            // it would be drawn over it.
+            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+            private static float LinkRoom(Vector2 at, TalentNode? joinedTo)
+            {
+                float nearest = float.PositiveInfinity;
+                foreach (Drawn link in _space!.Along(at - new Vector2(80f), at + new Vector2(80f)))
+                {
+                    if (!link.Beyond(at, nearest)) nearest = MathF.Min(nearest, DistanceToShape(at, link.Shape));
+                }
+                return nearest;
+            }
+
             // Whether a straight path would pass too near anything along the way.
+            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
             private static bool Crowds(Vector2 a, Vector2 b, TalentNode ignoreA, TalentNode ignoreB)
             {
                 Vector2 middle = (a + b) * 0.5f;
@@ -1108,6 +1269,7 @@ namespace Dino_Defenders.Talents
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static bool Intersect(Vector2 a, Vector2 b, Vector2 c, Vector2 d)
         {
             static float Cross(Vector2 o, Vector2 p, Vector2 q) => (p.X - o.X) * (q.Y - o.Y) - (p.Y - o.Y) * (q.X - o.X);
@@ -1115,6 +1277,81 @@ namespace Dino_Defenders.Talents
             return (d1 > 0f) != (d2 > 0f) && (d3 > 0f) != (d4 > 0f) && MathF.Abs(d1) > 1e-3f && MathF.Abs(d2) > 1e-3f && MathF.Abs(d3) > 1e-3f && MathF.Abs(d4) > 1e-3f;
         }
 
+        /// <summary>Whether a link is drawn along the circle both its ends sit on, which a road's and a wheel's are, rather than straight.</summary>
+        public static bool Arcs(TalentNode a, TalentNode b) => a.OrbitRadius > 0f && MathF.Abs(a.OrbitRadius - b.OrbitRadius) < 0.5f && (a.Orbit - b.Orbit).LengthSquared < 0.25f;
+
+        /// <summary>A link as it's drawn: its two ends, or points along its arc no more than a few units off it.</summary>
+        public static Vector2[] Shape(TalentNode a, TalentNode b) => Shape(a.Position, b.Position, Arcs(a, b) ? a.Orbit : null, a.OrbitRadius);
+
+        private static Vector2[] Shape(Vector2 a, Vector2 b, Vector2? orbit, float radius)
+        {
+            if (orbit is not Vector2 centre) return new[] { a, b };
+            float start = MathF.Atan2(a.Y - centre.Y, a.X - centre.X);
+            float sweep = MathF.IEEERemainder(MathF.Atan2(b.Y - centre.Y, b.X - centre.X) - start, MathF.Tau);
+            int steps = Math.Clamp((int)MathF.Ceiling(MathF.Abs(sweep) * radius / 20f), 1, 64);
+            var points = new Vector2[steps + 1];
+            points[0] = a;
+            points[steps] = b;
+            for (int i = 1; i < steps; i++)
+            {
+                float angle = start + sweep * i / steps;
+                points[i] = centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            }
+            return points;
+        }
+
+        /// <summary>How near a link, as it's drawn, comes to a point.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public static float DistanceToShape(Vector2 p, Vector2[] shape)
+        {
+            float best = float.PositiveInfinity;
+            for (int i = 1; i < shape.Length; i++) best = MathF.Min(best, DistanceToSegment(p, shape[i - 1], shape[i]));
+            return best;
+        }
+
+        /// <summary>Whether two links, as they're drawn, cross.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public static bool ShapesCross(Vector2[] one, Vector2[] other)
+        {
+            for (int i = 1; i < one.Length; i++)
+            {
+                Vector2 p = one[i - 1], q = one[i];
+                float left = MathF.Min(p.X, q.X), right = MathF.Max(p.X, q.X), top = MathF.Min(p.Y, q.Y), bottom = MathF.Max(p.Y, q.Y);
+                for (int j = 1; j < other.Length; j++)
+                {
+                    Vector2 r = other[j - 1], s = other[j];
+
+                    // Two pieces whose boxes don't meet can't cross, which is most of them.
+                    if (MathF.Max(r.X, s.X) < left || MathF.Min(r.X, s.X) > right || MathF.Max(r.Y, s.Y) < top || MathF.Min(r.Y, s.Y) > bottom) continue;
+                    if (Intersect(p, q, r, s)) return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>The box round a link's shape.</summary>
+        public static (Vector2 min, Vector2 max) Bounds(Vector2[] shape)
+        {
+            Vector2 min = shape[0], max = shape[0];
+            foreach (Vector2 point in shape)
+            {
+                min = Vector2.ComponentMin(min, point);
+                max = Vector2.ComponentMax(max, point);
+            }
+            return (min, max);
+        }
+
+        /// <summary>How much room a node takes, as drawn: no link but its own may come nearer it than this.</summary>
+        public static float RoomOf(TalentNode node) => node.Kind switch
+        {
+            TalentKind.Keystone => 58f,
+            TalentKind.Root => 40f,
+            TalentKind.Gate => 36f,
+            TalentKind.Notable => 32f,
+            _ => 20f,
+        };
+
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
         {
             Vector2 ab = b - a;

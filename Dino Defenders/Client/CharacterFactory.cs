@@ -12,6 +12,7 @@ using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
+using System.Collections.Concurrent;
 using OpenTK.Mathematics;
 
 namespace Dino_Defenders.Client
@@ -36,19 +37,101 @@ namespace Dino_Defenders.Client
 
         private readonly Dictionary<string, glModel> _models = new();
 
-        // Dinosaurs are grown, which takes a few hundred milliseconds each, so they're begun the moment there's a factory, while the menu and the first world's generation go on. They
-        // take half the cores, as the world takes longer with fewer and they were done before it was. A world only waits for what isn't done when it's entered, and only the upload is left for this thread.
-        private Task<(string key, Mesh mesh)[]>? _growing = Task.Run(() => DinosaurKeys().AsParallel().WithDegreeOfParallelism(Math.Max(Environment.ProcessorCount / 2, 1))
-            .Select(key => (key, SaurianForge.Make(SaurianSpec.Parse(key)!.Value))).ToArray());
+        // Everything a world can send at a hero takes seconds of every core to grow, dinosaurs most of all at a few hundred milliseconds each, and nothing at the main menu needs any of it.
+        // So it's begun once the land behind the menu has its plants, or at once when there's no menu (Begin), and it takes half the cores, as a world being loaded beside it takes longer
+        // with fewer. A world only waits for what isn't done when it's entered, and only the upload is left for this thread.
+        private Task<(string Key, Mesh Mesh)[]>? _growing;
 
-        // Every dinosaur a server can send: each kind's look, with each of its seeds.
-        private static IEnumerable<string> DinosaurKeys()
+        private bool _prepared;
+
+        // The Haven's giants are in the picture behind the main menu, so they're wanted before anything a world can send at a hero, and they take three seconds each, as close as they're
+        // seen from. So they're begun the moment the game starts (GrowGiants), one to a core, and taken up the first frame they're done (TryGiants): nothing ever waits for them.
+        private static Task<Mesh[]>? _giantsGrowing;
+        private glModel[]? _giants;
+
+        /// <summary>Starts growing the giants, if nothing has yet.</summary>
+        public static void GrowGiants()
+        {
+            _giantsGrowing ??= Task.Run(() =>
+            {
+                var meshes = new Mesh[Dino_Engine.Wildlife.Herds.Haven.Length];
+                Parallel.For(0, meshes.Length, i => meshes[i] = SaurianForge.Make(SaurianSpec.Parse(Dino_Engine.Wildlife.Herds.Haven[i].Model)!.Value));
+                return meshes;
+            });
+        }
+
+        /// <summary>The giants' models, in the order of <see cref="Dino_Engine.Wildlife.Herds.Haven"/>, once they've grown. Nothing yet, until then.</summary>
+        public bool TryGiants(out glModel[] models)
+        {
+            models = _giants ?? Array.Empty<glModel>();
+            if (_giants != null) return true;
+            GrowGiants();
+            if (!_giantsGrowing!.IsCompleted) return false;
+            if (_giantsGrowing.IsFaulted)
+            {
+                Console.WriteLine($"The giants failed to grow: {_giantsGrowing.Exception}");
+                _giantsGrowing = null;
+                return false;
+            }
+
+            Mesh[] meshes = _giantsGrowing.Result;
+            _giants = new glModel[meshes.Length];
+            for (int i = 0; i < meshes.Length; i++)
+            {
+                string key = Dino_Engine.Wildlife.Herds.Haven[i].Model;
+                if (!_models.TryGetValue(key, out glModel? model))
+                {
+                    model = glLoader.loadToVAO(meshes[i]);
+                    _models.Add(key, model);
+                }
+                _giants[i] = model;
+            }
+            models = _giants;
+            return true;
+        }
+
+        /// <summary>Starts growing everything <see cref="Prepare"/> will want, on worker threads. Asking again does nothing.</summary>
+        public void Begin()
+        {
+            if (_prepared || _growing != null) return;
+            _growing = Task.Run(() =>
+            {
+                // One at a time, as some take three times as long as others, and runs handed out in advance leave cores idle at the end.
+                (string Key, Func<Mesh> Build)[] recipes = PreparedRecipes().ToArray();
+                var grown = new (string Key, Mesh Mesh)[recipes.Length];
+                var queue = Partitioner.Create(Enumerable.Range(0, recipes.Length), EnumerablePartitionerOptions.NoBuffering);
+                Parallel.ForEach(queue, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount / 2, 1) }, i => grown[i] = (recipes[i].Key, recipes[i].Build()));
+                return grown;
+            });
+        }
+
+        // Every model a server can send for an enemy: each kind's look, with each of its seeds, and each of its outfits for bandits. Two keys can share a model.
+        private static IEnumerable<(string Key, Func<Mesh> Build)> PreparedRecipes()
+        {
+            var seen = new HashSet<string>();
+            foreach (string key in PreparedKeys())
+            {
+                if (Recipe(key) is (string name, Func<Mesh> build) && seen.Add(name)) yield return (name, build);
+            }
+        }
+
+        private static IEnumerable<string> PreparedKeys()
         {
             foreach (Server.EnemyKind kind in Server.Bestiary.Everyone)
             {
-                if (SaurianSpec.Parse(kind.Look) == null) continue;
-                if (kind.Variants == 0) yield return kind.Look;
-                for (int variant = 0; variant < kind.Variants; variant++) yield return $"{kind.Look}{variant}";
+                if (kind.Look == "bandit")
+                {
+                    for (int look = 0; look < BanditLooks; look++)
+                    {
+                        yield return BanditKey(look, archer: false);
+                        yield return BanditKey(look, archer: true);
+                    }
+                }
+                else if (kind.Variants > 0)
+                {
+                    for (int variant = 0; variant < kind.Variants; variant++) yield return $"{kind.Look}{variant}";
+                }
+                else yield return kind.Look;
             }
         }
 
@@ -68,78 +151,84 @@ namespace Dino_Defenders.Client
         /// </summary>
         public void Prepare()
         {
-            foreach (Server.EnemyKind kind in Server.Bestiary.Everyone)
-            {
-                if (kind.Look == "bandit")
-                {
-                    for (int look = 0; look < BanditLooks; look++)
-                    {
-                        Bandit(look, archer: false);
-                        Bandit(look, archer: true);
-                    }
-                }
-                else if (kind.Variants > 0)
-                {
-                    for (int variant = 0; variant < kind.Variants; variant++) Queue($"{kind.Look}{variant}");
-                }
-                else Queue(kind.Look);
-            }
-
-            void Queue(string key)
-            {
-                if (SaurianSpec.Parse(key) == null) Resolve(key);
-            }
-
-            if (_growing == null) return;
-            foreach ((string key, Mesh mesh) in _growing.Result)
+            if (_prepared) return;
+            Begin();
+            foreach ((string key, Mesh mesh) in _growing!.Result)
             {
                 if (!_models.ContainsKey(key)) _models[key] = glLoader.loadToVAO(mesh);
             }
             _growing = null;
+            _prepared = true;
+
+            // Everything is already here, but for a look nobody knows, which says so and stands in as a stranger, as it would when sent.
+            foreach (string key in PreparedKeys()) Resolve(key);
         }
 
         /// <summary>The model a server means by <paramref name="key"/>.</summary>
         public glModel Resolve(string key)
         {
-            if (SaurianSpec.Parse(key) is SaurianSpec dinosaur) return Model(key, () => SaurianForge.Make(dinosaur));
-            if (key.StartsWith(ReichPrefix)) return Model(key, () => HumanoidGenerator.Generate(ReichLook(key.Substring(ReichPrefix.Length))));
-            if (key == "skeleton") return Skeleton;
-            if (key == "skeleton:bow") return Model(key, SkeletonGenerator.GenerateArcher);
-            if (key == "warlord") return Warlord;
-            if (key == "revenant") return Model(key, () => HumanoidGenerator.Generate(RevenantLook));
-            if (BeastOf(key) is BeastLook beast) return Model(key, () => BeastGenerator.Generate(beast));
-            if (key.StartsWith("robed:")) return Model(key, () => HumanoidGenerator.Generate(RobedLook(key.Substring(6))));
-            if (key.StartsWith("acolyte:")) return Model(key, () => HumanoidGenerator.Generate(AcolyteLook(key.Substring(8))));
-            if (key.StartsWith("cutthroat") && int.TryParse(key.AsSpan(9), out int cutthroat)) return Model(key, () => HumanoidGenerator.Generate(CutthroatLook(cutthroat)));
-            if (key.StartsWith("brute") && int.TryParse(key.AsSpan(5), out int brute)) return Model(key, () => HumanoidGenerator.Generate(BruteLook(brute)));
-            if (key == "arrow") return Model(key, Arrow);
-            if (key.StartsWith(Books.Thrown.Prefix)) return Model(key, () => ThrownThing(key.Substring(Books.Thrown.Prefix.Length)));
-            if (key == Roads.Lit) return Model(key, PropGenerator.GenerateWaygateLight);
-            if (key == ChestLook.Closed) return Model(key, () => Chest(open: false));
-            if (key == ChestLook.Open) return Model(key, () => Chest(open: true));
-            if (key is ChestLook.Lid or ChestLook.Opening) return Model(ChestLook.Lid, ChestLid);
-            if (key == "dummy") return Model(key, Dummy);
-            if (key == Server.ArenaSystem.PortcullisModel) return Model(key, Portcullis);
-            if (key.StartsWith(PortalPrefix) && int.TryParse(key.AsSpan(PortalPrefix.Length), out int biome)) return Model(key, () => Portal(biome));
-            if (key == Progression.LootModels.Gold) return Model(key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
-            if (key == Progression.LootModels.Find) return Model(key, () => Ball(new Colour(0f, 0f, 0f)));
-            if (key.StartsWith(BoltPrefix) && Enum.TryParse(key.AsSpan(BoltPrefix.Length), out Stats.DamageType look))
-            {
-                Colour glow = ClientEffects.GlowOf(look);
-                return Model(key, () => Ball(new Colour(glow.Red, glow.Green, glow.Blue, 3f)));
-            }
-            if (key.StartsWith("hero") && int.TryParse(key.AsSpan(4), out int hero)) return Hero(hero);
-            if (key.StartsWith("villager") && int.TryParse(key.AsSpan(8), out int villager)) return Villager(villager);
-            if (key.StartsWith("bandit"))
-            {
-                int colon = key.IndexOf(':');
-                if (colon > 6 && int.TryParse(key.AsSpan(6, colon - 6), out int bandit)) return Bandit(bandit, key.EndsWith("True"));
-            }
+            if (Recipe(key) is (string name, Func<Mesh> build)) return Model(name, build);
 
             // A newer server than this client could name something it has never heard of. Better a stranger than a crash.
             Console.WriteLine($"No model called '{key}'.");
             return Villager(0);
         }
+
+        // What a key is built from, and the name its model is kept by, which a few keys share. It touches nothing of a factory's, so the models can be grown on any thread.
+        private static (string Key, Func<Mesh> Build)? Recipe(string key)
+        {
+            if (SaurianSpec.Parse(key) is SaurianSpec dinosaur) return (key, () => SaurianForge.Make(dinosaur));
+            if (key.StartsWith(ReichPrefix)) return (key, () => HumanoidGenerator.Generate(ReichLook(key.Substring(ReichPrefix.Length))));
+            if (key == "skeleton") return (key, SkeletonGenerator.GenerateSkeleton);
+            if (key == "skeleton:bow") return (key, SkeletonGenerator.GenerateArcher);
+            if (key == "warlord") return (key, () => HumanoidGenerator.Generate(WarlordLook));
+            if (key == "revenant") return (key, () => HumanoidGenerator.Generate(RevenantLook));
+            if (BeastOf(key) is BeastLook beast) return (key, () => BeastGenerator.Generate(beast));
+            if (key.StartsWith("robed:")) return (key, () => HumanoidGenerator.Generate(RobedLook(key.Substring(6))));
+            if (key.StartsWith("acolyte:")) return (key, () => HumanoidGenerator.Generate(AcolyteLook(key.Substring(8))));
+            if (key.StartsWith("cutthroat") && int.TryParse(key.AsSpan(9), out int cutthroat)) return (key, () => HumanoidGenerator.Generate(CutthroatLook(cutthroat)));
+            if (key.StartsWith("brute") && int.TryParse(key.AsSpan(5), out int brute)) return (key, () => HumanoidGenerator.Generate(BruteLook(brute)));
+            if (key == "arrow") return (key, Arrow);
+            if (key.StartsWith(Books.Thrown.Prefix)) return (key, () => ThrownThing(key.Substring(Books.Thrown.Prefix.Length)));
+            if (key == Roads.Lit) return (key, PropGenerator.GenerateWaygateLight);
+            if (key == ChestLook.Closed) return (key, () => Chest(open: false));
+            if (key == ChestLook.Open) return (key, () => Chest(open: true));
+            if (key is ChestLook.Lid or ChestLook.Opening) return (ChestLook.Lid, ChestLid);
+            if (key == "dummy") return (key, Dummy);
+            if (key == Server.ArenaSystem.PortcullisModel) return (key, Portcullis);
+            if (key.StartsWith(PortalPrefix) && int.TryParse(key.AsSpan(PortalPrefix.Length), out int biome)) return (key, () => Portal(biome));
+            if (key == Progression.LootModels.Gold) return (key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
+            if (key == Progression.LootModels.Find) return (key, () => Ball(new Colour(0f, 0f, 0f)));
+            if (key.StartsWith(BoltPrefix) && Enum.TryParse(key.AsSpan(BoltPrefix.Length), out Stats.DamageType look))
+            {
+                Colour glow = ClientEffects.GlowOf(look);
+                return (key, () => Ball(new Colour(glow.Red, glow.Green, glow.Blue, 3f)));
+            }
+            if (key.StartsWith("hero") && int.TryParse(key.AsSpan(4), out int hero))
+            {
+                int dye = Math.Abs(hero) % HeroDyes.Length;
+                return ($"hero{dye}", () => HumanoidGenerator.Generate(HeroLook(dye)));
+            }
+            if (key.StartsWith("villager") && int.TryParse(key.AsSpan(8), out int villager))
+            {
+                int person = Math.Abs(villager) % VillagerLooks;
+                return ($"villager{person}", () => HumanoidGenerator.Generate(VillagerLook(person)));
+            }
+            if (key.StartsWith("bandit"))
+            {
+                int colon = key.IndexOf(':');
+                if (colon > 6 && int.TryParse(key.AsSpan(6, colon - 6), out int bandit))
+                {
+                    int outfit = Math.Abs(bandit) % BanditLooks;
+                    bool archer = key.EndsWith("True");
+                    return ($"bandit{outfit}{archer}", () => HumanoidGenerator.Generate(BanditLook(outfit, archer)));
+                }
+            }
+            return null;
+        }
+
+        // What a server calls a bandit, as Resolve reads it.
+        private static string BanditKey(int look, bool archer) => $"bandit{look}:{archer}";
 
         // What's thrown by someone with nothing about them to say what it looks like. A hero's own is the real thing, and takes this one's place: see ThrownComponent.
         private static Mesh ThrownThing(string kind)
@@ -336,12 +425,6 @@ namespace Dino_Defenders.Client
             Bulk = 1.14f,
         };
 
-        private glModel Hero(int index)
-        {
-            int dye = Math.Abs(index) % HeroDyes.Length;
-            return Model($"hero{dye}", () => HumanoidGenerator.Generate(HeroLook(dye)));
-        }
-
         /// <summary>A hero with nothing on but what they wear under everything, which is the only thing that still says whose hero it is.</summary>
         public static HumanoidLook HeroLook(int index) => new HumanoidLook
         {
@@ -351,9 +434,7 @@ namespace Dino_Defenders.Client
             Head = Headwear.Hair,
         };
 
-        public glModel Skeleton => Model("skeleton", SkeletonGenerator.GenerateSkeleton);
-
-        public glModel Warlord => Model("warlord", () => HumanoidGenerator.Generate(new HumanoidLook
+        private static readonly HumanoidLook WarlordLook = new HumanoidLook
         {
             Tunic = new Vector3(0.24f, 0.05f, 0.06f),
             Legs = new Vector3(0.08f, 0.07f, 0.08f),
@@ -363,19 +444,9 @@ namespace Dino_Defenders.Client
             Shield = true,
             Armoured = true,
             Bulk = 1.2f,
-        }));
+        };
 
-        public glModel Villager(int index)
-        {
-            int look = Math.Abs(index) % VillagerLooks;
-            return Model($"villager{look}", () => HumanoidGenerator.Generate(VillagerLook(look)));
-        }
-
-        public glModel Bandit(int index, bool archer)
-        {
-            int look = Math.Abs(index) % BanditLooks;
-            return Model($"bandit{look}{archer}", () => HumanoidGenerator.Generate(BanditLook(look, archer)));
-        }
+        public glModel Villager(int index) => Resolve($"villager{index}");
 
         private static HumanoidLook VillagerLook(int look)
         {

@@ -1,0 +1,90 @@
+#version 430
+
+// Radiance cascades' merge, from the coarsest down (Sannikov 2023): what a probe sees in a direction is what its own stretch of the
+// ray holds, and through whatever that lets pass, what its parents see beyond, blended by where it stands among them. Only parents it
+// can see count, so a wall between them ends what's seen at the wall. Past the coarsest cascade is the sky. Each probe's result is
+// averaged four directions at a time into those of the next finer cascade, which is all it needs from it; the finest keeps all twelve.
+
+#include Globals.glsl
+#include GI/GI.glsl
+#include GI/GI_Probe.glsl
+#include Weather/Weather.glsl
+#include Weather/Sky.glsl
+#include GI/GI_Sky.glsl
+
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 11) readonly buffer GiIntervals { uint giIntervals[]; };
+layout(std430, binding = 12) writeonly buffer GiMerged { uint giMerged[]; };
+layout(std430, binding = 13) readonly buffer GiMergedAbove { uint giMergedAbove[]; };
+
+uniform int cascade;
+
+const float GI_SKY_ROUGHNESS = 0.25;    // The sky map's mip that spans a cell of the coarsest cascade.
+
+void main()
+{
+    int c = cascade;
+    uint directions = uint(GI_DIRECTION_COUNT[c]);
+    uint outward = uint(c == 0 ? GI_DIRECTION_COUNT[0] : GI_DIRECTION_COUNT[c - 1]);
+    uint children = c == 0 ? 1u : 4u;
+    uint id = gl_GlobalInvocationID.x;
+    uint local = id / outward;
+    uint out_ = id - local * outward;
+    if (local >= uint(giProbeCount(c))) return;
+    int slot = GI_PROBE_BASE[c] + int(local);
+
+    bool top = c == GI_CASCADES - 1;
+    int parents[8];
+    float weights[8];
+    float total = 0.0;
+    if (!top)
+    {
+        ivec3 lattice = giUnpackKey(giProbeKey[slot]);
+        uint flags = floatBitsToUint(giProbePlace[slot].w);
+        uint visible = (flags >> 8) & 0xFFu;
+        uint usable = (flags >> 16) & 0xFFu;
+        for (int j = 0; j < 8; j++)
+        {
+            parents[j] = giProbeParent[slot * 8 + j];
+            weights[j] = parents[j] >= 0 && ((visible >> uint(j)) & 1u) != 0u ? giParentWeight(lattice, j) : 0.0;
+            total += weights[j];
+        }
+        if (total <= 0.0)
+        {
+            // It can see none of them: better whichever are near and not buried than nothing at all.
+            for (int j = 0; j < 8; j++)
+            {
+                weights[j] = parents[j] >= 0 && ((usable >> uint(j)) & 1u) != 0u ? giParentWeight(lattice, j) : 0.0;
+                total += weights[j];
+            }
+        }
+    }
+
+    vec3 sum = vec3(0.0);
+    for (uint k = 0u; k < children; k++)
+    {
+        uint d = out_ * children + k;
+        uint interval = giIntervals[local * directions + d];
+        if (interval != GI_MISSED)
+        {
+            sum += giUnpackRadiance(interval);
+            continue;
+        }
+        vec3 beyond = vec3(0.0);
+        if (top || total <= 0.0)
+        {
+            beyond = giSkyRadiance(giDirections[GI_DIRECTION_BASE[c] + int(d)].xyz, GI_SKY_ROUGHNESS);
+        }
+        else
+        {
+            for (int j = 0; j < 8; j++)
+            {
+                if (weights[j] > 0.0) beyond += giUnpackRadiance(giMergedAbove[uint(parents[j]) * directions + d]) * weights[j];
+            }
+            beyond /= total;
+        }
+        sum += beyond;
+    }
+    giMerged[local * outward + out_] = giPackRadiance(sum / float(children));
+}

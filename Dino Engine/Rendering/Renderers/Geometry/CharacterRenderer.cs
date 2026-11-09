@@ -13,6 +13,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         /// <summary>What a blow has lit them up with: its colour, and how much of them.</summary>
         public Vector4 Flash;
+
+        /// <summary>Whether it opens for the player behind it (x, 1 or 0), and how far it's thinned away (y).</summary>
+        public Vector4 Sight;
     }
     public struct CharacterRenderCommand : IRenderCommand
     {
@@ -163,6 +166,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 _characterShader.loadUniformMatrix4f("modelMatrix", transformationMatrix);
                 _characterShader.loadUniformMatrix4f("normalModelViewMatrix", Matrix4.Transpose(Matrix4.Invert(modelViewMatrix)));
                 _characterShader.loadUniformVector4f("hitFlash", instance.Flash);
+                _characterShader.loadUniformVector4f("characterSight", instance.Sight);
 
                 // Every bone a rig has (Rig.BoneCount), into uniform mat4 u_Bones[32], which leaves room for a few more.
                 _characterShader.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);

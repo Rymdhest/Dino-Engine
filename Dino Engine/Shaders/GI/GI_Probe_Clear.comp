@@ -1,0 +1,33 @@
+#version 430
+
+// Starts every column of every cascade over, each frame: no probe wanted yet, and its floor a little under the lowest ground around
+// it, so that its 32 heights reach from below the ground to well above anything that stands on it. The floor is a matter of where the
+// column is alone, the same for everything that asks.
+
+#include GI/GI.glsl
+#include GI/GI_Height.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 256) in;
+
+
+void main()
+{
+    int column = int(gl_GlobalInvocationID.x);
+    if (column >= GI_COLUMN_START[GI_CASCADES]) return;
+
+    int c = 0;
+    while (column >= GI_COLUMN_START[c + 1]) c++;
+    int local = column - GI_COLUMN_START[c];
+    ivec2 world = giColumns[c].xy + ivec2(local % giColumns[c].z, local / giColumns[c].z);
+
+    float spacing = giCascade[c].x;
+    vec2 centre = (vec2(world) + 0.5) * spacing;
+    float lowest = 1e9;
+    for (int z = -1; z <= 1; z++)
+    {
+        for (int x = -1; x <= 1; x++) lowest = min(lowest, giGroundHeight(centre + vec2(x, z) * spacing));
+    }
+    giColumnBase[column] = int(floor((lowest - GI_COLUMN_FLOOR) / spacing - 0.5));
+    giColumnMask[column] = 0u;
+}

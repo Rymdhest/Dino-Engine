@@ -8,12 +8,14 @@ namespace Dino_Engine.ECS.Components
         public float radius;    // Metres out from it that plants feel it.
         public float lean;      // Radians it pushes them aside at its middle.
         public float press;     // Radians it presses them flat at its middle.
+        public bool feetOnly;   // Only its feet touch them, as a body carried high over them does: a giant's.
 
         public PlantContactComponent(float radius)
         {
             this.radius = radius;
             lean = 1.45f;
             press = 0.7f;
+            feetOnly = false;
         }
     }
 }

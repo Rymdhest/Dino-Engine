@@ -263,6 +263,7 @@ namespace Dino_Engine.ECS.Systems
                 Engine.RenderEngine._pointLightRenderer.SubmitCommand(strike);
                 Engine.RenderEngine._waterRenderer.SubmitPointLight(strike);
                 Engine.RenderEngine._volumetricFogRenderer.SubmitPointLight(strike);
+                Engine.RenderEngine._globalIllumination.SubmitPointLight(strike);
             }
         }
 

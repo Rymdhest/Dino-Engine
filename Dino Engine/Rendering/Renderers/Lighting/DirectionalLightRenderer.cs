@@ -41,13 +41,16 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.unBind();
             }
 
+            // Plain depth, gathered four texels at a time: the filter (Lighting/SunShadow.glsl) weights each texel itself, and needs to know
+            // how far off each one's caster is. Past the edge is the far end of the map, which shades nothing. The fog, the water and the
+            // particles read the same maps through comparisons of their own, which this leaves as they are.
             shadowSampler = GL.GenSampler();
-            GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
             GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureWrapS, (int)TextureWrapMode.ClampToBorder);
             GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureWrapT, (int)TextureWrapMode.ClampToBorder);
-            GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureCompareMode, (int)All.CompareRefToTexture);
-            GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureCompareFunc, (int)All.Lequal);
+            GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureBorderColor, new[] { 1f, 1f, 1f, 1f });
+            GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureCompareMode, (int)All.None);
         }
 
         internal override void Prepare(RenderEngine renderEngine)
@@ -96,7 +99,6 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public static void LinkShadows(ShaderProgram shader)
         {
             for (int i = 0; i < MostCascades; i++) shader.loadUniformInt("shadowMaps[" + i + "]", FirstCascadeUnit + i);
-            shader.loadUniformInt("pcfRadius", 3);
             shader.loadUniformInt("cloudShadowMap", CloudShadowUnit);
         }
 

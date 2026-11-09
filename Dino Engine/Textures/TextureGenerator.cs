@@ -203,13 +203,30 @@ namespace Dino_Engine.Textures
             BindFloraMaterials();
 
             addAllPreparedTexturesToTexArray(arrayType.material);
-            LoadCards(cards.Result);
+
+            // Every number is known before the cards are done, which can take a second or two yet, and that's all a model needs to be begun on another thread.
+            // Nothing draws a card until there's a world, so the rest of the engine is made while they're painted, and they're copied up when they're done (FinishCards).
+            FloraMaterials.FirstCard = loadedMaterialTextures;
+            Modelling.Procedural.MaterialNumbers.Settle();
+            _cards = cards;
+        }
+
+        private Task<BakedCards>? _cards;
+
+        /// <summary>
+        /// Copies the cards up once they're painted, which they may not be for a second or two after the materials: asked every frame before anything's drawn, it waits for them
+        /// only if <paramref name="wait"/>, which it has to be from the first frame that can draw a model.
+        /// </summary>
+        public void FinishCards(bool wait)
+        {
+            if (_cards == null || !(wait || _cards.IsCompleted)) return;
+            LoadCards(_cards.Result);
+            _cards = null;
         }
 
         // Cards come painted, with their own mips (CardImage), so all that's left is to copy them up.
         private void LoadCards(BakedCards cards)
         {
-            FloraMaterials.FirstCard = loadedMaterialTextures;
             loadedModelTextures = cards.Layers;
             megaAlbedoModelTextureArray = NewCardArray(cards.Layers);
             megaNormalModelTextureArray = NewCardArray(cards.Layers);

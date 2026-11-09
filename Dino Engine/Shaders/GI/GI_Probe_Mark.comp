@@ -1,0 +1,58 @@
+#version 430
+
+// Wants the finest probes around everything the camera sees: for every few pixels, the eight probes at the corners of the cell the
+// surface there lies in, so that every pixel has all it needs to blend between. Pixels are taken a few apart, as a cell spans many.
+
+#include Globals.glsl
+#include gBufferUtil.glsl
+#include GI/GI.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+uniform sampler2D gDepth;
+uniform sampler2D gNormal;
+uniform int stride;
+
+
+const float GI_LIFT = 0.05;     // Metres off the surface the point is taken, so it's on the side it faces.
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy) * stride + ivec2(stride / 2);
+    ivec2 size = ivec2(resolution);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+    float depth = texelFetch(gDepth, pixel, 0).r;
+    if (depth >= 1.0) return;
+
+    vec3 view = ReconstructViewSpacePosition(vec2(pixel) + 0.5, depth, invProjectionMatrix, resolution);
+    vec3 world = (invViewMatrix * vec4(view, 1.0)).xyz;
+    vec3 normal = normalize(mat3(invViewMatrix) * unCompressNormal(texelFetch(gNormal, pixel, 0).xyz));
+    vec3 point = world + normal * GI_LIFT;
+
+
+    // In the finest cascade whose columns reach this high, as a tall roof can stand above all 32 heights of the finest; its coarser
+    // cascades follow as parents (GI_Probe_Parents.comp), and the gather falls back to them.
+    for (int c = 0; c < 2; c++)
+    {
+        float spacing = giCascade[c].x;
+        ivec3 low = ivec3(floor(point / spacing - 0.5));
+        bool reached = false;
+        for (int j = 0; j < 4; j++)
+        {
+            ivec2 xz = low.xz + ivec2(j & 1, j >> 1);
+            int column = giColumnIndex(c, xz);
+            if (column < 0) continue;
+            int k = low.y - giColumnBase[column];
+            uint bits = 0u;
+            if (k >= 0 && k <= 31) bits |= 1u << uint(k);
+            if (k + 1 >= 0 && k + 1 <= 31) bits |= 1u << uint(k + 1);
+            if (bits != 0u)
+            {
+                atomicOr(giColumnMask[column], bits);
+                reached = true;
+            }
+        }
+        if (reached) break;
+    }
+}

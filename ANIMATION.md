@@ -45,6 +45,10 @@ Conventions, as getting them wrong is the commonest mistake here: model space is
 
 `MotionStyle` has a number for each of these (`TailSway`, `TailStiff`, `Gape`, `Pant`, `HeadLow`, `ToeIn`, `Gallop`), and a style for each kind: `Raptor`, `Scurrier`, `Stalker`, `Tyrant` and `Horned`, with `Bones` and `Rotting` for what the Ossuary raised. `SaurianForge.StyleOf` says which.
 
+**A long neck** (`SaurianFrame.Long`, the Haven's giants) is posed by `PoseLongNeck`, from where its mouth should be: `AnimationInput.ReachFor`, and `Reaching`, how far into reaching for it it is. `SolveNeck` works out three things and no more, so the neck curves as one thing and never hinges: how far it lifts or lowers from its root, how much it curls along its length to make the distance, and how far it turns round along its length to face the goal, which fades out as the goal comes overhead, where any turn would be a jump. The goal is followed on a spring, as a head that size takes a few seconds to get anywhere, and the head stays level and looks where it's told on top of whatever the neck is doing. With nothing to reach for, the mouth goes where it was built to be and sways a little. `Chewing` works the jaw. A giant walks as an elephant does, rolling its weight over whichever side has more feet down (`MotionStyle.WeightShift`), and its round feet don't roll over their toes (`SaurianFrame.FootRoll`).
+
+**Somewhere no foot comes down** is `AnimationInput.KeepOff`, with `KeepOffRadius`: someone standing by a giant's foot. `Gait` puts any landing that would fall inside it at its edge instead, and a foot standing in it is drawn up by the standing body's own step to where it should be, which is outside it. It's how the giants never put a foot down on anyone, whatever their legs were doing when someone walked under them: the herd says who's nearest, and the body does the rest.
+
 ## Feet
 
 `Gait` is the only thing that moves a foot, and the rule is simple: **a foot on the ground stays exactly there, until it lifts.** That's what ends sliding. Feet aren't placed by a cycle: each leg has a clock, a share of the time it's down (duty) and a reason to step, and lands where Raibert's rule says, ahead of the hips by how fast they're going. Cadence comes from a table scaled by Froude number, so a big body strides and a small one scurries at the same speed.
@@ -119,7 +123,7 @@ A dodge goes the tick it's pressed, and nothing gets in its way. Whatever was go
 
 **A new kind of animal**: a `BeastLook`. Its rig, its gait and how it falls all come from that. It needs a line in `CharacterFactory.Resolve` and `BearingOf`.
 
-**A new kind of dinosaur**: a species in `SaurianCatalog`, as `DINOSAURS.md` says. Its rig, its gait and how it falls come from its body, and `CharacterFactory` already knows any model named `dino:`. A new way of moving is a style in `SaurianForge.StyleOf`.
+**A new kind of dinosaur**: a species in `SaurianCatalog`, as `DINOSAURS.md` says. Its rig, its gait and how it falls come from its body, and `CharacterFactory` already knows any model named `dino:`. A new way of moving is a style in `SaurianForge.StyleOf`. A long neck needs nothing more than its frame saying so: what it reaches for is up to whoever drives it.
 
 **A new shape of attack**: a `ShapeKind`, a case in `Covers`, and the same in `Shaders/Marks/Mark_Shape.frag`. Those two have to agree.
 
@@ -160,7 +164,7 @@ A lab can't say a body moves well, and judging it takes a person. To look at a f
 
 **Nobody has heard it either.** Most hit sounds never played before this, as each new listener for an event replaced the last one. They all play now, and that mix is untested.
 
-**Dinosaurs have only been seen in the lab's stills**, walking, running, roaring and biting, from the side and from the game's angle. Nobody has watched one move in the game, or fought one.
+**Dinosaurs have only been seen in the lab's stills**, walking, running, roaring and biting, from the side and from the game's angle. Nobody has watched one move in the game, or fought one. The giants were seen walking and browsing in two short films of the Haven taken by machine, from the game's camera, and nobody has watched them.
 
 Not built:
 

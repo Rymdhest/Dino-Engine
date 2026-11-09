@@ -30,7 +30,7 @@ Not everything the Reich brought stays in harness. Raptors, spitters and ravager
 
 **The hero is a Defender.** Nobody sent them. They come ashore at the Landing, and the people call them what they call anyone who stands between them and the teeth. They free a land the way it was taken, a place at a time: they burn out the pens, put what the Ossuary raised back in the ground, rekindle the shrines, and bring down the tyrant at the keep. Then the wind turns to guide them home, and the next land they go to is a little deeper into what the Reich has taken and a little harder.
 
-The Reich came by sea. The Defenders go by the waygates, the land's own old roads, raised by no people anyone remembers, and every one of those roads comes first to **the Haven**: a small isle of blossom in the last light of the day, and the one place the Reich has never found. Defenders rest there between lands, and choose the next at the map table, where every land the great waygate knows is drawn in light. What they take from the Reich comes with them: its **orders**, sealed in oxblood wax, which say where a brood is bound and what it's bringing, and which, given to the map table, open the way onto exactly that.
+The Reich came by sea. The Defenders go by the waygates, the land's own old roads, raised by no people anyone remembers, and every one of those roads comes first to **the Haven**: a small isle of blossom in the last light of the day, and the one place the Reich has never found. It has the only great beasts the Reich never took, a few **giants** older than anyone's memory, who browse the tops of its trees and are nobody's. Defenders rest there between lands, and choose the next at the map table, where every land the great waygate knows is drawn in light. What they take from the Reich comes with them: its **orders**, sealed in oxblood wax, which say where a brood is bound and what it's bringing, and which, given to the map table, open the way onto exactly that.
 
 Where the Reich has held a land long enough, it digs an **arena** into a hill: a bowl of stone stands round a floor of sand, with gates at the foot of the stands where the brood's handlers wait. The people of the land are marched in on fight days and counted going in, made to watch the commander's tyrant feed on whoever's thrown to it, so that nobody forgets whose land it is. A Defender who gets that far walks down the ramp to it. When the fight goes against the tyrant, the handlers throw up the gates and let in the rest of the brood. The crowd is silent, and wants the Defender to win, and only says so under its breath.
 
@@ -59,7 +59,7 @@ Up to five can share a land, and they're the Dino Defenders.
 
 ## The Amber Institute
 
-The blood-doctors. They found blood in amber and grew beasts from it, and they didn't stop at what the amber held: the spitter's venom is theirs, which no fossil ever said it had, and so are the hot blood, the tough hides and the tempers. Every living dinosaur in the game is theirs or bred from theirs. They number their hatches and keep their failures, which go to the Ossuary.
+The blood-doctors. They found blood in amber and grew beasts from it, and they didn't stop at what the amber held: the spitter's venom is theirs, which no fossil ever said it had, and so are the hot blood, the tough hides and the tempers. Every living dinosaur in the lands is theirs or bred from theirs: only the Haven's giants aren't, as the Reich has never found them. They number their hatches and keep their failures, which go to the Ossuary.
 
 ## The Ossuary
 
@@ -88,6 +88,7 @@ Every dinosaur is grown from a species and a seed, so no two are alike: `DINOSAU
 | Bone Tyrant, Bone Raptor, Bone Ravager | | The Ossuary's skeletons | Among the dead, and now and then a land's boss |
 | Rotting Tyrant, Rotting Raptor, Rotting Hornback | | The Ossuary's failures | Among the dead in wet country, and now and then a land's boss |
 | Reich Legionary, Reich Marksman, Reich Wrangler | | The greycoats | With the war-bands, and on guard over what the Reich has taken |
+| Giant | Brachiosaurus and Giraffatitan | The Haven's own, and free: long-necked and gentle, cropping the tops of trees | The Haven, and behind the main menu. Never in a land, and never fought |
 
 **Every land's boss is a tyrant**, and it's the strongest thing in the game. Seven in ten are bred and harnessed, and the rest are a bone tyrant the Ossuary raised or a rotting one, half each (`Chronicle.BossKindOf`). The chronicle names it and the keep holds it, so the story and the fight are always the same animal.
 
@@ -97,6 +98,8 @@ The land has enemies of its own, and they're part of the same story:
 - **The dead** are the land's, stirred up by the Ossuary's digging, with its bone-beasts among them.
 - **Wolves, boars and bears** are the land's own animals, sharing the wild with broods that got out. Cold-blooded things don't last the winter, so the snow is still mostly the wolves'.
 - **Cults** of the land's own powers, fire in the badlands and frost on the snow, hold the old stones and fight whoever comes, the Reich or a Defender.
+
+**The Haven's giants** are the one kind of dinosaur that's none of these. Nobody knows how long they've been there: the Reich has never found the Haven, so it has never found them. There are three, the same three every time anyone comes home, and they're animals and nothing more, gentle because nothing has ever given them a reason not to be. They eat from the tops of the trees, call to each other with their mouths shut, as the bones say the great ones did, take a long look at anyone who comes near, and step carefully round whoever is under them. Nothing about them is the Reich's: no harness, no war paint, no black iron, oxblood or brass, and none of its beasts' voices, and a name that says one is harnessed, rotting or bones isn't grown at all. They're never in a land and never fought. They're also the first thing anyone sees, grazing beyond the hero behind the main menu.
 
 ## Places
 
@@ -128,12 +131,13 @@ What each kind of place is under the Reich, as `Chronicle.Describe` tells it:
 | The beasts' bodies, harness, rot and bones | `Dino Engine/Modelling/Procedural/Saurian/`, in `DINOSAURS.md` |
 | The soldiers' colours | `CharacterFactory.ReichLook` |
 | The beasts' voices | `Sound/Content/Saurians.cs` |
+| The Haven's giants, and their voices | `Dino Engine/Wildlife/Herd.cs` and `Dino Defenders/Client/GiantShow.cs`, in `WILDLIFE.md`, and `Sound/Content/Giants.cs` |
 
 ## Writing it
 
 - **The Reich is fictional, and coded on the Nazis without ever being them.** No real symbol, or anything shaped like one: no swastika, no runes, no death's head and no eagle. No real slogans, salutes, songs, people, units, places or events. Ranks are plain German army words and never the party's or the SS's, so nothing ending in "-führer". Its mark is its own, and must never look like any real flag.
 - **The dinosaurs aren't the villains.** They're animals made into weapons. A wild one hunts, calls and runs as an animal does, and a harnessed one has had something done to it. The evil is the Reich's, so the writing never gives a dinosaur a will of its own: a tyrant's name is what its commander called it.
-- **Nothing is taken from Jurassic Park.** No names, places, lines, logos or designs from the books or the films: the spitter has crests and a throat pouch and never a frill, and the Institute isn't a company. What's borrowed is a feeling: the ground shaking before the tyrant comes into view, a raptor calling in the long grass, pens and fences. Ghost of Tsushima is the same: its wind and its shrines are ideas, and ours are our own.
+- **Nothing is taken from Jurassic Park.** No names, places, lines, logos or designs from the books or the films: the spitter has crests and a throat pouch and never a frill, and the Institute isn't a company. What's borrowed is a feeling: the ground shaking before the tyrant comes into view, a raptor calling in the long grass, pens and fences, and the wonder of great gentle beasts eating from the tops of the trees. Ghost of Tsushima is the same: its wind and its shrines are ideas, and ours are our own.
 - **Plain words, and few of them.** A player reads a line while something is trying to eat them. Short sentences said the way a person would say them, as all the game's text is. People speak plainly and don't explain the world to each other.
 - **The land's names are its own**, from `PlaceNames`, and the Reich's are in its tongue, which sounds German: commanders, broods and tyrants. Nothing is named halfway between.
 - **These words mean something**, so use them and don't invent others for the same thing: the Saurian Reich (or the Reich), the Amber Institute, blood-doctors, the Ossuary, a brood, a war-band, a pen, greycoats, a tyrant, a Defender.
@@ -141,7 +145,7 @@ What each kind of place is under the Reich, as `Chronicle.Describe` tells it:
 
 ## Where it stands
 
-**Nobody has played this, read it in the game, or watched a dinosaur move anywhere but in the lab's pictures.** Ask how it reads first.
+**Nobody has played this, read it in the game, or watched a dinosaur move anywhere but in the lab's pictures**, and the giants only in stills and short films taken by machine. Ask how it reads first.
 
 Said in the game now: each land's chronicle, what places are, what villagers say, every enemy's name and look, and the dinosaurs' voices.
 
@@ -150,7 +154,7 @@ Not built:
 - **A story across the lands.** Each land has a chronicle of its own, and nothing ties them into a campaign: no first landing, no Reich homeland, no end to the climb, and no leader of the Reich.
 - **The Reich in the world's buildings.** Its pens are still the outlaw camps they were, with tents, and its keeps fly no pennant: `CampStage` and the site content know nothing of it. A pen should have cages and fences, and a keep its mark.
 - **Music of its own.** The score doesn't change for the Reich.
-- **A first screen that says any of this.** The menu shows the title and a hero standing in a world, with nothing of the invasion.
+- **A first screen that says any of this.** The menu shows the title, a hero standing in a world and the Haven's giants grazing beyond them, with nothing of the invasion.
 - **Who a Defender is**, beyond the name the people give them.
 - **Who lives in the Haven**, and how it's stayed hidden. It's a village of people who got out, and nothing more is said.
 
@@ -168,6 +172,7 @@ Choices made without asking. Say if any are wrong.
 - **Outlaws are turncoats**, about a quarter of what holds the roads.
 - **Broods that got out** are two in five of the beasts in the wild, with swarms of raptors and skitters another one in five. In the snow they're one in six, and the rest is still the wolves'.
 - **Dinosaurs roar like film monsters**, not with the closed-mouth booming the evidence suggests, because these are bred and wrong. See `SOUND.md`.
+- **The Haven's giants are free**, the only great beasts the Reich never found, as it never found the Haven, and there are three. They're after Brachiosaurus and Giraffatitan, and they boom with their mouths shut, as they aren't bred and wrong.
 - **A raptor is a little slower than a hero**, 9.6 m/s against 10, so a pack can be got away from by someone who stops fighting.
 - **The Haven is an isle of blossom in a golden evening**, peaceful and warm, with no black iron, oxblood or brass anywhere in it but the orders a Defender brings back.
 - **Orders' names** are the Reich's plain army words and its tongue: a Kommandant, a Brutmeister, a garrison and a writ.
@@ -176,3 +181,4 @@ Choices made without asking. Say if any are wrong.
 
 - Michael Crichton's *Jurassic Park* (1990) and Steven Spielberg's film (1993): the premise of animals grown from blood in amber, pens and fences, a tyrant felt before it's seen, raptors that hunt together, and the spitter's venom, which is the film's invention and not the fossil's. Nothing else is used.
 - Sucker Punch's *Ghost of Tsushima* (2020): an invasion from over the sea, a land that's what's being fought for, the guiding wind, shrines, and the people giving the one who fights for them a name.
+- Tobias Riede and others, "Coos, booms, and hoots: the evolution of closed-mouth vocal behavior in birds", *Evolution* (2016): why the great ones most likely boomed with their mouths shut, which is how the giants call.

@@ -64,6 +64,17 @@ namespace Dino_BuildLab
                 foreach (TalentNode node in TalentTree.Nodes) Console.WriteLine(node.Id);
             }
 
+            // Every node exactly where it was grown, with what it's joined to, so that two builds can be compared for a tree that came out the same.
+            if (what is "layout")
+            {
+                var invariant = System.Globalization.CultureInfo.InvariantCulture;
+                foreach (TalentNode node in TalentTree.Nodes)
+                {
+                    string links = string.Join(",", node.Links.Select(l => TalentTree.Nodes[l].Id));
+                    Console.WriteLine(string.Create(invariant, $"{node.Index} {node.Id} {node.Kind} {node.Position.X:R} {node.Position.Y:R} {node.Orbit.X:R} {node.Orbit.Y:R} {node.OrbitRadius:R} {node.Twin} {links}"));
+                }
+            }
+
             if (what is "all" or "smalls")
             {
                 Console.WriteLine("\nSmall nodes, by what they're called");

@@ -96,22 +96,42 @@ namespace Dino_BuildLab
             report.Check("No two nodes sit on each other", closest >= 34f, $"{closest:0} between {pair}");
             report.Note($"Closest pair of nodes: {closest:0} units, {pair}");
 
-            // A link across another reads as a join that isn't there. Links along a circle are taken as their chords, which is within a few units of the arc.
+            // A link across another reads as a join that isn't there, and one through a node as a join to it. Both are judged as they're drawn, arcs and all.
             var links = nodes.SelectMany(n => n.Links.Where(l => l > n.Index).Select(l => (a: n, b: nodes[l]))).ToList();
-            string? crossing = null;
-            for (int i = 0; i < links.Count && crossing == null; i++)
+            var shapes = links.Select(l => TalentTree.Shape(l.a, l.b)).ToArray();
+            var boxes = shapes.Select(s => (min: new Vector2(s.Min(p => p.X), s.Min(p => p.Y)), max: new Vector2(s.Max(p => p.X), s.Max(p => p.Y)))).ToArray();
+            var crossings = new List<string>();
+            for (int i = 0; i < links.Count; i++)
             {
                 for (int j = i + 1; j < links.Count; j++)
                 {
                     var (a, b) = links[i];
                     var (c, d) = links[j];
                     if (a == c || a == d || b == c || b == d) continue;
-                    if (!TalentTree.Intersect(a.Position, b.Position, c.Position, d.Position)) continue;
-                    crossing = $"{a.Id}-{b.Id} and {c.Id}-{d.Id}";
-                    break;
+                    if (boxes[i].max.X < boxes[j].min.X || boxes[j].max.X < boxes[i].min.X || boxes[i].max.Y < boxes[j].min.Y || boxes[j].max.Y < boxes[i].min.Y) continue;
+                    if (TalentTree.ShapesCross(shapes[i], shapes[j])) crossings.Add($"{a.Id}-{b.Id} and {c.Id}-{d.Id}");
                 }
             }
-            report.Check("No link crosses another", crossing == null, crossing ?? "");
+            report.Check("No link crosses another, as drawn", crossings.Count == 0, $"{crossings.Count}: {string.Join("; ", crossings.Take(12))}");
+
+            var through = new List<string>();
+            for (int i = 0; i < links.Count; i++)
+            {
+                var (a, b) = links[i];
+                foreach (TalentNode node in nodes)
+                {
+                    if (node == a || node == b) continue;
+                    float room = TalentTree.RoomOf(node);
+                    if (node.Position.X < boxes[i].min.X - room || node.Position.X > boxes[i].max.X + room || node.Position.Y < boxes[i].min.Y - room || node.Position.Y > boxes[i].max.Y + room) continue;
+                    float distance = TalentTree.DistanceToShape(node.Position, shapes[i]);
+                    if (distance < room) through.Add($"{a.Id}-{b.Id} passes {distance:0} from {node.Id}");
+                }
+            }
+            report.Check("No link runs through a node that isn't its own", through.Count == 0, $"{through.Count}: {string.Join("; ", through.Take(12))}");
+
+            // A path that goes nowhere ends on something worth going for, never on a small node.
+            var deadEnds = nodes.Where(n => n.Kind == TalentKind.Small && n.Links.Count == 1).Select(n => n.Id).ToList();
+            report.Check("No small node is a dead end", deadEnds.Count == 0, $"{deadEnds.Count}: {string.Join(", ", deadEnds.Take(16))}");
 
             float furthest = nodes.Max(n => n.Position.Length);
             report.Note($"The tree is {furthest * 2f:0} units across");
@@ -287,8 +307,8 @@ namespace Dino_BuildLab
             float b = HeroBuild.Compile(shuffled).SheetFor(Condition.None).Preview(Shelf.Firebolt).First.AverageHit;
             report.Check("The order talents were taken in makes no difference to what they add up to", a == b, $"{a} and {b}");
 
-            report.Check("A wanderer becomes something", TalentTree.TitleOf(new HeroState()) == "Wanderer" && TalentTree.TitleOf(Hero(30, "pyre.kindling.4")) == "Ember Pyromancer", TalentTree.TitleOf(Hero(30, "pyre.kindling.4")));
-            report.Check("Two regions mix", TalentTree.TitleOf(Hero(40, "pyre.kindling.4", "winter.frost.3")) == "Frost Pyromancer", TalentTree.TitleOf(Hero(40, "pyre.kindling.4", "winter.frost.3")));
+            report.Check("A wanderer becomes something", TalentTree.TitleOf(new HeroState()) == "Wanderer" && TalentTree.TitleOf(Hero(30, "pyre.kindling.3")) == "Ember Pyromancer", TalentTree.TitleOf(Hero(30, "pyre.kindling.3")));
+            report.Check("Two regions mix", TalentTree.TitleOf(Hero(40, "pyre.kindling.3", "winter.frost.3")) == "Frost Pyromancer", TalentTree.TitleOf(Hero(40, "pyre.kindling.3", "winter.frost.3")));
             report.Check("A keystone can have the last word", TalentTree.TitleOf(Hero(40, "key.tidewalker")) == "Tidewalker");
 
             SaveGame? regrown = SaveGame.Read("""{ "Version": 11, "Hero": { "Level": 20, "Talents": [ "start.unbowed.1", "storm.forked-path", "key.debtor" ] } }""");

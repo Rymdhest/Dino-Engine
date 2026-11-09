@@ -35,14 +35,19 @@ namespace Dino_Defenders
 
         private readonly record struct PreparedWorld(WorldData World, byte[] Map);
 
+        // What's begun before there's a window (Begin), and taken up by the game when it's made.
+        private static WorldCache? _earlyWorlds;
+        private static WorldAssetLibrary? _earlyAssets;
+        private static Task<WorldData>? _earlyTitle;
+
         private readonly GameOptions _options;
-        private readonly WorldAssetLibrary _assets = new();
+        private readonly WorldAssetLibrary _assets = _earlyAssets ?? new();
         private readonly CharacterFactory _characters = new();
 
         /// <summary>Where everything that shows gear gets it from.</summary>
         public readonly Wardrobe Wardrobe = new();
         private readonly GhostPresenter _presenter;
-        private readonly WorldCache _worlds = new();
+        private readonly WorldCache _worlds = _earlyWorlds ?? new();
         private readonly GameUi _ui;
         private readonly Stopwatch _simulatedLine = Stopwatch.StartNew();
         private readonly Queue<IPEndPoint> _joinAddresses = new();
@@ -54,7 +59,9 @@ namespace Dino_Defenders
         private List<RosterEntry> _heroes = new();
         private RosterEntry? _chosen;
         private TitleScene? _title;
+        private GiantShow? _giants;
         private Task<WorldData>? _titleLoading;
+        private bool _charactersNext;
         private ServerHost? _server;
         private GameClient? _client;
         private ClientEffects? _effects;
@@ -97,6 +104,26 @@ namespace Dino_Defenders
         public bool InFriendsGame => _server == null;
         public GameClient? Client => _client;
 
+        /// <summary>
+        /// Begins, before there's an engine, what needs no window, as making one and its materials takes seconds of this thread that every other core would spend waiting:
+        /// the land behind the menu and the talent tree, which is grown the first time anything asks and the interface asks while it's made. The land's plants and stones
+        /// follow the moment there are materials to give them (<see cref="Dino_Engine.Modelling.Procedural.MaterialNumbers"/>), while the rest of the engine is still being made.
+        /// </summary>
+        public static void Begin(GameOptions options)
+        {
+            Task.Run(() => System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(Talents.TalentTree).TypeHandle));
+
+            // The giants are in the picture behind the menu and in the Haven, and take seconds to grow, so they start now. A run that goes straight to a land grows them if it ever goes home.
+            if (options.StartsAtMenu || options.Haven) CharacterFactory.GrowGiants();
+            if (!options.StartsAtMenu) return;
+
+            _earlyWorlds = new WorldCache();
+            _earlyAssets = new WorldAssetLibrary();
+            _earlyTitle = GrowTitle(_earlyWorlds, _earlyAssets, TitleRequest(options), Dino_Engine.Modelling.Procedural.MaterialNumbers.Ready);
+        }
+
+        private static WorldRequest TitleRequest(GameOptions options) => new WorldRequest(options.Seed ?? TitleScene.Seed, options.Archetype ?? TitleScene.Archetype, 1);
+
         public ArpgGame(Engine engine, GameOptions options) : base(engine)
         {
             _options = options;
@@ -136,6 +163,7 @@ namespace Dino_Defenders
                 return;
             }
 
+            _characters.Begin();
             _ui.Playing(true);
             SaveGame.PathOverride = options.SaveFile;
             _save = options.Saves ? SaveGame.Load() : null;
@@ -244,13 +272,16 @@ namespace Dino_Defenders
                 screen.Progress = progress;
                 screen.Stage = stage;
             };
-            _titleLoading = PrepareTitle(new WorldRequest(_options.Seed ?? TitleScene.Seed, _options.Archetype ?? TitleScene.Archetype, 1));
+            // The first time, it was begun before there was a window.
+            _titleLoading = _earlyTitle ?? GrowTitle(_worlds, _assets, TitleRequest(_options), Task.CompletedTask);
+            _earlyTitle = null;
         }
 
-        private async Task<WorldData> PrepareTitle(WorldRequest request)
+        private static async Task<WorldData> GrowTitle(WorldCache worlds, WorldAssetLibrary assets, WorldRequest request, Task materials)
         {
-            WorldData world = await _worlds.Get(request);
-            await Task.Run(() => _assets.Grow(WorldAssetLibrary.AssetsOf(world)));
+            WorldData world = await worlds.Get(request);
+            await materials;
+            await Task.Run(() => assets.Grow(WorldAssetLibrary.AssetsOf(world)));
             return world;
         }
 
@@ -269,10 +300,18 @@ namespace Dino_Defenders
 
             WorldData world = finished.Result;
             GameSession.Current = null!;
+            _giants = null;
             WorldScene.Enter(Engine.world, world, _assets, TitleScene.ChunkRadius);
-            _characters.Prepare();
+
+            // Nothing behind the menu is an enemy, so what a world can send at a hero is grown while the menu's open, and waited for when a world is entered. It's begun
+            // the frame after this one, as the first frame of a world makes its whole view at once, on every core it can have.
+            _charactersNext = true;
             _title = new TitleScene(Engine.world, world, Wardrobe, _characters);
             _title.Show(_chosen?.Hero);
+            if (!Nature.Off && TitleScene.FindHerd(world, _title.Spot) is (Vector2 home, float reach, Func<Vector2, bool> allowed))
+            {
+                _giants = GiantShow.Around(Engine.world, world, _characters, home, reach, HerdSeed(), allowed);
+            }
             Engine.WorldReady = true;
 
             _ui.Playing(false);
@@ -391,7 +430,7 @@ namespace Dino_Defenders
                     render_.AntiAliasing.Samples = int.Parse(parts[1]);
                     continue;
                 }
-                if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
+                if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]) || render_.GlobalIllumination.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
             }
         }
 
@@ -577,9 +616,15 @@ namespace Dino_Defenders
         {
             _client?.Update(Dino_Engine.Core.Engine.Delta);
             HandleLostConnection();
+            if (_charactersNext)
+            {
+                _charactersNext = false;
+                _characters.Begin();
+            }
             FinishLoading();
             FinishTitleLoading();
             UpdateMenu();
+            _giants?.Update(Dino_Engine.Core.Engine.Delta);
             FollowHero();
             UpdateInterface();
 
@@ -667,6 +712,10 @@ namespace Dino_Defenders
             if (_options.Weather != null && WeatherSample.TryNamed(_options.Weather, out WeatherSample ordered)) session.ScriptedWeather = ordered;
             if (_frames == _options.GuideAfterFrames) session.Intent.Guide = true;
         }
+
+        // Where the giants are found, and what they're doing: somewhere else each time anyone comes home, but the same every time for a scripted run, so that its pictures can be compared.
+        // Like everything alive, they're only looked at, and --nolife takes them out with the rest, for measuring what the game costs without them.
+        private uint HerdSeed() => _options.Scripted ? 1u : (uint)Environment.TickCount;
 
         // A little way off, in a ring round the hero, so that they're near enough to look at and far enough off to be left in peace.
         private static void BringCreatures(GameSession session, string creatures)
@@ -958,6 +1007,7 @@ namespace Dino_Defenders
         {
             var clock = Stopwatch.StartNew();
             WorldData world = prepared.World;
+            _giants = null;
             WorldScene.Enter(Engine.world, world, _assets);
             _characters.Prepare();
             Console.WriteLine($"Prepared {_assets.Count} models in {clock.Elapsed.TotalSeconds:0.00} s");
@@ -968,6 +1018,7 @@ namespace Dino_Defenders
             Ambience.FindFeatures(session, _assets);
             session.UpdateGuidance();
             GameSession.Current = session;
+            if (session.IsHaven && !Nature.Off) _giants = GiantShow.InHaven(Engine.world, world, _characters, HerdSeed());
             _ui.Map.SetImage(prepared.Map);
             _followingHero = false;
 

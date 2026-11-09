@@ -32,7 +32,10 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                     for (int i = 0; i < count; i += every)
                     {
                         float u = count > 1 ? i / (count - 1f) : 0f;
-                        float z = head.Length * (upper ? 0.96f - 0.6f * u : 0.92f - 0.56f * u);
+
+                        // A sauropod crops with a few pegs at the front of its mouth, and has none further back.
+                        float z = head.Sauropod ? head.Length * (upper ? 0.97f - 0.16f * u : 0.95f - 0.15f * u)
+                            : head.Length * (upper ? 0.96f - 0.6f * u : 0.92f - 0.56f * u);
                         float size = head.Tooth * (0.5f + 0.5f * Smooth(0f, 0.22f, u) - 0.38f * Smooth(0.45f, 1f, u)) * (upper ? 1f : 0.86f);
                         if (size * scale < Smallest * 0.6f) continue;
                         float radius = size * 0.24f;
@@ -187,6 +190,11 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             foreach (SaurianLeg leg in body.Legs)
             {
                 bool left = leg.Side > 0f;
+                if (body.Sauropod)
+                {
+                    PillarFoot(mesh, leg, claw, leg.Front ? (left ? BoneType.HandL : BoneType.HandR) : (left ? BoneType.ToeL : BoneType.ToeR));
+                    continue;
+                }
                 if (leg.Front)
                 {
                     ForeFoot(mesh, leg, skin, claw, left ? BoneType.HandL : BoneType.HandR);
@@ -262,6 +270,33 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Vector3 tip = path[^1] - way * radius * 0.2f;
             if (hoof) mesh.Spike(tip, way + Vector3.UnitY * -0.25f, clawLength, radius * 0.95f, -Vector3.UnitY, 0.2f, 6, claw, GearMaterials.Bone, hang, 0.55f, Vector3.UnitY);
             else mesh.Spike(tip, way, clawLength, radius * 0.7f, -Vector3.UnitY, 0.45f, 5, claw, GearMaterials.Bone, hang, 0.6f, Vector3.Cross(way, Vector3.UnitY));
+        }
+
+        // A sauropod's claws. A hind foot ends in short toes buried in the front of its pad, and the inner three show claws, turned in and down and the first the biggest, as the bones of the foot say.
+        // A brachiosaur's hand has only its thumb claw, on the inside of the column, and the rest of its fingers are inside the pad.
+        private static void PillarFoot(SaurianMesh mesh, SaurianLeg leg, Vector3 claw, BoneType bone)
+        {
+            float inward = -leg.Side;
+            float pad = leg.BallRadius;
+            if (leg.Front)
+            {
+                Vector3 thumbWay = new Vector3(inward * 0.45f, -0.2f, 0.87f).Normalized();
+                Vector3 thumbAt = new Vector3(leg.Ball.X + inward * pad * 0.62f, pad * 0.36f, leg.Ball.Z + pad * 0.55f);
+                float thumb = pad * 0.5f;
+                if (thumb >= Smallest) mesh.Spike(thumbAt, thumbWay, thumb, pad * 0.14f, -Vector3.UnitY, 0.5f, 6, claw, GearMaterials.Bone, bone, 0.6f, Vector3.UnitY);
+                return;
+            }
+
+            for (int digit = 0; digit < 3; digit++)
+            {
+                float angle = (0.45f - digit * 0.36f) * inward;
+                Vector3 way = new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle));
+                Vector3 at = new Vector3(leg.Ball.X, pad * 0.3f, leg.Ball.Z) + way * pad * 0.72f;
+                float length = leg.ToeLength * (digit == 0 ? 0.95f : digit == 1 ? 0.78f : 0.6f);
+                if (length < Smallest) continue;
+                Vector3 points = (way * 0.85f + new Vector3(inward * 0.3f, -0.3f, 0f)).Normalized();
+                mesh.Spike(at, points, length, pad * (digit == 0 ? 0.17f : 0.14f), -Vector3.UnitY, 0.45f, 6, claw, GearMaterials.Bone, bone, 0.55f, Vector3.UnitY);
+            }
         }
 
         // What a horned grazer stands on in front: short fingers round a pad, the inner three with hooves.

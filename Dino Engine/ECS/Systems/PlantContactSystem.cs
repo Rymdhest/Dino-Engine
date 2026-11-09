@@ -30,15 +30,18 @@ namespace Dino_Engine.ECS.Systems
 
             Vector2 velocity = entity.Has<VelocityComponent>() ? entity.Get<VelocityComponent>().value.Xz : Vector2.Zero;
             float speed = velocity.Length;
-            Engine.RenderEngine._windRenderer.AddVegetationContact(new VegetationContact
+            if (!contact.feetOnly)
             {
-                center = position,
-                previous = position - velocity * deltaTime,
-                radius = contact.radius,
-                lean = contact.lean,
-                press = contact.press,
-                drag = speed / (speed + DragSpeed),
-            });
+                Engine.RenderEngine._windRenderer.AddVegetationContact(new VegetationContact
+                {
+                    center = position,
+                    previous = position - velocity * deltaTime,
+                    radius = contact.radius,
+                    lean = contact.lean,
+                    press = contact.press,
+                    drag = speed / (speed + DragSpeed),
+                });
+            }
 
             if (!entity.Has<AnimatorComponent>()) return;
             foreach (Foot foot in entity.Get<AnimatorComponent>().Animator.Gait.Feet)

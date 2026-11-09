@@ -1,0 +1,38 @@
+#version 430
+
+// Where each cascade's probes start in the numbering, how many it keeps (no more than it has room for), and how big each of its passes
+// is, written where the passes read their sizes from (glDispatchComputeIndirect), so the CPU never has to wait to be told.
+
+#include GI/GI.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 1) in;
+
+layout(std430, binding = 14) readonly buffer GiScanSums { uint giScanSums[]; };
+
+uniform int groups;     // Of the scan, whose grand total follows their sums.
+
+void main()
+{
+    uint total = giScanSums[uint(groups)];
+    giCounts[GI_COUNT_FRESH] = 0u;
+    for (int c = 0; c < GI_CASCADES; c++)
+    {
+        uint start = giColumnOffset[GI_COLUMN_START[c]];
+        uint end = c + 1 < GI_CASCADES ? giColumnOffset[GI_COLUMN_START[c + 1]] : total;
+        uint count = min(end - start, uint(GI_PROBE_CAPACITY[c]));
+        giCounts[GI_COUNT_PROBE_START + c] = start;
+        giCounts[GI_COUNT_PROBE_COUNT + c] = count;
+
+        uint outward = uint(c == 0 ? GI_DIRECTION_COUNT[0] : GI_DIRECTION_COUNT[c - 1]);
+        uint sizes[3] = uint[](count, count * uint(GI_DIRECTION_COUNT[c]), count * outward);
+        for (int pass_ = 0; pass_ < 3; pass_++)
+        {
+            int at = GI_COUNT_DISPATCH + (c * 3 + pass_) * 4;
+            giCounts[at] = (sizes[pass_] + 63u) / 64u;
+            giCounts[at + 1] = 1u;
+            giCounts[at + 2] = 1u;
+            giCounts[at + 3] = 0u;
+        }
+    }
+}

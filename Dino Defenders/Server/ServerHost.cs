@@ -18,8 +18,10 @@ namespace Dino_Defenders.Server
         private Task<WorldData>? _world;
         private Task<WorldData>? _haven;
 
-        /// <summary>Told how far the most recent generation has got.</summary>
+        /// <summary>Told how far the most recent generation has got, which may have begun before this was set: the land behind the menu is begun before there's a window.</summary>
         public Action<float, string>? Progress;
+
+        private int _latest;
 
         public Task<WorldData> Get(WorldRequest request)
         {
@@ -28,16 +30,26 @@ namespace Dino_Defenders.Server
                 if (Progression.Lands.IsHaven(request))
                 {
                     if (_haven is { IsFaulted: false } kept) return kept;
-                    Action<float, string>? growing = Progress;
+                    Action<float, string> growing = Reporter();
                     _haven = Task.Run(() => new Dino_Engine.World.Generation.WorldGenerator().Generate(request, growing));
                     return _haven;
                 }
                 if (_world != null && Same(_request, request)) return _world;
                 _request = request;
-                Action<float, string>? progress = Progress;
+                Action<float, string> progress = Reporter();
                 _world = Task.Run(() => new Dino_Engine.World.Generation.WorldGenerator().Generate(request, progress));
                 return _world;
             }
+        }
+
+        // Passes a generation's progress on to whoever is listening now, for as long as nothing newer has been begun.
+        private Action<float, string> Reporter()
+        {
+            int generation = ++_latest;
+            return (progress, stage) =>
+            {
+                if (Volatile.Read(ref _latest) == generation) Progress?.Invoke(progress, stage);
+            };
         }
 
         private static bool Same(in WorldRequest a, in WorldRequest b)

@@ -1,0 +1,23 @@
+#version 430
+
+// How big the passes over this frame's listed probes are (GI_Probe_Init.comp), where they read it from: a group to each probe to place
+// it, up to as many groups as can be dispatched, which then go round again (GI_Probe_Place.comp), and a thread to each parent to ask
+// whether it can be seen (GI_Probe_See.comp).
+
+#include GI/GI.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 1) in;
+
+void main()
+{
+    uint fresh = giCounts[GI_COUNT_FRESH];
+    giCounts[GI_COUNT_FRESH_DISPATCH + 0] = min(fresh, 65535u);
+    giCounts[GI_COUNT_FRESH_DISPATCH + 1] = 1u;
+    giCounts[GI_COUNT_FRESH_DISPATCH + 2] = 1u;
+    giCounts[GI_COUNT_FRESH_DISPATCH + 3] = 0u;
+    giCounts[GI_COUNT_FRESH_DISPATCH + 4] = (fresh * 8u + 63u) / 64u;
+    giCounts[GI_COUNT_FRESH_DISPATCH + 5] = 1u;
+    giCounts[GI_COUNT_FRESH_DISPATCH + 6] = 1u;
+    giCounts[GI_COUNT_FRESH_DISPATCH + 7] = 0u;
+}

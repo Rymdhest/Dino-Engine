@@ -84,6 +84,10 @@ namespace Dino_Engine.ECS.Systems
                 _toCreate.RemoveRange(ChunksPerFrame, _toCreate.Count - ChunksPerFrame);
             }
 
+            // The ground of a chunk comes from the world's maps alone, so the frame's new chunks are worked out side by side on other threads while the objects
+            // are put out here, and only made into entities below, in order. A world just entered has its whole view to make at once, and this was seconds of one thread.
+            Task<ChunkGround[]>? grounds = _toCreate.Count == 0 ? null : WorkOutGround(_toCreate.ToArray(), chunkSize, generator);
+
             // 3. Stream the objects. They have to exist before their chunks are created, because a chunk carves the
             // grass under whatever is in the spatial grid at creation time.
             SpatialGrid grid = world.GetComponent<RenderSpatialGridSingleton>(world.GetSingleton<RenderSpatialGridSingleton>()).Grid;
@@ -108,10 +112,11 @@ namespace Dino_Engine.ECS.Systems
                 chunks.Remove(cell);
             }
 
+            ChunkGround[] ground = grounds?.Result ?? Array.Empty<ChunkGround>();
             for (int i = 0; i < _toCreate.Count; i++)
             {
                 Vector2i key = _toCreate[i];
-                Entity e = CreateChunkEntity(key, chunkSize, world, generator);
+                Entity e = CreateChunkEntity(key, chunkSize, world, ground[i]);
                 chunks[key] = e;
             }
 
@@ -337,17 +342,33 @@ namespace Dino_Engine.ECS.Systems
             return Math.Abs(cell.X - camCx) <= radius && Math.Abs(cell.Y - camCz) <= radius;
         }
 
-        private Entity CreateChunkEntity(Vector2i cell, float chunkSize, ECSWorld world, TerrainGenerator generator)
+        private readonly record struct ChunkGround(FloatGrid Height, Vector3Grid Normals, TerrainChunkSurface Surface);
+
+        private static Task<ChunkGround[]> WorkOutGround(Vector2i[] cells, float chunkSize, TerrainGenerator generator)
+        {
+            var resolution = new Vector2i(TerrainRenderer.CHUNK_RESOLUTION);
+            return Task.Run(() =>
+            {
+                var ground = new ChunkGround[cells.Length];
+                Parallel.For(0, cells.Length, i =>
+                {
+                    Vector2 position = new Vector2(cells[i].X * chunkSize, cells[i].Y * chunkSize);
+                    Vector2 size = new Vector2(chunkSize);
+                    FloatGrid height = generator.generateChunk(position, size, resolution);
+                    Vector3Grid normals = generator.generateNormalGridFor(position, size, resolution);
+                    ground[i] = new ChunkGround(height, normals, generator.generateSurface(position, size, height, normals));
+                });
+                return ground;
+            });
+        }
+
+        private Entity CreateChunkEntity(Vector2i cell, float chunkSize, ECSWorld world, ChunkGround ground)
         {
             Vector3 scale = new Vector3(chunkSize, 1.0f, chunkSize);
             Vector2 position = new Vector2(cell.X * chunkSize, cell.Y * chunkSize);
 
-            var heightGrid = generator.generateChunk(position, scale.Xz, new Vector2i(TerrainRenderer.CHUNK_RESOLUTION));
-            var normalGrid = generator.generateNormalGridFor(position, scale.Xz, new Vector2i(TerrainRenderer.CHUNK_RESOLUTION));
-            var surface = generator.generateSurface(position, scale.Xz, heightGrid, normalGrid);
-
             return world.CreateEntity("Terrain Chunk",
-                new TerrainChunkComponent(heightGrid, normalGrid, surface, position, scale.Xz),
+                new TerrainChunkComponent(ground.Height, ground.Normals, ground.Surface, position, scale.Xz),
                 new PositionComponent(new Vector3(position.X, 0.0f, position.Y)),
                 new ScaleComponent(scale),
                 new LocalToWorldMatrixComponent()

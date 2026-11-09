@@ -57,6 +57,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private int grassBloomTextureArray;
         private readonly int[] surfaceWeightArrays = new int[3];
         private readonly Vector4[] surfaceMaterials = new Vector4[3];
+
+        // What the ground of each live chunk is made of, a layer to a chunk (TerrainChunkComponent.normalHeightTextureArrayID), for
+        // global illumination's voxels, which colour the ground as this does.
+        public int SurfaceWeightArray(int index) => surfaceWeightArrays[index];
+        public int GrassTextureArray => grassTextureArray;
+        public int GrassColourTextureArray => grassColourTextureArray;
+        public int NormalRoadHeightTextureArray => normalRoadHeightTextureArray;
+        public Vector4[] SurfaceMaterials => surfaceMaterials;
         private IDAllocator<ushort> normalHeightTextureArrayAllocator = new();
         private readonly int MAX_TERRAIN_CHUNKS = 1024*2;
         public static readonly int CHUNK_RESOLUTION = 16;

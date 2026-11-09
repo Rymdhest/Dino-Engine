@@ -23,8 +23,10 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         {
             Body = body;
             _paint = paint;
-            _tile = body.Length / 7f;
-            _chain = new[]
+
+            // A hide's grain is the same size on any animal, as skin is skin: a giant's is laid as finely as a hunter's is, a little over twice as many times along it.
+            _tile = body.Sauropod ? body.Length / 16f : body.Length / 7f;
+            var chain = new List<(float At, BoneType Bone)>
             {
                 (0f, BoneType.TailTip),
                 (body.TipAt, BoneType.Tail3),
@@ -35,9 +37,16 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 (body.SpineAt, BoneType.Spine),
                 (body.ChestAt, BoneType.Chest),
                 (body.NeckAt, BoneType.Neck),
-                (body.NeckTopAt, BoneType.NeckTop),
-                (body.HeadAt, BoneType.Head),
             };
+            if (body.Sauropod)
+            {
+                chain.Add((body.Neck1At, BoneType.Neck1));
+                chain.Add((body.Neck2At, BoneType.Neck2));
+                chain.Add((body.Neck3At, BoneType.Neck3));
+            }
+            chain.Add((body.NeckTopAt, BoneType.NeckTop));
+            chain.Add((body.HeadAt, BoneType.Head));
+            _chain = chain.ToArray();
         }
 
         // ---- Bones.
@@ -260,6 +269,35 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         {
             glow = 1f;
             return _paint.Hide(p, normal, part, out material);
+        }
+
+        /// <summary>
+        /// On a sauropod, whose flanks are big and smooth enough to show it, a leg's colour and the body's run into each other where the leg joins, as skin doesn't change at a seam: each side takes
+        /// half of the other's right at the join, and less of it further away, over half a chest's depth.
+        /// </summary>
+        public Vector3 Colour(Vector3 p, Vector3 normal, SaurianPart part, ReadOnlySpan<float> parts, out int material, out float glow)
+        {
+            Vector3 colour = Colour(p, normal, part, out material, out glow);
+            if (!Body.Sauropod || part == SaurianPart.Head) return colour;
+
+            SaurianPart other = SaurianPart.Body;
+            if (part == SaurianPart.Body)
+            {
+                float nearest = float.MaxValue;
+                for (int i = (int)SaurianPart.LegL; i <= (int)SaurianPart.ForeR; i++)
+                {
+                    if (parts[i] >= nearest) continue;
+                    nearest = parts[i];
+                    other = (SaurianPart)i;
+                }
+                if (other == SaurianPart.Body) return colour;
+            }
+
+            float gap = MathF.Max(parts[(int)other] - parts[(int)part], 0f);
+            float reach = Body.ChestDepth * 0.5f;
+            if (gap >= reach) return colour;
+            Vector3 theirs = Colour(p, normal, other, out _, out _);
+            return Vector3.Lerp(colour, theirs, 0.5f - 0.5f * Smooth(0f, reach, gap));
         }
     }
 }

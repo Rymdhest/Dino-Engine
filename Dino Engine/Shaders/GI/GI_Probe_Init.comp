@@ -1,0 +1,48 @@
+#version 430
+
+// Starts each probe of a cascade off: its parents in the next cascade, and where it stands. Where a probe stands and which parents it
+// sees come from its place in the lattice and the voxels around it, and nothing else, so a probe that was there last frame among the
+// same voxels (giProbeStamp) keeps what it had, and keeping it changes nothing anyone sees. Any other is listed, for GI_Probe_Place.comp
+// to find it room and GI_Probe_See.comp to ask which parents it can see, and looks along every direction this frame, as what it saw
+// before was seen from somewhere else or through other voxels (GI_Probe_Trace.comp). Those take many lookups, each waiting on the one
+// before, so they are spread over many threads a probe there rather than holding this pass up: every cascade runs this at once.
+
+#include GI/GI.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 20) readonly buffer GiPreviousPlace { vec4 giPreviousPlace[]; };
+layout(std430, binding = 23) buffer GiProbePrevious { int giProbePrevious[]; };
+layout(std430, binding = 27) writeonly buffer GiFresh { int giFresh[]; };       // The slots of the probes to place this frame.
+
+uniform int cascade;
+
+void main()
+{
+    int local = int(gl_GlobalInvocationID.x);
+    if (local >= giProbeCount(cascade)) return;
+    int slot = GI_PROBE_BASE[cascade] + local;
+    ivec3 lattice = giUnpackKey(giProbeKey[slot]);
+
+    if (cascade + 1 < GI_CASCADES)
+    {
+        ivec3 low = giParentLow(lattice);
+        for (int j = 0; j < 8; j++) giProbeParent[slot * 8 + j] = giProbeAt(cascade + 1, low + ivec3(j & 1, (j >> 1) & 1, j >> 2));
+    }
+
+    uint stamp = giProbeStamp(cascade, lattice);
+    int previous = giProbePrevious[slot];
+    if (previous >= 0)
+    {
+        vec4 kept = giPreviousPlace[GI_PROBE_BASE[cascade] + previous];
+        if ((floatBitsToUint(kept.w) & GI_PROBE_STAMP) == stamp)
+        {
+            giProbePlace[slot] = kept;
+            return;
+        }
+        giProbePrevious[slot] = -1;
+    }
+    giProbePlace[slot] = vec4(giLatticePoint(cascade, lattice), uintBitsToFloat(stamp));
+    giFresh[atomicAdd(giCounts[GI_COUNT_FRESH], 1u)] = slot;
+}

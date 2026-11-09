@@ -18,6 +18,9 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         Hang Hang(Vector3 p, SaurianPart part, ReadOnlySpan<float> parts);
 
         Vector3 Colour(Vector3 p, Vector3 normal, SaurianPart part, out int material, out float glow);
+
+        /// <summary>The same, knowing how far each piece of the body is, for a dresser that blends one piece's colour into the next where they meet.</summary>
+        Vector3 Colour(Vector3 p, Vector3 normal, SaurianPart part, ReadOnlySpan<float> parts, out int material, out float glow) => Colour(p, normal, part, out material, out glow);
     }
 
     /// <summary>
@@ -32,7 +35,8 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         /// <summary>Where the time goes, for a lab to print. Nothing is written unless something's listening.</summary>
         public static Action<string>? Report;
 
-        public static void Grow(SaurianMesh mesh, SaurianField field, float cell, int budget, float longestEdge, ISkinDresser dress)
+        /// <param name="settle">Whether to put every corner exactly on the surface after it's been decimated, which a body seen as close as a giant's is needs: see <see cref="Settle"/>.</param>
+        public static void Grow(SaurianMesh mesh, SaurianField field, float cell, int budget, float longestEdge, ISkinDresser dress, bool settle = false)
         {
             var watch = Report != null ? System.Diagnostics.Stopwatch.StartNew() : null;
             float[] grid = field.Sample(cell, out Vector3 origin, out int nx, out int ny, out int nz);
@@ -45,6 +49,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             int extracted = triangles.Count / 3;
             double meshed = watch?.Elapsed.TotalMilliseconds ?? 0;
             Decimator.Reduce(points, triangles, budget, longestEdge);
+            if (settle) Settle(points, field, cell);
             double reduced = watch?.Elapsed.TotalMilliseconds ?? 0;
 
             int count = points.Count;
@@ -62,7 +67,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 field.Parts(p, distances);
                 normals[i] = field.Normal(p, cell * 0.5f);
                 hangs[i] = dress.Hang(p, parts[i], distances);
-                colours[i] = dress.Colour(p, normals[i], parts[i], out materials[i], out glows[i]);
+                colours[i] = dress.Colour(p, normals[i], parts[i], distances, out materials[i], out glows[i]);
             }
 
             // One mapping to a triangle, the one most of its corners go by, and a corner that wraps round is unwrapped to where the first one is.
@@ -116,6 +121,23 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             }
 
             if (watch != null) Report!($"    {nx}x{ny}x{nz} grid in {sampled:0} ms, {extracted} triangles in {meshed - sampled:0} ms, down to {triangles.Count / 3} in {reduced - meshed:0} ms, dressed in {watch.Elapsed.TotalMilliseconds - reduced:0} ms");
+        }
+
+        // Surface nets and the decimator only put a corner near the surface, and the light is worked out from the field's slope where the corner is: one that's off the surface catches it as if the
+        // surface were somewhere else, and a small head comes out lumpy. A step along the slope by however far off it is puts it on, and never further than half a cell, so nothing folds over.
+        private static void Settle(List<Vector3> points, SaurianField field, float cell)
+        {
+            for (int i = 0; i < points.Count; i++)
+            {
+                Vector3 p = points[i];
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    float off = field.Distance(p);
+                    if (MathF.Abs(off) < cell * 0.02f) break;
+                    p -= field.Normal(p, cell * 0.5f) * Math.Clamp(off, -cell * 0.5f, cell * 0.5f);
+                }
+                points[i] = p;
+            }
         }
 
         // Loose bits a field leaves where two pieces nearly touched.

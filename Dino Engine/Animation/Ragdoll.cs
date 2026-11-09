@@ -78,7 +78,10 @@ namespace Dino_Engine.Animation
             Use(BoneType.Spine, 8f, 0.5f);
             Use(BoneType.Chest, 9f, 0.56f);
             Use(BoneType.Neck, 2f, 0.2f);
-            if (frame != null) Use(BoneType.NeckTop, 2f, 0.2f);
+            if (frame != null)
+            {
+                foreach (BoneType bone in frame.Neck) Use(bone, 2f, 0.2f);
+            }
             Use(BoneType.Head, 2.5f, 0.32f);
             Used[HeadTop] = true;
             InverseMass[HeadTop] = InverseMass[(int)BoneType.Head];
@@ -196,6 +199,15 @@ namespace Dino_Engine.Animation
                 Apart((int)BoneType.Neck, (int)BoneType.Head, 0.8f);
                 Apart((int)BoneType.Pelvis, (int)Tail[1], 0.8f);
                 for (int i = 0; i + 2 < Tail.Length; i++) Apart((int)Tail[i], (int)Tail[i + 2], 0.85f);
+
+                // A sauropod's neck is a chain like its tail, and as stiff along its length.
+                if (frame.Long)
+                {
+                    BoneType[] neck = frame.Neck;
+                    Apart((int)BoneType.Chest, (int)neck[1], 0.8f);
+                    for (int i = 0; i + 2 < neck.Length; i++) Apart((int)neck[i], (int)neck[i + 2], 0.85f);
+                    Apart((int)neck[^2], (int)BoneType.Head, 0.85f);
+                }
             }
             Spacers = spacers.ToArray();
 
@@ -216,8 +228,10 @@ namespace Dino_Engine.Animation
             Bone(BoneType.Chest, (int)BoneType.Neck, shoulderL, shoulderR);
             if (frame != null)
             {
-                Bone(BoneType.Neck, (int)BoneType.NeckTop, shoulderL, shoulderR);
-                Bone(BoneType.NeckTop, (int)BoneType.Head, shoulderL, shoulderR);
+                // Each piece of the neck points at the next, up to the head.
+                BoneType[] neck = frame.Neck;
+                for (int i = 0; i + 1 < neck.Length; i++) Bone(neck[i], (int)neck[i + 1], shoulderL, shoulderR);
+                Bone(neck[^1], (int)BoneType.Head, shoulderL, shoulderR);
             }
             else Bone(BoneType.Neck, (int)BoneType.Head, shoulderL, shoulderR);
             Bone(BoneType.Head, HeadTop, shoulderL, shoulderR);

@@ -1,4 +1,4 @@
-﻿using Dino_Engine.Core;
+using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.GUI.Rendering;
@@ -19,6 +19,7 @@ namespace Dino_Engine.GUI.Debug
         private static readonly int[] MsaaSamples = { 1, 2, 4, 8 };
         private static readonly string[] WeatherNames = { "The world's own", "clear", "cloudy", "overcast", "wet", "drizzle", "rain", "storm", "snow", "blizzard", "dust", "ash", "fog" };
         private static readonly string[] ReflectionViews = { "Final image", "Rays that found something", "Sky a ray can see", "Everything reflected", "The sky map" };
+        private static readonly string[] GlobalIlluminationViews = { "Final image", "Voxel colours", "Light leaving the voxels", "Its light alone, on white", "Where the probes reach", "Each probe on its own" };
 
         public static GuiWindow Build()
         {
@@ -336,6 +337,17 @@ namespace Dino_Engine.GUI.Debug
             var reflectionView = new Dropdown(ReflectionViews, 0);
             reflectionView.SelectionChanged += index => { if (index >= 0) reflect.Debug = index; };
             reflections.Content.Add(DebugUi.LabeledRow("Show", reflectionView));
+
+            // ---------------------------------------------------------------- global illumination
+            var gi = window.Content.Add(new Foldout("Global illumination"));
+            var giSettings = Engine.RenderEngine.GlobalIllumination;
+            gi.Content.Add(new Checkbox("On").Bind(() => giSettings.Enabled, value => giSettings.Enabled = value));
+            gi.Content.Add(LightingSlider("Strength", 0f, 3f, "0.00", () => giSettings.Strength, v => giSettings.Strength = v));
+            gi.Content.Add(LightingSlider("Bounce", 0f, 1f, "0.00", () => giSettings.Bounce, v => giSettings.Bounce = v));
+            gi.Content.Add(LightingSlider("Contact", 0f, 1f, "0.00 m", () => giSettings.ContactReach, v => giSettings.ContactReach = v));
+            var giView = new Dropdown(GlobalIlluminationViews, 0);
+            giView.SelectionChanged += index => { if (index >= 0) giSettings.Debug = index; };
+            gi.Content.Add(DebugUi.LabeledRow("Show", giView));
 
             // ---------------------------------------------------------------- camera
             var camera = window.Content.Add(new Foldout("Camera"));

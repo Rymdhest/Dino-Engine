@@ -1,0 +1,48 @@
+#version 430
+
+// The ground of a region, as voxels: everything under the height map is solid, as the terrain is (Terrain.vert lifts what's drawn
+// 0.15 m above the map). The ground's colour is what Terrain.frag makes of the same textures, seen from far enough off that only the
+// mean of each material counts: the palette's shares, the world's rock in its bands, and the grass field's tint over the top, so that
+// a meadow throws green light and a road brown. Where the textures of a chunk aren't up yet there's a plain colour, filled in again
+// when they are (GI_Voxel_Ground.comp).
+
+#include GI/GI.glsl
+#include GI/GI_Height.glsl
+#include Grass/GrassField.glsl
+#include GI/GI_Materials.glsl
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(rgba8, binding = 0) uniform writeonly image3D voxColor;
+layout(r32ui, binding = 1) uniform writeonly uimage3D voxInfo;
+
+uniform ivec3 regionMin;
+uniform ivec3 regionSize;
+uniform int level;
+
+#include GI/GI_Ground.glsl
+
+void main()
+{
+    ivec2 r = ivec2(gl_GlobalInvocationID.xy);
+    if (r.x >= regionSize.x || r.y >= regionSize.z) return;
+    ivec2 column = regionMin.xz + r;
+    float size = giVoxel[level].x;
+    vec2 xz = (vec2(column) + 0.5) * size;
+    float height = giGroundHeight(xz) + GI_GROUND_LIFT;
+
+    int top = int(floor(height * giVoxel[level].y - 0.5));     // The highest voxel whose centre is under the ground.
+    int first = regionMin.y;
+    int last = min(regionMin.y + regionSize.y - 1, top);
+    if (last < first) return;
+
+    bool live;
+    vec3 albedo = giGroundAlbedo(xz, height, size, live);
+    uint info = GI_INFO_SOLID | GI_INFO_TERRAIN;
+    for (int y = first; y <= last; y++)
+    {
+        ivec3 t = giTexel(ivec3(column.x, y, column.y), level);
+        imageStore(voxColor, t, vec4(albedo, 0.0));
+        imageStore(voxInfo, t, uvec4(info));
+    }
+}

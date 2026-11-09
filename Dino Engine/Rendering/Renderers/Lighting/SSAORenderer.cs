@@ -94,7 +94,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             ambientOcclusionShader.loadUniformVector2f("noiseScale", new Vector2(resolution.X / noiseScale, resolution.Y / noiseScale));
             ambientOcclusionShader.loadUniformVector3fArray("samples", kernelSamples);
 
-            ambientOcclusionShader.loadUniformFloat("radius", 0.9f);
+            // While global illumination is in, it has every occluder further than a contact: this is only the contact (GI.md).
+            float gi = renderEngine._globalIllumination.Active ? renderEngine._globalIllumination.Presence : 0f;
+            ambientOcclusionShader.loadUniformFloat("radius", MathHelper.Lerp(0.9f, renderEngine.GlobalIllumination.ContactReach, gi));
             ambientOcclusionShader.loadUniformFloat("strength", 1.0f);
             ambientOcclusionShader.loadUniformFloat("bias", 0.01f);
 

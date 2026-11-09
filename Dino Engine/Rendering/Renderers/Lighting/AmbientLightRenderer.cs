@@ -22,6 +22,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private readonly ShaderProgram _sampleShader = new ShaderProgram("Simple.vert", "Ambient_Light.frag", new[] { "PER_SAMPLE" });
 
         private const int SkyMapUnit = 10;
+        private const int GatheredUnit = 11;    // What global illumination gathered (GlobalIlluminationRenderer.BindGathered).
 
         /// <summary>What the ground throws back up, this frame. It's what a reflection pointing down sees.</summary>
         public Vector3 GroundLight { get; private set; }
@@ -40,6 +41,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("gDepth", 3);
                 shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
                 shader.loadUniformInt("skyMap", SkyMapUnit);
+                shader.loadUniformInt("giGathered", GatheredUnit);
                 DirectionalLightRenderer.LinkShadows(shader);
                 shader.unBind();
             }
@@ -51,6 +53,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.ActiveTexture(TextureUnit.Texture0 + SkyMapUnit);
             GL.BindTexture(TextureTarget.Texture2D, renderEngine._weatherRenderer.SkyMapTexture);
             GL.ActiveTexture(TextureUnit.Texture0);
+            renderEngine._globalIllumination.BindGathered(GatheredUnit);
         }
 
         internal override void Finish(RenderEngine renderEngine)
@@ -73,6 +76,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             DirectionalLightRenderer directional = renderEngine._directionalLightRenderer;
             bool sunUp = directional.TakeSun(out DirectionallightRenderCommand sun);
             if (sunUp) directional.BindShadows(sun, renderEngine);
+            var gi = renderEngine._globalIllumination;
+            GlobalIllumination.GlobalIlluminationSettings giSettings = renderEngine.GlobalIllumination;
+            float giMix = gi.Active ? gi.Presence : 0f;
 
             // The first thing to touch the scene, so that there's nothing to add to: it only has to be written.
             renderEngine.Msaa.DrawSplit(_shader, _sampleShader, shader =>
@@ -80,6 +86,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformVector3f("skyLight", command.sky);
                 shader.loadUniformVector3f("groundLight", command.ground);
                 shader.loadUniformFloat("emissionScale", lighting.Emission ? lighting.EmissionScale : 0f);
+                shader.loadUniformFloat("giMix", giMix);
+                shader.loadUniformFloat("giStrength", giSettings.Strength);
+                shader.loadUniformInt("giDebug", giMix > 0f ? giSettings.Debug : 0);
                 shader.loadUniformVector3f("sunColour", sunUp ? sun.colour : Vector3.Zero);
                 if (sunUp)
                 {

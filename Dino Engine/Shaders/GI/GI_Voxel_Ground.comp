@@ -1,0 +1,45 @@
+#version 430
+
+// Colours the ground of a region again, once the textures of a chunk there are up: only the voxels that are the ground's, and only
+// the few at its top, as nothing deeper is ever struck. Nothing else changes, so what's been worked out about them stays.
+
+#include GI/GI.glsl
+#include GI/GI_Height.glsl
+#include Grass/GrassField.glsl
+#include GI/GI_Materials.glsl
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(rgba8, binding = 0) uniform image3D voxColor;
+layout(r32ui, binding = 1) uniform readonly uimage3D voxInfo;
+
+uniform ivec3 regionMin;    // y unused
+uniform ivec3 regionSize;
+uniform int level;
+
+#include GI/GI_Ground.glsl
+
+void main()
+{
+    ivec2 r = ivec2(gl_GlobalInvocationID.xy);
+    if (r.x >= regionSize.x || r.y >= regionSize.z) return;
+    ivec2 column = regionMin.xz + r;
+    float size = giVoxel[level].x;
+    vec2 xz = (vec2(column) + 0.5) * size;
+    float height = giGroundHeight(xz) + GI_GROUND_LIFT;
+    bool live;
+    vec3 albedo = giGroundAlbedo(xz, height, size, live);
+    if (!live) return;
+
+    int top = int(floor(height * giVoxel[level].y - 0.5));
+    int bottom = giOrigin[level].y;
+    for (int y = top + 1; y >= max(top - 3, bottom); y--)
+    {
+        ivec3 voxel = ivec3(column.x, y, column.y);
+        if (!giInWindow(voxel, level)) continue;
+        ivec3 t = giTexel(voxel, level);
+        if ((imageLoad(voxInfo, t).r & GI_INFO_TERRAIN) == 0u) continue;
+        float emission = imageLoad(voxColor, t).a;
+        imageStore(voxColor, t, vec4(albedo, emission));
+    }
+}

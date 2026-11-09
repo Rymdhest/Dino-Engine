@@ -8,6 +8,13 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- Hot code is made fast once it's been called 30 times, but .NET waits until nothing new has been compiled for 100 ms before it starts counting, and while a game
+       loads something new always has: every stone, plant and dinosaur was grown in code compiled for starting quickly, not for running, at two or three times the cost.
+       Counting from the start, the menu's land grows in a third of the time. What's finally run is the same. -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.Runtime.TieredCompilation.CallCountingDelayMs" Value="0" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="LiteNetLib" Version="2.1.4" />
     <PackageReference Include="Mono.Nat" Version="3.0.4" />

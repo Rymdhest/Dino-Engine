@@ -85,6 +85,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 ActiveTexture(TextureUnit.Texture0);
             }
 
+            // The fill stands in for what a light bounces off everything around it, which global illumination does for real while it's in.
+            float fill = command.fill * renderEngine._globalIllumination.FillKept(command.positionWorld, command.radius);
             renderEngine.Msaa.DrawSplit(pointLightShader, pointLightSampleShader, shader =>
             {
                 // Set Transformation
@@ -94,7 +96,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformVector3f("lightPositionViewSpace", lightPosView.Xyz);
                 shader.loadUniformVector3f("lightColor", command.colour);
                 shader.loadUniformFloat("lightRadius", command.radius);
-                shader.loadUniformFloat("lightFill", command.fill);
+                shader.loadUniformFloat("lightFill", fill);
 
                 // Shadow Handling
                 shader.loadUniformBool("isShadow", command.shadow != null);

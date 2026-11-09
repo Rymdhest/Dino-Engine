@@ -14,12 +14,15 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     {
         public const string Prefix = "dino:";
 
-        /// <summary>The one with this name, or nothing if it doesn't name a dinosaur. A name can end with a number, which is which of its kind it is.</summary>
+        /// <summary>
+        /// The one with this name, or nothing if it doesn't name a dinosaur. A name can end with a number, which is which of its kind it is. What the Reich never had it never harnessed, and the
+        /// Ossuary never raised, so a free kind named in harness, rotting or as bones is no dinosaur at all.
+        /// </summary>
         public static SaurianSpec? Parse(string key)
         {
             if (!key.StartsWith(Prefix)) return null;
             string[] words = key.Substring(Prefix.Length).Split('.', StringSplitOptions.RemoveEmptyEntries);
-            if (words.Length == 0 || SaurianCatalog.Find(words[0]) == null) return null;
+            if (words.Length == 0 || SaurianCatalog.Find(words[0]) is not SaurianSpecies species) return null;
 
             var condition = SaurianCondition.Living;
             bool harnessed = false;
@@ -34,6 +37,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                     default: int.TryParse(words[i], out variant); break;
                 }
             }
+            if (species.Free && (harnessed || condition != SaurianCondition.Living)) return null;
 
             // The same number is the same animal whatever's been done to it, so a raptor's bones are that raptor's.
             ulong seed = 0xD1A0_5A0Bu;
@@ -66,6 +70,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 "skitter" => MotionStyle.Scurrier,
                 "tyrant" => MotionStyle.Tyrant,
                 "hornback" => MotionStyle.Horned,
+                "giant" => MotionStyle.Giant,
                 _ => MotionStyle.Stalker,
             },
         };
@@ -104,10 +109,11 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
             SaurianField flesh = SaurianSculpt.Flesh(body);
             if (rotting) SaurianRot.Wound(flesh, body);
-            SaurianSkin.Grow(mesh, flesh, cell, species.Budget, longest, dress);
+            bool close = body.Sauropod;     // Seen from a few metres away, and its head bigger on the screen than any hunter's.
+            SaurianSkin.Grow(mesh, flesh, cell, species.Budget, longest, dress, close);
 
             SaurianField jaw = SaurianSculpt.Jaw(body);
-            SaurianSkin.Grow(mesh, jaw, cell * JawGrid, Math.Max(species.Budget / 12, 260), longest * 0.5f, new JawDress(body, paint, rotting));
+            SaurianSkin.Grow(mesh, jaw, cell * JawGrid, Math.Max(species.Budget / 12, 260), longest * 0.5f, new JawDress(body, paint, rotting), close);
 
             float scale = 1f;
             SaurianParts.Teeth(mesh, body, scale);

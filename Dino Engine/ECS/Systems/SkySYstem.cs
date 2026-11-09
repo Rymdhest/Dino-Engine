@@ -57,6 +57,9 @@ namespace Dino_Engine.ECS.Systems
                 sky = (sky + flash) * lighting.SkyFill + scattered,
                 ground = (sky + flash + sunOnGround) * lighting.GroundAlbedo + scattered,
             });
+            // Global illumination reads the sky from its map, as everything else does (Weather/Sky.glsl), scaled the same way, and finds the
+            // ground's light for itself: what it's told of the ground is only for what lies past the end of its voxels.
+            Engine.RenderEngine._globalIllumination.SetAmbient(lighting.Sky ? lighting.SkyFill : 0f, scattered, (sky + sunOnGround) * lighting.GroundAlbedo);
         }
 
         private static Vector3 Sun(ECSWorld world)

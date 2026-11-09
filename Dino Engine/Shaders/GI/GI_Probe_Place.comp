@@ -1,0 +1,123 @@
+#version 430
+
+// Finds room for each probe listed this frame (GI_Probe_Init.comp). A probe stands in the open: a lattice point inside something solid,
+// or up against it, moves to whichever spot near it has the most room around it, as one under the ground would see nothing and one in a
+// pocket of the steps a slope's voxels make would see mostly the inside of the slope. A finest probe inside something that's open on
+// one side moves out that side and never the other, so one in a roof comes out above it and not into the attic; any other never moves
+// down, unless it's buried. Where it ends up comes from the voxels alone, never from what's on screen, so a probe placed again among the
+// same voxels stands exactly where it stood (GI_Probe_Init.comp). A group of threads to a probe, each looking at a few of the spots it
+// could go, so that a probe takes as long as a few lookups and not as long as all of them one after another.
+
+#include GI/GI.glsl
+#include GI/GI_Voxels.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 32) in;
+
+layout(std430, binding = 27) readonly buffer GiFresh { int giFresh[]; };
+
+const int GI_WAYS = 26;     // Every way to a neighbour of a cube,
+const int GI_RINGS = 3;     // at each of three distances.
+const float GI_NOWHERE = -100.0;
+
+shared float spotRoom[GI_WAYS * GI_RINGS];
+
+// Which way is open around a point inside something: the six points along the axes as far off as it may move that are free, together;
+// none if it's open all round, or on opposite sides alike, as inside a thin wall or a rail.
+vec3 openWay(vec3 p, int finest, float reach)
+{
+    vec3 sum = vec3(0.0);
+    for (int f = 0; f < 6; f++)
+    {
+        vec3 q = p + GI_FACE_NORMAL[f] * reach;
+        int level = giLevelOf(q, finest);
+        if (level >= GI_LEVELS || !giSolid(giVoxelOf(q, level), level)) sum += GI_FACE_NORMAL[f];
+    }
+    float length_ = length(sum);
+    return length_ > 0.5 ? sum / length_ : vec3(0.0);
+}
+
+// How much room there is around a point: whether it's free, and how many of the six points a voxel away along the axes are. 7 is all
+// there is, -1 inside something.
+int room(vec3 p, int finest)
+{
+    int level = giLevelOf(p, finest);
+    if (level >= GI_LEVELS) return 7;
+    if (giSolid(giVoxelOf(p, level), level)) return -1;
+    float reach = giVoxel[level].x;
+    int free_ = 1;
+    for (int f = 0; f < 6; f++)
+    {
+        ivec3 voxel = giVoxelOf(p + GI_FACE_NORMAL[f] * reach, level);
+        if (!giInWindow(voxel, level) || !giSolid(voxel, level)) free_++;
+    }
+    return free_;
+}
+
+// The way to the k-th neighbour, upwards ones first.
+vec3 wayOf(int k)
+{
+    int i = k < 13 ? k : k + 1;
+    vec3 dir = vec3(ivec3(i % 3, i / 9, (i / 3) % 3) - 1);
+    dir.y = -dir.y;
+    return normalize(dir);
+}
+
+void main()
+{
+    uint fresh = giCounts[GI_COUNT_FRESH];
+    for (uint entry = gl_WorkGroupID.x; entry < fresh; entry += gl_NumWorkGroups.x)
+    {
+        int slot = giFresh[entry];
+        int c = giCascadeOfSlot(slot);
+        ivec3 lattice = giUnpackKey(giProbeKey[slot]);
+        vec3 place = giLatticePoint(c, lattice);
+        int finest = GI_TRACE_LEVEL[c];
+        // In the open already, it stays where GI_Probe_Init.comp put it. Every thread of the group comes to the same answer.
+        int here = room(place, finest);
+        if (here >= 7) continue;
+
+        // Steps of at least a fraction of the voxels here: past the finest level's window a finest probe stands among voxels as big as
+        // its spacing, and a step sized to the spacing alone could never leave one.
+        int level = giLevelOf(place, finest);
+        float stride = max(giCascade[c].x * 0.14, level < GI_LEVELS ? giVoxel[level].x * 0.4 : 0.0);
+        vec3 towards = c == 0 && here < 0 ? openWay(place, finest, stride * float(GI_RINGS)) : vec3(0.0);
+        bool known = dot(towards, towards) > 0.0;
+        for (int spot = int(gl_LocalInvocationID.x); spot < GI_WAYS * GI_RINGS; spot += int(gl_WorkGroupSize.x))
+        {
+            int ring = spot / GI_WAYS;
+            vec3 way = wayOf(spot - ring * GI_WAYS);
+            float side = known ? dot(way, towards) : way.y;
+            bool allowed = known ? side >= 0.2 : (here < 0 || side >= -0.1);
+            spotRoom[spot] = allowed ? float(room(place + way * stride * float(ring + 1), finest)) + (side > 0.7 ? 0.5 : 0.0) : GI_NOWHERE;
+        }
+        barrier();
+
+        if (gl_LocalInvocationID.x == 0u)
+        {
+            // The most room, nearest first and the first looked at among equals; a further ring only if no nearer one had all there is.
+            float most = float(here);
+            int best = -1;
+            for (int ring = 0; ring < GI_RINGS && most < 7.0; ring++)
+            {
+                for (int k = 0; k < GI_WAYS; k++)
+                {
+                    float around = spotRoom[ring * GI_WAYS + k];
+                    if (around > most)
+                    {
+                        most = around;
+                        best = ring * GI_WAYS + k;
+                    }
+                }
+            }
+            if (best >= 0)
+            {
+                int ring = best / GI_WAYS;
+                place += wayOf(best - ring * GI_WAYS) * stride * float(ring + 1);
+            }
+            uint flags = (room(place, finest) < 0 ? GI_PROBE_BURIED : 0u) | (floatBitsToUint(giProbePlace[slot].w) & GI_PROBE_STAMP);
+            giProbePlace[slot] = vec4(place, uintBitsToFloat(flags));
+        }
+        barrier();
+    }
+}

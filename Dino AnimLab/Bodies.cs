@@ -68,6 +68,7 @@ namespace Dino_AnimLab
             Dino("ravager", "dino:ravager.0", MotionStyle.Stalker),
             Dino("tyrant", "dino:tyrant.0", MotionStyle.Tyrant),
             Dino("hornback", "dino:hornback.0", MotionStyle.Horned),
+            Dino("giant", "dino:giant.0", MotionStyle.Giant),
         };
 
         /// <summary>A body by name, or any dinosaur by its model's name.</summary>

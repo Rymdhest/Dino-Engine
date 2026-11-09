@@ -1,0 +1,54 @@
+#version 430
+
+// Every probe of a cascade looks along every direction of its cascade, but only over the cascade's own stretch of distance: what's
+// nearer is the finer cascade's, and what's further the coarser one's. What it finds is the light of whatever it strikes, and none
+// let through; or no light, and all of it let through to the stretch beyond. A ray a cascade traces is short where the probes are
+// many and long where they're few, so every cascade costs about the same.
+
+#include GI/GI.glsl
+#include GI/GI_Voxels.glsl
+#include GI/GI_Radiance.glsl
+#include GI/GI_Probe.glsl
+
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 11) writeonly buffer GiIntervals { uint giIntervals[]; };
+layout(std430, binding = 21) readonly buffer GiPreviousIntervals { uint giPreviousIntervals[]; };
+layout(std430, binding = 23) readonly buffer GiProbePrevious { int giProbePrevious[]; };
+
+uniform int cascade;
+uniform int period;     // A remembered probe of this cascade looks again one frame in this many, and otherwise keeps what it saw.
+uniform int frame;
+
+void main()
+{
+    uint id = gl_GlobalInvocationID.x;
+    uint directions = uint(GI_DIRECTION_COUNT[cascade]);
+    uint local = id / directions;
+    uint d = id - local * directions;
+    if (local >= uint(giProbeCount(cascade))) return;
+    int slot = GI_PROBE_BASE[cascade] + int(local);
+
+    // The coarse cascades see far, where light changes slowly, and each probe's turn comes round a few frames apart; a new one looks at once.
+    if (period > 1)
+    {
+        int previous = giProbePrevious[slot];
+        if (previous >= 0 && (giHash3(giUnpackKey(giProbeKey[slot])) + uint(frame)) % uint(period) != 0u)
+        {
+            giIntervals[local * directions + d] = giPreviousIntervals[uint(previous) * directions + d];
+            return;
+        }
+    }
+
+    // A ray strikes something or it doesn't, so the light it found and what it lets through fit in one uint: GI_MISSED for nothing.
+    vec4 place = giProbePlace[slot];
+    uint interval = 0u;
+    if ((floatBitsToUint(place.w) & GI_PROBE_BURIED) == 0u)
+    {
+        vec3 dir = giDirections[GI_DIRECTION_BASE[cascade] + int(d)].xyz;
+        int level = giLevelOf(place.xyz, GI_TRACE_LEVEL[cascade]);
+        GiHit hit = giTrace(place.xyz, dir, giCascade[cascade].y, giCascade[cascade].z, level, 0);
+        interval = hit.hit ? giPackRadiance(giHitRadiance(hit, dir)) : GI_MISSED;
+    }
+    giIntervals[local * directions + d] = interval;
+}

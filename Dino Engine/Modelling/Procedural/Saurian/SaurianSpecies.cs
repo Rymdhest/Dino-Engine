@@ -8,6 +8,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     {
         Theropod,   // On two legs, a beam balanced on the hips, with a mouth to fight with.
         Horned,     // On four, with a beak, horns and a frill, and the weight all in front.
+        Sauropod,   // On four pillars, higher at the shoulder than the hip, with a neck longer than the body in front of the tail, held up as a giraffe's is.
     }
 
     /// <summary>What's been done to one, which is a body of its own.</summary>
@@ -40,6 +41,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public Vector3 Display;             // Crests, throat, frill: what's shown off.
         public HidePattern Patterns;
         public float Drift = 0.12f;         // How far one animal's colours wander from these.
+        public float Contrast = 1f;         // How strongly the patterns stand out, as something that has nothing to hide from or ambush has no need of bold ones.
     }
 
     /// <summary>
@@ -53,9 +55,13 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public string Name = "";
         public SaurianForm Form;
 
+        /// <summary>Never had by the Reich or raised by the Ossuary, so never in harness, rotting or bones: <see cref="SaurianSpec.Parse"/> refuses to name one that way.</summary>
+        public bool Free;
+
         // ---- Size and proportion.
         public FloatRange Length;           // Snout to tail tip.
         public FloatRange Hip;              // Height of the hip joint, as a share of length.
+        public FloatRange Withers;          // How much higher the shoulder joint stands than the hip, as a share of the hip's height, on what has forelegs longer than its hind legs. Nothing by default.
         public FloatRange Skull;            // Shares of length along the body. The tail is what's left.
         public FloatRange Neck;
         public FloatRange Trunk;
@@ -98,6 +104,8 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public float Lips = 0.5f;                                      // 0 shows every tooth with the mouth shut, 1 hides them all. Cullen and others make a good case for lips.
         public FloatRange Jowls = new FloatRange(0f, 0.04f);           // Muscle bulging behind the eye, where the jaw closes from.
         public FloatRange Throat;                                      // A pouch under the throat that's shown off. Nothing by default.
+        public FloatRange Arch;                                        // A dome over the nostrils, standing above the rest of the skull, as Giraffatitan's does. Nothing by default.
+        public Vector3[]? Eyes;                                        // What colour its eyes can be. Nothing: a hunter's ambers and yellows.
 
         // ---- Horned heads.
         public FloatRange Beak;                                        // How far the beak hooks down.
@@ -261,7 +269,36 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Budget = 10000,
         };
 
-        public static readonly SaurianSpecies[] All = { Raptor, Skitter, Spitter, Ravager, Tyrant, Hornback };
+        /// <summary>
+        /// The Haven's giants, after Giraffatitan and Brachiosaurus: forelegs longer than the hind, so the back climbs from the hips to the shoulders, a neck as long as everything between it and
+        /// the tail, carried steeply up as a giraffe's is (Taylor, Wedel and Naish 2009), and a small head with a dome over the nostrils. Bigger than anything the Reich has, at about 1.7 times life,
+        /// so that a head held up is over the tallest trees there are. The only kind it never had: the Haven's own, and free. Read LORE.md.
+        /// </summary>
+        public static readonly SaurianSpecies Giant = new SaurianSpecies
+        {
+            Id = "giant", Name = "Giant", Form = SaurianForm.Sauropod, Free = true,
+            // From Taylor's and Paul's skeletals: the hip joint at about a sixth of the length, the shoulder a quarter higher, and the tail a little shorter than the neck. The head is half as big
+            // again as the skull says, as it's what the animal's face is read from, from up where the camera is.
+            Length = R(37f, 41f), Hip = R(0.174f, 0.184f), Withers = R(0.2f, 0.28f), Skull = R(0.058f, 0.064f), Neck = R(0.36f, 0.39f), Trunk = R(0.19f, 0.21f),
+            Girth = R(0.062f, 0.068f), Breadth = R(0.98f, 1.06f), Belly = R(0.08f, 0.14f), NeckRise = R(1f, 1.12f), NeckGirth = R(0.5f, 0.56f), TailRoot = R(0.6f, 0.68f), TailRod = 0f, TailDroop = R(0.2f, 0.28f),
+            LegBones = new Vector3(0.53f, 0.33f, 0.14f), Crouch = R(0.02f, 0.06f), Thigh = R(0.46f, 0.52f), Shin = R(0.34f, 0.4f), Toe = R(0.5f, 0.65f),
+            ArmGirth = R(0.4f, 0.46f), Fingers = 1, Claw = R(0.05f, 0.07f),
+            // A tall dome just in front of the eyes, and a blunt snout below it. Its lips cover what few teeth it has, as a browser's do, so it's a face with no teeth showing.
+            SkullDepth = R(0.27f, 0.31f), SkullWidth = R(0.4f, 0.45f), Snout = R(0.84f, 0.92f), SnoutDepth = R(0.76f, 0.84f), Profile = R(0f, 0.02f),
+            Brow = R(0.02f, 0.035f), Eye = R(0.08f, 0.092f), Teeth = new IntRange(0, 0), Lips = 1f, Jowls = R(0.02f, 0.04f), Arch = R(0.27f, 0.34f),
+            // Dark and soft, as a grazer's are: nothing about them hunts.
+            Eyes = new[] { V(0.11f, 0.06f, 0.025f), V(0.16f, 0.1f, 0.035f), V(0.09f, 0.07f, 0.04f) },
+            Hides = new[]
+            {
+                new Hide { Back = V(0.14f, 0.115f, 0.095f), Belly = V(0.33f, 0.28f, 0.21f), Pattern = V(0.075f, 0.06f, 0.05f), Display = V(0.3f, 0.14f, 0.08f), Patterns = HidePattern.Saddles | HidePattern.Mottle, Contrast = 0.55f },
+                new Hide { Back = V(0.105f, 0.125f, 0.095f), Belly = V(0.3f, 0.3f, 0.22f), Pattern = V(0.055f, 0.07f, 0.05f), Display = V(0.3f, 0.22f, 0.08f), Patterns = HidePattern.Stripes | HidePattern.Mottle, Contrast = 0.45f },
+                new Hide { Back = V(0.105f, 0.11f, 0.12f), Belly = V(0.29f, 0.28f, 0.26f), Pattern = V(0.06f, 0.06f, 0.068f), Display = V(0.27f, 0.15f, 0.16f), Patterns = HidePattern.Spots | HidePattern.Mottle, Contrast = 0.5f },
+                new Hide { Back = V(0.16f, 0.1f, 0.07f), Belly = V(0.35f, 0.26f, 0.18f), Pattern = V(0.085f, 0.055f, 0.04f), Display = V(0.16f, 0.17f, 0.2f), Patterns = HidePattern.Saddles | HidePattern.Bands, Contrast = 0.5f },
+            },
+            Budget = 50000,
+        };
+
+        public static readonly SaurianSpecies[] All = { Raptor, Skitter, Spitter, Ravager, Tyrant, Hornback, Giant };
 
         public static SaurianSpecies? Find(string id) => Array.Find(All, species => species.Id == id);
     }

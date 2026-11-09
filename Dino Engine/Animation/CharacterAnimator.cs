@@ -38,6 +38,20 @@ namespace Dino_Engine.Animation
         /// <summary>Which way a dodge is going, as long as it lasts. Zero when there isn't one.</summary>
         public Vector2 Dash;
 
+        /// <summary>
+        /// Where the mouth on a long neck is reaching for, in the world, as a giant's into the top of a tree, and how far into reaching for it it is, from 0, where the neck is at its ease, to 1.
+        /// Only a sauropod has a neck to reach with.
+        /// </summary>
+        public Vector3 ReachFor;
+        public float Reaching;
+
+        /// <summary>How much the jaw is working, from 0 to 1, as something chewing what it's cropped.</summary>
+        public float Chewing;
+
+        /// <summary>Somewhere no foot is to come down, and how far round it, as someone standing by a giant's foot: see <see cref="GaitInput.KeepOff"/>. Nothing when the radius is 0.</summary>
+        public Vector2 KeepOff;
+        public float KeepOffRadius;
+
         public static AnimationInput At(Vector3 position, float yaw, float scale = 1f) => new AnimationInput { Position = position, Yaw = yaw, Scale = scale, Rate = 1f };
     }
 
@@ -243,6 +257,11 @@ namespace Dino_Engine.Animation
             for (int i = 0; i < _gripTurn.Length; i++) _gripTurn[i].Reset();
             _neckTurn.Reset();
             _neckTopTurn.Reset();
+            for (int i = 0; i < _longNeckTurn.Length; i++) _longNeckTurn[i].Reset();
+            _mouthGoalSet = false;
+            _reaching = 0f;
+            _neckLift = _neckCurl = _neckBend = 0f;
+            _headYaw = _headPitch = 0f;
             Array.Clear(_tailYaw);
             Array.Clear(_tailYawSpeed);
             Array.Clear(_tailPitch);
@@ -261,6 +280,8 @@ namespace Dino_Engine.Animation
             LeadForward = forward,
             Suspended = suspended,
             Spread = alert * 0.3f,
+            KeepOff = input.KeepOff,
+            KeepOffRadius = input.KeepOffRadius,
         };
 
         /// <summary>A blow landing on them, going the way it's going in the world. 0 is a scratch and 1 a good hard hit: past that it's all the same to a body.</summary>
@@ -525,7 +546,7 @@ namespace Dino_Engine.Animation
             for (int i = 0; i < _gait.Feet.Length; i++)
             {
                 ref Foot foot = ref _gait.Feet[i];
-                float pitch = foot.Swinging ? foot.Pitch * (Rig.Saurian ? 0.8f : 1f) : StandingPitch(foot);
+                float pitch = foot.Swinging ? foot.Pitch * (Rig.Frame is SaurianFrame saurian ? 0.8f * saurian.FootRoll : 1f) : StandingPitch(foot);
                 float ankleHeight = Rig.AnkleHeight * scale;
 
                 Vector3 forward = Frames.Forward(foot.Yaw);
@@ -566,7 +587,7 @@ namespace Dino_Engine.Animation
             if (foot.Swinging)
             {
                 float through = Math.Clamp(1f - foot.SwingLeft / MathF.Max(foot.SwingTime, 1e-3f), 0f, 1f);
-                float curl = 0.95f * MathF.Sin(MathF.PI * MathF.Min(through * 1.25f, 1f));
+                float curl = 0.95f * MathF.Sin(MathF.PI * MathF.Min(through * 1.25f, 1f)) * Rig.Frame!.FootRoll;
                 toes = _soles[i] * Frames.Pitch(curl);
             }
             else toes = Frames.Yaw(yaw) * Frames.Pitch(-groundPitch) * Frames.Roll(groundRoll);
@@ -577,11 +598,11 @@ namespace Dino_Engine.Animation
         {
             if (foot.StandFor >= 0.99f && !_gait.Moving) return 0f;
 
-            // On the toes from the moment it lands, and over the ball of the foot at the end, which is all the heel a dinosaur has.
+            // On the toes from the moment it lands, and over the ball of the foot at the end, which is all the heel a dinosaur has. A sauropod's pillar barely rolls at all.
             if (Rig.Saurian)
             {
                 float rolled = Math.Clamp(foot.Planted / MathF.Max(foot.StandFor, 0.02f), 0f, 1f);
-                return -(0.5f + 0.35f * _gait.Run) * Gait.Smooth(0.5f, 1f, rolled);
+                return -(0.5f + 0.35f * _gait.Run) * Gait.Smooth(0.5f, 1f, rolled) * Rig.Frame!.FootRoll;
             }
 
             // Coming down on the heel, flat for the middle of it, and off the toes at the end. A runner lands flatter.
@@ -954,7 +975,26 @@ namespace Dino_Engine.Animation
             pitch += _dazed * (0.1f + MathF.Sin(reel) * 0.05f);
             roll += _dazed * MathF.Cos(reel) * 0.13f;
 
-            Vector3 hips = pelvisRest + new Vector3(0f, 0f, 0f);
+            // Something heavy rolls its weight over whichever side has more feet down, as an elephant does, and its hips go a little way with it. It breathes slowly, as everything about it is slow.
+            float shift = 0f;
+            if (_style.WeightShift > 0f)
+            {
+                float over = 0f;
+                int down = 0;
+                for (int i = 0; i < _gait.Feet.Length; i++)
+                {
+                    if (_gait.Feet[i].Swinging) continue;
+                    over += _ankles[i].X;
+                    down++;
+                }
+                float idle = MathF.Sin(_clock * 0.21f + _seed) * 0.03f * leg * _style.Liveliness * (1f - run);
+                _sway = Spring.Damp(_sway, (down > 0 ? over / down * SwayShare * _style.WeightShift : 0f) + (_gait.Moving ? 0f : idle), 0.14f, life);
+                shift = _sway;
+                roll -= _sway / leg * 0.5f * _style.Sway;
+                pitch += MathF.Sin(_clock * BreathRate / MathF.Sqrt(MathF.Max(leg * 0.5f, 0.2f))) * 0.006f * _style.Liveliness;
+            }
+
+            Vector3 hips = pelvisRest + new Vector3(shift, 0f, 0f);
             hips.Y = _hipHeight + bob;
             hips += _lurch + Vector3.UnitZ * (body.Push * leg * weight);
 
@@ -977,8 +1017,9 @@ namespace Dino_Engine.Animation
 
             if (Rig.Saurian)
             {
-                // A heavy head on a short neck, carried low, and a tail that answers whatever the front end does.
-                PoseSaurianHead(input, gesture, chestSmooth, 0f, life, deltaTime, transition, -MathF.Sin(phase) * 0.05f * run + _dazed * 0.25f);
+                // A heavy head on a short neck, carried low, or a small one on a long neck held high, and a tail that answers whatever the front end does.
+                if (Rig.Frame!.Long) PoseLongNeck(input, chestSmooth, life, deltaTime, transition);
+                else PoseSaurianHead(input, gesture, chestSmooth, 0f, life, deltaTime, transition, -MathF.Sin(phase) * 0.05f * run + _dazed * 0.25f);
                 PoseSaurianTail(pelvisSmooth, pitch, body.Tail * weight, life);
                 return;
             }
@@ -1192,6 +1233,204 @@ namespace Dino_Engine.Animation
             Chain(BoneType.Jaw, BoneType.Head);
         }
 
+        // ---- A long neck.
+
+        private const float NeckEase = 0.45f;       // Seconds for the mouth to get half the way to somewhere new, for a body as big as a person, and slower as bodies grow.
+        private const float NeckLiftLeast = -0.95f, NeckLiftMost = 1.45f;   // Radians the whole neck goes up from how it was built, and down: as far as the ground in front of it.
+        private const float NeckCurlMost = 1.8f;    // Radians it curls along its length, either way: enough to fold down over what's close in front of it.
+        private const float NeckTurnMost = 1.6f;    // Radians it turns round along its length, either way.
+        private const float HeadTurnMost = 0.85f;   // And the head on top of that, to look at something.
+        private static readonly float[] NeckTurnShares = { 0.3f, 0.5f, 0.68f, 0.84f, 1f };
+
+        private Vector3 _mouthGoal;
+        private Vector3 _mouthGoalSpeed;
+        private bool _mouthGoalSet;
+        private float _reaching;
+        private float _neckLift, _neckCurl, _neckBend;
+        private float _headYaw, _headPitch;
+        private readonly TurnContinuity[] _longNeckTurn = new TurnContinuity[5];
+
+        // A sauropod's neck is longer than its body in front of its tail, and it's held up, as a giraffe's is. What it's told is where the mouth should be, as a giant reaching into the top of a tree,
+        // and the neck is solved for that: it lifts or lowers from its root, it curls along its length, and it turns round along its length to face what it's going for, so that it curves as one thing
+        // and never hinges. With nothing to reach for, the mouth goes where it was built to be and sways a little, and as the head is held still the neck takes up whatever the body does under it.
+        private void PoseLongNeck(in AnimationInput input, Quaternion chest, float life, float deltaTime, bool transition)
+        {
+            SaurianFrame frame = Rig.Frame!;
+            BoneType[] neck = frame.Neck;
+            Chain(BoneType.Neck, BoneType.Chest);
+            Vector3 root = _joints[(int)BoneType.Neck];
+            Vector3 restRoot = Rig.Pivots[(int)BoneType.Neck];
+            Vector3 restMouth = Rig.Pivots[(int)BoneType.Head] + frame.Mouth;
+            float span = (restMouth - restRoot).Length;
+            float size = MathF.Max(Rig.LegLength * 0.5f, 0.2f);
+
+            // At its ease, where it was built to be, turned with the body but not tipped with it, and swaying a little. Looking at something, the neck turns halfway round to it and the head the rest.
+            Quaternion level = Frames.Yaw(Frames.YawOf(chest));
+            Vector3 ease = root + Vector3.Transform(restMouth - restRoot, level);
+            float sway = (MathF.Sin(_clock * 0.17f + _seed) * 0.05f + MathF.Sin(_clock * 0.07f + _seed * 1.3f) * 0.04f) * _style.Liveliness * (1f - _gait.Run);
+            float nod = MathF.Sin(_clock * 0.11f + _seed * 2.1f) * 0.025f * _style.Liveliness;
+            float lookYaw = 0f, lookPitch = 0f;
+            if (input.Looking)
+            {
+                Vector3 toward = Vector3.Transform(input.LookAt - input.Position, Frames.Yaw(-input.Yaw)) / MathF.Max(input.Scale, 0.01f) - ease;
+                lookYaw = Math.Clamp(Spring.Shortest(MathF.Atan2(toward.X, toward.Z) - Frames.YawOf(level)), -NeckTurnMost, NeckTurnMost);
+                lookPitch = Math.Clamp(-MathF.Atan2(toward.Y, MathF.Max(toward.Xz.Length, 1f)), -0.6f, 0.7f);
+            }
+            ease = root + Vector3.Transform(ease - root, Frames.Yaw(sway + lookYaw * 0.5f));
+            ease.Y += nod * span;
+
+            // What it's reaching for, if anything, comes in and goes away over a moment, and the mouth gets there in its own time, slower the bigger the animal.
+            _reaching = Spring.Damp(_reaching, Math.Clamp(input.Reaching, 0f, 1f), 0.35f * MathF.Sqrt(size), life);
+            Vector3 goal = ease;
+            if (_reaching > 1e-3f)
+            {
+                Vector3 reach = Vector3.Transform(input.ReachFor - input.Position, Frames.Yaw(-input.Yaw)) / MathF.Max(input.Scale, 0.01f);
+                goal = Vector3.Lerp(ease, reach, _reaching);
+            }
+            if (!_mouthGoalSet)
+            {
+                _mouthGoal = goal;
+                _mouthGoalSpeed = Vector3.Zero;
+                _mouthGoalSet = true;
+            }
+            float halfLife = NeckEase * MathF.Sqrt(size);
+            Spring.Step(ref _mouthGoal.X, ref _mouthGoalSpeed.X, goal.X, halfLife, life);
+            Spring.Step(ref _mouthGoal.Y, ref _mouthGoalSpeed.Y, goal.Y, halfLife, life);
+            Spring.Step(ref _mouthGoal.Z, ref _mouthGoalSpeed.Z, goal.Z, halfLife, life);
+
+            // The head faces the way it's reaching, tips up a little to reach up and down to reach down, as the neck can only do so much of either, and turns the rest of the way to what it looks at.
+            Vector3 fromRoot = _mouthGoal - root;
+            Vector3 restFromRoot = restMouth - restRoot;
+            float facing = MathF.Atan2(fromRoot.X, fromRoot.Z) * Gait.Smooth(0.05f, 0.3f, fromRoot.Xz.Length / MathF.Max(fromRoot.Length, 1e-3f));
+            float rise = MathF.Atan2(fromRoot.Y, MathF.Max(fromRoot.Xz.Length, 0.1f)) - MathF.Atan2(restFromRoot.Y, MathF.Max(restFromRoot.Xz.Length, 0.1f));
+            float wantedYaw = facing + Math.Clamp(Spring.Shortest(lookYaw - facing + Frames.YawOf(level)), -HeadTurnMost, HeadTurnMost) * (input.Looking ? 1f : 0f);
+            float wantedPitch = Math.Clamp(-rise * 0.5f, -0.6f, 0.75f) + lookPitch * (input.Looking ? 0.6f : 0f);
+            _headYaw = Spring.Damp(_headYaw, Spring.Shortest(wantedYaw - _headYaw) + _headYaw, 0.2f * MathF.Sqrt(size), life);
+            _headPitch = Spring.Damp(_headPitch, wantedPitch, 0.2f * MathF.Sqrt(size), life);
+            Quaternion head = Frames.Yaw(_headYaw) * Frames.Pitch(_headPitch);
+            Vector3 headGoal = _mouthGoal - Vector3.Transform(frame.Mouth, head);
+
+            // Solved in the chest's own frame, where the neck was built: see SolveNeck.
+            Vector3 toGoal = Vector3.Transform(headGoal - root, Quaternion.Invert(chest));
+            SolveNeck(toGoal, out float lift, out float curl, out float bend);
+            _neckLift = lift;
+            _neckCurl = curl;
+            _neckBend = bend;
+
+            for (int i = 0; i < neck.Length; i++)
+            {
+                Quaternion turned = NeckBone(chest, i, neck.Length, lift, curl, bend);
+                _rotations[(int)neck[i]] = _longNeckTurn[i].Follow(turned, BlendHalfLife, FastestTurn, deltaTime, transition);
+                if (i > 0) Chain(neck[i], neck[i - 1]);
+            }
+
+            // Chewing is slow and even, the jaw hardly opening, as what's cropped is leaves.
+            float open = Math.Clamp(input.Chewing, 0f, 1f) * (0.5f - 0.5f * MathF.Cos(_clock * 6.4f)) * 0.55f;
+            Spring.Step(ref _jaw, ref _jawSpeed, open, 0.06f, life);
+            float gape = Math.Clamp(_jaw, 0f, 1.1f) * _style.Gape;
+
+            _rotations[(int)BoneType.Head] = head;
+            _rotations[(int)BoneType.Jaw] = head * Frames.Pitch(gape);
+            Chain(BoneType.Head, neck[^1]);
+            Chain(BoneType.Jaw, BoneType.Head);
+        }
+
+        // How each bone up a long neck is turned: the whole neck by its lift, each a little more than the one below it by its curl, and each turned round by more of the bend than the one below it.
+        private static Quaternion NeckBone(Quaternion chest, int i, int count, float lift, float curl, float bend) =>
+            chest * Frames.Yaw(bend * NeckTurnShares[Math.Min(i, NeckTurnShares.Length - 1)]) * Frames.Pitch(lift + curl * (i / (float)Math.Max(count - 1, 1)));
+
+        // Where the head's joint comes to from the root of the neck, in the chest's frame, for a neck bent this way.
+        private Vector3 NeckReach(float lift, float curl, float bend)
+        {
+            BoneType[] neck = Rig.Frame!.Neck;
+            Vector3 at = Vector3.Zero;
+            for (int i = 0; i < neck.Length; i++)
+            {
+                BoneType next = i + 1 < neck.Length ? neck[i + 1] : BoneType.Head;
+                at += Vector3.Transform(Rig.Pivots[(int)next] - Rig.Pivots[(int)neck[i]], NeckBone(Quaternion.Identity, i, neck.Length, lift, curl, bend));
+            }
+            return at;
+        }
+
+        private float _straightCurl = float.NaN;    // The curl that holds this neck straightest, which is how far it reaches.
+
+        // How far from the root of the neck the head's joint is, for a neck curled this much. Lifting it doesn't change that, and turning it hardly does.
+        private float Chord(float curl) => NeckReach(0f, curl, 0f).Length;
+
+        /// <summary>
+        /// How to bend a long neck for its head's joint to come to <paramref name="goal"/>, in the chest's frame from the root of the neck. Each way of bending does one thing: curling is the only one that
+        /// changes how far the head is from the root, lifting turns the whole neck up or down without changing that, and the bend turns it round to face the goal. So each is found in turn, the curl by
+        /// halving, as reach falls away steadily on either side of the straightest, and it's worked again once from where that left the head, for what the turn did to the rest. Nothing is kept from one
+        /// frame to the next, so nothing can be stuck or ring: the same goal is always the same neck, and a goal that moves smoothly makes a neck that does.
+        /// </summary>
+        private void SolveNeck(Vector3 goal, out float lift, out float curl, out float bend)
+        {
+            if (float.IsNaN(_straightCurl)) _straightCurl = Straightest();
+            Vector3 aim = goal;
+            lift = curl = bend = 0f;
+            for (int pass = 0; pass < 2; pass++)
+            {
+                // Forward, only ever: a neck folds over towards what's near, as a swan's does, and never arches back.
+                float distance = aim.Length;
+                float least = _straightCurl, most = NeckCurlMost;
+                if (distance >= Chord(least)) curl = least;
+                else if (distance <= Chord(most)) curl = most;
+                else
+                {
+                    for (int i = 0; i < 14; i++)
+                    {
+                        float middle = (least + most) * 0.5f;
+                        if (Chord(middle) > distance) least = middle;
+                        else most = middle;
+                    }
+                    curl = (least + most) * 0.5f;
+                }
+
+                Vector3 flat = NeckReach(0f, curl, 0f);
+                float built = MathF.Atan2(flat.Y, flat.Z);
+                float wanted = MathF.Atan2(aim.Y, MathF.Max(MathF.Sqrt(aim.X * aim.X + aim.Z * aim.Z), 1e-3f));
+                lift = Math.Clamp(built - wanted, NeckLiftLeast, NeckLiftMost);
+
+                // The turn takes the head round less than it turns the top of the neck, as the root takes only part of it: it's found by stepping the difference off three times. Over the root
+                // itself which way round a goal is means nothing, and it fades out there, or a goal going over would swing the whole neck round in a moment.
+                float facing = MathF.Atan2(aim.X, aim.Z) * Gait.Smooth(0.05f, 0.3f, MathF.Sqrt(aim.X * aim.X + aim.Z * aim.Z) / MathF.Max(distance, 1e-3f));
+                bend = facing;
+                for (int i = 0; i < 3; i++)
+                {
+                    Vector3 at = NeckReach(lift, curl, bend);
+                    bend = Math.Clamp(bend + Spring.Shortest(facing - MathF.Atan2(at.X, at.Z)), -NeckTurnMost, NeckTurnMost);
+                }
+
+                if (pass != 0) continue;
+                Vector3 miss = goal - NeckReach(lift, curl, bend);
+                float most_ = goal.Length * 0.25f;
+                aim = goal + (miss.LengthSquared > most_ * most_ ? miss.Normalized() * most_ : miss);
+            }
+            if (!float.IsFinite(lift + curl + bend)) lift = curl = bend = 0f;
+        }
+
+        // The curl that reaches furthest, by a look along all of them and then closing in on the best.
+        private float Straightest()
+        {
+            float best = 0f, longest = 0f;
+            for (int i = 0; i <= 25; i++)
+            {
+                float curl = -NeckCurlMost + i * (2f * NeckCurlMost / 25f);
+                float chord = Chord(curl);
+                if (chord <= longest) continue;
+                longest = chord;
+                best = curl;
+            }
+            float low = best - 2f * NeckCurlMost / 25f, high = best + 2f * NeckCurlMost / 25f;
+            for (int i = 0; i < 20; i++)
+            {
+                float a = low + (high - low) * 0.382f, b = low + (high - low) * 0.618f;
+                if (Chord(a) > Chord(b)) high = b;
+                else low = a;
+            }
+            return (low + high) * 0.5f;
+        }
+
         // Small arms, carried folded with the palms towards each other, as a theropod's could only be. They swing a little with the stride and reach out for whatever the mouth goes for.
         private void PoseSaurianArms(Quaternion chest, float strike, float run)
         {
@@ -1251,6 +1490,16 @@ namespace Dino_Engine.Animation
             }
         }
 
+        // A neck with nothing between its root and its top has the bones a long one has there sitting on its root, and they go with it, so nothing hung from them could be left behind.
+        private void KeepShortNeck()
+        {
+            for (int bone = (int)BoneType.Neck1; bone <= (int)BoneType.Neck3; bone++)
+            {
+                _rotations[bone] = _rotations[(int)BoneType.Neck];
+                _joints[bone] = _joints[(int)BoneType.Neck];
+            }
+        }
+
         // A bone's joint from its parent's: where it was in the pose it was built in, carried along by how the parent has turned.
         private void Chain(BoneType bone, BoneType parent)
         {
@@ -1261,6 +1510,7 @@ namespace Dino_Engine.Animation
 
         private void Solve(in AnimationInput input)
         {
+            if (Rig.Frame is not { Long: true }) KeepShortNeck();
             Quaternion pelvis = _rotations[(int)BoneType.Pelvis];
             Vector3 hips = _joints[(int)BoneType.Pelvis];
             Vector3 hipRest = Rig.Pivots[(int)BoneType.Pelvis];

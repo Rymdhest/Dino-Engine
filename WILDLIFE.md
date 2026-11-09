@@ -1,6 +1,6 @@
 # Wildlife
 
-Everything alive in a world that the game's rules know nothing about: leaves coming off trees, rabbits, crabs, birds, butterflies, frogs, fish, bats. How it works, and how to add more.
+Everything alive in a world that the game's rules know nothing about: leaves coming off trees, rabbits, crabs, birds, butterflies, frogs, fish, bats, and the Haven's giants. How it works, and how to add more.
 
 Status: built, and tested hard by machine, in real worlds with a real hero on foot. **Nobody has watched it move.** See "Where it stands" at the end.
 
@@ -113,6 +113,19 @@ Wing beats are capped well under what's real, as a sparrow's 20 Hz at 60 frames 
 - **What comes and goes thins out** (`fragFade`), as something that's only for looking at should never be seen to pop.
 - **A bird's shadow is most of how height is read from up here**, so everything casts one.
 
+## The Haven's giants
+
+The Haven has three giants, its own and nobody else's (`LORE.md`), and they're only ever looked at like everything else here: this client's alone, sent nowhere, saved nowhere, read by nothing in the rules, and the same three animals everywhere, doing different things on each machine. They're too big and too few to be a simulation of their own, so each is a body the game draws as it draws any character (`Dino Defenders/Client/GiantShow.cs`), and what they decide is a `Herd` (`Dino Engine/Wildlife/Herd.cs`), which is headless, takes 5 ms to set up and nothing to step.
+
+- **Where they can be** is `HerdLand`: a grid of how far each place is from anything a giant can't stand on, water, slopes, rock, anything built or solid, and the village. A giant stands where each of its four feet has room, and its paths keep out from under trees. Everything else follows from its rig (`GiantShape`).
+- **What they do** is mostly eat: walk to a tree and crop the side of its crown a mouthful at a time, pulling at it now and then, then stand a while, wander a little, and move on, with the herd drifting about the isle every few minutes. Now and then one booms and another answers. Anyone who comes near gets a long look, head lowered a little to see them better.
+- **They never put a foot on anyone.** They stop for anyone near their feet, never turn while anyone's by a foot or the tail, which a turn swings round, step off anyone who stands by a foot without taking any foot nearer them, and the body itself keeps every landing off whoever's nearest (`AnimationInput.KeepOff`). Somewhere too tight to turn, they shuffle out a step or a turn at a time, by a search over where they could stand (`TryShuffles`), as an elephant does.
+- **Felt and heard**: each foot that comes down presses the grass under it, sends a ring of wind out through the grass round it (`Wind.AddBlast`, too weak to break anything), puffs a little off the ground and thuds deep (`Giants.Step`); a call is heard from its throat (`Giants.Call`), and a pull at a tree draws its crown towards the mouth (`Giants.Crop`). They frighten small animals as anyone does, by what their feet touch.
+- **They open for the hero** as a tree does (`CharacterModelComponent.Opens`), as one between the camera and the hero would hide them, and thin away near the camera rather than ever being seen from inside.
+- **Behind the menu** the same herd lives in the picture, beyond the hero: `TitleScene.FindHerd` looks for open ground with trees on it a long way off, which `FindSpot` now wants in view, and keeps them inside the picture's edges.
+
+`--nolife true` takes them out with everything else alive. `Dino LifeLab giants --seed N --minutes M` runs a herd in the real Haven on the bodies the game gives them, with someone walking out from the village to stand under them and in their way, and fails on any foot in water, in anything solid, in the village or on anyone, a tail swept through anyone, a giant coming apart, standing about, never eating, or eating from one tree only; `--trace giant,from,to` says what one is doing between two times, and `--out map.png` draws where they went. `check` runs one at its end.
+
 ## Adding things
 
 **A new animal of a shape there already is**: an entry in `Fauna` and a word in a biome's list. No code.
@@ -152,3 +165,4 @@ Nobody has played with this. In particular, none of these have been seen moving 
 - Whether gulls are still too big, and whether anything distracts in a fight.
 - Whether the wing sounds and calls are right. They pass `Dino SoundLab check`, which says nothing about whether they sound like wings.
 - A rabbit that's chased straight at through dense cover can still be brushed past: `check` got within 0.6 m of one. It can't matter, as it isn't there as far as anything's concerned.
+- **The giants**, other than in two short films and stills taken by machine. They cost about 0.05 ms a frame, measured standing by one in the Haven against `--nolife`. Sixteen herds of twelve minutes each pass `giants`, with someone walking under them over and over. Nobody has watched them, heard their calls or felt their steps, and whether they're too often near the village, too slow, or come too near the camera from where it looks is for a person to say.
