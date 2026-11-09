@@ -121,9 +121,10 @@ namespace Dino_Defenders.Books
             Pages = new PageProfile[book.Pages.Length];
             float useTime = 0f;
             float useScale = 1f;
+            float potency = Resting(sheet, book);
             for (int i = 0; i < Pages.Length; i++)
             {
-                Pages[i] = new PageProfile(sheet, book.Pages[i]);
+                Pages[i] = new PageProfile(sheet, book.Pages[i], potency);
                 if (i == 0 || !sheet.Has(Rule.OneCost)) Cost += Pages[i].Cost;
                 Cooldown += Pages[i].Cooldown;
                 useTime += Pages[i].UseTime;
@@ -151,6 +152,15 @@ namespace Dino_Defenders.Books
         }
 
         public BookMode Mode => Book.Mode;
+
+        // For those whose books are worth more for resting: what every page's Potency is made of the book's whole Cooldown, which nothing has shortened.
+        private static float Resting(ActorSheet sheet, BookPlan book)
+        {
+            if (!sheet.Has(Rule.LongCount)) return 1f;
+            float rest = 0f;
+            foreach (PagePlan page in book.Pages) rest += page.Cooldown;
+            return rest > 0f ? 1f + MathF.Min(rest * Rulebook.LongCountPer, Rulebook.LongCountMost) : 1f - Rulebook.LongCountIdle;
+        }
 
         /// <summary>Seconds between a Toggle Book's pulses. Whatever quickens a use quickens it, and whatever makes a book rest holds it back.</summary>
         public float Pulse => MathF.Max(MathF.Max(Rulebook.AuraPulse * UseTime / Rulebook.PageUseTime, Cooldown), Rulebook.FastestAura);

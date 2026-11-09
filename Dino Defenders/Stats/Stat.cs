@@ -52,6 +52,7 @@ namespace Dino_Defenders.Stats
         GainAs,                 // As Convert, but keeping what was there.
         AttackSpeed,
         CastSpeed,
+        UseSpeed,               // Both of the above at once: every Book, Attack or Spell.
         CritChance,
         CritMultiplier,
         Accuracy,
@@ -82,6 +83,7 @@ namespace Dino_Defenders.Stats
         Armour,
         ArmourApplies,          // Percent of armour that also counts against a type.
         Evasion,
+        SpellEvasion,           // Percent of evasion that also counts against Spells.
         BlockChance,
         MaxBlock,
         Resistance,
@@ -124,7 +126,7 @@ namespace Dino_Defenders.Stats
             Stat.HealthRegen, Stat.HealthRegenPercent, Stat.ManaRegen, Stat.ManaRegenPercent, Stat.BarrierRecharge, Stat.BarrierDelay, Stat.Recovery,
             Stat.HealthLeech, Stat.ManaLeech, Stat.HealthOnHit, Stat.ManaOnHit, Stat.HealthOnKill, Stat.ManaOnKill, Stat.BarrierOnKill, Stat.FlaskEffect, Stat.HealthDrain,
             Stat.MoveSpeed, Stat.DodgeCooldown, Stat.DodgeSpeed, Stat.Stealth,
-            Stat.Armour, Stat.ArmourApplies, Stat.Evasion, Stat.BlockChance, Stat.MaxBlock, Stat.Resistance, Stat.MaxResistance, Stat.PhysicalReduction, Stat.FlatReduction,
+            Stat.Armour, Stat.ArmourApplies, Stat.Evasion, Stat.SpellEvasion, Stat.BlockChance, Stat.MaxBlock, Stat.Resistance, Stat.MaxResistance, Stat.PhysicalReduction, Stat.FlatReduction,
             Stat.DamageTaken, Stat.TakenAs, Stat.TakenFromMana, Stat.AilmentAvoid, Stat.AilmentTaken, Stat.StunThreshold,
         };
 
@@ -132,7 +134,7 @@ namespace Dino_Defenders.Stats
         {
             Stat.Strength, Stat.Dexterity, Stat.Intellect,
             Stat.Damage, Stat.AddedPhysical, Stat.AddedFire, Stat.AddedCold, Stat.AddedLightning, Stat.AddedMagic, Stat.AddedPoison, Stat.Convert, Stat.GainAs,
-            Stat.AttackSpeed, Stat.CastSpeed, Stat.CritChance, Stat.CritMultiplier, Stat.Accuracy, Stat.Penetration, Stat.ArmourIgnore,
+            Stat.AttackSpeed, Stat.CastSpeed, Stat.UseSpeed, Stat.CritChance, Stat.CritMultiplier, Stat.Accuracy, Stat.Penetration, Stat.ArmourIgnore,
             Stat.AreaOfEffect, Stat.MeleeReach, Stat.ProjectileSpeed, Stat.ProjectileCount, Stat.Pierce, Stat.Chain, Stat.PageDuration, Stat.CooldownRecovery, Stat.BookCost, Stat.Potency,
             Stat.AilmentChance, Stat.AilmentDuration, Stat.AilmentEffect, Stat.Execute, Stat.ReactionDamage, Stat.ReactionArea, Stat.Reflect, Stat.ExplodeOnKill,
             Stat.MinionCount, Stat.MinionDuration, Stat.RaiseFallen,
@@ -225,6 +227,21 @@ namespace Dino_Defenders.Stats
         LuckyHits,              // Damage is rolled twice, keeping the better.
         BurstsOnDeath,          // A moment after dying, you go up in flames.
         RalliesOnDeath,         // Your death drives those around you on.
+
+        // The keystones of the tree as it was remade.
+        MeleeSplash,            // Melee hits spill onto whoever stands around their target.
+        SpellsArmTheBlade,      // What makes Spells stronger makes Attacks stronger instead.
+        BurnsStack,             // Burns add together instead of the strongest standing.
+        ToggleReserves,         // Toggle Books hold back Maximum Mana instead of Mana Regeneration.
+        BarrierPays,            // Book Costs come out of Barrier first, and Barrier protects nothing.
+        Shorthand,              // Only a book's first page takes time to use.
+        Prism,                  // Elemental damage is split evenly between fire, cold and lightning.
+        StillWaters,            // At full mana, what comes back fills barrier instead; barrier doesn't recharge by itself.
+        Starburst,              // Projectiles go out all around, evenly spaced.
+        Unbroken,               // Using a book doesn't slow you.
+        Equilibrium,            // Damage taken is paid evenly from health, mana and barrier.
+        NarrowWay,              // Only the highest attribute counts, twice over.
+        LongCount,              // Cooldowns can't be shortened, and each second of one is Potency.
 
         // What only uniques do. Each is one item's reason to exist, or what it costs.
         NeverHealed,            // Health stops at low.

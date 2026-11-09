@@ -115,7 +115,8 @@ namespace Dino_Defenders.Stats
         /// <summary>Whether it's an Attack, which is what's in the hands and not what's on the page.</summary>
         public bool IsAttack => (Tags & Tags.Attack) != 0;
 
-        internal PageProfile(ActorSheet sheet, PagePlan page)
+        /// <param name="potency">What the book as a whole makes of every page's Potency, for those whose books are worth more for resting: see <see cref="Rule.LongCount"/>.</param>
+        internal PageProfile(ActorSheet sheet, PagePlan page, float potency = 1f)
         {
             Sheet = sheet;
             Page = page;
@@ -138,7 +139,7 @@ namespace Dino_Defenders.Stats
             Tags = all;
 
             // It's the same in everything a page does, and goes by everything it turns out to be.
-            Potency = Math.Clamp(page.Potency * sheet.Collect(Stat.Potency, all, page).Scale, Rulebook.LeastPotency, Rulebook.MostPotency);
+            Potency = Math.Clamp(page.Potency * sheet.Collect(Stat.Potency, all, page).Scale * potency, Rulebook.LeastPotency, Rulebook.MostPotency);
 
             for (int i = 0; i < _flows.Length; i++)
             {
@@ -149,11 +150,14 @@ namespace Dino_Defenders.Stats
             }
 
             // Using it. An Attack takes the weapon's own pace, and only once, on the first page: every other Attack Page goes along with it. Each Spell Page takes its own time to cast.
-            float useTime = spell ? page.UseTime : page.Index == 0 ? page.UseTime * weapon.AttackTime / WeaponProfile.BareTime : 0f;
-            UseTime = useTime / MathF.Max(sheet.Total(spell ? Stat.CastSpeed : Stat.AttackSpeed, 1f, all, page), 0.05f);
+            // Some only ever take the time of the first page, whatever follows it.
+            float useTime = page.Index > 0 && sheet.Has(Rule.Shorthand) ? 0f : spell ? page.UseTime : page.Index == 0 ? page.UseTime * weapon.AttackTime / WeaponProfile.BareTime : 0f;
+            StatSum speed = sheet.Collect(spell ? Stat.CastSpeed : Stat.AttackSpeed, all, page);
+            speed.Merge(sheet.Collect(Stat.UseSpeed, all, page));
+            UseTime = useTime / MathF.Max(speed.Apply(1f), 0.05f);
 
             Cost = MathF.Max(sheet.Total(Stat.BookCost, page.Cost * CostAtLevel(sheet.Loadout.Level), all, page), 0f);
-            Cooldown = page.Cooldown / MathF.Max(sheet.Total(Stat.CooldownRecovery, 100f, all, page) / 100f, 0.05f);
+            Cooldown = sheet.Has(Rule.LongCount) ? page.Cooldown : page.Cooldown / MathF.Max(sheet.Total(Stat.CooldownRecovery, 100f, all, page) / 100f, 0.05f);
 
             // Reaching.
             float areaScale = MathF.Sqrt(MathF.Max(sheet.Collect(Stat.AreaOfEffect, all, page).Scale, 0.01f));
@@ -315,7 +319,25 @@ namespace Dino_Defenders.Stats
                 if (max[i] <= 0f) continue;
                 Follow(flows, converts, gains, i, 1 << i, min[i], max[i]);
             }
+            if (sheet.Has(Rule.Prism)) Split(flows);
             return flows.ToArray();
+        }
+
+        // Fire, cold and lightning, a third of each whatever it was, and each remembering having been all three, so that whatever makes any of them stronger makes all of it stronger.
+        private static void Split(List<DamageFlow> flows)
+        {
+            const int elements = (1 << (int)DamageType.Fire) | (1 << (int)DamageType.Cold) | (1 << (int)DamageType.Lightning);
+            var whole = new List<DamageFlow>(flows);
+            flows.Clear();
+            foreach (DamageFlow flow in whole)
+            {
+                if (flow.Type is not (DamageType.Fire or DamageType.Cold or DamageType.Lightning))
+                {
+                    Keep(flows, (int)flow.Type, flow.Lineage, flow.Min, flow.Max);
+                    continue;
+                }
+                foreach (DamageType type in new[] { DamageType.Fire, DamageType.Cold, DamageType.Lightning }) Keep(flows, (int)type, flow.Lineage | elements, flow.Min / 3f, flow.Max / 3f);
+            }
         }
 
         private static void ReadShifts(ActorSheet sheet, PagePlan page, Tags tags, Stat stat, float[] table)

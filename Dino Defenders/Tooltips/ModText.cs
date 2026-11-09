@@ -55,6 +55,7 @@ namespace Dino_Defenders.Tooltips
             Name(Stat.GainAs, "Damage Gained");
             Name(Stat.AttackSpeed, "Attack Speed");
             Name(Stat.CastSpeed, "Cast Speed");
+            Name(Stat.UseSpeed, "Use Speed");
             Name(Stat.CritChance, "Critical Chance", true);
             Name(Stat.CritMultiplier, "Critical Multiplier", true);
             Name(Stat.Accuracy, "Accuracy");
@@ -79,6 +80,7 @@ namespace Dino_Defenders.Tooltips
             Name(Stat.Armour, "Armour");
             Name(Stat.ArmourApplies, "of Armour Applies", true);
             Name(Stat.Evasion, "Evasion");
+            Name(Stat.SpellEvasion, "of Evasion also applies to Spells", true);
             Name(Stat.BlockChance, "Chance to Block", true);
             Name(Stat.MaxBlock, "Maximum Chance to Block", true);
             Name(Stat.Resistance, "Resistance", true);
@@ -193,7 +195,7 @@ namespace Dino_Defenders.Tooltips
             new(Rule.OverhealBarrier, $"Healing above Maximum Health becomes Barrier, up to {Say.Share(OverhealMost)} of Maximum Health over your Maximum Barrier"),
             new(Rule.BlockReflects, "Hits you Block are sent back as Physical Indirect Damage"),
             new(Rule.Guardian, $"Other Heroes within {Say.Metres(GuardianReach)} take {Say.Share(GuardianShare)} less Damage from Hits. You take that share instead"),
-            new(Rule.Puppeteer, "Your Minions also get your Damage, Attack Speed, Cast Speed, Critical Chance and Critical Multiplier modifiers", Tags.Minion),
+            new(Rule.Puppeteer, "Your Minions also get your Damage, Attack Speed, Cast Speed, Use Speed, Critical Chance and Critical Multiplier modifiers", Tags.Minion),
             new(Rule.EndlessVenom, $"Your Venom can have {AilmentRules.MostEndlessVenom} Stacks instead of {AilmentRules.MostVenom}", Tags.Venom),
             new(Rule.Carrier, $"You can't be Envenomed. Every {Say.Seconds(CarrierInterval)}, Trigger Contagion within {Say.Metres(Shelf.VenomCloud.First.Length)}", Tags.Venom, Casts: Shelf.VenomCloud),
             new(Rule.AilmentsLeap, $"Enemies you Kill pass their Burn, Bleed, Venom, Chill and Shock to Enemies within {Say.Metres(AilmentLeapReach)}"),
@@ -226,6 +228,21 @@ namespace Dino_Defenders.Tooltips
             new(Rule.LuckyHits, "Damage is rolled twice, keeping the better roll"),
             new(Rule.BurstsOnDeath, $"Bursts {Say.Seconds(BurstDelay)} after death for Fire Indirect Damage within {Say.Metres(BurstRadius)}, worth {Say.Share(BurstShare)} of an ordinary Enemy Hit", Tags.Fire),
             new(Rule.RalliesOnDeath, $"On death, gives Rallied to allies within {Say.Metres(RallyReach)}", Gives: BuffCatalog.Rallied),
+
+            // The keystones of the tree as it was remade.
+            new(Rule.MeleeSplash, $"Your Melee Hits also deal {Say.Share(SplashShare)} of their Damage to Enemies within {Say.Metres(SplashRadius)} of whoever they Hit, as Indirect Damage", Tags.Melee),
+            new(Rule.SpellsArmTheBlade, "Increased, reduced, more and less Spell Damage apply to Attacks instead", Tags.Attack),
+            new(Rule.BurnsStack, $"Your Burns add together instead of only the strongest counting, up to {Say.Whole(MostEmbers)} times the newest", Tags.Burn),
+            new(Rule.ToggleReserves, $"Toggle Books hold back {Say.N(ReservePerCost)} Maximum Mana for each point of Cost while on, instead of taking Mana Regeneration"),
+            new(Rule.BarrierPays, "Book Costs are paid from your Barrier before your Mana, and your Barrier doesn't protect you"),
+            new(Rule.Shorthand, "Only the first Page of a Book takes time to use"),
+            new(Rule.Prism, "Your Fire, Cold and Lightning Damage is split evenly between all three, and counts as all three", Tags.Elemental),
+            new(Rule.StillWaters, "While at Full Mana, everything your Mana would recover goes to your Barrier instead, and your Barrier doesn't refill by itself"),
+            new(Rule.Starburst, "Your Projectiles fly out all around you, evenly spaced", Tags.Projectile),
+            new(Rule.Unbroken, "Using a Book doesn't slow you down"),
+            new(Rule.Equilibrium, "Damage you take is paid in equal shares from your Health, Mana and Barrier, for as long as each has any"),
+            new(Rule.NarrowWay, "Only the highest of your Strength, Dexterity and Intellect gives anything, and it gives twice as much"),
+            new(Rule.LongCount, $"Cooldown Recovery does nothing for you. Each second of a Book's Cooldown gives it {Say.Share(LongCountPer)} more Potency, up to {Say.Share(LongCountMost)}, and a Book with no Cooldown has {Say.Share(LongCountIdle)} less"),
 
             // What only uniques do.
             new(Rule.NeverHealed, $"You can't be healed above {Say.Share(Hits.LowShare)} of Maximum Health", Hurts: true),
@@ -536,6 +553,9 @@ namespace Dino_Defenders.Tooltips
 
                 case Stat.ArmourApplies:
                     return $"{Number(mod.Value)}% of Armour also applies to {Adjective(scope)}Damage{Tail(mod)}";
+
+                case Stat.SpellEvasion:
+                    return $"{Number(mod.Value)}% of Evasion also applies to Spells{Tail(mod)}";
 
                 case Stat.AilmentChance:
                     Tags ailment = scope & Tags.Ailments;

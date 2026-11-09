@@ -162,6 +162,7 @@ namespace Dino_Defenders.Gameplay
         public byte Moves;              // Goes up each time the server puts them somewhere else, so it isn't smoothed over.
 
         public float Health;
+        public float Barrier;           // Only read by a step for those whose Books are paid from it.
         public float Held;              // Stunned or frozen for this long.
         public float MoveRate;
         public float ActionRate;
@@ -232,6 +233,7 @@ namespace Dino_Defenders.Gameplay
             writer.WriteByte(Moves);
 
             writer.WriteFloat(Health);
+            writer.WriteFloat(Barrier);
             writer.WriteFloat(Held);
             writer.WriteFloat(MoveRate);
             writer.WriteFloat(ActionRate);
@@ -279,6 +281,7 @@ namespace Dino_Defenders.Gameplay
             state.Moves = reader.ReadByte();
 
             state.Health = reader.ReadFloat();
+            state.Barrier = reader.ReadFloat();
             state.Held = reader.ReadFloat();
             state.MoveRate = reader.ReadFloat();
             state.ActionRate = reader.ReadFloat();
@@ -304,6 +307,7 @@ namespace Dino_Defenders.Gameplay
         public void TakeOrders(in HeroSimState truth)
         {
             Health = truth.Health;
+            Barrier = truth.Barrier;
             Held = truth.Held;
             MoveRate = truth.MoveRate;
             ActionRate = truth.ActionRate;
@@ -368,7 +372,7 @@ namespace Dino_Defenders.Gameplay
             hero.QueuedFor = MathF.Max(hero.QueuedFor - deltaTime, 0f);
             hero.Held = MathF.Max(hero.Held - deltaTime, 0f);
             Settle(ref hero, kit);
-            hero.Mana = MathF.Min(hero.Mana + (sheet.ManaRegen - Reserved(hero, kit)) * deltaTime, sheet.MaxMana);
+            hero.Mana = MathF.Min(hero.Mana + (sheet.ManaRegen - Reserved(hero, kit)) * deltaTime, sheet.MaxMana - HeldBack(hero, kit));
             if (hero.Down) return HeroStepEvents.None;
 
             // Pressed even with no way of acting on it: someone stunned who hits dodge wants to dodge the moment they can.
@@ -399,7 +403,7 @@ namespace Dino_Defenders.Gameplay
             if (move.LengthSquared > 0f) move.Normalize();
 
             float speed = sheet.MoveSpeed * hero.MoveRate;
-            if (hero.Using >= 0 && kit.Slots[hero.Using] is BookProfile inHand) speed *= Slowed(hero, inHand);
+            if (hero.Using >= 0 && kit.Slots[hero.Using] is BookProfile inHand && !sheet.Has(Rule.Unbroken)) speed *= Slowed(hero, inHand);
 
             // Nothing gets in the way of a dodge. Whatever they were doing is over, and if the blow hadn't landed it doesn't: getting out of there was worth more.
             if (hero.DodgeQueuedFor > 0f && hero.DodgeCooldown <= 0f && PayForDodge(ref hero, sheet))
@@ -506,7 +510,20 @@ namespace Dino_Defenders.Gameplay
             if (book.CostsMinion && hero.Counters.Minions == 0) return false;
             if (book.CostsGold) return hero.Counters.Gold >= book.Cost * Rulebook.GoldPerCost;
             if (book.CostsHealth) return hero.Health > book.Cost;
-            return hero.Mana - book.Cost >= (sheet.Has(Rule.Overdraw) ? -sheet.MaxMana : 0f);
+            float barrier = sheet.Has(Rule.BarrierPays) ? MathF.Max(hero.Barrier, 0f) : 0f;
+            return hero.Mana + barrier - book.Cost >= (sheet.Has(Rule.Overdraw) ? -sheet.MaxMana : 0f);
+        }
+
+        /// <summary>Takes a Book's Cost out of Mana, or out of Barrier first for those who pay that way, which the server copies back onto the hero.</summary>
+        private static void Spend(ref HeroSimState hero, ActorSheet sheet, float cost)
+        {
+            if (sheet.Has(Rule.BarrierPays))
+            {
+                float fromBarrier = MathF.Min(MathF.Max(hero.Barrier, 0f), cost);
+                hero.Barrier -= fromBarrier;
+                cost -= fromBarrier;
+            }
+            hero.Mana = sheet.Has(Rule.SpendsAll) ? MathF.Min(hero.Mana - cost, 0f) : hero.Mana - cost;
         }
 
         private static bool TryUse(ref HeroSimState hero, HeroKit kit, int slot, ref HeroStepEvents events)
@@ -518,7 +535,7 @@ namespace Dino_Defenders.Gameplay
 
             // Gold comes off on the server, which has the last word on what's in anyone's pocket.
             if (book.CostsHealth && !book.CostsGold) hero.Health -= book.Cost;
-            else if (!book.CostsGold) hero.Mana = sheet.Has(Rule.SpendsAll) ? MathF.Min(hero.Mana - book.Cost, 0f) : hero.Mana - book.Cost;
+            else if (!book.CostsGold) Spend(ref hero, sheet, book.Cost);
 
             hero.Using = (sbyte)slot;
             hero.ImpactIn = book.ImpactTime;
@@ -545,19 +562,36 @@ namespace Dino_Defenders.Gameplay
 
         public static bool IsOn(in HeroSimState hero, int slot) => (hero.Toggled & 1 << slot) != 0;
 
-        /// <summary>The Mana Regeneration given up to what's turned on.</summary>
-        public static float Reserved(in HeroSimState hero, HeroKit kit)
+        /// <summary>The Mana Regeneration given up to what's turned on. Nothing, for those whose Toggle Books hold back Maximum Mana instead.</summary>
+        public static float Reserved(in HeroSimState hero, HeroKit kit) => kit.Sheet.Has(Rule.ToggleReserves) ? 0f : Toggled(hero, kit);
+
+        /// <summary>The Maximum Mana held back by what's turned on, for those whose Toggle Books are paid that way, and otherwise nothing.</summary>
+        public static float HeldBack(in HeroSimState hero, HeroKit kit) => kit.Sheet.Has(Rule.ToggleReserves) ? Toggled(hero, kit) * Rulebook.ReservePerCost : 0f;
+
+        // What's turned on asks for, all together.
+        private static float Toggled(in HeroSimState hero, HeroKit kit)
         {
-            float reserved = 0f;
+            float cost = 0f;
             for (int slot = 0; slot < HeroState.BarSlots; slot++)
             {
-                if (IsOn(hero, slot) && kit.Slots[slot] is BookProfile book) reserved += book.Cost;
+                if (IsOn(hero, slot) && kit.Slots[slot] is BookProfile book) cost += book.Cost;
             }
-            return reserved;
+            return cost;
         }
 
         /// <summary>Whether a Toggle Book could be turned on as things stand: there has to be more left to give up than it asks for.</summary>
-        public static bool CanTurnOn(in HeroSimState hero, HeroKit kit, BookProfile book) => kit.Sheet.ManaRegen - Reserved(hero, kit) > book.Cost;
+        public static bool CanTurnOn(in HeroSimState hero, HeroKit kit, BookProfile book)
+        {
+            if (kit.Sheet.Has(Rule.ToggleReserves)) return kit.Sheet.MaxMana - HeldBack(hero, kit) > book.Cost * Rulebook.ReservePerCost;
+            return kit.Sheet.ManaRegen - Reserved(hero, kit) > book.Cost;
+        }
+
+        // Whether what's on asks for more than there is to give it.
+        private static bool Overspent(in HeroSimState hero, HeroKit kit)
+        {
+            if (kit.Sheet.Has(Rule.ToggleReserves)) return HeldBack(hero, kit) >= kit.Sheet.MaxMana;
+            return Reserved(hero, kit) >= kit.Sheet.ManaRegen;
+        }
 
         // A press on a Toggle Book. It's only ever the press, as a button held down would otherwise go on and off with every tick.
         private static void Flip(ref HeroSimState hero, HeroKit kit, HeroButtons pressed)
@@ -577,7 +611,7 @@ namespace Dino_Defenders.Gameplay
             {
                 if (!IsOn(hero, slot)) continue;
                 bool gone = kit.Slots[slot] is not { Mode: BookMode.Toggle };
-                if (gone || Reserved(hero, kit) >= kit.Sheet.ManaRegen) hero.Toggled &= (byte)~(1 << slot);
+                if (gone || Overspent(hero, kit)) hero.Toggled &= (byte)~(1 << slot);
             }
         }
 

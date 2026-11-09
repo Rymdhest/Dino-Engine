@@ -52,14 +52,30 @@ namespace Dino_BuildLab
         {
             TalentNode[] nodes = TalentTree.Nodes;
             int Count(TalentKind kind) => nodes.Count(n => n.Kind == kind);
-            report.Note($"{nodes.Length} nodes: {Count(TalentKind.Small)} small, {Count(TalentKind.Notable)} notable, {Count(TalentKind.Keystone)} keystones, {Count(TalentKind.Gate)} gates");
-            report.Check("It's big", nodes.Length >= 800, $"{nodes.Length}");
+            report.Note($"{nodes.Length} nodes: {Count(TalentKind.Small)} small ({nodes.Count(n => n.Travel)} of them travel, {nodes.Count(n => n.Highway)} on roads), {Count(TalentKind.Notable)} notable, {Count(TalentKind.Keystone)} keystones, {Count(TalentKind.Gate)} gates");
+            report.Check("It's big: about four times the tree it replaced", nodes.Length >= 3200, $"{nodes.Length}");
             report.Check("Ids are all different", nodes.Select(n => n.Id).Distinct().Count() == nodes.Length);
             report.Check("Everything can be walked to", TalentTree.DepthOf.All(d => d >= 0), $"{TalentTree.DepthOf.Count(d => d < 0)} can't");
             report.Check("Every link goes both ways", nodes.All(n => n.Links.All(l => nodes[l].Links.Contains(n.Index))));
             report.Check("Nothing links to itself or twice", nodes.All(n => !n.Links.Contains(n.Index) && n.Links.Distinct().Count() == n.Links.Count));
-            report.Check("Every sector has three keystones and a gate", TalentContent.Sectors.Select((s, i) => nodes.Count(n => n.Sector == i && n.Kind == TalentKind.Keystone) == 3 && nodes.Count(n => n.Sector == i && n.Kind == TalentKind.Gate) == 1).All(x => x));
-            report.Check("Gates come in pairs", nodes.Where(n => n.Kind == TalentKind.Gate).All(n => n.Twin >= 0 && nodes[n.Twin].Twin == n.Index));
+            report.Check("Every region has keystones of its own", TalentContent.Regions.Select((s, i) => nodes.Count(n => n.Region == i && n.Kind == TalentKind.Keystone) >= 3).All(x => x));
+            report.Check("Three waygates, each a pair", Count(TalentKind.Gate) == 6 && nodes.Where(n => n.Kind == TalentKind.Gate).All(n => n.Twin >= 0 && nodes[n.Twin].Twin == n.Index));
+
+            // Everything written in the content is somewhere on the tree: a cluster that found no room would be missing, and a missing notable is a build that can't be made.
+            var wanted = new List<string>();
+            foreach (Region region in TalentContent.Regions)
+            {
+                foreach (Lane lane in region.Lanes) wanted.AddRange(lane.Pods.Select(p => $"{region.Id}.{p.Id}"));
+                foreach (Wheel wheel in region.Wheels)
+                {
+                    wanted.AddRange(wheel.Notables.Select(p => $"{region.Id}.{p.Id}"));
+                    wanted.Add(wheel.Heart != null ? $"key.{wheel.Heart.Id}" : $"{region.Id}.{wheel.Id}");
+                }
+                wanted.AddRange(region.Keystones.Select(k => $"key.{k.Id}"));
+            }
+            wanted.AddRange(TalentContent.Bridges.Select(b => $"bridge.{b.Id}"));
+            var missing = wanted.Where(id => TalentTree.Find(id) == null).ToList();
+            report.Check("Every cluster, wheel, keystone and bridge written down is on the tree", missing.Count == 0, string.Join(", ", missing.Take(10)));
 
             float closest = float.PositiveInfinity;
             string pair = "";
@@ -75,7 +91,24 @@ namespace Dino_BuildLab
                 }
             }
             report.Check("No two nodes sit on each other", closest >= 34f, $"{closest:0} between {pair}");
-            report.Note($"Closest pair of nodes: {closest:0} units");
+            report.Note($"Closest pair of nodes: {closest:0} units, {pair}");
+
+            // A link across another reads as a join that isn't there. Links along a circle are taken as their chords, which is within a few units of the arc.
+            var links = nodes.SelectMany(n => n.Links.Where(l => l > n.Index).Select(l => (a: n, b: nodes[l]))).ToList();
+            string? crossing = null;
+            for (int i = 0; i < links.Count && crossing == null; i++)
+            {
+                for (int j = i + 1; j < links.Count; j++)
+                {
+                    var (a, b) = links[i];
+                    var (c, d) = links[j];
+                    if (a == c || a == d || b == c || b == d) continue;
+                    if (!TalentTree.Intersect(a.Position, b.Position, c.Position, d.Position)) continue;
+                    crossing = $"{a.Id}-{b.Id} and {c.Id}-{d.Id}";
+                    break;
+                }
+            }
+            report.Check("No link crosses another", crossing == null, crossing ?? "");
 
             float furthest = nodes.Max(n => n.Position.Length);
             report.Note($"The tree is {furthest * 2f:0} units across");
@@ -83,12 +116,38 @@ namespace Dino_BuildLab
             var keystones = nodes.Where(n => n.Kind == TalentKind.Keystone).ToList();
             int deepest = keystones.Max(k => TalentTree.DepthOf[k.Index]);
             int shallowest = keystones.Min(k => TalentTree.DepthOf[k.Index]);
-            report.Check("Keystones can be had well before the end of the game", deepest <= 30, $"{deepest}");
-            report.Note($"A keystone is {shallowest} to {deepest} points from the root; a hero at level 60 has {new HeroState { Level = 60 }.TalentPoints}");
+            report.Check("Keystones can be had well before the end of the game", deepest <= 48, $"{deepest}");
+            report.Note($"A keystone is {shallowest} to {deepest} points from the root; a hero at level 30 has {new HeroState { Level = 30 }.TalentPoints}, and at level 60 {new HeroState { Level = 60 }.TalentPoints}");
+
+            // They're placed where their ideas live, not spread round the rim: some near the middle, some by a road, some deep.
+            float edge = furthest;
+            int inner = keystones.Count(k => k.Position.Length < edge * 0.62f);
+            int depthsApart = keystones.Select(k => TalentTree.DepthOf[k.Index] / 4).Distinct().Count();
+            report.Check("Keystones stand at many depths, not only at the edge", inner >= 12 && depthsApart >= 6, $"{inner} in the inner part, {depthsApart} different depths");
 
             var notables = nodes.Where(n => n.Kind == TalentKind.Notable).ToList();
-            int nearest = TalentContent.Sectors.Select((s, i) => notables.Where(n => n.Sector == i).Min(n => TalentTree.DepthOf[n.Index])).Max();
-            report.Check("Every sector has a notable that's soon reached", nearest <= new HeroState { Level = 2 }.TalentPoints, $"{nearest} points");
+            int nearest = TalentContent.Regions.Select((s, i) => notables.Where(n => n.Region == i).Min(n => TalentTree.DepthOf[n.Index])).Max();
+            string firsts = string.Join(", ", TalentContent.Regions.Select((s, i) => $"{s.Id} {notables.Where(n => n.Region == i).Min(n => TalentTree.DepthOf[n.Index])}"));
+            report.Check("Every region has a notable that's soon reached", nearest <= new HeroState { Level = 5 }.TalentPoints, firsts);
+            report.Note($"The first notable in each region is this many points from the root: {firsts}");
+
+            // The point of a road is going far for little: a road node is further from the root than its depth would get anyone walking a lane.
+            var roads = nodes.Where(n => n.Highway && n.Position.Length > 1500f).ToList();
+            float roadReach = roads.Average(n => n.Position.Length / Math.Max(TalentTree.DepthOf[n.Index], 1));
+            report.Check("Roads go much further for each point than any lane can", roadReach > TalentTree.Spacing * 1.4f, $"{roadReach:0} units a point on roads, {TalentTree.Spacing:0} at best on a lane");
+            report.Note($"Going out, a point goes {roadReach:0} units on a road, and at best {TalentTree.Spacing:0} on a lane");
+
+            report.Check("Every node has a picture", nodes.All(n => n.Icon.Main != TalentGlyph.None), string.Join(", ", nodes.Where(n => n.Icon.Main == TalentGlyph.None).Take(6).Select(n => n.Id)));
+            var looks = new Dictionary<Mod, TalentIcon>();
+            string? unlike = null;
+            foreach (TalentNode node in nodes.Where(n => n.Kind == TalentKind.Small))
+            {
+                if (looks.TryGetValue(node.Mods[0], out TalentIcon icon) && icon != node.Icon) unlike = node.Id;
+                looks[node.Mods[0]] = node.Icon;
+            }
+            report.Check("Small nodes that give the same thing look the same", unlike == null, unlike ?? "");
+            var emblems = keystones.Select(k => k.Icon.Main).ToList();
+            report.Check("Every keystone has a picture of its own", emblems.Distinct().Count() == emblems.Count);
         }
 
         private static HeroState Hero(int level, params string[] talents)
@@ -108,53 +167,53 @@ namespace Dino_BuildLab
             HeroState fresh = HeroState.CreateNew();
             report.Check("A new hero has one book, and it's free", HeroBuild.Compile(fresh).Books.Length == 1 && HeroBuild.Compile(fresh).SheetFor(Condition.None).Profile(0).Cost == 0f);
             report.Check("The wind doesn't answer them until a land is free", !fresh.HasGuidingWind && new HeroState { WorldsCleared = 1 }.HasGuidingWind);
-            report.Check("A new hero can take the first step", TalentTree.CanAllocate(fresh, Index("pyre.t0")));
-            report.Check("But not a step further", !TalentTree.CanAllocate(fresh, Index("pyre.t1")));
-            report.Check("Nor anything that's taken", !TalentTree.CanAllocate(Hero(5, "pyre.t0"), Index("pyre.t0")));
+            report.Check("A new hero can take the first step, in any direction", TalentContent.Regions.All(r => TalentTree.CanAllocate(fresh, Index($"{r.Id}.start"))));
+            report.Check("But not a step further", !TalentTree.CanAllocate(fresh, Index("pyre.kindling.1")));
+            report.Check("Nor anything that's taken", !TalentTree.CanAllocate(Hero(5, "pyre.start"), Index("pyre.start")));
 
-            HeroState path = Hero(10, "pyre.t2");
-            report.Check("A node in the middle of a path can't be given back", !TalentTree.CanRefund(path, Index("pyre.t1")));
-            report.Check("The end of it can", TalentTree.CanRefund(path, Index("pyre.t2")));
+            HeroState path = Hero(10, "pyre.kindling.2");
+            report.Check("A node in the middle of a path can't be given back", !TalentTree.CanRefund(path, Index("pyre.kindling.1")));
+            report.Check("The end of it can", TalentTree.CanRefund(path, Index("pyre.kindling.2")));
             report.Check("Nor can the root ever", !TalentTree.CanRefund(path, TalentTree.Root.Index));
 
-            HeroState looped = Hero(20, "pyre.t2", "pyre.kindled-bolt", "pyre.kindled-bolt.0");
-            report.Check("A node a loop goes around can be given back", TalentTree.CanRefund(looped, Index("pyre.t1")));
+            HeroState looped = Hero(20, "pyre.start", "way.night-way.0");
+            report.Check("A node a loop goes around can be given back", TalentTree.CanRefund(looped, Index("pyre.start")));
 
-            HeroState rim = Hero(60, "forge.gate");
-            int twin = TalentTree.Find("forge.gate")!.Twin;
+            HeroState rim = Hero(60, "gate.anvil-and-quill.a");
+            int twin = TalentTree.Find("gate.anvil-and-quill.a")!.Twin;
             report.Check("A lit gate opens onto its twin", TalentTree.CanAllocate(rim, twin));
-            report.Check("Which is far away", (TalentTree.Nodes[twin].Position - TalentTree.Find("forge.gate")!.Position).Length > 1500f);
+            report.Check("Which is across the tree", (TalentTree.Nodes[twin].Position - TalentTree.Find("gate.anvil-and-quill.a")!.Position).Length > 5000f);
             rim.Talents.Add(TalentTree.Nodes[twin].Id);
             string beyond = TalentTree.Nodes[TalentTree.Nodes[twin].Links[0]].Id;
             report.Check("And past it, the tree goes on from there", TalentTree.CanAllocate(rim, TalentTree.Find(beyond)!.Index));
 
             rim.Talents.Add(beyond);
-            report.Check("The gate you came through can't be given back while the far side hangs from it", !TalentTree.CanRefund(rim, Index("forge.gate")));
+            report.Check("The gate you came through can't be given back while the far side hangs from it", !TalentTree.CanRefund(rim, Index("gate.anvil-and-quill.a")));
 
             int walked = TalentTree.DepthOf[Index("key.slow-burn")];
-            HeroState gatewalker = Hero(60, "forge.gate");
+            HeroState gatewalker = Hero(60, "gate.arrow-and-ember.a");
             int stepped = TalentTree.PathTo(gatewalker, Index("key.slow-burn")).Count;
             report.Check("A gate is a real shortcut", stepped < walked, $"{stepped} from the far gate, {walked} from the root");
-            report.Note($"From the far side of the Forge's gate, a Pyre keystone is {stepped} points; from the root it's {walked}");
+            report.Note($"From the far side of the Hunt's gate, the Pyre's Slow Burn is {stepped} points; from the root it's {walked}");
 
             HeroState unwise = Hero(1);
-            unwise.Talents.AddRange(new[] { "no.such.node", "pyre.t3", "root", "pyre.t0", "pyre.t0" });
+            unwise.Talents.AddRange(new[] { "no.such.node", "pyre.kindling.3", "root", "pyre.start", "pyre.start" });
             TalentTree.Sanitize(unwise);
-            report.Check("Nonsense, things cut off, and duplicates are all thrown out", unwise.Talents.Count == 1 && unwise.Talents[0] == "pyre.t0", string.Join(",", unwise.Talents));
+            report.Check("Nonsense, things cut off, and duplicates are all thrown out", unwise.Talents.Count == 1 && unwise.Talents[0] == "pyre.start", string.Join(",", unwise.Talents));
 
             HeroState broke = Hero(60, "key.slow-burn", "key.tidewalker");
             broke.Level = 2;
             TalentTree.Sanitize(broke);
             report.Check("More talents than the level allows are trimmed, and what's left still holds together", broke.Talents.Count <= broke.TalentPoints && Enumerable.Range(0, TalentTree.Nodes.Length).All(i => !TalentTree.Allocated(broke).Contains(i) || i == 0 || TalentTree.CanRefund(broke, i) || TalentTree.Nodes[i].Links.Count > 0), $"{broke.Talents.Count} of {broke.TalentPoints}");
 
-            HeroState ordered = Hero(40, "pyre.kindled-bolt", "winter.white-ring");
+            HeroState ordered = Hero(40, "pyre.kindled-spark", "winter.white-ring");
             var shuffled = new HeroState { Level = 40, Talents = ordered.Talents.OrderByDescending(t => t).ToList() };
             float a = HeroBuild.Compile(ordered).SheetFor(Condition.None).Preview(Shelf.Firebolt).First.AverageHit;
             float b = HeroBuild.Compile(shuffled).SheetFor(Condition.None).Preview(Shelf.Firebolt).First.AverageHit;
             report.Check("The order talents were taken in makes no difference to what they add up to", a == b, $"{a} and {b}");
 
-            report.Check("A wanderer becomes something", TalentTree.TitleOf(new HeroState()) == "Wanderer" && TalentTree.TitleOf(Hero(30, "pyre.t5")) == "Ember Pyromancer", TalentTree.TitleOf(Hero(30, "pyre.t5")));
-            report.Check("Two sectors mix", TalentTree.TitleOf(Hero(40, "pyre.t5", "winter.t3")) == "Frost Pyromancer", TalentTree.TitleOf(Hero(40, "pyre.t5", "winter.t3")));
+            report.Check("A wanderer becomes something", TalentTree.TitleOf(new HeroState()) == "Wanderer" && TalentTree.TitleOf(Hero(30, "pyre.kindling.6")) == "Ember Pyromancer", TalentTree.TitleOf(Hero(30, "pyre.kindling.6")));
+            report.Check("Two regions mix", TalentTree.TitleOf(Hero(40, "pyre.kindling.7", "winter.frost.4")) == "Frost Pyromancer", TalentTree.TitleOf(Hero(40, "pyre.kindling.7", "winter.frost.4")));
             report.Check("A keystone can have the last word", TalentTree.TitleOf(Hero(40, "key.tidewalker")) == "Tidewalker");
         }
 
@@ -236,7 +295,7 @@ namespace Dino_BuildLab
             var ignored = land.Where(c => (conditions & c) == 0).ToList();
             report.Check("Everything the land can say matters to some build", ignored.Count == 0, string.Join(", ", ignored));
 
-            report.Check("Each sector's small nodes are worth having", TalentContent.Sectors.All(s => s.Small.All(m => m.Length > 0)));
+            report.Check("Every small node gives exactly one thing", TalentTree.Nodes.Where(n => n.Kind == TalentKind.Small).All(n => n.Mods.Length == 1), string.Join(", ", TalentTree.Nodes.Where(n => n.Kind == TalentKind.Small && n.Mods.Length != 1).Take(6).Select(n => n.Id)));
             int more = 0;
             int common = 0;
             foreach (TalentNode node in TalentTree.Nodes)
@@ -635,7 +694,7 @@ namespace Dino_BuildLab
         private static void Wires(Report report)
         {
             var random = new WorldRandom(8);
-            HeroState hero = Hero(30, "pyre.kindled-bolt", "key.slow-burn");
+            HeroState hero = Hero(30, "pyre.kindled-spark", "key.slow-burn");
             hero.Bar[3] = ItemGenerator.Copied(Shelf.Meteor.Source!, "Meteor", 7);
             hero.Equipped[WornSlot.MainHand] = UniqueCatalog.Make(UniqueCatalog.Find("ashen-promise")!, 20, random);
             for (int i = 0; i < 30; i++) hero.Pickup(ItemGenerator.Roll(30, random.Fork(i), 2f));

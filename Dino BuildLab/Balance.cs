@@ -18,7 +18,7 @@ namespace Dino_BuildLab
 
         private static readonly Sample[] Samples =
         {
-            new("Fire caster", Shelf.Firebolt, new[] { "pyre", "arcanum", "marrow" }, new[] { "pyre.kindled-bolt" }, WeaponKind.Staff),
+            new("Fire caster", Shelf.Firebolt, new[] { "pyre", "arcanum", "marrow" }, new[] { "pyre.kindled-spark" }, WeaponKind.Staff),
             new("Sword fighter", Shelf.Strike, new[] { "forge", "bulwark", "marrow" }, Array.Empty<string>(), WeaponKind.Sword),
             new("Frost caster", Shelf.FrostShards, new[] { "winter", "arcanum", "storm" }, new[] { "winter.splinters" }, WeaponKind.Wand),
             new("Archer", Shelf.Shot, new[] { "hunt", "knave", "wilds" }, new[] { "hunt.steady-draw" }, WeaponKind.Bow),
@@ -34,8 +34,8 @@ namespace Dino_BuildLab
             var wishes = new List<TalentNode>();
             for (int i = 0; i < sample.Sectors.Length; i++)
             {
-                int sector = Array.FindIndex(TalentContent.Sectors, s => s.Id == sample.Sectors[i]);
-                wishes.AddRange(TalentTree.Nodes.Where(n => n.Sector == sector && n.Kind == TalentKind.Notable));
+                int sector = Array.FindIndex(TalentContent.Regions, s => s.Id == sample.Sectors[i]);
+                wishes.AddRange(TalentTree.Nodes.Where(n => n.Region == sector && n.Kind == TalentKind.Notable));
             }
 
             foreach (TalentNode node in wishes.OrderBy(n => TalentTree.DepthOf[n.Index]))

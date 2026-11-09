@@ -23,6 +23,15 @@ namespace Dino_Defenders.Stats
 
         public readonly float Scale => MathF.Max(1f + Increased / 100f, 0f) * MathF.Max(More, 0f);
 
+        /// <summary>Another sum on the same footing, as though its modifiers had been on this stat: what quickens every Book adds to what quickens Attacks.</summary>
+        public void Merge(in StatSum other)
+        {
+            Flat += other.Flat;
+            Increased += other.Increased;
+            More *= other.More;
+            Set = MathF.Min(Set, other.Set);
+        }
+
         public void Add(in Mod mod, float value)
         {
             switch (mod.Kind)
@@ -94,6 +103,9 @@ namespace Dino_Defenders.Stats
         public readonly float Armour;
         public readonly float PhysicalReduction;
         public readonly float Evasion;
+
+        /// <summary>Percent of <see cref="Evasion"/> that counts against Spells too.</summary>
+        public readonly float SpellEvasion;
         public readonly float BlockAttacks;
         public readonly float BlockSpells;
         public readonly float TakenFromMana;
@@ -151,6 +163,7 @@ namespace Dino_Defenders.Stats
             _per[(int)Per.Strength] = Total(Stat.Strength);
             _per[(int)Per.Dexterity] = Total(Stat.Dexterity);
             _per[(int)Per.Intellect] = Total(Stat.Intellect);
+            if (Has(Rule.NarrowWay)) Narrow();
             for (Per per = Per.Gold; per <= Counting.Last; per++) _per[(int)per] = counters.Read(per);
             _perReady = true;
 
@@ -175,6 +188,7 @@ namespace Dino_Defenders.Stats
             Armour = MathF.Max(Total(Stat.Armour), 0f);
             PhysicalReduction = Total(Stat.PhysicalReduction);
             Evasion = Has(Rule.CannotEvade) ? 0f : MathF.Max(Total(Stat.Evasion), 0f);
+            SpellEvasion = Math.Clamp(Total(Stat.SpellEvasion), 0f, 100f);
             float maxBlock = MathF.Min(Total(Stat.MaxBlock, BaseMaxBlock), Rulebook.MostBlock);
             BlockAttacks = Math.Clamp(Total(Stat.BlockChance, 0f, Tags.Attack), 0f, maxBlock);
             BlockSpells = Math.Clamp(Total(Stat.BlockChance, 0f, Tags.Spell), 0f, maxBlock);
@@ -214,6 +228,17 @@ namespace Dino_Defenders.Stats
         }
 
         private bool Holds(in Mod mod) => (mod.Need & ~(State | Loadout.Granted)) == 0 && (mod.Without & (State | Loadout.Granted)) == 0;
+
+        // Only the highest attribute is counted, at twice what it is, and the others as nothing. Ties go to the first, so the same build always reads the same.
+        private void Narrow()
+        {
+            Per best = Per.Strength;
+            foreach (Per per in new[] { Per.Dexterity, Per.Intellect })
+            {
+                if (_per[(int)per] > _per[(int)best]) best = per;
+            }
+            foreach (Per per in new[] { Per.Strength, Per.Dexterity, Per.Intellect }) _per[(int)per] = per == best ? _per[(int)per] * 2f : 0f;
+        }
 
         // What a modifier is worth here: its value, times however many of whatever it's counted per. Null if it doesn't count yet.
         private float? Worth(in Mod mod)

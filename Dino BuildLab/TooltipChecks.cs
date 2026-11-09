@@ -20,7 +20,7 @@ namespace Dino_BuildLab
         private const int MostLinesOnACard = 18;    // What's on show at once. A person asked for less, so past this it goes in the details.
 
         // Past these, what's on a skill's card only depends on what it has, so this is a hero with some of everything.
-        private static readonly string[] Build = { "key.echoing-word", "pyre.searing-heat", "storm.high-voltage", "mire.toxic-blood", "marrow.leech", "knave.cut-throat" };
+        private static readonly string[] Build = { "key.echoing-word", "pyre.searing-heat", "storm.high-voltage", "mire.toxic-blood", "marrow.the-leech", "knave.cut-throat" };
 
         public static void Run(Report report)
         {
@@ -552,11 +552,11 @@ namespace Dino_BuildLab
         {
             var hero = new HeroState { Level = 20 };
             hero.Equipped[WornSlot.MainHand] = new Item { Name = "Wand", Slot = ItemSlot.MainHand, Level = 20, Kind = WeaponKind.Wand, WeaponDamage = 30f, Rarity = Rarity.Magic, Lines = { new ItemLine("spell-fire", 40f) } };
-            foreach (int step in TalentTree.PathTo(hero, TalentTree.Find("pyre.kindled-bolt")!.Index)) hero.Talents.Add(TalentTree.Nodes[step].Id);
+            foreach (int step in TalentTree.PathTo(hero, TalentTree.Find("pyre.kindled-spark")!.Index)) hero.Talents.Add(TalentTree.Nodes[step].Id);
 
             string? Damage() => Value(CardOf(HeroBuild.Compile(hero).SheetFor(Condition.None), Shelf.Firebolt), "Fire Damage");
             string? before = Damage();
-            foreach (int step in TalentTree.PathTo(hero, TalentTree.Find("arcanum.spellweaver")!.Index)) hero.Talents.Add(TalentTree.Nodes[step].Id);
+            foreach (int step in TalentTree.PathTo(hero, TalentTree.Find("arcanum.weave-and-warp")!.Index)) hero.Talents.Add(TalentTree.Nodes[step].Id);
             string? after = Damage();
             report.Check("Taking a talent that adds Spell Damage changes the Spell's card", before != null && after != null && before != after, $"{before} and {after}");
 
@@ -692,9 +692,7 @@ namespace Dino_BuildLab
             report.Near("And Spell Damage", clever.Preview(Shelf.Firebolt).First.Flows[0].Increased, 100f * Rulebook.IntellectSpellDamage);
             report.Check("Which does nothing for an Attack", fighter.Preview(Shelf.Strike).First.Flows[0].Increased == 0f);
 
-            report.Check("Attributes come from the tree", TalentTree.Nodes.Where(n => n.Sector >= 0 && n.Kind != TalentKind.Gate).All(n => n.Mods.Any(m => Attributes.Is(m.Stat))));
-            int[] given = TalentContent.Sectors.Select(s => (int)TalentContent.AttributesOf(s.Id).Sum(m => m.Value)).ToArray();
-            report.Check("And each sector gives the same amount", given.All(g => g == Rulebook.NodeAttribute), string.Join(",", given));
+            report.Check("Attributes come from the tree: every travel node gives one", TalentTree.Nodes.Where(n => n.Travel).All(n => n.Mods.Length == 1 && Attributes.Is(n.Mods[0].Stat)));
 
             // The sum on a card has to come to what the sheet says.
             var armoured = new HeroState { Level = 5 };

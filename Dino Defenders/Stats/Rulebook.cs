@@ -129,6 +129,15 @@ namespace Dino_Defenders.Stats
         public const float LongShotNear = 10f;          // Metres, inside which it's weaker.
         public const float LongShotNearLess = 0.4f;
 
+        // The keystones of the tree as it was remade. Nobody has played any of these, so they're only where to start.
+        public const float SplashShare = 0.5f;          // Of a Melee Hit, dealt around whoever took it.
+        public const float SplashRadius = 3.5f;         // Metres around them.
+        public const float MostEmbers = 5f;             // What Burns that add together can come to, of the newest.
+        public const float ReservePerCost = 8f;         // Maximum Mana held back for each point of a Toggle Book's Cost, for those whose Toggle Books hold it.
+        public const float LongCountPer = 0.15f;        // More Potency for each second of a Book's Cooldown.
+        public const float LongCountMost = 1.5f;
+        public const float LongCountIdle = 0.3f;        // Less Potency, for a Book with no Cooldown at all.
+
         // What only uniques do. Nobody has played any of it, so these are only where to start.
         public const float BleedBurstShare = 0.25f;     // Of the bleeder's maximum health, dealt around it as Physical.
         public const float OverkillReach = 12f;         // Metres what's left over looks for someone in.

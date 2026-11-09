@@ -281,6 +281,7 @@ namespace Dino_Defenders.Tooltips
 
             On(Stat.AttackSpeed, Basic("Attack Speed", "Shortens the Use Time of Attacks."));
             On(Stat.CastSpeed, Basic("Cast Speed", "Shortens the Use Time of Spells."));
+            On(Stat.UseSpeed, Basic("Use Speed", "Shortens the Use Time of every Book. Adds up with Attack Speed and Cast Speed."));
             On(Stat.CritChance, Basic("Critical Chance", "Chance for a Hit to be a Critical Hit."));
             On(Stat.CritMultiplier, Basic("Critical Multiplier", $"Added to the {Percent(ActorSheet.BaseCritMultiplier)} Damage of a Critical Hit."));
             Basic("Critical Hit", "A Hit multiplied by Critical Multiplier.", "Critical Hits");
@@ -296,6 +297,7 @@ namespace Dino_Defenders.Tooltips
             On(Stat.Armour, Word("Armour", $"Reduces Physical Hits by Armour / (Armour + {Whole(Hits.ArmourFactor)} x Damage), up to {Share(Hits.MostReduction)}. Big Hits are reduced less."));
             On(Stat.ArmourApplies, Word("Armour also applies", "Armour also reduces that type, at this share.", "of Armour also applies"));
             On(Stat.Evasion, Word("Evasion", $"Chance for an Attack to miss: Evasion / (Evasion + {Whole(Hits.EvasionFactor)} x Accuracy + {Whole(Hits.EvasionMargin)}), up to {Share(Hits.MostEvasion)}. Spells can't be Evaded.", "Evade", "Evaded"));
+            On(Stat.SpellEvasion, Word("Evasion also applies to Spells", "This share of your Evasion also works against Spells, which can't otherwise be Evaded.", "of Evasion also applies to Spells", "Evasion against Spells"));
             On(Stat.BlockChance, Word("Chance to Block", $"Stops a Hit completely. Attacks and Spells are separate chances, up to {Percent(ActorSheet.BaseMaxBlock)}.", "Block", "Blocks", "Blocked"));
             On(Stat.MaxBlock, Word("Maximum Chance to Block", $"Raises the {Percent(ActorSheet.BaseMaxBlock)} limit, up to {Percent(MostBlock)}."));
             On(Stat.Resistance, Word("Resistance", $"Reduces Damage of that type by this much, up to {Percent(ActorSheet.BaseMaxResistance)}. Below zero it increases it, down to {Percent(Hits.LeastResistance)}.", "Resistances"));

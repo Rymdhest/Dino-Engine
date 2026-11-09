@@ -354,8 +354,10 @@ namespace Dino_Defenders.Stats
                 return 0f;
             }
 
+            if (target.Has(Rule.Equilibrium)) return PayEvenly(target, ref vitals, total, pastBarrier);
+
             float owed = total;
-            if (vitals.Barrier > 0f)
+            if (vitals.Barrier > 0f && !target.Has(Rule.BarrierPays))
             {
                 float taken = MathF.Min(vitals.Barrier, MathF.Max(total - pastBarrier, 0f));
                 vitals.Barrier -= taken;
@@ -368,6 +370,29 @@ namespace Dino_Defenders.Stats
                 vitals.Mana -= taken;
                 owed -= taken;
             }
+
+            vitals.Health -= owed;
+            return owed;
+        }
+
+        // An equal share from each pool that has anything in it, and whatever one can't pay going to the rest. What seeps past barrier can only be paid from the other two.
+        private static float PayEvenly(ActorSheet target, ref Vitals vitals, float total, float pastBarrier)
+        {
+            bool shields = !target.Has(Rule.BarrierPays);
+            float seeping = MathF.Min(pastBarrier, total);
+            float rest = total - seeping;
+
+            // What barrier can take a share of, it takes; what it can't is split between health and mana.
+            int pools = 1 + (vitals.Mana > 0f ? 1 : 0) + (shields && vitals.Barrier > 0f ? 1 : 0);
+            float share = rest / pools;
+            float fromBarrier = shields ? MathF.Min(vitals.Barrier, share) : 0f;
+            vitals.Barrier -= fromBarrier;
+
+            float owed = total - fromBarrier;
+            int others = 1 + (vitals.Mana > 0f ? 1 : 0);
+            float fromMana = MathF.Min(MathF.Max(vitals.Mana, 0f), owed / others);
+            vitals.Mana -= fromMana;
+            owed -= fromMana;
 
             vitals.Health -= owed;
             return owed;
@@ -409,6 +434,14 @@ namespace Dino_Defenders.Stats
             }
 
             if (vitals.Health < sheet.MaxHealth) vitals.Health = MathF.Min(vitals.Health + sheet.HealthRegen * seconds, sheet.MaxHealth);
+
+            // For some, a full well spills over into barrier, and that's the only way it ever fills.
+            if (sheet.Has(Rule.StillWaters))
+            {
+                if (vitals.Mana >= sheet.MaxMana - 0.01f && vitals.Barrier < sheet.MaxBarrier) vitals.Barrier = MathF.Min(vitals.Barrier + sheet.ManaRegen * seconds, sheet.MaxBarrier);
+                return;
+            }
+
             if (sinceHit >= sheet.BarrierDelay && vitals.Barrier < sheet.MaxBarrier)
             {
                 vitals.Barrier = MathF.Min(vitals.Barrier + sheet.BarrierRecharge * seconds, sheet.MaxBarrier);

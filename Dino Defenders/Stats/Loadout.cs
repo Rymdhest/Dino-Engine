@@ -103,6 +103,17 @@ namespace Dino_Defenders.Stats
             // Before anything is diverted, as what an attribute gives is as much a part of a stat as anything else.
             if (numbers.Exists(mod => Attributes.Is(mod.Stat)) && !numbers.Contains(Attributes.Mods[0])) numbers.AddRange(Attributes.Mods);
 
+            // What makes Spells stronger makes Attacks stronger instead, for those who've learned to put it into a blade. Intellect's share of Spell Damage goes with it.
+            if (rules.Exists(rule => rule.Rule == Rule.SpellsArmTheBlade))
+            {
+                for (int i = 0; i < numbers.Count; i++)
+                {
+                    Mod mod = numbers[i];
+                    if (mod.Stat != Stat.Damage || mod.Kind is not (ModKind.Increased or ModKind.More) || (mod.Scope & Tags.Spell) == 0) continue;
+                    numbers[i] = mod with { Scope = (mod.Scope & ~Tags.Spell) | Tags.Attack };
+                }
+            }
+
             ApplyDiversions(numbers, diverted);
 
             // What goes off by itself has to be somewhere for a profile to be made of it, though nobody picks it from a list.

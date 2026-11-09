@@ -544,7 +544,8 @@ namespace Dino_Defenders.Server
         {
             foreach (Mod mod in node.Mods)
             {
-                if (mod.Kind == ModKind.Rule && mod.Rule is Rule.NoOwnDamage or Rule.Guardian or Rule.CostsHealth) return false;
+                // Costs, Toggle Books and attributes are a hero's business: a tyrant pays for nothing and toggles nothing, and has no attributes to choose between.
+                if (mod.Kind == ModKind.Rule && mod.Rule is Rule.NoOwnDamage or Rule.Guardian or Rule.CostsHealth or Rule.ToggleReserves or Rule.BarrierPays or Rule.NarrowWay or Rule.Shorthand) return false;
                 if (mod.Scope.HasFlag(Tags.Minion) || mod.Stat == Stat.RaiseFallen) return false;
             }
             return true;
@@ -562,7 +563,7 @@ namespace Dino_Defenders.Server
                     mods.Add(mod with { Scope = mod.Scope & ~Tags.Minion });
                     continue;
                 }
-                if (puppet && mod.Stat is Stat.Damage or Stat.AttackSpeed or Stat.CastSpeed or Stat.CritChance or Stat.CritMultiplier) mods.Add(mod);
+                if (puppet && mod.Stat is Stat.Damage or Stat.AttackSpeed or Stat.CastSpeed or Stat.UseSpeed or Stat.CritChance or Stat.CritMultiplier) mods.Add(mod);
             }
             return new Loadout(owner.Level, WeaponFor(kind, owner.Level, 1f), mods, kind.Books);
         }

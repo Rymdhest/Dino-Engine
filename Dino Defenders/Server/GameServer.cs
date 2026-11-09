@@ -388,6 +388,7 @@ namespace Dino_Defenders.Server
                 HeroStepEvents events = HeroRules.Step(ref player.Sim, command, player.Kit, _mover!);
                 actor.Vitals.Mana = player.Sim.Mana;
                 actor.Vitals.Health = player.Sim.Health;
+                actor.Vitals.Barrier = player.Sim.Barrier;
                 if (player.Sim.Health < healthBefore) actor.HealthSpent += (healthBefore - player.Sim.Health) / actor.Sheet.MaxHealth * 100f;
 
                 if (!Paused)
@@ -469,8 +470,11 @@ namespace Dino_Defenders.Server
             }
             else
             {
-                if (actor.Vitals.Mana < book.Cost) return false;
-                actor.Vitals.Mana = actor.Sheet.Has(Rule.SpendsAll) ? 0f : actor.Vitals.Mana - book.Cost;
+                float barrier = actor.Sheet.Has(Rule.BarrierPays) ? MathF.Max(actor.Vitals.Barrier, 0f) : 0f;
+                if (actor.Vitals.Mana + barrier < book.Cost) return false;
+                float fromBarrier = MathF.Min(barrier, book.Cost);
+                actor.Vitals.Barrier -= fromBarrier;
+                actor.Vitals.Mana = actor.Sheet.Has(Rule.SpendsAll) ? 0f : actor.Vitals.Mana - (book.Cost - fromBarrier);
             }
             if (book.CostsMinion) session.Combat.Dismiss(session.Combat.Oldest(actor)!);
             return true;
@@ -511,7 +515,8 @@ namespace Dino_Defenders.Server
             Afflictions afflictions = actor.Afflictions;
             player.Sim.Mana = actor.Vitals.Mana;
             player.Sim.Health = actor.Vitals.Health;
-            player.Sim.Held = MathF.Max(afflictions.FreezeLeft, afflictions.StunLeft);
+            player.Sim.Barrier = actor.Vitals.Barrier;
+            player.Sim.Held =MathF.Max(afflictions.FreezeLeft, afflictions.StunLeft);
             player.Sim.ActionRate = afflictions.ActionRate;
             player.Sim.MoveRate = afflictions.ActionRate;
             player.Sim.State = actor.State;

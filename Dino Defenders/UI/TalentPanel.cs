@@ -230,9 +230,9 @@ namespace Dino_Defenders.UI
             float alpha = Math.Clamp((0.62f - _zoom) / 0.2f, 0f, 1f);
             if (alpha <= 0f) return;
 
-            for (int i = 0; i < TalentContent.Sectors.Length; i++)
+            for (int i = 0; i < TalentContent.Regions.Length; i++)
             {
-                Sector sector = TalentContent.Sectors[i];
+                Region sector = TalentContent.Regions[i];
                 float angle = MathHelper.DegreesToRadians(i * 30f);
                 Vector2 at = ToScreen(new Vector2(MathF.Sin(angle), -MathF.Cos(angle)) * SectorRadius);
                 Colour colour = GuiColors.Rgba(sector.Colour.X, sector.Colour.Y, sector.Colour.Z, 0.34f * alpha);
@@ -288,7 +288,7 @@ namespace Dino_Defenders.UI
                 float radius = MathF.Max(SizeOf(node.Kind) * _zoom, SmallestDot);
                 if (at.X < view.X - radius || at.X > view.Right + radius || at.Y < view.Y - radius || at.Y > view.Bottom + radius) continue;
 
-                Vector3 hue = node.Sector >= 0 ? TalentContent.Sectors[node.Sector].Colour : new Vector3(0.9f, 0.86f, 0.7f);
+                Vector3 hue = node.Region >= 0 ? TalentContent.Regions[node.Region].Colour : new Vector3(0.9f, 0.86f, 0.7f);
                 int i = node.Index;
                 float shade = _taken[i] ? 1f : _open[i] || _onPath[i] ? 0.62f : 0.26f;
                 Colour fill = GuiColors.Rgba(hue.X * shade, hue.Y * shade, hue.Z * shade);

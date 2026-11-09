@@ -26,10 +26,10 @@ namespace Dino_BuildLab
 
             if (what is "all" or "keystones")
             {
-                foreach (Sector sector in TalentContent.Sectors)
+                foreach (Region sector in TalentContent.Regions)
                 {
                     Console.WriteLine($"\n{sector.Name}");
-                    foreach (TalentNode node in TalentTree.Nodes.Where(n => n.Kind == TalentKind.Keystone && TalentContent.Sectors[n.Sector] == sector))
+                    foreach (TalentNode node in TalentTree.Nodes.Where(n => n.Kind == TalentKind.Keystone && TalentContent.Regions[n.Region] == sector))
                     {
                         Console.WriteLine($"  {node.Name}");
                         foreach (Mod mod in node.Mods) Console.WriteLine($"      {mod.Describe()}");

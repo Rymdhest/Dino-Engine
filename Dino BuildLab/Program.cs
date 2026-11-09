@@ -45,6 +45,8 @@ namespace Dino_BuildLab
                     return BookLab.Run(options);
                 case "lookup":
                     return VendorChecks.List(options);
+                case "tree":
+                    return TreeMap.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

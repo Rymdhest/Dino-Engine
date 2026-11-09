@@ -111,6 +111,7 @@ namespace Dino_Defenders.Gameplay
 
             float length = MathF.Min(page.Range, reach + BeyondTarget);
             if (page.Projectiles <= 1) return Line(origin, facing, length, FlightWidth);
+            if (book.Sheet.Has(Rule.Starburst)) return Circle(origin, length);
             return Sector(origin, facing, length, plan.Spread * (page.Projectiles - 1) + 0.1f);
         }
 

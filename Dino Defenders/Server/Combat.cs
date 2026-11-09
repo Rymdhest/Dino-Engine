@@ -585,7 +585,11 @@ namespace Dino_Defenders.Server
             }
 
             int count = page.Projectiles;
-            float start = -(count - 1) * 0.5f * plan.Spread;
+
+            // For some, what flies goes out all around them, evenly, the first of it where they aimed.
+            bool ring = count > 1 && cast.Source.Sheet.Has(Rule.Starburst);
+            float spread = ring ? MathF.Tau / count : plan.Spread;
+            float start = ring ? 0f : -(count - 1) * 0.5f * spread;
             for (int i = 0; i < count; i++)
             {
                 if (!Spend(cast)) return;
@@ -603,7 +607,7 @@ namespace Dino_Defenders.Server
                 float distance = toward.Length;
                 Vector2 aimed = distance > 0.01f ? toward / distance : way;
 
-                float angle = start + i * plan.Spread;
+                float angle = start + i * spread;
                 float cos = MathF.Cos(angle);
                 float sin = MathF.Sin(angle);
                 var direction = new Vector2(aimed.X * cos - aimed.Y * sin, aimed.X * sin + aimed.Y * cos);
@@ -895,7 +899,8 @@ namespace Dino_Defenders.Server
             if ((skill.FoeConditions & Condition.Relations) != 0) foe |= Relation(source, target, skill.FoeConditions);
 
             bool attack = (skill.Tags & Tags.Attack) != 0;
-            if (attack && _luck.Float() < Hits.EvadeChance(target.Sheet.Evasion, skill.Accuracy))
+            float evasion = attack ? target.Sheet.Evasion : (skill.Tags & Tags.Spell) != 0 ? target.Sheet.Evasion * target.Sheet.SpellEvasion / 100f : 0f;
+            if (evasion > 0f && _luck.Float() < Hits.EvadeChance(evasion, skill.Accuracy))
             {
                 Show(new DamageEvent { Position = point, Note = HitNote.Evaded, ToHero = target.IsHero, Target = GhostOf(target) }, target.Position);
                 return;
@@ -997,6 +1002,7 @@ namespace Dino_Defenders.Server
             if ((hit.Critical || anyHit) && execute > 0f && target.Vitals.Health < target.Sheet.MaxHealth * execute / 100f) target.Vitals.Health = 0f;
 
             if (target.Sheet.Reflect > 0f && ((skill.Tags & Tags.Melee) != 0 || target.Sheet.Has(Rule.ThornsAlways)) && total > 0f) Harm(target, source, total * target.Sheet.Reflect / 100f, DamageType.Physical);
+            if ((skill.Tags & Tags.Melee) != 0 && total > 0f && source.Sheet.Has(Rule.MeleeSplash)) Splash(source, target, raw);
             if (barrierBefore > 0f && target.Vitals.Barrier <= 0f) SetOff(target, TriggerEvent.BarrierBroke, target.Position);
             if (total > 0f && target.Sheet.Has(Rule.Adapts)) Adapt(target, StrongestOf(hit));
 
@@ -1330,6 +1336,17 @@ namespace Dino_Defenders.Server
             return 1f;
         }
 
+        // A Melee Hit spilling onto whoever stands around whoever took it, of every type it was, as it left the hand: each of them has their own defences.
+        private void Splash(Actor source, Actor target, in DamageTable dealt)
+        {
+            Show(PageEvent.Round(Ground(target.Position), PageSign.Blast(DamageType.Physical), SplashRadius), target.Position);
+            for (int i = 0; i < DamageKinds.Count; i++)
+            {
+                if (dealt[i] <= 0f) continue;
+                Defer(new Consequence { Kind = Later.Blast, At = Now, Source = source, Origin = target.Position, Radius = SplashRadius, Type = (DamageType)i, Amount = dealt[i] * SplashShare, Tags = Tags.Melee, Victim = target });
+            }
+        }
+
         private void Spread(Actor source, Actor around, float radius, DamageType type, float amount)
         {
             Defer(new Consequence { Kind = Later.Blast, At = Now, Source = source, Origin = around.Position, Radius = radius, Type = type, Amount = amount, Tags = Tags.Reaction, Victim = null });
@@ -1402,7 +1419,13 @@ namespace Dino_Defenders.Server
             {
                 float seconds = Length(Ailment.Burn, AilmentRules.BurnSeconds);
                 float perSecond = AilmentRules.PerSecond(Ailment.Burn, flame) * Strength(Ailment.Burn);
-                if (seconds > 0f && (perSecond >= a.BurnPerSecond || a.BurnLeft <= 0f))
+                if (seconds > 0f && a.BurnLeft > 0f && a.BurnSource == source && source.Sheet.Has(Rule.BurnsStack))
+                {
+                    // Embers on embers: what's there grows by the new one, as far as so many of the new one, and never shrinks for a weaker one.
+                    a.BurnPerSecond = MathF.Max(a.BurnPerSecond, MathF.Min(a.BurnPerSecond + perSecond, perSecond * MostEmbers));
+                    a.BurnLeft = MathF.Max(a.BurnLeft, seconds);
+                }
+                else if (seconds > 0f && (perSecond >= a.BurnPerSecond || a.BurnLeft <= 0f))
                 {
                     a.BurnPerSecond = perSecond;
                     a.BurnLeft = seconds;

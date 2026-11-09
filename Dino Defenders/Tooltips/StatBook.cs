@@ -149,6 +149,7 @@ namespace Dino_Defenders.Tooltips
             Add(defence, "Armour also applies", Stat.ArmourApplies, s => Rate(MathF.Max(s.ArmourApplies[(int)DamageType.Fire], MathF.Max(s.ArmourApplies[(int)DamageType.Cold], s.ArmourApplies[(int)DamageType.Lightning]))));
             Add(defence, "Physical Damage Reduction", Stat.PhysicalReduction, s => Rate(s.PhysicalReduction));
             Add(defence, "Evasion", Stat.Evasion, s => Whole(s.Evasion), always: true, adds: true, notes: EvasionNotes);
+            Add(defence, "Evasion against Spells", Stat.SpellEvasion, s => Rate(s.SpellEvasion));
             Add(defence, "Chance to Block Attacks", Stat.BlockChance, s => Rate(s.BlockAttacks), always: true, within: Tags.Attack);
             Add(defence, "Chance to Block Spells", Stat.BlockChance, s => Rate(s.BlockSpells), always: true, within: Tags.Spell);
             Add(defence, "Maximum Chance to Block", Stat.MaxBlock, s => Signed(Above(s, Stat.MaxBlock, ActorSheet.BaseMaxBlock)) + "%");
@@ -178,6 +179,7 @@ namespace Dino_Defenders.Tooltips
             Add(offence, "Damage Gained as extra", Stat.GainAs, s => Rate(s.Total(Stat.GainAs)));
             Add(offence, "Attack Speed", Stat.AttackSpeed, s => Change(s, Stat.AttackSpeed));
             Add(offence, "Cast Speed", Stat.CastSpeed, s => Change(s, Stat.CastSpeed));
+            Add(offence, "Use Speed", Stat.UseSpeed, s => Change(s, Stat.UseSpeed));
             Add(offence, "Critical Chance", Stat.CritChance, s => Change(s, Stat.CritChance));
             Add(offence, "Critical Multiplier", Stat.CritMultiplier, s => Signed(Above(s, Stat.CritMultiplier, ActorSheet.BaseCritMultiplier)) + "%");
             Add(offence, "Accuracy", Stat.Accuracy, s => Whole(s.Total(Stat.Accuracy)), always: true, adds: true);

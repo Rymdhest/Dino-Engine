@@ -619,7 +619,7 @@ namespace Dino_Defenders.Tooltips
                 TalentKind.Notable => "Notable",
                 TalentKind.Gate => "Waygate",
                 TalentKind.Root => "Where every Hero starts",
-                _ => node.Sector >= 0 ? TalentContent.Sectors[node.Sector].Name : "",
+                _ => node.Highway ? "Highway" : node.Region >= 0 ? TalentContent.Regions[node.Region].Name : "",
             };
 
             Mods(card, node.Mods, viewer);
