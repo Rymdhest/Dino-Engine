@@ -47,6 +47,8 @@ namespace Dino_BuildLab
                     return VendorChecks.List(options);
                 case "tree":
                     return TreeMap.Run(options);
+                case "icons":
+                    return TreeMap.Icons(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

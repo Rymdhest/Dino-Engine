@@ -215,6 +215,10 @@ namespace Dino_BuildLab
             report.Check("A wanderer becomes something", TalentTree.TitleOf(new HeroState()) == "Wanderer" && TalentTree.TitleOf(Hero(30, "pyre.kindling.6")) == "Ember Pyromancer", TalentTree.TitleOf(Hero(30, "pyre.kindling.6")));
             report.Check("Two regions mix", TalentTree.TitleOf(Hero(40, "pyre.kindling.7", "winter.frost.4")) == "Frost Pyromancer", TalentTree.TitleOf(Hero(40, "pyre.kindling.7", "winter.frost.4")));
             report.Check("A keystone can have the last word", TalentTree.TitleOf(Hero(40, "key.tidewalker")) == "Tidewalker");
+
+            SaveGame? regrown = SaveGame.Read("""{ "Version": 11, "Hero": { "Level": 20, "Talents": [ "pyre.start", "storm.forked-path", "key.debtor" ] } }""");
+            report.Check("A save from before the tree was grown again starts it again, with every point to spend", regrown != null && regrown.Hero.Talents.Count == 0 && regrown.Hero.UnspentPoints == regrown.Hero.TalentPoints,
+                regrown == null ? "unreadable" : string.Join(",", regrown.Hero.Talents));
         }
 
         private static IEnumerable<(string where, Mod mod)> EveryMod()

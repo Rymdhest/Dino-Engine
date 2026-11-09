@@ -47,6 +47,13 @@ void main(void){
 	} else if (mode == 5) {
 		// vertical gradient from colour (top) to border colour (bottom)
 		colour = mix(vColor, vBorderColor, clamp(vLocal.y / max(vHalfSize.y, 0.0001) * 0.5 + 0.5, 0.0, 1.0));
+	} else if (mode == 6) {
+		// signed distance field: 0.5 at the edge and more inside. A crisp edge at any size, or with softness a glow that fades out from it.
+		float field = texel.r;
+		float edge = max(fwidth(field), 0.0001);
+		float alpha = softness > 0.0 ? smoothstep(0.5 - softness, 0.5, field) : clamp((field - 0.5) / edge + 0.5, 0.0, 1.0);
+		colour = vec4(vColor.rgb, vColor.a * alpha);
+		coverage = 1.0;
 	} else {
 		float borderWidth = vParams.y;
 		if (borderWidth > 0.0) {

@@ -139,6 +139,7 @@ namespace Dino_NetLab
 
             report.Section("Keystones");
             Keystones(report, worlds, request);
+            TreeKeystones(report, worlds, request);
 
             report.Section("Things going off by themselves");
             Triggers(report, worlds, request);
@@ -188,7 +189,7 @@ namespace Dino_NetLab
                 report.Check("A whirl reaches what's all around", Arena.Lost(behind) > 0f);
             }
 
-            using (Arena arena = Enter(worlds, request, "pyre.kindled-bolt", "pyre.wreath-of-flame", "pyre.falling-embers"))
+            using (Arena arena = Enter(worlds, request, "pyre.kindled-spark", "pyre.wreath-of-flame", "pyre.falling-embers"))
             {
                 Actor near = arena.Dummy(East * 5f);
                 Actor far = arena.Dummy(West * 30f);
@@ -203,7 +204,7 @@ namespace Dino_NetLab
                 report.Check("And does a moment later", Arena.Lost(near) > before);
             }
 
-            using (Arena arena = Enter(worlds, request, "pyre.kindled-bolt"))
+            using (Arena arena = Enter(worlds, request, "pyre.kindled-spark"))
             {
                 Actor target = arena.Dummy(East * 12f);
                 Actor beside = arena.Dummy(East * 13.5f + new Vector2(0f, 2f));
@@ -245,7 +246,7 @@ namespace Dino_NetLab
                 report.Check("And not beside it", Arena.Lost(aside) == 0f);
             }
 
-            using (Arena arena = Enter(worlds, request, "storm.rolling-thunder"))
+            using (Arena arena = Enter(worlds, request, "storm.storm-front"))
             {
                 Actor inside = arena.Dummy(East * 6f);
                 arena.Release(Shelf.Storm, East, 6f);
@@ -262,7 +263,7 @@ namespace Dino_NetLab
 
         private static void Ailments(Report report, WorldCache worlds, WorldRequest request)
         {
-            using (Arena arena = Enter(worlds, request, "pyre.kindled-bolt"))
+            using (Arena arena = Enter(worlds, request, "pyre.kindled-spark", "pyre.kindle"))
             {
                 Actor target = arena.Dummy(East * 3f);
                 PageProfile bolt = arena.Page(Shelf.Firebolt);
@@ -340,7 +341,7 @@ namespace Dino_NetLab
 
         private static void Reactions(Report report, WorldCache worlds, WorldRequest request)
         {
-            using (Arena arena = Enter(worlds, request, "pyre.kindled-bolt"))
+            using (Arena arena = Enter(worlds, request, "pyre.kindled-spark"))
             {
                 Actor target = arena.Dummy(East * 3f);
                 Actor beside = arena.Dummy(East * 5f);
@@ -364,7 +365,7 @@ namespace Dino_NetLab
                 report.Check("And cracks what's nearby", Arena.Lost(beside) > 0f);
             }
 
-            using (Arena arena = Enter(worlds, request, "pyre.kindled-bolt"))
+            using (Arena arena = Enter(worlds, request, "pyre.kindled-spark"))
             {
                 Actor target = arena.Dummy(East * 3f);
                 Actor beside = arena.Dummy(East * 5f);
@@ -391,7 +392,7 @@ namespace Dino_NetLab
                 report.Check("And lands far harder", Arena.Lost(frozen) > Arena.Lost(plain) * 1.6f, $"{Arena.Lost(frozen)} against {Arena.Lost(plain)}");
             }
 
-            using (Arena arena = Enter(worlds, request, "wilds.wellspring", "storm.forked-path"))
+            using (Arena arena = Enter(worlds, request, "wilds.clear-water", "storm.forked-path"))
             {
                 Actor wet = arena.Dummy(East * 4f);
                 Actor alsoWet = arena.Dummy(East * 7f);
@@ -407,7 +408,7 @@ namespace Dino_NetLab
                 report.Check("And no further", Arena.Lost(dry) == 0f);
             }
 
-            using (Arena arena = Enter(worlds, request, "pyre.kindled-bolt"))
+            using (Arena arena = Enter(worlds, request, "pyre.kindled-spark"))
             {
                 Actor target = arena.Dummy(East * 3f);
                 Actor beside = arena.Dummy(East * 5f);
@@ -474,7 +475,7 @@ namespace Dino_NetLab
                 report.Check("Rooted: far safer standing still than moving", moving > still * 1.8f, $"{still} still, {moving} moving");
             }
 
-            using (Arena arena = Enter(worlds, request, "key.blood-tithe", "pyre.kindled-bolt"))
+            using (Arena arena = Enter(worlds, request, "key.blood-tithe", "pyre.kindled-spark"))
             {
                 BookProfile bolt = arena.Skill(Shelf.Firebolt);
                 report.Check("Blood Tithe: books cost health", bolt.CostsHealth);
@@ -494,7 +495,7 @@ namespace Dino_NetLab
                 report.Check("Overflowing Cup: healing past full becomes barrier", arena.Hero.Vitals.Barrier > 90f, $"{arena.Hero.Vitals.Barrier}");
             }
 
-            using (Arena arena = Enter(worlds, request, "key.slow-burn", "pyre.kindled-bolt"))
+            using (Arena arena = Enter(worlds, request, "key.slow-burn", "pyre.kindled-spark"))
             {
                 Actor target = arena.Dummy(East * 3f);
                 arena.Combat.Hit(arena.Hero, arena.Page(Shelf.Firebolt), target, 1f, arena.At);
@@ -605,7 +606,7 @@ namespace Dino_NetLab
                 report.Check("Deep Winter: chill doesn't fade near you", target.Afflictions.ChillLeft > 0f);
             }
 
-            using (Arena arena = Enter(worlds, request, "key.long-shot", "knave.balanced-blades"))
+            using (Arena arena = Enter(worlds, request, "key.long-shot", "knave.cold-calculation"))
             {
                 var shot = new Projectile { Cast = new Cast { Source = arena.Hero, Book = arena.Skill(Shelf.Knives) }, Page = arena.Page(Shelf.Knives), Life = 5f, Start = arena.At };
                 Actor near = arena.Dummy(East * 5f);
@@ -668,6 +669,149 @@ namespace Dino_NetLab
             HitPacket hit = default;
             Hits.Roll(from.Sheet.Profile(0).First, to.State, luck, ref hit);
             return Hits.Mitigate(to.Sheet, ref hit, from.State, to.Afflictions.ResistanceLost, to.Afflictions.TakenIncrease);
+        }
+
+        // Everything on the way to a keystone and not the keystone, to set what it does against: the same nodes in the same order, less the one.
+        private static HeroState Short(string keystone, params string[] talents)
+        {
+            HeroState hero = Hero(talents);
+            GameLab.Learn(hero, keystone);
+            hero.Talents.Remove(keystone);
+            return hero;
+        }
+
+        private static Arena Beside(WorldCache worlds, WorldRequest request, string keystone, params string[] talents) => new Arena(worlds, request, Short(keystone, talents));
+
+        private static Arena With(WorldCache worlds, WorldRequest request, string keystone, params string[] talents) => Enter(worlds, request, talents.Append(keystone).ToArray());
+
+        // The keystones the regrown tree brought, each done for real, against the same hero without it where there's anything to compare.
+        private static void TreeKeystones(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using (Arena arena = Enter(worlds, request, "key.earthshaker"))
+            {
+                Actor target = arena.Dummy(East * 3f);
+                Actor beside = arena.Dummy(East * 5f);
+                Actor far = arena.Dummy(East * 3f + new Vector2(0f, 9f));
+                arena.Combat.Hit(arena.Hero, arena.Page(Shelf.Strike), target, 1f, arena.At);
+                arena.Run(0.1);
+                report.Check("Earthshaker: a melee blow lands on whoever stands near what it struck", Arena.Lost(beside) > 0f && Arena.Lost(beside) < Arena.Lost(target), $"{Arena.Lost(target)} struck, {Arena.Lost(beside)} beside");
+                report.Check("And no further", Arena.Lost(far) == 0f);
+            }
+
+            // Arcane Steel gives as much increased Spell Damage as Attack Damage, which Arcane Edge should leave as twice the Attack Damage and no Spell Damage.
+            using (Arena plain = Beside(worlds, request, "key.arcane-edge", "pyre.arcane-steel"))
+            using (Arena arena = With(worlds, request, "key.arcane-edge", "pyre.arcane-steel"))
+            {
+                float attack = plain.Page(Shelf.Strike).AverageHit, edged = arena.Page(Shelf.Strike).AverageHit;
+                float spell = plain.Page(Shelf.Firebolt).AverageHit, unspelled = arena.Page(Shelf.Firebolt).AverageHit;
+                report.Check("Arcane Edge: what makes Spells stronger makes Attacks stronger instead", edged > attack * 1.05f, $"{attack} to {edged}");
+                report.Check("And Spells no longer", unspelled < spell, $"{spell} to {unspelled}");
+            }
+
+            float Burning(Arena arena)
+            {
+                Actor target = arena.Dummy(East * 3f);
+                PageProfile bolt = arena.Page(Shelf.Firebolt);
+                for (int i = 0; i < 240; i++) arena.Combat.Hit(arena.Hero, bolt, target, 1f, arena.At);
+                return target.Afflictions.BurnPerSecond;
+            }
+            using (Arena plain = Beside(worlds, request, "key.thousand-embers", "pyre.kindle"))
+            using (Arena arena = With(worlds, request, "key.thousand-embers", "pyre.kindle"))
+            {
+                float one = Burning(plain), many = Burning(arena);
+                report.Check("Thousand Embers: a burn on a burn adds to it, where it would only replace it", one > 0f && many > one * 2f, $"{one} a second alone, {many} stacked");
+            }
+
+            using (Arena plain = Beside(worlds, request, "key.shorthand"))
+            using (Arena arena = With(worlds, request, "key.shorthand"))
+            {
+                BookProfile slow = plain.Skill(Shelf.Meteor), quick = arena.Skill(Shelf.Meteor);
+                report.Check("Shorthand: pages past the first take no time", quick.UseTime < slow.UseTime && quick.Pages[1].UseTime == 0f, $"{slow.UseTime} to {quick.UseTime}");
+                report.Check("And are worth less when turned", quick.Pages[1].Potency < slow.Pages[1].Potency);
+            }
+
+            using (Arena arena = Enter(worlds, request, "key.prism"))
+            {
+                float[] shares = new float[DamageKinds.Count];
+                foreach (DamageFlow flow in arena.Page(Shelf.Firebolt).Flows) shares[(int)flow.Type] += flow.Min + flow.Max;
+                float fire = shares[(int)DamageType.Fire], cold = shares[(int)DamageType.Cold], lightning = shares[(int)DamageType.Lightning];
+                report.Check("Prism: elemental damage is dealt as all three elements, in equal shares", fire > 0f && MathF.Abs(fire - cold) < fire * 0.01f && MathF.Abs(fire - lightning) < fire * 0.01f, $"{fire} fire, {cold} cold, {lightning} lightning");
+            }
+
+            using (Arena arena = Enter(worlds, request, "key.still-waters"))
+            {
+                arena.Hero.Vitals.Barrier = 0f;
+                arena.Hero.Vitals.Mana = 0f;
+                arena.Run(1);
+                report.Check("Still Waters: barrier doesn't recharge while the well isn't full", arena.Hero.Vitals.Barrier == 0f, $"{arena.Hero.Vitals.Barrier}");
+                arena.Hero.Vitals.Mana = arena.Hero.Sheet.MaxMana;
+                arena.Run(1);
+                report.Check("And what a full well regenerates spills into it", arena.Hero.Vitals.Barrier > 0f && arena.Hero.Sheet.MaxBarrier > 0f, $"{arena.Hero.Vitals.Barrier} of {arena.Hero.Sheet.MaxBarrier}");
+            }
+
+            using (Arena plain = Beside(worlds, request, "key.long-count"))
+            using (Arena arena = With(worlds, request, "key.long-count"))
+            {
+                float idle = arena.Page(Shelf.Strike).Potency / plain.Page(Shelf.Strike).Potency;
+                float resting = arena.Page(Shelf.Stomp).Potency / plain.Page(Shelf.Stomp).Potency;
+                float seconds = Shelf.Stomp.Pages[0].Cooldown;
+                report.Near("The Long Count: a book with no Cooldown has less Potency", idle, 1f - Rulebook.LongCountIdle, 0.01f);
+                report.Near("And one that rests has more, by how long", resting, 1f + MathF.Min(seconds * Rulebook.LongCountPer, Rulebook.LongCountMost), 0.01f);
+                report.Check("Whose Cooldown nothing shortens", arena.Skill(Shelf.Stomp).Cooldown == seconds, $"{arena.Skill(Shelf.Stomp).Cooldown}");
+            }
+
+            using (Arena arena = Enter(worlds, request, "key.equilibrium"))
+            {
+                Actor foe = arena.Dummy(East * 3f, 1000f, More(Stat.Damage, 300f));
+                arena.Hero.Vitals.Barrier = 80f;
+                float health = arena.Hero.Vitals.Health, mana = arena.Hero.Vitals.Mana;
+                arena.Combat.Hit(foe, foe.Sheet.Profile(0).First, arena.Hero, 1f, foe.Position);
+                float fromHealth = health - arena.Hero.Vitals.Health, fromMana = mana - arena.Hero.Vitals.Mana, fromBarrier = 80f - arena.Hero.Vitals.Barrier;
+                report.Check("Equilibrium: a blow is paid in equal shares from health, mana and barrier", fromHealth > 0f && MathF.Abs(fromHealth - fromMana) < 0.01f * fromHealth + 0.01f && MathF.Abs(fromHealth - fromBarrier) < 0.01f * fromHealth + 0.01f,
+                    $"{fromHealth} health, {fromMana} mana, {fromBarrier} barrier");
+            }
+
+            using (Arena arena = Enter(worlds, request, "key.starburst"))
+            {
+                int count = arena.Page(Shelf.Knives).Projectiles;
+                float behind = MathF.Tau / count * (count / 2);
+                Actor ahead = arena.Dummy(East * 6f);
+                Actor left = arena.Dummy(new Vector2(MathF.Cos(behind), MathF.Sin(behind)) * 6f);
+                Actor right = arena.Dummy(new Vector2(MathF.Cos(-behind), MathF.Sin(-behind)) * 6f);
+                arena.Combat.Release(arena.Hero, arena.Skill(Shelf.Knives), arena.At, East, 6f);
+                arena.Run(1.2);
+                report.Check("Starburst: what's thrown goes out all around, the first of it where it's aimed", count > 1 && Arena.Lost(ahead) > 0f && Arena.Lost(left) + Arena.Lost(right) > 0f, $"{count} thrown");
+            }
+
+            using (Arena plain = Beside(worlds, request, "key.narrow-way"))
+            using (Arena arena = With(worlds, request, "key.narrow-way"))
+            {
+                ActorSheet before = plain.Hero.Sheet, after = arena.Hero.Sheet;
+                float strength = before.Total(Stat.Strength), dexterity = before.Total(Stat.Dexterity), intellect = before.Total(Stat.Intellect);
+                // What each attribute gives that nothing else on the way does: Health for Strength, Evasion for Dexterity and Mana for Intellect.
+                int best = strength >= dexterity && strength >= intellect ? 0 : dexterity >= intellect ? 1 : 2;
+                float[] was = { before.MaxHealth, before.Evasion, before.MaxMana }, now = { after.MaxHealth, after.Evasion, after.MaxMana };
+                float[] has = { strength, dexterity, intellect };
+                bool narrowed = now[best] > was[best];
+                for (int i = 0; i < 3; i++) narrowed &= i == best || (has[i] > 0f ? now[i] < was[i] : now[i] == was[i]);
+                report.Check("The Narrow Way: the highest attribute counts twice and the others not at all", narrowed, $"{strength} Strength, {dexterity} Dexterity, {intellect} Intellect: {string.Join(", ", was)} to {string.Join(", ", now)}");
+            }
+
+            using (Arena arena = Enter(worlds, request, "key.mirage"))
+            {
+                Actor foe = arena.Dummy(East * 3f, 1000f, Flat(Stat.Accuracy, -999800f));
+                PageProfile spell = foe.Sheet.Profile(1).First;
+                int evaded = 0;
+                for (int i = 0; i < 200; i++)
+                {
+                    arena.Hero.Vitals.Health = arena.Hero.Sheet.MaxHealth;
+                    arena.Hero.Vitals.Barrier = 0f;
+                    arena.Combat.Hit(foe, spell, arena.Hero, 1f, foe.Position);
+                    if (arena.Hero.Vitals.Health >= arena.Hero.Sheet.MaxHealth) evaded++;
+                }
+                report.Check("Mirage: all of Evasion works against Spells", arena.Hero.Sheet.SpellEvasion >= 100f && (spell.Tags & Tags.Spell) != 0);
+                report.Check("So a Spell can be Evaded", evaded > 0 && evaded < 200, $"{evaded} of 200");
+            }
         }
 
         private static float GhostHealth(Arena arena)
@@ -850,7 +994,7 @@ namespace Dino_NetLab
 
         private static void Land(Report report, WorldCache worlds, WorldRequest request)
         {
-            using (Arena arena = Enter(worlds, request, "key.tidewalker", "wilds.wellspring"))
+            using (Arena arena = Enter(worlds, request, "key.tidewalker", "wilds.clear-water"))
             {
                 arena.Run(0.4);
                 float dry = arena.Page(Shelf.Strike).AverageHit;
@@ -913,7 +1057,7 @@ namespace Dino_NetLab
                 report.Check("A caster casts", arena.Hero.Vitals.Health < before, $"{before} to {arena.Hero.Vitals.Health}");
             }
 
-            using (Arena arena = Enter(worlds, request, "pyre.kindled-bolt"))
+            using (Arena arena = Enter(worlds, request, "pyre.kindled-spark"))
             {
                 Loadout one = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 10, Rarity.Normal, Bestiary.NoTraits);
                 Loadout two = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 10, Rarity.Rare, Bestiary.Trait(0));
@@ -962,7 +1106,7 @@ namespace Dino_NetLab
         private static void Buffs(Report report, WorldCache worlds, WorldRequest request)
         {
             // Something for it to work on: a hero starts out in leather, with no armour at all.
-            HeroState hero = Hero("forge.bedrock");
+            HeroState hero = Hero("forge.tempered");
             hero.Equipped[WornSlot.Body] = new Item { Name = "Lab Plate", Slot = ItemSlot.Body, Level = 1, Armour = 40f };
             using var arena = new Arena(worlds, request, hero);
             float armour = arena.Hero.Sheet.Armour;

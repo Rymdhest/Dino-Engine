@@ -306,7 +306,7 @@ namespace Dino_NetLab
             hero.Level = 12;
             hero.Equipped[WornSlot.MainHand].WeaponDamage = 34f;
             hero.Equipped[WornSlot.Neck] = new Item { Name = "Lab Charm", Slot = ItemSlot.Neck, Level = 12, Lines = { new ItemLine("health", 400f) } };
-            Learn(hero, "pyre.kindled-bolt", "forge.sweeping-arc", "winter.white-ring", "storm.forked-path");
+            Learn(hero, "pyre.kindled-spark", "forge.sweeping-arc", "winter.white-ring", "storm.forked-path");
             hero.Bar[1] = Written(Shelf.Firebolt);
             hero.Bar[LabPlayer.WhirlSlot] = Written(Shelf.Whirl);
             hero.Bar[3] = Written(Shelf.FrostNova);
@@ -1137,31 +1137,40 @@ namespace Dino_NetLab
             lab.Run(4);
             ServerPlayer truth = lab.Server.Players.First();
 
-            int Node(string id) => TalentTree.Find(id)!.Index;
+            // Nodes by where they are and not by name, as the tree is grown: one beside the root, two more that only reach it through that one, and another
+            // beside the root for a point that isn't there. A new hero has three.
+            TalentNode root = TalentTree.Root;
+            bool NearRoot(int index) => index == root.Index || root.Links.Contains(index);
+            TalentNode first = TalentTree.Nodes[root.Links[0]];
+            TalentNode second = TalentTree.Nodes[first.Links.First(l => !NearRoot(l))];
+            TalentNode third = TalentTree.Nodes[second.Links.First(l => l != first.Index && !NearRoot(l))];
+            TalentNode spare = TalentTree.Nodes[root.Links[1]];
+            TalentNode distant = TalentTree.Find("key.tidewalker")!;
+
             int points = truth.Hero.UnspentPoints;
-            player.Client.Allocate(Node("pyre.t0"));
+            player.Client.Allocate(first.Index);
             lab.Run(0.5);
-            report.Check("Spending a talent reaches the server and comes back", truth.Hero.Talents.Contains("pyre.t0") && player.Client.Hero.Talents.Contains("pyre.t0") && player.Client.Hero.UnspentPoints == points - 1);
+            report.Check("Spending a talent reaches the server and comes back", truth.Hero.Talents.Contains(first.Id) && player.Client.Hero.Talents.Contains(first.Id) && player.Client.Hero.UnspentPoints == points - 1);
 
-            player.Client.Allocate(Node("key.tidewalker"));
+            player.Client.Allocate(distant.Index);
             lab.Run(0.5);
-            report.Check("A talent nowhere near what's taken can't be had", !truth.Hero.Talents.Contains("key.tidewalker"));
+            report.Check("A talent nowhere near what's taken can't be had", !truth.Hero.Talents.Contains(distant.Id));
 
-            player.Client.Allocate(Node("pyre.kindled-bolt.0"));
-            player.Client.Allocate(Node("pyre.kindled-bolt"));
+            player.Client.Allocate(second.Index);
+            player.Client.Allocate(third.Index);
             lab.Run(0.5);
 
-            player.Client.Allocate(Node("pyre.t1"));
+            player.Client.Allocate(spare.Index);
             lab.Run(0.5);
-            report.Check("A point that isn't there can't be spent", !truth.Hero.Talents.Contains("pyre.t1"));
+            report.Check("A point that isn't there can't be spent", truth.Hero.Talents.Contains(third.Id) && !truth.Hero.Talents.Contains(spare.Id));
 
-            player.Client.Refund(Node("pyre.t0"));
+            player.Client.Refund(first.Index);
             lab.Run(0.5);
-            report.Check("A node others hang from can't be given back", truth.Hero.Talents.Contains("pyre.t0"));
+            report.Check("A node others hang from can't be given back", truth.Hero.Talents.Contains(first.Id));
 
-            player.Client.Refund(Node("pyre.kindled-bolt"));
+            player.Client.Refund(third.Index);
             lab.Run(0.5);
-            report.Check("A node at the end of a path can", !truth.Hero.Talents.Contains("pyre.kindled-bolt") && !player.Client.Hero.Talents.Contains("pyre.kindled-bolt"));
+            report.Check("A node at the end of a path can", !truth.Hero.Talents.Contains(third.Id) && !player.Client.Hero.Talents.Contains(third.Id));
 
             player.Client.ForgetTalents();
             lab.Run(0.5);

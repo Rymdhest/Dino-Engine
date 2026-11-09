@@ -771,7 +771,10 @@ namespace Dino_Defenders
             {
                 case "map": _ui.Toggle(_ui.Map); break;
                 case "hero": _ui.Toggle(_ui.Hero); break;
-                case "talents": _ui.Toggle(_ui.Talents); break;
+                case "talents":
+                    _ui.Toggle(_ui.Talents);
+                    if (_options.TreeZoom > 0f) _ui.Talents.Look(_options.TreeZoom, _options.TreeFocus);
+                    break;
                 case "book": _ui.Toggle(_ui.Book); break;
                 case "glossary": _ui.Toggle(_ui.Glossary); break;
                 case "chronicle": _ui.Toggle(_ui.Chronicle); break;

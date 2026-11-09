@@ -25,7 +25,7 @@ namespace Dino_Defenders.Progression
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 11;
+        public const int CurrentVersion = 12;
 
         /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
         private const int SlotsVersion = 4;
@@ -53,6 +53,12 @@ namespace Dino_Defenders.Progression
         /// so a hero in one wakes in the Haven, free to open it again, and every level they'd climbed to is theirs to open.
         /// </summary>
         private const int ArenasVersion = 11;
+
+        /// <summary>
+        /// The version that grew the tree again, four times the size, with every node somewhere new under a new name, which needs a copy of the old save kept. Nothing taken on the old tree can be found
+        /// on the new one, so everyone starts it again, with every point to spend.
+        /// </summary>
+        private const int TreeVersion = 12;
 
         public int Version { get; set; } = CurrentVersion;
         public HeroState Hero { get; set; } = HeroState.CreateNew();
@@ -116,6 +122,7 @@ namespace Dino_Defenders.Progression
                 else if (save != null && VersionOf(json) < LandsVersion) KeepOldCopy(path, ".before-lands");
                 else if (save != null && VersionOf(json) < FoundPagesVersion) KeepOldCopy(path, ".before-found-pages");
                 else if (save != null && VersionOf(json) < ArenasVersion) KeepOldCopy(path, ".before-arenas");
+                else if (save != null && VersionOf(json) < TreeVersion) KeepOldCopy(path, ".before-tree");
                 return save;
             }
             catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -154,6 +161,7 @@ namespace Dino_Defenders.Progression
             if (version < AffixVersion) RenameRarities(root["Hero"]);
             if (version < FoundPagesVersion) FoundPages(root);
             if (version < ArenasVersion) OutOfOldLands(root);
+            if (version < TreeVersion) ForgetTree(root);
 
             SaveGame? save = root.Deserialize<SaveGame>(Options);
             if (save == null) return null;
@@ -208,6 +216,12 @@ namespace Dino_Defenders.Progression
         public static void FixItem(Item item) => Fix(item);
 
         // A bar used to be a list of skills, and the tree was made of them. What's carried comes through it all, and the talents are all there to be spent again.
+        // The tree was grown again and nothing on the old one is where it was, so whatever a hero had taken comes back to them as points to spend.
+        private static void ForgetTree(JsonObject root)
+        {
+            if (root["Hero"] is JsonObject hero) hero["Talents"] = new JsonArray();
+        }
+
         private static void ForgetSkills(JsonObject root)
         {
             if (root["Hero"] is not JsonObject hero) return;

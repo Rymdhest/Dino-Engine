@@ -447,6 +447,66 @@ namespace Dino_Defenders.Tooltips
 
         private static string Rate(in Mod mod) => mod.Value == 100f ? "" : $", at {Number(mod.Value)}% of their value";
 
+        /// <summary>
+        /// What a talent is called when this is all it gives: the thing itself, without its number. A small node gives one thing, so that's its name, and
+        /// two that give the same thing are called the same.
+        /// </summary>
+        public static string Name(in Mod mod)
+        {
+            Tags scope = mod.Scope;
+            if (mod.Kind == ModKind.Flat && (scope & Tags.Minion) == 0)
+            {
+                switch (mod.Stat)
+                {
+                    case Stat.Penetration:
+                        return $"{Adjective(scope & ~(Tags.Attack | Tags.Spell))}Penetration";
+                    case Stat.Convert:
+                        return $"{mod.From} Converted to {mod.To}";
+                    case Stat.GainAs:
+                        return $"{mod.From} as extra {mod.To}";
+                    case Stat.TakenAs:
+                        return $"{mod.From} Taken as {mod.To}";
+                    case Stat.ArmourApplies:
+                        return $"Armour against {Adjective(scope)}Damage";
+                    case Stat.SpellEvasion:
+                        return "Evasion against Spells";
+                    case Stat.HealthRegenPercent:
+                        return "Health Regeneration";
+                    case Stat.ManaRegenPercent:
+                        return "Mana Regeneration";
+                    case Stat.ExplodeOnKill:
+                        return "Enemies Explode on Kill";
+                }
+            }
+
+            string text = Describe(mod);
+            if (mod.Kind is not (ModKind.Flat or ModKind.Increased or ModKind.More)) return Capitalised(text);
+
+            const string minions = "Minions have ";
+            string whose = "";
+            if (text.StartsWith(minions))
+            {
+                whose = "Minion ";
+                text = text[minions.Length..];
+            }
+
+            // The number goes, with its sign, and so does the word that says which way it goes.
+            int start = 0;
+            while (start < text.Length && (char.IsDigit(text[start]) || text[start] is '+' or '-' or '.' or '%')) start++;
+            text = text[start..].TrimStart();
+            foreach (string way in new[] { "increased ", "reduced ", "more ", "less ", "m ", "s ", "of " })
+            {
+                if (!text.StartsWith(way)) continue;
+                text = text[way.Length..];
+                break;
+            }
+            const string second = " a second";
+            if (text.EndsWith(second)) text = text[..^second.Length];
+            return whose + Capitalised(text);
+        }
+
+        private static string Capitalised(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+
         // A stat replaced outright, said in the same words it's given in: in seconds where it's seconds, and with what it's narrowed to where that has words of its own.
         private static string DescribeSet(in Mod mod)
         {

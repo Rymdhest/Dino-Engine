@@ -31,7 +31,7 @@ namespace Dino_BuildLab
                     Console.WriteLine($"\n{sector.Name}");
                     foreach (TalentNode node in TalentTree.Nodes.Where(n => n.Kind == TalentKind.Keystone && TalentContent.Regions[n.Region] == sector))
                     {
-                        Console.WriteLine($"  {node.Name}");
+                        Console.WriteLine($"  {node.Name}  ({node.Id})");
                         foreach (Mod mod in node.Mods) Console.WriteLine($"      {mod.Describe()}");
                         Console.WriteLine($"      \"{node.Lore}\"");
                     }
@@ -55,7 +55,22 @@ namespace Dino_BuildLab
                 Console.WriteLine("\nNotables");
                 foreach (TalentNode node in TalentTree.Nodes.Where(n => n.Kind == TalentKind.Notable))
                 {
-                    Console.WriteLine($"  {node.Name}: {string.Join("; ", node.Mods.Select(m => m.Describe()))}");
+                    Console.WriteLine($"  {node.Name} ({node.Id}): {string.Join("; ", node.Mods.Select(m => m.Describe()))}");
+                }
+            }
+
+            if (what is "ids")
+            {
+                foreach (TalentNode node in TalentTree.Nodes) Console.WriteLine(node.Id);
+            }
+
+            if (what is "all" or "smalls")
+            {
+                Console.WriteLine("\nSmall nodes, by what they're called");
+                foreach (var group in TalentTree.Nodes.Where(n => n.Kind == TalentKind.Small).GroupBy(Cards.TitleOf).OrderBy(g => g.Key))
+                {
+                    string[] gives = group.Select(n => string.Join("; ", n.Mods.Select(m => m.Describe()))).Distinct().ToArray();
+                    Console.WriteLine($"  {group.Key} ({group.Count()}): {string.Join(" | ", gives)}");
                 }
             }
 

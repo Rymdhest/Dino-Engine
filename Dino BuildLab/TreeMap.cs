@@ -79,6 +79,51 @@ namespace Dino_BuildLab
             return 0;
         }
 
+        /// <summary>Every picture a node can have, on one sheet, in the order they're listed, through the same distance field the game draws them from.</summary>
+        public static int Icons(Options options)
+        {
+            string path = options.Text("out") ?? "icons.png";
+            int cell = options.Int("cell", 96);
+            int columns = options.Int("columns", 12);
+            var glyphs = Enum.GetValues<TalentGlyph>().Where(g => g != TalentGlyph.None).ToArray();
+            int rows = (glyphs.Length + columns - 1) / columns;
+            int pad = cell / 6;
+            int width = columns * (cell + pad) + pad;
+            int height = rows * (cell + pad) + pad;
+            var rgba = new byte[width * height * 4];
+            for (int i = 0; i < width * height; i++)
+            {
+                rgba[i * 4] = 12; rgba[i * 4 + 1] = 14; rgba[i * 4 + 2] = 24; rgba[i * 4 + 3] = 255;
+            }
+
+            var field = new byte[cell * cell];
+            for (int g = 0; g < glyphs.Length; g++)
+            {
+                Array.Clear(field);
+                Dino_Defenders.UI.TalentArt.Picture(glyphs[g]).Write(field, cell, 0, 0, cell, 6f);
+                int ox = pad + g % columns * (cell + pad);
+                int oy = pad + g / columns * (cell + pad);
+                for (int y = 0; y < cell; y++)
+                {
+                    for (int x = 0; x < cell; x++)
+                    {
+                        // What the shader does: the edge where the field is a half, a texel wide.
+                        float value = field[y * cell + x] / 255f;
+                        float alpha = Math.Clamp((value - 0.5f) * 12f + 0.5f, 0f, 1f);
+                        int i = ((oy + y) * width + ox + x) * 4;
+                        float bg = 0.12f;
+                        rgba[i] = (byte)(255f * (bg + (0.95f - bg) * alpha));
+                        rgba[i + 1] = (byte)(255f * (bg + (0.9f - bg) * alpha));
+                        rgba[i + 2] = (byte)(255f * (bg + 0.2f + (0.8f - bg - 0.2f) * alpha));
+                    }
+                }
+            }
+            PngWriter.Write(path, rgba, width, height);
+            for (int r = 0; r < rows; r++) Console.WriteLine($"  row {r + 1}: {string.Join(", ", glyphs.Skip(r * columns).Take(columns))}");
+            Console.WriteLine($"{glyphs.Length} pictures written to {Path.GetFullPath(path)}");
+            return 0;
+        }
+
         /// <summary>Every pair of links that cross each other, as their middles. Links on a circle are taken as their chords, which is near enough.</summary>
         public static IEnumerable<(Vector2, Vector2)> Crossings()
         {

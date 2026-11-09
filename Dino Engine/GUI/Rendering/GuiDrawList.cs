@@ -52,6 +52,7 @@ namespace Dino_Engine.GUI.Rendering
         private const int ModeShape = 0;
         private const int ModeText = 1;
         private const int ModeGradient = 5;
+        private const int ModeField = 6;
         private static readonly Vector2 AxisX = new Vector2(1f, 0f);
         private static readonly Vector4 NoUV = Vector4.Zero;
 
@@ -214,6 +215,26 @@ namespace Dino_Engine.GUI.Rendering
             instance.Color = packed;
             instance.BorderColor = packed;
             instance.Params = new Vector4(MathF.Max(0f, cornerRadius), 0f, (int)mode, 0f);
+            instance.Expand = 0f;
+        }
+
+        /// <summary>
+        /// Draws a picture stored as a signed distance field in the red channel of a texture (see <see cref="SdfPicture"/>), crisp at any size, in one colour.
+        /// A <paramref name="glow"/> above nothing draws it soft instead, fading out that far past its edge, in the field's own units (up to half).
+        /// </summary>
+        public void AddField(int texture, GuiRect rect, Vector2 uv0, Vector2 uv1, Colour colour, float glow = 0f)
+        {
+            if (texture <= 0 || rect.Width <= 0f || rect.Height <= 0f || !colour.IsVisible()) return;
+            if (!IsVisible(rect)) return;
+            uint packed = colour.Pack(_opacity);
+            ref GuiInstance instance = ref Allocate(texture);
+            instance.Center = rect.Center;
+            instance.HalfSize = rect.Size * 0.5f;
+            instance.Axis = AxisX;
+            instance.UV = new Vector4(uv0.X, uv0.Y, uv1.X, uv1.Y);
+            instance.Color = packed;
+            instance.BorderColor = packed;
+            instance.Params = new Vector4(0f, 0f, ModeField, MathF.Max(glow, 0f));
             instance.Expand = 0f;
         }
 

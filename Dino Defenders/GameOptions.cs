@@ -22,6 +22,7 @@ namespace Dino_Defenders
     ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar, or one of each rarity with rarities.
     ///   --loot all      Drops one find of every rarity in front of the hero, or everything a tier gives, as boss, rare, magic, chest or hoard. folios adds books, pages and stickers among them.
     ///   --panel name    Opens map, hero, talents, book, glossary, chronicle, merchant, elder, table, travel, stash, vendor, uniques (the vendor at his uniques), friends, pause or sound once the world is up.
+    ///   --treeview z,x,y   With --panel talents: looks at the tree from zoom z, at x,y on it (both optional after the zoom), for pictures of the tree.
     ///   --travel N      After N frames: from a land, goes home to the Haven through a waygate; from the Haven, opens the way to the first land the map table shows and steps through.
     ///   --omens a,b     Puts these omens on the first land, at the best tier its level reaches, and on any land opened with --travel.
     ///   --orders id     Gives the first land these unique orders, by id, as if they'd been given to the map table.
@@ -113,6 +114,10 @@ namespace Dino_Defenders
         public string? Trace;
         public string? Loot;
         public string? Panel;
+
+        /// <summary>With the talents panel: how far off to look at the tree from, and where on it.</summary>
+        public float TreeZoom;
+        public Vector2? TreeFocus;
         public string? Wear;
         public int TravelAfterFrames = -1;
         public int Travels = 1;
@@ -220,6 +225,11 @@ namespace Dino_Defenders
                     case "trace": options.Trace = value; break;
                     case "loot": options.Loot = value; break;
                     case "panel": options.Panel = value; break;
+                    case "treeview":
+                        string[] view = value.Split(',');
+                        options.TreeZoom = float.Parse(view[0], System.Globalization.CultureInfo.InvariantCulture);
+                        if (view.Length >= 3) options.TreeFocus = new Vector2(float.Parse(view[1], System.Globalization.CultureInfo.InvariantCulture), float.Parse(view[2], System.Globalization.CultureInfo.InvariantCulture));
+                        break;
                     case "wear": options.Wear = value; break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
                     case "travels": options.Travels = int.Parse(value); break;

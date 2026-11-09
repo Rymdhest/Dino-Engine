@@ -610,9 +610,12 @@ namespace Dino_Defenders.Tooltips
         }
 
         /// <summary>What a node on the tree gives, in the words of what it gives. Whether it can be had is for whoever's showing it to add.</summary>
+        /// <summary>What a talent is called: a small node gives one thing and is called what it gives, and anything bigger has a name of its own.</summary>
+        public static string TitleOf(TalentNode node) => node.Kind == TalentKind.Small && node.Mods.Length == 1 ? ModText.Name(node.Mods[0]) : node.Name;
+
         public static Card Talent(TalentNode node, ActorSheet? viewer)
         {
-            var card = new Card { Title = node.Name, Tags = TagsOf(node.Mods), Gilded = node.Kind == TalentKind.Keystone };
+            var card = new Card { Title = TitleOf(node), Tags = TagsOf(node.Mods), Gilded = node.Kind == TalentKind.Keystone };
             card.Kind = node.Kind switch
             {
                 TalentKind.Keystone => "Keystone",

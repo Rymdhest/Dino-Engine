@@ -121,6 +121,9 @@ namespace Dino_NetLab
             Writing(report, worlds, request);
             Modes(report, worlds, request);
 
+            report.Section("Keystones that change how a book is paid for and used");
+            PayingAndUsing(report, worlds, request);
+
             return report.Finish();
         }
 
@@ -756,6 +759,75 @@ namespace Dino_NetLab
             arena.Run(0.06);
             arena.Player.Script = () => new HeroIntent { Aim = East * 6f };
             arena.Run(0.3);
+        }
+
+        // The keystones that change how a book is paid for and used, which only a real press shows, as it's the hero's step that does it.
+        private static void PayingAndUsing(Report report, WorldCache worlds, WorldRequest request)
+        {
+            HeroState chanter = Hero();
+            GameLab.Learn(chanter, "key.litany");
+            chanter.Bar[1] = ItemGenerator.Copied(Shelf.Inferno.Source!.Copy(), "Inferno", 4);
+            using (var arena = new Arena(worlds, request, chanter))
+            {
+                arena.Run(0.5);
+                BookProfile book = arena.Truth.Kit.Slots[1]!;
+                float regen = arena.Hero.Sheet.ManaRegen;
+                Press(arena, 1);
+                report.Check("Litany: a Toggle Book goes on", HeroRules.IsOn(arena.Truth.Sim, 1) && HeroRules.IsOn(arena.Player.Client.Predictor.Current, 1));
+
+                arena.Hero.Vitals.Mana = 50f;
+                arena.Run(0.1);
+                float mana = arena.Truth.Sim.Mana;
+                arena.Run(2);
+                report.Near("And gives up none of the Mana Regeneration", (arena.Truth.Sim.Mana - mana) / 2f, regen, 0.3f);
+
+                float held = book.Cost * Rulebook.ReservePerCost;
+                arena.Hero.Vitals.Mana = arena.Hero.Sheet.MaxMana;
+                arena.Run(0.5);
+                report.Check("But holds back Maximum Mana while it's on", held > 0f && arena.Truth.Sim.Mana <= arena.Hero.Sheet.MaxMana - held + 0.01f, $"{arena.Truth.Sim.Mana} of {arena.Hero.Sheet.MaxMana}, holding back {held}");
+                report.Check("Which the client predicts", MathF.Abs(arena.Player.Client.Predictor.Current.Mana - arena.Truth.Sim.Mana) < 1f, $"{arena.Player.Client.Predictor.Current.Mana} against {arena.Truth.Sim.Mana}");
+            }
+
+            HeroState warden = Hero();
+            GameLab.Learn(warden, "key.inner-ward");
+            warden.Bar[1] = ItemGenerator.Copied(Shelf.Firebolt.Source!.Copy(), "Firebolt", 4);
+            using (var arena = new Arena(worlds, request, warden))
+            {
+                arena.Run(0.5);
+                BookProfile book = arena.Truth.Kit.Slots[1]!;
+                arena.Hero.Vitals.Barrier = 5000f;
+                arena.Run(0.1);
+                float barrier = arena.Truth.Sim.Barrier, mana = arena.Truth.Sim.Mana;
+                Press(arena, 1);
+                report.Check("Inner Ward: a Book's Cost comes out of Barrier first", book.Cost > 0f && MathF.Abs(barrier - arena.Truth.Sim.Barrier - book.Cost) < 0.5f, $"{barrier} to {arena.Truth.Sim.Barrier} for {book.Cost}");
+                report.Check("And none of it out of Mana while there's Barrier", arena.Truth.Sim.Mana >= mana - 0.01f, $"{mana} to {arena.Truth.Sim.Mana}");
+                report.Check("Which the client predicts", MathF.Abs(arena.Player.Client.Predictor.Current.Barrier - arena.Truth.Sim.Barrier) < 1f, $"{arena.Player.Client.Predictor.Current.Barrier} against {arena.Truth.Sim.Barrier}");
+
+                Actor foe = arena.Dummy(East * 3f, 1000f, More(Stat.Damage, 300f));
+                arena.Hero.Vitals.Barrier = 100f;
+                float health = arena.Hero.Vitals.Health;
+                arena.Combat.Hit(foe, foe.Sheet.Profile(0).First, arena.Hero, 1f, foe.Position);
+                report.Check("And Barrier no longer stands between a blow and Health", arena.Hero.Vitals.Barrier == 100f && arena.Hero.Vitals.Health < health, $"{arena.Hero.Vitals.Barrier} barrier, {health} to {arena.Hero.Vitals.Health}");
+            }
+
+            float Walked(HeroState hero)
+            {
+                hero.Bar[1] = ItemGenerator.Copied(Shelf.Meteor.Source!.Copy(), "Meteor", 4);
+                using var arena = new Arena(worlds, request, hero);
+                arena.Run(0.5);
+                Vector2 from = arena.Truth.Sim.Position;
+                arena.Player.Script = () => { var walk = new HeroIntent { Move = East, Aim = East * 6f }; walk.Use(1); return walk; };
+                arena.Run(0.3);
+                arena.Player.Script = () => new HeroIntent { Aim = East * 6f };
+                return (arena.Truth.Sim.Position - from).Length;
+            }
+            HeroState strider = Hero();
+            GameLab.Learn(strider, "key.unbroken-stride");
+            HeroState plain = Hero();
+            GameLab.Learn(plain, "key.unbroken-stride");
+            plain.Talents.Remove("key.unbroken-stride");
+            float slowed = Walked(plain), unbroken = Walked(strider);
+            report.Check("Unbroken Stride: using a book doesn't slow you", unbroken > slowed * 1.2f, $"{slowed} m without, {unbroken} m with");
         }
 
         // Books that nobody presses, as what happens on a real server.
