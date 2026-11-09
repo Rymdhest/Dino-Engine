@@ -12,6 +12,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "forge", Name = "The Forge", Adjective = "Iron", Noun = "Smith", Colour = Rgb(190, 192, 202),
             Centre = 180f, Width = 32f, Attribute = Stat.Strength,
+            Entry = N("first-blow", "First Blow", Inc(Stat.Damage, 12f, Tags.Melee), Inc(Stat.Damage, 10f, Tags.Physical)),
             Lanes = new[]
             {
                 Lane("hearth", null, 0f, 0f, 1100f, -0.5f,
@@ -85,6 +86,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "bulwark", Name = "The Bulwark", Adjective = "Stalwart", Noun = "Warden", Colour = Rgb(212, 172, 100),
             Centre = 210f, Width = 28f, Attribute = Stat.Strength,
+            Entry = N("first-stand", "First Stand", Flat(Stat.BlockChance, 3f), Inc(Stat.Armour, 15f)),
             Lanes = new[]
             {
                 Lane("wall", null, 0f, 0f, 1300f, 0.5f,
@@ -152,6 +154,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "marrow", Name = "The Marrow", Adjective = "Crimson", Noun = "Sanguine", Colour = Rgb(196, 40, 44),
             Centre = 237f, Width = 26f, Attribute = Stat.Strength,
+            Entry = N("first-pulse", "First Pulse", Inc(Stat.Health, 8f), Flat(Stat.HealthLeech, 0.3f)),
             Lanes = new[]
             {
                 Lane("vein", null, 0f, 0f, 1100f, 0f,

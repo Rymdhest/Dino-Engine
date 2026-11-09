@@ -610,6 +610,9 @@ namespace Dino_Defenders.Tooltips
         }
 
         /// <summary>What a node on the tree gives, in the words of what it gives. Whether it can be had is for whoever's showing it to add.</summary>
+        // A region's name inside a sentence, where "The" isn't at the start of anything.
+        private static string Lowered(string name) => name.StartsWith("The ") ? "the " + name[4..] : name;
+
         /// <summary>What a talent is called: a small node gives one thing and is called what it gives, and anything bigger has a name of its own.</summary>
         public static string TitleOf(TalentNode node) => node.Kind == TalentKind.Small && node.Mods.Length == 1 ? ModText.Name(node.Mods[0]) : node.Name;
 
@@ -619,7 +622,7 @@ namespace Dino_Defenders.Tooltips
             card.Kind = node.Kind switch
             {
                 TalentKind.Keystone => "Keystone",
-                TalentKind.Notable => "Notable",
+                TalentKind.Notable => node.Beginning ? "One of six ways to begin" : node.Entry ? $"Where {Lowered(TalentContent.Regions[node.Region].Name)} begins" : "Notable",
                 TalentKind.Gate => "Waygate",
                 TalentKind.Root => "Where every Hero starts",
                 _ => node.Highway ? "Highway" : node.Region >= 0 ? TalentContent.Regions[node.Region].Name : "",

@@ -17,14 +17,30 @@ namespace Dino_Defenders.Talents
     }
 
     /// <summary>
-    /// A path out from the start ring or from another lane, with clusters hanging off it on either side. Lanes are what give a region its shape:
+    /// One of the six ways out of the middle: a travel node, a notable that says what kind of hero this is going to be, and a fork into the two
+    /// regions it opens onto, the one it points into and the next one going round. Its id is saved in heroes, so it stays.
+    /// </summary>
+    public sealed class Beginning
+    {
+        public string Id = "";
+        public string Name = "";
+        public string Lore = "";
+        public float Angle;
+
+        /// <summary>The region it points into, then the one beside it, clockwise.</summary>
+        public string[] Regions = Array.Empty<string>();
+        public Mod[] Mods = Array.Empty<Mod>();
+    }
+
+    /// <summary>
+    /// A path out from where a way out of the middle forks, or from another lane, with clusters hanging off it on either side. Lanes are what give a region its shape:
     /// they branch as they go out, bend, and stop where the region's ideas run out, so no two regions look alike.
     /// </summary>
     public sealed class Lane
     {
         public string Id = "";
 
-        /// <summary>The lane it branches from, or nothing for the one that starts at the ring around the root.</summary>
+        /// <summary>The lane it branches from, or nothing for the one that starts where its region's way out of the middle forks.</summary>
         public string? From;
 
         /// <summary>Degrees from the middle of its region that it settles at.</summary>
@@ -104,6 +120,9 @@ namespace Dino_Defenders.Talents
         public Lane[] Lanes = Array.Empty<Lane>();
         public Wheel[] Wheels = Array.Empty<Wheel>();
         public Keystone[] Keystones = Array.Empty<Keystone>();
+
+        /// <summary>The notable the region opens with, right where its way out of the middle forks, so that the fork is a choice between two of them.</summary>
+        public Pod? Entry;
     }
 
     /// <summary>Where two neighbouring regions meet, a notable for those who walk both. <see cref="Left"/> is the region counter-clockwise of the join.</summary>
@@ -119,7 +138,7 @@ namespace Dino_Defenders.Talents
 
     /// <summary>
     /// A highway: nodes far apart, each giving only a little, so that getting somewhere costs few points. A ring goes all the way round at one
-    /// distance from the root; a spoke runs straight out at one angle.
+    /// distance from the root; a spoke runs straight out at one angle, from one ring to another.
     /// </summary>
     public sealed class Road
     {

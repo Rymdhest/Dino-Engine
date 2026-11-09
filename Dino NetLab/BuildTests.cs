@@ -457,6 +457,8 @@ namespace Dino_NetLab
                 int reflected = 0;
                 for (int i = 0; i < 200 && reflected == 0; i++)
                 {
+                    // Kept standing, as what's tried is the block and not how long they last.
+                    arena.Hero.Vitals.Health = arena.Hero.Sheet.MaxHealth;
                     float before = Arena.Lost(foe);
                     arena.Combat.Hit(foe, foe.Sheet.Profile(0).First, arena.Hero, 1f, foe.Position);
                     if (Arena.Lost(foe) > before) reflected++;
@@ -1265,24 +1267,35 @@ namespace Dino_NetLab
                 actors.Add(actor);
             }
 
-            lab.Run(2);
+            // The heroes are kept standing and what they take is added up, as it's the enemies fighting that's measured, and a ring of health can't do it:
+            // the server holds every item to the rules, and health isn't a ring's.
+            float heroesTook = 0f;
+            void KeepStanding()
+            {
+                foreach (ServerPlayer hero in server.Heroes)
+                {
+                    heroesTook += MathF.Max(hero.Actor.Sheet.MaxHealth - hero.Actor.Vitals.Health, 0f);
+                    hero.Actor.Vitals.Health = hero.Actor.Sheet.MaxHealth;
+                }
+            }
+
+            lab.Run(2, KeepStanding);
             lab.TickCostTotal = 0.0;
             lab.TickCostWorst = 0.0;
             lab.TicksTimed = 0;
 
             int heroHits = 0;
-            float lostBefore = server.Heroes.Sum(h => h.Actor.Sheet.MaxHealth - h.Actor.Vitals.Health);
+            heroesTook = 0f;
             long allocatedBefore = GC.GetTotalAllocatedBytes(false);
-            lab.Run(30, () => heroHits++);
+            lab.Run(30, () => { heroHits++; KeepStanding(); });
             long allocated = GC.GetTotalAllocatedBytes(false) - allocatedBefore;
 
             int struck = actors.Count(a => a.Vitals.Health < a.Sheet.MaxHealth || a.Dead);
             int fallen = actors.Count(a => a.Dead);
             double average = lab.TickCostTotal / lab.TicksTimed;
-            float heroesLost = server.Heroes.Sum(h => h.Actor.Sheet.MaxHealth - h.Actor.Vitals.Health);
-            bool usedTheirSkills = heroesLost > lostBefore;
+            bool usedTheirSkills = heroesTook > 0f && server.Heroes.All(h => !h.Actor.Dead);
 
-            report.Check($"{enemies} enemies of {kinds.Length} kinds really fight", usedTheirSkills && struck > 0, $"heroes lost {heroesLost:0}, {struck} enemies struck");
+            report.Check($"{enemies} enemies of {kinds.Length} kinds really fight", usedTheirSkills && struck > 0, $"heroes took {heroesTook:0}, {struck} enemies struck");
             report.Check($"{enemies} enemies share their numbers", shared.Count < enemies / 2, $"{shared.Count} sets of numbers");
             report.Check($"{enemies} enemies and five heroes: the server keeps up, with time to spare", average < 1000.0 / NetTime.TicksPerSecond * 0.5, $"{average:0.00} ms a tick");
             report.Check("And a snapshot still fits in a packet", server.LargestSnapshot <= Protocol.SnapshotBudget, $"{server.LargestSnapshot}");

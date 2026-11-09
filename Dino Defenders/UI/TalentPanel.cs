@@ -34,6 +34,7 @@ namespace Dino_Defenders.UI
         private const float IconsFrom = 4f;             // Pixels of half a picture below which a node is only its frame.
         private const float NotableLabelsFrom = 0.72f;
         private const float KeystoneLabelsFrom = 0.3f;
+        private const float FirstChoiceLabelsFrom = 0.42f;
         private const float RegionNamesUntil = 0.22f;
 
         private const string ForgetText = "Forget all";
@@ -170,7 +171,7 @@ namespace Dino_Defenders.UI
             TalentKind.Keystone => 36f,
             TalentKind.Root => 30f,
             TalentKind.Gate => 26f,
-            TalentKind.Notable => 22f,
+            TalentKind.Notable => node.Beginning ? 27f : 22f,
             _ => node.Highway ? 9.5f : node.Travel ? 8.5f : 12.5f,
         };
 
@@ -520,16 +521,19 @@ namespace Dino_Defenders.UI
             GuiRect view = Bounds;
             foreach (TalentNode node in TalentTree.Nodes)
             {
-                bool far = node.Kind is TalentKind.Keystone or TalentKind.Gate;
+                // What a hero chooses between first is named from further off than other notables, so that the opening view says what each way is.
+                bool far = node.Kind is TalentKind.Keystone or TalentKind.Gate || node.Beginning;
                 bool named = far || node.Kind is TalentKind.Notable or TalentKind.Root;
-                if (!named || _zoom < (far ? KeystoneLabelsFrom : NotableLabelsFrom)) continue;
+                float from = far ? KeystoneLabelsFrom : node.Entry ? FirstChoiceLabelsFrom : NotableLabelsFrom;
+                if (!named || _zoom < from) continue;
                 Vector2 at = ToScreen(node.Position);
                 if (at.X < view.X - 120f || at.X > view.Right + 120f || at.Y < view.Y - 40f || at.Y > view.Bottom + 40f) continue;
 
                 float radius = RadiusOf(node);
                 float below = node.Kind == TalentKind.Keystone ? radius * 1.75f + 6f : radius + 4f;
-                Colour text = _taken[node.Index] ? Ui.Parchment : node.Kind == TalentKind.Keystone ? GuiColors.Rgba(220, 206, 176) : Ui.Faded;
-                Ui.Text(Context!, draw, node.Name, node.Kind == TalentKind.Keystone ? 15f : 13f, new GuiRect(at.X - 120f, at.Y + below, 240f, 18f), text, Alignment.Center);
+                bool big = node.Kind == TalentKind.Keystone || node.Beginning;
+                Colour text = _taken[node.Index] ? Ui.Parchment : big ? GuiColors.Rgba(220, 206, 176) : Ui.Faded;
+                Ui.Text(Context!, draw, node.Name, big ? 15f : 13f, new GuiRect(at.X - 120f, at.Y + below, 240f, 18f), text, Alignment.Center);
             }
         }
 

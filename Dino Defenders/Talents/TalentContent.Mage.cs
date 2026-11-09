@@ -11,6 +11,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "arcanum", Name = "The Arcanum", Adjective = "Arcane", Noun = "Magus", Colour = Rgb(160, 104, 236),
             Centre = 0f, Width = 44f, Attribute = Stat.Intellect,
+            Entry = N("first-lesson", "First Lesson", Inc(Stat.Damage, 12f, Tags.Magic), Inc(Stat.CastSpeed, 6f)),
             Lanes = new[]
             {
                 Lane("core", null, 0f, 0f, 1150f, 0f,
@@ -101,6 +102,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "storm", Name = "The Storm", Adjective = "Storm", Noun = "Caller", Colour = Rgb(112, 184, 255),
             Centre = 37f, Width = 30f, Attribute = Stat.Intellect, Second = Stat.Dexterity,
+            Entry = N("first-spark", "First Spark", Inc(Stat.Damage, 12f, Tags.Lightning), Chance(Tags.Shock, 5f)),
             Lanes = new[]
             {
                 Lane("gale", null, 0f, 0f, 1350f, 0.5f,
@@ -172,6 +174,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "winter", Name = "The Long Winter", Adjective = "Frost", Noun = "Rimewalker", Colour = Rgb(158, 230, 245),
             Centre = 324f, Width = 28f, Attribute = Stat.Intellect,
+            Entry = N("first-frost", "First Frost", Inc(Stat.Damage, 12f, Tags.Cold), Inc(Stat.AilmentEffect, 10f, Tags.Chill)),
             Lanes = new[]
             {
                 Lane("frost", null, 0f, 0f, 1100f, -0.5f,

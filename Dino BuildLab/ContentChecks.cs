@@ -53,7 +53,8 @@ namespace Dino_BuildLab
             TalentNode[] nodes = TalentTree.Nodes;
             int Count(TalentKind kind) => nodes.Count(n => n.Kind == kind);
             report.Note($"{nodes.Length} nodes: {Count(TalentKind.Small)} small ({nodes.Count(n => n.Travel)} of them travel, {nodes.Count(n => n.Highway)} on roads), {Count(TalentKind.Notable)} notable, {Count(TalentKind.Keystone)} keystones, {Count(TalentKind.Gate)} gates");
-            report.Check("It's big: about four times the tree it replaced", nodes.Length >= 3200, $"{nodes.Length}");
+            // It was grown at four times the tree it replaced, and then its travel was thinned out, so getting anywhere costs less: what's to have is what's big.
+            report.Check("It's big: hundreds of notables and dozens of keystones", Count(TalentKind.Notable) >= 400 && Count(TalentKind.Keystone) >= 45 && nodes.Length >= 2400, $"{nodes.Length} nodes, {Count(TalentKind.Notable)} notables");
             report.Check("Ids are all different", nodes.Select(n => n.Id).Distinct().Count() == nodes.Length);
             report.Check("Everything can be walked to", TalentTree.DepthOf.All(d => d >= 0), $"{TalentTree.DepthOf.Count(d => d < 0)} can't");
             report.Check("Every link goes both ways", nodes.All(n => n.Links.All(l => nodes[l].Links.Contains(n.Index))));
@@ -65,6 +66,7 @@ namespace Dino_BuildLab
             var wanted = new List<string>();
             foreach (Region region in TalentContent.Regions)
             {
+                if (region.Entry != null) wanted.Add($"{region.Id}.{region.Entry.Id}");
                 foreach (Lane lane in region.Lanes) wanted.AddRange(lane.Pods.Select(p => $"{region.Id}.{p.Id}"));
                 foreach (Wheel wheel in region.Wheels)
                 {
@@ -74,6 +76,7 @@ namespace Dino_BuildLab
                 wanted.AddRange(region.Keystones.Select(k => $"key.{k.Id}"));
             }
             wanted.AddRange(TalentContent.Bridges.Select(b => $"bridge.{b.Id}"));
+            wanted.AddRange(TalentContent.Beginnings.Select(b => $"start.{b.Id}"));
             var missing = wanted.Where(id => TalentTree.Find(id) == null).ToList();
             report.Check("Every cluster, wheel, keystone and bridge written down is on the tree", missing.Count == 0, string.Join(", ", missing.Take(10)));
 
@@ -119,11 +122,15 @@ namespace Dino_BuildLab
             report.Check("Keystones can be had well before the end of the game", deepest <= 48, $"{deepest}");
             report.Note($"A keystone is {shallowest} to {deepest} points from the root; a hero at level 30 has {new HeroState { Level = 30 }.TalentPoints}, and at level 60 {new HeroState { Level = 60 }.TalentPoints}");
 
-            // They're placed where their ideas live, not spread round the rim: some near the middle, some by a road, some deep.
-            float edge = furthest;
-            int inner = keystones.Count(k => k.Position.Length < edge * 0.62f);
-            int depthsApart = keystones.Select(k => TalentTree.DepthOf[k.Index] / 4).Distinct().Count();
-            report.Check("Keystones stand at many depths, not only at the edge", inner >= 12 && depthsApart >= 6, $"{inner} in the inner part, {depthsApart} different depths");
+            // They're placed where their ideas live, not spread round the rim: a few by the middle, many between the roads, and the rest out past the Far Path.
+            float innermost = TalentContent.Roads.Where(r => r.Ring).Min(r => r.Radius);
+            float outermost = TalentContent.Roads.Where(r => r.Ring).Max(r => r.Radius);
+            int nearMiddle = keystones.Count(k => k.Position.Length < innermost);
+            int between = keystones.Count(k => k.Position.Length >= innermost && k.Position.Length < outermost);
+            int beyond = keystones.Count - nearMiddle - between;
+            int depthsApart = keystones.Select(k => TalentTree.DepthOf[k.Index] / 3).Distinct().Count();
+            report.Check("Keystones stand at many depths, not only at the edge", nearMiddle >= 2 && between >= keystones.Count / 3 && beyond <= keystones.Count * 2 / 3 && depthsApart >= 6,
+                $"{nearMiddle} inside the Old Road, {between} between it and the Far Path, {beyond} past it, {depthsApart} different depths");
 
             var notables = nodes.Where(n => n.Kind == TalentKind.Notable).ToList();
             int nearest = TalentContent.Regions.Select((s, i) => notables.Where(n => n.Region == i).Min(n => TalentTree.DepthOf[n.Index])).Max();
@@ -131,11 +138,33 @@ namespace Dino_BuildLab
             report.Check("Every region has a notable that's soon reached", nearest <= new HeroState { Level = 5 }.TalentPoints, firsts);
             report.Note($"The first notable in each region is this many points from the root: {firsts}");
 
-            // The point of a road is going far for little: a road node is further from the root than its depth would get anyone walking a lane.
-            var roads = nodes.Where(n => n.Highway && n.Position.Length > 1500f).ToList();
-            float roadReach = roads.Average(n => n.Position.Length / Math.Max(TalentTree.DepthOf[n.Index], 1));
-            report.Check("Roads go much further for each point than any lane can", roadReach > TalentTree.Spacing * 1.4f, $"{roadReach:0} units a point on roads, {TalentTree.Spacing:0} at best on a lane");
-            report.Note($"Going out, a point goes {roadReach:0} units on a road, and at best {TalentTree.Spacing:0} on a lane");
+            // The point of a road is going far for little, and a lane is only there to get somewhere, so a point goes furthest on a road, then on a lane, and
+            // least among what gives something worth having.
+            float Mean(IEnumerable<(TalentNode a, TalentNode b)> pairs) => pairs.Select(p => (p.a.Position - p.b.Position).Length).DefaultIfEmpty(0f).Average();
+            float onRoads = Mean(links.Where(p => p.a.Highway && p.b.Highway));
+            float onLanes = Mean(links.Where(p => p.a.Travel && p.b.Travel && !p.a.Highway && !p.b.Highway));
+            float inClusters = Mean(links.Where(p => p.a.Kind == TalentKind.Small && p.b.Kind == TalentKind.Small && !p.a.Travel && !p.b.Travel));
+            report.Check("A point goes furthest on a road, then on a lane, and least in a cluster", onRoads > onLanes * 1.8f && onLanes > inClusters * 1.3f, $"{onRoads:0} on roads, {onLanes:0} on lanes, {inClusters:0} in clusters");
+            report.Note($"A point goes {onRoads:0} units on a road, {onLanes:0} on a lane and {inClusters:0} in a cluster");
+
+            // The outermost road goes all the way round, as one loop.
+            float far = TalentContent.Roads.Where(r => r.Ring).Max(r => r.Radius);
+            bool OnFar(TalentNode n) => n.Highway && MathF.Abs(n.OrbitRadius - far) < 0.5f;
+            var farNodes = nodes.Where(OnFar).ToList();
+            int walkedRound = 0;
+            if (farNodes.Count > 0 && farNodes.All(n => n.Links.Count(l => OnFar(nodes[l])) == 2))
+            {
+                TalentNode from = farNodes[0], at = from, cameFrom = from;
+                do
+                {
+                    TalentNode next = nodes[at.Links.First(l => OnFar(nodes[l]) && nodes[l] != cameFrom)];
+                    cameFrom = at;
+                    at = next;
+                    walkedRound++;
+                }
+                while (at != from && walkedRound <= farNodes.Count);
+            }
+            report.Check("The Far Path goes all the way round", farNodes.Count > 8 && walkedRound == farNodes.Count, $"{walkedRound} of {farNodes.Count} walked round");
 
             report.Check("Every node has a picture", nodes.All(n => n.Icon.Main != TalentGlyph.None), string.Join(", ", nodes.Where(n => n.Icon.Main == TalentGlyph.None).Take(6).Select(n => n.Id)));
             var looks = new Dictionary<Mod, TalentIcon>();
@@ -167,17 +196,63 @@ namespace Dino_BuildLab
             HeroState fresh = HeroState.CreateNew();
             report.Check("A new hero has one book, and it's free", HeroBuild.Compile(fresh).Books.Length == 1 && HeroBuild.Compile(fresh).SheetFor(Condition.None).Profile(0).Cost == 0f);
             report.Check("The wind doesn't answer them until a land is free", !fresh.HasGuidingWind && new HeroState { WorldsCleared = 1 }.HasGuidingWind);
-            report.Check("A new hero can take the first step, in any direction", TalentContent.Regions.All(r => TalentTree.CanAllocate(fresh, Index($"{r.Id}.start"))));
-            report.Check("But not a step further", !TalentTree.CanAllocate(fresh, Index("pyre.kindling.1")));
-            report.Check("Nor anything that's taken", !TalentTree.CanAllocate(Hero(5, "pyre.start"), Index("pyre.start")));
+            // The middle is six ways out, evenly round it, and nothing else, so the first points a hero spends are a choice that means something.
+            TalentNode root = TalentTree.Root;
+            float Normal(float degrees) => (degrees % 360f + 360f) % 360f;
+            float[] angles = root.Links.Select(l => Normal(TalentTree.AngleOf(TalentTree.Nodes[l].Position))).OrderBy(a => a).ToArray();
+            report.Check("Six ways out of the middle, and nothing else", root.Links.Count == 6 && TalentContent.Beginnings.Length == 6, $"{root.Links.Count}");
+            report.Check("Evenly round it", angles.Select((a, i) => Normal(angles[(i + 1) % angles.Length] - a)).All(gap => MathF.Abs(gap - 60f) < 0.5f), string.Join(", ", angles.Select(a => $"{a:0}")));
+            report.Check("Each opens with a notable two points out", root.Links.All(l => TalentTree.Nodes[l].Links.Count(n => TalentTree.Nodes[n].Beginning && TalentTree.DepthOf[n] == 2) == 1));
+            report.Check("Every region opens off one of them", TalentContent.Regions.All(r => TalentContent.Beginnings.Count(b => b.Regions.Contains(r.Id)) == 1));
+
+            // And each forks into its regions and nothing else, each opening with a notable of its own, so that the fork is a second choice that means something.
+            string? fork = null;
+            foreach (Beginning beginning in TalentContent.Beginnings)
+            {
+                TalentNode at = TalentTree.Find($"start.{beginning.Id}.2")!;
+                var onward = at.Links.Select(l => TalentTree.Nodes[l]).Where(n => !n.Beginning).ToList();
+                var entries = beginning.Regions.Select(id => TalentContent.Regions.First(r => r.Id == id)).Select(r => $"{r.Id}.{r.Entry?.Id}").ToList();
+                if (onward.Count != entries.Count || onward.Any(n => n.Kind != TalentKind.Notable || !entries.Contains(n.Id) || TalentTree.DepthOf[n.Index] != 4)) fork = $"{at.Id}: {string.Join(", ", onward.Select(n => n.Id))}";
+            }
+            report.Check("Each forks into its regions and nothing else, each opening with a notable two points on", fork == null, fork ?? "");
+            report.Check("A new hero can take the first step of any of them", root.Links.All(l => TalentTree.CanAllocate(fresh, l)));
+            report.Check("But not a step further", !TalentTree.CanAllocate(fresh, Index("start.unbowed")));
+            report.Check("Nor anything that's taken", !TalentTree.CanAllocate(Hero(5, "start.unbowed.1"), Index("start.unbowed.1")));
+
+            // Two ways only meet at the Old Road or past it: walking out from the first step of one, inside the road and never through the root, reaches no other.
+            float oldRoad = TalentContent.Roads.Where(r => r.Ring).Min(r => r.Radius);
+            string? met = null;
+            foreach (int first in root.Links)
+            {
+                var seen = new HashSet<int> { root.Index, first };
+                var frontier = new Queue<int>(new[] { first });
+                while (met == null && frontier.TryDequeue(out int at))
+                {
+                    foreach (int next in TalentTree.Nodes[at].Links)
+                    {
+                        if (TalentTree.Nodes[next].Position.Length >= oldRoad - 1f || !seen.Add(next)) continue;
+                        if (root.Links.Contains(next)) met = $"{TalentTree.Nodes[first].Id} and {TalentTree.Nodes[next].Id}";
+                        frontier.Enqueue(next);
+                    }
+                }
+            }
+            report.Check("No two ways meet before the Old Road", met == null, met ?? "");
+            report.Check("And no road comes any nearer the middle than that", TalentTree.Nodes.Where(n => n.Highway).All(n => n.Position.Length >= oldRoad - 1f));
+            report.Note($"The Old Road is {TalentTree.Nodes.Where(n => n.Highway && n.Position.Length < oldRoad + 1f).Min(n => TalentTree.DepthOf[n.Index])} points from the root at its nearest");
 
             HeroState path = Hero(10, "pyre.kindling.2");
             report.Check("A node in the middle of a path can't be given back", !TalentTree.CanRefund(path, Index("pyre.kindling.1")));
             report.Check("The end of it can", TalentTree.CanRefund(path, Index("pyre.kindling.2")));
             report.Check("Nor can the root ever", !TalentTree.CanRefund(path, TalentTree.Root.Index));
 
-            HeroState looped = Hero(20, "pyre.start", "way.night-way.0");
-            report.Check("A node a loop goes around can be given back", TalentTree.CanRefund(looped, Index("pyre.start")));
+            // A wheel's rim is a loop: with all of it taken, one of it that only rim nodes hang from can be given back, as the rest still reach round the other way.
+            (Region home, Wheel wheel) = TalentContent.Regions.SelectMany(r => r.Wheels.Where(w => w.Heart == null).Select(w => (r, w))).First();
+            Vector2 hub = TalentTree.Find($"{home.Id}.{wheel.Id}")!.Position;
+            string[] round = TalentTree.Nodes.Where(n => n.OrbitRadius > 0f && (n.Orbit - hub).Length < 0.5f).Select(n => n.Id).ToArray();
+            HeroState looped = Hero(100, round);
+            bool Held(int index) => looped.Talents.Contains(TalentTree.Nodes[index].Id);
+            TalentNode? inLoop = round.Select(id => TalentTree.Find(id)!).FirstOrDefault(n => n.Links.Count(Held) == 2 && n.Links.Where(Held).All(l => round.Contains(TalentTree.Nodes[l].Id)));
+            report.Check("A node a loop goes around can be given back", inLoop != null && TalentTree.CanRefund(looped, inLoop.Index), inLoop?.Id ?? "no node in the loop");
 
             HeroState rim = Hero(60, "gate.anvil-and-quill.a");
             int twin = TalentTree.Find("gate.anvil-and-quill.a")!.Twin;
@@ -197,9 +272,9 @@ namespace Dino_BuildLab
             report.Note($"From the far side of the Hunt's gate, the Pyre's Slow Burn is {stepped} points; from the root it's {walked}");
 
             HeroState unwise = Hero(1);
-            unwise.Talents.AddRange(new[] { "no.such.node", "pyre.kindling.3", "root", "pyre.start", "pyre.start" });
+            unwise.Talents.AddRange(new[] { "no.such.node", "pyre.kindling.3", "root", "start.ember-and-bone.1", "start.ember-and-bone.1" });
             TalentTree.Sanitize(unwise);
-            report.Check("Nonsense, things cut off, and duplicates are all thrown out", unwise.Talents.Count == 1 && unwise.Talents[0] == "pyre.start", string.Join(",", unwise.Talents));
+            report.Check("Nonsense, things cut off, and duplicates are all thrown out", unwise.Talents.Count == 1 && unwise.Talents[0] == "start.ember-and-bone.1", string.Join(",", unwise.Talents));
 
             HeroState broke = Hero(60, "key.slow-burn", "key.tidewalker");
             broke.Level = 2;
@@ -212,11 +287,11 @@ namespace Dino_BuildLab
             float b = HeroBuild.Compile(shuffled).SheetFor(Condition.None).Preview(Shelf.Firebolt).First.AverageHit;
             report.Check("The order talents were taken in makes no difference to what they add up to", a == b, $"{a} and {b}");
 
-            report.Check("A wanderer becomes something", TalentTree.TitleOf(new HeroState()) == "Wanderer" && TalentTree.TitleOf(Hero(30, "pyre.kindling.6")) == "Ember Pyromancer", TalentTree.TitleOf(Hero(30, "pyre.kindling.6")));
-            report.Check("Two regions mix", TalentTree.TitleOf(Hero(40, "pyre.kindling.7", "winter.frost.4")) == "Frost Pyromancer", TalentTree.TitleOf(Hero(40, "pyre.kindling.7", "winter.frost.4")));
+            report.Check("A wanderer becomes something", TalentTree.TitleOf(new HeroState()) == "Wanderer" && TalentTree.TitleOf(Hero(30, "pyre.kindling.4")) == "Ember Pyromancer", TalentTree.TitleOf(Hero(30, "pyre.kindling.4")));
+            report.Check("Two regions mix", TalentTree.TitleOf(Hero(40, "pyre.kindling.4", "winter.frost.3")) == "Frost Pyromancer", TalentTree.TitleOf(Hero(40, "pyre.kindling.4", "winter.frost.3")));
             report.Check("A keystone can have the last word", TalentTree.TitleOf(Hero(40, "key.tidewalker")) == "Tidewalker");
 
-            SaveGame? regrown = SaveGame.Read("""{ "Version": 11, "Hero": { "Level": 20, "Talents": [ "pyre.start", "storm.forked-path", "key.debtor" ] } }""");
+            SaveGame? regrown = SaveGame.Read("""{ "Version": 11, "Hero": { "Level": 20, "Talents": [ "start.unbowed.1", "storm.forked-path", "key.debtor" ] } }""");
             report.Check("A save from before the tree was grown again starts it again, with every point to spend", regrown != null && regrown.Hero.Talents.Count == 0 && regrown.Hero.UnspentPoints == regrown.Hero.TalentPoints,
                 regrown == null ? "unreadable" : string.Join(",", regrown.Hero.Talents));
         }

@@ -14,14 +14,15 @@ namespace Dino_BuildLab
     /// </summary>
     internal static class Balance
     {
-        private sealed record Sample(string Name, BookPlan Book, string[] Sectors, string[] Wanted, WeaponKind? Weapon);
+        // A pool is what a build stands on: nothing gives it on every node any more, so a sensible player takes what does.
+        private sealed record Sample(string Name, BookPlan Book, string[] Sectors, string[] Wanted, WeaponKind? Weapon, Stat Pool);
 
         private static readonly Sample[] Samples =
         {
-            new("Fire caster", Shelf.Firebolt, new[] { "pyre", "arcanum", "marrow" }, new[] { "pyre.kindled-spark" }, WeaponKind.Staff),
-            new("Sword fighter", Shelf.Strike, new[] { "forge", "bulwark", "marrow" }, Array.Empty<string>(), WeaponKind.Sword),
-            new("Frost caster", Shelf.FrostShards, new[] { "winter", "arcanum", "storm" }, new[] { "winter.splinters" }, WeaponKind.Wand),
-            new("Archer", Shelf.Shot, new[] { "hunt", "knave", "wilds" }, new[] { "hunt.steady-draw" }, WeaponKind.Bow),
+            new("Fire caster", Shelf.Firebolt, new[] { "pyre", "arcanum", "marrow" }, new[] { "pyre.kindled-spark" }, WeaponKind.Staff, Stat.Barrier),
+            new("Sword fighter", Shelf.Strike, new[] { "forge", "bulwark", "marrow" }, Array.Empty<string>(), WeaponKind.Sword, Stat.Health),
+            new("Frost caster", Shelf.FrostShards, new[] { "winter", "arcanum", "storm" }, new[] { "winter.splinters" }, WeaponKind.Wand, Stat.Barrier),
+            new("Archer", Shelf.Shot, new[] { "hunt", "knave", "wilds" }, new[] { "hunt.steady-draw" }, WeaponKind.Bow, Stat.Health),
         };
 
         private static readonly int[] Levels = { 1, 3, 5, 8, 12, 16, 20, 25, 30, 40, 50, 60 };
@@ -37,6 +38,7 @@ namespace Dino_BuildLab
                 int sector = Array.FindIndex(TalentContent.Regions, s => s.Id == sample.Sectors[i]);
                 wishes.AddRange(TalentTree.Nodes.Where(n => n.Region == sector && n.Kind == TalentKind.Notable));
             }
+            wishes.AddRange(TalentTree.Nodes.Where(n => n.Kind == TalentKind.Notable && !wishes.Contains(n) && n.Mods.Any(m => m.Stat == sample.Pool && m.Scope == Tags.None)));
 
             foreach (TalentNode node in wishes.OrderBy(n => TalentTree.DepthOf[n.Index]))
             {
@@ -98,7 +100,7 @@ namespace Dino_BuildLab
             foreach (Sample sample in Samples)
             {
                 Console.WriteLine($"\n{sample.Name}, using {sample.Book.Name}");
-                Console.WriteLine("level  health   mana  armour  dps     per hit   foe hp  foe hit  hits to kill  kill in  hits to die  title");
+                Console.WriteLine("level  health   mana  armour  dps     per hit   foe hp  foe hit  hits to kill  kill in  hits to die  title   (hits to die counts barrier with health)");
 
                 foreach (int level in Levels)
                 {
@@ -130,13 +132,13 @@ namespace Dino_BuildLab
                         totals[4] += dealt;
                         totals[5] += foe.MaxHealth;
                         totals[6] += taken;
-                        totals[7] += 0f;
+                        totals[7] += sheet.MaxBarrier;
                     }
 
                     for (int i = 0; i < totals.Length; i++) totals[i] /= Rolls;
                     float hitsToKill = totals[5] / MathF.Max(totals[4], 0.01f);
                     float killIn = totals[5] / MathF.Max(totals[3], 0.01f);
-                    float hitsToDie = totals[0] / MathF.Max(totals[6], 0.01f);
+                    float hitsToDie = (totals[0] + totals[7]) / MathF.Max(totals[6], 0.01f);
                     Console.WriteLine($"{level,5}  {totals[0],6:0}  {totals[1],5:0}  {totals[2],6:0}  {totals[3],6:0}  {totals[4],7:0}  {totals[5],7:0}  {totals[6],7:0.#}  {hitsToKill,12:0.0}  {killIn,6:0.0}s  {hitsToDie,11:0.0}  {title}");
                 }
             }

@@ -11,6 +11,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "mire", Name = "The Mire", Adjective = "Festering", Noun = "Plaguebearer", Colour = Rgb(116, 190, 60),
             Centre = 66f, Width = 28f, Attribute = Stat.Dexterity, Second = Stat.Intellect,
+            Entry = N("first-taste", "First Taste", Inc(Stat.Damage, 12f, Tags.Poison), Chance(Tags.Venom, 6f)),
             Lanes = new[]
             {
                 Lane("bog", null, 0f, 0f, 1050f, 1f,
@@ -78,6 +79,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "hunt", Name = "The Hunt", Adjective = "Hunting", Noun = "Stalker", Colour = Rgb(170, 210, 76),
             Centre = 96f, Width = 32f, Attribute = Stat.Dexterity,
+            Entry = N("first-shot", "First Shot", Inc(Stat.Damage, 12f, Tags.Projectile), Inc(Stat.ProjectileSpeed, 10f)),
             Lanes = new[]
             {
                 Lane("track", null, 0f, 0f, 950f, -0.5f,
@@ -143,6 +145,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "wilds", Name = "The Wilds", Adjective = "Wild", Noun = "Warden of the Land", Colour = Rgb(72, 168, 130),
             Centre = 125f, Width = 26f, Attribute = Stat.Dexterity,
+            Entry = N("first-light", "First Light", Flat(Stat.HealthRegen, 2f), Inc(Stat.MoveSpeed, 5f)),
             Lanes = new[]
             {
                 Lane("path", null, 0f, 0f, 1200f, -1f,
@@ -217,6 +220,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "knave", Name = "The Knave", Adjective = "Sly", Noun = "Knave", Colour = Rgb(186, 132, 200),
             Centre = 151f, Width = 26f, Attribute = Stat.Dexterity, Second = Stat.Strength,
+            Entry = N("first-feint", "First Feint", Inc(Stat.CritChance, 15f), Inc(Stat.Damage, 12f, Tags.Dagger)),
             Lanes = new[]
             {
                 Lane("alley", null, 0f, 0f, 1000f, 0.5f,

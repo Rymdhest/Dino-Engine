@@ -33,6 +33,12 @@ namespace Dino_Defenders.Talents
         /// <summary>On one of the roads, whose nodes are far apart.</summary>
         public bool Highway;
 
+        /// <summary>One of the six notables that the ways out of the middle open with.</summary>
+        public bool Beginning;
+
+        /// <summary>The notable a region opens with, where its way out of the middle forks.</summary>
+        public bool Entry;
+
         /// <summary>The circle it sits on, if it's part of a ring: two linked nodes on the same circle are joined along it rather than straight.</summary>
         public Vector2 Orbit;
         public float OrbitRadius;
@@ -55,10 +61,19 @@ namespace Dino_Defenders.Talents
     /// </summary>
     public static class TalentTree
     {
-        /// <summary>Between neighbouring nodes on a lane, and on a road, which is the point of a road.</summary>
+        /// <summary>The least two nodes keep between them, which is how far apart a cluster's own are.</summary>
         public const float Spacing = 100f;
-        public const float RoadSpacing = 230f;
-        public const float StartRing = 240f;
+
+        /// <summary>Between travel nodes, on a lane or any path that's only there to get somewhere. They give the least, so there are fewer of them.</summary>
+        public const float LaneSpacing = 165f;
+
+        /// <summary>Between nodes on a road, which is the point of a road.</summary>
+        public const float RoadSpacing = 420f;
+
+        /// <summary>How far out each way out of the middle has its travel node, its notable, and the fork into its two regions.</summary>
+        public const float FirstStep = 170f;
+        public const float StartNotable = 345f;
+        public const float Fork = 520f;
 
         private const float PodReach = 205f;        // From the lane to a cluster's notable.
         private const float PodArc = 92f;           // How far its small nodes curl around it.
@@ -67,6 +82,8 @@ namespace Dino_Defenders.Talents
         private const float Clear = 52f;            // What any node keeps from any other while the tree grows.
         private const float RimRadius = 172f;
         private const float BranchBlend = 170f;     // How long a branch takes to settle at its own angle.
+        private const float TrunkBlend = 380f;      // And a region's first lane, which leaves its way out of the middle at that way's angle.
+        private const float BridgeSpacing = 130f;   // Between a bridge's nodes, which give something but are mostly a way across.
         private const float AttributeStep = 5f;     // What a travel node gives.
 
         private static readonly List<TalentNode> Built = new();
@@ -223,6 +240,7 @@ namespace Dino_Defenders.Talents
             private readonly List<Vector2> _pods = new();
             private readonly List<(Vector2 at, float room)> _blocks = new();
             private readonly TalentNode[] _starts = new TalentNode[TalentContent.Regions.Length];
+            private readonly int[] _way = Enumerable.Repeat(-1, TalentContent.Regions.Length).ToArray();      // Which way out of the middle each region opens off.
             private readonly float[] _rings;
             private readonly Dictionary<Wheel, Vector2> _wheels = new();     // Where each wheel stands, decided before anything else, so lanes go round them.
 
@@ -239,7 +257,7 @@ namespace Dino_Defenders.Talents
                 {
                     foreach (Wheel wheel in region.Wheels) _wheels[wheel] = At(wheel.Radius, wheel.Angle);
                 }
-                GrowStartRing();
+                GrowStarts();
                 foreach ((Region region, int index) in Each())
                 {
                     foreach (Lane lane in region.Lanes) GrowLane(region, index, lane);
@@ -264,39 +282,35 @@ namespace Dino_Defenders.Talents
                 Attributes();
             }
 
-            // ------------------------------------------------------------ the ring around the root
+            // ------------------------------------------------------------ the ways out of the middle
 
-            // One node for each region and one for each spoke road, in a circle, every one of them joined to the root: wherever a hero starts going, they can.
-            private void GrowStartRing()
+            // Six ways out of the root and nothing else, evenly round it: a travel node, a notable that says what kind of hero this is going to be, and a fork
+            // into the two regions it opens onto. Nothing joins one way to the next on the way out, so where a hero starts is a choice that stays made.
+            private void GrowStarts()
             {
-                var stops = new List<(float angle, TalentNode node)>();
-                foreach ((Region region, int index) in Each())
+                for (int way = 0; way < TalentContent.Beginnings.Length; way++)
                 {
-                    var node = Add(new TalentNode
+                    Beginning start = TalentContent.Beginnings[way];
+                    int[] regions = start.Regions.Select(id => Array.FindIndex(TalentContent.Regions, r => r.Id == id)).ToArray();
+                    int home = regions[0];
+                    string name = TalentContent.Regions[home].Name;
+                    var step = Add(new TalentNode { Id = $"start.{start.Id}.1", Name = name, Kind = TalentKind.Small, Region = home, Travel = true, Position = At(FirstStep, start.Angle) });
+                    var notable = Add(new TalentNode
                     {
-                        Id = $"{region.Id}.start", Name = region.Name, Kind = TalentKind.Small, Region = index, Travel = true,
-                        Position = At(StartRing, region.Centre), Orbit = Vector2.Zero, OrbitRadius = StartRing,
+                        Id = $"start.{start.Id}", Name = start.Name, Kind = TalentKind.Notable, Region = home, Position = At(StartNotable, start.Angle), Mods = start.Mods, Lore = start.Lore, Beginning = true,
                     });
-                    _starts[index] = node;
-                    stops.Add((region.Centre, node));
-                }
-                foreach (Road road in TalentContent.Roads.Where(r => !r.Ring && r.From <= StartRing + 1f))
-                {
-                    var node = Add(new TalentNode
+                    var fork = Add(new TalentNode { Id = $"start.{start.Id}.2", Name = name, Kind = TalentKind.Small, Region = home, Travel = true, Position = At(Fork, start.Angle) });
+                    Link(Root, step);
+                    Link(step, notable);
+                    Link(notable, fork);
+                    foreach (int region in regions)
                     {
-                        Id = $"way.{road.Id}.0", Name = road.Name, Kind = TalentKind.Small, Region = RegionAt(road.Angle), Travel = true, Highway = true,
-                        Position = At(StartRing, road.Angle), Orbit = Vector2.Zero, OrbitRadius = StartRing,
-                    });
-                    stops.Add((road.Angle, node));
+                        _starts[region] = fork;
+                        _way[region] = way;
+                    }
                 }
-
-                stops.Sort((a, b) => Normal(a.angle).CompareTo(Normal(b.angle)));
-                for (int i = 0; i < stops.Count; i++)
-                {
-                    Link(Root, stops[i].node);
-                    Link(stops[i].node, stops[(i + 1) % stops.Count].node);
-                    _paths.Add(stops[i].node);
-                }
+                int lost = Array.IndexOf(_way, -1);
+                if (lost >= 0) throw new InvalidOperationException($"{TalentContent.Regions[lost].Name} opens off none of the ways out of the middle");
             }
 
             private static float Normal(float degrees) => (degrees % 360f + 360f) % 360f;
@@ -329,7 +343,7 @@ namespace Dino_Defenders.Talents
                 float AngleAt(float radius)
                 {
                     float aim = region.Centre + lane.Angle + lane.Bend * (radius - from) / 1000f + Wiggle(seed, radius);
-                    float settle = MathHelper.Clamp((radius - from) / BranchBlend, 0f, 1f);
+                    float settle = MathHelper.Clamp((radius - from) / (lane.From == null ? TrunkBlend : BranchBlend), 0f, 1f);
                     settle = settle * settle * (3f - 2f * settle);
                     float angle = Around(startAngle + Turn(startAngle, aim) * settle, radius, region.Centre + lane.Angle);
                     return radius > from + 250f ? Apart(angle, radius, seed) : angle;
@@ -358,13 +372,25 @@ namespace Dino_Defenders.Talents
                 var nodes = new List<TalentNode>();
                 TalentNode previous = start;
                 int k = 0;
+                Pod? entry = lane.From == null ? region.Entry : null;
                 for (int s = 1; s < stops.Count; s++)
                 {
                     float a = stops[s - 1], b = stops[s];
-                    int steps = Math.Max(1, (int)MathF.Round((b - a) / Spacing));
+                    int steps = Math.Max(1, (int)MathF.Round((b - a) / LaneSpacing));
                     for (int i = 1; i <= steps; i++)
                     {
                         float radius = a + (b - a) * i / steps;
+
+                        // A region opens with a notable where its way forks, so that the fork is a choice between two. Nothing hangs off it or joins onto it.
+                        if (entry != null)
+                        {
+                            var opening = Add(new TalentNode { Id = $"{region.Id}.{entry.Id}", Name = entry.Name, Kind = TalentKind.Notable, Region = index, Position = At(radius, AngleAt(radius)), Mods = entry.Mods, Entry = true });
+                            Link(previous, opening);
+                            previous = opening;
+                            entry = null;
+                            continue;
+                        }
+
                         var node = Add(new TalentNode
                         {
                             Id = $"{seed}.{++k}", Name = region.Name, Kind = TalentKind.Small, Region = index, Travel = true, Position = At(radius, AngleAt(radius)),
@@ -544,7 +570,7 @@ namespace Dino_Defenders.Talents
                 {
                     foreach (float across in new[] { 0f, 80f, -80f, 160f, -160f, 240f, -240f, 340f, -340f })
                     {
-                        float r = MathF.Max(radius + out_, StartRing + size + 60f);
+                        float r = MathF.Max(radius + out_, Fork + size + 60f);
                         Vector2 at = At(r, angle + MathHelper.RadiansToDegrees(across / r));
                         float clear = Clearance(at, size);
                         float score = (clear >= 0f ? 1000f : 0f) + MathF.Min(clear, 40f) - (MathF.Abs(out_) + MathF.Abs(across)) * 0.2f;
@@ -687,7 +713,7 @@ namespace Dino_Defenders.Talents
 
             private void Span(Bridge bridge, TalentNode a, TalentNode b, int right)
             {
-                int steps = Math.Max(2, (int)MathF.Round((b.Position - a.Position).Length / Spacing));
+                int steps = Math.Max(2, (int)MathF.Round((b.Position - a.Position).Length / BridgeSpacing));
                 int half = steps / 2;
                 TalentNode previous = a;
                 for (int i = 1; i < steps; i++)
@@ -826,7 +852,7 @@ namespace Dino_Defenders.Talents
                 {
                     float angle = MathHelper.DegreesToRadians(bend);
                     var turned = new Vector2(way.X * MathF.Cos(angle) - way.Y * MathF.Sin(angle), way.X * MathF.Sin(angle) + way.Y * MathF.Cos(angle));
-                    Vector2 at = last.Position + turned * Spacing;
+                    Vector2 at = last.Position + turned * LaneSpacing;
                     bool crowded = false;
                     foreach (TalentNode node in _space!.Near(at, 2f * Clear))
                     {
@@ -957,7 +983,7 @@ namespace Dino_Defenders.Talents
             // A straight path of travel nodes from one to the other.
             private void Path(TalentNode from, TalentNode to, Region region, int index, string id, Mod? gives = null)
             {
-                int steps = Math.Max(1, (int)MathF.Round((to.Position - from.Position).Length / Spacing));
+                int steps = Math.Max(1, (int)MathF.Round((to.Position - from.Position).Length / LaneSpacing));
                 TalentNode previous = from;
                 for (int i = 1; i < steps; i++)
                 {
@@ -1003,7 +1029,8 @@ namespace Dino_Defenders.Talents
                 const float Least = 190f;
                 const float Most = 360f;
                 const float Apart = 520f;
-                const int Detour = 9;
+                const int Detour = 7;
+                float inner = _rings.Length > 0 ? _rings[0] + 150f : 0f;
 
                 var lanes = new List<(TalentNode node, string lane)>();
                 foreach ((string lane, List<TalentNode> nodes) in _lanes)
@@ -1032,6 +1059,9 @@ namespace Dino_Defenders.Talents
                 int count = 0;
                 foreach ((float distance, TalentNode a, TalentNode b) in pairs)
                 {
+                    // Two ways out of the middle only ever meet past the Old Road.
+                    if (_way[Math.Max(a.Region, 0)] != _way[Math.Max(b.Region, 0)] && MathF.Min(a.Position.Length, b.Position.Length) < inner) continue;
+
                     Vector2 middle = (a.Position + b.Position) * 0.5f;
                     if (made.Exists(m => (m - middle).Length < Apart)) continue;
                     if (Hops(a, b, Detour) <= Detour) continue;

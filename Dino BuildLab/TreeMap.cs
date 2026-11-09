@@ -1,3 +1,5 @@
+using Dino_Defenders.Progression;
+using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
@@ -8,6 +10,7 @@ namespace Dino_BuildLab
     /// The whole tree as a picture, with no window: every node in its region's colour, every link, the roads and the waygates. It's for judging the
     /// shape of the tree as it's grown, which no check can, and for finding where things crowd each other.
     ///   tree [--out file.png] [--size pixels] [--x units --y units --span units]   The whole tree, or a square of it.
+    ///   tree --node id   Where one node is, what it's joined to, the way there from the root, and what a level 60 hero who walks it has.
     /// </summary>
     internal static class TreeMap
     {
@@ -19,6 +22,12 @@ namespace Dino_BuildLab
             if (options.Text("node") is string probe && TalentTree.Find(probe) is TalentNode probed)
             {
                 Console.WriteLine($"{probed.Id} at {probed.Position} r {probed.Position.Length:0}: " + string.Join(", ", probed.Links.Select(l => $"{TalentTree.Nodes[l].Id} ({(TalentTree.Nodes[l].Position - probed.Position).Length:0})")));
+                var walker = new HeroState { Level = 60 };
+                List<int> way = TalentTree.PathTo(walker, probed.Index);
+                Console.WriteLine($"  {TalentTree.DepthOf[probed.Index]} points from the root: {string.Join(" > ", way.Select(i => TalentTree.Nodes[i].Id))}");
+                walker.Talents.AddRange(way.Select(i => TalentTree.Nodes[i].Id));
+                ActorSheet sheet = HeroBuild.Compile(walker).SheetFor(Condition.None);
+                Console.WriteLine($"  A level 60 hero who walks there has {sheet.MaxHealth:0} health, {sheet.MaxMana:0} mana, {sheet.MaxBarrier:0} barrier, {sheet.Evasion:0} evasion, and blocks {sheet.BlockAttacks:0.#}% of attacks");
                 return 0;
             }
             string path = options.Text("out") ?? "tree.png";

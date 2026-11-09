@@ -31,7 +31,7 @@ namespace Dino_BuildLab
                     Console.WriteLine($"\n{sector.Name}");
                     foreach (TalentNode node in TalentTree.Nodes.Where(n => n.Kind == TalentKind.Keystone && TalentContent.Regions[n.Region] == sector))
                     {
-                        Console.WriteLine($"  {node.Name}  ({node.Id})");
+                        Console.WriteLine($"  {node.Name}  ({node.Id}, {TalentTree.DepthOf[node.Index]} points out, {node.Position.Length:0} from the root)");
                         foreach (Mod mod in node.Mods) Console.WriteLine($"      {mod.Describe()}");
                         Console.WriteLine($"      \"{node.Lore}\"");
                     }

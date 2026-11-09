@@ -11,6 +11,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "pyre", Name = "The Pyre", Adjective = "Ember", Noun = "Pyromancer", Colour = Rgb(242, 108, 32),
             Centre = 265f, Width = 30f, Attribute = Stat.Strength, Second = Stat.Intellect,
+            Entry = N("first-flame", "First Flame", Inc(Stat.Damage, 12f, Tags.Fire), Chance(Tags.Burn, 5f)),
             Lanes = new[]
             {
                 Lane("kindling", null, 0f, 0f, 1000f, -1f,
@@ -91,6 +92,7 @@ namespace Dino_Defenders.Talents
         {
             Id = "host", Name = "The Host", Adjective = "Hollow", Noun = "Shepherd", Colour = Rgb(140, 160, 128),
             Centre = 295f, Width = 30f, Attribute = Stat.Intellect, Second = Stat.Strength,
+            Entry = N("first-rite", "First Rite", Inc(Stat.Health, 12f, Tags.Minion), Inc(Stat.Damage, 12f, Tags.Minion)),
             Lanes = new[]
             {
                 Lane("grave", null, 0f, 0f, 1150f, 0.5f,
