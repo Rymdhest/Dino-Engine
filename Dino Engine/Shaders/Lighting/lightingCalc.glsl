@@ -89,8 +89,7 @@ struct Surface
     vec3 view;              // Towards the camera.
     float roughness;
     float metallic;
-    float translucency;     // How much light gets through: 0 for anything solid.
-    float thickness;        // How far that light has to travel inside.
+    float translucency;     // How much light gets through, what it loses on the way already taken off (transmittance in gBufferUtil.glsl): 0 for anything solid.
 };
 
 // The light a surface sends to the camera from one light. L points towards the light; radiance is what arrives there.
@@ -113,8 +112,7 @@ vec3 lightSurface(Surface s, vec3 L, vec3 radiance)
     // Thin things let light through, most of all seen against it. What comes out has lost the colours the leaf absorbs.
     float backLit = dot(V, normalize(N - L)) * 0.5 + 0.5;
     vec3 tint = max(mix(vec3(dot(s.albedo, vec3(0.2126, 0.7152, 0.0722))), s.albedo, 1.2), vec3(0.0));
-    float absorption = 1.0 / (pow(s.thickness * 2.0, 3.0) + 1.0);
-    vec3 transmitted = tint * (s.translucency * absorption * pow(backLit, 1.9) * TRANSMISSION_GAIN / LIGHT_PI);
+    vec3 transmitted = tint * (s.translucency * pow(backLit, 1.9) * TRANSMISSION_GAIN / LIGHT_PI);
 
     return (reflected + transmitted) * radiance;
 }

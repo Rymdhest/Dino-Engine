@@ -44,7 +44,7 @@ namespace Dino_Engine.Particles.Content
         public static readonly ParticleEffect Ground = new()
         {
             Reach = 4f,
-            Light = new EffectLight { Colour = new Vector3(0.6f, 0.68f, 1f), Intensity = 72f, Radius = 14.4f, Height = 2.2f, Flicker = 0.7f, FlickerSpeed = 25f, Fill = 0.25f },
+            Light = new EffectLight { Colour = new Vector3(0.6f, 0.68f, 1f), Intensity = 120f, Radius = 14.4f, Height = 2.2f, Flicker = 0.7f, FlickerSpeed = 25f, Fill = 0.25f },
             Emitters = new[]
             {
                 new ParticleEmitter { Style = Arc, Rate = 0.167f, Per = RateBasis.SquareMetre, Place = EmitterPlace.Ground, Offset = new Vector3(0f, 0.33f, 0f), ArcReach = R(2.4f, 5.2f), Size = R(0.132f, 0.22f), Life = R(0.08f, 0.18f) },
@@ -56,7 +56,7 @@ namespace Dino_Engine.Particles.Content
         public static readonly ParticleEffect Burst = new()
         {
             Priority = ParticlePriority.Vital, Reach = 6f,
-            Light = new EffectLight { Colour = new Vector3(0.7f, 0.76f, 1f), Intensity = 576f, Radius = 22.4f, Height = 3.3f, Flicker = 0.5f, FlickerSpeed = 40f, Length = 0.3f },
+            Light = new EffectLight { Colour = new Vector3(0.7f, 0.76f, 1f), Intensity = 820f, Radius = 22.4f, Height = 3.3f, Flicker = 0.5f, FlickerSpeed = 40f, Length = 0.4f },
             Emitters = new[]
             {
                 new ParticleEmitter { Style = Arc, Burst = 6, Spreads = true, Offset = new Vector3(0f, 1.32f, 0f), ArcReach = R(1.8f, 3.6f), Size = R(0.154f, 0.242f), Life = R(0.15f, 0.3f) },
@@ -66,10 +66,11 @@ namespace Dino_Engine.Particles.Content
             },
         };
 
-        /// <summary>A blow of lightning landing, or the charge in a caster's hand: a few short arcs and a spit of sparks.</summary>
+        /// <summary>A blow of lightning landing, or the charge in a caster's hand: a few short arcs, a spit of sparks and a flash.</summary>
         public static readonly ParticleEffect Hit = new()
         {
             Priority = ParticlePriority.Vital, Reach = 4f,
+            Light = new EffectLight { Colour = new Vector3(0.7f, 0.76f, 1f), Intensity = 120f, Radius = 8f, Height = 0.5f, Flicker = 0.5f, FlickerSpeed = 40f, Length = 0.2f },
             Emitters = new[]
             {
                 new ParticleEmitter { Style = Arc, Burst = 3, ArcReach = R(1f, 2.2f), Size = R(0.088f, 0.154f), Life = R(0.08f, 0.16f) },
@@ -77,10 +78,11 @@ namespace Dino_Engine.Particles.Content
             },
         };
 
-        /// <summary>What a bolt of lightning trails as it flies: a bright head, arcs crackling round it, and sparks.</summary>
+        /// <summary>What a bolt of lightning trails as it flies: a bright head, arcs crackling round it, sparks, and its light flickering on the ground under it.</summary>
         public static readonly ParticleEffect Bolt = new()
         {
             Priority = ParticlePriority.Vital, Reach = 4f,
+            Light = new EffectLight { Colour = new Vector3(0.65f, 0.72f, 1f), Intensity = 130f, Radius = 10f, Flicker = 0.6f, FlickerSpeed = 30f, Fill = 0.25f },
             Emitters = new[]
             {
                 new ParticleEmitter { Style = Glows.Core(ParticlePalette.Lightning), Rate = 30f, Size = R(0.88f, 1.21f), Life = R(0.06f, 0.1f) },

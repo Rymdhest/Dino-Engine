@@ -31,19 +31,24 @@ namespace Dino_Engine.World
         }
     }
 
-    /// <summary>Levelled ground under a building.</summary>
+    /// <summary>Levelled ground under a building, or ground laid to an even slope, as under a flight of steps.</summary>
     public readonly struct GroundPad
     {
         public readonly Footprint Footprint;
-        public readonly float Height;
+        public readonly float Height;   // At the footprint's centre.
         public readonly float Margin;   // Metres around the footprint over which it blends back into the land.
+        public readonly Vector2 Rise;   // Metres it climbs per metre east and north from its centre: nothing, for level ground.
 
-        public GroundPad(in Footprint footprint, float height, float margin)
+        public GroundPad(in Footprint footprint, float height, float margin, Vector2 rise = default)
         {
             Footprint = footprint;
             Height = height;
             Margin = margin;
+            Rise = rise;
         }
+
+        /// <summary>The height it lays the ground to at a point.</summary>
+        public float HeightAt(Vector2 position) => Height + Vector2.Dot(position - Footprint.Centre, Rise);
     }
 
     /// <summary>A kind of ground painted by people rather than by nature.</summary>
@@ -52,6 +57,8 @@ namespace Dino_Engine.World
         Yard,       // Trampled earth around houses.
         Plaza,      // Packed gravel of market squares and camps.
         Farmland,
+        Paving,     // The waygates' own stone laid in slabs (MaterialCatalog.Flagstones): the Haven's forecourt and square.
+        Garden,     // A bed someone tends: its grass kept short, green and full of flowers, whatever the land around it grows.
     }
 
     /// <summary>A plant put somewhere on purpose by whoever built a site, as a garden's trees are. They're planted before the woods, which grow around them, and only if nothing built stands there.</summary>

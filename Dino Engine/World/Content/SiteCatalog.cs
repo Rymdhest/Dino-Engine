@@ -339,7 +339,7 @@ namespace Dino_Engine.World.Content
             Kind = SiteKind.Haven,
             Label = "Haven",
             MapColour = new Vector3(1f, 0.9f, 0.6f),
-            Radius = new FloatRange(62f, 62f),
+            Radius = new FloatRange(92f, 92f),
             Limits = new IntRange(0, 0),
             MaxSlope = 0.3f,
             Road = RoadClass.Track,

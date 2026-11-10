@@ -19,6 +19,7 @@ namespace Dino_Engine.ECS.Systems
     {
         // Ground cover under this height throws nothing anyone would see from up here.
         private const float SmallestCaster = 1f;
+        private const float EnclosingSize = 6f;     // Metres across, at most, that something a light is inside of can be and still be what holds its flame.
 
         private readonly BitMask _characterMask = new BitMask(typeof(CharacterModelComponent), typeof(SkeletonComponent), typeof(LocalToWorldMatrixComponent));
         private readonly List<Entity> _near = new();
@@ -37,14 +38,15 @@ namespace Dino_Engine.ECS.Systems
                 if (!world.HasComponent<ModelComponent>(entity) || !world.HasComponent<ModelRenderTag>(entity) || !world.HasComponent<LocalToWorldMatrixComponent>(entity)) continue;
 
                 glModel model = world.GetComponent<ModelComponent>(entity).model;
-                if (model == null) continue;
+                if (model == null || model.Hidden) continue;
 
                 Matrix4 matrix = world.GetComponent<LocalToWorldMatrixComponent>(entity).value;
                 AABB bounds = AABB.Transform(new AABB(model.box.Min, model.box.Max), matrix);
                 if (bounds.Max.Y - bounds.Min.Y < SmallestCaster) continue;
 
-                // What a light hangs from or burns inside would shut it in: a lantern's glass goes all the way round its flame.
-                if (Contains(bounds, position)) continue;
+                // What a light hangs from or burns inside would shut it in: a lantern's glass goes all the way round its flame. A building the light is in is another
+                // matter: its walls are what keep the light in its room.
+                if (Contains(bounds, position) && MathF.Max(bounds.Max.X - bounds.Min.X, bounds.Max.Z - bounds.Min.Z) < EnclosingSize) continue;
                 _models.Add((model, matrix, bounds));
             }
 

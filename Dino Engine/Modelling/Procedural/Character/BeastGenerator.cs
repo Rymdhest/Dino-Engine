@@ -151,7 +151,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Mesh BuildTail(BeastLook look, BoneType bone, float from, float to)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             Vector3 root = TailRoot(look);
             Vector3 bend = TailBend(look);
             Vector3 tip = bend + new Vector3(0f, -look.Tail * 0.35f, -look.Tail * 0.45f);
@@ -163,14 +163,14 @@ namespace Dino_Engine.Modelling.Procedural.Character
         private static Mesh Limb(Vector3 from, Vector3 to, float top, float bottom, BeastLook look)
         {
             float thick = 0.55f + look.Girth * 0.9f;
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             b.Tube(from, to, top * thick, bottom * thick, 6, Fur(look.Coat));
             return b.Build();
         }
 
         private static Mesh Paw(Vector3 at, BeastLook look)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             float size = 0.1f + look.Girth * 0.08f;
             b.Add(IcoSphereGenerator.CreateIcosphere(1, Fur(look.Coat * 0.6f)), at, new Vector3(size * 1.1f, size * 0.8f, size * 1.4f));
             return b.Build();
@@ -178,7 +178,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Mesh BuildBody(BeastLook look)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             VertexMaterial coat = Fur(look.Coat);
             float girth = look.Girth;
             float back = -look.Length * 0.52f;
@@ -236,7 +236,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Mesh BuildHead(BeastLook look)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             VertexMaterial coat = Fur(look.Coat);
             Vector3 root = NeckRoot(look);
             Vector3 centre = HeadCentre(look);

@@ -69,7 +69,7 @@ namespace Dino_Engine.ECS.Systems
             Engine.RenderEngine._grassRenderer.SubmitGeometryCommand(new GrassRenderCommand(grassChunks.ToArray(), grass));
 
             // Single terrain command: every chunk is the same size/quality, so no LOD split needed.
-            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunks.ToArray(), 0.03f));
+            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunks.ToArray()));
         }
 
 

@@ -25,6 +25,9 @@ namespace Dino_Engine.World
         Spectator,      // Someone made to watch from an arena's stands, who stands where they're put and never comes down.
         ArenaGate,      // One of an arena's gates, which the brood's handlers open as the fight goes against their tyrant.
         Rival,          // Where a second tyrant waits in an arena, if orders brought one.
+        Workbench,      // Where gear is worked on, in the Haven's forge.
+        GamingTable,    // Where gold is played for, in the Haven's gaming house.
+        Keeper,         // Someone who keeps a hall and stands at their work in it, in the Haven.
     }
 
     public static class SpawnRoles
@@ -72,6 +75,13 @@ namespace Dino_Engine.World
         public bool HasInn;
         public HauntKind Haunt;     // For a pack: why it's here.
         public SpawnRole Folk;      // For a pack: who it is.
+
+        /// <summary>
+        /// Where its people stand, if not its middle: the Haven's middle is a raised bed with a tree in it (SQUARE.md), and everything walkable is flooded out from the landing's
+        /// footing (<see cref="Generation.FinalizeStage"/>), so it has to be open ground.
+        /// </summary>
+        public Vector2? Footing;
+        public Vector2 Landing => Footing ?? Position;
 
         /// <summary>Where a game should put characters and things. Worldgen only says where and what for.</summary>
         public readonly List<SiteSpawn> Spawns = new();

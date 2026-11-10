@@ -182,6 +182,16 @@ namespace Dino_Defenders.Gameplay
         /// <summary>Made to watch a fight from an arena's stands, looking towards where it is.</summary>
         public bool Crowd;
         public Vector2 Watch;
+
+        /// <summary>For someone who keeps a hall: which, as its kind and one (0 for anyone else), and which way they look while nobody's near.</summary>
+        public int Keeps;
+        public Vector2 Rest;
+
+        /// <summary>The way someone walking somewhere is going, a point at a time, and how far along it they are: the way into a hall goes through its door.</summary>
+        public List<Vector2>? Route;
+        public int RouteStep;
+        public float Closest;       // The nearest they've been to the point they're making for.
+        public float StuckFor;      // Seconds since they last got any nearer it.
     }
 
     public enum InteractKind
@@ -195,9 +205,14 @@ namespace Dino_Defenders.Gameplay
         MapTable,       // Where the next land is chosen, in the Haven.
         Portal,         // The way open to a land, in the Haven's great waygate.
         BetaVendor,     // Gives anything away, for testing the game, in the Haven.
+        Workbench,      // Where gear is worked on, in the Haven's forge.
+        GamingTable,    // Where gold is played for, in the Haven's gaming house.
     }
 
-    /// <summary>The way out of the Haven, open to a land: what's seen in the great waygate's arch. Its colour is the land's first biome, so that what's ahead shows in it.</summary>
+    /// <summary>
+    /// The way out of the Haven, open to a land, standing in the great waygate's arch. What's seen in it is grown from that land by its model's name (WayKeys, WAYGATES.md); this says that
+    /// it's open, and to what land's first biome.
+    /// </summary>
     [Replicated]
     public struct PortalComponent : IComponent
     {

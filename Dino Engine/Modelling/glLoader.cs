@@ -30,6 +30,7 @@ public class glLoader
 
         model.box = mesh.createAABB();
         if (mesh.joints != null) LoadPlant(model, mesh);
+        if (mesh.getAllEdgesArray() is float[] edges) LoadEdges(model, edges);
         return model;
     }
 
@@ -56,6 +57,22 @@ public class glLoader
         model.box = new AABB(min, max);
         if (plant.Joints.Count > 0) LoadPlant(model, joints, plant.Joints, PlantRig.Reach(plant));
         return model;
+    }
+
+    // Where each vertex is from the edges of its face, for the relief to keep clear of corners. Enabled in the vertex array for good, as a plant's joints are.
+    private static void LoadEdges(glModel model, float[] edges)
+    {
+        GL.BindVertexArray(model.getVAOID());
+        int buffer = storeDataInAttributeList(glModel.EdgeAttribute, 4, edges);
+        GL.EnableVertexAttribArray(glModel.EdgeAttribute);
+        unbindVAO();
+        model.Own(buffer);
+    }
+
+    /// <summary>What a vertex array without edges reads for them: none, anywhere. A generic attribute is the context's, not an array's, so say it once.</summary>
+    public static void SetNoEdges()
+    {
+        GL.VertexAttrib4(glModel.EdgeAttribute, Vertex.NoEdges.X, Vertex.NoEdges.Y, Vertex.NoEdges.Z, Vertex.NoEdges.W);
     }
 
     // What a plant adds: which joint holds each vertex, and the joints themselves, which Plant.glsl walks up from there.

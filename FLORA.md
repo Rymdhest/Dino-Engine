@@ -74,7 +74,7 @@ What was learned by trying, which the papers don't say:
 
 Generalized cylinders on parallel transport frames, with rings spaced by how thick a stem is and closer at the foot, where all the shape is, and as many sides as that's worth. Rings have to stay close enough on a tall trunk, or it's a cone between its foot and the first thing that changes it (`LongestRing`).
 
-**Bark materials are pale.** What colour a bark is goes in the vertices, so one is every bark of its kind. Each costs 64 MB, so a new `BarkKind` should be a new surface and never a new colour. A kind needs a line in `TextureGenerator.BindFloraMaterials` and a porosity. Ridges come from rigged noise darkened by depth (`DarkenDepths`): Voronoi lines read as crazy paving.
+**Bark materials are pale.** What colour a bark is goes in the vertices, so one is every bark of its kind. Each costs 64 MB, so a new `BarkKind` should be a new surface and never a new colour. A kind is a line in `MaterialCatalog`, a recipe in `MaterialRecipes.Bark.cs` (read `TEXTURES.md`) and a line in `TextureGenerator.BindFloraMaterials`. Cells read as crazy paving: an oak's fissures are where a noise stretched up the trunk crosses its middle, so they braid and never close, and a pine's plates have wandering edges, faces terraced where flakes came away and furrows with a bottom of their own.
 
 Ridges at the foot face the way roots do, or they look stuck on. Moss likes the damp foot, the upper side of a lean, and one side more than the other. Wood inside a crown is darkened by the light it stands in, or limbs shine through.
 

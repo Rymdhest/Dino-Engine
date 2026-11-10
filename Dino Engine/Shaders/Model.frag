@@ -9,8 +9,7 @@ in mat3 normalTBN;
 in float textureIndex;
 
 uniform int numberOfMaterials;
-uniform float parallaxDepth;
-uniform float parallaxLayers;
+uniform float reliefScale;      // 1 for each material's own relief, 0 for none at all (Graphics quality).
 
 uniform sampler2DArray albedoMapTextureArray;
 uniform sampler2DArray normalMapTextureArray;
@@ -26,11 +25,14 @@ flat in float fragFade;
 #endif
 #if !defined(CHARACTER) && !defined(WILDLIFE)
 flat in float fragFocusOccluder;
+in vec4 fragEdges;      // Metres to each edge of the face (MeshBuilder), or far off.
+#else
+const vec4 fragEdges = vec4(1e6);
 #endif
 
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gNormal;
-layout (location = 2) out vec4 gMaterials;  
+layout (location = 2) out vec4 gMaterials;
 
 #include textureUtil.glsl
 #include Rock.glsl
@@ -38,50 +40,85 @@ layout (location = 2) out vec4 gMaterials;
 #include gBufferUtil.glsl
 #include AntiAliasing/Msaa.glsl
 #include FocusCutout.glsl
+#include Halls.glsl
+#include Surface/MaterialTable.glsl
+#include Surface/SurfaceFrame.glsl
+#include Surface/Relief.glsl
 #include Weather/Weather.glsl
 #include Weather/SurfaceMap.glsl
 #include Weather/RainShadow.glsl
 #include Weather/Wetness.glsl
 
 const float HIT_SHINE = 7.0;
+const float MATERIAL_SIZE = 2048.0;     // Texels across a material (TextureGenerator.MATERIAL_RESOLUTION), for the mip a relief reads.
 
 void main() {
 
 	vec3 worldPosition = (invViewMatrix * vec4(viewSpacePos, 1.0)).xyz;
+
+	// A card's normals aren't its face's: they're the soft shape of the mass it's part of, which is the same from either side. Turning them over would shade half a crown inside out.
+	bool card = int(textureIndex + 0.5) >= numberOfMaterials;
+	vec3 smoothNormal = normalize(normalTBN[2]);
+	vec3 facing = gl_FrontFacing ? smoothNormal : -smoothNormal;
+	// Everything that needs derivatives, before anything can be discarded: after that they mean nothing.
+	SurfaceFrame frame = surfaceFrame(viewSpacePos, facing, fragUV);
+	vec3 positionDX = mat3(invViewMatrix) * frame.positionDx;
+	vec3 positionDY = mat3(invViewMatrix) * frame.positionDy;
+
 	// Only what's big enough to hide the player opens for them (FocusOccluder.glsl). Characters keep whole, and so does
 	// wildlife, as a bird flying over the hero is never in the way.
 #if !defined(CHARACTER) && !defined(WILDLIFE)
 	if (fragFocusOccluder > 0.5) applyFocusCutout(worldPosition);
+	// The hall the camera looks into opens while someone stands in it: its roof and the walls facing the camera go, thinning out as it opens, for this pass
+	// alone (Halls.glsl). Where that opens something up, its inside is drawn as the face of the cut.
+	if (cutByHall(worldPosition) * hallCutaway.y > focusDither(gl_FragCoord.xy)) discard;
+	bool cap = !gl_FrontFacing && !card && hallCapped(worldPosition);
+#else
+	const bool cap = false;
 #endif
 #ifdef WILDLIFE
-	// What comes and goes does it by thinning out, as nothing that's only for looking at should ever be seen to pop.
-	if (fragFade < 1.0 && fragFade <= focusDither(gl_FragCoord.xy)) discard;
+	// What comes and goes does it by thinning out, as nothing that's only for looking at should ever be seen to pop. And over a hall that's open, which the camera sees
+	// into as if it had no roof, what flies goes with the roof, as a chimney's smoke does (Halls.glsl): a bird crossing over the room would read as one inside it.
+	float shown = fragFade * (1.0 - cutByHallSoft(worldPosition, 2.0));
+	if (shown < 1.0 && shown <= focusDither(gl_FragCoord.xy)) discard;
 #endif
 	// Only a character is told these: one big enough to hide the player opens for them as a tree does, and one coming or going thins in or out. Everything else is told nothing, which is 0.
 	if (characterSight.x > 0.5) applyFocusCutout(worldPosition);
 	if (characterSight.y > 0.0 && 1.0 - characterSight.y <= focusDither(gl_FragCoord.xy)) discard;
 
-	vec2 uvDX = dFdx(fragUV);
-	vec2 uvDY = dFdy(fragUV);
-	vec3 positionDX = dFdx(worldPosition);
-	vec3 positionDY = dFdy(worldPosition);
-
-	vec2 parallaxedCoords = fragUV;
-	if (parallaxDepth > 0.001) {
-		// Tangent-space view direction, built per pixel from the interpolated frame. Interpolating tangent-space
-		// positions from the vertices instead mixes vectors from different frames and warps on curved meshes.
-		vec3 V = normalize(-viewSpacePos);
-		vec3 viewDir = vec3(dot(V, normalize(normalTBN[0])), dot(V, normalize(normalTBN[1])), dot(V, normalize(normalTBN[2])));
-		parallaxedCoords = ParallaxMapping(fragUV, viewDir, textureIndex, parallaxDepth, parallaxLayers, uvDX, uvDY);
-	}
-	//if(parallaxedCoords.x > 1.0 || parallaxedCoords.y > 1.0 || parallaxedCoords.x < 0.0 || parallaxedCoords.y < 0.0) discard;
-	MaterialProps material = LookupAllMaterialPropsGrad(parallaxedCoords, textureIndex, uvDX, uvDY);
+	// A stone is the rock of the mountains: the same layers at the same heights, whatever its own shape. It's read from where it is and not from its texture
+	// coordinates (Rock.glsl), so there's no relief of the material's to follow, and a march through one would shade it with shadows of a surface not drawn.
 #ifndef CHARACTER
-	// A stone is the rock of the mountains: the same layers at the same heights, whatever its own shape.
 	bool stone = isRock(textureIndex);
+#else
+	const bool stone = false;
+#endif
+
+	// The relief, where the material has one: the texture is read where the view ray meets it, and the sun is asked whether the relief around hides it there.
+	Relief relief;
+	relief.uv = fragUV;
+	relief.depth = 0.0;
+	relief.reliefMetres = 0.0;
+	float sunThrough = 1.0;
+	if (!card && !stone && !cap && reliefScale > 0.0)
+	{
+		float ratio = materialReliefRatio(textureIndex, numberOfMaterials);
+		if (ratio > 0.0)
+		{
+			surfaceShape(frame);
+			float lod = reliefLod(frame, MATERIAL_SIZE);
+			float edge = min(min(fragEdges.x, fragEdges.y), min(fragEdges.z, fragEdges.w));
+			relief = reliefMarch(frame, fragUV, normalize(-viewSpacePos), textureIndex, ratio * frame.tileMetres * reliefScale, edge, lod);
+			sunThrough = reliefShadow(frame, relief, normalize(mat3(viewMatrix) * sunDirectionWorld.xyz), textureIndex, lod);
+		}
+	}
+
+	// Filtered by the footprint of the surface itself: the relief's coordinates jump where one thing hides another, and their own derivatives would pick the wrong mip.
+	MaterialProps material = LookupAllMaterialPropsGrad(relief.uv, textureIndex, frame.uvDx, frame.uvDy);
+#ifndef CHARACTER
 	RockLook rock;
 	if (stone) {
-		rock = rockLook(worldPosition, normalize(mat3(invViewMatrix) * normalTBN[2]) * (gl_FrontFacing ? 1.0 : -1.0), positionDX, positionDY);
+		rock = rockLook(worldPosition, normalize(mat3(invViewMatrix) * facing), positionDX, positionDY);
 		material.albedo = rock.albedo;
 		material.roughness = rock.roughness;
 		material.ambient = rock.ambient;
@@ -97,18 +134,10 @@ void main() {
     if (coverage == 0) discard;
     gl_SampleMask[0] = coverage;
 
-    gAlbedo.a = material.subSurface;
-
-    //gAlbedo.rgb = vec3(hash13(gl_PrimitiveID));
-    
-    //gAlbedo.rgb = vec3(fract(fragUV), 0f);
-	vec3 normalTangentSpace = material.normal;
+    gAlbedo.a = transmittance(material.subSurface, material.height);
     gNormal.a = material.ambient;
-    // A card's normals aren't its face's: they're the soft shape of the mass it's part of, which is the same from either side. Turning them over would shade half a crown inside out.
-    bool card = int(textureIndex + 0.5) >= numberOfMaterials;
-    if (!gl_FrontFacing && !card) normalTangentSpace.z *= -1.0;
-    normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
-    vec3 normal = normalize(normalTBN*normalTangentSpace.xyz);
+
+    vec3 normal = surfaceNormal(frame, normalize(material.normal), card ? smoothNormal : facing);
 #ifndef CHARACTER
 	if (stone) normal = normalize(mat3(viewMatrix) * rock.normal);
 #endif
@@ -118,12 +147,21 @@ void main() {
 	if (material.emission <= 0.0)
 	{
 		mat3 viewToWorld = mat3(invViewMatrix);
-		vec3 geometryNormal = normalize(viewToWorld * normalTBN[2]) * (gl_FrontFacing || card ? 1.0 : -1.0);
+		vec3 geometryNormal = normalize(viewToWorld * (card ? smoothNormal : facing));
 		vec3 worldNormal = viewToWorld * normal;
 		vec3 albedo = gAlbedo.rgb;
 		weatherWetten(worldPosition, geometryNormal, weatherPorosity(textureIndex, numberOfMaterials), material.metalic, 0.0, material.height, albedo, roughness, worldNormal);
 		gAlbedo.rgb = albedo;
 		normal = mat3(viewMatrix) * worldNormal;
+	}
+	// The face of a cut: flat, facing up, a little darker than what it's cut through, as a section is.
+	if (cap)
+	{
+		normal = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0));
+		gAlbedo.rgb *= 0.62;
+		roughness = 0.92;
+		material.emission = 0.0;
+		sunThrough = 1.0;
 	}
 	gNormal.xyz = compressNormal(normal);
 
@@ -137,6 +175,6 @@ void main() {
 #endif
 	gMaterials.g = encodeEmission(shine);
 	gMaterials.b = material.metalic;
-    gMaterials.a = material.height;
+    gMaterials.a = sunThrough;
 
 }

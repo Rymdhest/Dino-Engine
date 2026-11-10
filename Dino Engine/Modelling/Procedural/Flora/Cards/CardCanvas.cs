@@ -302,9 +302,9 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 Albedo[to + 2] = Byte(data[at + 2]);
                 Albedo[to + 3] = Byte(data[at + 3]);
 
-                // The frame's bitangent is the tangent crossed with the normal, which points down a card: its y goes the other way to the canvas's.
+                // x along +u and y along +v, as every normal map is read (Surface/SurfaceFrame.glsl): the canvas's rows go up the card as v does.
                 Normal[to] = Byte(data[at + 4] * 0.5f + 0.5f);
-                Normal[to + 1] = Byte(-data[at + 5] * 0.5f + 0.5f);
+                Normal[to + 1] = Byte(data[at + 5] * 0.5f + 0.5f);
                 Normal[to + 2] = Byte(data[at + 6]);
                 Normal[to + 3] = Byte(data[at + 7]);
 
@@ -321,7 +321,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             {
                 < 4 => Albedo[at + channel] / 255f,
                 4 => Normal[at] / 127.5f - 1f,
-                5 => 1f - Normal[at + 1] / 127.5f,
+                5 => Normal[at + 1] / 127.5f - 1f,
                 6 or 7 => Normal[at + channel - 4] / 255f,
                 8 => Material[at] / 255f,
                 _ => Material[at + 3] / 255f,

@@ -1,0 +1,55 @@
+#version 430
+
+// What a field holds, read back (Canvas.Measure): each group of 16 x 16 texels gives its least, most, sum and sum of squares, which
+// the CPU adds up, and with a range given, every texel falls into one of the bins of a histogram. That's what makes Normalize span
+// exactly 0 to 1 and Equalize spread a field evenly over it, so that a threshold of 0.3 covers just 30% of a tile.
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+uniform sampler2D inputA;
+uniform int channelA;
+uniform int mode;           // 0: the sums, a vec4 to a group. 1: the histogram.
+uniform vec2 range;         // For the histogram: what falls in the first bin's start and the last's end.
+uniform int bins;
+
+layout (std430, binding = 0) buffer Sums { vec4 sums[]; };
+layout (std430, binding = 1) buffer Histogram { uint counts[]; };
+
+shared vec4 partial[256];
+
+void main(void)
+{
+    ivec2 size = textureSize(inputA, 0);
+    ivec2 at = ivec2(gl_GlobalInvocationID.xy);
+    bool inside = at.x < size.x && at.y < size.y;
+    vec4 v = inside ? texelFetch(inputA, at, 0) : vec4(0.0);
+    float value = channelA >= 4 ? v.x : v[clamp(channelA, 0, 3)];
+
+    if (mode == 1)
+    {
+        if (!inside) return;
+        float place = (value - range.x) / max(range.y - range.x, 1e-20);
+        int bin = clamp(int(place * float(bins)), 0, bins - 1);
+        atomicAdd(counts[bin], 1u);
+        return;
+    }
+
+    uint index = gl_LocalInvocationIndex;
+    partial[index] = inside ? vec4(value, value, value, value * value) : vec4(1e30, -1e30, 0.0, 0.0);
+    barrier();
+    for (uint stride = 128u; stride > 0u; stride >>= 1u)
+    {
+        if (index < stride)
+        {
+            vec4 a = partial[index];
+            vec4 b = partial[index + stride];
+            partial[index] = vec4(min(a.x, b.x), max(a.y, b.y), a.z + b.z, a.w + b.w);
+        }
+        barrier();
+    }
+    if (index == 0u)
+    {
+        uint group = gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x;
+        sums[group] = partial[0];
+    }
+}

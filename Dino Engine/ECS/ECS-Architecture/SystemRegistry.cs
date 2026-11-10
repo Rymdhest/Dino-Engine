@@ -66,7 +66,10 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             // render
             Systems.Add(new SkySYstem());
+            Systems.Add(new HallCutawaySystem());
             Systems.Add(new ModelRenderSystem());
+            // Before the particles and the lights, which take what it starts and sets this same frame.
+            Systems.Add(new WaySystem());
             Systems.Add(new ParticleEffectSystem());
             Systems.Add(new BeamRenderSystem());
             Systems.Add(new PointLightShadowSystem());

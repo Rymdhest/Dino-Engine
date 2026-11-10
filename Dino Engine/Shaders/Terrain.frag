@@ -12,9 +12,8 @@ in vec3 COLOR_TEST;
 
 uniform vec3 viewPos;
 uniform int numberOfMaterials;
-uniform float parallaxDepth;
-uniform float parallaxLayers;
-uniform float textureTileSize;
+uniform float reliefScale;      // 1 for each material's own relief, 0 for none (Graphics quality).
+uniform float textureTileSize;  // Metres fragUV counts in: each material is read at its own size from it.
 uniform float textureMapOffset;
 
 // The world's ground materials, four to a vec4; surfaceWeightsA holds the weights of the first four, and so on.
@@ -31,7 +30,11 @@ uniform sampler2DArray normalMapTextureArray;
 uniform sampler2DArray materialMapTextureArray;
 uniform sampler2DArray albedoMapModelTextureArray;
 uniform sampler2DArray normalMapModelTextureArray;
-uniform sampler2DArray materialMapModelTextureArray;
+uniform sampler2DArray materialMapModelTextureArray;    // Declared for textureUtil.glsl alone: the ground reads no cards, and their units carry the roads.
+uniform sampler2DArray roadFrameTextureArray;   // Per texel: metres across the nearest road and along it, and the way it runs (World/RoadFrames.cs).
+uniform sampler2DArray roadInfoTextureArray;    // Its half width, 0 where there's none, and how much of a junction or an end this is.
+uniform float roadMaterial;     // A dirt road's earth, read along the road with its ruts sunk into it (roadShape).
+uniform float settsMaterial;    // A street's setts, read across it from kerb to kerb and along it.
 uniform bool DEBUG_VIEW;
 
 layout (location = 0) out vec4 gAlbedo;
@@ -46,16 +49,24 @@ layout (depth_greater) out float gl_FragDepth;
 #include gBufferUtil.glsl
 #include procedural/fastHash.glsl
 #include Rock.glsl
+#include Surface/MaterialTable.glsl
 #include Grass/GrassField.glsl
 #include Weather/Weather.glsl
 #include Weather/SurfaceMap.glsl
 #include Weather/RainShadow.glsl
 #include Weather/Wetness.glsl
+#include Halls.glsl
 
-// parallaxDepth * PARALLAX_DEPTH_SCALE is the height field depth in texture tiles.
-const float PARALLAX_DEPTH_SCALE = 0.04;
-// Max sideways travel of the parallax ray, as a multiple of the height field depth (tan of ~83 degrees).
-const float PARALLAX_MAX_TAN = 8.0;
+const float MATERIAL_SIZE = 2048.0;             // Texels across a material, for the mip a march reads.
+const float TERRAIN_MOST_SLANT = 6.0;           // The farthest a ray may run sideways, in depths of the relief (Surface/Relief.glsl).
+const float TERRAIN_STEPS_PER_PIXEL = 0.5;
+const int TERRAIN_LEAST_STEPS = 3;
+const int TERRAIN_MOST_STEPS = 32;
+const float TERRAIN_SHOWN_FROM = 0.6;           // Pixels of parallax below which there's none, and above which it's all there.
+const float TERRAIN_SHOWN_AT = 1.6;
+const float TERRAIN_PENUMBRA = 0.09;            // As a relief's own shadows are elsewhere,
+const float TERRAIN_SHADOW_FROM = 1.0;          // and shown only as far as they're more than a pixel deep.
+const float TERRAIN_SHADOW_AT = 2.0;
 
 void ConsiderMaterial(float matID, float weight, inout vec3 bestIDs, inout vec3 bestWeights) {
     if (weight <= 0.0) return;
@@ -72,14 +83,103 @@ void ConsiderMaterial(float matID, float weight, inout vec3 bestIDs, inout vec3 
     }
 }
 
+// ---------------------------------------------------------------- Roads
+// A road's own materials are read in its frame: across it and along it, so ruts follow every bend and a street's courses lie square across it (TEXTURES.md,
+// Roads). The frame is baked per texel on the CPU (World/RoadFrames.cs) and is a straight line within a texel's reach, so it's carried through the march
+// exactly: across and along anywhere near are across and along here plus how far over and on that is.
+
+struct RoadPlace {
+    float across;       // Metres from the centre line at fragWorldPos, positive towards side.
+    float along;        // Metres along the road there.
+    vec2 way;           // The way it runs, unit, on the xz plane,
+    vec2 side;          // and the way across runs: way turned a right angle, as RoadFrame.Side.
+    float halfWidth;
+    float junction;     // 1 where across and along jump, where roads meet or one ends, or where no road is near: there it's read the world's way.
+};
+
+RoadPlace gRoad;            // This pixel's, set before the march.
+float gRutWater = 0.0;      // How much of a rut the hit is in, where rain stands first.
+
+RoadPlace ReadRoad(vec3 coord, vec2 dx, vec2 dy) {
+    vec4 frame = textureGrad(roadFrameTextureArray, coord, dx, dy);
+    vec4 info = textureGrad(roadInfoTextureArray, coord, dx, dy);
+    RoadPlace r;
+    float wayLength = length(frame.zw);
+    r.way = wayLength > 1e-4 ? frame.zw / wayLength : vec2(1.0, 0.0);
+    r.side = vec2(-r.way.y, r.way.x);
+    r.across = frame.x;
+    r.along = frame.y;
+    r.halfWidth = info.x;
+    // A texel past every road's reach reads across as far off (RoadFrame.Far), so between it and a road's own texels nothing holds.
+    bool found = info.x > 0.5 && wayLength > 0.7 && abs(frame.x) < info.x + 4.0;
+    r.junction = found ? clamp(info.y, 0.0, 1.0) : 1.0;
+    return r;
+}
+
+// Across and along at a point near this pixel, in metres on the xz plane.
+vec2 RoadAt(vec2 xz) {
+    vec2 d = xz - fragWorldPos.xz;
+    return vec2(gRoad.across + dot(d, gRoad.side), gRoad.along + dot(d, gRoad.way));
+}
+
+// A dirt road's cross-section, World/RoadProfile.cs's, which lays the grass of a crown on the CPU: change the two together.
+const float ROAD_RUTTED_FROM = 1.8;
+const float ROAD_RUT_HALF = 0.3;
+const float ROAD_TAU = 6.2831853;
+
+float roadWander(float along) { return 0.22 * sin(along * (ROAD_TAU / 29.0) + 1.1) + 0.1 * sin(along * (ROAD_TAU / 11.3) + 2.7); }
+float roadGauge(float along) { return 1.3 + 0.06 * sin(along * (ROAD_TAU / 17.0) + 0.4); }
+
+struct RoadShape {
+    float rut;          // In one of the two ruts carts have worn.
+    float lip;          // On the earth they pushed up beside it.
+    float crown;        // Between the ruts, where grass is let grow on a quiet track.
+    float trodden;      // Down a footpath's middle, where feet go.
+    float verge;        // Out at the edge, where the road frays into the land.
+    float packed;       // Round the ruts, where wheels and hooves have pressed the earth hard and dark.
+};
+
+RoadShape roadShape(vec2 at, float halfWidth) {
+    RoadShape s;
+    float rutted = step(ROAD_RUTTED_FROM, halfWidth);
+    float wander = roadWander(at.y);
+    float x = abs(at.x - wander);
+    float gauge = roadGauge(at.y);
+    float d = abs(x - gauge);
+    s.rut = rutted * (1.0 - smoothstep(0.4 * ROAD_RUT_HALF, ROAD_RUT_HALF, d));
+    s.lip = rutted * smoothstep(ROAD_RUT_HALF, 1.35 * ROAD_RUT_HALF, d) * (1.0 - smoothstep(1.35 * ROAD_RUT_HALF, 2.3 * ROAD_RUT_HALF, d));
+    float inner = gauge - ROAD_RUT_HALF * 1.6;
+    s.crown = rutted * (1.0 - smoothstep(inner - 0.35, inner, x));
+    s.trodden = (1.0 - rutted) * (1.0 - smoothstep(0.22, 0.6, abs(at.x - 0.3 * wander)));
+    s.verge = smoothstep(halfWidth - 0.6, halfWidth + 0.3, abs(at.x));
+    s.packed = rutted * (1.0 - smoothstep(ROAD_RUT_HALF, 2.8 * ROAD_RUT_HALF, d));
+    return s;
+}
+
+// What the cross-section does to the height, apart from the road's own earth: sunk in the ruts, heaped at their lips, high on the crown, worn down a footpath.
+float roadShapeHeight(RoadShape s) {
+    return -0.36 * s.rut + 0.07 * s.lip + 0.05 * s.crown - 0.12 * s.trodden;
+}
+
+// A dirt road's height at a point, from its earth's (stones flattened in a rut, as wheels have driven them down) and its cross-section.
+float roadDirtHeight(float earth, RoadShape s) {
+    return clamp(earth * (1.0 - 0.5 * s.rut) + roadShapeHeight(s), 0.0, 1.0);
+}
+
+bool isRoadDirt(float mat) { return abs(mat - roadMaterial) < 0.5; }
+bool isSetts(float mat) { return abs(mat - settsMaterial) < 0.5; }
+
+// The three strongest materials of this pixel, their shares, and what each is: how much finer than fragUV it's read (its tile's metres against
+// textureTileSize) and how deep its relief goes, in metres. Which materials make up the ground is decided on the CPU (TerrainSurface), and read once
+// per pixel, not in every step of the parallax march.
 struct TerrainMaterialSample {
     vec3 mats;
     vec3 weights;
+    vec3 scales;        // uv of the material = fragUV * scale.
+    vec3 reliefs;       // Metres.
     vec3 heights;
 };
 
-// The three strongest materials of this pixel and their shares, from the chunk's surface weights. Which materials make
-// up the ground is decided on the CPU (TerrainSurface), and read once per pixel, not in every step of the parallax march.
 TerrainMaterialSample GatherSurface(vec2 macroCoord, vec2 macroDX, vec2 macroDY) {
     vec3 coord = vec3(macroCoord, fragInstanceHeightMapID);
     vec4 a = textureGrad(surfaceWeightsA, coord, macroDX, macroDY);
@@ -107,23 +207,163 @@ TerrainMaterialSample GatherSurface(vec2 macroCoord, vec2 macroDX, vec2 macroDY)
     TerrainMaterialSample s;
     s.mats = ids;
     s.weights = total > 0.0 ? weights / total : vec3(1.0, 0.0, 0.0);
+    for (int i = 0; i < 3; i++)
+    {
+        float tile = max(materialTileMetres(s.mats[i], numberOfMaterials), 0.01);
+        s.scales[i] = textureTileSize / tile;
+        // Rock is read from the side (Rock.glsl), not through these coordinates, so it has no relief here: where it meets the ground the ground sinks
+        // below it, and its own cliff of a relief never makes the blend swim.
+        s.reliefs[i] = isRock(s.mats[i]) ? 0.0 : materialReliefRatio(s.mats[i], numberOfMaterials) * tile * reliefScale;
+    }
     s.heights = vec3(0.0);
     return s;
 }
 
-// The heights of this pixel's materials at a tile UV. Derivatives are passed in because this runs inside the parallax
-// loop, where implicit derivatives are undefined.
-TerrainMaterialSample SampleTerrainMaterials(TerrainMaterialSample s, vec2 uv, vec2 uvDX, vec2 uvDY) {
+// One material's height at a point (uv in fragUV's units) at its own size; a road's own materials along the road, and the world's way where the road's frame
+// fades out. A road's frame reads as many texels to the metre as the world's way does (a street's tile is its width), so the mip is the same.
+float MaterialHeight(float mat, float scale, vec2 uv, float lod) {
+    float level = lod + log2(scale);
+    bool dirt = isRoadDirt(mat);
+    bool street = isSetts(mat);
+    if (!(dirt || street) || gRoad.junction >= 0.999) return textureLod(materialMapTextureArray, vec3(uv * scale, mat), level).a;
+
+    vec2 at = RoadAt(uv * textureTileSize);
+    float tile = textureTileSize / scale;
+    float height;
+    if (street) {
+        // Across from kerb to kerb, and nothing at all past them, so that what lies beside a street meets its kerbs.
+        float u = (at.x + gRoad.halfWidth) / (2.0 * gRoad.halfWidth);
+        height = (u < 0.0 || u > 1.0) ? 0.0 : textureLod(materialMapTextureArray, vec3(u, at.y / tile, mat), level).a;
+    } else {
+        height = roadDirtHeight(textureLod(materialMapTextureArray, vec3(at / tile, mat), level).a, roadShape(at, gRoad.halfWidth));
+    }
+    if (gRoad.junction > 0.001) height = mix(height, textureLod(materialMapTextureArray, vec3(uv * scale, mat), level).a, gRoad.junction);
+    return height;
+}
+
+// The heights of this pixel's materials at a point, each at its own size. `lod` is the mip fragUV's footprint wants; a finer material reads a coarser
+// mip by as much finer as it is. Explicit levels, because this runs inside the parallax loop, where implicit derivatives are undefined.
+TerrainMaterialSample SampleTerrainMaterials(TerrainMaterialSample s, vec2 uv, float lod) {
     // Most ground is one material or two, and a share of nothing counts for nothing whatever its height.
-    s.heights.x = textureGrad(materialMapTextureArray, vec3(uv, s.mats.x), uvDX, uvDY).a;
-    if (s.weights.y > 0.0) s.heights.y = textureGrad(materialMapTextureArray, vec3(uv, s.mats.y), uvDX, uvDY).a;
-    if (s.weights.z > 0.0) s.heights.z = textureGrad(materialMapTextureArray, vec3(uv, s.mats.z), uvDX, uvDY).a;
+    s.heights.x = MaterialHeight(s.mats.x, s.scales.x, uv, lod);
+    if (s.weights.y > 0.0) s.heights.y = MaterialHeight(s.mats.y, s.scales.y, uv, lod);
+    if (s.weights.z > 0.0) s.heights.z = MaterialHeight(s.mats.z, s.scales.z, uv, lod);
     return s;
 }
 
-// Smoothly blended depth below the top of the height field (0 = top, 1 = bottom), so the march sees no false cliffs
-float BlendedDepth(TerrainMaterialSample s) {
-    return 1.0 - dot(s.heights, s.weights);
+// ---------------------------------------------------------------- What the ground is at the hit
+
+struct GroundLook {
+    vec3 albedo;
+    vec3 normal;        // World space, before the weather's.
+    float roughness;
+    float ambient;
+    float height;
+    float subSurface;
+    float emission;
+    float metalic;
+};
+
+// One material straight from the arrays, its normal map read in the frame (alongU, alongV, facing): the gradients of u and v along the slope, scaled by the
+// material's tile, which keeps its slopes those of the relief the march went through (Surface/SurfaceFrame.glsl's surfaceNormal). The ground reads no cards,
+// so this leaves textureUtil.glsl's card arrays unread, and their units free for the roads.
+GroundLook ReadMaterial(vec2 uv, float mat, vec2 dx, vec2 dy, vec3 alongU, vec3 alongV, vec3 facing) {
+    vec4 albedo = textureGrad(albedoMapTextureArray, vec3(uv, mat), dx, dy);
+    vec4 normal = textureGrad(normalMapTextureArray, vec3(uv, mat), dx, dy);
+    vec4 props = textureGrad(materialMapTextureArray, vec3(uv, mat), dx, dy);
+    vec2 slope = normal.xy * 2.0 - 1.0;
+    vec3 tangentNormal = vec3(slope, sqrt(1.0 - clamp(dot(slope, slope), 0.0, 1.0)));
+    GroundLook g;
+    g.albedo = albedo.rgb;
+    g.normal = normalize(alongU * tangentNormal.x + alongV * tangentNormal.y + facing * tangentNormal.z);
+    g.subSurface = normal.z;
+    g.ambient = normal.a;
+    g.roughness = props.r;
+    g.emission = props.g;
+    g.metalic = props.b;
+    g.height = props.a;
+    return g;
+}
+
+GroundLook MixLooks(GroundLook a, GroundLook b, float t) {
+    GroundLook g;
+    g.albedo = mix(a.albedo, b.albedo, t);
+    g.normal = normalize(mix(a.normal, b.normal, t));
+    g.roughness = mix(a.roughness, b.roughness, t);
+    g.ambient = mix(a.ambient, b.ambient, t);
+    g.height = mix(a.height, b.height, t);
+    g.subSurface = mix(a.subSurface, b.subSurface, t);
+    g.emission = mix(a.emission, b.emission, t);
+    g.metalic = mix(a.metalic, b.metalic, t);
+    return g;
+}
+
+// The winning material at the hit (hitUV in fragUV's units). Explicit gradients, because the hit's coordinates jump at occlusion edges and their own
+// derivatives would pick the wrong mip there: the footprint is the surface's own, carried into whichever frame the material is read in.
+GroundLook LookGround(float mat, vec2 hitUV, vec3 N, vec3 facing, vec2 uvDX, vec2 uvDY, vec3 positionDX, vec3 positionDY) {
+    float tile = max(materialTileMetres(mat, numberOfMaterials), 0.01);
+    float scale = textureTileSize / tile;
+    // The world's way: u along +X and v along +Z, projected straight down onto the slope. The tile cancels: u's gradient is the slope's share of +X over
+    // the tile, times the tile.
+    vec3 worldU = vec3(1.0, 0.0, 0.0) - N * N.x;
+    vec3 worldV = vec3(0.0, 0.0, 1.0) - N * N.z;
+    bool dirt = isRoadDirt(mat);
+    bool street = isSetts(mat);
+    if (!(dirt || street) || gRoad.junction >= 0.999) return ReadMaterial(hitUV * scale, mat, uvDX * scale, uvDY * scale, worldU, worldV, facing);
+
+    vec2 at = RoadAt(hitUV * textureTileSize);
+    vec2 atDX = vec2(dot(positionDX.xz, gRoad.side), dot(positionDX.xz, gRoad.way));
+    vec2 atDY = vec2(dot(positionDY.xz, gRoad.side), dot(positionDY.xz, gRoad.way));
+    vec3 side = vec3(gRoad.side.x, 0.0, gRoad.side.y);
+    vec3 way = vec3(gRoad.way.x, 0.0, gRoad.way.y);
+    vec3 roadU = side - N * dot(N, side);
+    vec3 roadV = way - N * dot(N, way);
+
+    GroundLook road;
+    if (street) {
+        float width = 2.0 * gRoad.halfWidth;
+        float u = clamp((at.x + gRoad.halfWidth) / width, 0.0005, 0.9995);
+        // u counts the street's width and v the tile: where those differ, the slopes are the relief's stretched the same way.
+        float stretch = sqrt(tile / width);
+        road = ReadMaterial(vec2(u, at.y / tile), mat, vec2(atDX.x / width, atDX.y / tile), vec2(atDY.x / width, atDY.y / tile), roadU * stretch, roadV / stretch, facing);
+        gRutWater = 0.0;
+    } else {
+        road = ReadMaterial(at / tile, mat, atDX / tile, atDY / tile, roadU, roadV, facing);
+        RoadShape s = roadShape(at, gRoad.halfWidth);
+        // The ruts' own slopes, which no texture holds: down into them and up out of them, across the road, at the road's relief in metres.
+        const float STEP = 0.04;
+        float slope = (roadShapeHeight(roadShape(at + vec2(STEP, 0.0), gRoad.halfWidth)) - roadShapeHeight(roadShape(at - vec2(STEP, 0.0), gRoad.halfWidth))) / (2.0 * STEP);
+        float relief = materialReliefRatio(mat, numberOfMaterials) * tile * reliefScale;
+        road.normal = normalize(road.normal - normalize(roadU) * slope * relief);
+        // Packed dark and damp in the ruts, darker on the lips, dust pale where feet go, darker and greener at the verge.
+        road.albedo *= mix(1.0, 0.66, s.rut) * mix(1.0, 0.88, s.packed) * mix(1.0, 0.92, s.lip) * mix(1.0, 1.08, s.trodden) * mix(1.0, 0.8, s.verge);
+        road.roughness = mix(road.roughness, road.roughness * 0.8, max(s.rut, s.packed * 0.5));
+        road.height = roadDirtHeight(road.height, s);
+        gRutWater = s.rut * (1.0 - gRoad.junction);
+    }
+    if (gRoad.junction > 0.001) road = MixLooks(road, ReadMaterial(hitUV * scale, mat, uvDX * scale, uvDY * scale, worldU, worldV, facing), gRoad.junction);
+    return road;
+}
+
+// Broad drifts of lighter and darker, warmer and cooler ground, far larger than any material's tile, so that no tile is ever seen repeating and a field
+// isn't one flat colour: what's painted is never quite the same twice.
+float groundNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = p - i;
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), u.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+vec3 GroundDrift(vec2 xz) {
+    float broad = groundNoise(xz / 31.0) * 0.6 + groundNoise(xz / 11.0 + 17.3) * 0.4;
+    float warmth = groundNoise(xz / 47.0 + 5.1);
+    return mix(0.88, 1.1, broad) * mix(vec3(1.03, 1.0, 0.95), vec3(0.96, 1.0, 1.04), warmth);
+}
+
+// How far below the mesh the ground is, in metres: each material's own depth there by its share, so the march sees no false cliffs where they blend.
+// `fade` scales every relief alike, as it was faded far off.
+float BlendedDepth(TerrainMaterialSample s, float fade) {
+    return dot(s.weights, (1.0 - s.heights) * s.reliefs) * fade;
 }
 
 // The single sharp winning material at the resolved surface coordinate
@@ -145,71 +385,101 @@ float WinningMaterial(TerrainMaterialSample s) {
 }
 
 // Parallax occlusion mapping, done in world space.
-// The surface near the fragment is treated as its tangent plane (normal N), with the height field hanging up to
-// depthWorld below it along -N. The view ray R(t) = fragWorldPos - V*t is t*dot(N, V) below that plane, and
-// projecting it back onto the plane along N gives the UV it lies under. Terrain UVs are a planar XZ projection
-// (uv = worldXZ / textureTileSize), so that UV is exact on any slope, with no tangent frame involved.
-// Returns the hit UV. rayT gets the distance along -V from fragWorldPos to the hit, for the depth write.
-vec2 ParallaxOcclusionMapping(vec2 uv, vec3 V, vec3 N, TerrainMaterialSample surface, vec2 uvDX, vec2 uvDY, out float rayT) {
+// The surface near the fragment is treated as its tangent plane (normal N), with the ground hanging up to its relief below it along -N. The view ray
+// R(t) = fragWorldPos - V*t is t*dot(N, V) below that plane, and projecting it back onto the plane along N gives the point it lies under. Terrain UVs
+// are a planar XZ projection (uv = worldXZ / textureTileSize), so that point's uv is exact on any slope, with no tangent frame involved.
+// Returns the hit UV, in fragUV's units. rayT gets the distance along -V from fragWorldPos to the hit, for the depth write, and depth how far below the mesh
+// the hit is.
+vec2 ParallaxOcclusionMapping(vec2 uv, vec3 V, vec3 N, TerrainMaterialSample surface, float fade, float lod, float pixelsPerMetre, out float rayT, out float depth) {
     rayT = 0.0;
+    depth = 0.0;
 
     float NdotV = dot(N, V);
-    if (NdotV <= 1e-4) return uv;
+    if (NdotV <= 1e-3) return uv;
+    float deepest = dot(surface.weights, surface.reliefs) * fade;
+    if (deepest <= 0.0) return uv;
 
-    // At grazing angles the ray travels depth * tan(theta) sideways. Rather than bending the ray (so the hit would
-    // leave this pixel's view ray), make the height field shallower so the sideways travel stays capped.
-    float depthWorld = parallaxDepth * PARALLAX_DEPTH_SCALE * textureTileSize;
-    float tanTheta = sqrt(max(1.0 - NdotV * NdotV, 0.0)) / NdotV;
-    depthWorld *= min(1.0, PARALLAX_MAX_TAN / max(tanTheta, 1e-4));
+    vec3 sideways = V - N * NdotV;
+    float tPerDepth = 1.0 / NdotV;
+    float tEnd = deepest * tPerDepth;
+    vec2 uvPerT = -sideways.xz / textureTileSize;
+    int steps = clamp(int(length(sideways) * tEnd * pixelsPerMetre * TERRAIN_STEPS_PER_PIXEL) + TERRAIN_LEAST_STEPS, TERRAIN_LEAST_STEPS, TERRAIN_MOST_STEPS);
+    float dt = tEnd / float(steps);
 
-    float numLayers = mix(parallaxLayers * 2.0, parallaxLayers, NdotV);
-    float layerStep = 1.0 / numLayers;
-    // Enough steps that the last layer reaches the bottom of the height field, so the ray always hits
-    int maxSteps = int(ceil(numLayers));
-
-    // Ray distance to descend one layer, and how far the UV moves per layer
-    float tPerLayer = depthWorld * layerStep / NdotV;
-    vec2 uvPerLayer = -(V - N * NdotV).xz * (tPerLayer / textureTileSize);
-
-    float prevSurfaceDepth = BlendedDepth(SampleTerrainMaterials(surface, uv, uvDX, uvDY));
-    if (prevSurfaceDepth <= 0.0) return uv;
-
-    float prevLayerDepth = 0.0;
-    float layerDepth = 0.0;
-    float surfaceDepth = prevSurfaceDepth;
-    int layer = 0;
-
-    while (layer < maxSteps) {
-        layer++;
-        layerDepth = float(layer) * layerStep;
-        surfaceDepth = BlendedDepth(SampleTerrainMaterials(surface, uv + uvPerLayer * float(layer), uvDX, uvDY));
-        if (layerDepth >= surfaceDepth) break;
-        prevLayerDepth = layerDepth;
-        prevSurfaceDepth = surfaceDepth;
+    float gapBefore = BlendedDepth(SampleTerrainMaterials(surface, uv, lod), fade);
+    if (gapBefore <= 0.0) return uv;
+    float tBefore = 0.0;
+    float tAfter = tEnd;
+    float gapAfter = -1.0;
+    bool crossed = false;
+    for (int i = 1; i <= TERRAIN_MOST_STEPS; i++)
+    {
+        if (i > steps) break;
+        float t = dt * float(i);
+        float gap = BlendedDepth(SampleTerrainMaterials(surface, uv + uvPerT * t, lod), fade) - t * NdotV;
+        if (gap <= 0.0)
+        {
+            tAfter = t;
+            gapAfter = gap;
+            crossed = true;
+            break;
+        }
+        tBefore = t;
+        gapBefore = gap;
     }
 
-    // Intersect the ray with the height field linearly interpolated between the last two layers.
-    // before > 0 (the ray was above the surface) and after <= 0 (it is at or below it). The guard only matters if
-    // float rounding left the last layer a hair above the bottom; the hit then lands on that last layer.
-    float before = prevSurfaceDepth - prevLayerDepth;
-    float after = surfaceDepth - layerDepth;
-    float weight = clamp(before / max(before - after, 1e-6), 0.0, 1.0);
+    float t = tEnd;
+    if (crossed)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            float between = tBefore + (tAfter - tBefore) * gapBefore / (gapBefore - gapAfter);
+            float gap = BlendedDepth(SampleTerrainMaterials(surface, uv + uvPerT * between, lod), fade) - between * NdotV;
+            if (gap > 0.0)
+            {
+                tBefore = between;
+                gapBefore = gap;
+            }
+            else
+            {
+                tAfter = between;
+                gapAfter = gap;
+            }
+        }
+        t = tBefore + (tAfter - tBefore) * gapBefore / (gapBefore - gapAfter);
+    }
+    rayT = t;
+    depth = t * NdotV;
+    return uv + uvPerT * t;
+}
 
-    float hitLayer = mix(float(layer - 1), float(layer), weight);
-    rayT = hitLayer * tPerLayer;
-    return uv + uvPerLayer * hitLayer;
+// How much of the sun reaches the hit past the ground's own relief around it, 1 in the open: the same blended depth as the march, followed up towards the
+// sun until it's out, and the most it rises above that ray, as an angle seen from the hit, hides as much of the light (Surface/Relief.glsl's reliefShadow).
+float ReliefShadow(vec2 uv, float depth, vec3 L, vec3 N, TerrainMaterialSample surface, float fade, float lod, float pixelsPerMetre) {
+    float LdotN = dot(L, N);
+    float deepest = dot(surface.weights, surface.reliefs) * fade;
+    float shown = smoothstep(TERRAIN_SHADOW_FROM, TERRAIN_SHADOW_AT, deepest * pixelsPerMetre);
+    if (depth <= 1e-5 || LdotN <= 0.0 || deepest <= 0.0 || shown <= 0.0) return 1.0;
+    vec3 sideways = L - N * LdotN;
+    float end = min(depth / LdotN, TERRAIN_MOST_SLANT * deepest / max(length(sideways), 1e-4));
+    vec2 uvPerT = sideways.xz / textureTileSize;
+    int steps = clamp(int(length(sideways) * end * pixelsPerMetre * 0.5) + 4, 4, 16);
+    // As Surface/Relief.glsl's: what casts a shadow is read a little coarser, and has to stand clear of the ray by a little, or the grain right beside a point
+    // blacks it out in specks wherever the sun rakes across.
+    float casting = lod + 1.5;
+    float hidden = 0.0;
+    for (int i = 1; i <= 16; i++)
+    {
+        if (i > steps) break;
+        float t = end * (float(i) - 0.5) / float(steps);
+        float above = (depth - LdotN * t) - BlendedDepth(SampleTerrainMaterials(surface, uv + uvPerT * t, casting), fade) - 0.06 * deepest;
+        hidden = max(hidden, above / (t * TERRAIN_PENUMBRA + 1e-5));
+    }
+    return 1.0 - clamp(hidden, 0.0, 1.0) * shown;
 }
 
 void main() {
     vec3 N = normalize(fragWorldNormal);
-    // Tangent of the planar UV mapping: the in-plane direction of +u (world +X at constant Z).
-    // Only degenerate on vertical faces, which a heightmap can't produce.
-    vec3 T = vec3(N.y, -N.x, 0.0);
-    float tangentLength = length(T);
-    T = tangentLength > 1e-4 ? T / tangentLength : vec3(1.0, 0.0, 0.0);
-    vec3 B = cross(T, N);
-    mat3 TBN = mat3(T, B, N);
-
     vec3 V = normalize(viewPos - fragWorldPos);
 
     vec2 uvDX = dFdx(fragUV);
@@ -221,18 +491,33 @@ void main() {
     vec2 macroDY = uvDY * uvToMacro;
     vec2 macroCoord = clamp((fragWorldPos.xz - fragInstanceChunkPos) / fragInstanceChunkSizeXZ, 0.0, 1.0) * (1.0 - textureMapOffset) + vec2(textureMapOffset / 2.0);
     TerrainMaterialSample surface = GatherSurface(macroCoord, macroDX, macroDY);
+    gRoad = ReadRoad(vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY);
 
-    // 1. Ray march using smoothly blended heights to eliminate false cliffs and window artifacts. Rock has no use for it: it's
-    //    projected from the side, and what stands out of it is really there.
+    // The mip fragUV's footprint wants at the arrays' size, and how many pixels a metre of the ground covers here, the fewer way.
+    float lod = max(0.5 * log2(max(dot(uvDX, uvDX), dot(uvDY, uvDY)) * MATERIAL_SIZE * MATERIAL_SIZE), 0.0);
+    vec3 alongX = positionDX - N * dot(positionDX, N);
+    vec3 alongY = positionDY - N * dot(positionDY, N);
+    float pixelsPerMetre = 1.0 / max(max(length(alongX), length(alongY)), 1e-6);
+
+    // 1. Ray march using smoothly blended heights to eliminate false cliffs and window artifacts. Rock has no use for it: it's projected from the side,
+    //    and what stands out of it is really there. The relief fades where it would move nothing by a pixel, which is also what keeps far ground cheap.
     bool bareRock = isRock(surface.mats.x) && surface.weights.x > 0.995;
+    float NdotV = max(dot(N, V), 1e-3);
+    float slant = sqrt(max(1.0 - NdotV * NdotV, 0.0)) / NdotV;
+    float deepest = dot(surface.weights, surface.reliefs);
+    float fade = slant > TERRAIN_MOST_SLANT ? TERRAIN_MOST_SLANT / slant : 1.0;
+    fade *= smoothstep(TERRAIN_SHOWN_FROM, TERRAIN_SHOWN_AT, deepest * fade * max(slant, 0.5) * pixelsPerMetre);
     vec2 winningUV = fragUV;
     float rayT = 0.0;
-    if (parallaxDepth > 0.0001 && !bareRock) {
-        winningUV = ParallaxOcclusionMapping(fragUV, V, N, surface, uvDX, uvDY, rayT);
+    float depth = 0.0;
+    float sunThrough = 1.0;
+    if (!bareRock && fade > 0.0 && deepest > 0.0) {
+        winningUV = ParallaxOcclusionMapping(fragUV, V, N, surface, fade, lod, pixelsPerMetre, rayT, depth);
+        sunThrough = ReliefShadow(winningUV, depth, normalize(sunDirectionWorld.xyz), N, surface, fade, lod, pixelsPerMetre);
     }
 
     // 2. Determine the single sharp winning material at the final resolved surface coordinate
-    float winningMat = bareRock ? surface.mats.x : WinningMaterial(SampleTerrainMaterials(surface, winningUV, uvDX, uvDY));
+    float winningMat = bareRock ? surface.mats.x : WinningMaterial(SampleTerrainMaterials(surface, winningUV, lod));
     bool rock = isRock(winningMat);
 
     // 3. Write the depth of the parallax hit so trees/grass don't float. The hit is on this pixel's view ray, rayT
@@ -240,20 +525,22 @@ void main() {
     vec4 clipPos = projectionMatrix * viewMatrix * vec4(fragWorldPos - V * rayT, 1.0);
     gl_FragDepth = max(gl_FragCoord.z, (clipPos.z / clipPos.w) * 0.5 + 0.5);
 
-    // 4. Lookup final properties using the crisp winning material. Explicit gradients, because winningUV jumps at
-    //    occlusion edges and its own derivatives would pick the wrong mip level there.
-    MaterialProps material = LookupAllMaterialPropsGrad(winningUV, winningMat, uvDX, uvDY);
-    RockLook stone;
+    // 4. The crisp winning material at the hit, at its own size, or along the road for a road's own (LookGround).
+    vec3 facing = gl_FrontFacing ? N : -N;
+    GroundLook look = LookGround(winningMat, winningUV, N, facing, uvDX, uvDY, positionDX, positionDY);
     if (rock) {
-        stone = rockLook(fragWorldPos, N, positionDX, positionDY);
-        material.albedo = stone.albedo;
-        material.roughness = stone.roughness;
-        material.ambient = stone.ambient;
-        material.height = stone.height;
+        RockLook stone = rockLook(fragWorldPos, N, positionDX, positionDY);
+        look.albedo = stone.albedo;
+        look.roughness = stone.roughness;
+        look.ambient = stone.ambient;
+        look.height = stone.height;
+        look.normal = stone.normal;
     }
 
-    gAlbedo.rgb = material.albedo;
+    gAlbedo.rgb = look.albedo;
     if (isScree(winningMat)) gAlbedo.rgb *= geologyColour.rgb;
+    // Rock has the world's own colours in it already (Rock.glsl).
+    if (!rock) gAlbedo.rgb *= GroundDrift(fragWorldPos.xz);
 
     // Under the grass the ground takes on the colour of the field, so gaps between blades read as more grass.
     float tintRoad = textureGrad(normalHeightTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).z;
@@ -262,7 +549,7 @@ void main() {
     // rock at a size that neither the texture nor the sun's shadows can give it, and what makes it read from this far up. Nothing is 0, so it fades out by itself at the rock's edge.
     if (rock) {
         gAlbedo.rgb *= mix(0.4, 1.0, smoothstep(-0.72, 0.0, tintRoad)) * mix(1.0, 1.32, smoothstep(0.04, 0.72, tintRoad));
-        material.ambient *= mix(0.55, 1.0, smoothstep(-0.8, 0.0, tintRoad));
+        look.ambient *= mix(0.55, 1.0, smoothstep(-0.8, 0.0, tintRoad));
     }
     vec4 tintGrass = textureGrad(grassTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY);
     vec3 tintColour = textureGrad(grassColourTextureArray, vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY).rgb;
@@ -272,27 +559,25 @@ void main() {
     if (DEBUG_VIEW) {
         gAlbedo.rgb = vec3(hash13(gl_PrimitiveID)) * COLOR_TEST;
     }
-    if (material.alphaBit == 0) discard;
+    // Nor under a hall's floor (Halls.glsl), which would be under the ground: it's after every derivative this takes, as a quad that's lost a fragment has none.
+    if (underHallFloor(fragWorldPos)) discard;
 
-    gAlbedo.a = material.subSurface;
+    gAlbedo.a = transmittance(look.subSurface, look.height);
+    gNormal.a = look.ambient;
+    vec3 worldNormal = look.normal;
 
-    vec3 normalTangentSpace = material.normal;
-    gNormal.a = material.ambient;
-    if (!gl_FrontFacing) normalTangentSpace.z *= -1.0;
-    normalTangentSpace.xyz = normalize(normalTangentSpace.xyz);
-
-    // The hollows of the ground are in the grass map's alpha (TerrainSurface), for the rain to fill.
-    vec3 worldNormal = rock ? stone.normal : normalize(TBN * normalTangentSpace.xyz);
-    float roughness = material.roughness;
+    // The hollows of the ground are in the grass map's alpha (TerrainSurface), for the rain to fill, and a road's ruts fill first.
+    float roughness = look.roughness;
     vec3 albedo = gAlbedo.rgb;
-    weatherWetten(fragWorldPos, N, weatherPorosity(winningMat, numberOfMaterials), material.metalic, tintGrass.a, material.height, albedo, roughness, worldNormal);
+    float hollow = max(tintGrass.a, gRutWater * 0.8);
+    weatherWetten(fragWorldPos, N, weatherPorosity(winningMat, numberOfMaterials), look.metalic, hollow, look.height, albedo, roughness, worldNormal);
     gAlbedo.rgb = albedo;
 
     vec3 normal = normalize(mat3(viewMatrix) * worldNormal);
     gNormal.xyz = compressNormal(normal);
 
     gMaterials.r = weatherFilterRoughness(roughness, normal);
-    gMaterials.g = encodeEmission(material.emission * EMISSION_GAIN);
-    gMaterials.b = material.metalic;
-    gMaterials.a = material.height;
+    gMaterials.g = encodeEmission(look.emission * EMISSION_GAIN);
+    gMaterials.b = look.metalic;
+    gMaterials.a = sunThrough;
 }

@@ -77,9 +77,16 @@ namespace Dino_Engine.World
         public readonly List<PendingObject> Pending = new();
         public readonly List<FenceRun> Fences = new();
         public readonly List<GroundPad> Pads = new();
+        /// <summary>
+        /// Ground built up with walls round it, as a raised bed, a terrace or a flight of steps is: laid after the roads, as their shoulders would otherwise pull it down
+        /// towards them, and kept exactly, as the walls hide where it meets the rest. Read SQUARE.md.
+        /// </summary>
+        public readonly List<GroundPad> Terraces = new();
         public readonly List<PaintPatch> Paint = new();
         public readonly List<Clearing> Clearings = new();
         public readonly List<Planting> Plantings = new();
+        /// <summary>The buildings that can be walked into. Read HALLS.md.</summary>
+        public readonly List<WorldHall> Halls = new();
 
         // --- The final ground, from TerrainBakeStage on, at DetailCell ---
         /// <summary>The ground as it will be walked on and drawn.</summary>
@@ -89,6 +96,12 @@ namespace Dino_Engine.World
         public ByteField Yard = null!;
         public ByteField Plaza = null!;
         public ByteField Farmland = null!;
+        /// <summary>Where the waygates' stone is laid as paving (GroundPaint.Paving), which nothing grows through and which every road running into it becomes.</summary>
+        public ByteField Paving = null!;
+        /// <summary>Whether anything here is paved, so that a world with none keeps the slot in its palette for something it has.</summary>
+        public bool Paved;
+        /// <summary>Beds someone tends (GroundPaint.Garden), whose grass is short, green and in flower whatever the land around grows.</summary>
+        public ByteField Garden = null!;
         /// <summary>1 on bare mountain, where nobody goes. Everything else is ground as it always was.</summary>
         public ByteField Rock = null!;
         /// <summary>1 where broken rock has gathered, down the creases of a mountain.</summary>
@@ -141,7 +154,10 @@ namespace Dino_Engine.World
         /// </summary>
         public SurfaceMaterial SurfaceAt(Vector2 position)
         {
+            if (HallAt(position) is WorldHall hall) return hall.Design.Floor;
+
             float x = position.X, z = position.Y;
+            if (Paved && Paving.Sample(x, z) > 0.5f) return SurfaceMaterial.Flagstones;
             if (PavedRoad.Sample(x, z) > 0.5f) return SurfaceMaterial.Cobble;
 
             BiomeDefinition biome = BiomeAt(position);
@@ -153,6 +169,16 @@ namespace Dino_Engine.World
             if (Height.Sample(position) - WaterLevelAt(position) < 1f) return biome.Shore;
             if (Height.SlopeAt(position) > 0.8f) return biome.Slope;
             return Canopy.Sample(x, z) > 0.5f ? biome.Understory : biome.Ground;
+        }
+
+        /// <summary>The hall whose floor a point is on, if it's in one: inside its walls, grown by <paramref name="grow"/> metres.</summary>
+        public WorldHall? HallAt(Vector2 position, float grow = 0f)
+        {
+            foreach (WorldHall hall in Halls)
+            {
+                if (hall.Contains(position, grow)) return hall;
+            }
+            return null;
         }
 
         public bool InBounds(Vector2 position)

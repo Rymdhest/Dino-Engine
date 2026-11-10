@@ -31,7 +31,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             DualBuffer buffer = renderEngine.lastUsedBuffer;
 
-            HDRMapShader.loadUniformFloat("exposure", renderEngine.Lighting.Exposure);
+            HDRMapShader.loadUniformFloat("exposure", renderEngine.Lighting.Exposure * renderEngine.Adaptation);
             HDRMapShader.loadUniformFloat("gamma", 2.2f);
             // A whole step of the 8 bits it ends up in: anything less leaves bands in the slow fades of a dark scene.
             HDRMapShader.loadUniformFloat("dithering", 1f);

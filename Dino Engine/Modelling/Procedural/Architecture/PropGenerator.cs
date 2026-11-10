@@ -1,4 +1,5 @@
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Modelling.Procedural.Architecture.Waygates;
 using Dino_Engine.Textures;
 using Dino_Engine.Util;
 using Dino_Engine.World;
@@ -57,7 +58,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "keep": BuildKeep(b, definition.HalfExtents); break;
                 case "gate.arch": BuildGateArch(b); break;
                 case "gatehouse": BuildGatehouse(b, definition.HalfExtents); break;
-                case "waygate": BuildWaygate(b, lights); break;
+                case "waygate": WaygateForge.Frame(b, WaygateDesign.Land, lights); break;
                 case "altar": BuildAltar(b, random, lights); break;
                 case "grave": BuildGrave(b, random); break;
                 case "tomb": BuildTomb(b, definition.HalfExtents); break;
@@ -71,7 +72,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "ruin.rubble": BuildRubble(b, random); break;
                 case "cairn": BuildCairn(b, random); break;
                 case "tower.watch": BuildWatchTower(b, style); break;
-                case "waygate.great": BuildGreatWaygate(b, lights); break;
+                case "waygate.great": WaygateForge.Frame(b, WaygateDesign.Great, lights); break;
                 case "table.map": BuildMapTable(b, random, lights); break;
                 case "strongbox": BuildStrongbox(b, lights); break;
                 case "arena.gate": BuildArenaGate(b, lights); break;
@@ -123,10 +124,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
 
         private static void BuildWell(MeshBuilder b)
         {
-            b.TilesPerMetre = 0.4f;
             b.Tube(new Vector3(0f, -0.6f, 0f), new Vector3(0f, 1.25f, 0f), 1.75f, 1.65f, 12, Stone());
             b.Tube(new Vector3(0f, 1.25f, 0f), new Vector3(0f, 1.3f, 0f), 1.34f, 1.34f, 12, new VertexMaterial(TextureGenerator.flat, new Colour(14, 16, 20)));
-            b.TilesPerMetre = 0.2f;
 
             for (int side = -1; side <= 1; side += 2)
             {
@@ -136,7 +135,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Tube(new Vector3(0.25f, 3.9f, 0f), new Vector3(0.25f, 2.1f, 0f), 0.03f, 0.03f, 4, DarkWood);
             b.Tube(new Vector3(0.25f, 2.1f, 0f), new Vector3(0.25f, 1.55f, 0f), 0.3f, 0.34f, 7, Wood());
 
-            b.TilesPerMetre = 0.14f;
             b.Surface(3, 2, (u, v) => new Vector3((u * 2f - 1f) * 2.1f, 4.9f + v * 1.5f, 1.7f * (1f - v)), Thatch);
             b.Surface(3, 2, (u, v) => new Vector3((1f - u * 2f) * 2.1f, 4.9f + v * 1.5f, -1.7f * (1f - v)), Thatch);
         }
@@ -202,7 +200,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
         private static void BuildHaystack(MeshBuilder b, WorldRandom random)
         {
             float seed = random.Float() * 10f;
-            b.TilesPerMetre = 0.3f;
             b.Surface(16, 8, (u, v) =>
             {
                 float angle = -u * MathF.Tau;
@@ -355,7 +352,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
 
             float height = half.Y * 1.5f;
             float length = half.X;
-            b.TilesPerMetre = 0.5f;
             for (int i = 0; i < Lengths; i++)
             {
                 float from = length * (2f * i / Lengths - 1f);
@@ -369,7 +365,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Triangle(new Vector3(length, 0f, half.Y), new Vector3(length, 0f, -half.Y), new Vector3(length, height, 0f), dark);
             b.Triangle(new Vector3(-length, 0f, -half.Y), new Vector3(-length, 0f, half.Y), new Vector3(-length, height, 0f), cloth);
 
-            b.TilesPerMetre = 0.2f;
             b.Tube(new Vector3(-length - 0.3f, height + 0.06f, 0f), new Vector3(length + 0.3f, height + 0.06f, 0f), 0.09f, 0.09f, 5, DarkWood);
             foreach (float x in new[] { -length, length })
             {
@@ -497,7 +492,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             }
             b.ResetPlacement();
 
-            b.TilesPerMetre = 0.14f;
             float eave = top + 3.9f;
             for (int side = 0; side < 4; side++)
             {
@@ -535,10 +529,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
         private static void BuildStoneTower(MeshBuilder b)
         {
             VertexMaterial wall = Stone(176);
-            b.TilesPerMetre = 0.12f;
             b.Tube(new Vector3(0f, -2f, 0f), new Vector3(0f, 19f, 0f), 6.2f, 5.6f, 16, wall);
             b.Tube(new Vector3(0f, 19f, 0f), new Vector3(0f, 20.2f, 0f), 6.2f, 6.2f, 16, wall);
-            b.TilesPerMetre = 0.2f;
             for (int i = 0; i < 12; i++)
             {
                 float angle = i * (MathF.Tau / 12f);
@@ -549,10 +541,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
         private static void BuildKeep(MeshBuilder b, Vector2 half)
         {
             VertexMaterial wall = Stone(168);
-            b.TilesPerMetre = 0.12f;
             float height = 22f;
             b.Box(new Vector3(0f, height * 0.5f - 2f, 0f), new Vector3(half.X, height * 0.5f + 2f, half.Y), wall);
-            b.TilesPerMetre = 0.2f;
 
             // Battlements.
             for (float x = -half.X + 1f; x <= half.X - 0.5f; x += 2.4f)
@@ -574,11 +564,9 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             {
                 foreach (float z in new[] { -1f, 1f })
                 {
-                    b.TilesPerMetre = 0.12f;
                     Vector3 corner = new Vector3(x * half.X, 0f, z * half.Y);
                     b.Tube(corner - Vector3.UnitY * 2f, corner + Vector3.UnitY * (height + 5f), 3.2f, 2.8f, 12, wall);
                     b.Tube(corner + Vector3.UnitY * (height + 5f), corner + Vector3.UnitY * (height + 10f), 3.3f, 0.1f, 12, new VertexMaterial(TextureGenerator.slate, new Colour(190, 194, 206)));
-                    b.TilesPerMetre = 0.2f;
                 }
             }
 
@@ -631,119 +619,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 {
                     b.Box(new Vector3(x, 17.4f, z), new Vector3(0.66f, 1f, 0.42f), wall);
                 }
-            }
-        }
-
-        private const int WaygateBlocks = 11;
-        private const float WaygateRadius = 4.4f;
-
-        // A stone of a waygate's ring, and which way is out from it.
-        private static (Vector3 at, Vector3 outward) WaygateStone(int i)
-        {
-            float angle = MathF.PI * i / WaygateBlocks;
-            Vector3 at = new Vector3(MathF.Cos(angle) * WaygateRadius, 1.2f + MathF.Sin(angle) * WaygateRadius * 1.25f, 0f);
-            return (at, new Vector3(MathF.Cos(angle), MathF.Sin(angle) * 1.25f, 0f).Normalized());
-        }
-
-        // The way between worlds: a ring of old stone, dark until someone comes near and the game stands its light in it (GenerateWaygateLight), so it has none of its own.
-        private static void BuildWaygate(MeshBuilder b, List<AssetLight> lights)
-        {
-            VertexMaterial stone = Rough(158);
-            for (int i = 0; i <= WaygateBlocks; i++)
-            {
-                (Vector3 at, Vector3 outward) = WaygateStone(i);
-                b.Beam(at, at + outward * 1.1f, 0.74f, stone);
-            }
-            b.Box(new Vector3(0f, 0f, 0f), new Vector3(4.6f, 0.34f, 1.5f), stone);
-        }
-
-        /// <summary>What's lit in a waygate once someone has woken it: the runes on its ring and the pale light standing in it, in the gate's own space. Its light is the game's to add.</summary>
-        public static Mesh GenerateWaygateLight()
-        {
-            var b = new MeshBuilder();
-            for (int i = 0; i <= WaygateBlocks; i += 2)
-            {
-                (Vector3 at, Vector3 outward) = WaygateStone(i);
-                b.Box(at + outward * 0.55f + Vector3.UnitZ * 0.76f, new Vector3(0.18f), Glow(0.35f, 0.95f, 1f, 1.1f));
-            }
-
-            const float Inner = WaygateRadius - 0.5f;
-            b.Surface(16, 8, (u, v) =>
-            {
-                float angle = MathF.PI * (1f - u);
-                float radius = Inner * v;
-                return new Vector3(MathF.Cos(angle) * radius, 1.2f + MathF.Sin(angle) * radius * 1.25f, 0f);
-            }, Glow(0.22f, 0.6f, 0.75f, 0.32f));
-            b.Quad(new Vector3(-Inner, 0.3f, 0f), new Vector3(Inner, 0.3f, 0f), new Vector3(Inner, 1.2f, 0f), new Vector3(-Inner, 1.2f, 0f), Glow(0.22f, 0.6f, 0.75f, 0.32f));
-            return b.Build();
-        }
-
-        /// <summary>
-        /// The Haven's waygate: the same old road as any other, raised higher on a stepped plinth, with pillars of dressed stone, an arch of runes and a crystal over the keystone. It's seen from
-        /// high above the square, so what reads is the plinth, the tops of the pillars and the ring of light.
-        /// </summary>
-        private static void BuildGreatWaygate(MeshBuilder b, List<AssetLight> lights)
-        {
-            const float Span = 5.6f;            // From the middle to each pillar's face.
-            const float Spring = 7.1f;          // Where the arch begins.
-            const int Stones = 15;
-            Vector3 rune = new Vector3(0.35f, 0.9f, 1f);
-            lights.Add(AssetLight.Glow(new Vector3(0f, Spring + Span + 2.4f, 0f), rune, 140f, 30f));
-            lights.Add(AssetLight.Glow(new Vector3(0f, 2.2f, 1.6f), rune, 60f, 16f));
-
-            VertexMaterial dressed = Stone(176);
-            VertexMaterial rough = Rough(150);
-            VertexMaterial runeGlow = Glow(rune.X, rune.Y, rune.Z, 1.6f);
-
-            // Three steps up to it, so that it stands over the square.
-            b.Box(new Vector3(0f, 0.05f, 0f), new Vector3(7.6f, 0.35f, 2.6f), rough);
-            b.Box(new Vector3(0f, 0.45f, 0f), new Vector3(6.9f, 0.3f, 2.1f), dressed);
-            b.Box(new Vector3(0f, 0.8f, 0f), new Vector3(6.2f, 0.25f, 1.6f), dressed);
-
-            foreach (float side in new[] { -1f, 1f })
-            {
-                float x = side * (Span + 0.8f);
-                b.Box(new Vector3(x, 1.35f, 0f), new Vector3(1.15f, 0.35f, 1.15f), rough);
-                b.Box(new Vector3(x, 4.1f, 0f), new Vector3(0.8f, 2.6f, 0.8f), dressed);
-                b.Box(new Vector3(x, 6.85f, 0f), new Vector3(1.05f, 0.22f, 1.05f), rough);
-
-                // Runes down the face of each pillar, front and back.
-                for (int r = 0; r < 4; r++)
-                {
-                    float y = 2.4f + r * 1.15f;
-                    b.Box(new Vector3(x, y, 0.82f), new Vector3(0.22f, 0.32f, 0.03f), runeGlow);
-                    b.Box(new Vector3(x, y, -0.82f), new Vector3(0.22f, 0.32f, 0.03f), runeGlow);
-                }
-            }
-
-            for (int i = 0; i <= Stones; i++)
-            {
-                float angle = MathF.PI * i / Stones;
-                Vector3 outward = new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0f);
-                Vector3 at = new Vector3(0f, Spring, 0f) + outward * Span;
-                b.Beam(at, at + outward * 1.5f, i == Stones / 2 ? 1.05f : 0.8f, i % 2 == 0 ? dressed : rough);
-                if (i % 2 == 1)
-                {
-                    b.Box(at + outward * 0.75f + Vector3.UnitZ * 0.82f, new Vector3(0.2f), runeGlow);
-                    b.Box(at + outward * 0.75f - Vector3.UnitZ * 0.82f, new Vector3(0.2f), runeGlow);
-                }
-            }
-
-            // The crystal over the keystone, which is what's seen first from anywhere in the village.
-            b.Box(new Vector3(0f, Spring + Span + 1.9f, 0f), new Vector3(0.7f, 0.3f, 0.7f), rough);
-            Mesh crystal = IcoSphereGenerator.CreateIcosphere(1, Glow(0.3f, 0.92f, 1f, 3.2f));
-            b.Add(crystal, new Vector3(0f, Spring + Span + 3.2f, 0f), new Vector3(0.62f, 1.2f, 0.62f));
-
-            // A breath of light round the inside of the arch even when it's shut, so that it reads as a way and not a doorframe. The way itself, when it's open, fills it.
-            VertexMaterial veil = Glow(0.3f, 0.8f, 1f, 0.9f);
-            foreach (float face in new[] { 0.05f, -0.05f })
-            {
-                b.Surface(24, 1, (u, v) =>
-                {
-                    float angle = MathF.PI * (face > 0f ? 1f - u : u);
-                    float radius = Span - 0.2f - v * 0.28f;
-                    return new Vector3(MathF.Cos(angle) * radius, Spring + MathF.Sin(angle) * radius, face);
-                }, veil);
             }
         }
 
@@ -909,10 +784,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Box(new Vector3(0f, 0.7f, 0f), new Vector3(half.X, 1.8f, half.Y), stone);
             b.Box(new Vector3(0f, 3.8f, 0f), new Vector3(half.X - 0.6f, 1.4f, half.Y - 0.6f), stone);
             float z = half.Y - 0.5f;
-            b.TilesPerMetre = 0.16f;
             b.Quad(new Vector3(-half.X - 0.3f, 5.2f, half.Y + 0.3f), new Vector3(half.X + 0.3f, 5.2f, half.Y + 0.3f), new Vector3(half.X * 0.3f, 7.4f, 0f), new Vector3(-half.X * 0.3f, 7.4f, 0f), stone);
             b.Quad(new Vector3(half.X + 0.3f, 5.2f, -half.Y - 0.3f), new Vector3(-half.X - 0.3f, 5.2f, -half.Y - 0.3f), new Vector3(-half.X * 0.3f, 7.4f, 0f), new Vector3(half.X * 0.3f, 7.4f, 0f), stone);
-            b.TilesPerMetre = 0.2f;
             b.Quad(new Vector3(-1.5f, 0f, z + 0.56f), new Vector3(1.5f, 0f, z + 0.56f), new Vector3(1.5f, 3.2f, z + 0.56f), new Vector3(-1.5f, 3.2f, z + 0.56f), new VertexMaterial(TextureGenerator.flat, new Colour(10, 10, 12)));
         }
 
@@ -994,7 +867,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             float armAt = StructureCatalog.ChurchTranseptAhead;
 
             // Plinths reach well below ground, so that a slope never shows daylight under the walls.
-            b.TilesPerMetre = 0.16f;
             b.Box(new Vector3(0f, -1.8f, 0f), new Vector3(half.X, 2.5f, half.Y), trim);
             b.Box(new Vector3(0f, -1.8f, armAt), new Vector3(arms.X, 2.5f, arms.Y), trim);
             b.Box(new Vector3(0f, WallTop * 0.5f, 0f), new Vector3(naveHalf, WallTop * 0.5f, length), wall);
@@ -1002,10 +874,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
 
             float naveRise = (naveHalf + Eaves) * Pitch;
             float armRise = (armHalf + Eaves) * Pitch;
-            b.TilesPerMetre = 0.13f;
             AddRoofAlongZ(b, naveHalf + Eaves, WallTop, naveRise, -length - Eaves, length + Eaves, roof);
             AddRoofAlongX(b, armHalf + Eaves, WallTop, armRise, armEnd + Eaves, armAt, roof);
-            b.TilesPerMetre = 0.16f;
             AddGable(b, new Vector3(0f, WallTop, -length), naveHalf, naveRise - Eaves * Pitch, Vector3.UnitX, -Vector3.UnitZ, wall);
             AddGable(b, new Vector3(armEnd, WallTop, armAt), armHalf, armRise - Eaves * Pitch, -Vector3.UnitZ, Vector3.UnitX, wall);
             AddGable(b, new Vector3(-armEnd, WallTop, armAt), armHalf, armRise - Eaves * Pitch, Vector3.UnitZ, -Vector3.UnitX, wall);
@@ -1052,9 +922,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 }
             }
 
-            b.TilesPerMetre = 0.14f;
             b.Tube(new Vector3(0f, TowerTop + 0.3f, towerAt), new Vector3(0f, 25f, towerAt), towerHalf + 0.5f, 0.08f, 8, roof);
-            b.TilesPerMetre = 0.2f;
             b.Beam(new Vector3(0f, 24.8f, towerAt), new Vector3(0f, 27.2f, towerAt), 0.09f, Iron);
             b.Beam(new Vector3(-0.8f, 26.4f, towerAt), new Vector3(0.8f, 26.4f, towerAt), 0.09f, Iron);
 

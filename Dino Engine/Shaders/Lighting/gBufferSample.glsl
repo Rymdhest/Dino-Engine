@@ -26,7 +26,7 @@ struct GBufferSample
     vec4 albedo;        // rgb albedo, a subsurface (light let through)
     vec3 normal;        // view space
     float ambient;      // the material's ambient occlusion and the screen-space occlusion together
-    vec4 materials;     // roughness, emission, metallic, height
+    vec4 materials;     // roughness, emission, metallic, and how much of the sun the surface's own relief lets through (Surface/Relief.glsl)
 };
 
 // Where this pixel is, which is all a local light needs to know if it reaches it. Finish the job with finishGBufferSample.
@@ -67,7 +67,6 @@ Surface surfaceOf(GBufferSample g)
     s.roughness = g.materials.r;
     s.metallic = g.materials.b;
     s.translucency = g.albedo.a;
-    s.thickness = g.materials.a;
     return s;
 }
 

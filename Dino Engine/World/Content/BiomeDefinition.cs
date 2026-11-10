@@ -23,6 +23,10 @@ namespace Dino_Engine.World.Content
         Cobble,
         Dirt,
         Farmland,
+        Planks,     // A wooden floor, as a hall's: never on the ground outside.
+        Setts,      // A village street's dressed stones between kerbs, laid across it: read along the road (RoadFrames), so never anywhere else.
+        Road,       // A dirt road's packed earth and trodden stones, with ruts: read along the road, so never anywhere else.
+        Flagstones, // The waygates' own stone laid in slabs, where it's paved (GroundPaint.Paving).
     }
 
     /// <summary>Small things drifting through the air of a biome.</summary>

@@ -74,7 +74,7 @@ What the rig decides:
 - **Limbs are separate rigid pieces.** Whatever a piece covers is left out of the body under it (`BodyRegions`), so skin can't poke through, and there's less to draw. Bare, a hero wears plain undergarments.
 - **Characters are 4.7 m tall**, seen from 33 m up at 67°. What's seen in play is masses and silhouette, so that's what gets designed first. Fine detail is for the icon and the character screen.
 
-**Materials.** Tint is vertex colour, so a metal is one material in many colours. `gold`, `copper`, `crystal`, `rustyMetal`, `glass` and `plastic` are declared in `TextureGenerator` but never created: they're all index 0, which is `grain`. A material costs about 64 MB of video memory at 2048², so this adds as few as it can: fully metallic `plate`, `mail` with a real ring pattern, and `gem`. Each needs a porosity line.
+**Materials.** Tint is vertex colour, so a metal is one material in many colours. A material costs about 64 MB of video memory at 2048², so gear has as few as it can: fully metallic `plate`, `mail` with a real ring pattern, `leather`, `cloth`, `bone` and `gem`. A new one is a line in `MaterialCatalog` and a recipe in `MaterialRecipes.Gear.cs`: read `TEXTURES.md`, as leather, cloth and bone have to average exactly what `GearMaterials` divides by.
 
 **Colour.** Albedos stay deep and saturated, as everywhere else in the game: under a sun of about 13, anything pale goes white.
 

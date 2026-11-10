@@ -31,14 +31,12 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     public struct TerrainRenderCommand : IRenderCommand
     {
         public TerrainChunkRenderData[] chunks;
-        public float parallaxDepth;
         /// <summary>Mountains too far off to have chunks, that can still shade what's here. Only shadows have these.</summary>
         public TerrainChunkRenderData[]? farRock;
 
-        public TerrainRenderCommand(TerrainChunkRenderData[] chunks, float parallaxDepth, TerrainChunkRenderData[]? farRock = null)
+        public TerrainRenderCommand(TerrainChunkRenderData[] chunks, TerrainChunkRenderData[]? farRock = null)
         {
             this.chunks = chunks;
-            this.parallaxDepth = parallaxDepth;
             this.farRock = farRock;
         }
     }
@@ -55,6 +53,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private int grassTextureArray;
         private int grassColourTextureArray;
         private int grassBloomTextureArray;
+        // Where each texel lies on the roads (World/RoadFrames.cs): metres across and along and the road's way, in full floats, as along runs to thousands of
+        // metres; and the road's half width and how much of a junction it is.
+        private int roadFrameTextureArray;
+        private int roadInfoTextureArray;
         private readonly int[] surfaceWeightArrays = new int[3];
         private readonly Vector4[] surfaceMaterials = new Vector4[3];
 
@@ -98,9 +100,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _terrainShader.loadUniformInt("normalMapTextureArray", 1);
             _terrainShader.loadUniformInt("materialMapTextureArray", 2);
 
-            _terrainShader.loadUniformInt("albedoMapModelTextureArray", 3);
-            _terrainShader.loadUniformInt("normalMapModelTextureArray", 4);
-            _terrainShader.loadUniformInt("materialMapModelTextureArray", 5);
+            // The ground reads no cards, so the units their arrays would take carry the roads instead: a stage is only promised sixteen.
+            _terrainShader.loadUniformInt("roadFrameTextureArray", 3);
+            _terrainShader.loadUniformInt("roadInfoTextureArray", 4);
 
             _terrainShader.loadUniformInt("normalHeightTextureArray", 6);
             _terrainShader.loadUniformInt("grassTextureArray", 7);
@@ -162,6 +164,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             grassTextureArray = CreateChunkTextureArray();
             grassColourTextureArray = CreateChunkTextureArray();
             grassBloomTextureArray = CreateChunkTextureArray();
+            roadFrameTextureArray = CreateChunkTextureArray(SizedInternalFormat.Rgba32f);
+            roadInfoTextureArray = CreateChunkTextureArray();
             for (int i = 0; i < surfaceWeightArrays.Length; i++) surfaceWeightArrays[i] = CreateChunkTextureArray();
 
 
@@ -321,8 +325,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             SurfaceMaterial.Moss => TextureGenerator.moss,
             SurfaceMaterial.Gravel => TextureGenerator.gravel,
             SurfaceMaterial.Cobble => TextureGenerator.cobble,
-            SurfaceMaterial.Dirt => TextureGenerator.dirtPath,
+            SurfaceMaterial.Dirt or SurfaceMaterial.Road => TextureGenerator.roadDirt,
+            SurfaceMaterial.Setts => TextureGenerator.setts,
             SurfaceMaterial.Farmland => TextureGenerator.farmland,
+            SurfaceMaterial.Flagstones => TextureGenerator.flagstones,
             _ => TextureGenerator.soil,
         };
 
@@ -373,6 +379,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             UploadSliceData(grassTextureArray, surface.Grass, resolution, id);
             UploadSliceData(grassColourTextureArray, surface.GrassColour, resolution, id);
             UploadSliceData(grassBloomTextureArray, surface.GrassBloom, resolution, id);
+            UploadSliceData(roadFrameTextureArray, surface.RoadFrame, resolution, id);
+            UploadSliceData(roadInfoTextureArray, surface.RoadInfo, resolution, id);
             for (int i = 0; i < surfaceWeightArrays.Length; i++)
             {
                 UploadSliceData(surfaceWeightArrays[i], surface.Weights[i], resolution, id);
@@ -503,11 +511,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialTextureArray);
 
             GL.ActiveTexture(TextureUnit.Texture3);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
+            GL.BindTexture(TextureTarget.Texture2DArray, roadFrameTextureArray);
             GL.ActiveTexture(TextureUnit.Texture4);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaNormalModelTextureArray);
-            GL.ActiveTexture(TextureUnit.Texture5);
-            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaMaterialModelTextureArray);
+            GL.BindTexture(TextureTarget.Texture2DArray, roadInfoTextureArray);
+            _terrainShader.loadUniformFloat("roadMaterial", TextureGenerator.roadDirt);
+            _terrainShader.loadUniformFloat("settsMaterial", TextureGenerator.setts);
 
             GL.ActiveTexture(TextureUnit.Texture6);
             GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);
@@ -589,9 +597,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformGeometryCommand(TerrainRenderCommand command, RenderEngine renderEngine)
         {
-            _terrainShader.loadUniformFloat("parallaxDepth", command.parallaxDepth);
-            _terrainShader.loadUniformFloat("parallaxDepth", 3.0f);
-            _terrainShader.loadUniformFloat("parallaxLayers", 24);
+            // Each material's own relief, from the material table (Surface/MaterialTable.glsl).
+            _terrainShader.loadUniformFloat("reliefScale", renderEngine.ReliefScale);
 
             int numberOfChunks = command.chunks.Length;
 

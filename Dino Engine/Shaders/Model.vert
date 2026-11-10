@@ -9,6 +9,7 @@ layout(location=2) in vec3 normal;
 layout(location=3) in vec3 tangent;
 layout(location=4) in vec2 uv;
 layout(location=5) in float materialIndex;
+layout(location=11) in vec4 edges;      // Metres to each edge of the face (MeshBuilder), or far off: the relief comes up to nothing at a corner.
 
 out vec3 fragColor;
 out vec2 fragUV;
@@ -18,6 +19,7 @@ out vec3 worldNormal;
 out vec3 viewSpacePos;
 
 out float textureIndex;
+out vec4 fragEdges;
 flat out float fragFocusOccluder;
 
 uniform mat4 modelMatrix;
@@ -30,6 +32,7 @@ void main() {
 	gl_Position =  projectionMatrix*viewPos;
 
 	fragUV = uv;
+	fragEdges = edges;
 	textureIndex = materialIndex;
 	fragFocusOccluder = focusOccluder(modelSize, modelMatrix);
 	worldNormal = normal;

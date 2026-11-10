@@ -41,7 +41,12 @@ namespace Dino_Engine.Particles
         public bool Finished => !Effect.Lasts && Age > Effect.Length;
 
         /// <summary>The middle of what it covers, and how far its particles get from there.</summary>
-        public Vector3 Middle => Shape.Kind == EffectShapeKind.Area ? new Vector3(Shape.Area!.Middle.X, Position.Y, Shape.Area.Middle.Y) : Position + Vector3.UnitY * (Shape.Height * 0.5f);
+        public Vector3 Middle => Shape.Kind switch
+        {
+            EffectShapeKind.Area => new Vector3(Shape.Area!.Middle.X, Position.Y, Shape.Area.Middle.Y),
+            EffectShapeKind.Face => Position + Turn(Shape.Face!.Middle),
+            _ => Position + Vector3.UnitY * (Shape.Height * 0.5f),
+        };
         public float Reach => Shape.Extent + Effect.Reach * Scale;
 
         /// <summary>Emits what's due over the next <paramref name="seconds"/>. <paramref name="air"/> is the wind here, for filling in a lasting effect.</summary>
@@ -71,8 +76,13 @@ namespace Dino_Engine.Particles
                 if (emitter.Burst > 0 && !_burst[i])
                 {
                     _burst[i] = true;
-                    int count = Math.Max(1, (int)MathF.Round(emitter.Burst * density * MathF.Min(Strength, 1f) * Spread(emitter)));
-                    for (int n = 0; n < count; n++) Emit(emitter, 0f);
+                    // Smoke over a wide blast is a few more puffs, wider, and not more of the same: as many puffs as there was ground was a field of balls.
+                    float spread = Spread(emitter);
+                    bool smoke = emitter.Style.Sprite == ParticleSprite.Smoke;
+                    float grow = smoke ? MathF.Pow(spread, 0.25f) : 1f;
+                    if (smoke) spread = MathF.Sqrt(spread);
+                    int count = Math.Max(1, (int)MathF.Round(emitter.Burst * density * MathF.Min(Strength, 1f) * spread));
+                    for (int n = 0; n < count; n++) Emit(emitter, 0f, default, 1f, grow);
                 }
 
                 if (emitter.Rate <= 0f) continue;
@@ -177,7 +187,7 @@ namespace Dino_Engine.Particles
         }
 
         // One particle, or one arc. An age below 0 means somewhere through its life, where it would have got to. A faint one is part of a plume drawn out by the wind.
-        private void Emit(ParticleEmitter emitter, float age, Vector3 air = default, float faint = 1f)
+        private void Emit(ParticleEmitter emitter, float age, Vector3 air = default, float faint = 1f, float grow = 1f)
         {
             WorldRandom random = Particles.Random;
             ParticleStyle style = emitter.Style;
@@ -207,7 +217,7 @@ namespace Dino_Engine.Particles
             }
 
             float life = random.Range(emitter.Life);
-            float size = random.Range(emitter.Size) * (emitter.Fills && Shape.Radius > 0f ? 2f * Shape.Radius : Scale);
+            float size = random.Range(emitter.Size) * (emitter.Fills && Shape.Radius > 0f ? 2f * Shape.Radius : Scale) * grow;
             var spawn = new ParticleSpawn(at, size, life)
             {
                 Velocity = velocity,
@@ -249,6 +259,18 @@ namespace Dino_Engine.Particles
                         EmitterPlace.Ground => OnGround(_origin.Xz + Disc(random) * radius) + offset,
                         EmitterPlace.Surface => _origin + Around(Ring(random, radius), height * random.Float()) + offset,
                         _ => _origin + new Vector3(disc.X, height * random.Float(), disc.Y) + offset,
+                    };
+                }
+                case EffectShapeKind.Face:
+                {
+                    IEffectFace face = Shape.Face!;
+                    return emitter.Place switch
+                    {
+                        EmitterPlace.Centre => _origin + Turn(face.Middle) + offset,
+                        EmitterPlace.Surface => _origin + Turn(face.Edge(random.Float())) + offset,
+                        EmitterPlace.Ground => OnGround(_origin.Xz + Turn(face.Anywhere(random.Float(), random.Float())).Xz) + offset,
+                        EmitterPlace.Top => _origin + Turn(face.Middle + Vector3.UnitY * face.Reach) + offset,
+                        _ => _origin + Turn(face.Anywhere(random.Float(), random.Float())) + offset,
                     };
                 }
                 case EffectShapeKind.Ball:

@@ -17,6 +17,7 @@
 #include Reflections/Reflection.glsl
 #include Weather/Sun_Visibility.glsl
 #include Lighting/SunShadow.glsl
+#include Halls.glsl
 
 layout (location = 0) out vec4 out_Colour;
 
@@ -87,6 +88,10 @@ void main(void)
 
     vec3 surrounding = mix(groundLight, skyLight, worldNormal.y * 0.5 + 0.5);
     vec3 environment = skyEnvironment(worldReflection, roughness, groundLight);
+    // The flat sky and ground only stand in for what global illumination doesn't answer, and in a hall's room little of either comes in.
+    float shelter = hallShelter((invViewMatrix * vec4(g.position, 1.0)).xyz);
+    surrounding *= shelter;
+    environment *= shelter;
     float gathered = 0.0;
     vec3 giLight = vec3(0.0);
     if (giMix > 0.0)
@@ -98,6 +103,9 @@ void main(void)
         surrounding = mix(surrounding, giLight, gathered);
         environment = mix(environment, reflected * giStrength, gathered);
     }
+
+    // A hall's room glows a little with the daylight let in, whatever GI made of it.
+    surrounding += hallRoomLight((invViewMatrix * vec4(g.position, 1.0)).xyz, skyLight, sunColour);
 
     vec3 F0 = surfaceF0(s.albedo, s.metallic, s.roughness);
     vec3 specular = environmentBRDF(F0, roughness, NdotV);
@@ -124,7 +132,8 @@ void main(void)
 
     if (sunColour != vec3(0.0))
     {
-        vec3 radiance = sunColour * clamp(calcShadow(g.position), 0.0, 1.0) * weatherSunVisibility((invViewMatrix * vec4(g.position, 1.0)).xz);
+        // The relief's own shadow is the sun's alone: it was cast along the sun's way, and no other light's.
+        vec3 radiance = sunColour * clamp(calcShadow(g.position), 0.0, 1.0) * g.materials.a * weatherSunVisibility((invViewMatrix * vec4(g.position, 1.0)).xz);
         colour += lightSurface(s, sunDirectionViewSpace, radiance);
     }
     out_Colour = vec4(colour, 1.0);

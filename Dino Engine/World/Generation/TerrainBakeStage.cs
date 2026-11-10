@@ -43,12 +43,31 @@ namespace Dino_Engine.World.Generation
             world.Yard = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Plaza = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Farmland = ByteField.ForWorld(size, WorldData.DetailCell);
+            world.Paving = ByteField.ForWorld(size, WorldData.DetailCell);
+            world.Garden = ByteField.ForWorld(size, WorldData.DetailCell);
 
             ApplyPads(world, world.Pads, height);
             StampRoads(world, height, detail);
+            ApplyPads(world, world.Terraces, height);
             foreach (PaintPatch patch in world.Paint) ApplyPaint(world, patch);
             sculpt.KeepHeroInSight(height);
+            LevelHalls(world, height);
             sculpt.MeasureRelief(height);
+        }
+
+        // Every hall's ground exactly at its floor, wherever its walls stand, last of all: people stand on this ground and its floor is laid just over it (HALLS.md), and a
+        // street's shoulder, stamped after the pads, once lifted a corner of the Archive 9 cm through its floor. Its walls go well below it, so the edge never shows.
+        private static void LevelHalls(WorldData world, ScalarField height)
+        {
+            foreach (WorldHall hall in world.Halls)
+            {
+                Footprint shape = hall.Footprint;
+                ForEachNode(height, shape.Centre, shape.BoundingRadius, (x, z, position) =>
+                {
+                    if (DistanceOutside(shape, position) > 0f) return;
+                    height.Data[height.Index(x, z)] = hall.Floor;
+                });
+            }
         }
 
         private static void ApplyPads(WorldData world, List<GroundPad> pads, ScalarField height)
@@ -63,7 +82,7 @@ namespace Dino_Engine.World.Generation
                     float weight = 1f - Smoothstep(0f, pad.Margin, outside);
                     if (weight <= 0f) return;
                     int i = height.Index(x, z);
-                    height.Data[i] = Lerp(height.Data[i], pad.Height, weight);
+                    height.Data[i] = Lerp(height.Data[i], pad.HeightAt(position), weight);
                 });
             }
         }
@@ -130,11 +149,12 @@ namespace Dino_Engine.World.Generation
         }
 
         // Cobbles only where people have reason to pay for them.
-        private static bool NearVillage(WorldData world, Vector2 position)
+        internal static bool NearVillage(WorldData world, Vector2 position)
         {
             foreach (WorldSite site in world.Sites)
             {
-                if (site.Kind is not (SiteKind.Village or SiteKind.Keep)) continue;
+                // The Haven's streets are laid as a village's are, in setts between kerbs, as they're the way to its halls.
+                if (site.Kind is not (SiteKind.Village or SiteKind.Keep or SiteKind.Haven)) continue;
                 float reach = site.Radius * 1.2f;
                 if ((site.Position - position).LengthSquared < reach * reach) return true;
             }
@@ -147,8 +167,11 @@ namespace Dino_Engine.World.Generation
             {
                 GroundPaint.Yard => world.Yard,
                 GroundPaint.Plaza => world.Plaza,
+                GroundPaint.Paving => world.Paving,
+                GroundPaint.Garden => world.Garden,
                 _ => world.Farmland,
             };
+            if (patch.Paint == GroundPaint.Paving) world.Paved = true;
             Footprint shape = patch.Shape;
             float softness = patch.Softness;
             ForEachNode(world.Height, shape.Centre, shape.BoundingRadius + softness, (x, z, position) =>

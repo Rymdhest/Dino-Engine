@@ -202,6 +202,7 @@ namespace Dino_NetLab
             var worlds = new WorldCache();
 
             TheHaven(report, worlds);
+            TheHalls(report, worlds);
             OpeningTheWay(report, worlds);
             SteppingThrough(report, worlds);
             OneLife(report, worlds);
@@ -221,6 +222,114 @@ namespace Dino_NetLab
             Keeping(report, worlds);
             EverythingAtOnce(report, worlds);
             return report.Finish();
+        }
+
+        // The Haven's halls (HALLS.md): what's used in them opens, a shut one says so, each has its keeper, the village walks in and out by the doors and never through a wall,
+        // and what a hero does is kept for the Archive and reaches their client.
+        private static void TheHalls(Report report, WorldCache worlds)
+        {
+            report.Section("The Haven's halls");
+            using var scene = new Scene(worlds, Lands.Haven, hero: Sturdy(4));
+            WorldData world = scene.Session.World;
+            report.Check("Three halls stand in the Haven, one of each", world.Halls.Count == 3 && Enum.GetValues<HallKind>().All(kind => world.Halls.Count(h => h.Kind == kind) == 1), $"{world.Halls.Count}");
+
+            foreach (InteractKind kind in new[] { InteractKind.Workbench, InteractKind.GamingTable })
+            {
+                if (scene.Find(kind) is not Vector2 at)
+                {
+                    report.Check($"The Haven has a {kind}", false);
+                    continue;
+                }
+                report.Check($"The {kind} stands in its hall", world.HallAt(at) is WorldHall hall && Halls.Of(kind) == hall.Kind, $"{at}");
+                scene.Go(at);
+                scene.Player.PressUse = true;
+                scene.Lab.Run(1.5);
+                report.Check($"And using it opens its page", scene.Player.PanelsOpened.Any(p => p.kind == kind));
+            }
+
+            var people = new List<(Entity entity, VillagerComponent villager, Vector2 at)>();
+            void Look()
+            {
+                people.Clear();
+                foreach (Archetype archetype in scene.Lab.Server.Ecs.QueryArchetypes(new BitMask(typeof(VillagerComponent), typeof(PositionComponent)), BitMask.Empty))
+                {
+                    foreach (EntityView entity in new ComponentAccessor(archetype)) people.Add((entity.Entity, entity.Get<VillagerComponent>(), entity.Get<PositionComponent>().value.Xz));
+                }
+            }
+
+            Look();
+            foreach (WorldHall hall in world.Halls)
+            {
+                bool kept = people.Any(p => p.villager.Keeps == (int)hall.Kind + 1 && hall.Contains(p.at));
+                report.Check($"{hall.Design.Name} has its keeper, at their post", kept);
+            }
+
+            // Six minutes of the village going about its day, with the hero standing in the square out of everyone's way.
+            if (scene.Find(InteractKind.MapTable) is Vector2 table) scene.Go(table + new Vector2(0f, -8f));
+            var inside = new HashSet<Entity>();
+            var cameOut = new HashSet<Entity>();
+            string? inWall = null;
+            for (int second = 0; second < 360; second++)
+            {
+                scene.Lab.Run(1);
+                Look();
+                foreach ((Entity entity, VillagerComponent villager, Vector2 at) in people)
+                {
+                    if (villager.Keeps > 0) continue;
+                    WorldHall? hall = world.HallAt(at);
+                    if (hall != null) inside.Add(entity);
+                    else if (inside.Contains(entity)) cameOut.Add(entity);
+                    foreach (WorldHall any in world.Halls) inWall ??= InWall(any, at) ? $"{at}, in {any.Design.Name}'s wall" : null;
+                }
+            }
+            report.Check("The village walks into the halls", inside.Count >= 2, $"{inside.Count} went in");
+            report.Check("And out again", cameOut.Count >= 1, $"{cameOut.Count} came out");
+            report.Check("And nobody ever stands in a wall", inWall == null, inWall ?? "");
+
+            // A blow at a dummy is a blow for the Archive, and the client hears of it.
+            scene.Player.PanelsOpened.Clear();
+            Actor? dummy = null;
+            foreach (Archetype archetype in scene.Lab.Server.Ecs.QueryArchetypes(new BitMask(typeof(DummyComponent), typeof(ActorComponent)), BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype)) dummy ??= entity.Get<ActorComponent>().Actor;
+            }
+            if (dummy != null)
+            {
+                scene.Go(dummy.Position + new Vector2(0f, -4f));
+                scene.Player.Fights = true;
+                scene.Lab.Run(4);
+                scene.Player.Fights = false;
+                scene.Lab.Run(1.5);
+                float hardest = scene.Truth.Hero.Records.HardestBlow;
+                report.Check("A hero's hardest blow is kept, dummies and all", hardest > 0f, $"{hardest:0}");
+                report.Check("And reaches their client", MathF.Abs(scene.Player.Client.Hero.Records.HardestBlow - hardest) < 0.5f, $"{scene.Player.Client.Hero.Records.HardestBlow:0}");
+            }
+
+            // A hall that isn't open to a hero keeps what's in it from them, and says so.
+            if (!Halls.AllOpen && scene.Find(InteractKind.Workbench) is Vector2 bench)
+            {
+                scene.Truth.Hero.HallsOpen.Clear();
+                scene.Go(bench);
+                scene.Player.PressUse = true;
+                scene.Lab.Run(1.5);
+                report.Check("A shut hall's bench doesn't open", !scene.Player.PanelsOpened.Any(p => p.kind == InteractKind.Workbench));
+            }
+        }
+
+        // Whether a point is in the thickness of a hall's walls anywhere but a doorway, worked out from its plan.
+        private static bool InWall(WorldHall hall, Vector2 at)
+        {
+            HallDesign d = hall.Design;
+            Vector2 local = hall.ToLocal(at);
+            Vector2 size = new Vector2(MathF.Abs(local.X), MathF.Abs(local.Y));
+            if (size.X >= d.Half.X || size.Y >= d.Half.Y) return false;
+            if (size.X < d.Inner.X && size.Y < d.Inner.Y) return false;
+            bool frontOrBack = size.Y >= d.Inner.Y;
+            bool side = size.X >= d.Inner.X;
+            bool throughDoor(HallSide wall, float along) => d.Openings.Any(o => o.Door && o.Side == wall && MathF.Abs(along - o.Along) < o.HalfWidth);
+            if (frontOrBack && !throughDoor(local.Y > 0f ? HallSide.Front : HallSide.Back, local.X)) return true;
+            if (side && !throughDoor(local.X > 0f ? HallSide.PlusX : HallSide.MinusX, local.Y)) return true;
+            return false;
         }
 
         private static void TheHaven(Report report, WorldCache worlds)

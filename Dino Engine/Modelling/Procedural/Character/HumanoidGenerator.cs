@@ -146,7 +146,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Mesh BuildTorso(HumanoidLook look)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             VertexMaterial tunic = Cloth(look.Tunic);
             float bulk = look.Bulk;
 
@@ -180,7 +180,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Mesh BuildHead(HumanoidLook look, bool bare)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             VertexMaterial skin = Skin(look.Skin);
             b.Tube(new Vector3(0f, 1.8f, -0.03f), new Vector3(0f, 2.14f, -0.03f), 0.17f, 0.16f, 8, skin, capped: false);
             Vector3 centre = new Vector3(0f, 2.46f, 0f);
@@ -216,7 +216,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
         // Arms lie along x in the T-pose, out from the shoulder.
         private static Mesh BuildUpperArm(HumanoidLook look, int side)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             Vector3 shoulder = new Vector3(side * ShoulderX, ShoulderY, 0f);
             Vector3 elbow = shoulder + new Vector3(side * ArmLength * 0.5f, 0f, 0f);
             b.Tube(shoulder, elbow, 0.21f * look.Bulk, 0.17f * look.Bulk, 8, Cloth(look.Tunic));
@@ -225,7 +225,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Mesh BuildLowerArm(HumanoidLook look, int side)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             Vector3 elbow = new Vector3(side * (ShoulderX + ArmLength * 0.5f), ShoulderY, 0f);
             Vector3 wrist = new Vector3(side * (ShoulderX + ArmLength), ShoulderY, 0f);
             b.Tube(elbow, wrist, 0.17f * look.Bulk, 0.12f, 8, Cloth(look.Tunic * 0.9f));
@@ -242,7 +242,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Mesh BuildUpperLeg(HumanoidLook look, int side)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             Vector3 hip = new Vector3(side * HipX, 0f, 0f);
             b.Tube(hip + Vector3.UnitY * 0.1f, hip - Vector3.UnitY * (LegLength * 0.5f), 0.26f * look.Bulk, 0.2f * look.Bulk, 8, Cloth(look.Legs));
             return b.Build();
@@ -250,7 +250,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Mesh BuildLowerLeg(HumanoidLook look, int side)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             Vector3 knee = new Vector3(side * HipX, -LegLength * 0.5f, 0f);
             b.Tube(knee, knee - Vector3.UnitY * (LegLength * 0.5f - 0.12f), 0.2f * look.Bulk, 0.14f, 8, Cloth(look.Legs * 0.9f));
             return b.Build();
@@ -258,7 +258,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Mesh BuildFoot(HumanoidLook look, int side)
         {
-            var b = new MeshBuilder { TilesPerMetre = 0.5f };
+            var b = new MeshBuilder();
             Vector3 ankle = new Vector3(side * HipX, -LegLength, 0f);
             b.Box(ankle + new Vector3(0f, 0.13f, 0.12f), new Vector3(0.17f, 0.15f, 0.34f), Hide(look.Boots));
             return b.Build();

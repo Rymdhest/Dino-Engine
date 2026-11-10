@@ -244,6 +244,24 @@ namespace Dino_Engine.Modelling.Model
             return tangentsArray;
         }
 
+        /// <summary>Every vertex's <see cref="Vertex.Edges"/>, or null if none has any, as most meshes don't.</summary>
+        public float[]? getAllEdgesArray()
+        {
+            bool any = false;
+            foreach (MeshVertex vertex in meshVertices) any |= vertex.Edges != Vertex.NoEdges;
+            if (!any) return null;
+            float[] array = new float[meshVertices.Count * 4];
+            for (int i = 0; i < meshVertices.Count; i++)
+            {
+                Vector4 edges = meshVertices[i].Edges;
+                array[4 * i + 0] = edges.X;
+                array[4 * i + 1] = edges.Y;
+                array[4 * i + 2] = edges.Z;
+                array[4 * i + 3] = edges.W;
+            }
+            return array;
+        }
+
         public float[] getAllColoursFloatArray()
         {
             float[] coloursArray = new float[meshVertices.Count * 3];
@@ -373,7 +391,7 @@ namespace Dino_Engine.Modelling.Model
             for (int i = 0; i < oldVertices.Length; i++)
             {
                 Vector3 newPosition = Vector3.Transform(oldVertices[i].position, rotation);
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, oldVertices[i].UVs) { joint = oldVertices[i].joint }; // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, oldVertices[i].UVs) { joint = oldVertices[i].joint, Edges = oldVertices[i].Edges }; // TODO  potential uses same UVs
             }
             return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>()) { joints = MovedJoints(p => Vector3.Transform(p, rotation)) };
         }
@@ -461,6 +479,7 @@ namespace Dino_Engine.Modelling.Model
             {
                 MeshVertex vertex = meshVertices[i];
                 vertex.position = (new Vector4(vertex.position, 1.0f)* transformationMatrix).Xyz;
+                vertex.Edges = ScaledEdges(vertex.Edges, transformation.scale);
                 //if (scaleUV) meshVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
                 meshVertices[i] = vertex;
             }
@@ -480,10 +499,18 @@ namespace Dino_Engine.Modelling.Model
                 {
                     newUVs[j] = new Vector2( oldVertices[i].UVs[j].X, oldVertices[i].UVs[j].Y);
                 }
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, newUVs) { joint = oldVertices[i].joint }; // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, newUVs) { joint = oldVertices[i].joint, Edges = ScaledEdges(oldVertices[i].Edges, transformation.scale) }; // TODO  potential uses same UVs
                 //if (scaleUV) newVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
             }
             return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>()) { joints = MovedJoints(p => (new Vector4(p, 1.0f) * transformationMatrix).Xyz) };
+        }
+
+        // A face's edges are as far off as it's grown: by the mean of the stretch, which is exact for an even one.
+        private static Vector4 ScaledEdges(Vector4 edges, Vector3 scale)
+        {
+            if (edges == Vertex.NoEdges) return edges;
+            float factor = MathF.Cbrt(MathF.Abs(scale.X * scale.Y * scale.Z));
+            return edges * factor;
         }
 
         // A plant's joints go wherever its vertices go. A new list, as a mesh's copies share theirs and each goes its own way.

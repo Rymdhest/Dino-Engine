@@ -9,6 +9,9 @@ public class glModel
     /// <summary>Where a vertex's joint is, on a plant. Above the instance matrix, which takes 6 to 9.</summary>
     public const int JointAttribute = 10;
 
+    /// <summary>Where a mesh's <see cref="Vertex.Edges"/> go, for those that have them: everything else reads the default, which is no edges at all.</summary>
+    public const int EdgeAttribute = 11;
+
     public class ImposterData
     {
         public int TextureIndex;
@@ -47,6 +50,9 @@ public class glModel
     public AABB box;
     public ImposterData? Imposter { get; set; } = null;
 
+    /// <summary>Drawn by nothing while it's set: what's inside a hall, while nobody's near enough to see it (HallCutawaySystem).</summary>
+    public bool Hidden { get; set; }
+
     public glModel(int vaoID, int[] VBOS, int vertexCount, AABB box)
     {
         this.vaoID = vaoID;
@@ -60,6 +66,13 @@ public class glModel
 
     /// <summary>How far a plant can reach from where it rests.</summary>
     public float PlantReach { get; private set; }
+
+    /// <summary>Takes a buffer the model's vertex array reads, to delete with the rest.</summary>
+    public void Own(int buffer)
+    {
+        Array.Resize(ref VBOS, VBOS.Length + 1);
+        VBOS[^1] = buffer;
+    }
 
     public void SetPlant(int vertexJointBuffer, int jointBuffer, int jointTexture, float reach)
     {

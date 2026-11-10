@@ -120,8 +120,11 @@ namespace Dino_Engine.World.Content
 
         public static readonly StructureDefinition Waygate = Prop("waygate", 4.4f, 1.6f, PlacementIndex.Tall, solid: false);
 
-        /// <summary>The Haven's waygate, which reaches the lands the Reich holds: the same old road as any other, raised higher and kept better.</summary>
-        public static readonly StructureDefinition GreatWaygate = Prop("waygate.great", 7.2f, 2.4f, PlacementIndex.Tall, solid: false);
+        /// <summary>
+        /// The Haven's waygate, which reaches the lands the Reich holds: the same old road as any other, raised higher and kept better, on three steps between two wings (WaygateDesign.Great,
+        /// whose steps this is the size of).
+        /// </summary>
+        public static readonly StructureDefinition GreatWaygate = Prop("waygate.great", 8.6f, 3.4f, PlacementIndex.Tall, solid: false);
 
         /// <summary>Where the next land is chosen, in the Haven: a stone table with every land the waygate knows cut into it.</summary>
         public static readonly StructureDefinition MapTable = Prop("table.map", 2.8f, 1.9f, 1.9f);

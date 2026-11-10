@@ -289,6 +289,9 @@ namespace Dino_Engine.Animation
                 float drift = (home.Xz - foot.At.Xz).Length;
                 float turned = MathF.Abs(Spring.Shortest(input.Yaw - foot.Yaw));
                 if (turned > TurnAllowed) drift = MathF.Max(drift, allowed + turned);
+
+                // A foot standing where no foot is to come down steps off it, however little it's drifted.
+                if (input.KeepOffRadius > 0f && (foot.At.Xz - input.KeepOff).LengthSquared < input.KeepOffRadius * input.KeepOffRadius) drift = MathF.Max(drift, allowed + input.KeepOffRadius);
                 if (drift <= furthest) continue;
                 furthest = drift;
                 worst = i;

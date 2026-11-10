@@ -8,7 +8,8 @@ namespace Dino_Defenders
     /// What the game was started with. Playing needs none of it; these jump straight to a world for development, and let a
     /// scripted run look at one spot, take a screenshot and quit.
     ///   --seed N  --archetype id  --site Kind  --at x,z  --look distance  --angle degrees  --shot file.png  --frames N
-    ///   --snap file     Whenever this file appears, takes a picture to the path written in it and deletes it, for looking at a run from outside as it goes.
+    ///                   --site FacingWaygate stands the hero in front of the land's waygate the camera sees most squarely, for looking at its way (WAYGATES.md).
+    ///   --snap file    Whenever this file appears, takes a picture to the path written in it and deletes it, for looking at a run from outside as it goes.
     ///   --tour folder   Visits one of every kind of site, and a wood, a road and a shore, photographing each.
     ///   --level N       How dangerous the first world is.
     ///   --bot true      Plays the hero: it fights whatever is near. For watching the game run with nobody at the keyboard.
@@ -61,6 +62,11 @@ namespace Dino_Defenders
     ///   --startle N     Frightens everything within sight of the hero after N frames, for watching it go in a --film.
     ///   --lifelog file  Writes down what's alive, where it is and what it's up to, once a second.
     ///   --meshseed N    Seeds what otherwise grows differently in every run, so that two builds can be compared picture by picture.
+    ///   --materialsheet folder  Writes every material's maps to that folder as pictures as soon as they're made: colour, normal, height,
+    ///                   occlusion and roughness side by side, for judging a recipe with no world (TEXTURES.md).
+    ///   --materials a,b Stands a row of shapes in each of those materials (or "all") in front of the hero, flat, round and boxed, for judging
+    ///                   them under the game's own light and camera.
+    ///   --texturecheck true  Measures each kind of noise once the materials are made and prints it, for Canvas.OctaveStatistics.
     ///   --perf file     Measures --perfframes N frames from frame --perfstart N, writes the report to this file and quits. Timing each pass slows the
     ///                   GPU down a little: --perfgpu false measures what a player really gets, with no passes in the report.
     /// A scripted run otherwise neither reads nor writes the player's save.
@@ -159,6 +165,9 @@ namespace Dino_Defenders
         public string? Garden;
         public string? Fx;              // Effects by name (Particles/Content), or "all", stood in a row in front of the hero.
         public string? ParticleSheet;   // A folder to write the grown flame and smoke flipbooks to, as pictures.
+        public string? MaterialSheet;   // A folder to write every material's maps to, as pictures.
+        public string? Materials;       // Materials by name, or "all", stood in a row of shapes in front of the hero.
+        public bool TextureCheck;
         public Vector2 FxAt = new Vector2(0f, 4f);  // Metres from the hero the first of them stands, across and away from the camera.
         public string? Bring;
         public bool NoLife;
@@ -272,6 +281,9 @@ namespace Dino_Defenders
                     case "garden": options.Garden = value; break;
                     case "fx": options.Fx = value; break;
                     case "particlesheet": options.ParticleSheet = value; break;
+                    case "materialsheet": options.MaterialSheet = value; break;
+                    case "materials": options.Materials = value; break;
+                    case "texturecheck": options.TextureCheck = bool.Parse(value); break;
                     case "fxat":
                         string[] at = value.Split(',');
                         options.FxAt = new Vector2(float.Parse(at[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(at[1], System.Globalization.CultureInfo.InvariantCulture));

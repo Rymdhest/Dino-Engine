@@ -39,6 +39,7 @@ namespace Dino_FxLab
             Recipes(faults);
             Budgets(faults, seconds);
             Fight(faults);
+            Spam(faults);
 
             Console.WriteLine();
             foreach (string fault in faults.Take(40)) Console.WriteLine("  FAIL  " + fault);
@@ -55,11 +56,14 @@ namespace Dino_FxLab
             if (name.EndsWith(".Ground") || name.EndsWith(".Churn")) return 200;
             if (Bodies.Contains(name)) return 200;
             if (name.EndsWith(".Burst") || name.EndsWith(".Shockwave") || name.EndsWith(".Scald")) return 300;
+            // An open way breathes out of both faces of the Haven's great gate, the widest there is (WAYGATES.md).
+            if (name.StartsWith("Ways.")) return 180;
             return 150;
         }
 
         private static EffectShape ShapeOf(string name)
         {
+            if (name.StartsWith("Ways.")) return EffectShape.Across(Dino_Engine.Modelling.Procedural.Architecture.Waygates.WaygateDesign.Great.Face);
             if (Bodies.Contains(name)) return EffectShape.Body(1f, 4.2f);
             if (name.EndsWith(".Ground") || name.EndsWith(".Churn")) return EffectShape.Over(new Circle(Vector2.Zero, 6f));
             if (name.EndsWith(".Burst") || name.EndsWith(".Shockwave") || name.EndsWith(".Scald")) return EffectShape.Ball(4f);
@@ -203,6 +207,53 @@ namespace Dino_FxLab
             Console.WriteLine($"A fight at its worst: {peak} particles at once, of {Particles.Capacity} ({room} allowed), {dropped} turned away.");
             if (peak > room) faults.Add($"a fight at its worst has {peak} particles at once, more than half the pool");
             if (dropped > 0) faults.Add($"a fight at its worst turned {dropped} particles away");
+        }
+
+        // Blasts cast into one place over and over, as a person did, who found the screen lost in smoke. What smoke is standing at once, as ground hidden times how
+        // solid it is, may grow with more casts only as far as the haze allows (Haze). Smoke drifts over the patches round a blast, some 300 m², and may hide a
+        // third of them at most, however often it's cast.
+        private const int Casts = 15;
+        private const float CastEvery = 0.4f;
+        private const float MostStanding = 100f;
+
+        private static void Spam(List<string> faults)
+        {
+            Console.WriteLine();
+            foreach (ParticleEffect blast in new[] { Fire.Burst, Frost.Burst, Poison.Burst, Impact.Shockwave, Smoke.Scald })
+            {
+                float once = StandingSmoke(blast, 1);
+                float many = StandingSmoke(blast, Casts);
+                Console.WriteLine($"{blast.Name,-22} smoke standing: {once,6:0} m² cast once, {many,6:0} m² cast {Casts} times in one place");
+                if (many > MostStanding) faults.Add($"{blast.Name} cast {Casts} times in one place stands {many:0} m² of smoke, over the {MostStanding:0} m² it may");
+            }
+        }
+
+        private static float StandingSmoke(ParticleEffect blast, int casts)
+        {
+            ParticlePool pool = Particles.Pool;
+            Particles.Clear();
+            var runs = new List<EffectRun>();
+            var standing = new List<(float Cover, double Gone)>();
+            float most = 0f;
+            int frame = 0;
+            for (float time = 0f; time < casts * CastEvery + 6f; time += Step, frame++)
+            {
+                if (frame % (int)MathF.Round(CastEvery / Step) == 0 && runs.Count < casts) runs.Add(new EffectRun(blast) { Shape = EffectShape.Ball(4f) });
+                foreach (EffectRun run in runs) run.Step(Step, true, Vector3.Zero);
+                for (int i = 0; i < pool.SpawnCount; i++)
+                {
+                    GpuParticle particle = pool.Spawns[i];
+                    ParticleStyle style = ParticleStyles.All[(int)(particle.Style & ((1u << GpuParticle.StyleBits) - 1u))];
+                    if (style.Sprite != ParticleSprite.Smoke) continue;
+                    float across = particle.Size * style.Size[0.5f];
+                    standing.Add((MathF.PI * 0.25f * across * across * style.Opacity[0.5f] * particle.Tint.W, pool.Clock + particle.Life - particle.Age));
+                }
+                pool.Sent();
+                pool.Advance(Step);
+                standing.RemoveAll(s => s.Gone <= pool.Clock);
+                most = MathF.Max(most, standing.Sum(s => s.Cover));
+            }
+            return most;
         }
 
         private sealed class Circle : IEffectArea

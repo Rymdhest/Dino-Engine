@@ -183,6 +183,7 @@ namespace Dino_Defenders.Server
             Server.Ecs.DestroyEntity(lying.Entity);
             foreach (ServerPlayer everyone in Server.Heroes) Tell(everyone, find, null);
             hero.GearChanged = true;
+            if (lying.Item.Unique is string unique && hero.Hero.Records.Found(unique)) hero.SummaryChanged = true;
             Server.Note(hero, $"Found: {lying.Item.Name}");
         }
 

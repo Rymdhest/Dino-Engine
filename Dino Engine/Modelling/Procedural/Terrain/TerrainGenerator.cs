@@ -17,6 +17,10 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         public readonly float[] GrassColour;
         /// <summary>Per texel: the colour of the flowers in the grass (rgb) and the share of its blades in flower (a).</summary>
         public readonly float[] GrassBloom;
+        /// <summary>Per texel: metres across the nearest road and along it, and the way it runs (<see cref="World.RoadFrame"/>), for whatever's laid in a road's own direction.</summary>
+        public readonly float[] RoadFrame;
+        /// <summary>Per texel: that road's half width, 0 where there's none, and how much of a junction or an end this is.</summary>
+        public readonly float[] RoadInfo;
 
         public TerrainChunkSurface(int texels)
         {
@@ -24,6 +28,8 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
             Grass = new float[texels * 4];
             GrassColour = new float[texels * 4];
             GrassBloom = new float[texels * 4];
+            RoadFrame = new float[texels * 4];
+            RoadInfo = new float[texels * 4];
         }
     }
 
@@ -36,6 +42,7 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         private const float NormalStep = 0.5f;
 
         private readonly TerrainSurface _surface;
+        private readonly RoadFrames _roads;
 
         public WorldData World { get; }
         public IReadOnlyList<SurfaceMaterial> Palette => _surface.Palette;
@@ -44,7 +51,11 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         {
             World = world;
             _surface = new TerrainSurface(world);
+            _roads = new RoadFrames(world);
         }
+
+        /// <summary>Where a point lies on the roads (<see cref="RoadFrames"/>).</summary>
+        public RoadFrame RoadAt(Vector2 position) => _roads.At(position);
 
         public float getHeightAt(Vector2 position)
         {
@@ -97,6 +108,8 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     Vector2 worldPos = chunkPositionWorld + new Vector2(x, z) * cellSizeWorld;
                     Vector3 normal = GetNormalAt(worldPos.X, worldPos.Y);
                     float road = getRoadMaskAt(worldPos);
+                    // The grassy crown of a track isn't road to the grass that grows on it (RoadProfile), though it is to everything else.
+                    if (road > 0f && World.PavedRoad.Sample(worldPos) < 0.5f) road *= 1f - RoadProfile.Crown(_roads.At(worldPos));
                     // No road crosses bare rock, so there this says how far it stands out of what's around it, -1 to 1. Level is 0, which is what lets it meet the land with no seam.
                     float rock = World.Rock.Sample(worldPos);
                     if (road <= 0f && rock > 0f) road = (World.Proud.Sample(worldPos) * 2f - 1f) * Saturate(rock * 3f);
@@ -122,9 +135,16 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
                     Vector3 stored = normalGrid.Values[x, z];
                     float normalY = MathF.Sqrt(MathF.Max(1f - stored.X * stored.X - stored.Y * stored.Y, 0f));
 
-                    _surface.Evaluate(worldPos.X, worldPos.Y, heightGrid.Values[x, z], normalY, weights, out GrassCell grass);
+                    RoadFrame road = _roads.At(worldPos);
+                    _surface.Evaluate(worldPos.X, worldPos.Y, heightGrid.Values[x, z], normalY, road, weights, out GrassCell grass);
 
                     int texel = (z * resolution.X + x) * 4;
+                    surface.RoadFrame[texel] = road.Across;
+                    surface.RoadFrame[texel + 1] = road.Along;
+                    surface.RoadFrame[texel + 2] = road.Way.X;
+                    surface.RoadFrame[texel + 3] = road.Way.Y;
+                    surface.RoadInfo[texel] = road.HalfWidth;
+                    surface.RoadInfo[texel + 1] = road.Junction;
                     for (int i = 0; i < TerrainSurface.MaxMaterials; i++)
                     {
                         surface.Weights[i / 4][texel + i % 4] = weights[i];

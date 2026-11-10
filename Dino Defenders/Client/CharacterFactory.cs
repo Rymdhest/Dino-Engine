@@ -4,6 +4,7 @@ using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural;
 using Dino_Engine.Modelling.Procedural.Architecture;
+using Dino_Engine.Modelling.Procedural.Architecture.Waygates;
 using Dino_Engine.Modelling.Procedural.Character;
 using Dino_Engine.Modelling.Procedural.Gear;
 using Dino_Engine.Modelling.Procedural.Indoor;
@@ -190,13 +191,11 @@ namespace Dino_Defenders.Client
             if (key.StartsWith("brute") && int.TryParse(key.AsSpan(5), out int brute)) return (key, () => HumanoidGenerator.Generate(BruteLook(brute)));
             if (key == "arrow") return (key, Arrow);
             if (key.StartsWith(Books.Thrown.Prefix)) return (key, () => ThrownThing(key.Substring(Books.Thrown.Prefix.Length)));
-            if (key == Roads.Lit) return (key, PropGenerator.GenerateWaygateLight);
             if (key == ChestLook.Closed) return (key, () => Chest(open: false));
             if (key == ChestLook.Open) return (key, () => Chest(open: true));
             if (key is ChestLook.Lid or ChestLook.Opening) return (ChestLook.Lid, ChestLid);
             if (key == "dummy") return (key, Dummy);
             if (key == Server.ArenaSystem.PortcullisModel) return (key, Portcullis);
-            if (key.StartsWith(PortalPrefix) && int.TryParse(key.AsSpan(PortalPrefix.Length), out int biome)) return (key, () => Portal(biome));
             if (key == Progression.LootModels.Gold) return (key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
             if (key == Progression.LootModels.Find) return (key, () => Ball(new Colour(0f, 0f, 0f)));
             if (key.StartsWith(BoltPrefix) && Enum.TryParse(key.AsSpan(BoltPrefix.Length), out Stats.DamageType look))
@@ -501,47 +500,31 @@ namespace Dino_Defenders.Client
             return builder.Build();
         }
 
-        public const string PortalPrefix = "portal:";
+        private readonly Dictionary<string, (WaygateDesign Design, WayLook Look)?> _ways = new();
 
-        /// <summary>The colour the way to a land is lit in: its first biome's, made bright enough to glow and saturated enough to keep its hue.</summary>
-        public static Colour PortalColour(int biome)
+        /// <summary>
+        /// What a way a server names looks like (WayKeys, WAYGATES.md): the gate it fills and what's seen in it, grown from the land it goes to. Kept once grown, as a way is seen for as long
+        /// as it's open, and nothing if the name means nothing to this client.
+        /// </summary>
+        public (WaygateDesign Design, WayLook Look)? WayOf(string key)
         {
-            Vector3 colour = biome >= 0 && biome < BiomeCatalog.All.Count ? BiomeCatalog.All[biome].MapColour : new Vector3(0.35f, 0.85f, 1f);
-
-            // A land's colour on the map is soft, and light that soft goes white. Pushed away from grey it keeps its hue however bright it is.
-            float grey = (colour.X + colour.Y + colour.Z) / 3f;
-            colour = Vector3.ComponentMax(new Vector3(grey) + (colour - new Vector3(grey)) * PortalSaturation, new Vector3(0.02f));
-            float most = MathF.Max(colour.X, MathF.Max(colour.Y, colour.Z));
-            return new Colour(colour / MathF.Max(most, 0.01f));
-        }
-
-        private const float PortalSaturation = 2.4f;
-
-        // The way to a land, open in the Haven's great waygate: layers of light filling its arch, a deep rim of the colour of where it leads brightening to its heart. It matches the arch in PropGenerator.
-        private static Mesh Portal(int biome)
-        {
-            const float Span = 5.35f;
-            const float Spring = 7.1f;
-            Colour hue = PortalColour(biome);
-            var builder = new MeshBuilder();
-            (float reach, float strength, float depth, float tone)[] layers = { (1f, 0.45f, 0f, 0.5f), (0.78f, 0.75f, 0.06f, 0.75f), (0.52f, 1.1f, 0.12f, 0.92f), (0.26f, 1.6f, 0.18f, 1f) };
-            foreach ((float reach, float strength, float depth, float tone) in layers)
+            if (_ways.TryGetValue(key, out var known)) return known;
+            (WaygateDesign Design, WayLook Look)? way = null;
+            if (WayKeys.TryRead(key, out WaygateDesign design, out WorldRequest destination, out ulong seed))
             {
-                var light = new VertexMaterial(TextureGenerator.flatGlow, new Colour(hue.Red * tone, hue.Green * tone, hue.Blue * tone, strength));
-                float radius = Span * reach;
-                float floor = 1.05f + (1f - reach) * 2.6f;
-                foreach (float face in new[] { depth, -depth })
+                try
                 {
-                    builder.Surface(18, 6, (u, v) =>
-                    {
-                        float angle = MathF.PI * (face >= 0f ? 1f - u : u);
-                        return new Vector3(MathF.Cos(angle) * radius * v, Spring + MathF.Sin(angle) * radius * v, face);
-                    }, light);
-                    if (face >= 0f) builder.Quad(new Vector3(-radius, floor, face), new Vector3(radius, floor, face), new Vector3(radius, Spring, face), new Vector3(-radius, Spring, face), light);
-                    else builder.Quad(new Vector3(radius, floor, face), new Vector3(-radius, floor, face), new Vector3(-radius, Spring, face), new Vector3(radius, Spring, face), light);
+                    way = (design, WayLook.Of(WorldPlan.Create(destination), seed));
+                }
+                catch (ArgumentException)
+                {
+                    // A newer server could open a way to a kind of land this client has never heard of: it still opens, as the way home does.
+                    Console.WriteLine($"No land to show in the way '{key}'.");
+                    way = (design, WayLook.Of(WorldPlan.Create(Progression.Lands.Haven), seed));
                 }
             }
-            return builder.Build();
+            _ways[key] = way;
+            return way;
         }
 
         // Straw on a post, to be hit: a cross of planks to stand on, a bundle tied twice, a sack for a head and a target painted where the heart would be. Its front is +z.

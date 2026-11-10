@@ -93,7 +93,7 @@ namespace Dino_Defenders.Gameplay
         {
             Client = client;
             Health = Sheet.MaxHealth;
-            PlayerPosition = world.Sites[0].Position;
+            PlayerPosition = world.Sites[0].Landing;
             _twin = Terms.Has(OrdersCatalog.TwinPens) && !world.Plan.Archetype.Arena ? Chronicle.TwinSite(world) : null;
         }
 

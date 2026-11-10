@@ -155,7 +155,9 @@ namespace Dino_Engine.World.Generation
                 WorldAsset asset = planting.Asset;
                 bool tree = asset.Kind == WorldAssetKind.Tree;
                 PlacementLayer layer = tree ? PlacementLayer.Tree : PlacementLayer.Shrub;
-                PlacementLayer avoid = tree ? PlacementLayer.Tree | PlacementLayer.Built | PlacementLayer.Road : PlacementLayer.Shrub | PlacementLayer.Rock | PlacementLayer.Built | PlacementLayer.Road;
+                // A bed is planted on purpose, so what a site plants goes in one, though nothing wild does.
+                const PlacementLayer Built = PlacementLayer.Built & ~PlacementLayer.Garden;
+                PlacementLayer avoid = tree ? PlacementLayer.Tree | Built | PlacementLayer.Road : PlacementLayer.Shrub | PlacementLayer.Rock | Built | PlacementLayer.Road;
                 if (!GroundFits(world, planting.Position, MaxTreeSlope)) continue;
 
                 float scale = planting.Scale;

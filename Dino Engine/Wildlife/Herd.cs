@@ -106,6 +106,7 @@ namespace Dino_Engine.Wildlife
         public readonly WorldData World;
         public readonly List<Browse> Trees = new();
         private readonly Func<Vector2, bool> _within;
+        private readonly float _tallest;
         private readonly Vector2 _origin;
         private readonly int _nx, _nz;
         private readonly float[] _clear;
@@ -120,10 +121,12 @@ namespace Dino_Engine.Wildlife
 
         /// <param name="min">The corner of everything the herd could ever reach.</param>
         /// <param name="within">Whether a place is in the herd's range: outside it is as good as a wall.</param>
-        public HerdLand(WorldData world, Vector2 min, Vector2 max, Func<Vector2, bool> within)
+        /// <param name="tallest">The tallest tree worth going to: a crown above what the herd reaches can't be eaten from, so it's left out of <see cref="Trees"/> and stands there to be looked at.</param>
+        public HerdLand(WorldData world, Vector2 min, Vector2 max, Func<Vector2, bool> within, float tallest = float.MaxValue)
         {
             World = world;
             _within = within;
+            _tallest = tallest;
             _origin = min;
             _nx = Math.Max((int)MathF.Ceiling((max.X - min.X) / Cell), 1);
             _nz = Math.Max((int)MathF.Ceiling((max.Y - min.Y) / Cell), 1);
@@ -195,7 +198,7 @@ namespace Dino_Engine.Wildlife
                 string species = NatureCatalog.SpeciesOf(World.Objects.AssetIds[tree.Asset], out ulong seed);
                 if (!FloraCatalog.TryGet(species, out PlantSpecies plant) || !plant.TryCrown(seed, out float height, out float crownBase, out float crownRadius)) continue;
                 float scale = tree.Scale.Y;
-                if (height * scale < ShortestTree) continue;
+                if (height * scale < ShortestTree || height * scale > _tallest) continue;
                 Trees.Add(new Browse(at, tree.Position.Y, height * scale, crownBase * scale, crownRadius * scale));
             }
         }
@@ -406,7 +409,8 @@ namespace Dino_Engine.Wildlife
             float lowest = shape.LowestBite;
             float highest = shape.HighestMouth - 0.6f * shape.Scale;
             biteHeight = Math.Clamp(tree.Height - 1.4f, lowest, highest);
-            if (tree.Height - 0.3f < lowest) return false;
+            // As far under the top of its crown as NextBite takes from: a tree a centimetre short of that once asked it for a bite between nothing and less.
+            if (tree.Height - 0.4f < lowest) return false;
 
             Vector2 toward = from - tree.Trunk;
             float start = toward.LengthSquared > 1e-4f ? MathF.Atan2(toward.X, toward.Y) : 0f;
@@ -445,6 +449,8 @@ namespace Dino_Engine.Wildlife
         public static readonly (string Model, float Scale)[] Haven = { ("dino:giant.0", 1f), ("dino:giant.1", 1f), ("dino:giant.2", 1f) };
 
         private const float VillageMargin = 4f;     // Metres past the edge of the Haven's village that a giant's middle keeps out of, as its body is half as wide again.
+        internal const float HomeRoom = 8f;         // Metres of room all round that a herd's home has to have open ground with,
+        internal const float HomeReach = 30f;       // this near its tree.
 
         /// <summary>The village a herd keeps out of in the Haven, or nothing in any other world.</summary>
         public static WorldSite? Village(WorldData world) => world.Plan.Archetype.Peaceful ? world.Sites.Find(site => site.Kind == SiteKind.Haven) : null;
@@ -455,15 +461,25 @@ namespace Dino_Engine.Wildlife
             if (Village(world) is not WorldSite village) return null;
             Vector2 centre = village.Position;
             float keep = village.Radius + VillageMargin;
-            var land = new HerdLand(world, Vector2.Zero, new Vector2(world.Size), at => (at - centre).LengthSquared > keep * keep);
+            var land = new HerdLand(world, Vector2.Zero, new Vector2(world.Size), at => (at - centre).LengthSquared > keep * keep, TallestFor(shapes));
             return Gather(land, shapes, seed, centre);
         }
 
         /// <summary>A herd that keeps within <paramref name="radius"/> of a place, and to wherever else it's allowed, as the one in view behind the main menu keeps in the picture.</summary>
         public static Herd? Around(WorldData world, Vector2 home, float radius, IReadOnlyList<GiantShape> shapes, uint seed, Func<Vector2, bool>? allowed = null)
         {
-            var land = new HerdLand(world, home - new Vector2(radius), home + new Vector2(radius), at => (at - home).LengthSquared < radius * radius && (allowed == null || allowed(at)));
+            var land = new HerdLand(world, home - new Vector2(radius), home + new Vector2(radius), at => (at - home).LengthSquared < radius * radius && (allowed == null || allowed(at)), TallestFor(shapes));
             return Gather(land, shapes, seed, home);
+        }
+
+        private const float CrownHeadroom = 1f;     // Metres under the highest the shortest of them reaches that the top of a tree they go to has to be.
+
+        // The tallest tree a herd is sent to eat from: one the shortest neck among them gets to the top of. A bigger island grew wild birches past it.
+        private static float TallestFor(IReadOnlyList<GiantShape> shapes)
+        {
+            float reach = float.MaxValue;
+            foreach (GiantShape shape in shapes) reach = MathF.Min(reach, shape.HighestMouth);
+            return reach - CrownHeadroom;
         }
 
         private static Herd? Gather(HerdLand land, IReadOnlyList<GiantShape> shapes, uint seed, Vector2 fallback)
@@ -477,7 +493,7 @@ namespace Dino_Engine.Wildlife
                 pick ^= pick >> 17;
                 pick ^= pick << 5;
                 Browse tree = land.Trees[(int)(pick % (uint)land.Trees.Count)];
-                if (!land.TryRoomNear(tree.Trunk, 8f, 30f, out _)) continue;
+                if (!land.TryRoomNear(tree.Trunk, HomeRoom, HomeReach, out _)) continue;
                 home = tree.Trunk;
                 break;
             }
@@ -650,15 +666,25 @@ namespace Dino_Engine.Wildlife
         private float Ground(Vector2 at) => Land.World.Height.Sample(at);
 
         /// <summary>A giant this shape, somewhere it can stand near the herd's home, doing something already, so that the herd is found in the middle of its day.</summary>
+        // Whether a giant set down here could walk to the rest of the herd, by the narrowest way a walk will take (GoTo): to the open ground by home that made it home (Gather),
+        // as the nearest room to its tree can be a corner of a clearing that nothing that size gets out of.
+        private bool WalksToHerd(GiantShape shape, Vector2 at)
+        {
+            if (!Land.TryRoomNear(_home, Herds.HomeRoom, Herds.HomeReach, out Vector2 home)) return true;
+            return Land.TryPath(at, home, shape.WalkRoom * 0.75f, _probe);
+        }
+
         public Giant? Add(GiantShape shape)
         {
             var giant = new Giant(shape, Range(2.4f, 3f) * MathF.Sqrt(shape.Scale));
 
-            // Eating, as most of a giant's day is, at a tree no other is at.
+            // Eating, as most of a giant's day is, at a tree no other is at, and one it can walk away from to the rest of the herd: the Haven's island once set one down on a spit
+            // of land at a tree it could eat from and never leave.
             for (int attempt = 0; attempt < 24; attempt++)
             {
                 Vector2 near = _home + Spread(Gather);
                 if (!TryChooseTree(giant, near, near, out Browse tree, out Vector2 middle, out float yaw, out float height)) continue;
+                if (!WalksToHerd(giant.Shape, middle)) continue;
                 giant.Middle = middle;
                 giant.Yaw = yaw;
                 Members.Add(giant);
@@ -671,7 +697,7 @@ namespace Dino_Engine.Wildlife
             {
                 Vector2 at = _home + Spread(Gather);
                 float yaw = Range(0f, MathF.Tau);
-                if (!Land.CanStand(shape, at, yaw, -HerdLand.Spare) || Crowded(giant, at)) continue;
+                if (!Land.CanStand(shape, at, yaw, -HerdLand.Spare) || Crowded(giant, at) || !WalksToHerd(shape, at)) continue;
                 giant.Middle = at;
                 giant.Yaw = yaw;
                 Members.Add(giant);
@@ -749,19 +775,24 @@ namespace Dino_Engine.Wildlife
             }
         }
 
-        // The part of its range the herd keeps to moves on every few minutes, to wherever there are trees it hasn't been at.
+        // The part of its range the herd keeps to moves on every few minutes, to wherever there are trees it hasn't been at: the nearest of a few drawn at random, so that it drifts
+        // about the isle rather than crossing it, as the way to the far side can go all round the Haven's village and take a whole visit to walk.
         private void MoveHome()
         {
             _homeLeft = HomeFor * Range(0.7f, 1.3f);
             if (Land.Trees.Count == 0) return;
+            float nearest = float.MaxValue;
+            Vector2 next = _home;
             for (int attempt = 0; attempt < 12; attempt++)
             {
                 Browse tree = Land.Trees[(int)(Next() * Land.Trees.Count) % Land.Trees.Count];
-                if ((tree.Trunk - _home).Length < Gather * 0.6f) continue;
+                float distance = (tree.Trunk - _home).Length;
+                if (distance < Gather * 0.6f || distance >= nearest) continue;
                 if (!Land.TryRoomNear(tree.Trunk, 6f, 30f, out _)) continue;
-                _home = tree.Trunk;
-                return;
+                nearest = distance;
+                next = tree.Trunk;
             }
+            _home = next;
         }
 
         // ---- What it does.
@@ -815,7 +846,7 @@ namespace Dino_Engine.Wildlife
             Vector2 toward = (giant.Middle - tree.Trunk);
             float facing = toward.LengthSquared > 1e-4f ? MathF.Atan2(toward.X, toward.Y) : 0f;
             float angle = facing + Range(-0.55f, 0.55f);
-            float height = Math.Clamp(giant.BiteHeight + Range(-2.4f, 0.8f), giant.Shape.LowestBite, MathF.Min(tree.Height - 0.4f, giant.Shape.HighestMouth));
+            float height = Math.Clamp(giant.BiteHeight + Range(-2.4f, 0.8f), giant.Shape.LowestBite, MathF.Max(MathF.Min(tree.Height - 0.4f, giant.Shape.HighestMouth), giant.Shape.LowestBite));
             float radius = MathF.Max(tree.RadiusAt(height), 1f) * Range(0.55f, 0.85f);
             Vector3 bite = new Vector3(tree.Trunk.X + MathF.Sin(angle) * radius, tree.Ground + height, tree.Trunk.Y + MathF.Cos(angle) * radius);
 
@@ -1059,6 +1090,7 @@ namespace Dino_Engine.Wildlife
         // Every tree, best first: near this giant and near the herd, tall ones a little ahead, and a little chance in it, and of those the first it has room to eat from. A range has a few dozen trees.
         private readonly List<(float Score, int Tree)> _candidates = new();
         private readonly List<Vector2> _others = new();
+        private readonly List<Vector2> _probe = new();
 
         private bool TryChooseTree(Giant giant, Vector2 near, Vector2 from, out Browse chosen, out Vector2 middle, out float yaw, out float height)
         {
@@ -1173,6 +1205,7 @@ namespace Dino_Engine.Wildlife
                 giant.Waited += deltaTime;
                 if (giant.Waited > 7f)
                 {
+                    Report?.Invoke($"giant {Members.IndexOf(giant)} gives up waiting at {giant.Middle.X:0},{giant.Middle.Y:0}");
                     giant.Waited = 0f;
                     ChooseNext(giant);
                     return;
@@ -1189,6 +1222,7 @@ namespace Dino_Engine.Wildlife
             if (!Allowed(giant, next, yaw))
             {
                 // Something's in the way the path didn't know about, or a corner was cut too fine: think again from here.
+                Report?.Invoke($"giant {Members.IndexOf(giant)} can't step on at {giant.Middle.X:0},{giant.Middle.Y:0}, slack {Land.Slack(giant.Shape, next, yaw):0.00}");
                 giant.Speed = 0f;
                 ChooseNext(giant);
                 return;
@@ -1204,7 +1238,8 @@ namespace Dino_Engine.Wildlife
         }
 
         // Every step and every turn is onto ground it can stand on. One that finds itself somewhere it can't move from shuffles out (TryWayOut).
-        private bool Allowed(Giant giant, Vector2 middle, float yaw) => Land.CanStand(giant.Shape, middle, yaw);
+        // With the same little give a shuffle has, as a walk that stopped for being a few centimetres short of the room it likes only shuffled out and set off again, over and over.
+        private bool Allowed(Giant giant, Vector2 middle, float yaw) => Land.CanStand(giant.Shape, middle, yaw, OutGive);
 
         private void StartShuffling(Giant giant, float give)
         {
@@ -1288,6 +1323,7 @@ namespace Dino_Engine.Wildlife
         private const float BetweenGive = 0.27f;    // and less again between the places it means to stand, as anywhere it passes is within half a step of one.
         private const float FootClear = 2.6f;       // Metres within which a foot never goes any nearer anyone standing still, at a scale of one,
         private const float StepOffAt = 3.1f;       // and within which it steps off them,
+        private const int NearsSteps = 4;           // Places along a step that each foot is looked at, for that.
         private const float SteppedOff = 3.6f;      // to this far.
         private const float TailClear = 4f;         // Metres from the line of its tail within which anyone stops it turning, at a scale of one.
         private const float TurnWait = 12f;         // Seconds it waits to turn for anyone in the way of it before thinking again.
@@ -1605,11 +1641,18 @@ namespace Dino_Engine.Wildlife
         // Whether going from one stance to the other takes any foot nearer someone that's close to them, or brings one close: the one rule every step near anyone standing still keeps.
         private static bool Nears(in GiantShape shape, Vector2 middle, float yaw, Vector2 nextMiddle, float nextYaw, Vector2 who)
         {
+            // Along the way as well as at the end: a foot can end further off someone and still have brushed nearer them on its way, which a plan would allow and a step refuse.
             float reach = FootClear * shape.Scale;
+            float turn = Spring.Shortest(nextYaw - yaw);
             for (int foot = 0; foot < 4; foot++)
             {
-                float then = (FootAt(shape, nextMiddle, nextYaw, foot) - who).Length;
-                if (then < reach && then < (FootAt(shape, middle, yaw, foot) - who).Length - 1e-4f) return true;
+                float now = (FootAt(shape, middle, yaw, foot) - who).Length;
+                for (int s = 1; s <= NearsSteps; s++)
+                {
+                    float t = s / (float)NearsSteps;
+                    float then = (FootAt(shape, Vector2.Lerp(middle, nextMiddle, t), yaw + turn * t, foot) - who).Length;
+                    if (then < reach && then < now - 1e-4f) return true;
+                }
             }
             return false;
         }

@@ -324,7 +324,7 @@ namespace Dino_Engine.Rendering.Renderers.AntiAliasing
         {
             Engine.PerformanceMonitor.startGPUTask("MSAA resolve");
             _resolveSceneShader.bind();
-            _resolveSceneShader.loadUniformFloat("exposure", renderEngine.Lighting.Exposure);
+            _resolveSceneShader.loadUniformFloat("exposure", renderEngine.Lighting.Exposure * renderEngine.Adaptation);
             BindTexture(0, _sceneBuffer.GetAttachment(0));
             renderEngine.lastUsedBuffer.RenderToNextFrameBuffer();
             _resolveSceneShader.unBind();

@@ -393,6 +393,7 @@ namespace Dino_Defenders.UI
 
         public readonly Wardrobe Wardrobe;
         public readonly UseMarks Marks = new();
+        public readonly ArchivePlaques Plaques = new();
         public readonly Hud Hud = new();
         public readonly LootLabels Labels = new();
         public readonly MapPanel Map;
@@ -403,6 +404,7 @@ namespace Dino_Defenders.UI
         public readonly SettingsPage Settings = new();
         public readonly ChroniclePanel Chronicle = new();
         public readonly MapTablePanel MapTable = new();
+        public readonly HallPanel HallTable;
         public readonly PauseMenu Pause;
         public readonly MultiplayerPage Multiplayer;
         public readonly LoadingScreen Loading = new();
@@ -420,13 +422,15 @@ namespace Dino_Defenders.UI
             Wardrobe = game.Wardrobe;
             Book = new BookPanel(Hero);
             Map = new MapPanel(CloseAll);
+            HallTable = new HallPanel(CloseAll);
             Pause = new PauseMenu(CloseAll, () => Into(Settings), () => Into(Glossary), () => Into(Multiplayer!), heroSelect, quit);
             Multiplayer = new MultiplayerPage(game);
             Bar = new ActionBar(Hero);
             Menu = new MenuScreen(game);
-            _panels = new GuiElement[] { Map, Hero, Talents, Book, Glossary, Chronicle, MapTable, Pause, Multiplayer, Settings };
+            _panels = new GuiElement[] { Map, Hero, Talents, Book, Glossary, Chronicle, MapTable, HallTable, Pause, Multiplayer, Settings };
 
             gui.Root.Add(Marks);
+            gui.Root.Add(Plaques);
             gui.Root.Add(Hud);
             gui.Root.Add(Labels);
             gui.Root.Add(Ground);
@@ -491,6 +495,7 @@ namespace Dino_Defenders.UI
             Hud.Visible = showing;
             Bar.Visible = showing;
             Marks.Visible = showing;
+            Plaques.Visible = showing;
             Labels.Visible = showing;
             Ground.Visible = showing;
         }
@@ -563,6 +568,11 @@ namespace Dino_Defenders.UI
                 case InteractKind.BetaVendor:
                     Hero.Visible = true;
                     Hero.OpenVendor();
+                    break;
+                case InteractKind.Workbench:
+                case InteractKind.GamingTable:
+                    HallTable.Visible = true;
+                    HallTable.Open(kind);
                     break;
             }
         }

@@ -34,11 +34,13 @@ namespace Dino_Engine.Wildlife
 
         public readonly WorldData World;
         private readonly TerrainSurface _surface;
+        private readonly RoadFrames _roads;
 
         public LifeLand(WorldData world)
         {
             World = world;
             _surface = new TerrainSurface(world);
+            _roads = new RoadFrames(world);
         }
 
         /// <summary>The ground as it's drawn. That's a little above where people stand, which is nothing to someone 4.7 m tall and the whole of a crab.</summary>
@@ -47,24 +49,48 @@ namespace Dino_Engine.Wildlife
         /// <summary>The same, near enough, for what asks often and is high up or small: a falling leaf.</summary>
         public float RoughGround(Vector2 at) => World.Height.Sample(at.X, at.Y) + TerrainRenderer.SurfaceOffset;
 
+        /// <summary>
+        /// What anything flying has to keep above at a point: the ground as it's drawn, or a hall's roof where one stands (HALLS.md), from a little past its eaves, so that a flock goes
+        /// over the building and never through it, which an open roof would show from inside.
+        /// </summary>
+        public float Overhead(Vector2 at) => MathF.Max(RoughGround(at), RoofAt(at));
+
+        /// <summary>The top of a hall over a point, from a little past its eaves, or nothing at all where none stands.</summary>
+        public float RoofAt(Vector2 at)
+        {
+            float top = float.NegativeInfinity;
+            foreach (WorldHall hall in World.Halls)
+            {
+                if (hall.Contains(at, hall.Design.Wall + hall.Design.Eaves + RoofBerth)) top = MathF.Max(top, hall.Floor + hall.Design.Top);
+            }
+            return top;
+        }
+
         /// <summary>Where the highest water over a point stands.</summary>
         public float WaterLevel(Vector2 at) => World.WaterLevelAt(at);
 
-        /// <summary>Whether a body could stand here: on the map, on dry ground, and clear of everything solid.</summary>
+        private const float HallBerth = 1.2f;       // Metres outside a hall's walls that nothing living goes, so that nothing wanders in through its doors.
+        private const float RoofBerth = 3f;         // Metres past a hall's eaves that anything flying keeps over its roof.
+
+        /// <summary>Whether a body could stand here: on the map, on dry ground, clear of everything solid, and out of the halls, which are people's.</summary>
         public bool CanStand(Vector2 at)
         {
-            return World.InBounds(at) && World.Passable.IsSet(at) && World.WaterDepthAt(at) <= 0.02f;
+            return World.InBounds(at) && World.Passable.IsSet(at) && World.WaterDepthAt(at) <= 0.02f && World.HallAt(at, HallBerth) == null;
         }
 
-        /// <summary>Whether something small could stand here, which goes wherever the ground isn't too steep and the water isn't over it.</summary>
+        /// <summary>Whether something small could stand here, which goes wherever the ground isn't too steep and the water isn't over it, but never into a hall.</summary>
         public bool CanScuttle(Vector2 at)
         {
-            return World.InBounds(at) && World.Walkable.IsSet(at) && World.WaterDepthAt(at) <= 0.02f;
+            return World.InBounds(at) && World.Walkable.IsSet(at) && World.WaterDepthAt(at) <= 0.02f && World.HallAt(at, HallBerth) == null;
         }
+
+        /// <summary>Whether a point is under a hall's roof, where nothing falls and nothing lives.</summary>
+        public bool UnderRoof(Vector2 at) => World.HallAt(at, 0.3f) != null;
 
         public Habitat HabitatAt(Vector2 at)
         {
             if (!World.InBounds(at)) return Habitat.None;
+            if (World.HallAt(at, HallBerth) != null) return Habitat.None;
 
             float level = World.WaterLevelAt(at);
             float height = World.Height.Sample(at);
@@ -79,7 +105,7 @@ namespace Dino_Engine.Wildlife
             }
 
             if (World.Rock.Sample(at) > 0.5f || World.Scree.Sample(at) > 0.5f) return Habitat.Crag;
-            if (World.Plaza.Sample(at) + World.Yard.Sample(at) > 0.4f) return Habitat.Yard;
+            if (World.Plaza.Sample(at) + World.Yard.Sample(at) > 0.4f || (World.Paved && World.Paving.Sample(at) > 0.4f)) return Habitat.Yard;
             if (World.Farmland.Sample(at) > 0.5f) return Habitat.Field;
 
             float canopy = World.Canopy.Sample(at);
@@ -94,7 +120,7 @@ namespace Dino_Engine.Wildlife
             Span<float> weights = stackalloc float[TerrainSurface.MaxMaterials];
             float height = World.Height.Sample(at);
             float slope = World.Height.SlopeAt(at);
-            _surface.Evaluate(at.X, at.Y, height, 1f / MathF.Sqrt(1f + slope * slope), weights, out GrassCell grass);
+            _surface.Evaluate(at.X, at.Y, height, 1f / MathF.Sqrt(1f + slope * slope), _roads.At(at), weights, out GrassCell grass);
             return grass;
         }
 

@@ -35,7 +35,7 @@ namespace Dino_Engine.Particles.Content
             Emitters = new[]
             {
                 new ParticleEmitter { Style = Glows.Ring(ParticlePalette.White), Burst = 1, Fills = true, Place = EmitterPlace.Ground, Size = R(1f, 1f), Life = R(0.4f, 0.4f), Tint = new Vector3(0.55f, 0.6f, 0.65f) },
-                new ParticleEmitter { Style = Smoke.Dust, Burst = 16, Spreads = true, Place = EmitterPlace.Ground, Offset = new Vector3(0f, 0.66f, 0f), Size = R(0.77f, 1.32f), Life = R(0.9f, 1.4f), Outward = 10.5f, Spin = R(0.2f, 0.6f) },
+                new ParticleEmitter { Style = Smoke.Dust, Burst = 10, Spreads = true, Place = EmitterPlace.Ground, Offset = new Vector3(0f, 0.66f, 0f), Size = R(0.77f, 1.32f), Life = R(0.9f, 1.4f), Outward = 10.5f, Spin = R(0.2f, 0.6f) },
             },
         };
 

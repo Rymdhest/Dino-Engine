@@ -175,6 +175,7 @@ Choices made without asking. Say if any are wrong.
 - **The Haven's giants are free**, the only great beasts the Reich never found, as it never found the Haven, and there are three. They're after Brachiosaurus and Giraffatitan, and they boom with their mouths shut, as they aren't bred and wrong.
 - **A raptor is a little slower than a hero**, 9.6 m/s against 10, so a pack can be got away from by someone who stops fighting.
 - **The Haven is an isle of blossom in a golden evening**, peaceful and warm, with no black iron, oxblood or brass anywhere in it but the orders a Defender brings back.
+- **The Haven is a little town of people who got out**, timber-framed, with three halls anyone can walk into, each kept by one of them: the Forge, a smith's; the Gaming House, a dealer's, where gold goes on cards and dice; and the Archive, an archivist's, where what the Defenders have done is kept on displays, every foe and tyrant brought down, every fall and the swiftest land freed among it, as the Haven remembers what it owes (`HALLS.md`).
 - **Orders' names** are the Reich's plain army words and its tongue: a Kommandant, a Brutmeister, a garrison and a writ.
 
 ## Where this came from

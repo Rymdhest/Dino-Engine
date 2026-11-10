@@ -52,7 +52,7 @@ namespace Dino_Engine.Particles.Content
             Light = new EffectLight { Colour = new Vector3(1f, 0.82f, 0.62f), Intensity = 270f, Radius = 16f, Height = 2.64f, Flicker = 0f, Length = 0.35f },
             Emitters = new[]
             {
-                new ParticleEmitter { Style = Steam, Burst = 9, Offset = new Vector3(0f, 1.76f, 0f), Size = R(1.32f, 2.2f), Life = R(1.2f, 1.8f), Outward = 3.75f, Speed = R(1.5f, 3.75f), Spread = 0.6f, Spin = R(0.2f, 0.6f) },
+                new ParticleEmitter { Style = Steam, Burst = 6, Offset = new Vector3(0f, 1.76f, 0f), Size = R(1.32f, 2.2f), Life = R(1.2f, 1.8f), Outward = 3.75f, Speed = R(1.5f, 3.75f), Spread = 0.6f, Spin = R(0.2f, 0.6f) },
             },
         };
 

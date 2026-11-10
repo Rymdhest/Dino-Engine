@@ -24,7 +24,7 @@ namespace Dino_Defenders.Client
     public sealed class GiantShow
     {
         private const float FootShare = 0.34f;      // As PlantContactSystem has it: how wide a foot's mark is, of the body's.
-        private const float FootMark = 1.35f;       // Metres from the middle of a foot that it presses the grass, at a scale of one.
+        private const float FootMark = 2.6f;        // Metres from the middle of a foot that it presses the grass, at a scale of one: well past the foot itself, as a weight that size flattens what's round it.
         private const float TreadReach = 6.5f;      // Metres the ring a foot sends through the grass goes out,
         private const float TreadGust = 5.5f;       // as a wind this many metres a second at its front,
         private const float TreadFor = 0.7f;        // for this long: under anything that breaks what it reaches (BreakageSystem.BreakingWind).
@@ -146,7 +146,7 @@ namespace Dino_Defenders.Client
                     new RotationComponent(Frames.Yaw(giant.Yaw)),
                     new ScaleComponent(new Vector3(scale)),
                     new LocalToWorldMatrixComponent(),
-                    new CharacterModelComponent(models[giant.Index]) { Opens = true, Faded = 1f - _shown },
+                    new CharacterModelComponent(models[giant.Index]) { Faded = 1f - _shown },
                     new AnimatorComponent(animator),
                     new SkeletonComponent(bearing.Rig, animator.Skinning),
                     new VelocityComponent(),
@@ -196,7 +196,7 @@ namespace Dino_Defenders.Client
                     continue;
                 }
                 bool turf = Footsteps.GroundOf(_world.SurfaceAt(at.Xz)) == Ground.Grass;
-                Particles.Play(Smoke.Puff, at, (turf ? 0.45f : 0.65f) * scale, EffectShape.Ball(FootMark * scale), strength: turf ? 0.35f : 0.75f);
+                Particles.Play(Smoke.Puff, at, (turf ? 0.45f : 0.65f) * scale, EffectShape.Ball(1.35f * scale), strength: turf ? 0.35f : 0.75f);
             }
         }
 

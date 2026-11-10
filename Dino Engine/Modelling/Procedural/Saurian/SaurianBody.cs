@@ -76,6 +76,35 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             return _answer;
         }
 
+        /// <summary>
+        /// How far along it a point is, softly: every stretch counts by how near it is, within about <paramref name="softness"/> metres of the nearest. Where the line bends sharply, as a giant's
+        /// does from its chest up into its neck, the nearest stretch jumps from one side of the bend to the other between neighbouring points, and this doesn't.
+        /// </summary>
+        public float Soft(Vector3 p, float softness)
+        {
+            float best = float.MaxValue;
+            Span<float> distances = Points.Length <= 1024 ? stackalloc float[Points.Length] : new float[Points.Length];
+            Span<float> alongs = Points.Length <= 1024 ? stackalloc float[Points.Length] : new float[Points.Length];
+            for (int i = 0; i + 1 < Points.Length; i++)
+            {
+                Vector3 a = Points[i], b = Points[i + 1];
+                Vector3 ab = b - a;
+                float t = Math.Clamp(Vector3.Dot(p - a, ab) / MathF.Max(ab.LengthSquared, 1e-9f), 0f, 1f);
+                distances[i] = (a + ab * t - p).Length;
+                alongs[i] = Along[i] + (Along[i + 1] - Along[i]) * t;
+                best = MathF.Min(best, distances[i]);
+            }
+            double sum = 0.0, weights = 0.0;
+            for (int i = 0; i + 1 < Points.Length; i++)
+            {
+                double w = Math.Exp(-(distances[i] - best) / softness);
+                if (w < 1e-4) continue;
+                sum += alongs[i] * w;
+                weights += w;
+            }
+            return (float)(sum / weights);
+        }
+
         private float Search(Vector3 p, out float distance)
         {
             float best = float.MaxValue;
@@ -476,8 +505,9 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Tail2At = HipAt - tailRun * 0.42f;
             Tail3At = HipAt - tailRun * 0.6f;
             TipAt = HipAt - tailRun * 0.78f;
-            SpineAt = HipAt + (shoulderAt - HipAt) * 0.45f;
-            ChestAt = HipAt + (shoulderAt - HipAt) * 0.92f;
+            // The chest's joint stands well back from the shoulders, so that its skin and the neck's have room to blend over a body this thick: up against the neck, they met in a line that tore.
+            SpineAt = HipAt + (shoulderAt - HipAt) * 0.4f;
+            ChestAt = HipAt + (shoulderAt - HipAt) * 0.74f;
 
             // Five bones up the neck, evenly, so that it can curve along all of its length.
             float neckRun = HeadAt - NeckAt;

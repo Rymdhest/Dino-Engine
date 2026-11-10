@@ -141,7 +141,7 @@ Geometry reads last frame's map, as geometry draws before shadows, so the new ma
 
 Every material gets wet, in the geometry pass, so that sun, sky, lamps and reflections all see the same surface (`Weather/Wetness.glsl`). After Lagarde's "Water drop" series:
 
-- **Water in the pores darkens a surface** and deepens its colour, because light that would have come back out is caught in there. How much is the material's **porosity**. That's the wetness factor every material has: `TextureGenerator.SetPorosity`, a line per material, read by index in the shader.
+- **Water in the pores darkens a surface** and deepens its colour, because light that would have come back out is caught in there. How much is the material's **porosity**. That's the wetness factor every material has: its `Porosity` in `MaterialCatalog`, read by index in the shader.
 - **It also gets smoother**, as the water fills in what scattered the light.
 - **A film forms** over time. Thirsty things drink it. It stands on metal, glass and ice, which take in nothing.
 - **Water stands where it's low**: first between the stones of whatever's rough (the material's own height), then in the ground's hollows as puddles, flat and nearly mirror-smooth.

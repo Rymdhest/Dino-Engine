@@ -2,6 +2,8 @@ using Dino_Engine.Core;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Architecture;
+using Dino_Engine.Modelling.Procedural.Architecture.Halls;
+using Dino_Engine.Modelling.Procedural.Architecture.Plaza;
 using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.Modelling.Procedural.Rock;
@@ -25,6 +27,7 @@ namespace Dino_Engine.World
 
         private readonly ConcurrentDictionary<string, glModel> _models = new();
         private readonly ConcurrentDictionary<string, FloraMesh> _grown = new();
+        private readonly ConcurrentDictionary<string, (Mesh Mesh, List<AssetLight> Lights)> _forged = new();
         private readonly Dictionary<string, List<Vector3>> _chimneys = new();
         private readonly Dictionary<string, List<AssetLight>> _lights = new();
         private HashSet<string> _lastWorld = new();
@@ -47,9 +50,16 @@ namespace Dino_Engine.World
         public void Grow(IEnumerable<string> ids)
         {
             var wanted = new List<(string id, int slowness, Func<FloraMesh> make)>();
+            var forging = new List<(string id, PlazaSpec spec)>();
             foreach (string id in ids)
             {
-                if (_models.ContainsKey(id) || _grown.ContainsKey(id)) continue;
+                if (_models.ContainsKey(id) || _grown.ContainsKey(id) || _forged.ContainsKey(id)) continue;
+                // A square's pieces are headless too, so they're built here rather than on the frame that first draws them (SQUARE.md).
+                if (PlazaSpec.TryParse(id, out PlazaSpec piece))
+                {
+                    forging.Add((id, piece));
+                    continue;
+                }
                 if (FenceSpec.TryParse(id, out FenceSpec fence))
                 {
                     wanted.Add((id, 0, () => FenceForge.Make(fence)));
@@ -66,6 +76,12 @@ namespace Dino_Engine.World
             Parallel.ForEach(queue, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
             {
                 _grown[item.id] = item.make();
+            });
+            Parallel.ForEach(Partitioner.Create(forging, EnumerablePartitionerOptions.NoBuffering), new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
+            {
+                var lights = new List<AssetLight>();
+                Mesh mesh = PlazaForge.Make(item.spec, lights);
+                _forged[item.id] = (mesh, lights);
             });
         }
 
@@ -148,8 +164,23 @@ namespace Dino_Engine.World
             }
         }
 
-        private static Mesh BuildStructure(string id, List<Vector3> chimneys, List<AssetLight> lights, out float imposterDistance)
+        private Mesh BuildStructure(string id, List<Vector3> chimneys, List<AssetLight> lights, out float imposterDistance)
         {
+            if (HallDesigns.TryParseAsset(id, out HallDesign hall, out bool inside))
+            {
+                imposterDistance = 0f;
+                return HallForge.Build(hall, inside, chimneys, lights);
+            }
+            if (PlazaSpec.TryParse(id, out PlazaSpec piece))
+            {
+                imposterDistance = 0f;
+                if (_forged.TryRemove(id, out var forged))
+                {
+                    lights.AddRange(forged.Lights);
+                    return forged.Mesh;
+                }
+                return PlazaForge.Make(piece, lights);
+            }
             StructureDefinition definition = StructureCatalog.Parse(id, out BuildingStyle style, out int variant);
             imposterDistance = definition.ImposterDistance;
 

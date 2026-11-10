@@ -288,7 +288,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             float ridgeY = eaveY + rise;
             float ridgeHalf = half.X + overhang * 0.75f;
 
-            b.TilesPerMetre = 0.14f;
             float seedA = random.Float() * 20f;
             float seedB = random.Float() * 20f;
 
@@ -312,7 +311,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 b.Quad(side > 0 ? outer + down : peak + down, side > 0 ? peak + down : outer + down, side > 0 ? peak : outer, side > 0 ? outer : peak, kit.Roof);
                 b.Quad(side > 0 ? peak + down : far + down, side > 0 ? far + down : peak + down, side > 0 ? far : peak, side > 0 ? peak : far, kit.Roof);
             }
-            b.TilesPerMetre = 0.2f;
 
             // Gable ends.
             for (int side = -1; side <= 1; side += 2)
@@ -357,7 +355,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             float ridgeY = eaveY + rise;
             float ridgeHalf = MathF.Max(x - z, x * 0.14f);
 
-            b.TilesPerMetre = 0.16f;
             float upsweep = kit.Upsweep;
 
             // A slope is the eave along one edge running up to the ridge; `sag` dishes it, and the end of the eave lifts.
@@ -383,7 +380,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Surface(14, 7, (u, v) => Point(backRight, backLeft, r1, r0, u, v), material);
             b.Surface(10, 7, (u, v) => Point(frontRight, backRight, r1, r1, u, v), material);
             b.Surface(10, 7, (u, v) => Point(backLeft, frontLeft, r0, r0, u, v), material);
-            b.TilesPerMetre = 0.2f;
 
             // The heavy ridge, and its ends turned up.
             float ridgeTop = ridgeY - 0.18f;
@@ -429,9 +425,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             // One slope, higher at the front.
             float reachX = half.X + 0.5f;
             float reachZ = half.Y + 0.6f;
-            b.TilesPerMetre = 0.14f;
             b.Surface(4, 3, (u, v) => new Vector3((u * 2f - 1f) * reachX, 5.3f + (0.5f - v) * 1.5f, (1f - v * 2f) * reachZ), kit.Roof);
-            b.TilesPerMetre = 0.2f;
             b.Quad(new Vector3(-1.4f, 0.4f, half.Y), new Vector3(1.4f, 0.4f, half.Y), new Vector3(1.4f, 4.6f, half.Y), new Vector3(-1.4f, 4.6f, half.Y), kit.Door);
             return b.Build();
         }

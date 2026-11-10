@@ -53,6 +53,11 @@ namespace Dino_Defenders.Server
 
         /// <summary>Whether what this land means for their climb has been settled, freed or lost, so that it's never counted twice.</summary>
         public bool Judged;
+
+        /// <summary>When they arrived in this land, in the session's seconds, and whether all of their time in it since is that, for the swiftest land they've freed: not if the land
+        /// was taken up again from a save, or they arrived already fallen.</summary>
+        public double ArrivedAt;
+        public bool Timed;
         public uint GhostId;
         public bool WindingUp;      // A blow's been started and hasn't landed.
         public double? CallingSince;    // When they began calling the old roads, in the session's seconds, and from where, and at the least health they've had since.

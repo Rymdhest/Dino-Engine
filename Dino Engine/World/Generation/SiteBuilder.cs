@@ -112,6 +112,73 @@ namespace Dino_Engine.World.Generation
             return true;
         }
 
+        private const float DoorstepDepth = 4.5f;      // Metres of ground kept clear in front of a hall's door, so that nothing built later stands in the way in.
+        private const float HallPadMargin = 6f;
+
+        /// <summary>
+        /// Puts down a hall of a kind if it fits, with its front (+z) turned by <paramref name="yaw"/>: the whole of it is kept for it, its walls and whatever stands in it are solid as its design
+        /// says, the ground under it is levelled to its floor, and the ground in front of its doors is kept clear. Read HALLS.md.
+        /// </summary>
+        public bool PlaceHall(HallKind kind, Vector2 centre, float yaw, out WorldHall hall, float padding = 2f, float maxSlope = 0.3f)
+        {
+            HallDesign design = HallDesigns.Of(kind);
+            hall = null!;
+            Footprint footprint = Footprint.Box(centre, design.Half, yaw);
+            if (!Fits(footprint, maxSlope, padding)) return false;
+
+            var probe = new WorldHall(design, centre, yaw, 0f);
+            foreach (HallPiece piece in design.Outside)
+            {
+                if (!Fits(probe.FootprintOf(piece), maxSlope, 0.6f)) return false;
+            }
+            foreach (HallOpening door in design.Doors)
+            {
+                Footprint step = Doorstep(probe, door);
+                if (!GroundFits(step, maxSlope) || World.Placement.Overlaps(step, PlacementLayer.Built, 0.2f)) return false;
+            }
+
+            float floor = AverageGround(footprint);
+            hall = new WorldHall(design, centre, yaw, floor);
+
+            // Kept whole for the hall, but not solid: its walls and what stands in it are.
+            World.Placement.Add(footprint, PlacementLayer.Structure);
+            World.Pads.Add(new GroundPad(footprint, floor, HallPadMargin));
+            World.Clearings.Add(new Clearing(centre, design.Half.Length + 2f, 14f));
+            foreach (HallOpening door in design.Doors) World.Placement.Add(Doorstep(hall, door), PlacementLayer.Keepout);
+
+            float half = design.Wall * 0.5f;
+            foreach ((Vector2 from, Vector2 to) in design.WallRuns())
+            {
+                World.Placement.Add(Footprint.Segment(hall.ToWorld(from), hall.ToWorld(to), half), PlacementLayer.Prop, solid: true, height: PlacementIndex.Tall);
+            }
+            foreach (HallPiece piece in design.Pieces)
+            {
+                if (piece.Solid) World.Placement.Add(hall.FootprintOf(piece), PlacementLayer.Prop, solid: true, height: piece.Height);
+            }
+            foreach (HallPiece piece in design.Outside)
+            {
+                World.Placement.Add(hall.FootprintOf(piece), PlacementLayer.Prop, solid: piece.Solid, height: piece.Height);
+            }
+            foreach (HallSpot spot in design.Spots) Spawn(spot.Role, hall.ToWorld(spot.At));
+
+            World.Halls.Add(hall);
+            World.Pending.Add(new PendingObject(design.ShellAsset, centre, yaw, Vector3.One, floor));
+            World.Pending.Add(new PendingObject(design.InsideAsset, centre, yaw, Vector3.One, floor));
+            return true;
+        }
+
+        /// <summary>The ground kept clear in front of a hall's door.</summary>
+        public static Footprint Doorstep(WorldHall hall, HallOpening door)
+        {
+            Vector2 local = hall.Design.Doorstep(door, DoorstepDepth * 0.5f + 0.05f);
+            Vector2 outward = HallDesign.Outward(door.Side);
+            Vector2 half = outward.X != 0f ? new Vector2(DoorstepDepth * 0.5f, door.HalfWidth + 0.8f) : new Vector2(door.HalfWidth + 0.8f, DoorstepDepth * 0.5f);
+            return Footprint.Box(hall.ToWorld(local), half, hall.Yaw);
+        }
+
+        /// <summary>Where the way into a hall's door begins, on the ground outside it, <paramref name="out_"/> metres from its wall.</summary>
+        public static Vector2 DoorOutside(WorldHall hall, HallOpening door, float out_) => hall.ToWorld(hall.Design.Doorstep(door, out_));
+
         private static Footprint Scaled(StructureDefinition definition, Vector2 position, float yaw, float scale)
         {
             return definition.IsRound

@@ -12,6 +12,7 @@ layout(location=4) in vec2 uv;
 layout(location=5) in float materialIndex;
 layout(location=6) in mat4 modelMatrix;
 layout(location=10) in float joint;
+layout(location=11) in vec4 edges;      // Metres to each edge of the face (MeshBuilder), or far off: the relief comes up to nothing at a corner.
 
 out vec3 fragColor;
 out vec2 fragUV;
@@ -19,6 +20,7 @@ out mat3 normalTBN;
 out vec3 worldNormal;
 out vec3 viewSpacePos;
 out float textureIndex;
+out vec4 fragEdges;
 flat out float fragFocusOccluder;
 
 uniform int plant;
@@ -41,6 +43,7 @@ void main() {
 	mat3 normalMatrix = mat3(cross(modelView[1], modelView[2]), cross(modelView[2], modelView[0]), cross(modelView[0], modelView[1]));
 	if (dot(modelView[0], normalMatrix[0]) < 0.0) normalMatrix = -normalMatrix;
 	fragUV = uv;
+	fragEdges = edges;
 	textureIndex = materialIndex;
 	fragFocusOccluder = focusOccluder(modelSize, modelMatrix);
 	worldNormal = N;

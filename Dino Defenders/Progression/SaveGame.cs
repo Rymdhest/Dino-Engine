@@ -175,6 +175,9 @@ namespace Dino_Defenders.Progression
             save.Hero.BestLand = Math.Max(save.Hero.BestLand, 0);
             save.Hero.Rerolls = (save.Hero.Rerolls ?? new()).Where(pair => pair.Key >= 1 && pair.Value > 0).ToDictionary(pair => pair.Key, pair => pair.Value);
             TalentTree.Sanitize(save.Hero);
+            save.Hero.Records ??= new HeroRecords();
+            save.Hero.Records.Sanitize();
+            save.Hero.HallsOpen = (save.Hero.HallsOpen ?? new List<string>()).Where(name => Enum.TryParse<Dino_Engine.World.HallKind>(name, out _)).Distinct().ToList();
             save.Terms.Sanitize();
             return save;
         }

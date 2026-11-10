@@ -58,6 +58,7 @@ namespace Dino_Engine.ECS.Systems
                 {
                     Matrix4 mat = matrixArray[i].value;
                     glModel model = modelArray[i].model;
+                    if (model.Hidden) continue;
 
                     // What the camera can't see never reaches the GPU, whose vertex work is most of what a forest costs.
                     model.WorldBounds(mat, out Vector3 centre, out float radius);

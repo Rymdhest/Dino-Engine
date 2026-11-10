@@ -10,10 +10,11 @@ const float REFLECT_MAX_ROUGHNESS = 0.72;
 const float REFLECT_MIRROR_ROUGHNESS = 0.09;
 
 // Whether a surface gets rays of its own, and the reflection pass's attention. Thin, translucent things (blades, leaves) are too fine to reflect anything but the sky, and rays off them would only
-// sparkle. Whatever this turns down reflects the sky in the ambient pass, so every pass that asks must ask of the same stored values.
+// sparkle. Whatever this turns down reflects the sky in the ambient pass, so every pass that asks must ask of the same stored values. Translucency is stored as what gets through, less what the
+// thickness takes (gBufferUtil.glsl's transmittance), which is a third or so of what a leaf or a blade says of itself: anything that lets a tenth through is thin.
 bool reflectionWanted(float roughness, float translucency)
 {
-    return roughness < REFLECT_MAX_ROUGHNESS && translucency < 0.3;
+    return roughness < REFLECT_MAX_ROUGHNESS && translucency < 0.1;
 }
 
 float reflectionD(float NdotH, float alpha2)

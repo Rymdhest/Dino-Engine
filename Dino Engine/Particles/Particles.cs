@@ -68,6 +68,14 @@ namespace Dino_Engine.Particles
 
         public static bool Spawn(ParticleStyle style, in ParticleSpawn spawn, ParticlePriority priority = ParticlePriority.Normal)
         {
+            // Smoke only comes out where there's room for it.
+            float strength = spawn.Strength;
+            if (style.Sprite == ParticleSprite.Smoke)
+            {
+                strength *= Haze.Admit(style, spawn.Position, spawn.Size, spawn.Strength, Pool.Clock);
+                if (!(strength > 0f)) return false;
+            }
+
             var particle = new GpuParticle
             {
                 Position = spawn.Position,
@@ -81,7 +89,7 @@ namespace Dino_Engine.Particles
                 Seed = Random.Float(),
                 Style = (uint)ParticleStyles.IndexOf(style),
                 Ground = NeedsGround(style) ? GroundPlane(spawn.Position.X, spawn.Position.Z) : Vector4.Zero,
-                Tint = new Vector4(spawn.Tint, spawn.Strength),
+                Tint = new Vector4(spawn.Tint, strength),
             };
             return Pool.TrySpawn(particle, priority);
         }
@@ -118,6 +126,7 @@ namespace Dino_Engine.Particles
         {
             _playing.Clear();
             Pool.Clear();
+            Haze.Clear();
         }
 
         /// <summary>The height of the land, or of the sea over it.</summary>

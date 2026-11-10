@@ -286,6 +286,8 @@ namespace Dino_Defenders.UI
             InteractKind.Stash => "Stash",
             InteractKind.MapTable => "Map Table",
             InteractKind.BetaVendor => "Beta Vendor",
+            InteractKind.Workbench => "Crafting Bench",
+            InteractKind.GamingTable => "Gaming Table",
             _ => "Elder",
         };
 
@@ -295,9 +297,10 @@ namespace Dino_Defenders.UI
             InteractKind.Shrine => 4.4f,
             InteractKind.Chest => 2.3f,
             InteractKind.Waygate => 5f,
-            InteractKind.Portal => 7.5f,
+            InteractKind.Portal => 6.5f,
             InteractKind.MapTable => 3f,
             InteractKind.Stash => 3.6f,
+            InteractKind.Workbench or InteractKind.GamingTable => 3.4f,
             _ => 5.2f,
         };
 
@@ -309,6 +312,8 @@ namespace Dino_Defenders.UI
             InteractKind.Waygate or InteractKind.Portal => GuiColors.Rgba(104, 206, 255),
             InteractKind.MapTable => GuiColors.Rgba(150, 214, 255),
             InteractKind.Stash => GuiColors.Rgba(214, 188, 146),
+            InteractKind.Workbench => GuiColors.Rgba(250, 156, 92),
+            InteractKind.GamingTable => GuiColors.Rgba(236, 176, 200),
             _ => GuiColors.Rgba(240, 228, 204),
         };
 
@@ -372,6 +377,37 @@ namespace Dino_Defenders.UI
                     draw.AddLine(c + new Vector2(-s * 0.9f, s * 0.25f), c + new Vector2(s * 0.9f, s * 0.25f), colour, Stroke);
                     draw.AddCircle(c + new Vector2(-s * 0.3f, -s * 0.62f), s * 0.28f, GuiColors.Transparent, Stroke, colour);
                     draw.AddCircle(c + new Vector2(s * 0.3f, -s * 0.62f), s * 0.28f, GuiColors.Transparent, Stroke, colour);
+                    break;
+                case InteractKind.Workbench:
+                    // An anvil, and a hammer over it.
+                    _line.Clear();
+                    _line.Add(c + new Vector2(-s * 1.05f, -s * 0.15f));
+                    _line.Add(c + new Vector2(s * 0.75f, -s * 0.15f));
+                    _line.Add(c + new Vector2(s * 0.75f, s * 0.15f));
+                    _line.Add(c + new Vector2(s * 0.3f, s * 0.3f));
+                    _line.Add(c + new Vector2(s * 0.45f, s * 0.85f));
+                    _line.Add(c + new Vector2(-s * 0.55f, s * 0.85f));
+                    _line.Add(c + new Vector2(-s * 0.35f, s * 0.3f));
+                    _line.Add(c + new Vector2(-s * 0.65f, s * 0.1f));
+                    _line.Add(c + new Vector2(-s * 1.05f, -s * 0.15f));
+                    draw.AddPolyline(_line, colour, Stroke);
+                    draw.AddLine(c + new Vector2(s * 0.1f, -s * 0.45f), c + new Vector2(s * 0.95f, -s * 1.15f), colour, Stroke, roundCaps: true);
+                    draw.AddRect(new GuiRect(c.X - s * 0.25f, c.Y - s * 0.75f, s * 0.6f, s * 0.36f), GuiColors.Transparent, s * 0.08f, Stroke, colour);
+                    break;
+                case InteractKind.GamingTable:
+                    // Two dice, one turned against the other.
+                    draw.AddRect(new GuiRect(c.X - s * 1.05f, c.Y - s * 0.2f, s * 1.0f, s * 1.0f), GuiColors.Transparent, s * 0.2f, Stroke, colour);
+                    draw.AddCircle(c + new Vector2(-s * 0.55f, s * 0.3f), s * 0.13f, colour);
+                    draw.AddCircle(c + new Vector2(-s * 0.82f, s * 0.04f), s * 0.11f, colour);
+                    draw.AddCircle(c + new Vector2(-s * 0.28f, s * 0.56f), s * 0.11f, colour);
+                    _line.Clear();
+                    _line.Add(c + new Vector2(s * 0.1f, -s * 0.55f));
+                    _line.Add(c + new Vector2(s * 0.75f, -s * 0.95f));
+                    _line.Add(c + new Vector2(s * 1.15f, -s * 0.3f));
+                    _line.Add(c + new Vector2(s * 0.5f, s * 0.1f));
+                    _line.Add(c + new Vector2(s * 0.1f, -s * 0.55f));
+                    draw.AddPolyline(_line, colour, Stroke);
+                    draw.AddCircle(c + new Vector2(s * 0.62f, -s * 0.42f), s * 0.12f, colour);
                     break;
                 case InteractKind.Merchant:
                     draw.AddCircle(c + new Vector2(0f, s * 0.25f), s * 0.8f, GuiColors.Transparent, Stroke, colour);

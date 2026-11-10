@@ -7,6 +7,7 @@ in vec3 fragColor;
 in vec2 fragUV;
 in float textureIndex;
 in mat3 normalTBN;
+in vec3 viewPosition;
 
 uniform int numberOfMaterials;
 uniform sampler2DArray albedoMapTextureArray;
@@ -20,6 +21,7 @@ layout (location = 0) out vec4 outColour;
 layout (location = 1) out vec4 outNormal;
 
 #include textureUtil.glsl
+#include Surface/SurfaceFrame.glsl
 
 const vec3 KEY = normalize(vec3(-0.55, 0.7, 0.55));
 const vec3 FILL = normalize(vec3(0.75, 0.05, 0.45));
@@ -42,15 +44,14 @@ vec3 paintedSky(vec3 direction) {
 }
 
 void main() {
-	vec2 dx = dFdx(fragUV);
-	vec2 dy = dFdy(fragUV);
-	MaterialProps material = LookupAllMaterialPropsGrad(fragUV, textureIndex, dx, dy);
+	// The surface's own normal turned to face whoever's looking, whichever way the mesh is wound, and the frame the texture coordinates make, worked out
+	// before anything's discarded, as derivatives after that mean nothing.
+	vec3 facing = normalize(normalTBN[2]) * (gl_FrontFacing ? 1.0 : -1.0);
+	SurfaceFrame frame = surfaceFrame(viewPosition, facing, fragUV);
+	MaterialProps material = LookupAllMaterialPropsGrad(fragUV, textureIndex, frame.uvDx, frame.uvDy);
 	if (material.alpha < 0.5) discard;
 
-	vec3 tangentNormal = normalize(material.normal);
-	if (!gl_FrontFacing) tangentNormal.z *= -1.0;
-	vec3 N = normalize(normalTBN * tangentNormal);
-	if (!gl_FrontFacing) N = -N;
+	vec3 N = surfaceNormal(frame, normalize(material.normal), facing);
 
 	float overbright = max(max(fragColor.r, max(fragColor.g, fragColor.b)), 1.0);
 	vec3 albedo = material.albedo * fragColor / overbright;

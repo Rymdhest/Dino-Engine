@@ -17,6 +17,8 @@ namespace Dino_WorldLab
     ///   relief  [--seed N] [--count N] [--archetype id]                        What the land is made of, and where the rock stands highest.
     ///   view    --at x,z [--seed N] [--archetype id] [--span m] [--angle d] [--yaw d] [--out f]  A drawing of a place, for shaping land with no game.
     ///   wind                                                                   Puts the wind through what a game does to it. Exit code 1 on any problem.
+    ///   halls                                                                  Builds every hall's models and says what they cost. Exit code 1 if one costs too much.
+    ///   square                                                                 Builds every piece of the Haven's square and says what it costs. Exit code 1 on any problem.
     /// </summary>
     internal static class Program
     {
@@ -46,6 +48,10 @@ namespace Dino_WorldLab
                     return ReliefCheck.Probe(options.Int("seed", 1), options.Text("archetype"), new Vector2(float.Parse(probe[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(probe[1], System.Globalization.CultureInfo.InvariantCulture)));
                 case "wind":
                     return WindCheck.Run();
+                case "halls":
+                    return HallCheck.Run();
+                case "square":
+                    return SquareCheck.Run();
                 case "weather":
                     if (options.Text("out") is string path) return WeatherCheck.Map(options.Int("seed", 1), options.Text("archetype"), path, options.Int("clock", 0), options.Int("every", 4), options.Int("maps", 5));
                     return WeatherCheck.Run(options.Int("count", 3));
@@ -298,7 +304,7 @@ namespace Dino_WorldLab
             var biomes = string.Join(", ", plan.Biomes.Select((b, i) => $"{b.Name} {plan.BiomeShares[i]:P0}"));
             float roadKm = world.Roads.Sum(r => r.Length) / 1000f;
             var sites = string.Join(" ", world.Sites.GroupBy(s => s.Kind).Select(g => $"{g.Key}:{g.Count()}"));
-            Console.WriteLine($"[{plan.Seed}] {plan.Name} ({plan.Archetype.Id}, {plan.Size:0} m, {seconds:0.00} s, {world.ReachableArea / 1e6f:0.00} km2, {roadKm:0.0} km road): {biomes}");
+            Console.WriteLine($"[{plan.Seed}] {plan.Name} ({plan.Archetype.Id}, {plan.Size:0} m, {seconds:0.00} s, {world.ReachableArea / 1e6f:0.00} km2, {roadKm:0.0} km road, built in {world.Style}): {biomes}");
             Console.WriteLine($"      {sites}");
             Console.WriteLine($"      {world.Objects.Count} objects, {world.Placement.Count} footprints, {world.Ponds.Count} ponds | " +
                 string.Join(" ", world.Timings.Select(t => $"{t.stage.Replace("Stage", "")}:{t.milliseconds:0}")));

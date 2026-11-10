@@ -132,8 +132,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.Blend);
             _shader.bind();
-            _shader.loadUniformFloat("parallaxDepth", 0f);
-            _shader.loadUniformFloat("parallaxLayers", 5f);
+            _shader.loadUniformFloat("reliefScale", renderEngine.ReliefScale);
             _shader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
             GL.ActiveTexture(TextureUnit.Texture0);

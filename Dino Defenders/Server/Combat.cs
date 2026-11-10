@@ -997,6 +997,13 @@ namespace Dino_Defenders.Server
             Recover(source, skill, total);
             Afflict(source, skill, target, raw, burnFuel, hit.Total, strength);
 
+            // The hardest a hero's own blow has ever landed, for the Archive. Nothing else's: what fights for them has its own hands.
+            if (source.Player is ServerPlayer striker && total > striker.Hero.Records.HardestBlow && source.IsFoeOf(target))
+            {
+                striker.Hero.Records.Struck(total);
+                striker.SummaryChanged = true;
+            }
+
             bool anyHit = source.Sheet.Has(Rule.ExecuteAny);
             float execute = skill.Execute + (anyHit ? ExecuteAnyReach : 0f);
             if ((hit.Critical || anyHit) && execute > 0f && target.Vitals.Health < target.Sheet.MaxHealth * execute / 100f) target.Vitals.Health = 0f;
@@ -1757,6 +1764,14 @@ namespace Dino_Defenders.Server
             killer.KillHeat += 1f;
             killer.Vitals.Debt *= 1f - DebtForgiven;
             if ((victim.Nature & (Condition.Rare | Condition.Boss)) != 0) killer.RaresSlain++;
+
+            // Kept for the Archive: every foe brought down, by the hero or whatever fights for them, and every tyrant among them.
+            if (killer.Player is ServerPlayer slayer)
+            {
+                slayer.Hero.Records.Slain++;
+                if ((victim.Nature & Condition.Boss) != 0) slayer.Hero.Records.TyrantsSlain++;
+                slayer.SummaryChanged = true;
+            }
 
             ActorSheet sheet = killer.Sheet;
             if (sheet.Has(Rule.NoItems)) victim.Plundered = true;

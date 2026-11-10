@@ -201,6 +201,22 @@ namespace Dino_Defenders.Net
 
             writer.WriteCount(hero.Talents.Count);
             foreach (string id in hero.Talents) writer.WriteVarInt(TalentTree.Find(id)?.Index ?? 0);
+
+            // What they've done, for the Archive, every unique found as a bit by its place in the catalogue, and the halls they've opened.
+            HeroRecords records = hero.Records;
+            writer.WriteVarULong((ulong)Math.Max(records.Slain, 0));
+            writer.WriteVarInt(records.TyrantsSlain);
+            writer.WriteFloat(records.HardestBlow);
+            writer.WriteVarInt(records.Falls);
+            writer.WriteFloat(records.SwiftestLand);
+            writer.WriteVarInt(records.SwiftestLevel);
+            writer.WriteVarULong((ulong)Math.Max(records.GoldGathered, 0));
+            var found = new HashSet<string>(records.UniquesFound);
+            writer.WriteCount(UniqueCatalog.All.Count);
+            foreach (UniqueDefinition unique in UniqueCatalog.All) writer.WriteBool(found.Contains(unique.Id));
+            HallKind[] halls = Enum.GetValues<HallKind>();
+            writer.WriteCount(halls.Length);
+            foreach (HallKind hall in halls) writer.WriteBool(hero.HallsOpen.Contains(hall.ToString()));
         }
 
         public static void ReadHeroSummary(BitReader reader, HeroState hero)
@@ -230,6 +246,32 @@ namespace Dino_Defenders.Net
                 if (index > 0 && index < TalentTree.Nodes.Length) taken.Add(TalentTree.Nodes[index].Id);
             }
             hero.Talents = taken;
+
+            var records = new HeroRecords
+            {
+                Slain = (long)Math.Min(reader.ReadVarULong(), long.MaxValue),
+                TyrantsSlain = reader.ReadVarInt(),
+                HardestBlow = Finite(reader.ReadFloat()),
+                Falls = reader.ReadVarInt(),
+                SwiftestLand = Finite(reader.ReadFloat()),
+                SwiftestLevel = reader.ReadVarInt(),
+                GoldGathered = (long)Math.Min(reader.ReadVarULong(), long.MaxValue),
+            };
+            int uniques = reader.ReadCount(UniqueCatalog.All.Count);
+            for (int i = 0; i < uniques; i++)
+            {
+                if (reader.ReadBool()) records.UniquesFound.Add(UniqueCatalog.All[i].Id);
+            }
+            records.Sanitize();
+            hero.Records = records;
+            HallKind[] halls = Enum.GetValues<HallKind>();
+            int sentHalls = reader.ReadCount(halls.Length);
+            var open = new List<string>();
+            for (int i = 0; i < sentHalls; i++)
+            {
+                if (reader.ReadBool()) open.Add(halls[i].ToString());
+            }
+            hero.HallsOpen = open;
         }
 
         /// <summary>What's on a hero that only lasts a while.</summary>

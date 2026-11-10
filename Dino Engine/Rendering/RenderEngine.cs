@@ -34,6 +34,7 @@ namespace Dino_Engine.Rendering
         public Vector3 sunDirection;    // Unit vector towards the sun.
         public Vector3 sunColour;       // Its radiance by this hour, above whatever clouds there are.
         public Vector3 clearSkyColour;  // What the sky would be with no weather at all: the gaps between the clouds.
+        public HallShaderData halls;    // The halls near the camera, and the one it looks into: see HallShaderData.
     }
     public struct ShaderGlobals2
     {
@@ -49,6 +50,8 @@ namespace Dino_Engine.Rendering
         public Vector3 skyColour;
         public float EMPTY;
         public Vector4 focusPoint;
+        public Vector4 sunDirection;    // xyz towards the sun in the world, for what the geometry pass shades by it: a relief's own shadows (Surface/Relief.glsl).
+        public HallShaderData halls;
     }
 
     public class RenderEngine
@@ -57,6 +60,15 @@ namespace Dino_Engine.Rendering
 
         /// <summary>The one graphics setting, which <see cref="GraphicsPresets"/> turns into all the others.</summary>
         public GraphicsQuality Quality = GraphicsQuality.High;
+
+        /// <summary>How deep every material's relief is drawn, as a share of its own (Surface/Relief.glsl): 1 normally, 0 for none at all.</summary>
+        public float ReliefScale = 1f;
+
+        /// <summary>
+        /// What the eye has got used to, as a multiple of <see cref="LightingSettings.Exposure"/>: 1 out in the day, more inside a hall, whose room the camera then mostly sees and which
+        /// is far darker than outside, as rooms are (HallCutawaySystem). Eased, never stepped.
+        /// </summary>
+        public float Adaptation = 1f;
         private ShaderGlobals2 globals = new ShaderGlobals2();
 
         private List<BaseRenderer> _renderers = new List<BaseRenderer>();
@@ -72,6 +84,7 @@ namespace Dino_Engine.Rendering
         public CharacterRenderer _characterRenderer;
         public WildlifeRenderer _wildlifeRenderer;
         public ImposterRenderer _imposterRenderer;
+        public WayRenderer _wayRenderer;
         public AmbientLightRenderer _ambientLightRenderer;
         public DirectionalLightRenderer _directionalLightRenderer;
         public PointLightRenderer _pointLightRenderer;
@@ -170,6 +183,8 @@ namespace Dino_Engine.Rendering
             _dualBufferFull = new DualBuffer(frameBufferSettings);
             lastUsedBuffer = _dualBufferFull;
             textureGenerator.GenerateAllTextures();
+            MaterialTableBuffer.Upload();
+            Modelling.glLoader.SetNoEdges();
 
             _msaa = new MsaaRenderer(AntiAliasing);
             _modelRenderer = new ModelRenderer();
@@ -178,6 +193,7 @@ namespace Dino_Engine.Rendering
             _characterRenderer = new CharacterRenderer();
             _wildlifeRenderer = new WildlifeRenderer();
             _imposterRenderer = new ImposterRenderer();
+            _wayRenderer = new WayRenderer();
             _ambientLightRenderer = new AmbientLightRenderer();
             _directionalLightRenderer = new DirectionalLightRenderer();
             _pointLightRenderer = new PointLightRenderer();
@@ -355,6 +371,8 @@ namespace Dino_Engine.Rendering
             _wildlifeRenderer.GeometryRenderPass(this);
             _instancedModelRenderer.GeometryRenderPass(this);
             _imposterRenderer.GeometryRenderPass(this);
+            // Open ways, as surfaces that take no light: what they give off comes after the lights (WayRenderer).
+            _wayRenderer.GeometryRenderPass(this);
 
             // Grass before terrain: blades hide much of the ground, and depth testing then skips the terrain's costly
             // parallax shading behind them. Grass also uploads the settings the terrain's ground tint reads.
@@ -379,6 +397,8 @@ namespace Dino_Engine.Rendering
             _directionalLightRenderer.RenderPass(this);
             _pointLightRenderer.RenderPass(this);
             _spotLightRenderer.RenderPass(this);
+            // The ways' own light, in floats, before the reflections, so that wet ground shows them.
+            _wayRenderer.LightPass(this);
             _screenSpaceReflectionRenderer.RenderPass(this);
             _globalIllumination.DrawDebug(this);
         }
@@ -439,6 +459,8 @@ namespace Dino_Engine.Rendering
             globals.worldSeed = 1;
             globals.skyColour = context.skyColour;
             globals.focusPoint = context.focusPoint;
+            globals.sunDirection = new Vector4(context.sunDirection.LengthSquared > 0f ? context.sunDirection.Normalized() : Vector3.UnitY, 0f);
+            globals.halls = context.halls;     // Left as it starts, it holds no halls: there are none until HallCutawaySystem says so.
 
 
 

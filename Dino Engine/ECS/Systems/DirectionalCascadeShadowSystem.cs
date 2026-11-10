@@ -90,6 +90,7 @@ namespace Dino_Engine.ECS.Systems
                     float distSq = (pos - cameraPos).LengthSquared;
 
                     glModel model = modelArray[i].model;
+                    if (model.Hidden) continue;
                     bool useImposter = false;
 
                     if (model.Imposter != null)
@@ -270,7 +271,7 @@ namespace Dino_Engine.ECS.Systems
                 Engine.RenderEngine._terrainRenderer.CollectFarRock(new Util.Frustum(viewProj), _farRock);
 
                 Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(_grassCommands.ToArray()), shadow);
-                Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(_terrainCommands.ToArray(), 0.0f, _farRock.ToArray()), shadow);
+                Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(_terrainCommands.ToArray(), _farRock.ToArray()), shadow);
             }
         }
 

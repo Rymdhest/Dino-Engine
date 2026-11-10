@@ -112,30 +112,57 @@ namespace Dino_Engine.Particles
         float Reach { get; }
     }
 
+    /// <summary>
+    /// An upright face an effect fills, such as a waygate's way: in the effect's own frame, x across, y up from its position and z out of it along the effect's Forward, so it turns with
+    /// whatever it's on. Anything in it lies at z = 0.
+    /// </summary>
+    public interface IEffectFace
+    {
+        /// <summary>A place on it, from two numbers 0 to 1, about evenly over it.</summary>
+        Vector3 Anywhere(float u, float v);
+
+        /// <summary>A place on its edge, from a number 0 to 1 the way round it.</summary>
+        Vector3 Edge(float u);
+
+        float SquareMetres { get; }
+
+        /// <summary>Its middle, and how far from it anything in it is.</summary>
+        Vector3 Middle { get; }
+        float Reach { get; }
+    }
+
     public enum EffectShapeKind
     {
         Point,
         Ball,       // A sphere of Radius about the position.
         Body,       // An upright cylinder of Radius from the position (its feet) up Height, as someone standing.
         Area,       // The ground an IEffectArea covers.
+        Face,       // An upright IEffectFace, square to the effect's Forward.
     }
 
     /// <summary>What an effect fills. Its size is already scaled: the effect's scale only scales its particles' sizes and offsets.</summary>
-    public readonly record struct EffectShape(EffectShapeKind Kind, float Radius = 0f, float Height = 0f, IEffectArea? Area = null)
+    public readonly record struct EffectShape(EffectShapeKind Kind, float Radius = 0f, float Height = 0f, IEffectArea? Area = null, IEffectFace? Face = null)
     {
         public static EffectShape Point => new EffectShape(EffectShapeKind.Point);
         public static EffectShape Ball(float radius) => new EffectShape(EffectShapeKind.Ball, radius);
         public static EffectShape Body(float radius, float height) => new EffectShape(EffectShapeKind.Body, radius, height);
         public static EffectShape Over(IEffectArea area) => new EffectShape(EffectShapeKind.Area, Area: area);
+        public static EffectShape Across(IEffectFace face) => new EffectShape(EffectShapeKind.Face, Face: face);
 
         public float SquareMetres => Kind switch
         {
             EffectShapeKind.Area => Area!.SquareMetres,
+            EffectShapeKind.Face => Face!.SquareMetres,
             EffectShapeKind.Point => 1f,
             _ => MathF.PI * Radius * Radius,
         };
 
         /// <summary>How far from its middle anything in it is.</summary>
-        public float Extent => Kind == EffectShapeKind.Area ? Area!.Reach : MathF.Max(Radius, Height);
+        public float Extent => Kind switch
+        {
+            EffectShapeKind.Area => Area!.Reach,
+            EffectShapeKind.Face => Face!.Reach,
+            _ => MathF.Max(Radius, Height),
+        };
     }
 }

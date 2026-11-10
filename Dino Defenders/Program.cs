@@ -24,6 +24,8 @@ namespace Dino_Defenders
             }
 
             if (options.MeshSeed is int meshSeed) Dino_Engine.Util.MyMath.rand = new Random(meshSeed);
+            Dino_Engine.Textures.TextureGenerator.SheetFolder = options.MaterialSheet;
+            Dino_Engine.Textures.TextureGenerator.MeasureNoise = options.TextureCheck;
             ArpgGame.Begin(options);
             Client.SettingsStore.Use(options.Settings, options.Scripted);
             Client.Bindings.Load();

@@ -17,9 +17,10 @@ namespace Dino_Engine.World
         Field = 1 << 7,
         Keepout = 1 << 8,   // Reserved ground with nothing on it: yards, plazas, the mouth of a gate.
         Road = 1 << 9,
+        Garden = 1 << 10,   // Ground a site has laid out, a bed or a square: nothing's built on it later and nothing wild grows there, but what the site plants does (VegetationStage).
 
         Vegetation = Tree | Shrub | Deadwood,
-        Built = Structure | Prop | Fence | Field | Keepout,
+        Built = Structure | Prop | Fence | Field | Keepout | Garden,
         All = ~0,
     }
 

@@ -50,7 +50,7 @@ namespace Dino_Engine.World.Generation
                 }
             });
 
-            Vector2 landing = world.Sites[0].Position;
+            Vector2 landing = world.Sites[0].Landing;
             int startX = Math.Clamp((int)(landing.X / WorldData.WalkCell), 0, width - 1);
             int startZ = Math.Clamp((int)(landing.Y / WorldData.WalkCell), 0, depth - 1);
 
@@ -114,7 +114,7 @@ namespace Dino_Engine.World.Generation
                 }
             });
 
-            int start = NearestOpen(blocked, width, depth, world.Sites[0].Position, cell, 24);
+            int start = NearestOpen(blocked, width, depth, world.Sites[0].Landing, cell, 24);
             if (start >= 0)
             {
                 var stack = new Stack<int>();

@@ -48,6 +48,7 @@ namespace Dino_Defenders.Server
         private const float HeavyLoss = 0.2f;
         private const float GateReach = 9f;         // How near a waygate someone has to be to use one, a little more than the gate's own reach, as the server sees them a moment late.
         private const float ArriveBefore = 7f;      // Metres in front of a waygate that someone steps out of it.
+        private const float HavenArriveBefore = 2.5f;
 
         private readonly ServerSettings _settings;
         private readonly WorldCache _worlds;
@@ -220,6 +221,8 @@ namespace Dino_Defenders.Server
             player.LandMods = session.Terms.HeroMods();
             player.Out = fallen;
             player.Judged = fallen;
+            player.ArrivedAt = session.Time;
+            player.Timed = !fallen && !session.IsHaven && !(_saved is { InLand: true });
             var actor = new Actor(Team.Heroes, HeroBuild.Compile(player.Hero, null, player.LandMods), start, HeroRules.Radius) { Player = player, Body = "hero" };
             player.Actor = actor;
             player.Kit = new HeroKit(player.Hero, actor.Sheet);
@@ -285,6 +288,7 @@ namespace Dino_Defenders.Server
             // A scripted run asks for a place to look at, which wins over where anyone would really arrive.
             if (_settings.Start.HasValue) return _settings.Start.Value;
             if (_settings.StartBiome != null && TryFindWood(world, _settings.StartBiome, out Vector2 wood)) return wood;
+            if (_settings.StartSite == FacingWaygate && TryFacingWaygate(world, out Vector2 facing)) return facing;
             if (_settings.StartSite != null)
             {
                 foreach (WorldSite site in world.Sites)
@@ -298,9 +302,29 @@ namespace Dino_Defenders.Server
             if (WaygateSpawn(world, world.Sites[0]) is Vector2 gate)
             {
                 Vector2 into = Session!.IsHaven ? -HavenNorth : (world.Sites[0].Position - gate).LengthSquared > 1f ? (world.Sites[0].Position - gate).Normalized() : Vector2.UnitY;
-                if (TryFindGround(world, gate + into * ArriveBefore, out Vector2 stepped)) return stepped;
+                // The Haven's gate stands on a terrace, and whoever comes through it steps out at the head of the flight down to the square.
+                if (TryFindGround(world, gate + into * (Session.IsHaven ? HavenArriveBefore : ArriveBefore), out Vector2 stepped)) return stepped;
             }
-            return world.Sites[0].Position;
+            return world.Sites[0].Landing;
+        }
+
+        /// <summary>A scripted run's --site that stands the hero in front of whichever of a land's waygates the camera sees most squarely, front or back, for looking at its way.</summary>
+        public const string FacingWaygate = "FacingWaygate";
+
+        // South of that gate, as the camera looks north: a gate along a road running east and west is only ever seen side on.
+        private static bool TryFacingWaygate(WorldData world, out Vector2 spot)
+        {
+            spot = default;
+            float best = -1f;
+            foreach (WorldSite site in world.Sites)
+            {
+                if (WaygateSpawn(world, site) is not Vector2 use || !world.Objects.TryNearest(StructureCatalog.Waygate.Id, use, 14f, out WorldObject gate)) continue;
+                float square = MathF.Abs(Vector3.Transform(Vector3.UnitZ, gate.Rotation).Z);
+                if (square <= best || !TryFindGround(world, gate.Position.Xz - Vector2.UnitY * 10f, out Vector2 ground)) continue;
+                best = square;
+                spot = ground;
+            }
+            return best >= 0f;
         }
 
         // The heart of the thickest wood of a biome, for looking at it.
@@ -684,21 +708,23 @@ namespace Dino_Defenders.Server
             _portal = default;
             if (session.Portal is not var (request, _, name) || WaygateSpawn(session.World, session.World.Sites[0]) is not Vector2 spot) return;
 
-            // The light hangs in the arch itself, which stands a little behind where it's used from.
+            // The way stands in the arch itself, which stands a little behind where it's used from, and is that land's, grown from the request that grows it (WayKeys).
             Vector3 at = new Vector3(spot.X, session.World.Height.Sample(spot), spot.Y);
             Quaternion facing = Quaternion.FromAxisAngle(Vector3.UnitY, MathF.PI);
+            Vector3 scale = Vector3.One;
             if (session.World.Objects.TryNearest(StructureCatalog.GreatWaygate.Id, spot, 12f, out WorldObject gate))
             {
                 at = gate.Position;
                 facing = gate.Rotation;
+                scale = gate.Scale;
             }
             WorldPlan plan = WorldPlan.Create(request);
             _portal = Ecs.CreateEntity("Portal",
                 new NetIdentityComponent(Ghosts.NextId(), importance: 3f, everywhere: true),
                 new PositionComponent(at),
                 new RotationComponent(facing),
-                new ScaleComponent(new Vector3(1f)),
-                new VisualComponent($"portal:{BiomeIndex(plan.Biomes[0])}", VisualKind.Prop),
+                new ScaleComponent(scale),
+                new VisualComponent(WayKeys.Portal(request), VisualKind.Prop),
                 new PortalComponent { Biome = BiomeIndex(plan.Biomes[0]) },
                 new InteractableComponent { Kind = InteractKind.Portal, SiteIndex = 0, SpawnIndex = session.World.Sites[0].Spawns.FindIndex(s => s.Role == SpawnRole.Waygate), Radius = 6.5f, Prompt = $"Step through to {name}" });
         }

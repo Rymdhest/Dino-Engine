@@ -460,11 +460,14 @@ namespace Dino_Engine.Wildlife
             _slotted = false;
         }
 
+        // The highest it has to clear here and on the way ahead, roofs among it (LifeLand.Overhead), which are looked for closely enough that no corner of a hall falls between two looks.
         private float GroundAhead(Vector2 at, Vector2 way)
         {
-            float ground = Sim.Land.RoughGround(at);
-            ground = MathF.Max(ground, Sim.Land.RoughGround(at + way * 9f));
-            ground = MathF.Max(ground, Sim.Land.RoughGround(at + way * 20f));
+            float ground = Sim.Land.Overhead(at);
+            ground = MathF.Max(ground, Sim.Land.Overhead(at + way * 9f));
+            ground = MathF.Max(ground, Sim.Land.Overhead(at + way * 20f));
+            ground = MathF.Max(ground, Sim.Land.RoofAt(at + way * 4.5f));
+            ground = MathF.Max(ground, Sim.Land.RoofAt(at + way * 14.5f));
             return MathF.Max(ground, Sim.Land.WaterLevel(at));
         }
 

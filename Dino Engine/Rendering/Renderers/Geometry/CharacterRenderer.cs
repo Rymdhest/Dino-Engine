@@ -73,8 +73,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             _characterShader.bind();
 
-            _characterShader.loadUniformFloat("parallaxDepth", 0.0f);
-            _characterShader.loadUniformFloat("parallaxLayers", 60);
+            _characterShader.loadUniformFloat("reliefScale", renderEngine.ReliefScale);
 
             _characterShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 

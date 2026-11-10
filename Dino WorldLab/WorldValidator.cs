@@ -277,6 +277,7 @@ namespace Dino_WorldLab
                 CheckHaven(world);
                 return;
             }
+            if (world.Halls.Count > 0) Problem($"{world.Halls.Count} halls stand outside the Haven");
             if (world.Plan.Archetype.Arena)
             {
                 CheckArena(world);
@@ -306,7 +307,7 @@ namespace Dino_WorldLab
                     if (spawn.Role == SpawnRole.Altar && !Stands(world, StructureCatalog.Altar, spawn.Position)) Problem($"{site.Name} can be prayed at, but has no altar");
                     if (spawn.Role == SpawnRole.Waygate && !Stands(world, StructureCatalog.Waygate, spawn.Position)) Problem($"{site.Name} can be left by, but has no waygate");
                     if (spawn.Role == SpawnRole.Stash && !Stands(world, StructureCatalog.Strongbox, spawn.Position)) Problem($"{site.Name} has a stash, but no strongbox");
-                    if (spawn.Role is SpawnRole.MapTable or SpawnRole.Dummy or SpawnRole.BetaVendor) Problem($"{site.Name} has a {spawn.Role}, which only the Haven has");
+                    if (spawn.Role is SpawnRole.MapTable or SpawnRole.Dummy or SpawnRole.BetaVendor or SpawnRole.Workbench or SpawnRole.GamingTable or SpawnRole.Keeper) Problem($"{site.Name} has a {spawn.Role}, which only the Haven has");
                 }
 
                 // A village is where a land's people hide, and where a hero can rest, trade, put things away and go home.
@@ -423,6 +424,182 @@ namespace Dino_WorldLab
             foreach (SiteSpawn spawn in haven.Spawns)
             {
                 if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of the Haven can't be reached at {spawn.Position}");
+            }
+            CheckHalls(world, haven);
+        }
+
+        // The halls (HALLS.md): one of each, drawn where they stand, on level ground with nothing else standing or growing in them, their doors open onto the village and
+        // their walls closed to it, and whatever is used, kept or read in them within reach. Measured on the finished world, from the design's own numbers.
+        private const float HallLevel = 0.05f;      // Metres the ground under a floor may be off it: people stand on that ground, and the floor is laid 3 cm over it.
+        private const float WallFooting = 2.2f;     // Metres below a floor the ground outside may fall to: walls go down 2.5, and daylight would show under them.
+        private const float SillStep = 0.3f;        // Metres the ground at a door may be off the floor, for its sill and step to meet it.
+        private const float LeastOpenRoom = 0.25f;  // Of a room, that someone can stand in.
+        private const float ExhibitReach = 6f;      // Metres from a display that someone has to be able to stand to read it (ArchivePlaques.Reach is 7.5).
+
+        private void CheckHalls(WorldData world, WorldSite haven)
+        {
+            foreach (HallKind kind in Enum.GetValues<HallKind>())
+            {
+                WorldHall[] halls = world.Halls.Where(h => h.Kind == kind).ToArray();
+                if (halls.Length != 1)
+                {
+                    Problem($"the Haven has {halls.Length} of the {kind}");
+                    continue;
+                }
+                WorldHall hall = halls[0];
+                HallDesign d = hall.Design;
+                string name = d.Name;
+
+                // Its two models, drawn where it stands, which is where its walls stop people; and nothing else in it.
+                foreach (string asset in new[] { d.ShellAsset, d.InsideAsset })
+                {
+                    WorldObject[] models = world.Objects.All().Where(o => world.Objects.AssetIds[o.Asset] == asset).ToArray();
+                    if (models.Length != 1)
+                    {
+                        Problem($"{name} has {models.Length} of {asset}");
+                        continue;
+                    }
+                    WorldObject model = models[0];
+                    if (MathF.Abs(model.Position.Y - hall.Floor) > 0.05f) Problem($"{asset} is drawn {model.Position.Y - hall.Floor:+0.00;-0.00} m off {name}'s floor");
+                    foreach (Vector2 corner in new[] { d.Half, -d.Half, new Vector2(d.Half.X, -d.Half.Y) })
+                    {
+                        Vector3 drawn = model.Position + Vector3.Transform(new Vector3(corner.X * model.Scale.X, 0f, corner.Y * model.Scale.Z), model.Rotation);
+                        float off = (drawn.Xz - hall.ToWorld(corner)).Length;
+                        if (off <= 0.05f) continue;
+                        Problem($"{asset} is drawn {off:0.00} m from where {name} stands");
+                        break;
+                    }
+                }
+                foreach (WorldObject item in world.Objects.All())
+                {
+                    string id = world.Objects.AssetIds[item.Asset];
+                    if (id != d.ShellAsset && id != d.InsideAsset && hall.Contains(item.Position.Xz, d.Wall)) Problem($"{id} stands in {name}, at {item.Position.Xz}");
+                }
+                foreach (Planting planting in world.Plantings)
+                {
+                    if (hall.Contains(planting.Position, d.Wall)) Problem($"something grows in {name}, at {planting.Position}");
+                }
+
+                // Level ground under its floor, which is where people stand: none over it, nor so far under that feet go through the boards. Dry, with no rock in it and no
+                // road through it, and room to stand in.
+                float highest = float.MinValue, lowest = float.MaxValue;
+                Vector2 highAt = hall.Centre, lowAt = hall.Centre;
+                int cells = 0, open = 0;
+                bool wet = false, rock = false, road = false;
+                for (float x = -d.Inner.X + 0.25f; x < d.Inner.X; x += 0.5f)
+                {
+                    for (float z = -d.Inner.Y + 0.25f; z < d.Inner.Y; z += 0.5f)
+                    {
+                        Vector2 at = hall.ToWorld(new Vector2(x, z));
+                        float height = world.Height.Sample(at);
+                        if (height > highest) (highest, highAt) = (height, at);
+                        if (height < lowest) (lowest, lowAt) = (height, at);
+                        wet |= world.WaterDepthAt(at) > 0f;
+                        rock |= world.Rock.IsSet(at);
+                        bool deep = MathF.Abs(x) < d.Inner.X - 3f && MathF.Abs(z) < d.Inner.Y - 3f;
+                        road |= deep && (world.PavedRoad.IsSet(at) || world.TrailRoad.IsSet(at));
+                        cells++;
+                        if (world.Passable.IsSet(at)) open++;
+                    }
+                }
+                if (highest > hall.Floor + HallLevel) Problem($"the ground comes up through {name}'s floor, {highest - hall.Floor:0.00} m over it at {highAt}");
+                if (lowest < hall.Floor - HallLevel) Problem($"the ground under {name}'s floor falls {hall.Floor - lowest:0.00} m below it at {lowAt}, and feet with it");
+                if (wet) Problem($"{name} has water in it");
+                if (rock) Problem($"{name} has rock in it");
+                if (road) Problem($"a road runs through {name}");
+                if (open < cells * LeastOpenRoom) Problem($"only {open * 100 / Math.Max(cells, 1)}% of {name} can be stood in");
+
+                // The ground round its walls, which go down 2.5 m below its floor.
+                float outside = float.MaxValue;
+                for (float x = -d.Half.X; x <= d.Half.X; x += 1f)
+                {
+                    outside = MathF.Min(outside, world.Height.Sample(hall.ToWorld(new Vector2(x, d.Half.Y + 0.4f))));
+                    outside = MathF.Min(outside, world.Height.Sample(hall.ToWorld(new Vector2(x, -d.Half.Y - 0.4f))));
+                }
+                for (float z = -d.Half.Y; z <= d.Half.Y; z += 1f)
+                {
+                    outside = MathF.Min(outside, world.Height.Sample(hall.ToWorld(new Vector2(d.Half.X + 0.4f, z))));
+                    outside = MathF.Min(outside, world.Height.Sample(hall.ToWorld(new Vector2(-d.Half.X - 0.4f, z))));
+                }
+                if (outside < hall.Floor - WallFooting) Problem($"the ground falls {hall.Floor - outside:0.0} m below {name}'s floor outside its walls, which go down 2.5");
+
+                // Its doors: walked through from the village into the room, every step of it, over ground that meets the sill.
+                foreach (HallOpening door in d.Openings.Where(o => o.Door))
+                {
+                    Vector2 outward = door.Side switch { HallSide.Front => Vector2.UnitY, HallSide.Back => -Vector2.UnitY, HallSide.PlusX => Vector2.UnitX, _ => -Vector2.UnitX };
+                    Vector2 along = new Vector2(MathF.Abs(outward.Y), MathF.Abs(outward.X));
+                    float face = outward.X != 0f ? d.Half.X : d.Half.Y;
+                    for (float out_ = 3f; out_ >= -(d.Wall + 2.5f); out_ -= 0.25f)
+                    {
+                        Vector2 at = hall.ToWorld(along * door.Along + outward * (face + out_));
+                        if (world.Passable.IsSet(at)) continue;
+                        Problem($"{name}'s {door.Side} door can't be walked through, at {at}");
+                        break;
+                    }
+                    for (float out_ = 0.3f; out_ <= 2.4f; out_ += 0.7f)
+                    {
+                        Vector2 at = hall.ToWorld(along * door.Along + outward * (face + out_));
+                        float off = world.Height.Sample(at) - hall.Floor;
+                        if (MathF.Abs(off) <= SillStep) continue;
+                        Problem($"the ground at {name}'s {door.Side} door is {off:+0.00;-0.00} m off its floor");
+                        break;
+                    }
+                }
+
+                // Its walls: closed everywhere but its doors.
+                foreach (HallSide side in Enum.GetValues<HallSide>())
+                {
+                    bool alongX = side is HallSide.Front or HallSide.Back;
+                    float length = alongX ? d.Half.X : d.Half.Y;
+                    float across = ((alongX ? d.Half.Y : d.Half.X) - d.Wall * 0.5f) * (side is HallSide.Front or HallSide.PlusX ? 1f : -1f);
+                    for (float t = -length; t <= length; t += 0.5f)
+                    {
+                        if (d.Openings.Any(o => o.Door && o.Side == side && MathF.Abs(t - o.Along) < o.HalfWidth + 1.5f)) continue;
+                        Vector2 at = hall.ToWorld(alongX ? new Vector2(t, across) : new Vector2(across, t));
+                        if (!world.Passable.IsSet(at)) continue;
+                        Problem($"{name}'s {side} wall can be walked through, at {at}");
+                        break;
+                    }
+                }
+
+                // What's used in it and whoever keeps it, where the design puts them; where the village walks to in it; and every record on a display that can be got near.
+                SpawnRole? used = kind switch { HallKind.Forge => SpawnRole.Workbench, HallKind.GamingHouse => SpawnRole.GamingTable, _ => null };
+                if (used is SpawnRole role && !d.Spots.Any(s => s.Role == role)) Problem($"{name} has no {role}");
+                if (!d.Spots.Any(s => s.Role == SpawnRole.Keeper)) Problem($"nobody keeps {name}");
+                foreach (HallSpot spot in d.Spots)
+                {
+                    Vector2 at = hall.ToWorld(spot.At);
+                    if (!hall.Contains(at)) Problem($"{name}'s {spot.Role} is outside it, at {at}");
+                    if (!haven.Spawns.Any(s => s.Role == spot.Role && (s.Position - at).Length < 1.5f)) Problem($"{name}'s {spot.Role} isn't where it was put, at {at}");
+                }
+                if (d.Visits.Count == 0) Problem($"nobody visits {name}");
+                foreach (Vector2 visit in d.Visits)
+                {
+                    Vector2 at = hall.ToWorld(visit);
+                    if (!hall.Contains(at) || !world.Passable.IsSet(at)) Problem($"{name} is visited at {at}, which nobody can reach");
+                }
+                if (kind == HallKind.Archive)
+                {
+                    foreach (ExhibitKind record in Enum.GetValues<ExhibitKind>())
+                    {
+                        int count = d.Exhibits.Count(e => e.Kind == record);
+                        if (count != 1) Problem($"{name} has {count} displays of {record}");
+                    }
+                }
+                foreach (HallExhibit exhibit in d.Exhibits)
+                {
+                    Vector2 at = hall.ToWorld(exhibit.At);
+                    bool near = false;
+                    for (float r = 1f; r <= ExhibitReach && !near; r += 0.5f)
+                    {
+                        for (int k = 0; k < 32 && !near; k++)
+                        {
+                            Vector2 by = at + new Vector2(MathF.Cos(k * MathF.Tau / 32f), MathF.Sin(k * MathF.Tau / 32f)) * r;
+                            near = hall.Contains(by) && world.Passable.IsSet(by);
+                        }
+                    }
+                    if (!near) Problem($"nobody can get near enough to {name}'s {exhibit.Kind} to read it");
+                }
             }
         }
 
@@ -640,7 +817,7 @@ namespace Dino_WorldLab
                 }
             });
 
-            Vector2 landing = world.Sites[0].Position;
+            Vector2 landing = world.Sites[0].Landing;
             bool[] reached = new bool[size * size];
             var stack = new Stack<int>();
             int start = NearestOpen(blocked, size, landing, Cell, 12);

@@ -17,6 +17,8 @@ uniform int numberOfMaterials;
 
 void main(void){
 	
+	// Only a card has holes in it: a tiling material is solid everywhere, and reading it, in every cascade, would buy nothing.
+	if (int(textureIndex + 0.5) < numberOfMaterials) return;
 	float alpha = lookupAlbedo(fragUV, textureIndex).a;
 
 

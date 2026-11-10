@@ -75,6 +75,9 @@ namespace Dino_Engine.Rendering
 
             LoadAllUniformsFromShaderString(computeString, computeFile);
         }
+        /// <summary>Whether the program's source declares a uniform of this name, used or not.</summary>
+        public bool HasUniform(string variableName) => uniforms.ContainsKey(variableName) || _arrayStarts.ContainsKey(variableName);
+
         public void loadUniformInt(string variableName, int value)
         {
             GL.Uniform1(uniforms[variableName], value);
@@ -287,16 +290,12 @@ namespace Dino_Engine.Rendering
         }
         public void cleanUp()
         {
-            GL.DetachShader(programID, vertexShaderID);
-            GL.DetachShader(programID, fragmentShaderID);
-            GL.DetachShader(programID, geometryShaderID);
-            GL.DeleteShader(vertexShaderID);
-            GL.DeleteShader(fragmentShaderID);
-            GL.DeleteShader(geometryShaderID);
-            if (computeShaderID != 0)
+            // Only what the program has: detaching a shader of 0, as a compute program's vertex shader is, is an error.
+            foreach (int shader in new[] { vertexShaderID, fragmentShaderID, geometryShaderID, computeShaderID })
             {
-                GL.DetachShader(programID, computeShaderID);
-                GL.DeleteShader(computeShaderID);
+                if (shader == 0) continue;
+                GL.DetachShader(programID, shader);
+                GL.DeleteShader(shader);
             }
             GL.DeleteProgram(programID);
         }

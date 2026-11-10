@@ -131,6 +131,15 @@ namespace Dino_Defenders.Server
                     case SpawnRole.MapTable:
                         SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.MapTable, "Choose your next land", 5.5f);
                         break;
+                    case SpawnRole.Workbench:
+                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Workbench, "Work on your gear", 4.6f);
+                        break;
+                    case SpawnRole.GamingTable:
+                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.GamingTable, "Try your luck", 4.6f);
+                        break;
+                    case SpawnRole.Keeper:
+                        SpawnKeeper(world, session, state, siteIndex, spawn, spawnRandom);
+                        break;
                     case SpawnRole.Dummy:
                         SpawnDummy(world, session, state, spawn, dummies == 0 ? 0 : dummies <= SmallGroup ? 1 : 2);
                         dummies++;
@@ -331,6 +340,26 @@ namespace Dino_Defenders.Server
             state.Live.Add(world.CreateEntity("Villager", Bodies.Walking(_server, $"villager{random.Int(12)}", position, random.Range(0.92f, 1.04f), 0.5f, villager)));
         }
 
+        // Someone who keeps one of the Haven's halls: the smith at the anvil, the dealer at the table, the archivist among the shelves. They stand at their work, look up at whoever comes near,
+        // and look back into their hall when they've gone.
+        private void SpawnKeeper(ECSWorld world, ServerSession session, SiteState state, int siteIndex, SiteSpawn spawn, WorldRandom random)
+        {
+            Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
+            WorldHall? hall = session.World.HallAt(spawn.Position, 0.5f);
+            Vector2 rest = hall != null && (hall.Centre - spawn.Position).LengthSquared > 0.01f ? (hall.Centre - spawn.Position).Normalized() : Vector2.UnitY;
+            var villager = new VillagerComponent
+            {
+                SiteIndex = siteIndex,
+                Home = spawn.Position,
+                Goal = spawn.Position,
+                Stationary = true,
+                Keeps = hall != null ? (int)hall.Kind + 1 : 0,
+                Rest = rest,
+                NextSpeech = session.Time + random.Range(2f, 8f),
+            };
+            state.Live.Add(world.CreateEntity("Keeper", Bodies.Walking(_server, $"villager{random.Int(12)}", position, random.Range(0.97f, 1.04f), 0.5f, villager)));
+        }
+
         // The people of the land, marched to an arena's stands to watch: they stay where they're put and look to the fight.
         private void SpawnSpectator(ECSWorld world, ServerSession session, SiteState state, int siteIndex, SiteSpawn spawn, WorldRandom random)
         {
@@ -375,7 +404,7 @@ namespace Dino_Defenders.Server
             state.Live.Add(world.CreateEntity("Elder", Bodies.Walking(_server, $"villager{random.Int(12)}", position, 1.02f, 1f, villager, interactable)));
         }
 
-        /// <summary>What stands in a lit waygate, where the world has the gate, for as long as the place does.</summary>
+        /// <summary>What stands in a lit waygate, where the world has the gate, for as long as the place does: a way home, which turns in a way of its own for every gate (WayKeys).</summary>
         internal static void LightGate(ECSWorld world, GameServer server, ServerSession session, SiteState state, Vector2 spawn)
         {
             if (!session.World.Objects.TryNearest(StructureCatalog.Waygate.Id, spawn, GateFromSpawn, out WorldObject gate)) return;
@@ -384,7 +413,7 @@ namespace Dino_Defenders.Server
                 new PositionComponent(gate.Position),
                 new RotationComponent(gate.Rotation),
                 new ScaleComponent(gate.Scale),
-                new VisualComponent(Roads.Lit, VisualKind.Prop)));
+                new VisualComponent(WayKeys.Lit(WayKeys.GateSeed(session.World.Plan.Seed, gate.Position)), VisualKind.Prop)));
         }
 
         /// <summary>
@@ -492,6 +521,18 @@ namespace Dino_Defenders.Server
         };
         private const float CrowdReach = 60f;           // Metres from a hero inside which those watching from the stands call out.
 
+        // What the Haven's hall keepers say to whoever comes in: the smith, the dealer and the archivist. Read LORE.md.
+        private static readonly string[][] Keeping =
+        {
+            new[] { "Mind the sparks.", "Bring me something worth the iron.", "Leave it on the bench. I'll get to it.", "The fire's been in since dawn.", "That edge won't last another land. Let me see it." },
+            new[] { "Cards or dice, Defender?", "The table's open whenever you are.", "Gold's no use to anyone in a pocket.", "Sit down. Rest your feet.", "Nobody leaves here poorer than they can stand." },
+            new[] { "Everything you've done is written here.", "Mind the shelves. Some of these are older than the Haven.", "Every tyrant you bring down goes on the wall.", "Read what you like. Just put it back.", "We keep the names of the fallen too." },
+        };
+        private const float VisitChance = 0.45f;        // Of a walk in the Haven being to one of its halls rather than about the village.
+        private const float StuckAfter = 5f;            // Seconds without getting nearer that a walk is given up.
+
+        private readonly WorldPathfinder _paths = new WorldPathfinder(exact: true);
+
         private static readonly string[] AtHome =
         {
             "Rest a while. Nothing reaches us here.", "Back again? Good.", "The gate's been humming all morning.", "Mind the dummies, they bite back. They don't, really.",
@@ -548,10 +589,11 @@ namespace Dino_Defenders.Server
             if (nearest != null && toNearest < SpeechReach && session.Time >= villager.NextSpeech)
             {
                 bool safe = session.IsSafe(session.Sites[villager.SiteIndex]);
+                string[] lines = villager.Keeps > 0 && villager.Keeps <= Keeping.Length ? Keeping[villager.Keeps - 1] : session.IsHaven ? AtHome : safe ? Grateful : Afraid;
                 _server.Broadcast(new TextEvent
                 {
                     Position = position + Vector3.UnitY * (entity.Has<InteractableComponent>() ? SpeechOverMark : 5.6f),
-                    Text = _random.Pick(session.IsHaven ? AtHome : safe ? Grateful : Afraid),
+                    Text = _random.Pick(lines),
                     Colour = new Vector3(0.92f, 0.9f, 0.8f),
                     Size = 14f,
                     Life = 3.2f,
@@ -563,18 +605,25 @@ namespace Dino_Defenders.Server
             Vector2 velocity = Vector2.Zero;
             if (villager.Stationary)
             {
-                EnemyBrainSystem.Face(entity, nearest != null && toNearest < 10f ? toHero : Vector2.Zero, deltaTime, 4f);
+                // A keeper looks back to their work once nobody's near.
+                Vector2 look = nearest != null && toNearest < 10f ? toHero : villager.Rest;
+                EnemyBrainSystem.Face(entity, look, deltaTime, 4f);
             }
             else if (villager.Wait > 0f)
             {
                 villager.Wait -= deltaTime;
+            }
+            else if (villager.Route != null)
+            {
+                velocity = Walk(ref villager, position.Xz, deltaTime);
+                if (velocity != Vector2.Zero) EnemyBrainSystem.Face(entity, velocity, deltaTime, 6f);
             }
             else
             {
                 Vector2 offset = villager.Goal - position.Xz;
                 if (offset.LengthSquared < 1.5f)
                 {
-                    PickGoal(ref villager, session.World);
+                    PickGoal(ref villager, session, position.Xz);
                 }
                 else
                 {
@@ -587,16 +636,98 @@ namespace Dino_Defenders.Server
             entity.Set(villager);
         }
 
-        private void PickGoal(ref VillagerComponent villager, WorldData world)
+        private void PickGoal(ref VillagerComponent villager, ServerSession session, Vector2 from)
         {
+            WorldData world = session.World;
             villager.Wait = _random.Range(2f, 9f);
+
+            // In the Haven, as often as not, somewhere in one of its halls: the way there goes through its door.
+            if (session.IsHaven && world.Halls.Count > 0 && _random.Chance(VisitChance))
+            {
+                WorldHall hall = _random.Pick(world.Halls);
+                if (hall.Design.Visits.Count > 0)
+                {
+                    Vector2 visit = hall.ToWorld(_random.Pick(hall.Design.Visits));
+                    if (Route(ref villager, world, from, visit)) return;
+                }
+            }
+
             for (int attempt = 0; attempt < 6; attempt++)
             {
                 Vector2 goal = villager.Home + new Vector2(_random.Range(-1f, 1f), _random.Range(-1f, 1f)) * villager.WanderRadius;
-                if (!WorldPathfinder.HasClearLine(world, villager.Goal, goal)) continue;
-                villager.Goal = goal;
-                return;
+                if (!world.Passable.IsSet(goal)) continue;
+                if (WorldPathfinder.HasClearLine(world, from, goal))
+                {
+                    villager.Goal = goal;
+                    return;
+                }
+                if (session.IsHaven && Route(ref villager, world, from, goal)) return;
             }
+        }
+
+        // Works out the way to a place, round whatever's in the way and through doors, and pulls it straight wherever it can see further along.
+        private bool Route(ref VillagerComponent villager, WorldData world, Vector2 from, Vector2 to)
+        {
+            List<Vector2>? path = _paths.Find(world, from, to);
+            if (path == null || path.Count == 0 || (path[^1] - to).LengthSquared > 4f) return false;
+            var route = new List<Vector2>();
+            Vector2 at = from;
+            int i = 0;
+            while (i < path.Count)
+            {
+                int furthest = i;
+                for (int j = Math.Min(path.Count - 1, i + 24); j > i; j--)
+                {
+                    if (WorldPathfinder.HasClearLine(world, at, path[j], spacing: 0.7f))
+                    {
+                        furthest = j;
+                        break;
+                    }
+                }
+                at = path[furthest];
+                route.Add(at);
+                i = furthest + 1;
+            }
+            villager.Route = route;
+            villager.RouteStep = 0;
+            villager.Goal = to;
+            villager.StuckFor = 0f;
+            villager.Closest = float.PositiveInfinity;
+            return true;
+        }
+
+        // A step along the way being walked, and on to the next point of it once this one's reached. A way that stops getting anywhere is given up.
+        private Vector2 Walk(ref VillagerComponent villager, Vector2 at, float deltaTime)
+        {
+            List<Vector2> route = villager.Route!;
+            while (villager.RouteStep < route.Count && (route[villager.RouteStep] - at).LengthSquared < 1.4f)
+            {
+                villager.RouteStep++;
+                villager.Closest = float.PositiveInfinity;
+            }
+            if (villager.RouteStep >= route.Count)
+            {
+                villager.Route = null;
+                villager.Goal = at;
+                villager.Wait = _random.Range(4f, 12f);
+                return Vector2.Zero;
+            }
+
+            Vector2 offset = route[villager.RouteStep] - at;
+            float distance = offset.Length;
+            if (distance < villager.Closest - 0.05f)
+            {
+                villager.Closest = distance;
+                villager.StuckFor = 0f;
+            }
+            else if ((villager.StuckFor += deltaTime) > StuckAfter)
+            {
+                villager.Route = null;
+                villager.Goal = at;
+                villager.Wait = _random.Range(1f, 4f);
+                return Vector2.Zero;
+            }
+            return offset / MathF.Max(distance, 1e-4f) * WalkSpeed;
         }
     }
 
@@ -656,6 +787,12 @@ namespace Dino_Defenders.Server
         private void Use(ECSWorld world, ServerSession session, ServerPlayer hero, EntityView view, in InteractableComponent interactable)
         {
             SiteState state = session.Sites[interactable.SiteIndex];
+            // What's in one of the Haven's halls is only for a hero the hall is open to.
+            if (Halls.Of(interactable.Kind) is HallKind hall && !Halls.IsOpen(hero.Hero, hall))
+            {
+                _server.Note(hero, Halls.Shut(hall));
+                return;
+            }
             switch (interactable.Kind)
             {
                 case InteractKind.Shrine:
@@ -753,6 +890,7 @@ namespace Dino_Defenders.Server
         {
             Vector3 position = pickup.Rest;
             hero.Hero.Gold += pickup.Gold;
+            hero.Hero.Records.GoldGathered += pickup.Gold;
             hero.SummaryChanged = true;
             _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Coins, Value = pickup.Gold }, position.Xz);
             _server.Broadcast(new TextEvent

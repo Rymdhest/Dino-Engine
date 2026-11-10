@@ -25,7 +25,10 @@ namespace Dino_Engine.Rendering
     /// <param name="ReflectionSteps">Of a reflected ray, and none means reflections are of the sky alone.</param>
     /// <param name="Creatures">The most living things about at once.</param>
     /// <param name="Leaves">The most leaves falling or lying at once.</param>
-    public readonly record struct QualityPreset(int Samples, float GrassDensity, float GrassWidth, float GrassDistance, float GrassShadowDistance, float GrassShadowDensity, int ShadowMap, int ShadowedLights, int FogSteps, int ReflectionSteps, int Creatures, int Leaves);
+    /// <param name="Anisotropy">How far the materials' colour filters along a slant. From the game's camera the ground is nearly square-on and a wall is seen at
+    /// 2.6 to 1, so what's past 4 only sharpens a trunk's edges and a low look, and a trunk's edges, many of them behind leaves, are where it costs most.</param>
+    /// <param name="Relief">How deep every material's relief is drawn, as a share of its own (Surface/Relief.glsl): 0 is none, and the normals alone.</param>
+    public readonly record struct QualityPreset(int Samples, float GrassDensity, float GrassWidth, float GrassDistance, float GrassShadowDistance, float GrassShadowDensity, int ShadowMap, int ShadowedLights, int FogSteps, int ReflectionSteps, int Creatures, int Leaves, float Anisotropy, float Relief);
 
     /// <summary>
     /// What each level of quality comes to. Everything here was chosen by what it buys for what it costs to look at, measured at the most expensive kind of place there is: what the player sees from the game's own camera
@@ -35,9 +38,9 @@ namespace Dino_Engine.Rendering
     {
         private static readonly QualityPreset[] Presets =
         {
-            new(2, 70f, 1.3f, 85f, 30f, 0.15f, 2048, 1, 16, 0, 80, 500),
-            new(2, 100f, 1.15f, 100f, 50f, 0.25f, 3072, 2, 24, 32, 140, 900),
-            new(4, 140f, 1f, 115f, 70f, 0.35f, 4096, 4, 32, 56, 200, 1400),
+            new(2, 70f, 1.3f, 85f, 30f, 0.15f, 2048, 1, 16, 0, 80, 500, 1f, 0f),
+            new(2, 100f, 1.15f, 100f, 50f, 0.25f, 3072, 2, 24, 32, 140, 900, 2f, 1f),
+            new(4, 140f, 1f, 115f, 70f, 0.35f, 4096, 4, 32, 56, 200, 1400, 4f, 1f),
         };
 
         public static QualityPreset Of(GraphicsQuality quality) => Presets[(int)quality];
@@ -49,6 +52,8 @@ namespace Dino_Engine.Rendering
             render.Quality = quality;
             render.AntiAliasing.Samples = preset.Samples;
             render.Lighting.ShadowedPointLights = preset.ShadowedLights;
+            render.textureGenerator.SetAnisotropy(preset.Anisotropy);
+            render.ReliefScale = preset.Relief;
             render.Reflections.ScreenRays = preset.ReflectionSteps > 0;
             if (preset.ReflectionSteps > 0) render.Reflections.MaxSteps = preset.ReflectionSteps;
         }

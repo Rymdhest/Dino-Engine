@@ -355,6 +355,8 @@ namespace Dino_Defenders.Server
             player.Out = true;
             Fallen.Add(player.Name);
             Falls++;
+            player.Hero.Records.Falls++;
+            player.SummaryChanged = true;
             ObjectivesChanged = true;
             Console.WriteLine($"{player.Name} fell in {World.Plan.Name}, level {World.Plan.Level}{(Liberated ? ", which was already free" : "")}.");
             if (!Liberated) Judge(player, freed: false);
@@ -388,6 +390,7 @@ namespace Dino_Defenders.Server
                 return;
             }
             player.Hero.Freed(World.Plan.Level, Terms.Climb);
+            if (player.Timed) player.Hero.Records.Freed((float)(Time - player.ArrivedAt), World.Plan.Level);
             player.SummaryChanged = true;
             Console.WriteLine($"{player.Name} freed {World.Plan.Name}: the map table opens any level up to {player.Hero.LandLevel}.");
         }

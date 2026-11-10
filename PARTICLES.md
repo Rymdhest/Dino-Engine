@@ -88,6 +88,10 @@ new ParticleEffectComponent(Fire.Ground, EffectShape.Over(area));
 // A whole area on fire: any IEffectArea. The game's GroundArea is a GroundShape, the same one a fight's marks are.
 EffectShape.Over(new GroundArea(GroundShape.Circle(centre, 6f)));
 
+// An upright face, square to the effect's Forward, as a waygate's way is (WAYGATES.md): any IEffectFace.
+var run = Particles.Begin(Ways.Shimmer, gate, EffectShape.Across(WaygateDesign.Land.Face));
+run.Forward = gateFront; run.Tint = wayColour;
+
 // A flame that's part of a model, in its generator.
 lights.Add(AssetLight.Burning(at, width));
 ```
@@ -108,6 +112,7 @@ A style or an effect is a `public static readonly` field in a `[ParticleCollecti
 - Nothing in the rules reads a particle, and nothing is read back from the GPU. A particle's life is fixed when it's born.
 - Nothing draws across the whole picture: no heat haze, no full-screen smoke (read Clarity in `WEATHER.md`).
 - Smoke thins its depth, never its alpha.
+- **A spell lights up, it doesn't smoke.** A person found a few area spells cast into one place covered the screen in smoke, in puffs like big balls, so spells are light first: every blast, blow and bolt shines (`EffectLight`), fire blasts have no smoke of their own and their fireballs burn out to thin smoke fast, and mist and venom gas are thin. Smoke can only stand where there's room for it: `Haze` counts what's over each 8 m patch, as ground hidden times how solid, wearing off as smoke does, and a puff born where a patch is already a quarter hidden comes out fainter or not at all (`Particles.Spawn`). A wide blast is a few more, wider puffs (the square root of the ground, each grown by its fourth root), never as many puffs as ground. `Dino FxLab check` casts blasts fifteen times into one place and fails if the smoke standing passes 100 m².
 - A decal's card lies on the ground and reaches past it only as far as the slant it's seen at needs (`DECAL_MOST_SLANT`): its fragments are what that pass costs, and a fixed 2.4 m once made it most of the particles' time. Shapes that wander, a spill or a pool, wander only inwards from the card's edge, and everything fades out before it, or a decal is cut round.
 - A venom pool is dark, and lit only in veins and bubbles: lit all over, it read as green paint.
 - A flipbook keeps temperature times coverage, never temperature alone, or its mips go wrong at the edges.

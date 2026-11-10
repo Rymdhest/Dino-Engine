@@ -152,6 +152,16 @@ namespace Dino_Defenders.Client
                 components.Add(new FootfallComponent());
                 components.Add(new NetMovedTag());
             }
+            else if (WayKeys.IsWay(visual.Value.Model))
+            {
+                // An open way, in the Haven's great gate or a land's lit one: drawn, lit and breathed out by WaySystem, from what the land it goes to looks like. A land's hums as it stands
+                // there, as a dark one doesn't; the Haven's hums as anything that can be used does.
+                if (_characters.WayOf(visual.Value.Model) is (Dino_Engine.Modelling.Procedural.Architecture.Waygates.WaygateDesign design, Dino_Engine.Modelling.Procedural.Architecture.Waygates.WayLook look))
+                {
+                    components.Add(new WayComponent(design, look));
+                }
+                if (visual.Value.Model.StartsWith(Roads.Lit, StringComparison.Ordinal)) components.Add(new SoundEmitterComponent(Life.Gate, gain: PlaceHum));
+            }
             else
             {
                 components.Add(new ModelComponent(_characters.Resolve(visual.Value.Model)));
@@ -189,24 +199,6 @@ namespace Dino_Defenders.Client
                     if (ParticleShow.BoltOf(look) is ParticleEffect trail) components.Add(new ParticleEffectComponent(trail, EffectShape.Point, prewarm: false));
                 }
 
-                // A land's waygate, once it's lit, hums and lights what's around it, which a dark one doesn't.
-                if (visual.Value.Model == Roads.Lit)
-                {
-                    components.Add(new PointLightTag());
-                    components.Add(new LightRangeComponent(GateLightRadius, 0.25f, lightsFog: true));
-                    components.Add(new ColorComponent(new Colour(0.35f, 0.85f, 1f, GateLight)));
-                    components.Add(new SoundEmitterComponent(Life.Gate, gain: PlaceHum));
-                }
-
-                // The way to a land lights the square in that land's colour.
-                if (visual.Value.Model.StartsWith(CharacterFactory.PortalPrefix) && int.TryParse(visual.Value.Model.AsSpan(CharacterFactory.PortalPrefix.Length), out int biome))
-                {
-                    Colour light = CharacterFactory.PortalColour(biome);
-                    components.Add(new PointLightTag());
-                    components.Add(new LightRangeComponent(PortalLightRadius, 0.25f, lightsFog: true));
-                    components.Add(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, PortalLight)));
-                }
-
                 // The only thing that can be used with no light of its own, and it's brown on brown ground.
                 foreach (IComponent component in components)
                 {
@@ -220,12 +212,8 @@ namespace Dino_Defenders.Client
         }
 
         private const float GoldLightRadius = 6f;
-        private const float PortalLightRadius = 24f;
-        private const float PortalLight = 120f;
         private const float PortalHum = 0.8f;
         private const float PlaceHum = 0.55f;   // It never stops, so it sits under the land's own sound. At full level it's as loud as all the rest together.
-        private const float GateLightRadius = 20f;
-        private const float GateLight = 60f;
         private const float ChestLightRadius = 9f;
         private const float ChestLight = 14f;
         private const float BoltLightRadius = 11f;

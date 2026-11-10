@@ -23,7 +23,8 @@ namespace Dino_Engine.World.Generation
         public void Run(WorldData world)
         {
             world.Placement = new PlacementIndex(world.Size);
-            world.Style = world.Plan.Archetype.Peaceful ? BuildingStyle.Eastern : StyleOf(world);
+            // The Haven builds as its halls do, in oak, lime and thatch.
+            world.Style = world.Plan.Archetype.Peaceful ? BuildingStyle.Timber : StyleOf(world);
             foreach (WorldSite site in world.Sites)
             {
                 if (site.Kind == SiteKind.Graveyard) EndRoadsShortOf(world, site.Position, StructureCatalog.Church.HalfExtents.Y + ChurchForecourt);

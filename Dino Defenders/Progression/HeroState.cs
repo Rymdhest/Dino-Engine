@@ -86,6 +86,12 @@ namespace Dino_Defenders.Progression
         /// <summary>The nodes taken on the talent tree, by id, in the order they were taken.</summary>
         public List<string> Talents { get; set; } = new();
 
+        /// <summary>What they've done, kept for the Archive in the Haven.</summary>
+        public HeroRecords Records { get; set; } = new();
+
+        /// <summary>The Haven's halls they've opened, by name. Every one is open for now, while the game's being tested (<see cref="Halls.AllOpen"/>).</summary>
+        public List<string> HallsOpen { get; set; } = new();
+
         /// <summary>The books on the bar, which are there and not in the pack, as a ring is on a finger. See BOOKS.md.</summary>
         public Item?[] Bar { get; set; } = new Item?[BarSlots];
 

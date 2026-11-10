@@ -61,11 +61,10 @@ void main() {
 	gAlbedo.rgb = albedo;
 	gNormal.xyz = compressNormal(normal);
 
-    gAlbedo.a = material.subSurface;
-	//gAlbedo.a = 0.0;
+    gAlbedo.a = transmittance(material.subSurface, material.height);
     gNormal.a = material.ambient;
 	gMaterials.r = roughness;
 	gMaterials.g = encodeEmission(material.emission * EMISSION_GAIN);
 	gMaterials.b = material.metalic;
-    gMaterials.a = material.height;
+    gMaterials.a = 1.0;
 }

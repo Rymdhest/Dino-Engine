@@ -35,8 +35,13 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         private Matrix4 _place = Matrix4.Identity;
         private bool _flipped;
 
-        /// <summary>Texture repeats per metre.</summary>
-        public float TilesPerMetre = 0.6f;
+        /// <summary>
+        /// Texture repeats per metre, for whatever wants every material at one size. Left at NaN, each material is mapped at the size it was made for
+        /// (<see cref="Textures.MaterialSpec.TileMetres"/>), which is the size its relief's depth means: mail's links are the size of links on any piece.
+        /// </summary>
+        public float TilesPerMetre = float.NaN;
+
+        private float TilesFor(VertexMaterial material) => float.IsNaN(TilesPerMetre) ? Textures.MaterialCatalog.TilesPerMetre(material.materialTextureIndex) : TilesPerMetre;
 
         /// <summary>The bone what's built next goes on, until something says otherwise.</summary>
         public int Bone;
@@ -108,6 +113,14 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 if (i < points) distance += (first[(i + 1) % points] - first[point]).Length;
             }
 
+            // A whole number of tiles round the outline, at the size of the widest ring, so that the texture closes on itself where the outline does, and every
+            // ring of the loft shares the same columns of it.
+            float widest = 0f;
+            foreach (Ring ring in rings) widest = MathF.Max(widest, MathF.Max(ring.HalfWidth, ring.HalfDepth));
+            float tiles = TilesFor(material(0, 0));
+            float wraps = MathF.Max(1f, MathF.Round(distance * widest * tiles));
+            for (int c = 0; c < columns.Count; c++) columns[c] = (columns[c].point, distance > 0f ? columns[c].around / distance * wraps : 0f);
+
             // From the first two, as a loop ends where it started.
             Vector3 axis = rings[1].Centre - rings[0].Centre;
             bool forwards = Vector3.Dot(Vector3.Cross(rings[0].Side, rings[0].Front), axis) < 0f;
@@ -141,7 +154,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             for (int c = 0; c < columns.Count; c++)
             {
                 (int point, float around) = columns[c];
-                row[c] = AddVertex(PointOn(section, ring, point), material(index, point), new Vector2(around * MathF.Max(ring.HalfWidth, ring.HalfDepth), along) * TilesPerMetre);
+                VertexMaterial made = material(index, point);
+                row[c] = AddVertex(PointOn(section, ring, point), made, new Vector2(around, along * TilesFor(made)));
             }
             return row;
         }
@@ -186,7 +200,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             for (int i = 0; i < section.Count; i++)
             {
                 Vector2 p = (ring.Shape ?? section.Points)[i];
-                AddVertex(PointOn(section, ring, i), material(index, i), new Vector2(p.X * ring.HalfWidth, p.Y * ring.HalfDepth) * TilesPerMetre);
+                VertexMaterial made = material(index, i);
+                AddVertex(PointOn(section, ring, i), made, new Vector2(p.X * ring.HalfWidth, p.Y * ring.HalfDepth) * TilesFor(made));
             }
             if (section.ClosesAcross)
             {

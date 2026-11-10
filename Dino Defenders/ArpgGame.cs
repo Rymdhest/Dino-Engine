@@ -250,6 +250,8 @@ namespace Dino_Defenders
             _save = save is { } played && !played.NeverPlayed() ? played : null;
             _firstWorldOfThisSession = true;
             PrepareHero();
+            // The Archive keeps the records of every hero on this machine: the others as their saves have them.
+            ArchivePlaques.Others = _heroes.Where(entry => entry != _chosen).Select(entry => entry.Hero).ToList();
 
             _ui.Playing(true);
             _title = null;
@@ -333,6 +335,7 @@ namespace Dino_Defenders
             _hero = null!;
             _save = null;
             _stash = null;
+            ArchivePlaques.Others = Array.Empty<HeroState>();
             StashStore.Release();
             SaveGame.PathOverride = _options.SaveFile;
             ShowMenu();
@@ -425,6 +428,17 @@ namespace Dino_Defenders
             {
                 string[] parts = setting.Split('=');
                 var render_ = Dino_Engine.Core.Engine.RenderEngine;
+                if (parts.Length == 2 && parts[0] == "relief")
+                {
+                    // How deep every material's relief is drawn, as a share of its own: 0 for none (Surface/Relief.glsl).
+                    render_.ReliefScale = float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                    continue;
+                }
+                if (parts.Length == 2 && parts[0] == "aniso")
+                {
+                    render_.textureGenerator.SetAnisotropy(float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+                    continue;
+                }
                 if (parts.Length == 2 && parts[0] == "samples")
                 {
                     render_.AntiAliasing.Samples = int.Parse(parts[1]);
@@ -658,6 +672,7 @@ namespace Dino_Defenders
                 });
             }
             if (_frames == 30 && _options.Garden is string garden) PlantGarden(garden);
+            if (_frames == 30 && _options.Materials is string materials) MaterialGallery.Stand(materials, session.PlayerPosition, (x, z) => session.World.Height.SampleCubic(x, z));
             if (_frames == 30 && _options.Fx is string fx) _stage = new EffectStage(fx, session.PlayerPosition + _options.FxAt, session.World);
             _stage?.Update(Dino_Engine.Core.Engine.Delta);
             if (_frames == 2 && _options.ParticleSheet is string sheet) Dino_Engine.Core.Engine.RenderEngine._particleRenderer.Flipbooks.WriteSheets(sheet);
@@ -1023,7 +1038,7 @@ namespace Dino_Defenders
             _followingHero = false;
 
             // Up from here, until the hero arrives: everything that draws wants a camera to draw through.
-            SpawnCameras(session, world.Sites[0].Position);
+            SpawnCameras(session, world.Sites[0].Landing);
             Engine.WorldReady = true;
 
             if (_options.Tour != null)

@@ -64,9 +64,11 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             float after = k + 2 < _chain.Length ? _chain[k + 2].At - end : end - start;
             float own = end == float.MaxValue ? Body.Head.Length : end - start;
 
+            // A giant is thick for how long its stretches are, so its joints blend over more of them.
+            float blend = Body.Sauropod ? 0.5f : 0.35f;
             if (k > 0)
             {
-                float width = 0.35f * MathF.Min(own, before);
+                float width = blend * MathF.Min(own, before);
                 if (along < start + width)
                 {
                     float share = Smooth(start - width, start + width, along);
@@ -75,7 +77,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             }
             if (end != float.MaxValue)
             {
-                float width = 0.35f * MathF.Min(own, after);
+                float width = blend * MathF.Min(own, after);
                 if (along > end - width)
                 {
                     float share = Smooth(end - width, end + width, along);
@@ -96,7 +98,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             switch (part)
             {
                 case SaurianPart.Head:
-                    return Along(Body.Axis.Nearest(p, out _));
+                    return Along(AlongOf(p));
                 case SaurianPart.LegL:
                 case SaurianPart.LegR:
                 case SaurianPart.ForeL:
@@ -106,9 +108,39 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 case SaurianPart.ArmR:
                     return Joined(p, ArmHang(Body.Arms[part == SaurianPart.ArmL ? 0 : 1], p), parts[(int)part], parts[(int)SaurianPart.Body]);
                 default:
-                    return Along(Body.Axis.Nearest(p, out _));
+                    return Body.Sauropod ? NearLeg(p, parts) : Along(AlongOf(p));
             }
         }
+
+        // A giant's body skin near a leg shares with the leg, as the leg's skin near the body shares with the body, so the two meet halfway with nothing between: blended on one side only,
+        // the shoulder split open whenever the chest moved under the neck.
+        private Hang NearLeg(Vector3 p, ReadOnlySpan<float> parts)
+        {
+            Hang body = Along(AlongOf(p));
+            SaurianPart nearest = SaurianPart.LegL;
+            for (SaurianPart leg = SaurianPart.LegL; leg <= SaurianPart.ForeR; leg++)
+            {
+                if (parts[(int)leg] < parts[(int)nearest]) nearest = leg;
+            }
+            float gap = parts[(int)nearest] - parts[(int)SaurianPart.Body];
+            float reach = JoinReach;
+            if (gap >= reach) return body;
+            return Mix(LegHang(LegOf(nearest), p), body, 0.5f * (1f - Smooth(0f, reach, gap)));
+        }
+
+        private float JoinReach => Body.ChestDepth * (Body.Sauropod ? 0.8f : 0.35f);
+
+        // Two bones at most: the strongest of what the limb and the body each bring, the limb with this much of the say.
+        private static Hang Mix(Hang limb, Hang body, float limbShare)
+        {
+            float limbFirst = limb.Share * limbShare;
+            float bodyFirst = body.Share * (1f - limbShare);
+            return limbFirst >= bodyFirst ? new Hang(limb.First, body.First, limbFirst / (limbFirst + bodyFirst)) : new Hang(body.First, limb.First, bodyFirst / (limbFirst + bodyFirst));
+        }
+
+        // Where a point is along the body's line. A giant's neck rises steeply off its chest, and the nearest stretch of line flips across that bend between neighbouring points, which hung
+        // them from bones metres apart and tore the skin open as the neck moved: so a giant's goes by every stretch near it, softly.
+        private float AlongOf(Vector3 p) => Body.Sauropod ? Body.Axis.Soft(p, Body.ChestDepth * 0.12f) : Body.Axis.Nearest(p, out _);
 
         private SaurianLeg LegOf(SaurianPart part) => part switch
         {
@@ -122,15 +154,10 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         private Hang Joined(Vector3 p, Hang limb, float limbDistance, float bodyDistance)
         {
             float gap = bodyDistance - limbDistance;
-            float reach = Body.ChestDepth * 0.35f;
+            float reach = JoinReach;
             if (gap >= reach) return limb;
             float shared = 0.5f * (1f - Smooth(0f, reach, gap));
-            Hang body = Along(Body.Axis.Nearest(p, out _));
-
-            // Two bones at most: the strongest of what the limb and the body each bring.
-            float limbFirst = limb.Share * (1f - shared);
-            float bodyFirst = body.Share * shared;
-            return limbFirst >= bodyFirst ? new Hang(limb.First, body.First, limbFirst / (limbFirst + bodyFirst)) : new Hang(body.First, limb.First, bodyFirst / (limbFirst + bodyFirst));
+            return Mix(limb, Along(AlongOf(p)), 1f - shared);
         }
 
         private static float Segment(Vector3 p, Vector3 a, Vector3 b, out float t)

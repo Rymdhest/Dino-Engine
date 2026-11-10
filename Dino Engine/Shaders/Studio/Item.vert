@@ -15,6 +15,7 @@ out vec3 fragColor;
 out vec2 fragUV;
 out float textureIndex;
 out mat3 normalTBN;
+out vec3 viewPosition;
 
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
@@ -36,7 +37,8 @@ void main() {
 	t = mat3(skin) * tangent;
 #endif
 
-	gl_Position = projectionMatrix * viewMatrix * vec4(place, 1.0);
+	viewPosition = (viewMatrix * vec4(place, 1.0)).xyz;
+	gl_Position = projectionMatrix * vec4(viewPosition, 1.0);
 	fragColor = color;
 	fragUV = uv;
 	textureIndex = materialIndex;

@@ -7,6 +7,7 @@
 #include Globals.glsl
 #include Particles/Particle.glsl
 #include Particles/ParticleFlipbooks.glsl
+#include Halls.glsl
 
 layout(std430, binding = 0) readonly buffer ParticleBuffer {
     Particle particles[];
@@ -142,10 +143,11 @@ void main()
         flicker = 1.0 - s.book.z * (wave * 0.5 + 0.5);
     }
 
-    // How much of it there is, and how strongly that glows.
-    vTint = vec4(curveA.rgb * p.tint.rgb, curveA.a * p.tint.a * faint);
+    // How much of it there is, and how strongly that glows. Whatever's in what the open hall has cut away goes with it (Halls.glsl): its chimney's smoke.
+    float kept = 1.0 - cutByHallSoft(f.centre, 3.0);
+    vTint = vec4(curveA.rgb * p.tint.rgb, curveA.a * p.tint.a * faint) * kept;
     vLife = vec4(t, p.seed, float(sprite), s.book.x);
-    vGlow = vec4(curveB.y * flicker * emissionScale, curveB.z, s.look.z, s.draw.z);
+    vGlow = vec4(curveB.y * flicker * emissionScale * kept, curveB.z, s.look.z, s.draw.z);
 
     // Which frames it's between. What goes on plays at its rate from a place of its own; what plays once plays over its life.
     float erosion = curveB.w;

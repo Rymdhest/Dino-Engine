@@ -24,9 +24,13 @@ layout (location = 1) out vec4 gNormal;
 layout (location = 2) out vec4 gMaterials;
 
 #include textureUtil.glsl
+#include Surface/SurfaceFrame.glsl
 
 void main() {
-    gAlbedo = lookupAlbedo(fragUV, textureIndex);
+    // The frame the texture coordinates make, before anything's discarded: after that, derivatives mean nothing.
+    vec3 smoothNormal = normalize(normalTBN[2]);
+    SurfaceFrame frame = surfaceFrame(positionViewSpace_pass, smoothNormal, fragUV);
+    gAlbedo = lookupAlbedoGrad(fragUV, textureIndex, frame.uvDx, frame.uvDy);
     
     if (gAlbedo.a < 0.5) discard; 
 
@@ -53,9 +57,9 @@ void main() {
     float layerValue = texture(overdrawTexture, screenUV).r * 255.0;
     int layerCount = int(round(layerValue / 4.0));
 
-    // 4. Read Raw Local Leaf Normal
-    NormalLookupResult normalLookup = lookupNorma(fragUV, textureIndex);
-    vec3 rawNormal = normalize(normalTBN * normalLookup.normal);
+    // 4. Read Raw Local Leaf Normal, in the frame the texture coordinates themselves make (Surface/SurfaceFrame.glsl), as the model is drawn.
+    NormalLookupResult normalLookup = lookupNormaGrad(fragUV, textureIndex, frame.uvDx, frame.uvDy);
+    vec3 rawNormal = surfaceNormal(frame, normalLookup.normal, smoothNormal);
     if (!gl_FrontFacing) rawNormal *= -1.0;
 
     vec3 finalNormal = rawNormal;
@@ -75,7 +79,7 @@ void main() {
     gNormal.a = normalLookup.ambient * aoDecay;
 
     float depth = -positionViewSpace_pass.z / maxDepth;
-    gMaterials = lookupMaterial(fragUV, textureIndex).rgba;
+    gMaterials = lookupMaterialGrad(fragUV, textureIndex, frame.uvDx, frame.uvDy).rgba;
     gMaterials.a += 1.0 - depth;
     gMaterials.a *= 0.5;
 }

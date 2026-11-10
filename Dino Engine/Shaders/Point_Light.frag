@@ -4,6 +4,7 @@
 #include Lighting/lightingCalc.glsl
 #include AntiAliasing/Msaa.glsl
 #include Lighting/gBufferSample.glsl
+#include Halls.glsl
 
 layout (location = 0) out vec4 out_Colour;
 
@@ -70,6 +71,8 @@ void main(void) {
     float distanceToLight = length(toLight);
     float falloff = lightFalloff(distanceToLight, lightRadius);
     if (falloff <= 0.0) discard;
+    // A hall keeps its own light in, and everyone else's out (Halls.glsl).
+    if (hallsLetThrough(lightPositionWorld, (invViewMatrix * vec4(g.position, 1.0)).xyz) <= 0.0) discard;
 
     finishGBufferSample(g);
     Surface s = surfaceOf(g);

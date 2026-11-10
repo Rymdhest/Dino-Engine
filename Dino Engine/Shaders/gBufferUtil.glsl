@@ -33,6 +33,12 @@ vec3 ReconstructWorldSpacePosition(vec2 fragCoord, float depth, mat4 invProjecti
     return worldPos.xyz;
 }
 
+// What a surface lets through to its far side, as the G-buffer keeps it (gAlbedo.a): its translucency, less what's absorbed crossing its thickness, 0 to 1. Worked
+// out where the surface is drawn, as the channel a thickness once had now holds what a relief lets of the sun (gMaterials.a, Surface/Relief.glsl).
+float transmittance(float translucency, float thickness) {
+    return translucency / (pow(thickness * 2.0, 3.0) + 1.0);
+}
+
 vec3 compressNormal(vec3 normal) {
     return normal*0.5f+0.5f;
 }

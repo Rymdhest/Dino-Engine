@@ -474,7 +474,10 @@ namespace Dino_Engine.Wildlife
             if (leaf.Age > 45f || !_sim.InView(leaf.At.Xz, DropMargin)) return false;
             if (leaf.Guided && leaf.Age > leaf.Lasts) return false;
 
+            // A leaf that comes over a hall's walls has landed on its roof.
             at = leaf.At.Xz;
+            if (_sim.Land.UnderRoof(at)) return false;
+
             float level = _sim.Land.WaterLevel(at);
             ground = _sim.Land.RoughGround(at);
             if (level > ground + 0.05f)

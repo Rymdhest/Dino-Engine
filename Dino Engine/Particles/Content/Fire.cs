@@ -133,9 +133,9 @@ namespace Dino_Engine.Particles.Content
             Sprite = ParticleSprite.Smoke, Lit = true,
             Colour = new Gradient((0f, new Vector3(0.12f, 0.1f, 0.09f)), (0.5f, new Vector3(0.28f, 0.27f, 0.26f)), (1f, new Vector3(0.42f, 0.41f, 0.4f))),
             Size = new Curve((0f, 0.55f), (0.12f, 1.1f), (1f, 2.1f)),
-            Opacity = new Curve((0f, 0.95f), (0.6f, 0.65f), (1f, 0f)),
-            Erosion = new Curve((0f, 0f), (0.55f, 0.15f), (1f, 0.75f)),
-            Emission = new Curve((0f, 2.4f), (0.18f, 1.3f), (0.4f, 0.15f), (0.55f, 0f)),
+            Opacity = new Curve((0f, 0.9f), (0.3f, 0.4f), (1f, 0f)),
+            Erosion = new Curve((0f, 0.05f), (0.35f, 0.35f), (1f, 0.85f)),
+            Emission = new Curve((0f, 3.4f), (0.2f, 2f), (0.45f, 0.35f), (0.6f, 0f)),
             Heat = new Curve((0f, 1f), (0.25f, 0.75f), (0.5f, 0.35f)),
             Drag = 2.2f, Buoyancy = 3.3f, BuoyancyFade = 1.5f, Turbulence = 0.6f, TurbulenceScale = 5.5f, SpinDrag = 0.4f,
             Softness = 0.4f,
@@ -213,7 +213,7 @@ namespace Dino_Engine.Particles.Content
         public static readonly ParticleEffect Burning = new()
         {
             Reach = 8f,
-            Light = new EffectLight { Colour = new Vector3(1f, 0.5f, 0.18f), Intensity = 99f, Radius = 14.4f, Height = 2.64f, Flicker = 0.35f, FlickerSpeed = 11f, Fill = 0.25f },
+            Light = new EffectLight { Colour = new Vector3(1f, 0.5f, 0.18f), Intensity = 140f, Radius = 14.4f, Height = 2.64f, Flicker = 0.35f, FlickerSpeed = 11f, Fill = 0.25f },
             Emitters = new[]
             {
                 new ParticleEmitter { Style = Tongue, Rate = 9f, Per = RateBasis.Metre, Place = EmitterPlace.Within, Life = R(0.45f, 0.75f), Size = R(1.6f, 2.6f), Speed = R(0.45f, 1.5f), Spread = 0.3f, Turned = false },
@@ -226,37 +226,38 @@ namespace Dino_Engine.Particles.Content
         public static readonly ParticleEffect Ground = new()
         {
             Reach = 12f,
-            Light = new EffectLight { Colour = new Vector3(1f, 0.5f, 0.17f), Intensity = 144f, Radius = 14.4f, Height = 3.3f, Flicker = 0.3f, FlickerSpeed = 8f, Fill = 0.3f, LightsFog = true },
+            Light = new EffectLight { Colour = new Vector3(1f, 0.5f, 0.17f), Intensity = 240f, Radius = 14.4f, Height = 3.3f, Flicker = 0.3f, FlickerSpeed = 8f, Fill = 0.3f, LightsFog = true },
             Emitters = new[]
             {
                 new ParticleEmitter { Style = Blaze, Rate = 0.015f, Per = RateBasis.SquareMetre, Place = EmitterPlace.Ground, Life = R(4f, 6f), Size = R(3.52f, 5.28f) },
                 new ParticleEmitter { Style = HearthFlame, Rate = 0.11f, Per = RateBasis.SquareMetre, Place = EmitterPlace.Ground, Life = R(1.2f, 1.8f), Size = R(2.2f, 3.2f), Turned = false },
                 new ParticleEmitter { Style = Tongue, Rate = 0.16f, Per = RateBasis.SquareMetre, Place = EmitterPlace.Ground, Life = R(0.5f, 0.8f), Size = R(1.6f, 2.4f), Speed = R(0.45f, 1.35f), Spread = 0.3f, Turned = false },
                 new ParticleEmitter { Style = Ember, Rate = 0.117f, Per = RateBasis.SquareMetre, Place = EmitterPlace.Ground, Offset = new Vector3(0f, 0.66f, 0f), Life = R(1.2f, 2.4f), Size = R(0.038f, 0.068f), Speed = R(1.2f, 3.75f), Spread = 0.5f },
-                new ParticleEmitter { Style = Smoke, Rate = 0.015f, Per = RateBasis.SquareMetre, Place = EmitterPlace.Ground, Offset = new Vector3(0f, 3.08f, 0f), Life = R(4f, 6f), Size = R(1.76f, 2.86f), Speed = R(0.6f, 1.35f), Spin = R(0.05f, 0.2f), Strength = 0.8f },
+                new ParticleEmitter { Style = Smoke, Rate = 0.008f, Per = RateBasis.SquareMetre, Place = EmitterPlace.Ground, Offset = new Vector3(0f, 3.08f, 0f), Life = R(4f, 6f), Size = R(1.76f, 2.86f), Speed = R(0.6f, 1.35f), Spin = R(0.05f, 0.2f), Strength = 0.8f },
             },
         };
 
-        /// <summary>A blast of fire: balls of flame swelling into smoke, gouts flung out, sparks, embers, the ground scorched, and a flash. Made for a blast about three metres across; in a wider EffectShape.Ball it spreads over all of it.</summary>
+        /// <summary>A blast of fire: balls of flame burning out into thin smoke, gouts flung out, sparks, embers, the ground scorched, and a bright flash. No smoke of its
+        /// own: a few cast into one place hid everything under them. Made for a blast about three metres across; in a wider EffectShape.Ball it spreads over all of it.</summary>
         public static readonly ParticleEffect Burst = new()
         {
             Priority = ParticlePriority.Vital, Reach = 16f,
-            Light = new EffectLight { Colour = new Vector3(1f, 0.55f, 0.22f), Intensity = 684f, Radius = 25.6f, Height = 3.3f, Flicker = 0.2f, FlickerSpeed = 20f, Length = 0.7f, Over = new Curve((0f, 1f), (0.15f, 0.7f), (1f, 0f)), LightsFog = true },
+            Light = new EffectLight { Colour = new Vector3(1f, 0.55f, 0.22f), Intensity = 1050f, Radius = 25.6f, Height = 3.3f, Flicker = 0.2f, FlickerSpeed = 20f, Length = 1f, Over = new Curve((0f, 1f), (0.15f, 0.7f), (1f, 0f)), LightsFog = true },
             Emitters = new[]
             {
-                new ParticleEmitter { Style = Fireball, Burst = 7, Spreads = true, Offset = new Vector3(0f, 1.32f, 0f), Size = R(2.42f, 3.74f), Life = R(1.6f, 2.4f), Outward = 3.75f, Speed = R(0.75f, 2.25f), Spread = 0.6f, Spin = R(0.2f, 0.8f) },
+                new ParticleEmitter { Style = Fireball, Burst = 5, Spreads = true, Offset = new Vector3(0f, 1.32f, 0f), Size = R(2.42f, 3.74f), Life = R(1.3f, 1.9f), Outward = 3.75f, Speed = R(0.75f, 2.25f), Spread = 0.6f, Spin = R(0.2f, 0.8f) },
                 new ParticleEmitter { Style = Gout, Burst = 10, Spreads = true, Offset = new Vector3(0f, 1.1f, 0f), Size = R(1.32f, 2.2f), Life = R(0.5f, 0.8f), Outward = 6.75f, Speed = R(1.5f, 3.75f), Spread = 0.8f },
                 new ParticleEmitter { Style = Spark, Burst = 28, Offset = new Vector3(0f, 1.1f, 0f), Size = R(0.045f, 0.075f), Life = R(0.5f, 1.1f), Speed = R(7.5f, 16.5f), Spread = 1.1f },
                 new ParticleEmitter { Style = Ember, Burst = 20, Spreads = true, Offset = new Vector3(0f, 1.76f, 0f), Size = R(0.045f, 0.075f), Life = R(1.5f, 3f), Speed = R(2.25f, 6f), Spread = 1.2f },
-                new ParticleEmitter { Style = Smoke, Burst = 4, Spreads = true, Delay = 0.25f, Offset = new Vector3(0f, 2.64f, 0f), Size = R(1.5f, 2.2f), Life = R(3f, 4.5f), Outward = 1.8f, Speed = R(0.75f, 1.8f), Spin = R(0.05f, 0.3f) },
                 new ParticleEmitter { Style = Scorch, Burst = 1, Fills = true, Place = EmitterPlace.Ground, Size = R(1.3f, 1.6f), Life = R(8f, 11f) },
             },
         };
 
-        /// <summary>A blow of fire landing on someone, or the fire in a caster's hand: a gout and a few embers. Scale 1 is a hard blow.</summary>
+        /// <summary>A blow of fire landing on someone, or the fire in a caster's hand: a gout, a few embers and a flash. Scale 1 is a hard blow.</summary>
         public static readonly ParticleEffect Hit = new()
         {
             Priority = ParticlePriority.Vital, Reach = 4f,
+            Light = new EffectLight { Colour = new Vector3(1f, 0.55f, 0.2f), Intensity = 130f, Radius = 8f, Height = 0.5f, Flicker = 0f, Length = 0.3f },
             Emitters = new[]
             {
                 new ParticleEmitter { Style = Gout, Burst = 3, Size = R(1.1f, 1.76f), Life = R(0.35f, 0.5f), Speed = R(0.75f, 2.25f), Spread = 0.9f },
@@ -264,15 +265,16 @@ namespace Dino_Engine.Particles.Content
             },
         };
 
-        /// <summary>What a bolt of fire leaves behind it as it flies: gouts that burn out where they're left, embers and a little smoke.</summary>
+        /// <summary>What a bolt of fire leaves behind it as it flies: gouts that burn out where they're left, embers, a little smoke, and its light on the ground under it.</summary>
         public static readonly ParticleEffect Bolt = new()
         {
             Priority = ParticlePriority.Vital, Reach = 6f,
+            Light = new EffectLight { Colour = new Vector3(1f, 0.55f, 0.2f), Intensity = 170f, Radius = 11f, Flicker = 0.25f, FlickerSpeed = 14f, Fill = 0.25f, LightsFog = true },
             Emitters = new[]
             {
                 new ParticleEmitter { Style = Gout, Rate = 32f, Size = R(1.21f, 1.76f), Life = R(0.22f, 0.32f), Speed = R(0.3f, 0.9f), Spread = MathF.PI },
                 new ParticleEmitter { Style = Ember, Rate = 18f, Size = R(0.038f, 0.06f), Life = R(0.6f, 1.2f), Speed = R(0.75f, 2.7f), Spread = MathF.PI },
-                new ParticleEmitter { Style = Smoke, Rate = 5f, Size = R(0.66f, 0.99f), Life = R(1.4f, 2f), Speed = R(0.15f, 0.6f), Strength = 0.6f },
+                new ParticleEmitter { Style = Smoke, Rate = 2f, Size = R(0.66f, 0.99f), Life = R(1.2f, 1.6f), Speed = R(0.15f, 0.6f), Strength = 0.4f },
             },
         };
     }

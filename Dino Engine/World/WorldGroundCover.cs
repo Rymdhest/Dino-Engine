@@ -67,6 +67,7 @@ namespace Dino_Engine.World
 
             WorldData world = _world;
             if (world.PavedRoad.Sample(point) + world.TrailRoad.Sample(point) + world.Plaza.Sample(point) + world.Yard.Sample(point) + world.Farmland.Sample(point) > 0.25f) return;
+            if (world.Paved && world.Paving.Sample(point) > 0.15f) return;
 
             float height = world.Height.Sample(point);
             float above = height - world.WaterLevelAt(point);
