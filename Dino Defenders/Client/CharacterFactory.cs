@@ -299,12 +299,12 @@ namespace Dino_Defenders.Client
         // How a Minion carries what it holds, as a hero would.
         private static Bearing HeldBy(Rig rig, MotionStyle style, (ulong Seed, uint Traits)? weapon, (ulong Seed, uint Traits)? offHand)
         {
-            Carry carry = weapon is (_, uint traits) ? SkillMotions.CarryOf(Progression.ItemLook.WeaponOf(traits)) : Carry.Nothing;
+            Carry carry = weapon is (_, uint traits) ? SkillMotions.CarryOf(traits) : Carry.Nothing;
             Carry? second = null;
             bool shield = false;
             if (offHand is (_, uint looks))
             {
-                if (Progression.ItemLook.SlotOf(looks) == Progression.ItemSlot.MainHand) second = SkillMotions.CarryOf(Progression.ItemLook.WeaponOf(looks));
+                if (Progression.ItemLook.SlotOf(looks) == Progression.ItemSlot.MainHand) second = SkillMotions.CarryOf(looks);
                 else shield = true;
             }
             return new Bearing(rig, style, carry, shield, second);

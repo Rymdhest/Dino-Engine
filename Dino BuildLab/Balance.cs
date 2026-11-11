@@ -62,7 +62,9 @@ namespace Dino_BuildLab
             {
                 ItemSlot slot = WornSlots.Holds(place);
                 Item? best = null;
-                for (int attempt = 0; attempt < 12 && best == null; attempt++)
+                // A weapon has to be the sample's kind, which is one of many: it's given the tries to find one, or it fights with nothing and the table says nothing about it.
+                int attempts = slot == ItemSlot.MainHand ? 96 : 12;
+                for (int attempt = 0; attempt < attempts && best == null; attempt++)
                 {
                     Item item = ItemGenerator.Roll(hero.Level, random.Fork(attempt * 16 + (int)place), 1f, Rarity.Magic, slot);
                     if (item.Unique != null) continue;

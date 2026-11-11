@@ -598,7 +598,7 @@ namespace Dino_Defenders.Client
                     if (struck && arrow.Velocity.Xz != Vector2.Zero) position = StruckAt(session.World, arrow, Math.Max(tick, arrow.StartTick));
 
                     entity.Set(new PositionComponent(position));
-                    if (entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model.StartsWith(Thrown.Prefix)) Tumble(entity, arrow, tick);
+                    if (entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model is string thrown && thrown.StartsWith(Thrown.Prefix)) Tumble(entity, arrow, tick, thrown == JavelinModel);
                     bool bolt = entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model.StartsWith(CharacterFactory.BoltPrefix);
                     entity.Set(new ScaleComponent(new Vector3(spent ? 0.001f : bolt ? BoltSize : 1f)));
                     // Its trail ends where it does, though the server's word on it is still to come.
@@ -627,11 +627,13 @@ namespace Dino_Defenders.Client
 
         private const float StruckStandOff = 0.5f;  // Metres, on top of the Girth the world already keeps it off what it hit.
 
-        // End over end, along the way it's going. What a hero threw is the thing in their hands, which has to keep being asked for.
-        private void Tumble(in EntityView entity, in BallisticComponent flight, double tick)
+        private static readonly string JavelinModel = Thrown.Prefix + Thrown.Of(Tags.Spear);
+
+        // End over end, along the way it's going, except a spear, which is a javelin and flies point first, as it was made to. What a hero threw is the thing in their hands, which has to keep being asked for.
+        private void Tumble(in EntityView entity, in BallisticComponent flight, double tick, bool pointFirst)
         {
             float yaw = MathF.Atan2(flight.Velocity.X, flight.Velocity.Z);
-            float turned = (float)(tick - flight.StartTick) * ThrownTurn;
+            float turned = pointFirst ? 0f : (float)(tick - flight.StartTick) * ThrownTurn;
             entity.Set(new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, yaw) * Quaternion.FromAxisAngle(Vector3.UnitX, turned)));
 
             if (!entity.Has<ThrownComponent>()) return;

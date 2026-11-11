@@ -59,7 +59,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public static Angle PictureOf(GearKind kind) => kind switch
         {
             GearKind.Bow => new Angle(-MathF.PI / 2f, 1.05f, 0.18f, 0.785f),
-            GearKind.Sword or GearKind.Dagger or GearKind.Spear or GearKind.Staff or GearKind.Wand or GearKind.Axe or GearKind.Mace => new Angle(-MathF.PI / 2f, 0.42f, 0.18f, 0.785f),
+            GearKind.Sword or GearKind.Dagger or GearKind.Spear or GearKind.Staff or GearKind.Wand or GearKind.Axe or GearKind.Hammer or GearKind.Greatsword or GearKind.Greataxe or GearKind.Greathammer => new Angle(-MathF.PI / 2f, 0.42f, 0.18f, 0.785f),
             GearKind.OffHand => new Angle(-MathF.PI / 2f, 0.5f, 0.15f, 0f),
             GearKind.Body or GearKind.Legs => new Angle(-MathF.PI / 2f, 0.3f, 0.12f, 0f),
             GearKind.Head => new Angle(0f, 0.5f, 0.32f, 0f),

@@ -348,7 +348,7 @@ namespace Dino_Defenders.Tooltips
 
             Kind(Tags.Sword, "Sword", "Swords");
             Kind(Tags.Axe, "Axe", "Axes");
-            Kind(Tags.Mace, "Mace", "Maces");
+            Kind(Tags.Hammer, "Hammer", "Hammers");
             Kind(Tags.Dagger, "Dagger", "Daggers");
             Kind(Tags.Spear, "Spear", "Spears");
             Kind(Tags.Bow, "Bow", "Bows");

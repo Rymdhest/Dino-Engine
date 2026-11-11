@@ -155,7 +155,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         }
 
         // Hitting things is simple, so a head can be almost anything heavy. Which is decided by weights and not a list of maces: a head can be a block with flanges and a spike on it.
-        public static void Mace(GearMesh mesh, GearStyle style)
+        public static void Hammer(GearMesh mesh, GearStyle style)
         {
             Genes genes = style.Genes;
             GearForm form = style.Spec.Form;

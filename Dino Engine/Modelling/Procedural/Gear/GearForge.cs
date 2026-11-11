@@ -13,14 +13,17 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             switch (spec.Kind)
             {
                 case GearKind.Sword:
+                case GearKind.Greatsword:
                 case GearKind.Dagger:
                     BladeGenerator.Build(mesh, style);
                     break;
                 case GearKind.Axe:
+                case GearKind.Greataxe:
                     PolearmGenerator.Axe(mesh, style);
                     break;
-                case GearKind.Mace:
-                    PolearmGenerator.Mace(mesh, style);
+                case GearKind.Hammer:
+                case GearKind.Greathammer:
+                    PolearmGenerator.Hammer(mesh, style);
                     break;
                 case GearKind.Spear:
                     PolearmGenerator.Spear(mesh, style);

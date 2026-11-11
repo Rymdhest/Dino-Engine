@@ -108,7 +108,7 @@ namespace Dino_Defenders.Tooltips
             Tags.Opening, Tags.Turned, Tags.Closing, Tags.Wild, Tags.Falling,
             Tags.Physical, Tags.Fire, Tags.Cold, Tags.Lightning, Tags.Magic, Tags.Poison, Tags.Elemental, Tags.DamageOverTime,
             Tags.Burn, Tags.Bleed, Tags.Venom, Tags.Chill, Tags.Freeze, Tags.Shock, Tags.Hex, Tags.Stun,
-            Tags.Sword, Tags.Axe, Tags.Mace, Tags.Dagger, Tags.Spear, Tags.Bow, Tags.Staff, Tags.Wand, Tags.Unarmed, Tags.OneHanded, Tags.TwoHanded,
+            Tags.Sword, Tags.Axe, Tags.Hammer, Tags.Dagger, Tags.Spear, Tags.Bow, Tags.Staff, Tags.Wand, Tags.Unarmed, Tags.OneHanded, Tags.TwoHanded,
         };
 
         /// <summary>What's shown of some tags, always in the same order. A hit is what everything is, so it says nothing here.</summary>

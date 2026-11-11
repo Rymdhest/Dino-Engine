@@ -261,14 +261,13 @@ namespace Dino_Engine.Animation
             SecondGrip = -0.62f,
         };
 
+        // A javelin, held at its balance in one hand, so the other is free for a shield: upright at rest, trailed at the hip on the move, and its point at whoever's there in a fight.
         public static readonly Carry Spear = new Carry
         {
             Idle = new HandKey(-72f, -0.36f, 0.56f, -8f, 78f),
             Run = new HandKey(-74f, -0.3f, 0.6f, -10f, 12f),
             Guard = new HandKey(-46f, -0.22f, 0.7f, 0f, 8f),
-            Length = 3f,
-            TwoHanded = true,
-            SecondGrip = -1.5f,
+            Length = 2.5f,
         };
 
         public static readonly Carry Staff = new Carry

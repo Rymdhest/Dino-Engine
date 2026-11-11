@@ -46,6 +46,9 @@ namespace Dino_Defenders.Progression
         /// <summary>What kind of weapon something is, for how it's carried.</summary>
         public static WeaponKind WeaponOf(uint traits) => (WeaponKind)(traits >> KindBits & 7);
 
+        /// <summary>Whether a weapon takes both hands, which for a kind made both ways is what its base says, and the base is in what was said about it.</summary>
+        public static bool TwoHandedOf(uint traits) => SlotOf(traits) == ItemSlot.MainHand && ItemGenerator.TakesTwoHands(ItemGenerator.NameOf((int)(traits & 0xFF)), WeaponOf(traits));
+
         /// <summary>What something is worn as, which tells a second weapon in the off hand from a shield.</summary>
         public static ItemSlot SlotOf(uint traits) => (ItemSlot)(traits >> SlotBits & 15);
 
@@ -65,21 +68,23 @@ namespace Dino_Defenders.Progression
                 leather = (traits >> LeatherBits & 15) / ShareSteps;
                 cloth = MathF.Max(1f - heavy - leather, 0f);
             }
-            return new GearSpec(seed, KindOf(slot, kind), heavy, leather, cloth, Forms.GetValueOrDefault(baseName, GearForm.Middling), grade, theme);
+            bool both = slot == ItemSlot.MainHand && ItemGenerator.TakesTwoHands(baseName, kind);
+            return new GearSpec(seed, KindOf(slot, kind, both), heavy, leather, cloth, Forms.GetValueOrDefault(baseName, GearForm.Middling), grade, theme);
         }
 
-        public static GearKind KindOf(ItemSlot slot, WeaponKind weapon) => slot switch
+        /// <param name="twoHanded">Whether a weapon takes both hands, which for a sword, an axe or a hammer is a shape of its own.</param>
+        public static GearKind KindOf(ItemSlot slot, WeaponKind weapon, bool twoHanded = false) => slot switch
         {
             ItemSlot.MainHand => weapon switch
             {
-                WeaponKind.Axe => GearKind.Axe,
-                WeaponKind.Mace => GearKind.Mace,
+                WeaponKind.Axe => twoHanded ? GearKind.Greataxe : GearKind.Axe,
+                WeaponKind.Hammer => twoHanded ? GearKind.Greathammer : GearKind.Hammer,
                 WeaponKind.Dagger => GearKind.Dagger,
                 WeaponKind.Spear => GearKind.Spear,
                 WeaponKind.Bow => GearKind.Bow,
                 WeaponKind.Staff => GearKind.Staff,
                 WeaponKind.Wand => GearKind.Wand,
-                _ => GearKind.Sword,
+                _ => twoHanded ? GearKind.Greatsword : GearKind.Sword,
             },
             ItemSlot.OffHand => GearKind.OffHand,
             ItemSlot.Head => GearKind.Head,
@@ -156,12 +161,24 @@ namespace Dino_Defenders.Progression
             ["War Blade"] = F(0.82f, 0.28f, 0.15f, 0.6f, 0.4f, 0.2f),
             ["Runed Blade"] = F(0.72f, 0.5f, 0.1f, 0.5f, 0.85f, 0.05f),
             ["Knightly Blade"] = F(0.9f, 0.45f, 0.03f, 0.8f, 0.8f, 0.05f),
+            ["Greatsword"] = F(0.45f, 0.45f, 0.04f, 0.5f, 0.15f, 0.3f),
+            ["Claymore"] = F(0.7f, 0.5f, 0.05f, 0.65f, 0.4f, 0.15f),
+            ["Flamberge"] = F(0.85f, 0.5f, 0.9f, 0.7f, 0.6f, 0.1f),
+            ["Executioner's Sword"] = F(0.9f, 0.12f, 0f, 0.45f, 0.7f, 0.1f),
 
             ["Hatchet"] = F(0.2f, 0.6f, 0.2f, 0.3f, 0.05f, 0.35f),
             ["Bearded Axe"] = F(0.5f, 0.4f, 0.7f, 0.5f, 0.3f, 0.2f),
             ["Broad Axe"] = F(0.72f, 0.12f, 0.45f, 0.6f, 0.4f, 0.15f),
             ["Reaver Axe"] = F(0.88f, 0.2f, 0.85f, 0.8f, 0.7f, 0.1f),
+            ["Felling Axe"] = F(0.35f, 0.55f, 0.2f, 0.3f, 0.05f, 0.4f),
+            ["Greataxe"] = F(0.65f, 0.3f, 0.5f, 0.5f, 0.35f, 0.2f),
+            ["Bardiche"] = F(0.85f, 0.35f, 0.85f, 0.6f, 0.5f, 0.15f),
+            ["Champion Axe"] = F(0.95f, 0.15f, 0.6f, 0.8f, 0.8f, 0.05f),
 
+            ["Smith's Hammer"] = F(0.2f, 0.55f, 0.05f, 0.2f, 0f, 0.45f),
+            ["Horseman's Hammer"] = F(0.45f, 0.5f, 0.2f, 0.4f, 0.3f, 0.2f),
+            ["War Pick"] = F(0.6f, 0.6f, 0.5f, 0.5f, 0.45f, 0.15f),
+            ["Knight's Hammer"] = F(0.8f, 0.35f, 0.2f, 0.75f, 0.8f, 0.05f),
             ["Maul"] = F(0.35f, 0.3f, 0.05f, 0.3f, 0.05f, 0.4f),
             ["Warhammer"] = F(0.6f, 0.45f, 0.2f, 0.5f, 0.35f, 0.15f),
             ["Great Maul"] = F(0.82f, 0.12f, 0.1f, 0.6f, 0.45f, 0.15f),
@@ -172,9 +189,11 @@ namespace Dino_Defenders.Progression
             ["Kris"] = F(0.6f, 0.45f, 0.95f, 0.3f, 0.65f, 0.1f),
             ["Assassin's Blade"] = F(0.85f, 0.6f, 0.45f, 0.5f, 0.75f, 0.05f),
 
-            ["Boar Spear"] = F(0.45f, 0.3f, 0f, 0.6f, 0.15f, 0.3f),
-            ["Partisan"] = F(0.65f, 0.3f, 0.2f, 0.7f, 0.45f, 0.15f),
-            ["Glaive"] = F(0.85f, 0.2f, 0.75f, 0.4f, 0.6f, 0.1f),
+            ["Javelin"] = F(0.3f, 0.75f, 0f, 0.1f, 0.05f, 0.35f),
+            ["Hunting Spear"] = F(0.45f, 0.4f, 0f, 0.6f, 0.15f, 0.3f),
+            ["Winged Spear"] = F(0.6f, 0.35f, 0.15f, 0.8f, 0.45f, 0.15f),
+            ["Pilum"] = F(0.75f, 0.85f, 0f, 0.2f, 0.55f, 0.1f),
+            ["War Javelin"] = F(0.9f, 0.55f, 0.1f, 0.4f, 0.85f, 0.05f),
 
             ["Short Bow"] = F(0.25f, 0.6f, 0.1f, 0.2f, 0.1f, 0.3f),
             ["Hunting Bow"] = F(0.5f, 0.55f, 0.25f, 0.3f, 0.3f, 0.2f),

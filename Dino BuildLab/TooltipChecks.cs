@@ -646,7 +646,7 @@ namespace Dino_BuildLab
 
             // What's in the hands decides what a book is, so it takes one of each to find out what a line can do.
             // A caster's weapon is where Spell Damage comes from, so the one that stands for them has some.
-            foreach (Tags weapon in new[] { Tags.Sword | Tags.OneHanded | Tags.Unarmed | Tags.Axe | Tags.Mace | Tags.Dagger | Tags.Spear | Tags.TwoHanded, Tags.Bow | Tags.TwoHanded, Tags.Staff | Tags.Wand | Tags.OneHanded | Tags.TwoHanded })
+            foreach (Tags weapon in new[] { Tags.Sword | Tags.OneHanded | Tags.Unarmed | Tags.Axe | Tags.Hammer | Tags.Dagger | Tags.Spear | Tags.TwoHanded, Tags.Bow | Tags.TwoHanded, Tags.Staff | Tags.Wand | Tags.OneHanded | Tags.TwoHanded })
             {
                 IEnumerable<Mod> held = (weapon & Tags.Wand) != 0 ? mods.Append(Added(DamageType.Physical, 25f, Tags.Spell)) : mods;
                 yield return new Loadout(hero.Level, new WeaponProfile(20f, 30f, WeaponProfile.BareTime, 5f, weapon), held, Shelf.All);

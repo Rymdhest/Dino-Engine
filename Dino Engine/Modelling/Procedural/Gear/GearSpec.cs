@@ -5,12 +5,15 @@ namespace Dino_Engine.Modelling.Procedural.Gear
     {
         Sword,
         Axe,
-        Mace,
+        Hammer,
         Dagger,
         Spear,
         Bow,
         Staff,
         Wand,
+        Greatsword,     // What takes both hands is a shape of its own: a long grip, and a head or a blade to match it.
+        Greataxe,
+        Greathammer,
         OffHand,
         Head,
         Neck,

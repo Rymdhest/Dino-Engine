@@ -257,6 +257,31 @@ namespace Dino_Defenders.Progression
             foreach (KeyValuePair<string, JsonNode?> pair in item) RenameRarities(pair.Value);
         }
 
+        /// <summary>
+        /// A hammer was a Mace until 2026-11-12, when swords, axes and hammers came in one-handed and two-handed makes and a spear became a javelin, which takes one hand and hits as a sword does for its
+        /// swing. Three spears went under new names (<see cref="ItemGenerator.Renamed"/>), and what one already found hits for comes down by as much as its base did, at the moment it takes the new name.
+        /// A spear from before bases were kept gets its base then too. So the old name is what says it hasn't been done, and doing this again changes nothing.
+        /// </summary>
+        private static void Rearm(JsonObject item)
+        {
+            if (item["Slot"] is not JsonValue slot || !slot.TryGetValue(out string? worn) || worn != nameof(ItemSlot.MainHand)) return;
+            if (item["Kind"] is JsonValue kind && kind.TryGetValue(out string? named) && named == "Mace") item["Kind"] = nameof(WeaponKind.Hammer);
+            if (item["Kind"] is not JsonValue spear || !spear.TryGetValue(out string? weapon) || weapon != nameof(WeaponKind.Spear)) return;
+
+            string made = item["Base"] is JsonValue based && based.TryGetValue(out string? from) ? from : "";
+            string called = item["Name"] is JsonValue name && name.TryGetValue(out string? title) ? title : "";
+            string? unique = item["Unique"] is JsonValue one && one.TryGetValue(out string? id) ? id : null;
+            foreach ((string old, string now, float damage) in ItemGenerator.Renamed)
+            {
+                bool before = made == old || made.Length == 0 && (called.Contains(old) || unique != null && UniqueCatalog.Find(unique)?.Base == now);
+                if (!before) continue;
+                item["Base"] = now;
+                item["Name"] = called.Replace(old, now);
+                if (item["WeaponDamage"] is JsonValue hit && hit.TryGetValue(out double was)) item["WeaponDamage"] = (float)(was * damage);
+                return;
+            }
+        }
+
         private static string NewRarity(string old) => old switch
         {
             "Common" => nameof(Rarity.Normal),
@@ -320,6 +345,7 @@ namespace Dino_Defenders.Progression
                         item["Slot"] = nameof(ItemSlot.Sentence);
                         if (item["Name"] is JsonValue name && name.TryGetValue(out string? called)) item["Name"] = called.Replace(Old, nameof(ItemSlot.Sentence));
                     }
+                    Rearm(item);
                     foreach (JsonNode? inside in item.Select(pair => pair.Value).ToList()) Resay(inside);
                     break;
                 case JsonArray list:

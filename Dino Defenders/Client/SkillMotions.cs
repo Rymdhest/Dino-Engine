@@ -86,23 +86,28 @@ namespace Dino_Defenders.Client
             bool shield = false;
             foreach (WornLook look in worn)
             {
-                if (look.Place == WornSlot.MainHand) carry = CarryOf(ItemLook.WeaponOf(look.Traits));
-                else if (look.Place == WornSlot.OffHand && ItemLook.SlotOf(look.Traits) == ItemSlot.MainHand) second = CarryOf(ItemLook.WeaponOf(look.Traits));
+                if (look.Place == WornSlot.MainHand) carry = CarryOf(look.Traits);
+                else if (look.Place == WornSlot.OffHand && ItemLook.SlotOf(look.Traits) == ItemSlot.MainHand) second = CarryOf(look.Traits);
                 else if (look.Place == WornSlot.OffHand) shield = true;
             }
             animator.Hold(carry, shield, second);
         }
 
-        /// <summary>How something a hero has in their hands is carried.</summary>
-        public static Carry CarryOf(WeaponKind kind) => kind switch
+        /// <summary>How something a hero has in their hands is carried, from what was said about it.</summary>
+        public static Carry CarryOf(uint traits) => CarryOf(ItemLook.WeaponOf(traits), ItemLook.TwoHandedOf(traits));
+
+        /// <summary>
+        /// How something a hero has in their hands is carried. Whatever takes both hands for weight, a sword, an axe or a hammer, is carried as anything heavy is, up on the shoulder and across the body with both hands
+        /// at the ready, and in one hand it's carried as a sword is. A spear is a javelin, held at its balance in one hand.
+        /// </summary>
+        public static Carry CarryOf(WeaponKind kind, bool twoHanded) => kind switch
         {
             WeaponKind.Dagger => Carry.Dagger,
             WeaponKind.Spear => Carry.Spear,
             WeaponKind.Bow => Carry.Bow,
             WeaponKind.Staff => Carry.Staff,
             WeaponKind.Wand => Carry.Wand,
-            WeaponKind.Mace => Carry.Greatsword,
-            _ => Carry.Sword,
+            _ => twoHanded ? Carry.Greatsword : Carry.Sword,
         };
     }
 }

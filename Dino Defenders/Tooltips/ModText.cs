@@ -130,7 +130,7 @@ namespace Dino_Defenders.Tooltips
 
         private static readonly (Tags tag, string word)[] Weapons =
         {
-            (Tags.Sword, "Swords"), (Tags.Axe, "Axes"), (Tags.Mace, "Maces"), (Tags.Dagger, "Daggers"), (Tags.Spear, "Spears"), (Tags.Bow, "Bows"), (Tags.Staff, "Staves"), (Tags.Wand, "Wands"),
+            (Tags.Sword, "Swords"), (Tags.Axe, "Axes"), (Tags.Hammer, "Hammers"), (Tags.Dagger, "Daggers"), (Tags.Spear, "Spears"), (Tags.Bow, "Bows"), (Tags.Staff, "Staves"), (Tags.Wand, "Wands"),
             (Tags.Unarmed, "Bare Hands"), (Tags.OneHanded, "One Handed Weapons"), (Tags.TwoHanded, "Two Handed Weapons"),
         };
 

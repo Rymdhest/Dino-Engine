@@ -32,7 +32,7 @@ namespace Dino_Defenders.Talents
         Melee, Projectile, Area, Zone, Chain, Pierce, ProjectileSpeed, ProjectileCount, MeleeReach,
 
         // What it's done with.
-        Sword, Axe, Mace, Dagger, Spear, Bow, Staff, Wand, Unarmed, TwoHanded, DualWield, Shield,
+        Sword, Axe, Hammer, Dagger, Spear, Bow, Staff, Wand, Unarmed, TwoHanded, DualWield, Shield,
 
         // Books.
         Potency, Opening, Turned, Closing, Wild, Falling, Cost, Cooldown, Duration,
@@ -242,7 +242,7 @@ namespace Dino_Defenders.Talents
         {
             if ((scope & Tags.Sword) != 0) return TalentGlyph.Sword;
             if ((scope & Tags.Axe) != 0) return TalentGlyph.Axe;
-            if ((scope & Tags.Mace) != 0) return TalentGlyph.Mace;
+            if ((scope & Tags.Hammer) != 0) return TalentGlyph.Hammer;
             if ((scope & Tags.Dagger) != 0) return TalentGlyph.Dagger;
             if ((scope & Tags.Spear) != 0) return TalentGlyph.Spear;
             if ((scope & Tags.Bow) != 0) return TalentGlyph.Bow;

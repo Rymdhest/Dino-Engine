@@ -92,12 +92,12 @@ namespace Dino_Defenders.Progression
                 Gives(Rules(Rule.ExecuteAny)),
                 Costs(More(Stat.Damage, -50f).Against(Condition.FullHealth)));
 
-            // Maces.
+            // Hammers.
             Add("slow-verdict", "The Slow Verdict", "Warhammer", 10, "The court will rise.",
-                Gives(EveryGain(5f, BuffCatalog.Verdict), Lose(TriggerEvent.Hit, BuffCatalog.Verdict), Chance(Tags.Stun, 40f), Inc(Stat.Damage, 40f, Tags.Mace)),
+                Gives(EveryGain(5f, BuffCatalog.Verdict), Lose(TriggerEvent.Hit, BuffCatalog.Verdict), Chance(Tags.Stun, 40f), Inc(Stat.Damage, 40f, Tags.Hammer)),
                 Costs(More(Stat.Damage, -50f)));
             Add("follow-through", "Follow Through", "Great Maul", 20, "Nobody ever told it where to stop.",
-                Gives(Rules(Rule.Overkill), Inc(Stat.Damage, 40f, Tags.Mace)),
+                Gives(Rules(Rule.Overkill), Inc(Stat.Damage, 40f, Tags.Hammer)),
                 Costs(More(Stat.AttackSpeed, -40f)));
             Add("ringing-skull", "The Ringing Skull", "Warhammer", 10, "Everyone in the room hears it, one way or another.",
                 Gives(Rules(Rule.StunSpreads), Chance(Tags.Stun, 30f)),
@@ -127,16 +127,16 @@ namespace Dino_Defenders.Progression
                 Costs(Flat(Stat.HealthDrain, 1f)));
 
             // Spears.
-            Add("homecoming", "Homecoming", "Boar Spear", 5, "Everything thrown comes back. Ask anyone who's left a village.",
+            Add("homecoming", "Homecoming", "Hunting Spear", 5, "Everything thrown comes back. Ask anyone who's left a village.",
                 Gives(Rules(Rule.ProjectilesReturn), Flat(Stat.ProjectileCount, 1f)),
                 Costs(More(Stat.Damage, -25f, Tags.Projectile)));
-            Add("long-arm", "The Long Arm", "Glaive", 22, "Close is for people who like being hit.",
+            Add("long-arm", "The Long Arm", "Pilum", 22, "Close is for people who like being hit.",
                 Gives(Flat(Stat.MeleeReach, 3f), More(Stat.Damage, 100f, Tags.Melee).Against(Condition.AtRange)),
                 Costs(More(Stat.Damage, -60f, Tags.Melee).Against(Condition.UpClose)));
-            Add("hedgerow", "Hedgerow", "Partisan", 10, "Plant it, and wait for the season.",
+            Add("hedgerow", "Hedgerow", "Winged Spear", 10, "Plant it, and wait for the season.",
                 Gives(Every(1f, Shelf.Bristle).While(Condition.Stationary)),
                 Costs(More(Stat.Damage, -40f).While(Condition.Moving)));
-            Add("harpoon", "The Harpoon", "Boar Spear", 2, "Come here. No, closer.",
+            Add("harpoon", "The Harpoon", "Hunting Spear", 2, "Come here. No, closer.",
                 Gives(Rules(Rule.Drags)),
                 Costs(More(Stat.Damage, -30f, Tags.Projectile)));
 

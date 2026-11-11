@@ -40,7 +40,7 @@ namespace Dino_GearLab
         /// <summary>A drawn view of something standing up: leaning over, turned a little, and from slightly above, as an icon would be.</summary>
         public static Matrix3 View(GearKind kind, float turn = 0.5f)
         {
-            float lean = kind is GearKind.Sword or GearKind.Dagger or GearKind.Spear or GearKind.Staff or GearKind.Wand or GearKind.Axe or GearKind.Mace ? -0.72f : 0f;
+            float lean = GearDisplay.IsHeld(kind) && kind is not (GearKind.Bow or GearKind.OffHand) ? -0.72f : 0f;
             return Matrix3.CreateRotationZ(lean) * Matrix3.CreateRotationY(turn) * Matrix3.CreateRotationX(kind is GearKind.OpenBook or GearKind.Page or GearKind.Sentence ? -0.8f : 0.28f);
         }
 

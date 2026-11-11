@@ -68,7 +68,7 @@ namespace Dino_Defenders.Stats
         // What it's done with.
         Sword = 1ul << 32,
         Axe = 1ul << 33,
-        Mace = 1ul << 34,
+        Hammer = 1ul << 34,
         Dagger = 1ul << 35,
         Spear = 1ul << 36,
         Bow = 1ul << 37,
@@ -83,7 +83,7 @@ namespace Dino_Defenders.Stats
 
         DamageTypes = Physical | Fire | Cold | Lightning | Magic | Poison,
         Ailments = Burn | Bleed | Venom | Chill | Freeze | Shock | Hex | Stun,
-        Weapons = Sword | Axe | Mace | Dagger | Spear | Bow | Staff | Wand | Unarmed,
+        Weapons = Sword | Axe | Hammer | Dagger | Spear | Bow | Staff | Wand | Unarmed,
     }
 
     /// <summary>How much of something, for each type of damage. It's a value, so a hit can carry one without anything being allocated.</summary>
