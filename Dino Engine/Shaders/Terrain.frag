@@ -59,7 +59,7 @@ layout (depth_greater) out float gl_FragDepth;
 #include Halls.glsl
 #include Snow/SnowTrail.glsl
 
-const float MATERIAL_SIZE = 2048.0;             // Texels across a material, for the mip a march reads.
+const float MATERIAL_SIZE = 1024.0;             // Texels across a material as the arrays keep it (TextureGenerator.MaterialLevelsDropped), for the mip a march reads.
 const float TERRAIN_MOST_SLANT = 6.0;           // The farthest a ray may run sideways, in depths of the relief (Surface/Relief.glsl).
 const float TERRAIN_STEPS_PER_PIXEL = 0.5;
 const int TERRAIN_LEAST_STEPS = 3;
@@ -138,7 +138,7 @@ struct RoadShape {
     float crown;        // Between the ruts, where grass is let grow on a quiet track.
     float trodden;      // Down a footpath's middle, where feet go.
     float verge;        // Out at the edge, where the road frays into the land.
-    float packed;       // Round the ruts, where wheels and hooves have pressed the earth hard and dark.
+    float hardPacked;       // Round the ruts, where wheels and hooves have pressed the earth hard and dark.
 };
 
 RoadShape roadShape(vec2 at, float halfWidth) {
@@ -154,7 +154,7 @@ RoadShape roadShape(vec2 at, float halfWidth) {
     s.crown = rutted * (1.0 - smoothstep(inner - 0.35, inner, x));
     s.trodden = (1.0 - rutted) * (1.0 - smoothstep(0.22, 0.6, abs(at.x - 0.3 * wander)));
     s.verge = smoothstep(halfWidth - 0.6, halfWidth + 0.3, abs(at.x));
-    s.packed = rutted * (1.0 - smoothstep(ROAD_RUT_HALF, 2.8 * ROAD_RUT_HALF, d));
+    s.hardPacked = rutted * (1.0 - smoothstep(ROAD_RUT_HALF, 2.8 * ROAD_RUT_HALF, d));
     return s;
 }
 
@@ -460,8 +460,8 @@ GroundLook LookGround(float mat, vec2 hitUV, vec3 N, vec3 facing, vec2 uvDX, vec
         float relief = materialReliefRatio(mat, numberOfMaterials) * tile * reliefScale;
         road.normal = normalize(road.normal - normalize(roadU) * slope * relief);
         // Packed dark and damp in the ruts, darker on the lips, dust pale where feet go, darker and greener at the verge.
-        road.albedo *= mix(1.0, 0.66, s.rut) * mix(1.0, 0.88, s.packed) * mix(1.0, 0.92, s.lip) * mix(1.0, 1.08, s.trodden) * mix(1.0, 0.8, s.verge);
-        road.roughness = mix(road.roughness, road.roughness * 0.8, max(s.rut, s.packed * 0.5));
+        road.albedo *= mix(1.0, 0.66, s.rut) * mix(1.0, 0.88, s.hardPacked) * mix(1.0, 0.92, s.lip) * mix(1.0, 1.08, s.trodden) * mix(1.0, 0.8, s.verge);
+        road.roughness = mix(road.roughness, road.roughness * 0.8, max(s.rut, s.hardPacked * 0.5));
         road.height = roadDirtHeight(road.height, s);
         gRutWater = s.rut * (1.0 - gRoad.junction);
     }

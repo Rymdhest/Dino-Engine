@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Dino_Engine.Core;
 using Dino_Engine.Debug;
+using OpenTK.Graphics.OpenGL4;
 
 namespace Dino_Defenders
 {
@@ -27,6 +28,8 @@ namespace Dino_Defenders
         private int _collectionsSeen;
         private double _pausedBefore;
         private bool _running;
+        private int _evictionsBefore;
+        private int _evictedBefore;
 
         public bool Finished { get; private set; }
 
@@ -48,6 +51,7 @@ namespace Dino_Defenders
                 (_collections0, _collections1, _collections2) = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2));
                 _collectionsSeen = _collections0;
                 _pausedBefore = GC.GetTotalPauseDuration().TotalMilliseconds;
+                (_evictionsBefore, _evictedBefore) = (VideoMemory(0x904A), VideoMemory(0x904B));
                 return;
             }
 
@@ -69,6 +73,13 @@ namespace Dino_Defenders
             if (_frameTimes.Count < _frames) return;
             Finished = true;
             File.WriteAllText(_path, Write());
+        }
+
+        // GL_NVX_gpu_memory_info, in kilobytes or a count, or 0 on a card without it.
+        private static int VideoMemory(int name)
+        {
+            int value = GL.GetInteger((GetPName)name);
+            return GL.GetError() == ErrorCode.NoError ? value : 0;
         }
 
         // What took the time in a frame that was slow, as the averages hide what stutters.
@@ -102,6 +113,11 @@ namespace Dino_Defenders
             text.AppendLine(culture, $"{Engine.Resolution.X} x {Engine.Resolution.Y}, {_frameTimes.Count} frames");
             text.AppendLine(culture, $"FPS {1000f / average:0.0}");
             text.AppendLine(culture, $"Frame ms: average {average:0.00}, median {At(0.5f):0.00}, 95% {At(0.95f):0.00}, 99% {At(0.99f):0.00}, worst {sorted[^1]:0.00}");
+
+            // NVIDIA alone says how much video memory is left and how much the driver had to move out to system memory, where every pass that reads it crawls.
+            int videoMemory = VideoMemory(0x9048);
+            if (videoMemory > 0)
+                text.AppendLine(culture, $"Video memory: {videoMemory / 1024} MB, {VideoMemory(0x9049) / 1024} MB free, {VideoMemory(0x904A) - _evictionsBefore} evictions ({(VideoMemory(0x904B) - _evictedBefore) / 1024} MB) while measuring, {VideoMemory(0x904B) / 1024} MB evicted in all");
 
             Section(text, "GPU", Engine.PerformanceMonitor.GPUTaskTrackers);
             Section(text, "CPU", Engine.PerformanceMonitor.CPUTaskTrackers);

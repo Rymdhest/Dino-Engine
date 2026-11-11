@@ -10,7 +10,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 {
     public class InstancedModelRenderer : GeometryCommandDrivenRenderer<ModelRenderCommand>
     {
-        private ShaderProgram _instancedModelShader = new ShaderProgram("Model_Instanced.vert", "Model.frag");
+        // Drawn twice: first for depth alone, with every cut Model.frag makes (Model_Depth.frag), then shaded with depth tested first and on equal, so that
+        // only what's seen is shaded, once a sample. Model.frag cuts and writes the sample mask, which otherwise leaves depth to be tested after it runs,
+        // and everything behind a wall or under a crown, relief and all, was shaded and thrown away.
+        private ShaderProgram _instancedModelShader = new ShaderProgram("Model_Instanced.vert", "Model.frag", new[] { "DEPTH_SETTLED" });
+        private ShaderProgram _instancedModelDepthShader = new ShaderProgram("Model_Instanced.vert", "Model_Depth.frag");
         private ShaderProgram _instancedModelShadowShader = new ShaderProgram("Model_Instanced_shadow.vert", "Shadow.frag");
         private int _instanceVBO;
 
@@ -36,12 +40,18 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             LinkPlantSamplers(_instancedModelShadowShader);
             _instancedModelShadowShader.unBind();
 
+            _instancedModelDepthShader.bind();
+            _instancedModelDepthShader.loadUniformInt("albedoMapModelTextureArray", 3);
+            LinkPlantSamplers(_instancedModelDepthShader);
+            _instancedModelDepthShader.unBind();
+
             _instanceVBO = GL.GenBuffer();
         }
 
         public override void CleanUp()
         {
             _instancedModelShader.cleanUp();
+            _instancedModelDepthShader.cleanUp();
             _instancedModelShadowShader.cleanUp();
             GL.DeleteBuffer(_instanceVBO);
         }
@@ -52,6 +62,23 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Disable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
+
+            GL.ActiveTexture(TextureUnit.Texture3);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
+            BindWindTextures(renderEngine);
+
+            // Depth alone, with the same cuts.
+            GL.DepthFunc(DepthFunction.Less);
+            GL.DepthMask(true);
+            GL.ColorMask(false, false, false, false);
+            _instancedModelDepthShader.bind();
+            _instancedModelDepthShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
+            foreach (ModelRenderCommand command in geometryCommands) Draw(_instancedModelDepthShader, command);
+            GL.ColorMask(true, true, true, true);
+
+            // Then shaded where it was laid down, and nowhere else.
+            GL.DepthFunc(DepthFunction.Equal);
+            GL.DepthMask(false);
             _instancedModelShader.bind();
 
             _instancedModelShader.loadUniformFloat("reliefScale", renderEngine.ReliefScale);
@@ -116,6 +143,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void FinishGeometry(RenderEngine renderEngine)
         {
+            GL.DepthFunc(DepthFunction.Less);
+            GL.DepthMask(true);
             GL.DisableVertexAttribArray(0);
             GL.DisableVertexAttribArray(1);
             GL.DisableVertexAttribArray(2);
@@ -176,10 +205,20 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             glModel glmodel = command.model;
             int instanceCount = command.matrices.Count;
+            Engine.PerformanceMonitor.Count("Model draws", 1);
+            Engine.PerformanceMonitor.Count("Model instances", instanceCount);
+            Engine.PerformanceMonitor.Count("Model triangles", (long)instanceCount * glmodel.getVertexCount() / 3);
+            Draw(_instancedModelShader, command);
+        }
+
+        private void Draw(ShaderProgram shader, ModelRenderCommand command)
+        {
+            glModel glmodel = command.model;
+            int instanceCount = command.matrices.Count;
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
-            BindPlant(_instancedModelShader, glmodel);
-            _instancedModelShader.loadUniformVector3f("modelSize", glmodel.Size);
-            _instancedModelShader.loadUniformFloat("focusOpens", glmodel.OpensForFocus ? 1f : 0f);
+            BindPlant(shader, glmodel);
+            shader.loadUniformVector3f("modelSize", glmodel.Size);
+            shader.loadUniformFloat("focusOpens", glmodel.OpensForFocus ? 1f : 0f);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);
@@ -212,9 +251,6 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 
-            Engine.PerformanceMonitor.Count("Model draws", 1);
-            Engine.PerformanceMonitor.Count("Model instances", instanceCount);
-            Engine.PerformanceMonitor.Count("Model triangles", (long)instanceCount * glmodel.getVertexCount() / 3);
             GL.DrawElementsInstanced(
                 PrimitiveType.Triangles,
                 glmodel.getVertexCount(),

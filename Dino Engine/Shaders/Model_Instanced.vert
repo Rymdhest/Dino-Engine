@@ -23,6 +23,9 @@ out float textureIndex;
 out vec4 fragEdges;
 flat out float fragFocusOccluder;
 
+// Drawn twice, for its depth (Model_Depth.frag) and then shaded on an equal test (InstancedModelRenderer), so both have to land on exactly the same depth.
+invariant gl_Position;
+
 uniform int plant;
 uniform vec3 modelSize;
 uniform float focusOpens;   // 1 for what may thin away for the player at all (glModel.OpensForFocus): trees.

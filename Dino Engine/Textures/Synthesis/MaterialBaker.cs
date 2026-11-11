@@ -4,8 +4,12 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.Textures.Synthesis
 {
-    /// <summary>The three texture arrays every material is a layer of (textureUtil.glsl): albedo in sRGB, normal and material in eight bits a channel.</summary>
-    internal readonly record struct MaterialArrays(int Albedo, int Normal, int Material, int Size, int Levels);
+    /// <summary>
+    /// The three texture arrays every material is a layer of (textureUtil.glsl): albedo in sRGB, normal and material in eight bits a channel. A material is made
+    /// <see cref="Size"/> across with <see cref="Levels"/> mips, and the arrays keep all but the first <see cref="Dropped"/> of them, which nothing is ever near
+    /// enough to read (TextureGenerator.MaterialLevelsDropped).
+    /// </summary>
+    internal readonly record struct MaterialArrays(int Albedo, int Normal, int Material, int Size, int Levels, int Dropped);
 
     /// <summary>
     /// Turns a finished <see cref="Surface"/> into its layer of the material arrays. The normal comes from the height at exactly the material's relief, so it agrees
@@ -66,13 +70,14 @@ namespace Dino_Engine.Textures.Synthesis
             foreach (Image chain in chains) Synthesizer.ReadAllLevels(chain.Texture, levels);
 
             GL.Enable(EnableCap.FramebufferSrgb);
-            for (int level = 0; level < levels; level++)
+            // The chain is made from the full size down, so every level kept is exactly what it would be if the ones above it were kept too.
+            for (int level = arrays.Dropped; level < levels; level++)
             {
                 ShaderProgram pack = gpu.Pack;
                 pack.bind();
                 BindChains(pack, chains);
                 pack.loadUniformInt("level", level);
-                gpu.DrawLayers(pack, Math.Max(size >> level, 1), level, layer, arrays.Albedo, arrays.Normal, arrays.Material);
+                gpu.DrawLayers(pack, Math.Max(size >> level, 1), level - arrays.Dropped, layer, arrays.Albedo, arrays.Normal, arrays.Material);
             }
             GL.Disable(EnableCap.FramebufferSrgb);
 

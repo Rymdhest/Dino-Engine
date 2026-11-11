@@ -1,5 +1,11 @@
 #version 420
 
+// DEPTH_SETTLED: Model_Depth.frag has already laid down the depth, with every cut this shader would make, so depth is tested first and on equal
+// (InstancedModelRenderer), and only the samples that are seen are shaded, once each.
+#ifdef DEPTH_SETTLED
+layout(early_fragment_tests) in;
+#endif
+
 #include Globals.glsl
 
 in vec3 fragColor;
@@ -50,7 +56,7 @@ layout (location = 2) out vec4 gMaterials;
 #include Weather/Wetness.glsl
 
 const float HIT_SHINE = 7.0;
-const float MATERIAL_SIZE = 2048.0;     // Texels across a material (TextureGenerator.MATERIAL_RESOLUTION), for the mip a relief reads.
+const float MATERIAL_SIZE = 1024.0;     // Texels across a material as the arrays keep it (TextureGenerator.MaterialLevelsDropped), for the mip a relief reads.
 
 void main() {
 
@@ -68,10 +74,12 @@ void main() {
 	// Only what's big enough to hide the player opens for them (FocusOccluder.glsl). Characters keep whole, and so does
 	// wildlife, as a bird flying over the hero is never in the way.
 #if !defined(CHARACTER) && !defined(WILDLIFE)
+#ifndef DEPTH_SETTLED
 	if (fragFocusOccluder > 0.5) applyFocusCutout(worldPosition);
 	// The hall the camera looks into opens while someone stands in it: its roof and the walls facing the camera go, thinning out as it opens, for this pass
 	// alone (Halls.glsl). Where that opens something up, its inside is drawn as the face of the cut.
 	if (cutByHall(worldPosition) * hallCutaway.y > focusDither(gl_FragCoord.xy)) discard;
+#endif
 	bool cap = !gl_FrontFacing && !card && hallCapped(worldPosition);
 #else
 	const bool cap = false;
@@ -129,10 +137,12 @@ void main() {
 	float overbright = material.emission > 0.0 ? max(max(fragColor.r, max(fragColor.g, fragColor.b)), 1.0) : 1.0;
 	gAlbedo.rgb = material.albedo * fragColor / overbright;
 
-    // Cutouts (leaves) end between the MSAA samples where the alpha crosses the cutoff.
+    // Cutouts (leaves) end between the MSAA samples where the alpha crosses the cutoff. With the depth settled, the equal test has already kept only those.
+#ifndef DEPTH_SETTLED
     int coverage = alphaTestCoverage(material.alpha, 0.5);
     if (coverage == 0) discard;
     gl_SampleMask[0] = coverage;
+#endif
 
     gAlbedo.a = transmittance(material.subSurface, material.height);
     gNormal.a = material.ambient;

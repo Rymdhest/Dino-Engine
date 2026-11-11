@@ -41,6 +41,11 @@ namespace Dino_Engine.Textures
         public int loadedImposterTextures = 0;
 
         public static readonly Vector2i MATERIAL_RESOLUTION = new Vector2i(2048);
+        // Mips of every material made but not kept: they're three quarters of the arrays, 2.6 GB of them, and nothing is ever near enough to read them. A tile
+        // spans 0.6 to 11 m at 2048 texels, and the closest the camera comes shows some 50 pixels a metre at 1080p, where even the widest tile is near two
+        // levels down. Kept, they put a 6 GB card over what it holds, and the driver moved everything to and fro across the bus each frame. The shaders that pick
+        // a level themselves count from what's kept (MATERIAL_SIZE in Model.frag and Terrain.frag, Rock.glsl's streaks).
+        public const int MaterialLevelsDropped = 1;
         public static readonly Vector2i IMPOSTER_RESOLUTION = new Vector2i(256);
         public readonly int anglesPerImposter = 8;
 
@@ -163,11 +168,12 @@ namespace Dino_Engine.Textures
             int size = MATERIAL_RESOLUTION.X;
             int levels = MaterialBaker.LevelsFor(size);
             int count = MaterialCatalog.Count;
-            megaAlbedoTextureArray = NewMaterialArray((SizedInternalFormat)0x8C43, size, levels, count);    // GL_SRGB8_ALPHA8
-            megaNormalTextureArray = NewMaterialArray(SizedInternalFormat.Rgba8, size, levels, count);
-            megaMaterialTextureArray = NewMaterialArray(SizedInternalFormat.Rgba8, size, levels, count);
+            int kept = size >> MaterialLevelsDropped;
+            megaAlbedoTextureArray = NewMaterialArray((SizedInternalFormat)0x8C43, kept, levels - MaterialLevelsDropped, count);    // GL_SRGB8_ALPHA8
+            megaNormalTextureArray = NewMaterialArray(SizedInternalFormat.Rgba8, kept, levels - MaterialLevelsDropped, count);
+            megaMaterialTextureArray = NewMaterialArray(SizedInternalFormat.Rgba8, kept, levels - MaterialLevelsDropped, count);
             SetAnisotropy(Anisotropy);
-            var arrays = new MaterialArrays(megaAlbedoTextureArray, megaNormalTextureArray, megaMaterialTextureArray, size, levels);
+            var arrays = new MaterialArrays(megaAlbedoTextureArray, megaNormalTextureArray, megaMaterialTextureArray, size, levels, MaterialLevelsDropped);
 
             using (var gpu = new Synthesizer())
             {
@@ -184,7 +190,7 @@ namespace Dino_Engine.Textures
             loadedMaterialTextures = count;
             MaterialTime = clock.Elapsed;
             Engine.CheckGLError("After making the materials");
-            if (SheetFolder != null) MaterialSheet.Write(SheetFolder, megaAlbedoTextureArray, megaNormalTextureArray, megaMaterialTextureArray, size, count);
+            if (SheetFolder != null) MaterialSheet.Write(SheetFolder, megaAlbedoTextureArray, megaNormalTextureArray, megaMaterialTextureArray, kept, count);
         }
 
         private int NewMaterialArray(SizedInternalFormat format, int size, int levels, int layers)
