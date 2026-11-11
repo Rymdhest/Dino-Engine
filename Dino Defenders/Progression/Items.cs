@@ -22,7 +22,7 @@ namespace Dino_Defenders.Progression
         Finger,
         Book,       // Worn nowhere: it goes on the bar. See BOOKS.md.
         Page,       // Goes in a book.
-        Sticker,    // Goes on a page.
+        Sentence,    // Goes on a page.
         Orders,     // Given to the waygate in the Haven, for the next land. See LANDS.md.
     }
 
@@ -178,10 +178,10 @@ namespace Dino_Defenders.Progression
         /// <summary>What's written on it, if it's a page.</summary>
         public Page? Page { get; set; }
 
-        /// <summary>What it says, if it's a sticker.</summary>
-        public Sticker? Sticker { get; set; }
+        /// <summary>What it says, if it's a sentence.</summary>
+        public Sentence? Sentence { get; set; }
 
-        /// <summary>What's in it, a place each, with gaps: a book holds pages and a page holds stickers. How many places there are is what makes one better than another. See BOOKS.md.</summary>
+        /// <summary>What's in it, a place each, with gaps: a book holds pages and a page holds sentences. How many places there are is what makes one better than another. See BOOKS.md.</summary>
         public Item?[]? Held { get; set; }
 
         /// <summary>How it goes off, if it's a book.</summary>
@@ -196,17 +196,51 @@ namespace Dino_Defenders.Progression
 
         public bool IsBook => Slot == ItemSlot.Book;
         public bool IsPage => Slot == ItemSlot.Page;
-        public bool IsSticker => Slot == ItemSlot.Sticker;
+        public bool IsSentence => Slot == ItemSlot.Sentence;
         public bool IsOrders => Slot == ItemSlot.Orders;
 
         /// <summary>Whether it's something that goes in a book, or a book, rather than something worn.</summary>
-        public bool IsFolio => Slot is ItemSlot.Book or ItemSlot.Page or ItemSlot.Sticker;
+        public bool IsFolio => Slot is ItemSlot.Book or ItemSlot.Page or ItemSlot.Sentence;
 
         /// <summary>Whether it's something that can be worn somewhere on a hero.</summary>
         public bool IsWorn => Slot < ItemSlot.Book;
 
         /// <summary>How many places it has for something else.</summary>
         public int Places => Held?.Length ?? 0;
+
+        /// <summary>Whether it's a Summon Page, which holds what its Minions fight with after its Sentences: a weapon, what's in their other hand, then a book. See BOOKS.md.</summary>
+        public bool Summons => IsPage && Page?.Kind == PageKind.Summon;
+
+        /// <summary>How many places a Summon Page has besides those for Sentences.</summary>
+        public const int MinionPlaces = 3;
+
+        /// <summary>How many of its places are for Sentences: all of a page's, but a Summon Page's last two.</summary>
+        public int SentencePlaces => Summons ? Math.Max(Places - MinionPlaces, 0) : IsPage ? Places : 0;
+
+        /// <summary>Where a Summon Page holds the weapon its Minions fight with, what's in their other hand (a shield, or a second weapon that takes one hand), and the book they use.</summary>
+        public int MinionWeaponPlace => SentencePlaces;
+        public int MinionOffHandPlace => SentencePlaces + 1;
+        public int MinionBookPlace => SentencePlaces + 2;
+
+        /// <summary>The weapon a Summon Page gives its Minions, if it has one. A method, so that it isn't saved twice.</summary>
+        public Item? MinionWeapon() => Summons && Held is { } held && MinionWeaponPlace < held.Length ? held[MinionWeaponPlace] : null;
+
+        /// <summary>What a Summon Page gives its Minions for their other hand, if anything.</summary>
+        public Item? MinionOffHand() => Summons && Held is { } held && MinionOffHandPlace < held.Length ? held[MinionOffHandPlace] : null;
+
+        /// <summary>What can go in a Minion's other hand: a shield, or a weapon that leaves a hand free.</summary>
+        public bool FitsOffHand => Slot == ItemSlot.OffHand || IsOneHandedWeapon;
+
+        /// <summary>The book a Summon Page gives its Minions, if it has one.</summary>
+        public Item? MinionBook() => Summons && Held is { } held && MinionBookPlace < held.Length ? held[MinionBookPlace] : null;
+
+        public bool IsWeapon => Slot == ItemSlot.MainHand;
+
+        /// <summary>
+        /// Whether a book can be what a Summon Page's Minions use: one that's pressed, as a Minion presses it as often as it can, and with no Summon Page of its own, or Minions would raise Minions without
+        /// end. A book that holds nothing is somewhere to start from, and can go in too.
+        /// </summary>
+        public static bool FitsMinions(Item book) => book.IsBook && book.Mode == BookMode.Active && !(book.Held ?? Array.Empty<Item?>()).Any(page => page?.Summons == true);
 
         /// <summary>What it reads as, or nothing if there's nothing in it. It's a method so that it isn't saved.</summary>
         public Book? Written() => Scribe.Bind(this);
@@ -269,7 +303,7 @@ namespace Dino_Defenders.Progression
             if (Barrier > 0f)
             {
                 yield return Flat(Stat.Barrier, Barrier);
-                yield return Flat(Stat.Mana, Barrier * ManaPerBarrier);
+                yield return Flat(Stat.Mana, MathF.Round(Barrier * ManaPerBarrier));
             }
             if (Slot == ItemSlot.MainHand)
             {
@@ -284,7 +318,7 @@ namespace Dino_Defenders.Progression
         {
             WeaponTraits traits = WeaponKinds.Of(Kind);
             Tags tags = traits.Tag | (traits.TwoHanded ? Tags.TwoHanded : Tags.OneHanded);
-            return new WeaponProfile(WeaponDamage * (1f - WeaponSpread), WeaponDamage * (1f + WeaponSpread), traits.AttackTime, traits.CritChance, tags, ItemGenerator.DamageTypeOf(Base));
+            return new WeaponProfile(MathF.Round(WeaponDamage * (1f - WeaponSpread)), MathF.Round(WeaponDamage * (1f + WeaponSpread)), traits.AttackTime, traits.CritChance, tags, ItemGenerator.DamageTypeOf(Base));
         }
 
         /// <summary>
@@ -314,7 +348,7 @@ namespace Dino_Defenders.Progression
             if (Barrier > 0f)
             {
                 yield return ("Barrier", Say.Whole(Barrier));
-                yield return ("Mana", Say.Whole(Barrier * ManaPerBarrier));
+                yield return ("Mana", Say.Whole(MathF.Round(Barrier * ManaPerBarrier)));
             }
         }
 
@@ -350,6 +384,9 @@ namespace Dino_Defenders.Progression
         public WeaponKind[]? Kinds;
         public Tier[] Tiers = Array.Empty<Tier>();
         public Func<float, Mod[]> Build = _ => Array.Empty<Mod>();
+
+        /// <summary>What a roll of it is kept as: a whole number, or a tenth for what rolls less than one at a time.</summary>
+        public float Rounded(float value) => Array.TrueForAll(Tiers, tier => tier.Low == MathF.Floor(tier.Low) && tier.High == MathF.Floor(tier.High)) ? MathF.Round(value) : MathF.Round(value, 1);
 
         /// <summary>Whether something of this slot, and this kind if it's a weapon, can have it.</summary>
         public bool Fits(ItemSlot slot, WeaponKind kind) => Slots.Contains(slot) && (Kinds == null || slot != ItemSlot.MainHand || Kinds.Contains(kind));
@@ -446,7 +483,7 @@ namespace Dino_Defenders.Progression
         // Which side it's on goes by what it builds, so that it can't be written down as the other.
         private static void Add(string id, string[] names, ItemSlot[] slots, Tier[] tiers, Func<float, Mod[]> build, WeaponKind[]? kinds = null)
         {
-            var affix = new Affix { Id = id, Prefix = StatSides.IsDefensive(build(1f)[0].Stat), Names = names, Slots = slots, Kinds = kinds, Tiers = tiers, Build = build };
+            var affix = new Affix { Id = id, Prefix = StatSides.IsDefensive(build(1f)[0].Stat), Names = names, Slots = slots, Kinds = kinds, Tiers = tiers, Build = v => Array.ConvertAll(build(v), StatPrecision.Tidy) };
             ById.Add(id, affix);
             Everything.Add(affix);
         }
@@ -735,7 +772,7 @@ namespace Dino_Defenders.Progression
                 while (side.Count < each && PickAffix(item.Slot, item.Kind, prefix, level, side, item.Shares(), random) is Affix affix)
                 {
                     Tier rolled = affix.Tiers[BestTier(affix, level, random, quality)];
-                    side.Add(new ItemLine(affix.Id, Rise(rolled.Low, rolled.High, quality, random)));
+                    side.Add(new ItemLine(affix.Id, affix.Rounded(Rise(rolled.Low, rolled.High, quality, random))));
                 }
                 dealt.AddRange(side);
             }
@@ -753,6 +790,12 @@ namespace Dino_Defenders.Progression
                 OrdersMaker.Fix(item);
                 return;
             }
+            // What it gives for what it is is a whole number, as everything else is: anything older than that is rounded.
+            item.Armour = MathF.Round(item.Armour);
+            item.Evasion = MathF.Round(item.Evasion);
+            item.Barrier = MathF.Round(item.Barrier);
+            item.WeaponDamage = MathF.Round(item.WeaponDamage);
+
             if (item.Unique != null && UniqueCatalog.Find(item.Unique) == null) item.Unique = null;
             if (item.Unique != null)
             {
@@ -760,16 +803,29 @@ namespace Dino_Defenders.Progression
                 return;
             }
 
-            // A sticker is Unique for what's on it and nothing else is that's for a book, so a sticker's rarity is what it says.
-            if (item.Sticker is Sticker held && item.IsSticker && (item.Rarity == Rarity.Unique || Stickers.IsUnique(held.Good)))
+            // A sentence is Unique for what's on it and nothing else is that's for a book, so a sentence's rarity is what it says.
+            if (item.Sentence is Sentence held && item.IsSentence && (item.Rarity == Rarity.Unique || Sentences.IsUnique(held.Good)))
             {
-                item.Rarity = Stickers.IsUnique(held.Good) ? Rarity.Unique : Rarity.Rare;
-                return;
+                item.Rarity = Sentences.IsUnique(held.Good) ? Rarity.Unique : Rarity.Rare;
+
+                // One that was only called Unique is Rare now, and rolls what a Rare one has, below.
+                if (item.Rarity == Rarity.Unique) return;
             }
             if (!Enum.IsDefined(item.Rarity) || item.Rarity == Rarity.Unique) item.Rarity = Rarity.Rare;
-            if (item.IsFolio)
+            if (item.IsSentence)
             {
-                foreach (string word in OldFolioWords) item.Name = item.Name.Replace(word, FolioWords[^1]);
+                // Its name is what it says, with its first prefix before it once it has one, and one someone gave it stays.
+                bool said = item.Sentence is Sentence saying && (item.Name == SentenceName(saying) || item.Name == FolioAffixes.Name(item, SentenceName(saying), suffix: false, plain: false));
+                FolioAffixes.Fix(item);
+                if (said) item.Name = FolioAffixes.Name(item, SentenceName(item.Sentence!), suffix: false, plain: false);
+                return;
+            }
+            if (item.IsBook || item.IsPage)
+            {
+                // A name that was only ever what it was found as says what it now is, and one someone gave it stays.
+                bool found = FolioWords.Concat(OldFolioWords).Any(word => item.Name.StartsWith(word + " ")) || item.Name == FolioAffixes.Name(item, FolioWhat(item));
+                FolioAffixes.Fix(item);
+                if (found) item.Name = FolioAffixes.Name(item, FolioWhat(item));
                 return;
             }
 
@@ -782,9 +838,9 @@ namespace Dino_Defenders.Progression
                 if ((affix.Prefix ? prefixes : suffixes) >= each) continue;
                 if (affix.Prefix) prefixes++;
                 else suffixes++;
-                kept.Add(line);
+                kept.Add(affix.Rounded(line.Value) == line.Value ? line : new ItemLine(line.Affix, affix.Rounded(line.Value)));
             }
-            if (kept.Count == item.Lines.Count && prefixes == each && suffixes == each) return;
+            if (kept.Count == item.Lines.Count && prefixes == each && suffixes == each && kept.Zip(item.Lines).All(pair => ReferenceEquals(pair.First, pair.Second))) return;
 
             item.Lines = kept;
             Deal(item, new WorldRandom(item.LookSeed()).Fork("lines"), 0f);
@@ -810,10 +866,10 @@ namespace Dino_Defenders.Progression
                 Slot = baseItem.Slot,
                 Kind = baseItem.Kind,
                 Level = level,
-                WeaponDamage = baseItem.Damage * (1f + level * 0.03f) * roll,
-                Armour = baseItem.Armour * (1f + level * 0.05f) * roll,
-                Evasion = baseItem.Evasion * (1f + level * 0.05f) * roll,
-                Barrier = baseItem.Barrier * (1f + level * 0.05f) * roll,
+                WeaponDamage = MathF.Round(baseItem.Damage * (1f + level * 0.03f) * roll),
+                Armour = MathF.Round(baseItem.Armour * (1f + level * 0.05f) * roll),
+                Evasion = MathF.Round(baseItem.Evasion * (1f + level * 0.05f) * roll),
+                Barrier = MathF.Round(baseItem.Barrier * (1f + level * 0.05f) * roll),
             };
         }
 
@@ -832,12 +888,11 @@ namespace Dino_Defenders.Progression
         /// <summary>Every base there is, by name.</summary>
         public static IEnumerable<string> BaseNames => Bases.Select(b => b.Name);
 
-        /// <summary>A base by number, which only means anything between two copies of one build, and 0 for none.</summary>
-        /// <summary>What everyone starts with: a blow in front of them, for nothing, and room for one thing more.</summary>
+        /// <summary>What everyone starts with: a plain book holding a blow in front of them, for nothing.</summary>
         public static Item Book(ulong seed)
         {
-            Item book = EmptyBook(StarterPlaces, "Worn Book", seed, 1, Rarity.Normal);
-            book.Held![0] = Leaf(Scribe.NewPage(PageKind.Area), StarterStickers, "Attack Area Page", NextSeed(seed), 1, Rarity.Normal);
+            Item book = EmptyBook(FolioAffixes.Implicit, "Worn Book", seed, 1, Rarity.Normal);
+            book.Held![0] = Leaf(Scribe.NewPage(PageKind.Area), StarterSentences, "Attack Area Page", NextSeed(seed), 1, Rarity.Normal);
             return book;
         }
 
@@ -847,34 +902,35 @@ namespace Dino_Defenders.Progression
 
         private static Item Leaf(Page page, int places, string name, ulong seed, int level, Rarity rarity) => new Item { Name = name, Slot = ItemSlot.Page, Level = level, Seed = seed, Rarity = rarity, Page = page, Held = new Item?[places] };
 
-        /// <summary>A sticker as an item.</summary>
-        public static Item StickerItem(Sticker sticker, ulong seed, int level, Rarity rarity) => new Item { Name = StickerName(sticker), Slot = ItemSlot.Sticker, Level = level, Seed = seed, Rarity = rarity, Sticker = sticker };
+        /// <summary>A sentence as an item.</summary>
+        public static Item SentenceItem(Sentence sentence, ulong seed, int level, Rarity rarity) => new Item { Name = SentenceName(sentence), Slot = ItemSlot.Sentence, Level = level, Seed = seed, Rarity = rarity, Sentence = sentence };
 
-        private static string StickerName(Sticker sticker) => sticker.Good switch
+        private static string SentenceName(Sentence sentence) => sentence.Good switch
         {
-            PageEffect.Potency => "Sticker of Might",
-            PageEffect.Speed => "Sticker of Haste",
-            PageEffect.Area => "Sticker of Reach",
-            PageEffect.Range => "Sticker of Distance",
-            PageEffect.Cost => "Sticker of Thrift",
-            PageEffect.UseTime => "Sticker of Pace",
-            PageEffect.Projectiles => "Sticker of Plenty",
-            PageEffect.Pierce => "Sticker of Piercing",
-            PageEffect.Chains => "Sticker of Leaping",
-            PageEffect.Stops => "Sticker of Aim",
-            PageEffect.Rides => "Sticker of Flight",
-            PageEffect.Grounded => "Stonecatcher Sticker",
-            PageEffect.FromCursor => "Farcaster Sticker",
-            PageEffect.FromNearest => "Huntsman's Sticker",
-            PageEffect.FromRandom => "Gambler's Sticker",
-            PageEffect.ToNearest => "Seeker's Sticker",
-            PageEffect.ToYou => "Homing Sticker",
-            PageEffect.ToAnywhere => "Madcap Sticker",
-            PageEffect.Falls => "Skyfall Sticker",
-            _ => "Sticker",
+            PageEffect.Potency => "Sentence of Might",
+            PageEffect.Speed => "Sentence of Haste",
+            PageEffect.Area => "Sentence of Reach",
+            PageEffect.Duration => "Sentence of Lingering",
+            PageEffect.Range => "Sentence of Distance",
+            PageEffect.Cost => "Sentence of Thrift",
+            PageEffect.UseTime => "Sentence of Pace",
+            PageEffect.Projectiles => "Sentence of Plenty",
+            PageEffect.Pierce => "Sentence of Piercing",
+            PageEffect.Chains => "Sentence of Leaping",
+            PageEffect.Stops => "Sentence of Aim",
+            PageEffect.Rides => "Sentence of Flight",
+            PageEffect.Grounded => "Stonecatcher Sentence",
+            PageEffect.FromCursor => "Farcaster Sentence",
+            PageEffect.FromNearest => "Huntsman's Sentence",
+            PageEffect.FromRandom => "Gambler's Sentence",
+            PageEffect.ToNearest => "Seeker's Sentence",
+            PageEffect.ToYou => "Homing Sentence",
+            PageEffect.ToAnywhere => "Madcap Sentence",
+            PageEffect.Falls => "Skyfall Sentence",
+            _ => "Sentence",
         };
 
-        /// <summary>A whole book as items, for what's already written: each page as a page with room for just what's on it.</summary>
+        /// <summary>A whole book as items, for what's already written: each page as a page with room for just what's on it, and what has room for more than one has a line that gives it, and what Magic has besides.</summary>
         public static Item Copied(Book book, string name, ulong seed, int level = 1)
         {
             Item item = EmptyBook(Math.Max(book.Pages.Count, 1), name, seed, level, Rarity.Normal);
@@ -884,77 +940,86 @@ namespace Dino_Defenders.Progression
             {
                 seed = NextSeed(seed);
                 Page page = book.Pages[i].Copy();
-                Item leaf = Leaf(page, Math.Max(page.Stickers.Count, 1), PageName(page), seed, level, Rarity.Normal);
-                for (int s = 0; s < page.Stickers.Count; s++)
+                Item leaf = Leaf(page, Math.Max(page.Sentences.Count, 1), PageName(page), seed, level, Rarity.Normal);
+                for (int s = 0; s < page.Sentences.Count; s++)
                 {
                     seed = NextSeed(seed);
-                    leaf.Held![s] = StickerItem(page.Stickers[s], seed, level, Stickers.IsUnique(page.Stickers[s].Good) ? Rarity.Unique : Rarity.Normal);
+                    leaf.Held![s] = SentenceItem(page.Sentences[s], seed, level, Sentences.IsUnique(page.Sentences[s].Good) ? Rarity.Unique : Rarity.Normal);
                 }
-                page.Stickers = new List<Sticker>();
+                page.Sentences = new List<Sentence>();
+                FolioAffixes.Fix(leaf);
                 item.Held![i] = leaf;
             }
+
+            // Within the rules from the start, so a save gives back what was copied: room for more than one is a line that gives it.
+            FolioAffixes.Fix(item);
             return item;
         }
+
+        // What a book or a page is, before anything rolled on it: a book by how it goes off and a page by what it does.
+        private static string FolioWhat(Item item) => item.IsPage ? item.Page != null ? PageName(item.Page) : "Page" : item.Mode == BookMode.Active ? "Book" : $"{item.Mode} Book";
 
         // What a page is called, by what it does.
         private static string PageName(Page page)
         {
-            Deed deed = Sentences.Find(page.Outcomes.FirstOrDefault()?.Deed)?.Deed ?? Deed.Deal;
+            Deed deed = Phrases.Find(page.Outcomes.FirstOrDefault()?.Deed)?.Deed ?? Deed.Deal;
             string what = deed switch
             {
                 Deed.Deal => page.Hand.ToString(),
-                Deed.Raise => "Raising",
+                Deed.Raise => page.Outcomes[0].Kin == "turret" ? "Turret" : "Raising",
                 Deed.Move => "Blinking",
                 _ => "",
             };
-            return $"{what} {page.Kind} Page".TrimStart();
+            return page.Kind == PageKind.Summon ? $"{what} Page" : $"{what} {page.Kind} Page".TrimStart();
         }
 
         /// <summary>
-        /// Something that goes in a book, or a book. What it can hold is what it's worth, so the better it is the more places it has, and a sticker the better it rolls. What a page says is found with it and never changes.
-        /// Only a sticker can be Unique, for something on it nothing else can have, and what's found as Unique is a sticker or nothing: see <see cref="Loot"/>.
+        /// Something that goes in a book, or a book. A book or a page rolls lines as gear does, and one prefix it can have is room for more (<see cref="FolioAffixes"/>); a sentence is the better the further it goes. What a page says is found with it and never changes.
+        /// Only a sentence can be Unique, for something on it nothing else can have, and what's found as Unique is a sentence or nothing: see <see cref="Loot"/>.
         /// </summary>
         /// <param name="only">Which of the three it's to be, for what has to have one in particular. It's drawn for all the same, so nothing else about it changes.</param>
         public static Item Folio(int level, WorldRandom random, Rarity rarity, ItemSlot? only = null)
         {
             level = Math.Min(level, MostItemLevel);
             ulong seed = NewSeed(random);
-            if (rarity == Rarity.Unique) return StickerItem(Stickers.Roll(rarity, random), seed, level, rarity);
-            int table = (int)rarity;
-
-            float kind = random.Float();
-            if (only is ItemSlot wanted) kind = wanted == ItemSlot.Sticker ? 0f : wanted == ItemSlot.Page ? StickerShare : 1f;
-            if (kind < StickerShare) return StickerItem(Stickers.Roll(rarity, random), seed, level, rarity);
-            if (kind < StickerShare + PageShare)
+            if (rarity == Rarity.Unique) return SentenceItem(Sentences.Roll(rarity, random), seed, level, rarity);
+            Item Said(Sentence sentence)
             {
-                Page page = Scribe.Roll(random.Fork("page"));
-                return Leaf(page, PlacesOf(LeastStickers[table], MostStickers[table], random), $"{FolioWords[table]} {PageName(page)}", seed, level, rarity);
+                // A Magic or Rare sentence rolls lines as gear does, from a fork of its own, which count on the page it's written on.
+                Item said = SentenceItem(sentence, seed, level, rarity);
+                FolioAffixes.Deal(said, random.Fork("lines"));
+                said.Name = FolioAffixes.Name(said, said.Name, suffix: false, plain: false);
+                return said;
             }
 
-            float mode = random.Float();
-            BookMode bookMode = mode < TriggerShare ? BookMode.Trigger : mode < TriggerShare + ToggleShare ? BookMode.Toggle : BookMode.Active;
-            string word = bookMode == BookMode.Active ? "" : $"{bookMode} ";
-            Item book = EmptyBook(PlacesOf(LeastPages[table], MostPages[table], random), $"{FolioWords[table]} {word}Book", seed, level, rarity);
-            book.Mode = bookMode;
-            if (bookMode == BookMode.Trigger) book.When = BookTriggers.Roll(rarity, random);
-            return book;
+            float kind = random.Float();
+            if (only is ItemSlot wanted) kind = wanted == ItemSlot.Sentence ? 0f : wanted == ItemSlot.Page ? SentenceShare : 1f;
+            if (kind < SentenceShare) return Said(Sentences.Roll(rarity, random));
+            Item folio;
+            if (kind < SentenceShare + PageShare) folio = Leaf(Scribe.Roll(random.Fork("page")), FolioAffixes.Implicit, "", seed, level, rarity);
+            else
+            {
+                float mode = random.Float();
+                BookMode bookMode = mode < TriggerShare ? BookMode.Trigger : mode < TriggerShare + ToggleShare ? BookMode.Toggle : BookMode.Active;
+                folio = EmptyBook(FolioAffixes.Implicit, "", seed, level, rarity);
+                folio.Mode = bookMode;
+                if (bookMode == BookMode.Trigger) folio.When = BookTriggers.Roll(rarity, random);
+            }
+
+            // What's rolled on it comes from a fork of its own, so that it takes nothing from what the rest of it is.
+            FolioAffixes.Deal(folio, random.Fork("lines"));
+            folio.Held = new Item?[FolioAffixes.HeldOf(folio)];
+            folio.Name = FolioAffixes.Name(folio, FolioWhat(folio));
+            return folio;
         }
 
-        // The lower of two draws, as all the places there can be is what's worth having, and shouldn't turn up as often as the fewest.
-        private static int PlacesOf(int least, int most, WorldRandom random) => Math.Min(random.Int(least, most), random.Int(least, most));
-
-        private const int StarterPlaces = 2;
-        private const int StarterStickers = 1;
-        private const float StickerShare = 0.55f;   // Of what's found that isn't worn. What's left after pages is books.
+        private const int StarterSentences = 1;
+        private const float SentenceShare = 0.55f;   // Of what's found that isn't worn. What's left after pages is books.
         private const float PageShare = 0.33f;
         private const float TriggerShare = 0.3f;    // Of books. What's left after toggles is pressed by hand.
         private const float ToggleShare = 0.2f;
 
-        // By rarity, from normal to rare. A book of more places than a page has stickers is the rarer thing, as it's worth more.
-        private static readonly int[] LeastPages = { 1, 2, 3 };
-        private static readonly int[] MostPages = { 2, 2, 6 };
-        private static readonly int[] LeastStickers = { 1, 2, 3 };
-        private static readonly int[] MostStickers = { 1, 2, 5 };
+        // What books and pages were called by rarity before they rolled lines, which only a save that old has.
         private static readonly string[] FolioWords = { "Plain", "Fine", "Gilded" };
         private static readonly string[] OldFolioWords = { "Masterful", "Fabled" };
 

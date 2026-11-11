@@ -137,7 +137,7 @@ namespace Dino_Defenders.Progression
     {
         /// <summary>Of what comes out, how much is something for a book, as what a book can do is half of what a build is.</summary>
         public const float FolioShare = 0.3f;
-        public const float UniqueStickerShare = 0.15f;     // Of what's found Unique: a sticker with something on it nothing else can have, rather than something worn.
+        public const float UniqueSentenceShare = 0.15f;     // Of what's found Unique: a sentence with something on it nothing else can have, rather than something worn.
 
         /// <summary>Of what comes out, how much is orders, which is what the next land is made of.</summary>
         public const float OrdersShare = 0.05f;
@@ -210,7 +210,7 @@ namespace Dino_Defenders.Progression
             }
 
             WorldRandom folio = random.Fork("folio");
-            if (folio.Chance(rarity == Rarity.Unique ? UniqueStickerShare : FolioShare)) return ItemGenerator.Folio(level, folio, rarity);
+            if (folio.Chance(rarity == Rarity.Unique ? UniqueSentenceShare : FolioShare)) return ItemGenerator.Folio(level, folio, rarity);
 
             Item item = ItemGenerator.Forge(level, random, rarity, quality);
             for (int attempt = 0; attempt < MostRedraws && item.Unique != null && others.Any(other => other.Unique == item.Unique); attempt++)

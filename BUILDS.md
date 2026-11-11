@@ -4,7 +4,7 @@ How heroes and enemies add up: stats, books, the talent tree, items, and the fig
 
 ## The one idea
 
-**There is one kind of fighter.** A hero, an enemy and somebody's skeleton are each an `Actor`: a `Loadout` of modifiers, a compiled `ActorSheet`, and `Vitals`. `Combat` works on Actors and doesn't know which it has. A hero is just an Actor with a player on the other end, and an enemy is a list of stats in `Bestiary`. Anything a hero can do, an enemy can do, so every new sentence, rule and item is at once something the world can do to a player.
+**There is one kind of fighter.** A hero, an enemy and somebody's skeleton are each an `Actor`: a `Loadout` of modifiers, a compiled `ActorSheet`, and `Vitals`. `Combat` works on Actors and doesn't know which it has. A hero is just an Actor with a player on the other end, and an enemy is a list of stats in `Bestiary`. Anything a hero can do, an enemy can do, so every new phrase, rule and item is at once something the world can do to a player.
 
 That is why bosses can wear what they drop and walk the same tree, why a slain enemy can get up and fight for you with everything it had, and why a mimic can use what hit it.
 
@@ -104,7 +104,7 @@ So choosing a land at a waygate is a build decision, and a book or an item can c
 
 ## Books
 
-There are no skills. Everything anyone does in a fight is a book written out of sentences: read `BOOKS.md` before changing anything an actor can do. This is only how a book joins the sums.
+There are no skills. Everything anyone does in a fight is a book written out of phrases: read `BOOKS.md` before changing anything an actor can do. This is only how a book joins the sums.
 
 `Scribe.Read` turns a book into a `BookPlan`, the same whoever holds it, and `ActorSheet.Profile` turns that into a `BookProfile` for one actor, with a `PageProfile` for each page. Damage is split in two, and each page is found as one or the other, whatever's in the hand. An Attack Page deals all your Attack Damage: the weapon's base damage, which is of the base's own type (a caster's weapon strikes softly, in its element), and whatever's added to Attacks. A Spell Page deals all your Spell Damage, which is only what's added to Spells: wands and staves roll it as suffixes (`spell-fire` and the rest), and nothing else does yet, so a caster lives on their weapon's suffixes. Added damage on rings and weapons (`added-fire` and the rest) is for Attacks. Each is dealt of every type it has, and conversions and the tree do the rest. On top of that a page's `Potency` scales everything it does. An enemy has as much Spell Damage as its Attack Damage (`Bestiary.SpellFor`), less its usual share for Spells.
 
@@ -175,6 +175,8 @@ An item holds lines of an affix id and a rolled value, never modifiers. What a l
 | Ring | **Every resistance**, and nothing else | Added damage, gold, rarity, experience, attributes |
 
 `Dino BuildLab list --what slots` prints this by affix. `check` rolls every rarity on every slot at every level, and fails on a side with the wrong number on it, a line on a slot that can't have it, or a slot without enough of each to make a rare at level 1.
+
+**Books and pages** roll lines by the same rarities, from a catalogue of their own (`FolioAffixes`), with room for more Pages or Sentences among their prefixes: read Rolled lines in `BOOKS.md`.
 
 **Old items.** `ItemGenerator.Fix` brings whatever's in a save up to these rules. A line stays if its slot can have it and its side has room, and what's missing is drawn from the item's own seed, so a hero's rare is still a rare, and comes out the same each time. Anything already within the rules isn't touched. A save from before this is kept beside itself as `.before-affixes`. A unique answers to none of it.
 
@@ -269,11 +271,11 @@ Two things move the odds on top of a row. `Loot.Daring` pays up to double for go
 
 **How it drops.** `GroundLoot` owns what's lying about. `Spill` sends it out one after another, gold first and the best last, so a fountain ends on what matters. Everything about a drop is worked out on the client from `PickupComponent`, which is sent once: where it came from, when it left, and where it lands. So nothing can be missed the way an event can, and someone who walks up later just finds it lying there, with its sound if they haven't heard it. A find is only ever announced once to a player (`GameSession.Heard`). Better finds go higher and take longer to come down, because the wait is part of it, and `Treasure.UniqueStrike` is both a unique's flight time and the moment its sound breaks, so the two have to stay one number.
 
-**Clicking.** `LootLabels` draws a box for each find and is the only part of the screen that stops the mouse for it. A label only says what something was made from (`Item.PlainName`), as a fountain of full names is too much to read: what was rolled on it, and so its full name, is on its card, and a name that wasn't rolled, which is a unique's or a book's, stays as it is. A book, a page or a sticker has an icon after its name, told apart by outline and in the colour of its rarity, as they're what a fight is made of and were lost among the gear. Labels push each other up rather than overlap, best first. An attack begun elsewhere goes straight across them, the right mouse button always does, and holding shift goes through them altogether, for fighting over what's on the ground. Clicking starts `LootFetch`, which walks the hero there through `HeroIntent` like any other movement, so it can't disagree with the server, and calls itself off if the player does anything else. The server only checks the hero is close enough. It has to arrive, so it uses an exact `WorldPathfinder`: the ordinary one is coarse, which suits a crowd but steps over fences and the metre-wide strips of ground nobody can cross. For the same reason `Landing` won't put a find on the far side of a wall from what dropped it.
+**Clicking.** `LootLabels` draws a box for each find and is the only part of the screen that stops the mouse for it. A label only says what something was made from (`Item.PlainName`), as a fountain of full names is too much to read: what was rolled on it, and so its full name, is on its card, and a name that wasn't rolled, which is a unique's or a book's, stays as it is. A book, a page or a sentence has an icon after its name, told apart by outline and in the colour of its rarity, as they're what a fight is made of and were lost among the gear. Labels push each other up rather than overlap, best first. An attack begun elsewhere goes straight across them, the right mouse button always does, and holding shift goes through them altogether, for fighting over what's on the ground. Clicking starts `LootFetch`, which walks the hero there through `HeroIntent` like any other movement, so it can't disagree with the server, and calls itself off if the player does anything else. The server only checks the hero is close enough. It has to arrive, so it uses an exact `WorldPathfinder`: the ordinary one is coarse, which suits a crowd but steps over fences and the metre-wide strips of ground nobody can cross. For the same reason `Landing` won't put a find on the far side of a wall from what dropped it.
 
 Loot is shared: whoever gets there first has it. What's left on the ground is lost on leaving a world or quitting, as it always was.
 
-To see it: `--loot all` drops one of every rarity in front of the hero, and `--loot boss`, `rare`, `magic`, `chest` or `hoard` what that tier gives. `--loot folios` adds books, pages and stickers among them.
+To see it: `--loot all` drops one of every rarity in front of the hero, and `--loot boss`, `rare`, `magic`, `chest` or `hoard` what that tier gives. `--loot folios` adds books, pages and sentences among them.
 
 ## Lands
 
@@ -302,7 +304,7 @@ dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" check      # The sum
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" bench      # What it costs, and that blows allocate nothing
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" balance    # How a fight goes at each level
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" list       # Everything there is, with its text as the player reads it. --what cards, sheet or terms for what TOOLTIPS.md covers
-dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" books      # What every sentence comes to on a plain page, and what's on the shelf comes to
+dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" books      # What every phrase comes to on a plain page, and what's on the shelf comes to
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" density    # How much there is to fight in a world, and how long between fights
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" loot       # What each source gives, what a whole world comes to, and the longest dry spells
 dotnet "Dino BuildLab/bin/Release/net8.0/Dino BuildLab.dll" offering   # What each step of peril costs and pays, and what more enemies come to
@@ -313,7 +315,7 @@ dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" packs      # Who sta
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" foes           # What an enemy's rarity comes to: who turns up as what, that a trait's book gets used, and what a client is told
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" build          # Every ailment, reaction and keystone, for real on a running server
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" uniques        # Every unique's rule, for real on a running server
-dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" books          # Every sentence, for real on a running server
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" books          # Every phrase, for real on a running server
 ```
 
 Run `check` and `build` after any change here, `uniques` if a unique or anything one reads moved, `game` if the hero's step or the protocol moved, `loot` and `pace` if anything about drops did, and `lands` if anything about a land's terms, the climb or the stash did. A bot proves nothing about clicking: post real mouse messages for that. To look at a build in the real game: `--hero 30 --talents key.tidewalker,pyre.firebolt --equip drowned-king`, with `--panel talents`, `hero` or `skills`.

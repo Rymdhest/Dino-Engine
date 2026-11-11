@@ -105,7 +105,7 @@ namespace Dino_Engine.World.Content
             Landform = LandformKind.Island,
             Size = new FloatRange(1792f, 2304f),
             UsualSize = new FloatRange(830f, 960f),
-            Biomes = new[] { BiomeCatalog.Meadow, BiomeCatalog.PineForest, BiomeCatalog.CrimsonWood, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood, BiomeCatalog.BlossomGrove, BiomeCatalog.Highland, BiomeCatalog.CedarWood, BiomeCatalog.GoldenWood },
+            Biomes = new[] { BiomeCatalog.Meadow, BiomeCatalog.PineForest, BiomeCatalog.CrimsonWood, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood, BiomeCatalog.BlossomGrove, BiomeCatalog.Highland, BiomeCatalog.CedarWood, BiomeCatalog.GoldenWood, BiomeCatalog.Wildwood, BiomeCatalog.FlowerDowns, BiomeCatalog.WindwardCoast, BiomeCatalog.CypressHills },
             BiomeCount = new IntRange(3, 5),
         };
 
@@ -120,7 +120,7 @@ namespace Dino_Engine.World.Content
             HillHeight = new FloatRange(8f, 16f),
             MountainHeight = new FloatRange(20f, 40f),
             MountainCoverage = new FloatRange(0.1f, 0.2f),
-            Biomes = new[] { BiomeCatalog.BlossomGrove, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.GoldenSteppe, BiomeCatalog.Dunes, BiomeCatalog.PineForest, BiomeCatalog.Jungle },
+            Biomes = new[] { BiomeCatalog.BlossomGrove, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.GoldenSteppe, BiomeCatalog.Dunes, BiomeCatalog.PineForest, BiomeCatalog.Jungle, BiomeCatalog.Fernland, BiomeCatalog.Tidewood, BiomeCatalog.CypressHills, BiomeCatalog.WindwardCoast, BiomeCatalog.Mistwood },
             BiomeCount = new IntRange(3, 4),
             Settlements = 0.9f,
         };
@@ -134,7 +134,7 @@ namespace Dino_Engine.World.Content
             Size = new FloatRange(1792f, 2304f),
             UsualSize = new FloatRange(900f, 1050f),
             RimHeight = 75f,
-            Biomes = new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.PineForest, BiomeCatalog.Dunes, BiomeCatalog.Highland, BiomeCatalog.Savanna, BiomeCatalog.Jungle },
+            Biomes = new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.PineForest, BiomeCatalog.Dunes, BiomeCatalog.Highland, BiomeCatalog.Savanna, BiomeCatalog.Jungle, BiomeCatalog.WindwardCoast, BiomeCatalog.CypressHills, BiomeCatalog.RedScrub, BiomeCatalog.Fernland, BiomeCatalog.Tidewood, BiomeCatalog.FlowerDowns },
             BiomeCount = new IntRange(3, 4),
         };
 
@@ -149,7 +149,7 @@ namespace Dino_Engine.World.Content
             BaseHeight = new FloatRange(8f, 13f),
             RimHeight = 85f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.PineForest, BiomeCatalog.BirchWood, BiomeCatalog.CrimsonWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.RedwoodGrove, BiomeCatalog.CedarWood, BiomeCatalog.DarkWood, BiomeCatalog.GoldenWood },
+            Biomes = new[] { BiomeCatalog.PineForest, BiomeCatalog.BirchWood, BiomeCatalog.CrimsonWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.RedwoodGrove, BiomeCatalog.CedarWood, BiomeCatalog.DarkWood, BiomeCatalog.GoldenWood, BiomeCatalog.Wildwood, BiomeCatalog.ElderPines, BiomeCatalog.Larchwood, BiomeCatalog.Mistwood, BiomeCatalog.WaterMeadows },
             BiomeCount = new IntRange(3, 4),
             Wilds = 1.2f,
         };
@@ -164,7 +164,7 @@ namespace Dino_Engine.World.Content
             UsualSize = new FloatRange(1040f, 1200f),
             RimHeight = 70f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.BirchWood, BiomeCatalog.PineForest, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.BlossomGrove, BiomeCatalog.GoldenWood, BiomeCatalog.RedwoodGrove },
+            Biomes = new[] { BiomeCatalog.BirchWood, BiomeCatalog.PineForest, BiomeCatalog.Meadow, BiomeCatalog.CrimsonWood, BiomeCatalog.BlossomGrove, BiomeCatalog.GoldenWood, BiomeCatalog.RedwoodGrove, BiomeCatalog.WaterMeadows, BiomeCatalog.Wildwood, BiomeCatalog.Larchwood, BiomeCatalog.FlowerDowns, BiomeCatalog.ElderPines },
             BiomeCount = new IntRange(3, 4),
         };
 
@@ -182,7 +182,7 @@ namespace Dino_Engine.World.Content
             MountainCoverage = new FloatRange(0.3f, 0.45f),
             RimHeight = 100f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.Highland, BiomeCatalog.PineForest, BiomeCatalog.Snowfield, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood, BiomeCatalog.CedarWood },
+            Biomes = new[] { BiomeCatalog.Highland, BiomeCatalog.PineForest, BiomeCatalog.Snowfield, BiomeCatalog.GoldenSteppe, BiomeCatalog.BirchWood, BiomeCatalog.CedarWood, BiomeCatalog.HighPastures, BiomeCatalog.Larchwood, BiomeCatalog.Bogland, BiomeCatalog.Mistwood },
             BiomeCount = new IntRange(3, 4),
             Settlements = 0.75f,
             Dangers = 1.15f,
@@ -197,7 +197,7 @@ namespace Dino_Engine.World.Content
             Size = new FloatRange(1792f, 2304f),
             UsualSize = new FloatRange(850f, 990f),
             MountainCoverage = new FloatRange(0.25f, 0.4f),
-            Biomes = new[] { BiomeCatalog.Snowfield, BiomeCatalog.Highland, BiomeCatalog.PineForest, BiomeCatalog.DarkWood },
+            Biomes = new[] { BiomeCatalog.Snowfield, BiomeCatalog.Highland, BiomeCatalog.PineForest, BiomeCatalog.DarkWood, BiomeCatalog.Larchwood, BiomeCatalog.Bogland, BiomeCatalog.HighPastures },
             BiomeCount = new IntRange(3, 3),
             Settlements = 0.7f,
             Dangers = 1.2f,
@@ -213,7 +213,7 @@ namespace Dino_Engine.World.Content
             UsualSize = new FloatRange(920f, 1080f),
             RimHeight = 60f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.Marsh, BiomeCatalog.BirchWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.DarkWood },
+            Biomes = new[] { BiomeCatalog.Marsh, BiomeCatalog.BirchWood, BiomeCatalog.Meadow, BiomeCatalog.BambooThicket, BiomeCatalog.DarkWood, BiomeCatalog.Tidewood, BiomeCatalog.WaterMeadows, BiomeCatalog.Bogland, BiomeCatalog.Mistwood },
             BiomeCount = new IntRange(2, 3),
             Settlements = 0.7f,
             Dangers = 1.2f,
@@ -236,7 +236,7 @@ namespace Dino_Engine.World.Content
             Erosion = new FloatRange(0.5f, 0.8f),
             RimHeight = 70f,
             StillWater = true,
-            Biomes = new[] { BiomeCatalog.Badlands, BiomeCatalog.GoldenSteppe, BiomeCatalog.Dunes, BiomeCatalog.Highland, BiomeCatalog.Savanna },
+            Biomes = new[] { BiomeCatalog.Badlands, BiomeCatalog.GoldenSteppe, BiomeCatalog.Dunes, BiomeCatalog.Highland, BiomeCatalog.Savanna, BiomeCatalog.RedScrub, BiomeCatalog.CypressHills },
             BiomeCount = new IntRange(2, 3),
             Settlements = 0.7f,
         };
@@ -251,7 +251,7 @@ namespace Dino_Engine.World.Content
             Size = new FloatRange(1536f, 2048f),
             UsualSize = new FloatRange(850f, 980f),
             MountainCoverage = new FloatRange(0.3f, 0.4f),
-            Biomes = new[] { BiomeCatalog.Ashland, BiomeCatalog.GoldenSteppe, BiomeCatalog.Highland, BiomeCatalog.Dunes, BiomeCatalog.DarkWood },
+            Biomes = new[] { BiomeCatalog.Ashland, BiomeCatalog.GoldenSteppe, BiomeCatalog.Highland, BiomeCatalog.Dunes, BiomeCatalog.DarkWood, BiomeCatalog.Fernland, BiomeCatalog.ElderPines, BiomeCatalog.Mistwood },
             BiomeCount = new IntRange(2, 3),
             Settlements = 0.6f,
             Dangers = 1.3f,

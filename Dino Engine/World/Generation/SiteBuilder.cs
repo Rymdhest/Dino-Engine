@@ -30,7 +30,7 @@ namespace Dino_Engine.World.Generation
             World = world;
             Site = site;
             Random = random;
-            Style = world.Style;
+            Style = world.StyleOf(site);
             _fences = random.Fork("fences");
         }
 

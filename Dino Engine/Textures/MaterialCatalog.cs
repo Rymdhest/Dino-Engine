@@ -116,6 +116,15 @@ namespace Dino_Engine.Textures
         // as wallpaper on anything smaller.
         public static readonly MaterialSpec Flagstones = Add("flagstones", 8f, 0.08f, 0.35f);
 
+        // More of the ground, each a biome's own (TerrainSurface's palette): a conifer wood's floor of needles, the red earth of the hot dry country and the leaf litter of a broadleaf wood.
+        // Last, so that adding them moved no other material's layer.
+        public static readonly MaterialSpec Needles = Add("needles", 3f, 0.05f, 0.75f);
+        public static readonly MaterialSpec RedEarth = Add("red-earth", 3.5f, 0.05f, 0.8f);
+        public static readonly MaterialSpec Litter = Add("litter", 3f, 0.05f, 0.75f);
+
+        // Curved clay tiles in rows down a roof, as the cypress hills build (BuildingStyle.Tiled): deep enough for each course's end to throw its shadow on the next.
+        public static readonly MaterialSpec RoofTiles = Add("roof-tiles", 2.4f, 0.09f, 0.4f);
+
         public static IReadOnlyList<MaterialSpec> All => _all;
 
         public static int Count => _all.Count;

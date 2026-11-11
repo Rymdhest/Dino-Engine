@@ -90,7 +90,7 @@ namespace Dino_Defenders.Progression
             ItemSlot.Hands => GearKind.Hands,
             ItemSlot.Book => GearKind.Book,
             ItemSlot.Page => GearKind.Page,
-            ItemSlot.Sticker => GearKind.Sticker,
+            ItemSlot.Sentence => GearKind.Sentence,
             ItemSlot.Orders => GearKind.Orders,
             _ => GearKind.Finger,
         };

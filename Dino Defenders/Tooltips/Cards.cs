@@ -131,7 +131,7 @@ namespace Dino_Defenders.Tooltips
                 {
                     foreach (RuleInfo info in ModText.Rules)
                     {
-                        if ((mod.Rule & info.Rule) != 0) tags |= info.Touches;
+                        if (mod.Rule == info.Rule) tags |= info.Touches;
                     }
                 }
                 if (mod.Kind <= ModKind.Override && mod.Stat is Stat.Convert or Stat.GainAs or Stat.TakenAs) tags |= DamageKinds.Tag(mod.From) | DamageKinds.Tag(mod.To);
@@ -208,10 +208,11 @@ namespace Dino_Defenders.Tooltips
                 if (plan.Source != null)
                 {
                     card.Text(BookText.Says(plan.Source.Pages[i], page.Page, page.Potency));
-                    foreach (Sticker sticker in plan.Source.Pages[i].Stickers)
+                    foreach (Sentence sentence in plan.Source.Pages[i].Sentences)
                     {
-                        card.Text(BookText.Bad(sticker).Length > 0 ? $"{BookText.Good(sticker)}, {BookText.Bad(sticker)}" : BookText.Good(sticker), LineLook.Rolled);
+                        card.Text(BookText.Bad(sentence).Length > 0 ? $"{BookText.Good(sentence)}, {BookText.Bad(sentence)}" : BookText.Good(sentence), LineLook.Rolled);
                     }
+                    foreach (Mod mod in plan.Source.Pages[i].Mods) card.Text(mod.Describe(), LineLook.Rolled);
                 }
                 DamageRows(card, page);
                 AilmentLines(card, page);
@@ -235,12 +236,12 @@ namespace Dino_Defenders.Tooltips
             return tags & ~(Tags.Hit | Tags.Opening | Tags.Turned | Tags.Closing);
         }
 
-        /// <summary>A sentence as it's chosen: what it says, and what that does to the page it's on.</summary>
-        public static Card Sentence(Sentence sentence)
+        /// <summary>A phrase as it's chosen: what it says, and what that does to the page it's on.</summary>
+        public static Card Phrase(Phrase phrase)
         {
-            var card = new Card { Title = sentence.Words };
-            foreach (string line in BookText.Trades(sentence.Weights)) card.Text(line);
-            if (sentence.Buff != null) card.Attached.Add(Buff(sentence.Buff, null));
+            var card = new Card { Title = phrase.Words };
+            foreach (string line in BookText.Trades(phrase.Weights)) card.Text(line);
+            if (phrase.Buff != null) card.Attached.Add(Buff(phrase.Buff, null));
             return card;
         }
 
@@ -261,13 +262,14 @@ namespace Dino_Defenders.Tooltips
             }
         }
 
-        // What it's made of, which isn't on the page because a sentence only says so much.
+        // What it's made of, which isn't on the page because a phrase only says so much.
         private static void PageCells(Card card, PageProfile page)
         {
             PagePlan plan = page.Page;
             card.Cell("Potency", Share(page.Potency));
             if (page.Cost > 0f) card.Cell("Cost", Amount(page.Cost));
 
+            if (plan.Kind == PageKind.Summon) return;
             if (plan.Kind == PageKind.Projectile)
             {
                 card.Cell("Projectile Speed", $"{Amount(page.Speed)} m a second");
@@ -345,12 +347,18 @@ namespace Dino_Defenders.Tooltips
         {
             ActorSheet sheet = page.Sheet;
             card.Cell("Minions", page.MinionCount.ToString());
-            card.Cell("Duration", Seconds(MinionSeconds * sheet.MinionDuration));
+            card.Cell("Duration", Seconds(MinionSeconds * page.MinionDuration));
             if (Bestiary.Minion(page.Page.Minion) is not EnemyKind kind) return;
 
-            ActorSheet minion = Bestiary.MinionOf(sheet.Loadout, sheet, kind).SheetFor(Condition.None);
+            // What they've been given is what they are: the weapon they strike with and the book they use, and a hero's Mana to pay for it.
+            BookPlan? given = Scribe.ForMinions(page.Page.MinionBook);
+            ActorSheet minion = Bestiary.MinionOf(sheet.Loadout, sheet, kind, page.Page.MinionWeapon, page.Page.MinionOffHand, given).SheetFor(Condition.None);
             card.Cell("Minion Health", Whole(minion.MaxHealth));
+            bool pays = given != null && !kind.Rooted;
+            if (pays) card.Cell("Minion Mana", Whole(minion.MaxMana));
             if (minion.Loadout.Books.Length > 0) card.Cell("Minion Damage", Amount(minion.Profile(0).First.AverageHit));
+            if (pays && minion.Profile(0).Cost > 0f) card.Cell("Minion Cost", $"{Amount(minion.Profile(0).Cost)} Mana");
+            if (kind.Rooted) card.Text("Stands where it's raised, and uses its Book for nothing");
         }
 
         // Nothing is hidden, but this much on one card is too much to read.
@@ -590,8 +598,10 @@ namespace Dino_Defenders.Tooltips
         // What's in a book is what it is, and it's that which is worth reading. How much room there is comes first, as that's what one is worth.
         private static Card Folio(Item item, ActorSheet? viewer, string kind)
         {
+            if (item.IsPage) return LoosePage(item, viewer, kind);
             Book? written = item.Written();
-            Card card = written != null && viewer != null ? Book(viewer.Preview(Scribe.Read(written, item.Name))) : new Card { Title = item.Name };
+            BookPlan? plan = written != null ? Scribe.Read(written, item.Name) : null;
+            Card card = plan != null && viewer != null ? Book(viewer.Preview(plan)) : new Card { Title = item.Name };
             if (written == null && BookText.Mode(item.Mode, item.When) is { Length: > 0 } mode) card.Text(mode);
             card.Kind = $"{kind}, Level {item.Level}";
             card.Rarity = item.Rarity;
@@ -599,17 +609,73 @@ namespace Dino_Defenders.Tooltips
 
             int taken = item.Held?.Count(held => held != null) ?? 0;
             if (item.IsBook) card.Cell("Pages", $"{taken} of {item.Places}");
-            if (item.IsPage) card.Cell("Stickers", $"{taken} of {item.Places}");
-            if (item.Sticker is Sticker sticker)
+            if (item.IsPage) card.Cell("Sentences", $"{taken} of {item.Places}");
+            if (item.IsBook || item.IsPage) FolioLines(card, item);
+            if (item.Sentence is Sentence sentence)
             {
-                card.Text(BookText.Good(sticker), LineLook.Rolled);
-                if (sticker.Bad != PageEffect.None) card.Text(BookText.Bad(sticker), LineLook.Rolled);
-                if (Stickers.Fits(sticker) is PageKind fits) card.Text($"Only on a {fits} Page");
+                card.Text(BookText.Good(sentence), LineLook.Rolled);
+                if (sentence.Bad != PageEffect.None) card.Text(BookText.Bad(sentence), LineLook.Rolled);
+                if (Sentences.Fits(sentence) is PageKind fits) card.Text($"Only on a {fits} Page");
+                if (item.Lines.Count > 0) FolioLines(card, item);
             }
             return card;
         }
 
-        /// <summary>What a node on the tree gives, in the words of what it gives. Whether it can be had is for whoever's showing it to add.</summary>
+        /// <summary>
+        /// A page on its own says only what it is: what it costs and how long it takes before anything of yours makes those more or less, and what's rolled on it. What it deals is for the book it goes in, whose
+        /// card works it all out, as a page alone was too much to read.
+        /// </summary>
+        private static Card LoosePage(Item item, ActorSheet? viewer, string kind)
+        {
+            var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Rarity = item.Rarity, Picture = item };
+            if (item.Written() is Book written)
+            {
+                written.Pages[0].Mods = Array.Empty<Mod>();
+                PagePlan page = Scribe.Read(written).First;
+                card.Tags = page.Tags & ~(Tags.Opening | Tags.Turned | Tags.Closing);
+                float cost = page.Cost * PageProfile.CostAtLevel(viewer?.Loadout.Level ?? item.Level);
+                if (cost > 0f) card.Cell("Cost", $"{Amount(cost)} Mana");
+                card.Cell("Use Time", page.Hand == Hand.Spell ? Seconds(page.UseTime * page.UseScale) : page.UseScale == 1f ? "As your Weapon" : $"{Share(page.UseScale)} of your Weapon's");
+            }
+            card.Cell("Sentences", $"{item.Held?.Take(item.SentencePlaces).Count(held => held != null) ?? 0} of {item.SentencePlaces}");
+            if (item.Summons) SummonCells(card, item);
+            FolioLines(card, item);
+            return card;
+        }
+
+        // What a Summon Page raises before anything of yours makes more of it or makes it last longer: what it says and what's rolled on it, and what its Minions have been given.
+        private static void SummonCells(Card card, Item item)
+        {
+            if (item.Written() is not Book written) return;
+            PagePlan page = Scribe.Read(written).First;
+            Mod[] own = FolioAffixes.ModsOf(item);
+            float more = own.Where(mod => mod.Stat == Stat.MinionCount && mod.Kind == ModKind.Flat).Sum(mod => mod.Value);
+            float longer = own.Where(mod => mod.Stat == Stat.MinionDuration && mod.Kind == ModKind.Increased).Sum(mod => mod.Value);
+            card.Cell("Minions", Whole(page.MinionCount + more));
+            card.Cell("Minion Duration", Seconds(MinionSeconds * (1f + longer / 100f)));
+            card.Cell("Weapon", item.MinionWeapon()?.Name ?? "none");
+            card.Cell("Off hand", item.MinionOffHand()?.Name ?? "none");
+            card.Cell("Book", item.MinionBook()?.Name ?? "none");
+        }
+
+        // What a book or a page holds before anything's rolled on it, then what's rolled on it, side by side as gear's are, and where that counts.
+        private static void FolioLines(Card card, Item item)
+        {
+            card.Gap();
+            if (!item.IsSentence) card.Text(FolioAffixes.Holds(item));
+            foreach (bool prefix in new[] { true, false })
+            {
+                List<ItemLine> lines = item.Lines.Where(line => FolioAffixes.Find(line.Affix)?.Prefix == prefix).ToList();
+                if (lines.Count == 0) continue;
+                card.Heading(prefix ? lines.Count == 1 ? "Prefix" : "Prefixes" : lines.Count == 1 ? "Suffix" : "Suffixes");
+                foreach (ItemLine line in lines)
+                {
+                    foreach (string text in FolioAffixes.Says(FolioAffixes.Find(line.Affix)!, line.Value)) card.Text(text, LineLook.Rolled);
+                }
+            }
+            if (item.Lines.Count > 0) card.Text(item.IsBook ? "What's rolled on a Book counts on every Page in it" : item.IsSentence ? "What's rolled on a Sentence counts on the Page it's on" : "What's rolled on a Page counts on that Page wherever it goes");
+        }
+
         // A region's name inside a sentence, where "The" isn't at the start of anything.
         private static string Lowered(string name) => name.StartsWith("The ") ? "the " + name[4..] : name;
 

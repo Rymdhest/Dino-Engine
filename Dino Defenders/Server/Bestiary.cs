@@ -32,6 +32,9 @@ namespace Dino_Defenders.Server
         /// <summary>How far its body reaches from where it stands, in metres at a scale of one, for what's solid and what's struck. Nothing means a person's, which grows a little with them and no further.</summary>
         public float Bulk;
 
+        /// <summary>Whether it stands where it's put and never moves, as a turret does.</summary>
+        public bool Rooted => MoveSpeed <= 0f;
+
         /// <summary>How far its body reaches at this scale.</summary>
         public float RadiusAt(float scale) => Bulk > 0f ? Bulk * scale : WorldData.CharacterRadius * MathF.Min(scale, 1.4f);
     }
@@ -318,6 +321,41 @@ namespace Dino_Defenders.Server
             Mods = Rot.Append(More(Stat.Armour, 40f)).ToArray(), Look = "dino:hornback.rot.", Variants = 3, Scale = 0.85f, Bulk = 2.1f,
         };
 
+        /// <summary>The great raptor, kept by the Reich to run down what its raptors can't. Its tail is a rod, and it swings it before it rakes.</summary>
+        public static readonly EnemyKind WarRipper = new EnemyKind
+        {
+            Id = "war-ripper", Name = "War Ripper", Books = new[] { Shelf.TailSweep, Shelf.RakingBite }, MoveSpeed = 9f, Health = 1.35f, Damage = 0.95f, AggroRadius = 26f,
+            Mods = Hide.Append(Inc(Stat.AttackSpeed, 15f)).ToArray(), Look = "dino:ripper.reich.", Variants = 3, Scale = 0.9f, Bulk = 1.75f,
+        };
+
+        /// <summary>Great raptors that got out of the pens, leading what else did through the deep woods.</summary>
+        public static readonly EnemyKind Ripper = new EnemyKind
+        {
+            Id = "ripper", Name = "Ripper", Books = new[] { Shelf.TailSweep, Shelf.RakingBite }, MoveSpeed = 9f, Health = 1.3f, Damage = 0.95f, AggroRadius = 26f,
+            Mods = Hide.Append(Inc(Stat.AttackSpeed, 15f)).ToArray(), Look = "dino:ripper.", Variants = 3, Scale = 0.9f, Bulk = 1.75f,
+        };
+
+        /// <summary>A long-snouted fisher of the fens, grown for the wet country and lost to it. It takes whatever comes to the water's edge, from further off than it looks.</summary>
+        public static readonly EnemyKind Wader = new EnemyKind
+        {
+            Id = "wader", Name = "Wader", Books = new[] { Shelf.TailSweep, Shelf.CrushingJaws }, MoveSpeed = 7.4f, Health = 2f, Damage = 1.15f, AggroRadius = 24f,
+            Mods = Hide.Append(More(Stat.Armour, 20f)).ToArray(), Look = "dino:wader.", Variants = 3, Scale = 0.85f, Bulk = 1.8f,
+        };
+
+        /// <summary>The Ossuary dumps its failures where the land is wet enough to take them, and a wader that hatched dying is kept going there with the rest.</summary>
+        public static readonly EnemyKind RottingWader = new EnemyKind
+        {
+            Id = "rotting-wader", Name = "Rotting Wader", Books = new[] { Shelf.TailSweep, Shelf.CrushingJaws }, MoveSpeed = 6f, Health = 2.2f, Damage = 1.1f,
+            Mods = Rot.Append(More(Stat.Armour, 20f)).ToArray(), Look = "dino:wader.rot.", Variants = 2, Scale = 0.85f, Bulk = 1.8f,
+        };
+
+        /// <summary>Bred for the spikes down its back and tail, and driven ahead of a war-band where a hornback won't go.</summary>
+        public static readonly EnemyKind Spikeback = new EnemyKind
+        {
+            Id = "spikeback", Name = "Spikeback", Books = new[] { Shelf.TailSweep, Shelf.Stomp }, MoveSpeed = 6.8f, Health = 2.6f, Damage = 1.25f, AggroRadius = 22f,
+            Mods = Hide.Append(More(Stat.Armour, 60f)).Append(Inc(Stat.AilmentTaken, -20f)).ToArray(), Look = "dino:spikeback.reich.", Variants = 3, Scale = 0.85f, Bulk = 1.9f,
+        };
+
         /// <summary>The Reich's soldiers: greycoats in iron helms, who march behind the beasts.</summary>
         public static readonly EnemyKind Legionary = new EnemyKind
         {
@@ -352,6 +390,16 @@ namespace Dino_Defenders.Server
             Mods = new[] { Inc(Stat.AttackSpeed, 30f) }, Look = "wolf",
         };
 
+        /// <summary>
+        /// What a Defender sets down to fight beside them: a stand of timber, rope and grey iron that never moves from where it was set, and over it, in the air, whatever weapon its page gave it, wielded by nobody that can be seen. It uses the book its page
+        /// gives it for nothing, as it has no Mana to pay with. It isn't anyone the world fields and isn't drawn as a body, so it isn't in <see cref="Everyone"/>.
+        /// </summary>
+        public static readonly EnemyKind Turret = new EnemyKind
+        {
+            Id = "turret", Name = "Turret", Books = new[] { Shelf.Shot }, MoveSpeed = 0f, Health = 1.2f, Damage = 0.6f, AggroRadius = 26f, Look = "turret", Bulk = 0.8f,
+            Weapon = Tags.Bow | Tags.TwoHanded,
+        };
+
         /// <summary>Every kind of creature there is.</summary>
         /// <summary>
         /// Something to try a build on, in the Haven. It stands and takes it, has more health than anything it would be fair to fight and nothing to fight back with, and is drawn as straw on a post. It
@@ -368,12 +416,13 @@ namespace Dino_Defenders.Server
             Restless, Shambler, BoneArcher, GraveKnight, Mourner, Wolf, DireWolf, Boar, Bear, Warlord, Bones, Hound,
             WarRaptor, Raptor, Skitter, Spitter, FeralSpitter, Ravager, WildRavager, Hornback, Tyrant, BoneTyrant, RottingTyrant, BoneRaptor, BoneRavager, RottingRaptor, RottingHornback,
             Legionary, Marksman, Wrangler,
+            WarRipper, Ripper, Wader, RottingWader, Spikeback,
         };
 
         public static EnemyKind? Minion(string? id) => id switch
         {
             "bones" => Bones,
-            "hound" => Hound,
+            "turret" => Turret,
             _ => null,
         };
 
@@ -551,10 +600,29 @@ namespace Dino_Defenders.Server
             return true;
         }
 
-        /// <summary>What a minion comes to, for someone with this loadout. Whatever its owner has for minions it has for itself.</summary>
-        public static Loadout MinionOf(Loadout owner, ActorSheet sheet, EnemyKind kind)
+        /// <summary>
+        /// What a minion comes to, for someone with this loadout. Whatever its owner has for minions it has for itself. Given a weapon it strikes with that, and its Spell Damage is what that weapon gives, as
+        /// a hero's is. Given a book, that's all it does, and it pays for it as a hero does: a hero's Mana, coming back as a hero's does (<see cref="Rulebook.BaseMana"/>, <see cref="Rulebook.ManaRefill"/>).
+        /// </summary>
+        public static Loadout MinionOf(Loadout owner, ActorSheet sheet, EnemyKind kind, Item? weapon = null, Item? offHand = null, BookPlan? book = null)
         {
-            var mods = new List<Mod>(Base(kind, owner.Level, 1f)) { SpellFor(kind, owner.Level, 1f) };
+            // What's in its hands is as it would be on a hero: a weapon in each is one weapon of both, and a shield is what a shield gives. A weapon alone in the other hand is simply the weapon.
+            if (weapon == null && offHand is { IsOneHandedWeapon: true })
+            {
+                weapon = offHand;
+                offHand = null;
+            }
+            Item? second = offHand is { IsOneHandedWeapon: true } ? offHand : null;
+
+            // A turret pays for nothing, so only what moves and is given a book needs a hero's Mana.
+            bool pays = book != null && !kind.Rooted;
+            var mods = new List<Mod>(Base(kind, owner.Level, 1f).Where(mod => !pays || mod.Stat is not (Stat.Mana or Stat.ManaRegen)));
+            if (pays) mods.Add(Flat(Stat.Mana, Rulebook.BaseMana));
+            if (weapon != null) mods.AddRange(weapon.Mods());
+            else mods.Add(SpellFor(kind, owner.Level, 1f));
+            if (offHand != null) mods.AddRange(offHand.Mods());
+            if (second != null) mods.Add(Grant(Condition.DualWielding));
+            else if (offHand != null) mods.Add(Grant(Condition.HoldingShield));
             bool puppet = sheet.Has(Rule.Puppeteer);
             foreach (Mod mod in owner.Mods)
             {
@@ -565,7 +633,8 @@ namespace Dino_Defenders.Server
                 }
                 if (puppet && mod.Stat is Stat.Damage or Stat.AttackSpeed or Stat.CastSpeed or Stat.UseSpeed or Stat.CritChance or Stat.CritMultiplier) mods.Add(mod);
             }
-            return new Loadout(owner.Level, WeaponFor(kind, owner.Level, 1f), mods, kind.Books);
+            WeaponProfile held = weapon == null ? WeaponFor(kind, owner.Level, 1f) : second != null ? Item.Paired(weapon.Weapon(), second.Weapon()) : weapon.Weapon();
+            return new Loadout(owner.Level, held, mods, book != null ? new[] { book } : kind.Books);
         }
 
         /// <summary>What a fallen enemy can do on your side: everything it could do before, in your colours, a little worn.</summary>

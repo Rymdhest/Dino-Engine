@@ -104,7 +104,7 @@ namespace Dino_Defenders.Progression
             int tier = Math.Max(TopTierAt(level), 0);
             while (tier > 0 && random.Chance(Omens.TierDrop * (1f - quality))) tier--;
             Tier rolled = Tiers[tier];
-            return rolled.Low + (rolled.High - rolled.Low) * random.Float();
+            return MathF.Round(rolled.Low + (rolled.High - rolled.Low) * random.Float());
         }
 
         /// <summary>What it comes to for something that isn't rolled, such as what an orders' kind always brings: the middle of the best tier there is at this level.</summary>

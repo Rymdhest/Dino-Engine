@@ -12,7 +12,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
     /// Everything built that isn't a house: the clutter of villages, the camps of bandits, walls and gates, and the stones
     /// of older peoples. Sizes follow <see cref="StructureCatalog"/>; models stand on y = 0 with their front towards +z.
     /// </summary>
-    public static class PropGenerator
+    public static partial class PropGenerator
     {
         private static VertexMaterial Wood(int r = 138, int g = 106, int b = 78) => new VertexMaterial(TextureGenerator.wood, new Colour(r, g, b));
         private static VertexMaterial DarkWood => Wood(84, 62, 46);
@@ -77,7 +77,10 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "strongbox": BuildStrongbox(b, lights); break;
                 case "arena.gate": BuildArenaGate(b, lights); break;
                 case "arena.column": BuildArenaColumn(b, lights); break;
-                default: throw new ArgumentException($"No model for structure '{id}'.");
+                default:
+                    // The countryside's clutter, its landmarks, and what the Ossuary and the Reich leave in it (PropGenerator.Countryside.cs).
+                    if (!BuildCountryside(b, id, random, lights)) throw new ArgumentException($"No model for structure '{id}'.");
+                    break;
             }
             return b.Build();
         }
@@ -204,7 +207,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             {
                 float angle = -u * MathF.Tau;
                 float lump = 1f + 0.08f * MathF.Sin(angle * 3f + seed) * MathF.Sin(v * 7f);
-                float radius = 2.3f * MathF.Sqrt(MathF.Max(1f - v * v * 0.96f, 0f)) * lump;
+                // Closed at the top, which is what's seen of it from up here: left open, it showed a hole.
+                float radius = 2.3f * MathF.Sqrt(MathF.Max(1f - v * v, 0f)) * lump;
                 return new Vector3(MathF.Cos(angle) * radius, v * 3.3f - 0.1f, MathF.Sin(angle) * radius);
             }, Thatch);
         }
@@ -450,19 +454,34 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
 
         private static void BuildWatchTower(MeshBuilder b, BuildingStyle style)
         {
-            bool stone = style == BuildingStyle.Stone;
-            VertexMaterial post = stone ? Stone(190) : DarkWood;
+            // Built solid where a village builds in stone or mud, and of timber everywhere else: logs in the cold.
+            bool solid = style is BuildingStyle.Stone or BuildingStyle.Adobe or BuildingStyle.Tiled;
+            VertexMaterial post = style switch
+            {
+                BuildingStyle.Stone => Stone(190),
+                BuildingStyle.Tiled => Stone(214),
+                BuildingStyle.Adobe => new VertexMaterial(TextureGenerator.plaster, new Colour(214, 158, 114)),
+                BuildingStyle.Log => new VertexMaterial(TextureGenerator.barkBare, new Colour(196, 164, 130)),
+                _ => DarkWood,
+            };
             VertexMaterial roof = style switch
             {
                 BuildingStyle.Eastern => new VertexMaterial(TextureGenerator.shingle, new Colour(150, 150, 160)),
                 BuildingStyle.Stone => new VertexMaterial(TextureGenerator.slate, new Colour(210, 214, 226)),
+                BuildingStyle.Log => new VertexMaterial(TextureGenerator.shingle, new Colour(206, 186, 162)),
+                BuildingStyle.Tiled => new VertexMaterial(TextureGenerator.roofTiles, new Colour(240, 236, 228)),
                 _ => Thatch,
             };
 
             float top = 15f;
-            if (stone)
+            if (solid)
             {
                 b.Box(new Vector3(0f, top * 0.5f - 1f, 0f), new Vector3(3.9f, top * 0.5f + 1f, 3.9f), post);
+                if (style == BuildingStyle.Adobe)
+                {
+                    MudTowerTop(b, top, post);
+                    return;
+                }
             }
             else
             {
@@ -492,13 +511,77 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             }
             b.ResetPlacement();
 
+            // Clay tiles slide off a roof as steep as thatch wants, so theirs is low.
             float eave = top + 3.9f;
+            float rise = style == BuildingStyle.Tiled ? 2.4f : 3.9f;
             for (int side = 0; side < 4; side++)
             {
                 b.Place(new Vector3(0f, 0f, 0f), side * MathF.PI * 0.5f);
-                b.Quad(new Vector3(-5.2f, eave, 5.2f), new Vector3(5.2f, eave, 5.2f), new Vector3(0.2f, eave + 3.9f, 0.2f), new Vector3(-0.2f, eave + 3.9f, 0.2f), roof);
+                b.Quad(new Vector3(-5.2f, eave, 5.2f), new Vector3(5.2f, eave, 5.2f), new Vector3(0.2f, eave + rise, 0.2f), new Vector3(-0.2f, eave + rise, 0.2f), roof);
             }
             b.ResetPlacement();
+        }
+
+        // A mud tower ends in a flat roof with its beams poking out under it, a parapet of merlons round the roof and a shade of brush on four poles for whoever keeps
+        // watch. Slits light its stair, and its door is at its foot, in front of the darker mud where the rain splashes it.
+        private static void MudTowerTop(MeshBuilder b, float top, VertexMaterial mud)
+        {
+            const float Half = 3.9f, Thick = 0.3f, Low = 0.6f;
+            VertexMaterial dark = new VertexMaterial(TextureGenerator.flat, new Colour(16, 13, 11));
+            VertexMaterial splashed = new VertexMaterial(TextureGenerator.plaster, new Colour(mud.colour.ToVector3() * 0.76f));
+            VertexMaterial brush = new VertexMaterial(TextureGenerator.thatch, new Colour(170, 150, 112));
+            b.Box(new Vector3(0f, 0.45f, 0f), new Vector3(Half + 0.06f, 0.45f, Half + 0.06f), splashed);
+            b.Box(new Vector3(0f, top + 0.12f, 0f), new Vector3(Half + 0.1f, 0.12f, Half + 0.1f), splashed);
+
+            // The parapet's front and back run the whole way and its sides fit between them, so that no two of its faces lie in one plane.
+            float wallY = top + 0.24f + Low * 0.5f;
+            b.Box(new Vector3(0f, wallY, Half + 0.1f - Thick * 0.5f), new Vector3(Half + 0.1f, Low * 0.5f, Thick * 0.5f), mud);
+            b.Box(new Vector3(0f, wallY, -Half - 0.1f + Thick * 0.5f), new Vector3(Half + 0.1f, Low * 0.5f, Thick * 0.5f), mud);
+            b.Box(new Vector3(Half + 0.1f - Thick * 0.5f, wallY, 0f), new Vector3(Thick * 0.5f, Low * 0.5f, Half + 0.1f - Thick), mud);
+            b.Box(new Vector3(-Half - 0.1f + Thick * 0.5f, wallY, 0f), new Vector3(Thick * 0.5f, Low * 0.5f, Half + 0.1f - Thick), mud);
+            float merlonY = top + 0.24f + Low + 0.4f;
+            for (int side = 0; side < 4; side++)
+            {
+                b.Place(Vector3.Zero, side * MathF.PI * 0.5f);
+                for (int i = 0; i < 4; i++)
+                {
+                    b.Box(new Vector3(-3.2f + i * (6.4f / 3f), merlonY, Half + 0.1f - Thick * 0.5f), new Vector3(0.42f, 0.4f, Thick * 0.5f), mud);
+                }
+                foreach (float y in new[] { 5.2f, 9.4f })
+                {
+                    b.Quad(new Vector3(-0.16f, y, Half + 0.02f), new Vector3(0.16f, y, Half + 0.02f), new Vector3(0.16f, y + 1.4f, Half + 0.02f), new Vector3(-0.16f, y + 1.4f, Half + 0.02f), dark);
+                }
+                if (side % 2 == 0)
+                {
+                    for (float x = -Half + 0.7f; x <= Half - 0.6f; x += 1.3f)
+                    {
+                        b.Tube(new Vector3(x, top - 0.3f, Half - 0.3f), new Vector3(x, top - 0.28f, Half + 0.6f), 0.13f, 0.12f, 6, DarkWood);
+                    }
+                }
+            }
+            b.ResetPlacement();
+
+            b.Quad(new Vector3(-1.1f, 0f, Half + 0.09f), new Vector3(1.1f, 0f, Half + 0.09f), new Vector3(1.1f, 4.4f, Half + 0.09f), new Vector3(-1.1f, 4.4f, Half + 0.09f), Wood(96, 70, 48));
+            b.Beam(new Vector3(-1.6f, 4.6f, Half + 0.2f), new Vector3(1.6f, 4.6f, Half + 0.2f), 0.18f, DarkWood);
+            b.Box(new Vector3(0f, -0.3f, Half + 0.8f), new Vector3(1.5f, 0.4f, 0.7f), Stone(170));
+
+            // The shade, sagging a little between its poles.
+            float shade = top + 3.5f;
+            foreach (float x in new[] { -2.7f, 2.7f })
+            {
+                foreach (float z in new[] { -2.7f, 2.7f })
+                {
+                    b.Tube(new Vector3(x, top + 0.24f, z), new Vector3(x, shade - 0.1f, z), 0.11f, 0.1f, 6, DarkWood);
+                }
+                b.Beam(new Vector3(x, shade - 0.1f, -3f), new Vector3(x, shade - 0.1f, 3f), 0.1f, DarkWood);
+            }
+            const float Edge = 3.2f, Lip = 0.15f;
+            b.Surface(3, 3, (u, v) => new Vector3(-Edge + 2f * Edge * u, shade + 0.1f - 0.12f * MathF.Sin(MathF.PI * u) * MathF.Sin(MathF.PI * v), Edge - 2f * Edge * v), brush);
+            float lip = shade + 0.1f;
+            b.Quad(new Vector3(-Edge, lip - Lip, Edge), new Vector3(Edge, lip - Lip, Edge), new Vector3(Edge, lip, Edge), new Vector3(-Edge, lip, Edge), brush);
+            b.Quad(new Vector3(Edge, lip - Lip, -Edge), new Vector3(-Edge, lip - Lip, -Edge), new Vector3(-Edge, lip, -Edge), new Vector3(Edge, lip, -Edge), brush);
+            b.Quad(new Vector3(Edge, lip - Lip, Edge), new Vector3(Edge, lip - Lip, -Edge), new Vector3(Edge, lip, -Edge), new Vector3(Edge, lip, Edge), brush);
+            b.Quad(new Vector3(-Edge, lip - Lip, -Edge), new Vector3(-Edge, lip - Lip, Edge), new Vector3(-Edge, lip, Edge), new Vector3(-Edge, lip, -Edge), brush);
         }
 
         private static void BuildGuardTower(MeshBuilder b)

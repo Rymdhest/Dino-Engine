@@ -27,6 +27,7 @@ Ends of runs of one style within `Join` of each other are one post. Two runs car
 
 - A rail runs into the middle of its posts, tapering like a tenon, so it meets any post of its style, at any angle.
 - Palings, bamboo canes and the logs of a stockade are spaced half a pitch in from each end of a span, so the rhythm runs on across a post as if it weren't there.
+- A wall's spans are never tilted: a tilt leans a span's end, and two neighbours leaning apart opened wedges a quarter of a metre wide at the top of a curtain wall. A wall is chained instead, each span starting where the last ended and rising by the slope step nearest the ground at its far end, so two spans share their joint's plane exactly and the ground strays from a foot by half a step at most. Two runs carrying straight on share the height between them (`FenceLayout.LayRun`).
 - A wall's spans meet with nothing between them. They're built to the same section at both ends, their weathering comes round again at a span's end (`FenceLook.AlongWall`), and their texture repeats a whole number of times along a span, so its courses run on into the next. Each span's ends are closed across its section in the colour of a joint, so two spans on different slopes show a mortar line where they meet, never daylight.
 - Dry stone needs none of that: each course's stones run a little past the span's ends, so two spans' stones lock together.
 
@@ -38,20 +39,20 @@ A wall that meets a tower can't stand in it, so it's tried up to the tower's foo
 
 | Kind | Form | Where | What it is |
 |---|---|---|---|
-| `rails` | Rails | Fields | Split rails let into hewn or round posts, two to four of them |
+| `rails` | Rails | Fields, and yards wherever they don't build in mud or on posts | Split rails let into hewn or round posts, two to four of them |
 | `paling` | Paling | Gardens, and now and then a field | Pointed, rounded, clipped or flat pales on two rails, sometimes limewashed |
-| `wattle` | Wattle | Gardens, and now and then a field, where they build in timber | Hurdles of rods woven in and out of stakes, lashed to stout posts |
-| `bamboo` | Bamboo | Gardens and fields in the East, and the Haven's training yard | A lattice of culms tied with black cord at every crossing |
+| `wattle` | Wattle | Gardens, and now and then a field, where they build in timber or logs; fields and yards in the dry country | Hurdles of rods woven in and out of stakes, lashed to stout posts |
+| `bamboo` | Bamboo | Gardens, fields and yards in the East and over the wet, where they build on posts, and the Haven's training yard | A lattice of culms tied with black cord at every crossing |
 | `stockade` | Stockade | A fortified village | Sharpened logs, lashed with rope, pinned to rails inside |
 | `pen` | Pen | A camp, which is a brood's pen | The Reich's: bigger, tarred logs with fire-hardened points, black iron straps, hewn posts capped and spiked in iron, oxblood on the gateposts |
-| `dry-stone` | DryStone | Some gardens where they build in stone | Field stones in courses, narrowing as they rise, copes on edge along the top, all of the world's own rock |
+| `dry-stone` | DryStone | Some gardens where they build in stone, mud or clay tiles, which wall their gardens with the stones cleared from them | Field stones in courses, narrowing as they rise, copes on edge along the top, all of the world's own rock |
 | `churchyard` | Churchyard | A churchyard | Coursed stone on a plinth under a saddleback coping, with piers capped by a pyramid, a ball or a step |
 | `roofed` | Roofed | A churchyard in the East | Plaster over a stone plinth between dark posts, sometimes earthen with white lines, under a little roof with hipped caps at its ends |
 | `curtain` | Curtain | A keep | Battered at its foot, a walk along the top behind merlons with arrow slits, a low parapet inside |
 
-What a site puts up for a use is `FenceCatalog.Choose`, from how the world builds and a fork of the site's own, once per use, so a village's gardens all match. A world draws `StylesPerWorld` styles of each kind from its seed, and a site takes one of them.
+What a site puts up for a use is `FenceCatalog.Choose`, from how the site builds (`WorldData.StyleOf`, which is its land's way where its biome has one) and a fork of the site's own, once per use, so a village's gardens all match. A world draws `StylesPerWorld` styles of each kind from its seed, and a site takes one of them.
 
-**A field is fenced light and in wood**: rails mostly, wattle or a paling now and then, bamboo or rails in the East. Stone was tried round fields and read as a churchyard's, and a stone wall's wider footing took a waygate's ground. A field's gate faces the nearest road, and a footpath runs from it to that road when there's one within `LongestFieldTrack` and nothing built is in the way (`SettlementStage.LayFieldTrack`), so a farm is somewhere people walk to.
+**A field is fenced light and in wood**: rails mostly, wattle or a paling now and then, bamboo or rails in the East, rails or wattle where they build in logs, wattle or rails in the dry country, cane or wattle over the wet, and rails or paling in the tile country. Stone was tried round fields and read as a churchyard's, and a stone wall's wider footing took a waygate's ground. A field's gate faces the nearest road, and a footpath runs from it to that road when there's one within `LongestFieldTrack` and nothing built is in the way (`SettlementStage.LayFieldTrack`), so a farm is somewhere people walk to.
 
 **A run stops where nobody could stand**, on rock or ground too steep to walk, and starts again beyond with an end post each side (`SiteBuilder.Wall`), as a village's stockade once climbed a cliff and its spans, out of slope steps, leaned 42 degrees.
 

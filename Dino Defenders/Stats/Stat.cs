@@ -144,6 +144,31 @@ namespace Dino_Defenders.Stats
         public static bool IsDefensive(Stat stat) => Array.IndexOf(Defensive, stat) >= 0;
     }
 
+    /// <summary>
+    /// What a stat is said in: whole numbers, as a player reads them, but for the few whose every step is less than one, which keep a tenth: leech, regeneration a second, the delay before Barrier
+    /// recharges, health drained a second and metres of reach. Every modifier anything gives goes through <see cref="Tidy"/>, so what's rolled, grown on the tree or written on a unique is said and
+    /// counted the same way. Times a book takes aren't stats, and keep what they are.
+    /// </summary>
+    public static class StatPrecision
+    {
+        private static readonly Stat[] Fine =
+        {
+            Stat.HealthLeech, Stat.ManaLeech, Stat.HealthRegen, Stat.ManaRegen, Stat.HealthRegenPercent, Stat.ManaRegenPercent, Stat.BarrierDelay, Stat.HealthDrain, Stat.MeleeReach,
+        };
+
+        /// <summary>Whether a stat keeps a tenth, rather than being a whole number.</summary>
+        public static bool KeepsTenths(Stat stat) => Array.IndexOf(Fine, stat) >= 0;
+
+        /// <summary>A value for this stat, as it's said.</summary>
+        public static float Round(Stat stat, float value) => KeepsTenths(stat) ? MathF.Round(value, 1) : MathF.Round(value);
+
+        /// <summary>
+        /// A modifier as it's said. Only a number that's added, increased or made more is rounded: a rule, a condition or a trigger isn't a number, and one counted per so much of something is a share of
+        /// each step, which rounding would take away.
+        /// </summary>
+        public static Mod Tidy(Mod mod) => mod.Kind > ModKind.More || mod.Per != Per.None ? mod : mod with { Value = Round(mod.Stat, mod.Value) };
+    }
+
     /// <summary>How a modifier acts on a stat.</summary>
     public enum ModKind : byte
     {

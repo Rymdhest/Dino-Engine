@@ -12,7 +12,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
     /// a <see cref="BuildingStyle"/> decides what each of those looks like. The game is seen from above, so most of the effort
     /// goes into the roofs: that is what a village is, from where the player stands. Local +z is the front.
     /// </summary>
-    public static class BuildingGenerator
+    public static partial class BuildingGenerator
     {
         private const float PlinthHeight = 0.7f;
         private const float DoorHeight = 6f;
@@ -45,6 +45,11 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
 
             switch (style)
             {
+                case BuildingStyle.Log:
+                case BuildingStyle.Adobe:
+                case BuildingStyle.Stilt:
+                case BuildingStyle.Tiled:
+                    return KitForLand(style, random, stone, window);
                 case BuildingStyle.Eastern:
                     return new Kit
                     {
@@ -107,6 +112,15 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             Kit kit = KitFor(style, random);
             kit.Lights = lights;
             Vector2 half = definition.HalfExtents;
+
+            // The styles the land decides have their own ways of building everything (BuildingStyles.cs).
+            switch (style)
+            {
+                case BuildingStyle.Log: return BuildLog(definition, half, kit, random, chimneys);
+                case BuildingStyle.Adobe: return BuildAdobe(definition, half, kit, random, chimneys);
+                case BuildingStyle.Stilt: return BuildStilt(definition, half, kit, random);
+                case BuildingStyle.Tiled: return BuildTiled(definition, half, kit, random, chimneys);
+            }
 
             if (definition == StructureCatalog.Shed) return BuildShed(half, kit);
             if (definition == StructureCatalog.Barn) return BuildBarn(half, kit, random);
@@ -277,8 +291,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             else AddGableRoof(b, half, eaveHeight, kit, random);
         }
 
-        // A roof of two slopes with its ridge along x, and the wall carried up to it at each end.
-        private static void AddGableRoof(MeshBuilder b, Vector2 half, float eaveHeight, Kit kit, WorldRandom random)
+        // A roof of two slopes with its ridge along x, and the wall carried up to it at each end. A gable built up of logs has no king post, which would show between them.
+        private static void AddGableRoof(MeshBuilder b, Vector2 half, float eaveHeight, Kit kit, WorldRandom random, bool kingPost = true)
         {
             float overhang = kit.Overhang;
             float reach = half.Y + overhang;
@@ -323,7 +337,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 b.Triangle(a, c, peak, kit.Wall);
                 b.Beam(a + Vector3.UnitX * side * 0.05f, peak + Vector3.UnitX * side * 0.05f, 0.2f, kit.Frame);
                 b.Beam(c + Vector3.UnitX * side * 0.05f, peak + Vector3.UnitX * side * 0.05f, 0.2f, kit.Frame);
-                b.Beam(new Vector3(x, wallTop, 0f) + Vector3.UnitX * side * 0.05f, peak + Vector3.UnitX * side * 0.05f, 0.18f, kit.Frame);
+                if (kingPost) b.Beam(new Vector3(x, wallTop, 0f) + Vector3.UnitX * side * 0.05f, peak + Vector3.UnitX * side * 0.05f, 0.18f, kit.Frame);
             }
 
             // Along the ridge, where the two slopes meet and the weather gets in.
@@ -381,9 +395,10 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             b.Surface(10, 7, (u, v) => Point(frontRight, backRight, r1, r1, u, v), material);
             b.Surface(10, 7, (u, v) => Point(backLeft, frontLeft, r0, r0, u, v), material);
 
-            // The heavy ridge, and its ends turned up.
+            // The heavy ridge, and its ends turned up where the eaves sweep up too: a roof laid straight has a straight ridge.
             float ridgeTop = ridgeY - 0.18f;
             b.Beam(new Vector3(-ridgeHalf - 0.6f, ridgeTop, 0f), new Vector3(ridgeHalf + 0.6f, ridgeTop, 0f), 0.34f, kit.Ridge);
+            if (upsweep <= 0f) return;
             b.Beam(new Vector3(-ridgeHalf - 0.6f, ridgeTop, 0f), new Vector3(-ridgeHalf - 1.2f, ridgeTop + 0.8f, 0f), 0.3f, kit.Ridge);
             b.Beam(new Vector3(ridgeHalf + 0.6f, ridgeTop, 0f), new Vector3(ridgeHalf + 1.2f, ridgeTop + 0.8f, 0f), 0.3f, kit.Ridge);
         }

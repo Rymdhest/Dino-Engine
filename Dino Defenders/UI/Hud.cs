@@ -141,6 +141,15 @@ namespace Dino_Defenders.UI
                         GuiRect bar = new GuiRect(over.X - 22f, over.Y, 44f, 4f);
                         draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 170));
                         draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * share, bar.Height), Ui.Good);
+
+                        // A Minion that pays for its book shows what it has left to pay with, under its Health.
+                        if (entity.Has<ManaComponent>())
+                        {
+                            var mana = entity.Get<ManaComponent>();
+                            GuiRect well = new GuiRect(bar.X, bar.Bottom + 1f, bar.Width, 3f);
+                            draw.AddRect(well, GuiColors.Rgba(0, 0, 0, 170));
+                            draw.AddRect(new GuiRect(well.X, well.Y, well.Width * Math.Clamp(mana.Current / MathF.Max(mana.Max, 1f), 0f, 1f), well.Height), Ui.Mana);
+                        }
                         continue;
                     }
 

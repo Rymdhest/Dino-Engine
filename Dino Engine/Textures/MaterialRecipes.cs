@@ -70,6 +70,10 @@ namespace Dino_Engine.Textures
             if (spec == MaterialCatalog.Cloth) return Cloth(c);
             if (spec == MaterialCatalog.Bone) return Bone(c);
             if (spec == MaterialCatalog.Flagstones) return Flagstones(c);
+            if (spec == MaterialCatalog.Needles) return Needles(c);
+            if (spec == MaterialCatalog.RedEarth) return RedEarth(c);
+            if (spec == MaterialCatalog.Litter) return LeafLitter(c);
+            if (spec == MaterialCatalog.RoofTiles) return RoofTiles(c);
 
             throw new InvalidOperationException($"No recipe for {spec.Name}.");
         }

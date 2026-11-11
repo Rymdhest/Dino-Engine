@@ -3,6 +3,7 @@ using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
 using Dino_Engine.Networking;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.World;
 using OpenTK.Mathematics;
 
 namespace Dino_Defenders.Gameplay
@@ -51,6 +52,15 @@ namespace Dino_Defenders.Gameplay
 
         /// <summary>The furthest anything in it is from <see cref="Origin"/>, for finding what might be.</summary>
         public float Extent => Kind == ShapeKind.Line ? Length + Width : Length;
+
+        /// <summary>Metres past <see cref="Extent"/> that what's in the way is gathered from, as a body at the edge stands a little beyond it.</summary>
+        public const float SightSlack = 4f;
+
+        /// <summary>
+        /// Everything solid that could stand between where this goes off and anyone in it (<see cref="Sight"/>). Nobody is in an area that a line from its <see cref="Origin"/> can't reach, and a mark is drawn
+        /// with these cut out of it, so what's shown is what lands: the server and a client both gather them here.
+        /// </summary>
+        public void Blockers(PlacementIndex placement, List<Footprint> into) => Sight.Gather(placement, Origin, Extent + SightSlack, into);
 
         /// <summary>Whether a body of this radius, standing here, is touching this.</summary>
         public bool Covers(Vector2 point, float body)
@@ -102,6 +112,7 @@ namespace Dino_Defenders.Gameplay
             Vector2 from = plan.From == Start.Cursor ? target : origin;
 
             if (plan.Kind == PageKind.Area) return Of(page, from, facing);
+            if (plan.Kind == PageKind.Summon) return Circle(origin, Rulebook.MinionRing);
             if (book.Lobs || plan.Rides)
             {
                 // Whatever falls comes down where it's aimed, and whoever rides gets there.

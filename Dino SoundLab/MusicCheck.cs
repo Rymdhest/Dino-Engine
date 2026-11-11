@@ -530,6 +530,30 @@ namespace Dino_SoundLab
             Expect(composer.Next(intent).Label == "Victory", "a cue didn't finish");
             Expect(composer.Next(intent).Label.StartsWith("Boss"), "the music didn't go on after a cue");
 
+            // Any mood can be asked of any place, as the game's mood is still the last land's when the next place's music begins: losing a land at its tyrant once began the Haven
+            // with a fight asked of it, which ran up to the Haven's theme from nothing and stopped the game. Whatever's asked first, and then the place's own, has to play.
+            foreach (MusicPlace place in Specials().Prepend(land))
+            {
+                var score = new Score(place);
+                foreach (MusicMood first in Enum.GetValues<MusicMood>())
+                {
+                    var asked = new Composer(score, place.Seed);
+                    string where = place.Haven ? "the Haven" : place.Arena ? $"a {place.ArenaKind} arena" : "a land";
+                    try
+                    {
+                        Bar opening = asked.Next(new MusicIntent { Mood = first, Intensity = 0.6f });
+                        Expect(first == MusicMood.Silence || opening.Notes.Count > 0, $"{where} asked for {first} first opened with {opening.Label}");
+                        for (int i = 0; i < 6; i++) asked.Next(new MusicIntent { Mood = first, Intensity = 0.6f });
+                        for (int i = 0; i < 12; i++) asked.Next(new MusicIntent { Mood = score.Main, Intensity = 0.6f });
+                        Expect(asked.Mood == score.Main, $"{where} asked for {first} first never went on to its own piece");
+                    }
+                    catch (Exception e)
+                    {
+                        Expect(false, $"{where} asked for {first} first threw {e.GetType().Name} at {e.StackTrace?.Split('\n')[0].Trim()}");
+                    }
+                }
+            }
+
             // Walking the edge of a keep mustn't send the music back and forth, a fight mustn't be kept waiting by that, and one that's over is left at once.
             var hold = new MoodHold();
             for (int i = 0; i < 300; i++) hold.Update(MusicMood.Land, 0.2f);

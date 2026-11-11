@@ -1098,7 +1098,7 @@ namespace Dino_WorldLab
             foreach (WorldObject item in world.Objects.All())
             {
                 string id = world.Objects.AssetIds[item.Asset];
-                if (id is "lantern.stone" or "cairn" or "signpost" or "cart" or "bench") landmarks.Add(item.Position.Xz);
+                if (id is "lantern.stone" or "cairn" or "signpost" or "cart" or "bench" or "shrine.wayside" or "milestone" or "stand.hunting" or "fossil" or "windmill" or "dig" or "pen.banner") landmarks.Add(item.Position.Xz);
             }
 
             foreach (WorldRoad road in world.Roads)

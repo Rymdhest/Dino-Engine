@@ -52,6 +52,8 @@ The view is the camera's corners taken down to the ground, as a wide screen sees
 
 **Nothing lives in a building.** The Haven's halls can be walked into (`HALLS.md`), so nothing stands, feeds or scuttles within 1.2 m of their walls (`LifeLand.HallBerth`, in `CanStand`, `CanScuttle` and `HabitatAt`), a leaf falling over a room is gone, and anything flying keeps over a hall's roof from 3 m past its eaves (`LifeLand.Overhead` and `RoofAt`, up to the hall's `Top`), as a flock that cut through one was seen crossing the room once its roof was open. Over an open hall what flies fades out with the roof, as smoke does (`Model.frag`).
 
+Each biome added on 2026-11-11 has a list of its own in `Fauna` (`Wildwood`, `Riverside`, `Taiga`, `Alpine`, `Maquis`, `Windward`, `Mangroves`, `Fernland`, `CloudForest`, `Bloomfield`, `RedScrub` and `Bog`), mostly of what lives elsewhere already, with ten new animals of shapes there already: jays, kingfishers, herons, ibises, eagles, cockatoos, marmots, fiddler crabs, and apollo and swallowtail butterflies.
+
 A little weather and hour: `AwakeNow` thins a place out in rain by which cells they are, so it's always the same ones that are left. What can't be out in the rain goes when it starts, by `Party.Shelter`. Night is `NightfallSingleton`, so birds aren't seen in a churchyard and bats are.
 
 ## Fright

@@ -120,12 +120,12 @@ namespace Dino_BuildLab
                 }
             }
 
-            if (what is "all" or "sentences")
+            if (what is "all" or "phrases")
             {
                 foreach (Blank blank in Enum.GetValues<Blank>())
                 {
                     Console.WriteLine($"\n{BookText.NameOf(blank)}");
-                    foreach (Sentence sentence in Sentences.For(blank)) Console.WriteLine($"  {sentence.Words}: {string.Join(", ", BookText.Trade(sentence.Weights))}");
+                    foreach (Phrase phrase in Phrases.For(blank)) Console.WriteLine($"  {phrase.Words}: {string.Join(", ", BookText.Trade(phrase.Weights))}");
                 }
             }
 
@@ -149,6 +149,18 @@ namespace Dino_BuildLab
                 if (what == "cards")
                 {
                     foreach (BookPlan skill in Shelf.All) Print(Cards.Book(sheet.Preview(skill)));
+
+                    // Books and pages as they're found, each with what's rolled on it, and a book with a page in it.
+                    var random = new Dino_Engine.World.WorldRandom(5);
+                    foreach (Rarity rarity in new[] { Rarity.Normal, Rarity.Magic, Rarity.Rare })
+                    {
+                        Item book = ItemGenerator.Folio(hero.Level, random.Fork($"book{rarity}"), rarity, ItemSlot.Book);
+                        Item page = ItemGenerator.Folio(hero.Level, random.Fork($"page{rarity}"), rarity, ItemSlot.Page);
+                        Print(Cards.Item(page, sheet, "Page"));
+                        if (book.Mode != BookMode.Toggle || page.Page!.Kind == PageKind.Area) book.Held![0] = page;
+                        Print(Cards.Item(book, sheet, "Book"));
+                        Print(Cards.Item(ItemGenerator.Folio(hero.Level, random.Fork($"sentence{rarity}"), rarity, ItemSlot.Sentence), sheet, "Sentence"));
+                    }
                 }
                 else
                 {

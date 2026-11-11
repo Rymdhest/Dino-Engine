@@ -90,7 +90,7 @@ namespace Dino_Defenders.UI
         }
     }
 
-    /// <summary>What a page says, which is what it was found as and never changes: where it starts, where it goes or what it covers, and what it does on Impact. It reads what the page comes to, stickers and all.</summary>
+    /// <summary>What a page says, which is what it was found as and never changes: where it starts, where it goes or what it covers, and what it does on Impact. It reads what the page comes to, sentences and all.</summary>
     internal sealed class PageView : GuiElement
     {
         private const float Size = 16f;
@@ -150,21 +150,21 @@ namespace Dino_Defenders.UI
             List<string> lines = BookText.Lines(page, shown.Page, shown.Potency);
             float y = Bounds.Y;
             Flow(draw, lines[0], ref y, Bounds.X, Bounds.Right);
-            Flow(draw, $"then {lines[1]}", ref y, Bounds.X + Indent, Bounds.Right);
+            if (lines[1].Length > 0) Flow(draw, $"then {lines[1]}", ref y, Bounds.X + Indent, Bounds.Right);
             y += 6f;
             Flow(draw, lines[2], ref y, Bounds.X, Bounds.Right);
         }
     }
 
-    /// <summary>A place on a page for a sticker, with what's on it said out loud, as a page's stickers are half of what it is.</summary>
-    internal sealed class StickerRow : GuiElement
+    /// <summary>A place on a page for a sentence, with what's on it said out loud, as a page's sentences are half of what it is.</summary>
+    internal sealed class SentenceRow : GuiElement
     {
         private const float Cell = 38f;
 
         private readonly ItemPlace _place;
         private readonly List<HotSpot> _spots = new();
 
-        public StickerRow(HeroPanel hands, ItemPlace place)
+        public SentenceRow(HeroPanel hands, ItemPlace place)
         {
             _place = place;
             Width = UIValue.Fill;
@@ -175,13 +175,60 @@ namespace Dino_Defenders.UI
         protected override void OnDraw(GuiDrawList draw)
         {
             base.OnDraw(draw);
-            if (Context == null || GameUi.Current.Book.At(_place)?.Sticker is not Sticker sticker) return;
+            if (Context == null || GameUi.Current.Book.At(_place)?.Sentence is not Sentence sentence) return;
 
             float x = Bounds.X + Cell + 8f;
             float width = Bounds.Width - Cell - 8f;
             _spots.Clear();
-            Vellum.Mark(Context, draw, BookText.Good(sticker), 13f, new GuiRect(x, Bounds.Y + 1f, width, 18f), Vellum.Ink, _spots);
-            Vellum.Mark(Context, draw, BookText.Bad(sticker), 13f, new GuiRect(x, Bounds.Y + 19f, width, 18f), Vellum.Rubric, _spots);
+            Vellum.Mark(Context, draw, BookText.Good(sentence), 13f, new GuiRect(x, Bounds.Y + 1f, width, 18f), Vellum.Ink, _spots);
+            Vellum.Mark(Context, draw, BookText.Bad(sentence), 13f, new GuiRect(x, Bounds.Y + 19f, width, 18f), Vellum.Rubric, _spots);
+            GameUi.Current.Tips.Placed(_spots, Bounds);
+        }
+    }
+
+    /// <summary>Which of the places on a Summon Page a row is.</summary>
+    internal enum MinionPlace
+    {
+        Weapon,
+        OffHand,
+        Book,
+    }
+
+    /// <summary>A place on a Summon Page for what its Minions fight with, a weapon, what's in their other hand or a book, with what's there said beside it.</summary>
+    internal sealed class MinionRow : GuiElement
+    {
+        private const float Cell = 38f;
+
+        private readonly ItemPlace _place;
+        private readonly MinionPlace _kind;
+        private readonly List<HotSpot> _spots = new();
+
+        public MinionRow(HeroPanel hands, ItemPlace place, MinionPlace kind)
+        {
+            _place = place;
+            _kind = kind;
+            Width = UIValue.Fill;
+            Height = Cell;
+            Add(new ItemCell(hands, new Spot(Shelf.Held, place.Number), Cell));
+        }
+
+        protected override void OnDraw(GuiDrawList draw)
+        {
+            base.OnDraw(draw);
+            if (Context == null) return;
+
+            float x = Bounds.X + Cell + 8f;
+            float width = Bounds.Width - Cell - 8f;
+            Item? there = GameUi.Current.Book.At(_place);
+            (string what, string empty) = _kind switch
+            {
+                MinionPlace.Weapon => ("The Weapon its Minions strike with", "Drag a Weapon here"),
+                MinionPlace.OffHand => ("What its Minions hold in the other hand", "Drag a Shield or a One Handed Weapon here"),
+                _ => ("The Book its Minions use, as often as they can", "Drag a Book here"),
+            };
+            _spots.Clear();
+            Vellum.Mark(Context, draw, what, 13f, new GuiRect(x, Bounds.Y + 1f, width, 18f), Vellum.Pale, _spots);
+            Vellum.Mark(Context, draw, there?.Name ?? empty, 13f, new GuiRect(x, Bounds.Y + 19f, width, 18f), there != null ? Vellum.Ink : Vellum.Pale, _spots);
             GameUi.Current.Tips.Placed(_spots, Bounds);
         }
     }
@@ -209,13 +256,13 @@ namespace Dino_Defenders.UI
         private readonly PageLine _turnHint;
         private readonly Button _next;
         private readonly Button _last;
-        private readonly StackPanel _stickers;
-        private readonly PageLine _stickerHeading;
+        private readonly StackPanel _sentences;
+        private readonly PageLine _sentenceHeading;
         private readonly StackPanel _pages;
 
         private ItemPlace _place;
         private int _turnedTo;
-        private (int pages, int stickers, int turnedTo, ItemPlace place) _built = (-1, -1, -1, default);
+        private (int pages, int sentences, int turnedTo, ItemPlace place, bool summons) _built = (-1, -1, -1, default, false);
         private bool _naming;
         private Card? _summary;
 
@@ -277,7 +324,7 @@ namespace Dino_Defenders.UI
             var bag = side.Add(new GridPanel(PackColumns, PackGap, PackGap));
             for (int i = 0; i < HeroState.InventorySize; i++) bag.Add(new ItemCell(hands, new Spot(Shelf.Pack, i), PackCell));
             side.Add(new Spacer(height: 4f));
-            side.Add(Ui.Paragraph("", 12.5f, Ui.Faded).Bind(() => $"Drag Pages into the Book and Stickers onto the Page, or {Bindings.Label(GameAction.Details)}-click them."));
+            side.Add(Ui.Paragraph("", 12.5f, Ui.Faded).Bind(() => $"Drag Pages into the Book and Sentences onto the Page, or {Bindings.Label(GameAction.Details)}-click them."));
             side.Add(Ui.Paragraph("Right click another Book or Page to open that instead.", 12.5f, Ui.Faded));
             side.Add(Ui.Paragraph("Drag a Book onto the bar to use it.", 12.5f, Ui.Faded));
 
@@ -301,8 +348,8 @@ namespace Dino_Defenders.UI
             left.Add(new Spacer(height: 2f));
             left.Add(new PageView(this));
 
-            _stickerHeading = left.Add(new PageLine("", 14f, Vellum.Rubric));
-            _stickers = left.Add(new StackPanel(Orientation.Vertical, 3f) { Width = UIValue.Fill, Height = UIValue.Auto });
+            _sentenceHeading = left.Add(new PageLine("", 14f, Vellum.Rubric));
+            _sentences = left.Add(new StackPanel(Orientation.Vertical, 3f) { Width = UIValue.Fill, Height = UIValue.Auto });
             _numbers = left.Add(new PageLine("", 14f, Vellum.Ink));
 
             var right = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill, Padding = new Thickness(20f, 14f) });
@@ -329,7 +376,7 @@ namespace Dino_Defenders.UI
             _hands.Tend();
 
             // The server has the last word on what's where, and something can be gone from under an open book.
-            if (Opened is not { IsFolio: true, IsSticker: false } item)
+            if (Opened is not { IsFolio: true, IsSentence: false } item)
             {
                 Close();
                 return;
@@ -359,7 +406,7 @@ namespace Dino_Defenders.UI
 
             Item? shown = At(PagePlace);
             _kind.Text = shown?.Page is Page page ? $"{page.Hand} {page.Kind} Page" : "";
-            _stickerHeading.Text = shown == null ? "" : shown.Places == 0 ? "No room for Stickers" : "Stickers";
+            _sentenceHeading.Text = shown == null ? "" : shown.SentencePlaces == 0 ? "No room for Sentences" : "Sentences";
 
             BookProfile? written = Reading;
             _summary = written != null ? Summary(written) : null;
@@ -368,7 +415,11 @@ namespace Dino_Defenders.UI
             {
                 string size = profile.Page.Kind == PageKind.Projectile ? $"Projectile Speed {Say.Amount(profile.Speed)} m a second" : profile.Page.Shape == AreaShape.Circle ? $"Radius {Say.Metres(profile.Length)}" : $"Reach {Say.Metres(profile.Length)}";
                 string carried = MathF.Abs(profile.Page.Carried - 1f) > 0.001f ? $" (from {Say.Share(profile.Page.Carried)})" : "";
-                _numbers.Text = $"Cost {Say.Amount(profile.Cost)}   Potency {Say.Share(profile.Potency)}{carried}   {size}";
+
+                // What raises Minions has no strength, reach or speed of its own: only how many, and for how long.
+                _numbers.Text = profile.Page.Kind == PageKind.Summon
+                    ? $"Cost {Say.Amount(profile.Cost)}   Minions {Say.Whole(profile.MinionCount)}   Minion Duration {Say.Seconds(Rulebook.MinionSeconds * profile.MinionDuration)}"
+                    : $"Cost {Say.Amount(profile.Cost)}   Potency {Say.Share(profile.Potency)}{carried}   {size}";
             }
             else _numbers.Text = "";
         }
@@ -392,8 +443,10 @@ namespace Dino_Defenders.UI
         private void Rebuilt()
         {
             if (Opened is not Item item) return;
-            int stickers = At(PagePlace)?.Places ?? 0;
-            var wanted = (item.IsBook ? item.Places : 0, stickers, _turnedTo, PagePlace);
+            Item? turned = At(PagePlace);
+            int sentences = turned?.SentencePlaces ?? 0;
+            bool summons = turned?.Summons == true;
+            var wanted = (item.IsBook ? item.Places : 0, sentences, _turnedTo, PagePlace, summons);
             if (wanted == _built) return;
             _built = wanted;
 
@@ -403,8 +456,12 @@ namespace Dino_Defenders.UI
                 _pages.Add(new ItemCell(_hands, new Spot(Shelf.Held, _place.In(i).Number), PageCell) { Marked = i == _turnedTo });
             }
 
-            _stickers.ClearChildren();
-            for (int i = 0; i < stickers; i++) _stickers.Add(new StickerRow(_hands, PagePlace.In(i)));
+            _sentences.ClearChildren();
+            for (int i = 0; i < sentences; i++) _sentences.Add(new SentenceRow(_hands, PagePlace.In(i)));
+            if (!summons) return;
+            _sentences.Add(new MinionRow(_hands, PagePlace.In(turned!.MinionWeaponPlace), MinionPlace.Weapon));
+            _sentences.Add(new MinionRow(_hands, PagePlace.In(turned.MinionOffHandPlace), MinionPlace.OffHand));
+            _sentences.Add(new MinionRow(_hands, PagePlace.In(turned.MinionBookPlace), MinionPlace.Book));
         }
 
         private void Close()
@@ -426,7 +483,7 @@ namespace Dino_Defenders.UI
         /// <summary>Opens a book at its first page, or a page on its own.</summary>
         public void Show(ItemPlace place)
         {
-            if (Hero.At(place) is not { IsFolio: true, IsSticker: false } item) return;
+            if (Hero.At(place) is not { IsFolio: true, IsSentence: false } item) return;
             _place = place;
             _name.Text = item.Name;
             _naming = false;
@@ -462,7 +519,22 @@ namespace Dino_Defenders.UI
         public bool Slot(ItemPlace from)
         {
             if (At(from) is not Item item) return false;
-            ItemPlace holder = item.IsSticker ? PagePlace : _place;
+
+            // A weapon, or a book, goes to what a Summon Page's Minions are given, if that's the page turned to.
+            if (At(PagePlace) is { Summons: true } calling && (item.IsWeapon || item.IsBook || item.FitsOffHand))
+            {
+                foreach (int index in new[] { calling.MinionWeaponPlace, calling.MinionOffHandPlace, calling.MinionBookPlace })
+                {
+                    ItemPlace given = PagePlace.In(index);
+                    if (At(given) != null || !Hero.CanMove(from, given)) continue;
+                    Audio.Play(Interface.Equip);
+                    Session.Client.Move(from, given);
+                    return true;
+                }
+                return false;
+            }
+
+            ItemPlace holder = item.IsSentence ? PagePlace : _place;
             int places = At(holder)?.Places ?? 0;
             for (int i = 0; i < places; i++)
             {
@@ -485,8 +557,8 @@ namespace Dino_Defenders.UI
         /// <summary>Why something didn't find a place.</summary>
         public string WhyNot(Item item)
         {
-            if (item.Sticker is Sticker sticker && Page is Page page && !Stickers.GoesOn(sticker, page.Kind)) return "That Sticker is for another kind of Page";
-            return item.IsSticker ? "There's no room on this Page" : "There's no place in this Book for that";
+            if (item.Sentence is Sentence sentence && Page is Page page && !Sentences.GoesOn(sentence, page.Kind)) return "That Sentence is for another kind of Page";
+            return item.IsSentence ? "There's no room on this Page" : "There's no place in this Book for that";
         }
 
         private void Turn(int way)

@@ -7,8 +7,8 @@ using static Dino_Defenders.Stats.M;
 namespace Dino_BuildLab
 {
     /// <summary>
-    /// What every shape, timing and sticker comes to, on a plain Attack or Spell page in the hands of a plain hero, and what the books on the shelf come to in the same hands. Nobody has played any
-    /// of these, so these numbers are only what to start arguing from. A sentence that's far better than its neighbours in its own list stands out here.
+    /// What every shape, timing and sentence comes to, on a plain Attack or Spell page in the hands of a plain hero, and what the books on the shelf come to in the same hands. Nobody has played any
+    /// of these, so these numbers are only what to start arguing from. A phrase that's far better than its neighbours in its own list stands out here.
     /// </summary>
     internal static class BookLab
     {
@@ -38,23 +38,23 @@ namespace Dino_BuildLab
                     foreach (Blank blank in new[] { Blank.Shape, Blank.Timing })
                     {
                         if (kind == PageKind.Projectile) continue;
-                        foreach (Sentence sentence in Sentences.For(blank))
+                        foreach (Phrase phrase in Phrases.For(blank))
                         {
                             Page page = plain.Copy();
-                            if (blank == Blank.Shape) page.Shape = sentence.Id;
-                            else page.Timing = sentence.Id;
-                            Row(sentence.Words, Read(sheet, page));
+                            if (blank == Blank.Shape) page.Shape = phrase.Id;
+                            else page.Timing = phrase.Id;
+                            Row(phrase.Words, Read(sheet, page));
                         }
                     }
 
-                    foreach (string name in Stickers.Names)
+                    foreach (string name in Sentences.Names)
                     {
-                        Sticker sticker = Stickers.Written(name)!;
-                        if (!Stickers.GoesOn(sticker, kind)) continue;
+                        Sentence sentence = Sentences.Written(name)!;
+                        if (!Sentences.GoesOn(sentence, kind)) continue;
                         Page page = plain.Copy();
-                        page.Stickers.Add(sticker);
-                        string bad = BookText.Bad(sticker);
-                        Row(bad.Length > 0 ? $"{BookText.Good(sticker)}, {bad}" : BookText.Good(sticker), Read(sheet, page));
+                        page.Sentences.Add(sentence);
+                        string bad = BookText.Bad(sentence);
+                        Row(bad.Length > 0 ? $"{BookText.Good(sentence)}, {bad}" : BookText.Good(sentence), Read(sheet, page));
                     }
                 }
             }

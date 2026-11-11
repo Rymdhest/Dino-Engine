@@ -118,7 +118,7 @@ namespace Dino_Defenders.Client
             {
                 if (components[i] is not ZoneComponent zone) continue;
                 components.Add(new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(position) });
-                components.Add(new ParticleEffectComponent(ParticleShow.GroundOf(PageSign.Read(zone.Sign).Look), EffectShape.Over(new GroundArea(zone.ShapeAt(position.Xz)))));
+                components.Add(new ParticleEffectComponent(ParticleShow.GroundOf(PageSign.Read(zone.Sign).Look), EffectShape.Over(new GroundArea(zone.ShapeAt(position.Xz), GameSession.Current?.World))));
                 break;
             }
 
@@ -141,15 +141,20 @@ namespace Dino_Defenders.Client
                 // Who this is decides how they differ from everyone else of their kind, so that no two in a pack are in step.
                 CharacterFactory.Bearing bearing = CharacterFactory.BearingOf(visual.Value.Model);
                 var animator = new CharacterAnimator(bearing.Rig, bearing.Style, (int)ghost.Id);
-                animator.Hold(bearing.Carry, bearing.Shield);
+                animator.Hold(bearing.Carry, bearing.Shield, bearing.Second);
                 components.Add(new AnimatorComponent(animator));
                 components.Add(new SkeletonComponent(bearing.Rig, animator.Skinning));
                 components.Add(new VelocityComponent());
                 components.Add(new FixToTerrainHeightComponent());
-                components.Add(new PlantContactComponent(2.7f * scale));
-                components.Add(new WaterDisturberComponent(0.42f * scale));
+
+                // What a turret's weapon is held by has no feet, to part the grass or make a sound.
+                if (!MinionLooks.Hovers(visual.Value.Model))
+                {
+                    components.Add(new PlantContactComponent(2.7f * scale));
+                    components.Add(new WaterDisturberComponent(0.42f * scale));
+                    components.Add(new FootfallComponent());
+                }
                 components.Add(new GhostMotionComponent());
-                components.Add(new FootfallComponent());
                 components.Add(new NetMovedTag());
             }
             else if (WayKeys.IsWay(visual.Value.Model))
@@ -986,7 +991,7 @@ namespace Dino_Defenders.Client
         {
             PageSign sign = PageSign.Read(e.Sign);
             var shape = new GroundShape(e.Kind, e.Position.Xz, e.Facing, e.Length, e.Width);
-            var area = new GroundArea(shape);
+            var area = new GroundArea(shape, GameSession.Current?.World);
             Vector3 centre = new Vector3(area.Middle.X, e.Position.Y, area.Middle.Y);
 
             if (!e.Quiet) Sounds.Burst(sign.Look, e.Position);
@@ -994,7 +999,7 @@ namespace Dino_Defenders.Client
             // A round blast goes off all over its circle, with a ring out to its edge, and anything else all over its ground. What goes on doing this is seen more faintly each time.
             bool round = e.Kind == ShapeKind.Circle;
             float radius = round ? e.Length : MathF.Sqrt(area.SquareMetres / MathF.PI);
-            Particles.Play(ParticleShow.BurstOf(sign.Look), round ? e.Position : centre, BurstScale(radius), round ? EffectShape.Ball(MathF.Max(e.Length, 0.5f)) : EffectShape.Over(area),
+            Particles.Play(ParticleShow.BurstOf(sign.Look), round ? e.Position : centre, BurstScale(radius), round && !area.Cut ? EffectShape.Ball(MathF.Max(e.Length, 0.5f)) : EffectShape.Over(area),
                 new Vector3(e.Facing.X, 0f, e.Facing.Y), strength: e.Quiet ? 0.5f : 1f);
             if (e.Length > 4f && !e.Quiet) Wind.AddBlast(_world, centre, e.Length * 1.6f, 14f, 0.6f);
             Marks.Struck(shape, _client.Commands.Tick);

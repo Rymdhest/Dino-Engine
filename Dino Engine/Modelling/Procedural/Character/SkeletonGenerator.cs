@@ -18,7 +18,12 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
         public static Mesh GenerateSkeleton() => GenerateSkeleton(archer: false);
 
-        private static Mesh GenerateSkeleton(bool archer)
+        /// <summary>A skeleton with nothing in its hands, for what's put in them: see <see cref="Outfit.Hold"/>.</summary>
+        public static Mesh GenerateBare() => Bones();
+
+        private static Mesh GenerateSkeleton(bool archer) => BodyForm.Spread(Character.HumanoidGenerator.Armed(Bones(), archer ? Character.HeldItem.Bow : Character.HeldItem.Sword, !archer, archer ? 11ul : 12ul));
+
+        private static Mesh Bones()
         {
             float armLength = 1.7f;
             float legLength = 2f;
@@ -43,7 +48,7 @@ namespace Dino_Engine.Modelling.Procedural.Indoor
 
             skeleton.translate(new Vector3(0f, legLength, 0f));
             skeleton.isUsingBones = true;
-            return BodyForm.Spread(Character.HumanoidGenerator.Armed(skeleton, archer ? Character.HeldItem.Bow : Character.HeldItem.Sword, !archer, archer ? 11ul : 12ul));
+            return skeleton;
         }
 
         public static Mesh GenerateUpperBody(out Vector3 leftArmAchnor, out Vector3 rightArmAchnor, out Vector3 leftLegAchnor, out Vector3 RightLegAchnor, out Vector3 headAnchor)

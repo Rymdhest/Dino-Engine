@@ -46,6 +46,8 @@ namespace Dino_Defenders.Progression
 
         private static void Add(string id, string name, string baseName, int minLevel, string lore, Mod[] boon, Mod[] burden, bool heroOnly = false)
         {
+            boon = Array.ConvertAll(boon, StatPrecision.Tidy);
+            burden = Array.ConvertAll(burden, StatPrecision.Tidy);
             var unique = new UniqueDefinition { Id = id, Name = name, Base = baseName, MinLevel = minLevel, Lore = lore, Boon = boon, Burden = burden, Mods = boon.Concat(burden).ToArray(), HeroOnly = heroOnly };
             ById.Add(id, unique);
             Everything.Add(unique);

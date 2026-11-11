@@ -114,6 +114,19 @@ namespace Dino_Engine.Sound.Music
 
         private void Run()
         {
+            // A fault in the music is a silence, never the end of the game: an exception on this thread would otherwise take the whole process with it.
+            try
+            {
+                Play();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"The music stopped: {e}");
+            }
+        }
+
+        private void Play()
+        {
             // Writing a score and building the instruments takes a moment, so it's done here, where nobody is waiting for it.
             var engine = new MusicEngine(_place);
             _engine = engine;

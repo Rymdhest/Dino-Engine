@@ -67,8 +67,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 case GearKind.Page:
                     BookGenerator.Leaf(mesh, style);
                     break;
-                case GearKind.Sticker:
-                    BookGenerator.Seal(mesh, style);
+                case GearKind.Sentence:
+                    BookGenerator.Slip(mesh, style);
                     break;
                 case GearKind.Orders:
                     BookGenerator.Orders(mesh, style);

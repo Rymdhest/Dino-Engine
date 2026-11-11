@@ -2,12 +2,20 @@ using OpenTK.Mathematics;
 
 namespace Dino_Engine.World.Content
 {
-    /// <summary>How a culture builds. Picked per world, so all the buildings of a world belong together.</summary>
+    /// <summary>
+    /// How a people builds. Picked per site, so all the buildings of a village belong together: by the language its world's people speak, unless the land it stands in leaves
+    /// them no choice, as people build with what the land gives them (<see cref="WorldData.StyleOf"/>, from <see cref="BiomeDefinition.Builds"/>). A style's name is in its
+    /// buildings' asset ids, so a new one goes on the end.
+    /// </summary>
     public enum BuildingStyle
     {
         Timber,     // Half-timbered walls under steep thatch.
         Eastern,    // Dark wood and pale panels under wide, upswept shingle roofs.
         Stone,      // Rough stone under slate.
+        Log,        // Round logs crossing at the corners, under a steep roof of turf or shingles: where the trees are tall and the winters long.
+        Adobe,      // Thick mud walls and flat roofs with their beams poking through, a terrace on top: where it hardly rains.
+        Stilt,      // Plank rooms up on posts over the wet, a deck in front and a steep thatch with its rafters crossed at the peaks.
+        Tiled,      // Whitewashed walls with stone corners and coloured shutters, under low roofs of curved clay tiles: the sun's country.
     }
 
     /// <summary>
@@ -152,6 +160,36 @@ namespace Dino_Engine.World.Content
         public static readonly StructureDefinition RuinColumn = Round("ruin.column", 1.1f, 5f);
         public static readonly StructureDefinition Rubble = Round("ruin.rubble", 2.2f, 1f);
         public static readonly StructureDefinition Cairn = Round("cairn", 1.1f, 2.1f);
+
+        // What stands about a farm and a yard, by the style a place builds in (SettlementStage.YardClutter), and the street lights of the styles that don't hang a lantern on a post.
+        public static readonly StructureDefinition Hives = Prop("hives", 2.3f, 0.9f, 2.1f);
+        public static readonly StructureDefinition Trough = Prop("trough", 2.2f, 0.75f, 1.1f);
+        public static readonly StructureDefinition Barrow = Prop("barrow", 0.75f, 1.75f, 1.3f);
+        public static readonly StructureDefinition Sacks = Prop("sacks", 1.25f, 1.25f, 1.3f);
+        public static readonly StructureDefinition Oven = Round("oven", 1.9f, 2.3f);
+        public static readonly StructureDefinition Jars = Prop("jars", 1.35f, 1.05f, 2f);
+        public static readonly StructureDefinition Laundry = Prop("laundry", 3.5f, 0.35f, Thin, solid: false);
+        public static readonly StructureDefinition Coop = Prop("coop", 1.7f, 1.6f, 2.6f);
+        public static readonly StructureDefinition PillarLamp = Round("lamp.pillar", 0.4f, Thin);
+        public static readonly StructureDefinition PaperLantern = Round("lantern.paper", 0.3f, Thin);
+
+        // What a road passes between places, and what stands out of a land that nobody built (SettlementStage.PlaceMarker and PlaceLandmarks).
+        public static readonly StructureDefinition WaysideShrine = Round("shrine.wayside", 0.55f, Thin);
+        public static readonly StructureDefinition Milestone = Round("milestone", 0.45f, 1.5f);
+        public static readonly StructureDefinition HuntingStand = Prop("stand.hunting", 1.5f, 1.5f, Thin);
+        public static readonly StructureDefinition Windmill = new StructureDefinition("windmill", new Vector2(3.6f, 3.6f), solid: true, onPad: true);
+        public static readonly StructureDefinition Fossil = Prop("fossil", 5.8f, 3f, 2.6f);
+        public static readonly StructureDefinition TermiteMound = Round("mound.termite", 2f, PlacementIndex.Tall);
+
+        /// <summary>Where the Ossuary digs (LORE.md): in churchyards, among ruins and old graves, and under standing stones.</summary>
+        public static readonly StructureDefinition Dig = Prop("dig", 3.7f, 2.2f, 1.6f);
+        public static readonly StructureDefinition BoneRows = Prop("dig.bones", 2.3f, 1.4f, 0.5f, solid: false);
+
+        /// <summary>A brood's pen (LORE.md): cages for its beasts, troughs and a rack of meat for feeding them, and its banners at the gate, as at a keep's.</summary>
+        public static readonly StructureDefinition Cage = Prop("pen.cage", 3.35f, 2.55f, 4.6f);
+        public static readonly StructureDefinition FeedTrough = Prop("pen.trough", 2.55f, 0.8f, 1.2f);
+        public static readonly StructureDefinition MeatRack = Prop("pen.rack", 2.5f, 1f, Thin);
+        public static readonly StructureDefinition Banner = Round("pen.banner", 0.4f, Thin);
 
         public static readonly StructureDefinition GrainCrop = new StructureDefinition("crop.grain", new Vector2(1.2f, 0f), solid: false, imposterDistance: 45f);
         public static readonly StructureDefinition VegetableCrop = new StructureDefinition("crop.vegetable", new Vector2(1f, 0f), solid: false, imposterDistance: 45f);

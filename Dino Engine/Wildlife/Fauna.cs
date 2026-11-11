@@ -324,6 +324,67 @@ namespace Dino_Engine.Wildlife
             Back = V(0.05f, 0.04f, 0.035f), Belly = V(0.07f, 0.055f, 0.045f), Crown = V(0.05f, 0.04f, 0.035f), Wing = V(0.035f, 0.03f, 0.03f), Tips = V(0.02f, 0.018f, 0.018f), TailColour = V(0.03f, 0.025f, 0.025f), Foot = V(0.04f, 0.03f, 0.03f),
         });
 
+        // --- What came with the new country: each a bird, a crab, a hare or a butterfly already, in the colours of where it lives. ---
+
+        /// <summary>A jay: pink-brown, a flash of blue on the wing and a white rump going away, screeching through the wildwood.</summary>
+        public static readonly BirdKind Jay = new BirdKind("jay", new BirdLook
+        {
+            Body = 0.4f, Girth = 0.125f, Neck = 0.08f, Head = 0.085f, Bill = 0.06f, BillDepth = 0.034f, Tail = 0.26f, TailWidth = 0.1f, Arm = 0.24f, Hand = 0.3f, Chord = 0.24f, Point = 0.3f,
+            Back = V(0.34f, 0.22f, 0.18f), Belly = V(0.42f, 0.3f, 0.25f), Crown = V(0.36f, 0.3f, 0.28f), Wing = V(0.3f, 0.2f, 0.16f), Tips = V(0.02f, 0.02f, 0.025f), TailColour = V(0.02f, 0.02f, 0.025f), Bars = V(0.06f, 0.18f, 0.5f), Beak = V(0.04f, 0.04f, 0.04f),
+        })
+        { Roosts = true, Shy = 16f, Density = 0.3f, Group = new IntRange(1, 3), Lives = Habitat.Wood | Habitat.Edge, Calls = true, Wingbeats = 7f };
+
+        /// <summary>A kingfisher: a streak of electric blue low over the water, orange underneath.</summary>
+        public static readonly BirdKind Kingfisher = new BirdKind("kingfisher", new BirdLook
+        {
+            Body = 0.28f, Girth = 0.1f, Neck = 0.05f, Head = 0.085f, Bill = 0.09f, BillDepth = 0.026f, Tail = 0.12f, TailWidth = 0.06f, Arm = 0.16f, Hand = 0.2f, Chord = 0.16f, Point = 0.4f, Legs = 0.05f,
+            Back = V(0.03f, 0.22f, 0.5f), Belly = V(0.52f, 0.2f, 0.04f), Crown = V(0.03f, 0.16f, 0.38f), Wing = V(0.02f, 0.14f, 0.32f), Tips = V(0.015f, 0.05f, 0.12f), TailColour = V(0.03f, 0.22f, 0.5f), Beak = V(0.03f, 0.03f, 0.03f), Foot = V(0.45f, 0.1f, 0.05f),
+        })
+        { Shy = 14f, Density = 0.35f, Group = new IntRange(1, 1), Lives = Habitat.Bank, Height = 2.4f, Wingbeats = 10f, Cruise = 15f, Rain = 0.5f };
+
+        /// <summary>A grey heron, standing still at the water's edge until it isn't.</summary>
+        public static readonly BirdKind Heron = new BirdKind("heron", new BirdLook
+        {
+            Body = 1.1f, Girth = 0.25f, Neck = 0.95f, Head = 0.12f, Bill = 0.36f, BillDepth = 0.05f, Tail = 0.3f, TailWidth = 0.22f, Arm = 0.95f, Hand = 1.2f, Chord = 0.78f, Point = 0.18f, Fingers = 3, Legs = 1.1f,
+            Back = V(0.28f, 0.29f, 0.31f), Belly = V(0.5f, 0.5f, 0.5f), Crown = V(0.06f, 0.06f, 0.07f), Wing = V(0.3f, 0.31f, 0.33f), Tips = V(0.05f, 0.05f, 0.06f), TailColour = V(0.28f, 0.29f, 0.31f), Beak = V(0.48f, 0.38f, 0.08f), Foot = V(0.3f, 0.24f, 0.1f),
+        })
+        { Walks = true, Wingbeats = 2f, Glides = 0.25f, Cruise = 10f, Height = 6f, Hold = 0.05f, Shy = 24f, Density = 0.36f, Group = new IntRange(1, 2), Lives = Habitat.Bank, Scatter = 3f, Turning = 1.1f, Rain = 0.8f };
+
+        /// <summary>A scarlet ibis, wading in the mangroves in a colour nothing else there has.</summary>
+        public static readonly BirdKind Ibis = new BirdKind("ibis", new BirdLook
+        {
+            Body = 0.9f, Girth = 0.22f, Neck = 0.6f, Head = 0.11f, Bill = 0.42f, BillDepth = 0.04f, Tail = 0.26f, TailWidth = 0.2f, Arm = 0.8f, Hand = 1f, Chord = 0.6f, Point = 0.25f, Fingers = 3, Legs = 0.8f,
+            Back = V(0.56f, 0.06f, 0.04f), Belly = V(0.6f, 0.09f, 0.06f), Crown = V(0.56f, 0.06f, 0.04f), Wing = V(0.54f, 0.06f, 0.04f), Tips = V(0.04f, 0.02f, 0.02f), TailColour = V(0.52f, 0.06f, 0.04f), Beak = V(0.22f, 0.08f, 0.06f), Foot = V(0.5f, 0.12f, 0.08f),
+        })
+        { Walks = true, Wingbeats = 2.6f, Glides = 0.3f, Cruise = 11f, Height = 5f, Hold = 0.05f, Shy = 20f, Density = 0.4f, Group = new IntRange(3, 7), Lives = Habitat.Bank | Habitat.Beach, Scatter = 2.4f, Turning = 1.3f, Rain = 0.7f };
+
+        /// <summary>An eagle over the high pastures and the sea cliffs: dark, huge in the wing, turning slow circles on the updraught.</summary>
+        public static readonly BirdKind Eagle = new BirdKind("eagle", new BirdLook
+        {
+            Body = 0.95f, Girth = 0.28f, Neck = 0.18f, Head = 0.13f, Bill = 0.12f, BillDepth = 0.07f, Tail = 0.45f, TailWidth = 0.28f, Arm = 1.15f, Hand = 1.45f, Chord = 0.8f, Point = 0.1f, Fingers = 5, Legs = 0.26f,
+            Back = V(0.12f, 0.08f, 0.05f), Belly = V(0.14f, 0.09f, 0.05f), Crown = V(0.34f, 0.24f, 0.1f), Wing = V(0.11f, 0.075f, 0.05f), Tips = V(0.03f, 0.025f, 0.02f), TailColour = V(0.1f, 0.07f, 0.05f), Beak = V(0.4f, 0.32f, 0.06f), Foot = V(0.46f, 0.36f, 0.06f),
+        })
+        { Walks = true, Wingbeats = 1.8f, Glides = 0.88f, Cruise = 10f, Height = 10f, Hold = 0.18f, Shy = 30f, Density = 0.1f, Group = new IntRange(1, 1), Lives = Habitat.Crag | Habitat.Barren | Habitat.Meadow, Scatter = 3f, Turning = 0.7f, Rain = 0.2f };
+
+        /// <summary>A cockatoo: pale, loud and never alone, with a crest of deep yellow, over the red scrub.</summary>
+        public static readonly BirdKind Cockatoo = new BirdKind("cockatoo", new BirdLook
+        {
+            Body = 0.5f, Girth = 0.17f, Neck = 0.1f, Head = 0.13f, Bill = 0.09f, BillDepth = 0.085f, Tail = 0.4f, TailWidth = 0.13f, Arm = 0.38f, Hand = 0.52f, Chord = 0.34f, Point = 0.4f, Legs = 0.08f,
+            Back = V(0.62f, 0.62f, 0.6f), Belly = V(0.64f, 0.64f, 0.62f), Crown = V(0.6f, 0.46f, 0.04f), Wing = V(0.6f, 0.6f, 0.58f), Tips = V(0.56f, 0.5f, 0.3f), TailColour = V(0.6f, 0.6f, 0.58f), Beak = V(0.06f, 0.06f, 0.07f),
+        })
+        { Wingbeats = 5.5f, Cruise = 13f, Height = 6.5f, Roosts = true, Shy = 18f, Density = 0.4f, Group = new IntRange(4, 9), Lives = Habitat.Edge | Habitat.Wood | Habitat.Barren, Calls = true, Scatter = 1.6f };
+
+        /// <summary>A marmot: a fat grey-brown thing that sits up on its rock to look, and is gone down its hole before anyone's near.</summary>
+        public static readonly RabbitKind Marmot = new RabbitKind("marmot", new RabbitLook { Back = V(0.2f, 0.15f, 0.1f), Belly = V(0.32f, 0.25f, 0.16f), Scut = V(0.12f, 0.09f, 0.06f), EarTip = V(0.08f, 0.06f, 0.05f), Ears = 0.14f })
+        { Density = 0.3f, Group = new IntRange(1, 3), Shy = 20f, BoltSpeed = 0.85f, Lives = Habitat.Meadow | Habitat.Barren | Habitat.Crag };
+
+        /// <summary>A fiddler crab: one claw much bigger than the rest of it, and red, waving it at the mangrove mud.</summary>
+        public static readonly CrabKind FiddlerCrab = new CrabKind("crab.fiddler", new CrabLook { Shell = V(0.1f, 0.12f, 0.16f), Under = V(0.36f, 0.32f, 0.26f), Leg = V(0.32f, 0.16f, 0.06f), Claw = V(0.55f, 0.1f, 0.03f), ClawTip = V(0.5f, 0.42f, 0.3f) })
+        { Lives = Habitat.Beach | Habitat.Bank, Density = 0.7f, Group = new IntRange(4, 9), Shy = 7f };
+
+        public static readonly ButterflyKind Apollo = new ButterflyKind("butterfly.apollo", new ButterflyLook { Span = 0.44f, Ground = V(0.62f, 0.62f, 0.58f), Border = V(0.08f, 0.08f, 0.08f), Spot = V(0.5f, 0.05f, 0.03f) }) { Lives = Habitat.Meadow | Habitat.Barren };
+        public static readonly ButterflyKind Swallowtail = new ButterflyKind("butterfly.swallowtail", new ButterflyLook { Span = 0.48f, Ground = V(0.56f, 0.46f, 0.08f), Border = V(0.02f, 0.02f, 0.02f), Spot = V(0.08f, 0.12f, 0.42f) });
+
         private static readonly Creature[] Coast = { ShoreCrab, Gull, Mullet };
         private static readonly Creature[] Ponds = { GreenFrog, Darter, Skimmer, Trout, Egret };
 
@@ -343,11 +404,26 @@ namespace Dino_Engine.Wildlife
         public static readonly Creature[] Tropics = Join(Coast, new Creature[] { GreenFrog, Skimmer, Darter, Koi, Egret, Parrot, Morpho, Brimstone, Bat });
         public static readonly Creature[] Plains = Join(Coast, Ponds, new Creature[] { Hare, Vulture, Sparrow, Crow, Brimstone });
 
+        // --- The new country's ---
+        public static readonly Creature[] Wildwood = Join(Coast, Ponds, new Creature[] { Rabbit, Jay, Sparrow, Goldfinch, Crow, Tortoiseshell, CabbageWhite, Brimstone, Bat });
+        public static readonly Creature[] Riverside = Join(Ponds, new Creature[] { Kingfisher, Heron, Toad, Rabbit, Sparrow, Goldfinch, Pigeon, CabbageWhite, Tortoiseshell, Brimstone, Bat });
+        public static readonly Creature[] Taiga = Join(Coast, new Creature[] { SnowHare, Hare, Jay, Crow, Bunting, Darter, Trout, Bat });
+        public static readonly Creature[] Alpine = Join(new Creature[] { Marmot, Hare, Eagle, Crow, Apollo, Tortoiseshell, Darter, Trout });
+        public static readonly Creature[] Maquis = Join(Coast, new Creature[] { Hare, Rabbit, Sparrow, Goldfinch, Crow, Swallowtail, Brimstone, CabbageWhite, Bat });
+        public static readonly Creature[] Windward = Join(Coast, new Creature[] { Rabbit, Eagle, Crow, Sparrow, Tortoiseshell });
+        public static readonly Creature[] Mangroves = Join(new Creature[] { FiddlerCrab, Ibis, Heron, Egret, Mullet, GreenFrog, Skimmer, Morpho, Bat });
+        public static readonly Creature[] Fernland = Join(Coast, new Creature[] { GreenFrog, Darter, Skimmer, Trout, Egret, Parrot, Morpho, Swallowtail, Bat });
+        public static readonly Creature[] CloudForest = Join(new Creature[] { GreenFrog, Toad, Darter, Trout, Parrot, Morpho, Jay, Bat });
+        public static readonly Creature[] Bloomfield = Join(Coast, Ponds, new Creature[] { Rabbit, Hare, Goldfinch, Sparrow, Tortoiseshell, CabbageWhite, Brimstone, Swallowtail, Apollo, Bat });
+        public static readonly Creature[] RedScrub = Join(new Creature[] { DesertHare, Cockatoo, Vulture, Crow, Brimstone, Bat, SandCrab, Gull });
+        public static readonly Creature[] Bog = Join(new Creature[] { Toad, GreenFrog, Darter, Heron, Hare, Crow, Bunting, Trout });
+
         /// <summary>Everything, by id.</summary>
         public static readonly Creature[] All =
         {
             Rabbit, Hare, SnowHare, DesertHare, ShoreCrab, SandCrab, Sparrow, Goldfinch, Bunting, Pigeon, Crow, Gull, Egret, Parrot, Vulture,
             Tortoiseshell, CabbageWhite, Brimstone, Morpho, Darter, Skimmer, GreenFrog, Toad, Trout, Mullet, Koi, Bat,
+            Jay, Kingfisher, Heron, Ibis, Eagle, Cockatoo, Marmot, FiddlerCrab, Apollo, Swallowtail,
         };
 
         private static Creature[] Join(params Creature[][] lists) => lists.SelectMany(list => list).Distinct().ToArray();

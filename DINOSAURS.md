@@ -31,7 +31,7 @@ The rig is made from the same body as the skin, so the bones are always where th
 
 ## Species
 
-There are seven, and a new one is an entry in `SaurianCatalog` and a kind in the game's `Bestiary`:
+There are ten, and a new one is an entry in `SaurianCatalog` and a kind in the game's `Bestiary`:
 
 | Species | After | Length | Skin budget | Form |
 |---|---|---|---|---|
@@ -42,6 +42,11 @@ There are seven, and a new one is an entry in `SaurianCatalog` and a kind in the
 | Tyrant | Tyrannosaurus | 14.2 to 15.4 m | 15,000 | On two legs |
 | Hornback | Triceratops and its kin | 9.4 to 10.6 m | 10,000 | On four |
 | Giant | Brachiosaurus and Giraffatitan | 37 to 41 m | 50,000 | On four pillars |
+| Ripper | Utahraptor and Achillobator | 10.8 to 12 m | 8,000 | On two legs |
+| Wader | Suchomimus and Baryonyx | 12 to 13.5 m | 8,500 | On two legs |
+| Spikeback | Kentrosaurus and Stegosaurus | 9 to 10.2 m | 9,000 | On four |
+
+The last three were added on 2026-11-11 from the forms there were, with nothing new in how a body is built: the ripper is a great raptor, deep in the chest with a sickle claw half as big again and a mane of quills; the wader has a long, low, narrow skull with many small teeth, a great thumb claw and a ridge of spines; and the spikeback is the horned form with no horns or frill, its hips high over its shoulders, its small head carried low, and spikes as long as Kentrosaurus's close together down its back and tail (`ScuteSpacing`, how far apart a species' spines stand in their own lengths, 2.6 unless a species says otherwise, as a species constant and not a draw, so it moved no other animal). Spines that small and far apart read as nothing on a spikeback, and a body as deep as a hornback's with no frill to read it by was a lump.
 
 **The giant is the Haven's alone** (`LORE.md`). It's `Free`, so it can't be harnessed, rot or be bones, and `SaurianSpec.Parse` refuses any name that says it is. It isn't in the `Bestiary` either, as nothing fights it. Its skin is finer than any other's by far, as it's the one dinosaur a player can stand under and look up at, and the one in the picture behind the menu.
 
@@ -145,7 +150,7 @@ A lab can't say an animal looks alive. Judge them from the game's own camera, mo
 
 ## Where it stands
 
-Growing one takes 0.16 to 0.9 s on one thread: a raptor about half a second and 10,000 triangles, a tyrant 0.8 s and 22,000, its bones 0.3 s. All 54 that the game can send are grown at once at the first loading screen and kept, which on a machine with few cores is a few seconds. A body's pose costs what a person's does, about 2.5 µs a frame, and allocates nothing. A giant takes 3 s and has 53,000 triangles, and its pose 5 µs, as its neck is worked out afresh each frame.
+Growing one takes 0.16 to 0.9 s on one thread: a raptor about half a second and 10,000 triangles, a tyrant 0.8 s and 22,000, its bones 0.3 s. All 68 that the game can send are grown at once at the first loading screen and kept, which on a machine with few cores is a few seconds. A body's pose costs what a person's does, about 2.5 µs a frame, and allocates nothing. A giant takes 3 s and has 53,000 triangles, and its pose 5 µs, as its neck is worked out afresh each frame.
 
 **Nobody has seen one but in the lab's stills.** Ask how they look in the game, and especially:
 
@@ -156,7 +161,8 @@ Growing one takes 0.16 to 0.9 s on one thread: a raptor about half a second and 
 
 Not built:
 
-- An armoured one, and anything that flies or swims.
+- An armoured one, plated and clubbed as an ankylosaur was (the spikeback is spiked, not armoured), a sail, and anything that flies or swims.
+- The new three seen anywhere but the zoo: the ripper, the wader and the spikeback are checked by `check` and drawn by `zoo`, and nobody has watched them move in the game.
 - Blood and wounds that come from a fight. A dinosaur looks the same at the end of one.
 - Feathers beyond the quills. The evidence says raptors were feathered all over, and the quills are a nod to it that reads from up here.
 

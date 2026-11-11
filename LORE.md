@@ -84,9 +84,12 @@ Every dinosaur is grown from a species and a seed, so no two are alike: `DINOSAU
 | Spitter, Wild Spitter | Dilophosaurus | Thin crests along the snout and a bright pouch under the throat. Spits the Institute's venom from behind the pack | Behind war-bands, and wild |
 | Ravager, Wild Ravager | Allosaurus and Carnotaurus | A heavy-skulled killer with horns over the eyes. What leads a war-band when raptors won't do | Leading packs |
 | Hornback | Triceratops and its kin, smaller and meaner | Beak, horns and frill. Driven at walls, and walls go | Leading war-bands |
+| Spikeback | Kentrosaurus and Stegosaurus | Spikes down its back and tail, its head carried low. Bred for its spikes, and driven ahead of a war-band where a hornback won't go | Leading war-bands |
+| War Ripper, Ripper | Utahraptor and Achillobator | The great raptor: half as long again as a raptor, with a sickle of a claw and a tail it swings like a rod. The Reich keeps a few to run down what its raptors can't, and some got out | Leading war-bands, and leading what got out in the deep woods |
+| Wader | Suchomimus and Baryonyx | A long, low snout full of small teeth for taking fish, a great thumb claw and a ridge of spines. Grown for the wet country and lost to it | Leading what got out in the fens and marshes |
 | Tyrant | Tyrannosaurus | A commander's war-beast | At the keep: every land's boss |
 | Bone Tyrant, Bone Raptor, Bone Ravager | | The Ossuary's skeletons | Among the dead, and now and then a land's boss |
-| Rotting Tyrant, Rotting Raptor, Rotting Hornback | | The Ossuary's failures | Among the dead in wet country, and now and then a land's boss |
+| Rotting Tyrant, Rotting Raptor, Rotting Hornback, Rotting Wader | | The Ossuary's failures | Among the dead in wet country, and now and then a land's boss |
 | Reich Legionary, Reich Marksman, Reich Wrangler | | The greycoats | With the war-bands, and on guard over what the Reich has taken |
 | Giant | Brachiosaurus and Giraffatitan | The Haven's own, and free: long-necked and gentle, cropping the tops of trees | The Haven, and behind the main menu. Never in a land, and never fought |
 
@@ -152,7 +155,7 @@ Said in the game now: each land's chronicle, what places are, what villagers say
 Not built:
 
 - **A story across the lands.** Each land has a chronicle of its own, and nothing ties them into a campaign: no first landing, no Reich homeland, no end to the climb, and no leader of the Reich.
-- **The Reich in the world's buildings.** Its pens are still the outlaw camps they were, with tents, and its keeps fly no pennant: `CampStage` and the site content know nothing of it. A pen should have cages and fences, and a keep its mark.
+- **The rest of the Reich in the world's buildings.** Since 2026-11-11 a brood's pen has its beasts' cages of black iron, feeding troughs, a rack of meat and a pair of its banners at the gate, oxblood with the mark in brass on both faces, a keep flies the same pair at its gate, and the Ossuary digs in churchyards, among ruins and under standing stones, with a pit, a hoist and what it has dug up laid out on an oxblood cloth to be counted (`SettlementStage.PlaceLandmarks`, `PropGenerator.Countryside.cs`). The small camps of whoever holds the roads (`CampStage`) are still an outlaw's fire and tents, and nothing the Reich builds for itself yet stands anywhere but at its keeps and pens.
 - **Music of its own.** The score doesn't change for the Reich.
 - **A first screen that says any of this.** The menu shows the title, a hero standing in a world and the Haven's giants grazing beyond them, with nothing of the invasion.
 - **Who a Defender is**, beyond the name the people give them.

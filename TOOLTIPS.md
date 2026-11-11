@@ -1,6 +1,6 @@
 # Tooltips
 
-What a player reads about how the game works: books, items, talents, buffs, omens, every line of the hero's sheet. Read this before changing any of them, or before adding a stat, a rule, a sentence or anything else that a player will want to understand.
+What a player reads about how the game works: books, items, talents, buffs, omens, every line of the hero's sheet. Read this before changing any of them, or before adding a stat, a rule, a phrase or anything else that a player will want to understand.
 
 ## The one idea
 
@@ -41,6 +41,8 @@ Each part of a modifier has one way of being said, and `check` fails if a senten
 | `8 m`, `0.6 s`, `25%` | Metres, seconds, and a share. Never "nearby", "a moment" or "some" |
 
 A sentence names everything its modifier is narrowed to: every tag in its scope, every condition on who has it and who it's against, and what it's counted per.
+
+**Stats are whole numbers.** Every modifier anything gives, rolled on gear, grown on the tree or written on a unique, goes through `StatPrecision.Tidy`, and every roll is kept whole (`Affix.Rounded`, sentences, omens), as are an item's armour, evasion, barrier and weapon damage and a book's Cost. Only what moves less than one at a time keeps a tenth: leech, regeneration a second and a share of a pool a second, Barrier's delay, health drained and metres of reach (`StatPrecision.KeepsTenths`), and a time, such as how long something takes to use or a sentence's rest, is what it is. A new stat that moves by less than one goes on that list; anything else is whole, and `check` fails on a stray decimal anywhere a player reads one.
 
 **Capitals are the rule.** A capitalised word is a defined term, always. Anything that shows text finds them with `Lexicon.Find`, so nobody marks a term up and a sentence can't forget to. `check` reads every sentence the game can show and fails on:
 
@@ -86,7 +88,7 @@ A card is what's wanted at a glance, and `Details` is the rest.
 - **A stat**: a value in `Stat`, a line in `StatNames`, a term in `Lexicon` by `On`, and a line in `StatBook`. `check` fails on any of them missing.
 - **A rule**: a value in `Rule`, and a `RuleInfo` in `ModText`, whose numbers come from the `Rulebook`. `Touches` says which books it shows on, and `Casts` or `Gives` what goes beside it.
 - **A condition, a tag, an ailment**: a term by `On`, and for a condition its lines in `ModText.Conditions`.
-- **A sentence**: a line in `Sentences`. Its words are its text, and `BookText.Trade` says what it comes to from its `Weights`. Something a stat can't say, such as making water, is a `Deed`, which both `Combat` and `Cards` read.
+- **A phrase**: a line in `Phrases`. Its words are its text, and `BookText.Trade` says what it comes to from its `Weights`. Something a stat can't say, such as making water, is a `Deed`, which both `Combat` and `Cards` read.
 - **A number in a rule**: a name in the `Rulebook`, never a literal in the code that uses it.
 - **Something new to look at**: a method in `Cards`, then `GameUi.Current.Tips.Show(() => card, rect)` each frame it's looked at, with the rect of the thing itself. Never draw one by hand.
 

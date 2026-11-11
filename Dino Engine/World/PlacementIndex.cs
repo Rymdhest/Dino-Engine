@@ -60,6 +60,9 @@ namespace Dino_Engine.World
             return new Footprint((a + b) * 0.5f, new Vector2(length * 0.5f, halfThickness), axis, false);
         }
 
+        /// <summary>The same, bigger by <paramref name="by"/> all round.</summary>
+        public Footprint Grown(float by) => new Footprint(Centre, IsCircle ? new Vector2(HalfExtents.X + by, 0f) : HalfExtents + new Vector2(by), Axis, IsCircle);
+
         /// <summary>Radius of the smallest circle around <see cref="Centre"/> holding all of it.</summary>
         public float BoundingRadius => IsCircle ? HalfExtents.X : HalfExtents.Length;
 

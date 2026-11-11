@@ -47,6 +47,7 @@ namespace Dino_Defenders.Books
 
         private static PageForm FormOf(PagePlan page)
         {
+            if (page.Kind == PageKind.Summon) return PageForm.Summon;
             if (page.Kind == PageKind.Projectile) return page.Rides ? PageForm.Leap : page.Falls ? PageForm.Burst : PageForm.Bolt;
 
             bool here = page.From == Start.You;
@@ -171,6 +172,7 @@ namespace Dino_Defenders.Books
             get
             {
                 PagePlan page = First.Page;
+                if (page.Kind == PageKind.Summon) return false;
                 if (!page.Hostile && Pages.Length == 1) return false;
                 if (page.From is Start.Nearest or Start.Random) return false;
                 if (page.Kind == PageKind.Area) return page.From != Start.You || page.Shape != AreaShape.Cone || First.Length >= Rulebook.WideReach;

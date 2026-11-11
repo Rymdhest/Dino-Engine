@@ -71,11 +71,13 @@ namespace Dino_Engine.World
                 AddMaterial(biome.Path);
             }
 
-            // A world with more materials than slots paints the last few with their nearest cousin.
+            // A world with more materials than slots paints the last few with their nearest cousin, and that one's, until one has a slot: a floor of needles goes to soil and then to
+            // trodden earth before it would ever go to rock. Rock always has a slot, and every chain ends there.
             for (int i = 0; i < _slot.Length; i++)
             {
                 if (_slot[i] >= 0) continue;
                 SurfaceMaterial cousin = Cousin((SurfaceMaterial)i);
+                for (int step = 0; step < 4 && _slot[(int)cousin] < 0; step++) cousin = Cousin(cousin);
                 _slot[i] = _slot[(int)cousin] >= 0 ? _slot[(int)cousin] : _slot[(int)SurfaceMaterial.Rock];
             }
         }
@@ -89,8 +91,9 @@ namespace Dino_Engine.World
 
         private static SurfaceMaterial Cousin(SurfaceMaterial material) => material switch
         {
-            SurfaceMaterial.GrassySoil or SurfaceMaterial.Moss => SurfaceMaterial.Soil,
-            SurfaceMaterial.Soil or SurfaceMaterial.Mud => SurfaceMaterial.Dirt,
+            SurfaceMaterial.GrassySoil or SurfaceMaterial.Moss or SurfaceMaterial.Needles or SurfaceMaterial.Litter => SurfaceMaterial.Soil,
+            SurfaceMaterial.Soil or SurfaceMaterial.Mud or SurfaceMaterial.RedEarth => SurfaceMaterial.Dirt,
+            SurfaceMaterial.Shingle => SurfaceMaterial.Gravel,
             SurfaceMaterial.Dunes => SurfaceMaterial.Sand,
             SurfaceMaterial.Sand or SurfaceMaterial.CrackedEarth => SurfaceMaterial.Gravel,
             SurfaceMaterial.Ice => SurfaceMaterial.Snow,

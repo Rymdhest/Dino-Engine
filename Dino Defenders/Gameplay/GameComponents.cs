@@ -29,6 +29,14 @@ namespace Dino_Defenders.Gameplay
         }
     }
 
+    /// <summary>How much Mana something has to pay for what it does, for its bar: only a Minion that's been given a book has one, as nothing else that isn't a hero pays for anything.</summary>
+    [Replicated]
+    public struct ManaComponent : IComponent
+    {
+        [NetStep(0.25f), NetSnap] public float Current;
+        [NetStep(0.25f), NetSnap] public float Max;
+    }
+
     /// <summary>What anyone can see of an enemy. What it means to do next is in <see cref="EnemyBrainComponent"/>, on the server alone.</summary>
     [Replicated]
     public struct EnemyComponent : IComponent
@@ -298,11 +306,32 @@ namespace Dino_Defenders.Gameplay
         /// <summary>What it's thought of as, for what it runs into: a little across.</summary>
         public const float Girth = 0.3f;
 
-        /// <summary>Whether the world stops what's flying here: the ground, or something solid that stands taller than it's flying. The server decides by this and a client shows by it.</summary>
+        /// <summary>
+        /// Whether the world stops what's flying here: the ground, or something solid in its way. That's anything that would hide someone from a blow (<see cref="Dino_Engine.World.Sight.Above"/>), as a fence
+        /// that's drawn cutting off an arrow's mark has to cut off the arrow, or anything taller than it's flying. The server decides by this and a client shows by it.
+        /// </summary>
         public static bool Stopped(Dino_Engine.World.WorldData world, Vector3 position)
         {
             float above = position.Y - world.Height.Sample(position.Xz);
-            return above < 0f || world.Placement.BlocksFlight(position.Xz, Girth, above);
+            return above < 0f || world.Placement.BlocksFlight(position.Xz, Girth, MathF.Min(above, Dino_Engine.World.Sight.Above));
+        }
+
+        /// <summary>Metres apart that a flight is looked at between one tick and the next, so that nothing fast goes through a fence between two of them.</summary>
+        public const float StoppedStep = 0.25f;
+
+        /// <summary>The first place between two ticks where the world stops it, or false if nowhere does.</summary>
+        public readonly bool StoppedBetween(Dino_Engine.World.WorldData world, double fromTick, double toTick, out Vector3 at)
+        {
+            Vector3 from = PositionAt(fromTick);
+            Vector3 to = PositionAt(toTick);
+            int steps = Math.Max(1, (int)MathF.Ceiling((to - from).Length / StoppedStep));
+            for (int i = 1; i <= steps; i++)
+            {
+                at = Vector3.Lerp(from, to, i / (float)steps);
+                if (Stopped(world, at)) return true;
+            }
+            at = to;
+            return false;
         }
     }
 

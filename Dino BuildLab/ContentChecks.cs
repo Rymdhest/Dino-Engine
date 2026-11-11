@@ -614,7 +614,10 @@ namespace Dino_BuildLab
             ItemGenerator.Fix(fabled);
             ItemGenerator.Fix(masterful);
             report.Check("What used to be better than rare in a Book is rare, and keeps its places", fabled.Rarity == Rarity.Rare && fabled.Places == 6 && masterful.Places == 4);
-            report.Check("And has no word for what's gone", fabled.Name == "Gilded Trigger Book" && masterful.Name == "Gilded Area Page", $"{fabled.Name}, {masterful.Name}");
+            report.Check("And has no word for what's gone, but a line for the room it had", !fabled.Name.Contains("Fabled") && !masterful.Name.Contains("Masterful") && fabled.Lines.Any(line => line is { Affix: "book-pages", Value: 5f }) && masterful.Lines.Any(line => line is { Affix: "page-sentences", Value: 3f }), $"{fabled.Name}, {masterful.Name}");
+            var named = new Item { Name = "My Fireball", Slot = ItemSlot.Book, Rarity = Rarity.Normal, Level = 5, Seed = 8, Held = new Item?[2] };
+            ItemGenerator.Fix(named);
+            report.Check("A Book that held more than one is Magic, and keeps a name someone gave it", named is { Rarity: Rarity.Magic, Places: 2, Name: "My Fireball", Lines.Count: 2 });
 
             SaveGame? save = SaveGame.Read(BeforeAffixes);
             report.Check("A save from before the four rarities loads", save != null);
@@ -623,6 +626,7 @@ namespace Dino_BuildLab
             Item[] carried = save.Hero.Carried().ToArray();
             Item page = save.Hero.Bar[0]!.Held![0]!;
             report.Check("Every word that's gone means what it did, however deep", carried[0].Rarity == Rarity.Normal && carried[1].Rarity == Rarity.Unique && save.Hero.Bar[0]!.Rarity == Rarity.Normal && page.Rarity == Rarity.Rare && page.Held![0]!.Rarity == Rarity.Rare, $"{page.Rarity}, {page.Held?[0]?.Rarity}");
+            report.Check("What was a Sticker is a Sentence, saying what it said, with a Rare's lines", page.Held![0] is { Slot: ItemSlot.Sentence, Lines.Count: 4, Sentence: { Good: PageEffect.Potency, GoodBy: 30f, Bad: PageEffect.Cost } } said && said.Name.EndsWith("Sentence of Might"), page.Held?[0]?.Name);
             report.Check("A six line rare is a four line rare", carried[2].Lines.Count == 4 && Side(carried[2], true) == 2 && Side(carried[2], false) == 2, string.Join(", ", carried[2].Lines.Select(line => line.Affix)));
             report.Check("It knows it's up to date", save.Version == SaveGame.CurrentVersion);
 
@@ -639,7 +643,7 @@ namespace Dino_BuildLab
             SaveGame.PathOverride = null;
 
             report.Check("Bringing it up to date keeps a copy of how it was", kept);
-            report.Check("And what's written back has no word that's gone", !written.Contains("\"Common\"") && !written.Contains("\"Legendary\""));
+            report.Check("And what's written back has no word that's gone", !written.Contains("\"Common\"") && !written.Contains("\"Legendary\"") && !written.Contains("Sticker"));
             report.Check("Which comes back the same", again != null && Same(loaded!.Hero, again.Hero));
         }
 
@@ -975,7 +979,7 @@ namespace Dino_BuildLab
             report.Check("A sword someone edited by hand stays as it was", hero.Equipped[WornSlot.MainHand].WeaponDamage == 700f);
 
             Item hood = hero.Inventory[0]!;
-            report.Check("Item lines come across, value for value", hood.Lines.Count == 2 && hood.Lines[0].Affix == "armour" && MathF.Abs(hood.Lines[0].Value - 4.534136f) < 1e-4f);
+            report.Check("Item lines come across, value for value, said whole", hood.Lines.Count == 2 && hood.Lines[0].Affix == "armour" && hood.Lines[0].Value == 5f, $"{hood.Lines[0].Value}");
             report.Check("With no second prefix on something magic, and a suffix to make up for it", !AffixCatalog.Find(hood.Lines[1].Affix)!.Prefix, hood.Lines[1].Affix);
 
             // Nothing rolled can have ten lines any more. A unique can have anything, which is the way to see all of them come across.

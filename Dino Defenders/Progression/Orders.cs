@@ -256,7 +256,7 @@ namespace Dino_Defenders.Progression
         public static void Fix(Item orders)
         {
             orders.Page = null;
-            orders.Sticker = null;
+            orders.Sentence = null;
             orders.Held = null;
             if (BaseOf(orders) == null) orders.Base = Bases[(int)(orders.LookSeed() % (ulong)Bases.Length)].Name;
             if (orders.Rarity == Rarity.Unique)

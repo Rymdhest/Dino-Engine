@@ -125,7 +125,7 @@ namespace Dino_Engine.Sound.Music
         private static Bar Ease(Score.Setting? from, Score.Setting to, float heard, float intensity, List<Note> carried, int carriedBeats, SoundRandom random)
         {
             bool fight = from != null && from.Style.Urgent;
-            int count = carriedBeats + (fight ? RitardBeats : 0);
+            int count = Math.Max(carriedBeats + (fight ? RitardBeats : 0), RitardBeats);   // Never nothing, even with nothing carried: the pickup reads the beat before the last.
             float[] at = Beats(heard, 60f / to.Tempo, count);
             float seconds = at[count];
             var bar = new Bar { Seconds = seconds, Beats = count, Label = $"Into {to.Style.Mood}" };

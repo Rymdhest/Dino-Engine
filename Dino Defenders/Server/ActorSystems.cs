@@ -65,6 +65,9 @@ namespace Dino_Defenders.Server
         public float Left;
         public float NextPulse;
         public float Strength = 1f;
+
+        /// <summary>Whether it's turned its book's next page yet, which it does from whoever its first pulse reaches, and only then.</summary>
+        public bool Turned;
     }
 
     public struct ZoneStateComponent : IComponent
@@ -116,6 +119,7 @@ namespace Dino_Defenders.Server
                 List<ActorComponent> actors = archetype.GetComponentArray<ActorComponent>()!;
                 List<PositionComponent> positions = archetype.GetComponentArray<PositionComponent>()!;
                 List<HealthComponent> healths = archetype.GetComponentArray<HealthComponent>()!;
+                List<ManaComponent>? manas = archetype.GetComponentArray<ManaComponent>();
                 List<AfflictedComponent>? afflicted = archetype.GetComponentArray<AfflictedComponent>();
 
                 for (int i = 0; i < archetype.EntityCount; i++)
@@ -149,6 +153,11 @@ namespace Dino_Defenders.Server
                     if (health.Current != actor.Vitals.Health || health.Max != actor.Sheet.MaxHealth)
                     {
                         healths[i] = new HealthComponent { Current = actor.Vitals.Health, Max = actor.Sheet.MaxHealth };
+                    }
+
+                    if (manas != null && (manas[i].Current != actor.Vitals.Mana || manas[i].Max != actor.Sheet.MaxMana))
+                    {
+                        manas[i] = new ManaComponent { Current = actor.Vitals.Mana, Max = actor.Sheet.MaxMana };
                     }
 
                     if (afflicted != null)
@@ -257,17 +266,18 @@ namespace Dino_Defenders.Server
             projectile.Life -= deltaTime;
 
             BallisticComponent flight = entity.Get<BallisticComponent>();
-            Vector3 position = flight.PositionAt(_server.Tick);
+            uint tick = _server.Tick;
+            // Everything since the last tick, not only where it is now, or something fast would go through a fence between two of them and on into whoever's behind it.
+            Vector3 position = flight.PositionAt(tick);
+            bool blocked = !projectile.Falling && flight.StoppedBetween(session.World, tick > flight.StartTick ? tick - 1u : flight.StartTick, tick, out position);
             entity.Set(new PositionComponent(position));
-
-            bool blocked = BallisticComponent.Stopped(session.World, position);
             bool flying = session.Combat.Touch(projectile, position);
 
             // What's falling isn't stopped by anything: it comes down where it said it would.
             if (projectile.Falling) blocked = false;
             if (flying && !blocked && projectile.Life > 0f) return;
 
-            // It ended on something other than a body, which is no impact unless a sticker says it is.
+            // It ended on something other than a body, which is no impact unless a sentence says it is.
             if (flying) session.Combat.Ended(projectile, position, blocked);
             session.Combat.Returns(projectile, position);
             world.DestroyEntity(entity.Entity);

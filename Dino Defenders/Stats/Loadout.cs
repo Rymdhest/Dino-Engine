@@ -124,11 +124,12 @@ namespace Dino_Defenders.Stats
                 if (!known.Contains(book)) known.Add(book);
             }
 
+            // A rule is a number and not a flag, so it's the rule itself that's asked about: a test of its bits once gave these books to anyone whose rule shared one.
             foreach (Mod rule in rules)
             {
-                if ((rule.Rule & Rule.BurningTrail) != 0 && !known.Contains(Shelf.CinderTrail)) known.Add(Shelf.CinderTrail);
-                if ((rule.Rule & Rule.WaterTrail) != 0 && !known.Contains(Shelf.Puddle)) known.Add(Shelf.Puddle);
-                if ((rule.Rule & Rule.Carrier) != 0 && !known.Contains(Shelf.VenomCloud)) known.Add(Shelf.VenomCloud);
+                if (rule.Rule == Rule.BurningTrail && !known.Contains(Shelf.CinderTrail)) known.Add(Shelf.CinderTrail);
+                if (rule.Rule == Rule.WaterTrail && !known.Contains(Shelf.Puddle)) known.Add(Shelf.Puddle);
+                if (rule.Rule == Rule.Carrier && !known.Contains(Shelf.VenomCloud)) known.Add(Shelf.VenomCloud);
             }
 
             Books = known.ToArray();

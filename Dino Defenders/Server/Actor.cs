@@ -227,6 +227,18 @@ namespace Dino_Defenders.Server
 
         public Item[]? Gear;            // What it's wearing, and will drop.
         public float MinionLeft = float.PositiveInfinity;
+
+        /// <summary>It pays for what it uses out of its Mana, as a hero does: a Minion given a book.</summary>
+        public bool Pays;
+
+        /// <summary>It uses the book it was given as often as it can, as a hero would, rather than resting between blows as enemies do: anything given a book by a page.</summary>
+        public bool Eager;
+
+        /// <summary>It stands where it was put, whatever happens: a turret. Nothing moves it, not even a blow.</summary>
+        public bool Rooted;
+
+        /// <summary>What it stands on, for a turret, whose weapon is in the air over it: a thing of its own, which goes when it does.</summary>
+        public Entity Stand;
         public string? MinionOf;        // What kind of minion it is, which is how many of a kind are counted.
 
         public bool IsHero => Player != null;

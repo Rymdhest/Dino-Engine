@@ -170,28 +170,74 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }
         }
 
-        /// <summary>A sticker: a flat seal of some shape with a rim, and a stone in the middle of it for its colour.</summary>
-        public static void Seal(GearMesh mesh, GearStyle style)
+        /// <summary>
+        /// A sentence: a narrow slip of parchment cut from a page, its ends curling up, with one line written along it, a few words with gaps between them, the first letter inked large in the
+        /// page's bright colour and a stop at the end. How long it is, how many words and how they fall are what tell one from another. Long and thin, where a page is a sheet with many lines.
+        /// </summary>
+        public static void Slip(GearMesh mesh, GearStyle style)
         {
             Genes genes = style.Genes;
             GearPalette palette = style.Palette;
 
-            float radius = genes.Range("seal.radius", 0.26f, 0.42f);
-            int sides = genes.Count("seal.sides", 3, 9);
-            float turn = genes.Range("seal.turn", 0f, 1f);
-            float height = genes.Range("seal.height", 0.03f, 0.07f);
-            float long_ = genes.Range("seal.long", 1f, 1.5f);
-            Section section = sides >= 9 ? Section.Round(14) : Section.Polygon(sides, turn);
+            float wide = genes.Range("slip.wide", 0.34f, 0.72f);
+            float tall = wide * genes.Range("slip.tall", 0.13f, 0.4f);
+            float curlLeft = genes.Range("slip.curl.left", 0f, 0.3f);
+            float curlRight = genes.Range("slip.curl.right", 0f, 0.3f);
+            float bow = genes.Range("slip.bow", -0.12f, 0.12f);
+            float lean = genes.Range("slip.lean", -0.3f, 0.3f);
+            float taper = genes.Range("slip.taper", -0.45f, 0.45f);
+            float thin = 0.012f;
+            Section flat = Section.Slab(0.2f);
 
-            mesh.At(Matrix4.CreateScale(1f, 1f, long_), () =>
+            // Each end curls of its own accord, as a strip cut from a page does, and it's cut a little on the slant and narrower at one end.
+            float Rise(float along) => (along < 0.5f ? curlLeft : curlRight) * MathF.Pow(MathF.Abs(along * 2f - 1f), 3f);
+            float Bend(float along) => bow * MathF.Sin(along * MathF.PI) + lean * tall * (along - 0.5f) * 2f;
+            float Height(float along) => tall * (1f + taper * (along - 0.5f));
+
+            var sheet = new Ring[PageSteps + 1];
+            for (int i = 0; i <= PageSteps; i++)
             {
-                mesh.Lathe(section, height, 1, t => radius, palette.Fitting);
-                mesh.At(Matrix4.CreateTranslation(0f, height, 0f), () =>
+                float along = (float)i / PageSteps;
+                sheet[i] = Across(1f, along * wide * 2f - wide, thin + Rise(along), Bend(along), Height(along), thin);
+            }
+            mesh.Loft(flat, sheet, palette.Bone);
+
+            // The words, along the middle, with the gaps falling where they fall.
+            float stroke = tall * genes.Range("slip.stroke", 0.1f, 0.22f);
+            float from = 0.14f;
+            float to = genes.Range("slip.ends", 0.78f, 0.9f);
+            int words = genes.Count("slip.words", 3, 6);
+            var shares = new float[words];
+            for (int w = 0; w < words; w++) shares[w] = genes.Range($"slip.word{w}", 0.5f, 1.5f);
+            float gap = 0.035f;
+            float room = to - from - gap * (words - 1);
+            float total = shares.Sum();
+            float start = from;
+            for (int w = 0; w < words; w++)
+            {
+                float end = start + room * shares[w] / total;
+                var ink = new Ring[5];
+                for (int i = 0; i < ink.Length; i++)
                 {
-                    mesh.Lathe(section, height * 0.5f, 1, t => radius * 0.78f, genes.Pick("seal.face", 2f, 2f, 1f) switch { 0 => palette.Leather, 1 => palette.Cloth, _ => palette.Trim });
-                    mesh.At(Matrix4.CreateTranslation(0f, height * 0.5f, 0f), () => mesh.Gem(Math.Max(sides, 4), radius * genes.Range("seal.stone", 0.3f, 0.5f), radius * 0.2f, radius * 0.05f, 0.6f, palette.Glow));
-                });
-            });
+                    float along = start + (end - start) * i / (ink.Length - 1f);
+                    ink[i] = Across(1f, along * wide * 2f - wide, thin * 2.2f + Rise(along), Bend(along), stroke, thin * 0.3f);
+                }
+                mesh.Loft(flat, ink, palette.Binding);
+                start = end + gap;
+            }
+
+            // The first letter, large and bright, standing over the line, and a stop after the last word.
+            float initial = from - 0.06f;
+            var capital = new Ring[3];
+            for (int i = 0; i < capital.Length; i++)
+            {
+                float along = initial + 0.045f * i / (capital.Length - 1f);
+                capital[i] = Across(1f, along * wide * 2f - wide, thin * 2.4f + Rise(along), Bend(along), tall * 0.55f, thin * 0.35f);
+            }
+            mesh.Loft(flat, capital, palette.Glow);
+            float stop = to + 0.03f;
+            Vector3 dot = new Vector3(stop * wide * 2f - wide, thin * 2.2f + Rise(stop), Bend(stop));
+            mesh.At(Matrix4.CreateTranslation(dot), () => mesh.Lathe(Section.Round(8), thin * 0.6f, 1, t => stroke * 1.1f, palette.Binding));
         }
 
         // The Reich's colours, which its orders are sealed in, and nobody else's are. Read LORE.md.

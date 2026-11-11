@@ -35,6 +35,24 @@ namespace Dino_AnimLab
             });
         }
 
+        // A Minion holding what its page gave it, as the game grows one (Outfit.Hold): a sword and a dagger, or a sword and a shield.
+        private static Mesh Risen(GearKind other)
+        {
+            var form = new GearForm(0.45f, 0.5f, 0.15f, 0.4f, 0.12f, 0.45f);
+            return Outfit.Hold(SkeletonGenerator.GenerateBare(), new[]
+            {
+                (new GearSpec(31, GearKind.Sword, 1f, 0f, 0f, form, 0, GearTheme.None), -1f),
+                (new GearSpec(32, other, other == GearKind.OffHand ? 1f : 0f, other == GearKind.OffHand ? 0f : 1f, 0f, form, 0, GearTheme.None), 1f),
+            });
+        }
+
+        // A turret's weapon, held in the air by nobody (Outfit.Hold with no body), as the game draws one over its stand.
+        private static Mesh Hovering(GearKind kind)
+        {
+            var form = new GearForm(0.45f, 0.5f, 0.15f, 0.4f, 0.12f, 0.45f);
+            return Outfit.Hold(null, new[] { (new GearSpec(41, kind, kind == GearKind.Bow ? 0f : 1f, kind == GearKind.Bow ? 1f : 0f, 0f, form, 0, GearTheme.None), -1f) });
+        }
+
         private static Body Beast(string name, BeastLook look, MotionStyle style) => new Body(name, BeastGenerator.RigOf(look), style, Carry.Nothing, false, () => BeastGenerator.Generate(look));
 
         /// <summary>A dinosaur, by the name the game gives its model.</summary>
@@ -59,6 +77,10 @@ namespace Dino_AnimLab
             new Body("brute", Rig.Humanoid, MotionStyle.Brute, Carry.Sword, false, () => HumanoidGenerator.Generate(Person(HeldItem.Sword, bulk: 1.34f))),
             new Body("cutthroat", Rig.Humanoid, MotionStyle.Cutthroat, Carry.Dagger, false, () => HumanoidGenerator.Generate(Person(HeldItem.Sword, bulk: 0.92f))),
             new Body("skeleton", Rig.Humanoid, MotionStyle.Dead, Carry.Sword, true, SkeletonGenerator.GenerateSkeleton),
+            new Body("risen-pair", Rig.Humanoid, MotionStyle.Dead, Carry.Sword, false, () => Risen(GearKind.Dagger), Carry.Dagger),
+            new Body("hover-sword", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, false, () => Hovering(GearKind.Sword)),
+            new Body("hover-bow", Rig.Humanoid, MotionStyle.Hero, Carry.Bow, false, () => Hovering(GearKind.Bow)),
+            new Body("risen-shield", Rig.Humanoid, MotionStyle.Dead, Carry.Sword, true, () => Risen(GearKind.OffHand)),
             Beast("wolf", new BeastLook(), MotionStyle.Hound),
             Beast("boar", new BeastLook { Height = 1.35f, Length = 2.9f, Girth = 0.82f, Skull = 0.46f, Muzzle = 0.56f, Tail = 0.4f, Ears = 0.16f, Tusks = 0.36f, Hump = 0.28f, Neck = 0.42f, Coat = new Vector3(0.42f, 0.24f, 0.13f), Belly = new Vector3(0.5f, 0.34f, 0.22f) }, MotionStyle.Boar),
             Beast("bear", new BeastLook { Height = 2.3f, Length = 3.9f, Girth = 1.25f, Skull = 0.62f, Muzzle = 0.44f, Tail = 0f, Ears = 0.17f, Hump = 0.34f, Neck = 0.8f, Coat = new Vector3(0.34f, 0.2f, 0.1f), Belly = new Vector3(0.42f, 0.27f, 0.15f) }, MotionStyle.Bear),
@@ -69,6 +91,9 @@ namespace Dino_AnimLab
             Dino("tyrant", "dino:tyrant.0", MotionStyle.Tyrant),
             Dino("hornback", "dino:hornback.0", MotionStyle.Horned),
             Dino("giant", "dino:giant.0", MotionStyle.Giant),
+            Dino("ripper", "dino:ripper.0", MotionStyle.Raptor),
+            Dino("wader", "dino:wader.0", MotionStyle.Stalker),
+            Dino("spikeback", "dino:spikeback.0", MotionStyle.Horned),
         };
 
         /// <summary>A body by name, or any dinosaur by its model's name.</summary>

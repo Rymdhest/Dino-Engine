@@ -75,10 +75,10 @@ namespace Dino_Engine.Sound.Content
         /// <summary>How a painted ground material sounds underfoot.</summary>
         public static Ground GroundOf(SurfaceMaterial material) => material switch
         {
-            SurfaceMaterial.Grass or SurfaceMaterial.GrassySoil or SurfaceMaterial.Moss => Ground.Grass,
+            SurfaceMaterial.Grass or SurfaceMaterial.GrassySoil or SurfaceMaterial.Moss or SurfaceMaterial.Needles or SurfaceMaterial.Litter => Ground.Grass,
             SurfaceMaterial.Rock or SurfaceMaterial.Cobble or SurfaceMaterial.Setts or SurfaceMaterial.Flagstones => Ground.Stone,
             SurfaceMaterial.Sand or SurfaceMaterial.Dunes or SurfaceMaterial.Ash => Ground.Sand,
-            SurfaceMaterial.Gravel or SurfaceMaterial.CrackedEarth => Ground.Gravel,
+            SurfaceMaterial.Gravel or SurfaceMaterial.CrackedEarth or SurfaceMaterial.Shingle => Ground.Gravel,
             SurfaceMaterial.Snow => Ground.Snow,
             SurfaceMaterial.Ice => Ground.Ice,
             SurfaceMaterial.Mud => Ground.Mud,

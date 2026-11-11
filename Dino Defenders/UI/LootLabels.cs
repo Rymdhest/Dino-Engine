@@ -234,7 +234,7 @@ namespace Dino_Defenders.UI
         // What's marked as more than gear: what goes in a book, and orders, which are what the next land is made of.
         private static bool Iconed(Item item) => item.IsFolio || item.IsOrders;
 
-        // Told apart by their outlines, as details are lost at this size: a book is solid, a page is open, a sticker is round and orders are rolled and sealed. They're in the label's colour, as colour is what rarity says.
+        // Told apart by their outlines, as details are lost at this size: a book is solid, a page is open, a sentence is round and orders are rolled and sealed. They're in the label's colour, as colour is what rarity says.
         private static void DrawIcon(GuiDrawList draw, Item item, Vector2 c, float s, Colour ink, Colour cut)
         {
             const float Stroke = 1.8f;

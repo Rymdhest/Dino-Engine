@@ -289,7 +289,9 @@ namespace Dino_Defenders.Progression
         public string Describe(WorldSite site, WorldData world)
         {
             var random = new WorldRandom(world.Plan.Seed).Fork("site lore").Fork(site.Id);
+            // "Market town of the blackwood", and not of the the blackwood: some biomes' names have their own article.
             string biome = world.Plan.Biomes[site.Biome].Name.ToLowerInvariant();
+            if (biome.StartsWith("the ")) biome = biome.Substring(4);
             string[] lines = site.Kind switch
             {
                 SiteKind.Village => new[] { $"Market town of the {biome}. Its people hide from {Faction} behind barred doors, and trade with anyone who isn't the Reich.", "Its people bar their doors when the roaring starts.", $"It was here first, and means to be here after {Commander}." },

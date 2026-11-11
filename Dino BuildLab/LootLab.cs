@@ -42,8 +42,8 @@ namespace Dino_BuildLab
             float total = 0f;
             foreach (ItemLine line in item.Lines)
             {
-                // Orders' lines are omens, which have tiers of their own.
-                Tier[] tiers = item.IsOrders ? Omens.Find(line.Affix)!.Tiers : AffixCatalog.Find(line.Affix)!.Tiers;
+                // Orders' lines are omens, and a book's or a page's its own, which have tiers of their own.
+                Tier[] tiers = item.IsOrders ? Omens.Find(line.Affix)!.Tiers : item.IsFolio ? FolioAffixes.Find(line.Affix)!.Tiers : AffixCatalog.Find(line.Affix)!.Tiers;
                 Tier top = tiers[0];
                 foreach (Tier tier in tiers)
                 {

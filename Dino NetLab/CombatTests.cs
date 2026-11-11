@@ -170,7 +170,124 @@ namespace Dino_NetLab
             report.Section("On every kind of line");
             Lines(report, worlds, request);
 
+            // Last, as it puts a fence and a pillar into the world every arena here shares.
+            report.Section("Nothing goes through what's in the way");
+            InTheWay(report, worlds, request);
+
             return report.Finish();
+        }
+
+        // What's drawn cut out of a mark is exactly what the server won't hit, and a fence or a pillar really does stand in the way of every kind of blow.
+        private static void InTheWay(Report report, WorldCache worlds, WorldRequest request)
+        {
+            // The shadow a client draws against the line the server tests, at thousands of points round boxes and circles seen from everywhere.
+            var random = new Random(7);
+            int tried = 0, disagreed = 0;
+            Span<Vector2> corners = stackalloc Vector2[Sight.MostCorners];
+            for (int shape = 0; shape < 400; shape++)
+            {
+                Vector2 centre = new Vector2(random.NextSingle() * 20f - 10f, random.NextSingle() * 20f - 10f);
+                Footprint blocker = shape % 2 == 0
+                    ? Footprint.Circle(centre, 0.3f + random.NextSingle() * 2f)
+                    : Footprint.Box(centre, new Vector2(0.1f + random.NextSingle() * 4f, 0.1f + random.NextSingle() * 2f), random.NextSingle() * MathF.Tau);
+                Vector2 origin = new Vector2(random.NextSingle() * 30f - 15f, random.NextSingle() * 30f - 15f);
+                if (Sight.Contains(blocker, origin)) continue;
+                int count = Sight.Shadow(blocker, origin, corners, out Vector3 circle);
+                for (int i = 0; i < 40; i++)
+                {
+                    Vector2 point = new Vector2(random.NextSingle() * 40f - 20f, random.NextSingle() * 40f - 20f);
+                    float edge = ShadowDistance(corners[..count], circle, point);
+                    if (MathF.Abs(edge) < 1e-3f) continue;
+                    tried++;
+                    if ((edge < 0f) != Sight.Crosses(blocker, origin, point)) disagreed++;
+                }
+            }
+            report.Check("What a mark leaves out is exactly what a blow can't see", tried > 10000 && disagreed == 0, $"{disagreed} of {tried} points disagree");
+
+            // Two runs of fence meeting end to end, and lines aimed at just where they meet, from right up against them and from further off.
+            var fences = new PlacementIndex(100f);
+            fences.Add(Footprint.Segment(new Vector2(40f, 50f), new Vector2(50f, 50f), 0.25f), PlacementLayer.Fence, solid: true, height: 3f);
+            fences.Add(Footprint.Segment(new Vector2(50f, 50f), new Vector2(60f, 50f), 0.25f), PlacementLayer.Fence, solid: true, height: 3f);
+            var joint = new List<Footprint>();
+            int leaks = 0;
+            foreach (float off in new[] { 0.5f, 1.1f, 3f, 8f })
+            {
+                foreach (float aside in new[] { 0f, 0.001f, -0.001f, 0.3f })
+                {
+                    Vector2 from = new Vector2(50f + aside, 50f + off);
+                    Sight.Gather(fences, from, 12f, joint);
+                    if (Sight.Clear(joint, from, new Vector2(50f - aside, 50f - 3f))) leaks++;
+                }
+            }
+            report.Check("Nothing leaks between two runs of fence where they meet", leaks == 0, $"{leaks} lines through");
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                Vector2 here = arena.At;
+                PlacementIndex placement = arena.Session.World.Placement;
+                Vector2 north = new Vector2(0f, 1f);
+
+                var found = new List<Actor>();
+                GroundShape blast = GroundShape.Circle(here + north * 8f, 12f);
+                arena.Combat.Within(blast, Team.Enemies, found);
+                bool open = found.Contains(arena.Hero);
+                placement.Add(Footprint.Circle(here + north * 4f, 1f), PlacementLayer.Prop, solid: true, height: 6f);
+                found.Clear();
+                arena.Combat.Within(blast, Team.Enemies, found);
+                report.Check("A boss's blast reaches a hero in the open", open);
+                report.Check("And not one behind a pillar", !found.Contains(arena.Hero));
+
+                // A fence along the east, two metres off.
+                placement.Add(Footprint.Segment(here + East * 2f + north * 4f, here + East * 2f - north * 4f, 0.25f), PlacementLayer.Fence, solid: true, height: 3f);
+                Actor behind = arena.Dummy(East * 4f);
+                Actor open_ = arena.Dummy(West * 4f);
+                arena.Release(Shelf.Whirl, East);
+                report.Check("A hero's whirl reaches what's in the open", Arena.Lost(open_) > 0f);
+                report.Check("And not what's behind a fence", Arena.Lost(behind) == 0f, $"{Arena.Lost(behind)} lost");
+
+                arena.Release(Shelf.Firebolt, East);
+                arena.Run(1.5);
+                report.Check("Nor does anything thrown go through it", Arena.Lost(behind) == 0f, $"{Arena.Lost(behind)} lost");
+
+                // What's shown burning: an area across the fence puts nothing on its far side.
+                var area = new GroundArea(GroundShape.Circle(here, 7f), arena.Session.World);
+                var shown = new Random(3);
+                int beyond = 0, near = 0;
+                for (int i = 0; i < 2000; i++)
+                {
+                    Vector2 spot = area.Anywhere(shown.NextSingle(), shown.NextSingle());
+                    if (Vector2.Dot(spot - here, East) > 2.3f && MathF.Abs(spot.Y - here.Y) < 3.5f) beyond++;
+                    if (Vector2.Dot(spot - here, East) < 1.7f) near++;
+                }
+                report.Check("And nothing's shown burning behind it", beyond == 0 && near > 1000, $"{beyond} behind, {near} in front");
+            }
+        }
+
+        // Less than nothing inside what Sight.Shadow says is hidden, the way Mark_Shape.frag reads it.
+        private static float ShadowDistance(ReadOnlySpan<Vector2> corners, Vector3 circle, Vector2 point)
+        {
+            float result = float.MaxValue;
+            if (corners.Length >= 3)
+            {
+                float inside = float.MinValue;
+                bool all = true;
+                float nearest = float.MaxValue;
+                for (int i = 0; i < corners.Length; i++)
+                {
+                    Vector2 a = corners[i];
+                    Vector2 b = corners[(i + 1) % corners.Length];
+                    Vector2 e = b - a;
+                    float side = (e.X * (point.Y - a.Y) - e.Y * (point.X - a.X)) / e.Length;
+                    if (side < 0f) all = false;
+                    inside = MathF.Max(inside, -side);
+                    Vector2 w = point - a;
+                    float t = Math.Clamp(Vector2.Dot(w, e) / e.LengthSquared, 0f, 1f);
+                    nearest = MathF.Min(nearest, (w - e * t).Length);
+                }
+                result = all ? -nearest : nearest;
+            }
+            if (circle.Z > 0f) result = MathF.Min(result, (point - circle.Xy).Length - circle.Z);
+            return result;
         }
 
         private static void Shapes(Report report)

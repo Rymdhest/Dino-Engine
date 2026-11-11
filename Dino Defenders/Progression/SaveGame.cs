@@ -33,8 +33,8 @@ namespace Dino_Defenders.Progression
         /// <summary>The version that replaced skills with books, which needs a copy of the old save kept. Nothing a tree held means anything now, so everyone starts it again.</summary>
         private const int BooksVersion = 6;
 
-        /// <summary>The version that made pages and stickers items of their own, which needs a copy of the old save kept. What was written stays written, each book with room for exactly what was in it.</summary>
-        private const int StickersVersion = 7;
+        /// <summary>The version that made pages and sentences items of their own, which needs a copy of the old save kept. What was written stays written, each book with room for exactly what was in it.</summary>
+        private const int SentencesVersion = 7;
 
         /// <summary>The version that left four rarities with prefixes and suffixes of their own, which needs a copy of the old save kept. Most of what was rolled under the old rules comes out of it with a line or two changed.</summary>
         private const int AffixVersion = 8;
@@ -123,7 +123,7 @@ namespace Dino_Defenders.Progression
                 if (save != null && !json.Contains("\"Version\"")) KeepOldCopy(path, ".before-talents");
                 else if (save != null && VersionOf(json) < SlotsVersion) KeepOldCopy(path, ".before-gear");
                 else if (save != null && VersionOf(json) < BooksVersion) KeepOldCopy(path, ".before-books");
-                else if (save != null && VersionOf(json) < StickersVersion) KeepOldCopy(path, ".before-stickers");
+                else if (save != null && VersionOf(json) < SentencesVersion) KeepOldCopy(path, ".before-sentences");
                 else if (save != null && VersionOf(json) < AffixVersion) KeepOldCopy(path, ".before-affixes");
                 else if (save != null && VersionOf(json) < LandsVersion) KeepOldCopy(path, ".before-lands");
                 else if (save != null && VersionOf(json) < FoundPagesVersion) KeepOldCopy(path, ".before-found-pages");
@@ -169,6 +169,7 @@ namespace Dino_Defenders.Progression
             if (version < ArenasVersion) OutOfOldLands(root);
             if (version < TreeVersion) ForgetTree(root);
             if (version < KeepArenasVersion) OutOfOldLands(root);
+            Resay(root);
 
             SaveGame? save = root.Deserialize<SaveGame>(Options);
             if (save == null) return null;
@@ -223,7 +224,11 @@ namespace Dino_Defenders.Progression
         }
 
         /// <summary>Brings anything kept somewhere else up to the rules, as everything a hero carries is brought when their save is read: the stash's, for one.</summary>
-        public static void FixItem(Item item) => Fix(item);
+        public static void FixItem(Item item)
+        {
+            Fix(item);
+            Spilled.Clear();
+        }
 
         // A bar used to be a list of skills, and the tree was made of them. What's carried comes through it all, and the talents are all there to be spent again.
         // The tree was grown again and nothing on the old one is where it was, so whatever a hero had taken comes back to them as points to spend.
@@ -280,12 +285,12 @@ namespace Dino_Defenders.Progression
             if (found["Outcomes"] is not JsonArray outcomes) return;
 
             JsonObject first = outcomes.FirstOrDefault() is JsonObject was ? (JsonObject)was.DeepClone() : new JsonObject();
-            string deed = first["Deed"] is JsonValue said && said.TryGetValue(out string? id) ? id : Sentences.PlainDeed;
+            string deed = first["Deed"] is JsonValue said && said.TryGetValue(out string? id) ? id : Phrases.PlainDeed;
             bool projectile = found["Kind"] is JsonValue kind && kind.TryGetValue(out string? named) && named == nameof(PageKind.Projectile);
-            Deed doing = Sentences.Find(deed)?.Deed ?? Deed.Deal;
-            if (Sentences.Find(deed) is not { Found: > 0f } || doing == Deed.Move && !projectile)
+            Deed doing = Phrases.Find(deed)?.Deed ?? Deed.Deal;
+            if (Phrases.Find(deed) is not { Found: > 0f } || doing == Deed.Move && !projectile)
             {
-                deed = Sentences.PlainDeed;
+                deed = Phrases.PlainDeed;
                 doing = Deed.Deal;
             }
             bool magic = outcomes.OfType<JsonObject>().Any(outcome => outcome["Element"] is JsonValue element && element.TryGetValue(out string? type) && type != "physical");
@@ -293,6 +298,34 @@ namespace Dino_Defenders.Progression
             first.Remove("Element");
             found["Outcomes"] = new JsonArray(first);
             found["Hand"] = magic || doing != Deed.Deal ? nameof(Hand.Spell) : nameof(Hand.Attack);
+        }
+
+        /// <summary>
+        /// What goes on a page was called a Sticker until 2026-11-11, and is a Sentence now, so whatever a save or a stash calls one is renamed as it's read: the item's property, its slot, and a name it
+        /// was found with. Nothing else changed, so this needs no version, and doing it again changes nothing.
+        /// </summary>
+        public static void Resay(JsonNode? node)
+        {
+            const string Old = "Sticker";
+            switch (node)
+            {
+                case JsonObject item:
+                    if (item[Old] is JsonNode said)
+                    {
+                        item.Remove(Old);
+                        item[nameof(Item.Sentence)] ??= said;
+                    }
+                    if (item["Slot"] is JsonValue slot && slot.TryGetValue(out string? kind) && kind == Old)
+                    {
+                        item["Slot"] = nameof(ItemSlot.Sentence);
+                        if (item["Name"] is JsonValue name && name.TryGetValue(out string? called)) item["Name"] = called.Replace(Old, nameof(ItemSlot.Sentence));
+                    }
+                    foreach (JsonNode? inside in item.Select(pair => pair.Value).ToList()) Resay(inside);
+                    break;
+                case JsonArray list:
+                    foreach (JsonNode? inside in list) Resay(inside);
+                    break;
+            }
         }
 
         private static void RenameSlots(JsonObject root)
@@ -340,7 +373,7 @@ namespace Dino_Defenders.Progression
             hero.Bar = bar;
         }
 
-        // Anything written can have had a sentence taken away since, and only a book goes on the bar.
+        // Anything written can have had a phrase taken away since, and only a book goes on the bar.
         private static void FixBooks(HeroState hero)
         {
             for (int slot = 0; slot < hero.Bar.Length; slot++)
@@ -350,7 +383,22 @@ namespace Dino_Defenders.Progression
             }
             foreach (Item item in hero.Carried()) Fix(item);
             foreach (Item item in hero.Equipped.Values) Fix(item);
+
+            // What no longer goes where it was, as a page that raised became a Summon Page, comes back to the pack rather than being lost.
+            while (Spilled.Count > 0)
+            {
+                List<Item> spilled = Spilled.ToList();
+                Spilled.Clear();
+                foreach (Item item in spilled)
+                {
+                    Fix(item);
+                    hero.Pickup(item);
+                }
+            }
         }
+
+        [ThreadStatic] private static List<Item>? _spilled;
+        private static List<Item> Spilled => _spilled ??= new List<Item>();
 
         // What it is says what it can hold, whatever the file says, and anything from before pages were items comes out as the items it would have been.
         private static void Fix(Item item)
@@ -371,23 +419,28 @@ namespace Dino_Defenders.Progression
             if (!item.IsFolio)
             {
                 item.Page = null;
-                item.Sticker = null;
+                item.Sentence = null;
                 item.Held = null;
                 return;
             }
 
-            if (item.IsBook) item.Held = Held(item.Held, 1, Rulebook.MostPages, held => held.IsPage && (item.Mode != BookMode.Toggle || held.Page?.Kind == PageKind.Area));
+            if (item.IsBook) item.Held = Held(item.Held, FolioAffixes.Implicit, Rulebook.MostPages, (_, held) => held.IsPage && (item.Mode != BookMode.Toggle || held.Page?.Kind == PageKind.Area));
             else if (item.IsPage)
             {
                 item.Page ??= Scribe.NewPage(PageKind.Projectile);
                 Scribe.Fix(item.Page);
                 PageKind kind = item.Page.Kind;
-                item.Held = Held(item.Held, 0, Rulebook.MostStickers, held => held.Sticker is Sticker sticker && Stickers.GoesOn(sticker, kind));
+                Item page = item;
+                int most = Rulebook.MostSentences + (page.Summons ? Item.MinionPlaces : 0);
+                item.Held = Held(item.Held, FolioAffixes.Implicit, most, (i, held) => page.Summons && i == page.MinionWeaponPlace ? held.IsWeapon
+                    : page.Summons && i == page.MinionOffHandPlace ? held.FitsOffHand && page.MinionWeapon() is not { IsTwoHanded: true }
+                    : page.Summons && i == page.MinionBookPlace ? Item.FitsMinions(held)
+                    : held.Sentence is Sentence sentence && Sentences.GoesOn(sentence, kind));
             }
             else
             {
-                item.Sticker ??= new Sticker();
-                Stickers.Fix(item.Sticker, item.Rarity == Rarity.Unique);
+                item.Sentence ??= new Sentence();
+                Sentences.Fix(item.Sentence, item.Rarity == Rarity.Unique);
                 item.Held = null;
             }
             foreach (Item? held in item.Held ?? Array.Empty<Item?>())
@@ -396,22 +449,24 @@ namespace Dino_Defenders.Progression
             }
         }
 
-        // Clauses that are gone can't be stickers, so they're only left out.
+        // Clauses that are gone can't be sentences, so they're only left out.
         private static void AddClauses(Page page)
         {
             foreach (string clause in page.Clauses ?? new List<string>())
             {
-                if (Stickers.Written(clause) is Sticker sticker) page.Stickers.Add(sticker);
+                if (Sentences.Written(clause) is Sentence sentence) page.Sentences.Add(sentence);
             }
             page.Clauses = null;
         }
 
-        private static Item?[] Held(Item?[]? held, int least, int most, Func<Item, bool> belongs)
+        private static Item?[] Held(Item?[]? held, int least, int most, Func<int, Item, bool> belongs)
         {
             var kept = new Item?[Math.Clamp(held?.Length ?? 0, least, most)];
-            for (int i = 0; i < kept.Length && held != null && i < held.Length; i++)
+            for (int i = 0; held != null && i < held.Length; i++)
             {
-                if (held[i] is Item item && belongs(item)) kept[i] = item;
+                if (held[i] is not Item item) continue;
+                if (i < kept.Length && belongs(i, item)) kept[i] = item;
+                else Spilled.Add(item);
             }
             return kept;
         }

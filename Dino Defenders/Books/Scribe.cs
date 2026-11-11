@@ -45,7 +45,7 @@ namespace Dino_Defenders.Books
         public bool Stops;
         public bool Rides;
 
-        /// <summary>What sentences and stickers have made of its strength, its Cost and how long it takes. Its strength goes on from the page before: see <see cref="Carried"/>.</summary>
+        /// <summary>What phrases and sentences have made of its strength, its Cost and how long it takes. Its strength goes on from the page before: see <see cref="Carried"/>.</summary>
         public float Potency = 1f;
 
         /// <summary>The Potency it started from, which is where the page before it left off.</summary>
@@ -71,6 +71,11 @@ namespace Dino_Defenders.Books
         public GiftPart[] Gifts = Array.Empty<GiftPart>();
         public string? Minion;
         public int MinionCount;
+
+        /// <summary>What its Minions fight with, if it's a Summon Page that's been given them.</summary>
+        public Progression.Item? MinionWeapon;
+        public Progression.Item? MinionOffHand;
+        public Progression.Item? MinionBook;
         public bool Moves;
         public bool MakesWater;
         public float Push;              // Metres a second, and below nothing it's a pull.
@@ -111,7 +116,7 @@ namespace Dino_Defenders.Books
     }
 
     /// <summary>
-    /// Reads books. What's written is only ever sentence ids, so anything can come in here, from a save, a stranger or an older build: <see cref="Fix"/> turns whatever arrives into something that can be read, and
+    /// Reads books. What's written is only ever phrase ids, so anything can come in here, from a save, a stranger or an older build: <see cref="Fix"/> turns whatever arrives into something that can be read, and
     /// <see cref="Read"/> works out what it says, the same way on every machine. Nobody writes a page: <see cref="Roll"/> is what one is found with.
     /// </summary>
     public static class Scribe
@@ -130,12 +135,12 @@ namespace Dino_Defenders.Books
         public static Page Roll(WorldRandom random)
         {
             string deed = Draw(Blank.Deed, random);
-            Deed doing = Sentences.Find(deed)!.Deed;
-            PageKind kind = doing == Deed.Move || random.Chance(0.5f) ? PageKind.Projectile : PageKind.Area;
+            Deed doing = Phrases.Find(deed)!.Deed;
+            PageKind kind = doing == Deed.Raise ? PageKind.Summon : doing == Deed.Move || random.Chance(0.5f) ? PageKind.Projectile : PageKind.Area;
             var page = NewPage(kind, doing != Deed.Deal || random.Chance(0.5f) ? Hand.Spell : Hand.Attack);
             Outcome outcome = page.Outcomes[0];
             outcome.Deed = deed;
-            if (doing == Deed.Raise) outcome.Kin = random.Chance(0.5f) ? Sentences.PlainKin : "hound";
+            if (doing == Deed.Raise) outcome.Kin = random.Chance(0.5f) ? Phrases.PlainKin : "turret";
             if (kind == PageKind.Area)
             {
                 page.Shape = Draw(Blank.Shape, random);
@@ -147,26 +152,26 @@ namespace Dino_Defenders.Books
         // One of what a found page can have in a blank, by how often each turns up.
         private static string Draw(Blank blank, WorldRandom random)
         {
-            Sentence[] options = Sentences.For(blank).Where(sentence => sentence.Found > 0f).ToArray();
-            float pick = random.Float() * options.Sum(sentence => sentence.Found);
-            foreach (Sentence sentence in options)
+            Phrase[] options = Phrases.For(blank).Where(phrase => phrase.Found > 0f).ToArray();
+            float pick = random.Float() * options.Sum(phrase => phrase.Found);
+            foreach (Phrase phrase in options)
             {
-                pick -= sentence.Found;
-                if (pick < 0f) return sentence.Id;
+                pick -= phrase.Found;
+                if (pick < 0f) return phrase.Id;
             }
             return options[^1].Id;
         }
 
         private static string Valid(string? id, Blank blank, string plain, PageKind kind)
         {
-            Sentence? sentence = Sentences.Find(id);
-            return sentence != null && sentence.Blank == blank && (sentence.Fits is null || sentence.Fits == kind) ? id! : plain;
+            Phrase? phrase = Phrases.Find(id);
+            return phrase != null && phrase.Blank == blank && (phrase.Fits is null || phrase.Fits == kind) ? id! : plain;
         }
 
-        /// <summary>What an item comes to as a book: the pages it holds, in order, each with what's stuck on it. A page on its own reads as a book of one. Nothing if there's nothing in it to read.</summary>
+        /// <summary>What an item comes to as a book: the pages it holds, in order, each with the sentences on it. A page on its own reads as a book of one. Nothing if there's nothing in it to read.</summary>
         public static Book? Bind(Progression.Item item)
         {
-            var book = new Book { Mode = item.Mode, When = item.When };
+            var book = new Book { Mode = item.Mode, When = item.When, Mods = item.IsBook ? Progression.FolioAffixes.ModsOf(item) : Array.Empty<Mod>() };
             if (item.IsPage) AddPage(book, item);
             else if (item.IsBook)
             {
@@ -185,9 +190,17 @@ namespace Dino_Defenders.Books
         {
             if (item.Page == null) return;
             Page page = item.Page.Copy();
+            page.Mods = Progression.FolioAffixes.ModsOf(item);
+            page.MinionWeapon = item.MinionWeapon();
+            page.MinionOffHand = item.MinionOffHand();
+            page.MinionBook = item.MinionBook();
             foreach (Progression.Item? held in item.Held ?? Array.Empty<Progression.Item?>())
             {
-                if (held?.Sticker is Sticker sticker) page.Stickers.Add(sticker.Copy());
+                if (held?.Sentence is not Sentence sentence) continue;
+                page.Sentences.Add(sentence.Copy());
+
+                // What's rolled on a sentence counts on the page it's written on, as the page's own lines do.
+                if (held.Lines.Count > 0) page.Mods = page.Mods.Concat(Progression.FolioAffixes.ModsOf(held)).ToArray();
             }
             book.Pages.Add(page);
         }
@@ -203,7 +216,10 @@ namespace Dino_Defenders.Books
             if (book.Pages.Count == 0) book.Pages.Add(NewPage(PageKind.Area));
             if (book.Pages.Count > Rulebook.MostPages) book.Pages.RemoveRange(Rulebook.MostPages, book.Pages.Count - Rulebook.MostPages);
 
-            // An area has no impact to turn from. What's left on goes by nothing but pulses, so that's all it can hold, every one of them going at once.
+            // Each page first, as what kind a page is can change there, and the book's rules go by its kinds.
+            foreach (Page page in book.Pages) Fix(page);
+
+            // A Summon Page has no impact to turn from, so nothing comes after one. What's left on goes by nothing but pulses, so it holds only areas, every one of them going at once.
             if (book.Mode == BookMode.Toggle)
             {
                 book.Pages.RemoveAll(page => page.Kind != PageKind.Area);
@@ -211,31 +227,27 @@ namespace Dino_Defenders.Books
             }
             else
             {
-                int firstArea = book.Pages.FindIndex(page => page.Kind == PageKind.Area);
-                if (firstArea >= 0 && firstArea < book.Pages.Count - 1) book.Pages.RemoveRange(firstArea + 1, book.Pages.Count - firstArea - 1);
+                int ending = book.Pages.FindIndex(page => Ends(page.Kind));
+                if (ending >= 0 && ending < book.Pages.Count - 1) book.Pages.RemoveRange(ending + 1, book.Pages.Count - ending - 1);
             }
 
-            for (int i = 0; i < book.Pages.Count; i++)
+            if (book.Mode == BookMode.Toggle)
             {
-                Fix(book.Pages[i]);
-                if (book.Mode == BookMode.Toggle) book.Pages[i].Timing = Sentences.PlainTiming;
+                foreach (Page page in book.Pages) page.Timing = Phrases.PlainTiming;
             }
         }
 
         /// <summary>
-        /// The same for one page. Anything any sentence can say stays, as nobody writes a page: it's what was found, or what's already written and copied out, and a save from before pages were found is brought up to
+        /// The same for one page. Anything any phrase can say stays, as nobody writes a page: it's what was found, or what's already written and copied out, and a save from before pages were found is brought up to
         /// what a found page can say once, in <see cref="Progression.SaveGame"/>.
         /// </summary>
         public static void Fix(Page page)
         {
             if (!Enum.IsDefined(page.Kind)) page.Kind = PageKind.Area;
             if (!Enum.IsDefined(page.Hand)) page.Hand = Hand.Attack;
-            page.Shape = Valid(page.Shape, Blank.Shape, Sentences.PlainShape, PageKind.Area);
-            page.Timing = Valid(page.Timing, Blank.Timing, Sentences.PlainTiming, PageKind.Area);
-
-            page.Stickers ??= new List<Sticker>();
-            page.Stickers.RemoveAll(sticker => sticker == null || !Stickers.GoesOn(sticker, page.Kind));
-            if (page.Stickers.Count > Rulebook.MostStickers) page.Stickers.RemoveRange(Rulebook.MostStickers, page.Stickers.Count - Rulebook.MostStickers);
+            page.Shape = Valid(page.Shape, Blank.Shape, Phrases.PlainShape, PageKind.Area);
+            if (page.Timing == LongLingering) page.Timing = "lingering";
+            page.Timing = Valid(page.Timing, Blank.Timing, Phrases.PlainTiming, PageKind.Area);
 
             // A page does one thing.
             page.Outcomes ??= new List<Outcome>();
@@ -243,39 +255,68 @@ namespace Dino_Defenders.Books
             if (page.Outcomes.Count == 0) page.Outcomes.Add(new Outcome());
             if (page.Outcomes.Count > 1) page.Outcomes.RemoveRange(1, page.Outcomes.Count - 1);
             Fix(page.Outcomes[0]);
+
+            // Raising is a Summon Page and nothing else is: it doesn't fly and has no shape, and it's cast. One from before this, a projectile or an area that raised, is one now.
+            bool raises = Phrases.Find(page.Outcomes[0].Deed)!.Deed == Deed.Raise;
+            if (raises)
+            {
+                page.Kind = PageKind.Summon;
+                page.Hand = Hand.Spell;
+                page.Shape = Phrases.PlainShape;
+                page.Timing = Phrases.PlainTiming;
+            }
+            else if (page.Kind == PageKind.Summon) page.Kind = PageKind.Area;
+
+            page.Sentences ??= new List<Sentence>();
+            page.Sentences.RemoveAll(sentence => sentence == null || !Sentences.GoesOn(sentence, page.Kind));
+            if (page.Sentences.Count > Rulebook.MostSentences) page.Sentences.RemoveRange(Rulebook.MostSentences, page.Sentences.Count - Rulebook.MostSentences);
         }
+
+        /// <summary>What a Minion makes of the book a Summon Page gives it: what it says, with no Summon Page in it, or nothing if there's nothing in it to read.</summary>
+        public static BookPlan? ForMinions(Progression.Item? item)
+        {
+            if (item == null || !Progression.Item.FitsMinions(item) || Bind(item) is not Book book) return null;
+            book.Pages.RemoveAll(page => page.Kind == PageKind.Summon);
+            return book.Pages.Count == 0 ? null : Read(book, item.Name);
+        }
+
+        // What lingered twice as long, before how long anything lingers went by sentences alone: it still lingers.
+        private const string LongLingering = "lingering-long";
+
+        /// <summary>Whether nothing can come after a page of this kind, as it has no impact to turn from: a Summon Page. An area turns from everyone it reaches, as a projectile does from whoever it reaches.</summary>
+        public static bool Ends(PageKind kind) => kind == PageKind.Summon;
 
         private static void Fix(Outcome outcome)
         {
             outcome.Element = null;
-            outcome.Deed = Valid(outcome.Deed, Blank.Deed, Sentences.PlainDeed, PageKind.Area);
-            outcome.Measure = Valid(outcome.Measure, Blank.Measure, Sentences.PlainMeasure, PageKind.Area);
-            outcome.Ailment = Valid(outcome.Ailment, Blank.Ailment, Sentences.PlainAilment, PageKind.Area);
-            outcome.Gift = Valid(outcome.Gift, Blank.Gift, Sentences.PlainGift, PageKind.Area);
-            outcome.Kin = Valid(outcome.Kin, Blank.Kin, Sentences.PlainKin, PageKind.Area);
-            outcome.Pool = Valid(outcome.Pool, Blank.Pool, Sentences.PlainPool, PageKind.Area);
-            outcome.Whom = Valid(outcome.Whom, Blank.Whom, Sentences.PlainWhom, PageKind.Area);
+            outcome.Deed = Valid(outcome.Deed, Blank.Deed, Phrases.PlainDeed, PageKind.Area);
+            outcome.Measure = Valid(outcome.Measure, Blank.Measure, Phrases.PlainMeasure, PageKind.Area);
+            outcome.Ailment = Valid(outcome.Ailment, Blank.Ailment, Phrases.PlainAilment, PageKind.Area);
+            outcome.Gift = Valid(outcome.Gift, Blank.Gift, Phrases.PlainGift, PageKind.Area);
+            outcome.Kin = Valid(outcome.Kin, Blank.Kin, Phrases.PlainKin, PageKind.Area);
+            outcome.Pool = Valid(outcome.Pool, Blank.Pool, Phrases.PlainPool, PageKind.Area);
+            outcome.Whom = Valid(outcome.Whom, Blank.Whom, Phrases.PlainWhom, PageKind.Area);
         }
 
         /// <summary>Everything on a page that counts towards its numbers: its shape if it has one, and of an Outcome only what that deed says.</summary>
-        public static IEnumerable<Sentence> SentencesOn(Page page)
+        public static IEnumerable<Phrase> PhrasesOn(Page page)
         {
             if (page.Kind == PageKind.Area)
             {
-                yield return Sentences.Find(page.Shape)!;
-                yield return Sentences.Find(page.Timing)!;
+                yield return Phrases.Find(page.Shape)!;
+                yield return Phrases.Find(page.Timing)!;
             }
 
             foreach (Outcome outcome in page.Outcomes)
             {
-                Sentence deed = Sentences.Find(outcome.Deed)!;
+                Phrase deed = Phrases.Find(outcome.Deed)!;
                 yield return deed;
-                foreach (Blank blank in Sentences.BlanksOf(deed.Deed)) yield return Word(outcome, blank);
+                foreach (Blank blank in Phrases.BlanksOf(deed.Deed)) yield return Word(outcome, blank);
             }
         }
 
         /// <summary>What an Outcome has in one of its blanks.</summary>
-        public static Sentence Word(Outcome outcome, Blank blank) => Sentences.Find(blank switch
+        public static Phrase Word(Outcome outcome, Blank blank) => Phrases.Find(blank switch
         {
             Blank.Measure => outcome.Measure,
             Blank.Ailment => outcome.Ailment,
@@ -297,35 +338,39 @@ namespace Dino_Defenders.Books
             {
                 plan.Pages[i] = Read(book.Pages[i], i, i == plan.Pages.Length - 1 || book.Mode == BookMode.Toggle, carried);
                 carried = plan.Pages[i].Potency;
+
+                // What's rolled on the page and on the book counts on the page, as anything on a build does: where it stands, and not carried on.
+                if (book.Pages[i].Mods.Length + book.Mods.Length > 0) plan.Pages[i].Mods = book.Pages[i].Mods.Concat(book.Mods).ToArray();
             }
             return plan;
         }
 
         private static PagePlan Read(Page written, int index, bool last, float carried)
         {
-            var page = new PagePlan { Index = index, Last = last, Kind = written.Kind, Hand = written.Hand, Carried = carried };
+            var page = new PagePlan { Index = index, Last = last, Kind = written.Kind, Hand = written.Hand, Carried = carried, MinionWeapon = written.MinionWeapon, MinionOffHand = written.MinionOffHand, MinionBook = written.MinionBook };
             bool area = written.Kind == PageKind.Area;
 
-            // Everything starts from you and goes towards the cursor, and everything after that from where the last struck, on the way it was going. Only stickers say otherwise.
+            // Everything starts from you and goes towards the cursor, and everything after that from where the last struck, on the way it was going. Only sentences say otherwise.
             page.From = index == 0 ? Start.You : Start.Impact;
             page.To = index == 0 ? Bearing.Cursor : Bearing.Onward;
             page.UseTime = written.Hand == Hand.Spell ? Rulebook.CastTime : Rulebook.PageUseTime;
             if (area)
             {
-                Sentence shape = Sentences.Find(written.Shape)!;
+                Phrase shape = Phrases.Find(written.Shape)!;
                 page.Shape = shape.Shape;
                 page.Length = shape.Length;
                 page.Width = shape.Width;
-                page.Duration = Sentences.Find(written.Timing)!.Duration;
+                page.Duration = Phrases.Find(written.Timing)!.Duration;
             }
 
-            float added = area ? 0f : Rulebook.ProjectileCost;
+            float added = written.Kind == PageKind.Projectile ? Rulebook.ProjectileCost : 0f;
             float cost = 1f;
             float potency = carried;
             float speed = Rulebook.ProjectileSpeed;
             float scale = 1f;
             float range = Rulebook.PageRange;
             float useScale = 1f;
+            float lasting = 1f;
             bool wild = false;
 
             void Weigh(in Weights weights)
@@ -337,16 +382,17 @@ namespace Dino_Defenders.Books
                 scale *= 1f + weights.Area / 100f;
                 range *= 1f + weights.Range / 100f;
                 useScale *= 1f + weights.UseTime / 100f;
+                lasting *= 1f + weights.Duration / 100f;
             }
 
-            foreach (Sentence sentence in SentencesOn(written)) Weigh(sentence.Weights);
+            foreach (Phrase phrase in PhrasesOn(written)) Weigh(phrase.Weights);
 
-            foreach (Sticker sticker in written.Stickers)
+            foreach (Sentence sentence in written.Sentences)
             {
-                Weigh(Stickers.WeightsOf(sticker));
-                wild |= Stickers.IsWild(sticker);
-                Stick(page, index, sticker.Good, sticker.GoodBy);
-                Stick(page, index, sticker.Bad, sticker.BadBy);
+                Weigh(Sentences.WeightsOf(sentence));
+                wild |= Sentences.IsWild(sentence);
+                Apply(page, index, sentence.Good, sentence.GoodBy);
+                Apply(page, index, sentence.Bad, sentence.BadBy);
             }
             page.Projectiles = Math.Min(page.Projectiles, Rulebook.MostProjectiles);
 
@@ -358,6 +404,7 @@ namespace Dino_Defenders.Books
             page.Speed = speed;
             page.Range = range;
             page.UseScale = useScale;
+            page.Duration *= lasting;
 
             // An area's size is its area, so what goes on a side is the root of that. A cone's angle stays as it was, as only how far it reaches means anything.
             float reach = MathF.Sqrt(scale);
@@ -372,8 +419,8 @@ namespace Dino_Defenders.Books
             return page;
         }
 
-        // What a sticker does that isn't a number on a page, and that stacks with another that does the same. Where a page starts only means anything on the first, as every other starts where the last struck.
-        private static void Stick(PagePlan page, int index, PageEffect effect, float by)
+        // What a sentence does that isn't a number on a page, and that stacks with another that does the same. Where a page starts only means anything on the first, as every other starts where the last struck.
+        private static void Apply(PagePlan page, int index, PageEffect effect, float by)
         {
             switch (effect)
             {
@@ -394,8 +441,8 @@ namespace Dino_Defenders.Books
             }
         }
 
-        /// <summary>Whether a sticker means anything on a page that's this one of its book, for one that only says where the first starts.</summary>
-        public static bool Counts(Sticker sticker, int index) => index == 0 || sticker.Good is not (PageEffect.FromCursor or PageEffect.FromNearest or PageEffect.FromRandom);
+        /// <summary>Whether a sentence means anything on a page that's this one of its book, for one that only says where the first starts.</summary>
+        public static bool Counts(Sentence sentence, int index) => index == 0 || sentence.Good is not (PageEffect.FromCursor or PageEffect.FromNearest or PageEffect.FromRandom);
 
         private static void ReadOutcomes(Page written, PagePlan page)
         {
@@ -405,24 +452,24 @@ namespace Dino_Defenders.Books
 
             foreach (Outcome outcome in written.Outcomes)
             {
-                Sentence measure = Sentences.Find(outcome.Measure)!;
-                Sentence whom = Sentences.Find(outcome.Whom)!;
-                switch (Sentences.Find(outcome.Deed)!.Deed)
+                Phrase measure = Phrases.Find(outcome.Measure)!;
+                Phrase whom = Phrases.Find(outcome.Whom)!;
+                switch (Phrases.Find(outcome.Deed)!.Deed)
                 {
                     case Deed.Deal:
                         page.Deals = true;
                         break;
                     case Deed.Heal:
-                        heals.Add(new HealPart(Sentences.Find(outcome.Pool)!.Pool, whom.Whom, measure.Measure, measure.Share));
+                        heals.Add(new HealPart(Phrases.Find(outcome.Pool)!.Pool, whom.Whom, measure.Measure, measure.Share));
                         break;
                     case Deed.Afflict:
-                        ailments.Add(new AilmentPart(Sentences.Find(outcome.Ailment)!.Ailment, measure.Measure, measure.Share));
+                        ailments.Add(new AilmentPart(Phrases.Find(outcome.Ailment)!.Ailment, measure.Measure, measure.Share));
                         break;
                     case Deed.Give:
-                        gifts.Add(new GiftPart(Sentences.Find(outcome.Gift)!.Buff!, whom.Whom));
+                        gifts.Add(new GiftPart(Phrases.Find(outcome.Gift)!.Buff!, whom.Whom));
                         break;
                     case Deed.Raise:
-                        Sentence kin = Sentences.Find(outcome.Kin)!;
+                        Phrase kin = Phrases.Find(outcome.Kin)!;
                         page.Minion = kin.Minion;
                         page.MinionCount = Math.Max(page.MinionCount, kin.MinionCount);
                         break;
@@ -448,7 +495,7 @@ namespace Dino_Defenders.Books
 
         private static Tags TagsOf(PagePlan page, int index, bool last, bool wild)
         {
-            Tags tags = page.Kind == PageKind.Projectile ? Tags.Projectile : Tags.Area;
+            Tags tags = page.Kind switch { PageKind.Projectile => Tags.Projectile, PageKind.Area => Tags.Area, _ => Tags.None };
             tags |= page.Hand == Hand.Spell ? Tags.Spell : Tags.Attack;
             if (page.Lingers) tags |= Tags.Zone;
             if (page.Chains > 0) tags |= Tags.Chaining;

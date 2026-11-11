@@ -188,6 +188,32 @@ namespace Dino_Engine.Textures
             return new Surface(stone, Field.Lerp(0.6f, 0.45f, cleavage), height);
         }
 
+        // Clay tiles laid as the south lays them: rows of curved tiles running down the roof, a cap over every two pans, each course lapping the one below so its end
+        // throws a short shadow, fired orange to red and weathered darker in the pans where water runs, with lichen on the oldest. The rows run up the tile, as v runs up a
+        // roof, and the courses across it.
+        private static Surface RoofTiles(Canvas c)
+        {
+            const int Rows = 6;     // Of caps and pans across the tile, each a whole period, so the tile wraps.
+            Bricks courses = c.Bricks(rows: 7, perRow: Rows, gap: 0.0015f, bond: 0f, rowJitter: 0.08f, lengthJitter: 0.06f);
+            // Across: a cap is a hump and a pan a trough, side by side, with a little wander as no roof is laid true.
+            Field wander = (c.Noise(new Vector2(3f, 2f), octaves: 3) - 0.5f) * 0.12f;
+            Field wave = (c.U * Rows + wander).Sine(1f, 0.25f);
+            Field cap = wave.Smooth(0.45f, 1f);
+            Field barrel = wave.Pow(0.75f);
+            // Up the roof: each course thickest at its lower end, where it laps the course below, thinning up to where the next one covers it.
+            Field lap = (1f - courses.Across).Pow(0.8f);
+            Field end = courses.Edge.Profile(0.004f, Rise.Round);
+            Field height = end * (0.22f + barrel * 0.5f + lap * 0.2f) + (c.Noise(90f, octaves: 3) - 0.5f) * 0.03f;
+
+            Paint fired = c.Ramp(courses.Id, (0f, Rgb(102, 44, 26)), (0.35f, Rgb(124, 56, 32)), (0.7f, Rgb(138, 70, 40)), (1f, Rgb(116, 62, 42)))
+                .Jitter(courses.Id, 0.015f, 0.12f, 0.1f) * Field.Lerp(0.88f, 1.08f, c.Noise(30f, octaves: 3));
+            // Water runs down the pans and leaves them darker; the caps weather paler. Each course's lower end is in its own shadow.
+            fired = fired * Field.Lerp(0.72f, 1.02f, barrel) * Field.Lerp(0.78f, 1f, lap.Smooth(0f, 0.35f));
+            Field lichen = Patches(c, 9f, 0.1f, 0.06f, 0.1f) * cap;
+            fired = Paint.Lerp(fired, Paint.Lerp(Rgb(104, 104, 78), Rgb(140, 120, 56), c.Noise(25f, octaves: 2).Threshold(0.65f, 0.05f)), lichen * 0.55f);
+            return new Surface(fired, Field.Lerp(0.8f, 0.68f, cap), height);
+        }
+
         // Steel plates riveted down, scuffed bright where they're walked on.
         private static Surface MetalFloor(Canvas c)
         {

@@ -213,5 +213,15 @@ namespace Dino_Engine.World
         }
 
         public BiomeDefinition BiomeAt(Vector2 position) => Plan.Biomes[DominantBiome(position)];
+
+        /// <summary>
+        /// How a site builds: as the land it stands in decides, where its biome does (<see cref="BiomeDefinition.Builds"/>), and otherwise as the world's people do
+        /// (<see cref="Style"/>), so that one world's villages can be logs up in its pinewoods and tiles down in its cypress hills. The Haven builds as its halls do.
+        /// </summary>
+        public BuildingStyle StyleOf(WorldSite site)
+        {
+            if (Plan.Archetype.Peaceful || site.Biome < 0 || site.Biome >= Plan.Biomes.Count) return Style;
+            return Plan.Biomes[site.Biome].Builds ?? Style;
+        }
     }
 }

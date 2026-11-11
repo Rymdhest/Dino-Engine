@@ -95,6 +95,7 @@ namespace Dino_Engine.Rendering
         private SkyRenderer _skyRenderer;
         public VolumetricFogRenderer _volumetricFogRenderer;
         public WindRenderer _windRenderer;
+        public SnowTrailRenderer _snowTrailRenderer;
         public WaterRenderer _waterRenderer;
         public WeatherRenderer _weatherRenderer;
         private PrecipitationRenderer _precipitationRenderer;
@@ -204,6 +205,7 @@ namespace Dino_Engine.Rendering
             _skyRenderer = new SkyRenderer();
             _volumetricFogRenderer = new VolumetricFogRenderer();
             _windRenderer = new WindRenderer();
+            _snowTrailRenderer = new SnowTrailRenderer();
             _waterRenderer = new WaterRenderer();
             _weatherRenderer = new WeatherRenderer();
             _weatherRenderer.SetMaterialPorosity(textureGenerator.Porosity);
@@ -293,6 +295,7 @@ namespace Dino_Engine.Rendering
                 // Weather and wind first: geometry, shadows, water and fog all read this frame's.
                 _weatherRenderer.RenderPass(this);
                 _windRenderer.RenderPass(this);
+                _snowTrailRenderer.RenderPass(this);
                 _waterRenderer.SimulationPass(this);
                 GeometryPass();
                 ShadowPass();

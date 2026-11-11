@@ -96,6 +96,10 @@ namespace Dino_Engine.Textures
         public static int cloth = MaterialCatalog.Cloth.Index;
         public static int bone = MaterialCatalog.Bone.Index;
         public static int flagstones = MaterialCatalog.Flagstones.Index;
+        public static int needles = MaterialCatalog.Needles.Index;
+        public static int redEarth = MaterialCatalog.RedEarth.Index;
+        public static int litter = MaterialCatalog.Litter.Index;
+        public static int roofTiles = MaterialCatalog.RoofTiles.Index;
 
         public List<MaterialMapsTextures> preparedTextures = new List<MaterialMapsTextures>();
 

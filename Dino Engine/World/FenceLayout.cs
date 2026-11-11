@@ -50,37 +50,130 @@ namespace Dino_Engine.World
 
             foreach (Node node in nodes) PlacePost(node, runs, from, to, ground, place);
 
-            for (int i = 0; i < runs.Count; i++)
+            // A wall carrying straight on into the next run has no pier to stand its end on, so the next run starts at the height this one ended at, from whichever end
+            // already has one: a run is laid once one of its ends is known, or isn't such a join at all. A ring of straight joins, which nothing builds, is laid from the ground.
+            var joins = new Dictionary<Node, float?>();
+            var startNode = new Node[runs.Count];
+            var endNode = new Node[runs.Count];
+            foreach (Node node in nodes)
             {
-                FenceRun run = runs[i];
-                Vector2 a = from[i], b = to[i];
-                float length = (b - a).Length;
-                if (length < 0.3f) continue;
+                foreach ((int run, bool start) in node.Ends)
+                {
+                    if (start) startNode[run] = node;
+                    else endNode[run] = node;
+                }
+                if (IsStraightWallJoin(node, runs, from, to)) joins[node] = null;
+            }
 
-                float bay = FenceForge.BayOf(run.Kind, run.Style);
-                int bays = Math.Max(1, (int)MathF.Round(length / bay));
-                int most = Math.Max(bays, (int)(length / (bay * LeastStretch)));
-                float tolerance = MathF.Max(0.25f, run.Kind.Sink * 0.6f);
-                while (bays < most && Deviation(a, b, bays, ground) > tolerance) bays++;
+            var laid = new bool[runs.Count];
+            bool stuck = false;
+            while (!laid.All(done => done))
+            {
+                bool progress = false;
+                for (int i = 0; i < runs.Count; i++)
+                {
+                    if (laid[i]) continue;
+                    bool startJoin = joins.TryGetValue(startNode[i], out float? atStart), endJoin = joins.TryGetValue(endNode[i], out float? atEnd);
+                    bool fromStart;
+                    float? anchor = null;
+                    if (startJoin && atStart.HasValue) { fromStart = true; anchor = atStart; }
+                    else if (endJoin && atEnd.HasValue) { fromStart = false; anchor = atEnd; }
+                    else if (!startJoin) fromStart = true;
+                    else if (!endJoin) fromStart = false;
+                    else if (stuck) fromStart = true;
+                    else continue;
 
-                Vector2 direction = (b - a) / length;
-                float yaw = YawOf(direction);
-                Vector2 previous = a;
-                float previousHeight = ground(a);
+                    (float first, float last) = LayRun(runs[i], from[i], to[i], fromStart, anchor, ground, place);
+                    if (startJoin && !atStart.HasValue) joins[startNode[i]] = first;
+                    if (endJoin && !atEnd.HasValue) joins[endNode[i]] = last;
+                    laid[i] = true;
+                    progress = true;
+                    stuck = false;
+                    break;
+                }
+                if (!progress) stuck = true;
+            }
+        }
+
+        // Lays one run's spans and the posts between them, and gives the heights its two ends stand at. A fence's spans stand on the ground at every post; a wall's are chained,
+        // from the end given, starting at anchor or the ground there.
+        private static (float first, float last) LayRun(in FenceRun run, Vector2 a, Vector2 b, bool fromStart, float? anchor, Func<Vector2, float> ground, Action<string, Vector3, Quaternion, Vector3> place)
+        {
+            float length = (b - a).Length;
+            if (length < 0.3f) return (ground(a), ground(b));
+
+            float bay = FenceForge.BayOf(run.Kind, run.Style);
+            int bays = Math.Max(1, (int)MathF.Round(length / bay));
+            int most = Math.Max(bays, (int)(length / (bay * LeastStretch)));
+            float tolerance = MathF.Max(0.25f, run.Kind.Sink * 0.6f);
+            while (bays < most && Deviation(a, b, bays, ground) > tolerance) bays++;
+
+            var points = new Vector2[bays + 1];
+            var heights = new float[bays + 1];
+            var steps = new int[bays + 1];
+            for (int k = 0; k <= bays; k++)
+            {
+                points[k] = k == bays ? b : Vector2.Lerp(a, b, k / (float)bays);
+                heights[k] = ground(points[k]);
+            }
+
+            Vector2 direction = (b - a) / length;
+            float yaw = YawOf(direction);
+            if (run.Kind.LinePosts)
+            {
                 for (int k = 1; k <= bays; k++)
                 {
-                    Vector2 next = k == bays ? b : Vector2.Lerp(a, b, k / (float)bays);
-                    float nextHeight = ground(next);
-                    PlaceSpan(run, previous, previousHeight, next, nextHeight, bay, yaw, place);
-                    if (k < bays && run.Kind.LinePosts)
-                    {
-                        var post = new FenceSpec(run.Kind, run.Style, FencePiece.Post, VariantAt(next, run.Kind.PostVariants, 17u), 0);
-                        place(post.Id, new Vector3(next.X, nextHeight, next.Y), Quaternion.FromAxisAngle(Vector3.UnitY, yaw), Vector3.One);
-                    }
-                    previous = next;
-                    previousHeight = nextHeight;
+                    PlaceSpan(run, points[k - 1], heights[k - 1], points[k], heights[k], bay, yaw, place);
+                    if (k == bays) continue;
+                    var post = new FenceSpec(run.Kind, run.Style, FencePiece.Post, VariantAt(points[k], run.Kind.PostVariants, 17u), 0);
+                    place(post.Id, new Vector3(points[k].X, heights[k], points[k].Y), Quaternion.FromAxisAngle(Vector3.UnitY, yaw), Vector3.One);
+                }
+                return (heights[0], heights[bays]);
+            }
+
+            // A wall's span has no post at its ends to meet, so it's never tilted: a tilt leans its end, and two neighbours leaning apart once opened a wedge a quarter of a
+            // metre wide at the top of a curtain wall. Each rises by the step nearest the ground at its far end from where the last one ended, so two spans share their joint's
+            // plane exactly, and the ground can only stray from a foot by half a step.
+            int steepest = (int)MathF.Round(MostGradient / run.Kind.Step);
+            float rise = run.Kind.Step * bay;
+            if (fromStart)
+            {
+                heights[0] = anchor ?? heights[0];
+                for (int k = 1; k <= bays; k++)
+                {
+                    steps[k] = Math.Clamp((int)MathF.Round((heights[k] - heights[k - 1]) / rise), -steepest, steepest);
+                    heights[k] = heights[k - 1] + steps[k] * rise;
                 }
             }
+            else
+            {
+                heights[bays] = anchor ?? heights[bays];
+                for (int k = bays; k >= 1; k--)
+                {
+                    steps[k] = Math.Clamp((int)MathF.Round((heights[k] - heights[k - 1]) / rise), -steepest, steepest);
+                    heights[k - 1] = heights[k] - steps[k] * rise;
+                }
+            }
+            for (int k = 1; k <= bays; k++)
+            {
+                var spec = new FenceSpec(run.Kind, run.Style, FencePiece.Span, VariantAt((points[k - 1] + points[k]) * 0.5f, run.Kind.SpanVariants, 41u), steps[k]);
+                float stretch = (points[k] - points[k - 1]).Length / bay;
+                place(spec.Id, new Vector3(points[k - 1].X, heights[k - 1], points[k - 1].Y), Quaternion.FromAxisAngle(Vector3.UnitY, yaw), new Vector3(stretch, 1f, 1f));
+            }
+            return (heights[0], heights[bays]);
+        }
+
+        // Two runs of a wall meeting in a line, which have no post between them.
+        private static bool IsStraightWallJoin(Node node, IReadOnlyList<FenceRun> runs, Vector2[] from, Vector2[] to)
+        {
+            if (node.Ends.Count != 2 || runs[node.Ends[0].Run].Kind.LinePosts) return false;
+            Vector2 Into((int Run, bool Start) end)
+            {
+                Vector2 span = to[end.Run] - from[end.Run];
+                Vector2 direction = span.LengthSquared > 1e-8f ? span.Normalized() : Vector2.UnitX;
+                return end.Start ? direction : -direction;
+            }
+            return Vector2.Dot(Into(node.Ends[0]), Into(node.Ends[1])) < -Straight;
         }
 
         // Which ends of which runs are one point: those of the same style within Join of each other.

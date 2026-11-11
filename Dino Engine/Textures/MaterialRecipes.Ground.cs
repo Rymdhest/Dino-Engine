@@ -343,5 +343,91 @@ namespace Dino_Engine.Textures
             Paint colour = c.Ramp(faces.Id, (0f, RockDark), (1f, RockPale)) * Field.Lerp(0.8f, 1.05f, height);
             return new Surface(colour, 0.88f, height);
         }
+
+        // The floor of a conifer wood: needles shed year on year lying every way over dark soft duff, the newest rust-coloured on top of the grey of older ones, a cone here and there, a
+        // twig, and moss where it stays damp. From up here it reads as a warm brown mat, many small things to a tile and nothing big, as anything big repeats.
+        private static Surface Needles(Canvas c)
+        {
+            Field lumps = c.Noise(6f, octaves: 5, gain: 0.5f);
+            Field duffHeight = lumps * 0.28f + (c.Noise(40f, octaves: 3) - 0.5f) * 0.05f;
+            Surface duff = new Surface(Paint.Lerp(Rgb(26, 18, 12), Rgb(46, 32, 20), lumps), 0.95f, duffHeight);
+
+            Surface older = FallenNeedles(c, 30f, Rgb(64, 50, 38), 0.36f);
+            Surface newer = FallenNeedles(c, 25f, Rgb(94, 56, 28), 0.46f);
+            // Where the newest lie thick, and where the older show through.
+            Field fresh = Patches(c, 7f, 0.6f, 0.2f);
+            Surface floor = duff.Stack(older, 0.02f).Stack(newer with { Height = newer.Height * fresh.Max(0.25f) }, 0.02f);
+
+            Field moss = Patches(c, 5f, 0.14f, 0.12f);
+            Stones cushions = c.Scatter(new Vector2(11f), count: 3, radius: 0.5f, radiusJitter: 0.5f, elongation: 0.85f, heightJitter: 0.4f, flatness: 0.15f);
+            Surface mossy = new Surface(Paint.Lerp(Rgb(36, 46, 18), Rgb(66, 78, 28), cushions.Height), 0.94f, (cushions.Cover * 0.38f + cushions.Height * 0.3f) * moss) { Subsurface = 0.25f };
+            floor = floor.Stack(mossy, 0.03f);
+
+            // A cone is a little longer than it's wide, its scales a faint ridging across it, which from up here is only a roughness.
+            Stones cones = c.Scatter(new Vector2(4f), count: 1, radius: 0.16f, radiusJitter: 0.25f, elongation: 1.7f, heightJitter: 0.3f);
+            Field show = cones.Id2.Threshold(0.45f, 0f);
+            Field scales = (cones.LocalX * 4f + c.Noise(60f, octaves: 2) * 0.6f).Sine(1f, 0.5f) * 0.05f;
+            Surface cone = new Surface((Paint)Rgb(78, 50, 30) * Field.Lerp(0.75f, 1.1f, cones.Height) * Field.Lerp(0.92f, 1f, scales * 20f), 0.8f, (cones.Cover * 0.5f + cones.Height * 0.4f + scales * cones.Cover) * show);
+            floor = floor.Stack(cone, 0.015f);
+            return floor.Stack(Twigs(c, 11f, 0.42f), 0.015f);
+        }
+
+        // Pine needles lying every way: long, very thin domes, the higher of two crossing showing, darker at their ends.
+        private static Surface FallenNeedles(Canvas c, float frequency, Vector3 colour, float lift)
+        {
+            Stones needles = c.Scatter(frequency, count: 4, radius: 0.36f, radiusJitter: 0.3f, elongation: 15f, heightJitter: 0.4f);
+            Field height = needles.Cover * lift + needles.Height * 0.3f;
+            Paint shade = (Paint)colour * Field.Lerp(0.68f, 1.18f, needles.Id) * Field.Lerp(0.8f, 1.04f, needles.LocalX.Abs().Invert());
+            return new Surface(shade, 0.8f, height);
+        }
+
+        // Red earth: iron-rich ground baked hard in the sun, lumpy, with fine cracks through some of it where it last dried, a dusting of paler red dust that the wind moves about, dark
+        // ironstone pebbles lying in it and the odd pale stone. The red is deep, as anything pale goes white under this sun.
+        private static Surface RedEarth(Canvas c)
+        {
+            Field lumps = c.Noise(5f, octaves: 5, gain: 0.5f);
+            Field crust = c.Noise(14f, octaves: 4, kind: NoiseKind.Billow);
+            // Cracks wander and come and go, as dried ground splits: never the straight edges of a cell, which read as paving.
+            Offsets wobble = c.Offsets(12f, octaves: 3);
+            Cells cracked = c.Cells(new Vector2(9f), jitter: 0.9f);
+            Field fades = c.Noise(7f, octaves: 3).Threshold(0.45f, 0.12f);
+            Field crack = cracked.Border.Warp(wobble, 0.018f).Smooth(0.004f, 0.026f).Max(fades.Invert()).Max(cracked.Id.Threshold(0.55f, 0f).Invert());
+            Field height = (lumps * 0.42f + crust * 0.16f + c.Noise(70f, octaves: 3) * 0.07f) * Field.Lerp(0.78f, 1f, crack);
+
+            Field dust = Patches(c, 5f, 0.4f, 0.25f);
+            Paint earth = c.Ramp(lumps, (0.1f, Rgb(58, 23, 12)), (0.5f, Rgb(88, 36, 17)), (0.9f, Rgb(114, 52, 25)));
+            earth = Paint.Lerp(earth, Rgb(124, 70, 42), dust * 0.42f) * Field.Lerp(0.86f, 1f, crack) * Field.Lerp(0.92f, 1.05f, c.Noise(30f, octaves: 3));
+            Surface ground = new Surface(earth, Field.Lerp(0.9f, 0.97f, dust), height);
+            ground = ground.Stack(LooseStones(c, 9f, 0.12f, Rgb(58, 30, 18), count: 1, lift: 0.42f), 0.02f);
+            return ground.Stack(LooseStones(c, 5f, 0.08f, Rgb(92, 74, 58), count: 1, lift: 0.48f), 0.02f);
+        }
+
+        // The floor of a broadleaf wood: last year's leaves in drifts over dark soil, the oldest dark and half rotted, the newer russet, a few still yellow, each lying near flat with its
+        // edges curled up a little and a darker vein down its middle, twigs among them. The drifts are many to a tile, as a few big ones repeat.
+        private static Surface LeafLitter(Canvas c)
+        {
+            Field lumps = c.Noise(6f, octaves: 5, gain: 0.5f);
+            Surface soil = new Surface(Paint.Lerp(Rgb(24, 17, 11), Rgb(42, 29, 19), lumps), 0.95f, lumps * 0.26f);
+            Surface older = FallenLeaves(c, 12f, Rgb(56, 40, 27), 0.34f);
+            Surface newer = FallenLeaves(c, 10f, Rgb(96, 58, 30), 0.48f);
+            Surface yellow = FallenLeaves(c, 7f, Rgb(110, 80, 26), 0.56f);
+            Field drifts = Patches(c, 5f, 0.55f, 0.2f);
+            Field few = c.Noise(9f, octaves: 2).Threshold(0.62f, 0.08f);
+            Surface floor = soil.Stack(older, 0.02f).Stack(newer with { Height = newer.Height * drifts.Max(0.3f) }, 0.02f);
+            floor = floor.Stack(yellow with { Height = yellow.Height * drifts * few }, 0.02f);
+            // Twigs lie among the leaves, half under them.
+            return floor.Stack(Twigs(c, 12f, 0.4f), 0.015f);
+        }
+
+        // Leaves lying every way, near flat: an oval each, its edge curled up a little and a darker vein along its middle.
+        private static Surface FallenLeaves(Canvas c, float frequency, Vector3 colour, float lift)
+        {
+            Stones leaves = c.Scatter(frequency, count: 3, radius: 0.42f, radiusJitter: 0.35f, elongation: 1.7f, heightJitter: 0.3f, flatness: 0.75f);
+            Field curl = leaves.Out.Smooth(0.6f, 1f) * leaves.Cover * 0.08f;
+            Field vein = leaves.LocalY.Abs().Smooth(0f, 0.1f);
+            Field height = leaves.Cover * lift + leaves.Height * 0.1f + curl;
+            Paint shade = ((Paint)colour * Field.Lerp(0.7f, 1.2f, leaves.Id) * Field.Lerp(0.82f, 1f, vein)).Jitter(leaves.Id, 0.04f, 0.2f, 0.12f);
+            return new Surface(shade, 0.86f, height);
+        }
     }
 }

@@ -69,6 +69,37 @@ namespace Dino_Engine.Modelling.Procedural.Character
             return BodyForm.Spread(dressed.Build(bones: true));
         }
 
+        /// <summary>
+        /// A body that isn't a person's, on the same rig, with what it holds in its hands: a weapon in the right, and a shield or a second weapon in the left, put where a hero's go. Nothing else is worn.
+        /// </summary>
+        /// <param name="body">Nothing for no body at all: only what's held, in the air where hands would be, for what's wielded by nobody that can be seen.</param>
+        /// <param name="held">What it holds, and which hand: 1 is the left.</param>
+        public static Mesh Hold(Mesh? body, IReadOnlyList<(GearSpec spec, float side)> held)
+        {
+            var dressed = new GearMesh();
+            foreach ((GearSpec spec, float side) in held)
+            {
+                GearMesh piece = GearForge.Make(spec);
+                switch (spec.Kind)
+                {
+                    case GearKind.OffHand:
+                        piece.SetBone((int)BoneType.HandL);
+                        dressed.At(HumanoidGenerator.OffHand, () => dressed.Add(piece));
+                        break;
+                    case GearKind.Bow:
+                        piece.SetBone((int)BoneType.HandL);
+                        dressed.At(HumanoidGenerator.BowHand, () => dressed.Add(piece));
+                        break;
+                    default:
+                        piece.SetBone((int)(side > 0f ? BoneType.HandL : BoneType.HandR));
+                        dressed.At(side > 0f ? HumanoidGenerator.SecondHand : HumanoidGenerator.MainHand, () => dressed.Add(piece));
+                        break;
+                }
+            }
+            if (body is Mesh shown) dressed.Add(shown);
+            return BodyForm.Spread(dressed.Build(bones: true));
+        }
+
         // How far forward a chest comes, for what lies on it.
         private static float FrontOf(GearMesh piece)
         {

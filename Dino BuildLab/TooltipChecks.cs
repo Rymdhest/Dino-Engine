@@ -29,7 +29,7 @@ namespace Dino_BuildLab
 
             report.Section("Tooltips: the words mean one thing");
             Vocabulary(report);
-            Sentences(report);
+            Wording(report);
 
             report.Section("Tooltips: no number is typed by hand");
             HandTyped(report);
@@ -105,7 +105,7 @@ namespace Dino_BuildLab
         {
             ActorSheet sheet = Everyone();
             foreach (BookPlan skill in Shelf.All) yield return Cards.Book(sheet.Preview(skill));
-            foreach (Sentence sentence in Dino_Defenders.Books.Sentences.All) yield return Cards.Sentence(sentence);
+            foreach (Phrase phrase in Dino_Defenders.Books.Phrases.All) yield return Cards.Phrase(phrase);
 
             var finds = new Dino_Engine.World.WorldRandom(31);
             for (int i = 0; i < 300; i++)
@@ -113,9 +113,9 @@ namespace Dino_BuildLab
                 Item found = ItemGenerator.Folio(20, finds.Fork(i), (Rarity)(i % 3));
                 yield return Cards.Priced(found, sheet, Cards.KindOf(found));
             }
-            foreach (string name in Dino_Defenders.Books.Stickers.Names)
+            foreach (string name in Dino_Defenders.Books.Sentences.Names)
             {
-                Item stuck = ItemGenerator.StickerItem(Dino_Defenders.Books.Stickers.Written(name)!, 1, 1, Rarity.Normal);
+                Item stuck = ItemGenerator.SentenceItem(Dino_Defenders.Books.Sentences.Written(name)!, 1, 1, Rarity.Normal);
                 yield return Cards.Priced(stuck, sheet, Cards.KindOf(stuck));
             }
             foreach (BuffDefinition buff in BuffCatalog.All) yield return Cards.Buff(buff, sheet);
@@ -159,7 +159,7 @@ namespace Dino_BuildLab
                 foreach (string line in card.Words()) yield return (card.Title, line);
             }
             foreach (Term term in Lexicon.All) yield return (term.Name, term.Says);
-            foreach (Sentence sentence in Dino_Defenders.Books.Sentences.All) yield return (sentence.Id, sentence.Words);
+            foreach (Phrase phrase in Dino_Defenders.Books.Phrases.All) yield return (phrase.Id, phrase.Words);
             foreach (OmenDefinition omen in Omens.All)
             {
                 foreach (Tier tier in omen.Tiers) yield return (omen.Name, omen.Describe(tier.Low));
@@ -229,6 +229,18 @@ namespace Dino_BuildLab
             }
 
             report.Note($"{count} different sentences");
+            // A card's tags are what its modifiers are about, and a rule is about what it says it is, and nothing else: a rule is a number, and testing its bits once tagged a unique with one rule with nearly everything.
+            var swollen = new List<string>();
+            foreach (UniqueDefinition unique in UniqueCatalog.All)
+            {
+                Tags all = Cards.TagsOf(unique.Mods);
+                Tags each = Tags.None;
+                foreach (Mod mod in unique.Mods) each |= Cards.TagsOf(new[] { mod });
+                Tags fromRules = Tags.None;
+                foreach (Mod mod in unique.Mods.Where(mod => mod.Kind == ModKind.Rule)) fromRules |= ModText.Of(mod.Rule)?.Touches ?? Tags.None;
+                if (all != each || (Cards.TagsOf(unique.Mods.Where(mod => mod.Kind == ModKind.Rule)) & ~fromRules) != Tags.None) swollen.Add(unique.Name);
+            }
+            report.Check("A unique's tags are only what its lines are about", swollen.Count == 0 && Cards.TagsOf(UniqueCatalog.Find("round-the-houses")!.Mods) == (ModText.Of(Rule.FullCircle)!.Touches | Cards.TagsOf(new[] { More(Stat.AttackSpeed, -35f) })), string.Join(", ", swollen.Take(8)));
             report.Check("Every capitalised word in every sentence is a defined term", unknown.Count == 0, string.Join(" | ", unknown.Take(40).Select(pair => $"'{pair.Key}' in {pair.Value}")));
             report.Check("And no term is written without its capital, as then nothing explains it", lower.Count == 0, string.Join(" | ", lower.Take(40).Select(pair => $"'{pair.Key}' in {pair.Value}")));
 
@@ -254,7 +266,7 @@ namespace Dino_BuildLab
         }
 
         // Each part of a modifier has to be in its sentence, and each kind has to use its own words and no other's.
-        private static void Sentences(Report report)
+        private static void Wording(Report report)
         {
             var wrongWord = new List<string>();
             var lostScope = new List<string>();

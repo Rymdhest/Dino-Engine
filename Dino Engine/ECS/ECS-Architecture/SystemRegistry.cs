@@ -63,6 +63,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             Systems.Add(new GrassCollisionDisplaceSystem());
             Systems.Add(new PlantContactSystem());
+            Systems.Add(new SnowTrailSystem());
             Systems.Add(new RenderSpatialGridSystem());
 
             // render

@@ -380,7 +380,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         {
             if (body.Scutes <= 0f) return;
             SaurianAxis axis = body.Axis;
-            float spacing = body.Scutes * 2.6f;
+            float spacing = body.Scutes * body.Species.ScuteSpacing;
             for (float at = body.NeckAt + (body.HeadAt - body.NeckAt) * 0.5f; at > body.HipAt * 0.3f; at -= spacing)
             {
                 float size = body.Scutes * (0.7f + 0.3f * FloraWave(at * 3.1f));

@@ -66,7 +66,10 @@ namespace Dino_Defenders.Stats
         public readonly int Chains;
         public readonly int MinionCount;
 
-        /// <summary>What sentences and the rest of a build have made of everything it does.</summary>
+        /// <summary>How long what it raises lasts, as a multiple of <see cref="Rulebook.MinionSeconds"/>: whatever a build has, and whatever's rolled on the page.</summary>
+        public readonly float MinionDuration;
+
+        /// <summary>What phrases and the rest of a build have made of everything it does.</summary>
         public readonly float Potency;
 
         public readonly float CritChance;
@@ -156,7 +159,7 @@ namespace Dino_Defenders.Stats
             speed.Merge(sheet.Collect(Stat.UseSpeed, all, page));
             UseTime = useTime / MathF.Max(speed.Apply(1f), 0.05f);
 
-            Cost = MathF.Max(sheet.Total(Stat.BookCost, page.Cost * CostAtLevel(sheet.Loadout.Level), all, page), 0f);
+            Cost = MathF.Max(MathF.Round(sheet.Total(Stat.BookCost, page.Cost * CostAtLevel(sheet.Loadout.Level), all, page)), 0f);
             Cooldown = sheet.Has(Rule.LongCount) ? page.Cooldown : page.Cooldown / MathF.Max(sheet.Total(Stat.CooldownRecovery, 100f, all, page) / 100f, 0.05f);
 
             // Reaching.
@@ -172,6 +175,7 @@ namespace Dino_Defenders.Stats
             Pierce = Math.Max((int)MathF.Round(sheet.Total(Stat.Pierce, page.Pierce, all, page)), 0);
             Chains = Math.Max((int)MathF.Round(sheet.Total(Stat.Chain, page.Chains, all, page)), 0);
             MinionCount = Math.Max((int)MathF.Round(sheet.Total(Stat.MinionCount, page.MinionCount, all, page)), 0);
+            MinionDuration = MathF.Max(sheet.Total(Stat.MinionDuration, 1f, all, page), 0f);
 
             // Landing.
             CritChance = sheet.Has(Rule.NeverCrit) ? 0f : Math.Clamp(sheet.Total(Stat.CritChance, weapon.CritChance, all, page), 0f, 100f);

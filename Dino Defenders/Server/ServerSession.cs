@@ -301,6 +301,9 @@ namespace Dino_Defenders.Server
             if (actor.Owner != null)
             {
                 Minions.Remove(actor);
+
+                // A turret's stand goes with it, and what it held falls.
+                if (actor.Stand.IsValid() && ecs.TryGetEntityLocation(actor.Stand, out _, out _)) ecs.DestroyEntity(actor.Stand);
                 return;
             }
             if (_risen.Remove(actor))
@@ -442,7 +445,11 @@ namespace Dino_Defenders.Server
         public void Summon(Actor owner, PageProfile page, Vector2 at)
         {
             if (Bestiary.Minion(page.Page.Minion) is not EnemyKind kind) return;
-            Loadout loadout = Bestiary.MinionOf(owner.Loadout, owner.Sheet, kind);
+            BookPlan? book = Scribe.ForMinions(page.Page.MinionBook);
+            Loadout loadout = Bestiary.MinionOf(owner.Loadout, owner.Sheet, kind, page.Page.MinionWeapon, page.Page.MinionOffHand, book);
+
+            // What it was given, it's seen holding.
+            string looks = MinionLooks.Of(kind.Look, page.Page.MinionWeapon, page.Page.MinionOffHand);
 
             // A new call replaces whoever answered the last one, and there's only room for so many of anyone's.
             int most = Math.Min(page.MinionCount, Rulebook.MostMinions);
@@ -454,10 +461,11 @@ namespace Dino_Defenders.Server
             for (int i = 0; i < most; i++)
             {
                 float angle = i * MathF.Tau / MathF.Max(most, 1);
-                Vector2 spot = at + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 3f;
+                Vector2 spot = at + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * Rulebook.MinionRing;
                 if (!World.Passable.IsSet(spot)) spot = at;
-                Actor minion = Raise(owner, loadout, kind.Name, kind.Look, spot, kind == Bestiary.Hound ? 0.85f : 1f, kind.AggroRadius);
-                minion.MinionLeft = Rulebook.MinionSeconds * owner.Sheet.MinionDuration;
+                Actor minion = kind.Rooted ? SetDown(owner, loadout, kind, spot, looks) : Raise(owner, loadout, kind.Name, kind.Look, spot, kind == Bestiary.Hound ? 0.85f : 1f, kind.AggroRadius, pays: book != null, drawn: looks);
+                minion.Eager = book != null;
+                minion.MinionLeft = Rulebook.MinionSeconds * page.MinionDuration;
                 minion.MinionOf = page.Page.Minion;
             }
         }
@@ -468,6 +476,34 @@ namespace Dino_Defenders.Server
             if (actor.Player is ServerPlayer hero) Server.Carry(hero, to);
         }
 
+        // A turret: a stand set on the ground, which never moves, and over it the weapon it was given, wielded in the air by nobody that can be seen, so it swings and looses as anyone's would. The
+        // weapon is the turret, as far as anything is concerned, and the stand is only there to be seen, and goes when it does. It pays for nothing, so it shows no Mana, and nothing moves it.
+        private Actor SetDown(Actor owner, Loadout loadout, EnemyKind kind, Vector2 at, string wielded)
+        {
+            ECSWorld ecs = Server.Ecs;
+            float height = World.Height.Sample(at);
+            var position = new Vector3(at.X, height, at.Y);
+            var actor = new Actor(Team.Heroes, loadout, at, kind.RadiusAt(1f)) { Owner = owner, Body = kind.Look, Height = height, Rooted = true };
+            var enemy = new EnemyComponent { Name = kind.Name, Rarity = Rarity.Normal, Level = owner.Loadout.Level, Friendly = true };
+            var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = at, AggroRadius = kind.AggroRadius, LeashRadius = float.PositiveInfinity };
+            actor.Entity = ecs.CreateEntity(kind.Name,
+                new NetIdentityComponent(Server.Ghosts.NextId(), 1.5f),
+                new PositionComponent(position),
+                new RotationComponent(new Vector3(0f)),
+                new ScaleComponent(new Vector3(1f)),
+                new VisualComponent(wielded, VisualKind.Character),
+                new VelocityComponent(),
+                enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor));
+            actor.Stand = ecs.CreateEntity(kind.Name + " Stand",
+                new NetIdentityComponent(Server.Ghosts.NextId(), 1.5f),
+                new PositionComponent(position),
+                new RotationComponent(new Vector3(0f)),
+                new ScaleComponent(new Vector3(1f)),
+                new VisualComponent(MinionLooks.Stand, VisualKind.Prop));
+            Minions.Add(actor);
+            return actor;
+        }
+
         /// <summary>Stands a fallen enemy back up on its killer's side, with everything it had.</summary>
         public void RaiseFallen(Actor killer, Actor victim)
         {
@@ -475,16 +511,22 @@ namespace Dino_Defenders.Server
             risen.MinionLeft = Rulebook.RisenSeconds * killer.Sheet.MinionDuration;
         }
 
-        private Actor Raise(Actor owner, Loadout loadout, string name, string model, Vector2 at, float scale, float aggro)
+        /// <param name="drawn">What it's drawn as, if not as its model: what it holds goes in the name, as a body grown with it.</param>
+        private Actor Raise(Actor owner, Loadout loadout, string name, string model, Vector2 at, float scale, float aggro, bool pays = false, string? drawn = null)
         {
             ECSWorld ecs = Server.Ecs;
             float height = World.Height.Sample(at);
-            var actor = new Actor(Team.Heroes, loadout, at, WorldData.CharacterRadius * scale) { Owner = owner, Body = model, Height = height };
+            var actor = new Actor(Team.Heroes, loadout, at, WorldData.CharacterRadius * scale) { Owner = owner, Body = model, Height = height, Pays = pays };
 
             var enemy = new EnemyComponent { Name = name, Rarity = Rarity.Normal, Level = owner.Loadout.Level, Friendly = true };
             var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = owner.Position, AggroRadius = aggro, LeashRadius = 45f };
             var position = new Vector3(at.X, height, at.Y);
-            actor.Entity = ecs.CreateEntity(name, Bodies.Walking(Server, model, position, scale, 1.5f, enemy, brain, new HealthComponent(loadout.SheetFor(Condition.None).MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            ActorSheet sheet = loadout.SheetFor(Condition.None);
+            var parts = new List<IComponent> { enemy, brain, new HealthComponent(sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor) };
+
+            // What pays for what it does shows how much it has left to pay with.
+            if (pays) parts.Add(new ManaComponent { Current = actor.Vitals.Mana, Max = sheet.MaxMana });
+            actor.Entity = ecs.CreateEntity(name, Bodies.Walking(Server, drawn ?? model, position, scale, 1.5f, parts.ToArray()));
             Minions.Add(actor);
             return actor;
         }

@@ -206,7 +206,7 @@ A book is gear like anything else: one mesh from `BookGenerator`, by `GearKind.B
 
 The one that's being read shows open, wherever it shows (`BookPanel.IsOpen`, `Ui.DrawItem`). That's the only other mesh anything has: `GearKind.OpenBook` draws from the genes of `Book`, by the same names, so it's the same book laid open and `check` fails if it isn't. No item is ever that kind, so nothing but `Wardrobe.Picture` asks for it, and until there's a picture of it the shut one shows.
 
-A page is `GearKind.Page` and a sticker `GearKind.Sticker`, one mesh each like anything else. Nothing about a look says what's on one, so `Ui.DrawPlaces` puts what matters on the picture: which kind of page, and how many places something has with how many taken.
+A page is `GearKind.Page` and a sentence `GearKind.Sentence`, one mesh each like anything else: a page a sheet with lines on it, and a sentence a narrow slip cut from one, its ends curling, with one line written along it, an inked capital and a stop (`BookGenerator.Slip`). Nothing about a look says what's on one, so `Ui.DrawPlaces` puts what matters on the picture: which kind of page, and how many places something has with how many taken.
 
 Orders are `GearKind.Orders` (`BookGenerator.Orders`): parchment rolled and tied in oxblood and sealed in oxblood wax pressed with brass, as they're the Reich's own and those are its colours. A roll can be one or a bundle of two or three, rolled tighter at one end with its inner turns slipping out, and better orders are tied more often and come in a leather case with brass caps. Nothing about the look says what's in them: their card does. `variety --kind Orders` holds that no two are alike.
 

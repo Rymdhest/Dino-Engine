@@ -111,6 +111,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _terrainShader.loadUniformInt("surfaceWeightsB", 10);
             _terrainShader.loadUniformInt("surfaceWeightsC", 11);
             Simulation.WeatherRenderer.LinkSurfaceSamplers(_terrainShader);
+            _terrainShader.loadUniformInt("snowTrail", Simulation.SnowTrailRenderer.Unit);
 
             _terrainShader.unBind();
 
@@ -329,6 +330,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             SurfaceMaterial.Setts => TextureGenerator.setts,
             SurfaceMaterial.Farmland => TextureGenerator.farmland,
             SurfaceMaterial.Flagstones => TextureGenerator.flagstones,
+            SurfaceMaterial.Needles => TextureGenerator.needles,
+            SurfaceMaterial.RedEarth => TextureGenerator.redEarth,
+            SurfaceMaterial.Litter => TextureGenerator.litter,
+            SurfaceMaterial.Shingle => TextureGenerator.pebbles,
             _ => TextureGenerator.soil,
         };
 
@@ -516,6 +521,10 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, roadInfoTextureArray);
             _terrainShader.loadUniformFloat("roadMaterial", TextureGenerator.roadDirt);
             _terrainShader.loadUniformFloat("settsMaterial", TextureGenerator.setts);
+            _terrainShader.loadUniformFloat("snowMaterial", TextureGenerator.snow);
+            GL.ActiveTexture(TextureUnit.Texture0 + Simulation.SnowTrailRenderer.Unit);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._snowTrailRenderer.Texture);
+            _terrainShader.loadUniformVector4f("snowTrailRegion", renderEngine._snowTrailRenderer.Region);
 
             GL.ActiveTexture(TextureUnit.Texture6);
             GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);

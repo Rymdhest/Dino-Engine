@@ -14,7 +14,7 @@ namespace Dino_NetLab
 {
     /// <summary>
     /// What a book says, against what a running server does with it. A sentence that reads well and does something else is the worst thing this system could have, so everything here is a page as it could be found,
-    /// with what could be stuck on it, let off for real, and looked for in the world.
+    /// with what could be written on it, let off for real, and looked for in the world.
     /// </summary>
     internal static class BookTests
     {
@@ -24,18 +24,18 @@ namespace Dino_NetLab
 
         private static Outcome Deal() => new Outcome();
 
-        private static Page Flight(params string[] stickers)
+        private static Page Flight(params string[] sentences)
         {
             Page page = Scribe.NewPage(PageKind.Projectile);
-            page.Stickers.AddRange(stickers.Select(name => Stickers.Written(name)!));
+            page.Sentences.AddRange(sentences.Select(name => Sentences.Written(name)!));
             return page;
         }
 
-        private static Page Area(string shape = "circle", params string[] stickers)
+        private static Page Area(string shape = "circle", params string[] sentences)
         {
             Page page = Scribe.NewPage(PageKind.Area);
             page.Shape = shape;
-            page.Stickers.AddRange(stickers.Select(name => Stickers.Written(name)!));
+            page.Sentences.AddRange(sentences.Select(name => Sentences.Written(name)!));
             return page;
         }
 
@@ -143,7 +143,7 @@ namespace Dino_NetLab
                 Actor far = arena.Dummy(East * 14f);
                 BookProfile cursor = Read(arena, Area("circle", "tight", "from-cursor"));
                 Cast(arena, cursor, East, 14f);
-                report.Check("Unless a sticker says from the cursor: then it happens where it was aimed", Arena.Lost(far) > 0f);
+                report.Check("Unless a sentence says from the cursor: then it happens where it was aimed", Arena.Lost(far) > 0f);
                 report.Check("And not where they're standing", Arena.Lost(near) == 0f);
             }
 
@@ -274,7 +274,7 @@ namespace Dino_NetLab
             {
                 BookProfile quick = Read(arena, Flight("swift").With(Deal()));
                 BookProfile slow = Read(arena, Flight("slow").With(Deal()));
-                report.Check("How fast it goes is what the sticker says", quick.First.Speed > Rulebook.ProjectileSpeed && slow.First.Speed < Rulebook.ProjectileSpeed);
+                report.Check("How fast it goes is what the sentence says", quick.First.Speed > Rulebook.ProjectileSpeed && slow.First.Speed < Rulebook.ProjectileSpeed);
                 Actor target = arena.Dummy(East * 24f);
                 Cast(arena, quick, East, 24f);
                 arena.Run(24f / quick.First.Speed + 0.1);
@@ -324,7 +324,7 @@ namespace Dino_NetLab
                 BookProfile meteor = Read(arena, Flight("falls", "grounded").With(Deal()), Area("circle").With(Deal()));
                 Cast(arena, meteor, East, 10f);
                 arena.Run(meteor.Delay + 0.3);
-                report.Check("Unless a sticker says the ground counts", Arena.Lost(beside) > 0f);
+                report.Check("Unless a sentence says the ground counts", Arena.Lost(beside) > 0f);
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
@@ -575,14 +575,111 @@ namespace Dino_NetLab
             {
                 Cast(arena, Read(arena, Area("circle", "from-cursor").With(new Outcome { Deed = "raise", Kin = "bones" })), East, 10f);
                 arena.Run(0.2);
-                report.Check("Raise a Minion, where it happens", arena.Session.Minions.Count == 2 && (arena.Session.Minions[0].Position - (arena.At + East * 10f)).Length < 6f, $"{arena.Session.Minions.Count}");
+                report.Check("Raise a Minion beside you, wherever you aimed, as raising is a Summon Page and nothing else", arena.Session.Minions.Count == 2 && arena.Session.Minions.All(minion => (minion.Position - arena.At).Length < Rulebook.MinionRing + 1.5f), $"{arena.Session.Minions.Count}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
                 Cast(arena, Read(arena, Flight().With(new Outcome { Deed = "raise", Kin = "bones" })), East, 10f);
+                arena.Run(0.2);
+                report.Check("One written as a projectile doesn't fly, and needs nobody to reach: it raises beside you at once", arena.Session.Minions.Count == 2 && arena.Session.Minions.All(minion => (minion.Position - arena.At).Length < Rulebook.MinionRing + 1.5f), $"{arena.Session.Minions.Count}");
+            }
+
+            // An area turns the page from everyone it reaches: what comes after starts from each of them.
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                PageProfile first = Read(arena, Area().With(Deal())).First;
+                Actor near = arena.Dummy(East * (first.Length * 0.6f));
+                Actor beyond = arena.Dummy(East * (first.Length * 0.6f + first.Length * 0.8f));
+                Cast(arena, Read(arena, Area().With(Deal()), Area().With(Deal())), East, 4f);
+                arena.Run(1.0);
+                report.Check("An Area Page can have a page after it, which starts from each Enemy it reached", Arena.Lost(near) > 0f && Arena.Lost(beyond) > 0f, $"{Arena.Lost(near)} near, {Arena.Lost(beyond)} beyond");
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                PageProfile first = Read(arena, Area().With(Deal())).First;
+                arena.Dummy(West * (first.Length + 20f));
+                Actor beyond = arena.Dummy(East * (first.Length * 1.4f));
+                Cast(arena, Read(arena, Area().With(Deal()), Area().With(Deal())), East, 4f);
+                arena.Run(1.0);
+                report.Check("  And one that reaches nobody turns nothing", Arena.Lost(beyond) == 0f, $"{Arena.Lost(beyond)}");
+            }
+
+            // Later in a book, it raises where the page before it struck, as an area would.
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                Actor struck = arena.Dummy(East * 14f);
+                Page after = Scribe.NewPage(PageKind.Summon, Hand.Spell).With(new Outcome { Deed = "raise", Kin = "bones" });
+                Cast(arena, Read(arena, Flight(), after), East, 14f);
                 arena.Run(1.5);
-                report.Check("A Minion raised by a projectile that reached nobody isn't", arena.Session.Minions.Count == 0, $"{arena.Session.Minions.Count}");
+                report.Check("A Summon Page after a Projectile raises where it struck, not beside you", arena.Session.Minions.Count == 2 && arena.Session.Minions.All(minion => (minion.Position - struck.Position).Length < Rulebook.MinionRing + 2.5f),
+                    string.Join(", ", arena.Session.Minions.Select(minion => $"{(minion.Position - struck.Position).Length:0.0} m from it")));
+            }
+
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                arena.Dummy(West * 14f);
+                Page after = Scribe.NewPage(PageKind.Summon, Hand.Spell).With(new Outcome { Deed = "raise", Kin = "bones" });
+                Cast(arena, Read(arena, Flight(), after), East, 14f);
+                arena.Run(1.5);
+                report.Check("  And a Projectile that reaches nobody raises nothing, as nothing turned the page", arena.Session.Minions.Count == 0, $"{arena.Session.Minions.Count}");
+            }
+
+            // A turret stands where it's raised and uses its book for nothing.
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                Actor target = arena.Dummy(East * 10f);
+                Item given = ItemGenerator.Copied(new Book { Pages = { Flight() } }, "Given", 5);
+                Page setting = Scribe.NewPage(PageKind.Summon, Hand.Spell).With(new Outcome { Deed = "raise", Kin = "turret" });
+                setting.MinionBook = given;
+                Cast(arena, Read(arena, setting), East, 4f);
+                arena.Run(0.2);
+                List<Actor> turrets = arena.Session.Minions.ToList();
+                Vector2 where = turrets.Count > 0 ? turrets[0].Position : default;
+                float full = turrets.Count > 0 ? turrets[0].Vitals.Mana : 0f;
+                arena.Run(5.0);
+                report.Check("A Turret Page sets down one Turret, which uses the Book it was given on an Enemy", turrets.Count == 1 && turrets[0].Rooted && turrets[0].Eager && turrets[0].Loadout.Books[0].Name == "Given" && Arena.Lost(target) > 0f,
+                    $"{turrets.Count}, {Arena.Lost(target)} dealt");
+                report.Check("  And never moves from where it was set", turrets.Count == 1 && (turrets[0].Position - where).Length < 0.01f, turrets.Count == 1 ? $"{(turrets[0].Position - where).Length} m" : "");
+                report.Check("  Its weapon is drawn in the air over a stand of its own", turrets.Count == 1 && arena.Session.Server.Ecs.GetEntityView(turrets[0].Entity).Get<VisualComponent>().Model.StartsWith(MinionLooks.HoverPrefix)
+                    && turrets[0].Stand.IsValid() && arena.Session.Server.Ecs.TryGetEntityLocation(turrets[0].Stand, out _, out _));
+                report.Check("  And pays nothing for it, so shows no Mana", turrets.Count == 1 && !turrets[0].Pays && turrets[0].Vitals.Mana >= full && !arena.Session.Server.Ecs.GetEntityView(turrets[0].Entity).Has<ManaComponent>());
+                arena.Run(Rulebook.MinionSeconds);
+                report.Check("  And when its time is up its stand goes with it", turrets.Count == 1 && turrets[0].Dead && !arena.Session.Server.Ecs.TryGetEntityLocation(turrets[0].Stand, out _, out _));
+            }
+
+            // Minions given a weapon and a book fight with them, as often as they can, and pay for it as a hero does.
+            using (var arena = new Arena(worlds, request, Hero()))
+            {
+                Actor target = arena.Dummy(East * 6f);
+                Item sword = ItemGenerator.Plain("Short Sword", 10, new Dino_Engine.World.WorldRandom(3));
+                Item given = ItemGenerator.Copied(new Book { Pages = { Flight() } }, "Given", 5);
+                Page calling = Scribe.NewPage(PageKind.Summon, Hand.Spell).With(new Outcome { Deed = "raise", Kin = "bones" });
+                calling.MinionWeapon = sword;
+                calling.MinionBook = given;
+                Cast(arena, Read(arena, calling), East, 4f);
+                arena.Run(0.2);
+
+                List<Actor> minions = arena.Session.Minions.ToList();
+                report.Check("Minions given a Book use that and nothing else, and strike with the Weapon they were given", minions.Count == 2 && minions.All(minion => minion.Pays && minion.Loadout.Books.Length == 1
+                    && minion.Loadout.Books[0].Name == "Given" && minion.Loadout.Weapon.Min == sword.Weapon().Min), $"{minions.Count}");
+                report.Check("  With a hero's Mana to pay for it, coming back as a hero's does", minions.All(minion => minion.Sheet.MaxMana == Rulebook.BaseMana && MathF.Abs(minion.Sheet.ManaRegen - Rulebook.BaseMana * Rulebook.ManaRefill / 100f) < 1e-3f),
+                    string.Join(", ", minions.Select(minion => $"{minion.Sheet.MaxMana}/{minion.Sheet.ManaRegen}")));
+                report.Check("  And their Mana is there for everyone to see", minions.All(minion => arena.Session.Server.Ecs.GetEntityView(minion.Entity).Has<ManaComponent>()));
+
+                float lowest = float.PositiveInfinity;
+                for (int step = 0; step < 24; step++)
+                {
+                    arena.Run(0.25);
+                    foreach (Actor minion in minions.Where(minion => !minion.Dead)) lowest = MathF.Min(lowest, minion.Vitals.Mana);
+                }
+                float cost = minions[0].Sheet.Profile(0).Cost;
+                report.Check("  They used it on an Enemy, and paid for each use", Arena.Lost(target) > 0f && cost > 0f && lowest < Rulebook.BaseMana - cost * 0.5f, $"{Arena.Lost(target)} dealt, {lowest} Mana at the lowest, {cost} a use");
+                report.Check("  And never spent what they didn't have", lowest >= 0f, $"{lowest}");
+
+                arena.Run(Rulebook.MinionSeconds);
+                report.Check("  They last as long as a Minion does, and then go", arena.Session.Minions.Count == 0, $"{arena.Session.Minions.Count}");
             }
 
             using (var arena = new Arena(worlds, request, Hero()))
@@ -643,7 +740,7 @@ namespace Dino_NetLab
 
             using (var arena = new Arena(worlds, request, Hero()))
             {
-                BookProfile zone = Read(arena, Area("circle").Lasting("lingering-long").With(Deal()));
+                BookProfile zone = Read(arena, Area("circle").Lasting("lingering").With(Deal()));
                 for (int i = 0; i < Rulebook.MostZones + 4; i++)
                 {
                     Cast(arena, zone, East, 4f);
@@ -835,7 +932,7 @@ namespace Dino_NetLab
         {
             // Two that one ring's worth of Mana Regeneration pays for and the rest of it doesn't.
             Book dearer = Shelf.Inferno.Source!.Copy();
-            dearer.Pages[0].Stickers.Add(new Sticker { Good = PageEffect.Potency, GoodBy = 10f, Bad = PageEffect.Cost, BadBy = 1f });
+            dearer.Pages[0].Sentences.Add(new Sentence { Good = PageEffect.Potency, GoodBy = 10f, Bad = PageEffect.Cost, BadBy = 1f });
             HeroState aura = Hero();
             aura.Bar[1] = ItemGenerator.Copied(dearer, "Inferno", 4);
             aura.Bar[2] = ItemGenerator.Copied(dearer, "Inferno Too", 5);
@@ -986,8 +1083,14 @@ namespace Dino_NetLab
         private static HeroState Stocked()
         {
             HeroState hero = Hero();
+
+            // The starter holds one Page, so it's given a line with room for a second, and one that makes every Page in it stronger, which both ends have to agree on.
+            Item starter = hero.Bar[0]!;
+            starter.Rarity = Rarity.Magic;
+            starter.Lines = new List<ItemLine> { new("book-pages", 1f), new("folio-potency", 12f) };
+            FolioAffixes.Fix(starter);
             hero.Pickup(new Item { Name = "Leaf", Slot = ItemSlot.Page, Level = 1, Seed = 3, Page = Scribe.NewPage(PageKind.Projectile), Held = new Item?[2] }, 0);
-            hero.Pickup(ItemGenerator.StickerItem(Stickers.Written("two-at-once")!, 5, 1, Rarity.Normal), 1);
+            hero.Pickup(ItemGenerator.SentenceItem(Sentences.Written("two-at-once")!, 5, 1, Rarity.Normal), 1);
             hero.Pickup(new Item { Name = "Empty Book", Slot = ItemSlot.Book, Level = 1, Seed = 6, Held = new Item?[1] }, 2);
             hero.Pickup(new Item { Name = "Spare Leaf", Slot = ItemSlot.Page, Level = 1, Seed = 8, Page = Scribe.NewPage(PageKind.Projectile), Held = new Item?[1] }, 3);
             return hero;
@@ -1014,7 +1117,7 @@ namespace Dino_NetLab
                 report.Check("  And what it comes to is the same on both ends", arena.Truth.Kit.Slots[0]!.Cost == player.Kit.Slots[0]!.Cost && arena.Truth.Kit.Slots[0]!.UseTime == player.Kit.Slots[0]!.UseTime);
 
                 player.Move(ItemPlace.Cell(1), book.In(0).In(1));
-                report.Check("  A Sticker stuck on a Page shows at once", player.Kit.Slots[0]!.First.Projectiles == 2 && client.Inventory[1] == null);
+                report.Check("  A Sentence written on a Page shows at once", player.Kit.Slots[0]!.First.Projectiles == 2 && client.Inventory[1] == null);
                 arena.Run(3);
                 report.Check("  And counts on the server", arena.Truth.Kit.Slots[0]!.First.Projectiles == 2 && Text(truth.Bar[0]) == Text(client.Bar[0]));
 

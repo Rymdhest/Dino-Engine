@@ -250,17 +250,26 @@ namespace Dino_Defenders.Server
         // Heroes are in an area when they look it, so a foot on the edge of one doesn't count. See GroundShape.HeroBodyShare.
         private static float BodyOf(Actor target, bool hostile) => hostile && target.IsHero ? target.Radius * GroundShape.HeroBodyShare : target.Radius;
 
-        /// <summary>Everyone on the other side from <paramref name="team"/> that a shape touches, which is the only way anyone is ever found to be in an area.</summary>
-        /// <summary>Everyone of the other side from <paramref name="team"/> that's touching a shape: the only way anyone is found to be in an area, which is what makes a mark true.</summary>
+        /// <summary>
+        /// Everyone of the other side from <paramref name="team"/> that's touching a shape and can be seen from where it goes off: the only way anyone is found to be in an area, which is what makes a mark true.
+        /// Someone behind a pillar or a fence is out of it, and the mark is drawn cut off there by the same blockers (<see cref="Sight"/>).
+        /// </summary>
         public void Within(in GroundShape shape, Team team, List<Actor> found)
         {
             _near.Clear();
             Grid.Foes(team, shape.Origin, shape.Extent, _near);
+            if (_near.Count == 0) return;
+            shape.Blockers(_session.World.Placement, _blockers);
             foreach (Actor foe in _near)
             {
-                if (shape.Covers(foe.Position, BodyOf(foe, team == Team.Enemies))) found.Add(foe);
+                if (shape.Covers(foe.Position, BodyOf(foe, team == Team.Enemies)) && Sight.Clear(_blockers, shape.Origin, foe.Position)) found.Add(foe);
             }
         }
+
+        private const float SightSlack = GroundShape.SightSlack;
+
+        private readonly List<Footprint> _blockers = new();
+        private readonly List<Footprint> _hops = new();     // For whatever leaps from one body to the next, which can't go through a wall either.
 
         // ---- What's coming.
 
@@ -336,7 +345,18 @@ namespace Dino_Defenders.Server
 
             PageProfile page = cast.Book.Pages[index];
             if (page.Page.Kind == PageKind.Area) Spread(cast, page, at, way);
+            else if (page.Page.Kind == PageKind.Summon) Call(cast, page, at, way);
             else Fire(cast, page, at, way, off);
+        }
+
+        // A Summon Page raises its Minions and does nothing else: beside whoever used it if it's the first page, and where the last struck if it isn't, as an area would. It has no impact, so it's the last.
+        private void Call(Cast cast, PageProfile page, Vector2 at, Vector2 way)
+        {
+            if (cast.Pulsing || !Spend(cast)) return;
+            if (page.Page.Index == 0) at = cast.Source.Position;
+            Announce(page, GroundShape.Circle(at, MinionRing), cast.Quiet);
+            _session.Summon(cast.Source, page, at);
+            if (page.Page.Last) RunOn(cast, at, way);
         }
 
         private void Turn(Cast cast, PageProfile page, Vector2 at, Vector2 way, Actor? off = null)
@@ -372,9 +392,10 @@ namespace Dino_Defenders.Server
         {
             _near.Clear();
             Grid.Foes(cast.Source.Team, around, SeekReach, _near);
+            Sight.Gather(_session.World.Placement, around, SeekReach + SightSlack, _hops);
             for (int i = _near.Count - 1; i >= 0; i--)
             {
-                if (cast.Struck.Contains(_near[i])) _near.RemoveAt(i);
+                if (cast.Struck.Contains(_near[i]) || !Sight.Clear(_hops, around, _near[i].Position)) _near.RemoveAt(i);
             }
             if (_near.Count == 0) return null;
             if (!nearest) return _near[_luck.Int(_near.Count)];
@@ -447,7 +468,7 @@ namespace Dino_Defenders.Server
             {
                 // A plain blow shows for itself, in the hands of whoever made it, which a pulse isn't, and one landing far from them isn't either.
                 if (page.Sign.Form != PageForm.Strike || cast.Pulsing || Remote(cast, page.Page)) Announce(page, shape, cast.Pulsing || cast.Quiet);
-                Cover(cast, page, shape, cast.Strength);
+                Cover(cast, page, shape, cast.Strength, turns: !cast.Pulsing);
             }
             if (page.Page.Last) RunOn(cast, shape.Origin, way);
         }
@@ -461,7 +482,8 @@ namespace Dino_Defenders.Server
 
         // Everything a shape has in it. An enemy is where the attacker saw it, which is where it was a moment ago: a client draws others slightly in the past, and a blow that connects on
         // screen has to connect. This tick's positions aren't recorded until it ends, so with no rewind, where it is now is the answer.
-        private void Cover(Cast cast, PageProfile page, in GroundShape shape, float strength, bool pulsing = false)
+        /// <param name="turns">Whether each Enemy it reaches is an impact the next page turns from, as an area that isn't the last of its book has: once when it lands, and a zone only on its first pulse.</param>
+        private void Cover(Cast cast, PageProfile page, in GroundShape shape, float strength, bool pulsing = false, bool turns = false)
         {
             Actor user = cast.Source;
             if (page.Page.Hostile)
@@ -469,15 +491,23 @@ namespace Dino_Defenders.Server
                 _found.Clear();
                 int rewind = user.IsHero && page.Page.Index == 0 ? Math.Clamp(cast.ViewLag, 0, MostRewind) : 0;
                 if (rewind == 0) Within(shape, user.Team, _found);
-                else Grid.Foes(user.Team, shape.Origin, shape.Extent + 2f, _found);
+                else
+                {
+                    Grid.Foes(user.Team, shape.Origin, shape.Extent + 2f, _found);
+                    shape.Blockers(_session.World.Placement, _blockers);
+                }
 
                 bool hostile = user.Team == Team.Enemies;
                 bool line = shape.Kind == ShapeKind.Line;
                 foreach (Actor foe in _found)
                 {
                     Vector2 position = rewind > 0 ? foe.PositionAgo(rewind, Server.Tick) : foe.Position;
-                    if (rewind > 0 && !shape.Covers(position, BodyOf(foe, hostile))) continue;
-                    Strike(cast, page, foe, strength, shape.Origin, line ? shape.Facing : position - shape.Origin);
+                    if (rewind > 0 && !(shape.Covers(position, BodyOf(foe, hostile)) && Sight.Clear(_blockers, shape.Origin, position))) continue;
+                    Vector2 way = line ? shape.Facing : position - shape.Origin;
+                    Strike(cast, page, foe, strength, shape.Origin, way);
+
+                    // Reaching someone is an impact, for an area as for anything: the next page starts from them, on the way out from where it was.
+                    if (turns && !page.Page.Last) Turn(cast, page, position, way.LengthSquared > 1e-4f ? way.Normalized() : shape.Facing, foe);
                 }
             }
             Do(cast, page, shape, strength, pulsing);
@@ -499,7 +529,7 @@ namespace Dino_Defenders.Server
         // A page that throws or drags, by how much it gives: the heaviest barely move, and a hero's feet are their own.
         private static void Thrust(Actor target, float speed, Vector2 from)
         {
-            if (target.IsHero || target.Still || target.Dead) return;
+            if (target.IsHero || target.Still || target.Rooted || target.Dead) return;
             Vector2 away = target.Position - from;
             if (away.LengthSquared < 0.01f) return;
             float give = (target.Nature & Condition.Boss) != 0 ? BossGive : (target.Nature & Condition.Rare) != 0 ? RareGive : 1f;
@@ -774,7 +804,7 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>
-        /// A flight has come to an end against something that isn't a body, or at the end of its range. Nothing's been reached, so that's no impact and the book stops there, unless what it hit was solid and a sticker
+        /// A flight has come to an end against something that isn't a body, or at the end of its range. Nothing's been reached, so that's no impact and the book stops there, unless what it hit was solid and a sentence
         /// says that counts.
         /// </summary>
         /// <param name="blocked">Whether it ended against something solid, rather than running out.</param>
@@ -799,12 +829,13 @@ namespace Dino_Defenders.Server
             bool back = cast.Source.Sheet.Has(Rule.ChainsBack);
             _chained.Clear();
             Grid.Foes(cast.Source.Team, at.Xz, ProjectileChainReach, _chained);
+            Sight.Gather(_session.World.Placement, at.Xz, ProjectileChainReach + SightSlack, _hops);
 
             Actor? next = null;
             float best = float.PositiveInfinity;
             foreach (Actor foe in _chained)
             {
-                if (foe == from || !back && projectile.Spent.Contains(foe)) continue;
+                if (foe == from || !back && projectile.Spent.Contains(foe) || !Sight.Clear(_hops, at.Xz, foe.Position)) continue;
                 float distance = (foe.Position - at.Xz).LengthSquared;
                 if (distance >= best) continue;
                 best = distance;
@@ -865,7 +896,8 @@ namespace Dino_Defenders.Server
         /// <summary>A zone's moment comes round: everything standing in it gets its share.</summary>
         public void Pulse(ZoneState zone)
         {
-            Cover(zone.Cast, zone.Page, zone.Shape, zone.Strength * zone.Page.PulseShare, pulsing: true);
+            Cover(zone.Cast, zone.Page, zone.Shape, zone.Strength * zone.Page.PulseShare, pulsing: true, turns: !zone.Turned && !zone.Cast.Pulsing);
+            zone.Turned = true;
         }
 
         // ---- Landing.
@@ -1100,12 +1132,13 @@ namespace Dino_Defenders.Server
         {
             _spread.Clear();
             Grid.Foes(source.Team, from.Position, OverkillReach, _spread);
+            Sight.Gather(_session.World.Placement, from.Position, OverkillReach + SightSlack, _hops);
             Actor? next = null;
             float best = float.PositiveInfinity;
             foreach (Actor foe in _spread)
             {
                 float distance = (foe.Position - from.Position).LengthSquared;
-                if (foe == from || foe.Dead || distance >= best) continue;
+                if (foe == from || foe.Dead || distance >= best || !Sight.Clear(_hops, from.Position, foe.Position)) continue;
                 best = distance;
                 next = foe;
             }
@@ -1232,8 +1265,9 @@ namespace Dino_Defenders.Server
 
         private void Blast(Actor source, Vector2 at, float radius, DamageType type, float amount, Tags tags, Actor? spared)
         {
+            // An explosion is an area like any other, and what's marked of it has to be true.
             _chained.Clear();
-            Grid.Foes(source.Team, at, radius, _chained);
+            Within(GroundShape.Circle(at, radius), source.Team, _chained);
             foreach (Actor foe in _chained)
             {
                 if (foe != spared) Harm(source, foe, amount, type, tags, at);
@@ -1364,9 +1398,10 @@ namespace Dino_Defenders.Server
         {
             _chained.Clear();
             Grid.Foes(source.Team, target.Position, ConductReach, _chained);
+            Sight.Gather(_session.World.Placement, target.Position, ConductReach + SightSlack, _hops);
             foreach (Actor foe in _chained)
             {
-                if (foe == target || !Conductive(source, foe)) continue;
+                if (foe == target || !Conductive(source, foe) || !Sight.Clear(_hops, target.Position, foe.Position)) continue;
                 Show(new LinkEvent { From = Ground(target.Position) + Vector3.UnitY, To = Ground(foe.Position) + Vector3.UnitY, Look = DamageType.Lightning }, target.Position);
                 Harm(source, foe, amount, DamageType.Lightning, Tags.Reaction);
             }
@@ -1620,6 +1655,7 @@ namespace Dino_Defenders.Server
             }
 
             Hits.Recover(sheet, ref actor.Vitals, seconds, actor.SinceHit);
+            if (!actor.IsHero && actor.Vitals.Mana < sheet.MaxMana) actor.Vitals.Mana = MathF.Min(actor.Vitals.Mana + sheet.ManaRegen * seconds, sheet.MaxMana);
 
             // A dummy left alone a while is as good as new, so that a second try starts where the first did.
             if (actor.Dummy && actor.SinceHit > DummyRest && actor.Vitals.Health < sheet.MaxHealth) actor.Vitals = Vitals.Full(sheet);
@@ -1826,10 +1862,11 @@ namespace Dino_Defenders.Server
             Afflictions from = victim.Afflictions;
             _chained.Clear();
             Grid.Foes(source.Team, victim.Position, AilmentLeapReach, _chained);
+            Sight.Gather(_session.World.Placement, victim.Position, AilmentLeapReach + SightSlack, _hops);
             foreach (Actor foe in _chained)
             {
                 // What it's spreading from can still be standing there, and has all of it already.
-                if (foe == victim) continue;
+                if (foe == victim || !Sight.Clear(_hops, victim.Position, foe.Position)) continue;
                 Afflictions to = foe.Afflictions;
                 if (from.BurnLeft > 0f && from.BurnPerSecond > to.BurnPerSecond)
                 {

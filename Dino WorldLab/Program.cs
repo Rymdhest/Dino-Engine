@@ -31,6 +31,8 @@ namespace Dino_WorldLab
             {
                 case "map":
                     return Map(options);
+                case "where":
+                    return Where(options);
                 case "sheet":
                     return Sheet(options);
                 case "plan":
@@ -69,6 +71,40 @@ namespace Dino_WorldLab
             string[] at = (options.Text("at") ?? "1000,1000").Split(',');
             Vector2 place = new Vector2(float.Parse(at[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(at[1], System.Globalization.CultureInfo.InvariantCulture));
             return ReliefCheck.View(options.Int("seed", 1), options.Text("archetype"), place, options.Int("span", 160), options.Int("angle", 67), options.Int("yaw", 0), options.Int("width", 1100), options.Int("height", 700), options.Text("out") ?? "view.png", options.Text("plain") == "true");
+        }
+
+        // Where things are in a world, for pointing the game at them (--at x,z): every site with the way it builds, and every object whose model id starts with --what.
+        private static int Where(Options options)
+        {
+            int seed = options.Int("seed", 1);
+            WorldData world = new WorldGenerator().Generate(new WorldRequest(seed, options.Text("archetype")));
+            Describe(world, 0);
+            foreach (WorldSite site in world.Sites)
+            {
+                Console.WriteLine($"  {site.Kind,-14} {site.Name,-24} at {site.Position.X:0},{site.Position.Y:0}  {world.Plan.Biomes[site.Biome].Name}, built in {world.StyleOf(site)}");
+            }
+            string? what = options.Text("what");
+            Vector2? near = null;
+            if (options.Text("near") is string spot)
+            {
+                string[] parts = spot.Split(',');
+                near = new Vector2(float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+                what ??= "";
+                Console.WriteLine($"  at {near.Value.X:0},{near.Value.Y:0}: {world.BiomeAt(near.Value).Name}, height {world.Height.Sample(near.Value):0.0} m, slope {world.Elevation.SlopeAt(near.Value):0.00}, {(world.Passable.IsSet(near.Value) ? "passable" : "not passable")}");
+            }
+            if (what == null) return 0;
+            float within = options.Int("within", 20);
+            int shown = 0, found = 0;
+            foreach (WorldObject item in world.Objects.All())
+            {
+                string id = world.Objects.AssetIds[item.Asset];
+                if (!id.StartsWith(what, StringComparison.Ordinal)) continue;
+                if (near is Vector2 centre && (item.Position.Xz - centre).Length > within) continue;
+                found++;
+                if (shown++ < options.Int("most", 40)) Console.WriteLine($"  {id} at {item.Position.X:0.0},{item.Position.Z:0.0}");
+            }
+            Console.WriteLine($"{found} objects starting '{what}'.");
+            return 0;
         }
 
         private static int Map(Options options)
@@ -307,7 +343,10 @@ namespace Dino_WorldLab
             var biomes = string.Join(", ", plan.Biomes.Select((b, i) => $"{b.Name} {plan.BiomeShares[i]:P0}"));
             float roadKm = world.Roads.Sum(r => r.Length) / 1000f;
             var sites = string.Join(" ", world.Sites.GroupBy(s => s.Kind).Select(g => $"{g.Key}:{g.Count()}"));
-            Console.WriteLine($"[{plan.Seed}] {plan.Name} ({plan.Archetype.Id}, {plan.Size:0} m, {seconds:0.00} s, {world.ReachableArea / 1e6f:0.00} km2, {roadKm:0.0} km road, built in {world.Style}): {biomes}");
+            // Each site builds as its land decides, or as the world's people do: name every way this world's settled places build.
+            var settled = world.Sites.Where(s => s.Kind is SiteKind.Village or SiteKind.Hamlet or SiteKind.Farmstead or SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.Watchtower);
+            string built = string.Join("/", settled.Select(world.StyleOf).Distinct().DefaultIfEmpty(world.Style));
+            Console.WriteLine($"[{plan.Seed}] {plan.Name} ({plan.Archetype.Id}, {plan.Size:0} m, {seconds:0.00} s, {world.ReachableArea / 1e6f:0.00} km2, {roadKm:0.0} km road, built in {built}): {biomes}");
             Console.WriteLine($"      {sites}");
             Console.WriteLine($"      {world.Objects.Count} objects, {world.Placement.Count} footprints, {world.Ponds.Count} ponds | " +
                 string.Join(" ", world.Timings.Select(t => $"{t.stage.Replace("Stage", "")}:{t.milliseconds:0}")));

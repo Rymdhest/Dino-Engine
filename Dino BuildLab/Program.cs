@@ -12,8 +12,8 @@ namespace Dino_BuildLab
     ///   density [--seed N] [--count N] [--level N] [--archetype id]   How much there is to fight in a world, and how long it is between fights.
     ///   loot [--level N]   What each source gives, what a whole world comes to, and the longest dry spells.
     ///   lands [--rolls N]   What a land of each level holds, and what each omen and unique orders comes to.
-    ///   books [--level N] [--weapon sword|wand|bow]   What every sentence comes to on a plain page, and what's on the shelf comes to.
-    ///   lookup [--find words] [--type weapon|armour|jewellery|sticker|orders] [--kind Ring] [--order slot|name|level] [--level N]   Every unique a search finds, as the beta vendor's lookup does.
+    ///   books [--level N] [--weapon sword|wand|bow]   What every phrase comes to on a plain page, and what's on the shelf comes to.
+    ///   lookup [--find words] [--type weapon|armour|jewellery|sentence|orders] [--kind Ring] [--order slot|name|level] [--level N]   Every unique a search finds, as the beta vendor's lookup does.
     /// </summary>
     internal static class Program
     {

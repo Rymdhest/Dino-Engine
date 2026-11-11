@@ -56,8 +56,8 @@ namespace Dino_Defenders.Stats
         public const float BoxLength = 11f;
         public const float BoxWidth = 4f;
         public const float PulseInterval = 0.5f;        // Seconds between a lingering page's pulses.
-        public const float LingerShort = 4f;            // Seconds.
-        public const float LingerLong = 8f;
+        public const float LingerTime = 4f;             // Seconds a lingering area lasts, before sentences make it longer or shorter.
+        public const float WaterLinger = 8f;            // Seconds the water a written book makes stands, as it's no use to anyone gone at once.
         public const float LingerPremium = 1.5f;        // What a lingering page does over its whole length, of what it says, as anything can walk out of it.
         public const float RainScatter = 3f;            // Metres apart that several falling at once come down, if nothing says.
         public const float RestShort = 4f;              // Seconds.
@@ -74,14 +74,15 @@ namespace Dino_Defenders.Stats
 
         // How far a book can go, however it's written. No number on a page can stop one branching, so these do.
         public const int MostPages = 6;
-        public const int MostStickers = 5;              // On a page.
+        public const float MinionRing = 3f;             // Metres from whoever raised them, where Minions stand up.
+        public const int MostSentences = 5;              // On a page.
         public const float AuraPulse = 1f;              // Seconds between a Toggle Book's pulses, at bare hands' pace.
         public const float FastestAura = 0.25f;         // Seconds. However it's quickened, it goes no faster than this.
         public const float AuraStrength = 0.4f;         // Of what its pages would do if they were used by hand.
         public const float LeastToggleCost = 1f;        // Mana Regeneration. A page that costs nothing can't be left on for nothing.
-        public const int MostProjectiles = 12;          // From a page, whatever's been stuck on it.
-        public const float MostStickerGood = 130f;      // What any sticker can say, which is also what a save can claim.
-        public const float MostStickerBad = 60f;
+        public const int MostProjectiles = 12;          // From a page, whatever sentences are on it.
+        public const float MostSentenceGood = 130f;      // What any sentence can say, which is also what a save can claim.
+        public const float MostSentenceBad = 60f;
         public const int MostMade = 48;                 // Projectiles and areas from one use.
         public const int MostZones = 6;                 // Lingering areas from one caster.
         public const int MostMinions = 12;              // From one caster, the oldest going first.
@@ -196,7 +197,7 @@ namespace Dino_Defenders.Stats
         // Company.
         public const float AlliesReach = 24f;           // Metres, for what counts allies near you.
         public const float RisenSeconds = 20f;
-        public const float MinionSeconds = 40f;         // How long what a page raises stays.
+        public const float MinionSeconds = 10f;         // How long what a page raises stays, before anything makes it longer.
         public const float RisenDelay = 0.8f;           // Seconds from falling to rising.
         public const float RisenHealthLess = 40f;       // Percent less than it had.
 

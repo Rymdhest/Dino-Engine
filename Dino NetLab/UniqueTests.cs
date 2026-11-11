@@ -524,11 +524,17 @@ namespace Dino_NetLab
             {
                 Actor caster = Wielder(arena, "second-opinion", new[] { Shelf.Lance }, Wand);
                 Actor target = Near(arena, East * 3f);
-                float single = Blow(arena, caster, target);
+                // A hit is rolled within its spread, so what one comes to is the average of many, and so is what a cast comes to: one of each was a coin toss either side of twice.
+                const int Tries = 40;
+                float single = 0f;
+                for (int i = 0; i < Tries; i++) single += Blow(arena, caster, target) / Tries;
                 float before = Arena.Lost(target);
-                Release(arena, caster, East, 3f);
-                arena.Run(0.1);
-                report.Near("Second Opinion: a Spell Hits twice", (Arena.Lost(target) - before) / single, 2f, 0.05f);
+                for (int i = 0; i < Tries / 2; i++)
+                {
+                    Release(arena, caster, East, 3f);
+                    arena.Run(0.1);
+                }
+                report.Near("Second Opinion: a Spell Hits twice", (Arena.Lost(target) - before) / (Tries / 2) / single, 2f, 0.05f);
             }
 
             using (Arena arena = Enter(worlds, request))

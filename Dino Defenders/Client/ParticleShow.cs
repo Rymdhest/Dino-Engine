@@ -4,6 +4,7 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Particles;
 using Dino_Engine.Particles.Content;
+using Dino_Engine.World;
 using OpenTK.Mathematics;
 
 namespace Dino_Defenders.Client
@@ -102,23 +103,74 @@ namespace Dino_Defenders.Client
         }
     }
 
-    /// <summary>A piece of ground, as an effect covers it.</summary>
+    /// <summary>
+    /// A piece of ground, as an effect covers it. Given the world, it's only what a line from the shape's origin reaches, as the blow does (<see cref="Sight"/>): fire doesn't burn on the far side of a fence
+    /// that the mark and the blow both stop at.
+    /// </summary>
     public sealed class GroundArea : IEffectArea
     {
-        public GroundShape Shape;
+        private const int Tries = 12;           // Places drawn before giving up on finding one in sight, for a shape nearly all behind something.
+        private const int Samples = 64;         // Places looked at to know how much of it is in sight.
 
-        public GroundArea(GroundShape shape)
+        private readonly PlacementIndex? _placement;
+        private readonly List<Footprint> _blockers = new();
+        private GroundShape _shape;
+        private float _seen = 1f;
+        private bool _known;
+
+        public GroundArea(GroundShape shape, WorldData? world = null)
         {
+            _placement = world?.Placement;
             Shape = shape;
         }
 
-        public Vector2 Anywhere(float u, float v) => Shape.Anywhere(u, v);
-
-        public float SquareMetres => Shape.Kind switch
+        public GroundShape Shape
         {
-            ShapeKind.Circle => MathF.PI * Shape.Length * Shape.Length,
-            ShapeKind.Sector => 0.5f * Shape.Width * Shape.Length * Shape.Length,
-            _ => Shape.Length * Shape.Width * 2f,
+            get => _shape;
+            set
+            {
+                if (_known && value == _shape) return;
+                _known = true;
+                _shape = value;
+                _blockers.Clear();
+                _seen = 1f;
+                if (_placement == null) return;
+                value.Blockers(_placement, _blockers);
+                if (_blockers.Count == 0) return;
+                int clear = 0;
+                for (int i = 0; i < Samples; i++)
+                {
+                    if (Sight.Clear(_blockers, value.Origin, value.Anywhere((i + 0.5f) / Samples, Fraction(i * 0.618034f)))) clear++;
+                }
+                _seen = MathF.Max(clear, 1) / (float)Samples;
+            }
+        }
+
+        /// <summary>Whether anything stands in the way of some of it.</summary>
+        public bool Cut => _blockers.Count > 0;
+
+        public Vector2 Anywhere(float u, float v)
+        {
+            Vector2 point = _shape.Anywhere(u, v);
+            if (_blockers.Count == 0) return point;
+            for (int i = 0; i < Tries; i++)
+            {
+                if (Sight.Clear(_blockers, _shape.Origin, point)) return point;
+                // Somewhere else, worked out from the same two numbers so it needs no random stream.
+                u = Fraction(u + 0.618034f);
+                v = Fraction(v + 0.754878f);
+                point = _shape.Anywhere(u, v);
+            }
+            return _shape.Origin;
+        }
+
+        private static float Fraction(float x) => x - MathF.Floor(x);
+
+        public float SquareMetres => _seen * _shape.Kind switch
+        {
+            ShapeKind.Circle => MathF.PI * _shape.Length * _shape.Length,
+            ShapeKind.Sector => 0.5f * _shape.Width * _shape.Length * _shape.Length,
+            _ => _shape.Length * _shape.Width * 2f,
         };
 
         public Vector2 Middle => Shape.Kind switch

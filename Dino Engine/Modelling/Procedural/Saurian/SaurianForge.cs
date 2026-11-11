@@ -66,10 +66,10 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             SaurianCondition.Rotting => MotionStyle.Rotting,
             _ => spec.Species switch
             {
-                "raptor" => MotionStyle.Raptor,
+                "raptor" or "ripper" => MotionStyle.Raptor,
                 "skitter" => MotionStyle.Scurrier,
                 "tyrant" => MotionStyle.Tyrant,
-                "hornback" => MotionStyle.Horned,
+                "hornback" or "spikeback" => MotionStyle.Horned,
                 "giant" => MotionStyle.Giant,
                 _ => MotionStyle.Stalker,
             },

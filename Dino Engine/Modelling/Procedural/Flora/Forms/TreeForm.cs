@@ -27,6 +27,12 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public FloatRange Reach = new FloatRange(0.1f, 0.16f);  // As a share of the tree's height.
         public FloatRange Girth = new FloatRange(0.3f, 0.45f);  // As a share of the trunk's radius.
         public float Rise = 0.5f;       // How high up the trunk a root starts, in trunk radii.
+
+        /// <summary>
+        /// Stilts that leave the trunk high up, arch out and come down into the mud nearly upright, as a mangrove's do, staying about as thick all the way: the trunk stands on them. Otherwise a root
+        /// dives from the flare and runs on half buried.
+        /// </summary>
+        public bool Props;
     }
 
     /// <summary>One level of the scaffold: Weber and Penn's nBranches, nDownAngle, nRotate and nLength, with the crown as their pruning envelope.</summary>
@@ -116,6 +122,12 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public float LimbGirth = 1f;        // Thins everything but the trunk, for a trunk far too big for what it bears.
         public float TipRadius = 0.02f;
         public float WoodBudget = 150f;     // How many metres of skinned stem a tree can afford below its limbs: the rest is on the cards.
+
+        /// <summary>
+        /// Metres: wood thinner than this is left to the cards whatever the budget. For a tree whose limbs are all alike and hidden in foliage of their own, as a cypress's are: the budget
+        /// can't part limbs of one thickness, so it would skin every one of them or none.
+        /// </summary>
+        public float ThinnestWood;
         public int MostAxes = 140;
         public BarkForm Bark = new BarkForm();
         public FoliageForm? Foliage;
@@ -147,7 +159,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             if (LimbGirth != 1f) ThinLimbs(graph);
             Light(graph, envelope);
 
-            float cut = WoodCut(graph, trunkRadius);
+            float cut = MathF.Max(WoodCut(graph, trunkRadius), ThinnestWood);
             List<PlantAxis> axes = PlantAxis.From(graph, cut);
             if (axes.Count == 0) return;
             Limit(axes);
@@ -315,18 +327,21 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 float reach = genes.Part(i).Range("reach", Roots!.Reach) * height;
                 float girth = genes.Part(i).Range("girth", Roots.Girth) * trunkRadius;
 
-                // It leaves the flare high up, dives, and runs on half buried until the ground has it. Only ever the top of a root shows.
+                // It leaves the flare high up, dives, and runs on half buried until the ground has it. Only ever the top of a root shows. A prop root instead arches out and comes down
+                // into the mud, a quarter of an ellipse, and goes a little way into it, so that what the trunk stands on meets the ground.
                 var root = new PlantAxis { Parent = trunk, ParentPoint = 0, Order = 1, Root = true };
-                const int Points = 8;
+                int points = Roots.Props ? 11 : 8;
                 uint seed = (uint)random.NextULong();
-                for (int p = 0; p < Points; p++)
+                for (int p = 0; p < points; p++)
                 {
-                    float t = p / (float)(Points - 1);
-                    float along = trunkRadius * 0.5f + MathF.Pow(t, 1.2f) * reach;
-                    float y = trunkRadius * Roots.Rise * MathF.Pow(1f - t, 3.5f) - girth * 0.3f * t - 0.5f * t * t;
+                    float t = p / (float)(points - 1);
+                    float along = Roots.Props ? trunkRadius * 0.5f + t * reach : trunkRadius * 0.5f + MathF.Pow(t, 1.2f) * reach;
+                    float y = Roots.Props
+                        ? trunkRadius * Roots.Rise * MathF.Sqrt(MathF.Max(1f - t * t, 0f)) - 0.3f * t * t * t * t
+                        : trunkRadius * Roots.Rise * MathF.Pow(1f - t, 3.5f) - girth * 0.3f * t - 0.5f * t * t;
                     Vector3 side = across * (FloraNoise.Wave(t * 2.4f, seed) * reach * 0.2f * t);
                     root.Points.Add(outward * along + side + Vector3.UnitY * y);
-                    root.Radii.Add(girth * MathF.Pow(1f - t, 1.3f) + 0.04f);
+                    root.Radii.Add(Roots.Props ? girth * (1f - 0.4f * t) + 0.03f : girth * MathF.Pow(1f - t, 1.3f) + 0.04f);
                     root.Nodes.Add(-1);
                 }
                 axes.Add(root);

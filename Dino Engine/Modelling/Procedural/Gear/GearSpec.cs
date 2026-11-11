@@ -22,7 +22,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         Book,
         OpenBook,
         Page,
-        Sticker,
+        Sentence,
         Orders,     // Sealed orders taken from the Reich: a scroll in oxblood wax. Not worn, not held, only carried and given away.
     }
 

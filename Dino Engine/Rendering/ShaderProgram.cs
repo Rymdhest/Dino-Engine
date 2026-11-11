@@ -167,6 +167,13 @@ namespace Dino_Engine.Rendering
             GL.UniformMatrix4(start, values.Length, false, ref values[0].Row0.X);
         }
 
+        // The first `count` of an array of vec4s, in one call from where it starts, out of floats laid four to an element.
+        public void loadUniformVector4fArray(string variableName, float[] values, int count)
+        {
+            if (count <= 0 || !_arrayStarts.TryGetValue(variableName, out int start) || start < 0) return;
+            GL.Uniform4(start, count, values);
+        }
+
         private readonly Dictionary<string, int> _arrayStarts = new Dictionary<string, int>();
 
         private int CreateShader(string shaderString, ShaderType type)

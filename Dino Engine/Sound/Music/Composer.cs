@@ -170,11 +170,18 @@ namespace Dino_Engine.Sound.Music
         /// <summary>Whether what's asked for can't wait for the end of the phrase.</summary>
         public bool WantsToCutIn(in MusicIntent intent)
         {
-            return intent.Cue != MusicCue.None || (intent.Mood != _mood && intent.Mood != MusicMood.Silence && Moods.IsUrgent(intent.Mood));
+            MusicMood mood = Resolve(intent.Mood);
+            return intent.Cue != MusicCue.None || (mood != _mood && mood != MusicMood.Silence && Moods.IsUrgent(mood));
         }
 
-        public Bar Next(in MusicIntent intent)
+        // A mood this place has no piece for is its own piece: the game can still be asking for a tyrant's fight as the Haven begins, after a land was lost at its keep, and the Haven's
+        // theme taken for a fight once ran up to it from nothing and stopped the game.
+        private MusicMood Resolve(MusicMood mood) => mood == MusicMood.Silence || _score.Has(mood) ? mood : _score.Main;
+
+        public Bar Next(in MusicIntent asked)
         {
+            MusicIntent intent = asked;
+            intent.Mood = Resolve(asked.Mood);
             if (intent.Cue != MusicCue.None && _cue == MusicCue.None) BeginCue(intent.Cue);
             if (_cueBars > 0) return WriteCue();
 

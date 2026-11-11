@@ -203,6 +203,7 @@ namespace Dino_Defenders.Client
             if (SaurianSpec.Parse(key) is SaurianSpec dinosaur) return (key, () => SaurianForge.Make(dinosaur));
             if (key.StartsWith(ReichPrefix)) return (key, () => HumanoidGenerator.Generate(ReichLook(key.Substring(ReichPrefix.Length))));
             if (key == "skeleton") return (key, SkeletonGenerator.GenerateSkeleton);
+            if (Gameplay.MinionLooks.TryParse(key, out var weapon, out var offHand)) return (key, () => Outfit.Hold(Gameplay.MinionLooks.Hovers(key) ? null : SkeletonGenerator.GenerateBare(), Held(weapon, offHand, Gameplay.MinionLooks.Hovers(key))));
             if (key == "skeleton:bow") return (key, SkeletonGenerator.GenerateArcher);
             if (key == "warlord") return (key, () => HumanoidGenerator.Generate(WarlordLook));
             if (key == "revenant") return (key, () => HumanoidGenerator.Generate(RevenantLook));
@@ -217,6 +218,7 @@ namespace Dino_Defenders.Client
             if (key == ChestLook.Open) return (key, () => Chest(open: true));
             if (key is ChestLook.Lid or ChestLook.Opening) return (ChestLook.Lid, ChestLid);
             if (key == "dummy") return (key, Dummy);
+            if (key == "turret") return (key, Turret);
             // Whatever of an arena moves is one of its pieces, grown from its id as the rest of it is (ARENAS.md).
             if (Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaSpec.TryParse(key, out var arena)) return (key, () => Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaForge.Make(arena, new List<Dino_Engine.World.Content.AssetLight>()));
             if (key == Progression.LootModels.Gold) return (key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
@@ -280,7 +282,33 @@ namespace Dino_Defenders.Client
         private static readonly Dictionary<string, Rig> Rigs = new();
 
         /// <summary>How something a server names carries itself: what it's built like, how it moves and what's in its hands.</summary>
-        public readonly record struct Bearing(Rig Rig, MotionStyle Style, Carry Carry, bool Shield);
+        public readonly record struct Bearing(Rig Rig, MotionStyle Style, Carry Carry, bool Shield, Carry? Second = null);
+
+        // What a Minion holds, as the meshes of its gear, the second in the left hand. A turret given nothing looses arrows, so it's seen with a plain bow.
+        private static List<(GearSpec spec, float side)> Held((ulong Seed, uint Traits)? weapon, (ulong Seed, uint Traits)? offHand, bool hovers = false)
+        {
+            var held = new List<(GearSpec spec, float side)>();
+            if (weapon is (ulong seed, uint traits)) held.Add((Progression.ItemLook.SpecOf(seed, traits), -1f));
+            if (offHand is (ulong other, uint looks)) held.Add((Progression.ItemLook.SpecOf(other, looks), 1f));
+            if (hovers && held.Count == 0) held.Add((PlainBow, -1f));
+            return held;
+        }
+
+        private static readonly GearSpec PlainBow = new GearSpec(77, GearKind.Bow, 0f, 1f, 0f, new GearForm(0.45f, 0.5f, 0.15f, 0.4f, 0.12f, 0.45f), 0, GearTheme.None);
+
+        // How a Minion carries what it holds, as a hero would.
+        private static Bearing HeldBy(Rig rig, MotionStyle style, (ulong Seed, uint Traits)? weapon, (ulong Seed, uint Traits)? offHand)
+        {
+            Carry carry = weapon is (_, uint traits) ? SkillMotions.CarryOf(Progression.ItemLook.WeaponOf(traits)) : Carry.Nothing;
+            Carry? second = null;
+            bool shield = false;
+            if (offHand is (_, uint looks))
+            {
+                if (Progression.ItemLook.SlotOf(looks) == Progression.ItemSlot.MainHand) second = SkillMotions.CarryOf(Progression.ItemLook.WeaponOf(looks));
+                else shield = true;
+            }
+            return new Bearing(rig, style, carry, shield, second);
+        }
 
         public static Bearing BearingOf(string key)
         {
@@ -296,6 +324,12 @@ namespace Dino_Defenders.Client
             if (key == ReichPrefix + "legionary") return new Bearing(person, MotionStyle.Armoured, Carry.Spear, false);
             if (key == ReichPrefix + "wrangler") return new Bearing(person, MotionStyle.Brute, Carry.Spear, false);
             if (key == "skeleton") return new Bearing(person, MotionStyle.Dead, Carry.Sword, true);
+            if (Gameplay.MinionLooks.TryParse(key, out var weapon, out var offHand))
+            {
+                // A turret's weapon is held by nobody, as steadily as a hero holds theirs, and a plain bow when it was given nothing.
+                if (Gameplay.MinionLooks.Hovers(key)) return weapon == null && offHand == null ? new Bearing(person, MotionStyle.Hero, Carry.Bow, false) : HeldBy(person, MotionStyle.Hero, weapon, offHand);
+                return HeldBy(person, MotionStyle.Dead, weapon, offHand);
+            }
             if (key == "skeleton:bow") return new Bearing(person, MotionStyle.Dead, Carry.Bow, false);
             if (key is "warlord" or "revenant") return new Bearing(person, MotionStyle.Armoured, Carry.Sword, true);
             if (key.StartsWith("robed:")) return new Bearing(person, MotionStyle.Robed, Carry.Staff, false);
@@ -580,6 +614,34 @@ namespace Dino_Defenders.Client
                 float z = 0.36f + i * 0.012f;
                 builder.Tube(new Vector3(0f, 1.38f, z), new Vector3(0f, 1.38f, z + 0.01f), rings[i].radius, rings[i].radius, 14, rings[i].paint);
             }
+            return builder.Build();
+        }
+
+        // What a Defender sets down to fight for them: a timber tripod lashed with rope, under a drum with a grey iron band, which is what a turret's weapon hangs in the air over. Nothing on it is
+        // the Reich's colours, and nothing glows. It never turns: the weapon over it does.
+        private static Mesh Turret()
+        {
+            var builder = new MeshBuilder();
+            VertexMaterial wood = new VertexMaterial(TextureGenerator.wood, new Colour(124, 92, 62));
+            VertexMaterial dark = new VertexMaterial(TextureGenerator.wood, new Colour(88, 64, 44));
+            VertexMaterial rope = new VertexMaterial(TextureGenerator.cloth, new Colour(150, 128, 92));
+            VertexMaterial iron = new VertexMaterial(TextureGenerator.iron, new Colour(128, 130, 136));
+
+            // Three legs, splayed, meeting under the head, and lashed where they meet.
+            Vector3 top = new Vector3(0f, 1.25f, 0f);
+            for (int i = 0; i < 3; i++)
+            {
+                float angle = i * MathF.Tau / 3f + MathF.PI / 6f;
+                Vector3 foot = new Vector3(MathF.Cos(angle) * 0.85f, 0f, MathF.Sin(angle) * 0.85f);
+                builder.Tube(foot, top, 0.07f, 0.06f, 6, wood);
+                builder.Box(foot + new Vector3(0f, 0.04f, 0f), new Vector3(0.1f, 0.04f, 0.1f), iron);
+            }
+            builder.Tube(new Vector3(0f, 1.1f, 0f), new Vector3(0f, 1.32f, 0f), 0.13f, 0.13f, 8, rope);
+
+            // The drum on top, banded, with a dished top, empty: what's over it isn't held by anything.
+            builder.Tube(new Vector3(0f, 1.25f, 0f), new Vector3(0f, 1.55f, 0f), 0.34f, 0.38f, 12, dark);
+            builder.Tube(new Vector3(0f, 1.36f, 0f), new Vector3(0f, 1.44f, 0f), 0.375f, 0.375f, 12, iron);
+            builder.Tube(new Vector3(0f, 1.55f, 0f), new Vector3(0f, 1.6f, 0f), 0.4f, 0.4f, 12, wood);
             return builder.Build();
         }
 

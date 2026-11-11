@@ -116,15 +116,30 @@ namespace Dino_Engine.Modelling.Procedural.Fence
                 FenceUse.Field => style switch
                 {
                     BuildingStyle.Eastern => roll < 0.55f ? Bamboo : Rails,
+                    // Split rails where the trees are tall, brush woven on stakes where they're few, cane over the wet.
+                    BuildingStyle.Log => roll < 0.7f ? Rails : Wattle,
+                    BuildingStyle.Adobe => roll < 0.6f ? Wattle : Rails,
+                    BuildingStyle.Stilt => roll < 0.6f ? Bamboo : Wattle,
+                    BuildingStyle.Tiled => roll < 0.6f ? Rails : Paling,
                     _ => roll < 0.65f ? Rails : roll < 0.85f ? Wattle : Paling,
                 },
                 FenceUse.Garden => style switch
                 {
                     BuildingStyle.Eastern => Bamboo,
                     BuildingStyle.Stone => roll < 0.45f ? Paling : roll < 0.75f ? DryStone : Wattle,
+                    BuildingStyle.Log => roll < 0.5f ? Paling : Wattle,
+                    // The dry country and the sun's walls its gardens with the stones it clears from them.
+                    BuildingStyle.Adobe => roll < 0.55f ? DryStone : Wattle,
+                    BuildingStyle.Stilt => Bamboo,
+                    BuildingStyle.Tiled => roll < 0.6f ? DryStone : Paling,
                     _ => roll < 0.5f ? Wattle : Paling,
                 },
-                FenceUse.Yard => style == BuildingStyle.Eastern ? Bamboo : Rails,
+                FenceUse.Yard => style switch
+                {
+                    BuildingStyle.Eastern or BuildingStyle.Stilt => Bamboo,
+                    BuildingStyle.Adobe => Wattle,
+                    _ => Rails,
+                },
                 FenceUse.Stockade => Stockade,
                 FenceUse.Pen => Pen,
                 FenceUse.Churchyard => style == BuildingStyle.Eastern ? Roofed : Churchyard,

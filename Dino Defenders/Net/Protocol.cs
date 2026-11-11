@@ -86,7 +86,7 @@ namespace Dino_Defenders.Net
         public const int MaxPlayers = 5;
         public const int MostCommands = 12;
         public const int LongestName = 64;
-        private const int MostDepth = 2;
+        private const int MostDepth = 4;               // A sentence on a page of the book a Summon Page gives its Minions, in a book.
         public const int LongestText = 512;
         public const int MostItems = 128;
         public const int MostLines = 16;
@@ -421,8 +421,8 @@ namespace Dino_Defenders.Net
             }
             writer.WriteBool(item.Page != null);
             if (item.Page != null) WritePage(writer, item.Page);
-            writer.WriteBool(item.Sticker != null);
-            if (item.Sticker != null) WriteSticker(writer, item.Sticker);
+            writer.WriteBool(item.Sentence != null);
+            if (item.Sentence != null) WriteSentence(writer, item.Sentence);
             writer.WriteByte((byte)item.Mode);
             writer.WriteBool(item.When != null);
             if (item.When != null)
@@ -439,42 +439,42 @@ namespace Dino_Defenders.Net
             }
         }
 
-        private static void WriteSticker(BitWriter writer, Sticker sticker)
+        private static void WriteSentence(BitWriter writer, Sentence sentence)
         {
-            writer.WriteByte((byte)sticker.Good);
-            writer.WriteFloat(sticker.GoodBy);
-            writer.WriteByte((byte)sticker.Bad);
-            writer.WriteFloat(sticker.BadBy);
+            writer.WriteByte((byte)sentence.Good);
+            writer.WriteFloat(sentence.GoodBy);
+            writer.WriteByte((byte)sentence.Bad);
+            writer.WriteFloat(sentence.BadBy);
         }
 
-        private static Sticker ReadSticker(BitReader reader)
+        private static Sentence ReadSentence(BitReader reader)
         {
-            var sticker = new Sticker { Good = Checked<PageEffect>(reader.ReadByte()), GoodBy = Finite(reader.ReadFloat()), Bad = Checked<PageEffect>(reader.ReadByte()), BadBy = Finite(reader.ReadFloat()) };
-            Stickers.Fix(sticker, Stickers.IsUnique(sticker.Good));
-            return sticker;
+            var sentence = new Sentence { Good = Checked<PageEffect>(reader.ReadByte()), GoodBy = Finite(reader.ReadFloat()), Bad = Checked<PageEffect>(reader.ReadByte()), BadBy = Finite(reader.ReadFloat()) };
+            Sentences.Fix(sentence, Sentences.IsUnique(sentence.Good));
+            return sentence;
         }
 
-        private static void WriteSentence(BitWriter writer, string? id) => writer.WriteVarInt(Sentences.Find(id)?.Number ?? 0);
+        private static void WritePhrase(BitWriter writer, string? id) => writer.WriteVarInt(Phrases.Find(id)?.Number ?? 0);
 
-        private static string ReadSentence(BitReader reader, string plain) => Sentences.Get(reader.ReadVarInt())?.Id ?? plain;
+        private static string ReadPhrase(BitReader reader, string plain) => Phrases.Get(reader.ReadVarInt())?.Id ?? plain;
 
-        /// <summary>What a page was found as: its kind, Attack or Spell, and the numbers of its sentences. What's stuck on it isn't written, and goes as the items those are. Whoever's at the other end, what's read here has been put right before anything sees it.</summary>
+        /// <summary>What a page was found as: its kind, Attack or Spell, and the numbers of its phrases. Its sentences aren't written here, and goes as the items those are. Whoever's at the other end, what's read here has been put right before anything sees it.</summary>
         public static void WritePage(BitWriter writer, Page page)
         {
             writer.WriteByte((byte)page.Kind);
             writer.WriteByte((byte)page.Hand);
-            WriteSentence(writer, page.Shape);
-            WriteSentence(writer, page.Timing);
+            WritePhrase(writer, page.Shape);
+            WritePhrase(writer, page.Timing);
             writer.WriteCount(page.Outcomes.Count);
             foreach (Outcome outcome in page.Outcomes)
             {
-                WriteSentence(writer, outcome.Deed);
-                WriteSentence(writer, outcome.Measure);
-                WriteSentence(writer, outcome.Ailment);
-                WriteSentence(writer, outcome.Gift);
-                WriteSentence(writer, outcome.Kin);
-                WriteSentence(writer, outcome.Pool);
-                WriteSentence(writer, outcome.Whom);
+                WritePhrase(writer, outcome.Deed);
+                WritePhrase(writer, outcome.Measure);
+                WritePhrase(writer, outcome.Ailment);
+                WritePhrase(writer, outcome.Gift);
+                WritePhrase(writer, outcome.Kin);
+                WritePhrase(writer, outcome.Pool);
+                WritePhrase(writer, outcome.Whom);
             }
         }
 
@@ -484,8 +484,8 @@ namespace Dino_Defenders.Net
             {
                 Kind = Checked<PageKind>(reader.ReadByte()),
                 Hand = Checked<Hand>(reader.ReadByte()),
-                Shape = ReadSentence(reader, Sentences.PlainShape),
-                Timing = ReadSentence(reader, Sentences.PlainTiming),
+                Shape = ReadPhrase(reader, Phrases.PlainShape),
+                Timing = ReadPhrase(reader, Phrases.PlainTiming),
             };
 
             int outcomes = reader.ReadCount(1);
@@ -493,13 +493,13 @@ namespace Dino_Defenders.Net
             {
                 page.Outcomes.Add(new Outcome
                 {
-                    Deed = ReadSentence(reader, Sentences.PlainDeed),
-                    Measure = ReadSentence(reader, Sentences.PlainMeasure),
-                    Ailment = ReadSentence(reader, Sentences.PlainAilment),
-                    Gift = ReadSentence(reader, Sentences.PlainGift),
-                    Kin = ReadSentence(reader, Sentences.PlainKin),
-                    Pool = ReadSentence(reader, Sentences.PlainPool),
-                    Whom = ReadSentence(reader, Sentences.PlainWhom),
+                    Deed = ReadPhrase(reader, Phrases.PlainDeed),
+                    Measure = ReadPhrase(reader, Phrases.PlainMeasure),
+                    Ailment = ReadPhrase(reader, Phrases.PlainAilment),
+                    Gift = ReadPhrase(reader, Phrases.PlainGift),
+                    Kin = ReadPhrase(reader, Phrases.PlainKin),
+                    Pool = ReadPhrase(reader, Phrases.PlainPool),
+                    Whom = ReadPhrase(reader, Phrases.PlainWhom),
                 });
             }
 
@@ -509,7 +509,7 @@ namespace Dino_Defenders.Net
 
         public static Item ReadItem(BitReader reader) => ReadItem(reader, 0);
 
-        // A book holds pages and a page stickers, and nothing goes any deeper than that, whatever arrives.
+        // A book holds pages and a page sentences, and nothing goes any deeper than that, whatever arrives.
         private static Item ReadItem(BitReader reader, int depth)
         {
             if (depth > MostDepth) throw new NetReadException("Something inside something inside something.");
@@ -544,14 +544,14 @@ namespace Dino_Defenders.Net
             {
                 string affix = reader.ReadString(LongestName);
                 float value = Finite(reader.ReadFloat());
-                if (item.IsOrders ? Omens.Find(affix) != null : AffixCatalog.Find(affix) != null) item.Lines.Add(new ItemLine(affix, value));
+                if (item.IsOrders ? Omens.Find(affix) != null : item.IsFolio ? FolioAffixes.Find(affix) != null : AffixCatalog.Find(affix) != null) item.Lines.Add(new ItemLine(affix, value));
             }
 
             // What it's worn as says what it is, so nothing can arrive as a page with nothing on it, or as a sword with pages.
             Page? page = reader.ReadBool() ? ReadPage(reader) : null;
-            Sticker? sticker = reader.ReadBool() ? ReadSticker(reader) : null;
+            Sentence? sentence = reader.ReadBool() ? ReadSentence(reader) : null;
             if (item.IsPage) item.Page = page ?? Scribe.NewPage(PageKind.Projectile);
-            if (item.IsSticker) item.Sticker = sticker ?? new Sticker();
+            if (item.IsSentence) item.Sentence = sentence ?? new Sentence();
 
             BookMode mode = Checked<BookMode>(reader.ReadByte());
             BookTrigger? when = reader.ReadBool() ? new BookTrigger { When = Checked<BookWhen>(reader.ReadByte()), Amount = Finite(reader.ReadFloat()) } : null;
@@ -561,13 +561,13 @@ namespace Dino_Defenders.Net
                 if (mode == BookMode.Trigger) item.When = BookTriggers.Fix(when);
             }
 
-            int places = reader.ReadCount(Rulebook.MostPages);
+            int places = reader.ReadCount(Math.Max(Rulebook.MostPages, Rulebook.MostSentences + Item.MinionPlaces));
             var held = new Item?[places];
             for (int i = 0; i < places; i++)
             {
                 if (!reader.ReadBool()) continue;
                 Item inside = ReadItem(reader, depth + 1);
-                if (item.IsBook && inside.IsPage || item.IsPage && inside.IsSticker) held[i] = inside;
+                if (item.IsBook && inside.IsPage || item.IsPage && (inside.IsSentence || inside.IsWeapon || inside.IsBook)) held[i] = inside;
             }
             if (item.IsBook || item.IsPage) item.Held = held;
             if (item.IsOrders) OrdersMaker.Fix(item);

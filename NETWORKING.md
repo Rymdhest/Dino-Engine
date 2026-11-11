@@ -32,7 +32,7 @@ World state is never sent as "this changed". Snapshots are differences from a st
 
 **A Toggle Book is part of the step**: `HeroSimState.Toggled` and what it does to Mana are predicted like anything else, and only a press flips one. A Trigger Book isn't: what it's waiting for is other people, so it goes off on the server, and `Charged` is sent as one of the things a client takes as it finds them.
 
-**A place can be inside something**: `ItemPlace.In` is a page in a book or a sticker on a page, as one number like any other, so moving them is `HeroAction.Move`. Only what's written on a page and what a book is called are ever sent to the server (`Write`, `Title`), never an item: a client can't say what it has.
+**A place can be inside something**: `ItemPlace.In` is a page in a book or a sentence on a page, as one number like any other, so moving them is `HeroAction.Move`. Only what's written on a page and what a book is called are ever sent to the server (`Write`, `Title`), never an item: a client can't say what it has.
 
 **What a hero carries is the other thing a client does ahead of being told**, as a pack that waits for the server at every click is no pleasure to use. `GameClient` makes each change at once, by the same rules the server will use (`HeroState`, `MerchantTable`), and sends it whatever those rules said, as the server has the last word. Each one carries a running number, which comes back with every gear update and market:
 
@@ -58,7 +58,7 @@ Everyone else only ever hears what the server decided. `Dino NetLab pack` holds 
 
 **A new rule**: write it as a system under `Server/`. It runs on the server and its results replicate. It must not touch `GameSession`, `Engine` or anything GL.
 
-**A new sentence**: it's data, in `Sentences`, and needs no networking. A book goes over the wire as sentence numbers (`Protocol.WriteBook`), and `Scribe.Fix` makes sense of whatever comes in. `HeroRules.Step` already handles anything on the bar: cost, cooldown, timing and moving. What it does to the world happens in `Combat`, on the server. See `BOOKS.md`.
+**A new phrase**: it's data, in `Phrases`, and needs no networking. A book goes over the wire as phrase numbers (`Protocol.WriteBook`), and `Scribe.Fix` makes sense of whatever comes in. `HeroRules.Step` already handles anything on the bar: cost, cooldown, timing and moving. What it does to the world happens in `Combat`, on the server. See `BOOKS.md`.
 
 **A new stat, or one that depends on something**: needs nothing either. Both ends compile the same sheet from the same hero, and `HeroSimState` carries the state and counters that pick which sheet is in force.
 

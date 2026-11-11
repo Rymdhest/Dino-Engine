@@ -12,7 +12,7 @@ namespace Dino_Defenders.Tooltips
         Weapon,
         Armour,     // Anything worn that isn't a weapon or jewellery, shields and wards among it.
         Jewellery,
-        Sticker,
+        Sentence,
         Orders,
     }
 
@@ -94,7 +94,7 @@ namespace Dino_Defenders.Tooltips
             ["coin"] = new[] { "gold" },
         };
 
-        /// <summary>Every unique there is, as the beta vendor has them out: what's worn, what only a Unique sticker does, and unique orders.</summary>
+        /// <summary>Every unique there is, as the beta vendor has them out: what's worn, what only a Unique sentence does, and unique orders.</summary>
         public static List<LookupEntry> Entries(IReadOnlyList<Item> uniques)
         {
             var entries = new List<LookupEntry>(uniques.Count);
@@ -107,7 +107,7 @@ namespace Dino_Defenders.Tooltips
             LookupType.Weapon => "Weapons",
             LookupType.Armour => "Armour",
             LookupType.Jewellery => "Jewellery",
-            LookupType.Sticker => "Stickers",
+            LookupType.Sentence => "Sentences",
             LookupType.Orders => "Orders",
             _ => "Any",
         };
@@ -222,18 +222,18 @@ namespace Dino_Defenders.Tooltips
             var gives = new StringBuilder();
             var costs = new StringBuilder();
 
-            if (item.Sticker is Sticker sticker)
+            if (item.Sentence is Sentence sentence)
             {
-                entry.Type = LookupType.Sticker;
-                PageKind? fits = Stickers.Fits(sticker);
+                entry.Type = LookupType.Sentence;
+                PageKind? fits = Sentences.Fits(sentence);
                 entry.Kind = fits is PageKind kind ? $"{kind} Page" : "Either Page";
                 entry.KindOrder = fits is PageKind order ? (int)order + 1 : 0;
-                entry.Gives.Add(BookText.Good(sticker));
-                gives.Append(sticker.Good).Append('\n');
-                if (sticker.Bad != PageEffect.None)
+                entry.Gives.Add(BookText.Good(sentence));
+                gives.Append(sentence.Good).Append('\n');
+                if (sentence.Bad != PageEffect.None)
                 {
-                    entry.Costs.Add(BookText.Bad(sticker));
-                    costs.Append(sticker.Bad).Append('\n');
+                    entry.Costs.Add(BookText.Bad(sentence));
+                    costs.Append(sentence.Bad).Append('\n');
                 }
             }
             else if (item.IsOrders)

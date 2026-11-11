@@ -5,7 +5,7 @@ namespace Dino_Defenders.Tooltips
 {
     /// <summary>
     /// How a page reads, which is only ever what it comes to, one part after another: where it starts, where it goes or what it covers, and what happens on Impact. It reads what a page comes to and not what's written on
-    /// it, as a sticker can change where it starts and where it goes, and a card and a book's own page both say the same.
+    /// it, as a sentence can change where it starts and where it goes, and a card and a book's own page both say the same.
     /// </summary>
     public static class BookText
     {
@@ -14,9 +14,16 @@ namespace Dino_Defenders.Tooltips
         /// <param name="potency">What it deals, of all of its Damage.</param>
         public static List<string> Lines(Page written, PagePlan page, float potency)
         {
+            if (page.Kind == PageKind.Summon)
+            {
+                // It doesn't go anywhere or cover anything: it only raises, there and then, beside you or where the page before it struck.
+                string raise = Deed(written.Outcomes[0], page, potency);
+                return new List<string> { page.Index == 0 ? "Beside you" : "Where the last struck", "", char.ToUpperInvariant(raise[0]) + raise[1..] };
+            }
+
             var lines = new List<string> { StartOf(page) };
             if (page.Kind == PageKind.Projectile) lines.Add(page.Falls ? FallOf(page) : WayOf(page));
-            else lines.Add($"{Sentences.Find(written.Shape)!.Words}, {Sentences.Find(written.Timing)!.Words}");
+            else lines.Add(page.Lingers ? $"{Phrases.Find(written.Shape)!.Words}, lingering for {Seconds(page.Duration)}" : $"{Phrases.Find(written.Shape)!.Words}, {Phrases.Find(written.Timing)!.Words}");
             lines.Add($"On Impact, {Deed(written.Outcomes[0], page, potency)}");
             return lines;
         }
@@ -52,7 +59,7 @@ namespace Dino_Defenders.Tooltips
         {
             string Word(Blank blank) => Scribe.Word(outcome, blank).Words;
 
-            Sentence deed = Sentences.Find(outcome.Deed)!;
+            Phrase deed = Phrases.Find(outcome.Deed)!;
             return deed.Deed switch
             {
                 Books.Deed.Deal => $"deal {Share(potency)} of your {page.Hand} Damage",
@@ -68,7 +75,7 @@ namespace Dino_Defenders.Tooltips
         public static string Says(Page written, PagePlan page, float potency)
         {
             List<string> lines = Lines(written, page, potency);
-            return $"{lines[0]}, {lines[1]}. {lines[2]}";
+            return lines[1].Length == 0 ? $"{lines[0]}. {lines[2]}" : $"{lines[0]}, {lines[1]}. {lines[2]}";
         }
 
         /// <summary>What a Trigger Book waits for.</summary>
@@ -94,41 +101,43 @@ namespace Dino_Defenders.Tooltips
             _ => "",
         };
 
-        /// <summary>What's good about a sticker, in the words those things are always said in.</summary>
-        public static string Good(Sticker sticker) => sticker.Good switch
+        /// <summary>What's good about a sentence, in the words those things are always said in.</summary>
+        public static string Good(Sentence sentence) => sentence.Good switch
         {
-            PageEffect.Potency => $"{N(sticker.GoodBy)}% more Potency",
-            PageEffect.Speed => $"{N(sticker.GoodBy)}% more Projectile Speed",
-            PageEffect.Area => $"{N(sticker.GoodBy)}% more Area",
-            PageEffect.Range => $"{N(sticker.GoodBy)}% more Range",
-            PageEffect.Cost => $"{N(sticker.GoodBy)}% less Cost",
-            PageEffect.UseTime => $"{N(sticker.GoodBy)}% less Use Time",
-            PageEffect.Projectiles => $"{Signed(sticker.GoodBy)} Projectiles",
-            PageEffect.Pierce => $"Pierces {N(sticker.GoodBy)} more Enemies",
-            PageEffect.Chains => $"Chains to {N(sticker.GoodBy)} more Enemies",
+            PageEffect.Potency => $"{N(sentence.GoodBy)}% more Potency",
+            PageEffect.Speed => $"{N(sentence.GoodBy)}% more Projectile Speed",
+            PageEffect.Area => $"{N(sentence.GoodBy)}% more Area",
+            PageEffect.Duration => $"Lingers {N(sentence.GoodBy)}% longer",
+            PageEffect.Range => $"{N(sentence.GoodBy)}% more Range",
+            PageEffect.Cost => $"{N(sentence.GoodBy)}% less Cost",
+            PageEffect.UseTime => $"{N(sentence.GoodBy)}% less Use Time",
+            PageEffect.Projectiles => $"{Signed(sentence.GoodBy)} Projectiles",
+            PageEffect.Pierce => $"Pierces {N(sentence.GoodBy)} more Enemies",
+            PageEffect.Chains => $"Chains to {N(sentence.GoodBy)} more Enemies",
             PageEffect.Stops => "Stops at its target",
             PageEffect.Rides => "Carries you with it, from an Opening Page that starts from you",
             PageEffect.Grounded => "Hitting the ground or anything solid is an Impact",
             PageEffect.FromCursor => "As the Opening Page, starts from the cursor",
             PageEffect.FromNearest => "As the Opening Page, starts from the nearest Enemy",
-            PageEffect.FromRandom => $"As the Opening Page, starts from a random Enemy nearby, with {Trade(Stickers.Weighting(sticker.Good))}",
+            PageEffect.FromRandom => $"As the Opening Page, starts from a random Enemy nearby, with {Trade(Sentences.Weighting(sentence.Good))}",
             PageEffect.ToNearest => "Flies towards the nearest Enemy",
             PageEffect.ToYou => "Flies back towards you",
-            PageEffect.ToAnywhere => $"Flies in a random direction, with {Trade(Stickers.Weighting(sticker.Good))}",
+            PageEffect.ToAnywhere => $"Flies in a random direction, with {Trade(Sentences.Weighting(sentence.Good))}",
             PageEffect.Falls => "Falls out of the sky onto where it's going",
             _ => "",
         };
 
-        /// <summary>What's bad about a sticker. Some written ones have nothing, and then this says nothing.</summary>
-        public static string Bad(Sticker sticker) => sticker.Bad switch
+        /// <summary>What's bad about a sentence. Some written ones have nothing, and then this says nothing.</summary>
+        public static string Bad(Sentence sentence) => sentence.Bad switch
         {
-            PageEffect.Potency => $"{N(sticker.BadBy)}% less Potency",
-            PageEffect.Speed => $"{N(sticker.BadBy)}% less Projectile Speed",
-            PageEffect.Area => $"{N(sticker.BadBy)}% less Area",
-            PageEffect.Range => $"{N(sticker.BadBy)}% less Range",
-            PageEffect.Cost => $"{Signed(sticker.BadBy)} Cost",
-            PageEffect.UseTime => $"{N(sticker.BadBy)}% more Use Time",
-            PageEffect.Rest => $"{Seconds(sticker.BadBy)} Cooldown",
+            PageEffect.Potency => $"{N(sentence.BadBy)}% less Potency",
+            PageEffect.Speed => $"{N(sentence.BadBy)}% less Projectile Speed",
+            PageEffect.Area => $"{N(sentence.BadBy)}% less Area",
+            PageEffect.Duration => $"Lingers {N(sentence.BadBy)}% shorter",
+            PageEffect.Range => $"{N(sentence.BadBy)}% less Range",
+            PageEffect.Cost => $"{Signed(sentence.BadBy)} Cost",
+            PageEffect.UseTime => $"{N(sentence.BadBy)}% more Use Time",
+            PageEffect.Rest => $"{Seconds(sentence.BadBy)} Cooldown",
             _ => "",
         };
 
@@ -138,7 +147,7 @@ namespace Dino_Defenders.Tooltips
             if (percent < 0f) yield return $"{N(-percent)}% less {what}";
         }
 
-        /// <summary>What a sentence does to the page it's on, in the words those things are always said in, as one line.</summary>
+        /// <summary>What a phrase does to the page it's on, in the words those things are always said in, as one line.</summary>
         public static string Trade(in Weights weights) => List(Trades(weights).ToList());
 
         /// <summary>The same, a line for each.</summary>
@@ -152,6 +161,7 @@ namespace Dino_Defenders.Tooltips
             lines.AddRange(Scaled(weights.Area, "Area"));
             lines.AddRange(Scaled(weights.Range, "Range"));
             lines.AddRange(Scaled(weights.UseTime, "Use Time"));
+            lines.AddRange(Scaled(weights.Duration, "Page Duration"));
             return lines;
         }
 

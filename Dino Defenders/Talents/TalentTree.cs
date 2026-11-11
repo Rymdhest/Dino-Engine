@@ -149,6 +149,7 @@ namespace Dino_Defenders.Talents
 
         private static TalentNode Add(TalentNode node)
         {
+            node.Mods = Array.ConvertAll(node.Mods, StatPrecision.Tidy);
             node.Index = Built.Count;
             Built.Add(node);
             ById.Add(node.Id, node.Index);

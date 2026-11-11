@@ -77,22 +77,22 @@ namespace Dino_BuildLab
             int Tab(string name) => Array.FindIndex(tabs, tab => tab.Name == name);
             var rolls = Enumerable.Range(0, 6).Select(roll => roll * 7919).ToArray();
             List<Item> All(string name, int level = 20) => rolls.SelectMany(roll => BetaVendor.Stock(Tab(name), roll, level)).ToList();
-            List<Item> gear = All("Gear"), books = All("Books"), pages = All("Pages"), stickers = All("Stickers"), orders = All("Orders");
+            List<Item> gear = All("Gear"), books = All("Books"), pages = All("Pages"), sentences = All("Sentences"), orders = All("Orders");
             report.Check("Gear is everything worn, and nothing unique", gear.All(item => item.IsWorn && item.Rarity != Rarity.Unique && item.Unique == null));
             report.Check("Of every rarity but that, and every place on a hero", Enum.GetValues<Rarity>().Where(r => r != Rarity.Unique).All(r => gear.Any(item => item.Rarity == r))
                 && Enum.GetValues<ItemSlot>().Where(slot => slot < ItemSlot.Book).All(slot => gear.Any(item => item.Slot == slot)));
             report.Check("Books are books, of every way a book goes", books.All(item => item.IsBook && item.Places > 0) && Enum.GetValues<BookMode>().All(mode => books.Any(item => item.Mode == mode)));
             report.Check("Pages are pages, of every kind", pages.All(item => item.IsPage && item.Page != null) && Enum.GetValues<PageKind>().All(kind => pages.Any(item => item.Page!.Kind == kind)));
-            report.Check("Stickers are stickers, and none of them Unique, as those are with the uniques", stickers.All(item => item.IsSticker && item.Sticker != null && item.Rarity != Rarity.Unique && !Stickers.IsUnique(item.Sticker.Good)));
+            report.Check("Sentences are sentences, and none of them Unique, as those are with the uniques", sentences.All(item => item.IsSentence && item.Sentence != null && item.Rarity != Rarity.Unique && !Sentences.IsUnique(item.Sentence.Good)));
             report.Check("Orders are orders, and none of them unique", orders.All(item => item.IsOrders && item.Rarity != Rarity.Unique && item.Unique == null));
-            report.Check("Everything is of the level asked for", gear.Concat(books).Concat(pages).Concat(stickers).Concat(orders).All(item => item.Level == 20));
+            report.Check("Everything is of the level asked for", gear.Concat(books).Concat(pages).Concat(sentences).Concat(orders).All(item => item.Level == 20));
 
             List<Item> uniques = BetaVendor.Stock(Lookup, 5, 1);
             List<string> worn = uniques.Where(item => item.IsWorn).Select(item => item.Unique ?? "").ToList();
             report.Check("Every unique that's worn is there, once", worn.Count == UniqueCatalog.All.Count && worn.Distinct().Count() == worn.Count && UniqueCatalog.All.All(u => worn.Contains(u.Id)), $"{worn.Count} of {UniqueCatalog.All.Count}");
-            List<PageEffect> stuck = uniques.Where(item => item.IsSticker).Select(item => item.Sticker!.Good).ToList();
-            report.Check("And everything only a Unique sticker does, once each, on a Unique sticker", stuck.Count == Stickers.Uniques.Count() && Stickers.Uniques.All(stuck.Contains)
-                && uniques.Where(item => item.IsSticker).All(item => item.Rarity == Rarity.Unique), $"{stuck.Count} of {Stickers.Uniques.Count()}");
+            List<PageEffect> stuck = uniques.Where(item => item.IsSentence).Select(item => item.Sentence!.Good).ToList();
+            report.Check("And everything only a Unique sentence does, once each, on a Unique sentence", stuck.Count == Sentences.Uniques.Count() && Sentences.Uniques.All(stuck.Contains)
+                && uniques.Where(item => item.IsSentence).All(item => item.Rarity == Rarity.Unique), $"{stuck.Count} of {Sentences.Uniques.Count()}");
             List<string> given = uniques.Where(item => item.IsOrders).Select(item => item.Unique ?? "").ToList();
             report.Check("And every unique orders, once each", given.Count == OrdersCatalog.All.Count && OrdersCatalog.All.All(o => given.Contains(o.Id)));
             report.Check("And nothing else", uniques.Count == worn.Count + stuck.Count + given.Count && uniques.All(item => item.Rarity == Rarity.Unique));
@@ -147,19 +147,19 @@ namespace Dino_BuildLab
         // What had to be asked for in particular is drawn just as it would have been anyway, so nothing else rolled from the same place changes.
         private static void NothingElseMoves(Report report)
         {
-            bool folios = true, stickers = true;
+            bool folios = true, sentences = true;
             for (int i = 0; i < 400; i++)
             {
                 Item found = ItemGenerator.Folio(12, new WorldRandom(i), (Rarity)(i % 3));
                 Item asked = ItemGenerator.Folio(12, new WorldRandom(i), (Rarity)(i % 3), found.Slot);
                 folios &= Written(found) == Written(asked);
 
-                Sticker rolled = Stickers.Roll(Rarity.Unique, new WorldRandom(i));
-                Sticker same = Stickers.Roll(Rarity.Unique, new WorldRandom(i), rolled.Good);
-                stickers &= rolled.Good == same.Good && rolled.Bad == same.Bad && rolled.GoodBy == same.GoodBy && rolled.BadBy == same.BadBy;
+                Sentence rolled = Sentences.Roll(Rarity.Unique, new WorldRandom(i));
+                Sentence same = Sentences.Roll(Rarity.Unique, new WorldRandom(i), rolled.Good);
+                sentences &= rolled.Good == same.Good && rolled.Bad == same.Bad && rolled.GoodBy == same.GoodBy && rolled.BadBy == same.BadBy;
             }
-            report.Check("Asking for a book, page or sticker draws just as finding one did", folios);
-            report.Check("Asking for what a Unique sticker does draws just as finding one did", stickers);
+            report.Check("Asking for a book, page or sentence draws just as finding one did", folios);
+            report.Check("Asking for what a Unique sentence does draws just as finding one did", sentences);
         }
 
         private static void Lookups(Report report)
@@ -195,9 +195,9 @@ namespace Dino_BuildLab
                 && Find($"{UniqueLookup.CostsMark}multiplier").Contains(Name("honest-blade")));
             report.Check("A side on its own is for the word after it", Find($"{UniqueLookup.CostsMark} fire").SequenceEqual(costsFire));
 
-            report.Check("Stickers are every Unique sticker and nothing else", Find("", LookupType.Sticker).Count == Stickers.Uniques.Count() && entries.Where(entry => entry.Type == LookupType.Sticker).All(entry => entry.Item.IsSticker));
-            List<string> projectile = Find("projectile", LookupType.Sticker, "Projectile Page");
-            report.Check("And narrowed and searched among", projectile.Count > 0 && projectile.Count < Stickers.Uniques.Count() && Find("cursor", LookupType.Sticker).Contains("Farcaster Sticker") && !Find("cursor", LookupType.Orders).Any(), string.Join(", ", projectile));
+            report.Check("Sentences are every Unique sentence and nothing else", Find("", LookupType.Sentence).Count == Sentences.Uniques.Count() && entries.Where(entry => entry.Type == LookupType.Sentence).All(entry => entry.Item.IsSentence));
+            List<string> projectile = Find("projectile", LookupType.Sentence, "Projectile Page");
+            report.Check("And narrowed and searched among", projectile.Count > 0 && projectile.Count < Sentences.Uniques.Count() && Find("cursor", LookupType.Sentence).Contains("Farcaster Sentence") && !Find("cursor", LookupType.Orders).Any(), string.Join(", ", projectile));
             report.Check("Orders are every unique orders", Find("", LookupType.Orders).Count == OrdersCatalog.All.Count);
             report.Check("Weapons are what's held in the main hand, and jewellery rings and amulets", entries.Where(e => e.Type == LookupType.Weapon).All(e => e.Item.Slot == ItemSlot.MainHand)
                 && entries.Where(e => e.Type == LookupType.Jewellery).All(e => e.Item.Slot is ItemSlot.Finger or ItemSlot.Neck));

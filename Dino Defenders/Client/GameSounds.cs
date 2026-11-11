@@ -222,13 +222,13 @@ namespace Dino_Defenders.Client
                 ("tyrant", DinosaurMoment.Notices) => Saurians.TyrantRoar,
                 ("tyrant", DinosaurMoment.Strikes) => Saurians.TyrantGrowl,
                 ("tyrant", _) => Saurians.TyrantDeath,
-                ("raptor", DinosaurMoment.Dies) => Saurians.RaptorDeath,
-                ("raptor", _) => Saurians.RaptorCall,
+                ("raptor" or "ripper", DinosaurMoment.Dies) => Saurians.RaptorDeath,
+                ("raptor" or "ripper", _) => Saurians.RaptorCall,
                 ("skitter", _) => Saurians.Chirp,
                 ("spitter", DinosaurMoment.Dies) => Saurians.RaptorDeath,
                 ("spitter", _) => Saurians.Hiss,
-                ("hornback", DinosaurMoment.Dies) => Saurians.Death,
-                ("hornback", _) => Saurians.Bellow,
+                ("hornback" or "spikeback", DinosaurMoment.Dies) => Saurians.Death,
+                ("hornback" or "spikeback", _) => Saurians.Bellow,
                 (_, DinosaurMoment.Dies) => Saurians.Death,
                 _ => Saurians.Growl,
             };
@@ -343,6 +343,7 @@ namespace Dino_Defenders.Client
         private const float BareGround = 0.4f;      // How little grass there is before a foot lands on the ground under it.
         private const float WetGround = 0.55f;      // How wet the ground has to be before it gives underfoot.
         private const float PuddleLevel = 1.2f;     // As Weather/Wetness.glsl has it, so that a puddle that's seen is one that's heard.
+        private const float SnowedOver = 0.35f;     // How far snow has to have settled before a foot crunches through it rather than landing on what's under it.
 
         /// <summary>How many steps were heard on what, for a scripted run's report.</summary>
         public static Dictionary<Ground, int> StepsHeard { get; } = new();
@@ -406,7 +407,7 @@ namespace Dino_Defenders.Client
         {
             Vector2 at = position.Xz;
             float depth = world.WaterDepthAt(at);
-            Ground ground = RainedOn(ecs, GroundUnder(world, at, depth), at);
+            Ground ground = RainedOn(ecs, GroundUnder(world, at, depth), at, world.HallAt(at) != null);
             bool inWater = ground is Ground.Shallows or Ground.Water;
             StepsHeard[ground] = StepsHeard.GetValueOrDefault(ground) + 1;
 
@@ -418,11 +419,13 @@ namespace Dino_Defenders.Client
             return inWater;
         }
 
-        // Rain changes what's underfoot: earth goes to mud, sand packs down, and a foot that lands where a puddle has filled lands in water, by the rule the ground is painted with.
-        private static Ground RainedOn(ECSWorld ecs, Ground ground, Vector2 at)
+        // Rain changes what's underfoot: earth goes to mud, sand packs down, and a foot that lands where a puddle has filled lands in water, by the rule the ground is painted with. Settled snow covers it all.
+        private static Ground RainedOn(ECSWorld ecs, Ground ground, Vector2 at, bool indoors)
         {
             if (ground is Ground.Shallows or Ground.Water) return ground;
             WeatherSample weather = Weather.At(ecs, at);
+            // Snow that's settled is what a foot lands in, as it's what it presses its print into (SnowTrailSystem).
+            if (!indoors && weather.SnowCover > SnowedOver) return Ground.Snow;
             if (weather.Flood > 0.05f && ecs.TryGetSingleton<TerrainGeneratorSingleton>(out Entity terrain))
             {
                 float hollow = ecs.GetComponent<TerrainGeneratorSingleton>(terrain).Generator.HollowAt(at);
@@ -867,7 +870,7 @@ namespace Dino_Defenders.Client
             float crickets = barren ? 0f : Math.Clamp(biome.GrassCover * warmth * (dusk + night * 1.2f + 0.12f), 0f, 1f) * (1f - downpour);
 
             float water = land.WaterLevelAt(at);
-            float frogs = biome.Id == "marsh" ? 0.85f : land.Height.Sample(at) - water < 2.5f && !barren && water > WorldPlan.SeaLevel ? 0.5f : 0f;
+            float frogs = biome.Id is "marsh" or "mangrove" or "bogland" or "watermeadow" ? 0.85f : land.Height.Sample(at) - water < 2.5f && !barren && water > WorldPlan.SeaLevel ? 0.5f : 0f;
 
             _birds.Set(BirdsongSound.Activity, birds);
             _crickets.Set(CricketSound.Activity, crickets);
@@ -899,7 +902,7 @@ namespace Dino_Defenders.Client
 
             // Open land throws back very little; a wood scatters sound about; rock answers from a distance.
             ReverbSettings place = Open;
-            if (biome.Ground is SurfaceMaterial.Rock or SurfaceMaterial.CrackedEarth || biome.Id is "highland" or "badlands") place = Crags;
+            if (biome.Ground is SurfaceMaterial.Rock or SurfaceMaterial.CrackedEarth || biome.Id is "highland" or "badlands" or "alpine" or "seacliff") place = Crags;
             if (biome.Ground == SurfaceMaterial.Snow) place = Snowfield;
             place = ReverbSettings.Lerp(place, Forest, Math.Clamp(canopy * 1.3f, 0f, 1f));
 

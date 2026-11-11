@@ -220,6 +220,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public float Thickness = 0.011f;
         public int Barbs;                   // Short needles along each side of the finest stems, as a redwood's.
         public float BarbLength = 0.03f;
+        public bool BarbedThroughout;       // Every stem carries them and not only the finest, so that a shoot is a rope of scales all over, as a monkey puzzle's is.
         public float Translucency = 0.4f;
         public float Roughness = 0.7f;
 
@@ -249,7 +250,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 ink.Roughness = Roughness;
                 canvas.Later(near, () => canvas.Stroke(a, b, ra, rb, ink));
 
-                if (depth == 0 && Barbs > 0)
+                if ((depth == 0 || BarbedThroughout) && Barbs > 0)
                 {
                     for (int barb = 0; barb < Barbs; barb++)
                     {

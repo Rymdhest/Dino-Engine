@@ -1,4 +1,5 @@
 using Dino_Engine.Rendering.Renderers.AntiAliasing;
+using Dino_Engine.World;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 
@@ -31,6 +32,10 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         public float Strength;
 
         public bool Hostile;
+
+        /// <summary>Where its shadows start among those given to <see cref="GroundMarkRenderer.AddShadows"/> this frame, and how many: what it doesn't reach, which is cut out of it.</summary>
+        public int ShadowStart;
+        public int ShadowCount;
     }
 
     /// <summary>
@@ -61,6 +66,15 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private bool _any;
         private Vector2 _corner;
 
+        // Each shadow is ShadowVectors vec4s: its corners two to a vec4, then its circle (xy the middle, z the radius) with how many corners in w.
+        private const int ShadowVectors = Sight.MostCorners / 2 + 1;
+        private const int ShadowBinding = 12;
+        private readonly List<float> _shadows = new();
+        private float[] _shadowUpload = new float[ShadowVectors * 4 * 64];
+        private readonly int _shadowBuffer = GL.GenBuffer();
+        private int _shadowCapacity;
+        private int _shadowCount;
+
         /// <summary>Where the ground around the hero is, which is what the map is kept around, and what's used wherever the shape of the ground isn't known.</summary>
         public Vector3 Focus;
 
@@ -90,10 +104,56 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             _compositeShader.unBind();
         }
 
+        /// <summary>
+        /// What a mark can't reach from <paramref name="origin"/>, which is cut out of it: the same blockers the server tests its blow against (<see cref="Sight"/>), so someone behind them is out of what's shown and
+        /// out of what lands. Returns where they start, for <see cref="GroundMarkCommand.ShadowStart"/>.
+        /// </summary>
+        public int AddShadows(Vector2 origin, List<Footprint> blockers)
+        {
+            int start = _shadowCount;
+            Span<Vector2> corners = stackalloc Vector2[Sight.MostCorners];
+            foreach (Footprint blocker in blockers)
+            {
+                int count = Sight.Shadow(blocker, origin, corners, out Vector3 circle);
+                for (int i = 0; i < Sight.MostCorners; i++)
+                {
+                    Vector2 corner = i < count ? corners[i] : corners[Math.Max(count - 1, 0)];
+                    _shadows.Add(corner.X);
+                    _shadows.Add(corner.Y);
+                }
+                _shadows.Add(circle.X);
+                _shadows.Add(circle.Y);
+                _shadows.Add(circle.Z);
+                _shadows.Add(count);
+                _shadowCount++;
+            }
+            return start;
+        }
+
+        internal override void Render(RenderEngine renderEngine)
+        {
+            base.Render(renderEngine);
+            _shadows.Clear();
+            _shadowCount = 0;
+        }
+
         internal override void Prepare(RenderEngine renderEngine)
         {
             _any = commands.Count > 0;
             if (!_any) return;
+
+            // Every mark's shadows, for the shape shader to cut out.
+            int floats = Math.Max(_shadows.Count, ShadowVectors * 4);
+            if (_shadowUpload.Length < floats) _shadowUpload = new float[Math.Max(floats, _shadowUpload.Length * 2)];
+            _shadows.CopyTo(_shadowUpload);
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _shadowBuffer);
+            if (_shadowCapacity < floats)
+            {
+                _shadowCapacity = _shadowUpload.Length;
+                GL.BufferData(BufferTarget.ShaderStorageBuffer, _shadowCapacity * sizeof(float), IntPtr.Zero, BufferUsageHint.StreamDraw);
+            }
+            GL.BufferSubData(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, floats * sizeof(float), _shadowUpload);
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
 
             // On whole texels, or the edges would crawl as the hero walks.
             float texel = Size / Resolution;
@@ -115,6 +175,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
             _shapeShader.bind();
             _shapeShader.loadUniformVector4f("mapRegion", new Vector4(_corner.X, _corner.Y, 1f / Size, 1f / Size));
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, ShadowBinding, _shadowBuffer);
             GL.BindVertexArray(_corners);
         }
 
@@ -138,6 +199,8 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             _shapeShader.loadUniformFloat("fill", command.Fill);
             _shapeShader.loadUniformFloat("strength", command.Strength);
             _shapeShader.loadUniformFloat("hostile", command.Hostile ? 1f : 0f);
+            _shapeShader.loadUniformInt("shadowStart", command.ShadowStart);
+            _shapeShader.loadUniformInt("shadowCount", command.ShadowCount);
             GL.DrawArrays(PrimitiveType.TriangleStrip, 0, 4);
         }
 
@@ -188,6 +251,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             _compositeShader.cleanUp();
             _map.cleanUp();
             GL.DeleteVertexArray(_corners);
+            GL.DeleteBuffer(_shadowBuffer);
         }
     }
 }

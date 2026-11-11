@@ -76,12 +76,13 @@ namespace Dino_Engine.World.Generation
             }
 
             PlaceWayside(world, random.Fork("wayside"));
+            PlaceLandmarks(world, random.Fork("landmarks"));
         }
 
         // The way out of a land, and the altars a hero kindles: a site is nothing without them, and WorldValidator fails one that lost its own.
         private static bool BuiltFirst(SiteKind kind) => kind is SiteKind.Landing or SiteKind.Waygate or SiteKind.Shrine or SiteKind.StandingStones;
 
-        // Each language has its people, and they build the way they build.
+        // Each language has its people, and they build the way they build, wherever the land doesn't decide for them (WorldData.StyleOf).
         private static BuildingStyle StyleOf(WorldData world)
         {
             return world.Plan.Language switch
@@ -339,11 +340,16 @@ namespace Dino_Engine.World.Generation
 
         private static void PlaceSquare(SiteBuilder b, bool isVillage)
         {
-            // The square's heart is usually where roads meet, so its well stands to one side.
+            // The square's heart is usually where roads meet, so its well stands to one side, with a trough beside it for the beasts.
             for (int attempt = 0; attempt < 14; attempt++)
             {
                 Vector2 spot = b.Centre + Direction(b.Random.Float() * MathF.Tau) * b.Random.Range(6f, 13f);
-                if (b.Place(StructureCatalog.Well, spot, 0f)) break;
+                if (!b.Place(StructureCatalog.Well, spot, 0f)) continue;
+                WorldRandom trough = b.Random.Fork("trough");
+                Vector2 away = (spot - b.Centre).Normalized();
+                Vector2 along = new Vector2(-away.Y, away.X) * (trough.Chance(0.5f) ? 1f : -1f);
+                b.Place(StructureCatalog.Trough, spot + along * 4.6f, YawFacing(away), padding: 0.3f);
+                break;
             }
 
             if (isVillage)
@@ -383,12 +389,21 @@ namespace Dino_Engine.World.Generation
                     if (walked < nextFree[side]) continue;
 
                     Vector2 outward = side == 0 ? new Vector2(-tangent.Y, tangent.X) : new Vector2(tangent.Y, -tangent.X);
-                    StructureDefinition type = PickHouse(b, fromCentre);
                     float halfWidth = b.RoadHalfWidthAt(point);
-                    float offset = halfWidth + 2.6f + setback + type.HalfExtents.Y + b.Random.Range(0f, 1.4f);
-                    Vector2 position = point + outward * offset;
-
-                    if (!b.Place(type, position, YawFacing(-outward), padding: 1.4f, maxSlope: 0.34f)) continue;
+                    StructureDefinition? type = null;
+                    Vector2 position = default;
+                    foreach (StructureDefinition candidate in HousesFor(b, fromCentre))
+                    {
+                        float offset = halfWidth + 2.6f + setback + candidate.HalfExtents.Y + b.Random.Range(0f, 1.4f);
+                        Vector2 at = point + outward * offset;
+                        if (!b.Place(candidate, at, YawFacing(-outward), padding: 1.4f, maxSlope: 0.34f)) continue;
+                        type = candidate;
+                        position = at;
+                        break;
+                    }
+                    if (type == null) continue;
+                    if (type == StructureCatalog.Hall) b.Site.HasHall = true;
+                    else if (type == StructureCatalog.Inn) b.Site.HasInn = true;
 
                     placed++;
                     nextFree[side] = walked + type.Width + b.Random.Range(2.2f, 6.5f);
@@ -398,22 +413,21 @@ namespace Dino_Engine.World.Generation
             return placed;
         }
 
+        // What's tried in a gap along a street, in turn until one fits: near a village's middle its hall and its inn while it lacks them, as they're big and may only
+        // fit somewhere further on, and then whatever house the gap would have had. A village marks its hall and inn built only once they stand (LineStreet), as
+        // marking them when first tried once left almost every village without either, and without the elder who stands at the hall's door.
+        private static IEnumerable<StructureDefinition> HousesFor(SiteBuilder b, float fromCentre)
+        {
+            if (b.Site.Kind == SiteKind.Village && fromCentre < 0.65f)
+            {
+                if (!b.Site.HasHall) yield return StructureCatalog.Hall;
+                if (!b.Site.HasInn) yield return StructureCatalog.Inn;
+            }
+            yield return PickHouse(b, fromCentre);
+        }
+
         private static StructureDefinition PickHouse(SiteBuilder b, float fromCentre)
         {
-            bool isVillage = b.Site.Kind == SiteKind.Village;
-            if (isVillage && fromCentre < 0.4f)
-            {
-                if (!b.Site.HasHall)
-                {
-                    b.Site.HasHall = true;
-                    return StructureCatalog.Hall;
-                }
-                if (!b.Site.HasInn)
-                {
-                    b.Site.HasInn = true;
-                    return StructureCatalog.Inn;
-                }
-            }
             if (fromCentre > 0.75f && b.Random.Chance(0.35f)) return StructureCatalog.Barn;
             if (fromCentre < 0.55f && b.Random.Chance(0.4f)) return StructureCatalog.House;
             return b.Random.Chance(0.3f) ? StructureCatalog.Longhouse : StructureCatalog.Cottage;
@@ -451,6 +465,37 @@ namespace Dino_Engine.World.Generation
                     b.FenceAround(plot, -outward, FenceUse.Garden);
                 }
             }
+
+            YardClutter(b, type, position, outward, tangent);
+        }
+
+        // What a household keeps about its house, on a stream of its own so that the rest of the village is laid out as it always was: an oven and jars where it's dry
+        // enough to bake out of doors, hides drying where it's cold, and anywhere bees, hens, washing, a trough, a barrow and sacks of grain, more of them at a barn.
+        private static void YardClutter(SiteBuilder b, StructureDefinition type, Vector2 position, Vector2 outward, Vector2 tangent)
+        {
+            if (type == StructureCatalog.Hall) return;
+            WorldRandom random = b.Random.Fork("yard");
+            bool barn = type == StructureCatalog.Barn;
+            Vector2 side = tangent * (random.Chance(0.5f) ? 1f : -1f);
+            Vector2 back = position + outward * (type.HalfExtents.Y + 2.8f);
+            float width = type.HalfExtents.X;
+            switch (b.Style)
+            {
+                case BuildingStyle.Adobe:
+                case BuildingStyle.Tiled:
+                    if (random.Chance(0.35f)) b.Place(StructureCatalog.Oven, position + side * (width + 3f) + outward * 1.5f, YawFacing(-outward), padding: 0.4f);
+                    if (random.Chance(0.4f)) b.Place(StructureCatalog.Jars, position - side * (width + 2.1f) - outward * (type.HalfExtents.Y * 0.4f), YawFacing(side), padding: 0.3f);
+                    break;
+                case BuildingStyle.Log:
+                    if (random.Chance(0.3f)) b.Place(StructureCatalog.DryingRack, back - side * (width * 0.5f) + outward * 1.5f, YawFacing(outward), padding: 0.3f);
+                    break;
+            }
+            if (random.Chance(0.16f)) b.Place(StructureCatalog.Hives, back + tangent * random.Range(-3f, 3f) + outward * 2.2f, YawFacing(-outward), padding: 0.6f);
+            if (random.Chance(barn ? 0.3f : 0.18f)) b.Place(StructureCatalog.Coop, back - side * (width * 0.6f) + outward * 0.6f, YawFacing(-outward), padding: 0.5f);
+            if (random.Chance(0.2f)) b.Place(StructureCatalog.Laundry, back + side * (width * 0.35f) + outward * 1.4f, YawFacing(outward), padding: 0.4f);
+            if (random.Chance(barn ? 0.45f : 0.12f)) b.Place(StructureCatalog.Trough, position + side * (width + 2.4f), YawFacing(side), padding: 0.3f);
+            if (random.Chance(barn ? 0.4f : 0.14f)) b.Place(StructureCatalog.Barrow, position + side * (width + 1.6f) - outward * 1.2f, YawFacing(tangent) + random.Range(-0.5f, 0.5f), padding: 0.2f);
+            if (random.Chance(barn ? 0.55f : 0.14f)) b.Place(StructureCatalog.Sacks, position - side * (width + 1.6f) + outward * 0.8f, random.Float() * MathF.Tau, padding: 0.2f);
         }
 
         private static void PlaceFields(SiteBuilder b, int wanted)
@@ -527,6 +572,13 @@ namespace Dino_Engine.World.Generation
 
         private static void PlaceStreetLanterns(SiteBuilder b, List<List<Vector3>> streets)
         {
+            // A lantern on a wooden post, a white pillar where they limewash, and paper lanterns on cane where those are hung.
+            StructureDefinition lamp = b.Style switch
+            {
+                BuildingStyle.Adobe or BuildingStyle.Tiled => StructureCatalog.PillarLamp,
+                BuildingStyle.Eastern or BuildingStyle.Stilt => StructureCatalog.PaperLantern,
+                _ => StructureCatalog.Lantern,
+            };
             foreach (List<Vector3> street in streets)
             {
                 for (int i = 5; i < street.Count; i += 9)
@@ -534,7 +586,8 @@ namespace Dino_Engine.World.Generation
                     Vector2 tangent = (street[i].Xz - street[i - 1].Xz).Normalized();
                     Vector2 side = new Vector2(-tangent.Y, tangent.X) * (i % 2 == 0 ? 1f : -1f);
                     Vector2 spot = street[i].Xz + side * (b.RoadHalfWidthAt(street[i].Xz) + 1.6f);
-                    b.Place(StructureCatalog.Lantern, spot, 0f, padding: 0.2f);
+                    // Its lantern hangs out over the street.
+                    b.Place(lamp, spot, YawFacing(-side), padding: 0.2f);
                 }
             }
         }
@@ -572,6 +625,17 @@ namespace Dino_Engine.World.Generation
                     if (b.Random.Chance(0.5f)) b.World.Pending.Add(new PendingObject(StructureCatalog.Scarecrow.Id, position, b.Random.Float() * MathF.Tau, Vector3.One, null));
                 }
             }
+
+            // A farm keeps more about its yard than a village house does.
+            WorldRandom yard = b.Random.Fork("farmyard");
+            if (yard.Chance(0.55f)) b.Scatter(StructureCatalog.Coop, b.Centre + side * 9f, 6f, padding: 0.6f);
+            if (yard.Chance(0.5f)) b.Scatter(StructureCatalog.Hives, b.Centre - side * 16f, 6f, padding: 0.8f);
+            if (yard.Chance(0.6f)) b.Scatter(StructureCatalog.Trough, b.Centre - toRoad * 6f, 7f, padding: 0.4f);
+            if (yard.Chance(0.45f)) b.Scatter(StructureCatalog.Sacks, barn + toRoad * 9f, 5f, padding: 0.3f);
+            if (yard.Chance(0.35f)) b.Scatter(StructureCatalog.Barrow, b.Centre, 11f, padding: 0.3f);
+            if (yard.Chance(0.4f)) b.Scatter(StructureCatalog.Laundry, housePosition - toRoad * 10f, 5f, padding: 0.4f);
+            if (b.Style is BuildingStyle.Adobe or BuildingStyle.Tiled && yard.Chance(0.6f)) b.Scatter(StructureCatalog.Oven, b.Centre + side * 6f, 6f, padding: 0.5f);
+            if (b.Style is BuildingStyle.Adobe or BuildingStyle.Tiled && yard.Chance(0.5f)) b.Scatter(StructureCatalog.Jars, housePosition + side * 10f, 4f, padding: 0.3f);
         }
 
         private static void BuildFishingHamlet(SiteBuilder b)
@@ -594,6 +658,9 @@ namespace Dino_Engine.World.Generation
             for (int i = 0; i < 3; i++) b.Scatter(StructureCatalog.DryingRack, b.Centre + toWater * 12f, 14f);
             b.Scatter(StructureCatalog.Barrels, b.Centre, 14f);
             b.Scatter(StructureCatalog.Crates, b.Centre, 14f);
+            WorldRandom yard = b.Random.Fork("yard");
+            if (yard.Chance(0.5f)) b.Scatter(StructureCatalog.Laundry, b.Centre - toWater * 10f, 8f, padding: 0.4f);
+            if (yard.Chance(0.4f)) b.Scatter(StructureCatalog.Sacks, b.Centre, 12f, padding: 0.3f);
 
             if (distance < 90f)
             {
@@ -617,6 +684,9 @@ namespace Dino_Engine.World.Generation
             b.Scatter(StructureCatalog.Cart, b.Centre, b.Site.Radius * 0.7f, attempts: 10);
             for (int i = 0; i < 5; i++) b.Scatter(StructureCatalog.LogStack, b.Centre, b.Site.Radius * 0.85f);
             b.Scatter(StructureCatalog.Woodpile, b.Centre, b.Site.Radius * 0.7f);
+            WorldRandom yard = b.Random.Fork("yard");
+            if (yard.Chance(0.55f)) b.Scatter(StructureCatalog.Barrow, b.Centre, b.Site.Radius * 0.6f, padding: 0.3f);
+            if (yard.Chance(0.35f)) b.Scatter(StructureCatalog.Sacks, b.Centre - toRoad * 4f, 6f, padding: 0.3f);
             b.SpawnAround(SpawnRole.Villager, b.Centre, b.Site.Radius * 0.6f, 2);
         }
 
@@ -955,6 +1025,176 @@ namespace Dino_Engine.World.Generation
             }
         }
 
+        private const float LandmarkCell = 30f;         // Metres: the land is tried for a landmark this often.
+        private const float SpawnClearance = 3.2f;      // Metres anything added after a site is laid out keeps from where anyone of it stands.
+        private const float MillReach = 34f;            // Metres beyond a village's edge it looks for high ground for a windmill.
+
+        // What's added to a land once its places are laid out, on a stream of its own so that none of them moves: what stands out of the land itself, the windmill on the
+        // high ground by a village, the Ossuary's digs, the Reich's pens dressed as the pens they are, and its banners at the gate of every keep (LORE.md). Each keeps
+        // clear of where anyone of a place stands, so that it can never push someone off their spot or shut a chest in.
+        private static void PlaceLandmarks(WorldData world, WorldRandom random)
+        {
+            if (world.Plan.Archetype.Peaceful) return;
+
+            // Termite mounds and old bones, as the biome has them, on a jittered grid so that they're spread out and not in rows.
+            WorldRandom land = random.Fork("land");
+            var builder = new SiteBuilder(world, world.Sites[0], land);
+            for (float z = LandmarkCell * 0.5f; z < world.Size; z += LandmarkCell)
+            {
+                for (float x = LandmarkCell * 0.5f; x < world.Size; x += LandmarkCell)
+                {
+                    WorldRandom cell = land.Fork((int)(z / LandmarkCell) * 4096 + (int)(x / LandmarkCell));
+                    Vector2 spot = new Vector2(x, z) + new Vector2(cell.Range(-0.4f, 0.4f), cell.Range(-0.4f, 0.4f)) * LandmarkCell;
+                    if (!world.InBounds(spot)) continue;
+                    BiomeDefinition biome = world.BiomeAt(spot);
+                    if (biome.Landmark == null || !cell.Chance(biome.LandmarksPerKm2 * LandmarkCell * LandmarkCell / 1_000_000f)) continue;
+                    if (NearSite(world, spot, 12f)) continue;
+                    float yaw = cell.Float() * MathF.Tau, scale = cell.Range(0.8f, 1.2f);
+                    if (biome.Landmark == StructureCatalog.Fossil) PlaceBared(builder, biome.Landmark, spot, yaw, scale, 1f, 0.4f);
+                    else builder.Place(biome.Landmark, spot, yaw, scale, padding: 1f, maxSlope: 0.4f);
+                }
+            }
+
+            foreach (WorldSite site in world.Sites)
+            {
+                WorldRandom own = random.Fork(site.Id);
+                var b = new SiteBuilder(world, site, own);
+                switch (site.Kind)
+                {
+                    case SiteKind.Village when b.Style is not (BuildingStyle.Adobe or BuildingStyle.Stilt or BuildingStyle.Eastern) && own.Chance(0.6f):
+                        RaiseWindmill(b);
+                        break;
+                    case SiteKind.Graveyard when own.Chance(0.8f):
+                    case SiteKind.Ruins when own.Chance(0.45f):
+                    case SiteKind.StandingStones when own.Chance(0.4f):
+                        OpenDig(b);
+                        break;
+                    case SiteKind.BanditCamp:
+                        DressPen(b);
+                        break;
+                    case SiteKind.Keep:
+                        FlyBanners(b, b.Centre + site.RoadDirection * (site.Radius * 0.86f + 3.5f), site.RoadDirection, 9f);
+                        break;
+                }
+            }
+        }
+
+        // What lies low in the ground shows only where the ground is worn bare round it, as grass taller than it grows through it otherwise: an old beast's bones, a dig.
+        private static bool PlaceBared(SiteBuilder b, StructureDefinition definition, Vector2 at, float yaw, float scale, float padding, float maxSlope)
+        {
+            if (!b.Place(definition, at, yaw, scale, padding, maxSlope)) return false;
+            b.Paint(GroundPaint.Yard, definition.FootprintAt(at, yaw, 1.5f), 3f);
+            return true;
+        }
+
+        // Whether something with this footprint at this spot keeps clear of everyone a site has standing.
+        private static bool ClearOfSpawns(WorldSite site, Vector2 spot, float reach)
+        {
+            foreach (SiteSpawn spawn in site.Spawns)
+            {
+                if ((spawn.Position - spot).Length < reach + SpawnClearance) return false;
+            }
+            return true;
+        }
+
+        private static bool PlaceClear(SiteBuilder b, StructureDefinition definition, Vector2 spot, float yaw, float padding = 0.6f)
+        {
+            if (!ClearOfSpawns(b.Site, spot, definition.HalfExtents.Length)) return false;
+            return b.Place(definition, spot, yaw, padding: padding);
+        }
+
+        // A post mill on the highest ground just outside a village, kept clear of trees all round as its sails turn over the ground in front of it. A land's mills all face
+        // much the same way, into its wind, and that way is south, towards the game's camera, as sails seen edge on from up here are only lines.
+        private static void RaiseWindmill(SiteBuilder b)
+        {
+            WorldSite site = b.Site;
+            Vector2 best = default;
+            float highest = float.NegativeInfinity;
+            for (int i = 0; i < 16; i++)
+            {
+                float distance = site.Radius + b.Random.Range(14f, MillReach);
+                Vector2 spot = site.Position + Direction(i * MathF.Tau / 16f + b.Random.Range(-0.1f, 0.1f)) * distance;
+                if (!b.World.InBounds(spot) || b.World.Reachable.Sample(spot) < 0.5f) continue;
+                if (b.World.Sites.Any(other => other != site && (other.Position - spot).Length < other.Radius + 12f)) continue;
+                float height = b.World.Elevation.Sample(spot);
+                if (height <= highest || !b.Fits(StructureCatalog.Windmill.FootprintAt(spot, 0f), 0.3f, 2.5f)) continue;
+                highest = height;
+                best = spot;
+            }
+            if (float.IsNegativeInfinity(highest)) return;
+            float yaw = MathF.PI + b.Random.Range(-0.35f, 0.35f);
+            Vector2 facing = new Vector2(MathF.Sin(yaw), MathF.Cos(yaw));
+            if (b.Place(StructureCatalog.Windmill, best, yaw, padding: 2.5f, maxSlope: 0.3f))
+            {
+                b.World.Placement.Add(Footprint.Circle(best + facing * 2f, 10.5f), PlacementLayer.Keepout);
+            }
+        }
+
+        // A dig at the edge of a place where the Ossuary works, with what it has taken out laid in rows beside it.
+        private static void OpenDig(SiteBuilder b)
+        {
+            WorldSite site = b.Site;
+            for (int attempt = 0; attempt < 14; attempt++)
+            {
+                Vector2 spot = site.Position + Direction(b.Random.Float() * MathF.Tau) * site.Radius * b.Random.Range(0.45f, 0.8f);
+                float yaw = b.Random.Float() * MathF.Tau;
+                if (!PlaceClear(b, StructureCatalog.Dig, spot, yaw, padding: 1f)) continue;
+                b.Paint(GroundPaint.Yard, StructureCatalog.Dig.FootprintAt(spot, yaw, 1.5f), 3f);
+                Vector2 across = Direction(-yaw);
+                Vector2 beside = spot + across * (StructureCatalog.Dig.HalfExtents.Y + StructureCatalog.BoneRows.HalfExtents.Y + 1.6f);
+                if (!PlaceClear(b, StructureCatalog.BoneRows, beside, yaw, padding: 0.4f)) PlaceClear(b, StructureCatalog.BoneRows, spot - across * (StructureCatalog.Dig.HalfExtents.Y + StructureCatalog.BoneRows.HalfExtents.Y + 1.6f), yaw, padding: 0.4f);
+                return;
+            }
+        }
+
+        // A brood's pen (LORE.md): cages round the inside of its fence facing the fire, troughs and a rack of meat between them, and its banners at the gate.
+        private static void DressPen(SiteBuilder b)
+        {
+            WorldSite site = b.Site;
+            Vector2 toRoad = site.RoadDirection;
+            float start = MathF.Atan2(toRoad.Y, toRoad.X);
+            int cages = b.Random.Int(2, 3);
+            for (int i = 0; i < cages; i++)
+            {
+                // Round the back of the pen, away from the gate.
+                float angle = start + MathF.PI + (i - (cages - 1) * 0.5f) * 0.95f;
+                for (int attempt = 0; attempt < 4; attempt++)
+                {
+                    Vector2 spot = site.Position + Direction(angle + b.Random.Range(-0.15f, 0.15f)) * site.Radius * b.Random.Range(0.55f, 0.72f);
+                    if (PlaceClear(b, StructureCatalog.Cage, spot, YawFacing(site.Position - spot))) break;
+                }
+            }
+            for (int i = 0; i < 2; i++)
+            {
+                Vector2 spot = site.Position + Direction(start + MathF.PI * (i == 0 ? 0.5f : 1.5f) + b.Random.Range(-0.3f, 0.3f)) * site.Radius * b.Random.Range(0.4f, 0.6f);
+                PlaceClear(b, StructureCatalog.FeedTrough, spot, YawFacing(site.Position - spot), padding: 0.4f);
+            }
+            Vector2 rack = site.Position + Direction(start + MathF.PI * 0.75f + b.Random.Range(-0.3f, 0.3f)) * site.Radius * 0.5f;
+            PlaceClear(b, StructureCatalog.MeatRack, rack, YawFacing(site.Position - rack), padding: 0.4f);
+            FlyBanners(b, site.Position + toRoad * (site.Radius + 2.5f), toRoad, 5f);
+        }
+
+        // A pair of the Reich's banners either side of a way in, outside it, facing whoever comes up the road: both or neither, as one alone reads as one lost.
+        private static void FlyBanners(SiteBuilder b, Vector2 gate, Vector2 outward, float apart)
+        {
+            Vector2 across = new Vector2(-outward.Y, outward.X);
+            float yaw = YawFacing(outward);
+            // Where the road or the lie of the land doesn't allow them by the gate, a little further out or further apart.
+            foreach ((float further, float wider) in new[] { (0f, 1f), (2.5f, 1f), (0f, 1.3f), (2.5f, 1.3f), (5f, 0.8f), (5f, 1.5f) })
+            {
+                Vector2 left = gate + outward * further - across * (apart * wider), right = gate + outward * further + across * (apart * wider);
+                bool fits = true;
+                foreach (Vector2 spot in new[] { left, right })
+                {
+                    fits &= ClearOfSpawns(b.Site, spot, StructureCatalog.Banner.HalfExtents.X) && b.Fits(StructureCatalog.Banner.FootprintAt(spot, yaw), 0.42f, 0.3f);
+                }
+                if (!fits) continue;
+                b.Place(StructureCatalog.Banner, left, yaw, padding: 0.3f);
+                b.Place(StructureCatalog.Banner, right, yaw, padding: 0.3f);
+                return;
+            }
+        }
+
         private static bool NearSite(WorldData world, Vector2 point, float margin)
         {
             foreach (WorldSite site in world.Sites)
@@ -968,9 +1208,23 @@ namespace Dino_Engine.World.Generation
         private static bool PlaceMarker(SiteBuilder b, WorldRoad road, Vector2 point, Vector2 side, Vector2 tangent, WorldRandom random)
         {
             Vector2 verge = point + side * (road.HalfWidth + 2f);
-            float[] weights = { 3f, 2.5f, 2f, 1.5f, 1f };
+            // The land's own little shrines and the old milestones go anywhere a road does; a hunter's stand where it runs through woods, and the bones of a great
+            // beast where dry ground wears away beside it.
+            BiomeDefinition biome = b.World.BiomeAt(point);
+            bool wooded = biome.ForestCover >= 0.35f;
+            bool dry = biome.Moisture < 0.35f && biome.Temperature > 0.55f;
+            float[] weights = { 3f, 2.5f, 2f, 1.5f, 1f, 2f, 1.5f, wooded ? 1.4f : 0f, dry ? 1.2f : 0f };
             switch (random.PickWeighted(weights))
             {
+                case 5:
+                    return b.Place(StructureCatalog.WaysideShrine, verge, SiteBuilder.YawFacing(-side), padding: 0.2f);
+                case 6:
+                    return b.Place(StructureCatalog.Milestone, verge, SiteBuilder.YawFacing(-side), padding: 0.2f);
+                case 7:
+                    return b.Place(StructureCatalog.HuntingStand, verge + side * 5f, SiteBuilder.YawFacing(-side) + random.Range(-0.4f, 0.4f), padding: 0.5f);
+                case 8:
+                    // Its long way along the road, as a slope beside one is cut.
+                    return PlaceBared(b, StructureCatalog.Fossil, verge + side * 5.5f, SiteBuilder.YawFacing(side), 1f, 0.8f, 0.38f);
                 case 0:
                     return b.Place(StructureCatalog.StoneLantern, verge, SiteBuilder.YawFacing(-side), padding: 0.2f);
                 case 1:

@@ -528,9 +528,9 @@ namespace Dino_Defenders.UI
         /// <summary>Opens a book, in place of whatever else is open, or shuts it if it's the one that's open.</summary>
         public void Read(ItemPlace place)
         {
-            bool reading = Book.IsOpen(Book.At(place));
+            // What's already open stays open: a right click on it again is no reason to lose the page being read.
+            if (Book.IsOpen(Book.At(place))) return;
             CloseAll();
-            if (reading) return;
 
             Audio.Play(Interface.Open);
             Hero.Open(null);

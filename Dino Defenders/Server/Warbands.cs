@@ -99,7 +99,7 @@ namespace Dino_Defenders.Server
 
         // Raptors out in front, soldiers behind them, something big leading, and venom or arrows from the back.
         private static readonly Recipe Reich = new(
-            new[] { Bestiary.Ravager, Bestiary.Hornback, Bestiary.Wrangler, Bestiary.Wrangler },
+            new[] { Bestiary.Ravager, Bestiary.Hornback, Bestiary.Spikeback, Bestiary.WarRipper, Bestiary.Wrangler, Bestiary.Wrangler },
             new[] { Bestiary.WarRaptor, Bestiary.WarRaptor, Bestiary.WarRaptor, Bestiary.Legionary },
             new[] { Bestiary.Spitter, Bestiary.Spitter, Bestiary.Marksman },
             0.26f);
@@ -116,9 +116,12 @@ namespace Dino_Defenders.Server
             new[] { Bestiary.BoneArcher, Bestiary.BoneArcher, Bestiary.Mourner },
             0.26f);
 
-        private static readonly Recipe Rotting = new(new[] { Bestiary.RottingHornback }, new[] { Bestiary.RottingRaptor }, Array.Empty<EnemyKind>(), 0f);
+        private static readonly Recipe Rotting = new(new[] { Bestiary.RottingHornback, Bestiary.RottingWader }, new[] { Bestiary.RottingRaptor }, Array.Empty<EnemyKind>(), 0f);
 
-        private static readonly Recipe Feral = new(new[] { Bestiary.WildRavager }, new[] { Bestiary.Raptor }, new[] { Bestiary.FeralSpitter }, 0.2f);
+        private static readonly Recipe Feral = new(new[] { Bestiary.WildRavager, Bestiary.Ripper }, new[] { Bestiary.Raptor }, new[] { Bestiary.FeralSpitter }, 0.2f);
+
+        // What got out into the wet country: a wader leading, with raptors, which go anywhere, and spitters from the reeds.
+        private static readonly Recipe Fen = new(new[] { Bestiary.Wader }, new[] { Bestiary.Raptor }, new[] { Bestiary.FeralSpitter }, 0.2f);
         private static readonly Recipe Swarm = new(new[] { Bestiary.Raptor }, new[] { Bestiary.Skitter }, Array.Empty<EnemyKind>(), 0f);
 
         private static readonly Recipe Wolves = new(new[] { Bestiary.DireWolf }, new[] { Bestiary.Wolf }, Array.Empty<EnemyKind>(), 0f);
@@ -149,6 +152,7 @@ namespace Dino_Defenders.Server
             yield return Dead;
             yield return Rotting;
             yield return Feral;
+            yield return Fen;
             yield return Swarm;
             yield return Wolves;
             yield return WinterWolves;
@@ -167,7 +171,8 @@ namespace Dino_Defenders.Server
                     // Cold-blooded things don't last the winter, so the snow is still the wolves'.
                     if (biome.Temperature <= 0.35f) return random.Chance(FeralShare * 0.4f) ? Feral : WinterWolves;
                     float roll = random.Float();
-                    if (roll < FeralShare) return Feral;
+                    // Waders keep to the wet country, where they lead what got out.
+                    if (roll < FeralShare) return biome.Moisture >= 0.75f ? Fen : Feral;
                     if (roll < FeralShare + SwarmShare) return Swarm;
                     return random.Chance(biome.Temperature >= 0.55f ? 0.6f : 0.3f) ? Boars : Wolves;
                 case SpawnRole.Cultist:

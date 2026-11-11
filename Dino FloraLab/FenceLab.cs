@@ -237,6 +237,7 @@ namespace Dino_FloraLab
 
                 (float lean, float miss, int runs) = CheckLayout(kind, FenceCatalog.StyleSeed(77, kind, 0));
                 if (lean > MostLean) problem += $" a span leans {lean:0.0} degrees";
+                if (!kind.LinePosts && lean > 0.01f) problem += $" a wall's span leans {lean:0.00} degrees, which opens a wedge at its joint";
                 if (miss > MostMiss) problem += $" a span misses its post by {miss:0.000} m";
                 if (runs > 0) problem += $" {runs} run ends with no post";
                 float apart = Difference(signatures);
@@ -276,9 +277,14 @@ namespace Dino_FloraLab
                 worstLean = MathF.Max(worstLean, MathHelper.RadiansToDegrees(MathF.Acos(Math.Clamp(up.Y, -1f, 1f))));
                 Vector3 end = item.At + Vector3.Transform(new Vector3(bay, spec.Gradient * bay, 0f) * item.Stretch, item.Turn);
 
-                // A wall's spans meet each other between posts; what they meet is the next span's foot.
+                // A wall's spans meet each other between posts; what they meet is the next span's foot. Its last stands on the pier at the end, up to half a step high or low.
                 float nearest = float.MaxValue;
-                foreach (Vector3 post in posts) nearest = MathF.Min(nearest, (post - end).Length);
+                float onPier = kind.Step * bay * 0.5f + 0.01f;
+                foreach (Vector3 post in posts)
+                {
+                    bool stands = !kind.LinePosts && MathF.Abs(post.Y - end.Y) <= onPier;
+                    nearest = MathF.Min(nearest, stands ? (post.Xz - end.Xz).Length : (post - end).Length);
+                }
                 foreach (Placed other in placed)
                 {
                     if (IsSpan(other)) nearest = MathF.Min(nearest, (other.At - end).Length);

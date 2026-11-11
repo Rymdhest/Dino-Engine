@@ -101,7 +101,7 @@ namespace Dino_Engine.Wildlife
             {
                 if (!sea) return Habitat.Bank;
                 SurfaceMaterial shore = World.SurfaceAt(at);
-                return shore is SurfaceMaterial.Sand or SurfaceMaterial.Dunes or SurfaceMaterial.Gravel ? Habitat.Beach : Habitat.Bank;
+                return shore is SurfaceMaterial.Sand or SurfaceMaterial.Dunes or SurfaceMaterial.Gravel or SurfaceMaterial.Shingle ? Habitat.Beach : Habitat.Bank;
             }
 
             if (World.Rock.Sample(at) > 0.5f || World.Scree.Sample(at) > 0.5f) return Habitat.Crag;

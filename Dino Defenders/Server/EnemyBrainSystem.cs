@@ -117,7 +117,8 @@ namespace Dino_Defenders.Server
                     brain.OwnerWay = went.Normalized();
                     brain.OwnerMark = owner.Position;
                 }
-                brain.Home = owner.Position;
+                // A turret's home is where it stands, so it never wants to go back to anyone.
+                brain.Home = actor.Rooted ? position : owner.Position;
                 if (owner.Dead || (actor.MinionLeft -= deltaTime) <= 0f)
                 {
                     session.Combat.Dismiss(actor);
@@ -156,6 +157,10 @@ namespace Dino_Defenders.Server
 
                     int ready = brain.Cooldown <= 0f ? Ready(actor, toTarget) : -1;
                     float wants = Comfort(actor);
+
+                    // Nothing goes through a fence or a pillar, so with one in the way it goes round rather than strike at it.
+                    bool hidden = ready >= 0 && actor.Sheet.Profile(ready).Sign.Form is not (PageForm.Buff or PageForm.Summon) && !Reaches(session, actor.Sheet.Profile(ready), position, foe, toTarget);
+                    if (hidden) ready = -1;
                     if (ready >= 0)
                     {
                         brain.Book = ready;
@@ -163,7 +168,7 @@ namespace Dino_Defenders.Server
                         Commit(session, entity.Entity, actor, ref brain, enemy.Rarity, chosen, position, foe, toTarget);
                         Change(ref enemy, ref brain, EnemyState.WindingUp);
                     }
-                    else if (toTarget > wants * 0.75f)
+                    else if (hidden || toTarget > wants * 0.75f)
                     {
                         velocity = MoveTowards(ref brain, session, actor, position, foe) * speed;
                     }
@@ -182,8 +187,18 @@ namespace Dino_Defenders.Server
                     {
                         Let(session, actor, brain);
                         brain.Mark = default;
-                        brain.Cooldown = enemy.Rarity == Rarity.Unique ? 1.1f : 1.5f;
-                        Change(ref enemy, ref brain, EnemyState.Recovering);
+                        if (actor.Eager)
+                        {
+                            // What it was given, it uses as a hero would: again as soon as the book's own time is up.
+                            BookProfile used = actor.Sheet.Profile(brain.Book);
+                            brain.Cooldown = MathF.Max(used.UseTime - used.ImpactTime, 0f);
+                            Change(ref enemy, ref brain, EnemyState.Chasing);
+                        }
+                        else
+                        {
+                            brain.Cooldown = enemy.Rarity == Rarity.Unique ? 1.1f : 1.5f;
+                            Change(ref enemy, ref brain, EnemyState.Recovering);
+                        }
                     }
                     break;
 
@@ -213,6 +228,13 @@ namespace Dino_Defenders.Server
                 velocity *= ReelingSpeed;
             }
 
+            // What's rooted stays put, whatever it was asked to do and whatever's hit it.
+            if (actor.Rooted)
+            {
+                velocity = Vector2.Zero;
+                actor.Push = Vector2.Zero;
+            }
+
             brain.Asked = velocity.Length;
             entity.Set(new VelocityComponent(Carried(actor, velocity, deltaTime)));
             entity.Set(brain);
@@ -229,13 +251,27 @@ namespace Dino_Defenders.Server
         }
 
         // Fixes what's going to happen: where from, which way and how far, and says so to all. Nothing is checked again until it lands, so that whatever a player can see is what's coming.
+        // Whether a book used now would get to whoever it's meant for, as far as anything standing in the way goes: from where it goes off, which for what falls out of the sky is where it lands.
+        private readonly List<Footprint> _blockers = new();
+        private bool Reaches(ServerSession session, BookProfile book, Vector2 position, Vector2 foe, float toTarget)
+        {
+            Vector2 toward = foe - position;
+            Vector2 way = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.UnitY;
+            GroundShape shape = GroundShape.Of(book, position, way, toTarget + MeleeSlack);
+            shape.Blockers(session.World.Placement, _blockers);
+            return Sight.Clear(_blockers, shape.Origin, foe);
+        }
+
         private static void Commit(ServerSession session, Entity who, Actor actor, ref EnemyBrainComponent brain, Rarity rarity, BookProfile book, Vector2 position, Vector2 foe, float toTarget)
         {
             Vector2 toward = foe - position;
             brain.AimFrom = position;
             brain.AimWay = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.UnitY;
             brain.AimReach = toTarget + MeleeSlack;
-            brain.WindUpTicks = (int)MathF.Round(WindUpOf(book, rarity) / MathF.Max(actor.Afflictions.ActionRate, 0.1f) * NetTime.TicksPerSecond);
+            brain.WindUpTicks = (int)MathF.Round((actor.Eager ? MathF.Max(book.ImpactTime, NetTime.TickSeconds) : WindUpOf(book, rarity)) / MathF.Max(actor.Afflictions.ActionRate, 0.1f) * NetTime.TicksPerSecond);
+
+            // It pays as it starts, as a hero does.
+            if (actor.Pays) actor.Vitals.Mana -= book.Cost;
             float windUp = brain.WindUpTicks * NetTime.TickSeconds;
 
             float follow = MathF.Min(MathF.Max(book.UseTime - book.ImpactTime, 0.35f), MostFollowThrough);
@@ -359,6 +395,7 @@ namespace Dino_Defenders.Server
             {
                 if (actor.Cooldowns[i] > 0f) continue;
                 BookProfile book = actor.Sheet.Profile(i);
+                if (actor.Pays && actor.Vitals.Mana < book.Cost) continue;
                 if (Chosen(book) && distance <= Reach(book)) return i;
             }
             return -1;

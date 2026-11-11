@@ -8,7 +8,7 @@ namespace Dino_Defenders.Progression
 {
     /// <summary>
     /// Where something is on a hero, as one number so that a message can say it: a cell of the pack, a place they wear it, or a place on the bar, or a place inside what's in one of those, as a page is in a book and a
-    /// sticker on that page. Whatever moves an item says where from and where to with these, and a number that's none of those holds nothing.
+    /// sentence on that page. Whatever moves an item says where from and where to with these, and a number that's none of those holds nothing.
     /// </summary>
     public readonly record struct ItemPlace(int Number)
     {
@@ -16,6 +16,9 @@ namespace Dino_Defenders.Progression
         private const int OuterBits = 8;
         private const int InnerBits = 4;
         private const int InnerMask = (1 << InnerBits) - 1;
+
+        /// <summary>How deep a place can be: a sentence on a page of the book a Summon Page gives its Minions, in a book.</summary>
+        public const int Deepest = 4;
 
         public static ItemPlace Cell(int cell) => new(cell);
         public static ItemPlace Worn(WornSlot place) => new(HeroState.InventorySize + (int)place);
@@ -27,20 +30,31 @@ namespace Dino_Defenders.Progression
         public WornSlot Slot => (WornSlot)(Number - HeroState.InventorySize);
         public int BarSlot => Number - FirstOnBar;
 
-        private int First => Number >> OuterBits & InnerMask;
-        private int Second => Number >> OuterBits + InnerBits & InnerMask;
+        // Each place inside another is the next few bits along, one more than its index, so nothing is none.
+        private int Step(int depth) => Number >> OuterBits + depth * InnerBits & InnerMask;
 
-        /// <summary>Whether it's a place inside something else, which is all these below mean anything for.</summary>
-        public bool IsHeld => Number >= 1 << OuterBits;
+        /// <summary>How many things in it is: none for a cell, one for a page in a book.</summary>
+        public int Depth
+        {
+            get
+            {
+                int depth = 0;
+                while (depth < Deepest && Step(depth) != 0) depth++;
+                return depth;
+            }
+        }
 
-        /// <summary>A place inside whatever's here.</summary>
-        public ItemPlace In(int slot) => new(First == 0 ? Number | slot + 1 << OuterBits : Number | slot + 1 << OuterBits + InnerBits);
+        /// <summary>Whether it's a place inside something else, which is all these below mean anything for. One with gaps in it, or more than there can be, is nowhere.</summary>
+        public bool IsHeld => Number >= 1 << OuterBits && Depth > 0 && Number >> OuterBits + Depth * InnerBits == 0;
+
+        /// <summary>A place inside whatever's here. Nothing goes deeper than <see cref="Deepest"/>, and asking for that is asking for nowhere.</summary>
+        public ItemPlace In(int slot) => Depth >= Deepest || slot < 0 || slot >= InnerMask ? new(-1) : new(Number | slot + 1 << OuterBits + Depth * InnerBits);
 
         /// <summary>What it's a place in.</summary>
-        public ItemPlace Holder => Second != 0 ? new(Number & ~(InnerMask << OuterBits + InnerBits)) : new(Number & (1 << OuterBits) - 1);
+        public ItemPlace Holder => Depth == 0 ? this : new(Number & ~(InnerMask << OuterBits + (Depth - 1) * InnerBits));
 
         /// <summary>Which of the places in that it is.</summary>
-        public int Index => (Second != 0 ? Second : First) - 1;
+        public int Index => Step(Depth - 1) - 1;
     }
 
     /// <summary>The hero as they carry on from world to world. Saved as it stands.</summary>
@@ -353,6 +367,8 @@ namespace Dino_Defenders.Progression
 
         private bool CanMoveHeld(ItemPlace from, ItemPlace to, Item item)
         {
+            // What's worn comes off into the pack first, as a place on a hero isn't somewhere a page's weapon can go back to.
+            if (from.IsWorn || to.IsWorn) return false;
             Item? there = At(to);
             if (!CanGo(to, item, from, there) || there != null && !CanGo(from, there, to, item)) return false;
 
@@ -365,11 +381,28 @@ namespace Dino_Defenders.Progression
         {
             if (!place.IsHeld) return place.IsCell || place.IsBar && item.IsBook;
             if (At(place.Holder) is not Item holder || place.Index < 0 || place.Index >= holder.Places) return false;
-            if (holder.IsBook) return item.IsPage && (holder.Mode != BookMode.Toggle || item.Page?.Kind == PageKind.Area);
-            return holder.IsPage && item.Sticker is Sticker sticker && holder.Page != null && Stickers.GoesOn(sticker, holder.Page.Kind);
+            if (holder.IsBook) return item.IsPage && (holder.Mode != BookMode.Toggle || item.Page?.Kind == PageKind.Area) && !(item.Summons && place.Holder.IsHeld);
+            if (!holder.IsPage) return false;
+
+            // A Summon Page's last places are for what its Minions fight with, and the rest are for its Sentences. What takes both hands leaves the other empty, as it does on a hero.
+            if (holder.Summons && place.Index == holder.MinionWeaponPlace)
+            {
+                Item? beside = OtherHand(place.Holder.In(holder.MinionOffHandPlace), leaving);
+                return item.IsWeapon && !(item.IsTwoHanded && beside != null);
+            }
+            if (holder.Summons && place.Index == holder.MinionOffHandPlace)
+            {
+                Item? main = OtherHand(place.Holder.In(holder.MinionWeaponPlace), leaving);
+                return item.FitsOffHand && main is not { IsTwoHanded: true };
+            }
+            if (holder.Summons && place.Index == holder.MinionBookPlace) return Item.FitsMinions(item);
+            return item.Sentence is Sentence sentence && holder.Page != null && Sentences.GoesOn(sentence, holder.Page.Kind);
         }
 
-        // A book reads to its first Area and no further, so nothing may end up after one.
+        // What's in a Minion's other hand once a move is done: nothing, if it's what's being swapped out. The move only knows its two ends, so anything else is as it is.
+        private Item? OtherHand(ItemPlace hand, Item? leaving) => At(hand) is Item there && !ReferenceEquals(there, leaving) ? there : null;
+
+        // A book reads to its first Summon Page and no further, so nothing may end up after one.
         private bool Reads(ItemPlace place, Item? item, ItemPlace other, Item? leaving)
         {
             if (!place.IsHeld || At(place.Holder) is not { IsBook: true, Mode: not BookMode.Toggle } book) return true;
@@ -383,7 +416,7 @@ namespace Dino_Defenders.Progression
 
                 if (page == null) continue;
                 if (ended) return false;
-                ended = page.Page?.Kind == PageKind.Area;
+                ended = page.Page is Page written && Scribe.Ends(written.Kind);
             }
             return true;
         }

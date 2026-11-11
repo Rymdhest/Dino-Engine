@@ -663,10 +663,59 @@ namespace Dino_Defenders.UI
             if (cell == null) return Plan.Nothing;
 
             ItemPlace to = cell.Spot.Place;
+
+            // Dropped on what holds it, it goes into the first place there that takes it: a Sentence on a Page, a Page in a Book, and a Weapon or a Book given to a Summon Page's Minions.
+            if (Hero.At(to) is Item holder && Into(item, holder) is string putting)
+            {
+                return FirstPlaceIn(from.Place, to, item, holder) is ItemPlace free
+                    ? new Plan(putting, () => Move(from.Place, free))
+                    : Plan.Refuse(NoRoomIn(item, holder));
+            }
+
             if (!Hero.CanMove(from.Place, to)) return Plan.Refuse(WhyNot(item, cell.Spot));
 
-            string says = cell.Spot.Shelf == Shelf.Worn ? "Wear" : cell.Spot.Shelf == Shelf.Bar && Hero.At(to) == null ? "Put on the Bar" : Hero.At(to) != null ? "Swap" : cell.Spot.Shelf == Shelf.Held ? item.IsSticker ? "Stick on the Page" : "Put in the Book" : "";
+            string says = cell.Spot.Shelf == Shelf.Worn ? "Wear" : cell.Spot.Shelf == Shelf.Bar && Hero.At(to) == null ? "Put on the Bar" : Hero.At(to) != null ? "Swap" : cell.Spot.Shelf == Shelf.Held ? item.IsSentence ? "Put on the Page" : item.IsPage ? "Put in the Book" : "Give to the Minions" : "";
             return new Plan(says, () => Move(from.Place, to));
+        }
+
+        // What putting this into that is called, if it's something that goes in it.
+        private static string? Into(Item item, Item holder)
+        {
+            if (holder.IsPage && item.IsSentence) return "Put on the Page";
+            if (holder.IsBook && item.IsPage) return "Put in the Book";
+            if (holder.Summons && (item.IsWeapon || item.IsBook || item.FitsOffHand)) return "Give to the Minions";
+            return null;
+        }
+
+        // The first empty place in something that this could go in, in order, or nothing if there's none.
+        private static ItemPlace? FirstPlaceIn(ItemPlace from, ItemPlace holderAt, Item item, Item holder)
+        {
+            if (holder.Summons && (item.IsWeapon || item.IsBook || item.FitsOffHand))
+            {
+                // The weapon's hand first, then the other, then the book's place: whichever of them is empty and takes it.
+                foreach (int index in new[] { holder.MinionWeaponPlace, holder.MinionOffHandPlace, holder.MinionBookPlace })
+                {
+                    ItemPlace given = holderAt.In(index);
+                    if (Hero.At(given) == null && Hero.CanMove(from, given)) return given;
+                }
+                return null;
+            }
+
+            int places = holder.IsPage ? holder.SentencePlaces : holder.Places;
+            for (int i = 0; i < places; i++)
+            {
+                ItemPlace to = holderAt.In(i);
+                if (Hero.At(to) == null && Hero.CanMove(from, to)) return to;
+            }
+            return null;
+        }
+
+        private static string NoRoomIn(Item item, Item holder)
+        {
+            if (item.Sentence is Sentence sentence && holder.Page != null && !Sentences.GoesOn(sentence, holder.Page.Kind)) return "That Sentence is for another kind of Page";
+            if (item.IsPage && holder.Mode == BookMode.Toggle && item.Page?.Kind != PageKind.Area) return "A Toggle Book holds only Area Pages";
+            if (holder.Summons) return item.IsBook && !Item.FitsMinions(item) ? "Minions only use a pressed Book with no Summon Page in it" : "Its Minions already have one";
+            return holder.IsPage ? "There's no room on this Page" : "There's no place in this Book for that";
         }
 
         private static string WhyNot(Item item, Spot to)
@@ -674,8 +723,8 @@ namespace Dino_Defenders.UI
             if (to.Shelf == Shelf.Worn && WornSlots.Fits(item, (WornSlot)to.Index)) return "Your pack is full";
             if (to.Shelf != Shelf.Held) return "That doesn't go there";
             if (item.IsPage && Hero.At(to.Place.Holder) is { Mode: BookMode.Toggle }) return "A Toggle Book holds only Area Pages";
-            if (item.IsPage && Hero.At(to.Place.Holder) is { IsBook: true }) return "Nothing can come after an Area Page";
-            return item.IsSticker && Hero.At(to.Place.Holder) is { IsPage: true } ? "That Sticker is for another kind of Page" : "That doesn't go there";
+            if (item.IsPage && Hero.At(to.Place.Holder) is { IsBook: true }) return "Nothing can come after a Summon Page";
+            return item.IsSentence && Hero.At(to.Place.Holder) is { IsPage: true } ? "That Sentence is for another kind of Page" : "That doesn't go there";
         }
 
         // A plan that can't be done leaves what's on the cursor there, to be put somewhere that it can go.

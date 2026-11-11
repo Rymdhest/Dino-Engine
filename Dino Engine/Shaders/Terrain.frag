@@ -35,6 +35,7 @@ uniform sampler2DArray roadFrameTextureArray;   // Per texel: metres across the 
 uniform sampler2DArray roadInfoTextureArray;    // Its half width, 0 where there's none, and how much of a junction or an end this is.
 uniform float roadMaterial;     // A dirt road's earth, read along the road with its ruts sunk into it (roadShape).
 uniform float settsMaterial;    // A street's setts, read across it from kerb to kerb and along it.
+uniform float snowMaterial;     // Snow, which keeps what's walked through it (Snow/SnowTrail.glsl) and glitters.
 uniform bool DEBUG_VIEW;
 
 layout (location = 0) out vec4 gAlbedo;
@@ -56,6 +57,7 @@ layout (depth_greater) out float gl_FragDepth;
 #include Weather/RainShadow.glsl
 #include Weather/Wetness.glsl
 #include Halls.glsl
+#include Snow/SnowTrail.glsl
 
 const float MATERIAL_SIZE = 2048.0;             // Texels across a material, for the mip a march reads.
 const float TERRAIN_MOST_SLANT = 6.0;           // The farthest a ray may run sideways, in depths of the relief (Surface/Relief.glsl).
@@ -178,6 +180,7 @@ struct TerrainMaterialSample {
     vec3 scales;        // uv of the material = fragUV * scale.
     vec3 reliefs;       // Metres.
     vec3 heights;
+    vec2 uv;            // Where the heights were read, in fragUV's units.
 };
 
 TerrainMaterialSample GatherSurface(vec2 macroCoord, vec2 macroDX, vec2 macroDY) {
@@ -216,6 +219,7 @@ TerrainMaterialSample GatherSurface(vec2 macroCoord, vec2 macroDX, vec2 macroDY)
         s.reliefs[i] = isRock(s.mats[i]) ? 0.0 : materialReliefRatio(s.mats[i], numberOfMaterials) * tile * reliefScale;
     }
     s.heights = vec3(0.0);
+    s.uv = vec2(0.0);
     return s;
 }
 
@@ -248,7 +252,127 @@ TerrainMaterialSample SampleTerrainMaterials(TerrainMaterialSample s, vec2 uv, f
     s.heights.x = MaterialHeight(s.mats.x, s.scales.x, uv, lod);
     if (s.weights.y > 0.0) s.heights.y = MaterialHeight(s.mats.y, s.scales.y, uv, lod);
     if (s.weights.z > 0.0) s.heights.z = MaterialHeight(s.mats.z, s.scales.z, uv, lod);
+    s.uv = uv;
     return s;
+}
+
+// ---------------------------------------------------------------- Snow that's been walked through
+// Every foot, and every body ploughing through deep snow, presses its shape into a map around the camera (SnowTrailRenderer, Snow/SnowTrail.glsl), and it's part
+// of the depth the march goes through, so a print is a real hollow: it hides what's behind its far wall, the sun shadows it, and the sky sees less of its floor.
+// A print's floor is level, measured down from where the snow lies on average, as a sole presses whatever drifts were there flat. What's pushed out heaps round
+// it and can only lessen the depth, so nothing ever stands out of the mesh. Read SNOW.md.
+
+float gSnow = 0.0;          // How much of this pixel is snow, the ground's own or what the weather has settled on it.
+float gSnowDeep = 0.0;      // How deep a print goes here, of one in the Snowfield's snow: a dusting takes a shallower one.
+float gSnowLevel = 0.0;     // Metres below the mesh the snow lies on average, which a floor goes down from.
+float gTrailReach = 0.0;    // Metres past the materials' own relief the march has to look, for a print it might meet.
+float gTrod = 0.0;          // How much the hit has been walked on, which crushes the crystals that glitter.
+bool gTrailing = false;     // Whether this pixel reads the trail at all.
+
+// Metres below the mesh at xz, given what the materials alone make it there, with what's been pressed into the snow and heaped on it. `scale` is how deep a full print
+// goes, of SNOW_TRAIL_DEEPEST.
+float SnowTrailed(float depth, vec2 xz, float scale)
+{
+    vec4 t = snowTrailAt(xz);
+    if (t.r + t.g + t.b + t.a < 0.003) return depth;
+    float lumps = snowLumps(xz);
+    float heap = (t.b * SNOW_TRAIL_HIGHEST * (1.0 - t.g) * (0.6 + 0.8 * lumps) + t.a * 0.07 * lumps) * scale;
+    float raised = max(depth - heap, 0.0);
+    // Never shallower than the snow already was there, as a foot can't lift a drift's hollow.
+    float pressed = max(gSnowLevel + t.r * SNOW_TRAIL_DEEPEST * scale, depth);
+    // A furrow's floor is churned into chunks, where a footprint's is pressed smooth.
+    float churned = t.g * (1.0 - smoothstep(0.75, 0.97, t.g));
+    float trodden = max(mix(raised, pressed, t.g) - churned * 0.16 * snowChunks(xz) * scale, 0.0);
+    return mix(depth, trodden, gSnow);
+}
+
+// How much of this pixel is snow, and, if there's a trail here, everything the march needs to go through it.
+void SetUpSnow(TerrainMaterialSample surface, vec3 N, vec3 V)
+{
+    float snowWeight = 0.0;
+    for (int i = 0; i < 3; i++)
+    {
+        if (abs(surface.mats[i] - snowMaterial) < 0.5) snowWeight += surface.weights[i];
+    }
+    // As Weather/Wetness.glsl settles it.
+    float settled = 0.0;
+    if (weatherKind.w > 0.5) settled = smoothstep(0.0, 0.5, weatherSurfaceAt(fragWorldPos.xz).z * smoothstep(0.1, 0.65, N.y));
+    gSnow = max(snowWeight, settled);
+    if (gSnow < 0.01) return;
+
+    gSnowDeep = clamp(snowWeight + (1.0 - snowWeight) * settled * 0.35, 0.0, 1.0);
+    float relief = dot(surface.weights, surface.reliefs);
+    gSnowLevel = 0.5 * relief;
+
+    // A print the march could meet lies along the way it goes, under this pixel or past it by as far sideways as the deepest print would take it. Where none
+    // of these few looks finds anything, which is most snow, nothing else here reads the trail at all.
+    float most = gSnowLevel + SNOW_TRAIL_DEEPEST * gSnowDeep * reliefScale;
+    float NdotV = max(dot(N, V), 0.05);
+    vec2 sideways = -(V - N * NdotV).xz / NdotV;
+    if (!snowTrailCovers(fragWorldPos.xz, fragWorldPos.xz + sideways * most)) return;
+    float deepest = 0.0;
+    float anything = 0.0;
+    for (int k = 0; k < 4; k++)
+    {
+        vec4 t = snowTrailAt(fragWorldPos.xz + sideways * most * (float(k) / 3.0));
+        deepest = max(deepest, t.r);
+        anything = max(anything, t.r + t.g + t.b + t.a);
+    }
+    if (anything < 0.003) return;
+    gTrailing = true;
+    gTrailReach = max(gSnowLevel + deepest * SNOW_TRAIL_DEEPEST * gSnowDeep * reliefScale - relief, 0.0) * gSnow;
+}
+
+// What being walked on does to how snow looks at the hit: the slopes of what was pressed and heaped, a floor pressed smooth and glazed, blue the deeper it goes, as
+// packed snow lets light further in before it comes back, its floor seeing less of the sky, and heaped and kicked-up snow crumbling, bright and rough.
+void TreadSnow(vec2 xz, vec3 N, float materialDepth, inout vec3 albedo, inout float roughness, inout vec3 normal, inout float ambient)
+{
+    vec4 t = snowTrailAt(xz);
+    if (t.r + t.g + t.b + t.a < 0.003) return;
+    gTrod = clamp(max(max(t.g, t.a * 1.5), t.b * 2.0), 0.0, 1.0);
+
+    // Read at full depth whatever the quality, so a print still shows where there's no relief to march through.
+    const float STEP = 0.045;
+    float dx = SnowTrailed(materialDepth, xz + vec2(STEP, 0.0), gSnowDeep) - SnowTrailed(materialDepth, xz - vec2(STEP, 0.0), gSnowDeep);
+    float dz = SnowTrailed(materialDepth, xz + vec2(0.0, STEP), gSnowDeep) - SnowTrailed(materialDepth, xz - vec2(0.0, STEP), gSnowDeep);
+    vec3 trodden = normalize(N + vec3(dx, 0.0, dz) / (2.0 * STEP));
+    float footprint = smoothstep(0.75, 0.97, t.g);
+    float churned = t.g * (1.0 - footprint);
+    normal = normalize(mix(normal, N, (footprint + 0.5 * churned) * gSnow * 0.9) + (trodden - N));
+
+    float deep = clamp(t.r * SNOW_TRAIL_DEEPEST * gSnowDeep / 0.35, 0.0, 1.0) * t.g;
+    float blue = gSnow * t.g * (0.35 + 0.65 * deep);
+    albedo *= mix(vec3(1.0), vec3(0.5, 0.68, 1.0), blue);
+    roughness = mix(roughness, 0.36, footprint * gSnow * 0.85);
+    albedo *= mix(vec3(1.0), vec3(0.8, 0.87, 0.97), churned * gSnow);
+    ambient *= 1.0 - 0.65 * deep * gSnow;
+
+    float loose = gSnow * clamp(max(t.b * 2.2 * (1.0 - t.g), t.a * (0.4 + 0.9 * snowLumps(xz))), 0.0, 1.0);
+    albedo = mix(albedo, min(albedo * 1.14, vec3(0.95)), loose);
+    roughness = mix(roughness, 0.94, loose);
+}
+
+// ---------------------------------------------------------------- Snow glitters
+// The odd crystal lies square to the sun and the eye at once and flashes. Each is a tiny facet on a fixed spot of the ground, tipped at random and very smooth, and
+// the sun decides which of them flash: the light pass only gives one a highlight while it's nearly a mirror between the sun and the eye, so they twinkle as the
+// camera moves and go out under cloud by themselves. Trodden snow is crushed, and doesn't.
+
+const float GLINT_CELL = 0.06;      // Metres of ground to a facet at most.
+const float GLINT_SHARE = 0.14;     // How many cells have one.
+const float GLINT_TILT = 0.6;       // How far one may be tipped, as a slope.
+const float GLINT_ROUGHNESS = 0.17;
+
+void SnowGlitter(vec2 xz, vec3 N, float share, inout vec3 normal, inout float roughness)
+{
+    if (share < 0.05) return;
+    vec2 cell = floor(xz / GLINT_CELL);
+    if (hash21(cell + 41.0) < 1.0 - GLINT_SHARE) return;
+    vec2 centre = (hash22(cell + 7.0) - 0.5) * 0.4;
+    float facet = (1.0 - smoothstep(0.2, 0.3, length(fract(xz / GLINT_CELL) - 0.5 - centre))) * share;
+    if (facet <= 0.0) return;
+    vec2 tip = hash22(cell) * 2.0 - 1.0;
+    normal = normalize(mix(normal, normalize(N + vec3(tip.x, 0.0, tip.y) * GLINT_TILT), facet));
+    roughness = mix(roughness, GLINT_ROUGHNESS, facet);
 }
 
 // ---------------------------------------------------------------- What the ground is at the hit
@@ -363,7 +487,14 @@ vec3 GroundDrift(vec2 xz) {
 // How far below the mesh the ground is, in metres: each material's own depth there by its share, so the march sees no false cliffs where they blend.
 // `fade` scales every relief alike, as it was faded far off.
 float BlendedDepth(TerrainMaterialSample s, float fade) {
-    return dot(s.weights, (1.0 - s.heights) * s.reliefs) * fade;
+    float depth = dot(s.weights, (1.0 - s.heights) * s.reliefs);
+    if (gTrailing) depth = SnowTrailed(depth, s.uv * textureTileSize, gSnowDeep * reliefScale);
+    return depth * fade;
+}
+
+// The most the march may go down here, in metres, before it's faded: the materials' relief, and any print it might meet.
+float DeepestOf(TerrainMaterialSample s) {
+    return dot(s.weights, s.reliefs) + gTrailReach;
 }
 
 // The single sharp winning material at the resolved surface coordinate
@@ -396,7 +527,7 @@ vec2 ParallaxOcclusionMapping(vec2 uv, vec3 V, vec3 N, TerrainMaterialSample sur
 
     float NdotV = dot(N, V);
     if (NdotV <= 1e-3) return uv;
-    float deepest = dot(surface.weights, surface.reliefs) * fade;
+    float deepest = DeepestOf(surface) * fade;
     if (deepest <= 0.0) return uv;
 
     vec3 sideways = V - N * NdotV;
@@ -457,7 +588,7 @@ vec2 ParallaxOcclusionMapping(vec2 uv, vec3 V, vec3 N, TerrainMaterialSample sur
 // sun until it's out, and the most it rises above that ray, as an angle seen from the hit, hides as much of the light (Surface/Relief.glsl's reliefShadow).
 float ReliefShadow(vec2 uv, float depth, vec3 L, vec3 N, TerrainMaterialSample surface, float fade, float lod, float pixelsPerMetre) {
     float LdotN = dot(L, N);
-    float deepest = dot(surface.weights, surface.reliefs) * fade;
+    float deepest = DeepestOf(surface) * fade;
     float shown = smoothstep(TERRAIN_SHADOW_FROM, TERRAIN_SHADOW_AT, deepest * pixelsPerMetre);
     if (depth <= 1e-5 || LdotN <= 0.0 || deepest <= 0.0 || shown <= 0.0) return 1.0;
     vec3 sideways = L - N * LdotN;
@@ -492,6 +623,7 @@ void main() {
     vec2 macroCoord = clamp((fragWorldPos.xz - fragInstanceChunkPos) / fragInstanceChunkSizeXZ, 0.0, 1.0) * (1.0 - textureMapOffset) + vec2(textureMapOffset / 2.0);
     TerrainMaterialSample surface = GatherSurface(macroCoord, macroDX, macroDY);
     gRoad = ReadRoad(vec3(macroCoord, fragInstanceHeightMapID), macroDX, macroDY);
+    SetUpSnow(surface, N, V);
 
     // The mip fragUV's footprint wants at the arrays' size, and how many pixels a metre of the ground covers here, the fewer way.
     float lod = max(0.5 * log2(max(dot(uvDX, uvDX), dot(uvDY, uvDY)) * MATERIAL_SIZE * MATERIAL_SIZE), 0.0);
@@ -504,7 +636,7 @@ void main() {
     bool bareRock = isRock(surface.mats.x) && surface.weights.x > 0.995;
     float NdotV = max(dot(N, V), 1e-3);
     float slant = sqrt(max(1.0 - NdotV * NdotV, 0.0)) / NdotV;
-    float deepest = dot(surface.weights, surface.reliefs);
+    float deepest = DeepestOf(surface);
     float fade = slant > TERRAIN_MOST_SLANT ? TERRAIN_MOST_SLANT / slant : 1.0;
     fade *= smoothstep(TERRAIN_SHOWN_FROM, TERRAIN_SHOWN_AT, deepest * fade * max(slant, 0.5) * pixelsPerMetre);
     vec2 winningUV = fragUV;
@@ -517,7 +649,13 @@ void main() {
     }
 
     // 2. Determine the single sharp winning material at the final resolved surface coordinate
-    float winningMat = bareRock ? surface.mats.x : WinningMaterial(SampleTerrainMaterials(surface, winningUV, lod));
+    float winningMat = surface.mats.x;
+    float materialDepth = 0.0;     // How far below the mesh the materials alone put the hit, which what's been trodden into snow is measured against.
+    if (!bareRock) {
+        TerrainMaterialSample atHit = SampleTerrainMaterials(surface, winningUV, lod);
+        winningMat = WinningMaterial(atHit);
+        materialDepth = dot(atHit.weights, (1.0 - atHit.heights) * atHit.reliefs);
+    }
     bool rock = isRock(winningMat);
 
     // 3. Write the depth of the parallax hit so trees/grass don't float. The hit is on this pixel's view ray, rayT
@@ -563,7 +701,6 @@ void main() {
     if (underHallFloor(fragWorldPos)) discard;
 
     gAlbedo.a = transmittance(look.subSurface, look.height);
-    gNormal.a = look.ambient;
     vec3 worldNormal = look.normal;
 
     // The hollows of the ground are in the grass map's alpha (TerrainSurface), for the rain to fill, and a road's ruts fill first.
@@ -571,7 +708,12 @@ void main() {
     vec3 albedo = gAlbedo.rgb;
     float hollow = max(tintGrass.a, gRutWater * 0.8);
     weatherWetten(fragWorldPos, N, weatherPorosity(winningMat, numberOfMaterials), look.metalic, hollow, look.height, albedo, roughness, worldNormal);
+    // Snow is walked through and glitters after the weather has had its say, as what settled is what's trodden.
+    vec2 hitXZ = winningUV * textureTileSize;
+    if (gTrailing && !rock) TreadSnow(hitXZ, N, materialDepth, albedo, roughness, worldNormal, look.ambient);
+    if (!rock) SnowGlitter(hitXZ, N, gSnow * (1.0 - gTrod), worldNormal, roughness);
     gAlbedo.rgb = albedo;
+    gNormal.a = look.ambient;
 
     vec3 normal = normalize(mat3(viewMatrix) * worldNormal);
     gNormal.xyz = compressNormal(normal);

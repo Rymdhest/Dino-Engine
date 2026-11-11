@@ -8,6 +8,7 @@ using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
 using Dino_Engine.Rendering.Renderers.PosGeometry;
+using Dino_Engine.World;
 using OpenTK.Mathematics;
 
 namespace Dino_Defenders.Client
@@ -52,6 +53,7 @@ namespace Dino_Defenders.Client
         private readonly BitMask _telegraphs = new BitMask(typeof(TelegraphComponent), typeof(PositionComponent));
         private readonly BitMask _zones = new BitMask(typeof(ZoneComponent), typeof(PositionComponent));
         private double _then;
+        private readonly List<Footprint> _blockers = new();
 
         /// <summary>What's being shown just now, and when it lands.</summary>
         public IEnumerable<(GroundShape Shape, double Lands)> Showing => _marks.Select(mark => (mark.Shape, mark.Lands));
@@ -121,10 +123,14 @@ namespace Dino_Defenders.Client
                 // Only what's drawn: the blow lands all the same, and turning this back on in the middle of a fight shows what's already on its way. Some heroes choose not to see.
                 if (mark.Hostile && (blind || !InterfaceSettings.Load().Marks(mark.From))) continue;
                 drawn++;
-                renderer.SubmitCommand(Command(mark, now, past, hero));
+                mark.Shape.Blockers(session.World.Placement, _blockers);
+                bool forYou = mark.Shape.Covers(hero, NearEnough) && Sight.Clear(_blockers, mark.Shape.Origin, hero);
+                GroundMarkCommand command = Command(mark, now, past, forYou);
+                Cut(ref command, mark.Shape, renderer);
+                renderer.SubmitCommand(command);
             }
 
-            DrawZones(world, renderer, deltaTime, hero);
+            DrawZones(world, renderer, session.World, deltaTime, hero);
         }
 
         // The world has stood still for this long while the clock went on. The server moves what it's marked along by the same, and what's only here has to be moved by hand.
@@ -187,10 +193,19 @@ namespace Dino_Defenders.Client
             foreach (uint serial in _gone) _seen.Remove(serial);
         }
 
-        private static GroundMarkCommand Command(Mark mark, double now, float past, Vector2 hero)
+        // What a line from where it goes off can't reach is cut out of it, by the very blockers the server tests the blow against, so someone behind a pillar sees they're out of it.
+        // The blockers have to have been gathered for this shape.
+        private void Cut(ref GroundMarkCommand command, in GroundShape shape, GroundMarkRenderer renderer)
+        {
+            command.ShadowStart = renderer.AddShadows(shape.Origin, _blockers);
+            command.ShadowCount = _blockers.Count;
+        }
+
+        /// <param name="forYou">Whether it could reach this hero: near enough, and nothing in the way.</param>
+        private static GroundMarkCommand Command(Mark mark, double now, float past, bool forYou)
         {
             float strength = mark.Strength * mark.Tier switch { MarkTier.Slight => 0.5f, MarkTier.Plain => 0.74f, _ => 1f };
-            if (mark.Hostile && !mark.Shape.Covers(hero, NearEnough)) strength *= NotForYou;
+            if (mark.Hostile && !forYou) strength *= NotForYou;
 
             float span = MathF.Max((float)(mark.Lands - mark.Start), 1f);
             float fill = Math.Clamp((float)(now - mark.Start) / span, 0f, 1f);
@@ -224,7 +239,7 @@ namespace Dino_Defenders.Client
         }
 
         // Ground that's doing something for a while is an outline and not much more, so that it can be seen to be there without being looked at. Ground that wants to hurt you is more insistent.
-        private void DrawZones(ECSWorld world, GroundMarkRenderer renderer, float deltaTime, Vector2 hero)
+        private void DrawZones(ECSWorld world, GroundMarkRenderer renderer, WorldData land, float deltaTime, Vector2 hero)
         {
             foreach (Archetype archetype in world.QueryArchetypes(_zones, BitMask.Empty))
             {
@@ -238,7 +253,11 @@ namespace Dino_Defenders.Client
                     float shown = Math.Clamp(left / 0.4f, 0f, 1f) * Math.Clamp(zone.Age / 0.2f, 0f, 1f);
                     float strength = (zone.Hostile ? 0.62f : 0.22f) * shown;
                     if (strength <= 0.01f) continue;
-                    renderer.SubmitCommand(new GroundMarkCommand { Kind = (MarkKind)zone.Kind, Origin = at, Facing = zone.Facing, Length = zone.Length, Width = zone.Width, Fill = 0f, Strength = strength, Hostile = zone.Hostile });
+                    var command = new GroundMarkCommand { Kind = (MarkKind)zone.Kind, Origin = at, Facing = zone.Facing, Length = zone.Length, Width = zone.Width, Fill = 0f, Strength = strength, Hostile = zone.Hostile };
+                    GroundShape shape = zone.ShapeAt(at);
+                    shape.Blockers(land.Placement, _blockers);
+                    Cut(ref command, shape, renderer);
+                    renderer.SubmitCommand(command);
                 }
             }
         }

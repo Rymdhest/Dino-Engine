@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 
 namespace Dino_Defenders.Progression
 {
@@ -155,7 +156,9 @@ namespace Dino_Defenders.Progression
             if (Path == null || _held == null || !File.Exists(Path)) return new Stash();
             try
             {
-                Stash stash = JsonSerializer.Deserialize<Stash>(File.ReadAllText(Path), Options) ?? new Stash();
+                JsonNode? read = JsonNode.Parse(File.ReadAllText(Path));
+                SaveGame.Resay(read);
+                Stash stash = read?.Deserialize<Stash>(Options) ?? new Stash();
                 stash.Sanitize();
                 foreach (Item item in stash.Kept()) SaveGame.FixItem(item);
                 return stash;

@@ -130,8 +130,8 @@ namespace Dino_Defenders.Tooltips
             Basic("Enemy", "Anyone on the other side.", "Enemies");
             Basic("Kill", "Landing the killing blow. Your Minions' Kills count as yours.", "Killed", "Kills");
             Basic("Item", "Something you wear or hold. Its Level decides what it can roll, and wearing it has no requirement.", "Items");
-            Word("Prefix", "A modifier rolled on an Item: defensive on what's worn, and a reward on Orders.", "Prefixes");
-            Word("Suffix", "A modifier rolled on an Item: offensive on what's worn, and a danger on Orders.", "Suffixes");
+            Word("Prefix", "A modifier rolled on an Item: defensive on what's worn, room or what using it asks on a Book or a Page, and a reward on Orders.", "Prefixes");
+            Word("Suffix", "A modifier rolled on an Item: offensive on what's worn, what its Pages do on a Book or a Page, and a danger on Orders.", "Suffixes");
             Basic("Bar", "Your Books along the bottom of the screen.");
             Basic("Gold", "Currency.");
             Basic("Level", $"Each Level gives {HeroState.PointsPerLevel} talent points, and Books Cost more.", "Levels");
@@ -162,8 +162,8 @@ namespace Dino_Defenders.Tooltips
         private static void KindsOfBook()
         {
             Basic("Book", "What you fight with: anything on your Bar, or anything that Triggers. It holds Pages. Right click one to read it.", "Books");
-            Basic("Page", "Goes in a Book and holds Stickers. Found as an Attack or a Spell, and never changes. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
-            Basic("Sticker", "Goes on a Page. Always does one thing for it and one thing against it. A Unique one does something nothing else can.", "Stickers");
+            Basic("Page", "Goes in a Book and holds Sentences. Found as an Attack or a Spell, and never changes. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
+            Basic("Sentence", "Goes on a Page. Always does one thing for it and one thing against it. A Unique one does something nothing else can.", "Sentences");
             Basic("Trigger Book", "Can't be used by hand. Goes off by itself on your Bar, paying its Cost, each time what it waits for has happened.", "Trigger Books");
             Basic("Toggle Book", $"Press it on your Bar to turn it on or off. While on, each Pulse does {Share(AuraStrength)} of what it would by hand, and its Cost comes off your Mana Regeneration.", "Toggle Books");
             On(Stat.Potency, Word("Potency", $"How strong everything a Page does is, up to {Share(MostPotency)}. Each Page starts from where the last left off. Counts for healing too."));
@@ -185,6 +185,7 @@ namespace Dino_Defenders.Tooltips
             On(Tags.Buff, Word("Buff", "A temporary bonus on you. Reapplying it refreshes it.", "Buffs"));
             On(Tags.Movement, Word("Movement", "Takes you somewhere, up to its Range."));
             On(Tags.Minion, Word("Minion", "Fights for you. Raising more of a kind replaces them.", "Minions"));
+            Word("Turret", "A Minion that stands where it's raised and never moves, and uses the Book its Page gives it without paying any Mana.", "Turrets");
             Basic("Use Time", $"How long one use takes. The shortest possible is {Seconds(ShortestUse)}.");
             Basic("Impact", "When a use lands, or a Projectile reaches someone. A miss or a wall is no Impact. A Dodge or a Stun before a use lands cancels it.");
             Basic("Cost", $"Paid on each use: what every Page Costs, together. Grows by {Share(CostPerLevel)} per Level.", "Book Cost", "Book Costs", "Costs");

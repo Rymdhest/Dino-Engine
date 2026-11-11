@@ -4,7 +4,7 @@ using static Dino_Defenders.Stats.M;
 namespace Dino_Defenders.Books
 {
     /// <summary>
-    /// Books that are already written: what creatures fight with, and what keystones and items set off. They're ordinary books, made of the same sentences as a hero's, read by the same <see cref="Scribe"/>, so anything
+    /// Books that are already written: what creatures fight with, and what keystones and items set off. They're ordinary books, made of the same phrases as a hero's, read by the same <see cref="Scribe"/>, so anything
     /// an enemy does is something a player could have written. Their first page has to start from whoever's using them or from where they're aiming, as a mark on the ground is a promise, and <c>check</c> holds that.
     /// Numbers are places on the shelf, so a new book goes on the end.
     /// </summary>
@@ -28,13 +28,16 @@ namespace Dino_Defenders.Books
 
         private static Outcome Raise(string kin) => new Outcome { Deed = "raise", Kin = kin };
 
-        private static List<Sticker> Stuck(string[] stickers) => stickers.Select(name => Stickers.Written(name)!).ToList();
+        private static List<Sentence> Said(string[] sentences) => sentences.Select(name => Sentences.Written(name)!).ToList();
 
-        private static Page Area(string shape, string[] stickers, params Outcome[] outcomes) => new Page { Kind = PageKind.Area, Shape = shape, Stickers = Stuck(stickers), Outcomes = outcomes.ToList() };
+        private static Page Area(string shape, string[] sentences, params Outcome[] outcomes) => new Page { Kind = PageKind.Area, Shape = shape, Sentences = Said(sentences), Outcomes = outcomes.ToList() };
 
-        private static Page Bolt(string[] stickers, params Outcome[] outcomes) => new Page { Kind = PageKind.Projectile, Stickers = Stuck(stickers), Outcomes = outcomes.ToList() };
+        private static Page Bolt(string[] sentences, params Outcome[] outcomes) => new Page { Kind = PageKind.Projectile, Sentences = Said(sentences), Outcomes = outcomes.ToList() };
 
         // A Spell Page, which deals Spell Damage and takes its own time to cast.
+        // Raising Minions beside whoever reads it, and nothing else.
+        private static Page Summoning(Outcome outcome) => new Page { Kind = PageKind.Summon, Hand = Hand.Spell, Outcomes = { outcome } };
+
         private static Page Cast(this Page page)
         {
             page.Hand = Hand.Spell;
@@ -49,9 +52,9 @@ namespace Dino_Defenders.Books
 
         private static readonly string[] Plain = Array.Empty<string>();
 
-        private static string[] Say(params string[] stickers) => stickers;
+        private static string[] Say(params string[] sentences) => sentences;
 
-        // What's set off by something else counts as that, and everything that isn't a hero's own can have numbers a sentence couldn't get to. A page has no element of its own, so what a book deals as something other than
+        // What's set off by something else counts as that, and everything that isn't a hero's own can have numbers a phrase couldn't get to. A page has no element of its own, so what a book deals as something other than
         // what its user has is a conversion of all of their physical damage, on each page.
         private static BookPlan Write(string id, string name, Page[] pages, Action<PagePlan>? tune = null, bool triggered = false, BookMode mode = BookMode.Active, BookTrigger? when = null, DamageType? type = null)
         {
@@ -91,12 +94,12 @@ namespace Dino_Defenders.Books
 
         // What other things set off. These are Attacks, as everyone has an Attack Damage and not everyone a Spell Damage.
         public static readonly BookPlan CinderTrail = Write("cinder-trail", "Burning Ground", new[] { Area("circle", Plain, Deal()).Lasting("lingering") }, page => { page.Potency = 0.35f; page.Length = 3.2f; page.Duration = 3f; page.Mods = new[] { Chance(Tags.Burn, 40f) }; }, triggered: true, type: DamageType.Fire);
-        public static readonly BookPlan Puddle = Write("puddle", "Standing Water", new[] { Area("circle", Plain, Do("water")).Lasting("lingering-long") }, page => page.Length = 5f, triggered: true);
+        public static readonly BookPlan Puddle = Write("puddle", "Standing Water", new[] { Area("circle", Plain, Do("water")).Lasting("lingering") }, page => { page.Length = 5f; page.Duration = Rulebook.WaterLinger; }, triggered: true);
         public static readonly BookPlan VenomCloud = Write("venom-cloud", "Contagion", new[] { Area("circle", Plain, Deal()) }, page => { page.Potency = 0.15f; page.Length = 8f; page.Mods = new[] { Chance(Tags.Venom, 100f) }; }, triggered: true, type: DamageType.Poison);
         public static readonly BookPlan Retaliate = Write("retaliate", "Retaliation", new[] { Area("circle", Plain, Deal()) }, page => page.Potency = 1.2f, triggered: true);
         public static readonly BookPlan Emberfall = Write("emberfall", "Emberfall", new[] { Bolt(Say("falls", "grounded"), Do("pass")), Area("circle", Plain, Deal()) }, page => page.Mods = new[] { Chance(Tags.Burn, 50f) }, triggered: true, type: DamageType.Fire);
 
-        // A few of the things that can be done, to hold the sentences and stickers to: BuildLab and NetLab go through all of these, and --books puts them on a hero's bar.
+        // A few of the things that can be done, to hold the phrases and sentences to: BuildLab and NetLab go through all of these, and --books puts them on a hero's bar.
         public static readonly BookPlan Fireball = Write("fireball", "Fireball", new[] { Bolt(Plain, Do("pass")).Cast(), Area("circle", Say("tight"), Deal()).Cast() }, type: DamageType.Fire);
         public static readonly BookPlan Meteor = Write("meteor", "Meteor", new[] { Bolt(Say("falls", "grounded"), Do("pass")).Cast(), Area("circle", Plain, Deal()).Cast() }, type: DamageType.Fire);
         public static readonly BookPlan Boomerang = Write("boomerang", "Boomerang", new[] { Bolt(Plain, Deal()), Bolt(Say("towards-you"), Deal()) });
@@ -109,12 +112,12 @@ namespace Dino_Defenders.Books
         public static readonly BookPlan Storm = Write("storm", "Stormcall", new[] { Area("circle", Say("from-cursor"), Deal()).Cast().Lasting("lingering") }, type: DamageType.Lightning);
         public static readonly BookPlan Mend = Write("mend", "Mend", new[] { Area("circle", Plain, new Outcome { Deed = "heal", Measure = "of-health" }).Cast() });
         public static readonly BookPlan StoneSkin = Write("stone-skin", "Stone Skin", new[] { Area("circle", Say("tight", "rest"), Give("stone-skin")).Cast() });
-        public static readonly BookPlan RaiseBones = Write("raise-bones", "Raise Bones", new[] { Area("circle", Say("tight"), Raise("bones")).Cast() });
+        public static readonly BookPlan RaiseBones = Write("raise-bones", "Raise Bones", new[] { Summoning(Raise("bones")) });
         public static readonly BookPlan Cleave = Write("cleave", "Cleave", new[] { Area("cone", Say("broad"), Deal()) });
         public static readonly BookPlan Sunder = Write("sunder", "Sunder", new[] { Area("cone", Say("deliberate"), Deal()) }, page => page.Mods = new[] { Flat(Stat.ArmourIgnore, 40f), Chance(Tags.Stun, 60f) });
         public static readonly BookPlan Knives = Write("knives", "Throwing Knives", new[] { Bolt(Say("three-at-once"), Deal()) });
         public static readonly BookPlan Sap = Write("sap", "Sap", new[] { Area("line", Say("tight"), Deal()).Cast() }, page => page.Mods = new[] { Flat(Stat.HealthLeech, 12f), Flat(Stat.ManaLeech, 6f) }, type: DamageType.Magic);
-        public static readonly BookPlan Tidepool = Write("tidepool", "Tidepool", new[] { Area("circle", Say("from-cursor"), Do("water")).Cast().Lasting("lingering-long") });
+        public static readonly BookPlan Tidepool = Write("tidepool", "Tidepool", new[] { Area("circle", Say("from-cursor"), Do("water")).Cast().Lasting("lingering") }, page => page.Duration = Rulebook.WaterLinger);
         public static readonly BookPlan Split = Write("split", "Splitting Shot", new[] { Bolt(Plain, Deal()), Bolt(Say("three-at-once"), Deal()) });
         public static readonly BookPlan Inferno = Write("inferno", "Inferno", new[] { Area("circle", Plain, Deal()).Cast() }, mode: BookMode.Toggle, type: DamageType.Fire);
         public static readonly BookPlan Retort = Write("retort", "Retort", new[] { Area("circle", Plain, Deal()) }, mode: BookMode.Trigger, when: new BookTrigger { When = BookWhen.Moved, Amount = 20f }, type: DamageType.Lightning);

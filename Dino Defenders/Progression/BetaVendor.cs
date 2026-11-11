@@ -7,7 +7,7 @@ namespace Dino_Defenders.Progression
     public sealed record BetaTab(string Name, Func<int, WorldRandom, List<Item>> Stock, bool Lookup = false);
 
     /// <summary>
-    /// The beta vendor in the Haven, who is there for testing the game and for nothing else, and gives away whatever he has: random gear, books, pages, stickers and orders, and every unique there is.
+    /// The beta vendor in the Haven, who is there for testing the game and for nothing else, and gives away whatever he has: random gear, books, pages, sentences and orders, and every unique there is.
     /// What's out is a pure function of which tab, which roll and what level, so a client shows it with nothing sent, and the server makes the very same thing again when one is asked for. Both ends run
     /// these rules, as they do a merchant's, and the server has the last word. Nothing is ever taken off his table, so the same thing can be had twice, and a roll only changes when someone asks him for
     /// another. A new tab is a line in <see cref="Tabs"/>.
@@ -23,7 +23,7 @@ namespace Dino_Defenders.Progression
         private const int GearCount = 70;
         private const int BookCount = 30;
         private const int PageCount = 40;
-        private const int StickerCount = 40;
+        private const int SentenceCount = 40;
         private const int OrdersCount = 20;
 
         // Of what's random: mostly what's worth looking at, with enough plain things among it to see what those are like.
@@ -35,7 +35,7 @@ namespace Dino_Defenders.Progression
             new("Gear", Gear),
             new("Books", (level, random) => Folios(level, random, BookCount, ItemSlot.Book)),
             new("Pages", (level, random) => Folios(level, random, PageCount, ItemSlot.Page)),
-            new("Stickers", (level, random) => Folios(level, random, StickerCount, ItemSlot.Sticker)),
+            new("Sentences", (level, random) => Folios(level, random, SentenceCount, ItemSlot.Sentence)),
             new("Orders", Orders),
             new("Uniques", Uniques, Lookup: true),
         };
@@ -107,15 +107,15 @@ namespace Dino_Defenders.Progression
             return stock.OrderBy(item => item.Rarity).ThenBy(item => item.Base, StringComparer.Ordinal).ThenBy(item => item.Name, StringComparer.Ordinal).ToList();
         }
 
-        // Every one of a kind there is, in the order each catalogue keeps them: what's worn, then each thing only a Unique sticker can do, then unique orders. Nothing is ever below the level it can first be found at.
+        // Every one of a kind there is, in the order each catalogue keeps them: what's worn, then each thing only a Unique sentence can do, then unique orders. Nothing is ever below the level it can first be found at.
         private static List<Item> Uniques(int level, WorldRandom random)
         {
             var stock = new List<Item>();
             foreach (UniqueDefinition unique in UniqueCatalog.All) stock.Add(UniqueCatalog.Make(unique, Math.Max(level, unique.MinLevel), random.Fork(unique.Id)));
-            foreach (PageEffect effect in Stickers.Uniques)
+            foreach (PageEffect effect in Sentences.Uniques)
             {
                 WorldRandom one = random.Fork(effect.ToString());
-                stock.Add(ItemGenerator.StickerItem(Stickers.Roll(Rarity.Unique, one, effect), ItemGenerator.NewSeed(one), level, Rarity.Unique));
+                stock.Add(ItemGenerator.SentenceItem(Sentences.Roll(Rarity.Unique, one, effect), ItemGenerator.NewSeed(one), level, Rarity.Unique));
             }
             foreach (UniqueOrders orders in OrdersCatalog.All) stock.Add(OrdersMaker.Make(orders, level, random.Fork(orders.Id)));
             return stock;

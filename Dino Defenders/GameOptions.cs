@@ -21,7 +21,7 @@ namespace Dino_Defenders
     ///   --equip a,b     Puts these uniques on the hero, by id.
     ///   --carry N       Fills N cells of the pack with things rolled from the seed, to try anything to do with a pack.
     ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar, or one of each rarity with rarities.
-    ///   --loot all      Drops one find of every rarity in front of the hero, or everything a tier gives, as boss, rare, magic, chest or hoard. folios adds books, pages and stickers among them.
+    ///   --loot all      Drops one find of every rarity in front of the hero, or everything a tier gives, as boss, rare, magic, chest or hoard. folios adds books, pages and sentences among them.
     ///   --panel name    Opens map, hero, talents, book, glossary, chronicle, merchant, elder, table, travel, stash, vendor, uniques (the vendor at his uniques), friends, pause or sound once the world is up.
     ///   --treeview z,x,y   With --panel talents: looks at the tree from zoom z, at x,y on it (both optional after the zoom), for pictures of the tree.
     ///   --travel N      After N frames: from a land, goes home to the Haven through a waygate; from the Haven, opens the way to the first land the map table shows and steps through.

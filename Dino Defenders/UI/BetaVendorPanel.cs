@@ -442,7 +442,7 @@ namespace Dino_Defenders.UI
             Ui.Text(Context, draw, $"Found from level {_entry.Level}", SmallSize, new GuiRect(x, y, width, NameSize + 4f), Ui.Faded.MultiplyAlpha(alpha), Alignment.End);
             y += NameSize + 4f;
 
-            string kind = $"{Cards.KindOf(item)} · {(item.IsSticker ? _entry.Kind : item.Base)}";
+            string kind = $"{Cards.KindOf(item)} · {(item.IsSentence ? _entry.Kind : item.Base)}";
             if (_entry.HeroOnly) kind += " · never worn by an enemy";
             Ui.Text(Context, draw, kind, SmallSize, new GuiRect(x, y, width, LineStep), Ui.Faded.MultiplyAlpha(alpha));
             y += LineStep;
