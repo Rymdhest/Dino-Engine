@@ -2,6 +2,7 @@ using Dino_Engine.Core;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Architecture;
+using Dino_Engine.Modelling.Procedural.Architecture.Arena;
 using Dino_Engine.Modelling.Procedural.Architecture.Halls;
 using Dino_Engine.Modelling.Procedural.Architecture.Plaza;
 using Dino_Engine.Modelling.Procedural.Fence;
@@ -51,6 +52,7 @@ namespace Dino_Engine.World
         {
             var wanted = new List<(string id, int slowness, Func<FloraMesh> make)>();
             var forging = new List<(string id, PlazaSpec spec)>();
+            var raising = new List<(string id, ArenaSpec spec)>();
             foreach (string id in ids)
             {
                 if (_models.ContainsKey(id) || _grown.ContainsKey(id) || _forged.ContainsKey(id)) continue;
@@ -58,6 +60,12 @@ namespace Dino_Engine.World
                 if (PlazaSpec.TryParse(id, out PlazaSpec piece))
                 {
                     forging.Add((id, piece));
+                    continue;
+                }
+                // And an arena's (ARENAS.md).
+                if (ArenaSpec.TryParse(id, out ArenaSpec arena))
+                {
+                    raising.Add((id, arena));
                     continue;
                 }
                 if (FenceSpec.TryParse(id, out FenceSpec fence))
@@ -83,6 +91,12 @@ namespace Dino_Engine.World
                 Mesh mesh = PlazaForge.Make(item.spec, lights);
                 _forged[item.id] = (mesh, lights);
             });
+            Parallel.ForEach(Partitioner.Create(raising, EnumerablePartitionerOptions.NoBuffering), new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
+            {
+                var lights = new List<AssetLight>();
+                Mesh mesh = ArenaForge.Make(item.spec, lights);
+                _forged[item.id] = (mesh, lights);
+            });
         }
 
         /// <summary>Lets go of what neither this world nor the one before it uses. By the time a world is two worlds old, nothing can still be drawing its plants.</summary>
@@ -91,8 +105,11 @@ namespace Dino_Engine.World
             var thisWorld = new HashSet<string>(ids);
             foreach (string id in _models.Keys)
             {
-                if (thisWorld.Contains(id) || _lastWorld.Contains(id) || !(id.Contains('#') || FenceSpec.IsFence(id))) continue;
+                // Every arena and keep has pieces of its own, so they go too once no world uses them.
+                if (thisWorld.Contains(id) || _lastWorld.Contains(id) || !(id.Contains('#') || FenceSpec.IsFence(id) || ArenaSpec.IsArena(id))) continue;
                 if (_models.TryRemove(id, out glModel? model)) model.cleanUp();
+                _lights.Remove(id);
+                _chimneys.Remove(id);
             }
             _lastWorld = thisWorld;
         }
@@ -113,6 +130,8 @@ namespace Dino_Engine.World
                 if (!_grown.TryRemove(id, out FloraMesh? plant)) plant = FloraForge.Grow(species, seed);
                 model = glLoader.loadToVAO(plant);
                 imposterDistance = species.Asset.ImposterDistance;
+                // Trees, and nothing else that isn't asked for, thin away for the player behind them (glModel.OpensForFocus).
+                model.OpensForFocus = species.Asset.Kind == WorldAssetKind.Tree;
             }
             else if (NatureCatalog.TryGetRock(name, out RockKind kind, out RockForm form))
             {
@@ -125,8 +144,8 @@ namespace Dino_Engine.World
                 var chimneys = new List<Vector3>();
                 var lights = new List<AssetLight>();
                 Mesh mesh = BuildStructure(id, chimneys, lights, out imposterDistance);
-                if (chimneys.Count > 0) _chimneys.Add(id, chimneys);
-                if (lights.Count > 0) _lights.Add(id, lights);
+                if (chimneys.Count > 0) _chimneys[id] = chimneys;
+                if (lights.Count > 0) _lights[id] = lights;
                 model = glLoader.loadToVAO(mesh);
             }
 
@@ -180,6 +199,16 @@ namespace Dino_Engine.World
                     return forged.Mesh;
                 }
                 return PlazaForge.Make(piece, lights);
+            }
+            if (ArenaSpec.TryParse(id, out ArenaSpec arena))
+            {
+                imposterDistance = 0f;
+                if (_forged.TryRemove(id, out var raised))
+                {
+                    lights.AddRange(raised.Lights);
+                    return raised.Mesh;
+                }
+                return ArenaForge.Make(arena, lights);
             }
             StructureDefinition definition = StructureCatalog.Parse(id, out BuildingStyle style, out int variant);
             imposterDistance = definition.ImposterDistance;

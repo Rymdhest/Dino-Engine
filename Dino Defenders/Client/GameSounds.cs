@@ -6,6 +6,7 @@ using Dino_Engine.Animation;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling.Procedural.Saurian;
 using Dino_Engine.Physics;
 using Dino_Engine.Sound;
@@ -849,7 +850,7 @@ namespace Dino_Defenders.Client
             WorldData land = session.World;
             Vector2 at = session.PlayerPosition;
             BiomeDefinition biome = land.BiomeAt(at);
-            float night = world.TryGetSingleton<NightfallSingleton>(out Entity entity) ? world.GetComponent<NightfallSingleton>(entity).Amount : 0f;
+            float night = SkySYstem.NightOf(world).Amount;
 
             // What's alive goes by the warmth and the wet of the place: there's nothing singing on a snowfield.
             float warmth = land.Temperature.Sample(at);
@@ -857,7 +858,8 @@ namespace Dino_Defenders.Client
             float canopy = land.Canopy.Sample(at.X, at.Y);
             bool barren = biome.Ground is SurfaceMaterial.Snow or SurfaceMaterial.Ice or SurfaceMaterial.Ash or SurfaceMaterial.Dunes or SurfaceMaterial.Sand;
 
-            float dusk = land.Plan.Mood.Name.Contains("evening") || land.Plan.Mood.Name.Contains("dawn") ? 0.5f : 0f;
+            float dusk = DaySystem.TryNow(world, out DaySample hour) ? 0.5f * MathF.Max(hour.Golden, hour.Dawn)
+                : land.Plan.Mood.Name.Contains("evening") || land.Plan.Mood.Name.Contains("dawn") ? 0.5f : 0f;
             // Birds shelter and crickets stop for rain, and it's what frogs have been waiting for.
             WeatherSample weather = Weather.Here(world);
             float downpour = Math.Clamp(weather.Fall * 2.2f, 0f, 1f);

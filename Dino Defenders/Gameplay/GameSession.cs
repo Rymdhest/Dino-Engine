@@ -71,6 +71,7 @@ namespace Dino_Defenders.Gameplay
         public Entity Player;
         public HeroIntent Intent;
         public (float speed, float direction)? ScriptedWind;    // What a scripted run has the wind do, in place of what the land gives.
+        public float? ScriptedHour;                             // The hour a scripted run starts at, 0..24, in a world with days.
         public WeatherSample? ScriptedWeather;                  // Weather a scripted run has everywhere, in place of what the world's would be.
         public double WeatherClockOffset;                       // Seconds a scripted run starts into the world's weather.
         public Func<HeroIntent>? Autopilot;
@@ -210,6 +211,12 @@ namespace Dino_Defenders.Gameplay
                 return;
             }
 
+            // On a keep's arena's floor, once there's nothing left to do down there, the way up is the way anywhere.
+            if ((Liberated || Client.Out) && KeepFloorAt(at) is ArenaPlan floor)
+            {
+                Guidance = floor.Exit;
+                return;
+            }
             if (Liberated || Client.Out)
             {
                 Guidance = Nearest(at, state => HasWaygate(state) && state.Discovered) ?? Nearest(at, HasWaygate);
@@ -219,6 +226,21 @@ namespace Dino_Defenders.Gameplay
             Guidance = Nearest(at, IsGoal) ?? Nearest(at, state => state.Site.Kind == SiteKind.Keep);
         }
 
+        // The keep's arena whose floor somewhere is on, if any (ARENAS.md).
+        private ArenaPlan? KeepFloorAt(Vector2 at)
+        {
+            foreach (SiteState state in Sites)
+            {
+                if (state.Site.Arena is { Keep: true } plan && plan.Contains(at, KeepFloorReach)) return plan;
+            }
+            return null;
+        }
+
+        private const float KeepFloorReach = 1.5f;      // As the server counts a keep's arena's floor, a little past its bounds.
+
+        // Where to make for at a place: its middle, or for a keep's arena from off its floor, the way down into it.
+        private static Vector2 GoalAt(SiteState state, Vector2 from) => state.Site.Arena is { Keep: true } plan && !plan.Contains(from, KeepFloorReach) ? plan.Door : state.Site.Position;
+
         private Vector2? Nearest(Vector2 from, Func<SiteState, bool> wanted)
         {
             Vector2? best = null;
@@ -226,10 +248,11 @@ namespace Dino_Defenders.Gameplay
             foreach (SiteState state in Sites)
             {
                 if (state.Wild || !wanted(state)) continue;
-                float away = (state.Site.Position - from).LengthSquared;
+                Vector2 goal = GoalAt(state, from);
+                float away = (goal - from).LengthSquared;
                 if (away >= distance) continue;
                 distance = away;
-                best = state.Site.Position;
+                best = goal;
             }
             return best;
         }

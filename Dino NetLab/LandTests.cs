@@ -21,7 +21,7 @@ namespace Dino_NetLab
     /// given for it, other lands bought with gold, stepping through, one life to a land, leaving it, freeing it, what each of those does to a climb on both ends, the arenas every tenth level, the
     /// stash, and everything a land's omens and orders do to what stands on it. Read LANDS.md.
     /// </summary>
-    internal static class LandTests
+    internal static partial class LandTests
     {
         private static readonly WorldRequest Home = new WorldRequest(303, "isle", 6);
         private static readonly NetworkConditions Line = new NetworkConditions { Latency = 40, Jitter = 8, LossChance = 0.01 };
@@ -211,6 +211,8 @@ namespace Dino_NetLab
             Freeing(report, worlds);
             ChoosingLevels(report, worlds);
             Arenas(report, worlds);
+            ArenaKinds(report, worlds);
+            KeepArenas(report, worlds);
             Travelling(report, worlds);
             TheStash(report, worlds);
             UniqueOrders(report, worlds);
@@ -378,6 +380,22 @@ namespace Dino_NetLab
                 scene.Player.PressUse = true;
                 scene.Lab.Run(1.5);
                 report.Check("The map table opens", scene.Player.PanelsOpened.Any(p => p.kind == InteractKind.MapTable));
+
+                // It's come to from every side, and from wherever someone can stand beside it, it opens without walking round it.
+                var sides = new List<string>();
+                Vector2 middle = scene.Session.World.Objects.TryNearest(StructureCatalog.MapTable.Id, table, 8f, out WorldObject model) ? model.Position.Xz : table;
+                foreach ((string name, Vector2 way) in new[] { ("north", Vector2.UnitY), ("south", -Vector2.UnitY), ("east", Vector2.UnitX), ("west", -Vector2.UnitX), ("a corner", new Vector2(1f, 1f).Normalized()) })
+                {
+                    Vector2 beside = middle;
+                    for (float out_ = 0.5f; out_ < 12f && !scene.Session.World.Passable.IsSet(beside); out_ += 0.25f) beside = middle + way * out_;
+                    beside += way * 0.5f;
+                    int before = scene.Player.PanelsOpened.Count(p => p.kind == InteractKind.MapTable);
+                    scene.Go(beside);
+                    scene.Player.PressUse = true;
+                    scene.Lab.Run(1.5);
+                    if (scene.Player.PanelsOpened.Count(p => p.kind == InteractKind.MapTable) == before) sides.Add($"{name} at {(beside - middle).Length:0.0} m");
+                }
+                report.Check("And opens from beside it on every side", sides.Count == 0, sides.Count == 0 ? "" : "not from " + string.Join(", ", sides));
             }
             if (scene.Find(InteractKind.Stash) is Vector2 strongbox)
             {
@@ -691,7 +709,7 @@ namespace Dino_NetLab
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
-                    if (entity.Get<VisualComponent>().Model == ArenaSystem.PortcullisModel) found.Add(entity.Entity);
+                    if (Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaSpec.IsArena(entity.Get<VisualComponent>().Model)) found.Add(entity.Entity);
                 }
             }
             return found;
@@ -703,7 +721,8 @@ namespace Dino_NetLab
             HeroState climber = Sturdy(10);
             IReadOnlyList<LandOffer> offers = Lands.Offer(climber, 10);
             report.Check("The tenth level's lands are three arenas", offers.Count == Lands.Choices && offers.All(o => o.Arena));
-            LandOffer offer = offers[0];
+            // The gates and the waves through them are tried in the Pit, whose gates are grilles that rise; every kind is walked in ArenaKinds.
+            LandOffer offer = offers[0] with { Request = new WorldRequest(offers[0].Request.Seed, ArenaCatalog.Pit.Id, 10) };
             worlds.Get(offer.Request).Wait();
 
             using (var scene = new Scene(worlds, offer.Request, hero: Sturdy(10)))
@@ -726,7 +745,8 @@ namespace Dino_NetLab
                     }
                 }
                 float floorHeight = scene.Session.World.Height.Sample(arena.Site.Position);
-                report.Check("The people of the land are made to watch from the stands", crowd.Count >= 24 && crowd.All(c => c.height > floorHeight + ArenaBuilder.TierRise * 0.5f), $"{crowd.Count}");
+                ArenaPlan plan = arena.Site.Arena!;
+                report.Check("The people of the land are made to watch from the stands", crowd.Count >= 24 && crowd.All(c => c.height > plan.Floor + 1f && !plan.Contains(c.at)), $"{crowd.Count}");
                 scene.Lab.Run(3);
                 int still = 0;
                 foreach (Archetype archetype in scene.Lab.Server.Ecs.QueryArchetypes(new BitMask(typeof(VillagerComponent), typeof(PositionComponent)), BitMask.Empty))
@@ -754,7 +774,7 @@ namespace Dino_NetLab
                 report.Near("Which what it's worth knows", scene.Session.TyrantHealth, 1f + Rulebook.ArenaTyrantHealth / 100f, 0.0001f);
 
                 List<Entity> gates = Portcullises(scene.Lab.Server.Ecs);
-                report.Check("Its gates are shut", gates.Count == ArenaBuilder.GateBearings.Length && Portcullises(scene.Player.Ecs).Count == gates.Count, $"{gates.Count} on the server, {Portcullises(scene.Player.Ecs).Count} seen");
+                report.Check("Its gates are shut", gates.Count == plan.Entries.Count && Portcullises(scene.Player.Ecs).Count == gates.Count, $"{gates.Count} on the server, {Portcullises(scene.Player.Ecs).Count} seen");
                 float Lift(Entity gate) => scene.Lab.Server.Ecs.GetEntityView(gate).Get<PositionComponent>().value.Y - scene.Session.World.Height.Sample(scene.Lab.Server.Ecs.GetEntityView(gate).Get<PositionComponent>().value.Xz);
                 report.Check("All the way down", gates.All(g => Lift(g) < 0.5f));
                 report.Check("And nobody's come through them", scene.Session.Arrivals.Count == 0);
@@ -766,7 +786,7 @@ namespace Dino_NetLab
                 report.Check("And let more of the brood in", scene.Session.Arrivals.Count == first, $"{scene.Session.Arrivals.Count} of {first}");
                 var rarities = scene.Session.Arrivals.Select(a => scene.Lab.Server.Ecs.GetEntityView(a.Entity).Get<EnemyComponent>().Rarity).ToList();
                 report.Check("Every one Magic or Rare", rarities.Count > 0 && rarities.All(r => r is Rarity.Magic or Rarity.Rare));
-                report.Check("And looking for whoever's on the floor", scene.Session.Arrivals.All(a => scene.Lab.Server.Ecs.GetEntityView(a.Entity).Get<EnemyBrainComponent>().AggroRadius > ArenaBuilder.RimRadius * 2f));
+                report.Check("And looking for whoever's on the floor", scene.Session.Arrivals.All(a => scene.Lab.Server.Ecs.GetEntityView(a.Entity).Get<EnemyBrainComponent>().AggroRadius > plan.Reach * 1.5f));
 
                 // One Magic enemy can drop nothing, as anything can: the whole of what came through can't, all but never.
                 int before = scene.Session.Ground.Count;
@@ -782,7 +802,7 @@ namespace Dino_NetLab
 
                 Wound(scene, tyrant, Rulebook.ArenaWaveEvery - 0.05f);
                 scene.Lab.Run(2.2);
-                int all = first + Rulebook.ArenaWaveGates * Rulebook.ArenaWaveSize + ArenaBuilder.GateBearings.Length * Rulebook.ArenaWaveSize;
+                int all = first + Rulebook.ArenaWaveGates * Rulebook.ArenaWaveSize + plan.Entries.Count * Rulebook.ArenaWaveSize;
                 report.Check("The last time every gate goes up", gates.All(g => Lift(g) > 2f), string.Join(", ", gates.Select(g => Lift(g).ToString("0.0"))));
                 report.Check("And as many come through as each time asks, however quickly they come", scene.Session.Arrivals.Count + first == all, $"{scene.Session.Arrivals.Count + first} of {all}");
 

@@ -1,8 +1,9 @@
 #ifndef DINO_FOCUS_OCCLUDER_GLSL
 #define DINO_FOCUS_OCCLUDER_GLSL
 
-// Whether a model is big enough to open for the focus (FocusCutout.glsl). Only what can really hide someone does: a tree, a house, a crag.
-// A fence, a gate, a hat or a post is in front of the hero all the time and hides little, and thinning it out only reads as a fault.
+// Whether a model is big enough to open for the focus (FocusCutout.glsl), of those that may open at all, which is a list and not a rule: only trees, and anything else
+// someone has asked for (glModel.OpensForFocus, the focusOpens uniform). Anything else that thinned away by itself, a gate, a wall, a flight of steps, read as a fault.
+// Of those, only one big enough to really hide someone does: a sapling is in front of the hero all the time and hides little.
 // size is the model's box in its own units; the instance's scale is read off its matrix.
 
 const float FOCUS_OCCLUDER_HEIGHT = 3.0;  // metres tall at least

@@ -21,7 +21,8 @@ namespace Dino_Defenders.Client
     /// Keeps a world breathing around the hero. The air takes on the place they are in: a marsh is thick with fog, a steppe is
     /// windy and dry, and what drifts past them is pollen, snow or embers according to the biome. The chimneys of a site
     /// smoke while it's near. The guiding wind turns the whole sky toward the next goal, and when the warlord falls the land clears.
-    /// It is always night in a churchyard: the day goes out as the hero nears one, and fog rises off the graves.
+    /// It is always night in a churchyard: the day goes out as the hero nears one, and fog rises off the graves. A world with days (the Haven) turns through them on the
+    /// same clock as its weather, so everyone in it shares the hour.
     /// </summary>
     public class AmbienceSystem : SystemBase
     {
@@ -60,6 +61,7 @@ namespace Dino_Defenders.Client
         private float _guideDirection;
         private float _liberation;
         private Colour _sunColour;
+        private double? _hourShift;
 
         public AmbienceSystem()
             : base(new BitMask(typeof(PlayerTag)))
@@ -131,6 +133,7 @@ namespace Dino_Defenders.Client
             _nextRegion = 0f;
             _guideLeft = 0f;
             _liberation = session.Liberated ? 1f : 0f;
+            _hourShift = null;
             _sunColour = world.GetComponent<ColorComponent>(world.sun).value;
             ReadRegion(world, session);
 
@@ -160,7 +163,7 @@ namespace Dino_Defenders.Client
             return new Vector3(at.X, session.World.Height.Sample(at) + HeroLightHeight, at.Y);
         }
 
-        // Full night inside the walls, and none at all once they are far enough behind.
+        // Full night inside the walls, and none at all once they are far enough behind: a churchyard's, and the Cathedral of the Iron Apex's, which is always seen by its candles (ARENAS.md).
         private static float NightAt(GameSession session)
         {
             if (session.Terms.Has(Omens.Night)) return 1f;
@@ -168,6 +171,13 @@ namespace Dino_Defenders.Client
             float night = 0f;
             foreach (SiteState state in session.Sites)
             {
+                if (state.Site.Arena is { Kind: ArenaKind.Cathedral } cathedral)
+                {
+                    float beyond = (cathedral.Centre - session.PlayerPosition).Length - cathedral.Reach;
+                    float u = Math.Clamp(1f - beyond / NightReach, 0f, 1f);
+                    night = MathF.Max(night, u * u * (3f - 2f * u));
+                    continue;
+                }
                 if (state.Wild || state.Site.Kind != SiteKind.Graveyard) continue;
                 float outside = (state.Site.Position - session.PlayerPosition).Length - state.Site.Radius;
                 float t = Math.Clamp(1f - outside / NightReach, 0f, 1f);
@@ -187,7 +197,7 @@ namespace Dino_Defenders.Client
             if (!world.TryGetEntityLocation(_heroLight, out _, out _)) return;
             EntityView light = world.GetEntityView(_heroLight);
             light.Set(new PositionComponent(HeroLightPosition(session)));
-            light.Set(new ColorComponent(new Colour(1f, 0.86f, 0.68f, HeroLightIntensity * night.Amount)));
+            light.Set(new ColorComponent(new Colour(1f, 0.86f, 0.68f, HeroLightIntensity * SkySYstem.NightOf(world).Amount)));
         }
 
         // What the air should be like here: the biomes underfoot, weighted, in the proportions the world's weather was set from.
@@ -234,12 +244,27 @@ namespace Dino_Defenders.Client
             if (session.ScriptedWind is (float speed, _)) _windTarget = speed;
         }
 
-        // The weather runs on the server's clock, so that everyone in a world looks up at the same sky with nothing sent. Every machine works it out from the seed.
-        private static void UpdateWeather(ECSWorld world, GameSession session)
+        // The weather and the day run on the server's clock, so that everyone in a world looks up at the same sky with nothing sent. Every machine works it out from the seed,
+        // and from where in its sky the server began the world, which for the Haven is somewhere new every visit.
+        private void UpdateWeather(ECSWorld world, GameSession session)
         {
+            GameClient client = session.Client;
+            double clock = (client.Render.RenderTick - client.SkyTick) * NetTime.TickSeconds + client.SkyStart + session.WeatherClockOffset;
+
+            EntityView dayView = world.GetEntityView(world.GetSingleton<DaySingleton>());
+            var day = dayView.Get<DaySingleton>();
+            if (day.Cycle != null && session.ScriptedHour is float hour)
+            {
+                _hourShift ??= day.Cycle.ClockAt(hour) - clock % DayCycle.Length;
+                clock += _hourShift.Value;
+            }
+            day.Clock = clock;
+            day.ClockGiven = true;
+            dayView.Set(day);
+
             EntityView view = world.GetEntityView(world.GetSingleton<WeatherSingleton>());
             var weather = view.Get<WeatherSingleton>();
-            weather.Clock = session.Client.Render.RenderTick * NetTime.TickSeconds + session.WeatherClockOffset;
+            weather.Clock = clock;
             weather.ClockGiven = true;
             weather.Forced = session.ScriptedWeather;
             view.Set(weather);

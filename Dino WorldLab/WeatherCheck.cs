@@ -55,6 +55,8 @@ namespace Dino_WorldLab
             Require("Worlds have storms", isle.Strikes > 0);
             Require("A world's weather is rarely the same all over", isle.Spread > 0.15f);
 
+            CheckDays();
+
             Console.WriteLine(_failures == 0 ? "Weather holds." : $"{_failures} failed.");
             return _failures == 0 ? 0 : 1;
         }
@@ -160,6 +162,118 @@ namespace Dino_WorldLab
                 }
             }
         }
+
+        // ---------------------------------------------------------------- a world with days
+
+        private enum Sky { Clear, Cloud, Rain, Storm, Fog }
+        private enum Time { Day, Golden, Night, Dawn }
+
+        /// <summary>
+        /// The Haven: its sun goes round and its weather runs on its own (WorldArchetype.DayAndNight). It has to come through every mood at every hour, a storm has to be able to
+        /// leave the sun out, the light must never jump while there's any of it, and two visits must not look alike.
+        /// </summary>
+        private static void CheckDays()
+        {
+            const float DayHours = 60f;
+            WorldData world = new WorldGenerator().Generate(new WorldRequest(1610, "haven"));
+            var field = new WeatherField(world);
+            DayCycle? day = field.Day;
+            Require("The Haven has days", day != null);
+            if (day == null) return;
+            CheckField(world, field);
+
+            Vector2 middle = world.Sites.Find(site => site.Kind == SiteKind.Haven)?.Position ?? new Vector2(world.Size * 0.5f);
+            var seen = new int[5, 4];
+            int samples = 0, sunnyStorms = 0, nightMist = 0, nights = 0, noonMist = 0, noons = 0, golden = 0, dark = 0;
+            float highest = -90f, worstJump = 0f;
+            DaySample last = day.At(0.0);
+            for (float t = 0f; t < DayHours * 3600f; t += 10f)
+            {
+                WeatherSample weather = field.Sample(middle, t);
+                DaySample now = day.At(t);
+                samples++;
+
+                Sky sky = weather.Storm > 0.3f ? Sky.Storm : weather.Fall > 0.1f ? Sky.Rain : weather.Mist > 0.4f ? Sky.Fog : weather.Cloud > 0.45f ? Sky.Cloud : Sky.Clear;
+                Time time = now.Dawn > 0.3f ? Time.Dawn : now.Night > 0.5f ? Time.Night : now.Golden > 0.3f ? Time.Golden : Time.Day;
+                seen[(int)sky, (int)time]++;
+
+                if (weather.Storm > 0.3f && weather.Cloud < 0.75f && now.Night < 0.5f) sunnyStorms++;
+                if (now.Night > 0.9f) { nights++; if (weather.Mist > 0.3f) nightMist++; }
+                if (now.SunHeight > 50f) { noons++; if (weather.Mist > 0.3f) noonMist++; }
+                if (now.Golden > 0.5f) golden++;
+                if (now.Night > 0.9f) dark++;
+                highest = MathF.Max(highest, now.SunHeight);
+
+                // Shadows must not jump while anything casts them.
+                float lit = MathF.Min(Brightness(last), Brightness(now));
+                if (lit > 0.05f) worstJump = MathF.Max(worstJump, MathHelper.RadiansToDegrees(MathF.Acos(Math.Clamp(Vector3.Dot(last.Light, now.Light), -1f, 1f))));
+                last = now;
+            }
+
+            Console.WriteLine($"{"haven",-12}{"day",8}{"golden",8}{"night",8}{"dawn",8}");
+            int combinations = 0;
+            foreach (Sky sky in Enum.GetValues<Sky>())
+            {
+                Console.Write($"  {sky,-10}");
+                foreach (Time time in Enum.GetValues<Time>())
+                {
+                    Console.Write($"{seen[(int)sky, (int)time] / (float)samples,8:P1}");
+                    if (seen[(int)sky, (int)time] > 0) combinations++;
+                }
+                Console.WriteLine();
+            }
+            float share(Sky sky) { int n = 0; for (int i = 0; i < 4; i++) n += seen[(int)sky, i]; return n / (float)samples; }
+            float goldenMinutes = golden * 10f / 60f / (DayHours * 3600f / DayCycle.Length);
+            float darkMinutes = dark * 10f / 60f / (DayHours * 3600f / DayCycle.Length);
+            Console.WriteLine($"  a day: {goldenMinutes:0.0} min golden, {darkMinutes:0.0} min dark, sun up to {highest:0} degrees, light turns at most {worstJump:0.00} degrees in 10 s");
+
+            Require("The Haven is often fair", share(Sky.Clear) + share(Sky.Cloud) > 0.4f);
+            Require("It rains in the Haven", share(Sky.Rain) > 0.08f);
+            Require("It storms in the Haven", share(Sky.Storm) > 0.02f);
+            Require("Fog comes down in the Haven", share(Sky.Fog) > 0.04f);
+            Require($"Nearly every weather comes at every hour ({combinations} of 20)", combinations >= 19);
+            Require("A storm can leave the sun out", sunnyStorms > 0);
+            Require("Nights are mistier than noons", nightMist / (float)Math.Max(nights, 1) > noonMist / (float)Math.Max(noons, 1) * 1.3f);
+            Require($"A golden hour is long enough to have ({goldenMinutes:0.0} min)", goldenMinutes > 1.5f);
+            Require($"A night is long enough to have and short enough to bear ({darkMinutes:0.0} min)", darkMinutes > 3f && darkMinutes < 9f);
+            Require($"The light never jumps while it's lit (worst {worstJump:0.00} in 10 s)", worstJump < 4f);
+
+            Vector3 towardsSun = -world.Plan.Mood.SunDirection;
+            float setAzimuth = MathF.Atan2(towardsSun.Z, towardsSun.X);
+            float setError = float.MaxValue;
+            for (float t = 0f; t < DayCycle.Length; t += 1f)
+            {
+                DaySample now = day.At(t);
+                if (MathF.Abs(now.SunHeight - 6f) > 0.3f || now.Hour < 12f) continue;
+                float azimuth = MathF.Atan2(-now.Light.Z, -now.Light.X);
+                setError = MathF.Min(setError, MathF.Abs(MathHelper.RadiansToDegrees(WorldMath.AngleDifference(azimuth, setAzimuth))));
+            }
+            Require($"The sun goes down where the Haven's light was ({setError:0} degrees off)", setError < 20f);
+            Require("An hour asked for is the hour given", MathF.Abs(day.At(day.ClockAt(19f)).Hour - 19f) < 0.05f && MathF.Abs(day.At(day.ClockAt(4f)).Hour - 4f) < 0.05f);
+
+            // Twenty minutes in the Haven, from somewhere else in its sky each time: no two the same.
+            var random = new WorldRandom(5);
+            var visits = new List<float[]>();
+            for (int v = 0; v < 12; v++)
+            {
+                double start = random.Range(0f, 1 << 24);
+                var visit = new float[40];
+                for (int i = 0; i < 20; i++)
+                {
+                    WeatherSample weather = field.Sample(middle, start + i * 60.0);
+                    visit[i * 2] = weather.Cloud + weather.Fall + weather.Storm;
+                    visit[i * 2 + 1] = day.At(start + i * 60.0).Night + weather.Mist;
+                }
+                visits.Add(visit);
+            }
+            float closest = float.MaxValue;
+            for (int a = 0; a < visits.Count; a++)
+                for (int b = a + 1; b < visits.Count; b++)
+                    closest = MathF.Min(closest, visits[a].Zip(visits[b], (x, y) => MathF.Abs(x - y)).Sum() / 40f);
+            Require($"No two visits alike (closest differ by {closest:0.00})", closest > 0.05f);
+        }
+
+        private static float Brightness(in DaySample day) => day.Sun.Length + day.Moonlight * 2.6f;
 
         private static Climate Measure(string id, WorldData world, WeatherField field)
         {

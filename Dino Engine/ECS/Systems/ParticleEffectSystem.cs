@@ -28,6 +28,8 @@ namespace Dino_Engine.ECS.Systems
         private readonly LandGround _land = new LandGround();
         private Frustum _view = new Frustum(Matrix4.Identity);
         private ECSWorld? _world;
+        private PlacementIndex? _placement;
+        private const float LightClearance = 0.7f;  // Metres an effect's light keeps off anything solid taller than it, so it falls on a face rather than grazing it.
 
         public ParticleEffectSystem()
             : base(new BitMask(typeof(ParticleEffectComponent), typeof(LocalToWorldMatrixComponent)))
@@ -39,12 +41,15 @@ namespace Dino_Engine.ECS.Systems
             _world = world;
             if (world.TryGetSingleton<WorldDataSingleton>(out Entity data))
             {
-                _land.Height = world.GetComponent<WorldDataSingleton>(data).World.Height;
+                WorldData land = world.GetComponent<WorldDataSingleton>(data).World;
+                _land.Height = land.Height;
+                _placement = land.Placement;
                 Particles.Particles.Ground = _land;
             }
             else
             {
                 Particles.Particles.Ground = null;
+                _placement = null;
             }
 
             _view = new Frustum(Engine.RenderEngine.context.viewMatrix * Engine.RenderEngine.context.projectionMatrix);
@@ -85,6 +90,15 @@ namespace Dino_Engine.ECS.Systems
         {
             LightingSettings lighting = Engine.RenderEngine.Lighting;
             if (!lighting.LocalLights || !run.LightNow(Engine.Time, out Vector3 position, out Vector3 colour, out float radius)) return;
+
+            // What goes off against a wall shines on its face: a light inside something solid lights it from within, through the stone, and nothing near it. Only for
+            // what happens once and for a patch of ground, which goes wherever a blow lands: a lasting flame on a point was put where it is, as a lantern's is against its post.
+            if (_placement != null && (!run.Effect.Lasts || run.Shape.Kind == EffectShapeKind.Area))
+            {
+                float above = position.Y - _land.HeightAt(position.X, position.Z);
+                Vector2 clear = _placement.ClearOfSolids(position.Xz, LightClearance, above);
+                position = new Vector3(clear.X, position.Y, clear.Y);
+            }
 
             ref ShaderGlobals context = ref Engine.RenderEngine.context;
             Vector3 focus = context.focusPoint.W > 0f ? context.focusPoint.Xyz : context.viewPos;

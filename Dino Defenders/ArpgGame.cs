@@ -319,9 +319,10 @@ namespace Dino_Defenders
             _ui.Playing(false);
             _ui.Menu.Rebuild();
             _ui.Loading.Visible = false;
-            Music.Begin((ulong)(uint)world.Plan.Seed * 2654435761UL + 11UL);
-            Music.Mood = MusicMood.Wander;
-            Music.Intensity = 0.15f;
+            // Behind the menu, the Haven's own tune: the one a player will come to know as the game's.
+            Music.Begin(MusicPlace.Home);
+            Music.Mood = MusicMood.Haven;
+            Music.Intensity = 0.35f;
         }
 
         private void ToMenu()
@@ -459,6 +460,7 @@ namespace Dino_Defenders
             SystemRegistry.InsertBefore<GravitySystem>(new SoundscapeSystem());
             SystemRegistry.InsertBefore<GravitySystem>(new MusicDirectorSystem());
             SystemRegistry.InsertAfter<GhostPresentationSystem>(new CharacterSoundSystem(() => _effects?.Sounds));
+            SystemRegistry.InsertAfter<GhostPresentationSystem>(new PropLightSystem());
             SystemRegistry.InsertBefore<ModelRenderSystem>(new WildlifeSystem());
             Nature.Off = _options.NoLife;
             Nature.LogFile = _options.LifeLog;
@@ -474,6 +476,8 @@ namespace Dino_Defenders
                 Terms = terms,
                 Save = save,
                 AllowTeleport = _options.Bot || _options.Tour != null,
+                Calm = _options.Calm,
+                SameSky = _options.Scripted,
                 Start = _options.At,
                 StartSite = _options.Site,
                 StartBiome = _options.Biome,
@@ -724,6 +728,7 @@ namespace Dino_Defenders
                 if (_frames == frame) session.ScriptedWind = (speed, direction);
             }
             session.WeatherClockOffset = _options.WeatherClock;
+            session.ScriptedHour = _options.Hour;
             if (_options.Weather != null && WeatherSample.TryNamed(_options.Weather, out WeatherSample ordered)) session.ScriptedWeather = ordered;
             if (_frames == _options.GuideAfterFrames) session.Intent.Guide = true;
         }
@@ -892,7 +897,7 @@ namespace Dino_Defenders
             var grass = Dino_Engine.Core.Engine.RenderEngine._grassRenderer;
             Console.WriteLine($"Grass: {grass.NearBladesDrawn} near, {grass.FarBladesDrawn} far");
             Console.WriteLine($"Gear: {Wardrobe.Models} models alive, {Wardrobe.Made} made in all, worst frame's work {Wardrobe.WorstFrameMilliseconds:0.00} ms");
-            if (Audio.Mixer is Dino_Engine.Sound.Mixing.Mixer mixer) Console.WriteLine($"Sound: {Audio.TakesMade} takes, at most {mixer.MostActiveVoices} voices, {mixer.Dropped} dropped, {mixer.Load * 100f:0.0}% mixing, {Audio.Output?.Underruns ?? 0} underruns on {Audio.Output?.Device ?? "no device"}, music {Music.Mood} at {Music.Intensity:0.00}, {Music.Gaps} gaps, heard {string.Join(" ", Music.Heard)}");
+            if (Audio.Mixer is Dino_Engine.Sound.Mixing.Mixer mixer) Console.WriteLine($"Sound: {Audio.TakesMade} takes, at most {mixer.MostActiveVoices} voices, {mixer.Dropped} dropped, {mixer.Load * 100f:0.0}% mixing, {Audio.Output?.Underruns ?? 0} underruns on {Audio.Output?.Device ?? "no device"}, music {Music.Mood} at {Music.Intensity:0.00}, {Music.Gaps} gaps, heard {string.Join(" ", Music.Heard)}, {mixer.Faults} faults{(mixer.Fault != null ? $", the last in {mixer.Fault}" : "")}");
             if (Audio.Mixer != null)
             {
                 var reading = Dino_Defenders.Client.SoundscapeSystem.Reading;

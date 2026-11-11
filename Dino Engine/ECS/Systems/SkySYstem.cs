@@ -4,6 +4,7 @@ using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Lighting;
 using Dino_Engine.Util;
+using Dino_Engine.World;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.ECS.Systems
@@ -29,7 +30,8 @@ namespace Dino_Engine.ECS.Systems
         {
             LightingSettings lighting = Engine.RenderEngine.Lighting;
             NightfallSingleton night = NightOf(world);
-            Vector3 sky = entity.Get<ColorComponent>().value.ToVector3();
+            // A world with days has the sky of the hour in place of its own.
+            Vector3 sky = DaySystem.TryNow(world, out DaySample day) ? day.Sky : entity.Get<ColorComponent>().value.ToVector3();
             Vector3 clear = lighting.Sky ? NightfallSingleton.Blend(sky, night.Sky, night.Amount) : Vector3.Zero;
             Vector3 sun = Sun(world);
             Vector3 sunThrough = sun;
@@ -68,18 +70,28 @@ namespace Dino_Engine.ECS.Systems
             return AtThisHour(world, world.GetComponent<ColorComponent>(world.sun).value.ToVector3());
         }
 
-        /// <summary>What a sun of this colour really shines with, by day or by the moon.</summary>
+        /// <summary>
+        /// What a sun of this colour really shines with, by day or by the moon. A world with days has the sun and moon of the hour in place of its own sun's colour, and
+        /// any night asked for past the hour's (a churchyard, the F3 window) on top.
+        /// </summary>
         public static Vector3 AtThisHour(ECSWorld world, Vector3 sun)
         {
             NightfallSingleton night = NightOf(world);
+            if (DaySystem.TryNow(world, out DaySample day))
+            {
+                Vector3 light = day.Sun + night.Moon * day.Moonlight;
+                float beyond = day.Night < 1f ? Math.Clamp((night.Amount - day.Night) / (1f - day.Night), 0f, 1f) : 0f;
+                return NightfallSingleton.Blend(light, night.Moon, beyond);
+            }
             return NightfallSingleton.Blend(sun, night.Moon, night.Amount);
         }
 
-        /// <summary>Night as it stands, with any the F3 window is asking for.</summary>
+        /// <summary>Night as it stands: the hour's, if the world has days, and any the game or the F3 window is asking for.</summary>
         public static NightfallSingleton NightOf(ECSWorld world)
         {
             NightfallSingleton night = world.TryGetSingleton<NightfallSingleton>(out Entity entity) ? world.GetComponent<NightfallSingleton>(entity) : new NightfallSingleton();
             night.Amount = MathF.Max(night.Amount, Engine.RenderEngine.Lighting.Night);
+            if (DaySystem.TryNow(world, out DaySample day)) night.Amount = MathF.Max(night.Amount, day.Night);
             return night;
         }
     }

@@ -257,5 +257,24 @@ namespace Dino_Defenders.Stats
         public const int ArenaWaveSize = 2;             // Who comes through each gate that's opened.
         public const float ArenaWaveRareChance = 0.35f; // Of each who comes through, and every other one is Magic.
         public const float ArenaGateOpen = 7f;          // Seconds a gate stays up once it's opened.
+
+        // What each arena does besides let in the brood (ARENAS.md), which starts a while after someone's first on its floor and stops when the tyrant falls. Each is marked for as long as it takes.
+        public const float HazardGrace = 8f;            // Seconds from a hero first setting foot on the floor before anything of the arena's own starts on them.
+        public const float BallistaEvery = 7f;          // Seconds between bolts from the tribune, its throwers taking turns.
+        public const float BallistaWindUp = 1.8f;       // Seconds from a thrower being aimed to its bolt flying.
+        public const float SunfireEvery = 6.5f;         // Seconds between the mirrors finding someone.
+        public const float SunfireWindUp = 2.2f;
+        public const float SunfireTyrantShare = 2.5f;   // Percent of the tyrant's health the gathered sun takes off it, or off any of its brood, caught in the light.
+        public const float VentEvery = 4.5f;            // Seconds between vents waking.
+        public const float VentWindUp = 1.6f;
+        public const float VentReach = 12f;             // Metres from someone on the floor a vent has to be to wake.
+        public const float HeaveWindUp = 1.6f;          // Seconds the ash heaves before the dead come up through it.
+        public const float ChandelierWindUp = 2.4f;     // Seconds from a chandelier's chain giving to its crash, the last of which it takes falling.
+        public const float ChandelierTyrantShare = 6f;  // Percent of the tyrant's health a chandelier takes off it, or off any of its brood under it.
+        public const float ClutchHatchFirst = 30f;      // Seconds into the fight before the first clutch hatches.
+        public const float ClutchHatchApart = 14f;      // Seconds between the clutches hatching after that.
+        public const float ClutchStirs = 6f;            // Seconds before a clutch hatches that it's seen to stir.
+        public const int ClutchHatchlings = 3;          // What comes out of each that isn't smashed first.
+        public const float ClutchHealth = 250f;         // Percent more health a clutch has than one of the brood.
     }
 }

@@ -49,6 +49,7 @@ namespace Dino_Defenders
     ///   --volume v      Overall level from 0 to 1, in place of what the player has chosen.
     ///   --music v       The music's level from 0 to 1, likewise, which at 0 leaves everything else to be measured.
     ///   --hidden true   Draws with no window on screen and never takes the focus, for a scripted run beside someone playing.
+    ///   --calm true     Nothing that's there to be fought stirs, for pictures taken among it: an arena with its tyrant in it.
     ///   --weather name  Holds the weather everywhere: clear, cloudy, overcast, wet, drizzle, rain, storm, snow, blizzard, dust, ash or fog.
     ///   --weatherclock s  Starts this many seconds into the world's own weather.
     ///   --size WxH      The window's size, for measuring at the size someone else plays at.
@@ -78,6 +79,7 @@ namespace Dino_Defenders
         public string? Site;
         public Vector2? At;
         public float? Look;         // Metres above the player for a high look at a place.
+        public bool Calm;           // Nothing hostile stirs.
         public float? Angle;        // Degrees above the horizon the camera looks down from, for a low look at a place.
         public string? Shot;
         public string? Snap;
@@ -145,6 +147,7 @@ namespace Dino_Defenders
         public bool Hidden;
         public string? Weather;
         public double WeatherClock;
+        public float? Hour;
         public string? Render;
         public string? Film;
         public int FilmStart = 120;
@@ -258,8 +261,10 @@ namespace Dino_Defenders
                     case "netsim": options.NetSim = value; break;
                     case "dedicated": options.Dedicated = value == "true"; break;
                     case "hidden": options.Hidden = value == "true"; break;
+                    case "calm": options.Calm = value == "true"; break;
                     case "weather": options.Weather = value; break;
                     case "weatherclock": options.WeatherClock = double.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
+                    case "hour": options.Hour = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "render": options.Render = value; break;
                     case "film": options.Film = value; break;
                     case "filmstart": options.FilmStart = int.Parse(value); break;

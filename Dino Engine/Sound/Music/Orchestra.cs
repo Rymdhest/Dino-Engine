@@ -7,12 +7,25 @@ namespace Dino_Engine.Sound.Music
     /// The band: every section with its instruments, its place on the stage and its share of the hall. It's told what to play and when, to the sample, and plays it. Sound from the
     /// front of a stage reaches the ear mostly direct and sound from the back mostly by way of the hall, so distance here is in how much reverb each section has as well as in where it's panned.
     /// </summary>
+    /// <summary>How the band is set up for a style: the room it plays in, and an echo on some of its players, as a guitar in a cave or a flute across a valley.</summary>
+    public sealed class Staging
+    {
+        public ReverbSettings Room;
+        public float EchoSeconds;       // Between repeats. Nothing, for no echo.
+        public float EchoFeedback;      // How much of each repeat comes round again.
+        public readonly Dictionary<Section, float> Echoes = new();
+    }
+
     public sealed class Orchestra
     {
         private const int Block = 512;
-        private const int Sustained = 44;
-        private const int Plucked = 28;
-        private const int Struck = 32;
+        private const int Sustained = 56;
+        private const int Plucked = 36;
+        private const int Struck = 48;          // A run-up's roll alone is fifteen strokes, each ringing for two seconds.
+        private const int Pianos = 28;
+        private const int EchoLength = 1 << 17;
+        private const int EchoMask = EchoLength - 1;
+        private const int RoomBlocks = 120;         // Blocks a room takes to become another, a little over a second.
         private const float StartGain = 0.2f;
 
         /// <summary>How one section sits in the band.</summary>
@@ -30,6 +43,7 @@ namespace Dino_Engine.Sound.Music
             public Biquad[] Left = Array.Empty<Biquad>();
             public Biquad[] Right = Array.Empty<Biquad>();
             public int Melody = -1;             // The voice a slur would go on from.
+            public float Echo;                  // How much goes to the echo.
             public readonly float[] BufferLeft = new float[Block];
             public readonly float[] BufferRight = new float[Block];
         }
@@ -44,6 +58,17 @@ namespace Dino_Engine.Sound.Music
         private readonly SustainedVoice[] _sustained = new SustainedVoice[Sustained];
         private readonly PluckedVoice[] _plucked = new PluckedVoice[Plucked];
         private readonly StruckVoice[] _struck = new StruckVoice[Struck];
+        private readonly PianoVoice[] _piano = new PianoVoice[Pianos];
+        private readonly float[] _echoLeft = new float[EchoLength];
+        private readonly float[] _echoRight = new float[EchoLength];
+        private readonly float[] _echoSendLeft = new float[Block];
+        private readonly float[] _echoSendRight = new float[Block];
+        private OnePole _echoToneLeft, _echoToneRight;
+        private int _echoWrite;
+        private int _echoDelay = AudioFormat.SampleRate / 2;
+        private float _echoFeedback;
+        private ReverbSettings _room, _roomTarget;
+        private int _roomSteps;
         private long _cut = long.MaxValue;
         private float _cutFade;
         private Biquad _rumbleLeft = Biquad.Highpass(38f, 0.71f);
@@ -66,6 +91,9 @@ namespace Dino_Engine.Sound.Music
         /// <summary>Notes that took the voice of one still playing, as there were too few to go round.</summary>
         public int Stolen { get; private set; }
 
+        /// <summary>Times something that isn't a number got into the band and it had to start its room and limiter afresh. Should never be anything but nothing.</summary>
+        public int Faults { get; private set; }
+
         /// <summary>Samples played so far.</summary>
         public long Now => _now;
 
@@ -75,13 +103,30 @@ namespace Dino_Engine.Sound.Music
             for (int i = 0; i < Sustained; i++) _sustained[i] = new SustainedVoice(_random.Fork());
             for (int i = 0; i < Plucked; i++) _plucked[i] = new PluckedVoice(_random.Fork());
             for (int i = 0; i < Struck; i++) _struck[i] = new StruckVoice();
+            for (int i = 0; i < Pianos; i++) _piano[i] = new PianoVoice(_random.Fork());
+            _echoToneLeft.SetCutoff(3200f);
+            _echoToneRight.SetCutoff(2800f);
             Array.Fill(Gains, 1f);
 
             _desks = new Desk[Gains.Length];
             for (int i = 0; i < _desks.Length; i++) _desks[i] = new Desk();
             Seat();
 
-            _hall.Configure(new ReverbSettings { DecayTime = 2.3f, DecayHigh = 1.05f, PreDelay = 0.028f, Wet = 1f, EchoTime = 0.3f, EchoBrightness = 3000f });
+            _room = _roomTarget = ConcertHall;
+            _hall.Configure(_room);
+        }
+
+        /// <summary>Where the band plays when nobody says otherwise.</summary>
+        public static readonly ReverbSettings ConcertHall = new() { DecayTime = 2.3f, DecayHigh = 1.05f, PreDelay = 0.028f, Wet = 1f, EchoTime = 0.3f, EchoBrightness = 3000f };
+
+        /// <summary>Moves the band into another room, over a second or so, and sets which of its players are heard through an echo.</summary>
+        public void Stage(Staging staging)
+        {
+            _roomTarget = staging.Room;
+            _roomSteps = RoomBlocks;
+            _echoDelay = Math.Clamp((int)(staging.EchoSeconds * AudioFormat.SampleRate), 64, EchoLength - Block - 1);
+            _echoFeedback = Math.Clamp(staging.EchoFeedback, 0f, 0.8f);
+            for (int d = 0; d < _desks.Length; d++) _desks[d].Echo = staging.EchoSeconds > 0f && staging.Echoes.TryGetValue((Section)d, out float send) ? send : 0f;
         }
 
         private static Biquad[] Filters(params Biquad[] filters) => filters;
@@ -155,6 +200,42 @@ namespace Dino_Engine.Sound.Music
             Strike(Section.Tambourine, 0.3f, kit.Tambourine, 60, 0.32f, 0.26f);
             Strike(Section.Cymbal, 0.5f, kit.Cymbal, 60, 0.05f, 0.55f);
 
+            // A grand piano: the board's warmth low down, and the top as a microphone a little way off would hear it.
+            Desk piano = Sit(Section.Piano, null, 0f, 1.5f, 0.3f);
+            Shape(piano, () => Filters(Biquad.Peak(180f, 0.8f, 1.5f), Biquad.HighShelf(7000f, -2f)));
+
+            // A steel-strung twelve-string: brighter and longer than gut, and its body's air and top plate under it.
+            Desk guitar = Sit(Section.Guitar, null, -0.22f, 0.6f, 0.24f);
+            guitar.Brightness = 0.6f;
+            guitar.Ring = 3.4f;
+            Shape(guitar, () => Filters(Biquad.Peak(105f, 2.2f, 4f), Biquad.Peak(210f, 1.6f, 2.5f), Biquad.Peak(2900f, 1.2f, 2f), Biquad.HighShelf(8000f, -2f)));
+
+            // A hammered dulcimer: struck, not plucked, so bright, and its courses ring on and on.
+            Desk dulcimer = Sit(Section.Dulcimer, null, 0.34f, 0.55f, 0.32f);
+            dulcimer.Brightness = 0.82f;
+            dulcimer.Ring = 5f;
+            Shape(dulcimer, () => Filters(Biquad.Peak(420f, 1.2f, 2f), Biquad.HighShelf(6000f, -3f)));
+
+            Sit(Section.Pad, kit.Pad, 0f, 0.6f, 0.5f);
+            Sit(Section.SoloCello, kit.SoloCello, 0.2f, 0.85f, 0.3f);
+            Sit(Section.EnglishHorn, kit.EnglishHorn, 0.1f, 0.65f, 0.32f);
+            Sit(Section.Bassoon, kit.Bassoon, 0.24f, 0.65f, 0.32f);
+            Sit(Section.AltoFlute, kit.AltoFlute, -0.14f, 0.8f, 0.34f);
+            Sit(Section.BassFlute, kit.BassFlute, -0.1f, 0.9f, 0.34f);
+            Sit(Section.Ocarina, kit.Ocarina, 0.06f, 0.6f, 0.36f);
+            Sit(Section.Tuba, kit.Tuba, 0.45f, 0.6f, 0.46f);
+            Sit(Section.BassClarinet, kit.BassClarinet, 0.26f, 0.65f, 0.32f);
+            Sit(Section.MutedViolins, kit.MutedViolins, -0.45f, 0.7f, 0.4f);
+            Sit(Section.MutedCellos, kit.MutedCellos, 0.4f, 0.75f, 0.38f);
+            Sit(Section.Voices, kit.Voices, 0f, 0.72f, 0.7f);
+            Shape(_desks[(int)Section.Pad], () => Filters(Biquad.HighShelf(3000f, -4f)));
+            Shape(_desks[(int)Section.Tuba], () => Filters(Biquad.LowShelf(90f, -4f)));
+
+            Strike(Section.HandDrum, 0.7f, kit.HandDrum, 48, 0.18f, 0.26f);
+            Strike(Section.RimDrum, 0.45f, kit.RimDrum, 60, 0.24f, 0.24f);
+            Strike(Section.Shaker, 0.28f, kit.Shaker, 60, -0.3f, 0.22f);
+            Shape(_desks[(int)Section.HandDrum], () => Filters(Biquad.LowShelf(80f, -6f), Biquad.Peak(200f, 1f, 2f)));
+
             // Measured against recorded orchestras, drums with nothing done to them were the whole of the bottom two octaves, and every stroke drove the limiter down on everyone else.
             // A drum carries by its body and its skin, so that's what is kept.
             Shape(_desks[(int)Section.Timpani], () => Filters(Biquad.LowShelf(110f, -9f), Biquad.Peak(320f, 1f, 3f)));
@@ -172,6 +253,9 @@ namespace Dino_Engine.Sound.Music
         /// <summary>Queues notes. Their times are from <paramref name="at"/>, in samples since the band began.</summary>
         public void Schedule(in Note note, long at)
         {
+            // A note that isn't made of numbers can't be played, and turned into a voice it would only throw on this thread or poison the hall.
+            if (!float.IsFinite(note.Start) || !float.IsFinite(note.Length) || !float.IsFinite(note.Loudness) || !float.IsFinite(note.Fader) || !float.IsFinite(note.Tail)) return;
+
             long when = at + (long)(note.Start * AudioFormat.SampleRate);
             _pending.Add(new Pending { At = when, Note = note });
         }
@@ -215,11 +299,31 @@ namespace Dino_Engine.Sound.Music
                 return;
             }
 
+            if (note.Section == Section.Piano)
+            {
+                _piano[Free(_piano)].Begin(note);
+                return;
+            }
+
             if (desk.Takes == null)
             {
-                int slot = Free(_plucked);
-                _plucked[slot].Begin(note, desk.Brightness, desk.Ring * Ringing(note.Pitch));
-                _pluckedDesk[slot] = note.Section;
+                Pluck(desk, note, 0f, 0);
+                if (note.Section == Section.Guitar)
+                {
+                    // The other string of the course, met a moment after the first: an octave up on the four lower courses, in unison on the two at the top. Never quite in tune with
+                    // its partner, which is the shimmer a twelve-string is played for.
+                    bool octave = note.Pitch < 59;
+                    Note partner = note;
+                    partner.Pitch = octave ? note.Pitch + 12 : note.Pitch;
+                    partner.Fader = note.Fader + (octave ? -5f : -2f);
+                    Pluck(desk, partner, _random.Range(-3f, 3f), 90 + _random.Int(290));
+                }
+                else if (note.Section == Section.Dulcimer)
+                {
+                    Note partner = note;
+                    partner.Fader = note.Fader - 1.5f;
+                    Pluck(desk, partner, _random.Range(-2.5f, 2.5f), _random.Int(60));
+                }
                 return;
             }
 
@@ -228,6 +332,42 @@ namespace Dino_Engine.Sound.Music
             float[] take = desk.Takes[_random.Int(desk.Takes.Length)];
             _struck[voice].Begin(take, rate, (0.25f + note.Loudness * 0.75f) * AudioFormat.DecibelsToGain(note.Fader), note.Pitch);
             _struckDesk[voice] = note.Section;
+        }
+
+        // Everything that holds anything, emptied, and every voice let go: whatever went bad can be anywhere by now, and a moment's silence is all this costs.
+        private void StartAfresh()
+        {
+            _hall.Clear();
+            _limiter.Clear();
+            Array.Clear(_echoLeft);
+            Array.Clear(_echoRight);
+            _echoToneLeft = default;
+            _echoToneRight = default;
+            _echoToneLeft.SetCutoff(3200f);
+            _echoToneRight.SetCutoff(2800f);
+            _rumbleLeft.Reset();
+            _rumbleRight.Reset();
+            _presenceLeft.Reset();
+            _presenceRight.Reset();
+            foreach (Desk desk in _desks)
+            {
+                for (int f = 0; f < desk.Left.Length; f++)
+                {
+                    desk.Left[f].Reset();
+                    desk.Right[f].Reset();
+                }
+            }
+            foreach (SustainedVoice voice in _sustained) voice.Active = false;
+            foreach (PluckedVoice voice in _plucked) voice.Active = false;
+            foreach (StruckVoice voice in _struck) voice.Active = false;
+            foreach (PianoVoice voice in _piano) voice.Active = false;
+        }
+
+        private void Pluck(Desk desk, in Note note, float cents, int wait)
+        {
+            int slot = Free(_plucked);
+            _plucked[slot].Begin(note, desk.Brightness, desk.Ring * Ringing(note.Pitch), cents, wait);
+            _pluckedDesk[slot] = note.Section;
         }
 
         // High strings ring out sooner than low ones.
@@ -338,9 +478,23 @@ namespace Dino_Engine.Sound.Music
                 Desk desk = _desks[(int)_struckDesk[i]];
                 voice.Render(desk.BufferLeft, desk.BufferRight, count);
             }
+            Desk pianoDesk = _desks[(int)Section.Piano];
+            for (int i = 0; i < Pianos; i++)
+            {
+                if (_piano[i].Active) _piano[i].Render(pianoDesk.BufferLeft, pianoDesk.BufferRight, count);
+            }
+
+            if (_roomSteps > 0)
+            {
+                _room = ReverbSettings.Lerp(_room, _roomTarget, 1f / _roomSteps);
+                _roomSteps--;
+                _hall.Configure(_room);
+            }
 
             Array.Clear(_sendLeft, 0, count);
             Array.Clear(_sendRight, 0, count);
+            Array.Clear(_echoSendLeft, 0, count);
+            Array.Clear(_echoSendRight, 0, count);
             Array.Clear(left, offset, count);
             Array.Clear(right, offset, count);
 
@@ -354,6 +508,7 @@ namespace Dino_Engine.Sound.Music
                 float toLeft = MathF.Cos(angle) * 1.414f * gain;
                 float toRight = MathF.Sin(angle) * 1.414f * gain;
                 float send = desk.Send;
+                float echo = desk.Echo;
 
                 for (int i = 0; i < count; i++)
                 {
@@ -370,7 +525,24 @@ namespace Dino_Engine.Sound.Music
                     right[offset + i] += r;
                     _sendLeft[i] += l * send;
                     _sendRight[i] += r * send;
+                    _echoSendLeft[i] += l * echo;
+                    _echoSendRight[i] += r * echo;
                 }
+            }
+
+            // The echo: each side's repeats cross to the other, losing a little top each time round, and go to the hall as well, as a real one would.
+            for (int i = 0; i < count; i++)
+            {
+                int read = (_echoWrite - _echoDelay) & EchoMask;
+                float fromLeft = _echoLeft[read];
+                float fromRight = _echoRight[read];
+                _echoLeft[_echoWrite] = _echoSendLeft[i] + _echoToneRight.Lowpass(fromRight) * _echoFeedback + AudioFormat.Denormal;
+                _echoRight[_echoWrite] = _echoSendRight[i] * 0.5f + _echoToneLeft.Lowpass(fromLeft) * _echoFeedback + AudioFormat.Denormal;
+                _echoWrite = (_echoWrite + 1) & EchoMask;
+                left[offset + i] += fromLeft * 0.8f;
+                right[offset + i] += fromRight * 0.8f;
+                _sendLeft[i] += fromLeft * 0.3f;
+                _sendRight[i] += fromRight * 0.3f;
             }
 
             _hall.Process(_sendLeft.AsSpan(0, count), _sendRight.AsSpan(0, count), left.AsSpan(offset, count), right.AsSpan(offset, count));
@@ -382,6 +554,17 @@ namespace Dino_Engine.Sound.Music
                 right[i] = _presenceRight.Process(_rumbleRight.Process(right[i]));
             }
             _limiter.Process(left.AsSpan(offset, count), right.AsSpan(offset, count));
+
+            // Something that isn't a number would go round the hall for ever, and the game would cut the music off for good: the band starts its room afresh instead, and goes on.
+            for (int i = offset; i < offset + count; i++)
+            {
+                if (float.IsFinite(left[i]) && float.IsFinite(right[i])) continue;
+                Array.Clear(left, offset, count);
+                Array.Clear(right, offset, count);
+                Faults++;
+                StartAfresh();
+                break;
+            }
         }
     }
 
@@ -396,7 +579,8 @@ namespace Dino_Engine.Sound.Music
         public static Instruments Shared => Kit.Value;
 
         public readonly SustainedStyle Flute, Oboe, Clarinet, Horns, Trombones, Trumpets, Violins, Violas, Cellos, Basses, Fiddle, Choir;
-        public readonly float[][] Celesta, Bells, Timpani, BigDrum, FrameDrum, Tambourine, Cymbal;
+        public readonly SustainedStyle SoloCello, EnglishHorn, Bassoon, AltoFlute, BassFlute, Ocarina, Tuba, BassClarinet, MutedViolins, MutedCellos, Voices, Pad;
+        public readonly float[][] Celesta, Bells, Timpani, BigDrum, FrameDrum, Tambourine, Cymbal, HandDrum, RimDrum, Shaker;
 
         private Instruments()
         {
@@ -421,6 +605,24 @@ namespace Dino_Engine.Sound.Music
 
             Choir = new SustainedStyle { Timbre = Timbre.Build(ChoirSpectrum, 43f, 84f, 12), Players = 5, Scatter = 7f, Attack = 0.28f, Release = 0.5f, VibratoRate = 5.2f, VibratoDepth = 22f, VibratoDelay = 0.4f, Breath = 0.03f, BreathPitch = 7f, Chiff = 0f, Range = 16f };
 
+            // A cello alone sings more than a section does: one player, a wider vibrato, and the bow heard on the string.
+            SoloCello = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Cellos, strings, 36f, 78f, 13), Attack = 0.09f, Release = 0.26f, VibratoRate = 5.4f, VibratoDepth = 17f, VibratoDelay = 0.2f, Tremor = 0.07f, Breath = 0.024f, BreathPitch = 6f, Chiff = 0.06f, Range = 22f };
+            EnglishHorn = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.EnglishHorn, wood, 52f, 82f, 14), Attack = 0.05f, Release = 0.12f, VibratoRate = 5f, VibratoDepth = 10f, VibratoDelay = 0.3f, Tremor = 0.05f, Breath = 0.02f, BreathPitch = 3f, Chiff = 0.05f, Range = 12f };
+            Bassoon = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Bassoon, wood, 34f, 76f, 15), Players = 2, Scatter = 4f, Attack = 0.05f, Release = 0.12f, VibratoRate = 5f, VibratoDepth = 7f, VibratoDelay = 0.35f, Tremor = 0.04f, Breath = 0.02f, BreathPitch = 3f, Chiff = 0.05f, Range = 14f };
+            AltoFlute = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.AltoFlute, wood, 55f, 92f, 16), Attack = 0.09f, Release = 0.16f, VibratoRate = 4.8f, VibratoDepth = 16f, VibratoDelay = 0.3f, Tremor = 0.22f, Breath = 0.11f, BreathPitch = 1.6f, Chiff = 0.1f, Range = 10f };
+            BassFlute = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.BassFlute, wood, 48f, 86f, 17), Attack = 0.1f, Release = 0.18f, VibratoRate = 4.6f, VibratoDepth = 12f, VibratoDelay = 0.32f, Tremor = 0.2f, Breath = 0.14f, BreathPitch = 1.4f, Chiff = 0.12f, Range = 9f };
+            Ocarina = new SustainedStyle { Timbre = Timbre.Build(OcarinaSpectrum, 60f, 92f, 18), Attack = 0.04f, Release = 0.09f, VibratoRate = 5.5f, VibratoDepth = 10f, VibratoDelay = 0.25f, Tremor = 0.15f, Breath = 0.07f, BreathPitch = 2f, Chiff = 0.12f, Range = 9f };
+            Tuba = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Tuba, brass, 26f, 62f, 19), Players = 2, Scatter = 3f, Attack = 0.09f, Release = 0.2f, VibratoRate = 5f, VibratoDepth = 2f, VibratoDelay = 0.5f, Scoop = 16f, Breath = 0.02f, BreathPitch = 4f, Chiff = 0.06f, Range = 14f };
+            BassClarinet = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.BassClarinet, wood, 34f, 72f, 20), Attack = 0.06f, Release = 0.12f, VibratoRate = 5f, VibratoDepth = 1f, VibratoDelay = 0.4f, Breath = 0.03f, BreathPitch = 2.5f, Chiff = 0.05f, Range = 15f };
+            MutedViolins = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.MutedViolins, strings, 55f, 100f, 21), Players = 5, Scatter = 6f, Attack = 0.16f, Release = 0.32f, VibratoRate = 5.6f, VibratoDepth = 10f, VibratoDelay = 0.25f, Tremor = 0.06f, Breath = 0.045f, BreathPitch = 6f, Chiff = 0.03f, Range = 18f };
+            MutedCellos = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.MutedCellos, strings, 36f, 76f, 22), Players = 4, Scatter = 5f, Attack = 0.16f, Release = 0.32f, VibratoRate = 5.2f, VibratoDepth = 9f, VibratoDelay = 0.25f, Tremor = 0.06f, Breath = 0.02f, BreathPitch = 7f, Chiff = 0.03f, Range = 18f };
+            Voices = new SustainedStyle { Timbre = Timbre.Build(VoicesSpectrum, 43f, 84f, 23), Players = 6, Scatter = 8f, Attack = 0.5f, Release = 0.7f, VibratoRate = 5f, VibratoDepth = 14f, VibratoDelay = 0.5f, Breath = 0.04f, BreathPitch = 5f, Chiff = 0f, Range = 14f };
+            Pad = new SustainedStyle { Timbre = Timbre.Build(PadSpectrum, 36f, 92f, 24), Players = 4, Scatter = 9f, Attack = 1.2f, Release = 1.8f, VibratoRate = 0.3f, VibratoDepth = 0f, VibratoDelay = 0f, Tremor = 0f, Breath = 0f, BreathPitch = 2f, Chiff = 0f, Range = 14f };
+
+            HandDrum = Takes(6, 28, MakeHandDrum);
+            RimDrum = Takes(6, 29, MakeRimDrum);
+            Shaker = Takes(6, 30, MakeShaker);
+
             Celesta = Takes(4, 21, MakeCelesta);
             Bells = Takes(3, 22, take => take.Mix(Bells2(take)));
             Timpani = Takes(5, 23, MakeTimpani);
@@ -439,6 +641,70 @@ namespace Dino_Engine.Sound.Music
             float source = -12f * MathF.Log2(harmonic);
             float tract = Formant(frequency, 620f, 90f, 0f) + Formant(frequency, 1040f, 120f, -6f) + Formant(frequency, 2500f, 180f, -14f) + Formant(frequency, 3200f, 220f, -22f);
             return source + AudioFormat.GainToDecibels(tract) + 12f;
+        }
+
+        // A closed vowel, "oo": its first formants low and close together, so it's dark and seems to come from further off than an open one.
+        private static float VoicesSpectrum(float hertz, int harmonic)
+        {
+            float frequency = hertz * harmonic;
+            float source = -12f * MathF.Log2(harmonic);
+            float tract = Formant(frequency, 330f, 80f, 0f) + Formant(frequency, 820f, 110f, -9f) + Formant(frequency, 2300f, 170f, -24f) + Formant(frequency, 3000f, 220f, -30f);
+            return source + AudioFormat.GainToDecibels(tract) + 10f;
+        }
+
+        // An ocarina is a vessel flute, a Helmholtz resonator, and nearly a pure tone: its second harmonic is far down and its third barely more.
+        private static float OcarinaSpectrum(float hertz, int harmonic) => harmonic switch
+        {
+            1 => 0f,
+            2 => -27f,
+            3 => -22f,
+            4 => -38f,
+            5 => -34f,
+            _ => -40f - 6f * MathF.Log2(harmonic / 5f),
+        };
+
+        // A held synthesiser chord as slow piano music has one: a sawtooth's harmonics, rounded off above about 1400 Hz, so it's warm and leaves room for everything else.
+        private static float PadSpectrum(float hertz, int harmonic)
+        {
+            float frequency = hertz * harmonic;
+            return -6f * MathF.Log2(harmonic) - MathF.Max(0f, 24f * MathF.Log2(frequency / 1400f));
+        }
+
+        private static void MakeHandDrum(Take take)
+        {
+            SoundRandom random = take.Random;
+
+            // The deep stroke: a goblet drum's skin struck in the middle, its pitch dropping a little as the skin settles, and the palm's thud.
+            float pitch = random.Range(96f, 120f);
+            float[] ratios = { 1f, 1.59f, 2.14f, 2.3f };
+            float[] levels = { 1f, 0.42f, 0.22f, 0.12f };
+            Signal drum = take.Track(0.6f);
+            for (int p = 0; p < ratios.Length; p++)
+            {
+                float f = pitch * ratios[p];
+                drum.Add(take.Sine(0.6f, Curve.Settle(f * 1.08f, f, 0.03f), random.Range(0f, 6f)).Percussive(0.0015f, 0.24f / (1f + p * 0.9f)), 0f, levels[p]);
+            }
+            drum.Add(take.Brown(0.08f).Lowpass(420f).Percussive(0.001f, 0.012f), 0f, 0.6f);
+            take.Mix(drum);
+        }
+
+        private static void MakeRimDrum(Take take)
+        {
+            SoundRandom random = take.Random;
+
+            // The sharp stroke at the rim: a crack of noise high up, and the ring of the shell under it.
+            Signal drum = take.Track(0.3f);
+            drum.Add(take.White(0.06f).Bandpass(random.Range(2600f, 4200f), 0.9f).Percussive(0.0002f, 0.018f), 0f, 1f);
+            drum.Add(take.Sine(0.3f, random.Range(720f, 940f), random.Range(0f, 6f)).Percussive(0.0008f, 0.055f), 0f, 0.45f);
+            drum.Add(take.Sine(0.3f, random.Range(380f, 450f), random.Range(0f, 6f)).Percussive(0.0008f, 0.03f), 0f, 0.3f);
+            take.Mix(drum);
+        }
+
+        private static void MakeShaker(Take take)
+        {
+            // Seeds in a gourd thrown one way: Cook's particles once more.
+            var seeds = new GrainStyle { LowHz = 3200f, HighHz = 11000f, MinDecay = 0.0008f, MaxDecay = 0.004f, Partials = 1, Noise = 0.7f, Spread = 14f };
+            take.Mix(Grains.Settle(take, 0.14f, 60f, 0.035f, seeds).Normalize(0f));
         }
 
         private static float Formant(float frequency, float centre, float width, float decibels)

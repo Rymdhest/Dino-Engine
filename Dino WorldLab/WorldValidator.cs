@@ -296,6 +296,7 @@ namespace Dino_WorldLab
             int keeps = world.Sites.Count(s => s.Kind == SiteKind.Keep);
             if (keeps == 0) Problem("no keep");
             if (keeps > 0 && !world.Sites.Any(s => s.Kind == SiteKind.Keep && s.Spawns.Any(p => p.Role == SpawnRole.Boss))) Problem("no warlord in the keep");
+            foreach (WorldSite keep in world.Sites.Where(s => s.Kind == SiteKind.Keep)) CheckKeepArena(world, keep);
 
             for (int i = 0; i < world.Sites.Count; i++)
             {
@@ -334,9 +335,52 @@ namespace Dino_WorldLab
                 }
                 foreach (SiteSpawn spawn in site.Spawns)
                 {
+                    // Whoever watches from a keep's arena stands where nobody else can go, and is meant to.
+                    if (spawn.Role == SpawnRole.Spectator) continue;
                     if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of {site.Name} can't be reached at {spawn.Position}");
                 }
             }
+        }
+
+        /// <summary>
+        /// The arena a land's keep holds (ARENAS.md): its tyrant on its floor and nobody else hostile there, a gate to go up by, its arrival somewhere to stand on its floor, and its way down on the land
+        /// where anyone can walk to it from the landing; and its seal holding both ways, so that nothing on its floor walks off it and nothing on the land walks onto it.
+        /// </summary>
+        private void CheckKeepArena(WorldData world, WorldSite keep)
+        {
+            if (keep.Arena is not ArenaPlan plan)
+            {
+                Problem($"{keep.Name} has no arena");
+                return;
+            }
+            if (!plan.Keep) Problem($"{keep.Name}'s arena is planned as a boss map's");
+            if (plan.Way is not ArenaEntry way || string.IsNullOrEmpty(way.Model)) Problem($"{keep.Name}'s arena has no gate to go up by");
+            int tyrants = keep.Spawns.Count(s => s.Role == SpawnRole.Boss);
+            if (tyrants != 1 || keep.Spawns.Any(s => s.Role == SpawnRole.Boss && !plan.Contains(s.Position))) Problem($"{keep.Name} has {tyrants} tyrants, not one on its arena's floor");
+            if (keep.Spawns.Any(s => s.Role == SpawnRole.Rival)) Problem($"{keep.Name}'s arena has a place for a second tyrant");
+            SiteSpawn? stray = keep.Spawns.Where(s => s.Role.IsHostile() && s.Role != SpawnRole.Boss && plan.Contains(s.Position, 1.5f)).Cast<SiteSpawn?>().FirstOrDefault();
+            if (stray is SiteSpawn hostile) Problem($"{keep.Name}'s arena has a {hostile.Role} on or by its floor at {hostile.Position}, who isn't its tyrant");
+            if (!plan.Contains(plan.Arrival) || !world.Passable.IsSet(plan.Arrival)) Problem($"{keep.Name}'s arena has nowhere to stand where it's come down to, at {plan.Arrival}");
+            if (!plan.Contains(plan.Exit, 1f)) Problem($"{keep.Name}'s way up at {plan.Exit} isn't on its floor");
+
+            // The land as anyone walks it from the landing: it reaches the way down, and nowhere on the floor.
+            var land = new HashSet<(int, int)>();
+            int onto = 0;
+            Vector2 first = default;
+            foreach (Vector2 cell in Flood(world.Passable, world.Sites[0].Landing))
+            {
+                land.Add(((int)MathF.Round(cell.X), (int)MathF.Round(cell.Y)));
+                if (!plan.Contains(cell)) continue;
+                if (onto++ == 0) first = cell;
+            }
+            if (onto > 0) Problem($"{keep.Name}'s arena can be walked onto from the land: {onto} m2 of its floor, the first at {first}");
+            bool door = false;
+            for (int dx = -2; dx <= 2 && !door; dx++)
+            {
+                for (int dz = -2; dz <= 2 && !door; dz++) door = land.Contains(((int)MathF.Round(plan.Door.X) + dx, (int)MathF.Round(plan.Door.Y) + dz));
+            }
+            if (!door) Problem($"{keep.Name}'s way down at {plan.Door} can't be walked to from the landing");
+            CheckSealed(world, plan, plan.Arrival, $"{keep.Name}'s arena");
         }
 
         // The places a land can ask to be freed: there have to be at least the most it ever asks for (LandTerms.MostPlaces). And waygates, the landing's among them: a land is small enough now
@@ -356,7 +400,8 @@ namespace Dino_WorldLab
         // The Haven: one village, everything it's for standing where it can be reached, and nobody hostile anywhere.
         private const int LeastSpectators = 24;
 
-        // An arena is one bowl with its tyrant in the middle, gates round it with something standing in each, a way in from a waygate, and its people up in the stands, above the floor.
+        // An arena is one place, sealed round its floor: its tyrant, its waygate and the ways the brood comes in are all on the floor, its people up in the stands and off it, and nothing that walks is
+        // ever outside the seal (ARENAS.md).
         private void CheckArena(WorldData world)
         {
             if (world.Sites.Count != 1 || world.Sites[0].Kind != SiteKind.Arena)
@@ -367,6 +412,13 @@ namespace Dino_WorldLab
             if (world.Haunts.Count > 0) Problem($"the arena has {world.Haunts.Count} packs in it");
 
             WorldSite arena = world.Sites[0];
+            if (arena.Arena is not ArenaPlan plan)
+            {
+                Problem("the arena has no plan");
+                return;
+            }
+            if (plan.Kind != world.Plan.Archetype.ArenaKind) Problem($"the arena is a {plan.Kind}, in a world of {world.Plan.Archetype.ArenaKind}");
+            if (plan.Keep) Problem("a boss map's arena is planned as a keep's");
             int Count(SpawnRole role) => arena.Spawns.Count(s => s.Role == role);
             if (Count(SpawnRole.Boss) != 1) Problem($"the arena has {Count(SpawnRole.Boss)} tyrants");
             if (Count(SpawnRole.Rival) != 1) Problem($"the arena has {Count(SpawnRole.Rival)} places for a second tyrant");
@@ -376,23 +428,137 @@ namespace Dino_WorldLab
             if (waygates.Length != 1) Problem($"the arena has {waygates.Length} waygates");
             else if (!Stands(world, StructureCatalog.Waygate, waygates[0].Position)) Problem("the arena's waygate has nothing standing on it");
 
-            SiteSpawn[] gates = arena.Spawns.Where(s => s.Role == SpawnRole.ArenaGate).ToArray();
-            if (gates.Length != ArenaBuilder.GateBearings.Length) Problem($"the arena has {gates.Length} gates, not {ArenaBuilder.GateBearings.Length}");
-            foreach (SiteSpawn gate in gates)
+            if (plan.Entries.Count < LeastEntries) Problem($"the arena has {plan.Entries.Count} ways for the brood to come in");
+            foreach (ArenaEntry entry in plan.Entries)
             {
-                if (!world.Objects.TryNearest(StructureCatalog.ArenaGate.Id, gate.Position, 6f, out _)) Problem($"the arena's gate at {gate.Position} has nothing standing at it");
+                if (!plan.Contains(entry.Out)) Problem($"the arena's {entry.Kind} at {entry.Out} lets the brood out off its floor");
+                if (!world.Passable.IsSet(entry.Out)) Problem($"the arena's {entry.Kind} at {entry.Out} lets the brood out where nobody can stand");
+                if (entry.Kind != ArenaEntryKind.Rising && string.IsNullOrEmpty(entry.Model)) Problem($"the arena's {entry.Kind} at {entry.Out} has nothing to open");
             }
 
-            float floor = world.Height.Sample(arena.Position);
             if (world.WaterDepthAt(arena.Position) > 0f) Problem("the arena's floor is under water");
             SiteSpawn[] watching = arena.Spawns.Where(s => s.Role == SpawnRole.Spectator).ToArray();
             if (watching.Length < LeastSpectators) Problem($"only {watching.Length} watch from the arena's stands");
-            int low = watching.Count(s => world.Height.Sample(s.Position) < floor + ArenaBuilder.TierRise * 0.6f);
-            if (low > 0) Problem($"{low} of those watching aren't up in the stands");
+            SiteSpawn[] low = watching.Where(s => world.Height.Sample(s.Position) < plan.Floor + 1f).ToArray();
+            if (low.Length > 0) Problem($"{low.Length} of those watching aren't up off the floor, the first at {low[0].Position}");
+            int on = watching.Count(s => plan.Contains(s.Position, 0.5f));
+            if (on > 0) Problem($"{on} of those watching stand on the floor");
             foreach (SiteSpawn spawn in arena.Spawns)
             {
                 if (spawn.Role is SpawnRole.Spectator) continue;
                 if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of the arena can't be reached at {spawn.Position}");
+                if (!plan.Contains(spawn.Position)) Problem($"{spawn.Role} of the arena is off its floor at {spawn.Position}");
+            }
+            CheckSealed(world, plan, arena.Landing, "the arena");
+        }
+
+        private const int LeastEntries = 2;
+
+        /// <summary>
+        /// That an arena's seal holds, by brute force on the world's own maps: everything passable that can be reached from where its fighters stand is inside its bounds, and everything walkable is too,
+        /// give or take what a walkable map two metres to a cell can't say. Passable is what decides, as the seal is solid; walkable is what the floor sunk below everything round it adds.
+        /// </summary>
+        private void CheckSealed(WorldData world, ArenaPlan plan, Vector2 from, string name)
+        {
+            int outside = 0;
+            Vector2 first = default;
+            foreach (Vector2 cell in Flood(world.Passable, from))
+            {
+                if (plan.Contains(cell, 1.2f)) continue;
+                if (outside++ == 0) first = cell;
+            }
+            if (outside > 0) Problem($"{name}'s seal leaks: {outside} m2 can be walked to outside it, the first at {first}");
+
+            // Walkable ground goes no further out than the seal's own thickness and the slope a step is laid as: where it does, say where it crosses, which is where to look.
+            int strayed = 0;
+            Vector2 crossing = default;
+            foreach ((Vector2 cell, Vector2 came) in Flood(world.Walkable, from, cell => plan.Contains(cell)))
+            {
+                if (plan.Contains(cell, 3f)) continue;
+                if (strayed++ == 0) crossing = came;
+            }
+            if (strayed > 0) Problem($"{name}'s floor isn't sunk below what's round it: {strayed * 4} m2 of walkable ground joins it outside the seal, crossing out by {crossing}");
+        }
+
+        // Every cell of a map that's set and joined to a point by cells that are set, side by side, each with the last cell the flood came through that was still `inside`.
+        private static IEnumerable<(Vector2 Cell, Vector2 Came)> Flood(ByteField field, Vector2 from, Func<Vector2, bool> inside)
+        {
+            int width = field.Width, depth = field.Depth;
+            float size = field.CellSize;
+            var last = new Dictionary<int, Vector2>();
+            int startX = Math.Clamp((int)MathF.Round(from.X / size), 0, width - 1), startZ = Math.Clamp((int)MathF.Round(from.Y / size), 0, depth - 1);
+            int start = -1;
+            for (int r = 0; r <= 4 && start < 0; r++)
+            {
+                for (int z = startZ - r; z <= startZ + r && start < 0; z++)
+                {
+                    for (int x = startX - r; x <= startX + r; x++)
+                    {
+                        if (x < 0 || z < 0 || x >= width || z >= depth || field.Data[z * width + x] <= 127) continue;
+                        start = z * width + x;
+                        break;
+                    }
+                }
+            }
+            if (start < 0) yield break;
+            var seen = new bool[width * depth];
+            var queue = new Queue<int>();
+            queue.Enqueue(start);
+            seen[start] = true;
+            last[start] = new Vector2(start % width, start / width) * size;
+            while (queue.Count > 0)
+            {
+                int i = queue.Dequeue();
+                int x = i % width, z = i / width;
+                Vector2 here = new Vector2(x, z) * size;
+                Vector2 came = inside(here) ? here : last[i];
+                yield return (here, came);
+                foreach (int next in new[] { x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, z > 0 ? i - width : -1, z < depth - 1 ? i + width : -1 })
+                {
+                    if (next < 0 || seen[next] || field.Data[next] <= 127) continue;
+                    seen[next] = true;
+                    last[next] = came;
+                    queue.Enqueue(next);
+                }
+            }
+        }
+
+        // Every cell of a map that's set and joined to a point by cells that are set, side by side.
+        private static IEnumerable<Vector2> Flood(ByteField field, Vector2 from)
+        {
+            int width = field.Width, depth = field.Depth;
+            float cell = field.CellSize;
+            int startX = Math.Clamp((int)MathF.Round(from.X / cell), 0, width - 1), startZ = Math.Clamp((int)MathF.Round(from.Y / cell), 0, depth - 1);
+            // Start from the nearest set cell, as where someone stands can be a little off the grid's.
+            int start = -1;
+            for (int r = 0; r <= 4 && start < 0; r++)
+            {
+                for (int z = startZ - r; z <= startZ + r && start < 0; z++)
+                {
+                    for (int x = startX - r; x <= startX + r; x++)
+                    {
+                        if (x < 0 || z < 0 || x >= width || z >= depth || field.Data[z * width + x] <= 127) continue;
+                        start = z * width + x;
+                        break;
+                    }
+                }
+            }
+            if (start < 0) yield break;
+            var seen = new bool[width * depth];
+            var stack = new Stack<int>();
+            stack.Push(start);
+            seen[start] = true;
+            while (stack.Count > 0)
+            {
+                int i = stack.Pop();
+                int x = i % width, z = i / width;
+                yield return new Vector2(x, z) * cell;
+                foreach (int next in new[] { x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, z > 0 ? i - width : -1, z < depth - 1 ? i + width : -1 })
+                {
+                    if (next < 0 || seen[next] || field.Data[next] <= 127) continue;
+                    seen[next] = true;
+                    stack.Push(next);
+                }
             }
         }
 
@@ -635,7 +801,9 @@ namespace Dino_WorldLab
                 for (float x = 0f; x < world.Size; x += 6f)
                 {
                     Vector2 at = new Vector2(x, z);
-                    if (!world.Walkable.IsSet(at)) continue;
+                    // A hero's middle is never within their width of anything solid (CharacterMover), which is what passable ground keeps clear: against a wall that holds up ground behind
+                    // it, as an arena's does, the strip a body can't stand on is the strip the ground behind would hide.
+                    if (!world.Walkable.IsSet(at) || !world.Passable.IsSet(at)) continue;
                     float waist = world.Height.Sample(at) + HeroWaist;
                     for (float back = 1f; back <= CameraReach; back += 1f)
                     {
@@ -839,6 +1007,26 @@ namespace Dino_WorldLab
                 if (x < size - 1) Visit(i + 1);
                 if (z > 0) Visit(i - size);
                 if (z < size - 1) Visit(i + size);
+            }
+            // A keep's arena is sealed from the land, and reached by its way down: whoever can walk to the door is carried to its floor.
+            foreach (WorldSite site in world.Sites)
+            {
+                if (site.Arena is not { Keep: true } arena || !AnyReachedNear(reached, size, arena.Door, Cell, 3f)) continue;
+                int floor = NearestOpen(blocked, size, arena.Arrival, Cell, 6);
+                if (floor < 0 || reached[floor]) continue;
+                reached[floor] = true;
+                stack.Push(floor);
+                while (stack.Count > 0)
+                {
+                    int i = stack.Pop();
+                    count++;
+                    int x = i % size;
+                    int z = i / size;
+                    if (x > 0) Visit(i - 1);
+                    if (x < size - 1) Visit(i + 1);
+                    if (z > 0) Visit(i - size);
+                    if (z < size - 1) Visit(i + size);
+                }
             }
             WalkableCellCount = count;
 

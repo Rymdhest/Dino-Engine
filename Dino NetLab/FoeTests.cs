@@ -84,9 +84,9 @@ namespace Dino_NetLab
             report.Check("Something with a book that goes off by itself still comes in and fights", struck, $"got to {(actor.Position - arena.At).Length:0.0} m");
         }
 
-        // A hero 20 m off in each of eight directions, and a tyrant at home in its keep, which is a yard of crates and tents inside walls. It has to come out to all of
-        // them that it can reach, and it can reach any it can find a path to: a body four metres across that stops at the first crate is a boss that never fights.
-        // Then the rest of the keep, who have to come to a hero at the gate.
+        // A tyrant at home in the arena its keep holds (ARENAS.md), which is only there once a hero's come down to it, and a hero as far off as its floor goes in each of
+        // eight directions, up to 28 m. It has to come to all of them that it can reach, and it can reach any it can find a path to: a body four metres across that stops at
+        // the first statue, pew or nest is a boss that never fights. Then the rest of the keep, who have to come to a hero at the keep's gate.
         private static void Chases(Report report, WorldCache worlds, IEnumerable<WorldRequest> requests)
         {
             int tried = 0, reached = 0, followersTried = 0, followersReached = 0;
@@ -100,15 +100,18 @@ namespace Dino_NetLab
                 ECSWorld world = arena.Lab.Server.Ecs;
                 WorldData land = arena.Session.World;
                 SiteState keep = arena.Session.Sites.First(site => site.Site.Kind == SiteKind.Keep);
-                arena.Player.Client.TravelTo(keep.Site.Position + keep.Site.RoadDirection * keep.Site.Radius * 1.3f);
+                ArenaPlan? floor = keep.Site.Arena;
+                // Down to its arena's floor, where its tyrant is only made once someone's there.
+                arena.Player.Client.TravelTo(floor?.Arrival ?? keep.Site.Position + keep.Site.RoadDirection * keep.Site.Radius * 1.3f);
                 arena.Run(2.0);
 
-                Entity boss = keep.Live.FirstOrDefault(entity => world.GetEntityView(entity).Has<EnemyComponent>() && world.GetEntityView(entity).Get<EnemyComponent>().Rarity == Rarity.Unique);
-                if (!world.GetEntityView(boss).Has<ActorComponent>())
+                Entity boss = keep.Live.FirstOrDefault(entity => world.TryGetEntityLocation(entity, out _, out _) && world.GetEntityView(entity).Has<EnemyComponent>() && world.GetEntityView(entity).Get<EnemyComponent>().Rarity == Rarity.Unique);
+                if (!boss.IsValid() || !world.TryGetEntityLocation(boss, out _, out _) || !world.GetEntityView(boss).Has<ActorComponent>())
                 {
                     report.Note($"Seed {request.Seed}: no boss in the keep");
                     continue;
                 }
+                bool OnFloor(Vector2 at) => floor == null || floor.Contains(at, -1f);
                 Actor tyrant = world.GetEntityView(boss).Get<ActorComponent>().Actor;
                 Vector2 home = world.GetEntityView(boss).Get<EnemyBrainComponent>().Home;
 
@@ -116,8 +119,11 @@ namespace Dino_NetLab
                 for (int direction = 0; direction < 8; direction++)
                 {
                     float angle = direction * MathF.Tau / 8f;
-                    Vector2 spot = home + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 28f;
-                    if (!land.Passable.IsSet(spot) || new WorldPathfinder(exact: true).Find(land, home, spot) is not { Count: > 0 } path || (path[^1] - spot).Length > 2f) continue;
+                    Vector2 way = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+                    float far = 28f;
+                    while (far > 6f && (!OnFloor(home + way * far) || !land.Passable.IsSet(home + way * far))) far -= 1f;
+                    Vector2 spot = home + way * far;
+                    if (!OnFloor(spot) || !land.Passable.IsSet(spot) || new WorldPathfinder(exact: true).Find(land, home, spot) is not { Count: > 0 } path || (path[^1] - spot).Length > 2f) continue;
 
                     // Back home, with the hero already there.
                     Put(world, boss, tyrant, home);
@@ -144,10 +150,15 @@ namespace Dino_NetLab
                 Vector2 seenLast = default, trueLast = tyrant.Position;
                 for (int hop = 0; hop < 16; hop++)
                 {
-                    Vector2 spot = home + new Vector2(hops.Range(-30f, 30f), hops.Range(-30f, 30f));
-                    if (!land.Passable.IsSet(spot)) continue;
+                    float spread = floor == null ? 30f : 15f;
+                    Vector2 spot = home + new Vector2(hops.Range(-spread, spread), hops.Range(-spread, spread));
+                    if (!land.Passable.IsSet(spot) || !OnFloor(spot)) continue;
+                    // Somewhere it could get to, as wide as it is: an arena's floor has corners between a nest or a pew and its wall that a person fits and a tyrant doesn't, and
+                    // a hero there isn't one it's being held up from reaching.
+                    if (new WorldPathfinder(exact: true).Find(land, tyrant.Position, spot, WorldPathfinder.Wider(tyrant.Radius)) is not { Count: > 0 } reachable || (reachable[^1] - spot).Length > 2f) continue;
                     arena.Player.Client.TravelTo(spot);
                     Vector2 last = tyrant.Position;
+                    float chasedFor = 0f;
                     for (double waited = 0.0; waited < 2.5; waited += 0.25)
                     {
                         arena.Run(0.25);
@@ -158,10 +169,12 @@ namespace Dino_NetLab
                         trueLast = tyrant.Position;
 
                         bool after = world.GetEntityView(boss).Get<EnemyComponent>().State == EnemyState.Chasing && (tyrant.Position - arena.At).Length - tyrant.Radius >= 12f;
+                        // Held up is going nowhere once it's had a moment to turn: on an arena's floor a chase is a second long, and the turn would be most of it.
+                        chasedFor = after ? chasedFor + 0.25f : 0f;
                         if (after)
                         {
                             chasingHere += 0.25f;
-                            if ((tyrant.Position - last).Length < tyrant.Sheet.MoveSpeed * 0.25f * 0.25f) stalledHere += 0.25f;
+                            if (chasedFor > TurnAround && (tyrant.Position - last).Length < tyrant.Sheet.MoveSpeed * 0.25f * 0.25f) stalledHere += 0.25f;
                         }
                         last = tyrant.Position;
                     }
@@ -200,11 +213,13 @@ namespace Dino_NetLab
             }
 
             report.Note($"Tyrants held up, by world: {string.Join("; ", worldsSeen)}");
-            report.Check("A tyrant comes out of its keep to a hero wherever there's a way, and fights", tried > 0 && reached == tried, $"{reached} of {tried}" + (stuck.Count > 0 ? "; " + string.Join("; ", stuck) : ""));
+            report.Check("A tyrant comes to a hero wherever there's a way on its arena's floor, and fights", tried > 0 && reached == tried, $"{reached} of {tried}" + (stuck.Count > 0 ? "; " + string.Join("; ", stuck) : ""));
             report.Check("A tyrant after a hero who keeps moving is hardly ever held up", chasing > 0f && stalled <= chasing * 0.1f, $"{stalled:0.0} s of {chasing:0.0} s chasing");
             report.Check("And a client sees it go as far as it went", trueTravel > 0f && MathF.Abs(seenTravel - trueTravel) < trueTravel * 0.05f, $"{seenTravel:0} m of {trueTravel:0} m");
             report.Check("And whoever in the keep comes after a hero at the gate gets to them", followersTried > 0 && followersReached >= followersTried * 0.9f, $"{followersReached} of {followersTried}");
         }
+
+        private const float TurnAround = 0.5f;     // Seconds a tyrant that's set off after someone takes to come round, before going nowhere counts as being held up.
 
         private static Vector2 SeenBoss(Arena arena)
         {

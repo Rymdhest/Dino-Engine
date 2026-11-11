@@ -17,19 +17,22 @@ namespace Dino_Engine.Sound.Music
         }
     }
 
-    /// <summary>A rhythm for one bar: the note lengths in beats. Bars are the unit a tune repeats by, far more than notes are.</summary>
+    /// <summary>A rhythm for one bar: the note lengths in beats, a rest as a length below nothing. Bars are the unit a tune repeats by, far more than notes are.</summary>
     public sealed class Cell
     {
         public readonly float[] Lengths;
         public readonly float Weight;
+        public readonly int Notes;      // How many of them sound.
 
         public Cell(float weight, params float[] lengths)
         {
             Weight = weight;
             Lengths = lengths;
+            foreach (float length in lengths)
+            {
+                if (length > 0f) Notes++;
+            }
         }
-
-        public int Notes => Lengths.Length;
     }
 
     /// <summary>
@@ -61,6 +64,34 @@ namespace Dino_Engine.Sound.Music
             new(4f, 1f, 1f, 1f), new(4f, 2f, 1f), new(3f, 1.5f, 0.5f, 1f), new(2f, 1f, 0.5f, 0.5f, 1f), new(2f, 1f, 2f), new(1f, 0.5f, 0.5f, 1f, 1f),
         };
 
+        // Slow piano music and laments leave room: long notes, and a rest where a phrase breathes.
+        private static readonly Cell[] SparseFour =
+        {
+            new(4f, 2f, 2f), new(3f, 3f, -1f), new(3f, 2f, 1f, -1f), new(2f, -1f, 1f, 2f), new(2f, 1.5f, 0.5f, 2f), new(2f, 4f), new(1f, 1f, 1f, -2f), new(1f, -2f, 1f, 1f),
+        };
+
+        private static readonly Cell[] SparseThree =
+        {
+            new(4f, 2f, 1f), new(3f, 3f), new(2f, -1f, 1f, 1f), new(2f, 2f, -1f), new(1f, 1.5f, 0.5f, 1f),
+        };
+
+        // A hymn moves in even, plain steps, a note to a beat or two, now and then dotted for grandeur.
+        private static readonly Cell[] HymnFour =
+        {
+            new(4f, 1f, 1f, 1f, 1f), new(4f, 2f, 1f, 1f), new(3f, 1f, 1f, 2f), new(3f, 1.5f, 0.5f, 1f, 1f), new(2f, 2f, 2f), new(2f, 3f, 1f), new(1f, 1f, 0.5f, 0.5f, 2f),
+        };
+
+        private static readonly Cell[] HymnThree =
+        {
+            new(4f, 1f, 1f, 1f), new(3f, 2f, 1f), new(2f, 1.5f, 0.5f, 1f), new(1f, 3f),
+        };
+
+        // A waltz tune, with its lilt on the first beat.
+        private static readonly Cell[] FolkThree =
+        {
+            new(4f, 1f, 1f, 1f), new(3f, 2f, 1f), new(3f, 1f, 0.5f, 0.5f, 1f), new(2f, 1.5f, 0.5f, 1f), new(2f, 0.5f, 0.5f, 1f, 1f), new(1f, 3f),
+        };
+
         // Compound time: the beat is 1 and splits in three, so an eighth is a third of a beat.
         private const float E = 1f / 3f;
 
@@ -77,11 +108,22 @@ namespace Dino_Engine.Sound.Music
         public static Cell[] For(Meter meter, MelodicStyle style)
         {
             if (meter.Divisions == 3) return meter.Beats == 2 ? Jig : RollingFour;
-            if (meter.Beats == 3) return ThreeFlowing;
+            if (meter.Beats == 3)
+            {
+                return style switch
+                {
+                    MelodicStyle.Sparse => SparseThree,
+                    MelodicStyle.Hymn => HymnThree,
+                    MelodicStyle.Folk => FolkThree,
+                    _ => ThreeFlowing,
+                };
+            }
             return style switch
             {
                 MelodicStyle.Lyrical => FourLyrical,
                 MelodicStyle.Heroic => FourHeroic,
+                MelodicStyle.Sparse => SparseFour,
+                MelodicStyle.Hymn => HymnFour,
                 _ => FourFlowing,
             };
         }
@@ -97,6 +139,9 @@ namespace Dino_Engine.Sound.Music
         Flowing,    // Moves along.
         Lyrical,    // Long notes that sing.
         Heroic,     // Dotted and declamatory, with leaps.
+        Sparse,     // Few notes and rests between, as slow piano music and a lament leave room.
+        Hymn,       // Plain and even, by step, sung together.
+        Folk,       // A dance tune's lilt.
     }
 
     /// <summary>What a tune is being written to fit.</summary>
@@ -110,6 +155,28 @@ namespace Dino_Engine.Sound.Music
         public int Candidates = 300;
         public int LowestDegree = -3;
         public int HighestDegree = 10;
+        public Taste Taste;             // What this composer likes, a little apart from the average of all tunes.
+        public float Leeway = 0.4f;     // How far below the best a draft may score and still be the one chosen.
+    }
+
+    /// <summary>
+    /// A composer's own leanings: where a tune peaks, how far it ranges, how much it moves by step and how much it repeats itself. Measured tunes vary this much around their averages,
+    /// and holding every land to the one average made the best tune of hundreds the same tune in lands that had nothing else in common.
+    /// </summary>
+    public struct Taste
+    {
+        public float Steps;         // Added to the share of steps aimed for.
+        public float Repeats;       // Added to the share of bars that come back.
+        public float Peak;          // Added to where in the tune its high point is aimed for.
+        public int Span;            // Added to the range it's happy with.
+
+        public static Taste Draw(SoundRandom random) => new()
+        {
+            Steps = random.Range(-0.07f, 0.07f),
+            Repeats = random.Range(-0.08f, 0.1f),
+            Peak = random.Range(-0.12f, 0.1f),
+            Span = random.Int(5) - 2,
+        };
     }
 
     /// <summary>A tune: an eight bar period of a question and an answer, and the harmony it was written over.</summary>
@@ -167,12 +234,17 @@ namespace Dino_Engine.Sound.Music
 
         public static Tune Write(SoundRandom random, TuneBrief brief)
         {
+            // Not simply the best, but one of the drafts near enough to it, taken by luck: holding out for the single best of hundreds is how unrelated lands came to have one tune.
             Tune? best = null;
+            float bestPick = float.NegativeInfinity;
             for (int i = 0; i < brief.Candidates; i++)
             {
                 Tone[] tones = Draft(random, brief);
                 float score = Judge(tones, brief);
-                if (best == null || score > best.Score) best = new Tune(tones, brief.Harmony, brief.Meter, score);
+                float pick = score + random.Float() * brief.Leeway;
+                if (best != null && pick <= bestPick) continue;
+                best = new Tune(tones, brief.Harmony, brief.Meter, score);
+                bestPick = pick;
             }
             return best!;
         }
@@ -321,13 +393,20 @@ namespace Dino_Engine.Sound.Music
 
                     // What it does about notes off the chord is settled with the figure, so that a bar coming back on the same chord comes back the same.
                     var bend = new float[cell.Notes];
-                    for (int n = 0; n < bend.Length; n++) bend[n] = random.Float();
+                    for (int i = 0; i < bend.Length; i++) bend[i] = random.Float();
                     bends[cell] = bend;
                 }
 
                 float beat = 0f;
-                for (int n = 0; n < cell.Notes; n++)
+                int n = -1;
+                foreach (float length in cell.Lengths)
                 {
+                    if (length < 0f)
+                    {
+                        beat -= length;
+                        continue;
+                    }
+                    n++;
                     int degree = from + figure[n];
 
                     // A note on a strong beat usually belongs to the chord, and one on a weak beat often, so the figure bends a little to fit where it's landed.
@@ -351,8 +430,8 @@ namespace Dino_Engine.Sound.Music
                     }
 
                     degree = Math.Clamp(degree, brief.LowestDegree, brief.HighestDegree);
-                    tones.Add(new Tone(bar * barBeats + beat, cell.Lengths[n], degree));
-                    beat += cell.Lengths[n];
+                    tones.Add(new Tone(bar * barBeats + beat, length, degree));
+                    beat += length;
                 }
             }
             return tones.ToArray();
@@ -462,10 +541,12 @@ namespace Dino_Engine.Sound.Music
             float score = 0f;
 
             // Whole bars coming back is what lets a tune be remembered: real ones do it in a third of their bars.
-            score -= 5f * Difference(ShareOfBarsReused(tones, barBeats), ReusedBars);
+            score -= 5f * Difference(ShareOfBarsReused(tones, barBeats), ReusedBars + brief.Taste.Repeats);
 
+            // A hymn goes by step more than a folk tune does: that's what lets a crowd sing it.
+            float stepTarget = (brief.Style == MelodicStyle.Hymn ? 0.62f : StepShare) + brief.Taste.Steps;
             score -= 6f * Difference(repeats / intervals, RepeatShare);
-            score -= 8f * Difference(steps / intervals, StepShare);
+            score -= 8f * Difference(steps / intervals, stepTarget);
             score -= 6f * Difference(thirds / intervals, ThirdShare);
             score -= 8f * Difference(wide / intervals, WideShare);
             if (strongTotal > 0f) score -= 8f * Difference(strongHits / strongTotal, StrongChordTones);
@@ -475,12 +556,13 @@ namespace Dino_Engine.Sound.Music
             // A tune has one high point, not a ceiling it keeps bumping against, and it comes after the middle.
             score -= (highestCount - 1) * 0.28f;
             float peakPlace = peakIndex / (float)count;
-            score -= 4f * Difference(peakPlace, 0.65f);
+            score -= 4f * Difference(peakPlace, 0.65f + brief.Taste.Peak);
 
             // A span of ten to twelve steps of the mode is about what real tunes use. Too narrow is a chant; too wide isn't singable.
             int span = highest - lowest;
-            if (span < 6) score -= (6 - span) * 0.5f;
-            if (span > 11) score -= (span - 11) * 0.5f;
+            int narrowest = 6 + brief.Taste.Span, widest = 11 + brief.Taste.Span;
+            if (span < narrowest) score -= (narrowest - span) * 0.5f;
+            if (span > widest) score -= (span - widest) * 0.5f;
 
             // The faults: an unsingable leap, leaping twice the same way, sitting on one note, and running on in one direction for too long.
             score -= awkward * 1.6f;

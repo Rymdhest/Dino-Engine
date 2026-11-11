@@ -25,6 +25,7 @@ flat out float fragFocusOccluder;
 uniform mat4 modelMatrix;
 uniform mat4 normalModelViewMatrix;
 uniform vec3 modelSize;
+uniform float focusOpens;   // 1 for what may thin away for the player at all (glModel.OpensForFocus): trees.
 
 void main() {
 	vec4 viewPos = viewMatrix*modelMatrix*vec4(position, 1.0);
@@ -34,7 +35,7 @@ void main() {
 	fragUV = uv;
 	fragEdges = edges;
 	textureIndex = materialIndex;
-	fragFocusOccluder = focusOccluder(modelSize, modelMatrix);
+	fragFocusOccluder = focusOpens > 0.5 ? focusOccluder(modelSize, modelMatrix) : 0.0;
 	worldNormal = normal;
 	
 	vec3 T = tangent;

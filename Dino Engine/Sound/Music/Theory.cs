@@ -22,6 +22,7 @@ namespace Dino_Engine.Sound.Music
         public static readonly Mode Mixolydian = new("Mixolydian", 0, 2, 4, 5, 7, 9, 10);   // Folk tunes, and open air.
         public static readonly Mode Aeolian = new("Aeolian", 0, 2, 3, 5, 7, 8, 10);     // The natural minor.
         public static readonly Mode HarmonicMinor = new("Harmonic minor", 0, 2, 3, 5, 7, 8, 11);    // The minor with a leading note, for tension.
+        public static readonly Mode PhrygianDominant = new("Phrygian dominant", 0, 1, 4, 5, 7, 8, 10);  // The flat second over a major third: desert stone and old temples.
 
         public bool IsMinor => Steps[2] == 3;
 
@@ -58,12 +59,16 @@ namespace Dino_Engine.Sound.Music
     {
         public readonly int Root;              // A degree, from 0 for the tonic.
         public readonly ChordColour Colour;
+        public readonly Mode? Borrow;          // A chord taken from the mode of the same tonic, as film music takes its flat seventh in a major key: for its bar, everything is in that mode.
 
-        public Chord(int root, ChordColour colour = ChordColour.Triad)
+        public Chord(int root, ChordColour colour = ChordColour.Triad, Mode? borrow = null)
         {
             Root = root;
             Colour = colour;
+            Borrow = borrow;
         }
+
+        public Chord With(ChordColour colour) => new(Root, colour, Borrow);
 
         /// <summary>Degrees above the tonic that make this chord, the root first.</summary>
         public int[] Degrees => Colour switch
@@ -72,6 +77,7 @@ namespace Dino_Engine.Sound.Music
             ChordColour.Suspended4 => new[] { Root, Root + 3, Root + 4 },
             ChordColour.Seventh => new[] { Root, Root + 2, Root + 4, Root + 6 },
             ChordColour.Added9 => new[] { Root, Root + 2, Root + 4, Root + 8 },
+            ChordColour.Ninth => new[] { Root, Root + 2, Root + 4, Root + 6, Root + 8 },
             ChordColour.Open => new[] { Root, Root + 4 },
             _ => new[] { Root, Root + 2, Root + 4 },
         };
@@ -97,6 +103,7 @@ namespace Dino_Engine.Sound.Music
         Suspended4,
         Added9,
         Open,       // Root and fifth alone: bare, ancient, and neither major nor minor.
+        Ninth,      // The seventh and the ninth both, the soft haze of slow piano music.
     }
 
     /// <summary>What a phrase's last bar does: how much it says "that's all".</summary>

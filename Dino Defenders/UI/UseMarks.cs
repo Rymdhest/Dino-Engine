@@ -288,6 +288,8 @@ namespace Dino_Defenders.UI
             InteractKind.BetaVendor => "Beta Vendor",
             InteractKind.Workbench => "Crafting Bench",
             InteractKind.GamingTable => "Gaming Table",
+            InteractKind.ArenaDown => "Arena",
+            InteractKind.ArenaUp => "Way Out",
             _ => "Elder",
         };
 
@@ -301,6 +303,8 @@ namespace Dino_Defenders.UI
             InteractKind.MapTable => 3f,
             InteractKind.Stash => 3.6f,
             InteractKind.Workbench or InteractKind.GamingTable => 3.4f,
+            InteractKind.ArenaDown => 5.6f,
+            InteractKind.ArenaUp => 4.6f,
             _ => 5.2f,
         };
 
@@ -314,6 +318,8 @@ namespace Dino_Defenders.UI
             InteractKind.Stash => GuiColors.Rgba(214, 188, 146),
             InteractKind.Workbench => GuiColors.Rgba(250, 156, 92),
             InteractKind.GamingTable => GuiColors.Rgba(236, 176, 200),
+            InteractKind.ArenaDown => GuiColors.Rgba(240, 168, 112),
+            InteractKind.ArenaUp => GuiColors.Rgba(184, 226, 156),
             _ => GuiColors.Rgba(240, 228, 204),
         };
 
@@ -408,6 +414,26 @@ namespace Dino_Defenders.UI
                     _line.Add(c + new Vector2(s * 0.1f, -s * 0.55f));
                     draw.AddPolyline(_line, colour, Stroke);
                     draw.AddCircle(c + new Vector2(s * 0.62f, -s * 0.42f), s * 0.12f, colour);
+                    break;
+                case InteractKind.ArenaDown:
+                case InteractKind.ArenaUp:
+                    // A gate's arch with its grille, and which way it takes someone.
+                    _line.Clear();
+                    for (int i = 0; i <= 10; i++)
+                    {
+                        float angle = MathF.PI * i / 10f;
+                        _line.Add(c + new Vector2(MathF.Cos(angle) * s * 0.8f, -s * 0.2f - MathF.Sin(angle) * s * 0.8f));
+                    }
+                    draw.AddPolyline(_line, colour, Stroke);
+                    draw.AddLine(c + new Vector2(-s * 0.8f, -s * 0.2f), c + new Vector2(-s * 0.8f, s * 1f), colour, Stroke);
+                    draw.AddLine(c + new Vector2(s * 0.8f, -s * 0.2f), c + new Vector2(s * 0.8f, s * 1f), colour, Stroke);
+                    draw.AddLine(c + new Vector2(-s * 0.27f, -s * 0.85f), c + new Vector2(-s * 0.27f, s * 0.1f), colour, 1.2f);
+                    draw.AddLine(c + new Vector2(s * 0.27f, -s * 0.85f), c + new Vector2(s * 0.27f, s * 0.1f), colour, 1.2f);
+                    float tip = kind == InteractKind.ArenaDown ? s * 0.95f : s * 0.25f, tail = kind == InteractKind.ArenaDown ? s * 0.25f : s * 0.95f;
+                    draw.AddLine(c + new Vector2(0f, tail), c + new Vector2(0f, tip), colour, Stroke, roundCaps: true);
+                    float back = kind == InteractKind.ArenaDown ? -s * 0.28f : s * 0.28f;
+                    draw.AddLine(c + new Vector2(0f, tip), c + new Vector2(-s * 0.3f, tip + back), colour, Stroke, roundCaps: true);
+                    draw.AddLine(c + new Vector2(0f, tip), c + new Vector2(s * 0.3f, tip + back), colour, Stroke, roundCaps: true);
                     break;
                 case InteractKind.Merchant:
                     draw.AddCircle(c + new Vector2(0f, s * 0.25f), s * 0.8f, GuiColors.Transparent, Stroke, colour);

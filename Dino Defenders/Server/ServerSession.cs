@@ -52,6 +52,43 @@ namespace Dino_Defenders.Server
         /// <summary>Whoever came through an arena's gates, who belongs to no place: nothing about them is kept, and they drop what anything else drops.</summary>
         public readonly List<Actor> Arrivals = new();
 
+        /// <summary>How far past its bounds a keep's arena's floor counts as its floor, as what's passable can reach a little past them in a corner, and the land outside is well beyond that.</summary>
+        public const float FloorReach = 1.5f;
+
+        /// <summary>Whether two places are on the same side of every keep's arena's seal (ARENAS.md), which is what nothing that carries anyone may cross.</summary>
+        public static bool SameSide(WorldData world, Vector2 a, Vector2 b)
+        {
+            foreach (WorldSite site in world.Sites)
+            {
+                if (site.Arena is { Keep: true } plan && plan.Contains(a, FloorReach) != plan.Contains(b, FloorReach)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>The keep's arena whose floor a place is on, if it's on one.</summary>
+        public SiteState? KeepArenaAt(Vector2 at)
+        {
+            foreach (SiteState state in Sites)
+            {
+                if (state.Site.Arena is { Keep: true } plan && plan.Contains(at, FloorReach)) return state;
+            }
+            return null;
+        }
+
+        /// <summary>Whether a keep's tyrant is down: freed, or every tyrant of it fallen.</summary>
+        public bool TyrantDown(SiteState state)
+        {
+            if (Liberated || state.Cleared) return true;
+            for (int i = 0; i < state.Site.Spawns.Count; i++)
+            {
+                if (state.Site.Spawns[i].Role == SpawnRole.Boss && !state.Dead.Contains(i)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>Whether someone standing here is held in a keep's arena, on its floor with its tyrant still standing, so that nothing but winning or falling takes them out.</summary>
+        public bool HeldInArena(Vector2 at) => KeepArenaAt(at) is SiteState state && !TyrantDown(state);
+
         /// <summary>What only a tyrant wears, on top of what everyone does: what the land's omens and orders put on it, and in an arena, what being fought there is worth.</summary>
         public List<Mod> TyrantMods()
         {

@@ -1,5 +1,6 @@
 using Dino_Engine.Sound.Dsp;
 using Dino_Engine.Sound.Music;
+using Dino_Engine.World;
 
 namespace Dino_SoundLab
 {
@@ -29,16 +30,34 @@ namespace Dino_SoundLab
         };
 
         /// <summary>
+        /// The place music is asked for: --land N for the Nth of the lands the checks use, --place haven, --place arena --arena Cathedral, or a land described by hand with --seed,
+        /// --dark, --cold and --open.
+        /// </summary>
+        public static MusicPlace PlaceFrom(Options options)
+        {
+            string? place = options.Text("place");
+            if (place == "haven") return MusicPlace.Home;
+            if (place == "arena")
+            {
+                var kind = Enum.TryParse(options.Text("arena"), true, out ArenaKind parsed) ? parsed : ArenaKind.Pit;
+                return new MusicPlace { Seed = (ulong)options.Int("seed", 900 + (int)kind), Arena = true, ArenaKind = kind, Dark = 0.6f, Level = 10 };
+            }
+            if (options.Text("land") != null) return MusicCheck.Places(options.Int("land", 1)).Last();
+            return new MusicPlace { Seed = (ulong)options.Int("seed", 1) * 2654435761UL + 11UL, Dark = options.Float("dark", 0.4f), Cold = options.Float("cold", 0f), Open = options.Float("open", 0.5f), Level = options.Int("level", 5) };
+        }
+
+        /// <summary>
         /// Plays the band into a file, for as long as it's told. --story runs through what a session might do, so that transitions can be heard and measured.
         /// A list of every note goes beside it, which can be read like a score.
         /// </summary>
         public static int Play(Options options)
         {
-            ulong seed = (ulong)options.Int("seed", 1);
+            MusicPlace place = PlaceFrom(options);
             float seconds = options.Float("seconds", 40f);
             float intensity = options.Float("intensity", 0.5f);
             string path = options.Text("out") ?? "music.wav";
-            var mood = Enum.TryParse(options.Text("mood"), true, out MusicMood parsed) ? parsed : MusicMood.Wander;
+            var engine = new MusicEngine(place);
+            var mood = Enum.TryParse(options.Text("mood"), true, out MusicMood parsed) ? parsed : engine.Score.Main;
             bool story = options.Text("story") == "true";
             bool sweep = options.Text("sweep") == "true";
 
@@ -48,7 +67,6 @@ namespace Dino_SoundLab
             float back = options.Float("back", float.MaxValue);
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            var engine = new MusicEngine(seed);
 
             // --solo Cellos,Basses leaves only those sections sounding, to see what a mix is made of.
             if (options.Text("solo") is string solo)
@@ -57,10 +75,11 @@ namespace Dino_SoundLab
             }
 
             Console.WriteLine($"Score written in {clock.Elapsed.TotalMilliseconds:0} ms. Key {NoteName(engine.Score.Tonic)}.");
-            foreach (MusicMood each in new[] { MusicMood.Wander, MusicMood.Town, MusicMood.Battle, MusicMood.Boss })
+            foreach (MusicMood each in Enum.GetValues<MusicMood>())
             {
+                if (each == MusicMood.Silence || !engine.Score.Has(each)) continue;
                 Score.Setting setting = engine.Score.For(each);
-                Console.WriteLine($"  {each}: {setting.Mode.Name}, {setting.Tempo:0} bpm, {setting.Meter.Beats}x{setting.Meter.Divisions}");
+                Console.WriteLine($"  {each}: {setting.Style.Name}; {setting.Mode.Name}, {setting.Tempo:0} bpm, {setting.Meter.Beats}x{setting.Meter.Divisions}, key {NoteName(setting.Tonic)}");
             }
 
             var notes = new List<string> { "seconds,section,pitch,length,loudness,articulation,bar" };
@@ -101,12 +120,11 @@ namespace Dino_SoundLab
 
         private static MusicIntent Scene(float t)
         {
-            if (t < 24f) return new MusicIntent { Mood = MusicMood.Wander, Intensity = 0.4f };
-            if (t < 34f) return new MusicIntent { Mood = MusicMood.Tension, Intensity = 0.3f + (t - 24f) * 0.04f };
-            if (t < 56f) return new MusicIntent { Mood = MusicMood.Battle, Intensity = 0.3f + (t - 34f) * 0.03f };
-            if (t < 76f) return new MusicIntent { Mood = MusicMood.Boss, Intensity = 0.9f };
-            if (t < 76.2f) return new MusicIntent { Mood = MusicMood.Wander, Intensity = 0.4f, Cue = MusicCue.Victory };
-            return new MusicIntent { Mood = MusicMood.Town, Intensity = 0.6f };
+            // Out in a land, into its keep and its tyrant's fight, the tyrant falling, and the land again.
+            if (t < 40f) return new MusicIntent { Mood = MusicMood.Land, Intensity = 0.5f };
+            if (t < 75f) return new MusicIntent { Mood = MusicMood.Boss, Intensity = 0.72f + (t - 40f) * 0.006f };
+            if (t < 75.2f) return new MusicIntent { Mood = MusicMood.Land, Intensity = 0.5f, Cue = MusicCue.Victory };
+            return new MusicIntent { Mood = MusicMood.Land, Intensity = 0.5f };
         }
 
         /// <summary>One note of each instrument, to compare with recordings of the real thing.</summary>
@@ -121,6 +139,11 @@ namespace Dino_SoundLab
                 (Section.Trombones, 48, "Trombone.C3"), (Section.Trombones, 60, "Trombone.C4"), (Section.Violins, 69, "Violin.A4"), (Section.Violins, 76, "Violin.E5"), (Section.Cellos, 43, "Cello.G2"), (Section.Cellos, 50, "Cello.D3"),
                 (Section.Fiddle, 69, "Fiddle.A4"), (Section.Choir, 60, "Choir.C4"), (Section.Harp, 60, "Harp.C4"), (Section.Harp, 48, "Harp.C3"), (Section.Lute, 52, "Lute.E3"), (Section.Pizzicato, 43, "Pizz.G2"),
                 (Section.Timpani, 45, "Timpani.A2"), (Section.BigDrum, 36, "BigDrum.C2"), (Section.FrameDrum, 48, "Frame.C3"), (Section.Celesta, 72, "Celesta.C5"), (Section.Bells, 60, "Bells.C4"), (Section.Tambourine, 60, "Tambourine"), (Section.Cymbal, 60, "Cymbal"),
+                (Section.Piano, 33, "Piano.A1"), (Section.Piano, 48, "Piano.C3"), (Section.Piano, 60, "Piano.C4"), (Section.Piano, 69, "Piano.A4"), (Section.Piano, 84, "Piano.C6"), (Section.Piano, 96, "Piano.C7"),
+                (Section.Guitar, 45, "Guitar.A2"), (Section.Guitar, 64, "Guitar.E4"), (Section.Dulcimer, 69, "Dulcimer.A4"), (Section.Pad, 60, "Pad.C4"), (Section.SoloCello, 50, "SoloCello.D3"),
+                (Section.EnglishHorn, 65, "EnglishHorn.F4"), (Section.Bassoon, 46, "Bassoon.Bb2"), (Section.AltoFlute, 67, "AltoFlute.G4"), (Section.BassFlute, 60, "BassFlute.C4"), (Section.Ocarina, 76, "Ocarina.E5"),
+                (Section.Tuba, 38, "Tuba.D2"), (Section.BassClarinet, 45, "BassClarinet.A2"), (Section.MutedViolins, 74, "MutedViolins.D5"), (Section.MutedCellos, 48, "MutedCellos.C3"), (Section.Voices, 60, "Voices.C4"),
+                (Section.HandDrum, 48, "HandDrum"), (Section.RimDrum, 60, "RimDrum"), (Section.Shaker, 60, "Shaker"),
             };
             foreach ((Section section, int pitch, string name) in tests)
             {

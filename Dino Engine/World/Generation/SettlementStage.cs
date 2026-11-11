@@ -15,6 +15,7 @@ namespace Dino_Engine.World.Generation
     {
         private const float WaysideSpacing = 130f;
         private const float AltarForecourt = 4.7f;      // A road that ends at an altar stops this far short of it, which clears the road's own width and leaves room to stand.
+        internal const float KeepRoadEnd = 0.66f;        // Of a keep's radius, where a road that ends there stops: inside its gatehouse, short of the arena in the middle of it and the camp round that.
         private const float EssentialReach = 1.5f;      // Share of a site's radius something it can't do without may stray to find ground: a neighbour's field can cover all of a small site.
 
         public string Description => "Raising the villages";
@@ -30,6 +31,7 @@ namespace Dino_Engine.World.Generation
                 if (site.Kind == SiteKind.Graveyard) EndRoadsShortOf(world, site.Position, StructureCatalog.Church.HalfExtents.Y + ChurchForecourt);
                 if (site.Kind is SiteKind.Shrine or SiteKind.StandingStones) EndRoadsShortOf(world, site.Position, StructureCatalog.Altar.HalfExtents.X + AltarForecourt);
                 if (site.Kind == SiteKind.Waygate) EndRoadsShortOf(world, site.Position, StructureCatalog.Waygate.HalfExtents.Y + AltarForecourt);
+                if (site.Kind == SiteKind.Keep) EndRoadsShortOf(world, site.Position, site.Radius * KeepRoadEnd);
             }
             foreach (WorldRoad road in world.Roads) ReserveRoad(world, road);
 
@@ -461,6 +463,8 @@ namespace Dino_Engine.World.Generation
                 float distance = site.Radius * b.Random.Range(0.75f, 1.55f);
                 Vector2 position = site.Position + direction * distance;
                 Vector2 half = new Vector2(b.Random.Range(11f, 20f), b.Random.Range(8f, 15f));
+                // A field is its own place's, and never runs onto a neighbour's ground, where it once closed off a camp's only way in.
+                if (b.World.Sites.Any(other => other != site && (other.Position - position).Length < other.Radius + half.Length + FieldClearance)) continue;
                 // Fields line up with the road they lie along, not with the compass, and open onto it.
                 Vector2 towardsRoad = TowardsNearestRoad(b, position);
                 if (!b.Field(position, half, YawFacing(towardsRoad), towardsRoad, out Vector2 gate)) continue;
@@ -469,6 +473,7 @@ namespace Dino_Engine.World.Generation
             }
         }
 
+        private const float FieldClearance = 6f;        // Metres a field keeps off any other place's ground.
         private const float LongestFieldTrack = 80f;    // Metres a field's track runs to a road. A field further out than that is reached across the open ground.
         private const float FieldTrackStart = 2.5f;     // Metres out from the gate that the track starts, clear of the gateposts.
 
@@ -901,17 +906,25 @@ namespace Dino_Engine.World.Generation
                 }
             }
 
-            Vector2 keep = b.Centre - toRoad * half * 0.38f;
-            b.Place(StructureCatalog.Keep, keep, YawFacing(toRoad), padding: 0.5f, maxSlope: 0.6f);
-            b.Spawn(SpawnRole.Boss, keep + toRoad * 20f);
-            b.Spawn(SpawnRole.Chest, keep + toRoad * 15f + side * 8f);
+            // The keep's heart is the arena its tyrant is kept in (ARENAS.md), its tyrant and its hoard on the floor, and the keep's people camp round it inside the walls.
+            ArenaPlan arena = ArenaBuilder.Keep(b, b.Centre);
+            float camp = MathF.Max((arena.Rim + 3.5f + half - 3f) * 0.5f, arena.Rim + 3.5f);
+            float campWidth = MathF.Max(half - 3f - (arena.Rim + 3.5f), 1f) * 0.5f;
+            b.Scatter(StructureCatalog.Tent, b.Centre + side * camp, MathF.Min(campWidth, 8f));
+            b.Scatter(StructureCatalog.Tent, b.Centre - side * camp, MathF.Min(campWidth, 8f));
+            for (int i = 0; i < 6; i++)
+            {
+                float angle = b.Random.Float() * MathF.Tau;
+                b.Scatter(StructureCatalog.Crates, b.Centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * camp, MathF.Min(campWidth, 5f));
+            }
 
-            b.Scatter(StructureCatalog.Tent, b.Centre + side * half * 0.5f, 10f);
-            b.Scatter(StructureCatalog.Tent, b.Centre - side * half * 0.5f, 10f);
-            for (int i = 0; i < 6; i++) b.Scatter(StructureCatalog.Crates, b.Centre, half * 0.8f);
-
-            b.SpawnAround(SpawnRole.Guard, b.Centre + toRoad * half * 0.72f, 8f, 3);
-            b.SpawnAround(SpawnRole.Raider, b.Centre, half * 0.7f, b.Random.Int(6, 9));
+            b.SpawnAround(SpawnRole.Guard, b.Centre + toRoad * (half - 5f), 6f, 3);
+            int raiders = b.Random.Int(6, 9);
+            for (int i = 0; i < raiders; i++)
+            {
+                float angle = (i + b.Random.Range(-0.3f, 0.3f)) * MathF.Tau / raiders;
+                b.Spawn(SpawnRole.Raider, b.Centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (camp + b.Random.Range(-campWidth, campWidth) * 0.6f));
+            }
         }
 
         // Things along the road that promise something further on, spaced to be met every half minute or so at a run.

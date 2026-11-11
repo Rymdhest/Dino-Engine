@@ -25,7 +25,7 @@ namespace Dino_Defenders.Progression
     public sealed class SaveGame
     {
         /// <summary>Goes up when what's saved changes shape. <see cref="Upgrade"/> brings older saves up to it: testers carry theirs from build to build.</summary>
-        public const int CurrentVersion = 12;
+        public const int CurrentVersion = 13;
 
         /// <summary>The version that renamed the places on a hero, which needs a copy of the old save kept and its slots rewritten.</summary>
         private const int SlotsVersion = 4;
@@ -59,6 +59,12 @@ namespace Dino_Defenders.Progression
         /// on the new one, so everyone starts it again, with every point to spend.
         /// </summary>
         private const int TreeVersion = 12;
+
+        /// <summary>
+        /// The version that gave every arena kind a layout of its own and every land's keep a sealed arena for its tyrant (ARENAS.md). A land grown under the old rules isn't the one the same request
+        /// grows now, so a hero in one wakes in the Haven, free to open it again.
+        /// </summary>
+        private const int KeepArenasVersion = 13;
 
         public int Version { get; set; } = CurrentVersion;
         public HeroState Hero { get; set; } = HeroState.CreateNew();
@@ -162,6 +168,7 @@ namespace Dino_Defenders.Progression
             if (version < FoundPagesVersion) FoundPages(root);
             if (version < ArenasVersion) OutOfOldLands(root);
             if (version < TreeVersion) ForgetTree(root);
+            if (version < KeepArenasVersion) OutOfOldLands(root);
 
             SaveGame? save = root.Deserialize<SaveGame>(Options);
             if (save == null) return null;

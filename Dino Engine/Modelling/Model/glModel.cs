@@ -102,6 +102,12 @@ public class glModel
     /// <summary>The size of the model's box in its own units, which is what says whether it's big enough to open for the player (FocusOccluder.glsl). A model with no box counts as huge.</summary>
     public Vector3 Size => box.Min.X > box.Max.X ? new Vector3(float.MaxValue) : box.Max - box.Min;
 
+    /// <summary>
+    /// Whether it thins away for the player standing behind it (FocusCutout.glsl), if it's big enough to hide them. Only what's said to does: a tree, and nothing else
+    /// unless someone asks for it, as every new kind of thing that opened by itself read as a fault. <see cref="World.WorldAssetLibrary"/> says it of trees.
+    /// </summary>
+    public bool OpensForFocus;
+
     public void WorldBounds(in Matrix4 localToWorld, out Vector3 centre, out float radius)
     {
         if (!_boundsKnown)

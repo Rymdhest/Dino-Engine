@@ -111,7 +111,7 @@ Wing beats are capped well under what's real, as a sparrow's 20 Hz at 60 frames 
 `WildlifeRenderer` takes one instanced call per shape, reading bones from one buffer filled once a frame (`Wildlife.vert`, bindings 3 and 4, which grass doesn't use), so a flock costs what a bird does. It's the geometry pass like anything solid, through `Model.frag` with `WILDLIFE` defined, so it's lit, shadowed, wet and reflected with no more said.
 
 - **It writes nothing to the characters' stencil.** A mark on the ground is a promise, and it goes over whatever's hopping across it.
-- **It isn't `CHARACTER`**, so the focus cutout dithers away what passes between the camera and the hero.
+- **It never thins away for the hero** (`WILDLIFE` in `Model.frag`), as a bird crossing over them is never in the way, and only trees do (`glModel.OpensForFocus`).
 - **What comes and goes thins out** (`fragFade`), as something that's only for looking at should never be seen to pop.
 - **A bird's shadow is most of how height is read from up here**, so everything casts one.
 

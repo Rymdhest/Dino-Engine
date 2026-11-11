@@ -17,12 +17,13 @@ namespace Dino_Engine.Sound.Music
         public double Seconds;
         public int Beats = 4;
         public string Label = "";
+        public Staging? Staging;        // Where a new piece moves the band to, on its first bar.
     }
 
     /// <summary>
-    /// A world's music, before any of it is played: its key, its theme, and how each style sets that theme. Everything comes from one seed, so a world always sounds like itself. What ties
-    /// a good score together is one tune heard many ways, so the main theme's skeleton is what every style's tune is written over: its town dance and its battle cry are the same melody
-    /// dressed differently, and the ear knows it without knowing why. Only the shape travels, which is why a major dance and a minor march can share one.
+    /// A land's music, before any of it is played: its key, its theme, its piece and its tyrant's fight. Everything comes from one seed, so a land always sounds like itself and no two
+    /// sound alike. What ties a good score together is one tune heard many ways, so the theme's skeleton is what every tune in it is written over: a land's quiet piece and its
+    /// tyrant's fight are the same melody dressed differently, and the ear knows it without knowing why. Only the shape travels, which is why a major hymn and a minor hunt can share one.
     /// </summary>
     public sealed class Score
     {
@@ -38,41 +39,64 @@ namespace Dino_Engine.Sound.Music
             public Tune Contrast = null!;   // Something else, for the middle.
         }
 
-        private static readonly int[] Keys = { 62, 64, 65, 67, 69, 60 };    // D, E, F, G, A, C: where a theme sits comfortably on a flute or a horn.
-
         private readonly Dictionary<MusicMood, Setting> _settings = new();
         private readonly int[] _shape;
+        private readonly Taste _taste;
 
         public readonly int Tonic;
         public readonly ulong Seed;
+        public readonly MusicPlace Place;
+        public readonly MusicMood Main;     // What plays here when nothing's happening.
 
-        public Score(ulong seed)
+        public Score(MusicPlace place)
         {
-            Seed = seed;
-            var random = new SoundRandom(seed);
-            Tonic = random.Pick(Keys);
+            Place = place;
+            Seed = place.Seed;
+            var random = new SoundRandom(Seed);
 
-            // The theme itself: written once, in a neutral way, for the sake of its shape.
+            // Any key from middle C up a seventh, where a theme sits comfortably on a flute, a horn or a cello an octave down.
+            Tonic = 60 + random.Int(12);
+
+            // The theme itself: written once, in a neutral way, for the sake of its shape, by a composer with leanings of their own.
+            _taste = Taste.Draw(random);
             Chord[] harmony = Harmony.Draw(random, Mode.Aeolian, 0f);
-            Tune theme = Songwriter.Write(random, new TuneBrief { Mode = Mode.Aeolian, Style = MelodicStyle.Lyrical, Harmony = harmony, Candidates = 600 });
+            Tune theme = Songwriter.Write(random, new TuneBrief { Mode = Mode.Aeolian, Style = MelodicStyle.Lyrical, Harmony = harmony, Candidates = 400, Taste = _taste });
             _shape = Songwriter.ShapeOf(theme);
 
-            foreach (MusicMood mood in Enum.GetValues<MusicMood>())
+            var arranging = new SoundRandom(Seed * 0x9E3779B97F4A7C15UL + 7UL);
+            if (place.Haven)
             {
-                if (mood != MusicMood.Silence) _settings[mood] = Set(Styles.For(mood));
+                Main = MusicMood.Haven;
+                _settings[Main] = Set(Arranger.Haven(arranging));
+            }
+            else if (place.Arena)
+            {
+                Main = MusicMood.Arena;
+                _settings[Main] = Set(Arranger.Arena(place, arranging));
+            }
+            else
+            {
+                Main = MusicMood.Land;
+                Style land = Arranger.Land(place, arranging);
+                _settings[Main] = Set(land);
+                _settings[MusicMood.Boss] = Set(Arranger.Boss(place, land, arranging));
             }
         }
 
-        public Setting For(MusicMood mood) => _settings[mood];
+        /// <summary>The setting for a mood, or this place's own where it has none of that kind: the Haven has no tyrant.</summary>
+        public Setting For(MusicMood mood) => _settings.TryGetValue(mood, out Setting? setting) ? setting : _settings[Main];
+
+        public bool Has(MusicMood mood) => _settings.ContainsKey(mood);
 
         /// <summary>New variations and a new middle over the same theme, so that a long stay in one place keeps moving while it stays recognisably itself.</summary>
         public void Refresh(MusicMood mood, SoundRandom random)
         {
-            Setting setting = _settings[mood];
+            Setting setting = For(mood);
             Style style = setting.Style;
-            Chord[] contrast = Harmony.Draw(random, setting.Mode, style.Colour);
-            var brief = new TuneBrief { Mode = setting.Mode, Meter = setting.Meter, Style = style.Melodic, Harmony = setting.First.Harmony, Shape = _shape, Candidates = 120 };
-            var answer = new TuneBrief { Mode = setting.Mode, Meter = setting.Meter, Style = style.Melodic, Harmony = contrast, LowestDegree = 0, HighestDegree = 11, Candidates = 120 };
+            Chord[] contrast = Harmony.Write(random, style.Language, setting.Mode, style.Colour);
+            Arranger.Rotate(style, random);
+            var brief = new TuneBrief { Mode = setting.Mode, Meter = setting.Meter, Style = style.Melodic, Harmony = setting.First.Harmony, Shape = _shape, Candidates = 120, Taste = _taste };
+            var answer = new TuneBrief { Mode = setting.Mode, Meter = setting.Meter, Style = style.Melodic, Harmony = contrast, LowestDegree = 0, HighestDegree = 11, Candidates = 120, Taste = _taste };
             setting.Second = Songwriter.Write(random, brief);
             setting.Contrast = Songwriter.Write(random, answer);
         }
@@ -83,11 +107,11 @@ namespace Dino_Engine.Sound.Music
             Mode mode = random.Pick(style.Modes);
             Meter meter = random.Pick(style.Meters);
 
-            Chord[] harmony = Harmony.Draw(random, mode, style.Colour);
-            Chord[] contrast = Harmony.Draw(random, mode, style.Colour);
+            Chord[] harmony = Harmony.Write(random, style.Language, mode, style.Colour);
+            Chord[] contrast = Harmony.Write(random, style.Language, mode, style.Colour);
 
-            var brief = new TuneBrief { Mode = mode, Meter = meter, Style = style.Melodic, Harmony = harmony, Shape = _shape };
-            var answer = new TuneBrief { Mode = mode, Meter = meter, Style = style.Melodic, Harmony = contrast, LowestDegree = 0, HighestDegree = 11 };
+            var brief = new TuneBrief { Mode = mode, Meter = meter, Style = style.Melodic, Harmony = harmony, Shape = _shape, Taste = _taste };
+            var answer = new TuneBrief { Mode = mode, Meter = meter, Style = style.Melodic, Harmony = contrast, LowestDegree = 0, HighestDegree = 11, Taste = _taste };
 
             return new Setting
             {
@@ -129,6 +153,8 @@ namespace Dino_Engine.Sound.Music
         private int _arriving;
         private float _beat = 0.5f;
         private float _played;
+        private float _absolute;
+        private bool _staged;
         private MusicCue _cue;
 
         public Composer(Score score, ulong seed)
@@ -144,7 +170,7 @@ namespace Dino_Engine.Sound.Music
         /// <summary>Whether what's asked for can't wait for the end of the phrase.</summary>
         public bool WantsToCutIn(in MusicIntent intent)
         {
-            return intent.Cue != MusicCue.None || (intent.Mood != _mood && intent.Mood != MusicMood.Silence && Styles.For(intent.Mood).Urgent);
+            return intent.Cue != MusicCue.None || (intent.Mood != _mood && intent.Mood != MusicMood.Silence && Moods.IsUrgent(intent.Mood));
         }
 
         public Bar Next(in MusicIntent intent)
@@ -155,7 +181,12 @@ namespace Dino_Engine.Sound.Music
             if (intent.Mood != _mood && Ready(intent.Mood))
             {
                 Bar? bridge = Move(intent);
-                if (bridge != null) return bridge;
+                if (bridge != null)
+                {
+                    bridge.Staging = _setting?.Style.Staging;
+                    _staged = true;
+                    return bridge;
+                }
             }
 
             if (_mood == MusicMood.Silence || _setting == null) return Rest(2.0);
@@ -173,8 +204,7 @@ namespace Dino_Engine.Sound.Music
         // change of place a quarter of a minute late.
         private bool Ready(MusicMood next)
         {
-            Style style = Styles.For(next);
-            if (style.Urgent || style.Prompt || next == MusicMood.Silence) return true;
+            if (Moods.IsUrgent(next) || next == MusicMood.Silence) return true;
             return _rest > 0 || _tune == null || _bar % 2 == 0;
         }
 
@@ -182,7 +212,7 @@ namespace Dino_Engine.Sound.Music
         private Bar? Move(in MusicIntent intent)
         {
             Score.Setting? from = _rest > 0 ? null : _setting;
-            bool urgent = intent.Mood != MusicMood.Silence && Styles.For(intent.Mood).Urgent;
+            bool urgent = Moods.IsUrgent(intent.Mood);
             List<Note> carried = from != null && !urgent && intent.Mood != MusicMood.Silence ? Accompaniment(from, _score.For(intent.Mood)) : new List<Note>();
             int carriedBeats = from == null ? 0 : from.Meter.Beats * (from.Meter.Beats < Bridge.ShortestCarry ? 2 : 1);
 
@@ -208,22 +238,27 @@ namespace Dino_Engine.Sound.Music
 
             BarContext bar = _context;
             bar.Mode = to.Mode;
+            bar.Home = to.Mode;
             bar.Tonic = to.Tonic;
             bar.Meter = from.Meter;
             bar.BeatSeconds = 1f;
             bar.Intensity = _played;
+            bar.Harmony = Array.Empty<Chord>();
+            bar.HymnAt = -1f;
             bar.Bars = tune.Bars;
             bar.Section = MelodyUse.First;
             bar.Melody = Array.Empty<Tone>();
             for (int b = 0; b < bars; b++)
             {
                 bar.Bar = 1;
+                bar.AbsoluteBeat = _absolute + b * from.Meter.Beats;
                 bar.Chord = Bridge.Pivot(to);
                 bar.NextChord = bar.Chord;
                 bar.Notes.Clear();
                 foreach (Part part in style.Parts)
                 {
-                    if (part.Writer == Textures.Melody || part.Writer == Textures.Countermelody) continue;
+                    // The tune has stopped, and what moves by semitone would hang on, slowed, against the chord rising under it.
+                    if (part.Writer == Textures.Melody || part.Writer == Textures.Countermelody || part.Writer == Textures.Prowl || part.Writer == Textures.Fanfare) continue;
                     if (_played >= part.From && _played <= part.To) part.Writer(bar, part);
                 }
                 foreach (Note written in bar.Notes)
@@ -248,6 +283,9 @@ namespace Dino_Engine.Sound.Music
             _phrasesSinceRest = 0;
             _setting = mood == MusicMood.Silence ? null : _score.For(mood);
             _context.Voicings.Clear();
+            _context.HymnAt = -1f;
+            _absolute = 0f;
+            _staged = false;
         }
 
         private Tune TuneFor(MelodyUse section) => section switch
@@ -271,7 +309,12 @@ namespace Dino_Engine.Sound.Music
             float shaped = Math.Clamp(intensity * Tide(style, tune.Bars) * arrival, 0f, 1f);
             _played = shaped;
             BarContext bar = _context;
-            bar.Mode = setting.Mode;
+            bar.Chord = tune.Harmony[_bar];
+            bar.NextChord = tune.Harmony[(_bar + 1) % tune.Bars];
+            bar.Home = setting.Mode;
+            bar.Mode = bar.Chord.Borrow ?? setting.Mode;
+            bar.Harmony = tune.Harmony;
+            bar.AbsoluteBeat = _absolute;
             bar.Tonic = setting.Tonic;
             bar.Meter = setting.Meter;
             bar.BeatSeconds = 60f / tempo;
@@ -280,8 +323,6 @@ namespace Dino_Engine.Sound.Music
             bar.Bar = _bar;
             bar.Bars = tune.Bars;
             bar.Section = section;
-            bar.Chord = tune.Harmony[_bar];
-            bar.NextChord = tune.Harmony[(_bar + 1) % tune.Bars];
             bar.Notes.Clear();
 
             float beats = setting.Meter.Beats;
@@ -299,6 +340,15 @@ namespace Dino_Engine.Sound.Music
                 bar.TuneHighest = Math.Max(bar.TuneHighest, tone.Degree);
             }
 
+            // Who has the tune in this bar, and so where it really is, for the accompaniment to keep out of its way.
+            bar.MelodyShift = null;
+            foreach (Part part in style.Parts)
+            {
+                if (part.Writer != Textures.Melody || shaped < part.From || shaped > part.To || (part.Use != MelodyUse.Always && part.Use != section)) continue;
+                bar.MelodyShift = Textures.TuneShift(bar, part);
+                break;
+            }
+
             foreach (Part part in style.Parts)
             {
                 if (shaped >= part.From && shaped <= part.To) part.Writer(bar, part);
@@ -308,6 +358,12 @@ namespace Dino_Engine.Sound.Music
             var written = new Bar { Seconds = beats * bar.BeatSeconds, Beats = (int)beats, Label = $"{style.Mood} {section} {_bar + 1}" };
             float ritard = _performer.Perform(bar, written);
             written.Seconds *= ritard;
+            _absolute += beats;
+            if (!_staged)
+            {
+                written.Staging = style.Staging;
+                _staged = true;
+            }
 
             _bar++;
             if (_bar >= tune.Bars) EndPhrase(style);
@@ -355,7 +411,7 @@ namespace Dino_Engine.Sound.Music
 
         private Bar WriteCue()
         {
-            Score.Setting setting = _setting ?? _score.For(MusicMood.Wander);
+            Score.Setting setting = _setting ?? _score.For(_score.Main);
             int tonic = setting.Tonic;
             var bar = new Bar { Label = _cue.ToString() };
             float beat = 60f / (_cue == MusicCue.Victory ? 104f : 58f);

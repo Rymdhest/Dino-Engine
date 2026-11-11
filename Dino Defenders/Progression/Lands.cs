@@ -302,8 +302,8 @@ namespace Dino_Defenders.Progression
         };
 
         /// <summary>
-        /// The lands the waygate reaches for a hero at a level: each a different kind of world, with its own story, biomes and weather, or at a boss's level three arenas, each with a different
-        /// tyrant. They come from what's saved on the hero and nothing else, so both ends of a connection see the same three, and they stay the same however often the table is looked at and
+        /// The lands the waygate reaches for a hero at a level: each a different kind of world, with its own story, biomes and weather, or at a boss's level three arenas, each a different kind of
+        /// arena with a different tyrant. They come from what's saved on the hero and nothing else, so both ends of a connection see the same three, and they stay the same however often the table is looked at and
         /// however many tries they take, until the level is freed again or gold is paid for others.
         /// </summary>
         public static IReadOnlyList<LandOffer> Offer(HeroState hero, int level)
@@ -313,12 +313,14 @@ namespace Dino_Defenders.Progression
             var offers = new List<LandOffer>(Choices);
             if (IsBossLevel(level))
             {
-                // Each arena holds a different kind of tyrant, so that the choice is which to face.
+                // Each is a different kind of arena holding a different kind of tyrant, so that the choice is where to fight and what.
                 string[] kinds = Chronicle.TyrantKinds;
+                var kindsOfArena = new List<WorldArchetype>(ArenaCatalog.All);
                 for (int i = 0; i < Choices; i++)
                 {
                     WorldRandom one = random.Fork(i);
-                    WorldArchetype arena = ArenaCatalog.All[one.Fork("arena").Int(ArenaCatalog.All.Count)];
+                    WorldArchetype arena = kindsOfArena[one.Fork("arena").Int(kindsOfArena.Count)];
+                    if (kindsOfArena.Count > 1) kindsOfArena.Remove(arena);
                     int seed = SeedFor(one.Fork("seed"), kinds[i % kinds.Length]);
                     var request = new WorldRequest(seed, arena.Id, level);
                     offers.Add(new LandOffer(request, Roll(level, one.Fork("terms")), WorldPlan.Create(request), Chronicle.HeraldOf(seed)));

@@ -2,6 +2,7 @@ using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.ECS.Systems;
 using Dino_Engine.Sound.Music;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
@@ -10,26 +11,31 @@ using OpenTK.Mathematics;
 namespace Dino_Defenders.Client
 {
     /// <summary>
-    /// Decides what the music is about. It reads the game as a film composer reads a scene: who's nearby and whether they've noticed, where the hero is, and how badly it's going.
-    /// The mood is what kind of music it is, and intensity how hard it's playing. Everything here is what this player can see, so friends in a world each hear their own score.
+    /// Decides what the music is about. A land has a piece of its own, drawn from its seed and its character, and it plays the whole time the hero is there, whatever they're doing:
+    /// only the tyrant changes it, once the hero is inside the keep's walls, and it comes back when the tyrant falls. The Haven has a piece of its own, the same on every visit, and
+    /// an arena, every tenth level, is one long fight. Everything here is what this player can see, so friends in a world each hear their own score.
     /// </summary>
     public class MusicDirectorSystem : SystemBase
     {
         private const float Interval = 0.2f;
-        private const float BattleHolds = 5f;           // Seconds a fight stays a fight once nobody's chasing: the moment between two enemies isn't peace.
-        private const float NoticeReach = 34f;          // Metres within which an unaware enemy is felt.
-        private const float BossReach = 60f;
+        private const float KeepEnters = 6f;            // Metres past a keep's wall that count as inside it,
+        private const float KeepLeaves = 22f;           // and how far out the hero has to go before it no longer does, so walking along the wall doesn't flick the music back and forth.
+        private const float FloorReach = 1.5f;          // As the server counts a keep's arena's floor, a little past its bounds.
+        private const float LandIntensity = 0.5f;
+        private const float HavenDay = 0.62f;
+        private const float HavenNight = 0.3f;
         private const float RiseSpeed = 0.9f;           // Per second: a fight flares up at once.
         private const float FallSpeed = 0.12f;          // And it takes a while for the heart to stop racing.
 
-        private readonly BitMask _enemies = new BitMask(typeof(EnemyComponent), typeof(PositionComponent));
+        private readonly BitMask _enemies = new BitMask(typeof(EnemyComponent), typeof(PositionComponent), typeof(HealthComponent));
         private GameSession? _session;
         private MoodHold _hold = new();
         private float _next;
         private float _intensity;
-        private float _fightLeft;
-        private bool _bossFought;
         private bool _wasDown;
+        private bool _inKeep;
+        private bool _tyrantSeen;       // A tyrant has been seen standing where it's being fought.
+        private bool _won;              // And has fallen.
 
         public MusicDirectorSystem()
             : base(new BitMask(typeof(PlayerTag)))
@@ -47,12 +53,11 @@ namespace Dino_Defenders.Client
                 _session = session;
                 _hold = new MoodHold();
                 _intensity = 0f;
-                _fightLeft = 0f;
-                _bossFought = false;
                 _wasDown = false;
-
-                // A world's score comes from its seed, so a place keeps its music from one visit to the next.
-                Music.Begin((ulong)(uint)session.World.Plan.Seed * 2654435761UL + 11UL);
+                _inKeep = false;
+                _tyrantSeen = false;
+                _won = false;
+                Music.Begin(PlaceOf(session));
             }
 
             _next -= deltaTime;
@@ -61,55 +66,53 @@ namespace Dino_Defenders.Client
             if (!Music.Manual) Direct(world, session);
         }
 
+        /// <summary>What a land is like, as far as its music cares: from its biomes, its weather and how deep into the climb it is. Every land gets its own seed for the rest.</summary>
+        public static MusicPlace PlaceOf(GameSession session) => session.IsHaven ? MusicPlace.Home : PlaceOf(session.World);
+
+        public static MusicPlace PlaceOf(WorldData world)
+        {
+            WorldPlan plan = world.Plan;
+            float dark = 0f, cold = 0f, open = 0f;
+            int count = Math.Max(plan.Biomes.Count, 1);
+            foreach (BiomeDefinition biome in plan.Biomes)
+            {
+                bool grim = biome.Id is "ash" or "badlands" or "darkwood" or "marsh" || biome.Ground is SurfaceMaterial.Ash or SurfaceMaterial.Mud;
+                dark += (grim ? 0.8f : 0f) + Math.Clamp(biome.FogDensity * 10f, 0f, 0.3f);
+                cold += biome.Ground is SurfaceMaterial.Snow or SurfaceMaterial.Ice ? 1f : Math.Clamp(0.4f - biome.Temperature, 0f, 0.4f);
+                open += Math.Clamp(1f - biome.ForestCover * 1.4f, 0f, 1f) * 0.7f + Math.Clamp((biome.WindStrength - 0.8f) * 0.5f, 0f, 0.3f);
+            }
+            dark /= count;
+            cold /= count;
+            open /= count;
+
+            // Grey and misty days are heavier; a golden evening is warmer. The deeper the climb, the darker the lands.
+            string mood = plan.Mood.Name.ToLowerInvariant();
+            if (mood.Contains("overcast") || mood.Contains("mist")) dark += 0.15f;
+            if (mood.Contains("golden") || mood.Contains("summer")) dark -= 0.1f;
+            if (mood.Contains("windswept")) open += 0.15f;
+            dark += Math.Min(plan.Level, 60) / 300f;
+
+            var place = new MusicPlace
+            {
+                Seed = (ulong)(uint)plan.Seed * 2654435761UL + 11UL,
+                Arena = plan.Archetype.Arena,
+                Dark = Math.Clamp(dark, 0f, 1f),
+                Cold = Math.Clamp(cold, 0f, 1f),
+                Open = Math.Clamp(open, 0f, 1f),
+                Level = plan.Level,
+            };
+            foreach (WorldSite site in world.Sites)
+            {
+                if (site.Arena is { Keep: false } arena) place.ArenaKind = arena.Kind;
+            }
+            return place;
+        }
+
         private void Direct(ECSWorld world, GameSession session)
         {
-            // Home has nothing to fear in it, whatever's being done to the dummies.
-            if (session.IsHaven)
-            {
-                _fightLeft = 0f;
-                _intensity += Math.Clamp(HavenIntensity - _intensity, -FallSpeed * Interval, RiseSpeed * Interval);
-                Music.Mood = _hold.Update(MusicMood.Town, Interval);
-                Music.Intensity = _intensity;
-                return;
-            }
-
-            Vector2 at = session.PlayerPosition;
-            float closest = float.MaxValue;
-            float pressure = 0f;
-            bool boss = false;
-
-            foreach (Archetype archetype in world.QueryArchetypes(_enemies, BitMask.Empty))
-            {
-                foreach (EntityView entity in new ComponentAccessor(archetype))
-                {
-                    var enemy = entity.Get<EnemyComponent>();
-                    if (enemy.State == EnemyState.Dead) continue;
-
-                    float distance = (entity.Get<PositionComponent>().value.Xz - at).Length;
-                    bool engaged = enemy.State is EnemyState.Chasing or EnemyState.WindingUp or EnemyState.Recovering;
-                    if (engaged) pressure += enemy.Rarity switch { Rarity.Unique => 1f, Rarity.Rare => 0.5f, Rarity.Magic => 0.36f, _ => 0.26f };
-                    if (enemy.Rarity == Rarity.Unique && distance < BossReach) boss = true;
-                    closest = MathF.Min(closest, distance);
-                }
-            }
-
             bool down = session.Health <= 0f;
             if (down && !_wasDown) Music.Play(MusicCue.Defeat);
             _wasDown = down;
-
-            // The boss has fallen when there was one and there isn't any more.
-            if (_bossFought && !boss && !down)
-            {
-                Music.Play(MusicCue.Victory);
-                _bossFought = false;
-            }
-            _bossFought |= boss && pressure > 0f;
-
-            if (pressure > 0f) _fightLeft = BattleHolds;
-            else _fightLeft = MathF.Max(_fightLeft - Interval, 0f);
-
-            // Being hurt raises the stakes as much as more enemies do.
-            float hurt = 1f - Math.Clamp(session.Health / MathF.Max(session.Sheet.MaxHealth, 1f), 0f, 1f);
 
             MusicMood mood;
             float wanted;
@@ -118,28 +121,36 @@ namespace Dino_Defenders.Client
                 mood = MusicMood.Silence;
                 wanted = 0f;
             }
-            else if (boss && (pressure > 0f || _fightLeft > 0f))
+            else if (session.IsHaven)
             {
-                mood = MusicMood.Boss;
-                wanted = 0.65f + hurt * 0.35f;
+                // Home is quieter at night: the guitar and the flute, with the hymn under them only in the day.
+                float night = SkySYstem.NightOf(world).Amount;
+                mood = MusicMood.Haven;
+                wanted = HavenDay + (HavenNight - HavenDay) * night;
             }
-            else if (_fightLeft > 0f)
+            else if (session.World.Plan.Archetype.Arena)
             {
-                mood = MusicMood.Battle;
-                wanted = Math.Clamp(0.25f + pressure * 0.55f + hurt * 0.4f, 0f, 1f);
+                // An arena is one fight, from the gates closing until its tyrant is down, harder as it weakens and as the hero does.
+                float tyrant = TyrantHealth(world, session, null);
+                mood = _won ? MusicMood.Silence : MusicMood.Arena;
+                wanted = 0.7f + 0.2f * (1f - tyrant) + 0.1f * Hurt(session);
             }
             else
             {
-                mood = Place(world, session, out wanted);
-
-                // Something unseen is near. Among the dead the place already says so, and better: put unease first and a churchyard, where there's always something near, would never sound like one.
-                float unease = closest < NoticeReach ? Math.Clamp(1f - closest / NoticeReach, 0f, 1f) : 0f;
-                if (mood == MusicMood.Haunted) wanted = MathF.Max(wanted, unease);
-                else if (closest < NoticeReach)
+                SiteState? keep = Keep(session);
+                bool cleared = keep == null || keep.Cleared || session.Liberated;
+                if (keep != null && !_won)
                 {
-                    mood = MusicMood.Tension;
-                    wanted = unease;
+                    if (!cleared) TyrantHealth(world, session, keep);
+                    else if (_tyrantSeen)
+                    {
+                        _won = true;
+                        Music.Play(MusicCue.Victory);
+                    }
                 }
+                bool fighting = keep != null && !cleared && !_won && _inKeep;
+                mood = fighting ? MusicMood.Boss : MusicMood.Land;
+                wanted = fighting ? 0.72f + 0.28f * Hurt(session) : LandIntensity;
             }
 
             // Up quickly, down slowly.
@@ -150,40 +161,66 @@ namespace Dino_Defenders.Client
             Music.Intensity = _intensity;
         }
 
-        private const float HavenIntensity = 0.55f;
+        private static float Hurt(GameSession session) => 1f - Math.Clamp(session.Health / MathF.Max(session.Sheet.MaxHealth, 1f), 0f, 1f);
 
-        // With nothing around, what's playing is the place.
-        private static MusicMood Place(ECSWorld world, GameSession session, out float intensity)
+        // The keep the hero is in, if they're in one: inside its walls, or down on its arena's floor.
+        private SiteState? Keep(GameSession session)
         {
             Vector2 at = session.PlayerPosition;
-
-            float night = world.TryGetSingleton<NightfallSingleton>(out Entity entity) ? world.GetComponent<NightfallSingleton>(entity).Amount : 0f;
-            if (night > 0.4f)
-            {
-                intensity = 0.2f + night * 0.5f;
-                return MusicMood.Haunted;
-            }
-
+            SiteState? found = null;
+            bool inside = false;
             foreach (SiteState state in session.Sites)
             {
-                if (state.Wild) continue;
-                float inside = (state.Site.Position - at).Length - state.Site.Radius;
-                if (inside > 8f) continue;
-
-                switch (state.Site.Kind)
+                if (state.Wild || state.Site.Kind != SiteKind.Keep) continue;
+                found ??= state;
+                float distance = (state.Site.Position - at).Length - state.Site.Radius;
+                bool floor = state.Site.Arena is { Keep: true } plan && plan.Contains(at, FloorReach);
+                if (floor || distance < (_inKeep ? KeepLeaves : KeepEnters))
                 {
-                    case SiteKind.Village or SiteKind.Hamlet or SiteKind.FishingHamlet or SiteKind.Farmstead or SiteKind.LumberCamp:
-                        // A place set free is merrier for it.
-                        intensity = state.Cleared ? 0.8f : 0.5f;
-                        return MusicMood.Town;
-                    case SiteKind.Shrine or SiteKind.StandingStones:
-                        intensity = state.Kindled ? 0.55f : 0.25f;
-                        return MusicMood.Sacred;
+                    found = state;
+                    inside = true;
+                    break;
+                }
+            }
+            _inKeep = inside;
+            return found;
+        }
+
+        /// <summary>
+        /// How much of the tyrant is left, 0 to 1, as this player can see it: in an arena any tyrant at all, at a keep the one standing in it. Once one has been seen standing and then
+        /// isn't, it has fallen, and that's what the victory is.
+        /// </summary>
+        private float TyrantHealth(ECSWorld world, GameSession session, SiteState? keep)
+        {
+            float left = 1f;
+            bool standing = false, fallen = false;
+            foreach (Archetype archetype in world.QueryArchetypes(_enemies, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var enemy = entity.Get<EnemyComponent>();
+                    if (enemy.Rarity != Rarity.Unique || enemy.Friendly) continue;
+                    Vector2 position = entity.Get<PositionComponent>().value.Xz;
+                    if (keep != null && (keep.Site.Position - position).Length > keep.Site.Radius + KeepLeaves && !(keep.Site.Arena is { Keep: true } plan && plan.Contains(position, FloorReach))) continue;
+
+                    if (enemy.State == EnemyState.Dead)
+                    {
+                        fallen = true;
+                        continue;
+                    }
+                    var health = entity.Get<HealthComponent>();
+                    standing = true;
+                    left = MathF.Min(left, Math.Clamp(health.Current / MathF.Max(health.Max, 1f), 0f, 1f));
                 }
             }
 
-            intensity = 0.35f;
-            return MusicMood.Wander;
+            if (standing) _tyrantSeen = true;
+            else if (_tyrantSeen && fallen && !_won)
+            {
+                _won = true;
+                Music.Play(MusicCue.Victory);
+            }
+            return left;
         }
     }
 }

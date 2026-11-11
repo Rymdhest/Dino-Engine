@@ -49,7 +49,9 @@ namespace Dino_Engine.World
             ecs.RegisterSingleton<VolumetricFogSingleton>(ecs.CreateEntity("Volumetric Fog", CreateFog(mood)));
             ecs.RegisterSingleton<WaterSingleton>(ecs.CreateEntity("Water", CreateWater(world)));
             ecs.RegisterSingleton<NightfallSingleton>(ecs.CreateEntity("Nightfall", new NightfallSingleton()));
-            ecs.RegisterSingleton<WeatherSingleton>(ecs.CreateEntity("Weather", new WeatherSingleton { Field = new WeatherField(world) }));
+            var weather = new WeatherField(world);
+            ecs.RegisterSingleton<WeatherSingleton>(ecs.CreateEntity("Weather", new WeatherSingleton { Field = weather }));
+            ecs.RegisterSingleton<DaySingleton>(ecs.CreateEntity("Day", new DaySingleton { Cycle = weather.Day }));
             ecs.ApplyDeferredCommands();
 
             ecs.sun = ecs.CreateEntity("Sun",

@@ -21,6 +21,8 @@ namespace Dino_Defenders.Server
         public LandTerms? Terms;        // What the land holds, past its seed and level.
         public SaveGame? Save;
         public bool AllowTeleport;      // For scripted runs: a client may ask to be put anywhere.
+        public bool Calm;               // For scripted runs that look at a place: nothing that's there to be fought stirs, so that pictures can be taken among it.
+        public bool SameSky;            // For scripted runs: the Haven begins at the same point in its day and weather every visit, so that pictures can be compared.
         public Vector2? Start;
         public string? StartSite;
         public string? StartBiome;
@@ -51,6 +53,9 @@ namespace Dino_Defenders.Server
         private const float HavenArriveBefore = 2.5f;
 
         private readonly ServerSettings _settings;
+
+        /// <summary>Whether nothing that's there to be fought stirs, for a scripted run that looks at a place (<see cref="ServerSettings.Calm"/>).</summary>
+        public bool Calm => _settings.Calm;
         private readonly WorldCache _worlds;
         private readonly List<INetTransport> _transports = new();
         private readonly Dictionary<INetConnection, ServerPlayer> _players = new();
@@ -68,6 +73,8 @@ namespace Dino_Defenders.Server
         private uint _structureHash;
         private uint _groundHash;
         private int _epoch;
+        private uint _skyStart;     // Seconds into its sky that this world begins, and the tick it began on: the Haven is somewhere else in its day and weather every visit.
+        private uint _skyTick;
         private int _nextPlayerId = 1;
 
         public readonly ECSWorld Ecs = new();
@@ -175,6 +182,8 @@ namespace Dino_Defenders.Server
             _request = Lands.IsHaven(request) ? request : _terms.Shape(request);
             _saved = save;
             _loading = _worlds.Get(_request);
+            _skyStart = Lands.IsHaven(request) && !_settings.SameSky ? (uint)Random.Shared.Next(1 << 24) : 0u;
+            _skyTick = Lands.IsHaven(request) ? Tick : 0u;
 
             foreach (ServerPlayer player in _players.Values)
             {
@@ -368,10 +377,13 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>Somewhere to stand near a point, looking outward until there is.</summary>
-        public static bool TryFindGround(WorldData world, Vector2 near, out Vector2 ground)
+        public static bool TryFindGround(WorldData world, Vector2 near, out Vector2 ground) => TryFindGround(world, near, static _ => true, out ground);
+
+        /// <summary>Somewhere to stand near a point that's <paramref name="allowed"/>, looking outward until there is.</summary>
+        public static bool TryFindGround(WorldData world, Vector2 near, Func<Vector2, bool> allowed, out Vector2 ground)
         {
             ground = near;
-            if (world.Passable.IsSet(near)) return true;
+            if (world.Passable.IsSet(near) && allowed(near)) return true;
 
             for (float radius = 1.5f; radius <= LoadSearchRadius; radius += 1.5f)
             {
@@ -379,7 +391,7 @@ namespace Dino_Defenders.Server
                 {
                     float angle = i * (MathF.Tau / 16f);
                     ground = near + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
-                    if (world.Passable.IsSet(ground)) return true;
+                    if (world.Passable.IsSet(ground) && allowed(ground)) return true;
                 }
             }
             return false;
@@ -729,10 +741,23 @@ namespace Dino_Defenders.Server
                 new InteractableComponent { Kind = InteractKind.Portal, SiteIndex = 0, SpawnIndex = session.World.Sites[0].Spawns.FindIndex(s => s.Role == SpawnRole.Waygate), Radius = 6.5f, Prompt = $"Step through to {name}" });
         }
 
-        /// <summary>Puts a hero as near somewhere as there's ground to stand on, for a page that says so.</summary>
+        /// <summary>
+        /// Puts a hero as near somewhere as there's ground to stand on, for a page that says so, but never across a keep's arena's seal: whoever's on its floor stays on it, and nobody off it is carried
+        /// onto it (ARENAS.md).
+        /// </summary>
         public void Carry(ServerPlayer player, Vector2 to)
         {
-            if (TryFindGround(Session!.World, to, out Vector2 ground)) Teleport(player, ground);
+            WorldData world = Session!.World;
+            Vector2 from = player.Sim.Position;
+            if (TryFindGround(world, to, ground => ServerSession.SameSide(world, from, ground), out Vector2 ground)) Teleport(player, ground);
+        }
+
+        /// <summary>Takes a hero down into a keep's arena or up out of it, by its gates: to ground as near where they're going as there is, on that side of its seal.</summary>
+        public void Bring(ServerPlayer player, Vector2 to)
+        {
+            WorldData world = Session!.World;
+            if (TryFindGround(world, to, ground => ServerSession.SameSide(world, to, ground), out Vector2 ground)) Teleport(player, ground);
+            Broadcast(new SoundEvent { Position = HeroPosition(player), Cue = SoundCue.ArenaGate }, player.Sim.Position);
         }
 
         private void Teleport(ServerPlayer player, Vector2 to)
@@ -936,6 +961,8 @@ namespace Dino_Defenders.Server
             writer.WriteVarInt(_epoch);
             writer.WriteVarInt(player.Id);
             writer.WriteUInt(Tick);
+            writer.WriteUInt(_skyStart);
+            writer.WriteUInt(_skyTick);
             Protocol.WriteRequest(writer, _request);
             Protocol.WriteTerms(writer, _terms);
             player.Connection.Send(writer.ToArray(), Delivery.Reliable);
@@ -1130,6 +1157,12 @@ namespace Dino_Defenders.Server
 
                 case HeroAction.CallRoads:
                     if (Session!.IsHaven || player.Out || player.Sim.Health <= 0f || player.Sim.BusyFor > 0f || player.CallingSince != null) break;
+                    // A keep's arena holds whoever's gone down into it until its tyrant's down.
+                    if (Session.HeldInArena(player.Sim.Position))
+                    {
+                        Note(player, "The arena holds you until its tyrant falls.");
+                        break;
+                    }
                     player.CallingSince = Session.Time;
                     player.CallingFrom = player.Sim.Position;
                     player.CallingHealth = player.Sim.Health;

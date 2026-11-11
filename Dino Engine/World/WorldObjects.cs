@@ -59,6 +59,9 @@ namespace Dino_Engine.World
         Farmland,
         Paving,     // The waygates' own stone laid in slabs (MaterialCatalog.Flagstones): the Haven's forecourt and square.
         Garden,     // A bed someone tends: its grass kept short, green and full of flowers, whatever the land around it grows.
+        Sand,       // An arena's floor, raked sand that nothing grows through (ARENAS.md).
+        Mud,        // A pen's floor, trodden mud and straw.
+        Ash,        // The Onslaught's floor, the ash the charge was buried in.
     }
 
     /// <summary>A plant put somewhere on purpose by whoever built a site, as a garden's trees are. They're planted before the woods, which grow around them, and only if nothing built stands there.</summary>

@@ -319,6 +319,40 @@ namespace Dino_Engine.World
             return false;
         }
 
+        /// <summary>
+        /// Where a circle <paramref name="radius"/> across, <paramref name="above"/> metres over the ground, is clear of everything solid standing taller than that: by the
+        /// shortest pushes out of whatever it's in, a few times over for what it's pushed into. Nothing it isn't in moves it.
+        /// </summary>
+        public Vector2 ClearOfSolids(Vector2 centre, float radius, float above)
+        {
+            for (int pass = 0; pass < 4; pass++)
+            {
+                Vector2 moved = Vector2.Zero;
+                Visits visits = BeginQuery();
+                CellRange(centre, radius + MaxReachInCell, out int minX, out int minZ, out int maxX, out int maxZ);
+                for (int z = minZ; z <= maxZ; z++)
+                {
+                    for (int x = minX; x <= maxX; x++)
+                    {
+                        List<int>? cell = _cells[z * _cellsPerSide + x];
+                        if (cell == null) continue;
+                        for (int i = 0; i < cell.Count; i++)
+                        {
+                            int index = cell[i];
+                            if (visits.Stamps[index] == visits.Stamp) continue;
+                            visits.Stamps[index] = visits.Stamp;
+                            Entry entry = _entries[index];
+                            if (!entry.Solid || entry.Height <= above || !entry.Footprint.TryPushOut(centre + moved, radius, out Vector2 push)) continue;
+                            moved += push;
+                        }
+                    }
+                }
+                if (moved.LengthSquared < 1e-6f) break;
+                centre += moved;
+            }
+            return centre;
+        }
+
         /// <summary>Adds every solid footprint near <paramref name="centre"/> to <paramref name="results"/>.</summary>
         public void CollectSolids(Vector2 centre, float radius, List<Footprint> results)
         {

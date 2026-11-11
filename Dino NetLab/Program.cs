@@ -48,6 +48,8 @@ namespace Dino_NetLab
                     return GearTests.Run(options);
                 case "lands":
                     return LandTests.Run(options);
+                case "arenas":
+                    return LandTests.RunArenas(options);
                 case "combat":
                     return CombatTests.Run(options);
                 case "books":

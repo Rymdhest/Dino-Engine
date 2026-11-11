@@ -1,7 +1,8 @@
 #version 430
 
-// What each surface voxel can see of the sun and the sky, worked out once and kept, as neither moves: the sun stands where it is all
-// day and the moon takes its place (NightfallSingleton), and nothing the voxels hold moves at all. The sun is four rays, a little
+// What each surface voxel can see of the sun and the sky, worked out once and kept, as nothing the voxels hold moves at all, and in most
+// worlds the sun stands where it is all day and the moon takes its place (NightfallSingleton). Where the sun does go round (DayCycle),
+// a sweep goes through every surface voxel over and over while it moves and works its sun out again, and nothing else (sweep). The sun is four rays, a little
 // apart for a soft edge; the sky is a handful of rays from each open face, spread as the light a face takes in is. It goes through
 // the voxels the level's last layout listed as pending (GI_Voxel_Index.comp), a slice of the list a frame, so that a new world settles
 // over a few frames, and a window moving as the hero walks spreads its new surfaces over a few more, rather than costing one long one.
@@ -19,6 +20,7 @@ layout(std430, binding = 28) readonly buffer GiPending { uint giPending[]; };
 uniform int level;
 uniform int first;      // This frame's slice of the list.
 uniform int budget;
+uniform int sweep;      // 1: go through the level's pool, not its list, and work out the sun alone, for every voxel that isn't pending anyway.
 
 const int SKY_RAYS = 8;
 const float SKY_REACH = 48.0;
@@ -37,24 +39,9 @@ vec3 skyRay(int i, vec3 n, float turn)
     return normalize(tangent * local.x + n * local.y + bitangent * local.z);
 }
 
-void main()
+// The sun, from off the side of the surface that faces it, in 4 bits. A voxel none of whose open faces look towards it is in its own shade.
+uint sunSeen(vec3 centre, float size, uint faces, uint hash)
 {
-    uint listed = uint(first) + gl_GlobalInvocationID.x;
-    if (gl_GlobalInvocationID.x >= uint(budget) || listed >= giCounts[GI_COUNT_PENDING + level]) return;
-    uint index = giPending[uint(level) * GI_POOL_CAPACITY + listed];
-    uint e = (uint(level) * GI_POOL_CAPACITY + index) * GI_POOL_STRIDE;
-    int voxelLevel;
-    ivec3 voxel = giUnpackVoxel(giPool[e], voxelLevel);
-    ivec3 t = giTexel(voxel, level);
-    uint info = imageLoad(voxInfo, t).r;
-    if ((info & GI_INFO_PENDING) == 0u) return;
-
-    float size = giVoxel[level].x;
-    vec3 centre = giVoxelCentre(voxel, level);
-    uint faces = info & GI_INFO_FACES;
-    uint hash = giHash3(voxel);
-
-    // The sun, from off the side of the surface that faces it. A voxel none of whose open faces look towards it is in its own shade.
     uint sun = 0u;
     vec3 L = giSunDirection.xyz;
     bool facing = false;
@@ -75,7 +62,43 @@ void main()
             if (!giTrace(from, dir, 0.0, SUN_REACH, level, 1).hit) sun++;
         }
     }
-    uint sunBits = (sun * 15u + 2u) / 4u;
+    return (sun * 15u + 2u) / 4u;
+}
+
+void main()
+{
+    if (gl_GlobalInvocationID.x >= uint(budget)) return;
+    uint index;
+    if (sweep != 0)
+    {
+        index = uint(first) + gl_GlobalInvocationID.x;
+        if (index >= giCounts[level]) return;
+    }
+    else
+    {
+        uint listed = uint(first) + gl_GlobalInvocationID.x;
+        if (listed >= giCounts[GI_COUNT_PENDING + level]) return;
+        index = giPending[uint(level) * GI_POOL_CAPACITY + listed];
+    }
+    uint e = (uint(level) * GI_POOL_CAPACITY + index) * GI_POOL_STRIDE;
+    int voxelLevel;
+    ivec3 voxel = giUnpackVoxel(giPool[e], voxelLevel);
+    ivec3 t = giTexel(voxel, level);
+    uint info = imageLoad(voxInfo, t).r;
+    bool pending = (info & GI_INFO_PENDING) != 0u;
+    if (pending == (sweep != 0)) return;
+
+    float size = giVoxel[level].x;
+    vec3 centre = giVoxelCentre(voxel, level);
+    uint faces = info & GI_INFO_FACES;
+    uint hash = giHash3(voxel);
+    uint sunBits = sunSeen(centre, size, faces, hash);
+
+    if (sweep != 0)
+    {
+        imageStore(voxInfo, t, uvec4((info & ~(15u << GI_INFO_SUN_SHIFT)) | (sunBits << GI_INFO_SUN_SHIFT)));
+        return;
+    }
 
     uint skyBits = 0u;
     float turn = giUnit(giHash(hash)) * 6.2832;

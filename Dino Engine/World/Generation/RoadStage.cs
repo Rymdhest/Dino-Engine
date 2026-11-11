@@ -64,6 +64,20 @@ namespace Dino_Engine.World.Generation
             }
         }
 
+        // A keep's middle is the arena its tyrant is kept in and the camp round it (ARENAS.md): a road that doesn't end there goes round, and one that does is cut back to its gate later.
+        private const float KeepCoreCost = 25f;
+
+        private static float KeepCore(WorldData world, Vector2 at)
+        {
+            foreach (WorldSite site in world.Sites)
+            {
+                if (site.Kind != SiteKind.Keep) continue;
+                float core = site.Radius * SettlementStage.KeepRoadEnd;
+                if ((site.Position - at).LengthSquared < core * core) return KeepCoreCost;
+            }
+            return 1f;
+        }
+
         private void PrepareGrid(WorldData world)
         {
             _width = (int)MathF.Ceiling(world.Size / Cell) + 1;
@@ -96,7 +110,7 @@ namespace Dino_Engine.World.Generation
                     float shore = 1f + 2.5f * (1f - Smoothstep(6f, 30f, world.Inland.Sample(worldX, worldZ)));
                     // Uneven cost leaves room for a road to wander, as if around things long gone.
                     float bends = 1f + 0.8f * wander.Fbm01(worldX, worldZ, 95f, 3);
-                    _groundCost[i] = cut * shore * bends;
+                    _groundCost[i] = cut * shore * bends * KeepCore(world, new Vector2(worldX, worldZ));
                 }
             });
 

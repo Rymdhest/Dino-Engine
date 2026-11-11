@@ -25,6 +25,7 @@ flat out float fragFocusOccluder;
 
 uniform int plant;
 uniform vec3 modelSize;
+uniform float focusOpens;   // 1 for what may thin away for the player at all (glModel.OpensForFocus): trees.
 
 void main() {
 	// Only what bends has any business reading what's pushing it: everything else stands as it was built.
@@ -45,7 +46,7 @@ void main() {
 	fragUV = uv;
 	fragEdges = edges;
 	textureIndex = materialIndex;
-	fragFocusOccluder = focusOccluder(modelSize, modelMatrix);
+	fragFocusOccluder = focusOpens > 0.5 ? focusOccluder(modelSize, modelMatrix) : 0.0;
 	worldNormal = N;
 	
     vec3 B = normalize( cross(T, N));

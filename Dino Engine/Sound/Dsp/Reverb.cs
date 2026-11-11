@@ -109,6 +109,28 @@ namespace Dino_Engine.Sound.Dsp
         }
 
         /// <summary>Takes effect smoothly: the decay at once, as it can only be heard in what comes next, and the delays gliding.</summary>
+        /// <summary>Empties everything it's holding, for when something that can never decay has got into it. Allocates nothing.</summary>
+        public void Clear()
+        {
+            foreach (float[][] step in _diffusers)
+            {
+                foreach (float[] line in step) Array.Clear(line);
+            }
+            foreach (float[] loop in _loops) Array.Clear(loop);
+            Array.Clear(_dampStates);
+            Array.Clear(_preLeft);
+            Array.Clear(_preRight);
+            Array.Clear(_echoLeft);
+            Array.Clear(_echoRight);
+            Array.Clear(_channels);
+            Array.Clear(_scratch);
+            _echoFilterLeft = default;
+            _echoFilterRight = default;
+            _preDelaySmoothing = default;
+            _echoTimeSmoothing = default;
+            Configure(_settings);
+        }
+
         public void Configure(in ReverbSettings settings)
         {
             _settings = settings;

@@ -18,12 +18,12 @@ namespace Dino_Engine.Sound.Music
         private double _beat = 0.5;
         private MusicIntent _intent;
 
-        public MusicEngine(ulong seed)
+        public MusicEngine(MusicPlace place)
         {
-            var score = new Score(seed);
+            var score = new Score(place);
             Score = score;
-            _band = new Orchestra(seed);
-            _composer = new Composer(score, seed * 31UL + 1UL);
+            _band = new Orchestra(place.Seed);
+            _composer = new Composer(score, place.Seed * 31UL + 1UL);
         }
 
         public Score Score { get; }
@@ -58,6 +58,7 @@ namespace Dino_Engine.Sound.Music
             {
                 Bar bar = _composer.Next(_intent);
                 _intent.Cue = MusicCue.None;
+                if (bar.Staging != null) _band.Stage(bar.Staging);
                 foreach (Note note in bar.Notes) _band.Schedule(note, _nextBar);
                 Listener?.Invoke(bar, _nextBar);
                 _barStart = _nextBar;
@@ -80,7 +81,7 @@ namespace Dino_Engine.Sound.Music
         private const int Chunk = 1024;
         private const int Ahead = 14000;            // Samples kept ready: about 0.3 seconds, comfortably past any garbage collection.
 
-        private readonly ulong _seed;
+        private readonly MusicPlace _place;
         private MusicEngine? _engine;
         private MusicIntent _intent;
         private readonly float[] _left = new float[RingLength];
@@ -94,9 +95,9 @@ namespace Dino_Engine.Sound.Music
 
         public int Gaps;
 
-        public MusicStream(ulong seed) : base(0, seed)
+        public MusicStream(MusicPlace place, ulong seed) : base(0, seed)
         {
-            _seed = seed;
+            _place = place;
             _thread = new Thread(Run) { Name = "Orchestra", IsBackground = true, Priority = ThreadPriority.AboveNormal };
             _thread.Start();
         }
@@ -114,7 +115,7 @@ namespace Dino_Engine.Sound.Music
         private void Run()
         {
             // Writing a score and building the instruments takes a moment, so it's done here, where nobody is waiting for it.
-            var engine = new MusicEngine(_seed);
+            var engine = new MusicEngine(_place);
             _engine = engine;
 
             while (Environment.TickCount64 < Volatile.Read(ref _stopAt))
@@ -176,10 +177,11 @@ namespace Dino_Engine.Sound.Music
     }
 
     /// <summary>
-    /// Music, from the game's side: say what's going on and it follows. A world's score is begun once, from its seed, and from then on the game only ever says what the moment is like.
+    /// Music, from the game's side: say where it is and what's going on, and it follows. A place's score is begun once, from its seed, and from then on the game only ever says what
+    /// the moment is like.
     /// <code>
-    /// Music.Begin(worldSeed);
-    /// Music.Mood = MusicMood.Town;        // Takes effect at the end of the phrase, or at once for a fight.
+    /// Music.Begin(place);                 // A land, the Haven or an arena: each has its own.
+    /// Music.Mood = MusicMood.Boss;        // At once for a fight, and when the tune can stop for anything else.
     /// Music.Intensity = 0.7f;             // Adds players, loudness and speed, from the next bar.
     /// Music.Play(MusicCue.Victory);
     /// </code>
@@ -194,7 +196,11 @@ namespace Dino_Engine.Sound.Music
         /// <summary>Set while someone's trying things out by hand, so that the game leaves the music alone.</summary>
         public static bool Manual;
 
-        private static readonly LiveDefinition Definition = new("music", seed => new MusicStream(seed)) { Bus = SoundBus.Music, Priority = 99 };
+        private static MusicPlace _starting = MusicPlace.Home;
+        private static readonly LiveDefinition Definition = new("music", seed => new MusicStream(_starting, seed)) { Bus = SoundBus.Music, Priority = 99 };
+
+        /// <summary>The place whose music is playing.</summary>
+        public static MusicPlace? Place { get; private set; }
 
         public static MusicMood Mood
         {
@@ -222,11 +228,13 @@ namespace Dino_Engine.Sound.Music
         /// <summary>Every mood asked for so far, as a scripted run only sees where it ended up.</summary>
         public static HashSet<MusicMood> Heard { get; } = new();
 
-        /// <summary>Starts a world's score, replacing any other.</summary>
-        public static void Begin(ulong seed)
+        /// <summary>Starts a place's score, replacing any other.</summary>
+        public static void Begin(MusicPlace place)
         {
             End(1.5f);
-            _voice = Audio.Start(Definition, gain: 1f, seed: seed + 1UL);
+            _starting = place;
+            Place = place;
+            _voice = Audio.Start(Definition, gain: 1f, seed: place.Seed + 1UL);
             _stream = Audio.LiveOf(_voice) as MusicStream;
             Update(MusicCue.None);
         }

@@ -102,6 +102,12 @@ namespace Dino_Engine.World
         public bool Paved;
         /// <summary>Beds someone tends (GroundPaint.Garden), whose grass is short, green and in flower whatever the land around grows.</summary>
         public ByteField Garden = null!;
+        /// <summary>An arena's floor of sand, a pen's of mud and straw, and the ash of the Onslaught (GroundPaint.Sand, Mud and Ash), laid over whatever was there, which nothing grows through.</summary>
+        public ByteField Sand = null!;
+        public ByteField Mud = null!;
+        public ByteField Ash = null!;
+        /// <summary>Which of those anything is laid with, so that a world with none keeps their slots in its palette for what it has.</summary>
+        public bool Sanded, Mudded, Ashen;
         /// <summary>1 on bare mountain, where nobody goes. Everything else is ground as it always was.</summary>
         public ByteField Rock = null!;
         /// <summary>1 where broken rock has gathered, down the creases of a mountain.</summary>
@@ -158,6 +164,9 @@ namespace Dino_Engine.World
 
             float x = position.X, z = position.Y;
             if (Paved && Paving.Sample(x, z) > 0.5f) return SurfaceMaterial.Flagstones;
+            if (Sanded && Sand.Sample(x, z) > 0.5f) return SurfaceMaterial.Sand;
+            if (Mudded && Mud.Sample(x, z) > 0.5f) return SurfaceMaterial.Mud;
+            if (Ashen && Ash.Sample(x, z) > 0.5f) return SurfaceMaterial.Ash;
             if (PavedRoad.Sample(x, z) > 0.5f) return SurfaceMaterial.Cobble;
 
             BiomeDefinition biome = BiomeAt(position);

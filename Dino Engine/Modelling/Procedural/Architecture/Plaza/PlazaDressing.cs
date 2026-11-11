@@ -103,16 +103,26 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Plaza
                 }
             }
 
-            // A lantern hanging in every other bay, on a cord from the joists.
+            // Its lanterns hang in its bays as lamps of their own (PergolaLamps), or the pergola would shut their light in.
+        }
+
+        /// <summary>Where a pergola's lanterns hang, in its own frame, in every other bay, and how long the cord up to its joists is from each.</summary>
+        public static IEnumerable<(Vector3 At, float Cord)> PergolaLamps(float length, int bays, float height)
+        {
+            float hang = height + 0.44f - 0.05f;
             for (int k = 0; k < bays; k++)
             {
                 if (bays > 2 && k % 2 == 1) continue;
-                float x = -halfL + length * (k + 0.5f) / bays;
-                float hang = beamTop - 0.05f;
-                float lamp = hang - 1.0f;
-                b.Tube(new Vector3(x, hang + 0.3f, 0f), new Vector3(x, lamp + 0.28f, 0f), 0.025f, 0.025f, 4, PlazaStone.DarkTimber(random));
-                HangingLantern(b, new Vector3(x, lamp, 0f), random.Fork(500 + k), lights);
+                yield return (new Vector3(-length * 0.5f + length * (k + 0.5f) / bays, hang - 1f, 0f), 1.3f);
             }
+        }
+
+        /// <summary>A lantern hung on a cord <paramref name="cord"/> long above it, its light at the origin.</summary>
+        public static void HungLamp(MeshBuilder b, float cord, uint seed, List<AssetLight> lights)
+        {
+            var random = new WorldRandom(seed).Fork("lamp");
+            b.Tube(new Vector3(0f, 0.44f, 0f), new Vector3(0f, cord, 0f), 0.024f, 0.024f, 4, PlazaStone.DarkTimber(random));
+            HangingLantern(b, Vector3.Zero, random, lights);
         }
 
         // How far the sail sags at x, between the joists it rests on.

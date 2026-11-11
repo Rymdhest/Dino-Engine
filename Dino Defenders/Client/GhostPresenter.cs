@@ -166,6 +166,8 @@ namespace Dino_Defenders.Client
             {
                 components.Add(new ModelComponent(_characters.Resolve(visual.Value.Model)));
                 components.Add(new ModelRenderTag());
+                IReadOnlyList<Dino_Engine.World.Content.AssetLight> glows = CharacterFactory.LightsOf(visual.Value.Model);
+                if (glows.Count > 0) components.Add(new PropLightsComponent(glows));
                 if (loot is PickupComponent find)
                 {
                     // Gold catches the eye by shining on what's around it, and so does anything better than plain, which starts to when it lands.
@@ -584,8 +586,11 @@ namespace Dino_Defenders.Client
                     Vector3 position = arrow.PositionAt(Math.Max(tick, arrow.StartTick));
 
                     // It's the server that decides, and word of that is on the way. Meanwhile an arrow shouldn't be seen flying on through what it hit.
-                    bool spent = (!arrow.FromHeroes && (position.Xz - session.PlayerPosition).LengthSquared < ArrowHitReach * ArrowHitReach)
-                        || (arrow.Velocity.Xz == Vector2.Zero ? position.Y < session.World.Height.Sample(position.Xz) : BallisticComponent.Stopped(session.World, position));
+                    bool struck = arrow.Velocity.Xz == Vector2.Zero ? position.Y < session.World.Height.Sample(position.Xz) : BallisticComponent.Stopped(session.World, position);
+                    bool spent = struck || (!arrow.FromHeroes && (position.Xz - session.PlayerPosition).LengthSquared < ArrowHitReach * ArrowHitReach);
+
+                    // What the world stopped stays where it struck, a little back the way it came, or a bolt's light flies on into the wall and shines out of it.
+                    if (struck && arrow.Velocity.Xz != Vector2.Zero) position = StruckAt(session.World, arrow, Math.Max(tick, arrow.StartTick));
 
                     entity.Set(new PositionComponent(position));
                     if (entity.Has<VisualComponent>() && entity.Get<VisualComponent>().Model.StartsWith(Thrown.Prefix)) Tumble(entity, arrow, tick);
@@ -596,6 +601,26 @@ namespace Dino_Defenders.Client
                 }
             }
         }
+
+        // The last place along its line the world didn't stop it, by halving, then StruckStandOff back towards where it came from, never past its start.
+        private static Vector3 StruckAt(WorldData world, in BallisticComponent arrow, double tick)
+        {
+            double clear = arrow.StartTick;
+            double inside = tick;
+            if (BallisticComponent.Stopped(world, arrow.PositionAt(clear))) return arrow.Origin;
+            for (int i = 0; i < 14; i++)
+            {
+                double middle = (clear + inside) * 0.5;
+                if (BallisticComponent.Stopped(world, arrow.PositionAt(middle))) inside = middle;
+                else clear = middle;
+            }
+            Vector3 at = arrow.PositionAt(clear);
+            Vector3 back = arrow.Origin - at;
+            float flown = back.Length;
+            return flown > 1e-4f ? at + back * (MathF.Min(StruckStandOff, flown) / flown) : at;
+        }
+
+        private const float StruckStandOff = 0.5f;  // Metres, on top of the Girth the world already keeps it off what it hit.
 
         // End over end, along the way it's going. What a hero threw is the thing in their hands, which has to keep being asked for.
         private void Tumble(in EntityView entity, in BallisticComponent flight, double tick)

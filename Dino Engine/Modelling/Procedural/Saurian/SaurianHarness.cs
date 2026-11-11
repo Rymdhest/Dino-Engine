@@ -175,16 +175,10 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         {
             Vector3 At(float x, float y) => centre + right * (x * size) + up * (y * size);
 
-            // The skull, facing the way the pennant flies from: a deep rounded back, a long tapering snout and a jaw line, with its teeth along the bottom.
-            (float x, float y)[] skull =
-            {
-                (-0.5f, 0.05f), (-0.46f, 0.24f), (-0.32f, 0.36f), (-0.1f, 0.33f), (0.12f, 0.24f), (0.34f, 0.14f), (0.5f, 0.06f), (0.52f, -0.04f),
-                (0.42f, -0.08f), (0.36f, -0.16f), (0.28f, -0.09f), (0.2f, -0.17f), (0.12f, -0.1f), (0.04f, -0.18f), (-0.04f, -0.11f), (-0.12f, -0.19f),
-                (-0.2f, -0.12f), (-0.3f, -0.22f), (-0.42f, -0.2f), (-0.5f, -0.1f),
-            };
-            var outline = new List<Vector3>(skull.Length);
-            foreach ((float x, float y) in skull) outline.Add(At(x, y));
-            mesh.Sheet(outline, At(-0.08f, 0.06f), facing, size * 0.02f, Brass, Brass * 0.85f, GearMaterials.Metal, _ => hang);
+            // The skull, facing the way the pennant flies from, as every banner of the Reich's carries it (ReichMark).
+            var outline = new List<Vector3>(ReichMark.Skull.Length);
+            foreach ((float x, float y) in ReichMark.Skull) outline.Add(At(x, y));
+            mesh.Sheet(outline, At(ReichMark.Middle.X, ReichMark.Middle.Y), facing, size * 0.02f, Brass, Brass * 0.85f, GearMaterials.Metal, _ => hang);
 
             // Its eye and the opening in front of it, in the cloth's own colour, a hair proud of the brass.
             Vector3 proud = facing.Normalized() * size * 0.016f;
@@ -198,9 +192,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 }
                 mesh.Sheet(hole, At(x, y) + proud, facing, size * 0.004f, Oxblood, Oxblood, GearMaterials.Cloth, _ => hang);
             }
-            Hole(-0.27f, 0.13f, 0.075f, 0.085f);
-            Hole(0.04f, 0.07f, 0.11f, 0.06f);
-            Hole(-0.4f, 0.01f, 0.05f, 0.07f);
+            foreach ((float x, float y, float rx, float ry) in ReichMark.Holes) Hole(x, y, rx, ry);
         }
     }
 }

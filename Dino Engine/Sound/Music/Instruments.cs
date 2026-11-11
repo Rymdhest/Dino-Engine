@@ -28,6 +28,24 @@ namespace Dino_Engine.Sound.Music
         FrameDrum,
         Tambourine,
         Cymbal,
+        Piano,
+        Guitar,         // A twelve-string, its lower courses in octaves.
+        Dulcimer,
+        Pad,            // A soft held chord with no player behind it, warm and wide.
+        SoloCello,
+        EnglishHorn,
+        Bassoon,
+        AltoFlute,
+        BassFlute,
+        Ocarina,
+        Tuba,
+        BassClarinet,
+        MutedViolins,   // Con sordino: strings with a mute on the bridge, veiled and far off.
+        MutedCellos,
+        Voices,         // A choir on a closed vowel, for what's distant.
+        HandDrum,       // The deep stroke in the middle of a goblet drum's skin.
+        RimDrum,        // And the sharp one at its edge.
+        Shaker,
     }
 
     /// <summary>How a note is played.</summary>
@@ -324,6 +342,7 @@ namespace Dino_Engine.Sound.Music
         private float _lowOne, _lowTwo;
         private float _damping, _gain, _level, _pan;
         private float _released;
+        private int _wait;
 
         public PluckedVoice(SoundRandom random)
         {
@@ -332,15 +351,18 @@ namespace Dino_Engine.Sound.Music
 
         /// <param name="brightness">0 a soft thumb, 1 a nail.</param>
         /// <param name="ring">Seconds to die away in the mid range.</param>
-        public void Begin(in Note note, float brightness, float ring)
+        /// <param name="cents">How far from true it's tuned, for the second string of a course.</param>
+        /// <param name="wait">Samples before it sounds, as a finger meets the two strings of a course one after the other.</param>
+        public void Begin(in Note note, float brightness, float ring, float cents = 0f, int wait = 0)
         {
             Pitch = note.Pitch;
             Active = true;
             Releasing = false;
             Remaining = note.Length;
             _released = 1f;
+            _wait = wait;
 
-            float hertz = 440f * MathF.Pow(2f, (note.Pitch - 69f) / 12f);
+            float hertz = 440f * MathF.Pow(2f, (note.Pitch - 69f) / 12f + cents / 1200f);
             float period = AudioFormat.SampleRate / hertz;
 
             // The loop's own filter adds half a sample to its length, which matters a lot up high.
@@ -417,6 +439,11 @@ namespace Dino_Engine.Sound.Music
             float gain = _gain, damping = _damping;
             for (int i = 0; i < count; i++)
             {
+                if (_wait > 0)
+                {
+                    _wait--;
+                    continue;
+                }
                 float one = _first[(write - _delayOne) & Mask];
                 float two = _second[(write - _delayTwo) & Mask];
 

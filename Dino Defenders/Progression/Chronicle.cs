@@ -47,18 +47,75 @@ namespace Dino_Defenders.Progression
             "The shrines of {4} went dark the year {3} landed, and the old bones began to walk.",
             "{1} came to {4} with {3} and a tyrant called {2}, and took it in a single season.",
         };
-        // What an arena is, from the stands: {0} its name, {1} the commander, {2} the tyrant, {3} the brood and {4} its name inside a sentence.
-        private static readonly string[] ArenaOpenings =
+        // What an arena is, from the stands, for each kind: {0} its name, {1} the commander, {2} the tyrant, {3} the brood and {4} its name inside a sentence. Then what to expect there.
+        private static readonly Dictionary<ArenaKind, (string[] Openings, string[] Closings)> ArenaLines = new()
         {
-            "{1} had {4} dug out of the hill so that {2} would never feed without an audience.",
-            "{3} march the people of the land to {4} on fight days, and count them going in.",
-            "Nobody who has fought {2} in {4} has walked back up the ramp. The stands are made to watch anyway.",
-        };
-        private static readonly string[] ArenaClosings =
-        {
-            "When it goes badly for the tyrant, its keepers open the gates.",
-            "The handlers wait behind the gates with the rest of the brood.",
-            "The crowd is silent. It always is, until something falls.",
+            [ArenaKind.Pit] = (new[]
+            {
+                "{1} had {4} dug out of the hill so that {2} would never feed without an audience.",
+                "{3} march the people of the land to {4} on fight days, and count them going in.",
+                "Nobody who has gone down into {4} has come back out of it. The stands are made to watch anyway.",
+            }, new[]
+            {
+                "When it goes badly for the tyrant, its keepers throw up the gates.",
+                "The handlers wait behind the gates with the rest of the brood.",
+                "The crowd is silent. It always is, until something falls.",
+            }),
+            [ArenaKind.Colosseum] = (new[]
+            {
+                "{1} built {4} to hold the whole land at once, and fills it on fight days.",
+                "{3} keep the rest of the brood under the floor of {4}, and bring it up when it's wanted.",
+                "The people of the land are packed into {4} to watch {2} feed, and {1} watches them from the box.",
+            }, new[]
+            {
+                "When the fight turns, the floor opens and more come up.",
+                "The bolt-throwers in the commander's box don't often miss.",
+                "The crowd is silent until it's told to cheer.",
+            }),
+            [ArenaKind.Cage] = (new[]
+            {
+                "The Amber Institute raised {2} in {4}, and its blood-doctors still come to watch it feed.",
+                "{4} is where {3} breed what the Institute grows, and where {2} is kept between hunts.",
+                "Nothing that has gone into {4} has come out of it but what was hatched there.",
+            }, new[]
+            {
+                "Its eggs lie in the straw. Leave them, and they hatch.",
+                "The pens round the cage are full, and the handlers open them when they're told.",
+                "The blood-doctors keep notes on whoever goes in.",
+            }),
+            [ArenaKind.SunTemple] = (new[]
+            {
+                "{4} was the land's own, before {1} made it the Reich's hall of assembly.",
+                "The Reich's commanders meet in {4} under the land's own sun, and {2} keeps the floor.",
+                "The people of the land raised {4} to their sun. The Reich made it a place to show them {2}.",
+            }, new[]
+            {
+                "Its priests turn the great mirrors on whoever's on the floor. The sun burns anything.",
+                "When the sun stands high, the mirrors burn.",
+                "The doors open when the fight turns, and more of the brood come in.",
+            }),
+            [ArenaKind.Onslaught] = (new[]
+            {
+                "The Reich's first charge on the land was buried in ash at {4}. The Ossuary has been digging it up ever since.",
+                "{4} is where the mountain took a whole war-band of {3} in a day. The Ossuary keeps what was left.",
+                "The beasts of the first charge still stand in the ash at {4}, turned to stone where it caught them.",
+            }, new[]
+            {
+                "Whatever the Ossuary raises, it raises out of the ash.",
+                "The ground breathes fire where it's cracked.",
+                "The dead come up through the ash when the tyrant falters.",
+            }),
+            [ArenaKind.Cathedral] = (new[]
+            {
+                "{4} was built to the Reich's creed, that the strongest blood is owed the world, and {2} is what it kneels to.",
+                "{1} has {2} anointed in {4} before every hunt.",
+                "The Reich's faithful light the candles in {4} every night, and leave the floor to its tyrant.",
+            }, new[]
+            {
+                "The candles hang over the floor on iron wheels, and iron falls.",
+                "When the fight turns, the gates in the screens go up.",
+                "The faithful watch from behind the screens and say nothing.",
+            }),
         };
 
         /// <summary>Every kind of tyrant there is, as a land's boss: bred, raised from bones by the Ossuary, or rotting where it stands.</summary>
@@ -143,8 +200,9 @@ namespace Dino_Defenders.Progression
             string name = world.Plan.Name;
             string within = name.StartsWith("The ") ? "the " + name.Substring(4) : name;
             bool arena = world.Plan.Archetype.Arena;
-            string opening = string.Format(random.Pick(arena ? ArenaOpenings : Openings), name, chronicle.Commander, chronicle.Beast, chronicle.Faction, within);
-            chronicle.Prologue = $"{opening} {random.Pick(arena ? ArenaClosings : Closings)}";
+            (string[] openings, string[] closings) = world.Plan.Archetype.ArenaKind is ArenaKind kind ? ArenaLines[kind] : (Openings, Closings);
+            string opening = string.Format(random.Pick(openings), name, chronicle.Commander, chronicle.Beast, chronicle.Faction, within);
+            chronicle.Prologue = $"{opening} {random.Pick(closings)}";
 
             int level = world.Plan.Level;
             bool twinned = terms.Has(OrdersCatalog.TwinPens);

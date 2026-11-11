@@ -55,6 +55,10 @@ namespace Dino_Engine.World
             AddMaterial(SurfaceMaterial.Cobble);
             // The waygates' stone, only where something's paved with it, as it's no use to a land that has none.
             if (_world.Paved) AddMaterial(SurfaceMaterial.Flagstones);
+            // An arena's floor, a pen's and the Onslaught's ash, only where they're laid, and ahead of what a biome brings, as they're the whole of a fight's ground.
+            if (_world.Sanded) AddMaterial(SurfaceMaterial.Sand);
+            if (_world.Mudded) AddMaterial(SurfaceMaterial.Mud);
+            if (_world.Ashen) AddMaterial(SurfaceMaterial.Ash);
             AddMaterial(SurfaceMaterial.Farmland);
             AddMaterial(SurfaceMaterial.Gravel);
             AddMaterial(SurfaceMaterial.Rock);
@@ -114,6 +118,10 @@ namespace Dino_Engine.World
             float canopy = world.Canopy.Sample(x, z);
             // A bed someone tends is nothing trodden, whatever was painted round it.
             float garden = world.Garden.Sample(x, z);
+            // What a floor is laid with, where an arena or a pen lays it (ARENAS.md).
+            float sand = world.Sanded ? world.Sand.Sample(x, z) : 0f;
+            float mud = world.Mudded ? world.Mud.Sample(x, z) : 0f;
+            float ash = world.Ashen ? world.Ash.Sample(x, z) : 0f;
             paving *= 1f - garden;
             plaza *= 1f - garden;
             yard *= 1f - garden;
@@ -205,13 +213,32 @@ namespace Dino_Engine.World
                 weights[_slot[(int)SurfaceMaterial.Flagstones]] += paving;
             }
 
+            // A floor of sand, mud or ash is laid over whatever was there too, paving and all, with an edge a stride wide that frays a little, as anything loose does. Sand is raked, but trodden
+            // dark in patches where the fighting goes, and ash is broken by the cracked crust of what's cooled.
+            float floor = Saturate(sand + mud + ash);
+            if (floor > 0f)
+            {
+                float fray = (breakup * 0.3f + drift * 0.15f) * Saturate(floor * 3f) * Saturate((1f - floor) * 3f);
+                float laid = Smoothstep(0.25f, 0.75f, floor + fray);
+                for (int i = 0; i < weights.Length; i++) weights[i] *= 1f - laid;
+                float share = laid / floor;
+                float trodden = Smoothstep(0.58f, 0.82f, _noise.Fbm01(x + 157f, z - 311f, 5.5f, 3)) * 0.45f;
+                float crust = Smoothstep(0.5f, 0.75f, _noise.Fbm01(x - 421f, z + 88f, 9f, 2)) * 0.55f;
+                weights[_slot[(int)SurfaceMaterial.Sand]] += sand * share * (1f - trodden);
+                weights[_slot[(int)SurfaceMaterial.Dirt]] += sand * share * trodden;
+                weights[_slot[(int)SurfaceMaterial.Mud]] += mud * share;
+                weights[_slot[(int)SurfaceMaterial.Ash]] += ash * share * (1f - crust);
+                weights[_slot[(int)SurfaceMaterial.CrackedEarth]] += ash * share * crust;
+            }
+
             float small = 0.8f + 0.2f * _noise.Fbm01(x, z, 2.2f, 2);
             float broad = 0.72f + 0.28f * _noise.Fbm01(x + 91f, z - 13f, 6f, 2);
-            float grows = (1f - rock) * (1f - bare * 0.55f) * notRoad * (1f - plaza) * (1f - farm) * (1f - yard * 0.7f) * (1f - hall) * (1f - paving);
+            float grows = (1f - rock) * (1f - bare * 0.55f) * notRoad * (1f - plaza) * (1f - farm) * (1f - yard * 0.7f) * (1f - hall) * (1f - paving) * (1f - Saturate(floor * 1.6f));
             // Grass thins out over the last of the dry ground and stops at the water.
             grows *= Smoothstep(0.02f, 0.5f, above);
 
-            float hollow = Hollow(position, height, slope, MathF.Max(MathF.Max(onRoad, paving), MathF.Max(MathF.Max(yard, plaza), farm)), shore);
+            // Sand and ash drink whatever falls on them, and mud holds it, as a pen's floor does.
+            float hollow = Hollow(position, height, slope, MathF.Max(MathF.Max(MathF.Max(onRoad, paving), MathF.Max(MathF.Max(yard, plaza), farm)), mud), shore) * (1f - Saturate(sand + ash));
 
             // A track carts seldom use keeps a crown of short grass between its ruts (RoadProfile, where Terrain.frag draws the ruts themselves).
             float crown = RoadProfile.CrownGrass(road, trail * (1f - paved)) * (1f - paving);
@@ -285,8 +312,10 @@ namespace Dino_Engine.World
             float slope = _world.Height.SlopeAt(position);
             float trodden = MathF.Max(MathF.Max(_world.PavedRoad.Sample(x, z), _world.TrailRoad.Sample(x, z)), MathF.Max(MathF.Max(_world.Yard.Sample(x, z), _world.Plaza.Sample(x, z)), _world.Farmland.Sample(x, z)));
             if (_world.Paved) trodden = MathF.Max(trodden, _world.Paving.Sample(x, z));
+            if (_world.Mudded) trodden = MathF.Max(trodden, _world.Mud.Sample(x, z));
+            float drinks = (_world.Sanded ? _world.Sand.Sample(x, z) : 0f) + (_world.Ashen ? _world.Ash.Sample(x, z) : 0f);
             float shore = 1f - Smoothstep(0.3f, 1.8f, height - _world.WaterLevelAt(position));
-            return Hollow(position, height, slope, trodden, shore) * (1f - _world.Garden.Sample(x, z));
+            return Hollow(position, height, slope, trodden, shore) * (1f - _world.Garden.Sample(x, z)) * (1f - Saturate(drinks));
         }
 
         // Trodden ground dips and ruts and holds water, and the ground's own hollows do too, wherever it doesn't drain away.

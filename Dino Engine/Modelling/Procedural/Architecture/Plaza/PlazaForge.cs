@@ -1,5 +1,6 @@
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.World.Content;
+using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling.Procedural.Architecture.Plaza
 {
@@ -46,6 +47,10 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Plaza
                     break;
                 case PlazaKind.Line:
                     PlazaWalls.Band(b, WallLine.Straight(spec.Metres(1)), spec.Int(0) == 1, spec.Metres(2), spec.Seed);
+                    break;
+                case PlazaKind.Lamp:
+                    if (spec.Int(0) == 1) PlazaDressing.HungLamp(b, spec.Metres(1), spec.Seed, lights);
+                    else PlazaPieces.LanternHead(b, Vector3.Zero, spec.Int(1) / 100f, new Dino_Engine.World.WorldRandom(spec.Seed).Fork("lamp"), lights);
                     break;
                 case PlazaKind.Well:
                     PlazaPieces.Well(b, spec.Metres(0), spec.Seed);

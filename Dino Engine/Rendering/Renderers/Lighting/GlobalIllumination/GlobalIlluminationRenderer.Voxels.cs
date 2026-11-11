@@ -18,6 +18,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
         private const int ChunkGrid = 64;               // Chunks across the map of which chunk's textures are where: 512 m, past every window.
         private const int CacheBudget = 16384;           // Surface voxels a level works out a sun and sky for in a frame while GI isn't showing,
         private const int CacheWork = 2048;              // and once it is (GI_Voxel_Cache.comp).
+        private const int SunSweepWork = 4096;           // Surface voxels a level works the sun out again for in a frame while the sun moves: about a second for all of them.
+        private const float SweepAfter = 0.9999985f;     // Cosine of how far the sun moves, about a tenth of a degree, before what it lights is worked out again.
         private const int CountPending = 120;            // Where in the counts buffer each level keeps how many voxels are listed for that.
         private static readonly Vector3 FallbackGround = new Vector3(0.16f, 0.18f, 0.11f);
 
@@ -56,6 +58,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
         private readonly Vector3i[] _origin = new Vector3i[Levels];
         private readonly bool[] _built = new bool[Levels];
         private readonly int[] _cacheCursor = { PoolCapacity, PoolCapacity, PoolCapacity, PoolCapacity };   // Where each level's list has been gone through to.
+        private readonly int[] _sweepCursor = { PoolCapacity, PoolCapacity, PoolCapacity, PoolCapacity };   // Where each level's pool has been swept to, for a sun that has moved.
+        private Vector3 _sweptSun;       // Towards the sun as the last sweep began.
 
         private WorldData? _world;
         private glModel[] _objectModels = Array.Empty<glModel>();
@@ -585,6 +589,35 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
 
         // ---- Lighting the voxels, every frame.
 
+        // A sun that goes round (DayCycle) lights other things as it goes, so once it has moved a little every surface voxel's sun is worked out again, a slice a frame.
+        // In a world whose sun stands still this never runs past the first sweep.
+        private void SweepSun(RenderEngine engine)
+        {
+            Vector3 toSun = engine.context.sunDirection.LengthSquared > 0f ? engine.context.sunDirection.Normalized() : Vector3.UnitY;
+            if (_sweptSun == Vector3.Zero) _sweptSun = toSun;
+            bool sweeping = false;
+            for (int level = 0; level < Levels; level++) sweeping |= _sweepCursor[level] < PoolCapacity;
+            if (!sweeping && Vector3.Dot(toSun, _sweptSun) < SweepAfter)
+            {
+                _sweptSun = toSun;
+                for (int level = 0; level < Levels; level++) _sweepCursor[level] = 0;
+                sweeping = true;
+            }
+            if (!sweeping) return;
+
+            _cacheShader.loadUniformInt("sweep", 1);
+            _cacheShader.loadUniformInt("budget", SunSweepWork);
+            for (int level = 0; level < Levels; level++)
+            {
+                if (_sweepCursor[level] >= PoolCapacity) continue;
+                _cacheShader.loadUniformInt("level", level);
+                _cacheShader.loadUniformInt("first", _sweepCursor[level]);
+                Dispatch(Groups(SunSweepWork, 64));
+                _sweepCursor[level] += SunSweepWork;
+            }
+            Barrier();
+        }
+
         private void LightVoxels(RenderEngine engine)
         {
             Engine.PerformanceMonitor.startGPUTask("GI Voxel Cache");
@@ -604,6 +637,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
             _cacheShader.bind();
             LinkShared(_cacheShader, bricks: true);
             int slice = _presence < 1f ? CacheBudget : CacheWork;
+            _cacheShader.loadUniformInt("sweep", 0);
             for (int level = 0; level < Levels; level++)
             {
                 if (_cacheCursor[level] >= PoolCapacity) continue;
@@ -614,6 +648,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
                 _cacheCursor[level] += slice;
             }
             Barrier();
+            SweepSun(engine);
 
             Engine.PerformanceMonitor.finishGPUTask("GI Voxel Cache");
             Engine.PerformanceMonitor.startGPUTask("GI Voxel Light");

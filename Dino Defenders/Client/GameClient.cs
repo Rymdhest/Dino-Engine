@@ -64,6 +64,10 @@ namespace Dino_Defenders.Client
         private IReadOnlyList<Mod> _landMods = Array.Empty<Mod>();
         private CharacterMover? _mover;
         private int _epoch;
+
+        /// <summary>Seconds into its sky the world began, on the server's tick <see cref="SkyTick"/>, so that everyone in it shares an hour and a weather (AmbienceSystem).</summary>
+        public uint SkyStart { get; private set; }
+        public uint SkyTick { get; private set; }
         private uint _ownGhost;
         private uint _lastSnapshotTick;
         private HeroIntent _intent;
@@ -375,6 +379,8 @@ namespace Dino_Defenders.Client
             _epoch = reader.ReadVarInt();
             PlayerId = reader.ReadVarInt();
             reader.ReadUInt();
+            SkyStart = reader.ReadUInt();
+            SkyTick = reader.ReadUInt();
             WorldRequest request = Protocol.ReadRequest(reader);
             _terms = Protocol.ReadTerms(reader);
             _request = Lands.IsHaven(request) ? request : _terms.Shape(request);

@@ -222,7 +222,6 @@ namespace Dino_Engine.Sound.Music
     public sealed class MoodHold
     {
         private const float CalmWaits = 3f;         // Seconds a place has to go on being wanted.
-        private const float UneaseWaits = 1.5f;
         private const float Stays = 12f;            // Seconds before a calm style makes way for another.
 
         private MusicMood _mood = MusicMood.Silence;
@@ -237,9 +236,9 @@ namespace Dino_Engine.Sound.Music
             _wanted = wanted;
             if (wanted == _mood) return _mood;
 
-            bool urgent = wanted == MusicMood.Silence || Styles.For(wanted).Urgent;
-            bool over = _mood == MusicMood.Silence || Styles.For(_mood).Urgent;
-            float wait = Styles.For(wanted).Prompt ? UneaseWaits : CalmWaits;
+            bool urgent = wanted == MusicMood.Silence || Moods.IsUrgent(wanted);
+            bool over = _mood == MusicMood.Silence || Moods.IsUrgent(_mood);
+            float wait = CalmWaits;
             if (urgent || over || _wantedFor >= wait && _playedFor >= Stays)
             {
                 _mood = wanted;

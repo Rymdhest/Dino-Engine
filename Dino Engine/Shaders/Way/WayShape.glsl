@@ -56,11 +56,11 @@ float wayDeepest()
     return max(-wayDistance(wayHeart.xy), 0.5);
 }
 
-// Whether this fragment of the way is there yet: a rune once its turn has come, and the face as the light floods in from the edge, which it does once. A rune's light is on its stone, so
-// it thins out with the stone where the focus cutout opens the gate for a hero behind it (FocusCutout.glsl); the way itself never does, as it hides what's behind it from either side.
+// Whether this fragment of the way is there yet: a rune once its turn has come, and the face as the light floods in from the edge, which it does once. Nothing of a gate thins away for
+// a hero behind it (only trees do, glModel.OpensForFocus), so neither does a rune's light or the way.
 bool wayDrawn(vec3 local, vec3 world, vec3 rune)
 {
-    if (rune.x > 0.5) return wayState.x >= rune.y * WAY_RUNES && focusVisibility(world) > focusDither(gl_FragCoord.xy);
+    if (rune.x > 0.5) return wayState.x >= rune.y * WAY_RUNES;
     float fill = wayFill();
     if (fill >= 1.0) return true;
     float inside = -wayDistance(local.xy);

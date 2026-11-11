@@ -45,6 +45,9 @@ namespace Dino_Engine.World.Generation
             world.Farmland = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Paving = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Garden = ByteField.ForWorld(size, WorldData.DetailCell);
+            world.Sand = ByteField.ForWorld(size, WorldData.DetailCell);
+            world.Mud = ByteField.ForWorld(size, WorldData.DetailCell);
+            world.Ash = ByteField.ForWorld(size, WorldData.DetailCell);
 
             ApplyPads(world, world.Pads, height);
             StampRoads(world, height, detail);
@@ -169,9 +172,15 @@ namespace Dino_Engine.World.Generation
                 GroundPaint.Plaza => world.Plaza,
                 GroundPaint.Paving => world.Paving,
                 GroundPaint.Garden => world.Garden,
+                GroundPaint.Sand => world.Sand,
+                GroundPaint.Mud => world.Mud,
+                GroundPaint.Ash => world.Ash,
                 _ => world.Farmland,
             };
             if (patch.Paint == GroundPaint.Paving) world.Paved = true;
+            if (patch.Paint == GroundPaint.Sand) world.Sanded = true;
+            if (patch.Paint == GroundPaint.Mud) world.Mudded = true;
+            if (patch.Paint == GroundPaint.Ash) world.Ashen = true;
             Footprint shape = patch.Shape;
             float softness = patch.Softness;
             ForEachNode(world.Height, shape.Centre, shape.BoundingRadius + softness, (x, z, position) =>

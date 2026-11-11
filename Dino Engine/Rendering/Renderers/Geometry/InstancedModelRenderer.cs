@@ -179,6 +179,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
             BindPlant(_instancedModelShader, glmodel);
             _instancedModelShader.loadUniformVector3f("modelSize", glmodel.Size);
+            _instancedModelShader.loadUniformFloat("focusOpens", glmodel.OpensForFocus ? 1f : 0f);
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
             Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);

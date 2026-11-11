@@ -191,11 +191,7 @@ namespace Dino_Engine.ECS.Systems
                     Entity entity = SpawnModel(stream.ObjectModels[item.Asset], item.Position, item.Rotation, item.Scale, world, grid);
                     entities.Add(entity);
                     if (loose != null) stream.Loose[key] = new LooseObject(entity, sector, item.Position, item.Rotation, item.Scale, loose);
-                    foreach (AssetLight light in stream.ObjectLights[item.Asset])
-                    {
-                        if (light.Intensity > 0f) entities.Add(SpawnLight(light, item, world));
-                        if (light.FlameWidth > 0f) entities.Add(SpawnFlame(light, item, world));
-                    }
+                    AssetLightEntities.Spawn(world, stream.ObjectLights[item.Asset], item.Position, item.Rotation, item.Scale, entities);
                 }
             }
             // Empty sectors are remembered too, or they would be looked up again every frame.
@@ -238,47 +234,6 @@ namespace Dino_Engine.ECS.Systems
             grid.InsertOrUpdate(e, bounds);
             _spawnedObjects.Add((e, bounds));
             return e;
-        }
-
-        private static Entity SpawnLight(AssetLight light, WorldObject owner, ECSWorld world)
-        {
-            Vector3 position = owner.Position + Vector3.Transform(light.Position * owner.Scale, owner.Rotation);
-            var components = new List<IComponent>
-            {
-                new PositionComponent(position),
-                new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(position) },
-                new LightRangeComponent(light.Radius, light.Fill, light.LightsFog),
-                new ColorComponent(new Colour(light.Colour.X, light.Colour.Y, light.Colour.Z, light.Intensity)),
-            };
-
-            // Each light keeps its own time, so a village doesn't flicker as one.
-            if (light.Flicker > 0f) components.Add(new LightFlickerComponent(light.Flicker, light.FlickerSpeed, position.X * 1.3f + position.Z * 0.7f));
-
-            if (light.ConeAngle > 0f)
-            {
-                components.Add(new SpotLightComponent(1f, light.ConeAngle));
-                components.Add(new DirectionNormalizedComponent(Vector3.Transform(light.Direction, owner.Rotation)));
-            }
-            else
-            {
-                components.Add(new PointLightTag());
-                if (light.Shadow) components.Add(new PointLightShadowComponent());
-            }
-            return world.CreateEntity(components.ToArray());
-        }
-
-        // An open flame that's part of a model: a candle's, a torch's or a brazier's, by how wide it is, burning for as long as its object is here.
-        private static Entity SpawnFlame(AssetLight light, WorldObject owner, ECSWorld world)
-        {
-            Vector3 position = owner.Position + Vector3.Transform(light.Position * owner.Scale, owner.Rotation);
-            float width = light.FlameWidth * owner.Scale.Y;
-            (ParticleEffect effect, float scale) = width < Fire.CandleWidth * 2f ? (Fire.Candle, width / Fire.CandleWidth)
-                : width < Fire.TorchWidth * 2f ? (Fire.Torch, width / Fire.TorchWidth)
-                : (Fire.Brazier, width / Fire.BrazierWidth);
-            return world.CreateEntity(
-                new PositionComponent(position),
-                new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(position) },
-                new ParticleEffectComponent(effect, EffectShape.Point, scale));
         }
 
         private static void DespawnEntities(Vector2i key, Dictionary<Vector2i, List<Entity>> groups, ECSWorld world, SpatialGrid grid)

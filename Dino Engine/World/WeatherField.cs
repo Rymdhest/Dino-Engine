@@ -107,9 +107,15 @@ namespace Dino_Engine.World
         /// <summary>Side of the world in metres, which <see cref="Bake"/> covers.</summary>
         public float Size => _size;
 
+        /// <summary>The world's day, if it has one (<see cref="WorldArchetype.DayAndNight"/>), on the same clock as its weather.</summary>
+        public DayCycle? Day { get; }
+
+        // The weather a kind of world is always seen in, if it has one of its own (WorldArchetype.Weather).
+        private readonly WeatherSample? _held;
+
         public WeatherField(WorldData world)
         {
-            _calm = world.Plan.Archetype.Peaceful;
+            _held = world.Plan.Archetype.Weather;
             WorldRandom random = world.Random.Fork("weather");
             _seed = (uint)random.NextULong();
             _size = world.Size;
@@ -143,6 +149,13 @@ namespace Dino_Engine.World
                 }
             }
             for (int pass = 0; pass < 3; pass++) Soften();
+
+            // The sun goes down where the mood has its light.
+            if (world.Plan.Archetype.DayAndNight)
+            {
+                Vector3 towardsSun = -world.Plan.Mood.SunDirection;
+                Day = new DayCycle(MathF.Atan2(towardsSun.Z, towardsSun.X));
+            }
         }
 
         // Weather has no edge along a ridge or a biome's border: the air doesn't know they're there until it's over them.
@@ -244,33 +257,17 @@ namespace Dino_Engine.World
 
         private static float SnowShare(in ClimateNode climate) => Smoothstep(0.36f, 0.24f, climate.Warmth);
 
-        // A place whose sky never changes, as the Haven's doesn't.
-        private readonly bool _calm;
-
-        /// <summary>The weather at a point of the world, <paramref name="clock"/> seconds in.</summary>
+        /// <summary>The weather at a point of the world, <paramref name="clock"/> seconds in. A world with days has weather of its own, in place of its climate's.</summary>
         public WeatherSample Sample(Vector2 position, double clock)
         {
-            if (_calm && WeatherSample.TryNamed("clear", out WeatherSample clear)) return clear;
+            if (_held is WeatherSample held) return held;
+            if (Day != null) return Moods(position, clock);
 
             float x = position.X, z = position.Y;
             ClimateNode climate = ClimateAt(x, z);
             float strength = Strength(x, z, clock, climate.Bias);
             float fall = FallFrom(strength, climate);
-
-            // The ground's memory: what's fallen here lately, the latest counting most.
-            float surface = 0f, puddles = 0f;
-            for (int i = 0; i < LooksBack.Length; i++)
-            {
-                float back = LooksBack[i];
-                float before = i > 0 ? LooksBack[i - 1] : back;
-                float after = i + 1 < LooksBack.Length ? LooksBack[i + 1] : back;
-                float span = (after - before) * 0.5f;
-                float then = i == 0 ? fall : FallFrom(Strength(x, z, clock - back, climate.Bias), climate);
-                surface += then * MathF.Exp(-back / SurfaceMemory) * span;
-                puddles += then * MathF.Exp(-back / PuddleMemory) * span;
-            }
-            surface = Saturate(surface / SurfaceFill);
-            puddles = Saturate(puddles / PuddleFill);
+            Remember(x, z, clock, fall, climate, out float surface, out float puddles);
 
             float snow = SnowShare(climate);
             float ash = Saturate(climate.Ash * 1.4f);
@@ -293,6 +290,99 @@ namespace Dino_Engine.World
                 Flood = puddles * water,
                 SnowCover = surface * snow,
                 Gale = 1f + 0.3f * fall + 1.3f * storm + 1.6f * dust,
+            };
+        }
+
+        // The ground's memory: what's fallen here lately, the latest counting most.
+        private void Remember(float x, float z, double clock, float fall, in ClimateNode climate, out float surface, out float puddles)
+        {
+            surface = 0f;
+            puddles = 0f;
+            for (int i = 0; i < LooksBack.Length; i++)
+            {
+                float back = LooksBack[i];
+                float before = i > 0 ? LooksBack[i - 1] : back;
+                float after = i + 1 < LooksBack.Length ? LooksBack[i + 1] : back;
+                float span = (after - before) * 0.5f;
+                float then = i == 0 ? fall
+                    : Day != null ? Air(x, z, clock - back).Fall
+                    : FallFrom(Strength(x, z, clock - back, climate.Bias), climate);
+                surface += then * MathF.Exp(-back / SurfaceMemory) * span;
+                puddles += then * MathF.Exp(-back / PuddleMemory) * span;
+            }
+            surface = Saturate(surface / SurfaceFill);
+            puddles = Saturate(puddles / PuddleFill);
+        }
+
+        // ---------------------------------------------------------------- a world with days
+
+        // What the air over a world with days is doing. Each of these is a slow pattern of its own, carried over the land by the drift and changing at its own pace, so they
+        // meet in every combination: a storm that leaves the sun out between its showers, a still rain at dusk, a windy clear noon, a fog at dawn.
+        private readonly struct DayAir
+        {
+            public float Cloud { get; init; }
+            public float Fall { get; init; }
+            public float Storm { get; init; }
+            public float Windy { get; init; }
+            public float Damp { get; init; }    // Its own reason for mist, about -1..1.
+        }
+
+        private const float DayStrikes = 0.3f;      // A world with days is small and all of it in sight: a storm over it strikes this much as often as a land's.
+
+        private float Pattern(double x, double z, double t, float scale, float pace, uint salt)
+        {
+            double carriedX = x - _drift.X * t;
+            double carriedZ = z - _drift.Y * t;
+            return Fbm(carriedX / scale, carriedZ / scale, t / pace, 2, _seed ^ salt);
+        }
+
+        private DayAir Air(float x, float z, double clock)
+        {
+            double t = clock + _start;
+            float cloud = Pattern(x, z, t, 1100f, 520f, 0xC10Du) + 0.35f * Pattern(x, z, t, 320f, 200f, 0xCE11u);
+            float rain = Pattern(x, z, t, 900f, 380f, 0x7A11u);
+            float storm = Pattern(x, z, t, 1300f, 640f, 0x5707u);
+            float wind = Pattern(x, z, t, 1500f, 300f, 0x9A1Eu);
+            float damp = Pattern(x, z, t, 1200f, 450f, 0x3157u);
+
+            float cover = Smoothstep(-0.5f, 0.45f, cloud);
+            float stormy = Smoothstep(0.38f, 0.78f, storm) * Smoothstep(0.1f, 0.4f, cover);
+            float showers = Smoothstep(0.18f, 0.66f, rain) * Smoothstep(0.4f, 0.8f, cover);
+            float fall = MathF.Max(showers, stormy * Smoothstep(0.15f, 0.55f, cover) * 0.9f);
+            return new DayAir
+            {
+                // A storm brings cloud of its own, but leaves gaps for the sun, and what rains has cloud over it.
+                Cloud = MathF.Max(MathF.Max(cover, stormy * 0.75f), fall * 0.9f),
+                Fall = fall,
+                Storm = stormy,
+                Windy = Smoothstep(-0.4f, 0.6f, wind),
+                Damp = damp,
+            };
+        }
+
+        // The weather of a world with days. Mist comes of its own, of rain and wet ground, and most of all on a still night and at dawn; wind tears it up.
+        private WeatherSample Moods(Vector2 position, double clock)
+        {
+            float x = position.X, z = position.Y;
+            DayAir air = Air(x, z, clock);
+            Remember(x, z, clock, air.Fall, default, out float surface, out float puddles);
+            DaySample day = Day!.At(clock);
+
+            float mist = Smoothstep(0.05f, 0.6f, air.Damp) * 0.7f
+                + day.Night * 0.4f * Smoothstep(-0.4f, 0.2f, air.Damp)
+                + day.Dawn * 0.5f * Smoothstep(-0.5f, 0.1f, air.Damp)
+                + air.Fall * 0.35f + surface * 0.25f;
+            mist = Saturate(mist) * Lerp(1f, 0.35f, air.Windy);
+
+            return new WeatherSample
+            {
+                Cloud = air.Cloud,
+                Fall = air.Fall,
+                Storm = air.Storm,
+                Mist = mist,
+                Wet = surface,
+                Flood = puddles,
+                Gale = Lerp(0.45f, 1.9f, air.Windy) + 0.3f * air.Fall + 1.4f * air.Storm,
             };
         }
 
@@ -338,7 +428,7 @@ namespace Dino_Engine.World
                 uint chance = Mix(along);
                 var position = new Vector2(Unit(across), Unit(along)) * _size;
                 float storm = StormAt(position, time);
-                if (Unit(chance) >= storm * storm * 0.85f) continue;
+                if (Unit(chance) >= storm * storm * 0.85f * (Day != null ? DayStrikes : 1f)) continue;
                 into.Add(new LightningStrike(time, position, 0.5f + 0.5f * Unit(Mix(chance)), Mix(chance ^ 0xB01Du)));
             }
         }
@@ -346,6 +436,8 @@ namespace Dino_Engine.World
         // The storm alone, without looking back: this runs for every chance of a strike.
         private float StormAt(Vector2 position, double clock)
         {
+            if (_held is WeatherSample held) return held.Storm;
+            if (Day != null) return Air(position.X, position.Y, clock).Storm;
             ClimateNode climate = ClimateAt(position.X, position.Y);
             float strength = Strength(position.X, position.Y, clock, climate.Bias);
             float water = (1f - SnowShare(climate)) * (1f - Saturate(climate.Ash * 1.4f));

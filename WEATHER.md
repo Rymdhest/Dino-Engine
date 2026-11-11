@@ -43,6 +43,20 @@ Nothing here touches world generation. `WeatherField` draws from its own fork, s
 
 **Lightning** is part of the function too. `WeatherField.Strikes` turns a span of time into bolts: each slot of time has one chance, at a place drawn from its number, and it comes to something if there's a storm there. So everyone sees the same bolt at the same moment, and asking for the same span in pieces gives the same bolts.
 
+## A world with days
+
+The Haven has a day and a night, and weather that runs on its own (`WorldArchetype.DayAndNight`). Lands keep the light their mood was drawn with and the weather of their climate, as a land is visited once. The Haven is visited all the time, so it has to be different every time.
+
+**The day** is `DayCycle` (`World/DayCycle.cs`, headless): a pure function of the clock, `Length` seconds a day, twenty minutes. The sun goes round a real sky at 45° in midsummer, so it climbs to 68° at noon and the night is short, and the world is turned so that it sets where the mood had its light: the Haven's golden evening is still its evening. It lingers near the horizon (`Linger`), so a golden hour comes to about two minutes each end of the day and a night to under five. The moon stands half a day from the sun. The light that casts shadows is the sun's while it's up and the moon's once it's dark, and only crosses from one to the other while neither shines, so shadows never jump, and it's never taken to come from lower than 11°, or a shadow would cross the land. The sun's colour and the clear sky's go by its height, warm and low at a golden hour, and night is `NightfallSingleton`'s, from the moment the sun goes down to 12° below.
+
+`DaySystem` points the sun along it and writes nothing else. Its light and the sky's are read in `SkySYstem` (`AtThisHour`, `NightOf`), as night's and cloud's are, so everything that already reads the light at this hour follows the day with nothing added: fog, wildlife, sound. A moving sun is why GI sweeps its sun (`GI.md`).
+
+**The weather** of a world with days is five slow patterns (`WeatherField.Air`): cloud, showers, storm, wind and damp, each carried over the land by the drift and changing at its own pace, so that they meet in every combination. A storm brings cloud of its own but leaves gaps, so the sun can shine between its showers. What rains has cloud over it. Mist comes of damp, of rain and wet ground, and most of all on a still night and at dawn, which is why `WeatherField` holds the day too, on the same clock; wind tears it up. Storms strike less often than over a land (`DayStrikes`), as the whole Haven is in sight. The ground's memory and lightning come from the same functions as everywhere else.
+
+**Every visit begins somewhere else in its sky.** The server draws a start for the Haven each time it's entered (`GameServer._skyStart`) and sends it with the world, so everyone in it shares the hour, and `AmbienceSystem` gives the weather and the day the same clock. A land's start is its seed's, as before.
+
+`Dino WorldLab weather` ends with the Haven: how often each weather comes at each hour, and it fails if any is missing at too many hours, a storm can never leave the sun out, nights aren't mistier than noons, a golden hour or a night is too short, the light jumps while it's lit, the sun sets away from the mood's light, or two visits look alike.
+
 ## What a frame costs
 
 `WeatherSystem` bakes the whole world into a 64 by 64 map (`WeatherField.Bake`) on a worker every 0.75 s and eases towards it, so a frame only blends a few thousand numbers. The map is the only way the GPU learns about weather. What's happening at the focus (`WeatherSingleton.Here`) is eased too, and it's what sound and light read.
@@ -198,6 +212,7 @@ For looking at it, on a scripted run:
 ```
 --weather name          Holds it everywhere: clear, cloudy, overcast, wet, drizzle, rain, storm, snow, blizzard, dust, ash or fog.
 --weatherclock s        Starts this far into the world's own weather.
+--hour h                In a world with days, starts at this hour, 0 to 24, by where the sun is: 12 is noon, 19.3 a golden hour, 20.1 dusk.
 --render reflectiondebug=N   1 where rays found something, 2 how much sky a ray can see, 3 everything reflected, 4 the sky map.
 --render reflectionrays=0    Sky and rain shadow alone.
 --hidden true           Draws with no window on screen and never takes the focus, for running beside someone playing.

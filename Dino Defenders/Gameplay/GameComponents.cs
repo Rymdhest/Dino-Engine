@@ -207,6 +207,8 @@ namespace Dino_Defenders.Gameplay
         BetaVendor,     // Gives anything away, for testing the game, in the Haven.
         Workbench,      // Where gear is worked on, in the Haven's forge.
         GamingTable,    // Where gold is played for, in the Haven's gaming house.
+        ArenaDown,      // The way down into a keep's arena, by the gate in the wall round it (ARENAS.md).
+        ArenaUp,        // The way up out of it, by the gate the hero came down by, once its tyrant is down.
     }
 
     /// <summary>

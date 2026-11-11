@@ -99,6 +99,10 @@ namespace Dino_Engine.Sound.Mixing
         public int ActiveVoices { get; private set; }
         public int MostActiveVoices { get; private set; }
         public int Dropped { get; private set; }
+
+        /// <summary>Live sounds that went bad and were silenced, and the last of them, for the game to report: nothing on this thread may write a line.</summary>
+        public int Faults { get; private set; }
+        public string? Fault { get; private set; }
         public float PeakLeft { get; private set; }
         public float PeakRight { get; private set; }
         public float WindowDecibels => _window;
@@ -165,6 +169,19 @@ namespace Dino_Engine.Sound.Mixing
                 ReadQueue();
                 MixBlock(count);
                 _limiter.Process(_mixLeft.AsSpan(0, count), _mixRight.AsSpan(0, count));
+
+                // And if anything gets through even so, the mix is put back to silence rather than left to say nothing for the rest of the session.
+                for (int i = 0; i < count; i++)
+                {
+                    if (float.IsFinite(_mixLeft[i]) && float.IsFinite(_mixRight[i])) continue;
+                    Array.Clear(_mixLeft, 0, count);
+                    Array.Clear(_mixRight, 0, count);
+                    _reverb.Clear();
+                    _limiter.Clear();
+                    Faults++;
+                    Fault = "the mix";
+                    break;
+                }
 
                 for (int i = 0; i < count; i++)
                 {
@@ -656,6 +673,18 @@ namespace Dino_Engine.Sound.Mixing
         private bool RenderLive(Voice voice, int count)
         {
             voice.LiveSource!.Render(_sourceLeft.AsSpan(0, count), _sourceRight.AsSpan(0, count));
+
+            // Something that isn't a number never leaves a mix once it's in, as the reverb and the limiter pass it round for ever, so a live sound that makes one costs that sound
+            // and not every sound there is: it's silenced, stopped, and named.
+            for (int i = 0; i < count; i++)
+            {
+                if (float.IsFinite(_sourceLeft[i]) && float.IsFinite(_sourceRight[i])) continue;
+                Array.Clear(_sourceLeft, 0, count);
+                Array.Clear(_sourceRight, 0, count);
+                Faults++;
+                Fault = voice.Live?.Id;
+                return true;
+            }
             return false;
         }
 

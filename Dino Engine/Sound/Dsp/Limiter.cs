@@ -43,6 +43,17 @@ namespace Dino_Engine.Sound.Dsp
         /// <summary>How many samples late what comes out is.</summary>
         public int Latency => _lookahead - 1;
 
+        /// <summary>Forgets what it's holding, for when something that's no number at all got into it. Allocates nothing.</summary>
+        public void Clear()
+        {
+            Array.Clear(_delayLeft);
+            Array.Clear(_delayRight);
+            Array.Clear(_history);
+            _historySum = 0.0;
+            _head = _tail = 0;
+            _held = 1f;
+        }
+
         public void Process(Span<float> left, Span<float> right)
         {
             int count = left.Length;

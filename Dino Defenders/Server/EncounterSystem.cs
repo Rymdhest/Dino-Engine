@@ -19,6 +19,8 @@ namespace Dino_Defenders.Server
     {
         private const float ShrineReach = 6.5f;     // It's used from one side of the altar, and has to reach anyone standing at the far side.
         private const float GateFromSpawn = 14f;    // Metres from where a waygate is used to the gate itself, at the most.
+        private const float TableFromSpawn = 8f;    // Metres from the map table's spawn to the table, at the most.
+        private const float TableReach = 3.2f;      // Past its corners: anyone who can stand beside it, kept a body's width off it, is well inside, with a click's margin to spare.
         private const float ChestScale = 1.35f;     // A size bigger than life, like anything else that matters seen from up where the camera is.
         private const float WakeDistance = 100f;
         private const float SleepDistance = 160f;
@@ -32,6 +34,9 @@ namespace Dino_Defenders.Server
 
         private readonly GameServer _server;
         private double _nextCheck;
+
+        // Keeps whose arena's people are waiting for a hero to come down to them.
+        private readonly List<SiteState> _floorsWaiting = new();
 
         public EncounterSystem(GameServer server)
             : base(new BitMask(typeof(HealthComponent)))
@@ -60,12 +65,47 @@ namespace Dino_Defenders.Server
                 }
                 else if (state.Active && distance > SleepDistance) Sleep(world, state);
             }
+
+            for (int i = _floorsWaiting.Count - 1; i >= 0; i--)
+            {
+                SiteState state = _floorsWaiting[i];
+                if (state.Active && !HeroOnFloor(session, state)) continue;
+                _floorsWaiting.RemoveAt(i);
+                if (state.Active) WakeFloor(world, session, state, session.Sites.IndexOf(state));
+            }
+        }
+
+        // Whoever's kept on a keep's arena's floor is only met down there (ARENAS.md): nobody on the keep's ground can reach them, so they wait for a hero to come down.
+        private static bool OnSealedFloor(SiteState state, Vector2 at) => state.Site.Arena is { Keep: true } plan && plan.Contains(at, ServerSession.FloorReach);
+
+        private static bool HeroOnFloor(ServerSession session, SiteState state)
+        {
+            if (state.Site.Arena is not { Keep: true } plan) return false;
+            foreach (ServerPlayer hero in session.Heroes)
+            {
+                if (!hero.Actor.Dead && plan.Contains(hero.Sim.Position, ServerSession.FloorReach)) return true;
+            }
+            return false;
+        }
+
+        // A keep's arena's people, once a hero's come down to them, each drawn as they would have been when the keep woke.
+        private void WakeFloor(ECSWorld world, ServerSession session, SiteState state, int siteIndex)
+        {
+            var random = new WorldRandom(session.World.Plan.Seed).Fork("people").Fork(siteIndex);
+            var musters = new Dictionary<SpawnRole, PackOrders>();
+            for (int i = 0; i < state.Site.Spawns.Count; i++)
+            {
+                SiteSpawn spawn = state.Site.Spawns[i];
+                if (!spawn.Role.IsHostile() || spawn.Role == SpawnRole.Rival || state.Dead.Contains(i) || state.Cleared || !OnSealedFloor(state, spawn.Position)) continue;
+                SpawnEnemy(world, session, state, siteIndex, i, spawn, Orders(session, state, spawn, random, musters), random.Fork(i));
+            }
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
 
-        private static void Sleep(ECSWorld world, SiteState state)
+        private void Sleep(ECSWorld world, SiteState state)
         {
+            _floorsWaiting.Remove(state);
             foreach (Entity entity in state.Live) world.DestroyEntity(entity);
             state.Live.Clear();
             state.Active = false;
@@ -91,7 +131,13 @@ namespace Dino_Defenders.Server
                     case SpawnRole.Beast:
                     case SpawnRole.Cultist:
                         // A place set free stays free, whoever a newer build would have put there.
-                        if (!state.Dead.Contains(i) && !state.Cleared) SpawnEnemy(world, session, state, siteIndex, i, spawn, Orders(session, state, spawn, random, musters), spawnRandom);
+                        if (state.Dead.Contains(i) || state.Cleared) break;
+                        if (OnSealedFloor(state, spawn.Position) && !HeroOnFloor(session, state))
+                        {
+                            if (!_floorsWaiting.Contains(state)) _floorsWaiting.Add(state);
+                            break;
+                        }
+                        SpawnEnemy(world, session, state, siteIndex, i, spawn, Orders(session, state, spawn, random, musters), spawnRandom);
                         break;
                     case SpawnRole.Villager:
                         SpawnVillager(world, session, state, siteIndex, spawn, spawnRandom, stationary: false);
@@ -129,7 +175,7 @@ namespace Dino_Defenders.Server
                         SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Stash, "Open your stash", 4.5f);
                         break;
                     case SpawnRole.MapTable:
-                        SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.MapTable, "Choose your next land", 5.5f);
+                        SpawnTableMarker(world, session, state, siteIndex, i, spawn);
                         break;
                     case SpawnRole.Workbench:
                         SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Workbench, "Work on your gear", 4.6f);
@@ -244,6 +290,7 @@ namespace Dino_Defenders.Server
                 Height = position.Y,
                 Nature = boss ? Condition.Boss : rarity == Rarity.Rare ? Condition.Rare : Condition.None,
                 Tyrant = boss,
+                Still = _server.Calm,
             };
 
             actor.Entity = world.CreateEntity(name, Bodies.Walking(_server, model, position, scale, power.Importance, radius, enemy, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
@@ -371,10 +418,10 @@ namespace Dino_Defenders.Server
                 Goal = spawn.Position,
                 Stationary = true,
                 Crowd = true,
-                Watch = state.Site.Position,
+                Watch = state.Site.Arena?.Centre ?? state.Site.Position,
                 NextSpeech = session.Time + random.Range(4f, 30f),
             };
-            Vector2 facing = state.Site.Position - spawn.Position;
+            Vector2 facing = (state.Site.Arena?.Centre ?? state.Site.Position) - spawn.Position;
             Entity entity = world.CreateEntity("Spectator", Bodies.Walking(_server, $"villager{random.Int(12)}", position, random.Range(0.92f, 1.04f), 0.4f, villager));
             if (facing.LengthSquared > 0.01f && world.TryGetEntityLocation(entity, out _, out _)) world.GetEntityView(entity).Set(new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, MathF.Atan2(facing.X, facing.Y))));
             state.Live.Add(entity);
@@ -452,13 +499,25 @@ namespace Dino_Defenders.Server
                 new VisualComponent(opening ? ChestLook.Opening : ChestLook.Lid, VisualKind.Prop)));
         }
 
-        private void SpawnMarker(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, InteractKind kind, string prompt, float radius)
+        private void SpawnMarker(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, InteractKind kind, string prompt, float radius) =>
+            SpawnMarker(world, session, state, siteIndex, spawnIndex, spawn.Position, kind, prompt, radius);
+
+        private void SpawnMarker(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, Vector2 at, InteractKind kind, string prompt, float radius)
         {
-            float height = session.World.Height.Sample(spawn.Position);
+            float height = session.World.Height.Sample(at);
             state.Live.Add(world.CreateEntity(prompt,
                 new NetIdentityComponent(_server.Ghosts.NextId(), importance: 0.5f),
-                new PositionComponent(new Vector3(spawn.Position.X, height, spawn.Position.Y)),
+                new PositionComponent(new Vector3(at.X, height, at.Y)),
                 new InteractableComponent { Kind = kind, SiteIndex = siteIndex, SpawnIndex = spawnIndex, Radius = radius, Prompt = prompt }));
+        }
+
+        // The map table is come to from every side, so it's used from the middle of the table, as far out as reaches anyone standing at any side or corner of it, and not from a
+        // spot in front of it, which someone coming down from the gate had to walk round to.
+        private void SpawnTableMarker(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn)
+        {
+            StructureDefinition table = StructureCatalog.MapTable;
+            Vector2 at = session.World.Objects.TryNearest(table.Id, spawn.Position, TableFromSpawn, out WorldObject found) ? found.Position.Xz : spawn.Position;
+            SpawnMarker(world, session, state, siteIndex, spawnIndex, at, InteractKind.MapTable, "Choose your next land", table.HalfExtents.Length + TableReach);
         }
     }
 
@@ -569,7 +628,8 @@ namespace Dino_Defenders.Server
                 EnemyBrainSystem.Face(entity, nearest != null && toNearest < CrowdReach ? toHero : villager.Watch - position.Xz, deltaTime, 2f);
                 if (nearest != null && toNearest < CrowdReach && session.Time >= villager.NextSpeech)
                 {
-                    bool fighting = (nearest.Sim.Position - villager.Watch).Length < Dino_Engine.World.Generation.ArenaBuilder.RimRadius;
+                    // Fighting is anyone down on the floor.
+                    bool fighting = session.Sites[villager.SiteIndex].Site.Arena is ArenaPlan floor ? floor.Contains(nearest.Sim.Position, 2f) : (nearest.Sim.Position - villager.Watch).Length < 30f;
                     _server.Broadcast(new TextEvent
                     {
                         Position = position + Vector3.UnitY * 5.6f,
@@ -808,6 +868,20 @@ namespace Dino_Defenders.Server
                     break;
                 case InteractKind.Portal:
                     _server.StepThrough();
+                    break;
+                case InteractKind.ArenaDown:
+                    // Down into the arena the keep's tyrant is kept in, by the gate in the wall round it (ARENAS.md).
+                    if (state.Site.Arena is ArenaPlan below) _server.Bring(hero, below.Arrival);
+                    break;
+                case InteractKind.ArenaUp:
+                    // And up out of it, which only opens once the tyrant's down.
+                    if (state.Site.Arena is not ArenaPlan above) break;
+                    if (!session.TyrantDown(state))
+                    {
+                        _server.Note(hero, "The way up stays shut while the tyrant lives.");
+                        break;
+                    }
+                    _server.Bring(hero, above.Door);
                     break;
                 default:
                     _server.OpenPanel(hero, interactable.Kind, interactable.SiteIndex);

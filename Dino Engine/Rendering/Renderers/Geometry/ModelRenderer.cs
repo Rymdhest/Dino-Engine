@@ -131,6 +131,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(4);
             GL.EnableVertexAttribArray(5);
             _modelShader.loadUniformVector3f("modelSize", glmodel.Size);
+            _modelShader.loadUniformFloat("focusOpens", glmodel.OpensForFocus ? 1f : 0f);
 
             for (int i = 0; i < command.matrices.Count; i++)
             {

@@ -150,5 +150,18 @@ namespace Dino_Defenders.Books
         public static readonly BookPlan Roar = Write("roar", "Terrible Roar", new[] { Area("circle", Say("rest"), Inflict("stun")) }, page => { page.Length = 13f; page.UseTime = 1.2f; page.Cooldown = 9f; });
         public static readonly BookPlan Gore = Write("gore", "Gore", new[] { Area("cone", Say("tight"), Deal()) }, page => { page.Potency = 1.5f; page.Length = 7.5f; page.Mods = new[] { Chance(Tags.Stun, 45f) }; });
         public static readonly BookPlan HungryBite = Write("hungry-bite", "Hungry Bite", new[] { Area("cone", Say("tight"), Deal()) }, page => { page.Potency = 0.9f; page.Length = 3.4f; page.UseTime = 0.4f; page.Mods = new[] { Chance(Tags.Bleed, 20f) }; });
+
+        // What an arena does to whoever's on its floor, which is nobody's to carry (ARENAS.md): the arena sets each off on its own time, from where it is, and it's marked like any blow. The Reich's
+        // bolt-throwers on the tribune, the sun its priests' mirrors gather, the Ossuary's vents and the ash heaving where its dead come up, and the chandeliers of the Iron Apex, which come down and burn.
+        // What's thrown is an Attack, and can be evaded. What burns is a Spell, which can't, and so whatever it falls on of the tyrant's side is sure to feel it: their Potency is half as much again, as
+        // a creature's Spell Damage is a third less than its Attack Damage. None of them is Triggered, which is what something a hero or a creature carries sets off: they're the arena's own, released
+        // by it as a creature's books are by the creature, by two actors made for them, who have both kinds of Damage (ArenaSystem.Hazards).
+        public static readonly BookPlan BallistaBolt = Write("ballista-bolt", "Ballista Bolt", new[] { Area("line", Plain, Deal()) }, page => { page.Potency = 2.4f; page.Length = 40f; page.Width = 0.9f; page.Mods = new[] { Chance(Tags.Stun, 30f) }; });
+        public static readonly BookPlan Sunfire = Write("sunfire", "Sunfire", new[] { Area("circle", Plain, Deal()).Cast() }, page => { page.Potency = 2.3f; page.Length = 3.2f; page.Mods = new[] { Chance(Tags.Burn, 60f) }; }, type: DamageType.Fire);
+        public static readonly BookPlan Eruption = Write("eruption", "Eruption", new[] { Area("line", Plain, Deal()).Cast() }, page => { page.Potency = 2.6f; page.Length = 9f; page.Width = 1.5f; page.Mods = new[] { Chance(Tags.Burn, 50f) }; }, type: DamageType.Fire);
+        public static readonly BookPlan Smoulder = Write("smoulder", "Smouldering Fissure", new[] { Area("line", Plain, Deal()).Cast().Lasting("lingering") }, page => { page.Potency = 0.45f; page.Length = 9f; page.Width = 1.3f; page.Duration = 4f; }, type: DamageType.Fire);
+        public static readonly BookPlan Heave = Write("heave", "Heaving Ash", new[] { Area("circle", Plain, Deal()) }, page => { page.Potency = 1.3f; page.Length = 3.4f; page.Mods = new[] { Chance(Tags.Stun, 50f) }; });
+        public static readonly BookPlan Crash = Write("crash", "Falling Chandelier", new[] { Area("circle", Plain, Deal()).Cast() }, page => { page.Potency = 4.9f; page.Length = 3.6f; page.Mods = new[] { Chance(Tags.Stun, 100f) }; }, type: DamageType.Fire);
+        public static readonly BookPlan Wreck = Write("wreck", "Burning Wreck", new[] { Area("circle", Plain, Deal()).Cast().Lasting("lingering") }, page => { page.Potency = 0.45f; page.Length = 3.4f; page.Duration = 9f; page.Mods = new[] { Chance(Tags.Burn, 40f) }; }, type: DamageType.Fire);
     }
 }

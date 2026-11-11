@@ -412,6 +412,10 @@ namespace Dino_Engine.World.Generation
             return MathF.Max(interest + 1.5f, 0.01f);
         }
 
+        // A keep's arena is dug down from the ground its walls stand on, the deepest of them nearly eight metres, and its floor has to stay three clear of the sea: a keep on low ground stands on a
+        // mound raised that far, which the land is eased up to, or the arena would stand out of a plateau the camp round it couldn't walk off (ARENAS.md).
+        private const float KeepAboveSea = 13f;
+
         private static void AddSite(WorldData world, SiteDefinition definition, Candidate candidate, WorldRandom random)
         {
             int id = world.Sites.Count;
@@ -421,7 +425,7 @@ namespace Dino_Engine.World.Generation
                 Definition = definition,
                 Position = candidate.Position,
                 Radius = random.Range(definition.Radius),
-                Height = MathF.Max(candidate.Height, WorldPlan.SeaLevel + 1f),
+                Height = MathF.Max(candidate.Height, WorldPlan.SeaLevel + (definition.Kind == SiteKind.Keep ? KeepAboveSea : 1f)),
                 Remoteness = world.Remoteness?.Sample(candidate.Position) ?? 0f,
                 Biome = world.DominantBiome(candidate.Position),
                 Name = NameFor(world, definition, random.Fork("name")),

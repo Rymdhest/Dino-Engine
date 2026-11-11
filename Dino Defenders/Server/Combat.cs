@@ -251,7 +251,8 @@ namespace Dino_Defenders.Server
         private static float BodyOf(Actor target, bool hostile) => hostile && target.IsHero ? target.Radius * GroundShape.HeroBodyShare : target.Radius;
 
         /// <summary>Everyone on the other side from <paramref name="team"/> that a shape touches, which is the only way anyone is ever found to be in an area.</summary>
-        private void Within(in GroundShape shape, Team team, List<Actor> found)
+        /// <summary>Everyone of the other side from <paramref name="team"/> that's touching a shape: the only way anyone is found to be in an area, which is what makes a mark true.</summary>
+        public void Within(in GroundShape shape, Team team, List<Actor> found)
         {
             _near.Clear();
             Grid.Foes(team, shape.Origin, shape.Extent, _near);

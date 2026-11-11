@@ -101,7 +101,7 @@ namespace Dino_Engine.World.Content
             Kind = SiteKind.Keep,
             Label = "Stronghold",
             MapColour = new Vector3(0.75f, 0.1f, 0.12f),
-            Radius = new FloatRange(46f, 56f),
+            Radius = new FloatRange(56f, 64f),     // Room inside its walls for the arena its tyrant is kept in (ARENAS.md) and the camp round it.
             Limits = new IntRange(1, 1),
             MaxSlope = 0.42f,
             MinInland = 40f,

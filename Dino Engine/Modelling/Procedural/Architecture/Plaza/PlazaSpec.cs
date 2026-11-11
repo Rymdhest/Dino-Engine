@@ -18,6 +18,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Plaza
         Line,       // Stones laid flush in the paving along +x: form (0 a band, 1 a gutter), length, width.
         Ring,       // Stones laid flush in the paving round an arc: form, radius, bearing it starts at, degrees it sweeps, width.
         Well,       // A well with a windlass under a little roof: radius of its wall.
+        Lamp,       // A lantern on its own, as one inside a model over 6 m across is shut in by it (LocalShadowCasters): form (0 a stone lantern on its foot, 1 one hung from a cord), size (a stone one's scale in per cent, a hung one's cord).
     }
 
     /// <summary>

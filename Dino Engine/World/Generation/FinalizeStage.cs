@@ -5,7 +5,7 @@ namespace Dino_Engine.World.Generation
     /// <summary>
     /// Settles everything onto the finished ground: buildings and props take their height, fences and walls stand along the land, and the
     /// walkable ground is worked out, flooding out from the landing so that everything a character can stand on really is
-    /// connected to it.
+    /// connected to it, and from the floor of the arena sealed in a keep, which is only ever reached by its way down (ARENAS.md).
     /// </summary>
     public sealed class FinalizeStage : IWorldStage
     {
@@ -50,14 +50,16 @@ namespace Dino_Engine.World.Generation
                 }
             });
 
-            Vector2 landing = world.Sites[0].Landing;
-            int startX = Math.Clamp((int)(landing.X / WorldData.WalkCell), 0, width - 1);
-            int startZ = Math.Clamp((int)(landing.Y / WorldData.WalkCell), 0, depth - 1);
-
             var stack = new Stack<int>();
-            int start = startZ * width + startX;
-            walkable.Data[start] = 255;
-            stack.Push(start);
+            foreach (Vector2 from in FloodsFrom(world))
+            {
+                int startX = Math.Clamp((int)(from.X / WorldData.WalkCell), 0, width - 1);
+                int startZ = Math.Clamp((int)(from.Y / WorldData.WalkCell), 0, depth - 1);
+                int start = startZ * width + startX;
+                if (walkable.Data[start] != 0) continue;
+                walkable.Data[start] = 255;
+                stack.Push(start);
+            }
             while (stack.Count > 0)
             {
                 int i = stack.Pop();
@@ -114,31 +116,42 @@ namespace Dino_Engine.World.Generation
                 }
             });
 
-            int start = NearestOpen(blocked, width, depth, world.Sites[0].Landing, cell, 24);
-            if (start >= 0)
+            var stack = new Stack<int>();
+            foreach (Vector2 from in FloodsFrom(world))
             {
-                var stack = new Stack<int>();
+                int start = NearestOpen(blocked, width, depth, from, cell, 24);
+                if (start < 0 || passable.Data[start] != 0) continue;
                 passable.Data[start] = 255;
                 stack.Push(start);
-                while (stack.Count > 0)
-                {
-                    int i = stack.Pop();
-                    int x = i % width;
-                    int z = i / width;
-                    if (x > 0) Visit(i - 1);
-                    if (x < width - 1) Visit(i + 1);
-                    if (z > 0) Visit(i - width);
-                    if (z < depth - 1) Visit(i + width);
-                }
+            }
+            while (stack.Count > 0)
+            {
+                int i = stack.Pop();
+                int x = i % width;
+                int z = i / width;
+                if (x > 0) Visit(i - 1);
+                if (x < width - 1) Visit(i + 1);
+                if (z > 0) Visit(i - width);
+                if (z < depth - 1) Visit(i + width);
+            }
 
-                void Visit(int next)
-                {
-                    if (blocked[next] || passable.Data[next] != 0) return;
-                    passable.Data[next] = 255;
-                    stack.Push(next);
-                }
+            void Visit(int next)
+            {
+                if (blocked[next] || passable.Data[next] != 0) return;
+                passable.Data[next] = 255;
+                stack.Push(next);
             }
             world.Passable = passable;
+        }
+
+        // Where the walkable ground is flooded out from: the landing, and the floor of any keep's arena, which is sealed from the land round it.
+        private static IEnumerable<Vector2> FloodsFrom(WorldData world)
+        {
+            yield return world.Sites[0].Landing;
+            foreach (WorldSite site in world.Sites)
+            {
+                if (site.Arena is { Keep: true } arena) yield return arena.Arrival;
+            }
         }
 
         private static int NearestOpen(bool[] blocked, int width, int depth, Vector2 position, float cell, int reach)
@@ -174,7 +187,9 @@ namespace Dino_Engine.World.Generation
                     // Whoever watches from an arena's stands stands where nobody else can go, and is meant to.
                     if (spawn.Role == SpawnRole.Spectator) continue;
 
-                    if (TryFindPassable(passable, spawn.Position, MaxSpawnShift, out Vector2 moved))
+                    // A keep's arena is sealed: nobody is moved onto its floor from outside, or off it.
+                    bool onFloor = site.Arena is { Keep: true } arena && arena.Contains(spawn.Position);
+                    if (TryFindPassable(passable, spawn.Position, MaxSpawnShift, candidate => site.Arena is not { Keep: true } sealedIn || sealedIn.Contains(candidate) == onFloor, out Vector2 moved))
                     {
                         site.Spawns[i] = new SiteSpawn(spawn.Role, moved);
                     }
@@ -186,7 +201,7 @@ namespace Dino_Engine.World.Generation
             }
         }
 
-        private static bool TryFindPassable(ByteField passable, Vector2 around, float reach, out Vector2 found)
+        private static bool TryFindPassable(ByteField passable, Vector2 around, float reach, Func<Vector2, bool> allowed, out Vector2 found)
         {
             float cell = passable.CellSize;
             for (float radius = cell; radius <= reach; radius += cell)
@@ -196,7 +211,7 @@ namespace Dino_Engine.World.Generation
                 {
                     float angle = i * (MathF.Tau / steps);
                     Vector2 candidate = around + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
-                    if (!passable.IsSet(candidate)) continue;
+                    if (!passable.IsSet(candidate) || !allowed(candidate)) continue;
                     found = candidate;
                     return true;
                 }

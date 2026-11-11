@@ -59,16 +59,19 @@ namespace Dino_Engine.World.Content
         public float Dangers = 1f;
 
         /// <summary>
-        /// A world of one village and nobody hostile, under a sky that doesn't change: the Haven. It has no landing, keep or packs, and its one place is <see cref="SiteKind.Haven"/>, built
+        /// A world of one village and nobody hostile: the Haven. It has no landing, keep or packs, and its one place is <see cref="SiteKind.Haven"/>, built
         /// by <see cref="Generation.HavenBuilder"/>. Never drawn from a seed, as it isn't in <see cref="ArchetypeCatalog.All"/>.
         /// </summary>
         public bool Peaceful;
 
         /// <summary>
-        /// A world that's nothing but one arena, where a land's boss is fought every tenth level: a bowl of tiered stands with the floor sunk into the ground, built by
-        /// <see cref="Generation.ArenaBuilder"/>. Never drawn from a seed: they're in <see cref="ArenaCatalog"/>, as biomes are, so there can be more than one kind.
+        /// A world that's nothing but one arena, where a land's boss is fought every tenth level, and which kind: its floor sealed round, its stands, and what takes part in the fight, built by
+        /// <see cref="Generation.ArenaBuilder"/>. Never drawn from a seed: they're in <see cref="ArenaCatalog"/>, as biomes are. Read ARENAS.md.
         /// </summary>
-        public bool Arena;
+        public ArenaKind? ArenaKind;
+
+        /// <summary>Whether it's a boss map, nothing but one arena.</summary>
+        public bool Arena => ArenaKind.HasValue;
 
         /// <summary>A world of one place and nothing else, which is either of the two above.</summary>
         public bool Enclosed => Peaceful || Arena;
@@ -77,6 +80,18 @@ namespace Dino_Engine.World.Content
         public string? Light;
         public float SunAzimuth;
         public float SunHeight;
+
+        /// <summary>
+        /// A world whose sun goes round (<see cref="DayCycle"/>) and whose weather runs on its own, through every mood a day can have, rather than coming from the climate
+        /// (<see cref="WeatherField"/>): the Haven, which is visited often and never twice the same. Its <see cref="Light"/> is where the sun goes down.
+        /// </summary>
+        public bool DayAndNight;
+
+        /// <summary>
+        /// The weather it's always seen in, in place of what its climate would bring: an arena's, which is one place seen for one fight, and has to look as it was meant to (ARENAS.md). The same on
+        /// every machine, as the weather is a pure function of the world.
+        /// </summary>
+        public WeatherSample? Weather;
     }
 
     /// <summary>Every kind of world.</summary>
@@ -268,6 +283,7 @@ namespace Dino_Engine.World.Content
             Light = "Golden evening",
             SunAzimuth = 2.45f,
             SunHeight = 0.3f,
+            DayAndNight = true,
         };
 
         public static readonly IReadOnlyList<WorldArchetype> All = new[]
@@ -291,38 +307,69 @@ namespace Dino_Engine.World.Content
     }
 
     /// <summary>
-    /// Every kind of arena, where a land's boss is fought every tenth level, as there are kinds of world for every other land. A kind is a world of one place: what it looks like is
-    /// <see cref="Generation.ArenaBuilder"/>'s, and what's here is the land it stands in. More kinds go on the end.
+    /// Every kind of arena, where a land's boss is fought every tenth level, as there are kinds of world for every other land. A kind is a world of one place: what it looks like is its builder's
+    /// (<see cref="Generation.ArenaBuilder"/>), and what's here is the land it stands in: an isle, its light, its stone and what grows round it. More kinds go on the end. Read ARENAS.md.
     /// </summary>
     public static class ArenaCatalog
     {
-        /// <summary>
-        /// The Reich's colosseum: a bowl of stone stands dug into a low hill, its floor sand, its people made to watch from the tiers, with gates round it that the brood's handlers open when
-        /// the fight goes against their tyrant.
-        /// </summary>
-        public static readonly WorldArchetype Colosseum = new WorldArchetype
+        // Every arena stands on a small isle: enough that its heart is well in from the shore, with room for the whole of it, and level ground to dig into.
+        private static WorldArchetype Isle(ArenaKind kind, string id, string name, string[] titles, BiomeDefinition[] biomes, RockKind? rock, string light, float azimuth, float height, WeatherSample weather) => new WorldArchetype
         {
-            Id = "colosseum",
-            Name = "Colosseum",
-            Titles = new[] { "The Arena of {0}", "The Pit of {0}", "{0} Arena" },
+            Id = id,
+            Name = name,
+            Titles = titles,
             Landform = LandformKind.Island,
-            Size = new FloatRange(384f, 384f),      // Enough isle that its heart is well in from the shore, with room for the bowl, the ramp and the waygate above it.
+            Size = new FloatRange(384f, 384f),
             BaseHeight = new FloatRange(13f, 14f),
             HillHeight = new FloatRange(3f, 4f),
             MountainHeight = new FloatRange(10f, 12f),
             MountainCoverage = new FloatRange(0f, 0f),
             Cliffs = new FloatRange(0.3f, 0.45f),
             Erosion = new FloatRange(0.7f, 0.8f),
-            Biomes = new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Meadow, BiomeCatalog.Savanna, BiomeCatalog.Badlands },
+            Bedrock = rock,
+            Biomes = biomes,
             BiomeCount = new IntRange(2, 3),
             Settlements = 0f,
             Wilds = 0f,
             Dangers = 0f,
-            Arena = true,
+            ArenaKind = kind,
+            Light = light,
+            SunAzimuth = azimuth,
+            SunHeight = height,
+            Weather = weather,
         };
 
-        public static readonly IReadOnlyList<WorldArchetype> All = new[] { Colosseum };
+        private static readonly WeatherSample Fair = new WeatherSample { Gale = 1f };
+
+        /// <summary>The Reich's oldest kind: a round pit dug into a hill, its floor sand, a sheer wall round it and three tiers of stone stands, in the glare of high summer.</summary>
+        public static readonly WorldArchetype Pit = Isle(ArenaKind.Pit, "pit", "The Pit", new[] { "The Pit of {0}", "{0} Pit", "The Blood Pit of {0}" },
+            new[] { BiomeCatalog.GoldenSteppe, BiomeCatalog.Savanna, BiomeCatalog.Badlands, BiomeCatalog.Meadow }, RockKind.Sandstone, "High summer", 4.2f, 0.82f, Fair);
+
+        /// <summary>The Reich's great amphitheatre: an oval of sand under a cavea of pale stone seats, its people packed in, lifts under the floor and bolt-throwers in the commander's box, at evening.</summary>
+        public static readonly WorldArchetype Colosseum = Isle(ArenaKind.Colosseum, "colosseum", "The Colosseum", new[] { "The Colosseum of {0}", "{0} Colosseum", "The Great Arena of {0}" },
+            new[] { BiomeCatalog.Meadow, BiomeCatalog.GoldenSteppe, BiomeCatalog.CedarWood, BiomeCatalog.Savanna }, RockKind.Limestone, "Golden evening", 3.75f, 0.3f, new WeatherSample { Cloud = 0.2f, Gale = 0.9f });
+
+        /// <summary>The Amber Institute's breeding cage: black iron bars round a pen of mud and straw, the brood's pens round it and its eggs in the straw, under a grey, close sky.</summary>
+        public static readonly WorldArchetype Cage = Isle(ArenaKind.Cage, "cage", "The Jurassic Cage", new[] { "The Jurassic Cage of {0}", "The Cage at {0}", "The Breeding Cage of {0}" },
+            new[] { BiomeCatalog.Jungle, BiomeCatalog.Marsh, BiomeCatalog.BambooThicket, BiomeCatalog.DarkWood }, RockKind.Granite, "Grey overcast", 5.6f, 0.62f, new WeatherSample { Cloud = 0.6f, Mist = 0.12f, Wet = 0.2f, Gale = 0.7f });
+
+        /// <summary>A temple of the land's own sun the Reich made its seat of assembly: a sunken court of golden stone, its great disc, and the brass mirrors that burn the floor, under a sun near overhead.</summary>
+        public static readonly WorldArchetype SunTemple = Isle(ArenaKind.SunTemple, "suntemple", "The Sun-Temple", new[] { "The Sun-Temple of {0}", "The Sun-Temple at {0}" },
+            new[] { BiomeCatalog.Savanna, BiomeCatalog.Dunes, BiomeCatalog.GoldenSteppe, BiomeCatalog.Badlands }, RockKind.Sandstone, "High summer", 4.71f, 0.9f, new WeatherSample { Gale = 0.8f });
+
+        /// <summary>The Ossuary's dig where the Reich's first charge on the land was buried in ash: a quarry bowl, the charge turned to stone on its floor, under a grey sky.</summary>
+        public static readonly WorldArchetype Onslaught = Isle(ArenaKind.Onslaught, "onslaught", "The Fossilized Onslaught", new[] { "The Fossilized Onslaught of {0}", "The Fossil Field of {0}", "The Ash Field of {0}" },
+            new[] { BiomeCatalog.Ashland, BiomeCatalog.Highland, BiomeCatalog.Badlands, BiomeCatalog.DarkWood }, RockKind.Basalt, "Grey overcast", 4.4f, 0.6f, new WeatherSample { Cloud = 0.85f, Fall = 0.3f, Ash = 1f, Mist = 0.2f, Gale = 1.1f });
+
+        /// <summary>The Cathedral of the Iron Apex: a nave of dark stone under ribs of black iron, iron wheels of candles over it and windows of oxblood and amber, always seen by night.</summary>
+        public static readonly WorldArchetype Cathedral = Isle(ArenaKind.Cathedral, "cathedral", "The Cathedral of the Iron Apex", new[] { "The Cathedral of the Iron Apex at {0}", "The Iron Apex of {0}" },
+            new[] { BiomeCatalog.DarkWood, BiomeCatalog.PineForest, BiomeCatalog.Highland, BiomeCatalog.CedarWood }, RockKind.Granite, "Golden evening", 3.9f, 0.18f, new WeatherSample { Cloud = 0.3f, Gale = 0.8f });
+
+        public static readonly IReadOnlyList<WorldArchetype> All = new[] { Pit, Colosseum, Cage, SunTemple, Onslaught, Cathedral };
 
         public static bool Is(string? id) => id != null && All.Any(arena => arena.Id == id);
+
+        /// <summary>The arena of a kind.</summary>
+        public static WorldArchetype Of(ArenaKind kind) => All.First(arena => arena.ArenaKind == kind);
     }
 }

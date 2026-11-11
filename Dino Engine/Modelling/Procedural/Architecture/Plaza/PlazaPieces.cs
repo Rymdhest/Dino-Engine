@@ -21,8 +21,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Plaza
         /// <summary>
         /// A flight rising towards -z from its bottom riser on z = 0, <paramref name="width"/> between its cheeks: each step a row of long blocks with its nosing a little proud and
         /// running back under the next, so nothing shows between them. The cheeks hold up whatever the flight climbs to and stand <paramref name="top"/> high, running on
-        /// <paramref name="landing"/> behind the top step, and their ends at the foot stand out <paramref name="piers"/> in front as piers with a lantern each; their ends at the top carry
-        /// a lantern too.
+        /// <paramref name="landing"/> behind the top step, and their ends at the foot stand out <paramref name="piers"/> in front as piers; each pier, and a plinth where each cheek ends
+        /// at the top, is where a lantern stands (<see cref="FlightLamps"/>), as a lamp of its own: a light inside a model this size is shut in by it (LocalShadowCasters).
         /// </summary>
         public static void Steps(MeshBuilder b, float width, int count, float rise, float tread, float cheek, float top, float landing, float piers, uint seed, List<AssetLight> lights)
         {
@@ -64,12 +64,21 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Plaza
                 float middle = side * (half + cheek * 0.5f);
                 // A little wider than the cheek, so the two never share a face where they meet.
                 Pier(b, new Vector3(middle, 0f, (piers - 0.25f) * 0.5f), new Vector2(cheek + 0.1f, piers + 0.25f), top + 0.5f, random.Fork(side > 0f ? "east" : "west"));
-                LanternHead(b, new Vector3(middle, top + 0.5f, (piers - 0.25f) * 0.5f), 1f, random.Fork(side > 0f ? "east lamp" : "west lamp"), lights);
 
-                // A smaller lantern where the cheek ends at the top of the flight.
+                // A plinth for the smaller lantern where the cheek ends at the top of the flight.
                 float backZ = -length + cheek * 0.5f;
                 PlazaStone.Block(b, new Vector3(middle, top + 0.11f, backZ), new Vector3(cheek * 0.36f, 0.11f, cheek * 0.36f), 0f, PlazaStone.Chamfer, PlazaStone.Dressed(random, top));
-                LanternHead(b, new Vector3(middle, top + 0.22f, backZ), 0.8f, random.Fork(side > 0f ? "east top" : "west top"), lights);
+            }
+        }
+
+        /// <summary>Where a flight's lanterns stand, in its own frame, and how big each is: on its piers at the foot, and a little smaller where its cheeks end at the top.</summary>
+        public static IEnumerable<(Vector3 Foot, float Scale)> FlightLamps(float width, int count, float tread, float cheek, float top, float landing, float piers)
+        {
+            float middle = width * 0.5f + cheek * 0.5f, length = count * tread + landing;
+            foreach (float side in new[] { -1f, 1f })
+            {
+                yield return (new Vector3(side * middle, top + 0.5f, (piers - 0.25f) * 0.5f), 1f);
+                yield return (new Vector3(side * middle, top + 0.22f, -length + cheek * 0.5f), 0.8f);
             }
         }
 
@@ -259,12 +268,11 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Plaza
                 x += piece;
             }
             Roof(b, outer + 0.5f, z + 0.62f, cornice + 0.22f, RoofRise, random.Fork("roof"));
-
-            // A lantern hanging from the crown of the arch, under its keystone.
-            float hang = springY + radius - 0.02f;
-            b.Tube(new Vector3(0f, hang, 0f), new Vector3(0f, hang - 0.85f, 0f), 0.022f, 0.022f, 4, PlazaStone.DarkTimber(random));
-            HangingLantern(b, new Vector3(0f, hang - 1.2f, 0f), random.Fork("lamp"), lights);
+            // The lantern hung from its crown is a lamp of its own (ArchCrown), or the arch would shut its light in.
         }
+
+        /// <summary>How high the underside of an arch's crown is, where a lantern hangs from.</summary>
+        public static float ArchCrown(float span, float spring) => PlazaStone.Ground + spring + span * 0.5f;
 
         private const float RoofRise = 1.05f;
 
@@ -307,23 +315,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Plaza
             }
         }
 
-        // A lantern on a cord: a wooden frame round its light, under a little roof.
-        private static void HangingLantern(MeshBuilder b, Vector3 at, WorldRandom random, List<AssetLight> lights)
-        {
-            VertexMaterial wood = PlazaStone.DarkTimber(random);
-            PlazaStone.Block(b, at + new Vector3(0f, 0.34f, 0f), new Vector3(0.26f, 0.04f, 0.26f), 0f, 0.015f, wood);
-            b.Tube(at + new Vector3(0f, 0.38f, 0f), at + new Vector3(0f, 0.52f, 0f), 0.26f, 0.05f, 4, wood);
-            b.Box(at + new Vector3(0f, 0.07f, 0f), new Vector3(0.18f, 0.26f, 0.18f), PlazaStone.Glow(1f, 0.58f, 0.22f, 2.4f));
-            foreach (float x in new[] { -1f, 1f })
-            {
-                foreach (float zz in new[] { -1f, 1f })
-                {
-                    b.Box(at + new Vector3(x * 0.2f, 0.07f, zz * 0.2f), new Vector3(0.028f, 0.28f, 0.028f), wood);
-                }
-            }
-            PlazaStone.Block(b, at + new Vector3(0f, -0.22f, 0f), new Vector3(0.22f, 0.03f, 0.22f), 0f, 0.012f, wood);
-            lights.Add(PlazaStone.HungLantern(at + new Vector3(0f, 0.07f, 0f)));
-        }
 
         // ---------------------------------------------------------------- Well
 

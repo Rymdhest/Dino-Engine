@@ -52,6 +52,9 @@ namespace Dino_WorldLab
                     return HallCheck.Run();
                 case "square":
                     return SquareCheck.Run();
+                case "arenas":
+                    if (options.Text("land") is string land) return ArenaCheck.Keep(options.Int("seed", 1), land);
+                    return ArenaCheck.Run(options.Int("seed", 1), options.Text("archetype"));
                 case "weather":
                     if (options.Text("out") is string path) return WeatherCheck.Map(options.Int("seed", 1), options.Text("archetype"), path, options.Int("clock", 0), options.Int("every", 4), options.Int("maps", 5));
                     return WeatherCheck.Run(options.Int("count", 3));

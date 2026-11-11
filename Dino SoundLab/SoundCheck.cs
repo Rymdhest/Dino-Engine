@@ -692,6 +692,28 @@ namespace Dino_SoundLab
             }
         }
 
+        // A live sound that goes bad after a while, to prove that one bad sound costs only itself.
+        private sealed class Broken : LiveSound
+        {
+            private int _made;
+
+            public Broken() : base(0, 1)
+            {
+            }
+
+            protected override void Process(Span<float> left, Span<float> right)
+            {
+                for (int i = 0; i < left.Length; i++)
+                {
+                    float value = ++_made > AudioFormat.SampleRate / 4 ? float.NaN : MathF.Sin(_made * 0.06f) * 0.2f;
+                    left[i] = value;
+                    right[i] = value;
+                }
+            }
+        }
+
+        private static readonly LiveDefinition BrokenDefinition = new("test.broken", seed => new Broken());
+
         private static SoundPool Ready(SoundDefinition definition)
         {
             var pool = new SoundPool(definition);
@@ -704,6 +726,17 @@ namespace Dino_SoundLab
             var rig = new Rig();
             (float quietLeft, float quietRight, _) = rig.Render(0.5f);
             expect(quietLeft < Silent && quietRight < Silent, "the mixer makes sound from nothing");
+
+            // A live sound that starts making things that aren't numbers is silenced and named, and everything else goes on.
+            var broken = new Rig();
+            int bad = broken.Mixer.Reserve();
+            broken.Mixer.Post(new AudioCommand { Kind = CommandKind.Start, Voice = bad, Payload = BrokenDefinition.Create(1), Extra = BrokenDefinition, X = 1f });
+            (_, _, float[] poisoned) = broken.Render(0.6f);
+            expect(poisoned.All(float.IsFinite), "one live sound going bad poisoned the whole mix");
+            expect(broken.Mixer.Faults == 1 && broken.Mixer.Fault == "test.broken", $"a live sound that went bad wasn't named ({broken.Mixer.Faults} faults, {broken.Mixer.Fault})");
+            broken.Play(broken.TestPool);
+            (float after, _, _) = broken.Render(0.3f);
+            expect(after > 0.02f, "the mixer went quiet for good after a live sound went bad");
 
             rig.Play(rig.TestPool);
             (float left, float right, _) = rig.Render(0.3f);

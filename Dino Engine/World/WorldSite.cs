@@ -83,6 +83,9 @@ namespace Dino_Engine.World
         public Vector2? Footing;
         public Vector2 Landing => Footing ?? Position;
 
+        /// <summary>The arena of a boss map, or the sealed one in a land's keep, where its tyrant waits (ARENAS.md).</summary>
+        public ArenaPlan? Arena;
+
         /// <summary>Where a game should put characters and things. Worldgen only says where and what for.</summary>
         public readonly List<SiteSpawn> Spawns = new();
 

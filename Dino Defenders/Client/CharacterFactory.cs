@@ -175,6 +175,28 @@ namespace Dino_Defenders.Client
             return Villager(0);
         }
 
+        private static readonly Dictionary<string, Dino_Engine.World.Content.AssetLight[]> PropLights = new();
+
+        /// <summary>
+        /// What a prop the server moves gives off, light and flame, in its own frame (<see cref="PropLightsComponent"/>): an arena's chandeliers burn as they hang and as they lie. Of the pieces an
+        /// arena moves only those have any, so nothing else is built twice to find out.
+        /// </summary>
+        public static IReadOnlyList<Dino_Engine.World.Content.AssetLight> LightsOf(string key)
+        {
+            lock (PropLights)
+            {
+                if (PropLights.TryGetValue(key, out var known)) return known;
+            }
+            var lights = new List<Dino_Engine.World.Content.AssetLight>();
+            if (Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaSpec.TryParse(key, out var arena) && arena.Shape == Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaShape.Chandelier)
+            {
+                Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaForge.Make(arena, lights);
+            }
+            var found = lights.ToArray();
+            lock (PropLights) PropLights[key] = found;
+            return found;
+        }
+
         // What a key is built from, and the name its model is kept by, which a few keys share. It touches nothing of a factory's, so the models can be grown on any thread.
         private static (string Key, Func<Mesh> Build)? Recipe(string key)
         {
@@ -195,7 +217,8 @@ namespace Dino_Defenders.Client
             if (key == ChestLook.Open) return (key, () => Chest(open: true));
             if (key is ChestLook.Lid or ChestLook.Opening) return (ChestLook.Lid, ChestLid);
             if (key == "dummy") return (key, Dummy);
-            if (key == Server.ArenaSystem.PortcullisModel) return (key, Portcullis);
+            // Whatever of an arena moves is one of its pieces, grown from its id as the rest of it is (ARENAS.md).
+            if (Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaSpec.TryParse(key, out var arena)) return (key, () => Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaForge.Make(arena, new List<Dino_Engine.World.Content.AssetLight>()));
             if (key == Progression.LootModels.Gold) return (key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
             if (key == Progression.LootModels.Find) return (key, () => Ball(new Colour(0f, 0f, 0f)));
             if (key.StartsWith(BoltPrefix) && Enum.TryParse(key.AsSpan(BoltPrefix.Length), out Stats.DamageType look))
@@ -556,28 +579,6 @@ namespace Dino_Defenders.Client
             {
                 float z = 0.36f + i * 0.012f;
                 builder.Tube(new Vector3(0f, 1.38f, z), new Vector3(0f, 1.38f, z + 0.01f), rings[i].radius, rings[i].radius, 14, rings[i].paint);
-            }
-            return builder.Build();
-        }
-
-        // An arena gate's portcullis, the Reich's black iron: upright bars through cross bars, with spikes at the foot, filling the gate's opening. It matches the gate in PropGenerator, and the
-        // server lifts the whole of it into the block above.
-        private static Mesh Portcullis()
-        {
-            const float HalfWidth = 1.6f;
-            const float Tall = 3.8f;
-            const int Uprights = 7;
-            var builder = new MeshBuilder();
-            VertexMaterial iron = new VertexMaterial(TextureGenerator.iron, new Colour(34, 32, 34));
-            for (int i = 0; i < Uprights; i++)
-            {
-                float x = -HalfWidth + (i + 0.5f) * (HalfWidth * 2f / Uprights);
-                builder.Box(new Vector3(x, Tall * 0.5f + 0.1f, 0f), new Vector3(0.07f, Tall * 0.5f - 0.1f, 0.07f), iron);
-                builder.Box(new Vector3(x, 0.1f, 0f), new Vector3(0.05f, 0.1f, 0.05f), iron);
-            }
-            foreach (float y in new[] { 0.9f, 2f, 3.1f })
-            {
-                builder.Box(new Vector3(0f, y, 0f), new Vector3(HalfWidth, 0.06f, 0.09f), iron);
             }
             return builder.Build();
         }

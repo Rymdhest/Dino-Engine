@@ -188,6 +188,11 @@ namespace Dino_Engine.World.Generation
             const float Landing = 0.8f;
             Piece(new PlazaSpec(PlazaKind.Steps, NextSeed(), Cm(FlightHalf * 2f), Steps, Cm(Rise), Cm(Tread), Cm(Cheek), Cm(top), Cm(Landing), Cm(PierOut)),
                 new Vector2(0f, TerraceFront), YawFacing(-North), 0f);
+            // Its lanterns, each a lamp of its own. The flight faces south, so its own x runs west and its own z south.
+            foreach ((Vector3 foot, float scale) in PlazaPieces.FlightLamps(FlightHalf * 2f, Steps, Tread, Cheek, top, Landing, PierOut))
+            {
+                Piece(new PlazaSpec(PlazaKind.Lamp, NextSeed(), 0, (int)MathF.Round(scale * 100f)), new Vector2(-foot.X, TerraceFront - foot.Z), YawFacing(-North), foot.Y);
+            }
 
             float length = Steps * Tread + Landing;
             foreach (float s in new[] { -1f, 1f })
@@ -281,6 +286,9 @@ namespace Dino_Engine.World.Generation
         {
             float z = ArchAt;
             Piece(new PlazaSpec(PlazaKind.Arch, NextSeed(), Cm(ArchSpan), Cm(ArchSpring), Cm(ArchDepth), Cm(ArchPier)), new Vector2(0f, z), YawFacing(-North), 0f);
+            // A lantern hung under its crown, a lamp of its own.
+            const float Cord = 1.2f;
+            Piece(new PlazaSpec(PlazaKind.Lamp, NextSeed(), 1, Cm(Cord)), new Vector2(0f, z), YawFacing(-North), PlazaPieces.ArchCrown(ArchSpan, ArchSpring) - 0.02f - Cord);
             foreach (float s in new[] { -1f, 1f })
             {
                 Solid(Footprint.Box(_c + new Vector2(s * (ArchSpan * 0.5f + ArchPier * 0.5f), z), new Vector2(ArchPier * 0.5f + 0.1f, ArchDepth * 0.5f + 0.1f), 0f), PlacementIndex.Tall);
@@ -295,6 +303,11 @@ namespace Dino_Engine.World.Generation
         {
             float yaw = YawFacing(-East);
             Piece(new PlazaSpec(PlazaKind.Pergola, NextSeed(), Cm(LoggiaLength), Cm(LoggiaDepth), LoggiaBays, Cm(LoggiaHeight), 58), LoggiaAt, yaw, 0f);
+            // Its lanterns, each a lamp of its own. It faces west, so its own x runs north.
+            foreach ((Vector3 at, float cord) in PlazaDressing.PergolaLamps(LoggiaLength, LoggiaBays, LoggiaHeight))
+            {
+                Piece(new PlazaSpec(PlazaKind.Lamp, NextSeed(), 1, Cm(cord)), LoggiaAt + new Vector2(-at.Z, at.X), yaw, at.Y);
+            }
             for (int k = 0; k <= LoggiaBays; k++)
             {
                 float along = -LoggiaLength * 0.5f + LoggiaLength * k / LoggiaBays;
