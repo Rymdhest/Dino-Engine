@@ -55,6 +55,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             GearLook look = kit.Look;
             float height = kit.Blend("height", new Vector2(0.27f, 0.32f), new Vector2(0.24f, 0.29f), new Vector2(0.2f, 0.26f));
             int lames = kit.Make == GearMake.Plate ? genes.Count("lames", 4, 7) : 0;
+            if (lames > 0) mesh.Mark(lames >= 6 ? "long sabaton" : "sabaton");
             float sole = genes.Range("sole", 0.035f, 0.055f);
             int steps = 12 + lames;
             var rings = new List<Ring>();
@@ -137,6 +138,26 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                         Vector3 out_ = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
                         mesh.Rivet(new Vector3(x, y, 0f) + out_ * r, out_, angle < 0f ? 0.012f : 0.016f, kit.Fitting);
                     }
+                }
+                // A buckled strap round a greave's middle on some, over its hinge.
+                if (genes.Chance("greave.strap", 0.4f))
+                {
+                    mesh.Mark("greave strap");
+                    float y = bottom + (top - bottom) * 0.5f;
+                    float r = BodyForm.Leg(y) + gap + thick + 0.006f;
+                    kit.Belt(mesh, genes.Part("greave.strap"), a => OnSide(new Vector3(x + MathF.Cos(a) * r, y, MathF.Sin(a) * r), side, flat + thick), a => new Vector3(MathF.Cos(a), 0f, MathF.Sin(a)), 0.02f, 0.007f, side > 0f ? 0.4f : MathF.PI - 0.4f);
+                }
+                // A spur on some, strapped round the ankle, its rowel on a neck behind the heel: a rider's, and a knight's.
+                if (genes.Chance("spur", 0.4f))
+                {
+                    mesh.Mark("spur");
+                    float y = 0.27f;
+                    float r = BodyForm.Leg(y) + gap + thick + 0.012f;
+                    mesh.At(Matrix4.CreateTranslation(x, y, 0f), () => mesh.Hoop(Section.Round(5), r, 0.012f, 0.012f, 14, kit.Strap));
+                    Vector3 heel = new Vector3(x, y - 0.01f, -r);
+                    Vector3 end = heel + new Vector3(0f, -0.03f, -0.1f);
+                    mesh.Sweep(Section.Round(5), new[] { heel, end }, t => new Vector2(0.014f * (1f - 0.3f * t)), kit.Fitting, Vector3.UnitY);
+                    mesh.At(GearMesh.Basis(end + new Vector3(0f, -0.005f, -0.02f), Vector3.UnitY, Vector3.UnitZ, Vector3.UnitX), () => mesh.Lathe(Section.Polygon(genes.Count("rowel", 6, 8)), 0.008f, 1, _ => 0.038f, kit.Fitting));
                 }
                 return;
             }

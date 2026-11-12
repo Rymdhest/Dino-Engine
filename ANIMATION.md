@@ -71,6 +71,13 @@ A dinosaur fights with its mouth, its tail, its weight and its voice: `Chomp` (a
 
 What isn't a book goes by `FlourishEvent`: drinking, and putting a hand out to use something. It's for show, so it can go missing.
 
+**What's held** has rules of its own, each held by `check` and each seen to fail with its fault put back:
+
+- **An edge leads.** What a weapon has on its +x side, an axe's bit, a hammer's face, a one-edged blade's edge, goes the way the forearm points, away from the elbow (`HumanoidGenerator.MainHand`), so it hangs down from a hand at rest; and in a blow the hand turns what it holds round its own length to the way the blade is travelling (`GestureSample.MainSweep`, from the keys), so the edge meets what it's swung at. Only the roll changes: nothing the rules read moves. A person saw axes held with their blades to the sky.
+- **Forearms keep out of the body.** An elbow that would take its forearm through the trunk goes out and down instead, by how near it would come (`IntoTrunk`, a trunk as wide as the shoulders stand apart). A two-hander rests on the shoulder standing and is held centred in front on guard, its elbows hanging down and out, and its second hand lets go where holding on would put it into the body or round behind it, or when a gesture gives that hand its own part, and takes hold again after. A person saw a left arm straight through the body of someone standing with a greatsword.
+- **A bow's hand isn't driven by a right hand's moves.** Anything written for a right hand is done with the free right hand, and the bow hand does what the other would, each on its own side (`Bowed`); only `Shoot` is written for a bow (`Gesture.LeftHanded`).
+- **A ward is held up** in the other hand as a lantern is (`Carry.Ward`), and never takes a turn to strike (`Carry.Swings`).
+
 ## Falling
 
 `Ragdoll` is what's left when nobody's in a body. It's Jakobsen's Verlet particles, as Hitman's corpses were: each point remembers where it was instead of how fast it's going, and every rod is put right by moving its ends. That can lose energy and can't gain any, so **nothing here can blow up, however hard it's thrown**, and it costs about 14 µs a body while falling and nothing once it's still.
@@ -153,7 +160,7 @@ dotnet "Dino AnimLab/bin/Release/net8.0/Dino AnimLab.dll" sheet --body wolf --do
 dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" combat     # What a fight promises, against a real server and clients
 ```
 
-`check` is every body in every situation, 18,000 frames of the worst input a game could give, and bodies thrown at the buildings and trees of a real world. `sheet` draws frames with no GPU: `--body` is bare, sword, shield, spear, bow, robe, brute, cutthroat, skeleton, wolf, boar or bear, any of the six dinosaurs (raptor, skitter, spitter, ravager, tyrant, hornback) or any dinosaur's model name, such as `dino:tyrant.bones.0`, and `--do` is any script in `Script.Named`. `zoo` stands dinosaurs side by side.
+`check` is every body in every situation, 18,000 frames of the worst input a game could give, and bodies thrown at the buildings and trees of a real world. `sheet` draws frames with no GPU: `--body` is bare, sword, shield, spear, bow, robe, brute, cutthroat, skeleton, wolf, boar or bear, the armoured knight, ranger, mage, axeman, greataxe, greatsword, axes (one in each hand) and warden (a ward), any of the six dinosaurs (raptor, skitter, spitter, ravager, tyrant, hornback) or any dinosaur's model name, such as `dino:tyrant.bones.0`, and `--do` is any script in `Script.Named`. `zoo` stands dinosaurs side by side.
 
 `combat` is the one to run after changing anything here. Every edge of every shape is tried from both sides, each timing to the tick, and everything that can stop a blow. Every bug it was written for has been put back to see it fail. Keep it that way: a test that's only ever passed proves nothing.
 

@@ -31,6 +31,7 @@ namespace Dino_BuildLab
             Seeds(report);
             OldLooks(report);
             Traits(report);
+            Uniforms(report);
 
             report.Section("Saves from before there were ten places");
             OldPlaces(report);
@@ -415,6 +416,42 @@ namespace Dino_BuildLab
             report.Check("A unique's base is in the catalogue", ItemGenerator.BaseOf(new Item { Name = "Ashen Promise", Slot = ItemSlot.MainHand, Unique = "ashen-promise" }) == "Arming Sword");
         }
 
+        // What the land's people and the Reich's wear: each kind dressed within what a crowd of them can cost, nobody but the Reich's own in its colours, and the Reich's plainly in them. What
+        // comes in bands has to be cheaper than one met alone, as a warlord or a grave knight is, who costs about what a hero in everything does.
+        private const int MostCrowdTriangles = 20000;
+        private const int MostAloneTriangles = 34000;
+
+        private static void Uniforms(Report report)
+        {
+            int dearest = 0, dearestAlone = 0;
+            string dearestKey = "", dearestAloneKey = "";
+            var wearing = new List<string>();
+            var bare = new List<string>();
+            foreach (string key in Dino_Defenders.Client.Uniforms.Keys)
+            {
+                Dino_Engine.Modelling.Model.Mesh mesh = Dino_Defenders.Client.Uniforms.Make(key);
+                bool alone = key is "warlord" or "revenant";
+                if (alone && mesh.faces.Count > dearestAlone) { dearestAlone = mesh.faces.Count; dearestAloneKey = key; }
+                if (!alone && mesh.faces.Count > dearest) { dearest = mesh.faces.Count; dearestKey = key; }
+                if (Environment.GetEnvironmentVariable("UNIFORMS") == "1") Console.WriteLine($"    {key}: {mesh.faces.Count}");
+                int reichs = 0;
+                foreach (Dino_Engine.Modelling.Model.MeshVertex vertex in mesh.meshVertices)
+                {
+                    OpenTK.Mathematics.Vector3 albedo = vertex.colour.ToVector3() * Dino_Engine.Modelling.Procedural.Gear.GearMaterials.AlbedoOf(vertex.materialTextureIndex);
+                    if (Dino_Engine.Modelling.Procedural.Gear.GearSwatches.IsReichs(albedo, Dino_Engine.Modelling.Procedural.Gear.GearMaterials.IsMetal(vertex.materialTextureIndex))) reichs++;
+                }
+                float share = reichs / (float)Math.Max(mesh.meshVertices.Count, 1);
+                bool reich = Dino_Defenders.Client.Uniforms.IsReichs(key);
+                if (!reich && share > 0.01f) wearing.Add($"{key} {share:P0}");
+                if (reich && share < 0.25f) bare.Add($"{key} {share:P0}");
+            }
+            report.Check("Every kind of person met in bands is dressed within what a crowd of them can cost", dearest <= MostCrowdTriangles, $"{dearest} triangles at most, {dearestKey}, of {MostCrowdTriangles}");
+            report.Check("And one met alone within what a hero in everything costs", dearestAlone <= MostAloneTriangles, $"{dearestAlone}, {dearestAloneKey}, of {MostAloneTriangles}");
+            report.Check("Every outfit grows what it asks for: a hood, a straw hat, pauldrons, a helm with or without a crest", Dino_Defenders.Client.Uniforms.Unmet.IsEmpty, string.Join(", ", Dino_Defenders.Client.Uniforms.Unmet));
+            report.Check("Nobody but the Reich's own wears its colours", wearing.Count == 0, string.Join(", ", wearing));
+            report.Check("And the Reich's own plainly do", bare.Count == 0, string.Join(", ", bare));
+        }
+
         private static void Traits(Report report)
         {
             report.Check("Every base says what it's going for", ItemGenerator.BaseNames.All(ItemLook.HasForm), string.Join(", ", ItemGenerator.BaseNames.Where(b => !ItemLook.HasForm(b))));
@@ -512,6 +549,8 @@ namespace Dino_BuildLab
             var files = new List<string>();
             if (File.Exists(Path.Combine(folder, "save.json"))) files.Add(Path.Combine(folder, "save.json"));
             if (Directory.Exists(Path.Combine(folder, "backups"))) files.AddRange(Directory.GetFiles(Path.Combine(folder, "backups"), "*.json"));
+            // And the heroes being played now, each a save of its own since the main menu (HeroRoster).
+            if (Directory.Exists(Path.Combine(folder, "heroes"))) files.AddRange(Directory.GetFiles(Path.Combine(folder, "heroes"), "*.json"));
 
             foreach (string file in files)
             {

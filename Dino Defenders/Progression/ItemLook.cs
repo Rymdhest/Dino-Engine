@@ -294,5 +294,8 @@ namespace Dino_Defenders.Progression
 
         /// <summary>Whether a base has been thought about, for `check`.</summary>
         public static bool HasForm(string baseName) => Forms.ContainsKey(baseName);
+
+        /// <summary>The form a base is going for, as anything made as that base has (Client.Uniforms).</summary>
+        public static GearForm FormOf(string baseName) => Forms.TryGetValue(baseName, out GearForm form) ? form : throw new ArgumentException($"No base called {baseName}.");
     }
 }

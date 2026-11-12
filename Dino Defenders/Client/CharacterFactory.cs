@@ -201,17 +201,17 @@ namespace Dino_Defenders.Client
         private static (string Key, Func<Mesh> Build)? Recipe(string key)
         {
             if (SaurianSpec.Parse(key) is SaurianSpec dinosaur) return (key, () => SaurianForge.Make(dinosaur));
-            if (key.StartsWith(ReichPrefix)) return (key, () => HumanoidGenerator.Generate(ReichLook(key.Substring(ReichPrefix.Length))));
+            // The land's people and the Reich's, dressed in what a hero could wear, in a uniform each (Uniforms).
+            if (key.StartsWith(ReichPrefix)) return (key, () => Uniforms.Make(key));
             if (key == "skeleton") return (key, SkeletonGenerator.GenerateSkeleton);
             if (Gameplay.MinionLooks.TryParse(key, out var weapon, out var offHand)) return (key, () => Outfit.Hold(Gameplay.MinionLooks.Hovers(key) ? null : SkeletonGenerator.GenerateBare(), Held(weapon, offHand, Gameplay.MinionLooks.Hovers(key))));
             if (key == "skeleton:bow") return (key, SkeletonGenerator.GenerateArcher);
-            if (key == "warlord") return (key, () => HumanoidGenerator.Generate(WarlordLook));
-            if (key == "revenant") return (key, () => HumanoidGenerator.Generate(RevenantLook));
+            if (key == "warlord") return (key, () => Uniforms.Make(key));
+            if (key == "revenant") return (key, () => Uniforms.Make(key));
             if (BeastOf(key) is BeastLook beast) return (key, () => BeastGenerator.Generate(beast));
-            if (key.StartsWith("robed:")) return (key, () => HumanoidGenerator.Generate(RobedLook(key.Substring(6))));
-            if (key.StartsWith("acolyte:")) return (key, () => HumanoidGenerator.Generate(AcolyteLook(key.Substring(8))));
-            if (key.StartsWith("cutthroat") && int.TryParse(key.AsSpan(9), out int cutthroat)) return (key, () => HumanoidGenerator.Generate(CutthroatLook(cutthroat)));
-            if (key.StartsWith("brute") && int.TryParse(key.AsSpan(5), out int brute)) return (key, () => HumanoidGenerator.Generate(BruteLook(brute)));
+            if (key.StartsWith("robed:") || key.StartsWith("acolyte:")) return (key, () => Uniforms.Make(key));
+            if (key.StartsWith("cutthroat") && int.TryParse(key.AsSpan(9), out int cutthroat)) return ($"cutthroat{Math.Abs(cutthroat) % 4}", () => Uniforms.Make($"cutthroat{Math.Abs(cutthroat) % 4}"));
+            if (key.StartsWith("brute") && int.TryParse(key.AsSpan(5), out int brute)) return ($"brute{Math.Abs(brute) % 3}", () => Uniforms.Make($"brute{Math.Abs(brute) % 3}"));
             if (key == "arrow") return (key, Arrow);
             if (key.StartsWith(Books.Thrown.Prefix)) return (key, () => ThrownThing(key.Substring(Books.Thrown.Prefix.Length)));
             if (key == ChestLook.Closed) return (key, () => Chest(open: false));
@@ -236,7 +236,7 @@ namespace Dino_Defenders.Client
             if (key.StartsWith("villager") && int.TryParse(key.AsSpan(8), out int villager))
             {
                 int person = Math.Abs(villager) % VillagerLooks;
-                return ($"villager{person}", () => HumanoidGenerator.Generate(VillagerLook(person)));
+                return ($"villager{person}", () => Uniforms.Make($"villager{person}"));
             }
             if (key.StartsWith("bandit"))
             {
@@ -245,7 +245,7 @@ namespace Dino_Defenders.Client
                 {
                     int outfit = Math.Abs(bandit) % BanditLooks;
                     bool archer = key.EndsWith("True");
-                    return ($"bandit{outfit}{archer}", () => HumanoidGenerator.Generate(BanditLook(outfit, archer)));
+                    return ($"bandit{outfit}{archer}", () => Uniforms.Make($"bandit{outfit}{archer}"));
                 }
             }
             return null;
@@ -390,96 +390,8 @@ namespace Dino_Defenders.Client
             _ => new Vector3(0.55f, 0.2f, 0.7f),
         };
 
-        private static HumanoidLook RobedLook(string element) => new HumanoidLook
-        {
-            Tunic = RobeOf(element),
-            Legs = RobeOf(element) * 0.6f,
-            Trim = TrimOf(element),
-            Head = Headwear.Hood,
-            HeadColour = RobeOf(element) * 0.7f,
-            Skin = element == "Magic" ? new Vector3(0.36f, 0.35f, 0.34f) : new Vector3(0.62f, 0.44f, 0.32f),
-            LongGarment = true,
-            Held = HeldItem.Spear,
-            Bulk = 0.96f,
-        };
-
-        private static HumanoidLook AcolyteLook(string element) => new HumanoidLook
-        {
-            Tunic = RobeOf(element) * 0.75f,
-            Legs = new Vector3(0.09f, 0.08f, 0.08f),
-            Trim = TrimOf(element),
-            Head = Headwear.Hood,
-            HeadColour = RobeOf(element),
-            Held = HeldItem.Sword,
-            Bulk = 0.94f,
-        };
-
-        private static HumanoidLook CutthroatLook(int look)
-        {
-            Vector3[] leathers = { new Vector3(0.11f, 0.08f, 0.06f), new Vector3(0.08f, 0.09f, 0.07f), new Vector3(0.13f, 0.1f, 0.07f), new Vector3(0.07f, 0.06f, 0.08f) };
-            Vector3 leather = leathers[Math.Abs(look) % leathers.Length];
-            return new HumanoidLook
-            {
-                Tunic = leather,
-                Legs = leather * 0.8f,
-                Trim = new Vector3(0.3f, 0.06f, 0.05f),
-                Head = look % 2 == 0 ? Headwear.Hood : Headwear.Hair,
-                HeadColour = leather * 0.8f,
-                Held = HeldItem.Sword,
-                Bulk = 0.92f,
-            };
-        }
-
-        private static HumanoidLook BruteLook(int look) => new HumanoidLook
-        {
-            Tunic = new Vector3(0.16f, 0.1f, 0.06f),
-            Legs = new Vector3(0.1f, 0.07f, 0.05f),
-            Trim = new Vector3(0.45f, 0.08f, 0.06f),
-            Head = look == 1 ? Headwear.Hair : Headwear.Helm,
-            HeadColour = new Vector3(0.07f, 0.05f, 0.04f),
-            Held = look == 2 ? HeldItem.Spear : HeldItem.Sword,
-            Armoured = look == 0,
-            Bulk = 1.34f,
-        };
-
+        // The Saurian Reich's own, dressed in its livery (Uniforms). Read LORE.md.
         public const string ReichPrefix = "reich:";
-
-        // The Saurian Reich's own: greycoats in charcoal and oxblood under iron helms, and its beast-handlers in oxblood leather. Nobody else wears these colours. Read LORE.md.
-        private static readonly Vector3 Greycoat = new Vector3(0.07f, 0.07f, 0.075f);
-        private static readonly Vector3 Oxblood = new Vector3(0.28f, 0.03f, 0.03f);
-
-        private static HumanoidLook ReichLook(string who) => who switch
-        {
-            "wrangler" => new HumanoidLook
-            {
-                Tunic = new Vector3(0.16f, 0.035f, 0.03f), Legs = Greycoat * 0.8f, Boots = new Vector3(0.04f, 0.035f, 0.03f), Trim = new Vector3(0.42f, 0.3f, 0.11f),
-                Head = Headwear.Hood, HeadColour = new Vector3(0.08f, 0.03f, 0.025f), Held = HeldItem.Spear, Armoured = true, Bulk = 1.22f,
-            },
-            "marksman" => new HumanoidLook
-            {
-                Tunic = Greycoat, Legs = Greycoat * 0.85f, Boots = new Vector3(0.035f, 0.03f, 0.03f), Trim = Oxblood,
-                Head = Headwear.Helm, HeadColour = new Vector3(0.09f, 0.09f, 0.1f), Held = HeldItem.Bow, LongGarment = true, Bulk = 1f,
-            },
-            _ => new HumanoidLook
-            {
-                Tunic = Greycoat, Legs = Greycoat * 0.85f, Boots = new Vector3(0.035f, 0.03f, 0.03f), Trim = Oxblood,
-                Head = Headwear.Helm, HeadColour = new Vector3(0.09f, 0.09f, 0.1f), Held = HeldItem.Spear, Armoured = true, LongGarment = true, Bulk = 1.06f,
-            },
-        };
-
-        private static readonly HumanoidLook RevenantLook = new HumanoidLook
-        {
-            Skin = new Vector3(0.33f, 0.32f, 0.3f),
-            Tunic = new Vector3(0.08f, 0.08f, 0.1f),
-            Legs = new Vector3(0.06f, 0.06f, 0.07f),
-            Boots = new Vector3(0.06f, 0.06f, 0.07f),
-            Trim = new Vector3(0.2f, 0.26f, 0.32f),
-            Head = Headwear.Helm,
-            Held = HeldItem.Sword,
-            Shield = true,
-            Armoured = true,
-            Bulk = 1.14f,
-        };
 
         /// <summary>A hero with nothing on but what they wear under everything, which is the only thing that still says whose hero it is.</summary>
         public static HumanoidLook HeroLook(int index) => new HumanoidLook
@@ -490,59 +402,7 @@ namespace Dino_Defenders.Client
             Head = Headwear.Hair,
         };
 
-        private static readonly HumanoidLook WarlordLook = new HumanoidLook
-        {
-            Tunic = new Vector3(0.24f, 0.05f, 0.06f),
-            Legs = new Vector3(0.08f, 0.07f, 0.08f),
-            Trim = new Vector3(0.7f, 0.56f, 0.2f),
-            Head = Headwear.Helm,
-            Held = HeldItem.Sword,
-            Shield = true,
-            Armoured = true,
-            Bulk = 1.2f,
-        };
-
         public glModel Villager(int index) => Resolve($"villager{index}");
-
-        private static HumanoidLook VillagerLook(int look)
-        {
-            var random = new WorldRandom(0x7011).Fork(look);
-            Vector3[] dyes =
-            {
-                new Vector3(0.28f, 0.21f, 0.13f), new Vector3(0.14f, 0.19f, 0.14f), new Vector3(0.3f, 0.26f, 0.2f),
-                new Vector3(0.16f, 0.14f, 0.2f), new Vector3(0.32f, 0.17f, 0.11f), new Vector3(0.22f, 0.24f, 0.26f),
-            };
-            Headwear[] heads = { Headwear.StrawHat, Headwear.Hair, Headwear.Hood, Headwear.StrawHat, Headwear.Hair, Headwear.Hood };
-            return new HumanoidLook
-            {
-                Tunic = dyes[look],
-                Legs = dyes[(look + 2) % dyes.Length] * 0.7f,
-                Skin = new Vector3(0.62f, 0.44f, 0.32f) * random.Range(0.8f, 1.1f),
-                Head = heads[look],
-                HeadColour = heads[look] == Headwear.Hood ? dyes[(look + 3) % dyes.Length] : new Vector3(0.07f, 0.05f, 0.04f),
-                LongGarment = look % 2 == 1,
-                Bulk = random.Range(0.9f, 1.05f),
-            };
-        }
-
-        private static HumanoidLook BanditLook(int look, bool archer)
-        {
-            Vector3[] rags =
-            {
-                new Vector3(0.2f, 0.09f, 0.07f), new Vector3(0.13f, 0.11f, 0.09f), new Vector3(0.17f, 0.15f, 0.1f), new Vector3(0.1f, 0.08f, 0.09f),
-            };
-            return new HumanoidLook
-            {
-                Tunic = rags[look],
-                Legs = rags[(look + 1) % rags.Length] * 0.8f,
-                Trim = new Vector3(0.55f, 0.1f, 0.08f),
-                Head = look % 2 == 0 ? Headwear.Hood : Headwear.Helm,
-                HeadColour = new Vector3(0.1f, 0.08f, 0.08f),
-                Held = archer ? HeldItem.Bow : look % 2 == 0 ? HeldItem.Sword : HeldItem.Spear,
-                Shield = !archer && look == 1,
-                Bulk = 1.06f,
-            };
-        }
 
         private static Mesh Ball(Colour colour)
         {

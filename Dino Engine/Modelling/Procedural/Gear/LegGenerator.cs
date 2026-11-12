@@ -177,6 +177,37 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                         case GearMake.Mail:
                             knee = genes.Chance("poleyn", 0.55f);
                             if (knee) Poleyn(mesh, kit, genes.Part("poleyn"), leg, genes.Chance("leather.cop", 0.5f) ? kit.C.Leather : kit.C.Metal, false);
+                            if (genes.Chance("quilted", 0.45f))
+                            {
+                                // Quilted thighs over the mail, as were worn under a cuisse or instead of one.
+                                // Undyed quilting, or the coat's own dye; edged in leather or in the mail's own metal; riveted along its foot on some.
+                                mesh.Mark("quilted thigh");
+                                bool dyed = genes.Chance("quilt.dyed", 0.5f);
+                                if (dyed) mesh.Mark("dyed quilt");
+                                VertexMaterial quilt = dyed ? GearColours.Of(GearMaterials.Quilt, GearColours.AlbedoOf(kit.C.Cloth)) : kit.C.Padding;
+                                VertexMaterial rim = genes.Chance("quilt.leather", 0.5f) ? kit.C.LeatherDark : kit.Edge;
+                                int quiltFirst = mesh.VertexCount;
+                                float qTop = genes.Range("quilt.top", 1.8f, 1.9f), qLow = GearFit.KneeHigh + genes.Range("quilt.low", 0.04f, 0.16f);
+                                (float q0, float q1) = leg.Round(1.05f, 1.05f, BodyForm.Leg(BodyForm.Hip) + 0.1f);
+                                mesh.Plate((u, v) =>
+                                {
+                                    float angle = q0 + (q1 - q0) * u;
+                                    float y = qLow + (qTop - qLow) * v;
+                                    return (leg.At(y, angle, 0.018f), Cover.Out(angle));
+                                }, 6, 5, 0.018f, (_, _) => quilt, PlateEdge.Bottom | PlateEdge.Start | PlateEdge.End, 0.014f, underside: kit.C.Lining, rollMaterial: rim);
+                                if (genes.Chance("quilt.rivets", 0.4f))
+                                {
+                                    mesh.Mark("riveted quilt");
+                                    for (int i = 0; i < 5; i++)
+                                    {
+                                        float angle = q0 + 0.1f + (q1 - q0 - 0.2f) * i / 4f;
+                                        mesh.Rivet(leg.At(qLow + 0.04f, angle, 0.036f), Cover.Out(angle), 0.014f, kit.Fitting);
+                                    }
+                                }
+                                mesh.SkinBy(leg.Skin, quiltFirst);
+                                thigh = true;
+                            }
+                            else if (!knee && genes.Chance("garter", 0.5f)) Garter(mesh, kit, genes, leg);
                             break;
                         case GearMake.Lamellar:
                             Rows(mesh, kit, genes.Part("rows"), leg);
@@ -184,9 +215,18 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                             break;
                         case GearMake.Scale:
                         case GearMake.Brigandine:
-                            Panel(mesh, kit, genes.Part("panel"), leg);
+                        {
+                            float panelLow = Panel(mesh, kit, genes.Part("panel"), leg);
                             thigh = true;
+                            // A cop at the knee below a panel that ends above it.
+                            if (kit.Make == GearMake.Scale && panelLow >= GearFit.KneeHigh && genes.Chance("cop", 0.5f))
+                            {
+                                Poleyn(mesh, kit, genes.Part("poleyn"), leg, kit.C.Metal, false);
+                                knee = true;
+                            }
+                            else if (kit.Make == GearMake.Scale && genes.Chance("garter", 0.45f)) Garter(mesh, kit, genes, leg);
                             break;
+                        }
                         case GearMake.Hardened:
                             Guard(mesh, kit, genes.Part("guard"), leg);
                             // A cop of the same hide, or of the guard's boiled darker one.
@@ -203,6 +243,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                         case GearMake.Padded:
                             KneePad(mesh, kit, genes.Part("knee"), leg, true);
                             knee = true;
+                            if (genes.Chance("garter", 0.45f)) Garter(mesh, kit, genes, leg);
                             break;
                         case GearMake.Hide:
                             if (reinforced)
@@ -311,15 +352,49 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float gap = genes.Range("gap", 0.07f, 0.095f);
             float Off(float y) => MathF.Max(gap, leg.Radius(y) - BodyForm.Leg(MathF.Min(y, BodyForm.Hip)) + 0.015f);
             (float a0, float a1) = leg.Round(span, span, BodyForm.Leg(BodyForm.Hip) + 0.15f);
+            // Its lower edge cut in cusps on some, as a fine cuisse's often was.
+            bool cusped = genes.Chance("cusped", 0.4f);
+            if (cusped) mesh.Mark("cusped");
             int first = mesh.VertexCount;
             mesh.Plate((u, v) =>
             {
                 float angle = a0 + (a1 - a0) * u;
-                float y = low + (top - low) * v;
+                float edge = cusped ? 0.03f * MathF.Abs(MathF.Sin(u * MathF.PI * 3f)) : 0f;
+                float y = low + edge + (top - low - edge) * v;
                 return (leg.OffLeg(y, angle, Off(y)), Cover.Out(angle));
-            }, 8, 5, thick, (_, _) => kit.Shell, PlateEdge.Top | PlateEdge.Start | PlateEdge.End, thick * 1.2f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+            }, cusped ? 12 : 8, 5, thick, (_, _) => kit.Shell, PlateEdge.Top | PlateEdge.Start | PlateEdge.End, thick * 1.2f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+            // Fluted on the finest, or now and then: ridges raised down its front, under the strap.
+            if (kit.Look.Motif == Motif.Flute || genes.Chance("fluted", 0.4f))
+            {
+                mesh.Mark("fluted");
+                foreach (float offset in new[] { -0.22f, 0f, 0.22f })
+                {
+                    float angle = Front + offset * leg.Side;
+                    var path = new List<Vector3>();
+                    var normals = new List<Vector3>();
+                    for (int i = 0; i <= 8; i++)
+                    {
+                        float y = low + 0.06f + (top - low - 0.12f) * i / 8f;
+                        path.Add(leg.OffLeg(y, angle, Off(y) + thick + 0.002f));
+                        normals.Add(Cover.Out(angle));
+                    }
+                    mesh.Strip(path, normals, 0.011f, 0.006f, kit.Shell);
+                }
+            }
+            // Its lower edge riveted to the leather beneath, on some.
+            if (genes.Chance("riveted", 0.45f))
+            {
+                mesh.Mark("riveted cuisse");
+                for (int i = 0; i < 5; i++)
+                {
+                    float angle = a0 + 0.12f + (a1 - a0 - 0.24f) * i / 4f;
+                    float y = low + 0.035f;
+                    mesh.Rivet(leg.OffLeg(y, angle, Off(y) + thick), Cover.Out(angle), 0.014f, kit.Fitting);
+                }
+            }
             // The lames lap upwards to just below the hip, where the body's piece takes over.
             int lames = genes.Count("lames", 1, 2);
+            mesh.Mark($"cuisse lames {lames}");
             for (int i = 0; i < lames; i++)
             {
                 float y0 = top - 0.02f + i * 0.055f, y1 = y0 + 0.07f;
@@ -374,6 +449,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }, 8, 5, thick, (_, _) => material, PlateEdge.Top | PlateEdge.Bottom, thick, underside: kit.ShellDark, rollMaterial: kit.Gilt);
             if (harness && genes.Chance("fan", 0.7f))
             {
+                mesh.Mark("fan");
                 float knee = BodyForm.Knee + 0.06f;
                 float outside = leg.Side > 0f ? 0f : MathF.PI;
                 float fan = MathF.Min(size * genes.Range("fan.size", 0.45f, 0.65f), (knee - GearFit.BootTop - 0.02f) / 1.2f);
@@ -463,6 +539,11 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         {
             mesh.Mark("rows");
             int rows = genes.Count("rows", 3, 5);
+            mesh.Mark($"rows {rows}");
+            mesh.Mark(GearMesh.Same(kit.Trim, kit.Strap) ? "leather lacing" : "dyed lacing");
+            // Each row riveted at its ends to the lace beneath, on some.
+            bool riveted = genes.Chance("riveted", 0.5f);
+            if (riveted) mesh.Mark("riveted rows");
             float top = genes.Range("top", 1.85f, 1.95f);
             float row = (top - GearFit.KneeHigh) / rows;
             float span = genes.Range("span", 0.9f, 1.25f);
@@ -477,16 +558,49 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     float angle = a0 + (a1 - a0) * u;
                     return (leg.At(rowLow + (rowTop - rowLow) * v, angle, out_), Cover.Out(angle));
                 }, 6, 1, 0.012f, (_, v) => v > 0.82f ? kit.Trim : kit.Shell, PlateEdge.None, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+                if (riveted)
+                {
+                    float y = (rowTop + rowLow) * 0.5f;
+                    foreach (float angle in new[] { a0 + 0.08f, a1 - 0.08f }) mesh.Rivet(leg.At(y, angle, out_ + 0.012f), Cover.Out(angle), 0.014f, kit.Fitting);
+                }
+                // Tassels of the lacing left hanging from the last row, on some.
+                if (r == rows - 1 && genes.Chance("tassels", 0.45f))
+                {
+                    mesh.Mark("tassels");
+                    int tassels = genes.Count("tassel.count", 3, 5);
+                    for (int k = 0; k < tassels; k++)
+                    {
+                        float angle = a0 + (a1 - a0) * (k + 0.5f) / tassels;
+                        Vector3 from = leg.At(rowLow + 0.01f, angle, out_ + 0.014f);
+                        Vector3 to = leg.At(rowLow - 0.07f, angle, out_ + 0.02f);
+                        mesh.Sweep(Section.Round(4), new[] { from, to }, t => new Vector2(0.008f + 0.006f * t), kit.Trim, Cover.Out(angle));
+                    }
+                }
             }
             mesh.SkinBy(leg.Skin, first);
         }
 
         // A panel down the front of the thigh, of scales or of a brigandine's riveted cloth, edged in leather.
-        private static void Panel(GearMesh mesh, ArmourKit kit, Genes genes, Cover leg, VertexMaterial? face = null, bool studded = false)
+        // Mail or scale held up under the knee by a leather garter: a flat band laid along the covering, as the thigh's strap is, so its inside lies flat where the legs meet.
+        private static void Garter(GearMesh mesh, ArmourKit kit, Genes genes, Cover leg)
+        {
+            mesh.Mark("garter");
+            int first = mesh.VertexCount;
+            float y = GearFit.KneeLow - 0.05f;
+            kit.Belt(mesh, genes.Part("garter"), a => leg.OnSide(leg.At(y, a, 0.006f), GearFit.SideCover - 0.004f), Cover.Out, 0.02f, 0.008f, leg.Side > 0f ? 0.3f : MathF.PI - 0.3f, buckled: genes.Chance("garter.buckle", 0.5f), steps: Around);
+            mesh.SkinBy(leg.Shin, first);
+        }
+
+        // What comes back is how low it comes, for what goes below it.
+        private static float Panel(GearMesh mesh, ArmourKit kit, Genes genes, Cover leg, VertexMaterial? face = null, bool studded = false)
         {
             // Edged in leather, or not.
             bool bordered = !studded || genes.Chance("border", 0.5f);
             if (bordered) mesh.Mark("border");
+            // Its border of leather, or on scales now and then of the cloth's own dye.
+            bool clothBorder = kit.Make == GearMake.Scale && genes.Chance("border.cloth", 0.5f);
+            if (clothBorder) mesh.Mark("cloth border");
+            VertexMaterial border = clothBorder ? kit.C.Cloth : kit.Edge;
             mesh.Mark(studded ? "studded panel" : "panel");
             float top = genes.Range("top", 1.82f, 1.95f), low = GearFit.KneeHigh + genes.Range("low", -0.02f, 0.08f);
             float span = genes.Range("span", 0.85f, 1.2f);
@@ -496,7 +610,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             {
                 float angle = a0 + (a1 - a0) * u;
                 return (leg.At(low + (top - low) * v, angle, 0.012f), Cover.Out(angle));
-            }, 6, 4, 0.014f, (u, v) => bordered && (v < 0.08f || u < 0.06f || u > 0.94f) ? kit.Edge : face ?? kit.Shell, PlateEdge.None, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+            }, 6, 4, 0.014f, (u, v) => bordered && (v < 0.08f || u < 0.06f || u > 0.94f) ? border : face ?? kit.Shell, PlateEdge.None, underside: kit.ShellDark, rollMaterial: kit.Gilt);
             if (kit.Make == GearMake.Brigandine || studded)
             {
                 int across = genes.Count("across", 3, 4), down = genes.Count("down", 3, 5);
@@ -511,7 +625,29 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     }
                 }
             }
+            if (kit.Make == GearMake.Scale && genes.Chance("hem.lame", 0.45f))
+            {
+                // A plate along its lower edge, as the bottom row of scales was often a lame.
+                mesh.Mark("hem lame");
+                mesh.Plate((u, v) =>
+                {
+                    float angle = a0 + (a1 - a0) * (0.02f + 0.96f * u);
+                    float y = low - 0.005f + 0.06f * v;
+                    return (leg.At(y, angle, 0.03f), Cover.Out(angle));
+                }, 6, 1, 0.012f, (_, _) => kit.C.Metal, PlateEdge.Bottom, 0.012f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+            }
+            if (kit.Make is not GearMake.Brigandine && !studded && bordered && genes.Chance("border.rivets", 0.5f))
+            {
+                // Its leather border riveted down both sides.
+                mesh.Mark("riveted border");
+                foreach (float u in new[] { 0.03f, 0.97f })
+                {
+                    float angle = a0 + (a1 - a0) * u;
+                    for (int j = 0; j < 4; j++) mesh.Rivet(leg.At(low + 0.05f + (top - low - 0.1f) * j / 3f, angle, 0.028f), Cover.Out(angle), 0.015f, kit.Fitting);
+                }
+            }
             mesh.SkinBy(leg.Skin, first);
+            return low;
         }
 
         // A pad over the knee: quilted and thick on a padded leg, a patch sewn on over cloth, worn or put there to stop it wearing.
@@ -621,7 +757,10 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         private static void Wraps(GearMesh mesh, ArmourKit kit, Genes genes, Cover leg, float ankle)
         {
             float top = MathF.Min(genes.Range("top", 0.72f, 0.9f), Cover.Gather);
-            VertexMaterial wrap = kit.Hide ? kit.Strap : genes.Chance("pale", 0.5f) ? kit.C.Lining : kit.C.ClothDark;
+            // Thongs on hide; on cloth, undyed strips, the cloth's own dark, or its dye's trim.
+            int stuff = kit.Hide ? 0 : genes.Pick("stuff", 1f, 1f, 0.7f);
+            VertexMaterial wrap = kit.Hide ? kit.Strap : stuff == 0 ? kit.C.Lining : stuff == 1 ? kit.C.ClothDark : kit.Trim;
+            if (!kit.Hide) mesh.Mark(stuff == 0 ? "pale wraps" : stuff == 1 ? "dark wraps" : "dyed wraps");
             float centre = leg.AxisX((ankle + top) * 0.5f);
             int first = mesh.VertexCount;
             mesh.At(Matrix4.CreateTranslation(centre, 0f, 0f), () =>

@@ -406,9 +406,24 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float open = genes.Range("open", 0.7f, 0.95f);
             float low = GearFit.NeckLow + genes.Range("low", 0.01f, 0.05f);
             float tuck = GearFit.NeckTuck - 0.02f - genes.Range("tuck", 0.005f, 0.02f);
-            OpenHood(mesh, kit, genes, gap, open, low, tuck, kit.Shell, 0.012f, peak: 0f);
+            // Its face edged in leather, as most were, and its crown drawn up to a point on some.
+            VertexMaterial? edge = genes.Chance("edge", 0.45f) ? kit.C.LeatherDark : null;
+            float peak = genes.Chance("peaked", 0.3f) ? genes.Range("peak", 0.03f, 0.06f) : 0f;
+            if (peak > 0f) mesh.Mark("peaked");
+            OpenHood(mesh, kit, genes, gap, open, low, tuck, kit.Shell, 0.012f, peak, edge);
             // A band of leather round the brow, now and then.
-            if (kit.Look.Legendary || genes.Chance("band", 0.5f)) BrowBand(mesh, kit, genes, Centre + 0.1f, HalfWidth + gap + 0.012f, HalfDepth + gap + 0.012f, 0.025f);
+            if (kit.Look.Legendary || genes.Chance("band", 0.5f))
+            {
+                mesh.Mark("brow band");
+                BrowBand(mesh, kit, genes, Centre + 0.1f, HalfWidth + gap + 0.012f, HalfDepth + gap + 0.012f, 0.025f);
+            }
+            // An iron cap worn over its crown, as a coif often had under a helm or alone.
+            if (genes.Chance("cap", 0.35f))
+            {
+                mesh.Mark("cap over");
+                List<Ring> cap = Dome(genes.Part("cap"), Centre + 0.13f, gap + 0.03f, peak, genes.Range("cap.flat", 0f, 0.3f), 6);
+                mesh.Bands(Section.Round(16), cap, (ring, _) => ring == 0 ? kit.Edge : kit.C.Metal, capStart: false, capEnd: true);
+            }
             if (kit.Look.Legendary) BrowStone(mesh, kit, genes.Part("stone"), Centre + 0.1f, HalfDepth + gap + 0.04f);
         }
 

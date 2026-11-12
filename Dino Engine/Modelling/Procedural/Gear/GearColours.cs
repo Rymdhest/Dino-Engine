@@ -182,9 +182,25 @@ namespace Dino_Engine.Modelling.Procedural.Gear
     /// <param name="Trim">The same, for what picks the cloth out.</param>
     /// <param name="Ornament">How much is on it, from 1 for nothing to 11 for everything.</param>
     /// <param name="Wear">How worn it is, from 1 for new to 11 for battered.</param>
-    public readonly record struct GearTailoring(byte Metal = 0, byte Fitting = 0, byte Leather = 0, byte Dye = 0, byte Trim = 0, byte Ornament = 0, byte Wear = 0)
+    /// <param name="Reich">It's the Reich's own, in its livery: black iron, brass, a charcoal greycoat and oxblood, which nothing else may wear (LORE.md). Only what the Reich's people wear says so,
+    /// never anything a hero can have.</param>
+    public readonly record struct GearTailoring(byte Metal = 0, byte Fitting = 0, byte Leather = 0, byte Dye = 0, byte Trim = 0, byte Ornament = 0, byte Wear = 0, bool Reich = false)
     {
         public static float? Scale(byte step) => step == 0 ? null : Math.Clamp((step - 1) / 10f, 0f, 1f);
+
+        /// <summary>A tailoring by the names of what's chosen, for a uniform, everything one kind of person wears made in the same colours. What's left out is left to each piece.</summary>
+        public static GearTailoring Named(string? dye = null, string? trim = null, string? leather = null, string? metal = null, string? fitting = null, float? ornament = null, float? wear = null) =>
+            new(Index(GearSwatches.Metals, metal), Index(GearSwatches.Metals, fitting), Index(GearSwatches.Leathers, leather), Index(GearSwatches.Dyes, dye), Index(GearSwatches.Dyes, trim), Step(ornament), Step(wear));
+
+        private static byte Index(GearSwatches.Swatch[] list, string? name)
+        {
+            if (name == null) return 0;
+            int at = Array.FindIndex(list, swatch => swatch.Name == name);
+            if (at < 0) throw new ArgumentException($"No swatch called {name}.");
+            return (byte)(at + 1);
+        }
+
+        private static byte Step(float? share) => share is float value ? (byte)(1 + MathF.Round(Math.Clamp(value, 0f, 1f) * 10f)) : (byte)0;
     }
 
     /// <summary>
@@ -317,6 +333,34 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Vector3 padded = genes.Chance("padding.dyed", 0.12f + budget * 0.2f) ? Vector3.Lerp(dyed, GearSwatches.Find(GearSwatches.Dyes, "oatmeal").Albedo, 0.45f) : GearSwatches.Find(GearSwatches.Dyes, genes.Chance("padding.pale", 0.5f) ? "undyed" : "oatmeal").Albedo;
             Padding = Of(GearMaterials.Quilt, padded * (1f - 0.15f * wear));
 
+            if (tailor.Reich)
+            {
+                // The Reich's livery, the same colours its beasts' harness is in (SaurianHarness), so that its people and its war-beasts read as one from across a field: black iron, brass
+                // fittings, a charcoal greycoat with oxblood at its edges, and black and oxblood leather. Never cleared out of the Reich's, as it is the Reich's.
+                Vector3 iron = Saurian.SaurianHarness.Iron * (1f + 0.4f * (1f - wear)) * genes.Range("reich.iron", 0.95f, 1.05f);
+                Metal = Raw(GearMaterials.Metal, iron);
+                MetalDark = Raw(GearMaterials.Metal, iron * 0.6f);
+                Edge = Raw(GearMaterials.Metal, Vector3.Lerp(iron, new Vector3(0.4f, 0.4f, 0.42f), 0.35f * (1f - wear)));
+                Mail = Raw(GearMaterials.Mail, iron * 0.95f);
+                Scale = Raw(GearMaterials.Scale, iron);
+                Fitting = Raw(GearMaterials.Metal, Saurian.SaurianHarness.Brass);
+                FittingDark = Raw(GearMaterials.Metal, Saurian.SaurianHarness.Brass * 0.6f);
+                Precious = Raw(GearMaterials.Metal, Saurian.SaurianHarness.Brass * 1.1f);
+                Cloth = Raw(GearMaterials.Cloth, Greycoat);
+                ClothDark = Raw(GearMaterials.Cloth, Greycoat * 0.7f);
+                Trim = Raw(GearMaterials.Cloth, Saurian.SaurianHarness.Oxblood);
+                Lining = Raw(GearMaterials.Cloth, Greycoat * 1.3f);
+                Padding = Raw(GearMaterials.Quilt, Greycoat * 1.25f);
+                Leather = Raw(GearMaterials.Leather, BlackLeather);
+                LeatherDark = Raw(GearMaterials.Leather, BlackLeather * 0.7f);
+                LeatherContrast = Raw(GearMaterials.Leather, Saurian.SaurianHarness.Strap);
+                Strap = Raw(GearMaterials.Leather, Saurian.SaurianHarness.Strap);
+                MetalName = "black iron";
+                FittingName = "brass";
+                DyeName = "greycoat";
+                TrimName = "oxblood";
+            }
+
             GearSwatches.Swatch fur = Pick(genes, "fur", GearSwatches.Furs, budget, 0, _ => 1f);
             Fur = Of(GearMaterials.Fur, fur.Albedo);
 
@@ -361,6 +405,17 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         {
             for (int i = 0; i < 24 && GearSwatches.IsReichs(albedo, metal); i++) albedo *= 1.06f;
             return albedo;
+        }
+
+        // The Reich's greycoat, and the black leather of its belts and boots.
+        private static readonly Vector3 Greycoat = new Vector3(0.1f, 0.1f, 0.105f);
+        private static readonly Vector3 BlackLeather = new Vector3(0.05f, 0.044f, 0.04f);
+
+        // A colour as it is, for the Reich's own and nothing else.
+        private static VertexMaterial Raw(int material, Vector3 albedo)
+        {
+            Vector3 average = GearMaterials.AlbedoOf(material);
+            return new VertexMaterial(material, new Colour(albedo.X / average.X, albedo.Y / average.Y, albedo.Z / average.Z));
         }
 
         /// <summary>What it comes to on its material, which is what a palette chose: for a check, or a picture with no textures.</summary>
