@@ -6,8 +6,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 {
     /// <summary>
     /// What's worn on the hands: round the fist, and a cuff up the forearm over a fitted sleeve (<see cref="GearFit.GloveInner"/>) but never as far as an elbow's plate
-    /// (<see cref="GearFit.CuffReach"/>). Plate is an hourglass gauntlet with its fingers in lames; leather a glove with a flared cuff or a bracer laced on; cloth is wound round. A hand lies out
-    /// along x in the bind pose, closed round whatever it holds. Each is built once a side. See GEAR.md.
+    /// (<see cref="GearFit.CuffReach"/>). Plate is an hourglass gauntlet with faceted fingers; leather a glove with a flared cuff or a bracer laced on; cloth is wound round. A hand lies out
+    /// along x in the bind pose, closed round whatever it holds, its fingers curled each on its own. Each is built once a side. See GEAR.md.
     /// </summary>
     public static class HandGenerator
     {
@@ -31,48 +31,73 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             mesh.Covers |= BodyRegions.Hands;
         }
 
-        // The hand, closed, out along x from the wrist: a block that swells across the knuckles, its fingers in lames on a gauntlet, with a thumb along its front.
+        // The hand, closed round what it holds, out along x from the wrist with its back up +y and its thumb towards +z: the back and the palm out to the knuckles, swelling across them, four
+        // fingers each curled down from there and back under the palm, the middle one longest, and the thumb across their front, so that it reads as a hand from any side and in a picture.
+        // A gauntlet's fingers are plates, faceted, and a glove's leather.
         private static void Fist(GearMesh mesh, ArmourKit kit, Genes genes, float side, float bulk, float length)
         {
             GearLook look = kit.Look;
             float from = BodyForm.WristX - 0.05f;
-            int lames = kit.Make == GearMake.Plate ? genes.Count("lames", 3, 5) : 0;
-            int steps = 8 + lames * 2;
-            var rings = new List<Ring>();
-            var bands = new List<int>();
-            for (int i = 0; i <= steps; i++)
-            {
-                float t = (float)i / steps;
-                float swell = MathF.Sin(MathF.Min(t * 1.35f + 0.25f, 1f) * MathF.PI * 0.5f);
-                float tip = 1f - MathF.Pow(t, 5f) * 0.68f;
-                bool finger = lames > 0 && t > 0.55f;
-                float step = finger && i % 2 == 1 ? 0.012f : 0f;
-                rings.Add(new Ring { Centre = new Vector3(side * (from + t * length), BodyForm.Shoulder, 0f), Side = Vector3.UnitZ, Front = Vector3.UnitY, HalfWidth = bulk * swell * tip + step, HalfDepth = bulk * 0.7f * swell * tip + step, Hard = finger });
-                bands.Add(finger ? (i % 2) : t > 0.5f && t < 0.62f && !kit.Woven ? 2 : 0);
-            }
+            const float Knuckles = 0.58f;
+            float wide = bulk, deep = bulk * 0.7f;
+            bool plate = kit.Make == GearMake.Plate;
+            VertexMaterial skin = kit.Make == GearMake.Hardened ? kit.C.Leather : kit.Shell;
             mesh.Bone = (int)BodyForm.Hand(side);
-            mesh.Bands(Section.Super(12, 2.6f), rings, (ring, _) => bands[ring] switch { 1 => kit.ShellDark, 2 => kit.Make == GearMake.Plate ? kit.Edge : kit.ShellDark, _ => kit.Make == GearMake.Hardened ? kit.C.Leather : kit.Shell }, capStart: true, capEnd: true);
 
-            // The thumb, along the front of the fist.
-            Vector3 root = new Vector3(side * (from + length * 0.25f), BodyForm.Shoulder - bulk * 0.1f, bulk * 0.55f);
-            var keys = new[] { root, root + new Vector3(side * length * 0.25f, -bulk * 0.05f, bulk * 0.25f), root + new Vector3(side * length * 0.5f, -bulk * 0.1f, bulk * 0.2f) };
-            mesh.Sweep(Section.Round(8), Spine.Through(keys, 5), t => new Vector2(bulk * 0.38f * (1f - t * 0.3f)), kit.Make == GearMake.Hardened ? kit.C.Leather : kit.Shell, Vector3.UnitY, capStart: false, capEnd: true);
+            const int Steps = 6;
+            var rings = new List<Ring>();
+            for (int i = 0; i <= Steps; i++)
+            {
+                float t = (float)i / Steps * Knuckles;
+                float swell = MathF.Sin(MathF.Min(t / Knuckles * 1.15f + 0.3f, 1f) * MathF.PI * 0.5f);
+                rings.Add(new Ring { Centre = new Vector3(side * (from + t * length), BodyForm.Shoulder, 0f), Side = Vector3.UnitZ, Front = Vector3.UnitY, HalfWidth = wide * swell, HalfDepth = deep * swell, Hard = i == Steps && plate });
+            }
+            mesh.Bands(Section.Super(12, 2.6f), rings, (ring, _) => ring == Steps && plate ? kit.Edge : skin, capStart: true, capEnd: true);
 
-            // A plate over the back of a gauntlet's hand, a ridge of knuckles on a fist made to strike, and studs on a studded glove.
-            // A plate over the back of a gauntlet's hand, or of hardened leather on a glove now and then.
-            bool backed = kit.Make == GearMake.Plate || kit.Hide && genes.Chance("back.panel", 0.4f);
+            // The fingers, from the index at the thumb's side to the little one.
+            float[] longer = { 0.94f, 1f, 0.95f, 0.8f };
+            Section finger = plate ? Section.Polygon(6) : Section.Round(6);
+            for (int k = 0; k < 4; k++)
+            {
+                float z = wide * (0.72f - 0.48f * k);
+                float r = wide * 0.24f * (k == 3 ? 0.88f : 1f);
+                float reach = length * 0.36f * longer[k];
+                float a = from + length * (Knuckles - 0.05f);
+                var keys = new[]
+                {
+                    new Vector3(side * a, BodyForm.Shoulder + deep * 0.42f, z),
+                    new Vector3(side * (a + reach * 0.55f), BodyForm.Shoulder + deep * 0.36f, z),
+                    new Vector3(side * (a + reach * 0.85f), BodyForm.Shoulder - deep * 0.12f, z),
+                    new Vector3(side * (a + reach * 0.58f), BodyForm.Shoulder - deep * 0.64f, z),
+                    new Vector3(side * (a + reach * 0.12f), BodyForm.Shoulder - deep * 0.76f, z),
+                };
+                mesh.Sweep(finger, Spine.Through(keys, 8), t => new Vector2(r * (1f - 0.16f * t)), skin, Vector3.UnitZ, capStart: false, capEnd: true);
+            }
+
+            // The thumb, from low on the palm's side across the front of the curled fingers.
+            var thumb = new[]
+            {
+                new Vector3(side * (from + length * 0.16f), BodyForm.Shoulder - deep * 0.18f, wide * 0.78f),
+                new Vector3(side * (from + length * 0.46f), BodyForm.Shoulder - deep * 0.4f, wide * 0.98f),
+                new Vector3(side * (from + length * 0.72f), BodyForm.Shoulder - deep * 0.5f, wide * 0.6f),
+                new Vector3(side * (from + length * 0.84f), BodyForm.Shoulder - deep * 0.44f, wide * 0.2f),
+            };
+            mesh.Sweep(finger, Spine.Through(thumb, 8), t => new Vector2(wide * 0.28f * (1f - 0.22f * t)), skin, Vector3.UnitY, capStart: false, capEnd: true);
+
+            // A plate over the back of a gauntlet's hand, or of hardened leather on a glove now and then, on the palm's own shape and a little proud of it.
+            bool backed = plate || kit.Hide && genes.Chance("back.panel", 0.4f);
             if (backed)
             {
                 mesh.Mark("back");
-                bool plate = kit.Make == GearMake.Plate;
                 mesh.Plate((u, v) =>
                 {
-                    float x = side * (from + length * (0.02f + 0.55f * u));
+                    float t = 0.02f + (Knuckles - 0.03f) * u;
+                    float x = side * (from + length * t);
                     float angle = MathF.PI * (0.18f + 0.64f * v);
-                    float t = 0.02f + 0.55f * u;
-                    float swell = MathF.Sin(MathF.Min(t * 1.35f + 0.25f, 1f) * MathF.PI * 0.5f);
-                    float r = bulk * swell + 0.012f;
-                    return (new Vector3(x, BodyForm.Shoulder + MathF.Sin(angle) * r * 0.7f, MathF.Cos(angle) * r), new Vector3(0f, MathF.Sin(angle), MathF.Cos(angle)));
+                    float swell = MathF.Sin(MathF.Min(t / Knuckles * 1.15f + 0.3f, 1f) * MathF.PI * 0.5f);
+                    float c = MathF.Cos(angle), s = MathF.Sin(angle);
+                    float across = MathF.Sign(c) * MathF.Pow(MathF.Abs(c), 2f / 2.6f), up = MathF.Pow(MathF.Abs(s), 2f / 2.6f);
+                    return (new Vector3(x, BodyForm.Shoulder + up * (deep * swell + 0.012f), across * (wide * swell + 0.012f)), new Vector3(0f, s, c));
                 }, 5, 5, plate ? 0.016f : 0.009f, (_, _) => plate ? kit.Shell : kit.C.LeatherContrast, PlateEdge.End, plate ? 0.014f : 0.008f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
             }
             if (look.Legendary)

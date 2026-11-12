@@ -14,9 +14,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         {
             GearMesh lying = worn.Copy();
 
-            // Sleeves and gloves lie the way they'd fall, and not out in a T.
+            // Sleeves lie the way they'd fall, and not out in a T, and gloves as a pair is put down.
             if (kind == GearKind.Body) lying.Pose(SleevesDown);
-            if (kind == GearKind.Hands) lying.Pose(HandsTogether);
+            if (kind == GearKind.Hands) lying.Pose(PairLaid);
 
             // Held things are built standing up, and fall on their flat, as a garment falls on its back.
             if (IsHeld(kind) || kind is GearKind.Body or GearKind.Legs) lying.Transform(Matrix4.CreateRotationX(MathF.PI / 2f));
@@ -41,10 +41,16 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             return Matrix4.CreateTranslation(-shoulder) * Matrix4.CreateRotationZ(-side * 0.75f) * Matrix4.CreateTranslation(shoulder);
         }
 
-        private static Matrix4 HandsTogether(int bone)
+        // A pair of gloves as they're put down: side by side on their palms with their backs up, fingers the same way and splayed a little, thumbs in, the left on the left as the camera looks
+        // north (the world's +x is on the left then). Laid end to end, as a T-pose has them, they read as one long tube.
+        private const float GlovesApart = 0.3f;
+        private const float GlovesSplay = 0.16f;
+
+        private static Matrix4 PairLaid(int bone)
         {
             float side = bone is (int)BoneType.LowerArmL or (int)BoneType.HandL ? 1f : -1f;
-            return Matrix4.CreateTranslation(-side * (BodyForm.WristX - 0.42f), 0f, 0f);
+            Vector3 wrist = new Vector3(side * BodyForm.WristX, BodyForm.Shoulder, 0f);
+            return Matrix4.CreateTranslation(-wrist) * Matrix4.CreateRotationY(-side * (MathF.PI / 2f - GlovesSplay)) * Matrix4.CreateTranslation(side * GlovesApart, 0f, 0f);
         }
 
         /// <summary>How much bigger than life something is drawn on the ground, as a ring is lost from up where the camera is. It's still the same model.</summary>
@@ -61,6 +67,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             GearKind.Bow => new Angle(-MathF.PI / 2f, 1.05f, 0.18f, 0.785f),
             GearKind.Sword or GearKind.Dagger or GearKind.Spear or GearKind.Staff or GearKind.Wand or GearKind.Axe or GearKind.Hammer or GearKind.Greatsword or GearKind.Greataxe or GearKind.Greathammer => new Angle(-MathF.PI / 2f, 0.42f, 0.18f, 0.785f),
             GearKind.OffHand => new Angle(-MathF.PI / 2f, 0.5f, 0.15f, 0f),
+            // A pair of gloves from nearly overhead, backs up and fingers pointing away, the left one on the left: what anyone sees of gloves put down. From lower down the cuffs fill it.
+            GearKind.Hands => new Angle(0f, MathF.PI + 0.2f, 1.22f, 0f),
             GearKind.Body or GearKind.Legs => new Angle(-MathF.PI / 2f, 0.3f, 0.12f, 0f),
             GearKind.Head => new Angle(0f, 0.5f, 0.32f, 0f),
             GearKind.OpenBook or GearKind.Page or GearKind.Sentence => new Angle(0f, 0.25f, 0.8f, 0f),

@@ -33,6 +33,8 @@ namespace Dino_GearLab
                     return GearVariety.Run(options);
                 case "dress":
                     return Dress(options);
+                case "icons":
+                    return Icons(options);
                 case "bench":
                     return Bench();
                 case "describe":
@@ -91,6 +93,37 @@ namespace Dino_GearLab
         }
 
         // A whole person in a whole family's gear, as heroes are what's really seen.
+        /// <summary>Things as the game pictures them: each as it lies on the ground (GearDisplay.Lying), turned as the studio turns it (GearDisplay.PictureOf), seen from in front.</summary>
+        private static int Icons(Options options)
+        {
+            var kind = Enum.Parse<GearKind>(options.Text("kind", "Hands"), ignoreCase: true);
+            int count = options.Int("count", 16);
+            int seed = options.Int("seed", 1);
+            int columns = options.Int("columns", (int)MathF.Ceiling(MathF.Sqrt(count * 1.6f)));
+            int rows = (count + columns - 1) / columns;
+            int tile = options.Int("tile", 160);
+            const int shrink = 2;
+            GearDisplay.Angle angle = GearDisplay.PictureOf(kind);
+            angle = new GearDisplay.Angle(options.Float("rise", angle.Rise), options.Float("yaw", angle.Yaw), options.Float("pitch", angle.Pitch), options.Float("roll", angle.Roll));
+            Matrix4 turn = Matrix4.CreateRotationX(angle.Rise) * Matrix4.CreateRotationY(angle.Yaw) * Matrix4.CreateRotationX(angle.Pitch) * Matrix4.CreateRotationZ(angle.Roll);
+
+            var sheet = new byte[columns * tile * rows * tile * 4];
+            var render = new SoftRender(tile * shrink, tile * shrink);
+            Vector3 background = new Vector3(0.05f, 0.045f, 0.04f);
+            for (int i = 0; i < count; i++)
+            {
+                GearMesh lying = GearDisplay.Lying(GearForge.Make(Spec(options, (ulong)(seed * 100000 + i + 1), kind)), kind);
+                lying.Transform(turn);
+                render.Draw(lying.Build(bones: false), Matrix3.Identity);
+                render.Blit(sheet, columns * tile, i % columns * tile, i / columns * tile, shrink, background);
+            }
+
+            string path = options.Text("out", $"icons-{kind}.png");
+            PngWriter.Write(path, sheet, columns * tile, rows * tile);
+            Console.WriteLine($"Wrote {path}");
+            return 0;
+        }
+
         private static int Dress(Options options)
         {
             int count = options.Int("count", 24);
