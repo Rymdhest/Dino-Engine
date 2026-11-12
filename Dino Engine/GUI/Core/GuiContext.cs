@@ -71,6 +71,9 @@ namespace Dino_Engine.GUI
         private readonly Label _tooltipLabel;
         private MouseCursor? _currentCursor;
 
+        /// <summary>What a game draws in place of the system's cursors: given the cursor asked for (MouseCursor.Default, Hand and so on) and the interface's scale, it returns the one to show. It's asked every frame, so it should keep what it makes.</summary>
+        public Func<MouseCursor, float, MouseCursor>? CursorStyle { get; set; }
+
         private record PopupEntry(GuiElement Popup, GuiElement? Owner, Action? OnClosed);
 
         public GuiContext(NativeWindow window, GuiTheme? theme = null)
@@ -689,6 +692,7 @@ namespace Dino_Engine.GUI
                     break;
                 }
             }
+            if (CursorStyle != null) desired = CursorStyle(desired, _scale);
             if (!ReferenceEquals(desired, _currentCursor))
             {
                 _window.Cursor = desired;

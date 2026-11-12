@@ -683,6 +683,10 @@ namespace Dino_BuildLab
             // A price nobody notices is no price. Each line of what a unique costs has to make something worse, by enough to matter, or be a rule nobody would want.
             var free = UniqueCatalog.All.Where(u => !u.Burden.All(Hurts)).Select(u => $"{u.Id}: {string.Join(" / ", u.Burden.Where(mod => !Hurts(mod)).Select(mod => mod.Describe()))}").ToList();
             report.Check("Everything a unique costs really costs", free.Count == 0, string.Join(" | ", free.Take(10)));
+            var slowed = new BuffDefinition { Id = "slowed", Name = "Slowed", Mods = new[] { Inc(Stat.MoveSpeed, -30f) } };
+            var worn = new BuffDefinition { Id = "worn", Name = "Worn", Mods = new[] { Inc(Stat.DamageTaken, 20f), Inc(Stat.Damage, 5f), Inc(Stat.AttackSpeed, -10f) } };
+            report.Check("A buff that mostly hurts is shown with the debuffs, and one that helps with the buffs",
+                Harm.IsDebuff(slowed) && Harm.IsDebuff(worn) && !Harm.IsDebuff(BuffCatalog.StoneSkin) && !Harm.IsDebuff(BuffCatalog.Sanctuary) && BuffCatalog.Blessings.All(blessing => !Harm.IsDebuff(blessing)));
             report.Check("And nothing it gives is a cost in disguise", UniqueCatalog.All.All(u => !u.Boon.Any(mod => mod.Kind == ModKind.Rule && ModText.Of(mod.Rule)?.Hurts == true)), string.Join(", ", UniqueCatalog.All.Where(u => u.Boon.Any(mod => mod.Kind == ModKind.Rule && ModText.Of(mod.Rule)?.Hurts == true)).Select(u => u.Id)));
 
             // What the tree already gives is no reason to want an item.
@@ -737,21 +741,13 @@ namespace Dino_BuildLab
             report.Check("A unique can change what another talent means: the Drowned King's shell keeps a Tidewalker in the water", sheet.Preview(Shelf.Strike).First.AverageHit > dry * 1.7f, $"{sheet.Preview(Shelf.Strike).First.AverageHit} against {dry}");
         }
 
-        // Which stats a build wants less of. Everything else, more is better.
-        private static readonly Stat[] Unwanted = { Stat.DamageTaken, Stat.BookCost, Stat.AilmentTaken, Stat.BarrierDelay, Stat.DodgeCooldown, Stat.HealthDrain };
-
-        // Whether a line makes whoever wears it worse off, by enough that they'd notice.
+        // Whether a line makes whoever wears it worse off, by enough that they'd notice: which way it cuts is the game's own rule (Harm), and how much is noticed is here.
         private static bool Hurts(Mod mod)
         {
-            bool unwanted = Unwanted.Contains(mod.Stat);
+            if (!Harm.Hurts(mod)) return false;
             switch (mod.Kind)
             {
-                case ModKind.Rule:
-                    return ModText.Of(mod.Rule)?.Hurts == true;
-                case ModKind.Override:
-                    return !unwanted;
                 case ModKind.Flat or ModKind.Increased or ModKind.More:
-                    if (mod.Value * (unwanted ? 1f : -1f) <= 0f) return false;
                     float size = mod.Per != Per.None ? mod.PerCap : MathF.Abs(mod.Value);
                     float least = mod.Kind != ModKind.Flat ? 15f : mod.Stat switch
                     {
@@ -763,7 +759,7 @@ namespace Dino_BuildLab
                     };
                     return size >= least;
                 default:
-                    return false;
+                    return true;    // A rule that hurts, or a stat overridden the wrong way.
             }
         }
 

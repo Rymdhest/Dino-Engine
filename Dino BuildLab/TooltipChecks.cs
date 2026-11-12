@@ -150,6 +150,8 @@ namespace Dino_BuildLab
             yield return Cards.Dodge(sheet);
             yield return Cards.Flask(new HeroState(), sheet);
             yield return Cards.Wind();
+            yield return Cards.Experience(new HeroState());
+            yield return Cards.Experience(new HeroState { Level = HeroState.MaxLevel });
         }
 
         private static IEnumerable<(string where, string text)> EverySentence()

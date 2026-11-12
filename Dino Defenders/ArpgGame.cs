@@ -155,6 +155,7 @@ namespace Dino_Defenders
             NetSchema.Build();
             RegisterSystems();
             _ui = new GameUi(Dino_Engine.Core.Engine.Gui, this, Quit, ToMenu);
+            Dino_Defenders.UI.GameCursor.Install(Dino_Engine.Core.Engine.Gui);
             Dino_Engine.Core.Engine.WindowHandler.Closing += _ => ShutDown();
 
             if (options.StartsAtMenu)
@@ -477,6 +478,7 @@ namespace Dino_Defenders
                 Save = save,
                 AllowTeleport = _options.Bot || _options.Tour != null,
                 Calm = _options.Calm,
+                Buffs = _options.Buffs.ToArray(),
                 SameSky = _options.Scripted,
                 Start = _options.At,
                 StartSite = _options.Site,

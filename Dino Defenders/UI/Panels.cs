@@ -412,6 +412,7 @@ namespace Dino_Defenders.UI
         public readonly GroundCatcher Ground = new();
         public readonly HandLayer Hand = new();
         public readonly ActionBar Bar;
+        public readonly Crescent Crescent;
         public readonly MenuScreen Menu;
 
         private readonly GuiElement[] _panels;
@@ -426,6 +427,7 @@ namespace Dino_Defenders.UI
             Pause = new PauseMenu(CloseAll, () => Into(Settings), () => Into(Glossary), () => Into(Multiplayer!), heroSelect, quit);
             Multiplayer = new MultiplayerPage(game);
             Bar = new ActionBar(Hero);
+            Crescent = new Crescent(Bar);
             Menu = new MenuScreen(game);
             _panels = new GuiElement[] { Map, Hero, Talents, Book, Glossary, Chronicle, MapTable, HallTable, Pause, Multiplayer, Settings };
 
@@ -436,6 +438,7 @@ namespace Dino_Defenders.UI
             gui.Root.Add(Ground);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
             gui.Root.Add(Bar);
+            gui.Root.Add(Crescent);
             gui.Root.Add(Menu);
             Lift(gui);
             gui.Root.Add(Tips);
@@ -494,6 +497,7 @@ namespace Dino_Defenders.UI
             bool showing = !AtMenu && !OnPage;
             Hud.Visible = showing;
             Bar.Visible = showing;
+            Crescent.Visible = showing;
             Marks.Visible = showing;
             Plaques.Visible = showing;
             Labels.Visible = showing;

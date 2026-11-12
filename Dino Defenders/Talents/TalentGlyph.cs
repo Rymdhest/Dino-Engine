@@ -88,6 +88,19 @@ namespace Dino_Defenders.Talents
             return first;
         }
 
+        /// <summary>What a run of modifiers looks like, as a notable does: what the first gives, and the next thing it gives in the corner, if that's something else.</summary>
+        public static TalentIcon Of(IReadOnlyList<Mod> mods)
+        {
+            if (mods.Count == 0) return new TalentIcon(TalentGlyph.None);
+            TalentIcon first = Of(mods[0]);
+            for (int i = 1; i < mods.Count; i++)
+            {
+                TalentGlyph next = Of(mods[i]).Main;
+                if (next != first.Main && next != TalentGlyph.None) return new TalentIcon(first.Main, next);
+            }
+            return first;
+        }
+
         public static TalentIcon Of(in Mod mod)
         {
             Tags scope = mod.Scope;
@@ -265,6 +278,20 @@ namespace Dino_Defenders.Talents
             if ((scope & Tags.Stun) != 0) return TalentGlyph.Stun;
             return TalentGlyph.Avoid;
         }
+
+        /// <summary>What an ailment someone is suffering looks like: the same picture as anything on the tree that's about it.</summary>
+        public static TalentGlyph AilmentGlyph(Condition ailment) => ailment switch
+        {
+            Condition.Burning => TalentGlyph.Burn,
+            Condition.Bleeding => TalentGlyph.Bleed,
+            Condition.Envenomed => TalentGlyph.Venom,
+            Condition.Chilled => TalentGlyph.Chill,
+            Condition.Frozen => TalentGlyph.Freeze,
+            Condition.Shocked => TalentGlyph.Shock,
+            Condition.Hexed => TalentGlyph.Hex,
+            Condition.Stunned => TalentGlyph.Stun,
+            _ => TalentGlyph.None,
+        };
 
         public static TalentGlyph DamageGlyph(DamageType type) => type switch
         {

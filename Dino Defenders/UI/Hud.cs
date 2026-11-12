@@ -95,7 +95,6 @@ namespace Dino_Defenders.UI
             DrawFloatingTexts(draw, session, screen);
             DrawGuidance(draw, session, screen);
             DrawCalling(draw, session, screen);
-            DrawStanding(draw, session, screen);
             DrawChronicle(draw, session, screen);
             DrawLog(draw, session, screen);
             DrawBanner(draw, session, screen);
@@ -362,46 +361,6 @@ namespace Dino_Defenders.UI
             draw.AddRect(new GuiRect(bar.X - 2f, bar.Y - 2f, bar.Width + 4f, bar.Height + 4f), Ui.Ink, 3f, 1f, GuiColors.Rgba(120, 96, 58));
             draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * done, bar.Height), GuiColors.Rgba(104, 206, 255), 2f);
             Ui.Text(Context!, draw, "Calling the waygates", 14f, new GuiRect(bar.X, bar.Y - 22f, bar.Width, 18f), Ui.Parchment, Alignment.Center);
-        }
-
-        private void DrawStanding(GuiDrawList draw, GameSession session, GuiRect screen)
-        {
-            HeroState hero = session.Hero;
-            float width = 300f;
-            GuiRect experience = new GuiRect(Margin, screen.Height - Margin - 4f, width, 4f);
-            GuiRect above = new GuiRect(Margin, experience.Y - 26f, width, 22f);
-
-            DrawBuffs(draw, session, new GuiRect(above.X, above.Y - 21f, width, 18f));
-            Shade(draw, above);
-
-            draw.AddRect(experience, GuiColors.Rgba(0, 0, 0, 170));
-            float gained = hero.Level >= HeroState.MaxLevel ? 1f : Math.Clamp((float)hero.Experience / hero.ExperienceToNext, 0f, 1f);
-            draw.AddRect(new GuiRect(experience.X, experience.Y, experience.Width * gained, experience.Height), Ui.Experience);
-
-            Ui.Text(Context!, draw, $"Level {hero.Level}", 16f, above, Ui.Gold);
-            Ui.Text(Context!, draw, $"{hero.Gold} gold", 14f, above, Ui.Parchment, Alignment.End);
-            if (hero.UnspentPoints > 0)
-            {
-                Ui.Text(Context!, draw, $"{hero.UnspentPoints} to spend  [{Bindings.Label(GameAction.Talents)}]", 13f, above, Ui.Gold, Alignment.Center);
-            }
-        }
-
-        private void DrawBuffs(GuiDrawList draw, GameSession session, GuiRect line)
-        {
-            float x = line.X;
-            foreach (ActiveBuff buff in session.Client.Buffs)
-            {
-                string name = buff.Stacks > 1 ? $"{buff.Buff.Name} x{buff.Stacks}" : buff.Buff.Name;
-                float width = GuiText.MeasureWidth(Context!, name, Ui.Face, 13f);
-                GuiRect place = new GuiRect(x, line.Y, width, line.Height);
-                Ui.Text(Context!, draw, name, 13f, place, Ui.Good);
-                if (Resting(place))
-                {
-                    ActiveBuff shown = buff;
-                    GameUi.Current.Tips.Show(() => Cards.Buff(shown.Buff, session.Sheet, shown.Stacks, shown.Left), place, above: true);
-                }
-                x += width + 14f;
-            }
         }
 
         // The corner where what the land asks is kept: its name, what's to be done, and under that its level and its omens, each of which a rested eye can read in full. In the Haven, the climb.

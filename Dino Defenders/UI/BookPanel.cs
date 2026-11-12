@@ -3,6 +3,7 @@ using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
+using Dino_Defenders.Talents;
 using Dino_Defenders.Tooltips;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
@@ -608,7 +609,15 @@ namespace Dino_Defenders.UI
     {
         private const float Size = 62f;
         private const float Gap = 8f;
-        private const float Bottom = 26f;
+        private const float Bottom = 34f;
+        private const float LevelBelow = 15f;      // From the bar's bottom to the middle of the level's bar under it.
+        private const float LevelHeight = 5f;
+        private const float LevelSeal = 11f;
+        private const float Effect = 30f;          // A buff's or an ailment's square, over the Health bar.
+        private const float EffectGap = 4f;
+        private const float EffectsAbove = 6f;
+
+        private static readonly Condition[] Ailments = { Condition.Burning, Condition.Bleeding, Condition.Envenomed, Condition.Chilled, Condition.Frozen, Condition.Shocked, Condition.Hexed, Condition.Stunned };
         private const float HealthHeight = 16f;
         private const float ManaHeight = 12f;
         private const float PoolGap = 3f;
@@ -653,6 +662,8 @@ namespace Dino_Defenders.UI
             if (Context == null || GameSession.Current is not GameSession session) return;
 
             DrawPools(draw, session);
+            DrawLevel(draw, session);
+            DrawEffects(draw, session);
 
             HeroSimState sim = session.Sim;
             for (int slot = 0; slot < _cells.Length; slot++)
@@ -712,6 +723,100 @@ namespace Dino_Defenders.UI
                 if (Resting(Context, slot)) GameUi.Current.Tips.Show(ability.Card, slot, above: true);
                 x += Size + Gap;
             }
+        }
+
+        // What the hero is under, as pictures over the Health bar: buffs from its left end, rimmed in gold, and debuffs from its right end, rimmed in blood, so the two never mix. A debuff is any ailment and any buff that mostly hurts (Harm.IsDebuff). Each side has half the bar, and a full row starts another above it.
+        private void DrawEffects(GuiDrawList draw, GameSession session)
+        {
+            float bottom = Bounds.Y - PoolsAbove - ManaHeight - PoolGap - HealthHeight - EffectsAbove;
+            int perRow = Math.Max(1, (int)((Bounds.Width * 0.5f) / (Effect + EffectGap)));
+            int helping = 0, hurting = 0;
+
+            foreach (ActiveBuff buff in session.Client.Buffs)
+            {
+                bool hurts = Harm.IsDebuff(buff.Buff);
+                GuiRect place = EffectPlace(hurts ? hurting++ : helping++, perRow, bottom, hurts);
+                TalentIcon icon = TalentIcons.Of(buff.Buff.Mods);
+                float gone = buff.Buff.Duration > 0f ? 1f - Math.Clamp(buff.Left / buff.Buff.Duration, 0f, 1f) : 0f;
+                DrawEffect(draw, place, icon, hurts, gone, buff.Stacks);
+                if (Resting(Context!, place))
+                {
+                    ActiveBuff shown = buff;
+                    GameUi.Current.Tips.Show(() => Cards.Buff(shown.Buff, session.Sheet, shown.Stacks, shown.Left), place, above: true);
+                }
+            }
+
+            if (session.Client.OwnGhost is not { } own || !session.Client.Ecs.TryGetEntityLocation(own.Entity, out _, out _)) return;
+            var view = session.Client.Ecs.GetEntityView(own.Entity);
+            if (!view.Has<AfflictedComponent>()) return;
+            AfflictedComponent afflicted = view.Get<AfflictedComponent>();
+            foreach (Condition ailment in Ailments)
+            {
+                if (!afflicted.Has(ailment)) continue;
+                GuiRect place = EffectPlace(hurting++, perRow, bottom, true);
+                DrawEffect(draw, place, new TalentIcon(TalentIcons.AilmentGlyph(ailment)), true, 0f, 0);
+                if (Resting(Context!, place) && Lexicon.Of(ailment) is Term term) GameUi.Current.Tips.Show(() => Cards.Defined(term), place, above: true);
+            }
+        }
+
+        // Buffs go rightwards from the bar's left end, and what hurts leftwards from its right end.
+        private GuiRect EffectPlace(int index, int perRow, float bottom, bool hurts)
+        {
+            int row = index / perRow, column = index % perRow;
+            float x = hurts ? Bounds.Right - Effect - column * (Effect + EffectGap) : Bounds.X + column * (Effect + EffectGap);
+            return new GuiRect(x, bottom - Effect - row * (Effect + EffectGap), Effect, Effect);
+        }
+
+        // A dark square with the picture in it, rimmed in gold for what helps and in blood for what hurts, darkening from the top as its time runs out.
+        private void DrawEffect(GuiDrawList draw, GuiRect place, TalentIcon icon, bool hurts, float gone, int stacks)
+        {
+            Colour rim = hurts ? GuiColors.Rgba(220, 52, 40) : Ui.Gold.MultiplyAlpha(0.7f);
+            draw.AddRect(new GuiRect(place.X - 1f, place.Y + 1f, place.Width + 2f, place.Height + 2f), GuiColors.Rgba(0, 0, 0, 110), 5f, 0f, default, 4f);
+            draw.AddRect(place, hurts ? GuiColors.Rgba(34, 10, 8, 230) : GuiColors.Rgba(15, 12, 10, 225), 4f, hurts ? 1.8f : 1.2f, rim);
+
+            int texture = TalentAtlas.Texture;
+            Colour ink = hurts ? GuiColors.Rgba(240, 150, 130) : Ui.Parchment;
+            if (texture != 0 && icon.Main != TalentGlyph.None)
+            {
+                (Vector2 from, Vector2 to) = TalentAtlas.Of(icon.Main);
+                float inset = place.Width * 0.14f;
+                draw.AddField(texture, new GuiRect(place.X + inset, place.Y + inset, place.Width - inset * 2f, place.Height - inset * 2f), from, to, ink);
+            }
+            // What else it gives, small in the upper corner, as a notable on the tree shows it.
+            if (texture != 0 && icon.Badge != TalentGlyph.None)
+            {
+                float r = place.Width * 0.22f;
+                var at = new Vector2(place.Right - r + 1f, place.Y + r - 1f);
+                draw.AddCircle(at, r + 1f, GuiColors.Rgba(15, 12, 10, 245), 1f, Ui.Gold.MultiplyAlpha(0.6f));
+                (Vector2 from, Vector2 to) = TalentAtlas.Of(icon.Badge);
+                draw.AddField(texture, new GuiRect(at.X - r * 0.8f, at.Y - r * 0.8f, r * 1.6f, r * 1.6f), from, to, Ui.Gold);
+            }
+            if (gone > 0f) draw.AddRect(new GuiRect(place.X + 1f, place.Y + 1f, place.Width - 2f, (place.Height - 2f) * gone), GuiColors.Rgba(10, 8, 6, 150), 3f);
+            if (stacks > 1)
+            {
+                var corner = new GuiRect(place.X, place.Bottom - 13f, place.Width - 3f, 12f);
+                Ui.Text(Context!, draw, stacks.ToString(), 11f, corner, Ui.Bright, Alignment.End);
+            }
+        }
+
+        // Experience in a thin bar under the bar, as wide as it, with the level on a seal in its middle.
+        private void DrawLevel(GuiDrawList draw, GameSession session)
+        {
+            HeroState hero = session.Hero;
+            float middle = Bounds.Bottom + LevelBelow;
+            var track = new GuiRect(Bounds.X, middle - LevelHeight * 0.5f, Bounds.Width, LevelHeight);
+            draw.AddRect(track.Inflate(1f), GuiColors.Rgba(15, 12, 10, 210), LevelHeight * 0.5f + 1f, 1f, Ui.Gold.MultiplyAlpha(0.3f));
+            float gained = hero.Level >= HeroState.MaxLevel ? 1f : Math.Clamp((float)hero.Experience / hero.ExperienceToNext, 0f, 1f);
+            if (gained > 0f) draw.AddRect(new GuiRect(track.X, track.Y, MathF.Max(track.Width * gained, LevelHeight), track.Height), Ui.Experience, LevelHeight * 0.5f);
+
+            var seal = new Vector2(Bounds.X + Bounds.Width * 0.5f, middle);
+            draw.AddCircle(seal, LevelSeal + 2f, GuiColors.Rgba(0, 0, 0, 90));
+            draw.AddCircle(seal, LevelSeal, GuiColors.Rgba(15, 12, 10, 240), 1.3f, Ui.Gold);
+            // Resting on the bar or its seal tells how far through the level the hero is.
+            var over = new GuiRect(track.X, seal.Y - LevelSeal, track.Width, LevelSeal * 2f);
+            if (Resting(Context!, over)) GameUi.Current.Tips.Show(() => Cards.Experience(GameSession.Current?.Hero ?? hero), over, above: true);
+
+            Ui.Text(Context!, draw, hero.Level.ToString(), hero.Level >= 100 ? 10.5f : 12f, new GuiRect(seal.X - LevelSeal, seal.Y - LevelSeal + Crescent.Capitals(Context!, hero.Level >= 100 ? 10.5f : 12f), LevelSeal * 2f, LevelSeal * 2f), Ui.Gold, Alignment.Center);
         }
 
         // As wide as the bar, whatever's on it. They're only drawn, so the mouse goes through them to the world.

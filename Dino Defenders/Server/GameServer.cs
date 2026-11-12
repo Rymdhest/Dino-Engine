@@ -22,6 +22,7 @@ namespace Dino_Defenders.Server
         public SaveGame? Save;
         public bool AllowTeleport;      // For scripted runs: a client may ask to be put anywhere.
         public bool Calm;               // For scripted runs that look at a place: nothing that's there to be fought stirs, so that pictures can be taken among it.
+        public string[] Buffs = Array.Empty<string>();     // For scripted runs: buffs each hero arrives under, by id, for the whole run.
         public bool SameSky;            // For scripted runs: the Haven begins at the same point in its day and weather every visit, so that pictures can be compared.
         public Vector2? Start;
         public string? StartSite;
@@ -219,6 +220,8 @@ namespace Dino_Defenders.Server
             }
         }
 
+        private const float ScriptedBuffSeconds = 3600f;
+
         private void Arrive(ServerPlayer player)
         {
             ServerSession session = Session!;
@@ -236,6 +239,10 @@ namespace Dino_Defenders.Server
             player.Actor = actor;
             player.Kit = new HeroKit(player.Hero, actor.Sheet);
             player.WatchBooks();
+            foreach (string id in _settings.Buffs)
+            {
+                if (BuffCatalog.All.FirstOrDefault(buff => buff.Id == id) is BuffDefinition buff) session.Combat.AddBuff(actor, buff, ScriptedBuffSeconds);
+            }
             if (first && _saved is { InLand: true } && !session.IsHaven && _saved.Health > 0f) actor.Vitals.Health = Math.Min(_saved.Health, actor.Sheet.MaxHealth);
 
             player.Sim = HeroSimState.At(start, actor.Vitals.Mana);

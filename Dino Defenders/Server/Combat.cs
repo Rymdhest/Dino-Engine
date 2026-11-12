@@ -131,7 +131,6 @@ namespace Dino_Defenders.Server
             // Some hands can't be trusted, either way.
             if (own && sheet.Has(Rule.Fumble) && _luck.Float() < FumbleChance)
             {
-                Show(TextEvent.Word(new Vector3(user.Position.X, user.Height + 5f, user.Position.Y), "Fumbled"), user.Position);
                 return;
             }
             if (own && sheet.Has(Rule.Fluke) && _luck.Float() < FlukeChance)
@@ -924,7 +923,6 @@ namespace Dino_Defenders.Server
             if (source.Sheet.Has(Rule.Marks) && source.Focus is not { Dead: false })
             {
                 source.Focus = target;
-                Show(TextEvent.Word(point + Vector3.UnitY * 1.5f, "Marked"), target.Position);
             }
 
             Condition foe = target.State;

@@ -742,6 +742,29 @@ namespace Dino_Defenders.Tooltips
             return card;
         }
 
+        /// <summary>How far the hero is through their level: what they've gained in it, what it takes, and what's left.</summary>
+        public static Card Experience(HeroState hero)
+        {
+            var card = new Card { Title = $"Level {hero.Level}" };
+            if (hero.Level >= HeroState.MaxLevel)
+            {
+                card.Text("The highest Level there is");
+                return card;
+            }
+            card.Cell("Experience", $"{Whole(hero.Experience)} of {Whole(hero.ExperienceToNext)}");
+            card.Gap();
+            card.Text($"{Whole(hero.ExperienceToNext - hero.Experience)} more to the next Level");
+            return card;
+        }
+
+        /// <summary>A word that means something, as its own card, the same as a marked word opens: an ailment the hero is suffering, for one.</summary>
+        public static Card Defined(Term term)
+        {
+            var card = new Card { Title = term.Name };
+            card.Text(term.Says);
+            return card;
+        }
+
         public static Card Wind()
         {
             var card = new Card { Title = "Guiding Wind" };

@@ -93,6 +93,7 @@ namespace Dino_Defenders
         public readonly List<string> Talents = new();
         public readonly List<string> Equip = new();
         public readonly List<string> Books = new();
+        public readonly List<string> Buffs = new();     // Buffs the hero arrives under, by id, lasting the whole run: for looking at how they're shown.
         public int Carry;
 
         /// <summary>Whether to start at the main menu: --menu true or false. Without being told it's for anyone just starting the game, and no scripted run.</summary>
@@ -225,6 +226,7 @@ namespace Dino_Defenders
                     case "talents": options.Talents.AddRange(value.Split(',')); break;
                     case "equip": options.Equip.AddRange(value.Split(',')); break;
                     case "books": options.Books.AddRange(value.Split(',')); break;
+                    case "buffs": options.Buffs.AddRange(value.Split(',')); break;
                     case "carry": options.Carry = int.Parse(value); break;
                     case "menu": options.Menu = value == "true"; break;
                     case "heroes": options.Heroes = value; break;

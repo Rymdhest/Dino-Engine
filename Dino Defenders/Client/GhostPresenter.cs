@@ -764,11 +764,7 @@ namespace Dino_Defenders.Client
             {
                 Landed(client, e);
                 client.Session?.Meter.Landed(e, client, Engine.Time);
-                if (e.Note != HitNote.None)
-                {
-                    client.Session?.Say(e.Position, e.Note.ToString(), new Vector3(0.8f, 0.8f, 0.75f), 14f, 0.7f);
-                    return;
-                }
+                if (e.Note != HitNote.None) return;   // Only damage puts anything over a head, and only as a number.
 
                 Vector3 colour = e.ToHero ? HurtColour : e.Critical ? CritColour : e.Type == DamageType.Physical ? HitColour : TextColourOf(e.Type);
                 float size = e.ToHero ? 17f : e.Critical ? 22f : 16f;
@@ -779,8 +775,7 @@ namespace Dino_Defenders.Client
             client.Events.On<LinkEvent>(ShowLink);
             client.Events.On<ReactionEvent>(e =>
             {
-                Colour colour = ReactionColour(e.Kind);
-                client.Session?.Say(e.Position + Vector3.UnitY * 2.2f, $"{e.Kind}!", new Vector3(colour.Red, colour.Green, colour.Blue), 20f, 1.2f);
+                // A reaction shows by its burst alone: words over a fight are only ever numbers.
                 Burst(ReactionOf(e.Kind), e.Position, e.Radius);
             });
             client.Events.On<TextEvent>(e => client.Session?.Say(e.Position, e.Text, e.Colour, e.Size, e.Life));
@@ -977,15 +972,6 @@ namespace Dino_Defenders.Client
             Colour light = LightOf(type);
             return new Vector3(light.Red, light.Green, light.Blue);
         }
-
-        private static Colour ReactionColour(Reaction reaction) => reaction switch
-        {
-            Reaction.Scald => new Colour(1f, 0.82f, 0.62f, 1f),
-            Reaction.Crackle => new Colour(0.82f, 0.9f, 1f, 1f),
-            Reaction.Flashfire => new Colour(0.9f, 1f, 0.3f, 1f),
-            Reaction.Shatter => new Colour(0.7f, 0.92f, 1f, 1f),
-            _ => new Colour(0.56f, 0.72f, 1f, 1f),
-        };
 
         private void ShowPage(PageEvent e)
         {
