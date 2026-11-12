@@ -5,32 +5,8 @@ using OpenTK.Mathematics;
 namespace Dino_Engine.Modelling.Procedural.Gear
 {
     /// <summary>
-    /// Which materials gear is made of, by their place in the material arrays. It's here and not read from <see cref="Textures.TextureGenerator"/>, as just touching that class compiles
-    /// shaders, and generators have to run where there's no GPU. The game fills these in once its textures exist. Anywhere else they stay as they are, which tells them apart.
-    /// </summary>
-    public static class GearMaterials
-    {
-        public static int Metal = 1;
-        public static int Mail = 2;
-        public static int Leather = 3;
-        public static int Cloth = 4;
-        public static int Wood = 5;
-        public static int Bone = 6;
-        public static int Gem = 7;
-        public static int Glow = 8;
-        public static int Skin = 9;
-        public static int Straw = 10;
-
-        // Leather, cloth and bone are each a colour of their own, which the shader multiplies into whatever's drawn on them. Wood and straw are patterned in theirs, and the rest are white.
-        public static readonly Vector3 LeatherAlbedo = new Vector3(112f, 76f, 50f) / 255f;
-        public static readonly Vector3 ClothAlbedo = new Vector3(178f, 172f, 158f) / 255f;
-        public static Vector3 BoneAlbedo => Material.BONE.Colour.ToVector3();
-
-        /// <summary>What a material does to the colour drawn on it. A colour meant as an albedo divides by this, and a picture drawn with no textures multiplies by it to show what the game will.</summary>
-        public static Vector3 AlbedoOf(int material) => material == Leather ? LeatherAlbedo : material == Cloth ? ClothAlbedo : material == Bone ? BoneAlbedo : Vector3.One;
-    }
-
-    /// <summary>
+    /// What books, pages, sentences and orders are coloured with: gear's first palette, kept as it was for them, as their looks were made with it. Armour and weapons use
+    /// <see cref="GearColours"/>, which only draws what each material really comes in.
     /// Every colour one item is made of, drawn together so that they belong together. All of them are deep, as everything in the game is: under a sun of about 13 anything pale goes white.
     /// </summary>
     public sealed class GearPalette

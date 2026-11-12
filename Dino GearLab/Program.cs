@@ -12,6 +12,8 @@ namespace Dino_GearLab
     ///   check   [--kind k] [--count N]   Is every one valid? Exit code 1 if not.
     ///   variety [--kind k] [--count N]   Are they really different? Exit code 1 if not.
     ///   bench                            What one costs to make.
+    ///   fit     [--count N]              Does every piece of armour keep to its bands (GearFit)? Exit code 1 if not.
+    ///   describe [--kind k] [--seed N] [--count N] [--stride N]   What a look chose, in words.
     /// </summary>
     internal static class Program
     {
@@ -31,6 +33,10 @@ namespace Dino_GearLab
                     return Dress(options);
                 case "bench":
                     return Bench();
+                case "describe":
+                    return Describe(options);
+                case "fit":
+                    return GearFitCheck.Run(options);
                 default:
                     Console.WriteLine($"No command called {command}.");
                     return 1;
@@ -110,6 +116,22 @@ namespace Dino_GearLab
             string path = options.Text("out", "gear-dressed.png");
             PngWriter.Write(path, sheet, columns * width, rows * height);
             Console.WriteLine($"Wrote {path}");
+            return 0;
+        }
+
+        // What a look chose, in words: how it's made and what it's coloured with, for working out why a sheet looks as it does.
+        private static int Describe(Options options)
+        {
+            var kind = Enum.Parse<GearKind>(options.Text("kind", "Body"), ignoreCase: true);
+            int count = options.Int("count", 12);
+            for (int i = 0; i < count; i++)
+            {
+                ulong seed = (ulong)options.Int("seed", 1) + (ulong)i * (ulong)options.Int("stride", 1);
+                GearSpec spec = Spec(options, seed, kind);
+                var look = new GearLook(spec);
+                GearColours c = look.Colours;
+                Console.WriteLine($"{seed,6} {GearForge.MakeOf(spec),-10} craft {look.Craft:0.00} ornament {look.Ornament:0.00} wear {look.Wear:0.00} motif {look.Motif,-6} metal {c.MetalName}, fittings {c.FittingName}, leather {c.LeatherName}, dye {c.DyeName}, trim {c.TrimName}, wood {c.WoodName}, gem {c.GemName}");
+            }
             return 0;
         }
 

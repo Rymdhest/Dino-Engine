@@ -54,6 +54,62 @@ namespace Dino_Engine.Textures
             return new Surface(colour, 0.96f, height) { Subsurface = 0.3f };
         }
 
+        // Wood cut along its grain, for a haft, a bow or a staff: long fibres and no board in them, the growth rings showing as a flame where the cut crosses them, and fine pores. The grain
+        // runs up the tile, along whatever's lofted. Its late wood is a dark band a quarter as strong on average, so the shade it takes averages out to nothing.
+        private static Surface Timber(Canvas c)
+        {
+            Field figure = c.Noise(new Vector2(5f, 1f), octaves: 4, warp: 0.05f);
+            Field ring = (figure * 11f).Fract();
+            Field late = ((ring - 0.5f).Abs() * 2f).Pow(3f);
+            Field fibres = c.Noise(new Vector2(140f, 5f), octaves: 3);
+            Field streaks = c.Noise(new Vector2(24f, 2f), octaves: 3);
+            Field pores = c.Noise(new Vector2(300f, 18f), octaves: 2, kind: NoiseKind.Ridged).Threshold(0.82f, 0.06f);
+            Field height = 0.78f + (fibres - 0.5f) * 0.16f - late * 0.1f - pores * 0.08f;
+            Paint colour = (Paint)GearMaterials.TimberAlbedo * Field.Lerp(1.06f, 0.82f, late) * Field.Lerp(0.9f, 1.1f, streaks) * Field.Lerp(0.95f, 1.05f, fibres);
+            return new Surface(colour, Field.Lerp(0.62f, 0.78f, late), height);
+        }
+
+        // Metal scales in rows, each row lapping the one below as scale armour is laced: rounded at the foot, a ridge down the middle, thickest where it laps, and the corners between
+        // the feet of two scales in the shadow of the row they're laced over.
+        private static Surface Scales(Canvas c)
+        {
+            Bricks rows = c.Bricks(rows: 10, perRow: 8, gap: 0.0015f, bond: 0.5f, rowJitter: 0.04f, lengthJitter: 0.02f);
+            Field across = (rows.Along - 0.5f) * 2f;
+            Field foot = 0.5f - (1f - across * across).Clamp(0f, 1f).Sqrt() * 0.5f;
+            Field rim = (rows.Across - foot).Smooth(0f, 0.12f);
+            Field lap = (1f - rows.Across).Pow(0.6f);
+            Field keel = (1f - across.Abs()).Pow(2f) * 0.12f;
+            Field height = rim * (0.35f + lap * 0.45f + keel) + (c.Noise(70f, octaves: 3) - 0.5f) * 0.03f;
+            Paint colour = Grey(255) * Field.Lerp(0.88f, 1f, rows.Id) * Field.Lerp(0.62f, 1f, rim);
+            return new Surface(colour, Field.Lerp(0.55f, 0.34f, rim), height) { Metallic = Field.Lerp(0.6f, 0.92f, rim) };
+        }
+
+        // Cloth quilted over padding in channels down its length, as a gambeson is: each channel puffed up between its seams and a little lumpy where the stuffing settled, with the weave
+        // over all of it. The seams are dark by their shadow alone, so the colour averages what cloth's does, and a dye means the same on both.
+        private static Surface Quilt(Canvas c)
+        {
+            const int Channels = 10;
+            Field wander = (c.Noise(new Vector2(4f, 2f), octaves: 3) - 0.5f) * 0.06f;
+            Field across = (c.U * Channels + wander).Fract();
+            Field puff = 1f - ((across - 0.5f).Abs() * 2f).Pow(2.2f);
+            Field lumps = c.Noise(new Vector2(Channels, 6f), octaves: 3);
+            Weave weave = c.Weave(new Vector2i(80, 80), thickness: 0.86f, dip: 0.4f);
+            Field height = puff.Clamp(0f, 1f).Sqrt() * (0.72f + (lumps - 0.5f) * 0.2f) + weave.Height * 0.08f;
+            Paint colour = (Paint)GearMaterials.ClothAlbedo * Field.Lerp(0.9f, 1.1f, c.Noise(40f, octaves: 3)) * Field.Lerp(0.96f, 1.04f, lumps);
+            return new Surface(colour, 0.95f, height) { Subsurface = 0.3f };
+        }
+
+        // Fur lying down its length: strands gathered into locks that clump and part, deeper at the partings. Pale, as its colour is in the vertices.
+        private static Surface Fur(Canvas c)
+        {
+            Field locks = c.Noise(new Vector2(14f, 4f), octaves: 4, kind: NoiseKind.Billow, warp: 0.08f);
+            Field strands = c.Noise(new Vector2(160f, 9f), octaves: 3, kind: NoiseKind.Ridged, warp: 0.03f);
+            Field partings = c.Noise(new Vector2(30f, 6f), octaves: 3, kind: NoiseKind.Ridged).Threshold(0.84f, 0.06f);
+            Field height = (locks * 0.55f + strands * 0.35f - partings * 0.25f + 0.1f).Clamp(0f, 1f);
+            Paint colour = (Paint)GearMaterials.FurAlbedo * Field.Lerp(0.8f, 1.2f, strands) * Field.Lerp(0.88f, 1.12f, locks);
+            return new Surface(colour, 0.97f, height) { Subsurface = 0.2f };
+        }
+
         // Old bone: fine pores, the lines it grew in, yellowed in patches.
         private static Surface Bone(Canvas c)
         {

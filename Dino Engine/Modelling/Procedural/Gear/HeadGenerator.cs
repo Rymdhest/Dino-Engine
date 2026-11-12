@@ -5,327 +5,612 @@ using OpenTK.Mathematics;
 namespace Dino_Engine.Modelling.Procedural.Gear
 {
     /// <summary>
-    /// What's worn on the head, built around where it is in <see cref="BodyForm"/> and all on the head's bone. A dome is the start of nearly everything, and what's added to it decides what it is. From
-    /// above, which is where it's seen from, a head is mostly a top and a silhouette, so that's what most of this goes on.
+    /// What's worn on the head, all on the head's bone and built round where the head is in <see cref="BodyForm"/>. A helm is one space of them, not a list: its skull round, pointed or combed;
+    /// a brim or a tail or neither; open, with a nasal, with cheek plates, or a whole face of steel; a plume, a comb, horns or wings. Mail makes a coif, hardened leather a cap of panels, hide or
+    /// cloth a hood open at the face, and fine cloth a tall hat or a circlet. Nothing wider than a neck comes below the jaw (<see cref="GearFit.HelmLow"/>), where a body's collar is, and anything
+    /// of the head's that goes down the neck tucks inside it (<see cref="GearFit.NeckTuck"/>). Nothing ends in a spike on top, which reads as the old German soldiers' helm. See GEAR.md.
     /// </summary>
     public static class HeadGenerator
     {
         private const float Top = BodyForm.HeadTop;
         private const float Centre = BodyForm.HeadCentre;
+        private const float HalfWidth = BodyForm.HeadHalfWidth;
+        private const float HalfDepth = BodyForm.HeadHalfDepth;
+        private const float Front = MathF.PI / 2f;
 
-        public static void Build(GearMesh mesh, GearStyle style)
+        public static void Build(GearMesh mesh, GearLook look)
         {
-            var cut = new ArmourCut(style);
+            var kit = new ArmourKit(look);
+            Genes genes = look.Genes;
+            GearForm form = look.Spec.Form;
             mesh.Bone = (int)BoneType.Head;
-            GearForm form = style.Spec.Form;
 
-            // A thin band and nothing else, and hair still shows.
-            if (cut.Cloth > 0.5f && form.Cover < 0.12f)
+            switch (kit.Make)
             {
-                Circlet(mesh, cut, style.Genes.Part("circlet"));
-                return;
+                case GearMake.Mail:
+                    mesh.Counted("coif", () => Coif(mesh, kit, genes.Part("coif")));
+                    break;
+                case GearMake.Hardened:
+                case GearMake.Studded:
+                    mesh.Counted("cap", () => Cap(mesh, kit, genes.Part("cap")));
+                    break;
+                case GearMake.Hide:
+                    mesh.Counted("hood", () => Hood(mesh, kit, genes.Part("hood")));
+                    break;
+                case GearMake.Cloth:
+                case GearMake.Silk:
+                case GearMake.Wraps:
+                    if (form.Cover < 0.12f || kit.Make == GearMake.Silk && form.Cover < 0.3f && genes.Chance("circlet", 0.6f))
+                    {
+                        mesh.Counted("circlet", () => Circlet(mesh, kit, genes.Part("circlet")));
+                        return;
+                    }
+                    if (form.Size > 0.4f && genes.Chance("hat", 0.3f + form.Size * 0.35f)) mesh.Counted("kasa", () => Kasa(mesh, kit, genes.Part("hat")));
+                    else mesh.Counted("hood", () => Hood(mesh, kit, genes.Part("hood")));
+                    break;
+                case GearMake.Padded:
+                    mesh.Counted("cap", () => Cap(mesh, kit, genes.Part("cap")));
+                    break;
+                default:
+                    mesh.Counted("helm", () => Helm(mesh, kit, genes.Part("helm")));
+                    break;
             }
-
             mesh.Covers |= BodyRegions.Hair;
-            if (cut.Likely("hat", 0f, 0.05f, form.Size > 0.5f ? 0.8f : 0.1f)) Hat(mesh, cut, style.Genes.Part("hat"));
-            else if (cut.Likely("hood", 0.04f, 0.45f, 0.85f)) Hood(mesh, cut, style.Genes.Part("hood"));
-            else Helm(mesh, cut, style.Genes.Part("helm"));
         }
 
-        private static float HalfAt(float y, float halfWidth)
+        private static float Smooth(float t)
+        {
+            t = Math.Clamp(t, 0f, 1f);
+            return t * t * (3f - 2f * t);
+        }
+
+        // Below a shoulder's plate's top, nothing of the head's comes further across than GearFit.HeadSide, where a shoulder's plate starts: a plate laid there is drawn in at its sides, by
+        // as much more as it stands out from where it's laid (its thickness and its rolled edge).
+        private static Vector3 Beside(Vector3 p, float stands)
+        {
+            float most = GearFit.HeadSide - stands;
+            return p.Y < GearFit.ShoulderTop ? new Vector3(Math.Clamp(p.X, -most, most), p.Y, p.Z) : p;
+        }
+
+        // The head's surface pushed out by gap, at a height and an angle round it, which every helm, coif and cap is laid over.
+        private static Vector3 OnHead(float y, float angle, float gap, float lean = 0f)
         {
             float s = Math.Clamp((y - Centre) / BodyForm.HeadHalfHeight, -1f, 1f);
-            return halfWidth * MathF.Sqrt(MathF.Max(1f - s * s, 0.0005f));
+            float round = MathF.Sqrt(MathF.Max(1f - s * s, 0.0004f));
+            return new Vector3(MathF.Cos(angle) * (HalfWidth + gap) * round, y, MathF.Sin(angle) * (HalfDepth + gap) * round - 0.015f + lean);
         }
 
-        // The top of a head, offset out, from a height to the crown. It can run up to a point.
-        private static void Dome(GearMesh mesh, ArmourCut cut, Genes genes, float from, float gap, float peak, VertexMaterial material, Section section, Func<int, VertexMaterial>? colour = null)
+        // A dome over the head from a height up, its crown shaped by a profile and run up to a point or flattened, as a loft round y.
+        private static List<Ring> Dome(Genes genes, float from, float gap, float peak, float flat, int steps = 10)
         {
-            int steps = 10;
-            var rings = new Ring[steps + 1];
-            float top = Top + gap + peak + genes.Range("crown.tall", -0.04f, 0.24f);
-
-            // What the crown does on the way up: swelling out, coming straight up, or drawing in early.
-            Profile crown = new Profile((0f, 1f), (0.4f, genes.Range("crown.mid", 0.82f, 1.14f)), (0.75f, genes.Range("crown.high", 0.62f, 1.05f)), (1f, genes.Range("crown.top", 0.04f, 0.6f)));
-            float power = 2.2f - 1f * MathF.Min(peak / 0.3f, 1f);
-            float flat = genes.Range("crown.flat", 0f, 0.5f);
+            float top = Top + gap + peak + genes.Range("crown.tall", -0.03f, 0.12f);
+            Profile crown = new Profile((0f, 1f), (0.4f, genes.Range("crown.mid", 0.9f, 1.08f)), (0.75f, genes.Range("crown.high", 0.7f, 1f)), (1f, genes.Range("crown.top", 0.04f, 0.45f)));
+            float power = 2.2f - MathF.Min(peak / 0.25f, 1f);
+            var rings = new List<Ring>();
             for (int i = 0; i <= steps; i++)
             {
                 float t = (float)i / steps;
                 float y = from + (top - from) * MathF.Sin(t * MathF.PI * 0.5f);
-
                 float s = (y - from) / (top - from);
                 float along = MathF.Sqrt(MathF.Max(1f - MathF.Pow(s, power), 0f));
-                along = (along * (1f - flat) + crown.At(s) * flat) * (0.9f + 0.1f * crown.At(s));
-                float half = BodyForm.HeadHalfWidth + gap;
-                float halfDepth = BodyForm.HeadHalfDepth + gap;
-                rings[i] = new Ring { Centre = new Vector3(0f, y, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = half * along, HalfDepth = halfDepth * along };
+                along = MathF.Max((along * (1f - flat) + crown.At(s) * flat) * (0.9f + 0.1f * crown.At(s)), 0.02f);
+                float headRound = MathF.Sqrt(MathF.Max(1f - MathF.Pow(Math.Clamp((MathF.Min(y, Centre) - Centre) / BodyForm.HeadHalfHeight, -1f, 0f), 2f), 0.3f));
+                rings.Add(new Ring { Centre = new Vector3(0f, y, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = (HalfWidth + gap) * along * headRound, HalfDepth = (HalfDepth + gap) * along * headRound });
             }
-            mesh.Loft(section, rings, (ring, _) => colour?.Invoke(ring) ?? material, capStart: false, capEnd: true);
+            return rings;
         }
 
-        private static void Helm(GearMesh mesh, ArmourCut cut, Genes genes)
+        private static void Helm(GearMesh mesh, ArmourKit kit, Genes genes)
         {
-            GearStyle style = cut.Style;
-            GearForm form = style.Spec.Form;
-            float gap = cut.Blend("gap", new Vector2(0.06f, 0.12f), new Vector2(0.03f, 0.07f), new Vector2(0.03f, 0.06f));
-            float peak = genes.Range("peak", 0f, 0.3f) * (0.4f + style.Spikes * 1.2f);
-            float brow = Centre + genes.Range("brow", -0.02f, 0.12f);
-
-            // How far it comes down: an open cap, or a whole face behind steel.
+            GearLook look = kit.Look;
+            GearForm form = look.Spec.Form;
+            float gap = genes.Range("gap", 0.06f, 0.1f);
             float cover = form.Cover;
-            Section section = style.Angular > 0.5f ? Section.Polygon(genes.Count("facets", 6, 12)) : Section.Round(14);
-            int ribs = genes.Count("ribs", 0, 2 + (int)(style.Ornate * 4f));
+            float peak = genes.Range("peak", 0f, 0.26f) * (0.3f + look.Spikes);
+            bool great = cover > 0.82f && genes.Chance("great", 0.85f);
+            float brow = great ? GearFit.ShoulderTop + 0.035f : Centre + genes.Range("brow", -0.02f, 0.1f);
+            Section section = look.Angular > 0.55f ? Section.Polygon(genes.Count("facets", 8, 12)) : Section.Round(18);
 
-            // A plate cap with a mail or padded skirt below, or for a great helm a straight drum all the way down.
-            if (cover > 0.75f)
+            if (great)
             {
-                float rim = BodyForm.Neck - 0.05f;
-                Ring[] drum =
+                // A drum round the whole head, its top flat or a low dome, with a slit to see through and holes to breathe through.
+                float slit = genes.Range("slit", 4.46f, 4.56f);
+                float r = HalfWidth + gap + 0.04f, d = HalfDepth + gap + 0.04f;
+                var drum = new List<Ring>();
+                foreach (float y in new[] { brow, slit - 0.06f, slit - 0.025f, slit + 0.025f, slit + 0.06f, Top - 0.05f })
                 {
-                    new Ring { Centre = new Vector3(0f, rim, 0f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = BodyForm.HeadHalfWidth + gap + 0.03f, HalfDepth = BodyForm.HeadHalfDepth + gap + 0.03f, Hard = true },
-                    new Ring { Centre = new Vector3(0f, Centre - 0.14f, 0.02f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = BodyForm.HeadHalfWidth + gap, HalfDepth = BodyForm.HeadHalfDepth + gap },
-                    new Ring { Centre = new Vector3(0f, Centre + 0.02f, 0.02f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = BodyForm.HeadHalfWidth + gap, HalfDepth = BodyForm.HeadHalfDepth + gap, Hard = true },
-                    new Ring { Centre = new Vector3(0f, Centre + 0.09f, 0.02f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = BodyForm.HeadHalfWidth + gap, HalfDepth = BodyForm.HeadHalfDepth + gap, Hard = true },
-                };
-                VertexMaterial slit = style.Palette.Dark;
-                mesh.Loft(section, drum, (ring, _) => ring == 2 ? slit : cut.Main, capStart: false, capEnd: false);
-                brow = Centre + 0.09f;
-
-                // Breaths, on the cheek.
-                int holes = genes.Count("holes", 0, 5);
+                    drum.Add(new Ring { Centre = new Vector3(0f, y, 0.01f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = r, HalfDepth = d, Hard = y == brow });
+                }
+                mesh.Bands(section, drum, (ring, _) => ring == 2 ? kit.C.MetalDark : kit.Shell, capStart: false, capEnd: false);
+                var crown = Dome(genes, Top - 0.05f, gap + 0.04f, peak * 0.4f, genes.Range("flat", 0.4f, 1f), 6);
+                mesh.Loft(section, crown, kit.Shell, capStart: false, capEnd: true);
+                // A cross of iron over the face.
+                mesh.Strip(new[] { new Vector3(0f, brow + 0.04f, d + 0.012f), new Vector3(0f, slit - 0.03f, d + 0.012f) }, new[] { Vector3.UnitZ, Vector3.UnitZ }, 0.03f, 0.012f, kit.Edge);
+                int holes = genes.Count("holes", 3, 8);
                 for (int i = 0; i < holes; i++)
                 {
-                    float y = Centre - 0.2f - i * 0.05f;
-                    cut.Stud(mesh, new Vector3(genes.Sign("holes.side") * 0.2f, y, BodyForm.HeadHalfDepth + gap - 0.02f), Vector3.UnitZ, 0.018f, style.Palette.Dark);
+                    float y = brow + 0.07f + (i % 4) * 0.04f;
+                    float x = (genes.Chance($"hole{i}.side", 0.5f) ? 1f : -1f) * (0.1f + (i / 4) * 0.05f);
+                    mesh.Rivet(new Vector3(x, y, d * MathF.Sqrt(MathF.Max(1f - x * x / (r * r), 0.1f)) + 0.003f), Vector3.UnitZ, 0.014f, kit.C.MetalDark);
                 }
             }
-            else if (cover > 0.4f)
+            else
             {
-                // Mail or padding hanging round the neck, leaving the face open.
-                float rim = BodyForm.Neck + genes.Range("aventail", -0.14f, 0.04f);
-                Ring[] skirt =
+                List<Ring> dome = Dome(genes, brow, gap, peak, genes.Range("flat", 0f, 0.45f));
+                bool banded = genes.Chance("banded", 0.35f + (look.Motif == Motif.Facet ? 0.2f : 0f));
+                int segments = genes.Count("segments", 4, 6);
+                mesh.Loft(section, dome, kit.Shell, capStart: false, capEnd: true);
+                if (banded)
                 {
-                    new Ring { Centre = new Vector3(0f, rim, -0.06f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = BodyForm.HeadHalfWidth + gap + 0.09f, HalfDepth = BodyForm.HeadHalfDepth + gap + 0.03f, Hard = true },
-                    new Ring { Centre = new Vector3(0f, brow, -0.1f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = BodyForm.HeadHalfWidth + gap - 0.005f, HalfDepth = BodyForm.HeadHalfDepth + gap - 0.06f, Hard = true },
-                };
-                mesh.Loft(Section.Round(14), skirt, cut.Heavy > 0.3f ? cut.Under : cut.Second, capStart: false, capEnd: false);
-            }
-
-            Func<float, float, VertexMaterial> pattern = cut.Pattern(genes.Part("pattern"));
-            Dome(mesh, cut, genes, brow, gap, peak, cut.Main, section, ring => ribs > 0 && ring % Math.Max(10 / Math.Max(ribs, 1), 2) == 0 ? cut.Second : pattern(ring / 10f, 0.25f));
-
-            // A band round the brow.
-            float browRadius = BodyForm.HeadHalfWidth + gap;
-            ArmourCut.Band(mesh, new Vector3(0f, brow, -0.015f), browRadius, BodyForm.HeadHalfDepth + gap, genes.Range("band", 0.02f, 0.05f), 0.012f, cut.Second);
-
-            if (cover <= 0.75f && genes.Chance("brim", 0.3f))
-            {
-                float reach = genes.Range("brim.reach", 0.08f, 0.34f);
-                mesh.Hoop2(new Vector3(0f, brow - 0.02f, -0.015f), browRadius + reach, browRadius - 0.02f, genes.Range("brim.droop", -0.02f, 0.16f), cut.Second);
-            }
-            if (cover <= 0.75f && cut.Likely("nasal", 0.6f, 0.08f, 0f)) Nasal(mesh, cut, genes.Part("nasal"), brow, gap);
-            if (cover <= 0.75f && cut.Likely("cheeks", 0.45f, 0.25f, 0f)) Cheeks(mesh, cut, genes.Part("cheeks"), brow, gap);
-            Crest(mesh, cut, genes.Part("crest"), brow, gap, peak);
-        }
-
-        private static void Nasal(GearMesh mesh, ArmourCut cut, Genes genes, float brow, float gap)
-        {
-            float length = genes.Range("length", 0.18f, 0.36f);
-            float wide = genes.Range("wide", 0.03f, 0.06f);
-            float z = BodyForm.HeadHalfDepth + gap;
-            var path = new[] { new Vector3(0f, brow + 0.04f, z), new Vector3(0f, brow - length * 0.5f, z + 0.02f), new Vector3(0f, brow - length, z + 0.012f) };
-            mesh.Sweep(Section.Slab(0.3f), Spine.Through(path, 5), t => new Vector2(wide * (1f - t * 0.4f), 0.012f), cut.Second, Vector3.UnitZ);
-        }
-
-        private static void Cheeks(GearMesh mesh, ArmourCut cut, Genes genes, float brow, float gap)
-        {
-            float length = genes.Range("length", 0.26f, 0.5f);
-            float wide = genes.Range("wide", 0.08f, 0.14f);
-            foreach (float side in new[] { 1f, -1f })
-            {
-                float x = side * (BodyForm.HeadHalfWidth + gap - 0.02f);
-                var path = new[] { new Vector3(x, brow, 0.1f), new Vector3(x * 0.98f, brow - length * 0.6f, 0.16f), new Vector3(x * 0.7f, brow - length, 0.2f) };
-                mesh.Sweep(Section.Slab(0.3f), Spine.Through(path, 5), t => new Vector2(wide * (1f - t * 0.55f), 0.014f), cut.Main, Vector3.UnitX);
-            }
-        }
-
-        // What makes a helm a shape from above: a fin, a plume, a pair of horns or wings.
-        private static void Crest(GearMesh mesh, ArmourCut cut, Genes genes, float brow, float gap, float peak)
-        {
-            GearStyle style = cut.Style;
-            float top = Top + gap + peak;
-            int kind = genes.Pick("kind", 2f, cut.Heavy * 1.5f + style.Ornate, cut.Heavy * 1.2f + style.Ornate * 0.5f, style.Spikes * 3f, style.Spikes * 1.5f + style.Flare);
-            switch (kind)
-            {
-                case 1:
-                    // A fin, front to back.
-                    float tall = genes.Range("fin.tall", 0.1f, 0.3f);
-                    float length = BodyForm.HeadHalfDepth + gap;
+                    // Bands up the dome from the brow to the crown, riveted, as a spangenhelm is made.
+                    for (int i = 0; i < segments; i++)
+                    {
+                        float angle = Front + i * MathF.Tau / segments;
+                        var path = new List<Vector3>();
+                        var normals = new List<Vector3>();
+                        foreach (Ring ring in dome)
+                        {
+                            Vector3 out_ = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
+                            path.Add(ring.Centre + new Vector3(out_.X * ring.HalfWidth, 0f, out_.Z * ring.HalfDepth));
+                            normals.Add((out_ + Vector3.UnitY * ((ring.Centre.Y - brow) / (dome[^1].Centre.Y - brow + 0.01f))).Normalized());
+                        }
+                        mesh.Strip(path.Take(path.Count - 1).ToList(), normals.Take(normals.Count - 1).ToList(), 0.028f, 0.01f, kit.Fitting);
+                        GearKit.Rivets(mesh, path.Take(path.Count - 2).ToList(), normals.Take(normals.Count - 2).ToList(), 0.09f, 0.012f, kit.Fitting);
+                    }
+                }
+                // A comb from front to back over the crown.
+                if (genes.Chance("comb", 0.2f + look.Angular * 0.25f))
+                {
+                    float tall = genes.Range("comb.tall", 0.05f, 0.14f);
                     var fin = new Ring[9];
+                    float length = HalfDepth + gap;
+                    float crownY = dome[^1].Centre.Y;
                     for (int i = 0; i <= 8; i++)
                     {
                         float t = i / 8f;
-                        float z = (t * 2f - 1f) * length * 0.95f;
                         float s = t * 2f - 1f;
-                        fin[i] = new Ring { Centre = new Vector3(0f, top - (top - brow) * s * s * 0.65f + tall * 0.5f * (1f - s * s), z), Side = Vector3.UnitY, Front = Vector3.UnitX, HalfWidth = tall * (0.3f + 0.7f * (1f - s * s)), HalfDepth = 0.018f };
+                        float y = brow + (crownY - brow) * MathF.Sqrt(MathF.Max(1f - s * s, 0f));
+                        fin[i] = new Ring { Centre = new Vector3(0f, y + tall * 0.4f * (1f - s * s), s * length * 0.92f - 0.015f), Side = Vector3.UnitY, Front = Vector3.UnitX, HalfWidth = tall * (0.35f + 0.65f * (1f - s * s)), HalfDepth = 0.014f };
                     }
-                    mesh.Loft(Section.Slab(0.3f), fin, cut.Fitting);
-                    break;
+                    mesh.Loft(Section.Slab(0.3f), fin, kit.Shell);
+                }
+            }
 
+            // A band round the brow, riveted.
+            float browRadius = HalfWidth + gap + (great ? 0.045f : 0.006f);
+            BrowBand(mesh, kit, genes, brow + (great ? 0f : 0.01f), browRadius, HalfDepth + gap + (great ? 0.045f : 0.006f), great ? 0.025f : 0.03f);
+
+            if (!great)
+            {
+                float face = cover;
+                if (face > 0.62f && genes.Chance("faceplate", 0.6f)) mesh.Counted("faceplate", () => Faceplate(mesh, kit, genes.Part("faceplate"), brow, gap));
+                else if (kit.Likely("cheeks", 0.5f, 0.2f, 0f) && face > 0.3f) mesh.Counted("cheeks", () => Cheeks(mesh, kit, genes.Part("cheeks"), brow, gap));
+                if (face > 0.25f && face < 0.7f && genes.Chance("nasal", 0.5f)) mesh.Counted("nasal", () => Nasal(mesh, kit, genes.Part("nasal"), brow, gap));
+                if (genes.Chance("brim", 0.25f + look.Flare * 0.3f)) mesh.Counted("brim", () => Brim(mesh, kit, genes.Part("brim"), MathF.Max(brow, GearFit.BrimLow), gap));
+                else if (genes.Chance("tail", 0.3f)) mesh.Counted("tail", () => Tail(mesh, kit, genes.Part("tail"), brow, gap));
+            }
+            if (kit.Likely("aventail", 0.55f, 0.1f, 0f) || great) mesh.Counted("aventail", () => Aventail(mesh, kit, genes.Part("aventail"), MathF.Min(brow, GearFit.HelmLow + 0.06f), gap));
+            mesh.Counted("crest", () => Crest(mesh, kit, genes.Part("crest"), brow, gap, peak, great));
+            if (look.Legendary || look.Shines("brow.stone")) BrowStone(mesh, kit, genes.Part("stone"), brow + 0.04f, HalfDepth + gap + 0.03f);
+        }
+
+        private static void BrowBand(GearMesh mesh, ArmourKit kit, Genes genes, float y, float radius, float depth, float height)
+        {
+            Ring[] rings =
+            {
+                new Ring { Centre = new Vector3(0f, y - height, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = radius, HalfDepth = depth, Hard = true },
+                new Ring { Centre = new Vector3(0f, y - height * 0.6f, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = radius + 0.012f, HalfDepth = depth + 0.012f },
+                new Ring { Centre = new Vector3(0f, y + height * 0.6f, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = radius + 0.012f, HalfDepth = depth + 0.012f },
+                new Ring { Centre = new Vector3(0f, y + height, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = radius, HalfDepth = depth, Hard = true },
+            };
+            mesh.Loft(Section.Round(20), rings, kit.Edge, capStart: false, capEnd: false);
+            int rivets = genes.Count("band.rivets", 0, 10);
+            for (int i = 0; i < rivets; i++)
+            {
+                float angle = i * MathF.Tau / MathF.Max(rivets, 1);
+                Vector3 out_ = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
+                mesh.Rivet(new Vector3(out_.X * (radius + 0.012f), y, out_.Z * (depth + 0.012f) - 0.015f), out_, 0.012f, kit.Fitting);
+            }
+        }
+
+        // A bar down over the nose.
+        private static void Nasal(GearMesh mesh, ArmourKit kit, Genes genes, float brow, float gap)
+        {
+            float length = MathF.Min(genes.Range("length", 0.18f, 0.32f), brow - GearFit.HelmLow - 0.02f);
+            float wide = genes.Range("wide", 0.03f, 0.055f);
+            float z = HalfDepth + gap + 0.01f;
+            var path = new[] { new Vector3(0f, brow + 0.04f, z - 0.015f), new Vector3(0f, brow - length * 0.5f, z + 0.015f), new Vector3(0f, brow - length, z + 0.005f) };
+            mesh.Sweep(Section.Slab(0.3f), Spine.Through(path, 5), t => new Vector2(wide * (1f - t * 0.35f), 0.012f), kit.Shell, Vector3.UnitZ);
+        }
+
+        // Plates hinged at the brow hanging down beside the face, no lower than the jaw.
+        private static void Cheeks(GearMesh mesh, ArmourKit kit, Genes genes, float brow, float gap)
+        {
+            float low = GearFit.HelmLow + 0.03f;
+            float wide = genes.Range("wide", 0.4f, 0.65f);
+            foreach (float side in new[] { 1f, -1f })
+            {
+                float centre = side > 0f ? genes.Range("at", 0.55f, 0.85f) : MathF.PI - genes.Range("at", 0.55f, 0.85f);
+                mesh.Plate((u, v) =>
+                {
+                    float angle = centre + (u - 0.5f) * wide;
+                    float y = low + (brow - low) * v;
+                    Vector3 p = OnHead(MathF.Max(y, Centre - 0.15f), angle, gap);
+                    return (Beside(new Vector3(p.X, y, p.Z), 0.023f), new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle)));
+                }, 5, 5, 0.016f, (_, _) => kit.Shell, PlateEdge.All, 0.012f, underside: kit.ShellDark);
+                Vector3 hinge = OnHead(brow, centre, gap + 0.012f);
+                mesh.Rivet(hinge, new Vector3(MathF.Cos(centre), 0f, MathF.Sin(centre)), 0.018f, kit.Fitting);
+            }
+        }
+
+        // A plate over the face from the brow down, with a slit to see through, as a barbute's or a sallet's is closed.
+        private static void Faceplate(GearMesh mesh, ArmourKit kit, Genes genes, float brow, float gap)
+        {
+            float low = GearFit.HelmLow + 0.02f;
+            float span = genes.Range("span", 1.6f, 2.4f);
+            float slit = brow - genes.Range("slit", 0.06f, 0.1f);
+            mesh.Plate((u, v) =>
+            {
+                float angle = Front + (u - 0.5f) * span;
+                float y = low + (brow - low) * v;
+                Vector3 p = OnHead(MathF.Max(y, Centre - 0.3f), angle, gap + 0.01f);
+                float jut = 0.04f * MathF.Pow(MathF.Cos((u - 0.5f) * 3f), 2f) * (1f - v);
+                return (Beside(new Vector3(p.X, y, p.Z + jut), 0.025f), new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle)));
+            }, 10, 8, 0.018f, (u, v) => MathF.Abs(low + (brow - low) * v - slit) < 0.022f && MathF.Abs(u - 0.5f) < 0.32f ? kit.C.MetalDark : kit.Shell, PlateEdge.Bottom, 0.014f, underside: kit.ShellDark);
+        }
+
+        // A brim all round, as a kettle hat's, drooping at its edge, always above a shoulder's plate.
+        private static void Brim(GearMesh mesh, ArmourKit kit, Genes genes, float y, float gap)
+        {
+            float reach = genes.Range("reach", 0.12f, 0.32f);
+            float droop = genes.Range("droop", 0f, 0.1f);
+            y = MathF.Max(y, GearFit.BrimLow + droop + 0.012f);
+            float inner = HalfWidth + gap - 0.01f;
+            mesh.Plate((u, v) =>
+            {
+                float angle = u * MathF.Tau;
+                float r = inner + reach * v;
+                return (new Vector3(MathF.Cos(angle) * r, y - droop * v * v, MathF.Sin(angle) * r * (HalfDepth / HalfWidth) - 0.015f), new Vector3(0f, 1f, 0f));
+            }, 24, 3, 0.014f, (_, _) => kit.Shell, PlateEdge.Top, 0.014f, wrap: true, underside: kit.ShellDark);
+        }
+
+        // Lames sweeping back from the dome over the nape, as a sallet's tail does, above the collar.
+        private static void Tail(GearMesh mesh, ArmourKit kit, Genes genes, float brow, float gap)
+        {
+            float reach = genes.Range("reach", 0.12f, 0.28f);
+            float span = genes.Range("span", 1.2f, 1.8f);
+            float y = MathF.Max(brow - 0.06f, GearFit.HelmLow + 0.04f);
+            int lames = genes.Count("lames", 1, 3);
+            for (int i = 0; i < lames; i++)
+            {
+                float out_ = gap + 0.01f * i;
+                float y0 = y - 0.07f * i;
+                mesh.Plate((u, v) =>
+                {
+                    float angle = MathF.PI * 1.5f + (u - 0.5f) * span;
+                    Vector3 p = OnHead(Centre - 0.1f, angle, out_);
+                    Vector3 back = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
+                    return (Beside(new Vector3(p.X, MathF.Max(y0 - 0.08f * v, GearFit.HelmLow + 0.005f), p.Z) + back * reach * v, 0.023f), (Vector3.UnitY * 0.6f + back).Normalized());
+                }, 10, 2, 0.016f, (_, _) => kit.Shell, PlateEdge.Top, 0.012f, underside: kit.ShellDark);
+            }
+        }
+
+        // Mail hung from a helm's rim round the neck, tucked in below the jaw to fit inside a collar.
+        private static void Aventail(GearMesh mesh, ArmourKit kit, Genes genes, float rim, float gap)
+        {
+            float low = MathF.Max(GearFit.NeckLow + genes.Range("low", 0.01f, 0.06f), GearFit.NeckLow);
+            float tuck = GearFit.NeckTuck - genes.Range("tuck", 0.005f, 0.03f);
+            var rings = new List<Ring>
+            {
+                Ring.Flat(rim + 0.02f, rim + 0.02f < GearFit.ShoulderTop ? MathF.Min(HalfWidth + gap - 0.02f, GearFit.HeadSide - 0.005f) : HalfWidth + gap - 0.02f, HalfDepth + gap - 0.03f),
+                Ring.Flat(GearFit.HelmLow + 0.005f, tuck, tuck * 0.98f),
+                Ring.Flat((GearFit.HelmLow + low) * 0.5f, tuck, tuck * 0.98f),
+                Ring.Flat(low, tuck * 0.97f, tuck * 0.95f),
+            };
+            // The rim round the head's middle, which sits a little back, and the rest round the neck's.
+            for (int i = 0; i < rings.Count; i++)
+            {
+                Ring r = rings[i];
+                r.Centre = new Vector3(0f, r.Centre.Y, i == 0 ? -0.015f : 0f);
+                rings[i] = r;
+            }
+            mesh.Loft(Section.Round(18), rings, kit.Make == GearMake.Plate || kit.Make == GearMake.Mail ? kit.C.Mail : kit.Under, capStart: false, capEnd: false);
+            mesh.SkinBy(at => BodyForm.Throat(at.Y));
+        }
+
+        // What makes a helm a shape from above: a plume, a fin, horns or wings, and on a legendary one a crown.
+        private static void Crest(GearMesh mesh, ArmourKit kit, Genes genes, float brow, float gap, float peak, bool great)
+        {
+            GearLook look = kit.Look;
+            float top = Top + gap + peak;
+            int kind = genes.Pick("kind", 2.5f, 1f + look.Ornament * 1.5f, look.Spikes * 1.5f + (look.Motif == Motif.Fang ? 1f : 0f), look.Flare * 1.2f, look.Legendary ? 3f : 0f);
+            switch (kind)
+            {
+                case 1:
+                {
+                    // A plume, falling back.
+                    float reach = genes.Range("plume.reach", 0.55f, 1.1f);
+                    float back = genes.Range("plume.back", 0.5f, 1f);
+                    var keys = new[] { new Vector3(0f, top - 0.03f, 0f), new Vector3(0f, top + reach * 0.35f, -back * 0.25f), new Vector3(0f, top + reach * 0.4f, -back * 0.7f), new Vector3(0f, top + reach * 0.02f, -back) };
+                    float wide = genes.Range("plume.wide", 0.07f, 0.14f);
+                    mesh.Sweep(Section.Super(10, 2.2f), Spine.Through(keys, 12), t => new Vector2(wide * (0.3f + 1.1f * MathF.Sin(t * MathF.PI)) * (1f - t * 0.4f), wide * 0.6f * (0.3f + MathF.Sin(t * MathF.PI))), genes.Chance("plume.trim", 0.5f) ? kit.C.Trim : kit.C.Cloth, Vector3.UnitX);
+                    mesh.At(Matrix4.CreateTranslation(0f, top - 0.05f, 0f), () => mesh.Lathe(Section.Round(8), 0.07f, 2, t => 0.04f * (1f - t * 0.3f), kit.Fitting));
+                    break;
+                }
                 case 2:
-                    // A plume.
-                    float reach = genes.Range("plume.reach", 0.6f, 1.2f);
-                    float back = genes.Range("plume.back", 0.5f, 1.1f);
-                    var keys = new[] { new Vector3(0f, top - 0.03f, 0f), new Vector3(0f, top + reach * 0.36f, -back * 0.25f), new Vector3(0f, top + reach * 0.42f, -back * 0.7f), new Vector3(0f, top + reach * 0.02f, -back) };
-                    float wide = genes.Range("plume.wide", 0.08f, 0.16f);
-                    mesh.Sweep(Section.Super(10, 2.2f), Spine.Through(keys, 12), t => new Vector2(wide * (0.3f + 1.1f * MathF.Sin(t * MathF.PI)) * (1f - t * 0.4f), wide * 0.6f * (0.3f + MathF.Sin(t * MathF.PI))), style.Palette.Cloth, Vector3.UnitX);
-                    break;
-
-                case 3:
+                {
                     // Horns.
-                    float span = genes.Range("horn.span", 0.4f, 0.9f);
-                    float rise = genes.Range("horn.rise", 0.2f, 0.9f);
-                    float thick = genes.Range("horn.thick", 0.05f, 0.1f);
+                    float span = genes.Range("horn.span", 0.35f, 0.8f);
+                    float rise = genes.Range("horn.rise", 0.2f, 0.75f);
+                    float thick = genes.Range("horn.thick", 0.05f, 0.09f);
+                    VertexMaterial horn = genes.Chance("horn.dark", 0.5f) ? kit.C.Horn : kit.C.Bone;
                     foreach (float side in new[] { 1f, -1f })
                     {
-                        float x = side * (BodyForm.HeadHalfWidth + gap - 0.04f);
-                        var horn = new[] { new Vector3(x, Centre + 0.14f, 0f), new Vector3(x + side * span * 0.55f, Centre + 0.2f, -0.05f), new Vector3(x + side * span, Centre + 0.2f + rise * 0.6f, -0.02f), new Vector3(x + side * span * 0.86f, Centre + 0.2f + rise, 0.06f) };
-                        mesh.Sweep(Section.Round(7), Spine.Through(horn, 10), t => new Vector2(thick * (1f - t * 0.94f)), style.Palette.Bone, Vector3.UnitZ);
+                        float x = side * (HalfWidth + gap - 0.03f);
+                        var path = new[] { new Vector3(x, Centre + 0.16f, 0f), new Vector3(x + side * span * 0.55f, Centre + 0.2f, -0.05f), new Vector3(x + side * span, Centre + 0.2f + rise * 0.6f, -0.02f), new Vector3(x + side * span * 0.86f, Centre + 0.2f + rise, 0.06f) };
+                        mesh.Sweep(Section.Round(8), Spine.Through(path, 10), t => new Vector2(thick * (1f - t * 0.92f)), horn, Vector3.UnitZ);
                     }
                     break;
-
-                case 4:
-                    // Something rising from either side.
+                }
+                case 3:
+                {
+                    // Wings, of steel blades rising from either side.
                     int blades = genes.Count("wing.blades", 2, 4);
-                    float length2 = genes.Range("wing.length", 0.4f, 0.75f);
+                    float length = genes.Range("wing.length", 0.35f, 0.65f);
                     foreach (float side in new[] { 1f, -1f })
                     {
                         for (int i = 0; i < blades; i++)
                         {
                             float tilt = 0.5f + (float)i / blades * 0.7f;
-                            float x = side * (BodyForm.HeadHalfWidth + gap - 0.03f);
-                            var wing = new[] { new Vector3(x, Centre + 0.2f, -0.06f * i), new Vector3(x + side * MathF.Cos(tilt) * length2 * 0.5f, Centre + 0.2f + MathF.Sin(tilt) * length2 * 0.5f, -0.06f * i), new Vector3(x + side * MathF.Cos(tilt) * length2, Centre + 0.2f + MathF.Sin(tilt) * length2, -0.06f * i - 0.04f) };
-                            mesh.Sweep(Section.Slab(0.3f), Spine.Through(wing, 5), t => new Vector2(0.03f, 0.05f * (1f - t * 0.9f)), cut.Fitting, Vector3.UnitZ);
+                            float x = side * (HalfWidth + gap - 0.03f);
+                            var wing = new[] { new Vector3(x, Centre + 0.2f, -0.06f * i), new Vector3(x + side * MathF.Cos(tilt) * length * 0.5f, Centre + 0.2f + MathF.Sin(tilt) * length * 0.5f, -0.06f * i), new Vector3(x + side * MathF.Cos(tilt) * length, Centre + 0.2f + MathF.Sin(tilt) * length, -0.06f * i - 0.04f) };
+                            mesh.Sweep(Section.Slab(0.3f), Spine.Through(wing, 5), t => new Vector2(0.025f, 0.05f * (1f - t * 0.9f)), look.Legendary ? kit.C.Precious : kit.Fitting, Vector3.UnitZ);
                         }
                     }
                     break;
-            }
-        }
-
-        // Cloth over the head, back from the face, and down onto the shoulders.
-        private static void Hood(GearMesh mesh, ArmourCut cut, Genes genes)
-        {
-            GearStyle style = cut.Style;
-            float gap = genes.Range("gap", 0.06f, 0.13f);
-            float peak = genes.Range("peak", 0f, 0.28f) * style.Spec.Form.Curve;
-            float pull = genes.Range("pull", 0.06f, 0.16f);
-            float drape = genes.Range("drape", 0.05f, 0.34f);
-
-            int steps = 12;
-            var rings = new Ring[steps + 1];
-            float bottom = BodyForm.Neck - 0.26f - drape;
-            float top = Top + gap + peak;
-            for (int i = 0; i <= steps; i++)
-            {
-                float t = (float)i / steps;
-                float y = bottom + (top - bottom) * t;
-
-                // Wide at the shoulders, in at the neck, out round the head and closing at the top.
-                float head = y > Centre - 0.2f ? MathF.Sqrt(MathF.Max(1f - MathF.Pow((y - (Centre - 0.2f)) / (top - (Centre - 0.2f)), 2.4f), 0.0008f)) : 1f;
-                float widen = Math.Clamp((BodyForm.Neck - y) / 0.5f, 0f, 1f);
-                float half = (BodyForm.HeadHalfWidth + gap) * head + widen * widen * 0.42f;
-                float deep = (BodyForm.HeadHalfDepth + gap - pull * 0.4f) * head + widen * widen * 0.2f;
-                rings[i] = new Ring { Centre = new Vector3(0f, y, -pull), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = half, HalfDepth = deep };
-            }
-
-            mesh.Bone = (int)BoneType.Head;
-            int first = mesh.VertexCount;
-            Func<float, float, VertexMaterial> pattern = cut.Pattern(genes.Part("pattern"));
-            mesh.Loft(Section.Round(16), rings, (ring, point) => ring == 0 ? cut.Second : pattern((float)ring / steps, point / 16f), capStart: false, capEnd: true);
-
-            // What hangs on the shoulders stays with the body.
-            mesh.SkinBy(at => at.Y < BodyForm.Neck + 0.1f ? (new Vector2((int)BoneType.Chest, 0f), new Vector2(1f, 0f)) : (new Vector2((int)BoneType.Head, 0f), new Vector2(1f, 0f)), first);
-
-            // A long tail down the back, or a flap on each side: a hood is a simple thing, and these are what give it a shape.
-            if (genes.Chance("tail", 0.55f))
-            {
-                float length = genes.Range("tail.length", 0.5f, 1.7f);
-                float wide = genes.Range("tail.wide", 0.1f, 0.2f);
-                float lift = genes.Range("tail.lift", -0.1f, 0.3f);
-                var keys = new[] { new Vector3(0f, top - 0.1f, -pull - 0.1f), new Vector3(0f, top + lift, -pull - length * 0.32f), new Vector3(0f, top - length * 0.28f, -pull - length * 0.56f), new Vector3(0f, top - length * 0.7f, -pull - length * 0.62f) };
-                mesh.Sweep(Section.Round(8), Spine.Through(keys, 10), t => new Vector2(wide * (1f - t * 0.92f)), cut.Main, Vector3.UnitX);
-            }
-            if (genes.Chance("flaps", 0.35f))
-            {
-                float length = genes.Range("flaps.length", 0.28f, 0.7f);
-                float wide = genes.Range("flaps.wide", 0.1f, 0.2f);
-                foreach (float side in new[] { 1f, -1f })
+                }
+                case 4:
                 {
-                    float x = side * (BodyForm.HeadHalfWidth + gap);
-                    var keys = new[] { new Vector3(x, Centre + 0.06f, 0.04f), new Vector3(x * 1.08f, Centre - length * 0.5f, 0.06f), new Vector3(x * 1.12f, Centre - length, 0.03f) };
-                    mesh.Sweep(Section.Slab(0.4f), Spine.Through(keys, 5), t => new Vector2(wide * (1f - t * 0.4f), 0.022f), cut.Second, Vector3.UnitX);
+                    // A crown of points round the brow, gilded.
+                    int points = genes.Count("crown.points", 5, 9);
+                    float y = brow + 0.04f;
+                    for (int i = 0; i < points; i++)
+                    {
+                        float angle = Front + (i - (points - 1) * 0.5f) * genes.Range("crown.gap", 0.28f, 0.42f);
+                        Vector3 at = OnHead(y, angle, gap + 0.015f);
+                        float tall = genes.Range("crown.tall", 0.08f, 0.16f) * (i == points / 2 ? 1.5f : 1f);
+                        mesh.At(Matrix4.CreateTranslation(at), () => mesh.Lathe(Section.Polygon(4), tall, 2, t => 0.026f * (1f - t), kit.C.Precious, capEnd: false));
+                    }
+                    break;
                 }
             }
-
-            // Round the face.
-            float rim = BodyForm.HeadHalfWidth + gap * 0.5f;
-            mesh.At(Matrix4.CreateRotationX(MathF.PI / 2f - 0.35f) * Matrix4.CreateTranslation(0f, Centre + 0.02f, 0.14f), () => mesh.Hoop(Section.Round(6), rim, 0.028f, 0.028f, 18, cut.Second));
         }
 
-        // A wizard's, tall, soft and bent over.
-        private static void Hat(GearMesh mesh, ArmourCut cut, Genes genes)
+        private static void BrowStone(GearMesh mesh, ArmourKit kit, Genes genes, float y, float z)
         {
-            GearStyle style = cut.Style;
-            float gap = genes.Range("gap", 0.05f, 0.09f);
-            float tall = genes.Range("tall", 0.7f, 1.8f) * (0.65f + style.Spec.Form.Size * 0.7f);
-            float lean = style.Spec.Form.Curve * genes.Range("lean", 0.15f, 0.9f) * genes.Sign("lean.way");
-            float brim = genes.Range("brim", 0.1f, 0.5f);
-            float y = Centre + genes.Range("sit", 0.1f, 0.22f);
-            float base_ = BodyForm.HeadHalfWidth + gap;
+            float size = genes.Range("size", 0.035f, 0.06f) * (kit.Look.Legendary ? 1.3f : 1f);
+            mesh.At(Matrix4.CreateRotationX(MathF.PI / 2f) * Matrix4.CreateTranslation(0f, y, z), () => GearKit.Setting(mesh, genes, size, kit.C.Precious, kit.Look.Theme != GearTheme.None ? kit.C.Glow : kit.C.Gem));
+        }
 
-            mesh.Hoop2(new Vector3(0f, y, 0f), base_ + brim, base_ * 0.9f, genes.Range("brim.droop", -0.02f, 0.08f), cut.Second);
+        // A hood of mail over the head and round the neck, open at the face, its neck tucked in below the jaw.
+        private static void Coif(GearMesh mesh, ArmourKit kit, Genes genes)
+        {
+            float gap = genes.Range("gap", 0.04f, 0.07f);
+            float open = genes.Range("open", 0.7f, 0.95f);
+            float low = GearFit.NeckLow + genes.Range("low", 0.01f, 0.05f);
+            float tuck = GearFit.NeckTuck - 0.02f - genes.Range("tuck", 0.005f, 0.02f);
+            OpenHood(mesh, kit, genes, gap, open, low, tuck, kit.Shell, 0.012f, peak: 0f);
+            // A band of leather round the brow, now and then.
+            if (genes.Chance("band", 0.5f)) BrowBand(mesh, kit, genes, Centre + 0.1f, HalfWidth + gap + 0.012f, HalfDepth + gap + 0.012f, 0.025f);
+        }
 
-            int steps = 14;
-            var spine = new List<Vector3>(steps + 1);
-            for (int i = 0; i <= steps; i++)
+        // A hood laid round the head with a face open in it, from the neck (tucked in below the jaw) over the crown, rolled at the face: what a coif, a hood and a cowl all are.
+        private static void OpenHood(GearMesh mesh, ArmourKit kit, Genes genes, float gap, float open, float low, float tuck, VertexMaterial cloth, float thick, float peak)
+        {
+            float top = Top + gap + peak;
+            mesh.Plate((u, v) =>
             {
-                float t = (float)i / steps;
-                spine.Add(new Vector3(lean * t * t * t * tall, y + tall * t * (1f - 0.18f * t * t * MathF.Abs(lean)), -lean * 0.3f * t * t * tall));
+                // u runs round from one side of the face to the other, the long way; v from the neck up over the crown.
+                float y = low + (top - low) * v;
+                // Narrow at the throat, open round the face, and closing again over the brow, all smoothly, so its edge is a line and not a stair.
+                float gapHere = 0.15f + (open - 0.15f) * Smooth((y - (GearFit.HelmLow - 0.1f)) / 0.12f);
+                gapHere += (open * 0.4f - gapHere) * Smooth((y - (Centre + 0.1f)) / 0.2f);
+                float angle = Front + gapHere + (MathF.Tau - gapHere * 2f) * u;
+                Vector3 p;
+                if (y < GearFit.HelmLow)
+                {
+                    float r = MathF.Min(tuck, HalfWidth + gap);
+                    p = new Vector3(MathF.Cos(angle) * r, y, MathF.Sin(angle) * r * 0.98f);
+                }
+                else
+                {
+                    float s = Math.Clamp((y - Centre) / (top - Centre), -1f, 1f);
+                    float round = y > Centre ? MathF.Sqrt(MathF.Max(1f - s * s, 0.0025f)) : 1f;
+                    // Out from the tuck at the throat, across only as far as GearFit.HeadSide until it's above a shoulder's plate, and front to back as far as it likes.
+                    float full = HalfWidth + gap, beside = MathF.Min(full, GearFit.HeadSide - thick * 2f);
+                    float rw = y < GearFit.ShoulderTop
+                        ? tuck + (beside - tuck) * Smooth((y - GearFit.HelmLow) / (GearFit.ShoulderTop - GearFit.HelmLow))
+                        : beside + (full - beside) * Smooth((y - GearFit.ShoulderTop) / 0.12f);
+                    float rd = tuck + (HalfDepth + gap - tuck) * Smooth((y - GearFit.HelmLow) / 0.18f);
+                    p = new Vector3(MathF.Cos(angle) * rw * round, y, MathF.Sin(angle) * rd * round - 0.02f * Smooth((y - GearFit.HelmLow) / 0.18f));
+                }
+                Vector3 n = new Vector3(p.X, (y - Centre) * 0.5f, p.Z + 0.02f);
+                return (p, n.LengthSquared > 1e-8f ? n.Normalized() : Vector3.UnitY);
+            }, 22, 12, thick, (_, _) => cloth, PlateEdge.Start | PlateEdge.End, thick * 1.4f, underside: kit.Under);
+            mesh.SkinBy(at => at.Y < GearFit.HelmLow + 0.05f ? BodyForm.Throat(at.Y) : (new Vector2((int)BoneType.Head, 0f), new Vector2(1f, 0f)));
+        }
+
+        // A hood: hide or cloth over the head, open at the face, its point falling back, with a band at its edge.
+        private static void Hood(GearMesh mesh, ArmourKit kit, Genes genes)
+        {
+            GearLook look = kit.Look;
+            float gap = genes.Range("gap", 0.07f, 0.12f);
+            float peak = genes.Range("peak", 0f, 0.24f) * (0.4f + look.Spec.Form.Curve);
+            float open = genes.Range("open", 0.75f, 1f);
+            float low = GearFit.NeckLow + genes.Range("low", 0.01f, 0.06f);
+            float tuck = GearFit.NeckTuck - 0.022f - genes.Range("tuck", 0.005f, 0.02f);
+            OpenHood(mesh, kit, genes, gap, open, low, tuck, kit.Shell, 0.014f, peak);
+            if (genes.Chance("tail", 0.45f))
+            {
+                // A short point falling back from the crown, staying above the collar.
+                float length = genes.Range("tail.length", 0.25f, 0.6f);
+                float wide = genes.Range("tail.wide", 0.08f, 0.14f);
+                float top = Top + gap + peak;
+                var keys = new[] { new Vector3(0f, top - 0.12f, -0.12f), new Vector3(0f, top - 0.05f, -0.12f - length * 0.4f), new Vector3(0f, MathF.Max(top - length * 0.45f, GearFit.HelmLow + 0.1f), -0.12f - length * 0.7f) };
+                mesh.Sweep(Section.Round(8), Spine.Through(keys, 8), t => new Vector2(wide * (1f - t * 0.9f)), kit.Shell, Vector3.UnitX);
             }
-
-            mesh.Sweep(Section.Round(12), spine, t => new Vector2(base_ * MathF.Pow(1f - t, 0.8f) + 0.005f), cut.Main, Vector3.UnitZ);
-
-            float band = genes.Range("band", 0.03f, 0.07f);
-            ArmourCut.Band(mesh, new Vector3(0f, y + band + 0.015f, 0f), base_ * 0.96f, base_ * 0.96f, band, 0.012f, cut.Second);
-
-            if (style.Shines("stone"))
+            if (kit.Make == GearMake.Hide && look.Motif == Motif.Fang && genes.Chance("quills", 0.6f) || look.Legendary)
             {
-                float size = genes.Range("stone.size", 0.05f, 0.09f);
-                mesh.At(Matrix4.CreateRotationX(MathF.PI / 2f) * Matrix4.CreateTranslation(0f, y + band + 0.015f, base_ * 0.96f), () => mesh.Gem(genes.Count("stone.sides", 5, 8), size, size * 0.6f, size * 0.3f, 0.5f, style.Palette.Glow));
+                // Quills or a crest of feathers from a beast brought down, standing up from the crown.
+                int quills = genes.Count("quills.count", 3, 6);
+                for (int i = 0; i < quills; i++)
+                {
+                    float z = -0.05f - i * 0.07f;
+                    Vector3 at = new Vector3(0f, Top + gap * 0.9f + peak * 0.5f - i * 0.03f, z);
+                    var keys = new[] { at, at + new Vector3(0f, 0.18f, -0.08f), at + new Vector3(0f, 0.3f, -0.22f) };
+                    mesh.Sweep(Section.Slab(0.2f), Spine.Through(keys, 5), t => new Vector2(0.004f, 0.04f * MathF.Sin(MathF.Max(t, 0.12f) * MathF.PI)), look.Legendary ? kit.C.Trim : kit.C.Bone, Vector3.UnitX);
+                }
             }
         }
 
-        private static void Circlet(GearMesh mesh, ArmourCut cut, Genes genes)
+        // A cap of panels of hardened leather or quilted cloth, its seams standing up, a band round its brow, maybe a peak at the front and flaps over the ears.
+        private static void Cap(GearMesh mesh, ArmourKit kit, Genes genes)
         {
-            GearStyle style = cut.Style;
+            GearLook look = kit.Look;
+            float gap = genes.Range("gap", 0.04f, 0.07f);
+            float brow = Centre + genes.Range("brow", 0.02f, 0.1f);
+            List<Ring> dome = Dome(genes, brow, gap, genes.Range("peak", 0f, 0.1f), genes.Range("flat", 0f, 0.3f));
+            mesh.Loft(Section.Round(18), dome, kit.Shell, capStart: false, capEnd: true);
+            int panels = genes.Count("panels", 4, 6);
+            for (int i = 0; i < panels; i++)
+            {
+                float angle = Front + i * MathF.Tau / panels + MathF.PI / panels;
+                var path = new List<Vector3>();
+                var normals = new List<Vector3>();
+                foreach (Ring ring in dome.Take(dome.Count - 1))
+                {
+                    Vector3 out_ = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
+                    path.Add(ring.Centre + new Vector3(out_.X * ring.HalfWidth, 0f, out_.Z * ring.HalfDepth));
+                    normals.Add((out_ + Vector3.UnitY * ((ring.Centre.Y - brow) / (dome[^1].Centre.Y - brow + 0.01f))).Normalized());
+                }
+                mesh.Strip(path, normals, 0.012f, 0.008f, kit.ShellDark);
+            }
+            BrowBand(mesh, kit, genes, brow + 0.01f, HalfWidth + gap + 0.005f, HalfDepth + gap + 0.005f, 0.028f);
+            if (genes.Chance("peak.front", 0.35f))
+            {
+                mesh.Plate((u, v) =>
+                {
+                    float angle = Front + (u - 0.5f) * 1.6f;
+                    Vector3 p = OnHead(brow, angle, gap + 0.01f);
+                    Vector3 out_ = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
+                    return (p + out_ * 0.12f * v - Vector3.UnitY * 0.03f * v, Vector3.UnitY);
+                }, 8, 2, 0.012f, (_, _) => kit.ShellDark, PlateEdge.Top, 0.01f, underside: kit.ShellDark);
+            }
+            if (genes.Chance("flaps", 0.3f))
+            {
+                foreach (float side in new[] { 1f, -1f })
+                {
+                    float centre = side > 0f ? 0.05f : MathF.PI - 0.05f;
+                    mesh.Plate((u, v) =>
+                    {
+                        float angle = centre + (u - 0.5f) * 0.7f;
+                        float y = GearFit.HelmLow + 0.04f + (brow - GearFit.HelmLow - 0.04f) * v;
+                        Vector3 p = OnHead(MathF.Max(y, Centre - 0.2f), angle, gap);
+                        return (new Vector3(p.X, y, p.Z), new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle)));
+                    }, 4, 4, 0.012f, (_, _) => kit.Shell, PlateEdge.Bottom, 0.012f, underside: kit.Under);
+                }
+            }
+            if (kit.Make == GearMake.Studded)
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    float angle = Front + i * MathF.Tau / 8f;
+                    Vector3 at = OnHead(brow + 0.08f, angle, gap + 0.01f);
+                    mesh.Rivet(at, new Vector3(MathF.Cos(angle), 0.3f, MathF.Sin(angle)).Normalized(), 0.018f, kit.Fitting);
+                }
+            }
+        }
+
+        // A wide hat, a shallow cone of stiffened cloth, lacquered wood or hardened leather over a frame, that shades the shoulders and is tied under the chin: what walkers, wandering scholars
+        // and those who study what the Reich would rather they didn't wear, and from above what a caster is known by. It rests on the crown on a headband inside it, and its rim stays well
+        // above a shoulder's plate (GearFit.BrimLow).
+        private static void Kasa(GearMesh mesh, ArmourKit kit, Genes genes)
+        {
+            GearLook look = kit.Look;
+            float reach = genes.Range("reach", 0.5f, 0.78f) * (0.85f + look.Spec.Form.Size * 0.3f);
+            float rise = genes.Range("rise", 0.16f, 0.34f);
+            float apex = Top + genes.Range("apex", 0.12f, 0.18f);
+            float power = genes.Range("profile", 0.8f, 1.35f);
+            int stuff = genes.Pick("stuff", 5.5f, 3f + look.Craft * 2f, 1.5f);
+            VertexMaterial body = stuff switch
+            {
+                0 => genes.Chance("plain", 0.6f) ? kit.C.Lining : kit.C.Cloth,
+                1 => look.Legendary && genes.Chance("vermilion", 0.5f) ? GearColours.Of(GearMaterials.Timber, GearSwatches.Find(GearSwatches.Woods, "vermilion lacquer").Albedo) : kit.C.WoodDark,
+                _ => kit.C.Leather,
+            };
+            VertexMaterial binding = look.Legendary ? kit.C.Precious : stuff == 1 ? kit.Fitting : kit.C.LeatherDark;
+            float Height(float r) => apex - rise * MathF.Pow(Math.Clamp(r / reach, 0f, 1f), power);
+            const float From = 0.04f;
+            mesh.Plate((u, v) =>
+            {
+                float angle = u * MathF.Tau;
+                float r = From + (reach - From) * v;
+                float slope = rise * power * MathF.Pow(MathF.Max(r / reach, 0.01f), power - 1f) / reach;
+                var out_ = new Vector3(MathF.Cos(angle) * slope, 1f, MathF.Sin(angle) * slope);
+                return (new Vector3(MathF.Cos(angle) * r, Height(r), MathF.Sin(angle) * r), out_);
+            }, 28, 6, 0.012f, (_, v) => v > 0.93f ? binding : body, PlateEdge.Top, 0.012f, wrap: true, underside: kit.ShellDark);
+            // A knob where the cone comes to its point.
+            mesh.At(Matrix4.CreateTranslation(0f, Height(From) - 0.006f, 0f), () => mesh.Lathe(Section.Round(10), 0.05f, 2, t => From * 1.3f * (1f - t * 0.5f), binding));
+            // The headband inside it, where it rests on the crown, and the cord tied under the chin.
+            float band = HalfWidth * 0.9f;
+            mesh.At(Matrix4.CreateTranslation(0f, Centre + 0.22f, -0.015f), () => mesh.Lathe(Section.Round(16), 0.04f, 1, _ => band, kit.C.Lining, capStart: false, capEnd: false, squash: HalfDepth / HalfWidth));
+            foreach (float side in new[] { 1f, -1f })
+            {
+                // Down the cheeks on the head's surface, from beside the band to just short of the chin's middle.
+                float Round(float t) => side > 0f ? t : MathF.PI - t;
+                var cord = new[] { new Vector3(side * band, Centre + 0.22f, -0.015f), OnHead(Centre - 0.05f, Round(0.25f), 0.014f), OnHead(GearFit.HelmLow + 0.1f, Round(0.8f), 0.014f), OnHead(GearFit.HelmLow + 0.02f, Round(1.35f), 0.014f) };
+                mesh.Sweep(Section.Round(4), Spine.Through(cord, 6), _ => new Vector2(0.008f), kit.Strap, Vector3.UnitZ);
+            }
+            if (look.Ornament > 0.45f && genes.Chance("ring", 0.6f))
+            {
+                // A ring of colour round the crown.
+                float r0 = reach * 0.18f, r1 = reach * 0.26f;
+                mesh.Plate((u, v) =>
+                {
+                    float angle = u * MathF.Tau;
+                    float r = r0 + (r1 - r0) * v;
+                    return (new Vector3(MathF.Cos(angle) * r, Height(r) + 0.012f, MathF.Sin(angle) * r), Vector3.UnitY);
+                }, 20, 1, 0.004f, (_, _) => kit.C.Trim, PlateEdge.None, wrap: true);
+            }
+            if (look.Legendary || look.Shines("hat.stone"))
+            {
+                // A stone set in the front of the cone, facing the way it slopes.
+                float r = reach * 0.45f;
+                float slope = rise * power * MathF.Pow(r / reach, power - 1f) / reach;
+                float size = genes.Range("stone.size", 0.035f, 0.055f) * (look.Legendary ? 1.3f : 1f);
+                mesh.At(GearMesh.FacingOut(new Vector3(0f, Height(r) + 0.012f, r), new Vector3(0f, 1f, slope)), () => GearKit.Setting(mesh, genes.Part("stone"), size, kit.C.Precious, look.Theme != GearTheme.None ? kit.C.Glow : kit.C.Gem));
+            }
+        }
+
+        // A thin band round the brow and nothing else, so that hair still shows: points rising from it and a stone at its front.
+        private static void Circlet(GearMesh mesh, ArmourKit kit, Genes genes)
+        {
+            GearLook look = kit.Look;
             float y = Centre + genes.Range("at", 0.1f, 0.2f);
-            float gap = 0.02f;
-            float wide = genes.Range("wide", 0.02f, 0.06f);
-            float rw = HalfAt(y, BodyForm.HeadHalfWidth) + gap, rd = HalfAt(y, BodyForm.HeadHalfDepth) + gap;
-            ArmourCut.Band(mesh, new Vector3(0f, y, 0f), rw, rd, wide, 0.01f, cut.Fitting);
-
+            float s = Math.Clamp((y - Centre) / BodyForm.HeadHalfHeight, -1f, 1f);
+            float round = MathF.Sqrt(MathF.Max(1f - s * s, 0.05f));
+            float rw = HalfWidth * round + 0.02f, rd = HalfDepth * round + 0.02f;
+            float wide = genes.Range("wide", 0.018f, 0.045f);
+            BrowBand(mesh, kit, genes, y, rw, rd, wide);
             int points = genes.Count("points", 0, 7);
-            float reach = genes.Range("point.reach", 0.05f, 0.18f);
+            float reach = genes.Range("point.reach", 0.05f, 0.16f);
             for (int i = 0; i < points; i++)
             {
-                float angle = MathF.PI / 2f + (i - (points - 1) * 0.5f) * genes.Range("point.gap", 0.3f, 0.6f);
-                Vector3 at = new Vector3(MathF.Cos(angle) * rw, y + wide, MathF.Sin(angle) * rd);
-                mesh.At(Matrix4.CreateTranslation(at), () => mesh.Lathe(Section.Polygon(4), reach * (i == points / 2 ? 1.5f : 1f), 2, t => 0.024f * (1f - t), cut.Fitting, capEnd: false));
+                float angle = Front + (i - (points - 1) * 0.5f) * genes.Range("point.gap", 0.3f, 0.55f);
+                Vector3 at = new Vector3(MathF.Cos(angle) * rw, y + wide, MathF.Sin(angle) * rd - 0.015f);
+                mesh.At(Matrix4.CreateTranslation(at), () => mesh.Lathe(Section.Polygon(4), reach * (i == points / 2 ? 1.5f : 1f), 2, t => 0.022f * (1f - t), look.Craft > 0.5f ? kit.C.Precious : kit.Fitting, capEnd: false));
             }
-
-            float size = genes.Range("stone.size", 0.04f, 0.08f);
-            mesh.At(Matrix4.CreateRotationX(MathF.PI / 2f) * Matrix4.CreateTranslation(0f, y, rd + 0.01f), () => mesh.Gem(genes.Count("stone.sides", 5, 8), size, size * 0.6f, size * 0.3f, 0.5f, style.Palette.Stone));
+            BrowStone(mesh, kit, genes.Part("stone"), y, rd + 0.004f);
         }
     }
 }

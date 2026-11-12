@@ -142,6 +142,8 @@ namespace Dino_AnimLab
 
         private static int Sheet(Options options)
         {
+            Body.KitSeed = (ulong)options.Int("seed", 1);
+            Body.KitGrade = options.Int("grade", 2);
             Body body = Body.Named(options.Text("body", "sword"));
             string scriptName = options.Text("do", "run");
             Script? script = Script.Named(scriptName);

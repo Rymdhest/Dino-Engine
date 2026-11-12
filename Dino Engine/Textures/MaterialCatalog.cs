@@ -125,6 +125,13 @@ namespace Dino_Engine.Textures
         // Curved clay tiles in rows down a roof, as the cypress hills build (BuildingStyle.Tiled): deep enough for each course's end to throw its shadow on the next.
         public static readonly MaterialSpec RoofTiles = Add("roof-tiles", 2.4f, 0.09f, 0.4f);
 
+        // More of what's worn and carried (GEAR.md), pale or white as the rest of gear's are, as what colour it is goes in its vertices: wood cut along its grain for hafts, bows and staves,
+        // metal scales laced in rows, cloth quilted over padding, and fur. Last, so that adding them moved no other material's layer.
+        public static readonly MaterialSpec Timber = Add("timber", 1.2f, 0.004f, 0.55f);
+        public static readonly MaterialSpec Scales = Add("scales", 0.5f, 0.012f, 0.02f);
+        public static readonly MaterialSpec Quilt = Add("quilt", 0.8f, 0.018f, 0.85f);
+        public static readonly MaterialSpec Fur = Add("fur", 0.5f, 0.02f, 0.6f);
+
         public static IReadOnlyList<MaterialSpec> All => _all;
 
         public static int Count => _all.Count;

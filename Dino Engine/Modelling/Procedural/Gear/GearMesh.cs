@@ -25,7 +25,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
     /// Builds what a piece of gear is made of. Like <see cref="Architecture.MeshBuilder"/> it keeps plain lists and makes a mesh once at the end, but it lofts and sweeps, keeps edges
     /// hard where they should be, knows which bones it's on, and can be merged and posed, as the same piece goes on a body, on the ground, and in front of a camera.
     /// </summary>
-    public sealed class GearMesh
+    public sealed partial class GearMesh
     {
         private const float Thinnest = 0.0015f;     // Nothing goes down to nothing: a face with no area has no normal.
 
@@ -52,6 +52,21 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public int VertexCount => _vertices.Count;
         public int TriangleCount => _indices.Count / 3;
         public IReadOnlyList<Vertex> Vertices => _vertices;
+
+        /// <summary>When it's set, what each named part of a piece cost in triangles (<see cref="Counted"/>), for finding what to make cheaper: GearLab's check names the dearest parts of anything over its budget.</summary>
+        public Dictionary<string, int>? Costs;
+
+        /// <summary>When it's set, which vertices each named part made (<see cref="Counted"/>), for a lab to say what a vertex belongs to.</summary>
+        public List<(string Name, int From, int To)>? Parts;
+
+        /// <summary>Builds one named part of a piece, adding what it cost to <see cref="Costs"/> and where it is to <see cref="Parts"/> if anyone's counting. It changes nothing that's built.</summary>
+        public void Counted(string name, Action build)
+        {
+            int before = TriangleCount, first = VertexCount;
+            build();
+            if (Costs != null) Costs[name] = Costs.GetValueOrDefault(name) + TriangleCount - before;
+            Parts?.Add((name, first, VertexCount));
+        }
 
         /// <summary>Everything built inside <paramref name="build"/> goes through this, on top of wherever things are already going.</summary>
         public void At(Matrix4 place, Action build)
@@ -99,6 +114,15 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         /// </summary>
         public void Loft(Section section, IReadOnlyList<Ring> rings, Func<int, int, VertexMaterial> material, bool capStart = true, bool capEnd = true)
         {
+            Loft(section, rings, (ring, point, _) => material(ring, point), capStart, capEnd);
+        }
+
+        /// <summary>
+        /// The same, where a hard point can be a crisp change of material as well as of shading: <paramref name="material"/> is told whether it's being asked for the face after the crease
+        /// (<c>after</c>) or the face before it, which is how an edge's polished bevel stops at its line. Anywhere that isn't a hard point it's asked once, with <c>after</c> false.
+        /// </summary>
+        public void Loft(Section section, IReadOnlyList<Ring> rings, Func<int, int, bool, VertexMaterial> material, bool capStart = true, bool capEnd = true)
+        {
             int points = section.Count;
 
             // Where each column of vertices falls round the outline. A hard point has two, one for the face on either side of it, and the first point comes round again at the end.
@@ -117,7 +141,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             // ring of the loft shares the same columns of it.
             float widest = 0f;
             foreach (Ring ring in rings) widest = MathF.Max(widest, MathF.Max(ring.HalfWidth, ring.HalfDepth));
-            float tiles = TilesFor(material(0, 0));
+            float tiles = TilesFor(material(0, 0, false));
             float wraps = MathF.Max(1f, MathF.Round(distance * widest * tiles));
             for (int c = 0; c < columns.Count; c++) columns[c] = (columns[c].point, distance > 0f ? columns[c].around / distance * wraps : 0f);
 
@@ -150,11 +174,16 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
         private int[] AddRow(Section section, in Ring ring, List<(int point, float around)> columns, int index, float along, Func<int, int, VertexMaterial> material)
         {
+            return AddRow(section, ring, columns, index, along, (r, p, _) => material(r, p));
+        }
+
+        private int[] AddRow(Section section, in Ring ring, List<(int point, float around)> columns, int index, float along, Func<int, int, bool, VertexMaterial> material)
+        {
             var row = new int[columns.Count];
             for (int c = 0; c < columns.Count; c++)
             {
                 (int point, float around) = columns[c];
-                VertexMaterial made = material(index, point);
+                VertexMaterial made = material(index, point, c > 0 && columns[c - 1].point == point);
                 row[c] = AddVertex(PointOn(section, ring, point), made, new Vector2(around, along * TilesFor(made)));
             }
             return row;
@@ -195,12 +224,17 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
         private void Cap(Section section, in Ring ring, int index, Func<int, int, VertexMaterial> material, bool forwards)
         {
-            int centre = section.ClosesAcross ? -1 : AddVertex(ring.Centre, material(index, 0), Vector2.Zero);
+            Cap(section, ring, index, (r, p, _) => material(r, p), forwards);
+        }
+
+        private void Cap(Section section, in Ring ring, int index, Func<int, int, bool, VertexMaterial> material, bool forwards)
+        {
+            int centre = section.ClosesAcross ? -1 : AddVertex(ring.Centre, material(index, 0, false), Vector2.Zero);
             int first = _vertices.Count;
             for (int i = 0; i < section.Count; i++)
             {
                 Vector2 p = (ring.Shape ?? section.Points)[i];
-                VertexMaterial made = material(index, i);
+                VertexMaterial made = material(index, i, false);
                 AddVertex(PointOn(section, ring, i), made, new Vector2(p.X * ring.HalfWidth, p.Y * ring.HalfDepth) * TilesFor(made));
             }
             if (section.ClosesAcross)
@@ -345,6 +379,12 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 _vertices[i].boneIndices = bones;
                 _vertices[i].BoneWeights = weights;
             }
+        }
+
+        /// <summary>Moves what's been built since <paramref name="from"/>, before its normals are worked out at the end: for keeping something to its own side of a line it would otherwise cross.</summary>
+        public void Reshape(Func<Vector3, Vector3> move, int from = 0)
+        {
+            for (int i = from; i < _vertices.Count; i++) _vertices[i].position = move(_vertices[i].position);
         }
 
         /// <summary>Moves every vertex by what its bone says, for a posed copy of something worn. Weights are left as they are, as a posed copy doesn't use them.</summary>
