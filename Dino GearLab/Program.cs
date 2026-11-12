@@ -13,6 +13,8 @@ namespace Dino_GearLab
     ///   variety [--kind k] [--count N]   Are they really different? Exit code 1 if not.
     ///   bench                            What one costs to make.
     ///   fit     [--count N]              Does every piece of armour keep to its bands (GearFit)? Exit code 1 if not.
+    ///   looks   [--kind k] [--count N]   No Reich's colours, and every kind's legendary pieces far more splendid than its plain ones? Exit code 1 if not.
+    ///   one     [--kind k] [--index N]   One of check's pieces taken apart, for a fault it found.
     ///   describe [--kind k] [--seed N] [--count N] [--stride N]   What a look chose, in words.
     /// </summary>
     internal static class Program
@@ -37,6 +39,10 @@ namespace Dino_GearLab
                     return Describe(options);
                 case "fit":
                     return GearFitCheck.Run(options);
+                case "one":
+                    return One(options);
+                case "looks":
+                    return GearLookCheck.Run(options);
                 default:
                     Console.WriteLine($"No command called {command}.");
                     return 1;
@@ -116,6 +122,28 @@ namespace Dino_GearLab
             string path = options.Text("out", "gear-dressed.png");
             PngWriter.Write(path, sheet, columns * width, rows * height);
             Console.WriteLine($"Wrote {path}");
+            return 0;
+        }
+
+        // One of check's pieces, by its place in the run, taken apart: what it is, its parts and where each one's vertices are, and every triangle with no area, for a fault check found.
+        private static int One(Options options)
+        {
+            var kind = Enum.Parse<GearKind>(options.Text("kind", "Body"), ignoreCase: true);
+            int index = options.Int("index", 0);
+            GearSpec spec = GearCheck.Sample(kind, (ulong)index * 2654435761UL + 1, index);
+            var look = new GearLook(spec);
+            Console.WriteLine($"{kind} {index}: seed {spec.Seed}, heavy {spec.Heavy:0.00} leather {spec.Leather:0.00} cloth {spec.Cloth:0.00}, grade {spec.Grade}, theme {spec.Theme}, {spec.Form}, make {GearForge.MakeOf(spec)}, craft {look.Craft:0.00}, motif {look.Motif}");
+            GearMesh made = GearForge.Make(spec, new Dictionary<string, int>());
+            foreach ((string name, int from, int to) in made.Parts ?? new()) Console.WriteLine($"  {name,-12} vertices {from}..{to}");
+            Mesh mesh = made.Build(false);
+            foreach (Face face in mesh.faces)
+            {
+                Vector3 cross = Vector3.Cross(face.B.position - face.A.position, face.C.position - face.A.position);
+                if (cross.LengthSquared >= 1e-14f) continue;
+                int at = -1;
+                for (int v = 0; v < made.VertexCount && at < 0; v++) if (made.Vertices[v].position == face.A.position) at = v;
+                Console.WriteLine($"  no area at vertex {at} ({GearFitCheck.PartOf(made, at)}): {face.A.position}, {face.B.position}, {face.C.position}");
+            }
             return 0;
         }
 

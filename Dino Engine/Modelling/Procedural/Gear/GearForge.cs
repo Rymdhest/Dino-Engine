@@ -58,20 +58,20 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 case GearKind.Hands:
                     HandGenerator.Build(mesh, new GearLook(spec));
                     return mesh;
+                case GearKind.OffHand:
+                    ShieldGenerator.Build(mesh, new GearLook(spec));
+                    return mesh;
+                case GearKind.Finger:
+                    JewelGenerator.Ring(mesh, new GearLook(spec));
+                    return mesh;
+                case GearKind.Neck:
+                    JewelGenerator.Amulet(mesh, new GearLook(spec));
+                    return mesh;
             }
 
             var style = new GearStyle(spec);
             switch (spec.Kind)
             {
-                case GearKind.OffHand:
-                    ShieldGenerator.Build(mesh, style);
-                    break;
-                case GearKind.Finger:
-                    JewelGenerator.Ring(mesh, style);
-                    break;
-                case GearKind.Neck:
-                    JewelGenerator.Amulet(mesh, style);
-                    break;
                 case GearKind.Book:
                     BookGenerator.Build(mesh, style);
                     break;

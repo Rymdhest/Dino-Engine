@@ -69,17 +69,20 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 float lift = curl * MathF.Pow(t, 4f);
                 float step = lames > 0 && t > 0.32f && i % 2 == 0 ? 0.012f : 0f;
                 rings.Add(new Ring { Centre = new Vector3(x, sole + hh + lift, z), Side = Vector3.UnitX, Front = Vector3.UnitY, HalfWidth = hw + step, HalfDepth = hh + step, Hard = lames > 0 && t > 0.32f });
-                bands.Add(lames > 0 && t > 0.32f ? (i % 2 == 0 ? 1 : 0) : !kit.Metal && !kit.Woven && t > 0.78f && genes.Chance("toecap", 0.5f) ? 2 : 0);
+                // A toe cap on some, and always on a legendary pair, where it's gilt.
+                bands.Add(lames > 0 && t > 0.32f ? (i % 2 == 0 ? 1 : 0) : t > 0.78f && (look.Legendary || !kit.Metal && !kit.Woven && genes.Chance("toecap", 0.5f)) ? 2 : 0);
             }
             mesh.Bone = (int)BodyForm.Foot(side);
             int first = mesh.VertexCount;
-            mesh.Bands(Section.Super(14, 2.6f), rings, (ring, _) => bands[ring] switch { 1 => kit.Edge, 2 => kit.ShellDark, _ => kit.Shell }, capStart: true, capEnd: true);
+            mesh.Bands(Section.Super(14, 2.6f), rings, (ring, _) => bands[ring] switch { 1 => kit.Edge, 2 => kit.Gilt ?? kit.ShellDark, _ => kit.Shell }, capStart: true, capEnd: true);
 
             // The sole, a little proud of the shoe all round, and a heel block on what's made for riding or walking.
             VertexMaterial soleMaterial = kit.C.LeatherDark;
             mesh.At(Matrix4.CreateTranslation(x, 0f, (Heel + toe) * 0.5f - 0.02f), () => mesh.Lathe(Section.Super(12, 2.4f), sole, 1, _ => wide * 1.05f, soleMaterial, squash: (toe - Heel) / (2f * wide) * 0.94f));
+            if (bands.Contains(2)) mesh.Mark("toe cap");
             if (!kit.Woven && genes.Chance("heel", 0.55f))
             {
+                mesh.Mark("heel");
                 mesh.At(Matrix4.CreateTranslation(x, 0f, Heel + 0.06f), () => mesh.Block(wide * 0.65f, sole * 1.4f, 0.07f, 0.3f, soleMaterial));
             }
             KeepToSide(mesh, first, side, GearFit.SideStrap);
@@ -101,6 +104,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             mesh.Bone = (int)BodyForm.LowerLeg(side);
             if (kit.Make == GearMake.Plate)
             {
+                mesh.Mark("greave");
                 float thick = 0.016f;
                 // Where its outside, roll and all, is no nearer the middle than GearFit.SideStrap.
                 float flat = GearFit.SideStrap + thick + thick * 0.9f * 0.45f;
@@ -121,7 +125,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                             out_ = new Vector3(-side, 0f, 0f);
                         }
                         return (at, out_);
-                    }, 8, 6, thick, (_, _) => kit.Shell, PlateEdge.Top | PlateEdge.Bottom, thick * 0.9f, underside: kit.ShellDark);
+                    }, 8, 6, thick, (_, _) => kit.Shell, PlateEdge.Top | PlateEdge.Bottom, thick * 0.9f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
                 }
                 // Hinged on the outside, strapped behind.
                 foreach (float angle in new[] { side > 0f ? 0f : MathF.PI, -MathF.PI / 2f })
@@ -138,7 +142,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }
 
             float flare = genes.Range("flare", 0f, 0.03f);
-            bool cuffed = top <= GearFit.CuffLow && genes.Chance("cuff", 0.45f);
+            bool cuffed = top <= GearFit.CuffLow && genes.Chance("cuff", 0.55f);
+            // A boot's shaft is often a different hide from its foot.
+            VertexMaterial shaftHide = kit.Hide && genes.Chance("two.tone", 0.4f) ? kit.C.LeatherContrast : kit.Shell;
             float cuffHeight = cuffed ? genes.Range("cuff.height", 0.08f, 0.15f) : 0f;
             bool furred = kit.Hide && top <= GearFit.CuffLow && genes.Chance("fur", 0.25f);
             var rings = new List<Ring>();
@@ -166,7 +172,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 rings[i] = r;
             }
             int shaft = mesh.VertexCount;
-            mesh.Bands(Section.Round(14), rings, (ring, _) => bands[ring] == 1 ? kit.Edge : kit.Shell, capStart: false, capEnd: false);
+            mesh.Bands(Section.Round(14), rings, (ring, _) => bands[ring] == 1 ? kit.Edge : shaftHide, capStart: false, capEnd: false);
             if (cuffed || furred)
             {
                 // The top turned down over itself, a loft of its own so that it faces out: up the outside of the fold, and over its lip back in to the shaft's top. Only a low boot has one
@@ -184,8 +190,11 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             KeepToSide(mesh, shaft, side, GearFit.SideBoot);
 
             // Laces up the front, or straps round with buckles.
+            if (GearMesh.Same(shaftHide, kit.C.LeatherContrast) && !GearMesh.Same(shaftHide, kit.Shell)) mesh.Mark("two tone");
+            if (cuffed || furred) mesh.Mark(furred ? "fur" : "cuff");
             if (kit.Hide && genes.Chance("laces", 0.45f))
             {
+                mesh.Mark("laces");
                 int crosses = genes.Count("laces.count", 3, 6);
                 float laceTop = top - 0.06f - cuffHeight;
                 for (int i = 0; i < crosses; i++)
@@ -201,6 +210,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             else if (!kit.Woven && kit.Likely("straps", 0.4f, 0.75f, 0f))
             {
                 int straps = genes.Count("straps.count", 1, 3);
+                mesh.Mark($"straps {straps}");
                 for (int i = 0; i < straps; i++)
                 {
                     float y = 0.3f + (top - 0.36f - cuffHeight) * (i + 0.5f) / straps;
@@ -234,6 +244,13 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             int wraps = mesh.VertexCount;
             mesh.At(Matrix4.CreateTranslation(x, 0f, 0f), () => mesh.Wrap(0.22f, top, t => BodyForm.Leg(0.22f + (top - 0.22f) * t) + GearFit.BootInner, genes.Range("pitch", 0.07f, 0.1f), 0.1f, strap, sides: 12));
             KeepToSide(mesh, wraps, side, GearFit.SideBoot);
+            if (kit.Look.Legendary)
+            {
+                // A twisted anklet of gold or silver over the wraps.
+                int anklet = mesh.VertexCount;
+                mesh.At(Matrix4.CreateTranslation(x, 0.3f, 0f), () => GearKit.Twist(mesh, BodyForm.Leg(0.3f) + GearFit.BootInner + 0.018f, 0.012f, 10, kit.C.Precious));
+                KeepToSide(mesh, anklet, side, GearFit.SideStrap);
+            }
         }
     }
 }

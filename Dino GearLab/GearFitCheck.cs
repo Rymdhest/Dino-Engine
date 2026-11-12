@@ -67,7 +67,7 @@ namespace Dino_GearLab
         }
 
         // The innermost named part that made a vertex.
-        private static string PartOf(GearMesh made, int vertex)
+        internal static string PartOf(GearMesh made, int vertex)
         {
             string found = "unnamed";
             int span = int.MaxValue;

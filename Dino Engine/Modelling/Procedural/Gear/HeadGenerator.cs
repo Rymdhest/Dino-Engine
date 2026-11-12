@@ -142,6 +142,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 mesh.Loft(section, dome, kit.Shell, capStart: false, capEnd: true);
                 if (banded)
                 {
+                    mesh.Mark("bands");
                     // Bands up the dome from the brow to the crown, riveted, as a spangenhelm is made.
                     for (int i = 0; i < segments; i++)
                     {
@@ -194,7 +195,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             if (look.Legendary || look.Shines("brow.stone")) BrowStone(mesh, kit, genes.Part("stone"), brow + 0.04f, HalfDepth + gap + 0.03f);
         }
 
-        private static void BrowBand(GearMesh mesh, ArmourKit kit, Genes genes, float y, float radius, float depth, float height)
+        private static void BrowBand(GearMesh mesh, ArmourKit kit, Genes genes, float y, float radius, float depth, float height, VertexMaterial? material = null)
         {
             Ring[] rings =
             {
@@ -203,7 +204,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 new Ring { Centre = new Vector3(0f, y + height * 0.6f, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = radius + 0.012f, HalfDepth = depth + 0.012f },
                 new Ring { Centre = new Vector3(0f, y + height, -0.015f), Side = Vector3.UnitX, Front = Vector3.UnitZ, HalfWidth = radius, HalfDepth = depth, Hard = true },
             };
-            mesh.Loft(Section.Round(20), rings, kit.Edge, capStart: false, capEnd: false);
+            mesh.Loft(Section.Round(20), rings, material ?? kit.Edge, capStart: false, capEnd: false);
             int rivets = genes.Count("band.rivets", 0, 10);
             for (int i = 0; i < rivets; i++)
             {
@@ -237,7 +238,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     float y = low + (brow - low) * v;
                     Vector3 p = OnHead(MathF.Max(y, Centre - 0.15f), angle, gap);
                     return (Beside(new Vector3(p.X, y, p.Z), 0.023f), new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle)));
-                }, 5, 5, 0.016f, (_, _) => kit.Shell, PlateEdge.All, 0.012f, underside: kit.ShellDark);
+                }, 5, 5, 0.016f, (_, _) => kit.Shell, PlateEdge.All, 0.012f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
                 Vector3 hinge = OnHead(brow, centre, gap + 0.012f);
                 mesh.Rivet(hinge, new Vector3(MathF.Cos(centre), 0f, MathF.Sin(centre)), 0.018f, kit.Fitting);
             }
@@ -256,7 +257,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 Vector3 p = OnHead(MathF.Max(y, Centre - 0.3f), angle, gap + 0.01f);
                 float jut = 0.04f * MathF.Pow(MathF.Cos((u - 0.5f) * 3f), 2f) * (1f - v);
                 return (Beside(new Vector3(p.X, y, p.Z + jut), 0.025f), new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle)));
-            }, 10, 8, 0.018f, (u, v) => MathF.Abs(low + (brow - low) * v - slit) < 0.022f && MathF.Abs(u - 0.5f) < 0.32f ? kit.C.MetalDark : kit.Shell, PlateEdge.Bottom, 0.014f, underside: kit.ShellDark);
+            }, 10, 8, 0.018f, (u, v) => MathF.Abs(low + (brow - low) * v - slit) < 0.022f && MathF.Abs(u - 0.5f) < 0.32f ? kit.C.MetalDark : kit.Shell, PlateEdge.Bottom, 0.014f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
         }
 
         // A brim all round, as a kettle hat's, drooping at its edge, always above a shoulder's plate.
@@ -271,7 +272,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 float angle = u * MathF.Tau;
                 float r = inner + reach * v;
                 return (new Vector3(MathF.Cos(angle) * r, y - droop * v * v, MathF.Sin(angle) * r * (HalfDepth / HalfWidth) - 0.015f), new Vector3(0f, 1f, 0f));
-            }, 24, 3, 0.014f, (_, _) => kit.Shell, PlateEdge.Top, 0.014f, wrap: true, underside: kit.ShellDark);
+            }, 24, 3, 0.014f, (_, _) => kit.Shell, PlateEdge.Top, 0.014f, wrap: true, underside: kit.ShellDark, rollMaterial: kit.Gilt);
         }
 
         // Lames sweeping back from the dome over the nape, as a sallet's tail does, above the collar.
@@ -291,7 +292,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     Vector3 p = OnHead(Centre - 0.1f, angle, out_);
                     Vector3 back = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
                     return (Beside(new Vector3(p.X, MathF.Max(y0 - 0.08f * v, GearFit.HelmLow + 0.005f), p.Z) + back * reach * v, 0.023f), (Vector3.UnitY * 0.6f + back).Normalized());
-                }, 10, 2, 0.016f, (_, _) => kit.Shell, PlateEdge.Top, 0.012f, underside: kit.ShellDark);
+                }, 10, 2, 0.016f, (_, _) => kit.Shell, PlateEdge.Top, 0.012f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
             }
         }
 
@@ -324,6 +325,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             GearLook look = kit.Look;
             float top = Top + gap + peak;
             int kind = genes.Pick("kind", 2.5f, 1f + look.Ornament * 1.5f, look.Spikes * 1.5f + (look.Motif == Motif.Fang ? 1f : 0f), look.Flare * 1.2f, look.Legendary ? 3f : 0f);
+            if (kind > 0) mesh.Mark($"crest {kind}");
             switch (kind)
             {
                 case 1:
@@ -401,12 +403,14 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float tuck = GearFit.NeckTuck - 0.02f - genes.Range("tuck", 0.005f, 0.02f);
             OpenHood(mesh, kit, genes, gap, open, low, tuck, kit.Shell, 0.012f, peak: 0f);
             // A band of leather round the brow, now and then.
-            if (genes.Chance("band", 0.5f)) BrowBand(mesh, kit, genes, Centre + 0.1f, HalfWidth + gap + 0.012f, HalfDepth + gap + 0.012f, 0.025f);
+            if (kit.Look.Legendary || genes.Chance("band", 0.5f)) BrowBand(mesh, kit, genes, Centre + 0.1f, HalfWidth + gap + 0.012f, HalfDepth + gap + 0.012f, 0.025f);
+            if (kit.Look.Legendary) BrowStone(mesh, kit, genes.Part("stone"), Centre + 0.1f, HalfDepth + gap + 0.04f);
         }
 
         // A hood laid round the head with a face open in it, from the neck (tucked in below the jaw) over the crown, rolled at the face: what a coif, a hood and a cowl all are.
-        private static void OpenHood(GearMesh mesh, ArmourKit kit, Genes genes, float gap, float open, float low, float tuck, VertexMaterial cloth, float thick, float peak)
+        private static void OpenHood(GearMesh mesh, ArmourKit kit, Genes genes, float gap, float open, float low, float tuck, VertexMaterial cloth, float thick, float peak, VertexMaterial? edge = null)
         {
+            if (edge != null) mesh.Mark("edged");
             float top = Top + gap + peak;
             mesh.Plate((u, v) =>
             {
@@ -436,7 +440,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 }
                 Vector3 n = new Vector3(p.X, (y - Centre) * 0.5f, p.Z + 0.02f);
                 return (p, n.LengthSquared > 1e-8f ? n.Normalized() : Vector3.UnitY);
-            }, 22, 12, thick, (_, _) => cloth, PlateEdge.Start | PlateEdge.End, thick * 1.4f, underside: kit.Under);
+            }, 22, 12, thick, (_, _) => cloth, PlateEdge.Start | PlateEdge.End, thick * 1.4f, underside: kit.Under, rollMaterial: edge);
             mesh.SkinBy(at => at.Y < GearFit.HelmLow + 0.05f ? BodyForm.Throat(at.Y) : (new Vector2((int)BoneType.Head, 0f), new Vector2(1f, 0f)));
         }
 
@@ -449,9 +453,47 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float open = genes.Range("open", 0.75f, 1f);
             float low = GearFit.NeckLow + genes.Range("low", 0.01f, 0.06f);
             float tuck = GearFit.NeckTuck - 0.022f - genes.Range("tuck", 0.005f, 0.02f);
-            OpenHood(mesh, kit, genes, gap, open, low, tuck, kit.Shell, 0.014f, peak);
+            OpenHood(mesh, kit, genes, gap, open, low, tuck, kit.Shell, 0.014f, peak, genes.Chance("edge", 0.4f) ? (kit.Hide ? kit.C.LeatherContrast : kit.Trim) : null);
+            if (look.Legendary)
+            {
+                // A gilt circlet worn over the hood's brow, and a stone at its front.
+                float y = Centre + 0.14f;
+                float s = Math.Clamp((y - Centre) / (Top + gap + peak - Centre), -1f, 1f);
+                float round = MathF.Sqrt(MathF.Max(1f - s * s, 0.05f));
+                BrowBand(mesh, kit, genes, y, (HalfWidth + gap) * round + 0.016f, (HalfDepth + gap) * round + 0.012f, 0.022f);
+                BrowStone(mesh, kit, genes.Part("stone"), y, (HalfDepth + gap) * round + 0.03f);
+            }
+            int front = genes.Pick("front", 2f, 1f, 0.8f);
+            if (front == 1)
+            {
+                // Two ties hanging from the throat.
+                mesh.Mark("ties");
+                foreach (float side in new[] { -1f, 1f })
+                {
+                    Vector3 from = new Vector3(side * tuck * 0.55f, GearFit.HelmLow + 0.02f, tuck * 0.82f);
+                    // Short enough that their ends stay above where nothing of the head's may go (GearFit.NeckLow).
+                    var cord = new[] { from, from + new Vector3(side * 0.01f, -0.06f, 0.015f), from + new Vector3(side * 0.005f, -0.12f, 0.01f) };
+                    mesh.Sweep(Section.Round(4), Spine.Through(cord, 4), t => new Vector2(0.007f), kit.Strap, Vector3.UnitZ);
+                    GearKit.Tassel(mesh, genes.Part($"tie{side}"), cord[^1], 0.02f, 0.011f, kit.Strap, kit.Strap);
+                }
+            }
+            else if (front == 2)
+            {
+                // The hood's brow stiffened into a short peak.
+                mesh.Mark("hood peak");
+                float y = Centre + 0.2f;
+                float s = Math.Clamp((y - Centre) / (Top + gap + peak - Centre), -1f, 1f);
+                float round = MathF.Sqrt(MathF.Max(1f - s * s, 0.05f));
+                mesh.Plate((u, v) =>
+                {
+                    float angle = Front + (u - 0.5f) * open * 1.6f;
+                    float r = (HalfDepth + gap) * round + 0.01f + 0.1f * v;
+                    return (new Vector3(MathF.Cos(angle) * ((HalfWidth + gap) * round + 0.01f + 0.1f * v), y - 0.03f * v, MathF.Sin(angle) * r - 0.02f), Vector3.UnitY);
+                }, 6, 2, 0.012f, (_, _) => kit.Shell, PlateEdge.Top, 0.01f, underside: kit.Under);
+            }
             if (genes.Chance("tail", 0.45f))
             {
+                mesh.Mark("tail");
                 // A short point falling back from the crown, staying above the collar.
                 float length = genes.Range("tail.length", 0.25f, 0.6f);
                 float wide = genes.Range("tail.wide", 0.08f, 0.14f);
@@ -482,6 +524,48 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             List<Ring> dome = Dome(genes, brow, gap, genes.Range("peak", 0f, 0.1f), genes.Range("flat", 0f, 0.3f));
             mesh.Loft(Section.Round(18), dome, kit.Shell, capStart: false, capEnd: true);
             int panels = genes.Count("panels", 4, 6);
+            mesh.Mark($"panels {panels}");
+            float crownY = dome[^1].Centre.Y;
+            int extra = genes.Pick("extra", 2f, 1f, 1f, 1f);
+            if (extra == 1)
+            {
+                // A ridge of doubled leather over the crown, front to back.
+                mesh.Mark("ridge");
+                var path = new List<Vector3>();
+                var normals = new List<Vector3>();
+                foreach (Ring ring in dome)
+                {
+                    path.Add(ring.Centre + new Vector3(0f, 0f, ring.HalfDepth));
+                    normals.Add((Vector3.UnitZ + Vector3.UnitY * ((ring.Centre.Y - brow) / (crownY - brow + 0.01f))).Normalized());
+                }
+                // Over the top, through the middle of the crown's flat, and down the back.
+                path.Add(dome[^1].Centre);
+                normals.Add(Vector3.UnitY);
+                for (int k = dome.Count - 1; k >= 0; k--)
+                {
+                    path.Add(dome[k].Centre - new Vector3(0f, 0f, dome[k].HalfDepth));
+                    normals.Add((-Vector3.UnitZ + Vector3.UnitY * ((dome[k].Centre.Y - brow) / (crownY - brow + 0.01f))).Normalized());
+                }
+                mesh.Strip(path, normals, 0.026f, 0.016f, kit.ShellDark);
+            }
+            else if (extra == 2)
+            {
+                // A plate of harder leather riveted over the brow.
+                mesh.Mark("brow plate");
+                mesh.Plate((u, v) =>
+                {
+                    float angle = Front + (u - 0.5f) * 1.5f;
+                    Vector3 p = OnHead(brow + 0.03f + 0.11f * v, angle, gap + 0.008f);
+                    return (p, new Vector3(MathF.Cos(angle), 0.25f, MathF.Sin(angle)).Normalized());
+                }, 6, 2, 0.012f, (_, _) => kit.C.LeatherContrast, PlateEdge.None, underside: kit.ShellDark);
+                foreach (float a in new[] { Front - 0.6f, Front, Front + 0.6f }) mesh.Rivet(OnHead(brow + 0.09f, a, gap + 0.022f), new Vector3(MathF.Cos(a), 0.25f, MathF.Sin(a)).Normalized(), 0.014f, kit.Fitting);
+            }
+            else if (extra == 3)
+            {
+                // A knot of leather on top, where the panels meet.
+                mesh.Mark("knot");
+                mesh.At(Matrix4.CreateTranslation(0f, crownY - 0.02f, -0.015f), () => mesh.Lathe(Section.Round(8), 0.07f, 3, t => 0.04f * (0.6f + 0.6f * MathF.Sin(MathF.Max(t, 0.1f) * MathF.PI)), kit.Strap));
+            }
             for (int i = 0; i < panels; i++)
             {
                 float angle = Front + i * MathF.Tau / panels + MathF.PI / panels;
@@ -495,19 +579,25 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 }
                 mesh.Strip(path, normals, 0.012f, 0.008f, kit.ShellDark);
             }
-            BrowBand(mesh, kit, genes, brow + 0.01f, HalfWidth + gap + 0.005f, HalfDepth + gap + 0.005f, 0.028f);
+            // Its brow banded in leather, or in fur on a hide cap now and then; a hardened cap sometimes has a nasal.
+            bool fur = kit.Hide && !look.Legendary && genes.Chance("fur", 0.25f);
+            BrowBand(mesh, kit, genes, brow + 0.01f, HalfWidth + gap + (fur ? 0.012f : 0.005f), HalfDepth + gap + (fur ? 0.012f : 0.005f), fur ? 0.04f : 0.028f, fur ? kit.C.Fur : null);
+            if (kit.Make == GearMake.Hardened && genes.Chance("nasal", 0.25f)) Nasal(mesh, kit, genes.Part("nasal"), brow, gap);
+            if (fur) mesh.Mark("fur");
             if (genes.Chance("peak.front", 0.35f))
             {
+                mesh.Mark("peak");
                 mesh.Plate((u, v) =>
                 {
                     float angle = Front + (u - 0.5f) * 1.6f;
                     Vector3 p = OnHead(brow, angle, gap + 0.01f);
                     Vector3 out_ = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
                     return (p + out_ * 0.12f * v - Vector3.UnitY * 0.03f * v, Vector3.UnitY);
-                }, 8, 2, 0.012f, (_, _) => kit.ShellDark, PlateEdge.Top, 0.01f, underside: kit.ShellDark);
+                }, 8, 2, 0.012f, (_, _) => kit.ShellDark, PlateEdge.Top, 0.01f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
             }
             if (genes.Chance("flaps", 0.3f))
             {
+                mesh.Mark("flaps");
                 foreach (float side in new[] { 1f, -1f })
                 {
                     float centre = side > 0f ? 0.05f : MathF.PI - 0.05f;
@@ -522,6 +612,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }
             if (kit.Make == GearMake.Studded)
             {
+                mesh.Mark("studs");
                 for (int i = 0; i < 8; i++)
                 {
                     float angle = Front + i * MathF.Tau / 8f;
@@ -558,7 +649,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 float slope = rise * power * MathF.Pow(MathF.Max(r / reach, 0.01f), power - 1f) / reach;
                 var out_ = new Vector3(MathF.Cos(angle) * slope, 1f, MathF.Sin(angle) * slope);
                 return (new Vector3(MathF.Cos(angle) * r, Height(r), MathF.Sin(angle) * r), out_);
-            }, 28, 6, 0.012f, (_, v) => v > 0.93f ? binding : body, PlateEdge.Top, 0.012f, wrap: true, underside: kit.ShellDark);
+            }, 28, 6, 0.012f, (_, v) => v > 0.93f ? binding : body, PlateEdge.Top, 0.012f, wrap: true, underside: kit.ShellDark, rollMaterial: kit.Gilt);
             // A knob where the cone comes to its point.
             mesh.At(Matrix4.CreateTranslation(0f, Height(From) - 0.006f, 0f), () => mesh.Lathe(Section.Round(10), 0.05f, 2, t => From * 1.3f * (1f - t * 0.5f), binding));
             // The headband inside it, where it rests on the crown, and the cord tied under the chin.

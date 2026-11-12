@@ -150,7 +150,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     float angle = i * (MathF.Tau / claws) + MathF.PI / claws;
                     Vector3 out_ = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
                     var keys = new[] { out_ * stone * 1.05f + Vector3.UnitY * seat * 0.4f, out_ * stone * 1.14f + Vector3.UnitY * (seat + stone * 0.25f), out_ * stone * 0.82f + Vector3.UnitY * (seat + stone * 0.55f) };
-                    mesh.Sweep(Section.Round(4), Spine.Through(keys, 4), t => new Vector2(stone * 0.12f * (1f - t * 0.5f)), metal, Vector3.UnitZ);
+                    // Its section turned about the way round the stone, which is never along the claw, as any fixed way would be for one of them.
+                    mesh.Sweep(Section.Round(4), Spine.Through(keys, 4), t => new Vector2(stone * 0.12f * (1f - t * 0.5f)), metal, Vector3.Cross(out_, Vector3.UnitY));
                 }
             }
             mesh.At(Matrix4.CreateTranslation(0f, seat + stone * 0.08f, 0f), () => mesh.Gem(sides, stone, stone * genes.Range("crown", 0.42f, 0.7f), stone * genes.Range("pavilion", 0.25f, 0.45f), genes.Range("table", 0.42f, 0.66f), gem));

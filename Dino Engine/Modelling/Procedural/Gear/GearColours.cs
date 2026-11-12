@@ -40,6 +40,11 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             S("russet", 0.34f, 0.17f, 0.075f, 0.2f),
             S("forest dyed", 0.07f, 0.12f, 0.07f, 0.45f),
             S("blue dyed", 0.06f, 0.08f, 0.15f, 0.5f),
+            // More of what tanning gives, from buckskin's pale to leather smoked nearly to bark: on the end, as a crafted look names its hide by its place here.
+            S("buckskin", 0.52f, 0.4f, 0.26f, 0.05f),
+            S("chestnut", 0.3f, 0.15f, 0.07f, 0.1f),
+            S("tobacco", 0.22f, 0.15f, 0.09f, 0.1f),
+            S("smoked", 0.15f, 0.12f, 0.1f, 0.15f),
         };
 
         // What dyers had: woad, madder and weld, walnut, and from far away kermes, indigo and lichen purple, which only the finest work gets. A red is a madder scarlet or a
@@ -198,7 +203,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public readonly VertexMaterial FittingDark;
         public readonly VertexMaterial Precious;        // Gilding or silver, inlaid or laid over, on what was made with care.
         public readonly VertexMaterial Leather;
-        public readonly VertexMaterial LeatherDark;     // Edging, welts and the underside.
+        public readonly VertexMaterial LeatherDark;
+        public readonly VertexMaterial LeatherContrast; // A second hide, lighter or darker than the first, for what's made of two.     // Edging, welts and the underside.
         public readonly VertexMaterial Strap;           // What straps and wraps are cut from, often another hide.
         public readonly VertexMaterial Cloth;           // Its dye.
         public readonly VertexMaterial ClothDark;       // The same in its folds and lining.
@@ -260,12 +266,16 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float Natural(GearSwatches.Swatch s) => s.Name.EndsWith("dyed") == dyedHide ? 1f : 0.01f;
             GearSwatches.Swatch leather = Pick(genes, "leather", GearSwatches.Leathers, budget * 0.8f, tailor.Leather, Natural, 0.6f);
             LeatherName = leather.Name;
-            Vector3 hide = leather.Albedo * genes.Range("leather.shade", 0.9f, 1.08f);
+            Vector3 hide = leather.Albedo * genes.Range("leather.shade", 0.84f, 1.14f);
             Leather = Of(GearMaterials.Leather, hide);
             LeatherDark = Of(GearMaterials.Leather, Darker(hide, 0.55f));
             // Straps are often a different hide from what they hold, a shade or two either way.
             GearSwatches.Swatch strapHide = genes.Chance("strap.same", 0.4f) ? leather : Pick(genes, "strap", GearSwatches.Leathers, budget * 0.6f, 0, s => s.Name == leather.Name ? 0.2f : s.Name.EndsWith("dyed") ? 0.01f : 1f, 0.6f);
-            Strap = Of(GearMaterials.Leather, strapHide.Albedo * genes.Range("strap.shade", 0.85f, 1f));
+            Strap = Of(GearMaterials.Leather, strapHide.Albedo * genes.Range("strap.shade", 0.8f, 1.05f));
+            // The second hide is one of the tanner's others, a step lighter or darker in value than the first, as two hides sewn together are.
+            float value = GearSwatches.Hsv(leather.Albedo).Value;
+            GearSwatches.Swatch second = Pick(genes, "leather.second", GearSwatches.Leathers, budget * 0.8f, 0, s => s.Name.EndsWith("dyed") ? 0.01f : MathF.Abs(GearSwatches.Hsv(s.Albedo).Value - value) > 0.1f ? 1f : 0.05f, 0.8f);
+            LeatherContrast = Of(GearMaterials.Leather, second.Albedo * genes.Range("leather.second.shade", 0.88f, 1.1f));
 
             // A power shows in what it's dyed with, more often than not. Otherwise most cloth is its own colour or a homely dye, and a strong one is dear: the better the work the likelier it
             // is, and a robe likelier than what's worn under armour, so that a hero in five pieces is a few colours and not a festival. The trim goes with the main dye by one of the old rules:
@@ -294,7 +304,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 };
             });
             TrimName = trim.Name;
-            Vector3 dyed = dye.Albedo * (1f - 0.18f * wear) * genes.Range("dye.shade", 0.92f, 1.06f);
+            Vector3 dyed = dye.Albedo * (1f - 0.18f * wear) * genes.Range("dye.shade", 0.88f, 1.1f);
             Cloth = Of(GearMaterials.Cloth, dyed);
             ClothDark = Of(GearMaterials.Cloth, Darker(dyed, 0.6f));
             Trim = Of(GearMaterials.Cloth, trim.Albedo * (1f - 0.12f * wear));
@@ -328,11 +338,25 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Glow = new VertexMaterial(GearMaterials.Glow, new Colour(GlowColour.X, GlowColour.Y, GlowColour.Z, strength));
         }
 
-        /// <summary>Something on this material that should come to this albedo, as materials that have a colour of their own multiply it into whatever's drawn on them.</summary>
+        /// <summary>
+        /// Something on this material that should come to this albedo, as materials that have a colour of their own multiply it into whatever's drawn on them. Whatever's asked for is brought up
+        /// out of the Reich's colours first (<see cref="ClearOfReich"/>), so that a shade or a wear can never darken a hero's gear into them.
+        /// </summary>
         public static VertexMaterial Of(int material, Vector3 albedo)
         {
+            albedo = ClearOfReich(albedo, GearMaterials.IsMetal(material));
             Vector3 average = GearMaterials.AlbedoOf(material);
             return new VertexMaterial(material, new Colour(albedo.X / average.X, albedo.Y / average.Y, albedo.Z / average.Z));
+        }
+
+        /// <summary>
+        /// A colour lightened just out of the Reich's, if a shade or a wear had darkened or dulled it into one (<see cref="GearSwatches.IsReichs"/>): worn iron's shadow until it isn't black
+        /// iron, a red's fold until it isn't oxblood, a dull gold until it's gold and not brass.
+        /// </summary>
+        public static Vector3 ClearOfReich(Vector3 albedo, bool metal)
+        {
+            for (int i = 0; i < 24 && GearSwatches.IsReichs(albedo, metal); i++) albedo *= 1.06f;
+            return albedo;
         }
 
         /// <summary>What it comes to on its material, which is what a palette chose: for a check, or a picture with no textures.</summary>

@@ -75,6 +75,10 @@ namespace Dino_GearLab
                 }
                 if (made.TriangleCount > MostTriangles) Fail(spec, $"{made.TriangleCount} triangles");
 
+                for (int v = 0; v < made.VertexCount; v++)
+                {
+                    if (!Finite(made.Vertices[v].position)) Fail(spec, $"a position that isn't one, in {GearFitCheck.PartOf(made, v)}");
+                }
                 if (!Same(GearForge.Make(spec), made)) Fail(spec, "the same spec made something else");
 
                 Vector3 min = new Vector3(float.MaxValue), max = new Vector3(float.MinValue);
@@ -96,7 +100,12 @@ namespace Dino_GearLab
                 foreach (Face face in mesh.faces)
                 {
                     Vector3 cross = Vector3.Cross(face.B.position - face.A.position, face.C.position - face.A.position);
-                    if (cross.LengthSquared < 1e-14f) Fail(spec, $"a triangle with no area, at {face.A.position}, {face.B.position}, {face.C.position}");
+                    if (cross.LengthSquared < 1e-14f)
+                    {
+                        int at = -1;
+                        for (int v = 0; v < made.VertexCount && at < 0; v++) if (made.Vertices[v].position == face.A.position) at = v;
+                        Fail(spec, $"a triangle with no area, in {(at >= 0 ? GearFitCheck.PartOf(made, at) : "something")}, at {face.A.position}, {face.B.position}, {face.C.position}");
+                    }
                 }
             }
 

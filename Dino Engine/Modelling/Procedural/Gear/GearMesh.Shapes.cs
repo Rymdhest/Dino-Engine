@@ -94,7 +94,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         /// <paramref name="roll"/>. A plate that goes all the way round (<paramref name="wrap"/>) has no sides at u's ends, and the surface has to come back to where it started at u = 1.
         /// </summary>
         public void Plate(Func<float, float, (Vector3 at, Vector3 outward)> surface, int across, int along, float thick, Func<float, float, VertexMaterial> material,
-            PlateEdge rolled = PlateEdge.None, float roll = 0f, bool wrap = false, VertexMaterial? underside = null)
+            PlateEdge rolled = PlateEdge.None, float roll = 0f, bool wrap = false, VertexMaterial? underside = null, VertexMaterial? rollMaterial = null)
         {
             across = Math.Max(across, 1);
             along = Math.Max(along, 1);
@@ -244,7 +244,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 var spine = new List<Vector3>(line.Count);
                 foreach ((int i, int j) in line) spine.Add(outer[i, j] - normal[i, j] * (roll * 0.55f));
                 (int fi, int fj) = line[0];
-                Sweep(Section.Round(6), spine, _ => new Vector2(roll), Material(fi, fj), normal[fi, fj], capStart: !wrap, capEnd: !wrap);
+                Sweep(Section.Round(6), spine, _ => new Vector2(roll), rollMaterial ?? Material(fi, fj), normal[fi, fj], capStart: !wrap, capEnd: !wrap);
             }
             if ((rolled & PlateEdge.Bottom) != 0) Roll(Across(0));
             if ((rolled & PlateEdge.Top) != 0) Roll(Across(along));

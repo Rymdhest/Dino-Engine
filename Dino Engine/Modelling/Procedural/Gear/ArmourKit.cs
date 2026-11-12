@@ -22,6 +22,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public readonly VertexMaterial Strap;       // What holds it on, always leather.
         public readonly VertexMaterial Fitting;     // Buckles, rivets and studs, always metal.
         public readonly VertexMaterial Trim;        // What picks it out.
+        public readonly VertexMaterial? Gilt;       // On a legendary piece, what its edges are rolled and its fittings worked in: gold or silver. Nothing on anything else.
 
         public bool Metal => Make is GearMake.Plate or GearMake.Scale or GearMake.Lamellar or GearMake.Mail;
         public bool Hide => Make is GearMake.Hide or GearMake.Hardened or GearMake.Studded;
@@ -99,6 +100,15 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     Edge = C.Trim;
                     Trim = Make == GearMake.Silk || look.Craft > 0.6f ? C.Precious : C.Trim;
                     break;
+            }
+
+            // A legendary piece is a master's and a lord's: its edges rolled in gold or silver, its buckles and rivets and studs of the same, and its trim worked in it.
+            if (look.Legendary)
+            {
+                Gilt = C.Precious;
+                Edge = C.Precious;
+                Fitting = C.Precious;
+                Trim = C.Precious;
             }
         }
 

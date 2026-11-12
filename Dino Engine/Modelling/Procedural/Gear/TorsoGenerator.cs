@@ -154,6 +154,10 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             bool under = kit.Make is GearMake.Plate or GearMake.Lamellar or GearMake.Hardened;
             VertexMaterial body = under ? kit.Under : kit.Shell;
             VertexMaterial hem = kit.Make is GearMake.Mail ? kit.Shell : kit.Woven ? kit.Trim : kit.Edge;
+            // A yoke across the shoulders in a second hide or cloth, as a coat is often cut.
+            bool yoked = !under && kit.Make != GearMake.Mail && genes.Chance("yoke", 0.3f);
+            VertexMaterial yoke = kit.Hide ? kit.C.LeatherContrast : kit.Woven ? (genes.Chance("yoke.dark", 0.5f) ? kit.C.ClothDark : kit.C.Trim) : kit.ShellDark;
+            float yokeAt = genes.Range("yoke.at", 3.42f, 3.6f);
 
             var heights = new List<float>();
             float step = MathF.Max((BodyForm.Hip + 0.2f - shape.Hem) / 9f, 0.07f);
@@ -174,13 +178,16 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }
             // Hem bands first, each its own crisp band, then the body.
             for (int b = 0; b < hemBands; b++) Add(shape.Hem + b * bandHeight, b % 2 == 0 ? 1 : 2);
+            if (yoked) heights.Add(yokeAt);
+            heights.Sort();
             foreach (float y in heights)
             {
-                if (y > shape.Hem + hemBands * bandHeight - 0.01f) Add(y, 0);
+                if (y > shape.Hem + hemBands * bandHeight - 0.01f && (rings.Count == 0 || y - rings[^1].Centre.Y > 0.02f)) Add(y, yoked && y >= yokeAt - 0.001f ? 3 : 0);
             }
 
             int first = mesh.VertexCount;
-            mesh.Bands(Section.Round(Around), rings, (ring, _) => bands[ring] switch { 1 => hem, 2 => kit.Under, _ => body }, capStart: false, capEnd: false);
+            // What's worn under armour is mostly hidden by it, and needs fewer sides.
+            mesh.Bands(Section.Round(under ? 20 : Around), rings, (ring, _) => bands[ring] switch { 1 => hem, 2 => kit.Under, 3 => yoke, _ => body }, capStart: false, capEnd: false);
             if (shape.Skirted) mesh.SkinBy(at => at.Y < BodyForm.Hip + 0.15f ? BodyForm.Skirt(at) : (new Vector2((int)BoneType.Chest, 0f), new Vector2(1f, 0f)), first);
             return 0.012f;
         }
@@ -212,8 +219,24 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }
 
             VertexMaterial plate = kit.Shell;
-            mesh.Plate((u, v) => Surface(u, v, Front, 1f), 14, 6, thick, (_, _) => plate, PlateEdge.Top | PlateEdge.Start | PlateEdge.End, roll, underside: kit.ShellDark);
-            mesh.Plate((u, v) => Surface(u, v, Back, 0.3f), 14, 6, thick, (_, _) => plate, PlateEdge.Top, roll, underside: kit.ShellDark);
+            mesh.Plate((u, v) => Surface(u, v, Front, 1f), 14, 6, thick, (_, _) => plate, PlateEdge.Top | PlateEdge.Start | PlateEdge.End, roll, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+            mesh.Plate((u, v) => Surface(u, v, Back, 0.3f), 14, 6, thick, (_, _) => plate, PlateEdge.Top, roll, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+
+            // On a legendary harness, gilt scrolls up the breastplate either side of its keel.
+            if (look.Legendary)
+            {
+                foreach (float side in new[] { -1f, 1f })
+                {
+                    foreach (float at in new[] { 0.62f })
+                    {
+                        float y = low + (top - low) * at;
+                        float angle = Front + side * 0.3f;
+                        Vector3 start = shape.Point(y, angle, layer + thick + 0.006f) + shape.Normal(y, angle, layer) * (keel * 0.2f);
+                        Vector3 around = new Vector3(-MathF.Sin(angle), 0f, MathF.Cos(angle));
+                        GearKit.Scroll(mesh, start, -around * side, Vector3.UnitY * (at > 0.5f ? 1f : -1f), 0.09f, 1.5f, 0.012f, kit.C.Precious);
+                    }
+                }
+            }
 
             // Straps over the shoulders and at the sides, joining the two plates.
             foreach (float side in new[] { -1f, 1f })
@@ -242,7 +265,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     float angle = Front - 1.55f + 3.1f * u;
                     float y = lameLow + (lameTop - lameLow) * v;
                     return (shape.Point(y, angle, out_), shape.Normal(y, angle, out_));
-                }, 12, 1, thick * 0.9f, (_, _) => plate, PlateEdge.Bottom, roll * 0.8f, underside: kit.ShellDark);
+                }, 12, 1, thick * 0.9f, (_, _) => plate, PlateEdge.Bottom, roll * 0.8f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
                 foreach (float end in new[] { Front - 1.45f, Front + 1.45f })
                 {
                     float y = (lameTop + lameLow) * 0.5f;
@@ -272,7 +295,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                             float angle = centre + (u - 0.5f) * width * flare;
                             float yy = lameLow + (lameTop - lameLow) * v;
                             return (shape.Point(yy, angle, out_), shape.Normal(yy, angle, out_));
-                        }, 5, 1, thick * 0.9f, (_, _) => plate, PlateEdge.Bottom, roll * 0.7f, underside: kit.ShellDark);
+                        }, 5, 1, thick * 0.9f, (_, _) => plate, PlateEdge.Bottom, roll * 0.7f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
                         y = lameLow;
                     }
                     mesh.SkinBy(BodyForm.Skirt, first);
@@ -405,7 +428,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     float angle = centre - span + span * 2f * u;
                     float y = low + (top - low - 0.1f * (1f - MathF.Pow(u * 2f - 1f, 2f)) * (centre == Front ? 1f : 0f)) * v;
                     return (shape.Point(y, angle, layer), shape.Normal(y, angle, layer));
-                }, 10, 5, thick, (_, _) => kit.Shell, PlateEdge.All, thick * 0.9f, underside: kit.ShellDark);
+                }, 10, 5, thick, (_, _) => kit.Shell, PlateEdge.All, thick * 0.9f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
             }
             // The welt round each plate's edge is its rolled edge, in the darker leather.
             foreach (float side in new[] { 0f, MathF.PI })
@@ -555,7 +578,10 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float reach = kit.Blend("reach", new Vector2(0.75f, 1f), new Vector2(0.28f, 0.75f), new Vector2(0.85f, 1f));
             if (kit.Likely("none", 0.02f, 0.2f, 0f)) return;
             bool bell = kit.Woven && look.Cloth > 0.5f && genes.Chance("bell", 0.55f);
-            VertexMaterial material = kit.Make is GearMake.Plate or GearMake.Lamellar or GearMake.Hardened ? kit.Under : kit.Make == GearMake.Studded || kit.Make == GearMake.Brigandine ? kit.C.Leather : kit.Shell;
+            // Under hide, the sleeves are as often a shirt's, of cloth, as the jerkin's own.
+            VertexMaterial material = kit.Make is GearMake.Plate or GearMake.Lamellar or GearMake.Hardened ? kit.Under
+                : kit.Hide && genes.Chance("shirt", 0.4f) ? (genes.Chance("shirt.plain", 0.5f) ? kit.C.Lining : kit.C.Cloth)
+                : kit.Make == GearMake.Studded || kit.Make == GearMake.Brigandine ? kit.C.Leather : kit.Shell;
             VertexMaterial cuff = kit.Make is GearMake.Mail or GearMake.Plate ? material : kit.Woven ? kit.Trim : kit.Edge;
             float gap = genes.Range("gap", 0.04f, 0.06f);
             foreach (float side in new[] { 1f, -1f })
@@ -587,7 +613,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     cuffs.Add(i >= steps - 1);
                 }
                 int first = mesh.VertexCount;
-                mesh.Bands(Section.Round(12), rings, (ring, _) => cuffs[ring] ? cuff : material, capStart: true, capEnd: false);
+                // Under a harness a sleeve's mostly hidden, and needs fewer sides.
+                mesh.Bands(Section.Round(kit.Make == GearMake.Plate ? 10 : 12), rings, (ring, _) => cuffs[ring] ? cuff : material, capStart: true, capEnd: false);
                 float s = side;
                 mesh.SkinBy(at => Arm(at, s), first);
             }
@@ -646,7 +673,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
             float size = kit.Make == GearMake.Plate ? genes.Range("size", 0.3f, 0.46f) * (0.85f + 0.35f * look.Flare) * (look.Legendary ? 1.15f : 1f) : genes.Range("size", 0.26f, 0.36f);
             float length = size * genes.Range("length", 1.1f, 1.7f);
-            int lames = kit.Make == GearMake.Plate ? genes.Count("lames", 2, 5) : kit.Make == GearMake.Hardened ? genes.Count("lames", 2, 3) : 1;
+            int lames = kit.Make == GearMake.Plate ? genes.Count("lames", 2, 4) : kit.Make == GearMake.Hardened ? genes.Count("lames", 2, 3) : 1;
             float gap = genes.Range("gap", 0.08f, 0.12f);
             float rise = size * genes.Range("rise", 0f, 0.18f);
             // However big a shoulder's plate, its top stays below a brim (GearFit.ShoulderTop): what it can't have in height it has out to the sides.
@@ -676,7 +703,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                         var p = new Vector3(x, BodyForm.Shoulder + rise * (1f - t) + MathF.Sin(angle) * up, MathF.Cos(angle) * wide);
                         var n = new Vector3(0f, MathF.Sin(angle) / up, MathF.Cos(angle) / wide).Normalized();
                         return (p, n);
-                    }, across, 8, thick, (_, _) => shell, lame == lames - 1 ? PlateEdge.End : PlateEdge.None, thick * 1.3f, underside: kit.ShellDark);
+                    }, across, 8, thick, (_, _) => shell, lame == lames - 1 ? PlateEdge.End : PlateEdge.None, thick * 1.3f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
                 }
                 // A rivet at each end of each lame, where it's held to the next.
                 for (int lame = 0; lame < lames && kit.Make == GearMake.Plate; lame++)
@@ -689,6 +716,17 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                         Vector3 at = new Vector3(x0 + side * t * length, BodyForm.Shoulder + rise * (1f - t) + MathF.Sin(angle) * up, MathF.Cos(angle) * wide);
                         mesh.Rivet(at, new Vector3(0f, MathF.Sin(angle), MathF.Cos(angle)), 0.015f, kit.Fitting);
                     }
+                }
+                // A stone set in the front of a legendary pauldron, low enough to stay under a brim.
+                if (look.Legendary)
+                {
+                    float t = 0.4f, angle = MathF.PI * 0.25f;
+                    float dome = MathF.Sqrt(MathF.Max(1f - MathF.Pow(1f - MathF.Min(t * 1.9f + 0.15f, 1f), 2f), 0.04f));
+                    float arm = BodyForm.Arm(MathF.Min(t * 0.4f, 0.5f)) + gap + thick;
+                    float up = arm + height * dome, wide = arm + size * 0.6f * dome;
+                    var at = new Vector3(x0 + side * t * length, BodyForm.Shoulder + rise * (1f - t) + MathF.Sin(angle) * up, MathF.Cos(angle) * wide);
+                    var n = new Vector3(0f, MathF.Sin(angle) / up, MathF.Cos(angle) / wide).Normalized();
+                    mesh.At(GearMesh.FacingOut(at, n), () => GearKit.Setting(mesh, genes.Part("stone"), 0.035f, kit.C.Precious, look.Theme != GearTheme.None ? kit.C.Glow : kit.C.Gem));
                 }
                 float s = side;
                 mesh.SkinBy(at => GearFit.Shoulder(at, s), first);
@@ -745,7 +783,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                         float y = y0 + (y1 - y0) * v;
                         float r = MathF.Min(r0 + (r1 - r0) * v, GearFit.CollarOuter - 0.02f);
                         return (new Vector3(MathF.Cos(angle) * r, y, MathF.Sin(angle) * r * 0.95f), new Vector3(MathF.Cos(angle), 0.35f, MathF.Sin(angle)).Normalized());
-                    }, 20, 1, 0.016f, (_, _) => kit.Shell, i == lames - 1 ? PlateEdge.Top : PlateEdge.None, 0.018f, wrap: true, underside: kit.ShellDark);
+                    }, 20, 1, 0.016f, (_, _) => kit.Shell, i == lames - 1 ? PlateEdge.Top : PlateEdge.None, 0.018f, wrap: true, underside: kit.ShellDark, rollMaterial: kit.Gilt);
                 }
                 return;
             }
@@ -885,7 +923,6 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             {
                 Vector3 from = shape.Point(y, Front + side * 0.12f, outer + 0.004f);
                 GearKit.Scroll(mesh, from, new Vector3(side, 0f, 0f), Vector3.UnitY, size * 1.1f, 1.5f, 0.01f, kit.C.Precious);
-                GearKit.Scroll(mesh, from, new Vector3(side, 0f, 0f), -Vector3.UnitY, size * 1.1f, 1.5f, 0.01f, kit.C.Precious);
             }
         }
     }

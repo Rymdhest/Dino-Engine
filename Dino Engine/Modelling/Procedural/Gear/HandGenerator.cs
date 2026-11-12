@@ -59,8 +59,12 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             mesh.Sweep(Section.Round(8), Spine.Through(keys, 5), t => new Vector2(bulk * 0.38f * (1f - t * 0.3f)), kit.Make == GearMake.Hardened ? kit.C.Leather : kit.Shell, Vector3.UnitY, capStart: false, capEnd: true);
 
             // A plate over the back of a gauntlet's hand, a ridge of knuckles on a fist made to strike, and studs on a studded glove.
-            if (kit.Make == GearMake.Plate)
+            // A plate over the back of a gauntlet's hand, or of hardened leather on a glove now and then.
+            bool backed = kit.Make == GearMake.Plate || kit.Hide && genes.Chance("back.panel", 0.4f);
+            if (backed)
             {
+                mesh.Mark("back");
+                bool plate = kit.Make == GearMake.Plate;
                 mesh.Plate((u, v) =>
                 {
                     float x = side * (from + length * (0.02f + 0.55f * u));
@@ -69,10 +73,17 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     float swell = MathF.Sin(MathF.Min(t * 1.35f + 0.25f, 1f) * MathF.PI * 0.5f);
                     float r = bulk * swell + 0.012f;
                     return (new Vector3(x, BodyForm.Shoulder + MathF.Sin(angle) * r * 0.7f, MathF.Cos(angle) * r), new Vector3(0f, MathF.Sin(angle), MathF.Cos(angle)));
-                }, 5, 5, 0.016f, (_, _) => kit.Shell, PlateEdge.End, 0.014f, underside: kit.ShellDark);
+                }, 5, 5, plate ? 0.016f : 0.009f, (_, _) => plate ? kit.Shell : kit.C.LeatherContrast, PlateEdge.End, plate ? 0.014f : 0.008f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+            }
+            if (look.Legendary)
+            {
+                // A stone set on the back of the hand.
+                Vector3 at = new Vector3(side * (from + length * 0.3f), BodyForm.Shoulder + bulk * 0.72f + 0.016f, 0f);
+                mesh.At(GearMesh.FacingOut(at, Vector3.UnitY), () => GearKit.Setting(mesh, genes.Part("stone"), bulk * 0.22f, kit.C.Precious, look.Theme != GearTheme.None ? kit.C.Glow : kit.C.Gem));
             }
             if (kit.Make == GearMake.Studded || look.Spikes > 0.6f && kit.Metal && genes.Chance("knuckles", look.Spikes))
             {
+                mesh.Mark("knuckles");
                 for (int i = 0; i < 4; i++)
                 {
                     float z = bulk * (i / 3f * 1.2f - 0.6f);
@@ -97,12 +108,15 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 bands.Add(i >= steps - 1 ? 1 : 0);
             }
             mesh.Bone = (int)BodyForm.LowerArm(side);
-            VertexMaterial body = kit.Make == GearMake.Silk ? kit.Shell : kit.Shell;
+            // A glove's cuff is often of another hide or cloth from its hand.
+            VertexMaterial body = !kit.Metal && genes.Chance("cuff.contrast", 0.45f) ? (kit.Woven ? kit.C.Trim : kit.C.LeatherContrast) : kit.Shell;
+            if (!GearMesh.Same(body, kit.Shell)) mesh.Mark("contrast cuff");
             VertexMaterial rim = kit.Make == GearMake.Plate ? kit.Edge : kit.Woven ? kit.Trim : kit.Edge;
             mesh.Bands(Section.Round(14), rings, (ring, _) => bands[ring] == 1 ? rim : body, capStart: false, capEnd: false);
 
             if (kit.Make == GearMake.Hardened)
             {
+                mesh.Mark("bracer laces");
                 // Laced on the inside of the arm, which is underneath in the bind pose.
                 int crosses = genes.Count("laces", 3, 5);
                 for (int i = 0; i < crosses; i++)
@@ -118,12 +132,53 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     }
                 }
             }
+            else if (!kit.Woven && kit.Hide && genes.Chance("laced", 0.3f))
+            {
+                // A soft glove's cuff laced shut up the inside of the wrist.
+                mesh.Mark("laced");
+                int crosses = genes.Count("laces", 2, 4);
+                for (int i = 0; i < crosses; i++)
+                {
+                    float s0 = 0.2f + 0.6f * i / crosses, s1 = 0.2f + 0.6f * (i + 1) / crosses;
+                    float t0 = GearFit.ArmAt(reach * s0), t1 = GearFit.ArmAt(reach * s1);
+                    float r = BodyForm.Arm(t0) + GearFit.GloveInner + 0.012f;
+                    foreach (float way in new[] { -1f, 1f })
+                    {
+                        Vector3 a = new Vector3(side * (BodyForm.ShoulderX + t0 * BodyForm.ArmLength), BodyForm.Shoulder - r, way * 0.035f);
+                        Vector3 b = new Vector3(side * (BodyForm.ShoulderX + t1 * BodyForm.ArmLength), BodyForm.Shoulder - r, -way * 0.035f);
+                        mesh.Sweep(Section.Round(4), new[] { a, b }, _ => new Vector2(0.006f), kit.Strap, -Vector3.UnitY);
+                    }
+                }
+            }
             else if (!kit.Woven && kit.Likely("strap", 0.25f, 0.6f, 0f))
             {
+                mesh.Mark("strap");
                 float t = GearFit.ArmAt(reach * genes.Range("strap.at", 0.3f, 0.6f));
                 float r = BodyForm.Arm(t) + GearFit.GloveInner + 0.01f;
                 float x = side * (BodyForm.ShoulderX + t * BodyForm.ArmLength);
                 kit.Belt(mesh, genes.Part("strap"), a => new Vector3(x, BodyForm.Shoulder + MathF.Cos(a) * r, MathF.Sin(a) * r), a => new Vector3(0f, MathF.Cos(a), MathF.Sin(a)), 0.022f, 0.007f, 0.3f);
+            }
+            if (kit.Hide && genes.Chance("cuff.top", 0.3f))
+            {
+                // Fur round a glove's top, or studs round it on a studded one.
+                float t = GearFit.ArmAt(reach * 0.97f);
+                float r = MathF.Min(BodyForm.Arm(t) + GearFit.GloveInner + flare * 0.9f + 0.012f, BodyForm.Arm(t) + GearFit.GloveOuter - 0.02f);
+                float x = side * (BodyForm.ShoulderX + t * BodyForm.ArmLength);
+                if (kit.Make == GearMake.Studded)
+                {
+                    mesh.Mark("studded cuff");
+                    for (int i = 0; i < 8; i++)
+                    {
+                        float a = i / 8f * MathF.Tau;
+                        var n = new Vector3(0f, MathF.Cos(a), MathF.Sin(a));
+                        mesh.Rivet(new Vector3(x - side * 0.04f, BodyForm.Shoulder, 0f) + n * (r - 0.01f), n, 0.02f, kit.Fitting);
+                    }
+                }
+                else
+                {
+                    mesh.Mark("fur cuff");
+                    mesh.At(Matrix4.CreateRotationZ(MathF.PI / 2f) * Matrix4.CreateTranslation(x, BodyForm.Shoulder, 0f), () => mesh.Lathe(Section.Round(14), 0.06f, 2, s => r * (0.96f + 0.08f * MathF.Sin(s * MathF.PI)), kit.C.Fur, capStart: false, capEnd: false));
+                }
             }
             if (kit.Make == GearMake.Silk && look.Ornament > 0.3f)
             {

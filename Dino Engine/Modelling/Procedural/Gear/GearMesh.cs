@@ -59,6 +59,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         /// <summary>When it's set, which vertices each named part made (<see cref="Counted"/>), for a lab to say what a vertex belongs to.</summary>
         public List<(string Name, int From, int To)>? Parts;
 
+        /// <summary>Says a piece has something that isn't a part of its own, such as a second hide, for a lab to tell it from one without. It changes nothing that's built.</summary>
+        public void Mark(string name) => Parts?.Add((name, VertexCount, VertexCount));
+
         /// <summary>Builds one named part of a piece, adding what it cost to <see cref="Costs"/> and where it is to <see cref="Parts"/> if anyone's counting. It changes nothing that's built.</summary>
         public void Counted(string name, Action build)
         {

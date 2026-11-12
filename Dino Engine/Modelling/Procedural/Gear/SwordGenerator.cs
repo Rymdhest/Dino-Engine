@@ -542,7 +542,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             GearKit.Tassel(mesh, genes, new Vector3(0f, y - 0.05f, 0f), genes.Range("length", 0.22f, 0.4f), genes.Range("radius", 0.035f, 0.05f), look.Colours.Trim, look.Colours.Precious);
         }
 
-        private static VertexMaterial Mixed(in VertexMaterial material, in VertexMaterial other, float share) => new VertexMaterial(material.materialTextureIndex, Colour.mix(material.colour, other.colour, share));
+        // Two colours mixed as albedos, and kept clear of the Reich's as everything is (GearColours.Of): rust on a dark blade is rust, not black iron.
+        private static VertexMaterial Mixed(in VertexMaterial material, in VertexMaterial other, float share) =>
+            GearColours.Of(material.materialTextureIndex, Vector3.Lerp(GearColours.AlbedoOf(material), GearColours.AlbedoOf(other), share));
 
         // Fixed for a place on a thing, so a patch of rust is the same patch wherever it's drawn.
         private static float Patch(int ring, int point, Genes genes) => genes.Part(ring / 3).Unit($"patch{point / 3}");
