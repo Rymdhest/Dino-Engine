@@ -289,7 +289,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 : Pick(genes, "dye", GearSwatches.Dyes, budget, tailor.Dye, s => (s.Cost > 0.3f) == strong ? 1f : 0.01f, 0.5f);
             DyeName = dye.Name;
             (float dyeHue, float dyeSaturation, _) = GearSwatches.Hsv(dye.Albedo);
-            int harmony = genes.Pick("trim.harmony", 3f, 2f, 2.5f);
+            // A neighbour or a plain one most of the time: an opposite is loud, and on a piece worn with others from other hands it's louder.
+            int harmony = genes.Pick("trim.harmony", 3.5f, 0.7f, 3.5f);
             GearSwatches.Swatch trim = Pick(genes, "trim", GearSwatches.Dyes, budget, tailor.Trim, s =>
             {
                 if (s.Name == dye.Name) return 0.05f;

@@ -2,7 +2,7 @@
 
 What gear looks like: the models, how they're made, how they reach a hero, the ground and the interface. Read `BUILDS.md` for what gear does. This is what it looks like.
 
-Status: built, and looked at by machine. See "Where it stands" at the end for what nobody has judged yet.
+Status: rebuilt on 2026-11-12, and looked at by machine and in stills from the real game. See "Where it stands" at the end for what nobody has judged yet.
 
 ## The one idea
 
@@ -12,7 +12,7 @@ Status: built, and looked at by machine. See "Where it stands" at the end for wh
           Item (saved, sent)                    what's drawn
   +-----------------------------+
   |  Seed     64 random bits    |      +--> worn:   skinned to the rig, merged into the hero
-  |  Base     "Longsword"       | ---> | 
+  |  Base     "Longsword"       | ---> |
   |  Armour / Evasion / Barrier |  |   +--> ground: the same mesh, laid down
   |  rarity, lines (as ever)    |  |   |
   +-----------------------------+  |   +--> icon:   the same mesh, in a studio
@@ -24,12 +24,12 @@ Status: built, and looked at by machine. See "Where it stands" at the end for wh
 
 A model is never picked from a list, and a shape is never written down as numbers. Generation runs in four layers, and each only reads the one below it.
 
-1. **Prior.** What the base and the family say, as *ranges*. A Stiletto is long and thin and a Kris is wavy, but neither is a shape. Heavy means thick and plated, as a tendency. This is the only hand-written data, and it holds distributions.
-2. **Style.** A handful of values drawn once per item and shared by all its parts: heft, angularity, ornament, wear, flare, spikes, curl, and a palette. This is what makes an item look like one thing rather than a pile of unrelated random parts. It's the lesson from every generator looked at: constrained ranges and shared rules are what keep random output good.
-3. **Parts.** Which parts exist and what they're like. Choices are weighted by the style, and every part is continuous underneath: a guard isn't one of three guards but a curve with a length, a droop, a flare and a section.
-4. **Primitives.** Profiles are splines through random control points. Sections are superellipses and lenses. Surfaces are lofted along spines or offset from the body.
+1. **Prior.** What the base says, as ranges and a making: `ItemLook.Forms` gives each base a `GearForm` (size, slenderness, curve, cover, fancy, wear) and, where its name says, a `GearMake` (a Mail Coif is mail, a Gambeson quilted). This is the only hand-written data.
+2. **Look.** `GearLook` is drawn once per item and shared by all its parts: its families' shares, craft, ornament, wear, heft, angularity, flare, spikes, curl, a motif (plain, rope, scroll, facet, fang, flute), whether it's legendary, and its colours (`GearColours`). This is what makes an item one thing rather than a pile of random parts.
+3. **Parts.** Which parts exist and what they're like, weighted by the look (`GearLook.Likely`, `Blend`). Every part is continuous underneath: a guard isn't one of three guards but a curve with a length, a droop, a flare and a section.
+4. **Primitives.** `GearMesh` lofts, sweeps, lathes, bands of crisp colour (`Bands`), plates with a thickness and rolled edges (`Plate`), straps that follow a surface (`Strip`), helical wraps, rivets, buckles and blocks (`GearMesh.Shapes.cs`), and `GearKit`'s finials, fangs, scrolls, settings, tassels and trophies.
 
-**Each parameter draws from its own named fork** (`genes.Range("blade.length", ...)`), which is the rule `WorldRandom` already has: drawing another number never disturbs the ones after it. A new parameter can be added without re-rolling every item in every save.
+**Each parameter draws from its own named fork** (`genes.Range("blade.length", ...)`), which is the rule `WorldRandom` already has: drawing another number never disturbs the ones after it. A new parameter can be added without re-rolling every item in every save, and a part gets a `Genes.Part` of its own so one part can't move another.
 
 Variety is measured, not claimed: see Testing.
 
@@ -39,72 +39,133 @@ Variety is measured, not claimed: see Testing.
 |---|---|---|
 | MainHand | Weapons | Two-handed ones empty the off hand |
 | OffHand | Shields, wards, or a second one-handed weapon | Not while something two-handed is held. A weapon here is held in the left hand (`HumanoidGenerator.SecondHand`), and only goes here when put here |
-| Head, Neck, Body, Legs, Feet, Hands | One thing each | Legs and Hands are new |
+| Head, Neck, Body, Legs, Feet, Hands | One thing each | |
 | Finger1, Finger2 | Rings | A ring is the same item on either |
 
-So there are two enums. `ItemSlot` is what an item is worn as (nine values, with one `Finger`, and `Book`, which isn't worn at all and goes on the bar), and it's what affixes and bases talk about. `WornSlot` is a place on a hero (ten values), and it's what `HeroState.Equipped` is keyed by. `Weapon`, `Shield`, `Ring` and `Amulet` are renamed to match the words above.
+So there are two enums. `ItemSlot` is what an item is worn as (nine values, with one `Finger`, and `Book`, which isn't worn at all and goes on the bar), and it's what affixes and bases talk about. `WornSlot` is a place on a hero (ten values), and it's what `HeroState.Equipped` is keyed by.
 
-## Families
+## Weapons
+
+| Kind | Hands | Made by | Notes |
+|---|---|---|---|
+| Sword | One or two by base | `SwordGenerator` | Greatsword, Claymore, Flamberge and the Executioner's Sword take two |
+| Axe | One or two by base | `HaftGenerator.Axe` | Felling Axe, Greataxe, Bardiche, Champion Axe take two |
+| Hammer | One or two by base | `HaftGenerator.Hammer` | Smith's, Horseman's, War Pick and Knight's are one-handed, Maul and up two |
+| Dagger | One | `SwordGenerator` | |
+| Spear | One | `HaftGenerator.Spear` | A javelin, thrown point first (`GhostPresenter.Tumble`) and usable with a shield |
+| Bow | Two | `BowGenerator` | |
+| Staff | Two | `CasterGenerator.Staff` | A caster's: spells, not attacks |
+| Wand | One | `CasterGenerator.Wand` | A caster's |
+
+Whether a base takes two hands is on the base (`BaseItem.TwoHanded`), and `ItemGenerator.TakesTwoHands` is the only thing anything asks. A two-handed sword, axe or hammer is a `Greatsword`, `Greataxe` or `Greathammer` to the forge and is carried as one (`SkillMotions.CarryOf`). Old saves are brought across by `SaveGame.Resay`: maces became hammers, and the Boar Spear, Partisan and Glaive became the Hunting Spear, Winged Spear and Pilum with their damage scaled to one hand (`ItemGenerator.Renamed`). `BuildLab check` holds the grips, the pace of two hands against one, and a version-13 save coming across.
+
+What every weapon has: a blade or a head grown from a family of outlines (tapering, parallel, leaf, cleaver; bearded, bardiche, double; flat, crowned, toothed, beaked), fullers and ridges as real section geometry with crisp edges where the polish stops, a guard or socket or langets, a grip wrapped in leather or wire or cord over risers, and a pommel or butt, all from the look. Rust, nicks and runes come from wear and power; etched and gilt panels from ornament.
+
+## Families and makings
 
 Structure in the randomness: you should be able to read a hero from across the screen.
 
 | Family | Looks | Gives | Leans towards |
 |---|---|---|---|
-| Heavy | Metal: plate, mail, lames, big silhouettes | Armour | Armour, health, block, reduction |
-| Leather | Hide: straps, studs, buckles, laces, close fit | Evasion | Evasion, speed, crit, attack |
-| Cloth | Robes, hoods, sashes, long lines, trim, charms | Barrier and mana | Mana, barrier, spells, cooldowns |
+| Heavy | Metal: plate, scale, lamellar, mail, and quilting under them | Armour | Armour, health, block, reduction |
+| Leather | Hide: soft, hardened (boiled) or studded, with straps, buckles and laces | Evasion | Evasion, speed, crit, attack |
+| Cloth | Robes, hoods, sashes, long lines, trim, charms; fine cloth is silk | Barrier and mana | Mana, barrier, spells, cooldowns |
 
-A family is never stored. It comes from the item's base numbers as three **shares**, so a Brigandine at half armour and half evasion really is halfway: plates riveted to leather. Affixes lean the same way as the look, by weighting what an item can roll, so what you see is what you get. Anything a slot can have can still roll on it, whatever it's made of. `ItemLook.UniqueGrade` keeps a unique at the top of what a look is grown from, where it's always been: bring it down and every unique looks different.
+A family is never stored. It comes from the item's base numbers as three **shares**, so a Brigandine at half armour and half evasion really is halfway: plates riveted inside a cloth or leather cover. How a piece is made is its **making** (`GearMake`): a base's name can say it, and otherwise `ArmourKit.Choose` picks it from the shares and the craft (fine heavy work leans to plate, poor heavy work to quilting, and so on).
+
+The making decides what every part of a piece is made of, through the roles in `ArmourKit`: its shell, the shell in its own shadow, what shows under it, its edging, what holds it on (always leather), its fittings (always metal) and its trim. So a belt is always leather and a buckle always metal, whatever else is drawn.
+
+| Making | Body | Legs | Feet | Hands | Head |
+|---|---|---|---|---|---|
+| Plate | Cuirass with keel, fauld, tassets, lamed pauldrons, couters, gorget | Cuisses, poleyns with fans | Greaves, lamed sabatons | Gauntlets with finger lames | Helms |
+| Mail | Hauberk, often a surcoat | Chausses, cops or a garter | Mail boots | Mail mitts | Coif |
+| Scale | Coat of scales, laced front, mirrors | A panel down each thigh | Boots | Gloves | Helms |
+| Lamellar | Rows of plates laced in colour, skirt and all | Rows down each thigh | Boots | Gloves | Helms |
+| Brigandine | Riveted cover over mail | Riveted panels | Boots | Gloves | Helms |
+| Padded | Quilted coat with toggles | Quilted, with knee pads | Boots | Gloves | Arming cap |
+| Hide | Jerkin, laced, often over a shirt | Trousers, laced or patched, cross-gartered | Boots, two-tone, laced or strapped | Gloves, laced, contrast cuffs | Hood |
+| Hardened | Boiled plates over a tunic | Guards (a plate or splints), cops | Boots | Bracers, laced | Cap of panels |
+| Studded | Studded coat | Studs or a studded panel | Boots | Studded gloves | Cap |
+| Cloth, Silk | Robe, over-robe, tabard or stole, sash | Trousers, wrapped or not | Shoes | Gloves, wound | Hood, kasa or circlet |
+| Wraps | | | Sandals and wraps | Wound cloth | Kasa or hood |
 
 Cloth giving mana is a rule in `Item.Mods`, worked out from its barrier, so old items get it too and nothing new is saved.
 
+## How a look's coloured
+
+**Everything is coloured from things that could really be worked** (`GearSwatches`): metals (iron to gold), tanned hides (tan to smoked, and rarely dyed), what dyers had (undyed, woad, madder, weld, walnut and the rest, with kermes, indigo and lichen purple for the finest), woods, furs and stones, each with how dear it is. A look draws from these and never from the whole wheel, which is what makes a piece look made of something rather than painted.
+
+**Restraint is a rule, not a taste.** Most cloth is its own colour or a homely dye, and a strong dye is a chance that rises with how fine the work is (and is likeliest on a robe); most hide is a natural brown, any of them about as likely; padding is quilted from undyed cloth; and a trim goes with its dye as a neighbour on the wheel or a plain one far more often than as an opposite, as a hero wears five pieces from five hands and their colours don't agree. A person called the old gear "RuneScape with extra colour", and this is the answer to that.
+
+**Nothing a hero wears is in the Reich's colours** (`LORE.md`). Black iron, oxblood and brass are its own, and `GearSwatches.IsReichs` says what counts. There's no black dye, no red hide and no brass, and every colour asked for goes through `GearColours.Of`, which lightens it just out of the Reich's if a shade or a wear darkened it in (`ClearOfReich`): a worn iron's shadow stops before black iron, a red's fold before oxblood, a dull gold's before brass. `GearLab looks` holds it on what's made.
+
+**A colour asked for is an albedo**, and it's divided by what its material's texture averages (`GearMaterials.AlbedoOf`), as the shader multiplies the two: so what's asked for is what's seen. A picture drawn with no textures multiplies it back (`SoftRender`, `PoseRender`).
+
+**Crafting will one day choose for a person.** `GearTailoring` on a `GearSpec` names a metal, a fitting, a hide, a dye, a trim, an ornament and a wear, each a place in a swatch list or along a scale, and 0 leaves it to the seed. Nothing sets any of it yet, and everything left at 0 is drawn exactly as it would be, so a piece keeps its look until someone chooses otherwise. That's why **a new swatch goes on the end of its list**: tailoring names them by place.
+
+## Fit
+
+Pieces are made one at a time and never know what else is worn, so the only thing keeping them apart is `GearFit`: a band for every place, how far out from `BodyForm` its pieces may come, region by region. Every generator stays inside its own band, and the bands are arranged so that what's worn over something is always outside it:
+
+- Below the knee a boot goes over the leg's covering (`LegsUnder` inside `BootInner`), and a knee's plate comes down over a boot's top, which stays inside `BootTopOuter`.
+- At the waist the body's piece goes over the legs' seat (`WaistUnder` inside `BodyBase`), and a skirt clears both legs in whatever they have on: its hem is the ellipse round both legs' `LegsShell` (`HemAt`), deep enough that its curve at the side is no tighter than a leg's, or it cut into them at the front corners.
+- On the forearm a glove's cuff goes over a fitted sleeve, and a belled sleeve is all the way out before a cuff can begin (`CuffReach`).
+- At the neck a helm's or a hood's neck tucks inside the collar (`NeckTuck` inside `CollarInner`); anything wider stays above `HelmLow`, and below a shoulder's plate's top nothing of the head's comes across further than `HeadSide`, where a shoulder's plate begins (`PauldronIn`). A great helm sits above the shoulders, over the mail on the chin, as they were worn.
+- Between the legs, which stand too close for everything on both to fit, each leg's things are drawn in flat short of the body's middle, each layer a little shorter than the one it goes over (`SideCover`, `SideWraps`, `SideBoot`, `SideStrap`), so the order things are worn in holds there too. Only surfaces with no thickness are flattened; plates and straps are laid out short of it in the first place, as flattening folded them onto themselves.
+
+`GearLab fit` measures every vertex of every piece against its bands across thousands of specs and fails on any that leaves them. It found a body's surface normal pointing into the body (capes fell inside, buckles faced in, plates showed their undersides), knee and elbow fans lying flat, brims drooping onto the shoulders and two boots meeting between the knees, so keep it passing.
+
+## Legendaries
+
+A unique has one look, seeded by its id, and it must never look like anybody's. A legendary piece is a master's and a lord's work: its craft and ornament are full, its main metal is often blued, silvered or gilt, its edges are rolled in gold or silver and its fittings and trims are of the same (`ArmourKit.Gilt`), and every kind adds what nothing plain has: stones on pauldrons, helms, gauntlets and boots' toe caps, gilt scrollwork on a breastplate, a rosette on the knee, a medallion with a lit stone, a crown or a hood's circlet, runes lit in its power's colour on blades, bands and shields, filigree and halos on jewellery and wards, a beast's teeth hung from a shield's foot. `GearLab looks` holds that on every kind, legendary pieces carry several times the gold, silver, stone and light of plain ones, and that even the plainest tenth of them carries more than a plain one does.
+
+## Shields, wards and jewellery
+
+**A shield** is an outline in one space (a widest point and a fall either side, convex to a point for a heater or a kite, round for a buckler, tall for a tower) and a bow across it, and its making is its face: boards, leather over wood, or steel. Heraldry is laid on as fields of their own with exact edges, never colour smeared across a mesh, in two tinctures, one light and one dark. **It never makes a cross, never puts white and red together and never uses black** (`ShieldGenerator.Tinctures`). Its charges are a Defender's: a beast's fang, three claws, a lozenge, a ring, three roundels. Rims, bosses, studs in rings, nailed bands on a tower and straps behind all follow the making.
+
+**A ward** is a caster's off hand: withies twisted into a hoop with a charm hung on two cords, an open ring of metal with lit runes holding a stone on a bar across it, or a cage of bands round a stone set at even turns. Never spokes all round, as a wheel of them reads as a sun wheel.
+
+**A ring** is a band (flat, rounded, wire, twisted, or a signet's swelling shoulders) and what sits on it: a stone in a bezel or claws, a cluster, two or three in a row, a beast's fang, or a signet's face with a stone or something raised. **An amulet** is a chain of real links or a thong, and a medallion, a cut stone, a bound fang or a pierced charm of carved bone.
+
 ## Geometry
 
-`Dino Engine/Modelling/Procedural/Gear/` is headless and knows nothing of the game: it takes a `GearSpec` and returns a mesh.
+`Dino Engine/Modelling/Procedural/Gear/` is headless and knows nothing of the game: it takes a `GearSpec` and returns a mesh. It runs on worker threads, so it can't touch anything shared, and it can't read `TextureGenerator`, as any static on that class compiles shaders. Materials come through `GearMaterials`, a few integers the client fills in.
 
-It can't touch `TextureGenerator`. Reading any static on that class compiles shaders, which crashes without a GL context, and that would rule out a lab. Materials come through `GearMaterials`, a few integers the client fills in.
-
-**On the body.** Everything is built in rig space around `BodyForm`, an analytic description of the body's surface (a radius by height and angle for each limb). Armour is that surface pushed outwards, with features placed in the surface's own coordinates. So nothing is positioned by eye, it fits whatever `Bulk` a body has, and clipping can be tested as a number.
+**On the body.** Everything is built in rig space around `BodyForm`, an analytic description of the body's surface. Armour is that surface pushed outwards, with features placed in the surface's own coordinates, so nothing is positioned by eye and fit can be tested as a number (see Fit).
 
 What the rig decides:
 
 - **Fourteen bones and two weights a vertex.** The torso is a single bone.
-- **Legs go a long way in a run.** So anything long has to be skinned to the thighs: the hem belongs to the legs and the waist to what's above it, and a skirt twists as cloth does. Bound to the chest, the knees come straight through it.
-- **What's on the body is skinned by how high it is.** Generators just say "on the chest", and `BodyForm.Spread` shares it out between pelvis, spine and chest by `Back`, and neck and head by `Throat`, so a back can bend under armour.
-- **Limbs are separate rigid pieces.** Whatever a piece covers is left out of the body under it (`BodyRegions`), so skin can't poke through, and there's less to draw. Bare, a hero wears plain undergarments.
-- **Characters are 4.7 m tall**, seen from 33 m up at 67°. What's seen in play is masses and silhouette, so that's what gets designed first. Fine detail is for the icon and the character screen.
+- **Legs go a long way in a run.** So anything long below the hips is skinned to the thighs (`BodyForm.Skirt`), and a sleeve, a leg and a knee's plate bend with their own halves.
+- **What's on the body is skinned by how high it is.** Generators just say "on the chest", and `BodyForm.Spread` shares it out between pelvis, spine and chest, and neck and head. A shoulder's plate is skinned partly to the chest and partly to the arm by where it is (`GearFit.Shoulder`).
+- **Limbs are separate rigid pieces.** Whatever a piece covers is left out of the body under it (`BodyRegions`), so skin can't poke through.
+- **Characters are 4.7 m tall**, seen from 33 m up at 67°. What's seen in play is masses and silhouette, so that's what gets designed first: a kasa, a plume, pauldrons and a shield's paint read from up there. Fine detail is for the icon and the character screen, and anything smaller than a pixel there is paid for and not seen, which is why small rivets have four sides.
 
-**Materials.** Tint is vertex colour, so a metal is one material in many colours. A material costs about 64 MB of video memory at 2048², so gear has as few as it can: fully metallic `plate`, `mail` with a real ring pattern, `leather`, `cloth`, `bone` and `gem`. A new one is a line in `MaterialCatalog` and a recipe in `MaterialRecipes.Gear.cs`: read `TEXTURES.md`, as leather, cloth and bone have to average exactly what `GearMaterials` divides by.
+**Materials.** Tint is vertex colour, so a metal is one material in many colours. Gear has `plate` (metal, all metallic), `mail`, `leather`, `cloth`, `bone`, `gem`, the glow, and four of its own (`MaterialRecipes.Gear.cs`, read `TEXTURES.md`): `timber` (hafts, bows, staves and shield boards, grain along their length), `scales` (lapped rows of metal scales), `quilt` (cloth sewn in channels over padding) and `fur`. Leather, cloth, quilt, bone, timber and fur each have a colour of their own, which their recipe averages exactly and `GearMaterials.AlbedoOf` divides by.
 
-**Colour.** Albedos stay deep and saturated, as everywhere else in the game: under a sun of about 13, anything pale goes white.
+**Budgets.** Nothing is over 9,000 triangles (`check`), and `check --costs true` says what each named part of a kind costs (`GearMesh.Counted`), which is where to look when something's over. A hero in everything is about 20,000 triangles on one draw call. Only heroes wear generated gear; minions only hold their weapons.
 
 ## On the hero
 
 `GearWorkshop` builds meshes on worker threads and uploads two a frame on the main one, as a boss drops ten things at once and a mesh mustn't cost a frame. `Client/Wardrobe` is what everything asks: it knows what's lying down, what's being worn, and what's in a picture. A hero is one merged mesh (`Outfit`), so one draw call, rebuilt when what they wear changes. `CharacterModelComponent` just gets a new model.
 
-What a hero has on goes out in a reliable `Worn` message keyed by player, as `GroundItem` is keyed by find, to everyone when it changes and to whoever arrives later. It's two numbers a slot. A component would have needed thirty hand-written fields, as a replicated struct can only hold plain numbers.
+What a hero has on goes out in a reliable `Worn` message keyed by player, as `GroundItem` is keyed by find, to everyone when it changes and to whoever arrives later. It's two numbers a slot.
 
-Models used to be few and live forever. Now every find has its own, so they have a lifetime: whatever uses one has to keep asking for it every frame, as that's what keeps it, and what nobody has asked for in a while is freed a few frames late, as commands for this frame may still name it. So nothing is counted and nothing can be forgotten about. `ModelRenderSystem`, `CharacterRenderSystem` and the shadow system drop models they didn't draw last time, or their dictionaries would grow for a whole session. The `Gear:` line of a scripted run says how many are alive.
+Whatever uses a model has to keep asking for it every frame, as that's what keeps it, and what nobody has asked for in a while is freed a few frames late, as commands for this frame may still name it. The `Gear:` line of a scripted run says how many are alive.
 
 ## On the ground
 
 The same mesh, laid flat. Paired things are drawn as a pair, and a body piece is laid out as a garment. `PickupComponent` carries the look, as it carries everything else a drop needs. A find is scaled to a readable size for the camera, so a ring on the ground is big enough to see. That's a scale on the same model, not a different model.
 
-`CharacterFactory.Find` goes away.
-
 ## Icons
 
-A studio like the imposters' one, and for the same reason: draw the model, keep the picture. `TextureStudio` itself can't be reused, as its dilation pass runs 1.5 x resolution full-screen passes per image, for texture filtering an icon doesn't need.
-
-`ItemStudio` (`Rendering/Renderers/Studio/`, `Shaders/Studio/`) keeps one atlas and a queue, and draws two icons at the start of a frame. Until an icon is ready the cell shows its slot glyph. Same mesh, same material arrays, but its own shading: a warm key, a cool fill, a rim, stepped diffuse, metal looking at a painted sky, and a drawn outline. The outline is found in a finishing pass, from depth and normals, and not by the inverted hull that Guilty Gear uses, as that method breaks on hard edges and blades are nothing but hard edges. A picture goes to the interface premultiplied and already tone mapped.
-
-The same studio draws the hero for the character screen (`Doll`), with the skinning matrices of the hero as they stand, every frame the panel is open.
+`ItemStudio` (`Rendering/Renderers/Studio/`, `Shaders/Studio/`) keeps one atlas and a queue, and draws two icons at the start of a frame. Until an icon is ready the cell shows its slot glyph. Same mesh, same material arrays, its own shading: a warm key, a cool fill, a rim, stepped diffuse, metal looking at a painted sky, and an outline found from depth and normals in a finishing pass. A picture goes to the interface premultiplied and already tone mapped. The same studio draws the hero for the character screen (`Doll`).
 
 ## The character screen
 
-`UI/HeroPanel.cs`. The hero stands in the middle in everything they're wearing, drag to turn them, with the ten places around them head to toe, the pack beside them and stats to the side. Things show as their pictures. `Ui.DrawTooltip` is the one description of an item, at the cursor here and over a label on the ground: a picture, what it is, and what it would change. With something two-handed held the off hand shows it, crossed out, and places an item could go light up as it's looked at. A merchant's table takes the place of the sheet.
+`UI/HeroPanel.cs`. The hero stands in the middle in everything they're wearing, drag to turn them, with the ten places around them head to toe, the pack beside them and stats to the side. `Ui.DrawTooltip` is the one description of an item.
 
-Nothing about this can be proved by a bot. To drive it with real mouse messages on a hidden run, post `WM_SETFOCUS` to the window first: the interface ignores the mouse unless it thinks it has the focus, and a hidden window never does. Read modifiers from `Context.Modifiers`, never from the mouse event: GLFW asks Windows for those, and a posted key doesn't reach it.
+Nothing about this can be proved by a bot. To drive it with real mouse messages on a hidden run, post `WM_SETFOCUS` to the window first: the interface ignores the mouse unless it thinks it has the focus, and a hidden window never does. Read modifiers from `Context.Modifiers`, never from the mouse event.
 
 ## The pack
 
@@ -127,78 +188,82 @@ Nothing about this can be proved by a bot. To drive it with real mouse messages 
 
 Ctrl-clicks and right clicks happen on the press, so a run of them needn't wait for each to be let go. A card in the pack is `loose`, for why: read `TOOLTIPS.md`.
 
-**The stash** is the same cells with gaps, in four tabs, beside the pack when the strongbox is open, and moves by the same clicks: Ctrl-click or right click puts something away or takes it out, and dragging moves it anywhere. Its rules are on `Stash` and both ends run them: read `LANDS.md`.
+**The stash** is the same cells with gaps, in four tabs, beside the pack when the strongbox is open, and moves by the same clicks. Its rules are on `Stash` and both ends run them: read `LANDS.md`.
 
-**A merchant's table** (`MerchantTable`) is one per hero and site, and stays as it is too: what's bought leaves a gap, so a double click buys one thing. What's sold goes on it to be bought back at what it paid, so a slip costs nothing. The oldest goes once it's full. It lasts as long as `ServerPlayer.Tables`, which is until they leave the land or the game: what's for sale has always worked that way, and nothing about a table is saved.
+**A merchant's table** (`MerchantTable`) is one per hero and site, and stays as it is too: what's bought leaves a gap, so a double click buys one thing. What's sold goes on it to be bought back at what it paid, so a slip costs nothing. The oldest goes once it's full. It lasts as long as `ServerPlayer.Tables`, which is until they leave the land or the game.
 
-**Something put down** has `PickupComponent.Laid`, which leaves out everything that says a find is exciting: the long flight, the sting, the flash, the callout. It can be picked up by anyone like anything else, and is lost on leaving the world like anything else. The drop catcher is `GroundCatcher`, which only stops the mouse with something on the cursor, and only really over the game: losing the focus part way through a drag mustn't count as bringing it to the ground.
+**Something put down** has `PickupComponent.Laid`, which leaves out everything that says a find is exciting: the long flight, the sting, the flash, the callout. The drop catcher is `GroundCatcher`, which only stops the mouse with something on the cursor, and only really over the game.
 
-**Searching** is `ItemSearch`, which reads an item's own card, so whatever can be read on one can be typed, in any order. It goes by the start of each word, or "ring" finds everything of the Spring. What doesn't match dims where it is, as nothing moves for a search either, and it covers what's worn and what's on a table.
+**Searching** is `ItemSearch`, which reads an item's own card, so whatever can be read on one can be typed, in any order. What doesn't match dims where it is.
 
-`Dino BuildLab check` holds the rules, including 200,000 random moves with everything counted, and `Dino NetLab pack` holds what reaches a client. To try it in the real game: `--carry N` fills that many cells, `--panel merchant` opens a real table, and `--snap file` takes a picture whenever the file appears, as the window can't be read from outside.
+`Dino BuildLab check` holds the rules, including 200,000 random moves with everything counted, and `Dino NetLab pack` holds what reaches a client. To try it in the real game: `--carry N` fills that many cells, `--panel merchant` opens a real table, and `--snap file` takes a picture whenever the file appears.
 
 ## Saves
 
-Testers carry saves across builds, so this can't lose anything. `SaveGame` goes to version 4:
-
-- Slots are renamed in items and in `Equipped`, before anything is parsed, since an unknown enum name throws and a save that can't be read starts a new journey.
-- An item with no seed gets one hashed from what it is, and its base is read from its name, so an old sword keeps a look of its own, and the same one every time.
-- `save.json.before-gear` is kept beside it, as `.before-talents` was.
-
-Looks aren't saved, so changing a generator changes what old items look like. That's accepted: it's how rebalancing an affix already works.
+Testers carry saves across builds, so this can't lose anything. Looks aren't saved, so changing a generator changes what old items look like. That's accepted: it's how rebalancing an affix already works. What a rename of a base or a kind needs is a line in `SaveGame.Resay`, which runs on every save and stash before anything is parsed, as an unknown enum name throws and a save that can't be read starts a new journey.
 
 ## Testing
 
 `Dino GearLab` is headless, as `WorldLab` is.
 
 ```
-dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" check            # Every kind, thousands of seeds: is it valid?
-dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" variety          # Are they really different?
-dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" sheet --kind sword  # A contact sheet, drawn on the CPU
-dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" dress --heavy 1  # Whole people in one family's gear
-dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" bench            # What a mesh costs to make
-dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" gear               # That everyone sees the same thing, with clients on the other end of a line
-dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" pack               # What's carried, across a line: see The pack
+dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" check [--costs true]  # Every kind, thousands of seeds: is it valid, and within budget?
+dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" fit                   # Does every piece of armour keep to its bands (GearFit)?
+dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" looks                 # No Reich's colours; legendary pieces far more splendid than plain ones
+dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" variety [--twins true] # Are they really different?
+dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" sheet --kind sword    # A contact sheet, drawn on the CPU, in true colour
+dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" dress --heavy 1       # Whole people in one family's gear, standing in a T
+dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" describe --kind Body  # What a look chose, in words: its making, craft, metals, hides, dyes
+dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" one --kind Legs --index N  # One of check's pieces taken apart, for a fault it found
+dotnet "Dino GearLab/bin/Release/net8.0/Dino GearLab.dll" bench                 # What a mesh costs to make
+dotnet "Dino AnimLab/bin/Release/net8.0/Dino AnimLab.dll" sheet --body knight --do walk --view game  # A whole person in armour, moving, from the game's camera (also ranger, mage; --seed, --grade)
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" gear                    # That everyone sees the same thing
 ```
 
-`Dino BuildLab check` holds the rules: places, families, leaning, what a look is packed into, and that old saves come across, real ones included if there are any on the machine. To see it in the real game: `--wear heavy` (or `leather`, `cloth`) puts something of one family in every place, and `--panel hero` opens the screen.
+`Dino BuildLab check` holds the rules: places, families, grips, the pace of two hands against one, what a look is packed into, and that old saves come across. To see it in the real game: `--wear heavy` (or `leather`, `cloth`) puts something of one family in every place, `--equip id,id` puts uniques on (without `--wear`, which replaces them), and `--panel hero` opens the screen.
 
-- **`check`:** the same spec gives the same mesh, vertex for vertex. Nothing is NaN, nothing is degenerate, and it stays inside its budgets of triangles and size.
-- **`variety`:** many of one base are compared, as that's the hard case: a leather tunic against every other leather tunic. Each is drawn as its icon shows it, and two are alike if they share both an outline and what's inside it, as armour has to fit a body and only so much of it can show at the edge. It fails if more than one pair in 2,000, picked at random, look alike. Run it with `--heavy 1`, `--leather 1` and `--cloth 1`. A fall in any of these means a kind needs more parameters: raising the threshold is the wrong fix.
+- **`check`:** the same spec gives the same mesh, vertex for vertex. Nothing is NaN, nothing is degenerate, and it stays inside its budgets of triangles and size. A fault names the part it's in.
+- **`fit`:** see Fit.
+- **`looks`:** see How a look's coloured, and Legendaries.
+- **`variety`:** many of one base are compared, as they drop (any rarity but unique, their power showing or not), as that's the hard case: a leather tunic against every other leather tunic. Two are alike if they share an outline, what's drawn inside it and which parts they're made of (`GearMesh.Parts` and `Mark`, so trousers with leather over the knees aren't trousers without). Colour is measured as the game draws it. It fails if more than one pair in 2,000, picked at random, look alike. `--twins true` says what the alike ones mostly are, which is what that kind wants more of. A fall means a kind needs more parameters: raising the threshold is the wrong fix. Books are held to one in 500, as their generator still colours as gear did before `GearLook`.
 
-A lab proves a thing is valid, not that it's good. Looks are judged from sheets and from the real game, at play distance and up close. Nobody but a person can say it looks right.
+A lab proves a thing is valid, not that it's good. Looks are judged from sheets, from AnimLab's armoured bodies and from the real game, at play distance and up close. Nobody but a person can say it looks right.
 
 ## Where it stands
 
-All seven phases of the plan were built, in the order rules, kernel, a single sword all the way through, the other held things, armour, the screen, everyone else.
+**Rebuilt on 2026-11-12.** Every weapon, armour piece, shield, ward, ring and amulet is grown from a `GearLook`; books, pages, sentences and orders still come from `GearStyle`, as they did.
 
-**What's been proved, and how.** A six minute bot sweep of a whole world made 82 models and ended with 13 alive, with nothing on the main thread costing more than 0.77 ms in any frame, and no faults. Sixteen kinds pass `check` and `variety` in all three families. The rules and saves pass `BuildLab check`, with every real save on the development machine loaded. Two clients agree on every look (`NetLab gear`). Clicks and a tooltip on the screen were driven with real mouse messages: equipping, taking off, the doll re-dressing itself and the numbers changing. Balance was refitted to its table for the three extra things a hero wears.
+**What's been proved, and how.** All 24 kinds pass `check`; armour passes `fit` over a thousand specs a place; every kind passes `looks` and `variety`. `BuildLab check` (1,192), `NetLab gear`, `build`, `books` and `pack`, `AnimLab check` (406, with three armoured bodies walking, fighting and falling) and the texture check pass. Stills from the real game, hidden, show each family on the character screen and from the game's camera, and uniques in each.
 
-**What nobody has judged.** No person has seen any of this. Every look was tuned from CPU sheets and stills, so whether it's good is still open, and their opinion outranks every number here. In particular: how a long skirt behaves in a run (the only run looked at had a hero in deep reeds), whether heroes in the game's own light read as their family as well as they do on a sheet, and whether leather has become too colourful for what it is.
+**What nobody has judged.** No person has seen any of it. Every look was tuned from CPU sheets, AnimLab's poses and stills, so whether it's good is still open, and their opinion outranks every number here. In particular: whether the restrained colours read as their family under the game's light; how a long robe, a cape, a tabard and tassets move in a run; whether a heater's paint and a kasa read from the camera as well as they did in stills; whether legendary gilt is splendid or gaudy; and whether a boiled-leather breastplate reads as moulded leather or as an apron, which it was closest to in the stills.
 
 **What wasn't built.**
 
-- Bosses don't show what they wear. They fight with real items and drop them, but they're drawn as they were. Every enemy and villager does carry a generated weapon now.
-- Icons for anything that isn't gear, such as flasks. The studio will take any model.
-- Dragging things between places. It's all clicks.
-- Levels of detail for gear. A hero in everything is about 14,000 triangles on one draw call, which is fine for five heroes, and nothing has needed less yet.
+- Bosses don't show what they wear. They fight with real items and drop them, but they're drawn as they were.
+- Books, pages, sentences and orders keep their old generator.
+- Levels of detail for gear: nothing has needed them yet.
+- Crafting itself: `GearTailoring` is ready for it, and nothing sets it.
 
 ## Decided, and open to change
 
 Choices made without asking, as none of them block anything. Say if any are wrong.
 
-- **A one-handed weapon goes in either hand.** It stays a `MainHand` item, so what it can roll is a weapon's, and `WornSlots.For(item)` is what says where it can go: never `WornSlots.For(item.Slot)` when there's an item to ask about. The rules are in `BUILDS.md`.
-- **A unique has one look**, seeded by its id. It's one of a kind, and it means the boss's sword is the sword you're then holding. Everything else is unique per drop.
-- **Mana comes on top of barrier for cloth.** Barrier is already the third defence, and removing it would break builds.
-- **Friends lose their tunic dyes** as a way to tell each other apart, since gear covers them. Dye stays on undergarments only. If that's not enough in play, it needs something of its own, such as a coloured mark.
+- **A one-handed weapon goes in either hand.** It stays a `MainHand` item, and `WornSlots.For(item)` is what says where it can go. The rules are in `BUILDS.md`.
+- **Every melee weapon has one- and two-handed bases**, as asked, and the spear is a one-handed javelin, as chosen.
+- **A unique has one look**, seeded by its id, so the boss's sword is the sword you then hold.
+- **A caster's tall pointed hat is gone.** It read as a cartoon wizard. A caster wears a kasa, a wide shallow cone of stiffened cloth, lacquered wood or hardened leather tied under the chin, which is the game's Tsushima side and reads clearly from above.
+- **Colour is restrained** (see How a look's coloured), at the cost of some variety, which comes back through real features instead.
+- **Heraldry never makes a cross**, and a hero never wears a skull, which is the Reich's mark.
+- **Mana comes on top of barrier for cloth.**
 
 ## Where this came from
 
 - [How I make infinite procedural swords](https://bmaczero.itch.io/icon-machine/devlog/357002/how-i-make-infinite-procedural-swords): tuned ranges not open ones, a mirrored half for balance, and one set of shading rules and one outline to make unrelated parts into one object.
-- [Borderlands' parts system](https://borderlands.fandom.com/wiki/Manufacturer): where a part comes from is what you can read off it. Here the family does that job, without the parts being a list.
-- [Path of Exile 2's armour bases](https://www.poe2wiki.net/wiki/List_of_body_armours): the same split of armour, evasion and a magical defence, with hybrids between. Nothing found covers how PoE ties that to looks, so the visual rules here are our own.
-- [Guilty Gear's toon line techniques](https://docswell.com/s/ASW_Academy/5LVY67-GG-Toonline-Eng): why an inverted hull needs a second set of normals on hard edges, which is why icons find their outline another way.
-- Nothing useful was found on fitting procedural armour to a body: what turned up was forum advice about shrinkwrapping in modelling tools. `BodyForm` is our own design, made possible by the body already being analytic.
+- [Borderlands' parts system](https://borderlands.fandom.com/wiki/Manufacturer): where a part comes from is what you can read off it. Here the making does that job, without the parts being a list.
+- [Path of Exile 2's armour bases](https://www.poe2wiki.net/wiki/List_of_body_armours): the same split of armour, evasion and a magical defence, with hybrids between.
+- [Guilty Gear's toon line techniques](https://docswell.com/s/ASW_Academy/5LVY67-GG-Toonline-Eng): why icons find their outline from depth and normals.
+- Real armour and arms: the construction of a cuirass, fauld and tassets, lamellar laced in rows, brigandine rivets, cuir bouilli, splinted guards, poleyns and couters with their fans, spangenhelms, kettle hats, sallets and great helms worn over a coif, gambesons closed with toggles, cross-gartering, and a heater's convex flanks are what the parts are modelled on.
+- Nothing useful was found on fitting procedural armour to a body: `BodyForm` and `GearFit` are our own design, made possible by the body already being analytic.
 
 ## Books and what's thrown
 
@@ -206,18 +271,20 @@ A book is gear like anything else: one mesh from `BookGenerator`, by `GearKind.B
 
 The one that's being read shows open, wherever it shows (`BookPanel.IsOpen`, `Ui.DrawItem`). That's the only other mesh anything has: `GearKind.OpenBook` draws from the genes of `Book`, by the same names, so it's the same book laid open and `check` fails if it isn't. No item is ever that kind, so nothing but `Wardrobe.Picture` asks for it, and until there's a picture of it the shut one shows.
 
-A page is `GearKind.Page` and a sentence `GearKind.Sentence`, one mesh each like anything else: a page a sheet with lines on it, and a sentence a narrow slip cut from one, its ends curling, with one line written along it, an inked capital and a stop (`BookGenerator.Slip`). Nothing about a look says what's on one, so `Ui.DrawPlaces` puts what matters on the picture: which kind of page, and how many places something has with how many taken.
+A page is `GearKind.Page` and a sentence `GearKind.Sentence`, one mesh each like anything else: a page a sheet with lines on it, and a sentence a narrow slip cut from one, its ends curling, with one line written along it, an inked capital and a stop (`BookGenerator.Slip`). Nothing about a look says what's on one, so `Ui.DrawPlaces` puts what matters on the picture.
 
-Orders are `GearKind.Orders` (`BookGenerator.Orders`): parchment rolled and tied in oxblood and sealed in oxblood wax pressed with brass, as they're the Reich's own and those are its colours. A roll can be one or a bundle of two or three, rolled tighter at one end with its inner turns slipping out, and better orders are tied more often and come in a leather case with brass caps. Nothing about the look says what's in them: their card does. `variety --kind Orders` holds that no two are alike.
+Orders are `GearKind.Orders` (`BookGenerator.Orders`): parchment rolled and tied in oxblood and sealed in oxblood wax pressed with brass, as they're the Reich's own and those are its colours. Nothing about the look says what's in them: their card does.
 
-A hero with nothing that shoots throws what's in their hand, and that's the same mesh again: `ThrownComponent` carries the weapon's seed and traits, and `GhostPresenter.Tumble` keeps asking for it, as anything using a model from `GearWorkshop` has to. Something with no item to show, such as an enemy whose sword is only a word, is thrown as `Thrown.Of` says, from one model for each kind of weapon (`CharacterFactory.ThrownThing`).
+A hero with nothing that shoots throws what's in their hand, and that's the same mesh again: `ThrownComponent` carries the weapon's seed and traits, and `GhostPresenter.Tumble` keeps asking for it, end over end, or point first for a javelin. Something with no item to show is thrown as `Thrown.Of` says, from one model for each kind of weapon (`CharacterFactory.ThrownThing`).
 
 ## Adding to it
 
-- **A new base:** a line in `ItemGenerator.Bases` and a line in `ItemLook.Forms`. `check` fails without the second. Base numbers are only ever said between two copies of one build, so bases can go anywhere.
+- **A new base:** a line in `ItemGenerator.Bases` and a line in `ItemLook.Forms`, with its making if its name says one. `check` fails without the second.
 - **A new parameter:** draw it from a name of its own with `genes`. Nothing else moves, so old items keep their look.
-- **A new part:** it goes behind `cut.Likely`, which is how it comes to belong to a family.
+- **A new part:** behind `look.Likely` or `kit.Likely`, which is how it comes to belong to a family; inside its place's band in `GearFit`, or `fit` fails; named with `mesh.Counted` (or `mesh.Mark` for something that isn't geometry of its own), so `check --costs` and `variety` can see it.
+- **A new making:** a value at the end of `GearMake`, its roles in `ArmourKit`, and what each place's generator builds of it.
+- **A new colour:** a swatch on the end of its list in `GearSwatches`, never in the middle (`GearTailoring` names them by place), and clear of the Reich's (`looks` fails otherwise).
 - **A new kind of thing:** a value in `GearKind`, a case in `GearForge.Make` and `GearDisplay`, and a line in `Outfit.Dress` for where it goes.
-- **A new material:** it costs about 64 MB, and needs a line in `SetPorosity` and in `BindGearMaterials`. Most new looks are a colour in `GearPalette`.
+- **A new material:** it costs about 17 MB with its top level dropped, needs a line in `MaterialCatalog` (on the end), a recipe in `MaterialRecipes.Gear.cs`, a line in `BindGearMaterials`, and, if it has a colour of its own, a line in `GearMaterials.AlbedoOf` that its recipe averages exactly. Read `TEXTURES.md`.
 
 Changing anything generators read changes how old items look, which is accepted. Nothing about a look is saved but a seed.

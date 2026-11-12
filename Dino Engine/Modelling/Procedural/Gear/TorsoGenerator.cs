@@ -421,14 +421,33 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float thick = genes.Range("thick", 0.022f, 0.032f);
             float top = genes.Range("top", 3.55f, 3.7f), low = shape.Waist - genes.Range("low", 0.1f, 0.25f);
             float span = genes.Range("span", 1.05f, 1.3f);
+            // Moulded over a form: drawn in towards the waist, and with a ridge down the middle of the front, so it reads as a breastplate of leather and not an apron.
+            float waist = genes.Range("taper", 0.68f, 0.85f);
+            float keel = genes.Range("keel", 0.012f, 0.035f);
             foreach (float centre in new[] { Front, Back })
             {
                 mesh.Plate((u, v) =>
                 {
-                    float angle = centre - span + span * 2f * u;
+                    float across = span * (waist + (1f - waist) * v);
+                    float angle = centre - across + across * 2f * u;
                     float y = low + (top - low - 0.1f * (1f - MathF.Pow(u * 2f - 1f, 2f)) * (centre == Front ? 1f : 0f)) * v;
-                    return (shape.Point(y, angle, layer), shape.Normal(y, angle, layer));
+                    Vector3 n = shape.Normal(y, angle, layer);
+                    float side = MathF.Abs(u * 2f - 1f);
+                    return (shape.Point(y, angle, layer) + n * (centre == Front ? keel * MathF.Pow(MathF.Max(1f - side * 1.8f, 0f), 2f) : 0f), n);
                 }, 10, 5, thick, (_, _) => kit.Shell, PlateEdge.All, thick * 0.9f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+            }
+            // Straps over the shoulders, from the breastplate's top to the backplate's, buckled at the front.
+            foreach (float side in new[] { -1f, 1f })
+            {
+                float y = top - 0.04f;
+                float front = Front - side * span * 0.55f, back = Back + side * span * 0.55f;
+                Vector3 f = shape.Point(y, front, layer + thick + 0.004f), b = shape.Point(y, back, layer + thick + 0.004f);
+                var over = new Vector3(side * (GearFit.PauldronIn + 0.05f), 4.0f, -0.02f);
+                var path = new List<Vector3> { f, Vector3.Lerp(f, over, 0.55f) + Vector3.UnitY * 0.06f, over, Vector3.Lerp(b, over, 0.55f) + Vector3.UnitY * 0.06f, b };
+                var normals = new List<Vector3> { shape.Normal(y, front, layer), (shape.Normal(y, front, layer) + Vector3.UnitY).Normalized(), Vector3.UnitY, (shape.Normal(y, back, layer) + Vector3.UnitY).Normalized(), shape.Normal(y, back, layer) };
+                mesh.Strip(Spine.Through(path, 10), Spine.Through(normals, 10), 0.032f, 0.009f, kit.Strap);
+                Vector3 n0 = shape.Normal(y, front, layer);
+                mesh.At(GearMesh.Basis(f + n0 * 0.012f, Vector3.Cross(Vector3.UnitY, n0).Normalized(), Vector3.UnitY, n0), () => mesh.Buckle(0.06f, 0.05f, 0.005f, kit.Fitting));
             }
             // The welt round each plate's edge is its rolled edge, in the darker leather.
             foreach (float side in new[] { 0f, MathF.PI })
