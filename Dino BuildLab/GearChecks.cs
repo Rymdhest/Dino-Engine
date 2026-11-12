@@ -418,22 +418,25 @@ namespace Dino_BuildLab
         private static void Traits(Report report)
         {
             report.Check("Every base says what it's going for", ItemGenerator.BaseNames.All(ItemLook.HasForm), string.Join(", ", ItemGenerator.BaseNames.Where(b => !ItemLook.HasForm(b))));
-            report.Check("There are few enough bases to send as a byte", ItemGenerator.BaseNames.Count() < 255);
+            report.Check("There are few enough bases to send in seven bits", ItemGenerator.BaseNames.Count() < 127, $"{ItemGenerator.BaseNames.Count()} of 126");
 
             var random = new WorldRandom(16);
             int kept = 0, rolled = 3000;
             var kinds = new HashSet<Dino_Engine.Modelling.Procedural.Gear.GearKind>();
             for (int i = 0; i < rolled; i++)
             {
-                Item item = ItemGenerator.Roll(30, random.Fork(i), 1f);
+                // Every level of the climb, as what level a look is from is packed with it.
+                Item item = ItemGenerator.Roll(1 + i * 37 % ItemGenerator.MostItemLevel, random.Fork(i), 1f);
                 Dino_Engine.Modelling.Procedural.Gear.GearSpec spec = ItemLook.SpecOf(item);
                 kinds.Add(spec.Kind);
 
                 FamilyShares shares = item.Shares();
-                bool same = spec.Seed == item.LookSeed() && spec.Grade == (item.Rarity == Rarity.Unique ? ItemLook.UniqueGrade : (int)item.Rarity) && MathF.Abs(spec.Heavy - shares.Heavy) < 0.05f && MathF.Abs(spec.Leather - shares.Leather) < 0.05f && MathF.Abs(spec.Cloth - shares.Cloth) < 0.05f;
+                bool same = spec.Seed == item.LookSeed() && spec.Grade == (item.Rarity == Rarity.Unique ? ItemLook.UniqueGrade : (int)item.Rarity) && MathF.Abs(spec.Heavy - shares.Heavy) < 0.05f && MathF.Abs(spec.Leather - shares.Leather) < 0.05f && MathF.Abs(spec.Cloth - shares.Cloth) < 0.05f
+                    && MathF.Abs(spec.Level - (item.Level - 1) / (float)(ItemGenerator.MostItemLevel - 1)) <= 0.5f / ItemLook.LevelSteps + 1e-4f;
                 if (same) kept++;
             }
-            report.Check("What a look needs survives being packed into one number", kept == rolled, $"{kept} of {rolled}");
+            report.Check("What a look needs survives being packed into one number, its level with it", kept == rolled, $"{kept} of {rolled}");
+            report.Check("And the first level and the last are the bottom and the top of what a look shows", ItemLook.LevelStep(1) == 0 && ItemLook.LevelStep(ItemGenerator.MostItemLevel) == ItemLook.LevelSteps);
 
             // Written out, as a unique's look is grown from this number, and a save only keeps its seed: anything else gives every unique in every pack a different look.
             report.Check("A unique keeps the look it's always had", ItemLook.SpecOf(UniqueCatalog.Make(UniqueCatalog.All[0], 20, new WorldRandom(1))).Grade == 4);

@@ -63,7 +63,7 @@ namespace Dino_GearLab
             float heavy = options.Float("heavy", 0f), leather = options.Float("leather", 0f), cloth = options.Float("cloth", 0f);
             var form = new GearForm(options.Float("size", 0.5f), options.Float("slender", 0.5f), options.Float("curve", 0.2f), options.Float("cover", 0.5f), options.Float("fancy", 0.4f), options.Float("worn", 0.2f));
             var theme = Enum.Parse<GearTheme>(options.Text("theme", "None"), ignoreCase: true);
-            return new GearSpec(seed, kind, heavy, leather, cloth, form, options.Int("grade", 2), theme);
+            return new GearSpec(seed, kind, heavy, leather, cloth, form, options.Int("grade", 2), theme, Level: options.Float("level", 0.5f));
         }
 
         private static int Sheet(Options options)
@@ -128,7 +128,10 @@ namespace Dino_GearLab
         {
             int count = options.Int("count", 24);
             int seed = options.Int("seed", 1);
-            int columns = options.Int("columns", 8);
+            // A ladder, as --levels 0,0.5,1: each body once a level across, and the next below, so that only what the climb does changes along a row.
+            float[] levels = options.Text("levels", "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(text => float.Parse(text, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            if (levels.Length > 0) count *= levels.Length;
+            int columns = levels.Length > 0 ? levels.Length : options.Int("columns", 8);
             int rows = (count + columns - 1) / columns;
             int width = options.Int("tile", 220);
             int height = (int)(width * 1.25f);
@@ -145,12 +148,14 @@ namespace Dino_GearLab
 
             for (int i = 0; i < count; i++)
             {
+                int body = levels.Length > 0 ? i / levels.Length : i;
+                float level = levels.Length > 0 ? levels[i % levels.Length] : options.Float("level", 0.5f);
                 var worn = new List<(GearSpec, float)>();
                 foreach (GearKind kind in kinds)
                 {
                     if (without.Contains(kind)) continue;
                     var form = new GearForm(options.Float("size", 0.55f), options.Float("slender", 0.45f), options.Float("curve", 0.3f), options.Float("cover", 0.5f), options.Float("fancy", 0.45f), options.Float("worn", 0.15f));
-                    worn.Add((new GearSpec((ulong)(seed * 100000 + i * 16 + (int)kind + 1), kind, heavy, leather, cloth, form, options.Int("grade", 2), GearTheme.None), -1f));
+                    worn.Add((new GearSpec((ulong)(seed * 100000 + body * 16 + (int)kind + 1), kind, heavy, leather, cloth, form, options.Int("grade", 2), GearTheme.None, Level: level), -1f));
                 }
                 Mesh dressed = Dino_Engine.Modelling.Procedural.Character.Outfit.Dress(new Dino_Engine.Modelling.Procedural.Character.HumanoidLook(), worn);
                 render.Draw(dressed, Matrix3.CreateRotationY(options.Float("turn", 0.35f)) * Matrix3.CreateRotationX(options.Float("look", 0.18f)));

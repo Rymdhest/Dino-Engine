@@ -226,15 +226,16 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public GearColours(Genes genes, in GearSpec spec, float budget, float wear, bool legendary)
         {
             GearTailoring tailor = spec.Tailoring;
+            float power = Math.Clamp(spec.Level, 0f, 1f);
 
             // The main metal is what blades and plate are made of, which is steel or iron however fine the work, now and then bronze, blued on the finest, and silvered or gilded only on what's one of a kind.
-            // Its fittings are often the other sort, warm on cold or cold on warm.
+            // Low on the climb it's iron, and high it's bright, polished steel or blued. Its fittings are often the other sort, warm on cold or cold on warm.
             GearSwatches.Swatch metal = Pick(genes, "metal", GearSwatches.Metals, budget * 0.6f, tailor.Metal, s => s.Name switch
             {
-                "iron" => 1f,
-                "steel" => 1.3f,
-                "bright steel" => 1.1f,
-                "blued steel" => legendary ? 0.6f : 0.25f,
+                "iron" => 0.1f + 1.8f * (1f - power) * (1f - power),
+                "steel" => 1.2f,
+                "bright steel" => 0.15f + power * 1.8f,
+                "blued steel" => legendary ? 0.6f : power * power * 0.6f,
                 "bronze" => 0.2f,
                 "silver" => legendary ? 0.35f : 0f,
                 "gold" => legendary ? 0.2f : 0f,
@@ -262,7 +263,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Precious = Of(GearMaterials.Metal, precious.Albedo);
 
             // Hide is its own colour, any of the tanner's browns about as likely as another: a dyed one is the exception, and the better the work the likelier.
-            bool dyedHide = genes.Chance("leather.dyed", 0.03f + budget * 0.12f);
+            bool dyedHide = genes.Chance("leather.dyed", 0.02f + budget * 0.08f + power * power * 0.12f);
             float Natural(GearSwatches.Swatch s) => s.Name.EndsWith("dyed") == dyedHide ? 1f : 0.01f;
             GearSwatches.Swatch leather = Pick(genes, "leather", GearSwatches.Leathers, budget * 0.8f, tailor.Leather, Natural, 0.6f);
             LeatherName = leather.Name;
@@ -277,20 +278,22 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             GearSwatches.Swatch second = Pick(genes, "leather.second", GearSwatches.Leathers, budget * 0.8f, 0, s => s.Name.EndsWith("dyed") ? 0.01f : MathF.Abs(GearSwatches.Hsv(s.Albedo).Value - value) > 0.1f ? 1f : 0.05f, 0.8f);
             LeatherContrast = Of(GearMaterials.Leather, second.Albedo * genes.Range("leather.second.shade", 0.88f, 1.1f));
 
-            // A power shows in what it's dyed with, more often than not. Otherwise most cloth is its own colour or a homely dye, and a strong one is dear: the better the work the likelier it
-            // is, and a robe likelier than what's worn under armour, so that a hero in five pieces is a few colours and not a festival. The trim goes with the main dye by one of the old rules:
-            // a neighbour on the wheel, its opposite, or a plain one.
+            // A power shows in what it's dyed with, more often the higher up the climb. Otherwise most cloth is its own colour or a homely dye, and a strong one is dear: low on the climb it's
+            // nearly never, and high it's usual, so that someone starting out is in undyed wool and linen and someone who's been far in deep colours. A robe is likelier than what's worn
+            // under armour, so that a hero in five pieces is a few colours and not a festival. The trim goes with the main dye by one of the old rules: a neighbour on the wheel, its opposite,
+            // or a plain one; low on the climb it's often only a darker shade of the cloth itself, homespun.
             string[] themed = GearSwatches.DyesOf(spec.Theme);
             float total = spec.Heavy + spec.Leather + spec.Cloth;
             float robe = total > 0f ? spec.Cloth / total : 0f;
-            bool strong = genes.Chance("dye.strong", 0.06f + budget * 0.3f + robe * 0.1f);
-            GearSwatches.Swatch dye = themed.Length > 0 && tailor.Dye == 0 && genes.Chance("dye.themed", 0.65f)
+            bool strong = genes.Chance("dye.strong", 0.02f + power * power * 0.6f + budget * 0.15f + robe * 0.06f);
+            GearSwatches.Swatch dye = themed.Length > 0 && tailor.Dye == 0 && genes.Chance("dye.themed", 0.2f + power * 0.55f)
                 ? GearSwatches.Find(GearSwatches.Dyes, themed[genes.Pick("dye.theme", themed.Select(_ => 1f).ToArray())])
-                : Pick(genes, "dye", GearSwatches.Dyes, budget, tailor.Dye, s => (s.Cost > 0.3f) == strong ? 1f : 0.01f, 0.5f);
+                : Pick(genes, "dye", GearSwatches.Dyes, budget, tailor.Dye, s => ((s.Cost > 0.3f) == strong ? 1f : 0.01f) * (s.Cost <= 0.06f ? 1f + (1f - power) * 2.5f : 1f), 0.5f);
             DyeName = dye.Name;
             (float dyeHue, float dyeSaturation, _) = GearSwatches.Hsv(dye.Albedo);
             // A neighbour or a plain one most of the time: an opposite is loud, and on a piece worn with others from other hands it's louder.
-            int harmony = genes.Pick("trim.harmony", 3.5f, 0.7f, 3.5f);
+            int harmony = genes.Pick("trim.harmony", 0.5f + 3f * power, 0.7f * power, 3.5f + 3f * (1f - power));
+            bool homespun = tailor.Trim == 0 && genes.Chance("trim.homespun", (1f - power) * 0.65f);
             GearSwatches.Swatch trim = Pick(genes, "trim", GearSwatches.Dyes, budget, tailor.Trim, s =>
             {
                 if (s.Name == dye.Name) return 0.05f;
@@ -308,7 +311,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Vector3 dyed = dye.Albedo * (1f - 0.18f * wear) * genes.Range("dye.shade", 0.88f, 1.1f);
             Cloth = Of(GearMaterials.Cloth, dyed);
             ClothDark = Of(GearMaterials.Cloth, Darker(dyed, 0.6f));
-            Trim = Of(GearMaterials.Cloth, trim.Albedo * (1f - 0.12f * wear));
+            Trim = Of(GearMaterials.Cloth, homespun ? Darker(dyed, 0.78f) : trim.Albedo * (1f - 0.12f * wear));
             Lining = Of(GearMaterials.Cloth, GearSwatches.Find(GearSwatches.Dyes, genes.Chance("lining", 0.6f) ? "undyed" : "oatmeal").Albedo * 0.85f);
             // Padding is quilted from undyed cloth mostly, now and then from the coat's own, faded.
             Vector3 padded = genes.Chance("padding.dyed", 0.12f + budget * 0.2f) ? Vector3.Lerp(dyed, GearSwatches.Find(GearSwatches.Dyes, "oatmeal").Albedo, 0.45f) : GearSwatches.Find(GearSwatches.Dyes, genes.Chance("padding.pale", 0.5f) ? "undyed" : "oatmeal").Albedo;

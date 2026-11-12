@@ -127,6 +127,9 @@ namespace Dino_Defenders
         public float TreeZoom;
         public Vector2? TreeFocus;
         public string? Wear;
+
+        /// <summary>What item level --wear forges at, to see what the climb does to a look: otherwise the hero's own, and never under 20.</summary>
+        public int? WearLevel;
         public int TravelAfterFrames = -1;
         public int Travels = 1;
         public readonly List<string> Omens = new();
@@ -243,6 +246,7 @@ namespace Dino_Defenders
                         if (view.Length >= 3) options.TreeFocus = new Vector2(float.Parse(view[1], System.Globalization.CultureInfo.InvariantCulture), float.Parse(view[2], System.Globalization.CultureInfo.InvariantCulture));
                         break;
                     case "wear": options.Wear = value; break;
+                    case "wearlevel": options.WearLevel = int.Parse(value); break;
                     case "travel": options.TravelAfterFrames = int.Parse(value); break;
                     case "travels": options.Travels = int.Parse(value); break;
                     case "omens": options.Omens.AddRange(value.Split(',')); break;

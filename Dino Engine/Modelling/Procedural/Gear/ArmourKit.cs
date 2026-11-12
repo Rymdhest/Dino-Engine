@@ -28,12 +28,13 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public bool Hide => Make is GearMake.Hide or GearMake.Hardened or GearMake.Studded;
         public bool Woven => Make is GearMake.Cloth or GearMake.Silk or GearMake.Padded or GearMake.Wraps;
 
-        public ArmourKit(GearLook look)
+        /// <param name="make">How it's made whatever its name says, for a part of one thing made another way, as a helm worn over a coif.</param>
+        public ArmourKit(GearLook look, GearMake? make = null)
         {
             Look = look;
             Genes = look.Genes;
             C = look.Colours;
-            Make = look.Spec.Form.Make != GearMake.Any ? look.Spec.Form.Make : Choose(look);
+            Make = make ?? (look.Spec.Form.Make != GearMake.Any ? look.Spec.Form.Make : Choose(look));
 
             Strap = C.Strap;
             Fitting = C.Fitting;
@@ -112,21 +113,27 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }
         }
 
-        // How it's made when its name doesn't say, by how much of each family it is: heavy that's finely made is plate, heavy that's poor is quilted, and so on.
+        // How it's made when its name doesn't say, by how much of each family it is and how far up the climb it's from: low, heavy is quilting and mail, leather is raw hide and cloth is plain,
+        // as someone starting out has; high, heavy is plate, scale or lamellar, leather is hardened and studded, and cloth is silk, as a hero who's been far has. How fine it is moves it too.
         private static GearMake Choose(GearLook look)
         {
             Genes genes = look.Genes.Part("make");
-            float craft = look.Craft;
+            float craft = look.Craft, power = look.Power;
             float heavy = look.Heavy, leather = look.Leather, cloth = look.Cloth;
-            if (heavy > 0.25f && leather > 0.25f) return GearMake.Brigandine;
+            if (heavy > 0.25f && leather > 0.25f) return power < 0.3f && genes.Chance("brigandine.poor", 0.6f) ? GearMake.Studded : GearMake.Brigandine;
             if (heavy > 0.25f && cloth > 0.25f) return GearMake.Padded;
             if (heavy >= leather && heavy >= cloth)
             {
+                float low = (1f - power) * (1f - power);
                 return (GearMake)new[] { GearMake.Plate, GearMake.Scale, GearMake.Lamellar, GearMake.Mail, GearMake.Padded }.GetValue(
-                    genes.Pick("heavy", 1f + craft * 3f, 1.2f, 1f + craft, 1.4f, 1.6f * (1f - craft)))!;
+                    genes.Pick("heavy", 0.05f + power * power * 4.5f + craft * 0.8f, 0.2f + power * 1.1f, 0.15f + power * 1.3f + craft * 0.4f, 0.5f + 1.2f * (1f - MathF.Abs(power - 0.35f) * 2f), 2.6f * low))!;
             }
-            if (leather >= cloth) return (GearMake)new[] { GearMake.Hide, GearMake.Hardened, GearMake.Studded }.GetValue(genes.Pick("leather", 2f, 1f + craft * 1.5f, 1.2f))!;
-            return craft > 0.55f && genes.Chance("silk", craft) ? GearMake.Silk : GearMake.Cloth;
+            if (leather >= cloth)
+            {
+                return (GearMake)new[] { GearMake.Hide, GearMake.Hardened, GearMake.Studded }.GetValue(
+                    genes.Pick("leather", 0.3f + 2.6f * (1f - power), 0.2f + power * 2f + craft * 0.6f, 0.4f + power * 1f))!;
+            }
+            return genes.Chance("silk", Math.Clamp(power * 1.1f + craft * 0.35f - 0.45f, 0f, 0.92f)) ? GearMake.Silk : GearMake.Cloth;
         }
 
         /// <summary>Whether it has something, going by how likely each family is to.</summary>

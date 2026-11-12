@@ -12,33 +12,60 @@ namespace Dino_Defenders.Progression
     /// </summary>
     public static class ItemLook
     {
-        private const int GradeBits = 8;
+        // What's said about a look, in one number: its base in seven bits, its grade, its theme, how much of each family it is as one place in a triangle (the three add up to one, so two
+        // of them are enough, and together they never pass it), its slot, its kind of weapon, whether it has families at all, and how far up the climb it's from.
+        private const int BaseMask = 0x7F;
+        private const int GradeBits = 7;
 
         // The top of what a look is grown from, which has a step between rare and unique that nothing stands on. Bringing this down would give every unique a different look.
         public const int UniqueGrade = 4;
 
-        private const int ThemeBits = 11;
-        private const int HeavyBits = 14;
-        private const int LeatherBits = 18;
-        private const int SlotBits = 22;
-        private const int KindBits = 26;
-        private const int FamilyBit = 29;
-        private const float ShareSteps = 15f;
+        private const int ThemeBits = 10;
+        private const int SharesBits = 13;
+        private const int SlotBits = 20;
+        private const int KindBits = 24;
+        private const int FamilyBit = 27;
+        private const int LevelBits = 28;
+        private const int ShareSteps = 14;
+
+        // How many steps an item's level is shown in: one every six or seven levels, as a look changes by more than a level's worth at a time.
+        public const int LevelSteps = 15;
 
         /// <summary>What goes with the seed. Base numbers aren't saved, as these are only ever said between two copies of one build.</summary>
         public static uint Traits(Item item)
         {
             FamilyShares shares = item.Shares();
             bool family = shares != default;
-            return (uint)(ItemGenerator.NumberOf(ItemGenerator.BaseOf(item)) & 0xFF)
+            return (uint)(ItemGenerator.NumberOf(ItemGenerator.BaseOf(item)) & BaseMask)
                 | (uint)(item.Rarity == Rarity.Unique ? UniqueGrade : (int)item.Rarity) << GradeBits
                 | (uint)ThemeOf(item) << ThemeBits
-                | (uint)MathF.Round(shares.Heavy * ShareSteps) << HeavyBits
-                | (uint)MathF.Round(shares.Leather * ShareSteps) << LeatherBits
+                | (uint)SharesIndex(shares.Heavy, shares.Leather) << SharesBits
                 | (uint)item.Slot << SlotBits
                 | (uint)item.Kind << KindBits
-                | (family ? 1u : 0u) << FamilyBit;
+                | (family ? 1u : 0u) << FamilyBit
+                | (uint)LevelStep(item.Level) << LevelBits;
         }
+
+        // Heavy and leather as a place in the triangle where they add up to no more than one, in fourteenths: a hundred and twenty places, which is seven bits.
+        private static int SharesIndex(float heavy, float leather)
+        {
+            int a = Math.Clamp((int)MathF.Round(heavy * ShareSteps), 0, ShareSteps);
+            int b = Math.Clamp((int)MathF.Round(leather * ShareSteps), 0, ShareSteps - a);
+            return a * (ShareSteps + 1) - a * (a - 1) / 2 + b;
+        }
+
+        private static (float Heavy, float Leather) SharesOf(int index)
+        {
+            for (int a = ShareSteps; a >= 0; a--)
+            {
+                int start = a * (ShareSteps + 1) - a * (a - 1) / 2;
+                if (index >= start) return (a / (float)ShareSteps, Math.Min(index - start, ShareSteps - a) / (float)ShareSteps);
+            }
+            return (0f, 0f);
+        }
+
+        /// <summary>Which step of the climb an item's level shows as, from 0 at the first level to <see cref="LevelSteps"/> at the last an item can be.</summary>
+        public static int LevelStep(int level) => Math.Clamp((int)MathF.Round((level - 1) / (float)(ItemGenerator.MostItemLevel - 1) * LevelSteps), 0, LevelSteps);
 
         /// <summary>What an item is, for making it.</summary>
         public static GearSpec SpecOf(Item item) => SpecOf(item.LookSeed(), Traits(item));
@@ -47,7 +74,7 @@ namespace Dino_Defenders.Progression
         public static WeaponKind WeaponOf(uint traits) => (WeaponKind)(traits >> KindBits & 7);
 
         /// <summary>Whether a weapon takes both hands, which for a kind made both ways is what its base says, and the base is in what was said about it.</summary>
-        public static bool TwoHandedOf(uint traits) => SlotOf(traits) == ItemSlot.MainHand && ItemGenerator.TakesTwoHands(ItemGenerator.NameOf((int)(traits & 0xFF)), WeaponOf(traits));
+        public static bool TwoHandedOf(uint traits) => SlotOf(traits) == ItemSlot.MainHand && ItemGenerator.TakesTwoHands(ItemGenerator.NameOf((int)(traits & BaseMask)), WeaponOf(traits));
 
         /// <summary>What something is worn as, which tells a second weapon in the off hand from a shield.</summary>
         public static ItemSlot SlotOf(uint traits) => (ItemSlot)(traits >> SlotBits & 15);
@@ -55,7 +82,7 @@ namespace Dino_Defenders.Progression
         /// <summary>What something is that's only known by what was said about it.</summary>
         public static GearSpec SpecOf(ulong seed, uint traits)
         {
-            string baseName = ItemGenerator.NameOf((int)(traits & 0xFF));
+            string baseName = ItemGenerator.NameOf((int)(traits & BaseMask));
             int grade = (int)(traits >> GradeBits & 7);
             var theme = (GearTheme)(traits >> ThemeBits & 7);
             var slot = (ItemSlot)(traits >> SlotBits & 15);
@@ -64,12 +91,12 @@ namespace Dino_Defenders.Progression
             float heavy = 0f, leather = 0f, cloth = 0f;
             if ((traits >> FamilyBit & 1) != 0)
             {
-                heavy = (traits >> HeavyBits & 15) / ShareSteps;
-                leather = (traits >> LeatherBits & 15) / ShareSteps;
+                (heavy, leather) = SharesOf((int)(traits >> SharesBits & 0x7F));
                 cloth = MathF.Max(1f - heavy - leather, 0f);
             }
             bool both = slot == ItemSlot.MainHand && ItemGenerator.TakesTwoHands(baseName, kind);
-            return new GearSpec(seed, KindOf(slot, kind, both), heavy, leather, cloth, Forms.GetValueOrDefault(baseName, GearForm.Middling), grade, theme);
+            float level = (traits >> LevelBits & 15) / (float)LevelSteps;
+            return new GearSpec(seed, KindOf(slot, kind, both), heavy, leather, cloth, Forms.GetValueOrDefault(baseName, GearForm.Middling), grade, theme, Level: level);
         }
 
         /// <param name="twoHanded">Whether a weapon takes both hands, which for a sword, an axe or a hammer is a shape of its own.</param>

@@ -17,7 +17,9 @@ namespace Dino_GearLab
             var random = new WorldRandom(seed).Fork("sample").Fork(index);
             float a = random.Float(), b = random.Float() * (1f - a);
             var form = new GearForm(random.Float(), random.Float(), random.Float(), random.Float(), random.Float(), random.Float());
-            return new GearSpec(seed, kind, a, b, 1f - a - b, form, random.Int(5), (GearTheme)random.Int(6));
+            // Every level of the climb, the top of it as often as any, as that's where a piece has the most on it.
+            float level = random.Fork("level").Float();
+            return new GearSpec(seed, kind, a, b, 1f - a - b, form, random.Int(5), (GearTheme)random.Int(6), Level: level);
         }
 
         public static int Run(Options options)

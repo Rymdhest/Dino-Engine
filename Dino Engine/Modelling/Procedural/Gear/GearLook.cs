@@ -30,6 +30,12 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         /// <summary>How much of each family it is, adding up to 1. What gives none of them, a ring or anything older than families, is leather.</summary>
         public readonly float Heavy, Leather, Cloth;
 
+        /// <summary>
+        /// How far up the climb it's from (<see cref="GearSpec.Level"/>), which is the most of what it looks like: low, it's plain, worn and small, the gear of someone starting out, and high it's
+        /// finely made, clean, and big in its lines, with more on it, so that a hero looks more powerful as their gear goes up. Rarity says how fine it is for its level.
+        /// </summary>
+        public readonly float Power;
+
         public readonly float Craft;        // How fine the work is: the hand that made it, from a village smith to a master.
         public readonly float Ornament;     // How much is on it beyond what it needs.
         public readonly float Wear;         // What it's been through.
@@ -44,9 +50,12 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         /// <summary>Whether it's one of a kind: everything on it is the finest of what it could be, and it has what nothing else has (<see cref="Flourish"/>).</summary>
         public readonly bool Legendary;
 
-        public GearLook(in GearSpec spec)
+        public GearLook(GearSpec spec)
         {
-            Spec = spec;
+            // Every part reads its base's form through what the climb makes of it: bigger and covering more, finer and less worn the higher up, and the reverse low down, within the base's own range.
+            Power = Math.Clamp(spec.Level, 0f, 1f);
+            Spec = spec with { Form = Climbed(spec.Form, Power) };
+            spec = Spec;
             Theme = spec.Theme;
             Genes = new Genes(spec.Seed).Part("look").Part(spec.Kind.ToString());
             Genes style = Genes.Part("style");
@@ -57,17 +66,18 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             Leather = total > 0f ? spec.Leather / total : 1f;
             Cloth = total > 0f ? spec.Cloth / total : 0f;
 
-            // A plain thing can still be well made, and a great thing is never plain. A legendary piece is a master's, whatever its base says.
+            // What it's worth shows first: the climb it's from, and then how rare it is for that. A plain thing can still be well made, and a great thing is never plain. A legendary piece is a
+            // master's, whatever its base says, and still grows with the climb.
             float grade = Math.Clamp(spec.Grade / 4f, 0f, 1f);
-            Craft = Legendary ? Math.Clamp(style.Around("craft", 0.95f, 0.03f), 0.88f, 1f) : Clamp01(style.Around("craft", 0.08f + grade * 0.58f + spec.Form.Fancy * 0.3f, 0.08f));
+            Craft = Legendary ? Math.Clamp(style.Around("craft", 0.9f + Power * 0.08f, 0.03f), 0.86f, 1f) : Clamp01(style.Around("craft", 0.02f + Power * 0.42f + grade * 0.4f + spec.Form.Fancy * 0.18f, 0.07f));
             float? ornament = GearTailoring.Scale(spec.Tailoring.Ornament);
-            Ornament = ornament ?? (Legendary ? 1f : Clamp01(style.Around("ornament", Craft * 0.75f + spec.Form.Fancy * 0.25f - 0.05f, 0.1f)));
+            Ornament = ornament ?? (Legendary ? 1f : Clamp01(style.Around("ornament", Craft * 0.7f + Power * 0.18f + spec.Form.Fancy * 0.2f - 0.08f, 0.1f)));
             float? wear = GearTailoring.Scale(spec.Tailoring.Wear);
-            Wear = wear ?? Clamp01(style.Around("wear", spec.Form.Worn * (1f - Craft * 0.7f), 0.07f));
+            Wear = wear ?? Clamp01(style.Around("wear", spec.Form.Worn * (1f - Craft * 0.6f) + (1f - Power) * 0.3f - Power * 0.1f, 0.07f));
 
-            Heft = Clamp01(style.Around("heft", 0.5f + (0.5f - spec.Form.Slender) * 0.75f + Heavy * 0.1f, 0.14f));
+            Heft = Clamp01(style.Around("heft", 0.42f + Power * 0.18f + (0.5f - spec.Form.Slender) * 0.75f + Heavy * 0.1f, 0.13f));
             Angular = Clamp01(style.Around("angular", 0.45f + Heavy * 0.15f - Cloth * 0.15f, 0.22f));
-            Flare = Clamp01(style.Around("flare", 0.4f + Ornament * 0.15f, 0.2f));
+            Flare = Clamp01(style.Around("flare", 0.25f + Power * 0.3f + Ornament * 0.15f, 0.18f));
             Spikes = Clamp01(style.Around("spikes", 0.18f + Ornament * 0.18f + (Legendary ? 0.15f : 0f), 0.16f));
             Curl = Clamp01(style.Around("curl", 0.25f + spec.Form.Curve * 0.4f + Cloth * 0.1f, 0.18f));
 
@@ -100,5 +110,14 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         }
 
         private static float Clamp01(float value) => Math.Clamp(value, 0f, 1f);
+
+        // A base's form as the climb has it.
+        private static GearForm Climbed(GearForm form, float power) => form with
+        {
+            Size = Clamp01(form.Size + (power - 0.5f) * 0.26f),
+            Cover = Clamp01(form.Cover + (power - 0.4f) * 0.3f),
+            Fancy = Clamp01(form.Fancy + (power - 0.3f) * 0.45f),
+            Worn = Clamp01(form.Worn + (0.4f - power) * 0.45f),
+        };
     }
 }

@@ -82,5 +82,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
     /// Cloth are how much of each family it is, adding up to 1 or to nothing. See GEAR.md.
     /// </summary>
     /// <param name="Tailoring">What a person has chosen about its look, which nothing does yet: see <see cref="GearTailoring"/>.</param>
-    public readonly record struct GearSpec(ulong Seed, GearKind Kind, float Heavy, float Leather, float Cloth, GearForm Form, int Grade, GearTheme Theme, GearTailoring Tailoring = default);
+    /// <param name="Level">How far up the climb it's from, from the first level at 0 to the last at 1: what it's worth shows (<see cref="GearLook.Power"/>), so that a hero looks more and more
+    /// powerful as their gear goes up, and a glance tells someone new from someone who's been far.</param>
+    public readonly record struct GearSpec(ulong Seed, GearKind Kind, float Heavy, float Leather, float Cloth, GearForm Form, int Grade, GearTheme Theme, GearTailoring Tailoring = default, float Level = 0.5f);
 }

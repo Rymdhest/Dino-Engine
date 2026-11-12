@@ -28,7 +28,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             switch (kit.Make)
             {
                 case GearMake.Mail:
-                    mesh.Counted("coif", () => Coif(mesh, kit, genes.Part("coif")));
+                    // High up the climb a coif is worn under a helm, its mail hanging from the helm's rim as an aventail, and the helm can carry a crest.
+                    if (genes.Chance("helm.over", Math.Clamp((look.Power - 0.5f) * 2.4f, 0f, 0.9f))) mesh.Counted("helm", () => Helm(mesh, new ArmourKit(look, GearMake.Plate), genes.Part("helm"), coif: true));
+                    else mesh.Counted("coif", () => Coif(mesh, kit, genes.Part("coif")));
                     break;
                 case GearMake.Hardened:
                 case GearMake.Studded:
@@ -100,7 +102,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             return rings;
         }
 
-        private static void Helm(GearMesh mesh, ArmourKit kit, Genes genes)
+        /// <param name="coif">It's worn over a coif, whose mail hangs from its rim.</param>
+        private static void Helm(GearMesh mesh, ArmourKit kit, Genes genes, bool coif = false)
         {
             GearLook look = kit.Look;
             GearForm form = look.Spec.Form;
@@ -190,7 +193,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 if (genes.Chance("brim", 0.25f + look.Flare * 0.3f)) mesh.Counted("brim", () => Brim(mesh, kit, genes.Part("brim"), MathF.Max(brow, GearFit.BrimLow), gap));
                 else if (genes.Chance("tail", 0.3f)) mesh.Counted("tail", () => Tail(mesh, kit, genes.Part("tail"), brow, gap));
             }
-            if (kit.Likely("aventail", 0.55f, 0.1f, 0f) || great) mesh.Counted("aventail", () => Aventail(mesh, kit, genes.Part("aventail"), MathF.Min(brow, GearFit.HelmLow + 0.06f), gap));
+            if (genes.Chance("aventail", (look.Heavy * 0.55f + look.Leather * 0.1f) * (0.4f + look.Power * 0.8f)) || great || coif) mesh.Counted("aventail", () => Aventail(mesh, kit, genes.Part("aventail"), MathF.Min(brow, GearFit.HelmLow + 0.06f), gap));
             mesh.Counted("crest", () => Crest(mesh, kit, genes.Part("crest"), brow, gap, peak, great));
             if (look.Legendary || look.Shines("brow.stone")) BrowStone(mesh, kit, genes.Part("stone"), brow + 0.04f, HalfDepth + gap + 0.03f);
         }
@@ -324,7 +327,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         {
             GearLook look = kit.Look;
             float top = Top + gap + peak;
-            int kind = genes.Pick("kind", 2.5f, 1f + look.Ornament * 1.5f, look.Spikes * 1.5f + (look.Motif == Motif.Fang ? 1f : 0f), look.Flare * 1.2f, look.Legendary ? 3f : 0f);
+            // Nothing on top starting out; high up, a plume, horns or wings are the rule, as a crest is what a helm is told apart by from above.
+            float low = (1f - look.Power) * (1f - look.Power);
+            int kind = genes.Pick("kind", 0.3f + 2.6f * low, (1f + look.Ornament * 1.5f) * (0.25f + look.Power), (look.Spikes * 1.5f + (look.Motif == Motif.Fang ? 1f : 0f)) * (0.4f + look.Power * 0.6f), look.Flare * 1.2f * (0.2f + look.Power), look.Legendary ? 3f : 0f);
             if (kind > 0) mesh.Mark($"crest {kind}");
             switch (kind)
             {
@@ -453,7 +458,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             float open = genes.Range("open", 0.75f, 1f);
             float low = GearFit.NeckLow + genes.Range("low", 0.01f, 0.06f);
             float tuck = GearFit.NeckTuck - 0.022f - genes.Range("tuck", 0.005f, 0.02f);
-            OpenHood(mesh, kit, genes, gap, open, low, tuck, kit.Shell, 0.014f, peak, genes.Chance("edge", 0.4f) ? (kit.Hide ? kit.C.LeatherContrast : kit.Trim) : null);
+            OpenHood(mesh, kit, genes, gap, open, low, tuck, kit.Shell, 0.014f, peak, genes.Chance("edge", 0.1f + kit.Look.Power * 0.6f) ? (kit.Hide ? kit.C.LeatherContrast : kit.Trim) : null);
             if (look.Legendary)
             {
                 // A gilt circlet worn over the hood's brow, and a stone at its front.
@@ -526,7 +531,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             int panels = genes.Count("panels", 4, 6);
             mesh.Mark($"panels {panels}");
             float crownY = dome[^1].Centre.Y;
-            int extra = genes.Pick("extra", 2f, 1f, 1f, 1f);
+            float plain = (1f - kit.Look.Power) * (1f - kit.Look.Power);
+            int extra = genes.Pick("extra", 0.3f + 2.4f * plain, 0.5f + kit.Look.Power, 0.5f + kit.Look.Power, 0.5f + kit.Look.Power);
             if (extra == 1)
             {
                 // A ridge of doubled leather over the crown, front to back.

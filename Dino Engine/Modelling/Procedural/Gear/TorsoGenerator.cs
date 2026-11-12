@@ -124,9 +124,11 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                         break;
                     case GearMake.Hide:
                         Lacing(mesh, kit, shape, genes.Part("lacing"));
+                        // High up the climb a soft tunic has a jerkin of a second hide over it, front and back, as a robe has an over-robe.
+                        if (genes.Chance("jerkin", look.Power * look.Power * 0.75f)) outer = Tabard(mesh, kit, shape, genes.Part("jerkin"), kit.C.LeatherContrast, kit.Edge);
                         break;
                     case GearMake.Mail:
-                        if (genes.Chance("surcoat", 0.3f + look.Ornament * 0.4f)) outer = Tabard(mesh, kit, shape, genes.Part("surcoat"), kit.C.Cloth, kit.C.Trim);
+                        if (genes.Chance("surcoat", 0.15f + look.Ornament * 0.3f + look.Power * 0.35f)) outer = Tabard(mesh, kit, shape, genes.Part("surcoat"), kit.C.Cloth, kit.C.Trim);
                         break;
                     case GearMake.Padded:
                         Closure(mesh, kit, shape, genes.Part("closure"));
@@ -143,7 +145,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             mesh.Counted("collar", () => Collar(mesh, kit, shape, genes.Part("collar"), outer));
             mesh.Counted("belt", () => Belt(mesh, kit, shape, genes.Part("belt"), outer));
             mesh.Counted("hanging", () => Hanging(mesh, kit, shape, genes.Part("hanging"), outer));
-            if (look.Legendary || look.Shines("chest.stone")) mesh.Counted("medallion", () => Medallion(mesh, kit, shape, genes.Part("medallion"), outer));
+            if (look.Legendary || look.Shines("chest.stone") || genes.Chance("medallion.climb", look.Power * look.Power * 0.3f)) mesh.Counted("medallion", () => Medallion(mesh, kit, shape, genes.Part("medallion"), outer));
             mesh.Covers |= BodyRegions.Torso;
         }
 
@@ -487,7 +489,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         private static float Layers(GearMesh mesh, ArmourKit kit, TorsoShape shape, Genes genes)
         {
             GearLook look = kit.Look;
-            int kind = genes.Pick("kind", 1.5f, 2f + look.Craft * 2f, 1.5f, 1f + look.Craft * 2f);
+            // A plain robe low on the climb; high, an over-robe, a tabard or a stole over it.
+            float low = (1f - look.Power) * (1f - look.Power);
+            int kind = genes.Pick("kind", 0.4f + 3f * low, (0.5f + look.Craft * 2f) * (0.3f + look.Power), 0.3f + look.Power * 1.2f, (0.3f + look.Craft * 2f) * (0.3f + look.Power));
             VertexMaterial cloth = genes.Chance("second.dye", 0.5f) ? kit.C.Trim : kit.C.ClothDark;
             VertexMaterial edge = kit.Trim;
             switch (kind)
@@ -674,14 +678,16 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         private static void Shoulders(GearMesh mesh, ArmourKit kit, TorsoShape shape, Genes genes)
         {
             GearLook look = kit.Look;
+            // Shoulders are what the climb shows from far off: low, most go bare, and high, nearly everything has something there, and bigger.
+            float power = look.Power;
             bool any = kit.Make switch
             {
                 GearMake.Plate => true,
-                GearMake.Lamellar or GearMake.Scale => genes.Chance("any", 0.8f),
-                GearMake.Hardened => genes.Chance("any", 0.8f),
-                GearMake.Mail or GearMake.Brigandine => genes.Chance("any", 0.5f),
-                GearMake.Silk or GearMake.Cloth => genes.Chance("any", 0.45f),
-                _ => genes.Chance("any", 0.35f),
+                GearMake.Lamellar or GearMake.Scale => genes.Chance("any", 0.45f + power * 0.5f),
+                GearMake.Hardened => genes.Chance("any", 0.35f + power * 0.6f),
+                GearMake.Mail or GearMake.Brigandine => genes.Chance("any", 0.15f + power * 0.7f),
+                GearMake.Silk or GearMake.Cloth => genes.Chance("any", 0.05f + power * 0.75f),
+                _ => genes.Chance("any", 0.05f + power * 0.6f),
             };
             if (!any) return;
 
@@ -691,13 +697,16 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 return;
             }
 
-            float size = kit.Make == GearMake.Plate ? genes.Range("size", 0.3f, 0.46f) * (0.85f + 0.35f * look.Flare) * (look.Legendary ? 1.15f : 1f) : genes.Range("size", 0.26f, 0.36f);
-            float length = size * genes.Range("length", 1.1f, 1.7f);
-            int lames = kit.Make == GearMake.Plate ? genes.Count("lames", 2, 4) : kit.Make == GearMake.Hardened ? genes.Count("lames", 2, 3) : 1;
+            float size = (kit.Make == GearMake.Plate ? genes.Range("size", 0.3f, 0.46f) * (0.85f + 0.35f * look.Flare) * (look.Legendary ? 1.15f : 1f) : genes.Range("size", 0.26f, 0.36f)) * (0.68f + 0.6f * power);
+            // However big, it ends above where a glove's cuff may come up the arm (GearFit.CuffReach), its last lame and that lame's rolled edge with it, as each lame laps past its share.
+            float length = MathF.Min(size * genes.Range("length", 1.1f, 1.7f), (BodyForm.ShoulderX + GearFit.ArmAt(GearFit.CuffReach) * BodyForm.ArmLength - 0.08f - GearFit.PauldronIn) / 1.08f);
+            int lames = kit.Make == GearMake.Plate ? genes.Count("lames", 2 + (int)MathF.Round(power * 0.8f), 3 + (int)MathF.Round(power)) : kit.Make == GearMake.Hardened ? genes.Count("lames", 2, 2 + (int)MathF.Round(power)) : 1;
             float gap = genes.Range("gap", 0.08f, 0.12f);
             float rise = size * genes.Range("rise", 0f, 0.18f);
             // However big a shoulder's plate, its top stays below a brim (GearFit.ShoulderTop): what it can't have in height it has out to the sides.
-            float height = MathF.Max(MathF.Min(size * 0.55f, GearFit.ShoulderTop - BodyForm.Shoulder - rise - BodyForm.Arm(0f) - gap - 0.03f), 0.04f);
+            // The outer lames lap over the inner ones, each a little further out, so the last one's top is what has to stay under it; and a big plate's rise leaves room for the least height.
+            rise = MathF.Min(rise, GearFit.ShoulderTop - BodyForm.Shoulder - BodyForm.Arm(0f) - gap - 0.008f * (lames - 1) - 0.09f);
+            float height = MathF.Max(MathF.Min(size * 0.55f, GearFit.ShoulderTop - BodyForm.Shoulder - rise - BodyForm.Arm(0f) - gap - 0.008f * (lames - 1) - 0.02f - 0.03f), 0.04f);
             VertexMaterial shell = kit.Make == GearMake.Hardened ? kit.Shell : kit.Make is GearMake.Mail or GearMake.Brigandine ? kit.C.Metal : kit.Shell;
             VertexMaterial rim = kit.Make == GearMake.Hardened ? kit.Edge : kit.Edge;
             float thick = 0.02f;
@@ -784,14 +793,15 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         // collar, or a roll of fur.
         private static void Collar(GearMesh mesh, ArmourKit kit, TorsoShape shape, Genes genes, float outer)
         {
-            if (!kit.Likely("any", 0.85f, 0.55f, 0.6f)) return;
             GearLook look = kit.Look;
+            // A collar comes with the climb: few have one starting out, most have one high up.
+            if (!genes.Chance("any", (look.Heavy * 0.85f + look.Leather * 0.55f + look.Cloth * 0.6f) * (0.25f + look.Power * 0.95f))) return;
             float inner = GearFit.CollarInner + 0.01f;
             float height = genes.Range("height", 0.12f, GearFit.CollarTop - GearFit.CollarLow - 0.02f);
             float low = GearFit.CollarTop - height - 0.01f;
             if (kit.Make == GearMake.Plate)
             {
-                int lames = genes.Count("lames", 2, 3);
+                int lames = genes.Count("lames", 2, 2 + (int)MathF.Round(look.Power));
                 float lame = height / lames;
                 for (int i = 0; i < lames; i++)
                 {
@@ -807,7 +817,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 }
                 return;
             }
-            VertexMaterial material = kit.Hide && genes.Chance("fur", 0.35f) ? kit.C.Fur : kit.Make is GearMake.Mail or GearMake.Scale ? kit.C.Mail : kit.Woven ? kit.Shell : kit.Edge;
+            VertexMaterial material = kit.Hide && genes.Chance("fur", 0.1f + look.Power * 0.6f) ? kit.C.Fur : kit.Make is GearMake.Mail or GearMake.Scale ? kit.C.Mail : kit.Woven ? kit.Shell : kit.Edge;
             bool fur = GearMesh.Same(material, kit.C.Fur);
             float swell = fur ? genes.Range("fur.swell", 0.06f, 0.1f) : 0.015f;
             var rings = new Ring[5];
@@ -872,15 +882,19 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         private static void Hanging(GearMesh mesh, ArmourKit kit, TorsoShape shape, Genes genes, float outer)
         {
             GearLook look = kit.Look;
-            if (look.Legendary && genes.Chance("legend.cape", 0.6f) || kit.Likely("cape", 0.12f + look.Ornament * 0.25f, 0.06f, 0.2f))
+            // A cape is what a hero who's been far is seen by from behind: none starting out, more and more from the middle of the climb, nearly always near its top, and down to the knees.
+            float climb = Math.Clamp((look.Power - 0.3f) / 0.55f, 0f, 1f);
+            climb *= climb * (3f - 2f * climb);
+            if (look.Legendary && genes.Chance("legend.cape", 0.6f) || kit.Likely("cape", 0.03f + climb * 0.82f + look.Ornament * 0.05f, 0.02f + climb * 0.6f, 0.04f + climb * 0.75f))
             {
-                float bottom = MathF.Max(genes.Range("cape.bottom", 1.35f, 2.2f), 1.3f);
-                float wide = genes.Range("cape.wide", 0.55f, 0.8f);
+                float bottom = MathF.Max(genes.Range("cape.bottom", 2.2f - climb * 0.7f, 2.45f - climb * 0.8f), 1.3f);
+                // Shoulder to shoulder across the back, and fuller the higher up the climb.
+                float wide = genes.Range("cape.wide", 0.78f, 1f) * (0.92f + 0.18f * climb);
                 int first = mesh.VertexCount;
                 mesh.Plate((u, v) =>
                 {
                     float y = bottom + (3.92f - bottom) * v;
-                    float angle = Back + (u - 0.5f) * 2f * wide * (0.75f + 0.25f * (1f - v));
+                    float angle = Back + (u - 0.5f) * 2f * wide * (0.86f + 0.14f * (1f - v));
                     Vector3 n = shape.Normal(y, angle, outer);
                     float fall = 0.06f + 0.24f * (1f - v) * (1f - v);
                     return (shape.Point(y, angle, outer + 0.03f) + n * fall, n);
