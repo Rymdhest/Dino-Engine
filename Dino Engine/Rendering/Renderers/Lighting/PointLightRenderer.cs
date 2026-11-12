@@ -22,8 +22,10 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
     public class PointLightRenderer : CommandDrivenRenderer<PointlightRenderCommand>
     {
-        // Clip planes of the cube shadow map projection (PointLightShadowSystem); shaders reconstruct depth with them.
-        public const float ShadowNearPlane = 0.15f;
+        // Clip planes of the cube shadow map projection (PointLightShadowSystem); shaders reconstruct depth with them. The near plane is past a light's own fitting, the glass,
+        // cap and frame of a lantern (half a metre to a cap's corner), so a lantern that's part of something larger, a hall, an arch, a pier, doesn't shut its light in
+        // and leave only a wedge lit past its cap. A light is never put closer than this to anything that should shadow it.
+        public const float ShadowNearPlane = 0.65f;
         public const float ShadowFarPlane = 30f;
         // Width of the shadow filter per metre from the light.
         private const float ShadowSoftness = 0.012f;

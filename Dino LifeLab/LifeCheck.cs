@@ -41,13 +41,14 @@ namespace Dino_LifeLab
             int first = options.Int("seed", 1);
             int count = options.Int("count", 12);
             float seconds = options.Float("seconds", 50f);
+            float windSpeed = options.Float("wind", 4f);
             string? archetype = options.Text("archetype", "") is { Length: > 0 } named ? named : null;
             var tally = new Tally();
 
             for (int seed = first; seed < first + count; seed++)
             {
                 WorldData world = new WorldGenerator().Generate(new WorldRequest(seed, archetype));
-                Walk(world, seed, seconds, tally);
+                Walk(world, seed, seconds, windSpeed, tally);
                 Console.WriteLine($"  seed {seed}: {world.Plan.Biomes.Count} biomes, {tally.Failures} faults so far");
             }
 
@@ -105,14 +106,14 @@ namespace Dino_LifeLab
         }
 
         // Someone going from place to place on foot, by whatever way the ground allows.
-        private static void Walk(WorldData world, int seed, float seconds, Tally tally)
+        private static void Walk(WorldData world, int seed, float seconds, float windSpeed, Tally tally)
         {
             var random = new WorldRandom(seed).Fork("lifecheck");
             var sim = new WildlifeSim(world);
             var canvas = new CountingCanvas();
             Vector2 at = world.Sites.Count > 0 ? world.Sites[0].Position : new Vector2(world.Size * 0.5f);
             Vector2 goal = at;
-            var wind = new WindSingleton { Speed = 4f, Direction = 60f };
+            var wind = new WindSingleton { Speed = windSpeed, Direction = 60f };
             float total = 0f;
             bool birds = false, rabbits = false, crabs = false;
 
@@ -137,7 +138,7 @@ namespace Dino_LifeLab
 
                 WildlifeView view = NewView(at, world.Height.Sample(at), 1f);
                 wind.LiveSpeed = wind.Speed;
-                wind.Velocity = new Vector2(2.4f, 3.2f);
+                wind.Velocity = new Vector2(0.6f, 0.8f) * windSpeed;
                 view.Wind = wind;
 
                 long before = GC.GetAllocatedBytesForCurrentThread();

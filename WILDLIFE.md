@@ -80,7 +80,9 @@ A leaf's speed and size are chosen, not derived: real ones flutter at several he
 - **Anything green has started to go.** `Wither` mixes it towards brown.
 - **A gust can be seen going through a wood**, by what it shakes loose: `Shed` thins from the strongest it could be, by the gust at each tree.
 - **The wind is `Air`**, a coarse grid of `WindField.Sample`, as a full sample costs as much as hundreds of leaves. It's what plants read too, levelled off by `PatternSpeed`.
-- **`AmbientMotes.FallingLeaves` and `Petals` mean something else now:** they're how much a biome sheds. Nothing draws them as motes. The guiding wind goes through `LeafFall.Guide`, and has a leaf of its own so it works in a wood of pines.
+- **`AmbientMotes.FallingLeaves` and `Petals` mean something else now:** they're how much a biome sheds, until the wind strips everything. Nothing draws them as motes.
+- **Wind strips trees, and nothing comes out of the air.** How windy it is goes from a breeze at 5 m/s to a gale at 14 (`WindyFrom`, `WindyTo`): a gale sheds `GaleSheds` times as much more, from any broadleaf whatever its land is known for (`StandingTree.Stripped`), from crowns up to `GaleReach` outside the view so what's blown in came from upwind, tears each leaf off already going with the air, carries it faster (`GaleCarries`, about the guiding wind's speed in a gale) and holds it up (`GaleFloats`), and lifts what's lying more often. A person asked that a gale look almost like the guiding wind, with every leaf off a real tree. When the budget's full a gale's leaves take the place of the oldest lying ones (`OldestDown`), and nothing ever goes over it, a bird shaking a tree included.
+- **The guiding wind goes through `LeafFall.Guide`**, and tears its leaves off the broadleaves in view, in their own outline and colours. Only where there are none, as in a wood of pines, does it carry a leaf of its own, so the way is still shown.
 
 ## Being seen at all
 
@@ -152,7 +154,7 @@ The Haven has three giants, its own and nobody else's (`LORE.md`), and they're o
 
 `Dino LifeLab` runs it all with no window:
 
-- `check --count N --seconds S`: walks someone through real worlds and fails on anything underground, in the water, solid, or up by the camera, and over its budget, and then runs someone at everything, as nothing should get trodden on. It also holds the falling cards to the paper's regimes. It has found real faults: birds flying into cliffs at a leap, rabbits boxed in by trees.
+- `check --count N --seconds S`: walks someone through real worlds and fails on anything underground, in the water, solid, or up by the camera, and over its budget, and then runs someone at everything, as nothing should get trodden on. It also holds the falling cards to the paper's regimes. It has found real faults: birds flying into cliffs at a leap, rabbits boxed in by trees. `--wind 15` runs it in a gale (4 m/s otherwise): on 12 seeds a breeze has about 37 leaves in the air and a gale about 770, against the budget of 1,400.
 - `leaf`: what each falling card does.
 - `sheet --do rabbit.bound --view side`: any body doing anything, on a floor that stays put. `three`, `front`, `top` and `game` are the other views.
 

@@ -4,7 +4,7 @@ namespace Dino_LifeLab
 {
     /// <summary>
     /// Looks at what's alive in a world, with no window and no GPU. See WILDLIFE.md.
-    ///   check  [--seed N] [--count N] [--seconds S] [--archetype id]   Walks someone through real worlds and runs them at everything. Exit code 1 if anything goes wrong.
+    ///   check  [--seed N] [--count N] [--seconds S] [--archetype id] [--wind m/s]   Walks someone through real worlds and runs them at everything. Exit code 1 if anything goes wrong.
     ///   sheet  [--do scene] [--view side|front|top|three|game] [--frames N] [--columns N] [--tile N] [--metres M] [--out file.png]   Any body doing anything.
     ///   leaf   What each falling card does.
     ///   giants [--seed N] [--minutes M] [--out map.png]   The Haven's giants in the real Haven for a while, with someone coming to see them. Exit code 1 if anything goes wrong.

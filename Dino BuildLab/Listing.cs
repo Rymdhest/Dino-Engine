@@ -161,6 +161,13 @@ namespace Dino_BuildLab
                         Print(Cards.Item(book, sheet, "Book"));
                         Print(Cards.Item(ItemGenerator.Folio(hero.Level, random.Fork($"sentence{rarity}"), rarity, ItemSlot.Sentence), sheet, "Sentence"));
                     }
+
+                    // Orders of each rarity, as they read in the pack.
+                    foreach (Rarity rarity in Enum.GetValues<Rarity>())
+                    {
+                        Item orders = OrdersMaker.Roll(hero.Level, random.Fork($"orders{rarity}"), rarity);
+                        Print(Cards.Item(orders, sheet, Cards.KindOf(orders)));
+                    }
                 }
                 else
                 {

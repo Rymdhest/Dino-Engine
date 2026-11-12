@@ -19,8 +19,7 @@ namespace Dino_Defenders.UI
         public HallPanel(Action close)
         {
             _close = close;
-            Anchor = Anchor.Center;
-            Width = 560f;
+            Ui.DockLeft(this, 560f, fullHeight: false);
             Height = UIValue.Auto;
             Padding = new Thickness(26f);
             Ui.Dress(this);

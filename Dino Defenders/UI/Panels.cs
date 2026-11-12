@@ -284,8 +284,7 @@ namespace Dino_Defenders.UI
 
         public ChroniclePanel()
         {
-            Anchor = Anchor.Center;
-            Width = 640f;
+            Ui.DockLeft(this, 640f, fullHeight: false);
             Height = UIValue.Auto;
             Padding = new Thickness(24f);
             Ui.Dress(this);
@@ -429,7 +428,7 @@ namespace Dino_Defenders.UI
             Bar = new ActionBar(Hero);
             Crescent = new Crescent(Bar);
             Menu = new MenuScreen(game);
-            _panels = new GuiElement[] { Map, Hero, Talents, Book, Glossary, Chronicle, MapTable, HallTable, Pause, Multiplayer, Settings };
+            _panels = new GuiElement[] { Map, Hero, Hero.Side, Talents, Book, Glossary, Chronicle, MapTable, HallTable, Pause, Multiplayer, Settings };
 
             gui.Root.Add(Marks);
             gui.Root.Add(Plaques);
@@ -506,10 +505,28 @@ namespace Dino_Defenders.UI
 
         public bool AnyOpen => _panels.Any(p => p.Visible);
 
+        /// <summary>How far a hero can go from where they used something before what it opened closes, as the world goes on while it's open.</summary>
+        private const float UseLeash = 6f;
+
+        private Vector2? _usedAt;
+
+        /// <summary>Closes whatever was opened by using something in the world once the hero has walked away from it.</summary>
+        public void WalkedAway(Vector2 hero)
+        {
+            if (_usedAt is not Vector2 at) return;
+            if (!AnyOpen)
+            {
+                _usedAt = null;
+                return;
+            }
+            if ((hero - at).LengthSquared > UseLeash * UseLeash) CloseAll();
+        }
+
         public void CloseAll()
         {
             if (AnyOpen) Audio.Play(Interface.Close);
             foreach (GuiElement panel in _panels) panel.Visible = false;
+            _usedAt = null;
             Tips.Clear();
             Hero.Forget();
         }
@@ -522,6 +539,7 @@ namespace Dino_Defenders.UI
 
             Audio.Play(Interface.Open);
             panel.Visible = true;
+            if (panel == Book) Hero.Visible = true;
             if (panel == Hero || panel == Book) Hero.Open(null);
             if (panel == Book) Book.OpenAny();
             _cameFrom = null;
@@ -537,6 +555,7 @@ namespace Dino_Defenders.UI
             CloseAll();
 
             Audio.Play(Interface.Open);
+            Hero.Visible = true;
             Hero.Open(null);
             Book.Visible = true;
             Book.Show(place);
@@ -546,6 +565,7 @@ namespace Dino_Defenders.UI
         public void Open(InteractKind kind, SiteState site)
         {
             CloseAll();
+            _usedAt = GameSession.Current?.PlayerPosition;
             Audio.Play(Interface.Open);
             switch (kind)
             {

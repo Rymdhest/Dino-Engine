@@ -116,7 +116,8 @@ namespace Dino_Defenders
         {
             Task.Run(() => System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(Talents.TalentTree).TypeHandle));
 
-            // The giants are in the picture behind the menu and in the Haven, and take seconds to grow, so they start now. A run that goes straight to a land grows them if it ever goes home.
+            // The giants are in the picture behind the menu and in the Haven, and take seconds to grow, so they start now, as soon as the materials have their numbers. A run that goes
+            // straight to a land grows them if it ever goes home.
             if (options.StartsAtMenu || options.Haven) CharacterFactory.GrowGiants();
             if (!options.StartsAtMenu) return;
 
@@ -656,7 +657,9 @@ namespace Dino_Defenders
             // Counted from when there's a world to be in. How long it took to grow is no business of a script.
             if (_client.State == ClientState.Playing) _frames++;
 
-            session.Paused = _ui.AnyOpen || _ui.Loading.Visible || _options.Tour != null;
+            // Only the pause menu and the pages over everything stop the world, as they cover it: with any other window open the hero still walks and fights, and what's used is let go of on walking away.
+            session.Paused = _ui.OnPage || _ui.Loading.Visible || _options.Tour != null;
+            _ui.WalkedAway(session.PlayerPosition);
 
             if (Dino_Engine.Core.Engine.Time >= _nextAutosave)
             {

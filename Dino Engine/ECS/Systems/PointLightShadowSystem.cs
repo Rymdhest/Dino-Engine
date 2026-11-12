@@ -19,7 +19,6 @@ namespace Dino_Engine.ECS.Systems
     {
         private const int Resolution = 512;
         private const float FadePerSecond = 3f;
-        private const int FaceUp = 2;
 
         // Maps beyond the budget, for lights still fading out while the ones taking over fade in.
         private const int SpareMaps = 2;
@@ -163,9 +162,8 @@ namespace Dino_Engine.ECS.Systems
                 map.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + face);
                 GL.Clear(ClearBufferMask.DepthBufferBit);
 
-                // What's above a light only shadows what's above that again, and nobody sees the underside of a roof from here.
-                if (face == FaceUp) continue;
-
+                // Every face, up included: a light under an arch, an eave or a porch roof would otherwise light the wall and roof over it straight through the stone, in
+                // a wedge as wide as the face, and the wall and roof over a light are exactly what the camera looks down on.
                 Shadow view = map;
                 view.cubemapFaceIndex = face;
                 view.lightViewMatrix = Matrix4.LookAt(position, position + Directions[face], Ups[face]);

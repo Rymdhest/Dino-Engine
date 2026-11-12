@@ -16,6 +16,7 @@ namespace Dino_Engine.Wildlife
         public float Radius;
         public int Kind;            // Its leaf, or -1 for what keeps its leaves to itself.
         public float Rate;          // Leaves a second, with a little wind and no gusts.
+        public float Stripped;      // What it lets go in a gale, which strips any broadleaf, wherever it stands.
     }
 
     /// <summary>
@@ -57,7 +58,14 @@ namespace Dino_Engine.Wildlife
         private const float MoveBeforeReading = 4f;
         private const float MostBoost = 6f;             // What the strongest gust does to how fast a tree lets go.
         private const float QuietShare = 0.11f;         // How much a tree sheds where the land isn't known for it.
-        private const float PerTree = 1.3f;             // Leaves a second off a big tree in a wood where they're falling.
+        private const float PerTree = 2f;               // Leaves a second off a big tree in a wood where they're falling.
+        private const float MostTreeRate = PerTree * 1.3f;
+        private const float WindyFrom = 5f, WindyTo = 14f;  // m/s over which the wind goes from a breeze that loosens a leaf now and then to a gale that strips a wood.
+        private const float GaleSheds = 6f;             // How many times as many come off in a gale as in a breeze.
+        private const float GaleCarries = 0.75f;        // How much faster than the grass's patterns a gale carries what it's torn off, towards the guiding wind's stream.
+        private const float GaleFloats = 0.45f;         // How slowly a leaf comes down in a gale, as a share of how it falls in still air: it's held up and goes a long way.
+        private const float GaleReach = 14f;            // Metres outside the view a tree still sheds in a gale, so what's blown in comes from crowns upwind.
+        private const int MostDrawsPerStep = 600;
         private const float CarryHalfLife = 0.3f;       // Seconds a leaf takes to catch up with the air.
         private const float LieFrom = 16f, LieTo = 34f; // Seconds on the ground.
         private const float FadeTime = 2.2f;
@@ -79,11 +87,12 @@ namespace Dino_Engine.Wildlife
         private readonly TreeSpec?[] _assets;
         private readonly List<Kind> _kinds = new();
         private readonly List<StandingTree> _trees = new();
+        private readonly List<int> _leafy = new();     // Which of the trees drop something.
         private readonly int _guideKind;
         private Leaf[] _leaves = new Leaf[1024];
         private int _count;
         private float _debt;
-        private float _treeRate;
+        private float _windy;
         private Vector2 _readAt = new Vector2(float.MaxValue);
         private int _stirTurn;
         private Vector2 _guide;
@@ -192,6 +201,7 @@ namespace Dino_Engine.Wildlife
         {
             _count = 0;
             _trees.Clear();
+            _leafy.Clear();
             _readAt = new Vector2(float.MaxValue);
         }
 
@@ -206,7 +216,7 @@ namespace Dino_Engine.Wildlife
             _readAt = middle;
 
             _trees.Clear();
-            _treeRate = 0f;
+            _leafy.Clear();
             WorldData world = _sim.Land.World;
             WorldObjects objects = world.Objects;
             Vector2i from = objects.SectorOf(view.Least - new Vector2(ReadReach));
@@ -234,8 +244,9 @@ namespace Dino_Engine.Wildlife
                         {
                             AmbientMotes motes = world.BiomeAt(tree.At).Motes;
                             float share = motes is AmbientMotes.FallingLeaves or AmbientMotes.Petals ? 1f : QuietShare;
-                            tree.Rate = PerTree * share * MathF.Min(height / 16f, 1.3f);
-                            _treeRate += tree.Rate;
+                            tree.Stripped = PerTree * MathF.Min(height / 16f, 1.3f);
+                            tree.Rate = tree.Stripped * share;
+                            _leafy.Add(_trees.Count);
                         }
                         _trees.Add(tree);
                     }
@@ -298,44 +309,56 @@ namespace Dino_Engine.Wildlife
 
         private ref Leaf New()
         {
-            if (_count == _leaves.Length)
+            if (_count >= _sim.View.MostLeaves) return ref _leaves[Math.Max(OldestDown(), 0)];
+            if (_count == _leaves.Length) Array.Resize(ref _leaves, _count * 2);
+            return ref _leaves[_count++];
+        }
+
+        // Full: the oldest of what's lying goes first, as nobody's watching it. -1 if everything's in the air.
+        private int OldestDown()
+        {
+            int oldest = -1;
+            float age = -1f;
+            for (int i = 0; i < _count; i += 3)
             {
-                if (_count < _sim.View.MostLeaves) Array.Resize(ref _leaves, _count * 2);
-                else
+                if (_leaves[i].State != State.Falling && _leaves[i].Age > age)
                 {
-                    // Full: the oldest of what's lying goes first, as nobody's watching it.
-                    int oldest = 0;
-                    float age = -1f;
-                    for (int i = 0; i < _count; i += 3)
-                    {
-                        if (_leaves[i].State != State.Falling && _leaves[i].Age > age)
-                        {
-                            age = _leaves[i].Age;
-                            oldest = i;
-                        }
-                    }
-                    return ref _leaves[oldest];
+                    age = _leaves[i].Age;
+                    oldest = i;
                 }
             }
-            return ref _leaves[_count++];
+            return oldest;
+        }
+
+        // Off the outside of the crown, which is roughly an egg. It's where leaves are, and from up here anything that comes down inside one is behind it the whole way.
+        private Vector3 OffCrown(in StandingTree tree, out Vector2 off)
+        {
+            WorldRandom random = _sim.Random;
+            float up = random.Float();
+            float wide = MathF.Sqrt(MathF.Max(1f - (up * 2f - 1f) * (up * 2f - 1f), 0.1f)) * tree.Radius * random.Range(0.78f, 1.08f);
+            off = Turn.Heading(random.Range(-MathF.PI, MathF.PI)) * wide;
+            return new Vector3(tree.At.X + off.X, tree.CrownLow + (tree.CrownHigh - tree.CrownLow) * up, tree.At.Y + off.Y);
         }
 
         private void Emit(in StandingTree tree, float kick)
         {
-            if (_count >= _sim.View.MostLeaves && kick <= 0f) return;
+            // When it's full, a breeze waits for room, but a gale tears off more than the ground can keep, so what's falling takes the place of what's lying: it's what's watched.
+            int slot = -1;
+            if (_count >= _sim.View.MostLeaves && kick <= 0f)
+            {
+                if (_windy < 0.25f || (slot = OldestDown()) < 0) return;
+            }
 
-            WorldRandom random = _sim.Random;
-            Kind kind = _kinds[tree.Kind];
-
-            // Off the outside of the crown, which is roughly an egg. It's where leaves are, and from up here anything that comes down inside one is behind it the whole way.
-            float up = random.Float();
-            float wide = MathF.Sqrt(MathF.Max(1f - (up * 2f - 1f) * (up * 2f - 1f), 0.1f)) * tree.Radius * random.Range(0.78f, 1.08f);
-            Vector2 off = Turn.Heading(random.Range(-MathF.PI, MathF.PI)) * wide;
-            Vector3 at = new Vector3(tree.At.X + off.X, tree.CrownLow + (tree.CrownHigh - tree.CrownLow) * up, tree.At.Y + off.Y);
-
-            ref Leaf leaf = ref New();
-            Dress(ref leaf, tree.Kind, kind, at);
+            Vector3 at = OffCrown(tree, out Vector2 off);
+            ref Leaf leaf = ref slot >= 0 ? ref _leaves[slot] : ref New();
+            Dress(ref leaf, tree.Kind, _kinds[tree.Kind], at);
             if (kick > 0f) leaf.Carried = off.LengthSquared > 1e-3f ? off.Normalized() * kick : Vector2.Zero;
+            else if (_windy > 0f)
+            {
+                // A gale tears a leaf off already going with it, and holds it up, so it streams a long way before it comes down.
+                leaf.Carried = _sim.Air.At(tree.At, out _) * (1f + GaleCarries * _windy) * 0.7f;
+                leaf.Rate *= 1f + (GaleFloats - 1f) * _windy;
+            }
         }
 
         private void Dress(ref Leaf leaf, int kindIndex, Kind kind, Vector3 at)
@@ -399,48 +422,76 @@ namespace Dino_Engine.Wildlife
         }
 
         // Each tree lets go now and then, and far more of them when a gust is on it, so a gust can be seen going through a wood. It's thinned from the strongest it could be, which needs no sum over every tree.
+        // A gale strips any broadleaf, not only those of a land known for falling leaves, and carries what it tears off in from crowns upwind of the view.
         private void Shed(float deltaTime)
         {
-            if (_treeRate <= 0f || _trees.Count == 0) return;
-
             float wind = _sim.View.Wind.LiveSpeed;
-            float breeze = 0.35f + MathF.Min(wind / 6f, 1.6f);
-            _debt += _treeRate * MostBoost * breeze * deltaTime;
+            _windy = Smooth(WindyFrom, WindyTo, wind);
+            if (_leafy.Count == 0) return;
+
+            float breeze = 0.35f + MathF.Min(wind / 6f, 1.6f) + GaleSheds * _windy;
+            _debt += _leafy.Count * MostTreeRate * MostBoost * breeze * deltaTime;
+            float margin = 10f + GaleReach * _windy;
 
             WorldRandom random = _sim.Random;
+            int draws = 0;
             while (_debt >= 1f)
             {
                 _debt -= 1f;
-                StandingTree tree = _trees[random.Int(_trees.Count)];
-                if (tree.Kind < 0 || !_sim.InView(tree.At, 10f)) continue;
+                if (++draws > MostDrawsPerStep)
+                {
+                    _debt = 0f;
+                    break;
+                }
+
+                StandingTree tree = _trees[_leafy[random.Int(_leafy.Count)]];
+                if (!_sim.InView(tree.At, margin)) continue;
 
                 _sim.Air.At(tree.At, out float gust);
                 float boost = 1f + (MostBoost - 1f) * Smooth(0.58f, 0.92f, gust);
-                float thin = tree.Rate / (PerTree * 1.3f);
-                if (random.Float() * MostBoost < boost && random.Float() < thin) Emit(tree, 0f);
+                float rate = tree.Rate + (tree.Stripped - tree.Rate) * _windy * 0.7f;
+                if (random.Float() * MostBoost < boost && random.Float() * MostTreeRate < rate) Emit(tree, 0f);
             }
         }
 
+        private readonly List<int> _streamFrom = new();
+
+        // The guiding wind's stream. Where there are broadleaves it tears their own leaves off them, and only over a land with none to give does it carry a leaf of its own, so a wood of pines still points the way.
         private void Stream(float deltaTime)
         {
             if (_guideRate <= 0f) return;
             _guideDebt += _guideRate * deltaTime;
             _guideRate = 0f;
 
+            _streamFrom.Clear();
+            for (int i = 0; i < _leafy.Count; i++)
+            {
+                if (_sim.InView(_trees[_leafy[i]].At, 10f)) _streamFrom.Add(_leafy[i]);
+            }
+
             WorldRandom random = _sim.Random;
             Vector3 focus = _sim.View.Focus;
             while (_guideDebt >= 1f)
             {
                 _guideDebt -= 1f;
-                Vector2 at = focus.Xz + new Vector2(random.Range(-30f, 30f), random.Range(-30f, 30f));
-                Vector3 where = new Vector3(at.X, _sim.Land.RoughGround(at) + random.Range(1.5f, 9f), at.Y);
                 ref Leaf leaf = ref New();
-                Dress(ref leaf, _guideKind, _kinds[_guideKind], where);
+                if (_streamFrom.Count > 0)
+                {
+                    StandingTree tree = _trees[_streamFrom[random.Int(_streamFrom.Count)]];
+                    Dress(ref leaf, tree.Kind, _kinds[tree.Kind], OffCrown(tree, out _));
+                    leaf.Lasts = random.Range(4.5f, 7f);
+                }
+                else
+                {
+                    Vector2 at = focus.Xz + new Vector2(random.Range(-30f, 30f), random.Range(-30f, 30f));
+                    Vector3 where = new Vector3(at.X, _sim.Land.RoughGround(at) + random.Range(1.5f, 9f), at.Y);
+                    Dress(ref leaf, _guideKind, _kinds[_guideKind], where);
+                    leaf.Colour = GuideColour * random.Range(0.8f, 1.25f);
+                    leaf.Lasts = random.Range(3.5f, 6f);
+                }
                 leaf.Guided = true;
                 leaf.Carried = _guide * GuideSpeed;
-                leaf.Colour = GuideColour * random.Range(0.8f, 1.25f);
                 leaf.Rate *= 0.34f;
-                leaf.Lasts = random.Range(3.5f, 6f);
             }
         }
 
@@ -454,6 +505,7 @@ namespace Dino_Engine.Wildlife
             float speed = wind.Length;
             Vector2 air = wind * (0.55f + 0.45f * MathF.Min(high / 12f, 1f)) + _sim.Air.Swirl(leaf.At) * (0.22f + 0.13f * speed);
             if (leaf.Guided) air = _guide * GuideSpeed + air * 0.4f;
+            else air *= 1f + GaleCarries * _windy;
 
             leaf.Carried = Vector2.Lerp(leaf.Carried, air, Spring.Share(CarryHalfLife, deltaTime));
             leaf.Origin.X += leaf.Carried.X * deltaTime;
@@ -540,10 +592,10 @@ namespace Dino_Engine.Wildlife
             }
 
             _sim.Air.At(at, out float gust);
-            if (gust > GustLifts && _sim.View.Wind.LiveSpeed > 3f && _sim.Random.Float() < 0.1f)
+            if (gust > GustLifts - 0.3f * _windy && _sim.View.Wind.LiveSpeed > 3f && _sim.Random.Float() < 0.1f + 0.4f * _windy)
             {
                 Vector2 wind = _sim.Air.At(at, out _);
-                Lift(ref leaf, wind * 0.8f, 0.3f);
+                Lift(ref leaf, wind * (0.8f + 0.6f * _windy), 0.3f + 0.6f * _windy);
             }
             return true;
         }

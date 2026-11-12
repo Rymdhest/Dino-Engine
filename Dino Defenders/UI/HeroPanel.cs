@@ -183,6 +183,30 @@ namespace Dino_Defenders.UI
         }
     }
 
+    /// <summary>The window on the left of the screen beside the hero's own, for whatever's being used (<see cref="HeroPanel.Side"/>).</summary>
+    internal sealed class SideWindow : GuiElement
+    {
+        private readonly Action<GuiDrawList> _over;
+
+        /// <summary>What's in it, top to bottom.</summary>
+        public readonly StackPanel Body;
+
+        public SideWindow(Action<GuiDrawList> over)
+        {
+            _over = over;
+            Padding = new Thickness(20f);
+            Ui.Dress(this);
+            Visible = false;
+            Body = Add(new StackPanel(Orientation.Vertical, 6f) { Width = UIValue.Fill, Height = UIValue.Fill });
+        }
+
+        protected override void OnDrawOverlay(GuiDrawList draw)
+        {
+            base.OnDrawOverlay(draw);
+            _over(draw);
+        }
+    }
+
     /// <summary>The hero as they stand, drawn by the studio every frame the panel is open, in their own pose, with what they wear around them. Drag to turn them.</summary>
     internal sealed class HeroStage : GuiElement
     {
@@ -207,9 +231,9 @@ namespace Dino_Defenders.UI
             if (!view.Has<CharacterModelComponent>() || !view.Has<SkeletonComponent>()) return;
 
             int texture = Engine.RenderEngine.Studio.Doll(view.Get<CharacterModelComponent>().model, view.Get<SkeletonComponent>().SkinningMatrices, _turn);
-            float height = MathF.Min(Bounds.Height - 20f, (Bounds.Width - 130f) * 1.5f);
+            float height = MathF.Min(Bounds.Height, (Bounds.Width - 130f) * 1.5f);
             float width = height / 1.5f;
-            GuiRect rect = new GuiRect(Bounds.Center.X - width * 0.5f, Bounds.Y + (Bounds.Height - height) * 0.5f - 24f, width, height);
+            GuiRect rect = new GuiRect(Bounds.Center.X - width * 0.5f, Bounds.Y + (Bounds.Height - height) * 0.5f, width, height);
             draw.AddImage(texture, rect, new Vector2(0f, 1f), new Vector2(1f, 0f), GuiColors.White);
         }
     }
@@ -227,17 +251,30 @@ namespace Dino_Defenders.UI
         private const int MarketColumns = 4;
         private const int StockSize = 12;
         private const int FlaskPrice = 12;  // Shown here; the server is what charges it.
+        private const float Cell = 52f;
         private const float CellGap = 6f;
         private const float MarketCell = 68f;
         private const float MarketGap = 8f;
-        private const float StageWidth = 450f;
-        private const float SheetWidth = 300f;
+        private const float SheetWidth = 290f;
+        private const float GearWidth = Columns * Cell + (Columns - 1) * CellGap;
+        private const float ColumnGap = 18f;
+        private const float Inset = 20f;
+
+        // How wide the window beside this is, for each thing that opens there.
+        private const float TableWidth = 340f;
+        private const float VendorWidth = 720f;
 
         private readonly GuiElement _sheet;
         private readonly GuiElement _market;
         private readonly GuiElement _stash;
-        private readonly GuiElement _left;
         private readonly GuiElement _stage;
+        private readonly Label _sideTitle;
+
+        /// <summary>
+        /// The window that opens on the left beside this one, for whatever's being used: a merchant's table, the stash, the crafting bench or the beta vendor. It's apart from this panel so that the
+        /// hero's own side never changes, but every place in it is still this panel's, as it's this panel that knows what a click does.
+        /// </summary>
+        public readonly SideWindow Side;
         private readonly BetaVendorPanel _vendor;
         private bool _vending;
         private readonly CraftingBench _bench;
@@ -267,45 +304,29 @@ namespace Dino_Defenders.UI
 
         public HeroPanel()
         {
-            Anchor = Anchor.Center;
-            Width = 1200f;
-            Height = 720f;
-            Padding = new Thickness(20f);
+            Ui.DockRight(this, SheetWidth + ColumnGap + GearWidth + Inset * 2f);
+            Padding = new Thickness(Inset);
             Ui.Dress(this);
             Visible = false;
 
-            var columns = Add(new StackPanel(Orientation.Horizontal, 18f) { Width = UIValue.Fill, Height = UIValue.Fill });
-
-            // The beta vendor takes the place of the sheet and the hero both, as there's a lot of him.
-            _vendor = columns.Add(new BetaVendorPanel(this, SheetWidth + 18f + StageWidth));
+            var columns = Add(new StackPanel(Orientation.Horizontal, ColumnGap) { Width = UIValue.Fill, Height = UIValue.Fill });
 
             var left = columns.Add(new StackPanel(Orientation.Vertical, 3f) { Width = SheetWidth, Height = UIValue.Fill });
-            _left = left;
-            _title = left.Add(Ui.Heading("The Hero"));
+            _title = left.Add(Ui.Heading("").Bind(() => Hero.Name.Length > 0 ? Hero.Name : "The Hero"));
             left.Add(Ui.Line("", 15f, Ui.Parchment).Bind(() => TalentTree.TitleOf(Hero)));
-            left.Add(Ui.Line().Bind(() => $"Level {Hero.Level}, {Hero.Gold} gold"));
-            left.Add(Ui.Line("", 14f, Ui.Gold).Bind(() => Hero.UnspentPoints > 0 ? $"{Hero.UnspentPoints} talents to spend  [{Bindings.Label(GameAction.Talents)}]" : " "));
+            left.Add(Ui.Line().Bind(() => $"Level {Hero.Level}"));
             left.Add(new Spacer(height: 6f));
             var sheet = left.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
             AddStats(sheet.Content.Add(new StackPanel(Orientation.Vertical, 1f) { Width = UIValue.Fill, Height = UIValue.Auto }));
             _sheet = sheet;
-            _market = left.Add(BuildMarket());
-            _stash = left.Add(BuildStash());
-            _bench = left.Add(new CraftingBench(this));
 
-            _stage = columns.Add(BuildStage());
-
-            var right = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill });
-            var heading = right.Add(new StackPanel(Orientation.Horizontal, 8f) { Width = UIValue.Fill, Height = 26f });
-            heading.Stack!.CrossAlignment = Alignment.Center;
-            heading.Add(Ui.Line("Carried", 15f, Ui.Gold));
-            heading.Add(Ui.Line("", 14f, Ui.Faded).Bind(Tally));
-            heading.Add(new Spacer(height: 1f));
-            Button sort = heading.Add(Ui.Action("Sort", SortPack));
-            sort.Width = 64f;
-            sort.Height = 26f;
-
-            var find = right.Add(new GuiElement { Width = UIValue.Fill, Height = 28f });
+            // What's worn on top, and what's carried under it.
+            var right = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = GearWidth, Height = UIValue.Fill });
+            _stage = right.Add(BuildStage());
+            right.Add(new Spacer(height: 4f));
+            // The search, and the one button that ever moves what's carried by itself, beside it.
+            var tools = right.Add(new StackPanel(Orientation.Horizontal, 8f) { Width = UIValue.Fill, Height = 28f });
+            var find = tools.Add(new GuiElement { Width = UIValue.Fill, Height = 28f });
             _search = find.Add(new TextBox("", "Search names and stats") { Width = UIValue.Fill, Height = 28f, MaxLength = 64 });
             _search.TextChanged += text => _words = ItemSearch.Words(text);
             _search.Submitted += _ => _search.Unfocus();
@@ -317,11 +338,22 @@ namespace Dino_Defenders.UI
             _clear.Padding = new Thickness(0f);
             _clear.MinWidth = 0f;
             _clear.Visible = false;
+            Button sort = tools.Add(Ui.Action("Sort", SortPack));
+            sort.Width = 64f;
+            sort.Height = 28f;
 
             var bag = right.Add(new GridPanel(Columns, CellGap, CellGap));
-            for (int i = 0; i < HeroState.InventorySize; i++) bag.Add(new ItemCell(this, new Spot(Shelf.Pack, i)));
+            for (int i = 0; i < HeroState.InventorySize; i++) bag.Add(new ItemCell(this, new Spot(Shelf.Pack, i), Cell));
+            right.Add(Ui.Line("", 16f, Ui.Gold).Bind(() => $"{Hero.Gold:N0} gold"));
 
             _picker = Add(new SlotPicker(this));
+
+            Side = new SideWindow(DrawSideOver);
+            _sideTitle = Side.Body.Add(Ui.Heading(""));
+            _market = Side.Body.Add(BuildMarket());
+            _stash = Side.Body.Add(BuildStash());
+            _bench = Side.Body.Add(new CraftingBench(this));
+            _vendor = Side.Body.Add(new BetaVendorPanel(this, VendorWidth));
         }
 
         // Where what's on the table stays, and where anything from the hero is sold by being brought to it.
@@ -383,34 +415,32 @@ namespace Dino_Defenders.UI
             _tab = tab;
         }
 
-        // Head to toe down one side, what's on them down the other, and both hands below.
+        // Head to toe down one side, what's on them down the other, each hand at the foot of its side, and the hero between.
         private GuiElement BuildStage()
         {
-            var stage = new HeroStage { Width = StageWidth, Height = UIValue.Fill };
+            const float Step = Cell + 10f;
+            var stage = new HeroStage { Width = GearWidth, Height = Step * 5f - 10f };
             stage.MouseDown += e => PressOn(stage, e);
-            float step = ItemCell.Size + 22f;
-            float right = StageWidth - ItemCell.Size;
+            float right = GearWidth - Cell;
 
             void Place(WornSlot slot, float x, float y)
             {
-                var cell = new ItemCell(this, new Spot(Shelf.Worn, (int)slot), slot: WornSlots.Holds(slot)) { X = x, Y = y };
+                var cell = new ItemCell(this, new Spot(Shelf.Worn, (int)slot), Cell, slot: WornSlots.Holds(slot)) { X = x, Y = y };
                 if (slot == WornSlot.OffHand) cell.TakenBy = TwoHandedHeld;
                 stage.Add(cell);
             }
 
-            Place(WornSlot.Head, 0f, 8f);
-            Place(WornSlot.Body, 0f, 8f + step);
-            Place(WornSlot.Legs, 0f, 8f + step * 2f);
-            Place(WornSlot.Feet, 0f, 8f + step * 3f);
+            Place(WornSlot.Head, 0f, 0f);
+            Place(WornSlot.Body, 0f, Step);
+            Place(WornSlot.Legs, 0f, Step * 2f);
+            Place(WornSlot.Feet, 0f, Step * 3f);
+            Place(WornSlot.MainHand, 0f, Step * 4f);
 
-            Place(WornSlot.Neck, right, 8f);
-            Place(WornSlot.Hands, right, 8f + step);
-            Place(WornSlot.Finger1, right, 8f + step * 2f);
-            Place(WornSlot.Finger2, right, 8f + step * 3f);
-
-            float bottom = 600f;
-            Place(WornSlot.MainHand, StageWidth * 0.5f - ItemCell.Size - 12f, bottom);
-            Place(WornSlot.OffHand, StageWidth * 0.5f + 12f, bottom);
+            Place(WornSlot.Neck, right, 0f);
+            Place(WornSlot.Hands, right, Step);
+            Place(WornSlot.Finger1, right, Step * 2f);
+            Place(WornSlot.Finger2, right, Step * 3f);
+            Place(WornSlot.OffHand, right, Step * 4f);
             return stage;
         }
 
@@ -420,10 +450,6 @@ namespace Dino_Defenders.UI
         private void AddStats(StackPanel parent)
         {
             GuiElement Line(Func<string> name, Func<string> value, Func<Card?> card) => parent.Add(new StatLine(name, value, card, line => _lookingAt = line));
-
-            parent.Add(Ui.Line("Your main book", 14f, Ui.Gold));
-            static BookProfile? Main() => Session.Client.Kit.Slots[0];
-            Line(() => Main()?.Book.Name ?? "Nothing", () => Main() is BookProfile main && main.DamagePerSecond > 0f ? Say.N(main.DamagePerSecond) : "", () => Main() is BookProfile main ? Cards.Book(main) : null);
 
             var lines = new List<(GuiElement line, StatRow row)>();
             var groups = new List<(GuiElement heading, string name)>();
@@ -456,12 +482,9 @@ namespace Dino_Defenders.UI
             _bench.Visible = false;
             _bench.Clear();
             _vendor.Visible = false;
-            _left.Visible = true;
-            _stage.Visible = true;
             _stash.Visible = false;
             _market.Visible = merchant != null;
-            _sheet.Visible = merchant == null;
-            _title.Text = merchant != null ? merchant.Site.Name : "The Hero";
+            Beside(merchant?.Site.Name, TableWidth, merchant != null);
             _looking = null;
             _lookingAt = null;
             Forget();
@@ -472,9 +495,8 @@ namespace Dino_Defenders.UI
         {
             Open(null);
             _stashing = true;
-            _sheet.Visible = false;
             _stash.Visible = true;
-            _title.Text = "The Stash";
+            Beside("The Stash", TableWidth);
         }
 
         /// <summary>Shows the panel with the Forge's crafting bench beside the pack, as it is at the bench.</summary>
@@ -482,9 +504,8 @@ namespace Dino_Defenders.UI
         {
             Open(null);
             _crafting = true;
-            _sheet.Visible = false;
             _bench.Visible = true;
-            _title.Text = "Crafting Bench";
+            Beside("Crafting Bench", TableWidth);
         }
 
         /// <summary>Shows the panel with the beta vendor's table in place of the sheet and the hero, as it is at his stall.</summary>
@@ -492,10 +513,18 @@ namespace Dino_Defenders.UI
         {
             Open(null);
             _vending = true;
-            _left.Visible = false;
-            _stage.Visible = false;
             _vendor.Visible = true;
+            Beside(null, VendorWidth);
             _vendor.Opened();
+        }
+
+        // Shows the window beside this, as wide as what's in it needs, with its name at the top if it has one of its own to give.
+        private void Beside(string? title, float width, bool showing = true)
+        {
+            Side.Visible = showing && Visible;
+            Ui.DockLeft(Side, width + Inset * 2f);
+            _sideTitle.Text = title ?? "";
+            _sideTitle.Visible = title != null;
         }
 
         /// <summary>The crafting bench's side of this, for a scripted run to lay things on.</summary>
@@ -568,17 +597,6 @@ namespace Dino_Defenders.UI
             bool down = Context.IsMouseDown(MouseButton.Left) || Context.IsMouseDown(MouseButton.Right);
             if (down && !_mouseWasDown && _picker.Visible && !_picker.Bounds.Contains(Context.MousePosition) && !_pickerFrom.Contains(Context.MousePosition)) _picker.Visible = false;
             _mouseWasDown = down;
-        }
-
-        private string Tally()
-        {
-            if (_words.Length == 0) return $"{Hero.Carried().Count()} of {HeroState.InventorySize}";
-
-            IEnumerable<Item> looking = Hero.Carried();
-            if (_merchant != null) looking = looking.Concat(_merchant.Table.Stock.OfType<Item>()).Concat(_merchant.Table.Sold.OfType<Item>());
-            if (_stashing && Session.Client.Stash is Stash stash) looking = looking.Concat(stash.Kept());
-            if (_vending) looking = looking.Concat(_vendor.Showing());
-            return $"{looking.Count(item => ItemSearch.Finds(item, _words))} found";
         }
 
         /// <summary>What's in a place in this panel.</summary>
@@ -1148,12 +1166,9 @@ namespace Dino_Defenders.UI
             DrawOver(draw);
         }
 
-        /// <summary>What goes over everything while this is what's holding things: it's here for an open book to ask too.</summary>
-        public void DrawOver(GuiDrawList draw)
+        // Over the window beside this: where what's on the cursor can be brought, which is all of the merchant's side, all of the stash or all of the bench, and which tab of the stash is showing.
+        private void DrawSideOver(GuiDrawList draw)
         {
-            if (Context == null) return;
-
-            // Where it can be sold is all of the merchant's side, and where it can be put away all of the stash.
             if (_merchant != null && _hand is Spot held && held.OnHero) draw.AddRect(_market.Bounds.Inflate(5f), GuiColors.Rgba(214, 172, 92, 18), 3f, 1.5f, Ui.Gold.MultiplyAlpha(0.8f));
             if (_crafting && _hand is Spot benched && benched.Shelf == Shelf.Pack) draw.AddRect(_bench.Bounds.Inflate(5f), GuiColors.Rgba(250, 156, 92, 14), 3f, 1.5f, GuiColors.Rgba(250, 156, 92, 160));
             if (_stashing && _hand is Spot lifted && lifted.OnHero) draw.AddRect(_stash.Bounds.Inflate(5f), GuiColors.Rgba(214, 188, 146, 14), 3f, 1.5f, GuiColors.Rgba(214, 188, 146, 160));
@@ -1161,6 +1176,13 @@ namespace Dino_Defenders.UI
             {
                 if (t == _tab) draw.AddRect(_tabs[t].Bounds.Inflate(1f), GuiColors.Transparent, 2f, 1.5f, Ui.Gold);
             }
+        }
+
+        /// <summary>What goes over everything while this is what's holding things: it's here for an open book to ask too.</summary>
+        public void DrawOver(GuiDrawList draw)
+        {
+            if (Context == null) return;
+
 
             if (_lookingAt is StatLine line) GameUi.Current.Tips.Show(line.Card, line.Bounds);
             if (_hand != null || _looking is not Spot spot) return;

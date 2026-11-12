@@ -240,10 +240,8 @@ namespace Dino_Defenders.UI
     /// </summary>
     internal sealed class BookPanel : GuiElement
     {
-        private const int PackColumns = 6;
-        private const float PackCell = 48f;
-        private const float PackGap = 4f;
-        private const float PackWidth = PackCell * PackColumns + PackGap * (PackColumns - 1);
+        // Two pages side by side, on the left of the screen, as what's carried is always on the right, in the hero's own panel.
+        private const float BookWidth = 860f;
         private const float PageCell = 50f;
 
         private static readonly Colour Leather = GuiColors.Rgba(44, 26, 18, 248);
@@ -310,24 +308,13 @@ namespace Dino_Defenders.UI
         public BookPanel(HeroPanel hands)
         {
             _hands = hands;
-            Anchor = Anchor.Center;
-            Width = 1180f;
-            Height = 680f;
+            Ui.DockLeft(this, BookWidth);
             Padding = new Thickness(16f);
             Ui.Dress(this);
             BackgroundColor = Leather;
             Visible = false;
 
             var columns = Add(new StackPanel(Orientation.Horizontal, 14f) { Width = UIValue.Fill, Height = UIValue.Fill });
-
-            var side = columns.Add(new StackPanel(Orientation.Vertical, 6f) { Width = PackWidth, Height = UIValue.Fill });
-            side.Add(Ui.Line("Carried", 16f, Ui.Gold));
-            var bag = side.Add(new GridPanel(PackColumns, PackGap, PackGap));
-            for (int i = 0; i < HeroState.InventorySize; i++) bag.Add(new ItemCell(hands, new Spot(Shelf.Pack, i), PackCell));
-            side.Add(new Spacer(height: 4f));
-            side.Add(Ui.Paragraph("", 12.5f, Ui.Faded).Bind(() => $"Drag Pages into the Book and Sentences onto the Page, or {Bindings.Label(GameAction.Details)}-click them."));
-            side.Add(Ui.Paragraph("Right click another Book or Page to open that instead.", 12.5f, Ui.Faded));
-            side.Add(Ui.Paragraph("Drag a Book onto the bar to use it.", 12.5f, Ui.Faded));
 
             var left = columns.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Fill, Padding = new Thickness(20f, 14f) });
             left.BackgroundColor = Vellum.Sheet;
@@ -423,12 +410,6 @@ namespace Dino_Defenders.UI
                     : $"Cost {Say.Amount(profile.Cost)}   Potency {Say.Share(profile.Potency)}{carried}   {size}";
             }
             else _numbers.Text = "";
-        }
-
-        protected override void OnDrawOverlay(GuiDrawList draw)
-        {
-            base.OnDrawOverlay(draw);
-            _hands.DrawOver(draw);
         }
 
         // What a book comes to is its card, always, on the page for the whole of it. What it's called and what it is are already at the top of that page.

@@ -155,7 +155,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "teeming", Name = "Teeming", Affix = "Teeming", Side = OmenSide.Prefix,
             Tiers = Ladder((1, 15, 25), (Second, 26, 40), (Third, 41, 60), (Fourth, 61, 80)),
-            Says = v => $"Packs and those who hold places are {Say.Percent(v)} larger, and no stronger for it",
+            Says = v => $"{Say.Percent(v)} larger packs",
             People = 0.01f,
         });
 
@@ -163,7 +163,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "overrun", Name = "Swarming", Affix = "Swarming", Side = OmenSide.Prefix,
             Tiers = Ladder((1, 10, 18), (Second, 19, 30), (Third, 31, 45), (Fourth, 46, 60)),
-            Says = v => $"{Say.Percent(v)} more packs on the land, which is {Say.Percent(v * PackRoom)} larger to hold them, and no stronger for it",
+            Says = v => $"{Say.Percent(v)} more packs",
             Packs = 0.01f,
         });
 
@@ -171,7 +171,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "bountiful", Name = "Bountiful", Affix = "Bountiful", Side = OmenSide.Prefix,
             Tiers = Ladder((1, 8, 14), (Second, 15, 22), (Third, 23, 32), (Fourth, 33, 45), (Fifth, 46, 60)),
-            Says = v => $"{Say.Percent(v)} more Items drop",
+            Says = v => $"{Say.Percent(v)} more Items",
             Quantity = 0.01f,
         });
 
@@ -187,7 +187,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "riches", Name = "Rich", Affix = "Rich", Side = OmenSide.Prefix,
             Tiers = Ladder((1, 20, 35), (Second, 36, 55), (Third, 56, 80), (Fourth, 81, 110)),
-            Says = v => $"{Say.Percent(v)} more Gold drops",
+            Says = v => $"{Say.Percent(v)} more Gold",
             Gold = 0.01f,
         });
 
@@ -195,7 +195,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "wisdom", Name = "Instructive", Affix = "Instructive", Side = OmenSide.Prefix,
             Tiers = Ladder((1, 8, 14), (Second, 15, 22), (Third, 23, 32), (Fourth, 33, 45)),
-            Says = v => $"{Say.Percent(v)} more experience from every Kill",
+            Says = v => $"{Say.Percent(v)} more experience",
             Experience = 0.01f,
         });
 
@@ -203,7 +203,7 @@ namespace Dino_Defenders.Progression
         {
             Id = "expanse", Name = "Sprawling", Affix = "Sprawling", Side = OmenSide.Prefix,
             Tiers = Ladder((1, 15, 25), (Second, 26, 40), (Third, 41, 60), (Fourth, 61, 80)),
-            Says = v => $"The land is up to {Say.Percent(v)} larger, with room for more packs, more places and their chests, but never larger than a land can be",
+            Says = v => $"Up to {Say.Percent(v)} larger land",
             Size = 0.01f,
         });
 
@@ -211,14 +211,14 @@ namespace Dino_Defenders.Progression
         {
             Id = "gilded", Name = "Gilded", Affix = "Gilded", Side = OmenSide.Prefix,
             Tiers = Ladder((2, 25, 45), (Third, 46, 70), (Fourth, 71, 100)),
-            Says = v => $"Each chest has a {Say.Percent(MathF.Min(v, 100f))} Chance to hold what the next kind of chest up holds",
+            Says = v => $"{Say.Percent(MathF.Min(v, 100f))} Chance for each chest to be a better one",
         });
 
         public static readonly OmenDefinition Bloodlines = Add(new OmenDefinition
         {
             Id = "bloodlines", Name = "Pedigreed", Affix = "Pedigreed", Side = OmenSide.Prefix,
             Tiers = Ladder((2, 20, 35), (Third, 36, 60), (Fourth, 61, 100)),
-            Says = v => $"Magic and Rare Enemies are {Say.Percent(v)} more common, and each drops what it always does",
+            Says = v => $"{Say.Percent(v)} more Magic and Rare Enemies",
         });
 
         public static readonly OmenDefinition Trophies = Add(new OmenDefinition
@@ -340,21 +340,21 @@ namespace Dino_Defenders.Progression
             Id = "unyielding", Name = "Unyielding", Affix = "of Endurance", Side = OmenSide.Suffix,
             Tiers = Ladder((4, 20, 30), (Third, 31, 45)),
             Foes = v => new[] { Inc(Stat.AilmentTaken, -v), Inc(Stat.StunThreshold, v * 2f) },
-            Says = v => $"Ailments on Enemies wear off {Say.Percent(v)} sooner, and Enemies have {Say.Percent(v * 2f)} increased Stun Threshold",
+            Says = v => $"Enemies: {Say.Percent(v)} shorter Ailments, {Say.Percent(v * 2f)} increased Stun Threshold",
         });
 
         public static readonly OmenDefinition Warhost = Add(new OmenDefinition
         {
             Id = "warhost", Name = "Warhost", Affix = "of the Warhost", Side = OmenSide.Suffix,
             Tiers = Ladder((3, 50, 80), (Third, 81, 120), (Fourth, 121, 180)),
-            Says = v => $"Every pack has a leader if it can, and leaders are {Say.Percent(v)} more likely to be Rare, up to {Say.Share(Rulebook.MostWarhostLeaderRares)}. Those who hold places are Rare {Say.Share(Rulebook.WarhostRareChance)} of the time instead of {Say.Share(Rulebook.RareChance)}",
+            Says = v => $"Every pack has a leader, {Say.Percent(v)} more likely to be Rare",
         });
 
         public static readonly OmenDefinition Night = Add(new OmenDefinition
         {
             Id = "night", Name = "Endless Night", Affix = "of Darkness", Side = OmenSide.Suffix,
             Tiers = Ladder((5, 20, 30), (Third, 31, 45)),
-            Says = v => $"The whole land counts as Darkness, and Enemies notice you from {Say.Percent(v)} further away",
+            Says = v => $"Darkness, and Enemies notice you {Say.Percent(v)} further away",
             Weight = 0.7f,
         });
 
@@ -363,7 +363,7 @@ namespace Dino_Defenders.Progression
             Id = "volatile", Name = "Volatile", Affix = "of Embers", Side = OmenSide.Suffix,
             Tiers = Ladder((4, 30, 45), (Third, 46, 65), (Fourth, 66, 90)),
             Foes = _ => new[] { Rules(Rule.BurstsOnDeath) },
-            Says = v => $"{Say.Percent(MathF.Min(v, 100f))} of Enemies burst {Say.Seconds(Rulebook.BurstDelay)} after they die, for Fire Indirect Damage within {Say.Metres(Rulebook.BurstRadius)}, worth {Say.Share(Rulebook.BurstShare)} of an ordinary Enemy Hit",
+            Says = v => $"{Say.Percent(MathF.Min(v, 100f))} of Enemies burst into Fire on death",
         });
 
         public static readonly OmenDefinition Rallying = Add(new OmenDefinition
@@ -371,14 +371,14 @@ namespace Dino_Defenders.Progression
             Id = "rallying", Name = "Rallying", Affix = "of Vengeance", Side = OmenSide.Suffix,
             Tiers = Ladder((Second, 40, 60), (Fourth, 61, 100)),
             Foes = _ => new[] { Rules(Rule.RalliesOnDeath) },
-            Says = v => $"{Say.Percent(MathF.Min(v, 100f))} of Enemies drive the rest on as they die, giving Rallied to allies within {Say.Metres(Rulebook.RallyReach)}",
+            Says = v => $"{Say.Percent(MathF.Min(v, 100f))} of Enemies give Rallied to allies on death",
         });
 
         public static readonly OmenDefinition Wrath = Add(new OmenDefinition
         {
             Id = "wrath", Name = "Tyrant's Wrath", Affix = "of the Tyrant", Side = OmenSide.Suffix,
             Tiers = Ladder((1, 15, 25), (10, 26, 40), (22, 41, 60)),
-            Says = v => $"The tyrant has {Say.Percent(v)} more Health and deals {Say.Percent(v)} more Damage",
+            Says = v => $"Tyrant has {Say.Percent(v)} more Health and Damage",
         });
 
         public static readonly OmenDefinition Bleak = Add(new OmenDefinition

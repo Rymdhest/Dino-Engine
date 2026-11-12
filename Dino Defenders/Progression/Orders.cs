@@ -65,8 +65,8 @@ namespace Dino_Defenders.Progression
         {
             Id = "kommandants-wager", Name = "The Kommandant's Wager", Base = "Hunting Orders", MinLevel = 3,
             Lore = "He bet his tyrant against any Defender born. He hasn't lost yet.",
-            Gives = $"Freeing this land lets the map table open {Say.N(WagerClimb)} Levels deeper at once, though never past a tyrant's arena that hasn't been fought",
-            Costs = $"The tyrant has {Say.Percent(WagerTyrant)} more Health and deals {Say.Percent(WagerTyrant)} more Damage",
+            Gives = $"Freeing it opens {Say.N(WagerClimb)} Levels deeper",
+            Costs = $"Tyrant has {Say.Percent(WagerTyrant)} more Health and Damage",
             Quantity = WagerQuantity, Climb = WagerClimb,
         });
 
@@ -74,8 +74,8 @@ namespace Dino_Defenders.Progression
         {
             Id = "brutmeisters-ledger", Name = "The Brutmeister's Ledger", Base = "Breeding Orders", MinLevel = 6,
             Lore = "Every animal in the brood, by number, and what it cost.",
-            Gives = $"Every pack has a Rare leader if it can, and Rare Enemies drop {Say.Share(LedgerLoot - 1f)} more",
-            Costs = "Rare Enemies have one more trait than they would",
+            Gives = $"Every pack has a Rare leader. Rare Enemies drop {Say.Share(LedgerLoot - 1f)} more",
+            Costs = "Rare Enemies have one more trait",
             Rarity = LedgerRarity,
         });
 
@@ -84,7 +84,7 @@ namespace Dino_Defenders.Progression
             Id = "bred-for-war", Name = "Bred for War", Base = "Breeding Orders", MinLevel = 10,
             Lore = "The Amber Institute's own seal. Nothing it signed for was ordinary.",
             Gives = $"{Say.Share(BredRarity)} more Item Rarity",
-            Costs = "No Enemy here is Normal: every one is at least Magic",
+            Costs = "No Normal Enemies",
             Rarity = BredRarity,
         });
 
@@ -92,8 +92,8 @@ namespace Dino_Defenders.Progression
         {
             Id = "twin-pens", Name = "Orders for the Twin Pens", Base = "Hunting Orders", MinLevel = 8,
             Lore = "Two tyrants, two keepers, and one land that can't feed them both.",
-            Gives = "A second tyrant holds one of the land's farthest places, or waits in the arena beside the first, and drops all that a tyrant drops",
-            Costs = "Both tyrants have to fall before the land is free",
+            Gives = "A second tyrant, with its own drops",
+            Costs = "Both tyrants must fall",
             Quantity = TwinQuantity,
         });
 
@@ -101,8 +101,8 @@ namespace Dino_Defenders.Progression
         {
             Id = "last-garrison", Name = "The Last Garrison", Base = "Muster Orders", MinLevel = 12,
             Lore = "Pull everyone back to the walls. Leave the roads to the crows.",
-            Gives = "Nothing waits on the roads or between places, and every chest at a place holds what a keep's chest holds",
-            Costs = $"Every place holds {Say.Share(GarrisonPeople)} more of those who hold it, and an arena's gates let as many more through",
+            Gives = "No packs outside places. Every chest is a keep's chest",
+            Costs = $"{Say.Share(GarrisonPeople)} more Enemies at every place",
         });
 
         public static readonly UniqueOrders Writ = Add(new UniqueOrders
@@ -110,7 +110,7 @@ namespace Dino_Defenders.Progression
             Id = "ossuary-writ", Name = "The Ossuary's Writ", Base = "Patrol Orders", MinLevel = 15,
             Lore = "Signed in a cold green hand. Nobody here stays down.",
             Gives = $"{Say.Share(WritQuantity)} more Items",
-            Costs = "Every Enemy that falls rises once more as bones, a moment later",
+            Costs = "Fallen Enemies rise once as bones",
             Quantity = WritQuantity,
         });
 

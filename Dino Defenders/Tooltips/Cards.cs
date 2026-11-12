@@ -25,6 +25,7 @@ namespace Dino_Defenders.Tooltips
         Good,
         Bad,
         Burden,     // What a unique costs, apart from what it gives.
+        Pair,       // A name with its number just after it, as what gear is for being what it is.
     }
 
     public readonly record struct CardLine(LineLook Look, string Text, string Value = "");
@@ -58,6 +59,7 @@ namespace Dino_Defenders.Tooltips
 
         public void Row(string name, string value) => Lines.Add(new CardLine(LineLook.Row, name, value));
         public void Cell(string name, string value) => Lines.Add(new CardLine(LineLook.Cell, name, value));
+        public void Pair(string name, string value) => Lines.Add(new CardLine(LineLook.Pair, name, value));
         public void Text(string text, LineLook look = LineLook.Text) => Lines.Add(new CardLine(look, text));
         public void Detail(string text) => Lines.Add(new CardLine(LineLook.Detail, text));
         public void Lore(string text) => Lines.Add(new CardLine(LineLook.Lore, text));
@@ -481,57 +483,49 @@ namespace Dino_Defenders.Tooltips
         public static string KindOf(Item item) => $"{item.Rarity} {SlotName(item)}";
 
         /// <summary>
-        /// Orders: what their kind always brings, then what enemies are and what the land is, or what a unique one does and what it costs. What it all pays is said last, as that's what
-        /// orders are weighed by, and so is where they go.
+        /// Orders read as anything else that rolls: what their kind always brings, then their prefixes and their suffixes, each only what it does. A unique one says what it gives and what it costs, as a
+        /// unique worn does.
         /// </summary>
         public static Card Orders(Item item, string kind)
         {
             var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Rarity = item.Rarity, Picture = item };
-            var terms = new LandTerms();
-            terms.Give(item);
+            if (OrdersMaker.BaseOf(item) is OrdersBase basis) card.Text(basis.Brings.Describe(basis.Brings.Fixed(item.Level)));
 
-            if (OrdersMaker.BaseOf(item) is OrdersBase basis)
-            {
-                card.Text($"{basis.Brings.Name}: {basis.Brings.Describe(basis.Brings.Fixed(item.Level))}", LineLook.Rolled);
-            }
-
+            card.Gap();
             if (item.Rarity == Rarity.Unique && OrdersCatalog.Find(item.Unique) is UniqueOrders unique)
             {
-                card.Gap();
                 card.Text(unique.Gives, LineLook.Rolled);
                 card.Gap();
                 card.Text(unique.Costs, LineLook.Burden);
                 card.Gap();
                 card.Lore(unique.Lore);
+                return card;
             }
-            else
-            {
-                OmenLines(card, item, OmenSide.Prefix, "What the land gives");
-                OmenLines(card, item, OmenSide.Suffix, "What it asks");
-            }
-
-            card.Gap();
-            if (terms.Pays() is { Length: > 0 } pays) card.Text($"Pays {pays}", LineLook.Good);
-            card.Text("Give them to the map table in the Haven before the way is opened, and the land it opens on holds what they say");
+            OmenLines(card, item, Progression.OmenSide.Prefix);
+            OmenLines(card, item, Progression.OmenSide.Suffix);
             return card;
         }
 
-        private static void OmenLines(Card card, Item item, OmenSide side, string heading)
+        private static void OmenLines(Card card, Item item, OmenSide side)
         {
-            bool first = true;
+            List<OmenDefinition> omens = new();
+            var values = new List<float>();
             foreach (ItemLine line in item.Lines)
             {
                 if (Progression.Omens.Find(line.Affix) is not OmenDefinition omen || omen.Side != side) continue;
-                if (first) card.Heading(heading);
-                first = false;
-                card.Text($"{omen.Name}: {omen.Describe(line.Value)}", LineLook.Rolled);
+                omens.Add(omen);
+                values.Add(line.Value);
             }
+            if (omens.Count == 0) return;
+            bool prefix = side == Progression.OmenSide.Prefix;
+            card.Heading(prefix ? omens.Count == 1 ? "Prefix" : "Prefixes" : omens.Count == 1 ? "Suffix" : "Suffixes");
+            for (int i = 0; i < omens.Count; i++) card.Text(omens[i].Describe(values[i]), LineLook.Rolled);
         }
 
         private static string SlotName(Item item) => item.Slot switch
         {
             ItemSlot.Orders => "Orders",
-            ItemSlot.MainHand => item.IsTwoHanded ? $"Two-handed {item.Kind}" : item.Kind.ToString(),
+            ItemSlot.MainHand => item.IsTwoHanded ? $"Two-handed {item.Kind}" : $"One-handed {item.Kind}",
             ItemSlot.OffHand => "Off hand",
             ItemSlot.Finger => "Ring",
             ItemSlot.Neck => "Amulet",
@@ -546,7 +540,7 @@ namespace Dino_Defenders.Tooltips
             var card = new Card { Title = item.Name, Kind = $"{kind}, Level {item.Level}", Rarity = item.Rarity, Picture = item, Tags = TagsOf(item.Mods()) };
             if (item.Slot == ItemSlot.MainHand) card.Tags |= item.Weapon().Tags;
 
-            foreach ((string name, string value) in item.BaseRows()) card.Row(name, value);
+            foreach ((string name, string value) in item.BaseRows()) card.Pair(name, value);
             if (item.Slot == ItemSlot.MainHand) Mods(card, WeaponKinds.Of(item.Kind).Mods, viewer);
 
             card.Gap();

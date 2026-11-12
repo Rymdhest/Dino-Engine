@@ -105,6 +105,7 @@ void weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, floa
 
     // Water standing in what's low. Rough material holds it between its stones first.
     float standing = 0.0;
+#ifndef WEATHER_NOTHING_STANDS
     if (upward > 0.0)
     {
         float level = here.y * wetLook.z * max(reach, dripWet);
@@ -115,9 +116,15 @@ void weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, floa
         wetSmoothness = mix(wetSmoothness, 0.97, standing);
         normal = normalize(mix(normal, geometryNormal, standing));
     }
+#endif
 
-    // Rain rings, on whatever's wet enough to carry them, and the rings of drops coming off things, which go on after the rain.
+    // Rain rings, on whatever's wet enough to carry them, and the rings of drops coming off things, which go on after the rain. They lie still in the world, so on what moves
+    // (WEATHER_NOTHING_STANDS) they'd slide across it: a body only takes the film.
+#ifdef WEATHER_NOTHING_STANDS
+    float carrying = 0.0;
+#else
     float carrying = max(standing, film * upward * 0.6);
+#endif
     float ringing = carrying * here.w;
     vec2 slope = (dripped.xy * carrying) * rippleLook.x;
     float ringSpread = 0.0;

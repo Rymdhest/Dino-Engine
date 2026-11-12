@@ -416,7 +416,7 @@ namespace Dino_BuildLab
 
         private static Card CardOf(ActorSheet sheet, BookPlan skill) => Cards.Book(sheet.Preview(skill));
 
-        private static string? Value(Card card, string name) => card.Lines.FirstOrDefault(l => l.Text == name && l.Look is LineLook.Row or LineLook.Cell).Value is { Length: > 0 } value ? value : card.Details != null ? Value(card.Details, name) : null;
+        private static string? Value(Card card, string name) => card.Lines.FirstOrDefault(l => l.Text == name && l.Look is LineLook.Row or LineLook.Cell or LineLook.Pair).Value is { Length: > 0 } value ? value : card.Details != null ? Value(card.Details, name) : null;
 
         private static bool Mentions(Card card, string word) => card.Lines.Any(l => l.Look != LineLook.Lore && l.Text.Contains(word)) || card.Details != null && Mentions(card.Details, word);
 

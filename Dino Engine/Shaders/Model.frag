@@ -53,6 +53,10 @@ layout (location = 2) out vec4 gMaterials;
 #include Weather/Weather.glsl
 #include Weather/SurfaceMap.glsl
 #include Weather/RainShadow.glsl
+#if defined(CHARACTER) || defined(WILDLIFE)
+// What moves can't hold water: a puddle on a giant's back filled the hollows of its hide and laid a mirror over the level part of it, edged in lace where its relief met the water line.
+#define WEATHER_NOTHING_STANDS
+#endif
 #include Weather/Wetness.glsl
 
 const float HIT_SHINE = 7.0;

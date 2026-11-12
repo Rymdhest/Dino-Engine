@@ -32,6 +32,7 @@ namespace Dino_Defenders.UI
         public readonly record struct Chip(string Text, float X, float Y, float Width);
 
         public const float Pad = 12f;
+        private const float PairGap = 8f;
         public const float PictureSize = 84f;
         private const float TagSize = 11.5f;
         private const float ChipHeight = 17f;
@@ -87,6 +88,11 @@ namespace Dino_Defenders.UI
                         break;
                     case LineLook.Row:
                         laid.Pieces.Add(new Piece(line.Text, line.Value, Pad, y, inner, 14.5f, ink.Text, ink.Number));
+                        y += 20f;
+                        break;
+                    case LineLook.Pair:
+                        float pair = GuiText.MeasureWidth(context, line.Text, Ui.Face, 14.5f) + PairGap + GuiText.MeasureWidth(context, line.Value, Ui.Face, 14.5f);
+                        laid.Pieces.Add(new Piece(line.Text, line.Value, Pad, y, MathF.Min(pair, inner), 14.5f, ink.Text, ink.Number));
                         y += 20f;
                         break;
                     case LineLook.Cell:

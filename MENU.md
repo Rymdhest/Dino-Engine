@@ -66,6 +66,8 @@ Three things aren't anyone's: Escape always goes back, as someone has to be able
 "Dino Defenders.exe" --menu true --heroes folder --hidden true --size 1720x960 --snap file --sound false
 ```
 
+**Only the pause menu stops the world.** Playing alone, the game pauses for the pause menu and the pages reached from it or covering everything (settings, the glossary, travel with friends: `GameUi.OnPage`) and for nothing else: with the hero's panel, a book, the talent tree, the map or anything used in the world open, the hero still walks and fights, as a click that isn't on a window still reaches the world (`Gui.WantsMouse`). What's opened by using something closes once the hero is `GameUi.UseLeash` from where they used it.
+
 `--quality low` runs at a level, for `--perf`, and `--panel settings` or `pause` opens a page. Exclusive fullscreen can't be tried beside someone playing: even a hidden window comes to the front for it.
 
 **`--heroes` is not optional.** Without it a run with `--menu true` is working on that person's own heroes, and it moves their old save. Any other scripted run skips the menu, and `--seed N` shows the spot in another world.

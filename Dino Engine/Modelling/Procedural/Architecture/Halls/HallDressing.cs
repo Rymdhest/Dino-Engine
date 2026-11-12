@@ -372,7 +372,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             {
                 foreach (float z in new[] { -0.2f, 0.2f }) b.Beam(hang + new Vector3(x, -0.34f, z), hang + new Vector3(x, 0.34f, z), 0.02f, iron);
             }
-            lights.Add(AssetLight.Lantern(hang + out_ * 0.3f) with { Intensity = 110f, Radius = 18f });
+            lights.Add(AssetLight.Lantern(hang) with { Intensity = 110f, Radius = 18f });
         }
 
         /// <summary>A sign on a bracket out of a wall, swinging from two rings, painted with what's inside.</summary>

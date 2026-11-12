@@ -147,6 +147,33 @@ namespace Dino_Defenders.UI
             return lines;
         }
 
+        /// <summary>How far a docked window keeps from the edges of the screen.</summary>
+        public const float Gutter = 16f;
+
+        /// <summary>How much of the bottom of the screen a docked window leaves to the action bar and the half-moon beside it.</summary>
+        public const float BarClearance = 160f;
+
+        /// <summary>
+        /// Stands a window on the left of the screen, which is where everything that's opened goes: a merchant's table, the stash, a book, an elder. The hero and their pack are always on the right
+        /// (<see cref="HeroPanel"/>), so whatever is open, a player always knows which side is theirs.
+        /// </summary>
+        public static void DockLeft(GuiElement window, float width, bool fullHeight = true)
+        {
+            window.Anchor = Anchor.TopLeft;
+            window.Margin = new Thickness(Gutter, Gutter, 0f, 0f);
+            window.Width = width;
+            if (fullHeight) window.Height = UIValue.Relative(1f, -(Gutter + BarClearance));
+        }
+
+        /// <summary>Stands a window on the right of the screen, which only the hero's own panel does.</summary>
+        public static void DockRight(GuiElement window, float width)
+        {
+            window.Anchor = Anchor.TopRight;
+            window.Margin = new Thickness(0f, Gutter, Gutter, 0f);
+            window.Width = width;
+            window.Height = UIValue.Relative(1f, -(Gutter + BarClearance));
+        }
+
         public static Label Heading(string text, float size = 22f)
         {
             return new Label(text) { Font = Face, FontSize = size, Color = Gold };
