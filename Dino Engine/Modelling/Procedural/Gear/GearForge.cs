@@ -12,6 +12,17 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         /// <summary>How a piece of armour is made, which its look decides when its name doesn't (<see cref="GearForm.Make"/>): for a lab, and one day for a crafting bench to show.</summary>
         public static GearMake MakeOf(in GearSpec spec) => new ArmourKit(new GearLook(spec)).Make;
 
+        /// <summary>
+        /// A necklace as it's worn: its pendant where it hangs at the origin, as always, and its chain along <paramref name="strands"/> rather than round in a loop, laid over whatever's on the chest
+        /// (<see cref="Character.Outfit.Necklace"/>).
+        /// </summary>
+        public static GearMesh Worn(in GearSpec spec, IReadOnlyList<IReadOnlyList<OpenTK.Mathematics.Vector3>> strands, Dictionary<string, int>? costs = null)
+        {
+            var mesh = new GearMesh { Costs = costs, Parts = costs != null ? new() : null };
+            JewelGenerator.Amulet(mesh, new GearLook(spec), strands);
+            return mesh;
+        }
+
         /// <summary>The same, counting what each part of it cost in triangles into <paramref name="costs"/> (<see cref="GearMesh.Costs"/>).</summary>
         public static GearMesh Make(in GearSpec spec, Dictionary<string, int>? costs)
         {

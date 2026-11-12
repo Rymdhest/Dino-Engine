@@ -52,6 +52,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public int VertexCount => _vertices.Count;
         public int TriangleCount => _indices.Count / 3;
         public IReadOnlyList<Vertex> Vertices => _vertices;
+        public IReadOnlyList<int> Indices => _indices;
 
         /// <summary>When it's set, what each named part of a piece cost in triangles (<see cref="Counted"/>), for finding what to make cheaper: GearLab's check names the dearest parts of anything over its budget.</summary>
         public Dictionary<string, int>? Costs;

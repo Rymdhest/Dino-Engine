@@ -177,7 +177,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 else
                 {
                     mesh.Mark("fur cuff");
-                    mesh.At(Matrix4.CreateRotationZ(MathF.PI / 2f) * Matrix4.CreateTranslation(x, BodyForm.Shoulder, 0f), () => mesh.Lathe(Section.Round(14), 0.06f, 2, s => r * (0.96f + 0.08f * MathF.Sin(s * MathF.PI)), kit.C.Fur, capStart: false, capEnd: false));
+                    // From the cuff's top down towards the wrist, on either hand, so it stays inside how far up the cuff may come.
+                    mesh.At(Matrix4.CreateRotationZ(-side * MathF.PI / 2f) * Matrix4.CreateTranslation(x, BodyForm.Shoulder, 0f), () => mesh.Lathe(Section.Round(14), 0.06f, 2, s => r * (0.96f + 0.08f * MathF.Sin(s * MathF.PI)), kit.C.Fur, capStart: false, capEnd: false));
                 }
             }
             if (kit.Make == GearMake.Silk && look.Ornament > 0.3f)

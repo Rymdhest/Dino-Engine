@@ -233,7 +233,43 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         private static VertexMaterial Metal(GearLook look) => look.Legendary || look.Craft > 0.45f ? look.Colours.Precious : look.Colours.Fitting;
 
         /// <summary>An amulet hanging from its chain, its front towards +z, the chain rising round a neck above it.</summary>
-        public static void Amulet(GearMesh mesh, GearLook look)
+        /// <param name="strands">Where its chain goes when it's worn, from where the pendant hangs, laid over whatever's there (Outfit.Necklace); nothing for the loop it's shown on alone.</param>
+        /// <summary>How far off what it lies on a chain's or a thong's middle is, at most: half a link's width, and its wire.</summary>
+        public const float StrandLies = 0.042f * 1.25f * 0.5f + 0.042f * 1.25f * 0.22f;
+
+        // A thong of leather, or links each a small oval turned a quarter from the one before, along a spine. Up is what starts the thong's frame, square to where it first goes.
+        private static void Strand(GearMesh mesh, IReadOnlyList<Vector3> spine, bool cord, float link, GearColours c, VertexMaterial metal, Vector3 up)
+        {
+            if (cord)
+            {
+                mesh.Sweep(Section.Round(5), spine, _ => new Vector2(0.011f), c.Strap, up, false, false);
+                return;
+            }
+            float wire = link * 0.22f;
+            float run = 0f, next = 0f;
+            int index = 0;
+            for (int i = 1; i < spine.Count; i++)
+            {
+                float step = (spine[i] - spine[i - 1]).Length;
+                while (next <= run + step && index < 60)
+                {
+                    float t = step > 1e-6f ? (next - run) / step : 0f;
+                    Vector3 at = Vector3.Lerp(spine[i - 1], spine[i], t);
+                    Vector3 along = (spine[i] - spine[i - 1]).Normalized();
+                    Vector3 across = Vector3.Cross(along, index % 2 == 0 ? Vector3.UnitZ : Vector3.UnitX);
+                    if (across.LengthSquared < 1e-6f) across = Vector3.Cross(along, Vector3.UnitY);
+                    across.Normalize();
+                    Vector3 face = Vector3.Cross(along, across);
+                    mesh.At(GearMesh.Basis(at, across, face, along), () => mesh.Hoop(Section.Round(4), link * 0.5f, wire, wire, 8, metal));
+                    next += link * 0.82f;
+                    index++;
+                }
+                run += step;
+            }
+        }
+
+        /// <param name="strands">Where its chain goes when it's worn, from where the pendant hangs, laid over whatever's there (Outfit.Necklace); nothing for the loop it's shown on alone.</param>
+        public static void Amulet(GearMesh mesh, GearLook look, IReadOnlyList<IReadOnlyList<Vector3>>? strands = null)
         {
             Genes genes = look.Genes;
             GearForm form = look.Spec.Form;
@@ -251,39 +287,12 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 float front = 0.5f + 0.5f * MathF.Cos(angle);
                 path.Add(new Vector3(MathF.Sin(angle) * neckWide, drop * (1f - MathF.Pow(front, 2.4f)), MathF.Cos(angle) * neckWide * 0.72f - neckWide * 0.72f));
             }
-            List<Vector3> spine = Spine.Through(path, 64);
+            float link = genes.Range("link", 0.028f, 0.042f) * (0.85f + 0.4f * look.Heft);
 
             mesh.Counted("chain", () =>
             {
-                if (cord)
-                {
-                    // A thong of leather, knotted where it holds the pendant.
-                    mesh.Sweep(Section.Round(5), spine, _ => new Vector2(0.011f), c.Strap, Vector3.UnitY, false, false);
-                    return;
-                }
-                // Links, each a small oval turned a quarter from the one before.
-                float link = genes.Range("link", 0.028f, 0.042f) * (0.85f + 0.4f * look.Heft);
-                float wire = link * 0.22f;
-                float run = 0f, next = 0f;
-                int index = 0;
-                for (int i = 1; i < spine.Count; i++)
-                {
-                    float step = (spine[i] - spine[i - 1]).Length;
-                    while (next <= run + step && index < 60)
-                    {
-                        float t = step > 1e-6f ? (next - run) / step : 0f;
-                        Vector3 at = Vector3.Lerp(spine[i - 1], spine[i], t);
-                        Vector3 along = (spine[i] - spine[i - 1]).Normalized();
-                        Vector3 across = Vector3.Cross(along, index % 2 == 0 ? Vector3.UnitZ : Vector3.UnitX);
-                        if (across.LengthSquared < 1e-6f) across = Vector3.Cross(along, Vector3.UnitY);
-                        across.Normalize();
-                        Vector3 face = Vector3.Cross(along, across);
-                        mesh.At(GearMesh.Basis(at, across, face, along), () => mesh.Hoop(Section.Round(4), link * 0.5f, wire, wire, 8, metal));
-                        next += link * 0.82f;
-                        index++;
-                    }
-                    run += step;
-                }
+                if (strands == null) Strand(mesh, Spine.Through(path, 64), cord, link, c, metal, Vector3.UnitY);
+                else foreach (IReadOnlyList<Vector3> strand in strands) Strand(mesh, strand, cord, link, c, metal, Vector3.UnitZ);
             });
 
             float size = genes.Around("size", 0.08f + form.Size * 0.08f, 0.015f) * (0.9f + 0.4f * look.Heft) * (look.Legendary ? 1.2f : 1f);

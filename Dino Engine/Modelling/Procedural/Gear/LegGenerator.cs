@@ -434,6 +434,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     return (leg.At(low + (top - low) * v, angle, 0.012f), Cover.Out(angle));
                 }, 6, 5, 0.024f, (_, _) => boiled, PlateEdge.All, 0.02f, underside: kit.ShellDark, rollMaterial: edge);
             }
+            leg.KeepToSide(mesh, first, GearFit.SideCover);
             mesh.SkinBy(leg.Skin, first);
         }
 

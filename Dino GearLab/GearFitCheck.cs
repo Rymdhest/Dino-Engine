@@ -25,6 +25,7 @@ namespace Dino_GearLab
             failures += Check(GearKind.Feet, count, Feet);
             failures += Check(GearKind.Hands, count, Hands);
             failures += Check(GearKind.OffHand, count, Held, Placed, Wraps);
+            failures += Necklaces(count);
             Console.WriteLine(failures == 0 ? "All fit" : $"{failures} failed");
             return failures == 0 ? 0 : 1;
         }
@@ -73,6 +74,69 @@ namespace Dino_GearLab
                 Console.WriteLine($"          {f.pieces,4} {why}, by up to {f.worst * 100f:0.0} cm (worst: seed {f.seed}, {f.part}, at {f.at.X:0.000}, {f.at.Y:0.000}, {f.at.Z:0.000}); in {from}");
             }
             return bad == 0 ? 0 : 1;
+        }
+
+        // A necklace worn over what's on the body, and on a bare chest one time in four: nothing of it goes into what it lies on, but the ends of its strands over armour, which go in under
+        // what's round the neck, above where a pendant could reach.
+        private static int Necklaces(int count)
+        {
+            int bad = 0, bareBad = 0;
+            float worst = 0f;
+            string worstAt = "";
+            for (int i = 0; i < count; i++)
+            {
+                GearSpec neck = GearCheck.Sample(GearKind.Neck, (ulong)i * 2654435761UL + 11, i);
+                bool bare = i % 4 == 0;
+                GearMesh? chest = bare ? null : GearForge.Make(GearCheck.Sample(GearKind.Body, (ulong)i * 2246822519UL + 3, i));
+                GearMesh worn = Dino_Engine.Modelling.Procedural.Character.Outfit.Necklace(neck, chest, new Dictionary<string, int>());
+                var field = new FrontField(-0.5f, 0.5f, 3f, 4.2f, 0.01f, (_, _) => float.NegativeInfinity);
+                if (chest != null) field.Add(chest);
+                float deepest = 0f;
+                Vector3 at = default;
+                foreach (Dino_Engine.Modelling.Model.Vertex vertex in worn.Vertices)
+                {
+                    Vector3 p = vertex.position;
+                    float into = 0f;
+                    if (chest != null && p.Y < 3.76f) into = MathF.Max(into, field.At(p.X, p.Y) - 0.012f - p.Z);
+                    into = MathF.Max(into, IntoBareBody(p));
+                    if (into <= deepest) continue;
+                    deepest = into;
+                    at = p;
+                }
+                if (deepest <= Slack) continue;
+                bad++;
+                if (bare) bareBad++;
+                if (deepest <= worst) continue;
+                worst = deepest;
+                worstAt = $"seed {neck.Seed} {(bare ? "on a bare chest" : "over a body")} at {at.X:0.000}, {at.Y:0.000}, {at.Z:0.000}, {PartOf(worn, Index(worn, at))}";
+            }
+            Console.WriteLine($"  {(bad == 0 ? "ok  " : "FAIL")}  Neck   {count} worn, {bad} into what they lie on{(bad > 0 ? $" ({bareBad} on a bare chest), by up to {worst * 100f:0.0} cm ({worstAt})" : "")}");
+            return bad == 0 ? 0 : 1;
+        }
+
+        private static int Index(GearMesh mesh, Vector3 at)
+        {
+            for (int v = 0; v < mesh.VertexCount; v++) if (mesh.Vertices[v].position == at) return v;
+            return 0;
+        }
+
+        // How far into a bare body a point is: its torso as BodyForm has it, and its neck.
+        private static float IntoBareBody(Vector3 p)
+        {
+            float into = 0f;
+            if (p.Y > 2f && p.Y < 4.06f)
+            {
+                float t = BodyForm.Torso(p.Y), d = t * BodyForm.Depth;
+                float a = p.X / t, b = p.Z / d;
+                float r = MathF.Sqrt(a * a + b * b);
+                if (r < 1f) into = (1f - r) * d;
+            }
+            if (p.Y > 3.8f && p.Y < 4.14f)
+            {
+                float r = MathF.Sqrt(p.X * p.X + (p.Z + 0.03f) * (p.Z + 0.03f));
+                if (r < 0.17f) into = MathF.Max(into, 0.17f - r);
+            }
+            return into;
         }
 
         // The innermost named part that made a vertex.

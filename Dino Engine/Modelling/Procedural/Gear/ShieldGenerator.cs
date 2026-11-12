@@ -198,7 +198,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             if (tall > wide * 2.6f) mesh.Counted("bands", () => Bands(mesh, genes.Part("bands"), c, WidthAt, On, Normal, tall, Low));
             if (look.Legendary) mesh.Counted("flourish", () => Flourish(mesh, genes.Part("flourish"), look, c, wide, WidthAt, On, Normal, tall, Low, bossed));
             // Where the hand goes: far enough behind the board that nothing on the forearm or the fist meets it, where they lie across it. Everything moves so that's the origin.
-            float hand = Bowed(GearFit.ShieldArmRoom) - thick - GearFit.ShieldStandoff;
+            // The rim comes nearer still where it crosses the top of a short shield, over the forearm, when it's thicker than the board.
+            float rimDepth = MathF.Max(rim * 0.8f, thick * 1.1f);
+            float hand = MathF.Min(Bowed(GearFit.ShieldArmRoom) - thick, Bowed(0f) - rimDepth) - GearFit.ShieldStandoff;
             mesh.Counted("grip", () => Grip(mesh, genes.Part("grip"), c, x => Bowed(x) - thick, hand, wide, bossed));
             mesh.Transform(Matrix4.CreateTranslation(0f, 0f, -hand));
         }

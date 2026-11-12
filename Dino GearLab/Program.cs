@@ -105,12 +105,17 @@ namespace Dino_GearLab
             var render = new SoftRender(width * shrink, height * shrink);
             Vector3 background = new Vector3(0.05f, 0.045f, 0.04f);
             float heavy = options.Float("heavy", 0f), leather = options.Float("leather", 0f), cloth = options.Float("cloth", 0f);
+            // What's left off, as --without Body,Head, and a necklace put on with --neck true.
+            var without = options.Text("without", "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(name => Enum.Parse<GearKind>(name, ignoreCase: true)).ToHashSet();
+            var kinds = new List<GearKind> { GearKind.Head, GearKind.Body, GearKind.Legs, GearKind.Feet, GearKind.Hands };
+            if (options.Text("neck", "false") == "true") kinds.Add(GearKind.Neck);
 
             for (int i = 0; i < count; i++)
             {
                 var worn = new List<(GearSpec, float)>();
-                foreach (GearKind kind in new[] { GearKind.Head, GearKind.Body, GearKind.Legs, GearKind.Feet, GearKind.Hands })
+                foreach (GearKind kind in kinds)
                 {
+                    if (without.Contains(kind)) continue;
                     var form = new GearForm(options.Float("size", 0.55f), options.Float("slender", 0.45f), options.Float("curve", 0.3f), options.Float("cover", 0.5f), options.Float("fancy", 0.45f), options.Float("worn", 0.15f));
                     worn.Add((new GearSpec((ulong)(seed * 100000 + i * 16 + (int)kind + 1), kind, heavy, leather, cloth, form, options.Int("grade", 2), GearTheme.None), -1f));
                 }
